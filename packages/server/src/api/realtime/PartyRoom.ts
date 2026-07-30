@@ -177,6 +177,43 @@ export class PartyRoom {
    */
   sendToRoom: (roomKey: string, message: ServerMessage) => Promise<void> = async () => {};
 
+  /**
+   * Pushes one hero's freshly written personal quest progress to one `WorldRoom` (Task 7 — port of
+   * legacy `GameSession.#pushPersonalQuestProgress`'s per-room RPC). The write is already
+   * epoch-fenced in D1 before this best-effort UI push; the room applies it only to that hero's
+   * live runtime. Same reassignable-seam shape as `pushToRoom`.
+   */
+  pushPersonalToRoom: (
+    roomKey: string,
+    heroId: string,
+    progress: Readonly<Record<string, AuthoredQuestProgress>>,
+  ) => Promise<void> = async () => {};
+
+  /** Fan one hero's personal progress out to every registered room (legacy
+   *  `#pushPersonalQuestProgress`); rejections are logged per room, never rethrown. */
+  protected async pushPersonalProgress(
+    partyId: string,
+    state: PartyRoomState,
+    heroId: string,
+    progress: Readonly<Record<string, AuthoredQuestProgress>>,
+  ): Promise<void> {
+    const results = await Promise.allSettled(
+      [...state.rooms].map((roomKey) => this.pushPersonalToRoom(roomKey, heroId, progress)),
+    );
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error(
+          JSON.stringify({
+            event: "personal_quest_progress_push_failed",
+            partyId,
+            heroId,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          }),
+        );
+      }
+    }
+  }
+
   room = $room({
     channel: this.realtimeChannels.partyChannel,
     state: (): PartyRoomState => ({
@@ -411,12 +448,19 @@ export class PartyRoom {
           personalPinnedIndexes.get(actor.heroId) ?? buildQuestObjectiveIndex([]),
         savePersonal: async (actor, questId, progress) => {
           try {
-            return await this.adventureStateService.savePersonalQuestProgress({
+            const saved = await this.adventureStateService.savePersonalQuestProgress({
               heroId: actor.heroId,
               sessionEpoch: actor.sessionEpoch,
               questId,
               progress,
             });
+            if (saved) {
+              const pushed = await this.adventureStateService.loadPersonalQuestProgress(
+                actor.heroId,
+              );
+              await this.pushPersonalProgress(partyId, state, actor.heroId, pushed);
+            }
+            return saved;
           } catch (error) {
             // One failed hero write must not hide another hero's successful transition. The failed
             // row simply remains eligible next event.
@@ -489,6 +533,10 @@ export class PartyRoom {
           progress: accepted,
         });
         if (!saved) return { ok: false, reason: "fence" };
+        await this.pushPersonalProgress(partyId, state, actor.heroId, {
+          ...personal,
+          [questId]: accepted,
+        });
       }
       return { ok: true, progress: accepted };
     });
@@ -530,6 +578,10 @@ export class PartyRoom {
           progress: abandoned,
         });
         if (!saved) return { ok: false, reason: "fence" };
+        await this.pushPersonalProgress(partyId, state, actor.heroId, {
+          ...personal,
+          [questId]: abandoned,
+        });
       }
       return { ok: true, progress: abandoned };
     });
@@ -700,6 +752,8 @@ export class PartyRoom {
       if (!claimed) return { ok: false, reason: "fence" };
       const partyChanged = nextPartyState !== current.state;
       if (partyChanged) await this.commitState(partyId, state, nextPartyState);
+      const pushedPersonal: Record<string, AuthoredQuestProgress> = { ...personal };
+      let personalChanged = false;
       if (definition.scope === "personal" && nextPersonal) {
         await this.adventureStateService.savePersonalQuestProgress({
           heroId: actor.heroId,
@@ -707,6 +761,8 @@ export class PartyRoom {
           questId,
           progress: nextPersonal,
         });
+        pushedPersonal[questId] = nextPersonal;
+        personalChanged = true;
       }
       if (nextChainedQuest) {
         await this.adventureStateService.savePersonalQuestProgress({
@@ -715,6 +771,11 @@ export class PartyRoom {
           questId: nextChainedQuest.questId,
           progress: nextChainedQuest.progress,
         });
+        pushedPersonal[nextChainedQuest.questId] = nextChainedQuest.progress;
+        personalChanged = true;
+      }
+      if (personalChanged) {
+        await this.pushPersonalProgress(partyId, state, actor.heroId, pushedPersonal);
       }
       return {
         ok: true,

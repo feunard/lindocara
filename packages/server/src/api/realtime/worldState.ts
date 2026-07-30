@@ -6,15 +6,22 @@
  * shared engine's (`terrainFromMap`), so the two hosts cannot bake different collision.
  */
 
-import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
+import {
+  type AdventureRegistry,
+  EMPTY_ADVENTURE_STATE,
+  EMPTY_REGISTRY,
+  type PartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
 import { type AdventureAudioConfig, resolveMapAudio } from "@lindocara/engine/audio-catalog.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import { MAP_LAYERS, terrainFromMap } from "@lindocara/engine/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
+import type { QuestEventReference } from "@lindocara/engine/quests.js";
 import { parseTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
+import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
 import type { NpcMovementRuntime } from "../../world/npc-movement-system.js";
 import type { SanctuaryRuntime } from "../../world/priest-variant-system.js";
@@ -36,6 +43,19 @@ import type { MapPayload } from "../services/MapService.ts";
  * cannot be imported): rooms are small while a human is drawing them.
  */
 const MAP_MAX_PLAYERS = 16;
+
+/**
+ * A standard quest conversation opened by the interact key near a quest-bound `action` event —
+ * port of legacy `world.ts`'s `PendingQuestConversation`. One per hero at most; the id fences a
+ * stale `quest.action` from an already-closed panel.
+ */
+export interface PendingQuestConversation {
+  readonly id: string;
+  readonly heroId: string;
+  readonly target: QuestEventReference;
+  readonly questIds: ReadonlySet<string>;
+  resolved: boolean;
+}
 
 /** `partyId:mapId`, both server-minted uuids — the only roomId shape a world room accepts. */
 export interface ParsedWorldRoomId {
@@ -159,8 +179,37 @@ export interface WorldRoomState {
   /** Which authored exit each hero currently occupies (legacy `#occupiedExitByPlayerId`). */
   occupiedExitByPlayerId: Map<string, string>;
   tick: number;
-  /** The party coordinator's read-only snapshot — stub storage until Task 7 evaluates it. */
-  adventureState: { state: PartyAdventureState | null; version: number };
+  /**
+   * The party coordinator's read-only adventure-state snapshot plus the monotone version rooms use
+   * to drop out-of-order pushes (Task 7). Pulled from `PartyRoom.getAdventureState` at state
+   * creation (the hibernation-restore precedent: the coordinator's held copy, never D1 directly),
+   * then kept fresh by `installAdventureState` pushes. The room NEVER mutates the state itself —
+   * it is single-writer, owned by the coordinator.
+   */
+  adventureState: { state: PartyAdventureState; version: number };
+  /** The adventure's switch/variable/quest registry, pulled beside the state snapshot. */
+  adventureRegistry: AdventureRegistry;
+  /** The room's live event runs: one-run-per-event lock, budgeted drain, buffered dialogue. */
+  eventRuns: EventRunRuntime;
+  /** Open standard quest panels, one per hero at most (legacy `#questConversations`). */
+  questConversations: Map<string, PendingQuestConversation>;
+  /**
+   * A mutation batch whose coordinator push has not completed yet. Simulation keeps ticking while
+   * this is set, but event runs pause so their next drain cannot seed its working copy from a
+   * stale pre-mutation snapshot and replay non-idempotent `add` operations.
+   */
+  eventStateSync: Promise<void> | null;
+  /** Per-hero item-mutation serialization (the potion decrement chain, legacy `#itemMutations`). */
+  itemMutations: Map<string, Promise<number | null>>;
+  /** (eventId, reason) pairs already logged for a refused authored teleport — warn once, never
+   *  per tick (legacy `#teleportRefusalsLogged`). */
+  teleportRefusalsLogged: Set<string>;
+  /** (eventId, itemId, reason) triples for refused authored `changeItems` (legacy dedupe). */
+  itemRefusalsLogged: Set<string>;
+  /** (eventId, reason) pairs for refused authored `changeGold` (legacy dedupe). */
+  goldRefusalsLogged: Set<string>;
+  /** Latches an authored `endAdventure` so a `loop { endAdventure }` completes the party once. */
+  adventureEndDispatched: boolean;
   /**
    * Per-hero save serialization, keyed by heroId — port of legacy `persistence-system.ts`'s
    * `pendingSaves` (there, a `World`-instance field; here, per-room state, since a hero belongs to
@@ -210,7 +259,16 @@ export function createWorldRoomState(
     npcMovement: new Map(),
     occupiedExitByPlayerId: new Map(),
     tick: 0,
-    adventureState: { state: null, version: -1 },
+    adventureState: { state: EMPTY_ADVENTURE_STATE, version: 0 },
+    adventureRegistry: EMPTY_REGISTRY,
+    eventRuns: createEventRunRuntime(),
+    questConversations: new Map(),
+    eventStateSync: null,
+    itemMutations: new Map(),
+    teleportRefusalsLogged: new Set(),
+    itemRefusalsLogged: new Set(),
+    goldRefusalsLogged: new Set(),
+    adventureEndDispatched: false,
     pendingSaves: new Map(),
   };
 }

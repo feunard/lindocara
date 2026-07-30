@@ -31,7 +31,11 @@
  * brief sanctions for α.
  */
 
-import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
+import type {
+  AdventureRegistry,
+  AuthoredQuestProgress,
+  PartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
 import {
   type AdventureAudioConfig,
   DEFAULT_ADVENTURE_AUDIO,
@@ -47,7 +51,6 @@ import {
   type ClientMessage,
   parseClientMessage,
   type ServerMessage,
-  type WorldEventSnapshot,
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
 import { NO_INPUT, PLAYER_SIZE, TICK_HZ } from "@lindocara/engine/simulation.js";
@@ -55,8 +58,8 @@ import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
 import type { ZoneLocation } from "@lindocara/engine/zones.js";
-import { $hook, $inject } from "alepha";
-import { $repository } from "alepha/orm";
+import { $hook, $inject, z } from "alepha";
+import { $repository, sql } from "alepha/orm";
 import {
   $room,
   type ChannelPrimitive,
@@ -64,10 +67,11 @@ import {
   type RoomContext,
   type RoomPrimitiveOptions,
 } from "alepha/websocket";
+import type { AuthoredQuestChange } from "../../authored-quest-system.js";
 import { addPlayer, isRateLimited, removePlayer } from "../../world/connection-system.js";
+import { abortRunsForHero } from "../../world/event-run-system.js";
 import type { InterestSystemContext } from "../../world/interest-system.js";
 import { worldView } from "../../world/interest-system.js";
-import { selfState } from "../../world/snapshot-system.js";
 import {
   combatCooldownsFromPlayer,
   MAX_FRAME_BYTES,
@@ -80,15 +84,26 @@ import {
 } from "../../world/world-runtime.js";
 import { adventures } from "../entities/adventures.ts";
 import { parties } from "../entities/parties.ts";
+import { AdventureStateService } from "../services/AdventureStateService.ts";
 import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { HeroEpochService } from "../services/HeroEpochService.ts";
 import { type HeroSaveResult, HeroSaveService } from "../services/HeroSaveService.ts";
 import { MapService } from "../services/MapService.ts";
 import { AdmissionService } from "./AdmissionService.ts";
 import { RealtimeChannels } from "./channels.ts";
-import { PartyRoom } from "./PartyRoom.ts";
+import {
+  PartyRoom,
+  type QuestAbandonResult,
+  type QuestAcceptanceResult,
+  type QuestTurnInResult,
+} from "./PartyRoom.ts";
 import { PresenceRoom } from "./PresenceRoom.ts";
 import { frameByteLength } from "./wire.ts";
+import {
+  abortRunsForStalePages,
+  evaluateActiveEvents,
+  logTeleportRefusedOnce,
+} from "./worldEvents.ts";
 import {
   createWorldRoomState,
   locationFromMapPayload,
@@ -100,12 +115,20 @@ import {
   finishHeldPlayerAction,
   handleBuyConsumable,
   handleChat,
+  handleEventAdvance,
+  handleEventChoose,
   handleInteract,
+  handleQuestAbandon,
+  handleQuestAction,
+  handleQuestChanges,
   handleRelease,
   handleTalentReset,
   handleTalentUnlock,
   handleUseConsumable,
+  recordMapEntered,
+  selfStateFor,
   sendResyncTo,
+  sendStateTo,
   startPlayerAction,
   type WorldGlue,
 } from "./worldTick.ts";
@@ -115,8 +138,7 @@ import {
  *  lease, and the beat on which it re-registers itself in the party directory. */
 export const PRESENCE_HEARTBEAT_MS = 10_000;
 
-/** Task 7 evaluates authored event pages; until then a room's active-event set is always empty. */
-const NO_EVENTS: readonly WorldEventSnapshot[] = [];
+const PARTY_ID_ROW_SCHEMA = z.object({ id: z.uuid() });
 
 type WorldSchemas =
   RealtimeChannels["worldChannel"] extends ChannelPrimitive<infer TIn, infer TOut>
@@ -136,6 +158,7 @@ export class WorldRoom {
   admissionService = $inject(AdmissionService);
   heroEpochService = $inject(HeroEpochService);
   heroSaveService = $inject(HeroSaveService);
+  adventureStateService = $inject(AdventureStateService);
   mapService = $inject(MapService);
 
   parties = $repository(parties);
@@ -157,7 +180,12 @@ export class WorldRoom {
     onEmpty: (room) => this.handleEmpty(room),
     methods: {
       installAdventureState: (room, state: PartyAdventureState, version: number) =>
-        this.installAdventureState(room.state, state, version),
+        this.installAdventureState(room, state, version),
+      installPersonalQuestProgress: (
+        room,
+        heroId: string,
+        progress: Readonly<Record<string, AuthoredQuestProgress>>,
+      ) => this.installPersonalQuestProgress(room, heroId, progress),
     },
   };
 
@@ -177,6 +205,9 @@ export class WorldRoom {
       this.partyRoom.sendToRoom = async (roomKey, message) => {
         await this.room.broadcast(roomKey, message);
       };
+      this.partyRoom.pushPersonalToRoom = async (roomKey, heroId, progress) => {
+        await this.room.call(roomKey, "installPersonalQuestProgress", heroId, progress);
+      };
     },
   });
 
@@ -184,9 +215,13 @@ export class WorldRoom {
   // State
   // -----------------------------------------------------------------------------------------------
 
-  /** Loads the room's map from D1 and bakes its geometry. A malformed roomId or unloadable map
-   *  yields a `location: null` state whose every join is refused 4007 — never a throw, which would
-   *  close the socket 1011 without the close-code vocabulary the client reconnects on. */
+  /** Loads the room's map from D1 and bakes its geometry, then pulls the party coordinator's held
+   *  adventure state + registry and evaluates the map's event pages against it (the legacy
+   *  hibernation-restore pull: the coordinator's copy, never D1 directly, since the coordinator is
+   *  the single writer). A malformed roomId or unloadable map yields a `location: null` state
+   *  whose every join is refused 4007 — never a throw, which would close the socket 1011 without
+   *  the close-code vocabulary the client reconnects on. A failed state pull degrades to the empty
+   *  snapshot so always-on event pages still hold. */
   protected async createState(roomId: string): Promise<WorldRoomState> {
     const parsed = parseWorldRoomId(roomId);
     let location: ZoneLocation | null = null;
@@ -201,7 +236,22 @@ export class WorldRoom {
         this.logError("world_room_map_load_failed", error, { roomId });
       }
     }
-    return createWorldRoomState(roomId, parsed, location);
+    const state = createWorldRoomState(roomId, parsed, location);
+    if (parsed && location) {
+      try {
+        const held = (await this.partyRoom.room.call(parsed.partyId, "getAdventureState")) as {
+          state: PartyAdventureState;
+          version: number;
+          registry: AdventureRegistry;
+        };
+        state.adventureState = { state: held.state, version: held.version };
+        state.adventureRegistry = held.registry;
+      } catch (error) {
+        this.logError("world_adventure_state_restore_failed", error, { roomId });
+      }
+      evaluateActiveEvents(state);
+    }
+    return state;
   }
 
   protected async adventureAudioForParty(partyId: string): Promise<AdventureAudioConfig> {
@@ -291,6 +341,17 @@ export class WorldRoom {
       join.heroId,
       state.location.definition.terrain,
     );
+    if (profile) {
+      // Personal authored-quest progress rides the hero, loaded beside the profile (legacy
+      // `world.ts:614`); a failed read degrades to an empty journal, never a refused join.
+      try {
+        profile.authoredQuestProgress = await this.adventureStateService.loadPersonalQuestProgress(
+          join.heroId,
+        );
+      } catch (error) {
+        this.logError("personal_quest_progress_load_failed", error, { heroId: join.heroId });
+      }
+    }
     if (
       !profile ||
       profile.sessionEpoch !== acquired.sessionEpoch ||
@@ -368,16 +429,26 @@ export class WorldRoom {
         this.logError("party_room_register_failed", error, { roomId: room.roomId }),
       );
 
+    // Arrival is a gameplay fact, not a client claim (legacy `world.ts:852`).
+    const w = this.glue(room);
+    recordMapEntered(w, player);
+
+    // Join-time page evaluation: re-derive the active events against whatever snapshot the room
+    // holds — on install and on join, never per tick (legacy `world.ts:862`).
+    evaluateActiveEvents(state);
+
     const view = worldView(this.interestContext(state), player);
     replaceWorldCache(player.network, view);
-    seedEventCache(player.network, [...NO_EVENTS]);
+    // Seed this recipient's events baseline to the full active set so its first `world.delta`
+    // diffs against what the welcome actually carried, not an empty cache.
+    seedEventCache(player.network, state.activeEvents);
     this.send(room, conn.id, {
       t: "welcome",
       tick: state.tick,
       selfId: join.heroId,
-      world: this.worldInfo(state.location),
+      world: this.worldInfo(state.location, state),
       ...view,
-      self: selfState(player),
+      self: selfStateFor(w, player),
     });
     this.send(room, conn.id, { t: "event", code: "wake", tone: "info" });
   }
@@ -428,11 +499,9 @@ export class WorldRoom {
   /**
    * The full intent surface, mirroring legacy `#handleMessage`'s arm ORDER (`world.ts:1741-1910`)
    * — the order is load-bearing: journal/dialogue intents stay reachable while downed, everything
-   * physical sits behind the `canAct` gate, and chat is the one thing a spirit keeps. The authored
-   * quest/dialogue intents (`quest.abandon`, `quest.action`, `event.advance`, `event.choose`) land
-   * with the interpreter in Task 7 and are deliberately ignored (never an error) until then; the
-   * legacy runtime-party `party.*` mechanic is rollback-only and refused for heroes exactly as
-   * legacy refuses it.
+   * physical sits behind the `canAct` gate, and chat is the one thing a spirit keeps. The legacy
+   * runtime-party `party.*` mechanic is rollback-only and refused for heroes exactly as legacy
+   * refuses it.
    */
   protected dispatch(
     room: WorldRoomHandle,
@@ -501,7 +570,15 @@ export class WorldRoom {
     if (message.t === "item.use") {
       return handleUseConsumable(w, connectionId, player, message.item);
     }
-    // Task 7: `quest.abandon`, `quest.action`, `event.advance`, `event.choose` slot in here.
+    // Journal management is not a physical world action and remains available while downed.
+    if (message.t === "quest.abandon") {
+      return handleQuestAbandon(w, connectionId, player, message.questId);
+    }
+    // Closing the quest panel is journal management too: a hero downed mid-conversation must never
+    // be stuck behind a panel no click can dismiss (other quest.actions stay gated on canAct below).
+    if (message.t === "quest.action" && message.action === "close") {
+      return handleQuestAction(w, connectionId, player, message);
+    }
     // The dead act only through the explicit non-physical exits above. Chat is the one thing a
     // spirit keeps in the room.
     if (message.t !== "chat" && !canAct(player.life)) return;
@@ -517,6 +594,20 @@ export class WorldRoom {
           return this.checkpointCooldownsOrReject(room, state, connectionId, player);
         }
       });
+    }
+    if (message.t === "quest.action") {
+      return handleQuestAction(w, connectionId, player, message);
+    }
+    // The two dialogue intents (cheap intents, the connection window cost class). Both are
+    // validated hero==triggerer inside `advanceRun`/`chooseRun`, and `chooseRun` re-derives and
+    // range-checks the option from the live pending offer; a stray intent, or a wrong index, drops.
+    if (message.t === "event.advance") {
+      handleEventAdvance(w, player, message.runId);
+      return;
+    }
+    if (message.t === "event.choose") {
+      handleEventChoose(w, player, message.runId, message.index);
+      return;
     }
     if (message.t === "use") {
       return handleUseConsumable(w, connectionId, player, "health_potion");
@@ -681,12 +772,10 @@ export class WorldRoom {
 
   /**
    * Binds the room handle to the seams `worldTick.ts` runs on. `savePlayer` is Task 6's real
-   * `HeroSaveService`-backed fenced save. The `claimQuestReward`/`consumePotion` members remain
-   * deliberate stubs — port of the legacy idempotent quest-chapter reward claim and the D1-backed
-   * potion decrement — since no in-game path yet exercises them; `claimQuestReward` reports
-   * already-claimed and `consumePotion` decrements the in-memory count only, matching the plan's
-   * "acceptable if no in-game path exists yet" allowance (see the Task 6 report). The event-run
-   * drain (Task 7) and the adventure-exit transition (Task 8) remain no-ops.
+   * `HeroSaveService`-backed fenced save; Task 7 made `claimQuestReward`/`consumePotion` real
+   * (`HeroSaveService.claimQuestReward`/`consumeItem`, replacing the ledger-flagged stubs), wired
+   * the coordinator's mutation/quest RPCs and the cheat gate. Only the adventure-exit transition
+   * and the authored cross-map teleport remain Task-8 stubs.
    */
   protected glue(room: WorldRoomHandle): WorldGlue {
     const state = room.state;
@@ -702,6 +791,7 @@ export class WorldRoom {
         savePlayer: (player, connectionId) => this.savePlayer(room, state, player, connectionId),
         presenceHeartbeatMs: PRESENCE_HEARTBEAT_MS,
         navigationDebugAvailable: process.env.NAVIGATION_DEBUG === "true",
+        cheatsEnabled: process.env.CHEATS_ENABLED === "true",
         markPermanentMonsterDefeated: (eventId) => {
           void this.partyRoom.room
             .call(state.partyId, "markPermanentMonsterDefeated", eventId)
@@ -710,9 +800,11 @@ export class WorldRoom {
             );
         },
         recordQuestEvent: (partyId, event) => {
-          // Task 7 consumes the returned quest changes for automatic reward claims.
           void this.partyRoom.room
             .call(partyId, "recordQuestEvent", event)
+            .then((changes) =>
+              handleQuestChanges(this.glue(room), event, changes as AuthoredQuestChange[]),
+            )
             .catch((error) => this.logError("authored_quest_event_failed", error, { partyId }));
         },
         broadcastToParty: (partyId, message) => {
@@ -720,17 +812,118 @@ export class WorldRoom {
             .call(partyId, "broadcastToParty", message)
             .catch((error) => this.logError("party_chat_broadcast_failed", error, { partyId }));
         },
-        drainEventRuns: () => {}, // Task 7 (the interpreter's budgeted drain).
-        transitionAdventureExit: () => {}, // Task 8 (freeze → save → handoff → 4008).
-        claimQuestReward: async () => false, // Task 6 (idempotent D1 claim).
-        consumePotion: async (player) => {
-          // Task 6 replaces this with the legacy fenced save-then-decrement D1 chain
-          // (`#consumePotion`); until then the in-memory count is the sole truth.
-          if (!player.authorized || player.inventory.potions <= 0) return null;
-          return player.inventory.potions - 1;
+        applyStateChanges: async (mutations) => {
+          await this.partyRoom.room.call(state.partyId, "applyStateChanges", mutations);
         },
+        acceptAuthoredQuest: async (partyId, actor, questId, target, inventory) =>
+          (await this.partyRoom.room.call(
+            partyId,
+            "acceptAuthoredQuest",
+            actor,
+            questId,
+            target,
+            inventory,
+          )) as QuestAcceptanceResult,
+        abandonAuthoredQuest: async (partyId, actor, questId) =>
+          (await this.partyRoom.room.call(
+            partyId,
+            "abandonAuthoredQuest",
+            actor,
+            questId,
+          )) as QuestAbandonResult,
+        completeAuthoredQuest: async (partyId, actor, questId, target, rewardChoiceId, heroState) =>
+          (await this.partyRoom.room.call(
+            partyId,
+            "completeAuthoredQuest",
+            actor,
+            questId,
+            target,
+            rewardChoiceId,
+            heroState,
+          )) as QuestTurnInResult,
+        completeAdventure: (partyId) => this.completeAdventure(partyId),
+        transitionAdventureExit: () => {}, // Task 8 (freeze → save → handoff → 4008).
+        teleportCrossMap: (_connectionId, player, mapId, col, row, _now, eventId) => {
+          // Task 8: the epoch-fenced cross-map handoff. Refusing (once, structured) keeps the run
+          // and the hero coherent; silently half-transitioning would strand both.
+          logTeleportRefusedOnce(state, eventId, "cross_map_pending_task8", {
+            heroId: player.id,
+            destinationMapId: mapId,
+            col,
+            row,
+          });
+        },
+        claimQuestReward: (player, reward) =>
+          this.heroSaveService.claimQuestReward({ heroId: player.id, ...reward }),
+        consumePotion: (player, connectionId) =>
+          this.consumePotion(room, state, player, connectionId),
       },
     };
+  }
+
+  /**
+   * Port of legacy `#consumePotion` (`world.ts:4055`): serialize per hero through
+   * `state.itemMutations`, push the room's in-memory count down FIRST (the fenced save — potions
+   * looted since the last flush exist only in memory; decrementing a stale D1 row would destroy
+   * them), then issue the fenced decrement, with one save+retry when the row was absent.
+   */
+  protected consumePotion(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    player: PlayerRuntime,
+    connectionId: string,
+  ): Promise<number | null> {
+    const previous = state.itemMutations.get(player.id) ?? Promise.resolve(null);
+    const run = async (): Promise<number | null> => {
+      if (!player.authorized || player.inventory.potions <= 0) return null;
+      if (!(await this.savePlayer(room, state, player, connectionId))) return null;
+      const consume = () =>
+        this.heroSaveService.consumeItem(player.id, player.sessionEpoch, "health_potion");
+      let remaining = await consume();
+      // Safety net: an absent or empty row (a save that never landed) still gets one retry.
+      if (remaining === null && player.inventory.potions > 0) {
+        if (!(await this.savePlayer(room, state, player, connectionId))) return null;
+        remaining = await consume();
+      }
+      return remaining;
+    };
+    const mutation = previous.then(run, run);
+    state.itemMutations.set(player.id, mutation);
+    void mutation.then(
+      () => {
+        if (state.itemMutations.get(player.id) === mutation) state.itemMutations.delete(player.id);
+      },
+      () => {
+        if (state.itemMutations.get(player.id) === mutation) state.itemMutations.delete(player.id);
+      },
+    );
+    return mutation;
+  }
+
+  /**
+   * The authored `endAdventure` completion (legacy `#dispatchEndAdventure`'s async body): flip the
+   * party's D1 save to completed (conditionally — only the FIRST completion broadcasts victory),
+   * latch the coordinator's own in-memory copy, then fan the victory out party-wide.
+   */
+  protected async completeAdventure(partyId: string): Promise<void> {
+    const rows = await this.parties.query(
+      (table) => sql`
+        UPDATE ${table}
+        SET status = 'completed', ${sql.raw(table.updatedAt.name)} = ${new Date().toISOString()}
+        WHERE ${table.id} = ${partyId} AND status != 'completed'
+        RETURNING ${table.id}
+      `,
+      PARTY_ID_ROW_SCHEMA,
+    );
+    const firstCompletion = rows.length === 1;
+    await this.partyRoom.room.call(partyId, "markPartyCompleted");
+    if (firstCompletion) {
+      await this.partyRoom.room.call(partyId, "broadcastToParty", {
+        t: "event",
+        code: "adventure.victory",
+        tone: "good",
+      });
+    }
   }
 
   /** Port of legacy `#renewPresence` + the party-directory re-registration the task brief pins to
@@ -814,22 +1007,65 @@ export class WorldRoom {
   }
 
   // -----------------------------------------------------------------------------------------------
-  // Coordinator seam (stub — Task 7 evaluates pages against it)
+  // Coordinator seams (adventure state + personal quest progress)
   // -----------------------------------------------------------------------------------------------
 
   /**
-   * The party coordinator's read-only adventure-state push. MUST never throw — `PartyRoom` awaits
-   * the push ahead of its own commit fan-out — and keeps the `>=` version guard so out-of-order
-   * pushes keep the newer snapshot. Task 7 adds page evaluation on top of the stored snapshot.
+   * The party coordinator's read-only adventure-state push (port of legacy
+   * `World.installAdventureState`, `world.ts:975`). MUST never throw — `PartyRoom` awaits the push
+   * ahead of its own commit fan-out, so a throw would block every join — and keeps the `>=`
+   * version guard (as `version < current -> drop`) so out-of-order pushes keep the newer snapshot.
+   * Installing re-derives the room's active events; the abort runs BEFORE re-evaluation so a flip
+   * that changes an event's active page kills that event's run — no zombie context keeps executing
+   * the page it was reading. Every hero then gets a fresh self snapshot (trackers/markers).
    */
   protected installAdventureState(
-    state: WorldRoomState,
+    room: WorldRoomHandle,
     adventureState: PartyAdventureState,
     version: number,
   ): void {
-    if (typeof version !== "number" || !Number.isFinite(version)) return;
-    if (version < state.adventureState.version) return;
-    state.adventureState = { state: adventureState, version };
+    try {
+      const state = room.state;
+      if (typeof version !== "number" || !Number.isFinite(version)) return;
+      if (adventureState === null || typeof adventureState !== "object") return;
+      if (version < state.adventureState.version) return;
+      state.adventureState = { state: adventureState, version };
+      abortRunsForStalePages(state);
+      evaluateActiveEvents(state);
+      const w = this.glue(room);
+      for (const [connectionId, player] of state.players) {
+        if (player.identityKind === "hero" && player.authorized) {
+          sendStateTo(w, connectionId, player);
+        }
+      }
+    } catch (error) {
+      this.logError("adventure_state_install_failed", error, { roomId: room.roomId });
+    }
+  }
+
+  /**
+   * The coordinator's per-hero personal quest-progress push (port of legacy
+   * `World.installPersonalQuestProgress`, `world.ts:1002`). The write is already epoch-fenced in
+   * D1; this is the best-effort UI refresh for the one hero it names. Never throws.
+   */
+  protected installPersonalQuestProgress(
+    room: WorldRoomHandle,
+    heroId: string,
+    progress: Readonly<Record<string, AuthoredQuestProgress>>,
+  ): void {
+    try {
+      const state = room.state;
+      if (typeof heroId !== "string" || progress === null || typeof progress !== "object") return;
+      const connectionId = state.connectionIdByHeroId.get(heroId);
+      const player = connectionId === undefined ? undefined : state.players.get(connectionId);
+      if (connectionId === undefined || !player?.authorized || player.identityKind !== "hero") {
+        return;
+      }
+      player.authoredQuestProgress = { ...progress };
+      sendStateTo(this.glue(room), connectionId, player);
+    } catch (error) {
+      this.logError("personal_quest_progress_install_failed", error, { roomId: room.roomId });
+    }
   }
 
   // -----------------------------------------------------------------------------------------------
@@ -852,7 +1088,7 @@ export class WorldRoom {
   }
 
   /** Port of the legacy welcome's `world` assembly (`world.ts:869-919`) for an authored D1 map. */
-  protected worldInfo(location: ZoneLocation): WorldInfo {
+  protected worldInfo(location: ZoneLocation, state: WorldRoomState): WorldInfo {
     const definition = location.definition;
     return {
       zoneId: location.zoneId,
@@ -865,7 +1101,8 @@ export class WorldRoom {
       elements: definition.elements ?? [],
       tilesetId: definition.tilesetId ?? TINY_SWORDS_TILESET_ID,
       layers: definition.layers ?? [],
-      events: [...NO_EVENTS],
+      // The active page of each authored event, appearance only — evaluated at join, never here.
+      events: [...state.activeEvents],
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
       width: definition.terrain.width,
       height: definition.terrain.height,
@@ -901,7 +1138,9 @@ export class WorldRoom {
   }
 
   /** Legacy `#drop`'s synchronous half: quiesce and unregister (the queue-clear on every removal
-   *  is the same invariant life transitions rely on — no half-applied command batches). */
+   *  is the same invariant life transitions rely on — no half-applied command batches). A hero
+   *  leaving also aborts every event run they triggered and closes their quest conversation
+   *  (legacy `#removePlayer`, `world.ts:6019-6023`). */
   protected removeRuntimePlayer(
     state: WorldRoomState,
     connectionId: string,
@@ -911,6 +1150,9 @@ export class WorldRoom {
     player.disconnecting = true;
     player.lastInput = NO_INPUT;
     player.queue = [];
+    state.occupiedExitByPlayerId.delete(player.id);
+    state.questConversations.delete(player.id);
+    abortRunsForHero(state.eventRuns, player.id);
     removePlayer(state.players, state.connectionIdByHeroId, state.playerGrid, connectionId, player);
   }
 

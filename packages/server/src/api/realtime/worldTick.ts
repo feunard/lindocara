@@ -6,25 +6,33 @@
  * string and fed its cross-boundary seams through {@link WorldTickDeps}.
  *
  * `advanceWorldTick` reproduces the legacy `#advanceTick` order (`world.ts:4259-4421`) verbatim:
- * consumable effects → rogue expirations (+sendState) → damage-over-time → players → npc events →
- * held-action ends → adventure exits → combat actions (players) → warrior cyclones → sanctuaries →
- * projectiles → periodic resource state → monsters → combat actions (monsters) → guards → expired
- * loot → event-run drain (Task 7 stub) → every 2nd tick deltas + party-state broadcasts → queued
- * resyncs.
+ * consumable effects → rogue expirations (+sendState) → damage-over-time → players (+player-touch
+ * triggers) → npc events → held-action ends → adventure exits → combat actions (players) → warrior
+ * cyclones → sanctuaries → projectiles → periodic resource state → monsters (+contact teleporters)
+ * → combat actions (monsters) → guards → expired loot → event-run drain → every 2nd tick deltas +
+ * party-state broadcasts → queued resyncs.
  *
- * Deliberately NOT ported here (each slot keeps its position so later tasks only fill it in):
- * - event runs, quest conversations, authored `action`/`player-touch`/`monster` event triggers and
- *   authored-monster/guard page reconciliation — Task 7 (events & adventure state);
- * - portal/adventure-exit transitions — Task 8 (map transitions); the exit DETECTION runs, its
- *   transition seam is a deps stub;
- * - the built-in quest-chapter reward claim and the D1-backed potion decrement — `WorldTickDeps`'s
- *   `claimQuestReward`/`consumePotion` remain in-memory stubs (no in-game path yet exercises the
- *   idempotent D1 claim/decrement chain legacy runs there); `savePlayer` itself is Task 6's real
- *   `HeroSaveService`-backed fenced save, wired through `WorldRoom.glue()`;
- * - cheat commands and the legacy runtime-party (`party.*`) mechanic — the latter is rollback-only
- *   per CLAUDE.md (hero sessions must not expose it) and is not ported at all.
+ * Task 7 filled the event/quest slots: the budgeted event-run drain and its effect dispatch, the
+ * authored `action`/`player-touch`/`monster` triggers, quest conversations, cheat commands and the
+ * real D1-backed quest-reward claim / potion decrement (through `WorldTickDeps`). Page
+ * EVALUATION stays out of the tick entirely — `worldEvents.ts`'s `evaluateActiveEvents` runs on
+ * state install and hero join only. Deliberately NOT ported here:
+ * - portal/adventure-exit transitions and authored cross-map teleports — Task 8 (map transitions);
+ *   the exit DETECTION runs and the cross-map teleport dispatch exists, but both land on deps
+ *   stubs;
+ * - the legacy runtime-party (`party.*`) mechanic — rollback-only per CLAUDE.md (hero sessions
+ *   must not expose it), not ported at all.
  */
 
+import {
+  type AuthoredQuestMarker,
+  type AuthoredQuestProgress,
+  type AuthoredQuestTracker,
+  activePageIndex,
+  authoredQuestTrackers,
+  EMPTY_ADVENTURE_STATE,
+} from "@lindocara/engine/adventure-state.js";
+import { parseCheatCommand } from "@lindocara/engine/cheats.js";
 import {
   actionForClassSlot,
   LUMEN_STEP_MAX_HOLD_MS,
@@ -33,8 +41,10 @@ import {
 } from "@lindocara/engine/combat-actions.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
+  CONSUMABLE_MAX_STACK,
   CONSUMABLES,
   type ConsumableId,
+  isConsumableId,
   normalizeConsumables,
 } from "@lindocara/engine/consumables.js";
 import {
@@ -64,6 +74,8 @@ import {
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
 } from "@lindocara/engine/directional-combat.js";
+import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
+import type { StateMutation } from "@lindocara/engine/event-interpreter.js";
 import {
   applyDamage,
   applyExperience,
@@ -91,14 +103,25 @@ import {
   withinRange,
 } from "@lindocara/engine/game.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/interest.js";
-import { exitEvents } from "@lindocara/engine/map-events.js";
+import { eventCellCentre, exitEvents, type MapEvent } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
 import type {
+  ClientMessage,
+  QuestDialogueEntry,
   RogueShadowDanceSequence,
   ServerMessage,
-  WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import type { QuestActor, QuestBusinessEvent } from "@lindocara/engine/quest-runtime.js";
+import {
+  authoredQuestRuntimeState,
+  buildQuestInteractionIndex,
+  completedQuestIds,
+  type QuestActor,
+  type QuestBusinessEvent,
+  questMarkerForTarget,
+  questMarkerPriority,
+  questTargetCandidates,
+} from "@lindocara/engine/quest-runtime.js";
+import type { AuthoredQuestDefinition, QuestEventReference } from "@lindocara/engine/quests.js";
 import {
   canSpendResource,
   generateResource,
@@ -128,7 +151,10 @@ import {
   unlockTalent,
 } from "@lindocara/engine/talents.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
+import type { AuthoredQuestChange } from "../../authored-quest-system.js";
+import { executeCheatCommand } from "../../world/cheat-command-system.js";
 import {
   advanceCombatActions,
   cancelCombatAction,
@@ -144,6 +170,16 @@ import {
   removeDamageOverTimeBySource,
   removeDamageOverTimeByTarget,
 } from "../../world/damage-over-time-system.js";
+import {
+  abortRunsForHero,
+  advanceRun,
+  chooseRun,
+  closeDistantDialogues,
+  type DispatchEffect,
+  drainRuns,
+  resetEventRunRuntime,
+  startRun,
+} from "../../world/event-run-system.js";
 import { type InterestSystemContext, worldView } from "../../world/interest-system.js";
 import { collectLoot, processExpiredLoot } from "../../world/loot-system.js";
 import {
@@ -213,6 +249,7 @@ import {
 import { movePlayerInDirection, nearestChargeTarget } from "../../world/skill-system.js";
 import {
   broadcastNetworkUpdates,
+  selfState,
   sendState,
   sendWorldResync,
 } from "../../world/snapshot-system.js";
@@ -239,10 +276,17 @@ import {
   type ProjectileRuntime,
   RESYNC_COOLDOWN_MS,
 } from "../../world/world-runtime.js";
-import type { WorldRoomState } from "./worldState.ts";
-
-/** Task 7 evaluates authored event pages; until then a room's active-event set is always empty. */
-const NO_EVENTS: readonly WorldEventSnapshot[] = [];
+import type { QuestAbandonResult, QuestAcceptanceResult, QuestTurnInResult } from "./PartyRoom.ts";
+import {
+  activeEventCentre,
+  detectMonsterTouch,
+  detectPlayerTouch,
+  logGoldRefusedOnce,
+  logItemRefusedOnce,
+  logTeleportRefusedOnce,
+  runnablePage,
+} from "./worldEvents.ts";
+import type { PendingQuestConversation, WorldRoomState } from "./worldState.ts";
 
 /** The reward payload of a legacy quest-chapter turn-in (`world.ts:3885-3893`). */
 export interface QuestRewardClaim {
@@ -275,13 +319,49 @@ export interface WorldTickDeps {
   navigationDebugAvailable: boolean;
   /** Coordinator RPC for a permanently-defeated authored monster (legacy `#markMonsterDead`). */
   markPermanentMonsterDefeated(eventId: string): void;
-  /** Coordinator RPC for authored-quest business events (legacy `#recordQuestEvent`). Task 7 adds
-   *  the completed-quest auto-claim fan-out on its result. */
+  /** Coordinator RPC for authored-quest business events (legacy `#recordQuestEvent`), whose
+   *  returned quest changes drive the completed-quest automatic reward claim fan-out. */
   recordQuestEvent(partyId: string, event: QuestBusinessEvent): void;
   /** Party-wide chat fan-out through the coordinator (legacy `GAME_SESSION.broadcast`). */
   broadcastToParty(partyId: string, message: ServerMessage): void;
-  /** Task 7: the budgeted event-run drain. Stubbed to a no-op until the interpreter lands. */
-  drainEventRuns(now: number): void;
+  /**
+   * The interpreter's mutation batch, UP to the party coordinator — the single writer (legacy
+   * `GameSession.applyStateChanges` via the retained stub). The returned promise resolves once the
+   * coordinator has committed AND pushed the new snapshot back to this room; the drain pauses on it
+   * (`state.eventStateSync`) while simulation keeps ticking.
+   */
+  applyStateChanges(mutations: readonly StateMutation[]): Promise<void>;
+  /** Authored-quest RPC round-trips to the party coordinator (legacy `#gameSession(...)`). */
+  acceptAuthoredQuest(
+    partyId: string,
+    actor: QuestActor,
+    questId: string,
+    target: QuestEventReference,
+    inventory: Readonly<Record<string, number>>,
+  ): Promise<QuestAcceptanceResult>;
+  abandonAuthoredQuest(
+    partyId: string,
+    actor: QuestActor,
+    questId: string,
+  ): Promise<QuestAbandonResult>;
+  completeAuthoredQuest(
+    partyId: string,
+    actor: QuestActor,
+    questId: string,
+    target: QuestEventReference | null,
+    rewardChoiceId: string | undefined,
+    heroState: {
+      level: number;
+      xp: number;
+      hp: number;
+      inventory: Readonly<Record<string, number>>;
+    },
+  ): Promise<QuestTurnInResult>;
+  /** The authored `endAdventure` completion: flip the party's save to completed, latch the
+   *  coordinator and broadcast victory (legacy `#dispatchEndAdventure`'s async body). */
+  completeAdventure(partyId: string): Promise<void>;
+  /** Whether cheat commands are honoured (legacy `env.CHEATS_ENABLED === "true"`). */
+  cheatsEnabled: boolean;
   /** Task 8: the authored-exit handoff. Stubbed to a no-op; detection still runs in order. */
   transitionAdventureExit(
     connectionId: string,
@@ -289,15 +369,24 @@ export interface WorldTickDeps {
     exitId: string,
     now: number,
   ): void;
-  /** The idempotent D1 quest-reward claim (built-in quest chapters). Stubbed to `false`
-   *  (already-claimed path) — no in-game path yet exercises the legacy fenced claim chain; see the
-   *  Task 6 report for the follow-up. */
+  /** Task 8: an authored cross-map teleport rides the same epoch-fenced handoff as an exit.
+   *  Stubbed to a logged refusal until then; same-map teleports are fully authoritative here. */
+  teleportCrossMap(
+    connectionId: string,
+    player: PlayerRuntime,
+    mapId: string,
+    col: number,
+    row: number,
+    now: number,
+    eventId: string,
+  ): void;
+  /** The idempotent, epoch-fenced D1 quest-reward claim for built-in quest chapters
+   *  (`HeroSaveService.claimQuestReward`, port of legacy `claimHeroQuestReward`). */
   claimQuestReward(player: PlayerRuntime, reward: QuestRewardClaim): Promise<boolean>;
   /**
-   * Consume one health potion and return the remaining count, or `null` when none can be spent.
-   * Stubbed to an in-memory decrement — the legacy fenced save-then-decrement D1 chain
-   * (`#consumePotion`) has no in-game path exercising it yet; the in-memory count is authoritative
-   * either way, and the periodic `savePlayer` cadence still lands the resulting quantity in D1.
+   * Consume one health potion and return the remaining count, or `null` when none can be spent —
+   * the legacy fenced save-then-decrement D1 chain (`#consumePotion`), serialized per hero through
+   * `state.itemMutations` by the implementation.
    */
   consumePotion(player: PlayerRuntime, connectionId: string): Promise<number | null>;
 }
@@ -338,7 +427,30 @@ function playerById(state: WorldRoomState, playerId: string): PlayerRuntime | un
   return connectionId === undefined ? undefined : state.players.get(connectionId);
 }
 
-/** Port of `#sendState` (`world.ts:5830`) minus the authored-quest trackers/markers (Task 7). */
+/** Port of `#selfState` (`world.ts:5820`): the welcome's self snapshot, trackers and markers
+ *  included. */
+export function selfStateFor(w: WorldGlue, player: PlayerRuntime): ReturnType<typeof selfState> {
+  const chapter = player.quest.chapter ?? "three_offerings";
+  return selfState(
+    player,
+    questDefinition(zone(w.state), chapter)?.target,
+    playerQuestTrackers(w.state, player),
+    playerQuestMarkers(w.state, player),
+  );
+}
+
+/** Port of the join-time `mapEntered` gameplay fact (`world.ts:852`): arrival is a server-minted
+ *  fact, not a client claim; reconnects are harmless (reach objectives clamp at one). */
+export function recordMapEntered(w: WorldGlue, player: PlayerRuntime): void {
+  recordActorQuestEvent(w, player, ({ id, mapId, actor }) => ({
+    id,
+    mapId,
+    actor,
+    type: "mapEntered",
+  }));
+}
+
+/** Port of `#sendState` (`world.ts:5830`), authored-quest trackers and markers included. */
 export function sendStateTo(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
   const chapter = player.quest.chapter ?? "three_offerings";
   sendState(
@@ -346,7 +458,147 @@ export function sendStateTo(w: WorldGlue, connectionId: string, player: PlayerRu
     player,
     questDefinition(zone(w.state), chapter)?.target,
     (recipient, message) => w.deps.send(recipient, message),
+    playerQuestTrackers(w.state, player),
+    playerQuestMarkers(w.state, player),
   );
+}
+
+/** Port of `#authoredQuestTrackers` (`world.ts:5842`). */
+function playerQuestTrackers(
+  state: WorldRoomState,
+  player: PlayerRuntime,
+): readonly AuthoredQuestTracker[] {
+  const registry = state.adventureRegistry;
+  const adventureState = state.adventureState.state;
+  const definitions = registry.quests ?? [];
+  const scopeById = new Map(definitions.map((quest) => [quest.id, quest.scope]));
+  const scopedProgress = (
+    progress: Readonly<Record<string, AuthoredQuestProgress>> | undefined,
+    scope: "party" | "personal",
+  ): Record<string, AuthoredQuestProgress> =>
+    Object.fromEntries(
+      Object.entries(progress ?? {}).filter(([, value]) => {
+        const resolvedScope = value.definitionSnapshot?.scope;
+        return resolvedScope === undefined || resolvedScope === scope;
+      }),
+    );
+  const partyRegistry = {
+    ...registry,
+    quests: definitions.filter((quest) => quest.scope === "party"),
+  };
+  const personalRegistry = {
+    ...registry,
+    quests: definitions.filter((quest) => quest.scope === "personal"),
+  };
+  const partyProgress = Object.fromEntries(
+    Object.entries(scopedProgress(adventureState.quests, "party")).filter(
+      ([questId, value]) =>
+        value.definitionSnapshot !== null || scopeById.get(questId) !== "personal",
+    ),
+  );
+  const personalProgress = Object.fromEntries(
+    Object.entries(scopedProgress(player.authoredQuestProgress, "personal")).filter(
+      ([questId, value]) => value.definitionSnapshot !== null || scopeById.get(questId) !== "party",
+    ),
+  );
+  const completed = new Set([
+    ...completedQuestIds(adventureState.quests),
+    ...completedQuestIds(player.authoredQuestProgress),
+  ]);
+  const availableQuestIds = (scope: "party" | "personal"): Set<string> =>
+    new Set(
+      definitions.flatMap((definition) => {
+        if (definition.scope !== scope || definition.acceptance !== "manual") return [];
+        const progress =
+          scope === "party" ? partyProgress[definition.id] : personalProgress[definition.id];
+        return authoredQuestRuntimeState(definition, progress, {
+          level: player.level,
+          completedQuestIds: completed,
+          adventureState,
+        }) === "available"
+          ? [definition.id]
+          : [];
+      }),
+    );
+  return [
+    ...authoredQuestTrackers(
+      partyRegistry,
+      { ...adventureState, quests: partyProgress },
+      { availableQuestIds: availableQuestIds("party") },
+    ),
+    ...authoredQuestTrackers(
+      personalRegistry,
+      { ...EMPTY_ADVENTURE_STATE, quests: personalProgress },
+      { availableQuestIds: availableQuestIds("personal") },
+    ),
+  ];
+}
+
+/** Port of `#questDefinitionsForPlayer` (`world.ts:5911`). */
+function questDefinitionsForPlayer(
+  state: WorldRoomState,
+  player: PlayerRuntime,
+): AuthoredQuestDefinition[] {
+  const definitions = new Map(
+    (state.adventureRegistry.quests ?? []).map((definition) => [definition.id, definition]),
+  );
+  for (const progress of Object.values(state.adventureState.state.quests ?? {})) {
+    if (
+      progress.definitionSnapshot?.scope === "party" &&
+      (progress.status !== "completed" || !progress.definitionSnapshot.repeatable)
+    ) {
+      definitions.set(progress.definitionSnapshot.id, progress.definitionSnapshot);
+    }
+  }
+  for (const progress of Object.values(player.authoredQuestProgress ?? {})) {
+    if (
+      progress.definitionSnapshot?.scope === "personal" &&
+      (progress.status !== "completed" || !progress.definitionSnapshot.repeatable)
+    ) {
+      definitions.set(progress.definitionSnapshot.id, progress.definitionSnapshot);
+    }
+  }
+  return [...definitions.values()];
+}
+
+/** Port of `#questProgressForPlayer` (`world.ts:5934`). */
+function questProgressForPlayer(
+  state: WorldRoomState,
+  player: PlayerRuntime,
+  definition: AuthoredQuestDefinition,
+): AuthoredQuestProgress | undefined {
+  return definition.scope === "party"
+    ? state.adventureState.state.quests?.[definition.id]
+    : player.authoredQuestProgress?.[definition.id];
+}
+
+/** Port of `#authoredQuestMarkers` (`world.ts:5943`). */
+function playerQuestMarkers(state: WorldRoomState, player: PlayerRuntime): AuthoredQuestMarker[] {
+  const mapId = state.location?.zoneId;
+  if (!mapId) return [];
+  const index = buildQuestInteractionIndex(questDefinitionsForPlayer(state, player));
+  const completed = new Set([
+    ...completedQuestIds(state.adventureState.state.quests),
+    ...completedQuestIds(player.authoredQuestProgress),
+  ]);
+  const markers = new Map<string, AuthoredQuestMarker["kind"]>();
+  for (const event of state.activeEvents) {
+    for (const candidate of questTargetCandidates(index, { mapId, eventId: event.id })) {
+      const progress = questProgressForPlayer(state, player, candidate.definition);
+      const runtimeState = authoredQuestRuntimeState(candidate.definition, progress, {
+        level: player.level,
+        completedQuestIds: completed,
+        adventureState: state.adventureState.state,
+      });
+      const marker = questMarkerForTarget(candidate, runtimeState);
+      if (!marker) continue;
+      const current = markers.get(event.id);
+      if (!current || questMarkerPriority(marker) > questMarkerPriority(current)) {
+        markers.set(event.id, marker);
+      }
+    }
+  }
+  return [...markers].map(([eventId, kind]) => ({ eventId, kind }));
 }
 
 /** Port of `#sendSpatialEvent` (`world.ts:6093`). */
@@ -410,7 +662,7 @@ export function sendResyncTo(w: WorldGlue, connectionId: string, player: PlayerR
     w.state.tick,
     (recipient) => worldView(interestContext(w), recipient),
     (recipientId, message) => w.deps.send(recipientId, message),
-    NO_EVENTS,
+    w.state.activeEvents,
   );
 }
 
@@ -463,15 +715,26 @@ function recordActorQuestEvent(
 // -------------------------------------------------------------------------------------------------
 
 /**
- * Port of `#freeze` (`world.ts:5674`) minus the quest-conversation close and event-run abort
- * (both Task 7 — their runtimes do not exist in this room yet). The queue-clear on every life
- * transition is the invariant prediction relies on: no half-applied command batches.
+ * Port of `#freeze` (`world.ts:5674`). The queue-clear on every life transition is the invariant
+ * prediction relies on: no half-applied command batches. A life transition also ends any open
+ * quest conversation and aborts the hero's event runs — a panel opened in one life state must not
+ * linger into another, and a run buffered across a death/revive must not resume against a
+ * different life state.
  */
 function freeze(w: WorldGlue, player: PlayerRuntime): void {
   player.lastInput = NO_INPUT;
   player.queue = [];
   player.starvedTicks = 0;
   exitRogueStealth(player, w.deps.now());
+  const staleConversation = w.state.questConversations.get(player.id);
+  if (staleConversation) {
+    w.state.questConversations.delete(player.id);
+    const connectionId = connectionOf(w.state, player.id);
+    if (connectionId !== undefined) {
+      w.deps.send(connectionId, { t: "quest.close", conversationId: staleConversation.id });
+    }
+  }
+  abortRunsForHero(w.state.eventRuns, player.id);
   cancelCombatAction(player);
   player.guarding = false;
   player.guardActivatedAt = 0;
@@ -884,8 +1147,34 @@ function defeatMonster(
     sendStateTo(w, connectionId, recipient);
     recipient.dirty = true;
   }
-  // Task 7: `#triggerMonsterDefeatEvent` starts the monster event's on-defeat command program here.
+  triggerMonsterDefeatEvent(w, player, monster);
   clearMonsterCombat(monster);
+}
+
+/** Port of `#triggerMonsterDefeatEvent` (`world.ts:3417`): a defeated authored monster runs its
+ *  active page's command program, triggered on behalf of the killing hero. */
+function triggerMonsterDefeatEvent(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  monster: MonsterRuntime,
+): void {
+  if (player.identityKind !== "hero" || !monster.id.startsWith("mon-")) return;
+  const eventId = monster.id.slice(4);
+  const event = w.state.location?.definition.events?.find(
+    (candidate) => candidate.kind === "monster" && candidate.id === eventId,
+  );
+  if (!event) return;
+  const pageIndex = activePageIndex(event, w.state.adventureState.state);
+  if (pageIndex === null) return;
+  const program = event.pages[pageIndex]?.commands;
+  if (!program || program.length === 0) return;
+  startRun(w.state.eventRuns, {
+    event,
+    pageIndex,
+    program,
+    heroId: player.id,
+    runId: crypto.randomUUID(),
+  });
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -2741,8 +3030,12 @@ export async function handleInteract(
   // codebase resolves every action as "the nearest valid thing in range"; so does this.
   const resurrection = resurrectNearbyCorpse(w, connectionId, player, now);
   if (resurrection.handled) return { cooldownStarted: resurrection.cooldownStarted };
-  // Task 7: authored quest targets (`#triggerQuestTargetNearby`) then authored `action` events
-  // (`#triggerActionEventNearby`) slot in here, between resurrection and the legacy keepers.
+  // Standard authored quest bindings win before the same event's advanced command program. If no
+  // quest has anything relevant to show, the event program remains the full-control fallback.
+  if (triggerQuestTargetNearby(w, connectionId, player)) return { cooldownStarted: false };
+  // Authored `action` events sit between the life-critical resurrection above and the legacy
+  // quest keepers below (see `triggerActionEventNearby`).
+  if (triggerActionEventNearby(w, player)) return { cooldownStarted: false };
   const chapter = player.quest.chapter ?? "three_offerings";
   player.quest.chapter = chapter;
 
@@ -2991,9 +3284,10 @@ export function handleTalentReset(w: WorldGlue, connectionId: string, player: Pl
 }
 
 /**
- * Port of the `chat` arm of `#handleMessage` (`world.ts:1891-1909`). `party` fans out through the
- * coordinator (the persistent D1 party, across map rooms); anything else is local AOI chat. Cheat
- * commands are not ported this tranche, and the legacy runtime-party fallback is rollback-only.
+ * Port of the `chat` arm of `#handleMessage` (`world.ts:1891-1909`). A `/command` is parsed first
+ * and handled by the cheat executor (gated on `deps.cheatsEnabled`); `party` fans out through the
+ * coordinator (the persistent D1 party, across map rooms); anything else is local AOI chat. The
+ * legacy runtime-party fallback is rollback-only and not ported.
  */
 export function handleChat(
   w: WorldGlue,
@@ -3004,6 +3298,11 @@ export function handleChat(
 ): void {
   const text = rawText.trim().replaceAll(/\s+/g, " ");
   if (text.length === 0 || text.length > CHAT_MAX_LENGTH) return;
+  const cheatCommand = parseCheatCommand(text);
+  if (cheatCommand) {
+    handleCheatCommand(w, connectionId, player, cheatCommand);
+    return;
+  }
   if (channel === "party") {
     if (player.identityKind === "hero" && player.partyId) {
       w.deps.broadcastToParty(player.partyId, {
@@ -3018,6 +3317,913 @@ export function handleChat(
     return;
   }
   sendLocalChat(w, player, text);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Cheat commands
+// -------------------------------------------------------------------------------------------------
+
+/** Port of `#cheatRevive` (`world.ts:5718`). */
+function cheatRevive(w: WorldGlue, player: PlayerRuntime): void {
+  player.life = "alive";
+  player.resurrectionAt = 0;
+  player.corpse = null;
+  player.hp = maxHpForLevel(player.level);
+  grantReviveGrace(w, player, w.deps.now());
+  freeze(w, player);
+}
+
+/**
+ * Port of `#teleportSameMap` (`world.ts:5068`): refuse an unwalkable/out-of-bounds destination
+ * with a structured log while the run continues; otherwise set the authoritative position AND
+ * clear the command queue — the death-transition precedent: a stale queue replayed after the snap
+ * is the post-teleport sprint bug.
+ */
+export function teleportSameMap(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  col: number,
+  row: number,
+  eventId: string,
+): "teleported" | "first-refusal" | "repeat-refusal" {
+  const terrain = zone(w.state).terrain;
+  const destination = eventCellCentre({ col, row });
+  const inBounds =
+    destination.x >= 0 &&
+    destination.y >= 0 &&
+    destination.x < terrain.width &&
+    destination.y < terrain.height;
+  if (!inBounds || !isWalkable(destination, PLAYER_SIZE, terrain)) {
+    const first = logTeleportRefusedOnce(
+      w.state,
+      eventId,
+      inBounds ? "unwalkable" : "out_of_bounds",
+      { heroId: player.id, mapId: w.state.location?.zoneId ?? null, col, row },
+    );
+    return first ? "first-refusal" : "repeat-refusal";
+  }
+  const previousPosition = { x: player.x, y: player.y };
+  player.x = destination.x;
+  player.y = destination.y;
+  w.state.playerGrid.update(player, previousPosition);
+  // Clear the movement queue so no buffered command replays past the snap (the sprint bug class).
+  player.queue = [];
+  player.lastInput = NO_INPUT;
+  player.starvedTicks = 0;
+  player.dirty = true;
+  return "teleported";
+}
+
+/** Port of `#handleCheatCommand` (`world.ts:1912`): the executor mutates session state only;
+ *  life-state transitions, terrain validation and sends stay here. Gated on `deps.cheatsEnabled`
+ *  (legacy `env.CHEATS_ENABLED !== "true"` refusal). */
+export function handleCheatCommand(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  command: NonNullable<ReturnType<typeof parseCheatCommand>>,
+): void {
+  if (!w.deps.cheatsEnabled) {
+    w.deps.send(connectionId, { t: "event", code: "cheat.disabled", tone: "bad" });
+    return;
+  }
+  const result = executeCheatCommand(player, command);
+  if (result.transition === "die") {
+    player.hp = 0;
+    killPlayer(w, connectionId, player);
+  } else if (result.transition === "ghost") {
+    if (player.life === "alive") {
+      player.hp = 0;
+      killPlayer(w, connectionId, player);
+    }
+    handleRelease(w, connectionId, player);
+  } else if (result.transition === "revive") {
+    cheatRevive(w, player);
+  }
+  if (result.teleport) {
+    const destination = eventCellCentre(result.teleport);
+    const terrain = zone(w.state).terrain;
+    const landable =
+      destination.x < terrain.width &&
+      destination.y < terrain.height &&
+      isWalkable(destination, PLAYER_SIZE, terrain);
+    if (!landable) {
+      w.deps.send(connectionId, { t: "event", code: "cheat.tp_blocked", tone: "bad" });
+      return;
+    }
+    teleportSameMap(w, player, result.teleport.col, result.teleport.row, "cheat");
+  }
+  if (result.stateChanged) sendStateTo(w, connectionId, player);
+  w.deps.send(connectionId, { t: "event", ...result.event, x: player.x, y: player.y });
+}
+
+// -------------------------------------------------------------------------------------------------
+// Authored event triggers, the budgeted drain and effect dispatch
+// -------------------------------------------------------------------------------------------------
+
+/**
+ * Port of `#triggerActionEventNearby` (`world.ts:1339`): the interact-key trigger — the nearest
+ * `action` event within `INTERACTION_RANGE` starts a run. Returns true when an action event was
+ * FOUND (so `handleInteract` stops here even if the run was dropped by the one-run lock) — an
+ * interact spent on an event is not a fall-through to the quest NPCs.
+ */
+function triggerActionEventNearby(w: WorldGlue, player: PlayerRuntime): boolean {
+  if (player.identityKind !== "hero") return false;
+  const events = w.state.location?.definition.events ?? [];
+  let best: {
+    event: MapEvent;
+    pageIndex: number;
+    program: readonly EventCommand[];
+    distance: number;
+  } | null = null;
+  for (const event of events) {
+    const runnable = runnablePage(w.state, event, "action");
+    if (runnable === null) continue;
+    const distance = pointDistance(player, activeEventCentre(w.state, event));
+    if (distance > INTERACTION_RANGE) continue;
+    if (best === null || distance < best.distance) best = { event, ...runnable, distance };
+  }
+  if (best === null) return false;
+  const chosen = best;
+  const started = startRun(w.state.eventRuns, {
+    event: chosen.event,
+    pageIndex: chosen.pageIndex,
+    program: chosen.program,
+    heroId: player.id,
+    runId: crypto.randomUUID(),
+  });
+  if (started) {
+    const graphic = chosen.event.pages[chosen.pageIndex]?.graphicAssetId;
+    const interaction =
+      graphic != null && editorAsset(graphic)?.domain === "character"
+        ? "npcTalked"
+        : "objectInteracted";
+    recordActorQuestEvent(w, player, ({ id, mapId, actor }) =>
+      interaction === "npcTalked"
+        ? { id, mapId, actor, type: "npcTalked", targetEventId: chosen.event.id }
+        : { id, mapId, actor, type: "objectInteracted", targetEventId: chosen.event.id },
+    );
+  }
+  return true;
+}
+
+/** Resume a `say` run from the `event.advance` intent — validated hero==triggerer inside
+ *  `advanceRun`; a stray intent from anyone else drops silently. */
+export function handleEventAdvance(w: WorldGlue, player: PlayerRuntime, runId: string): void {
+  advanceRun(w.state.eventRuns, player.id, runId);
+}
+
+/** Resume a `choices` run from the `event.choose` intent — the option is re-derived and
+ *  range-checked from the live command inside `chooseRun`, never a trusted count. */
+export function handleEventChoose(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  runId: string,
+  index: number,
+): void {
+  chooseRun(w.state.eventRuns, player.id, runId, index);
+}
+
+/**
+ * Port of `#closeDistantDialogues` (`world.ts:4546`): end every run parked on a dialogue whose
+ * triggerer has walked beyond `DIALOGUE_CLOSE_RADIUS` of its event cell (WoW's rule: the panel
+ * closes, the conversation is over). Ending the run is NOT a rollback — anything the run already
+ * wrote stays written; walk-away abandons only the REMAINDER.
+ */
+function closeWalkedAwayDialogues(w: WorldGlue): void {
+  if (w.state.eventRuns.contexts.size === 0) return;
+  const events = w.state.location?.definition.events ?? [];
+  closeDistantDialogues(w.state.eventRuns, (context) => {
+    const player = playerById(w.state, context.heroId);
+    if (player === undefined) return true;
+    const event = events.find((candidate) => candidate.id === context.eventId);
+    if (event === undefined) return true;
+    return pointDistance(player, activeEventCentre(w.state, event)) > DIALOGUE_CLOSE_RADIUS;
+  });
+}
+
+/**
+ * Port of `#flushDialogue` (`world.ts:4564`): send every buffered dialogue beat to its triggerer's
+ * socket, then clear the buffer. `say`/`choices` carry authored prose — the sanctioned
+ * codes-not-sentences data exception — and `closeDialogue` becomes `event.close`. A beat whose
+ * triggerer has no socket (already gone) is dropped silently.
+ */
+function flushDialogue(w: WorldGlue): void {
+  const dialogue = w.state.eventRuns.dialogue;
+  if (dialogue.length === 0) return;
+  for (const buffered of dialogue) {
+    const connectionId = connectionOf(w.state, buffered.heroId);
+    if (connectionId === undefined) continue;
+    const message = buffered.message;
+    if (message.kind === "say") {
+      w.deps.send(
+        connectionId,
+        message.name === null
+          ? { t: "event.say", runId: buffered.runId, text: message.text }
+          : { t: "event.say", runId: buffered.runId, text: message.text, name: message.name },
+      );
+    } else if (message.kind === "offerChoices") {
+      w.deps.send(connectionId, {
+        t: "event.choices",
+        runId: buffered.runId,
+        prompt: message.prompt,
+        options: [...message.options],
+      });
+    } else {
+      w.deps.send(connectionId, { t: "event.close", runId: buffered.runId });
+    }
+  }
+  dialogue.length = 0;
+}
+
+/** Port of `#dispatchGold` (`world.ts:4774`): a `changeGold` lands on the triggerer's session
+ *  inventory, clamped at zero; a positive grant tells the hero with `loot.picked`. A grant landing
+ *  mid-transition is refused with a deduped structured log. */
+function dispatchGold(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "changeGold" }>,
+): void {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (connectionId === undefined || !player?.authorized) return;
+  if (player.transitioning) {
+    logGoldRefusedOnce(w.state, dispatch.eventId, "transitioning", { heroId: player.id });
+    return;
+  }
+  const before = player.inventory.gold;
+  const after = Math.max(0, before + effect.amount);
+  if (after === before) return;
+  player.inventory.gold = after;
+  player.dirty = true;
+  if (effect.amount > 0) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "loot.picked",
+      params: { amount: effect.amount, kind: "gold" },
+      tone: "good",
+    });
+  }
+  sendStateTo(w, connectionId, player);
+}
+
+/** Port of `#dispatchItems` (`world.ts:4829`): a `changeItems` lands on the triggerer's consumable
+ *  bag. The runtime is the item-id authority; a full stack refuses with `item.full`; a negative
+ *  change clamps at zero; every landed change syncs the `potions` mirror and the self snapshot. */
+function dispatchItems(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "changeItems" }>,
+): void {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (connectionId === undefined || !player?.authorized) return;
+  if (player.transitioning) {
+    logItemRefusedOnce(w.state, dispatch.eventId, effect.itemId, "transitioning", {
+      heroId: player.id,
+    });
+    return;
+  }
+  if (!isConsumableId(effect.itemId)) {
+    logItemRefusedOnce(w.state, dispatch.eventId, effect.itemId, "unknown_item", {
+      heroId: player.id,
+    });
+    return;
+  }
+  const item: ConsumableId = effect.itemId;
+  const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+  player.inventory.consumables = counts;
+  let landed = 0;
+  if (effect.count > 0) {
+    if (counts[item] >= CONSUMABLE_MAX_STACK) {
+      w.deps.send(connectionId, { t: "event", code: "item.full", params: { item }, tone: "bad" });
+      return;
+    }
+    const added = Math.min(effect.count, CONSUMABLE_MAX_STACK - counts[item]);
+    counts[item] += added;
+    landed = added;
+    if (item === "health_potion") player.inventory.potions = counts.health_potion;
+    player.dirty = true;
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "loot.picked",
+      params: { amount: added, kind: item },
+      tone: "good",
+    });
+  } else {
+    const before = counts[item];
+    const after = Math.max(0, before + effect.count);
+    if (after === before) return;
+    counts[item] = after;
+    landed = after - before;
+    if (item === "health_potion") player.inventory.potions = counts.health_potion;
+    player.dirty = true;
+  }
+  if (landed > 0) {
+    recordActorQuestEvent(w, player, ({ id, mapId, actor }) => ({
+      id,
+      mapId,
+      actor,
+      type: "itemAcquired",
+      itemId: item,
+      amount: landed,
+      inventoryQuantity: counts[item],
+    }));
+  } else if (landed < 0) {
+    recordActorQuestEvent(w, player, ({ id, mapId, actor }) => ({
+      id,
+      mapId,
+      actor,
+      type: "itemRemoved",
+      itemId: item,
+      amount: -landed,
+      inventoryQuantity: counts[item],
+    }));
+  }
+  sendStateTo(w, connectionId, player);
+}
+
+/** Port of `#dispatchTeleport` (`world.ts:4932`). Same-map is fully authoritative here; cross-map
+ *  rides the Task-8 handoff seam (`deps.teleportCrossMap`, stubbed to a logged refusal). */
+function dispatchTeleport(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "teleport" }>,
+  now: number,
+): void {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (connectionId === undefined || !player?.authorized || player.transitioning) return;
+  if (effect.mapId === w.state.location?.zoneId) {
+    const fromX = player.x + PLAYER_SIZE / 2;
+    const fromY = player.y + PLAYER_SIZE / 2;
+    const result = teleportSameMap(w, player, effect.col, effect.row, dispatch.eventId);
+    if (result === "first-refusal") {
+      w.deps.send(connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
+    } else if (result === "teleported") {
+      w.deps.send(connectionId, {
+        t: "event",
+        code: "zone.transition",
+        params: {
+          teleport: 1,
+          sameMap: 1,
+          fromX,
+          fromY,
+          toX: player.x + PLAYER_SIZE / 2,
+          toY: player.y + PLAYER_SIZE / 2,
+        },
+        tone: "good",
+        x: fromX,
+        y: fromY,
+      });
+    }
+    return;
+  }
+  w.deps.teleportCrossMap(
+    connectionId,
+    player,
+    effect.mapId,
+    effect.col,
+    effect.row,
+    now,
+    dispatch.eventId,
+  );
+}
+
+/** Port of `#dispatchOpenShop` (`world.ts:5011`): the event's cell becomes the hero's counter —
+ *  `handleBuyConsumable` measures against it, so walking away ends the trade. */
+function dispatchOpenShop(w: WorldGlue, dispatch: DispatchEffect): void {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (connectionId === undefined || !player?.authorized || player.life !== "alive") return;
+  const event = (zone(w.state).events ?? []).find((candidate) => candidate.id === dispatch.eventId);
+  if (!event) return;
+  player.shopAnchor = activeEventCentre(w.state, event);
+  w.deps.send(connectionId, { t: "merchant.open" });
+}
+
+/** Port of `#dispatchEndAdventure` (`world.ts:5023`): mark the party's save complete and broadcast
+ *  victory, at most once per room lifetime (`state.adventureEndDispatched`); a failed completion
+ *  frees the guard so a later trigger can retry. */
+function dispatchEndAdventure(w: WorldGlue, dispatch: DispatchEffect): void {
+  if (w.state.adventureEndDispatched) return;
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (connectionId === undefined || !player?.authorized || player.identityKind !== "hero") return;
+  const partyId = player.partyId;
+  if (!partyId) return;
+  w.state.adventureEndDispatched = true;
+  w.deps.waitUntil(
+    w.deps.completeAdventure(partyId).catch((error: unknown) => {
+      w.state.adventureEndDispatched = false;
+      console.error(
+        JSON.stringify({
+          event: "event_end_adventure_failed",
+          partyId,
+          eventId: dispatch.eventId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }),
+  );
+}
+
+/**
+ * Port of `#drainEventRuns` (`world.ts:4455`): step every live run its budgeted slice, then
+ * dispatch the effects that need this room's authority. State mutations are batched into ONE
+ * coordinator RPC (the single writer); the drain pauses (`state.eventStateSync`) until that push
+ * lands, while simulation keeps ticking — the next drain must seed its working copy from the
+ * acknowledged snapshot, never a pre-batch value that would replay a non-idempotent `add`.
+ *
+ * Order: close any walked-away dialogue FIRST (it buffers a `closeDialogue` beat and releases the
+ * lock), then drain the survivors, then flush every buffered beat — a run's `say`/`choices` and
+ * its distance-close all reach the wire in the same tick they were produced.
+ */
+export function drainEventRuns(w: WorldGlue, now: number): void {
+  closeWalkedAwayDialogues(w);
+  if (w.state.eventStateSync !== null) {
+    flushDialogue(w);
+    return;
+  }
+  if (w.state.eventRuns.contexts.size > 0) {
+    const { effects } = drainRuns(w.state.eventRuns, {
+      state: w.state.adventureState.state,
+      tick: w.state.tick,
+    });
+    const mutations: StateMutation[] = [];
+    for (const dispatch of effects) {
+      const effect = dispatch.effect;
+      if (effect.kind === "mutateState") {
+        mutations.push(effect.op);
+      } else if (effect.kind === "teleport") {
+        dispatchTeleport(w, dispatch, effect, now);
+      } else if (effect.kind === "endAdventure") {
+        dispatchEndAdventure(w, dispatch);
+      } else if (effect.kind === "openShop") {
+        dispatchOpenShop(w, dispatch);
+      } else if (effect.kind === "changeGold") {
+        dispatchGold(w, dispatch, effect);
+      } else if (effect.kind === "changeItems") {
+        dispatchItems(w, dispatch, effect);
+      } else {
+        const player = playerById(w.state, dispatch.heroId);
+        if (player) {
+          recordActorQuestEvent(w, player, ({ id, mapId, actor }) =>
+            effect.fact.type === "areaEntered"
+              ? { id, mapId, actor, type: "areaEntered", areaId: effect.fact.areaId }
+              : {
+                  id,
+                  mapId,
+                  actor,
+                  type: "activityCompleted",
+                  activityId: effect.fact.activityId,
+                  amount: 1,
+                },
+          );
+        }
+      }
+    }
+    if (mutations.length > 0 && w.state.partyId !== "") {
+      const sync = w.deps.applyStateChanges(mutations);
+      w.state.eventStateSync = sync;
+      w.deps.waitUntil(
+        sync.then(
+          () => {
+            if (w.state.eventStateSync === sync) w.state.eventStateSync = null;
+          },
+          (error: unknown) => {
+            if (w.state.eventStateSync === sync) {
+              w.state.eventStateSync = null;
+              // The run has already advanced past mutations that never became authoritative.
+              // Continuing would execute its remainder against a lie, so release every lock.
+              resetEventRunRuntime(w.state.eventRuns);
+            }
+            console.error(
+              JSON.stringify({
+                event: "event_state_sync_failed",
+                partyId: w.state.partyId,
+                roomKey: w.state.roomKey,
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            );
+          },
+        ),
+      );
+    }
+  }
+  flushDialogue(w);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Authored quest conversations (quest.open / quest.result / quest.close)
+// -------------------------------------------------------------------------------------------------
+
+/** Port of `#questDialogueEntries` (`world.ts:1050`). */
+function questDialogueEntries(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  target: QuestEventReference,
+): QuestDialogueEntry[] {
+  const state = w.state;
+  const speakingEvent = state.location?.definition.events?.find(
+    (event) => event.id === target.eventId,
+  );
+  const speakerName =
+    speakingEvent?.name.trim() ||
+    (speakingEvent ? `EV${String(speakingEvent.ordinal).padStart(3, "0")}` : "EV000");
+  const definitions = questDefinitionsForPlayer(state, player);
+  const index = buildQuestInteractionIndex(definitions);
+  const completed = new Set([
+    ...completedQuestIds(state.adventureState.state.quests),
+    ...completedQuestIds(player.authoredQuestProgress),
+  ]);
+  const selected = new Map<
+    string,
+    {
+      candidate: ReturnType<typeof questTargetCandidates>[number];
+      state: ReturnType<typeof authoredQuestRuntimeState>;
+      rank: number;
+    }
+  >();
+  for (const candidate of questTargetCandidates(index, target)) {
+    const progress = questProgressForPlayer(state, player, candidate.definition);
+    const runtimeState = authoredQuestRuntimeState(candidate.definition, progress, {
+      level: player.level,
+      completedQuestIds: completed,
+      adventureState: state.adventureState.state,
+    });
+    const rank =
+      runtimeState === "ready" && candidate.role === "turn-in"
+        ? 5
+        : runtimeState === "available" &&
+            candidate.role === "giver" &&
+            candidate.definition.acceptance === "manual"
+          ? 4
+          : runtimeState === "active"
+            ? 3
+            : runtimeState === "completed"
+              ? 2
+              : runtimeState === "unavailable"
+                ? 1
+                : 0;
+    if (rank === 0) continue;
+    const current = selected.get(candidate.definition.id);
+    if (!current || rank > current.rank)
+      selected.set(candidate.definition.id, { candidate, state: runtimeState, rank });
+  }
+  return [...selected.values()]
+    .sort((left, right) => right.rank - left.rank)
+    .flatMap(({ candidate, state: runtimeState }) => {
+      const definition = candidate.definition;
+      const phase =
+        runtimeState === "available"
+          ? ("offer" as const)
+          : runtimeState === "active" ||
+              runtimeState === "ready" ||
+              runtimeState === "completed" ||
+              runtimeState === "unavailable"
+            ? runtimeState
+            : null;
+      if (!phase) return [];
+      const text =
+        phase === "offer"
+          ? definition.dialogues.offer || definition.description
+          : phase === "active"
+            ? definition.dialogues.reminder || definition.journalSummary || definition.description
+            : phase === "ready"
+              ? definition.dialogues.ready || definition.journalSummary || definition.description
+              : phase === "completed"
+                ? definition.dialogues.completed
+                : definition.dialogues.unavailable;
+      // Completed/unavailable entries are useful only when the creator authored an explicit line;
+      // otherwise they would crowd a multi-quest giver with inert cards.
+      if ((phase === "completed" || phase === "unavailable") && text.length === 0) return [];
+      const canTurnIn = phase === "ready" && candidate.role === "turn-in";
+      return [
+        {
+          questId: definition.id,
+          speakerName,
+          title: definition.title || `Quête ${definition.id}`,
+          text,
+          category: definition.category,
+          region: definition.region,
+          landmark: definition.landmark,
+          giverName: definition.giverName || speakerName,
+          phase,
+          canAccept:
+            phase === "offer" && candidate.role === "giver" && definition.acceptance === "manual",
+          canTurnIn,
+          rewardChoices: canTurnIn
+            ? definition.rewards.choices.map((choice) => ({ id: choice.id, label: choice.label }))
+            : [],
+        },
+      ];
+    });
+}
+
+/** Port of `#triggerQuestTargetNearby` (`world.ts:1148`): open the standard quest panel for the
+ *  nearest bound action event. */
+function triggerQuestTargetNearby(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+): boolean {
+  if (player.identityKind !== "hero" || player.partyId === null) return false;
+  const state = w.state;
+  const mapId = state.location?.zoneId;
+  if (!mapId) return false;
+  let nearest: { event: MapEvent; pageIndex: number; distance: number } | null = null;
+  for (const event of state.location?.definition.events ?? []) {
+    if (event.kind !== "normal") continue;
+    const pageIndex = activePageIndex(event, state.adventureState.state);
+    if (pageIndex === null) continue;
+    const page = event.pages[pageIndex];
+    if (page?.trigger !== "action") continue;
+    const distance = pointDistance(player, activeEventCentre(state, event));
+    if (distance > INTERACTION_RANGE) continue;
+    const entries = questDialogueEntries(w, player, { mapId, eventId: event.id });
+    if (entries.length === 0) continue;
+    if (!nearest || distance < nearest.distance) nearest = { event, pageIndex, distance };
+  }
+  if (!nearest) return false;
+  const found = nearest;
+  const target = { mapId, eventId: found.event.id };
+  const entries = questDialogueEntries(w, player, target);
+  if (entries.length === 0) return false;
+  const conversation: PendingQuestConversation = {
+    id: crypto.randomUUID(),
+    heroId: player.id,
+    target,
+    questIds: new Set(entries.map((entry) => entry.questId)),
+    resolved: false,
+  };
+  state.questConversations.set(player.id, conversation);
+  w.deps.send(connectionId, { t: "quest.open", conversationId: conversation.id, entries });
+  const graphic = found.event.pages[found.pageIndex]?.graphicAssetId;
+  const interaction =
+    graphic != null && editorAsset(graphic)?.domain === "character"
+      ? "npcTalked"
+      : "objectInteracted";
+  recordActorQuestEvent(w, player, ({ id, mapId: eventMapId, actor }) =>
+    interaction === "npcTalked"
+      ? { id, mapId: eventMapId, actor, type: "npcTalked", targetEventId: found.event.id }
+      : { id, mapId: eventMapId, actor, type: "objectInteracted", targetEventId: found.event.id },
+  );
+  return true;
+}
+
+/** Port of `#applyAuthoredQuestReward` (`world.ts:4608`). */
+function applyAuthoredQuestReward(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  result: Extract<QuestTurnInResult, { ok: true }>,
+  customRun?: { event: MapEvent; pageIndex: number },
+): void {
+  const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+  const beforeLevel = player.level;
+  for (const item of result.consumed) {
+    const itemId = item.itemId as ConsumableId;
+    counts[itemId] = Math.max(0, counts[itemId] - item.quantity);
+    recordActorQuestEvent(w, player, ({ id, mapId, actor }) => ({
+      id,
+      mapId,
+      actor,
+      type: "itemRemoved",
+      itemId,
+      amount: item.quantity,
+      inventoryQuantity: counts[itemId],
+    }));
+  }
+  for (const item of result.items) {
+    const itemId = item.itemId as ConsumableId;
+    counts[itemId] = Math.min(CONSUMABLE_MAX_STACK, counts[itemId] + item.quantity);
+    recordActorQuestEvent(w, player, ({ id, mapId, actor }) => ({
+      id,
+      mapId,
+      actor,
+      type: "itemAcquired",
+      itemId,
+      amount: item.quantity,
+      inventoryQuantity: counts[itemId],
+    }));
+  }
+  player.inventory.consumables = counts;
+  player.inventory.potions = counts.health_potion;
+  player.inventory.gold += result.gold;
+  const gained = applyExperience(player.level, player.xp, result.experience);
+  player.level = gained.level;
+  player.xp = gained.xp;
+  player.hp = maxHpForLevel(gained.level);
+  player.dirty = true;
+  sendStateTo(w, connectionId, player);
+  const rewardedItemCount = result.items.reduce((total, item) => total + item.quantity, 0);
+  if (result.experience > 0 || result.gold > 0 || rewardedItemCount > 0) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "authored_quest.reward",
+      params: { experience: result.experience, gold: result.gold, items: rewardedItemCount },
+      tone: "good",
+    });
+  }
+  if (player.level > beforeLevel) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "level_up",
+      params: { level: player.level },
+      tone: "good",
+    });
+  }
+  if (result.customCommands.length > 0 && customRun) {
+    startRun(w.state.eventRuns, {
+      event: customRun.event,
+      pageIndex: customRun.pageIndex,
+      program: result.customCommands,
+      heroId: player.id,
+      runId: crypto.randomUUID(),
+    });
+  }
+}
+
+/** Port of `#claimAutomaticQuestReward` (`world.ts:4683`). */
+export async function claimAutomaticQuestReward(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  questId: string,
+): Promise<void> {
+  const connectionId = connectionOf(w.state, player.id);
+  const actor = questActor(player);
+  if (connectionId === undefined || !actor || player.partyId === null) return;
+  if (!(await w.deps.savePlayer(player, connectionId))) return;
+  const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+  const result = await w.deps.completeAuthoredQuest(
+    player.partyId,
+    actor,
+    questId,
+    null,
+    undefined,
+    {
+      level: player.level,
+      xp: player.xp,
+      hp: player.hp,
+      inventory: counts,
+    },
+  );
+  if (result.ok) applyAuthoredQuestReward(w, connectionId, player, result);
+}
+
+/** The completed-quest automatic reward fan-out on `recordQuestEvent`'s result — the `.then`
+ *  half of legacy `#recordQuestEvent` (`world.ts:4700-4717`). */
+export function handleQuestChanges(
+  w: WorldGlue,
+  event: QuestBusinessEvent,
+  changes: readonly AuthoredQuestChange[],
+): void {
+  const fallbackHeroId =
+    event.type === "monsterKilled" || event.type === "bossDefeated"
+      ? event.killer.heroId
+      : event.actor.heroId;
+  for (const change of changes) {
+    if (change.status !== "completed") continue;
+    const heroId = change.heroId ?? fallbackHeroId;
+    const player = playerById(w.state, heroId);
+    if (player) {
+      w.deps.waitUntil(claimAutomaticQuestReward(w, player, change.questId));
+    }
+  }
+}
+
+/** Port of `#handleQuestAction` (`world.ts:1197`). */
+export async function handleQuestAction(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  message: Extract<ClientMessage, { t: "quest.action" }>,
+): Promise<void> {
+  const state = w.state;
+  const conversation = state.questConversations.get(player.id);
+  if (!conversation || conversation.id !== message.conversationId) return;
+  if (message.action === "close") {
+    state.questConversations.delete(player.id);
+    w.deps.send(connectionId, { t: "quest.close", conversationId: conversation.id });
+    return;
+  }
+  if (conversation.resolved || !message.questId || !conversation.questIds.has(message.questId)) {
+    return;
+  }
+  const event = state.location?.definition.events?.find(
+    (candidate) => candidate.id === conversation.target.eventId,
+  );
+  const pageIndex = event ? activePageIndex(event, state.adventureState.state) : null;
+  const page = pageIndex === null ? undefined : event?.pages[pageIndex];
+  if (
+    pageIndex === null ||
+    !event ||
+    !page ||
+    page.trigger !== "action" ||
+    pointDistance(player, activeEventCentre(state, event)) > DIALOGUE_CLOSE_RADIUS
+  ) {
+    state.questConversations.delete(player.id);
+    w.deps.send(connectionId, { t: "quest.close", conversationId: conversation.id });
+    return;
+  }
+  const definition = questDefinitionsForPlayer(state, player).find(
+    (quest) => quest.id === message.questId,
+  );
+  const entry = questDialogueEntries(w, player, conversation.target).find(
+    (candidate) => candidate.questId === message.questId,
+  );
+  if (!definition || !entry) return;
+  if (message.action === "refuse") {
+    if (!entry.canAccept) return;
+    conversation.resolved = true;
+    w.deps.send(connectionId, {
+      t: "quest.result",
+      conversationId: conversation.id,
+      questId: definition.id,
+      speakerName: entry.speakerName,
+      title: definition.title || `Quête ${definition.id}`,
+      text: definition.dialogues.refused,
+      outcome: "refused",
+    });
+    return;
+  }
+  const actor = questActor(player);
+  if (!actor || player.partyId === null) return;
+  if (message.action === "accept") {
+    if (!entry.canAccept) return;
+    const inventory = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    const result = await w.deps.acceptAuthoredQuest(
+      player.partyId,
+      actor,
+      definition.id,
+      conversation.target,
+      inventory,
+    );
+    conversation.resolved = true;
+    w.deps.send(connectionId, {
+      t: "quest.result",
+      conversationId: conversation.id,
+      questId: definition.id,
+      speakerName: entry.speakerName,
+      title: definition.title || `Quête ${definition.id}`,
+      text: result.ok ? definition.dialogues.accepted : "",
+      outcome: result.ok ? "accepted" : "failed",
+    });
+    if (result.ok && result.progress.status === "completed") {
+      await claimAutomaticQuestReward(w, player, definition.id);
+    }
+    return;
+  }
+  if (!entry.canTurnIn) return;
+  if (!(await w.deps.savePlayer(player, connectionId))) return;
+  const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+  const result = await w.deps.completeAuthoredQuest(
+    player.partyId,
+    actor,
+    definition.id,
+    conversation.target,
+    message.rewardChoiceId,
+    { level: player.level, xp: player.xp, hp: player.hp, inventory: counts },
+  );
+  conversation.resolved = true;
+  if (result.ok) {
+    // Personal-scope completion state reaches this hero through the coordinator's own
+    // personal-progress push (`installPersonalQuestProgress`), exactly like legacy.
+    applyAuthoredQuestReward(w, connectionId, player, result, { event, pageIndex });
+  }
+  w.deps.send(connectionId, {
+    t: "quest.result",
+    conversationId: conversation.id,
+    questId: definition.id,
+    speakerName: entry.speakerName,
+    title: definition.title || `Quête ${definition.id}`,
+    text: result.ok ? definition.dialogues.turnIn : "",
+    outcome: result.ok ? "completed" : "failed",
+  });
+}
+
+/** Port of `#handleQuestAbandon` (`world.ts:1311`): journal abandonment is an intent — the
+ *  coordinator rechecks ownership, state and the pinned rule. */
+export async function handleQuestAbandon(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  questId: string,
+): Promise<void> {
+  const actor = questActor(player);
+  if (!actor || player.partyId === null) return;
+  const result = await w.deps.abandonAuthoredQuest(player.partyId, actor, questId);
+  if (!result.ok) {
+    w.deps.send(connectionId, { t: "event", code: "authored_quest.action_failed", tone: "bad" });
+    return;
+  }
+  const conversation = w.state.questConversations.get(player.id);
+  if (conversation) {
+    w.state.questConversations.delete(player.id);
+    w.deps.send(connectionId, { t: "quest.close", conversationId: conversation.id });
+  }
+  // The pushed authoritative snapshot drives the actor and every party member's journal notice.
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -3148,18 +4354,22 @@ export function advanceWorldTick(w: WorldGlue): void {
     collectLoot: (connectionId, player) => collectLootFor(w, connectionId, player),
     savePlayer: (player, connectionId) => deps.savePlayer(player, connectionId),
     onPlayerMoved: (connectionId, player, previous) => {
-      // Task 7: `#detectPlayerTouch` (authored `player-touch` event triggers) slots in here.
+      detectPlayerTouch(state, player, previous);
       applySacredPassage(w, connectionId, player, previous, now);
     },
   });
-  // Task 7 pauses NPCs held by an event run or quest conversation; neither runtime exists yet.
+  // NPCs held by a live event run or an open quest conversation stand still for the exchange.
+  const pausedNpcIds = new Set([
+    ...state.eventRuns.contexts.keys(),
+    ...[...state.questConversations.values()].map((conversation) => conversation.target.eventId),
+  ]);
   state.activeEvents = advanceNpcEvents({
     events: state.activeEvents,
     movement: state.npcMovement,
     players: [...state.players.values()],
     terrain: zone(state).terrain,
     tick: state.tick,
-    pausedEventIds: new Set<string>(),
+    pausedEventIds: pausedNpcIds,
   });
   for (const [connectionId, player] of state.players) {
     const action = player.action;
@@ -3220,7 +4430,7 @@ export function advanceWorldTick(w: WorldGlue): void {
     startAttack: (monster, target, attackedAt) =>
       startMonsterAttack(w, monster, target, attackedAt),
     defeatMonster: (monster, defeatedAt) => markMonsterDead(w, monster, defeatedAt),
-    // Task 7: `#detectMonsterTouch` (contact teleporters) hangs off onMonsterMoved.
+    onMonsterMoved: (monster, previous) => detectMonsterTouch(state, monster, previous),
   };
   advanceMonsters(monsterContext, now);
   advanceCombatActions(state.monsters, now, (monster, action) =>
@@ -3228,15 +4438,17 @@ export function advanceWorldTick(w: WorldGlue): void {
   );
   advanceGuards(monsterContext, now);
   processExpiredLoot(state.loot, state.lootGrid, now);
-  // Drain event runs AFTER all authoritative simulation and BEFORE the network flush (Task 7).
-  deps.drainEventRuns(now);
+  // Drain event runs AFTER all authoritative simulation (movement, combat, monsters, loot) and
+  // BEFORE the network flush: a run's teleport acts on final positions and rides out THIS tick's
+  // snapshot, and the budget guarantees the drain returns so the tick never hangs.
+  drainEventRuns(w, now);
   if (state.tick % NETWORK_TICKS_PER_SNAPSHOT === 0) {
     broadcastNetworkUpdates(
       state.players,
       state.tick,
       (player) => worldView(interestContext(w), player),
       (connectionId, message) => deps.send(connectionId, message),
-      NO_EVENTS,
+      state.activeEvents,
     );
     // The legacy runtime-party pass (`broadcastPartyStateIfChanged`) is rollback-only and absent;
     // hero rooms rebuild the roster from the persistent party.

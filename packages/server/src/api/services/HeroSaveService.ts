@@ -48,10 +48,28 @@ import { heroes } from "../entities/heroes.ts";
 import { heroItems } from "../entities/heroItems.ts";
 import { heroQuests } from "../entities/heroQuests.ts";
 import { heroSkills } from "../entities/heroSkills.ts";
+import { itemDefinitions } from "../entities/itemDefinitions.ts";
 
 export type HeroSaveResult = "saved" | "stale";
 
+/** The reward payload of a built-in quest-chapter turn-in — mirrors `worldTick.ts`'s
+ *  `QuestRewardClaim` minus the epoch (passed alongside). */
+export interface HeroQuestRewardClaim {
+  heroId: string;
+  sessionEpoch: number;
+  questId: string;
+  rewardGold: number;
+  rewardPotions: number;
+  resultingLevel: number;
+  resultingXp: number;
+  resultingHp: number;
+}
+
+const HEALTH_POTION_ID = "health_potion";
+
 const ID_ROW_SCHEMA = z.object({ id: z.uuid() });
+const QUEST_ID_ROW_SCHEMA = z.object({ quest_id: z.string() });
+const QUANTITY_ROW_SCHEMA = z.object({ quantity: z.number() });
 
 /** Port of `hero-profile.ts`'s `safeDeadline`: a deadline column never stores a negative or
  *  non-finite value, matching what `AdmissionService.loadHeroProfile` already expects on read. */
@@ -70,6 +88,111 @@ export class HeroSaveService {
   heroEquipment = $repository(heroEquipment);
   heroSkills = $repository(heroSkills);
   heroQuests = $repository(heroQuests);
+  itemDefinitions = $repository(itemDefinitions);
+
+  /**
+   * Port of `hero-persistence.ts`'s `consumeHeroOwnedItem` (Task 7 — replaces the in-memory
+   * `consumePotion` stub the Task-6 report flagged): one fenced decrement, returning the remaining
+   * quantity or `null` when nothing could be spent (no row, empty stack, stale epoch, or the item
+   * is not a consumable definition). Never more than one statement — the fence rides the UPDATE.
+   */
+  async consumeItem(
+    heroId: string,
+    sessionEpoch: number,
+    itemDefinitionId: string,
+  ): Promise<number | null> {
+    const rows = await this.heroItems.query(
+      (table) => sql`
+        UPDATE ${table}
+        SET quantity = quantity - 1
+        WHERE ${table.heroId} = ${heroId} AND ${table.itemDefinitionId} = ${itemDefinitionId}
+          AND quantity > 0
+          AND EXISTS (
+            SELECT 1 FROM ${this.heroes.table}
+            WHERE ${this.heroes.table.id} = ${heroId} AND ${this.heroes.table.sessionEpoch} = ${sessionEpoch}
+          )
+          AND EXISTS (
+            SELECT 1 FROM ${this.itemDefinitions.table}
+            WHERE ${this.itemDefinitions.table.id} = ${table.itemDefinitionId}
+              AND ${this.itemDefinitions.table.type} = 'consumable'
+          )
+        RETURNING quantity
+      `,
+      QUANTITY_ROW_SCHEMA,
+    );
+    return rows[0]?.quantity ?? null;
+  }
+
+  /**
+   * Port of `hero-persistence.ts`'s `claimHeroQuestReward` (Task 7 — replaces the always-false
+   * `claimQuestReward` stub): the idempotent built-in quest-chapter reward claim. The first
+   * statement flips the `hero_quest` row `ready -> completed` and stamps a fresh `reward_claim_id`
+   * — only when no claim id exists yet, under the epoch fence — and the two grant statements are
+   * each gated on THAT exact claim id, so a re-entrant or replayed claim grants nothing twice.
+   * Sequential fenced statements, not a batch (Alepha's D1 provider has no transactions); a crash
+   * between them under-grants once rather than double-granting, and the claim row records it.
+   */
+  async claimQuestReward(input: HeroQuestRewardClaim): Promise<boolean> {
+    const claimId = crypto.randomUUID();
+    const claimed = await this.heroQuests.query(
+      (table) => sql`
+        UPDATE ${table}
+        SET status = 'completed',
+            ${sql.raw(table.completedAt.name)} = ${new Date().toISOString()},
+            ${sql.raw(table.rewardClaimId.name)} = ${claimId}
+        WHERE ${table.heroId} = ${input.heroId} AND ${table.questId} = ${input.questId}
+          AND status = 'ready' AND ${sql.raw(table.rewardClaimId.name)} IS NULL
+          AND EXISTS (
+            SELECT 1 FROM ${this.heroes.table}
+            WHERE ${this.heroes.table.id} = ${input.heroId}
+              AND ${this.heroes.table.sessionEpoch} = ${input.sessionEpoch}
+          )
+        RETURNING ${sql.raw(table.questId.name)}
+      `,
+      QUEST_ID_ROW_SCHEMA,
+    );
+    if (claimed.length !== 1) return false;
+    await this.heroes.query(
+      (table) => sql`
+        UPDATE ${table}
+        SET ${sql.raw(table.gold.name)} = ${sql.raw(table.gold.name)} + ${input.rewardGold},
+            ${sql.raw(table.level.name)} = ${input.resultingLevel},
+            ${sql.raw(table.xp.name)} = ${input.resultingXp},
+            ${sql.raw(table.hp.name)} = ${input.resultingHp},
+            ${sql.raw(table.updatedAt.name)} = ${new Date().toISOString()}
+        WHERE ${table.id} = ${input.heroId} AND ${table.sessionEpoch} = ${input.sessionEpoch}
+          AND EXISTS (
+            SELECT 1 FROM ${this.heroQuests.table}
+            WHERE ${this.heroQuests.table.heroId} = ${input.heroId}
+              AND ${this.heroQuests.table.questId} = ${input.questId}
+              AND ${sql.raw(this.heroQuests.table.rewardClaimId.name)} = ${claimId}
+          )
+      `,
+    );
+    await this.heroItems.query(
+      (table) => sql`
+        INSERT INTO ${table}
+          (${sql.raw(table.id.name)}, ${sql.raw(table.heroId.name)},
+           ${sql.raw(table.itemDefinitionId.name)}, quantity, ${sql.raw(table.createdAt.name)})
+        SELECT ${crypto.randomUUID()}, ${input.heroId}, ${HEALTH_POTION_ID}, ${input.rewardPotions},
+               ${new Date().toISOString()}
+        WHERE EXISTS (
+          SELECT 1 FROM ${this.heroQuests.table}
+          WHERE ${this.heroQuests.table.heroId} = ${input.heroId}
+            AND ${this.heroQuests.table.questId} = ${input.questId}
+            AND ${sql.raw(this.heroQuests.table.rewardClaimId.name)} = ${claimId}
+        )
+          AND EXISTS (
+            SELECT 1 FROM ${this.heroes.table}
+            WHERE ${this.heroes.table.id} = ${input.heroId}
+              AND ${this.heroes.table.sessionEpoch} = ${input.sessionEpoch}
+          )
+        ON CONFLICT(${sql.raw(table.heroId.name)}, ${sql.raw(table.itemDefinitionId.name)}) DO UPDATE SET
+          quantity = quantity + excluded.quantity
+      `,
+    );
+    return true;
+  }
 
   /**
    * Saves one hero under the session epoch the caller currently holds. `"stale"` means the epoch
