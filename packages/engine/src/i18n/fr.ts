@@ -1005,6 +1005,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.monster.damage": "Puissance d’attaque",
   "editor.npc.power": "Puissance",
   "editor.monster.speed": "Vitesse de déplacement",
+  "editor.monster.detectionRange": "Distance de détection",
   "editor.monster.xp": "Expérience accordée",
   "editor.monster.weakness": "Faiblesse",
   "editor.monster.weakness.none": "Aucune",

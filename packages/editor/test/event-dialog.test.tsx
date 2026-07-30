@@ -306,6 +306,9 @@ describe("EventDialog", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.speed") }), {
       target: { value: "400" },
     });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.detectionRange") }), {
+      target: { value: "640" },
+    });
     fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.xp") }), {
       target: { value: "10000" },
     });
@@ -326,6 +329,7 @@ describe("EventDialog", () => {
     expect(committed.monsterMaxHp).toBe(0);
     expect(committed.monsterDamage).toBe(0);
     expect(committed.monsterSpeed).toBe(400);
+    expect(committed.monsterDetectionRange).toBe(640);
     expect(committed.monsterXp).toBe(10_000);
     expect(committed.monsterWeaknessPercent).toBe(0);
     expect(committed.monsterRespawnMode).toBe("never");

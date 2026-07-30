@@ -45,6 +45,7 @@ export const mapEvents = $entity({
     monsterMaxHp: z.integer().optional(),
     monsterDamage: z.integer().optional(),
     monsterSpeed: z.integer().optional(),
+    monsterDetectionRange: z.integer().optional(),
     monsterXp: z.integer().optional(),
     monsterWeakness: z.string().optional(),
     monsterWeaknessPercent: z.integer().optional(),

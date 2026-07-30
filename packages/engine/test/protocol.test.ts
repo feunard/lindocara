@@ -203,6 +203,22 @@ describe("server protocol", () => {
     projectiles: [],
     self,
   };
+  const monster = {
+    id: "m1",
+    name: "Éclaireur",
+    kind: "goblin",
+    species: "spear_goblin",
+    rank: "normal",
+    specialTechnique: "none",
+    x: 48,
+    y: 48,
+    hp: 48,
+    maxHp: 48,
+    detectionRange: 640,
+    dead: false,
+    facing: { x: 1, y: 0 },
+    action: null,
+  };
   /** A world the client can actually collide against: terrain now travels, so a welcome without it
    *  is not a welcome. */
   const layer = encodeTileLayer(emptyLayer(2, 2));
@@ -228,6 +244,21 @@ describe("server protocol", () => {
     portals: [],
     merchant: null,
   };
+
+  it("accepts a monster detection distance and rejects a negative one", () => {
+    expect(
+      parseServerMessage(JSON.stringify({ ...welcomeBase, world, monsters: [monster] })),
+    ).toMatchObject({ monsters: [{ detectionRange: 640 }] });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          monsters: [{ ...monster, detectionRange: -1 }],
+        }),
+      ),
+    ).toBeNull();
+  });
 
   it("accepts the Rogue loadout and only finite server-authored combat windows", () => {
     const rogue = {

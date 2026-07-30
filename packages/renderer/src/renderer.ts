@@ -7,6 +7,7 @@ import {
   entityBox,
   hashSeed,
   INTERACTION_RANGE,
+  MONSTER_AGGRO_RANGE,
   type MonsterSpecies,
   type PlayerClass,
   pointDistance,
@@ -4606,7 +4607,12 @@ export class Renderer {
           const moving = (view.movingUntil ?? 0) > now && !monster.dead;
           const bounce = Math.sin(now / (moving ? 105 : 360) + (view.phase ?? 0));
           const distance = self ? pointDistance(self, monster) : Number.POSITIVE_INFINITY;
-          const aggro = Boolean(self && !isSpirit(self.life) && !monster.dead && distance < 215);
+          const aggro = Boolean(
+            self &&
+              !isSpirit(self.life) &&
+              !monster.dead &&
+              distance < (monster.detectionRange ?? MONSTER_AGGRO_RANGE),
+          );
           const close = Boolean(self && !isSpirit(self.life) && !monster.dead && distance < 155);
           if (view.actor) {
             view.actor.y = 20 + bounce * (moving ? -2.3 : -1.1);

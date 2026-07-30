@@ -24,7 +24,7 @@ function conditionalMonster(): MapEvent {
     name: "Varkesh",
     species: "skull_warden",
     patrolRadius: 120,
-    monsterTuning: { rank: "boss", maxHp: 1_400 },
+    monsterTuning: { rank: "boss", maxHp: 1_400, detectionRange: 480 },
   });
   const base = event.pages[0] ?? defaultEventPage();
   return {
@@ -48,6 +48,7 @@ describe("authored monster projection", () => {
         species: "skull_warden",
         rank: "boss",
         maxHp: 1_400,
+        detectionRange: 480,
         x: 11 * TILE_SIZE + TILE_SIZE / 2,
         y: 6 * TILE_SIZE + TILE_SIZE / 2,
         patrolRadius: 120,
@@ -83,6 +84,7 @@ describe("authored monster projection", () => {
       x: retained.x,
       spawnX: retainedDefinition.x,
       spawnY: retainedDefinition.y,
+      detectionRange: 480,
     });
   });
 

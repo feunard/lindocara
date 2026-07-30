@@ -89,7 +89,6 @@ import {
   isWalkableForLumen,
   LOOT_EXPIRY_MS,
   MAX_MONSTER_BODY_RADIUS,
-  MONSTER_AGGRO_RANGE,
   MONSTER_RESPAWN_MS,
   type MonsterSpecies,
   maxHpForLevel,
@@ -769,7 +768,7 @@ function grantReviveGrace(w: WorldGlue, player: PlayerRuntime, now: number): voi
   player.forgottenUntil = Math.max(player.forgottenUntil, now + REVIVE_AGGRO_GRACE_MS);
   forgetPlayer(w, player);
   for (const monster of w.state.monsters) {
-    if (pointDistance(monster, player) <= MONSTER_AGGRO_RANGE) {
+    if (pointDistance(monster, player) <= monster.detectionRange) {
       monster.lastAttackAt = Math.max(monster.lastAttackAt, now);
     }
   }

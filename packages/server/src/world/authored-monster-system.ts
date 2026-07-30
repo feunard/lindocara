@@ -34,6 +34,9 @@ export function authoredMonsterDefinition(event: MapEvent): MonsterSpawn | null 
     ...(event.monsterSpeed === null || event.monsterSpeed === undefined
       ? {}
       : { speed: event.monsterSpeed }),
+    ...(event.monsterDetectionRange === null || event.monsterDetectionRange === undefined
+      ? {}
+      : { detectionRange: event.monsterDetectionRange }),
     ...(event.monsterXp === null || event.monsterXp === undefined ? {} : { xp: event.monsterXp }),
     ...(event.monsterWeakness ? { weakness: event.monsterWeakness } : {}),
     ...(event.monsterWeaknessPercent === null || event.monsterWeaknessPercent === undefined
@@ -78,6 +81,7 @@ export function reconcileActiveMonsters(
       spawnX: definition.x,
       spawnY: definition.y,
       patrolRadius: definition.patrolRadius,
+      detectionRange: definition.detectionRange ?? existing.detectionRange,
       respawnMode: definition.respawnMode ?? "timed",
     };
   });

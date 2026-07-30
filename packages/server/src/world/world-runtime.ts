@@ -309,6 +309,7 @@ export interface MonsterRuntime extends Vec2 {
   maxHp: number;
   damage: number;
   speed: number;
+  detectionRange: number;
   xp: number;
   weakness: MonsterWeakness;
   weaknessPercent: number;
@@ -683,6 +684,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       ...(spawn.maxHp === undefined ? {} : { maxHp: spawn.maxHp }),
       ...(spawn.damage === undefined ? {} : { damage: spawn.damage }),
       ...(spawn.speed === undefined ? {} : { speed: spawn.speed }),
+      ...(spawn.detectionRange === undefined ? {} : { detectionRange: spawn.detectionRange }),
       ...(spawn.xp === undefined ? {} : { xp: spawn.xp }),
       ...(spawn.weakness ? { weakness: spawn.weakness } : {}),
       ...(spawn.weaknessPercent === undefined ? {} : { weaknessPercent: spawn.weaknessPercent }),
@@ -698,6 +700,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       maxHp: tuning.maxHp,
       damage: tuning.damage,
       speed: tuning.speed,
+      detectionRange: tuning.detectionRange,
       xp: tuning.xp,
       weakness: tuning.weakness,
       weaknessPercent: tuning.weaknessPercent,

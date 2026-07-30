@@ -992,6 +992,7 @@ export const en = {
   "editor.monster.damage": "Attack power",
   "editor.npc.power": "Power",
   "editor.monster.speed": "Movement speed",
+  "editor.monster.detectionRange": "Detection distance",
   "editor.monster.xp": "Experience reward",
   "editor.monster.weakness": "Weakness",
   "editor.monster.weakness.none": "None",

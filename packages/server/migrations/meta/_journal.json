@@ -253,6 +253,13 @@
       "when": 1785310058417,
       "tag": "0035_rogue_starter_daggers",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1785418726498,
+      "tag": "0036_icy_thing",
+      "breakpoints": true
     }
   ]
 }

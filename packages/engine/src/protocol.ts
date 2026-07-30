@@ -152,6 +152,8 @@ export interface MonsterSnapshot {
   y: number;
   hp: number;
   maxHp: number;
+  /** Optional for backward-compatible snapshots; current servers always send the authored value. */
+  detectionRange?: number;
   dead: boolean;
   facing: Vec2;
   action: CombatActionSnapshot | null;
@@ -849,6 +851,8 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     isFiniteNumber(value.maxHp) &&
     value.maxHp >= 0 &&
     value.hp <= value.maxHp &&
+    (value.detectionRange === undefined ||
+      (isFiniteNumber(value.detectionRange) && value.detectionRange >= 0)) &&
     typeof value.dead === "boolean" &&
     isDirection(value.facing) &&
     (value.navigationDebug === undefined || isNavigationDebug(value.navigationDebug)) &&

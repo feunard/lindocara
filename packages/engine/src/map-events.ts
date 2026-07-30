@@ -165,6 +165,8 @@ export interface MapEvent {
   monsterMaxHp?: number | null;
   monsterDamage?: number | null;
   monsterSpeed?: number | null;
+  /** Distance in pixels at which this monster acquires eligible heroes and guards. */
+  monsterDetectionRange?: number | null;
   monsterXp?: number | null;
   monsterWeakness?: MonsterWeakness | null;
   monsterWeaknessPercent?: number | null;
@@ -287,6 +289,7 @@ export function functionalEvent(params: {
     monsterMaxHp: hasTuning ? tuning.maxHp : null,
     monsterDamage: hasTuning ? tuning.damage : null,
     monsterSpeed: hasTuning ? tuning.speed : null,
+    monsterDetectionRange: isMonster ? tuning.detectionRange : null,
     monsterXp: hasTuning ? tuning.xp : null,
     monsterWeakness: hasTuning ? tuning.weakness : null,
     monsterWeaknessPercent: hasTuning ? tuning.weaknessPercent : null,
@@ -452,6 +455,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     let monsterMaxHp: number | null = null;
     let monsterDamage: number | null = null;
     let monsterSpeed: number | null = null;
+    let monsterDetectionRange: number | null = null;
     let monsterXp: number | null = null;
     let monsterWeakness: MonsterWeakness | null = null;
     let monsterWeaknessPercent: number | null = null;
@@ -503,6 +507,18 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         defaults.speed,
         MONSTER_TUNING_LIMITS.speed,
       );
+      if (isMonster) {
+        monsterDetectionRange = boundedMonsterInteger(
+          record.monsterDetectionRange,
+          defaults.detectionRange,
+          MONSTER_TUNING_LIMITS.detectionRange,
+        );
+      } else if (
+        record.monsterDetectionRange !== undefined &&
+        record.monsterDetectionRange !== null
+      ) {
+        return null;
+      }
       monsterXp = boundedMonsterInteger(record.monsterXp, defaults.xp, MONSTER_TUNING_LIMITS.xp);
       monsterWeaknessPercent = boundedMonsterInteger(
         record.monsterWeaknessPercent,
@@ -513,6 +529,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         monsterMaxHp === null ||
         monsterDamage === null ||
         monsterSpeed === null ||
+        (isMonster && monsterDetectionRange === null) ||
         monsterXp === null ||
         monsterWeaknessPercent === null
       )
@@ -528,6 +545,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         (record.monsterMaxHp !== undefined && record.monsterMaxHp !== null) ||
         (record.monsterDamage !== undefined && record.monsterDamage !== null) ||
         (record.monsterSpeed !== undefined && record.monsterSpeed !== null) ||
+        (record.monsterDetectionRange !== undefined && record.monsterDetectionRange !== null) ||
         (record.monsterXp !== undefined && record.monsterXp !== null) ||
         (record.monsterWeakness !== undefined && record.monsterWeakness !== null) ||
         (record.monsterWeaknessPercent !== undefined && record.monsterWeaknessPercent !== null) ||
@@ -543,6 +561,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       (record.monsterMaxHp !== undefined && record.monsterMaxHp !== null) ||
       (record.monsterDamage !== undefined && record.monsterDamage !== null) ||
       (record.monsterSpeed !== undefined && record.monsterSpeed !== null) ||
+      (record.monsterDetectionRange !== undefined && record.monsterDetectionRange !== null) ||
       (record.monsterXp !== undefined && record.monsterXp !== null) ||
       (record.monsterWeakness !== undefined && record.monsterWeakness !== null) ||
       (record.monsterWeaknessPercent !== undefined && record.monsterWeaknessPercent !== null) ||
@@ -608,6 +627,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       monsterMaxHp,
       monsterDamage,
       monsterSpeed,
+      monsterDetectionRange,
       monsterXp,
       monsterWeakness,
       monsterWeaknessPercent,

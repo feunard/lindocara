@@ -692,12 +692,16 @@ describe("maps", () => {
         monsterRespawnMode: "never",
         monsterTuning: {
           rank: "elite",
+          detectionRange: 512,
           specialTechnique: "labyrinth_stomp",
         },
       });
       const created = await createMap(db, withEvents([monster]));
       expect(created.events[0]?.monsterRespawnMode).toBe("never");
-      expect((await loadMap(db, created.id))?.events[0]?.monsterRespawnMode).toBe("never");
+      expect((await loadMap(db, created.id))?.events[0]).toMatchObject({
+        monsterRespawnMode: "never",
+        monsterDetectionRange: 512,
+      });
     });
 
     it("saves new map anchors and the graph that binds them in one request", async () => {

@@ -625,6 +625,83 @@ describe("authored-map geometry", () => {
     expect(startAttack.mock.calls[0]?.[1]).toBe(player);
   });
 
+  it("uses the authored detection distance when acquiring a hero", () => {
+    const combatZone = authoredZone();
+    const player = targetPlayer(300, 300);
+    const socket = { id: "socket-detection" } as unknown as WebSocket;
+    const monster = createMonsters([
+      {
+        id: "watcher",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 100,
+        y: 300,
+        patrolRadius: 0,
+        speed: 0,
+        detectionRange: 150,
+      },
+    ])[0];
+    if (!monster) throw new Error("missing monster");
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone: combatZone,
+      tick: 0,
+      navigation: createNavigationRuntime(combatZone.terrain, combatZone.navigation),
+      startAttack: vi.fn(),
+    };
+
+    advanceMonsters(context, 1_000);
+    expect(monster.threat.has(player.id)).toBe(false);
+
+    monster.detectionRange = 250;
+    advanceMonsters(context, 1_050);
+    expect(monster.threat.has(player.id)).toBe(true);
+  });
+
+  it("uses the same authored detection distance for guards", () => {
+    const combatZone = authoredZone();
+    const guard = createGuards([{ id: "distant-guard", x: 300, y: 300, patrolRadius: 100 }])[0];
+    const monster = createMonsters([
+      {
+        id: "guard-watcher",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 100,
+        y: 300,
+        patrolRadius: 0,
+        speed: 0,
+        detectionRange: 150,
+      },
+    ])[0];
+    if (!monster || !guard) throw new Error("missing combatant");
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map(),
+      monsters: [monster],
+      guards: [guard],
+      monsterGrid,
+      zone: combatZone,
+      tick: 0,
+      navigation: createNavigationRuntime(combatZone.terrain, combatZone.navigation),
+      startAttack: vi.fn(),
+    };
+
+    advanceMonsters(context, 1_000);
+    expect(monster.threat.has(guard.id)).toBe(false);
+
+    monster.detectionRange = 250;
+    advanceMonsters(context, 1_050);
+    expect(monster.threat.has(guard.id)).toBe(true);
+  });
+
   it("still lets the catalogue's safe city disarm a monster standing right on top of a player", () => {
     // The other half of the same rule: fixing authored maps must not disarm Heartroot, where the
     // guards — not invulnerability — are the reason a monster inside the walls is a problem.

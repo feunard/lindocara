@@ -322,6 +322,7 @@ describe("list, get, update, delete", () => {
       monsterMaxHp: 0,
       monsterDamage: 0,
       monsterSpeed: 400,
+      monsterDetectionRange: 640,
       monsterXp: 10_000,
       monsterWeaknessPercent: 0,
       pages: [wirePage()],
@@ -337,6 +338,7 @@ describe("list, get, update, delete", () => {
         monsterMaxHp: number | null;
         monsterDamage: number | null;
         monsterSpeed: number | null;
+        monsterDetectionRange: number | null;
         monsterXp: number | null;
         monsterWeaknessPercent: number | null;
       }[];
@@ -347,6 +349,7 @@ describe("list, get, update, delete", () => {
       monsterMaxHp: 0,
       monsterDamage: 0,
       monsterSpeed: 400,
+      monsterDetectionRange: 640,
       monsterXp: 10_000,
       monsterWeaknessPercent: 0,
     });

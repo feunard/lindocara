@@ -381,6 +381,7 @@ export const mapEvent = sqliteTable(
     monsterMaxHp: integer("monster_max_hp"),
     monsterDamage: integer("monster_damage"),
     monsterSpeed: integer("monster_speed"),
+    monsterDetectionRange: integer("monster_detection_range"),
     monsterXp: integer("monster_xp"),
     monsterWeakness: text("monster_weakness").$type<MonsterWeakness>(),
     monsterWeaknessPercent: integer("monster_weakness_percent"),

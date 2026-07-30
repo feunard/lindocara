@@ -169,6 +169,7 @@ function visibleMonsterSnapshots<TSocket>(
     y: Math.round(monster.y * 100) / 100,
     hp: monster.hp,
     maxHp: monster.maxHp,
+    detectionRange: monster.detectionRange,
     dead: monster.deadUntil > now,
     facing: { ...monster.facing },
     action: combatActionSnapshot(monster.action),

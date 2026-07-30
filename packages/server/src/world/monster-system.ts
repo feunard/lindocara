@@ -13,7 +13,6 @@ import {
   GUARD_DAMAGE,
   GUARD_DETECTION_RANGE,
   GUARD_SPEED,
-  MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_RESPAWN_MS,
   pointDistance,
@@ -63,11 +62,11 @@ function monsterAttackRange(monster: MonsterRuntime, now: number): number {
 
 export function abandonMonsterTarget(
   monster: MonsterRuntime,
-  playerId: string,
+  targetId: string,
   reason = "target_unavailable",
 ): void {
-  monster.threat.delete(playerId);
-  if (monster.navigation.targetId !== playerId) return;
+  monster.threat.delete(targetId);
+  if (monster.navigation.targetId !== targetId) return;
   invalidateMonsterPath(monster, reason);
   monster.navigation.state = "idle";
   monster.navigation.targetId = null;
@@ -90,6 +89,9 @@ export function advanceMonsters<TSocket>(
   context: MonsterSystemContext<TSocket>,
   now: number,
 ): void {
+  const allPlayersById = new Map(
+    Array.from(context.players.values(), (player) => [player.id, player] as const),
+  );
   const players = Array.from(context.players.entries()).filter(
     ([, player]) =>
       player.authorized &&
@@ -98,6 +100,10 @@ export function advanceMonsters<TSocket>(
       player.invisibleUntil <= now &&
       !isRogueStealthed(player, now),
   );
+  const targetsById = new Map<string, PlayerRuntime | GuardRuntime>(
+    context.guards.map((guard) => [guard.id, guard]),
+  );
+  for (const [, player] of players) targetsById.set(player.id, player);
   for (let index = 0; index < context.monsters.length; index++) {
     const monster = context.monsters[index];
     if (!monster || monster.deadUntil > now) continue;
@@ -118,21 +124,13 @@ export function advanceMonsters<TSocket>(
       context.monsterGrid.update(monster, previousPosition);
     }
 
-    for (const [playerId, entry] of monster.threat) {
-      const socket = [...context.players.entries()].find(([, player]) => player.id === playerId);
-      const player = socket?.[1];
-      const tooFar = player ? pointDistance(monster, player) > THREAT_LEASH_DISTANCE : false;
-      if (
-        !player?.authorized ||
-        player.life !== "alive" ||
-        player.forgottenUntil > now ||
-        player.invisibleUntil > now ||
-        isRogueStealthed(player, now) ||
-        safeZoneShelters(player, context.zone.terrain) ||
-        now - entry.updatedAt > THREAT_EXPIRES_MS ||
-        tooFar
-      ) {
-        abandonMonsterTarget(monster, playerId, tooFar ? "target_too_far" : "target_unavailable");
+    for (const [targetId, entry] of monster.threat) {
+      const target = targetsById.get(targetId);
+      const player = allPlayersById.get(targetId);
+      const tooFar = target ? pointDistance(monster, target) > THREAT_LEASH_DISTANCE : false;
+      const playerSheltered = player ? safeZoneShelters(player, context.zone.terrain) : false;
+      if (!target || playerSheltered || now - entry.updatedAt > THREAT_EXPIRES_MS || tooFar) {
+        abandonMonsterTarget(monster, targetId, tooFar ? "target_too_far" : "target_unavailable");
       }
     }
     for (const [playerId, contribution] of monster.contributions) {
@@ -140,40 +138,39 @@ export function advanceMonsters<TSocket>(
         monster.contributions.delete(playerId);
     }
 
-    for (const candidate of players) {
-      const player = candidate[1];
-      if (safeZoneShelters(player, context.zone.terrain)) continue;
+    const acquireTarget = (target: PlayerRuntime | GuardRuntime): void => {
       if (
-        monster.navigation.unreachableTargetId === player.id &&
+        monster.navigation.unreachableTargetId === target.id &&
         monster.navigation.unreachableUntil > now
       )
-        continue;
-      const distance = pointDistance(monster, player);
-      if (distance < MONSTER_AGGRO_RANGE && !monster.threat.has(player.id)) {
+        return;
+      const distance = pointDistance(monster, target);
+      if (distance < monster.detectionRange && !monster.threat.has(target.id)) {
         addThreat(
           monster.threat,
-          player.id,
-          initialProximityThreat(distance, MONSTER_AGGRO_RANGE),
+          target.id,
+          initialProximityThreat(distance, monster.detectionRange),
           now,
         );
       }
+    };
+    for (const [, player] of players) {
+      if (!safeZoneShelters(player, context.zone.terrain)) acquireTarget(player);
     }
+    for (const guard of context.guards) acquireTarget(guard);
 
     const selected = highestThreat(
       monster.threat,
       (id) =>
-        players.some(([, player]) => player.id === id) &&
+        targetsById.has(id) &&
         (monster.navigation.unreachableTargetId !== id ||
           monster.navigation.unreachableUntil <= now),
     );
-    const target = selected
-      ? players.find(([, player]) => player.id === selected.playerId)
-      : undefined;
+    const target = selected ? targetsById.get(selected.playerId) : undefined;
 
     if (target) {
-      const [, player] = target;
-      const targetDistance = pointDistance(monster, player);
-      const targetChanged = monster.navigation.targetId !== player.id;
+      const targetDistance = pointDistance(monster, target);
+      const targetChanged = monster.navigation.targetId !== target.id;
       if (monster.action && monster.action.recoveryEndsAt > now) {
         monster.vx = 0;
         monster.vy = 0;
@@ -181,16 +178,16 @@ export function advanceMonsters<TSocket>(
       }
       if (targetDistance <= monsterAttackRange(monster, now)) {
         monster.navigation.state = "chase";
-        monster.navigation.destination = { x: player.x, y: player.y };
+        monster.navigation.destination = { x: target.x, y: target.y };
         monster.vx = 0;
         monster.vy = 0;
         if (now - monster.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS) {
           monster.lastAttackAt = now;
-          context.startAttack(monster, player, now);
+          context.startAttack(monster, target, now);
         }
         continue;
       }
-      navigateMonster(context, monster, player, player.id, "chase", now, targetChanged);
+      navigateMonster(context, monster, target, target.id, "chase", now, targetChanged);
     } else {
       const returning =
         (monster.navigation.state === "chase" ||

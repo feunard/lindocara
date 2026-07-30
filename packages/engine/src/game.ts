@@ -190,11 +190,15 @@ export function isMonsterSpecialTechniqueForSpecies(
   );
 }
 
+/** Default distance in pixels at which a monster notices an eligible hero or guard. */
+export const MONSTER_AGGRO_RANGE = 210;
+
 export interface MonsterTuning {
   rank: MonsterRank;
   maxHp: number;
   damage: number;
   speed: number;
+  detectionRange: number;
   xp: number;
   weakness: MonsterWeakness;
   /** Percentage applied when the attacking hero matches `weakness` (100 means no bonus). */
@@ -215,6 +219,7 @@ export const MONSTER_TUNING_LIMITS = {
   // Authoring has no gameplay ceiling for movement speed. The safe-integer ceiling is the actual
   // JavaScript/wire precision boundary, not a balance rule; movement itself remains collision-bound.
   speed: { min: 0, max: Number.MAX_SAFE_INTEGER },
+  detectionRange: { min: 0, max: Number.MAX_SAFE_INTEGER },
   xp: { min: 0, max: 100_000 },
   weaknessPercent: { min: 0, max: 400 },
 } as const;
@@ -245,6 +250,7 @@ export interface MonsterSpawn extends Vec2 {
   maxHp?: number;
   damage?: number;
   speed?: number;
+  detectionRange?: number;
   xp?: number;
   weakness?: MonsterWeakness;
   weaknessPercent?: number;
@@ -895,6 +901,7 @@ export function defaultMonsterTuning(species: MonsterSpecies): MonsterTuning {
     maxHp: stats.maxHp,
     damage: stats.damage,
     speed: stats.speed,
+    detectionRange: MONSTER_AGGRO_RANGE,
     xp: stats.xp,
     weakness: "none",
     weaknessPercent: 150,
@@ -944,7 +951,6 @@ export const PLAYER_HP_PER_LEVEL = 12;
 
 /** Slot-one attack cadence shared by all three class kits. */
 export const ATTACK_COOLDOWN_MS = 325;
-export const MONSTER_AGGRO_RANGE = 210;
 export const MONSTER_ATTACK_RANGE = 42;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;

@@ -79,9 +79,10 @@ const D1_BOUND_PARAM_BUDGET = 90;
  *  this stays in step with `mapElements`'s actual schema column count — see that test. */
 export const MAP_ELEMENT_COLUMNS = 8;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
- *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
- *  monsterSpecialTechnique, monsterRespawnMode. Exported — see `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_COLUMNS = 19;
+ *  monsterMaxHp, monsterDamage, monsterSpeed, monsterDetectionRange, monsterXp, monsterWeakness,
+ *  monsterWeaknessPercent, monsterSpecialTechnique, monsterRespawnMode. Exported — see
+ *  `MAP_ELEMENT_COLUMNS`'s comment. */
+export const MAP_EVENT_COLUMNS = 20;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix, optThrough,
  *  optOnTop, trigger, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s comment. */
@@ -446,6 +447,7 @@ export class MapService {
         monsterMaxHp: event.monsterMaxHp ?? undefined,
         monsterDamage: event.monsterDamage ?? undefined,
         monsterSpeed: event.monsterSpeed ?? undefined,
+        monsterDetectionRange: event.monsterDetectionRange ?? undefined,
         monsterXp: event.monsterXp ?? undefined,
         monsterWeakness: event.monsterWeakness ?? undefined,
         monsterWeaknessPercent: event.monsterWeaknessPercent ?? undefined,
@@ -557,6 +559,9 @@ export class MapService {
           monsterMaxHp: isTuned ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
           monsterDamage: isTuned ? (row.monsterDamage ?? tuning?.damage ?? null) : null,
           monsterSpeed: isTuned ? (row.monsterSpeed ?? tuning?.speed ?? null) : null,
+          monsterDetectionRange: isMonster
+            ? (row.monsterDetectionRange ?? tuning?.detectionRange ?? null)
+            : null,
           monsterXp: isTuned ? (row.monsterXp ?? tuning?.xp ?? null) : null,
           monsterWeakness: isTuned ? (row.monsterWeakness ?? tuning?.weakness ?? null) : null,
           monsterWeaknessPercent: isTuned

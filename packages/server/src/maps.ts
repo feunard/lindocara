@@ -579,6 +579,9 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
         monsterMaxHp: isTuned ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
         monsterDamage: isTuned ? (row.monsterDamage ?? tuning?.damage ?? null) : null,
         monsterSpeed: isTuned ? (row.monsterSpeed ?? tuning?.speed ?? null) : null,
+        monsterDetectionRange: isMonster
+          ? (row.monsterDetectionRange ?? tuning?.detectionRange ?? null)
+          : null,
         monsterXp: isTuned ? (row.monsterXp ?? tuning?.xp ?? null) : null,
         monsterWeakness: isTuned ? (row.monsterWeakness ?? tuning?.weakness ?? null) : null,
         monsterWeaknessPercent: isTuned
@@ -700,8 +703,8 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
 
 /**
  * Events and their pages ride the same batch as elements and hit the same D1 100-bound-parameter
- * cap. An event INSERT binds 18 parameters per row (identity/placement, authored tuning and respawn
- * mode; created_at defaults), so an unchunked write of the 64-event maximum would bind 1,152 and D1
+ * cap. An event INSERT binds 19 parameters per row (identity/placement, authored tuning and respawn
+ * mode; created_at defaults), so an unchunked write of the 64-event maximum would bind 1,216 and D1
  * would refuse the whole batch. A page INSERT binds 18 (id, event_id,
  * position, four condition columns, graphic_asset_id, three move columns, five opt columns,
  * trigger, and tranche 5's `commands` blob — the whole program is ONE bound parameter, a JSON
@@ -710,7 +713,7 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
  * cap, matching the element rule above so a later column keeps headroom instead of regressing onto
  * the line.
  */
-const MAP_EVENT_PARAMS_PER_ROW = 18; // identity/placement + tuning + respawn mode; createdAt defaults
+const MAP_EVENT_PARAMS_PER_ROW = 19; // identity/placement + tuning + respawn mode; createdAt defaults
 const MAP_EVENT_CHUNK_ROWS = Math.floor((D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_EVENT_PARAMS_PER_ROW);
 const MAP_EVENT_PAGE_PARAMS_PER_ROW = 18; // id, eventId, position, 4 cond, graphic, 3 move, 5 opt, trigger, commands — mirrors `mapEventPage`
 const MAP_EVENT_PAGE_CHUNK_ROWS = Math.floor(
@@ -732,6 +735,7 @@ function eventRows(mapId: string, events: readonly MapEvent[]) {
     monsterMaxHp: event.monsterMaxHp ?? null,
     monsterDamage: event.monsterDamage ?? null,
     monsterSpeed: event.monsterSpeed ?? null,
+    monsterDetectionRange: event.monsterDetectionRange ?? null,
     monsterXp: event.monsterXp ?? null,
     monsterWeakness: event.monsterWeakness ?? null,
     monsterWeaknessPercent: event.monsterWeaknessPercent ?? null,

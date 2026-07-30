@@ -186,6 +186,7 @@ function MonsterEventFields({
     maxHp: draft.monsterMaxHp ?? defaults.maxHp,
     damage: draft.monsterDamage ?? defaults.damage,
     speed: draft.monsterSpeed ?? defaults.speed,
+    detectionRange: draft.monsterDetectionRange ?? defaults.detectionRange,
     xp: draft.monsterXp ?? defaults.xp,
     weakness: draft.monsterWeakness ?? defaults.weakness,
     weaknessPercent: draft.monsterWeaknessPercent ?? defaults.weaknessPercent,
@@ -274,6 +275,11 @@ function MonsterEventFields({
             ["maxHp", "editor.monster.hp", MONSTER_TUNING_LIMITS.maxHp],
             ["damage", "editor.monster.damage", MONSTER_TUNING_LIMITS.damage],
             ["speed", "editor.monster.speed", MONSTER_TUNING_LIMITS.speed],
+            [
+              "detectionRange",
+              "editor.monster.detectionRange",
+              MONSTER_TUNING_LIMITS.detectionRange,
+            ],
             ["xp", "editor.monster.xp", MONSTER_TUNING_LIMITS.xp],
           ] as const
         ).map(([field, label, limits]) => (

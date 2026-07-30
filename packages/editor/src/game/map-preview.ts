@@ -228,6 +228,7 @@ export async function startMapPreview(
         y: at.y,
         hp: stats.maxHp,
         maxHp: stats.maxHp,
+        detectionRange: event.monsterDetectionRange ?? stats.detectionRange,
         dead: false,
         facing: { x: 0, y: 1 },
         action: null,
