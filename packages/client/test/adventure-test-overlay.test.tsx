@@ -1,11 +1,19 @@
 import { emptyDraft } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { activePartyAtom, adventureTestSessionAtom } from "@lindocara/client/state/atoms.js";
+import {
+  activePartyAtom,
+  adventureEditorSessionAtom,
+  adventureTestSessionAtom,
+} from "@lindocara/client/state/atoms.js";
+import type { GameHandle, SelfHud } from "@lindocara/client/store.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { AdventureTestOverlay } from "@lindocara/client/ui/AdventureTestOverlay.js";
+import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
+import type { SelfState } from "@lindocara/engine/protocol.js";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithAlepha } from "alepha/react/testing";
+import { Alepha } from "alepha";
+import { AlephaReact } from "alepha/react";
+import { ReactRouter } from "alepha/react/router";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +29,46 @@ vi.mock("@lindocara/client/game/session.js", () => ({
   startGameAsHero: sessionMock.start,
   stopActiveGameSession: sessionMock.stop,
 }));
+
+function fakeGameHandle(): GameHandle {
+  return {
+    attack: vi.fn(),
+    interact: vi.fn(),
+    usePotion: vi.fn(),
+    release: vi.fn(),
+    castSkill: vi.fn(),
+    sendChat: vi.fn(),
+    switchCharacter: vi.fn(),
+    logout: vi.fn(),
+    returnToTitle: vi.fn(),
+    attachMinimap: vi.fn(),
+    attachWorldMap: vi.fn(),
+  };
+}
+
+// `Hud` (mounted inside `GameScreen`) renders nothing without a self snapshot — the `/game` route
+// needs both a live `GameHandle` (the loader guard) and these to actually show the HUD tree the
+// overlay lives beside, mirroring `game-route.test.tsx`'s own fixtures.
+const SELF_FIXTURE: SelfHud = {
+  nick: "Testeur",
+  level: 1,
+  hp: 100,
+  maxHp: 100,
+  life: "alive",
+  corpseDistance: null,
+  class: "ranger",
+  appearance: { body: "wayfarer", primaryColor: "azure" },
+  equipment: { mainHand: "hunter_bow", offHand: null },
+};
+
+const SELF_STATE_FIXTURE: SelfState = {
+  xp: 0,
+  xpToNext: 100,
+  life: "alive",
+  corpse: null,
+  inventory: { potions: 0, gold: 0, crystals: 0 },
+  quest: { status: "available", progress: 0, target: 0 },
+};
 
 const testSession = {
   id: "test-1",
@@ -56,7 +104,49 @@ const testSession = {
   },
 };
 
-function seedStore() {
+function stubFetch(): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith("/_auth/userinfo")) {
+        return new Response(
+          JSON.stringify({ user: { id: "acc-1", username: "nico" }, api: { actions: {} } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (path.startsWith("/api/parties")) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`adventure-test-overlay.test.tsx: unexpected fetch ${path}`);
+    }),
+  );
+}
+
+/**
+ * `AdventureTestOverlay` mounts inside `AppRouter.tsx`'s `GameScreen` — reading the game bridge
+ * (zustand) and the test/editor-session atoms directly, and (Task 6) navigating back to the editor
+ * through `useRouter()` on exit. Testing it standalone would need to fake both a Router and every
+ * atom by hand; booting the real `AppRouter` (the same harness `game-route.test.tsx` uses) and
+ * landing on `/game` with a live fake `GameHandle` exercises the actual mounted component instead.
+ */
+async function mountOnGameWithTestSession(): Promise<{
+  alepha: Alepha;
+  router: ReactRouter<AppRouter>;
+}> {
+  const alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+  await act(async () => {
+    await alepha.start();
+  });
+  const router = alepha.inject(ReactRouter<AppRouter>);
+  await act(async () => {
+    await router.push("/menu");
+  });
+  await waitFor(() => expect(document.querySelector(".main-menu")).toBeTruthy());
+
   const draft = emptyDraft();
   draft.title = "Lab";
   draft.members = [
@@ -73,45 +163,52 @@ function seedStore() {
     },
   ];
   useUiStore.setState({
-    adventureEditorSession: {
-      adventureId: "adventure-1",
-      draftId: "draft-1",
-      draft,
-      invalidatedLinks: [],
-      savedDraft: JSON.stringify(draft),
-    },
+    game: fakeGameHandle(),
+    self: SELF_FIXTURE,
+    selfState: SELF_STATE_FIXTURE,
   });
+  alepha.store.set(adventureEditorSessionAtom, {
+    adventureId: "adventure-1",
+    draftId: "draft-1",
+    draft,
+    invalidatedLinks: [],
+    savedDraft: JSON.stringify(draft),
+  });
+  alepha.store.set(activePartyAtom, testSession.party);
+  alepha.store.set(adventureTestSessionAtom, testSession);
+
+  await act(async () => {
+    await router.push("/game");
+  });
+  await waitFor(() => expect(document.querySelector("#hud")).toBeTruthy());
+
+  return { alepha, router };
 }
 
 describe("AdventureTestOverlay", () => {
-  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+  let alepha: Alepha | undefined;
 
   beforeEach(() => {
     setLocale("en");
+    document.title = "";
+    document.head.innerHTML = "";
+    document.body.innerHTML = '<div id="root"></div>';
+    stubFetch();
     apiMock.create.mockReset();
     apiMock.remove.mockReset();
     sessionMock.start.mockReset();
     sessionMock.stop.mockReset();
-    seedStore();
   });
 
   afterEach(async () => {
-    for (const alepha of alephaInstances) await alepha.stop();
-    alephaInstances = [];
+    await alepha?.stop();
+    alepha = undefined;
+    useUiStore.setState({ game: null, heroLoading: null, self: null, selfState: null });
   });
 
-  async function renderOverlay() {
-    const result = await renderWithAlepha(<AdventureTestOverlay />);
-    alephaInstances.push(result.alepha);
-    await act(async () => {
-      result.alepha.store.set(activePartyAtom, testSession.party);
-      result.alepha.store.set(adventureTestSessionAtom, testSession);
-    });
-    return result;
-  }
-
   it("makes isolation and the readable selected map explicit", async () => {
-    await renderOverlay();
+    const result = await mountOnGameWithTestSession();
+    alepha = result.alepha;
     expect(screen.getByText(t("editor.test.overlay.badge"))).toBeInTheDocument();
     expect(screen.getByText(t("editor.test.overlay.title"))).toBeInTheDocument();
     expect(screen.getByText(t("editor.test.overlay.start", { name: "Caves" }))).toBeInTheDocument();
@@ -126,7 +223,8 @@ describe("AdventureTestOverlay", () => {
     };
     apiMock.create.mockResolvedValue(replacement);
     sessionMock.start.mockResolvedValue(undefined);
-    const { alepha } = await renderOverlay();
+    const result = await mountOnGameWithTestSession();
+    alepha = result.alepha;
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.reset") }));
     await waitFor(() => expect(sessionMock.start).toHaveBeenCalledTimes(1));
@@ -138,17 +236,22 @@ describe("AdventureTestOverlay", () => {
     expect(sessionMock.start).toHaveBeenCalledWith(replacement.hero, replacement.party);
   });
 
-  it("deletes the disposable party before returning to the editor", async () => {
+  it("deletes the disposable party and navigates back to the editor route on exit", async () => {
     apiMock.remove.mockResolvedValue(undefined);
-    const setScreenSpy = vi.spyOn(useUiStore.getState(), "setScreen");
-    const { alepha } = await renderOverlay();
+    const result = await mountOnGameWithTestSession();
+    alepha = result.alepha;
+    const { router } = result;
+    // Spy rather than await the real navigation: `/editor` lazy-loads the actual
+    // `@lindocara/editor` chunk (real dynamic `import()`, not mocked — see `AppRouter.tsx`'s own
+    // docblock), which is unrelated to what this test asserts (that exiting routes to the editor,
+    // not what the editor itself renders — that's `editor-shell.test.tsx`'s job).
+    const pushSpy = vi.spyOn(router, "push");
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.exit") }));
     await waitFor(() => expect(apiMock.remove).toHaveBeenCalledWith("test-1"));
     expect(sessionMock.stop).toHaveBeenCalledTimes(1);
     expect(alepha.store.get(activePartyAtom)).toBeNull();
     expect(alepha.store.get(adventureTestSessionAtom)).toBeNull();
-    expect(setScreenSpy).toHaveBeenCalledWith("adventure-editor");
-    setScreenSpy.mockRestore();
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith("editor"));
   });
 });

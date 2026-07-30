@@ -3,20 +3,21 @@
  * click drops into the main menu. Full-screen art; no chrome, no cursor hunt.
  */
 import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
+import { useRouter } from "alepha/react/router";
 import { useEffect } from "react";
 import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
-import { useUiStore } from "../store.js";
+import type { AppRouter } from "./AppRouter.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 export function TitleScreen() {
-  const setScreen = useUiStore((s) => s.setScreen);
+  const router = useRouter<AppRouter>();
 
   useEffect(() => {
     const start = () => {
       // This press is the user gesture that unlocks audio; play the confirm and hand off.
       menuAudio.playConfirm();
-      setScreen("menu");
+      void router.push("menu");
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") start();
@@ -38,7 +39,7 @@ export function TitleScreen() {
       window.removeEventListener("pointerdown", start);
       cancelAnimationFrame(raf);
     };
-  }, [setScreen]);
+  }, [router]);
 
   return (
     <main className="title-screen">

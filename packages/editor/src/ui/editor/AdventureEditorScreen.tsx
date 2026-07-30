@@ -16,7 +16,11 @@ import {
   updateMapApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import {
+  activePartyAtom,
+  adventureEditorSessionAtom,
+  adventureTestSessionAtom,
+} from "@lindocara/client/state/atoms.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
@@ -41,6 +45,8 @@ import {
   ResizablePanelGroup,
 } from "@lindocara/ui/components/resizable.js";
 import { TooltipProvider } from "@lindocara/ui/components/tooltip.js";
+import { useAlepha, useStore } from "alepha/react";
+import { useRouter } from "alepha/react/router";
 import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -134,7 +140,13 @@ function eventToolFor(
   return { kind: "event", eventKind };
 }
 
-/** The two `requireSession` codes that mean "log in again", never "this map request failed". */
+/**
+ * The two `requireSession` codes that mean "log in again", never "this map request failed". The
+ * client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper, `state/navigation.ts`'s
+ * `onUnauthorized`) already navigates to `/auth` for both — this file's own catch blocks check it
+ * only to SKIP surfacing a redundant local error while that redirect is already in flight, never to
+ * navigate themselves.
+ */
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
@@ -208,7 +220,7 @@ function paintToolFor(
  * through the `MapEditorStageHandle`, exactly as before.
  */
 export function AdventureEditorScreen() {
-  const session = useUiStore((state) => state.adventureEditorSession);
+  const [session] = useStore(adventureEditorSessionAtom);
   if (session?.adventureId) {
     return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
   }
@@ -217,18 +229,19 @@ export function AdventureEditorScreen() {
 
 function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   useLocale();
-  const setScreen = useUiStore((state) => state.setScreen);
-  const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  const router = useRouter();
+  const alepha = useAlepha();
+  const [session, setSession] = useStore(adventureEditorSessionAtom);
+  const [, setAdventureTestSession] = useStore(adventureTestSessionAtom);
+  const [, setActiveParty] = useStore(activePartyAtom);
   // The switch/variable registry rides the loaded adventure session's draft. When no adventure is
   // loaded (the common map-first case) it is empty, which falls the event dialog's condition pickers
   // back to free text. Loading an adventure in the database dialog fills it.
-  const registry: AdventureRegistry = useUiStore(
-    (state) => state.adventureEditorSession?.draft.registry ?? EMPTY_REGISTRY,
-  );
+  const registry: AdventureRegistry = session?.draft.registry ?? EMPTY_REGISTRY;
   // The adventure's member maps, used to offer a `teleport` command its destinations (below).
-  const draftMembers = useUiStore((state) => state.adventureEditorSession?.draft.members);
+  const draftMembers = session?.draft.members;
   // The first-save popup prefills with the adventure's current (default) title.
-  const draftTitle = useUiStore((state) => state.adventureEditorSession?.draft.title ?? "");
+  const draftTitle = session?.draft.title ?? "";
   // The adventure's maps a `teleport` command may target, with the dims the dialog clamps the
   // destination cell against. Dims come off the member's display solid mask (rows = its length,
   // cols = a row's length) — the same thumbnail the Cartes panel already carries, no extra fetch.
@@ -336,9 +349,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // adventure remounts it) from the picker's `titleUntouched` flag, then kept in local state so no
   // session reload (map/graph refreshes rebuild the session without the flag) can lose it. Cleared on
   // the first-save confirm and whenever the settings dialog saves — both are explicit namings.
-  const [titleUntouched, setTitleUntouched] = useState(
-    () => useUiStore.getState().adventureEditorSession?.titleUntouched ?? false,
-  );
+  const [titleUntouched, setTitleUntouched] = useState(() => session?.titleUntouched ?? false);
   const [firstSaveOpen, setFirstSaveOpen] = useState(false);
   // The event whose dialog is open, keyed by uuid. Set by a stage double-click (`onOpenEvent`) or by
   // pressing Enter on a selected event; cleared on save/delete/cancel.
@@ -355,14 +366,11 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     setHelpOpen(true);
   }
 
-  const fail = useCallback(
-    (caught: unknown): void => {
-      const code = errorCode(caught);
-      if (isSessionError(code)) setScreen("auth");
-      else setError(code);
-    },
-    [setScreen],
-  );
+  const fail = useCallback((caught: unknown): void => {
+    const code = errorCode(caught);
+    if (isSessionError(code)) return;
+    setError(code);
+  }, []);
 
   // Load a different adventure (UX wave #15), from the File → « Charger une aventure » dialog. Guard
   // unsaved edits first, then swap the session — a new adventureId remounts this component (it is
@@ -755,9 +763,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         const saved = await doSaveMap();
         if (!saved) return;
       }
-      const session = await createAdventureTestSessionApi(adventureId, options);
-      createdSessionId = session.id;
-      useUiStore.getState().setAdventureTestSession(session);
+      const testSession = await createAdventureTestSessionApi(adventureId, options);
+      createdSessionId = testSession.id;
+      setAdventureTestSession(testSession);
       setTestOpen(false);
       // Hand the one shared Pixi canvas over synchronously. If React unmounts the editor after the
       // game has already acquired/started that app, the editor effect cleanup would otherwise stop
@@ -766,7 +774,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       handleRef.current = null;
       releasedStage = true;
       const { startGameAsHero } = await import("@lindocara/client/game/session.js");
-      await startGameAsHero(session.hero, session.party);
+      await startGameAsHero(testSession.hero, testSession.party);
     } catch (caught) {
       if (createdSessionId) {
         // A runtime/bootstrap failure must not leave an invisible disposable party behind. The TTL
@@ -776,16 +784,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         } catch {
           // Preserve the original launch error: it is the actionable failure shown to the creator.
         }
-        const store = useUiStore.getState();
-        store.setAdventureTestSession(null);
-        store.setActiveParty(null);
+        setAdventureTestSession(null);
+        setActiveParty(null);
       }
       if (releasedStage) setStageEpoch((current) => current + 1);
       const code = errorCode(caught);
-      if (isSessionError(code)) {
-        setScreen("auth");
-        return;
-      }
+      // The global 401 seam already navigates to /auth (see `isSessionError`'s docblock) — bail
+      // without reopening the test dialog with a stale error while that redirect is in flight.
+      if (isSessionError(code)) return;
       if (caught instanceof ApiError && code === "adventure_test_invalid") {
         const diagnostics = (caught.details as { diagnostics?: unknown } | null)?.diagnostics;
         if (Array.isArray(diagnostics)) setTestDiagnostics(diagnostics as QuestDiagnostic[]);
@@ -824,7 +830,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     const savedMapId = map.id;
     const savedMapGeneration = mapLoadGenerationRef.current;
     savingMapRef.current = true;
-    const currentSession = useUiStore.getState().adventureEditorSession;
+    const currentSession = alepha.store.get(adventureEditorSessionAtom);
     const baseDraft = draftOverride ?? currentSession?.draft;
     const tracksCurrentMap = baseDraft?.members.some((member) => member.mapId === map.id) ?? false;
     const refreshed =
@@ -851,7 +857,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       if (mapLoadGenerationRef.current === savedMapGeneration) handle.markSaved(savedSnapshot);
       setMap((current) => (current?.id === savedMapId ? { ...current, ...updated } : current));
       setMapsRefreshNonce((n) => n + 1);
-      const latestSession = useUiStore.getState().adventureEditorSession;
+      const latestSession = alepha.store.get(adventureEditorSessionAtom);
       // A direct map save merges only this member into the latest session so a metadata/registry
       // edit that landed during the network request is not rolled back by a stale captured draft.
       // A settings/first-save override is itself the metadata that the server atomically stored, so
@@ -901,7 +907,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // PUT, so the server preserves the stored graph. A PUT failure leaves the popup's abort semantics
   // intact: nothing partial is claimed as saved.
   async function confirmFirstSave(title: string): Promise<void> {
-    const current = useUiStore.getState().adventureEditorSession;
+    const current = alepha.store.get(adventureEditorSessionAtom);
     if (!current) {
       setFirstSaveOpen(false);
       return;
@@ -917,7 +923,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       return;
     }
     if (!saved) return;
-    const latest = useUiStore.getState().adventureEditorSession;
+    const latest = alepha.store.get(adventureEditorSessionAtom);
     if (latest) setSession({ ...latest, draft: saved, titleUntouched: false });
     setTitleUntouched(false);
     setFirstSaveOpen(false);
@@ -953,7 +959,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       try {
         const loaded = await loadAdventureSession(adventureId);
         if (generation !== sessionLoadGenerationRef.current) return;
-        const current = useUiStore.getState().adventureEditorSession;
+        const current = alepha.store.get(adventureEditorSessionAtom);
         if (current?.adventureId !== adventureId) return;
         // A map-list refresh owns membership/names/revisions, not adventure metadata. Preserve the
         // latest successfully edited shell and registry so an older GET cannot roll them back.
@@ -972,10 +978,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             ? {}
             : { titleUntouched: current.titleUntouched }),
         });
-      } catch (caught) {
-        if (generation !== sessionLoadGenerationRef.current) return;
-        const code = errorCode(caught);
-        if (isSessionError(code)) setScreen("auth");
+      } catch {
+        // Best-effort refresh: swallow every failure, including a dead session — the global 401
+        // seam already navigates to /auth on its own (see `isSessionError`'s docblock).
       }
     })();
   }
@@ -1019,7 +1024,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     }
     // Clear the session; the next editor open bootstraps a fresh opening adventure (UX wave #15).
     setSession(null);
-    setScreen("title");
+    void router.push("title");
   }
 
   // ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 mode (field/element/event), P/R/F/E/S tools, G grid — dispatched straight to
@@ -1398,7 +1403,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               onOpenMapAudio={() => setMapAudioOpen(true)}
               onOpenSettings={() => setSettingsOpen(true)}
               onError={(code) => setError(code === "" ? null : code)}
-              onSessionExpired={() => setScreen("auth")}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -1413,7 +1417,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             setTitleUntouched(false);
             setMapsRefreshNonce((n) => n + 1);
           }}
-          onSessionExpired={() => setScreen("auth")}
         />
 
         {currentMap && (
@@ -1465,14 +1468,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         <RegistryDialog
           open={databaseOpen}
           onOpenChange={setDatabaseOpen}
-          onSessionExpired={() => setScreen("auth")}
           onOpenHelp={() => openHelp("state")}
         />
 
         <QuestWorkspaceDialog
           open={questWorkspaceOpen}
           onOpenChange={setQuestWorkspaceOpen}
-          onSessionExpired={() => setScreen("auth")}
           onOpenHelp={() => openHelp("quests")}
           currentMap={currentQuestMap}
           {...(stageStatus === "ready" ? { onSaveDraft: doSaveMap } : {})}
@@ -1487,7 +1488,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             setLoadOpen(false);
             setSession(null);
           }}
-          onSessionExpired={() => setScreen("auth")}
         />
 
         {eventDraft && (
@@ -1528,7 +1528,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 onBind={(binding) => {
                   const id = handleRef.current?.bindSelectedElement(binding) ?? null;
                   if (id && binding.questBinding && map) {
-                    const latest = useUiStore.getState().adventureEditorSession;
+                    const latest = session;
                     if (latest) {
                       const nextRegistry = bindQuestTarget(
                         latest.draft.registry,

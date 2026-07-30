@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
-import { Hint, MenuHints } from "./MainMenu.js";
+import { Hint, MenuHints } from "./MenuHints.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
 
 export interface CarouselCard {

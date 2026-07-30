@@ -52,7 +52,7 @@
     "typecheck:server": "tsc -p packages/server/tsconfig.json && tsc -p packages/server/tsconfig.api.json",
     "typecheck:renderer": "tsc -p packages/renderer/tsconfig.json",
     "typecheck:client": "tsc -p packages/client/tsconfig.json && tsc -p packages/client/tsconfig.api.json",
-    "typecheck:editor": "tsc -p packages/editor/tsconfig.json",
+    "typecheck:editor": "tsc -p packages/editor/tsconfig.json && tsc -p packages/editor/tsconfig.api.json",
     "typecheck:ui": "tsc -p packages/ui/tsconfig.json",
     "typecheck:testing": "tsc -p packages/testing/tsconfig.json",
     "cf-typegen": "npm run cf-typegen -w @lindocara/server",

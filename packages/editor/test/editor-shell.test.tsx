@@ -1,9 +1,10 @@
 import { emptyDraft } from "@lindocara/client/adventure-draft.js";
 import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import type { GameNavigation } from "@lindocara/client/state/navigation.js";
-import { setGameNavigation } from "@lindocara/client/state/navigation.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import {
+  adventureEditorSessionAtom,
+  adventureTestSessionAtom,
+} from "@lindocara/client/state/atoms.js";
 import { MainMenu } from "@lindocara/client/ui/MainMenu.js";
 import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game/editor-state.js";
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
@@ -12,51 +13,45 @@ import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Alepha } from "alepha";
+import { AlephaReact } from "alepha/react";
+import { ReactRouter } from "alepha/react/router";
+import { renderWithAlepha } from "alepha/react/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// `screen` DIED as a store field in Task 2 (the `$page` router is the real navigation truth now) —
-// the store's `setScreen` is a deprecated shim that pushes through a navigation seam nothing
-// installs in these bare-render tests, so it is a no-op. Every assertion that used to read
-// `useUiStore.getState().screen` now asserts on this spy instead (which call, with which name).
-//
-// `adventureTestSession` DIED as a store field in the same task — the store's
-// `setAdventureTestSession` is a write-ONLY shim into `state/atoms.ts`'s `adventureTestSessionAtom`
-// through the navigation seam (no zustand-local echo, unlike `adventureEditorSession`, because
-// nothing reads it back through zustand anymore — see `store.ts`'s docblock). A bare render like
-// this one has no Alepha instance to hold that atom, so a fake seam is installed here purely to
-// capture what the shim calls it with; every assertion that used to read
-// `useUiStore.getState().adventureTestSession` now reads `adventureTestSessionMock.mock.calls` (or
-// its last-call convenience below) instead.
-let setScreenSpy: ReturnType<typeof vi.spyOn>;
-const adventureTestSessionMock = vi.fn();
-function lastAdventureTestSession(): unknown {
-  const calls = adventureTestSessionMock.mock.calls;
-  return calls.length > 0 ? calls[calls.length - 1]?.[0] : undefined;
+/**
+ * `AdventureEditorScreen`/`AdventurePickerScreen`/`MainMenu` all read/write
+ * `state/atoms.ts`'s `adventureEditorSessionAtom` and navigate via `useRouter()` directly (Task 6,
+ * off the store's deleted `adventureEditorSession`/`setScreen`/`setAdventureEditorSession` shims and
+ * the `state/navigation.ts` seam those used to route through) — every render in this file needs a
+ * real Alepha instance. `mountAlepha()` builds one with just `AlephaReact` registered (no full
+ * `AppRouter` page tree: nothing here needs a real route to resolve, only proof of WHICH name a
+ * navigation reached) and replaces `push` with a spy before the container starts. Each describe
+ * block below owns its own instance via `beforeEach`/`afterEach`, matching this repo's other
+ * `renderWithAlepha` suites.
+ */
+function mountAlepha(): {
+  alepha: Alepha;
+  router: ReactRouter<object>;
+  pushSpy: ReturnType<typeof vi.spyOn>;
+} {
+  const alepha = Alepha.create().with(AlephaReact);
+  const router = alepha.inject(ReactRouter<object>);
+  const pushSpy = vi.spyOn(router, "push").mockResolvedValue(undefined);
+  return { alepha, router, pushSpy };
 }
-beforeEach(() => {
-  setScreenSpy = vi.spyOn(useUiStore.getState(), "setScreen");
-  adventureTestSessionMock.mockReset();
-  const fakeNav: GameNavigation = {
-    toGame: vi.fn(),
-    toMenu: vi.fn(),
-    toAuth: vi.fn(),
-    setActiveParty: vi.fn(),
-    getActiveParty: () => null,
-    setAdventureTestSession: adventureTestSessionMock,
-    getAdventureTestSession: () => null,
-    getQuickItems: () => [null, null, null],
-    logout: vi.fn(),
-    setAdventureEditorSession: vi.fn(),
-    push: vi.fn(),
-  };
-  setGameNavigation(fakeNav);
-});
-afterEach(() => {
-  setScreenSpy.mockRestore();
-  setGameNavigation(null);
-});
+
+/** Mounts the shell and waits until the (fake) stage is wired, so a following toolbar action
+ *  actually reaches the handle. Shared by every describe below; each passes its own `alepha`. */
+async function mountReady(alepha: Alepha): Promise<RenderResult> {
+  const rendered = await renderWithAlepha(<AdventureEditorScreen />, { alepha });
+  await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(stageMock.setTool).toHaveBeenCalled());
+  return rendered;
+}
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the mode selector
@@ -265,15 +260,6 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
   });
 }
 
-/** Mounts the shell and waits until the (fake) stage is wired, so a following toolbar action
- *  actually reaches the handle. */
-async function mountReady(): Promise<ReturnType<typeof render>> {
-  const rendered = render(<AdventureEditorScreen />);
-  await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(stageMock.setTool).toHaveBeenCalled());
-  return rendered;
-}
-
 /** The status strip: its mode echo (`t("editor.shell.mode.*")`) renders the same text as the
  *  toolbar's mode segment, so a query for it must scope here rather than use a bare `getByText`. */
 function statusBar(rendered: { container: HTMLElement }): HTMLElement {
@@ -283,18 +269,20 @@ function statusBar(rendered: { container: HTMLElement }): HTMLElement {
 }
 
 describe("AdventureEditorScreen shell", () => {
+  let alepha: Alepha;
+  let pushSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     setLocale("en");
+    ({ alepha, pushSpy } = mountAlepha());
     // A map belongs to one adventure, so the editor loads maps for the session's adventure. Seed a
     // loaded adventure so the auto-open fetches `/api/maps?adventure=adv-1` and mounts the stage.
-    useUiStore.setState({
-      adventureEditorSession: {
-        adventureId: "adv-1",
-        draftId: "draft-1",
-        draft: emptyDraft(),
-        invalidatedLinks: [],
-        savedDraft: null,
-      },
+    alepha.store.set(adventureEditorSessionAtom, {
+      adventureId: "adv-1",
+      draftId: "draft-1",
+      draft: emptyDraft(),
+      invalidatedLinks: [],
+      savedDraft: null,
     });
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
@@ -312,10 +300,14 @@ describe("AdventureEditorScreen shell", () => {
     gameSessionMock.startGameAsHero.mockResolvedValue(undefined);
   });
 
+  afterEach(async () => {
+    await alepha.stop();
+  });
+
   it("pushes the matching EditorTool for each toolbar tool button", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     const user = userEvent.setup();
-    await mountReady();
+    await mountReady(alepha);
 
     await user.click(screen.getByRole("button", { name: t("editor.shell.tool.select") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
@@ -341,7 +333,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("mounts the shell under the light-only editor scope (UX wave #1)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    const { container } = await mountReady();
+    const { container } = await mountReady(alepha);
     // The whole shell hangs off `.editor-root`, the hook legacy.css scopes color-scheme:light and the
     // light shadcn tokens to (the token resolution itself is css:false here — verified visually in the
     // real-browser campaign). If the hook class is ever renamed/dropped, the light scope silently
@@ -353,7 +345,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("opens the stage grid-on by default (UX wave #8)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
     // The stage is told to show the grid the moment it is wired…
     await waitFor(() => expect(stageMock.setGrid).toHaveBeenCalledWith(true));
     // …and the toolbar's grid toggle reflects it as pressed.
@@ -365,7 +357,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("D18: the collision overlay toggle is off by default and reaches the stage handle", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
     // Off by default, unlike the grid — a fresh editor must look exactly as it did before this
     // overlay existed.
     await waitFor(() => expect(stageMock.setCollisions).toHaveBeenCalledWith(false));
@@ -383,7 +375,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("keeps selection exclusive: a terrain pick clears the spawn tool and vice versa (UX wave #11)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
     const grass = () => screen.getByRole("button", { name: t("editor.tool.grass") });
     const spawn = () => screen.getByRole("button", { name: t("editor.tool.spawn") });
 
@@ -405,7 +397,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("the EV slot activates the event tool, pushing the overlay onto the stage handle", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
     // The event tool is what turns the stage's EV overlay on (shouldShowEventOverlay), so this call
@@ -428,7 +420,7 @@ describe("AdventureEditorScreen shell", () => {
       ordinal: 1,
       pages: [defaultEventPage()],
     });
-    await mountReady();
+    await mountReady(alepha);
 
     // The stage's onDoubleClick calls the 4th openMapEditorStage argument with the event's id.
     const onOpenEvent = stageMock.openMapEditorStage.mock.calls[0]?.[3] as (id: string) => void;
@@ -452,7 +444,7 @@ describe("AdventureEditorScreen shell", () => {
       ordinal: 7,
       pages: [defaultEventPage()],
     });
-    await mountReady();
+    await mountReady(alepha);
 
     // Report an event selection through the stage's onChange, the way a select-click would.
     const onChange = stageMock.openMapEditorStage.mock.calls[0]?.[1] as (
@@ -488,7 +480,7 @@ describe("AdventureEditorScreen shell", () => {
       ordinal: 1,
       pages: [defaultEventPage()],
     });
-    await mountReady();
+    await mountReady(alepha);
     const onOpenEvent = stageMock.openMapEditorStage.mock.calls[0]?.[3] as (id: string) => void;
     act(() => onOpenEvent("ev-1"));
     await waitFor(() =>
@@ -513,7 +505,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("shows the preset placements only while EV mode is active, and no graphic picker (D13)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     // The sidebar graphic catalogue (D13) is gone from EV mode entirely.
     expect(screen.queryByTestId("event-presets")).toBeNull();
@@ -524,7 +516,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("picking a preset in EV mode pushes a scripted event tool with that preset (D13)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
     const palette = screen.getByRole("complementary", { name: t("editor.shell.palette.aria") });
@@ -559,7 +551,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("threads the mode selector to setActiveMode and reflects it in the status bar", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
 
     // "Element" appears twice at once (the mode control's own segment label and the status bar
     // echo), so both assertions below scope to the status bar strip rather than a bare getByText.
@@ -581,7 +573,7 @@ describe("AdventureEditorScreen shell", () => {
     });
     stageMock.openMapEditorStage.mockReturnValueOnce(openPromise);
 
-    render(<AdventureEditorScreen />);
+    await renderWithAlepha(<AdventureEditorScreen />, { alepha });
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
 
     // The handle does not exist yet, so selecting Event mode here can only reach the stage through
@@ -600,7 +592,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("opens the registry database dialog from the Game menu", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     // The Base UI menubar opens reliably from the keyboard in jsdom (its click-to-open path depends
     // on layout measurement that jsdom does not provide).
@@ -615,12 +607,12 @@ describe("AdventureEditorScreen shell", () => {
     expect(await screen.findByText(t("editor.registry.title"))).toBeInTheDocument();
     expect(previewMock.startMapPreview).not.toHaveBeenCalled();
     // Opening the database dialog never navigates away from the editor.
-    expect(setScreenSpy).not.toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 
   it("opens the first-class quest workspace from the Game menu", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     screen.getByRole("menuitem", { name: t("editor.shell.menu.game") }).focus();
     await userEvent.keyboard("{Enter}");
@@ -639,7 +631,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("opens the stage once on mount and disposes it once on unmount, never touching #stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
 
     expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1);
     expect(document.querySelector("#stage")).toBeNull();
@@ -665,7 +657,7 @@ describe("AdventureEditorScreen shell", () => {
   it("raises the dirty guard when switching maps: cancel stays, confirm switches, no save on cancel", async () => {
     const mock = mapsBackend(twoMaps);
     vi.stubGlobal("fetch", mock);
-    await mountReady();
+    await mountReady(alepha);
     await screen.findByRole("button", { name: "Frostfen" });
     markDirty();
 
@@ -709,7 +701,7 @@ describe("AdventureEditorScreen shell", () => {
       return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
     });
     vi.stubGlobal("fetch", mock);
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(await screen.findByRole("button", { name: "Frostfen" }));
     await userEvent.click(screen.getByRole("button", { name: "Ashen Keep" }));
@@ -732,7 +724,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("places a spawn EVENT: the EV spawn kind places one, and the inspector deletes it", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     // Enter EV mode, then pick the spawn anchor — the event tool it pushes carries eventKind: "spawn".
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
@@ -780,7 +772,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("places the spawn/monster events and forwards monster species and radius to the stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
 
@@ -831,7 +823,7 @@ describe("AdventureEditorScreen shell", () => {
     stageMock.current.mockReturnValue(edited);
     const mock = mapsBackend(twoMaps);
     vi.stubGlobal("fetch", mock);
-    await mountReady();
+    await mountReady(alepha);
 
     // C10 removed the toolbar's Save icon button — saving now goes through ⌘S or, as exercised
     // here, the File menu's own Save item.
@@ -921,7 +913,7 @@ describe("AdventureEditorScreen shell", () => {
       return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
     });
     vi.stubGlobal("fetch", mock);
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
     const host = rendered.container.firstElementChild as HTMLElement;
 
     fireEvent.keyDown(host, { key: "s", metaKey: true });
@@ -968,7 +960,7 @@ describe("AdventureEditorScreen shell", () => {
     };
     stageMock.current.mockReturnValue(edited);
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.test") }));
     expect(screen.getByRole("heading", { name: t("editor.test.title") })).toBeInTheDocument();
@@ -1008,14 +1000,12 @@ describe("AdventureEditorScreen shell", () => {
         exitLabels: {},
       },
     ];
-    useUiStore.setState({
-      adventureEditorSession: {
-        adventureId: "adv-1",
-        draftId: "draft-1",
-        draft,
-        invalidatedLinks: [],
-        savedDraft: JSON.stringify(draft),
-      },
+    alepha.store.set(adventureEditorSessionAtom, {
+      adventureId: "adv-1",
+      draftId: "draft-1",
+      draft,
+      invalidatedLinks: [],
+      savedDraft: JSON.stringify(draft),
     });
     const mapBackend = mapsFetchMock();
     const testSession = runtimeTestSession();
@@ -1026,7 +1016,7 @@ describe("AdventureEditorScreen shell", () => {
       return mapBackend(url, init);
     });
     vi.stubGlobal("fetch", fetchMock);
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.test") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.launch") }));
@@ -1039,7 +1029,7 @@ describe("AdventureEditorScreen shell", () => {
         body: JSON.stringify({ startMapId: null, heroClass: "warrior" }),
       }),
     );
-    expect(lastAdventureTestSession()).toEqual(testSession);
+    expect(alepha.store.get(adventureTestSessionAtom)).toEqual(testSession);
     expect(gameSessionMock.startGameAsHero).toHaveBeenCalledWith(
       testSession.hero,
       testSession.party,
@@ -1067,14 +1057,12 @@ describe("AdventureEditorScreen shell", () => {
         exitLabels: {},
       },
     ];
-    useUiStore.setState({
-      adventureEditorSession: {
-        adventureId: "adv-1",
-        draftId: "draft-1",
-        draft,
-        invalidatedLinks: [],
-        savedDraft: JSON.stringify(draft),
-      },
+    alepha.store.set(adventureEditorSessionAtom, {
+      adventureId: "adv-1",
+      draftId: "draft-1",
+      draft,
+      invalidatedLinks: [],
+      savedDraft: JSON.stringify(draft),
     });
     const mapBackend = mapsFetchMock();
     const testSession = runtimeTestSession();
@@ -1089,7 +1077,7 @@ describe("AdventureEditorScreen shell", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     gameSessionMock.startGameAsHero.mockRejectedValueOnce(new Error("renderer failed"));
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.test") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.launch") }));
@@ -1102,13 +1090,13 @@ describe("AdventureEditorScreen shell", () => {
     );
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
     expect(stageMock.dispose).toHaveBeenCalledTimes(1);
-    expect(lastAdventureTestSession()).toBeNull();
+    expect(alepha.store.get(adventureTestSessionAtom)).toBeNull();
     expect(screen.getByText(t("auth.error.generic"))).toBeInTheDocument();
   });
 
   it("forwards undo and redo once the stage reports available history", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
     const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
     act(() => {
       callback?.(payloadFor(oneMap[0] as MapSummary), {
@@ -1134,7 +1122,7 @@ describe("AdventureEditorScreen shell", () => {
   it("creates a map through the new-map dialog and opens it in the stage", async () => {
     const mock = mapsBackend(twoMaps);
     vi.stubGlobal("fetch", mock);
-    await mountReady();
+    await mountReady(alepha);
 
     // A map belongs to one adventure and the server builds its empty template from the requested
     // dimensions. The name is prefilled with the default MapN; clear it to type a custom name.
@@ -1165,7 +1153,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("composes the toolbar tool with the palette's elevation, terrain and stairs selections", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(
       screen.getByRole("button", { name: t("editor.shell.terrain.level", { level: 2 }) }),
@@ -1203,7 +1191,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("gates the fill+water dead combination: the water swatch is disabled while fill is active", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.fill") }));
     const water = screen.getByRole("button", { name: t("editor.tool.water") });
@@ -1221,7 +1209,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("reports the hovered cell to the status bar and clears it to (—, —) on leave", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
     const cursorCb = stageMock.openMapEditorStage.mock.calls[0]?.[2];
 
     act(() => cursorCb?.(3, 5));
@@ -1237,7 +1225,7 @@ describe("AdventureEditorScreen shell", () => {
 
   it("searches the catalogue palette and selects a visible variant directly", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    await mountReady(alepha);
 
     // The catalogue only renders in Element mode (Task 11 split the sidebar per mode).
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
@@ -1270,7 +1258,7 @@ describe("AdventureEditorScreen shell", () => {
 
     it("dispatches the paint-tool, mode and grid shortcuts to the same actions the toolbar uses", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
 
       fireEvent.keyDown(host, { key: "r" });
@@ -1309,7 +1297,7 @@ describe("AdventureEditorScreen shell", () => {
 
     it("re-selecting the current mode via its shortcut leaves the active tool untouched", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
 
       // Field is the default mode; pick a non-default tool inside it.
@@ -1344,7 +1332,7 @@ describe("AdventureEditorScreen shell", () => {
 
     it("forwards ⌘Z to undo and ⇧⌘Z to redo on the stage handle", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
 
       fireEvent.keyDown(host, { key: "z", metaKey: true });
@@ -1377,7 +1365,7 @@ describe("AdventureEditorScreen shell", () => {
       stageMock.current.mockReturnValue(edited);
       const mock = mapsBackend(twoMaps);
       vi.stubGlobal("fetch", mock);
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
 
       const notCancelled = fireEvent.keyDown(host, { key: "s", metaKey: true });
@@ -1392,7 +1380,7 @@ describe("AdventureEditorScreen shell", () => {
     it('does not switch tools while typing "r" into the new-map dialog\'s name input', async () => {
       const mock = mapsBackend(twoMaps);
       vi.stubGlobal("fetch", mock);
-      await mountReady();
+      await mountReady(alepha);
 
       await userEvent.click(
         screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
@@ -1419,7 +1407,7 @@ describe("AdventureEditorScreen shell", () => {
     // whose `target` is genuinely `search`, exactly the condition the gate has to recognise.
     it("does not switch tools on a keydown targeting the palette search box (no dialog open)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      await mountReady();
+      await mountReady(alepha);
 
       // The catalogue only renders in Element mode (Task 11 split the sidebar per mode).
       await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
@@ -1433,7 +1421,7 @@ describe("AdventureEditorScreen shell", () => {
     it("does not fire the map save while the settings dialog is open", async () => {
       const mock = mapsBackend(twoMaps);
       vi.stubGlobal("fetch", mock);
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
 
       screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
@@ -1455,7 +1443,7 @@ describe("AdventureEditorScreen shell", () => {
     it("blocks shortcuts once focus reaches the rename dialog's own button, not just its input", async () => {
       const mock = mapsBackend(twoMaps);
       vi.stubGlobal("fetch", mock);
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
       await screen.findByRole("button", { name: "Frostfen" });
 
@@ -1491,7 +1479,7 @@ describe("AdventureEditorScreen shell", () => {
 
     it("refocuses the container after a real blur that lands nowhere, the way clicking the non-focusable #stage canvas does", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
       // The mount effect already claimed focus for the container — confirm that, so the recovery
       // asserted below is a genuine round-trip and not a no-op on an element that was never focused.
@@ -1508,7 +1496,7 @@ describe("AdventureEditorScreen shell", () => {
 
     it("does not steal focus back from a dialog: a relatedTarget:null blur is a no-op while the settings dialog is open", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
 
       screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
@@ -1527,7 +1515,7 @@ describe("AdventureEditorScreen shell", () => {
 
     it("does not refocus a blur whose relatedTarget is a real, concrete node, even with every dialog closed", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      const rendered = await mountReady();
+      const rendered = await mountReady(alepha);
       const host = shell(rendered);
       const elsewhere = screen.getByRole("button", { name: t("editor.shell.grid.aria") });
       elsewhere.focus();
@@ -1590,7 +1578,7 @@ describe("AdventureEditorScreen shell", () => {
 
     it("shows a static Editor brand chip beside a dedicated Quit button (UX wave #16, C8)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      await mountReady();
+      await mountReady(alepha);
 
       // The brand text is present…
       expect(screen.getByText(t("editor.shell.brand"))).toBeInTheDocument();
@@ -1603,24 +1591,24 @@ describe("AdventureEditorScreen shell", () => {
 
     it("the menu bar's Quit button leaves the editor, dirty-guarded like the File-menu item (C8)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      await mountReady();
+      await mountReady(alepha);
       markDirty();
 
       const quitButton = screen.getByRole("button", { name: t("editor.shell.exit.aria") });
       const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
       await userEvent.click(quitButton);
       expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
-      expect(setScreenSpy).not.toHaveBeenCalled();
+      expect(pushSpy).not.toHaveBeenCalled();
 
       confirm.mockReturnValue(true);
       await userEvent.click(quitButton);
-      expect(setScreenSpy).toHaveBeenCalledWith("title");
+      expect(pushSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
     });
 
     it("opens the Load-adventure dialog from the File menu and switching swaps the session", async () => {
       vi.stubGlobal("fetch", loadableBackend());
-      await mountReady();
+      await mountReady(alepha);
 
       screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
       await userEvent.keyboard("{Enter}");
@@ -1633,13 +1621,13 @@ describe("AdventureEditorScreen shell", () => {
       await userEvent.click(within(row).getByRole("button", { name: t("editor.picker.open") }));
 
       await waitFor(() =>
-        expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-2"),
+        expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-2"),
       );
     });
 
     it("guards a dirty switch from the Load dialog: cancel keeps the current adventure", async () => {
       vi.stubGlobal("fetch", loadableBackend());
-      await mountReady();
+      await mountReady(alepha);
       markDirty();
 
       screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
@@ -1653,14 +1641,14 @@ describe("AdventureEditorScreen shell", () => {
       await userEvent.click(within(row).getByRole("button", { name: t("editor.picker.open") }));
       expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
       // Cancelled: still on adv-1.
-      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-1");
       confirm.mockRestore();
     });
 
     it("deletes an adventure directly from the Load dialog after confirmation", async () => {
       const backend = loadableBackend();
       vi.stubGlobal("fetch", backend);
-      await mountReady();
+      await mountReady(alepha);
 
       screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
       await userEvent.keyboard("{Enter}");
@@ -1681,12 +1669,12 @@ describe("AdventureEditorScreen shell", () => {
         ),
       );
       expect(screen.queryByText("Second")).toBeNull();
-      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-1");
     });
 
     it("Quit returns to the title screen, dirty-guarded (cancel stays in the editor)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      await mountReady();
+      await mountReady(alepha);
       markDirty();
 
       const openQuit = async () => {
@@ -1701,17 +1689,17 @@ describe("AdventureEditorScreen shell", () => {
       await openQuit();
       expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
       // Cancelled: still in the editor.
-      expect(setScreenSpy).not.toHaveBeenCalled();
+      expect(pushSpy).not.toHaveBeenCalled();
 
       confirm.mockReturnValue(true);
       await openQuit();
-      expect(setScreenSpy).toHaveBeenCalledWith("title");
+      expect(pushSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
     });
 
     it("closes the database dialog on Retour without unloading the editor (campaign fix)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
-      await mountReady();
+      await mountReady(alepha);
 
       screen.getByRole("menuitem", { name: t("editor.shell.menu.game") }).focus();
       await userEvent.keyboard("{Enter}");
@@ -1724,42 +1712,42 @@ describe("AdventureEditorScreen shell", () => {
       // The dialog closes…
       await waitFor(() => expect(screen.queryByText(t("editor.registry.title"))).toBeNull());
       // …and the editor SURVIVES: still mounted on adv-1, never unloaded to a bare/parties screen.
-      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
-      expect(setScreenSpy).not.toHaveBeenCalled();
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-1");
+      expect(pushSpy).not.toHaveBeenCalled();
     });
   });
 });
 
 describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
+  let alepha: Alepha;
+
   /** The one-map session the editor opens, flagged unnamed so the first save prompts for a name. */
   function seedUnnamed(titleUntouched: boolean): void {
-    useUiStore.setState({
-      adventureEditorSession: {
-        adventureId: "adv-1",
-        draftId: "draft-1",
-        draft: {
-          title: t("adventure.default_title"),
-          maxPlayers: 4,
-          audio: DEFAULT_ADVENTURE_AUDIO,
-          members: [
-            {
-              mapId: "m1",
-              name: "Verdant Reach",
-              revision: 1,
-              solid: ["."],
-              monsterCount: 0,
-              entryIds: ["door"],
-              exitIds: ["gate"],
-              entryLabels: {},
-              exitLabels: {},
-            },
-          ],
-          registry: { switches: [], variables: [] },
-        },
-        invalidatedLinks: [],
-        savedDraft: null,
-        titleUntouched,
+    alepha.store.set(adventureEditorSessionAtom, {
+      adventureId: "adv-1",
+      draftId: "draft-1",
+      draft: {
+        title: t("adventure.default_title"),
+        maxPlayers: 4,
+        audio: DEFAULT_ADVENTURE_AUDIO,
+        members: [
+          {
+            mapId: "m1",
+            name: "Verdant Reach",
+            revision: 1,
+            solid: ["."],
+            monsterCount: 0,
+            entryIds: ["door"],
+            exitIds: ["gate"],
+            entryLabels: {},
+            exitLabels: {},
+          },
+        ],
+        registry: { switches: [], variables: [] },
       },
+      invalidatedLinks: [],
+      savedDraft: null,
+      titleUntouched,
     });
   }
 
@@ -1818,19 +1806,13 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     );
   }
 
-  async function mountReady(): Promise<ReturnType<typeof render>> {
-    const rendered = render(<AdventureEditorScreen />);
-    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(stageMock.setTool).toHaveBeenCalled());
-    return rendered;
-  }
-
   function shell(rendered: { container: HTMLElement }): HTMLElement {
     return rendered.container.firstElementChild as HTMLElement;
   }
 
   beforeEach(() => {
     setLocale("en");
+    alepha = mountAlepha().alepha;
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
     stageMock.current.mockReturnValue(editedMap);
@@ -1838,11 +1820,15 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
   });
 
+  afterEach(async () => {
+    await alepha.stop();
+  });
+
   it("opens the name popup on the first ⌘S instead of saving the map", async () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
 
     fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
 
@@ -1856,7 +1842,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
 
     fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
     const dialog = await screen.findByRole("dialog");
@@ -1888,7 +1874,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
 
     fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
     const dialog = await screen.findByRole("dialog");
@@ -1905,7 +1891,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
 
     fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
     const dialog = await screen.findByRole("dialog");
@@ -1922,7 +1908,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    const rendered = await mountReady();
+    const rendered = await mountReady(alepha);
 
     // Rename through the adventure settings dialog and save it: an explicit naming.
     screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
@@ -1953,7 +1939,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     seedUnnamed(false);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    await mountReady();
+    await mountReady(alepha);
 
     screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
     await userEvent.keyboard("{Enter}");
@@ -1979,24 +1965,34 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
 });
 
 describe("main menu → editor navigation", () => {
+  let alepha: Alepha;
+  let pushSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     setLocale("en");
+    ({ alepha, pushSpy } = mountAlepha());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify([])))),
+    );
+  });
+
+  afterEach(async () => {
+    await alepha.stop();
   });
 
   it("routes the discreet editor button to the merged adventure editor", async () => {
-    useUiStore.setState({
-      adventureEditorSession: {
-        adventureId: "previous",
-        draftId: "previous-draft",
-        draft: emptyDraft(),
-        invalidatedLinks: [],
-        savedDraft: null,
-      },
+    alepha.store.set(adventureEditorSessionAtom, {
+      adventureId: "previous",
+      draftId: "previous-draft",
+      draft: emptyDraft(),
+      invalidatedLinks: [],
+      savedDraft: null,
     });
-    render(<MainMenu />);
+    await renderWithAlepha(<MainMenu />, { alepha });
 
     await userEvent.click(await screen.findByRole("button", { name: "Editor" }));
-    expect(setScreenSpy).toHaveBeenCalledWith("adventure-editor");
-    expect(useUiStore.getState().adventureEditorSession).toBeNull();
+    expect(pushSpy).toHaveBeenCalledWith("editor");
+    expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
   });
 });

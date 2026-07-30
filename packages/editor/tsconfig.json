@@ -12,5 +12,20 @@
     // Matches the global Vite alias, which already points `@` at the client source.
     "paths": { "@/*": ["../client/src/*"] }
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  // Files that import `alepha`/`alepha/react*` are excluded here and typechecked by
+  // `tsconfig.api.json` instead — see that file's docblock for why (mirrors
+  // `packages/client/tsconfig.json`'s identical split, added at the same task).
+  "exclude": [
+    "src/ui/editor/AdventureEditorScreen.tsx",
+    "src/ui/editor/AdventurePickerScreen.tsx",
+    "src/ui/editor/AdventureSettingsDialog.tsx",
+    "src/ui/editor/QuestWorkspaceDialog.tsx",
+    "src/ui/editor/RegistryDialog.tsx",
+    "test/editor-shell.test.tsx",
+    "test/editor-bootstrap.test.tsx",
+    "test/adventure-settings-dialog.test.tsx",
+    "test/quest-workspace-dialog.test.tsx",
+    "test/registry-dialog.test.tsx"
+  ]
 }

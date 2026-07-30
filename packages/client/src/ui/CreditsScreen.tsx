@@ -4,10 +4,11 @@
  * return to the menu (same nav + back sound as the carousels). Styled inline so it stands on its
  * own regardless of the launch stylesheet.
  */
+import { useRouter } from "alepha/react/router";
 import type { CSSProperties } from "react";
 import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
-import { useUiStore } from "../store.js";
+import type { AppRouter } from "./AppRouter.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 import { MenuNav } from "./tiny-swords/menu-nav.js";
 
@@ -119,8 +120,8 @@ function Section({ label, credits }: { label: string; credits: Credit[] }) {
 }
 
 export function CreditsScreen() {
-  const setScreen = useUiStore((s) => s.setScreen);
-  const back = () => setScreen("menu");
+  const router = useRouter<AppRouter>();
+  const back = () => void router.push("menu");
   return (
     <main style={styles.screen}>
       <TinySwordsMenuScene variant="courtyard" />

@@ -55,9 +55,17 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     // The 401 seam (`state/navigation.ts`'s docblock): a dead/expired session — never a wrong
     // password (`InvalidCredentialsError`), which must not bounce the auth form back onto itself.
     // `UnauthorizedError` is Alepha's own `$secure()` class name (the framework port's routes);
-    // `session_expired` is the legacy hand-rolled Worker's equivalent code — both mean the same
-    // thing to a caller of this function.
-    if (code === "UnauthorizedError" || code === "session_expired") onUnauthorized();
+    // `session_expired` is the legacy hand-rolled Worker's equivalent for an existing-but-stale
+    // cookie (account deleted underneath it); `unauthorized` (lowercase) is that SAME hand-rolled
+    // Worker's code for no/invalid cookie at all (`requireSession()`, `packages/server/src/
+    // index.ts` — every `/api/maps`, `/api/adventures`, … route the editor calls uses it). Task 6
+    // found this third code was missing here: the editor's own local session-error checks
+    // (`isSessionError` in its six `ui/editor/*` files) special-cased it themselves, meaning this
+    // "global" hook was not actually global for every editor request before this fix. All three
+    // codes mean the same thing to a caller of this function.
+    if (code === "UnauthorizedError" || code === "session_expired" || code === "unauthorized") {
+      onUnauthorized();
+    }
     throw new ApiError(code, body);
   }
   return body as T;
@@ -362,6 +370,7 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   invalid_appearance: "chars.error.invalid_appearance",
   invalid_class: "chars.error.invalid_class",
   session_expired: "auth.error.session_expired",
+  unauthorized: "auth.error.session_expired",
   presence_error: "auth.error.presence",
   map_placement: "editor.error.placement",
   map_spawn: "editor.error.spawn",

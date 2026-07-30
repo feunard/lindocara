@@ -91,7 +91,7 @@ function Harness(overrides: {
   locked?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
   onOpenMapAudio?: () => void;
-  onSessionExpired?: () => void;
+  onError?: (code: string) => void;
 }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -111,8 +111,7 @@ function Harness(overrides: {
       onActiveDeleted={() => {}}
       onOpenMapAudio={overrides.onOpenMapAudio ?? (() => {})}
       onOpenSettings={() => {}}
-      onError={() => {}}
-      onSessionExpired={overrides.onSessionExpired ?? (() => {})}
+      onError={overrides.onError ?? (() => {})}
     />
   );
 }
@@ -290,14 +289,18 @@ describe("MapListPanel", () => {
     expect(await screen.findByLabelText(t("editor.name"))).toHaveValue("Map3");
   });
 
-  it("redirects to the auth screen when the session has expired", async () => {
-    const onSessionExpired = vi.fn();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(jsonResponse({ error: "session_expired" }, 401)),
-    );
-    render(<Harness onSessionExpired={onSessionExpired} />);
+  // Task 6: the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper) now
+  // navigates to `/auth` on its own for every session-dead code the editor's endpoints can return,
+  // `session_expired` included — this panel no longer has (or needs) an `onSessionExpired` prop.
+  // What remains this panel's own job: never surface a generic error banner for that specific
+  // failure while the redirect is in flight (`fail()`'s `isSessionError` early return).
+  it("swallows a session-expired failure without surfacing a generic error", async () => {
+    const onError = vi.fn();
+    const mock = vi.fn().mockResolvedValue(jsonResponse({ error: "session_expired" }, 401));
+    vi.stubGlobal("fetch", mock);
+    render(<Harness onError={onError} />);
 
-    await waitFor(() => expect(onSessionExpired).toHaveBeenCalled());
+    await waitFor(() => expect(mock).toHaveBeenCalled());
+    expect(onError).not.toHaveBeenCalled();
   });
 });

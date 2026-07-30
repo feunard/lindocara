@@ -1,0 +1,42 @@
+{
+  // Mirrors `packages/client/tsconfig.api.json`'s split, for the identical reason (see that file's
+  // own docblock): `alepha`'s package.json points its "types" condition at raw source
+  // (`.vendor/alepha/src/core/index.ts`), so any file importing `alepha`/`alepha/react*` pulls the
+  // whole framework source tree into whichever program resolves it, type-checked under THAT
+  // program's compilerOptions. This package's own `tsconfig.json` extends the repo's stricter root
+  // config (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, …), under which alepha's own
+  // internals fail to type-check by the hundreds — none of it is code this repo owns or should
+  // patch. A separate program, extending alepha's OWN base config, is the fix client's package
+  // already applied.
+  //
+  // Task 6 is what first gave the editor package a reason to import `alepha` at all: the editor
+  // route's own screens (`AdventureEditorScreen`, `AdventurePickerScreen`) and three dialogs
+  // (`AdventureSettingsDialog`, `QuestWorkspaceDialog`, `RegistryDialog`) now read/write
+  // `state/atoms.ts`'s `adventureEditorSessionAtom` via `useStore()` and navigate via `useRouter()`
+  // directly, replacing the store's deleted `setScreen`/`setAdventureEditorSession` shims. Every
+  // OTHER editor file (`MapListPanel`, `LoadAdventureDialog`, the palette/toolbar/dialog tree, the
+  // Pixi stage) has zero `alepha` import and stays in the plain `tsconfig.json` program.
+  "extends": "../../.vendor/alepha/tsconfig.base.json",
+  "compilerOptions": {
+    // No `lib` override, matching `packages/client/tsconfig.api.json`'s own reasoning: alepha's
+    // internals (`Alepha.ts`) use ES2024 Iterator Helpers `ES2022` doesn't have; leaving `lib`
+    // unset lets it default to ESNext + DOM from the base config's `target: "esnext"`. `node`/`bun`
+    // mirror client's own api.json: alepha's Node-only providers (reached transitively even from
+    // the browser-only `alepha/react/router` entry) need both ambient global sets to type-check.
+    "types": ["vite/client", "@testing-library/jest-dom", "node", "bun"],
+    "jsx": "react-jsx",
+    "paths": { "@/*": ["../client/src/*"] }
+  },
+  "include": [
+    "src/ui/editor/AdventureEditorScreen.tsx",
+    "src/ui/editor/AdventurePickerScreen.tsx",
+    "src/ui/editor/AdventureSettingsDialog.tsx",
+    "src/ui/editor/QuestWorkspaceDialog.tsx",
+    "src/ui/editor/RegistryDialog.tsx",
+    "test/editor-shell.test.tsx",
+    "test/editor-bootstrap.test.tsx",
+    "test/adventure-settings-dialog.test.tsx",
+    "test/quest-workspace-dialog.test.tsx",
+    "test/registry-dialog.test.tsx"
+  ]
+}

@@ -1,6 +1,7 @@
 import { Badge } from "@lindocara/ui/components/badge.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import { useStore } from "alepha/react";
+import { useRouter } from "alepha/react/router";
 import { useEffect, useState } from "react";
 import {
   ApiError,
@@ -11,8 +12,12 @@ import {
 } from "../api.js";
 import { startGameAsHero, stopActiveGameSession } from "../game/session.js";
 import { t, useLocale } from "../i18n.js";
-import { activePartyAtom, adventureTestSessionAtom } from "../state/atoms.js";
-import { useUiStore } from "../store.js";
+import {
+  activePartyAtom,
+  adventureEditorSessionAtom,
+  adventureTestSessionAtom,
+} from "../state/atoms.js";
+import type { AppRouter } from "./AppRouter.js";
 
 /**
  * Creator controls that sit over the real game runtime. The session itself is a disposable D1
@@ -21,10 +26,10 @@ import { useUiStore } from "../store.js";
  */
 export function AdventureTestOverlay() {
   useLocale();
+  const router = useRouter<AppRouter>();
   const [session, setTestSession] = useStore(adventureTestSessionAtom);
-  const editorSession = useUiStore((state) => state.adventureEditorSession);
+  const [editorSession] = useStore(adventureEditorSessionAtom);
   const [, setActiveParty] = useStore(activePartyAtom);
-  const setScreen = useUiStore((state) => state.setScreen);
   const [busy, setBusy] = useState<"reset" | "exit" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +92,7 @@ export function AdventureTestOverlay() {
     stopActiveGameSession();
     setTestSession(null);
     setActiveParty(null);
-    setScreen("adventure-editor");
+    void router.push("editor");
   }
 
   return (

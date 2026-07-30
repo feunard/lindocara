@@ -10,7 +10,7 @@ import {
   updateAdventureApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import { Checkbox } from "@lindocara/ui/components/checkbox.js";
 import {
@@ -22,9 +22,17 @@ import {
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
+import { useAlepha, useStore } from "alepha/react";
 import { useEffect, useState } from "react";
 import { AudioConfigFields } from "./AudioConfigFields.js";
 
+/**
+ * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
+ * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
+ * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
+ * docblock for the full rationale. Task 6 dropped this dialog's `onSessionExpired` prop once that
+ * global hook was confirmed to cover every one of the editor's machine codes.
+ */
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
@@ -34,7 +42,6 @@ interface AdventureSettingsDialogProps {
   onOpenChange(open: boolean): void;
   /** A save or delete landed: the screen refetches names and reloads the session. */
   onSaved(): void;
-  onSessionExpired(): void;
   /** The merged editor can atomically persist its live map and this graph. Returning the saved draft
    * closes the dialog; null keeps it open and leaves the surfaced error in the parent. */
   onSaveDraft?(draft: AdventureDraft): Promise<AdventureDraft | null>;
@@ -55,12 +62,11 @@ export function AdventureSettingsDialog({
   open,
   onOpenChange,
   onSaved,
-  onSessionExpired,
   onSaveDraft,
 }: AdventureSettingsDialogProps) {
   useLocale();
-  const session = useUiStore((state) => state.adventureEditorSession);
-  const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  const alepha = useAlepha();
+  const [session, setSession] = useStore(adventureEditorSessionAtom);
 
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -75,8 +81,8 @@ export function AdventureSettingsDialog({
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) onSessionExpired();
-    else setError(code);
+    if (isSessionError(code)) return;
+    setError(code);
   }
 
   // Delete the adventure open in the editor session. The server refuses while a party references it.
@@ -114,7 +120,7 @@ export function AdventureSettingsDialog({
         savedDraft = draft;
       }
       if (!savedDraft) return;
-      const latest = useUiStore.getState().adventureEditorSession;
+      const latest = alepha.store.get(adventureEditorSessionAtom);
       if (latest) {
         setSession({
           ...latest,

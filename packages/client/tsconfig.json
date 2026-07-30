@@ -18,8 +18,15 @@
   // this program never sees them transitively either. `state/navigation.ts` has no `alepha` import
   // of its own (by design — see its docblock) and stays in this program. Task 3 added
   // `AuthScreen.tsx` (now `useAuth`/`useAlepha`/`useRouter`) and `LaunchScreens.tsx` (its
-  // `ContinueScreen` now `useAuth`) plus their tests — `App.tsx` dropped its imports of both for
-  // the SAME reason it dropped the HUD tree in Task 2 (see its own docblock).
+  // `ContinueScreen` now `useAuth`) plus their tests. Task 6 added `TitleScreen.tsx`/`MainMenu.tsx`/
+  // `CreditsScreen.tsx` (now `useRouter()` directly, off the store's dead `setScreen` shim) —
+  // `LegacyShell.tsx` (the only thing in THIS program that used to reach any of the screens named
+  // in this comment) dropped every one of their imports and render branches for the same reason it
+  // already had to for the HUD tree (Task 2) and auth/launch screens (Task 3): a dynamic `import()`
+  // still pulls its target's full transitive type graph into whichever `tsc` program contains the
+  // importing file, so even `LegacyShell.tsx`'s lazy `@lindocara/editor` import had to go once the
+  // editor package itself started importing `alepha/react*` this task — see that file's own
+  // docblock for the full trail.
   "include": ["src", "test"],
   "exclude": [
     "src/ui/AppRouter.tsx",
@@ -33,6 +40,9 @@
     "src/ui/AdventureTestOverlay.tsx",
     "src/ui/AuthScreen.tsx",
     "src/ui/LaunchScreens.tsx",
+    "src/ui/TitleScreen.tsx",
+    "src/ui/MainMenu.tsx",
+    "src/ui/CreditsScreen.tsx",
     "test/atoms.test.tsx",
     "test/hud.test.tsx",
     "test/quest-journal-overlay.test.tsx",

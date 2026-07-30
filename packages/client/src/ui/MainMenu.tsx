@@ -3,7 +3,9 @@
  * MenuNav focus model so it is fully playable on a controller (D-pad to move, A to select). The
  * editor is a deliberately discreet corner button, kept out of the controller path.
  */
-import { type ReactNode, useEffect, useState } from "react";
+import { useStore } from "alepha/react";
+import { useRouter } from "alepha/react/router";
+import { useEffect, useState } from "react";
 import { fetchParties } from "../api.js";
 import {
   getAudioSettings,
@@ -11,7 +13,10 @@ import {
   subscribeAudioSettings,
 } from "../game/audio-settings.js";
 import { t } from "../i18n.js";
+import { adventureEditorSessionAtom } from "../state/atoms.js";
 import { useUiStore } from "../store.js";
+import type { AppRouter } from "./AppRouter.js";
+import { Hint, MenuHints } from "./MenuHints.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
 
@@ -43,7 +48,8 @@ function MenuItemButton({
 }
 
 export function MainMenu() {
-  const setScreen = useUiStore((s) => s.setScreen);
+  const router = useRouter<AppRouter>();
+  const [, setEditorSession] = useStore(adventureEditorSessionAtom);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   // "Continue" is hidden until we know the account has at least one save — no dead entry that
   // opens onto an empty carousel. Ordering leaves a gap at 0 when hidden; MenuNav sorts by order,
@@ -72,27 +78,27 @@ export function MainMenu() {
         orientation="vertical"
         className="main-menu__panel"
         aria-label={t("menu.title")}
-        onBack={() => setScreen("title")}
+        onBack={() => void router.push("title")}
       >
         {hasSaves && (
           <MenuItemButton
             order={0}
             icon="▶"
             label={t("menu.continue")}
-            onActivate={() => setScreen("continue")}
+            onActivate={() => void router.push("playContinue")}
           />
         )}
         <MenuItemButton
           order={1}
           icon="⚔"
           label={t("menu.new")}
-          onActivate={() => setScreen("new")}
+          onActivate={() => void router.push("playNew")}
         />
         <MenuItemButton
           order={2}
           icon="⚑"
           label={t("menu.join")}
-          onActivate={() => setScreen("join")}
+          onActivate={() => void router.push("playJoin")}
         />
         <MenuItemButton
           order={3}
@@ -104,13 +110,13 @@ export function MainMenu() {
           order={4}
           icon="✎"
           label={t("menu.credits")}
-          onActivate={() => setScreen("credits")}
+          onActivate={() => void router.push("credits")}
         />
         <MenuItemButton
           order={5}
           icon="⎋"
           label={t("menu.quit")}
-          onActivate={() => setScreen("title")}
+          onActivate={() => void router.push("title")}
         />
       </MenuNav>
 
@@ -118,8 +124,8 @@ export function MainMenu() {
         type="button"
         className="main-menu__editor"
         onClick={() => {
-          useUiStore.getState().setAdventureEditorSession(null);
-          setScreen("adventure-editor");
+          setEditorSession(null);
+          void router.push("editor");
         }}
       >
         {t("menu.editor")}
@@ -145,18 +151,5 @@ export function MainMenu() {
         <Hint keyLabel="B / Esc">{t("menu.quit")}</Hint>
       </MenuHints>
     </main>
-  );
-}
-
-export function MenuHints({ children }: { children: ReactNode }) {
-  return <footer className="menu-hints">{children}</footer>;
-}
-
-export function Hint({ keyLabel, children }: { keyLabel: string; children: ReactNode }) {
-  return (
-    <span className="menu-hint">
-      <kbd className="menu-hint__key">{keyLabel}</kbd>
-      {children}
-    </span>
   );
 }

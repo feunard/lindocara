@@ -13,9 +13,6 @@ import type { Input } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { create } from "zustand";
 import type { AdventureDraft } from "./adventure-draft.js";
-import type { AdventureTestSession } from "./api.js";
-import type { ActiveParty } from "./state/navigation.js";
-import { getGameNavigation } from "./state/navigation.js";
 
 export interface AdventureEditorSession {
   adventureId: string | null;
@@ -155,48 +152,7 @@ export interface HeroLoadingState {
   progress: number;
 }
 
-/**
- * @deprecated The `$page` router (`ui/AppRouter.tsx`) is the real navigation truth now — a screen
- * name is just the vocabulary the store's deprecated `setScreen` shim still accepts, so callers
- * that have not been migrated to `useRouter().push(...)` yet (the editor package; a handful of
- * still-unmigrated client screens) keep compiling. Task 6 removes this alongside the shim.
- */
-export type UiScreen =
-  | "boot"
-  | "title"
-  | "auth"
-  | "menu"
-  | "new"
-  | "continue"
-  | "join"
-  | "credits"
-  | "game"
-  | "adventure-editor";
-
-/** `setScreen`'s deprecated-shim routing table: the `$page` field name (`AppRouter.tsx`) each old
- *  screen name now pushes to, via the installed navigation seam. "boot" has no entry — it was only
- *  ever the store's blank initial state, never a real destination. */
-const ROUTE_BY_SCREEN: Partial<Record<UiScreen, string>> = {
-  title: "title",
-  auth: "auth",
-  menu: "menu",
-  new: "playNew",
-  continue: "playContinue",
-  join: "playJoin",
-  credits: "credits",
-  game: "game",
-  "adventure-editor": "editor",
-};
-
 interface UiState {
-  /**
-   * @deprecated Editor-only mirror of `state/atoms.ts`'s `adventureEditorSessionAtom`, kept so the
-   * (not-yet-migrated) editor package's `useUiStore(state => state.adventureEditorSession)` reads
-   * stay reactive. `setAdventureEditorSession` below dual-writes this field AND the atom, so any
-   * client code reading the atom directly (e.g. `AdventureTestOverlay.tsx`) still sees the editor's
-   * writes. Task 6 removes this field once the editor reads the atom directly instead.
-   */
-  adventureEditorSession: AdventureEditorSession | null;
   self: SelfHud | null;
   selfState: SelfState | null;
   questStatus: QuestStatus;
@@ -234,33 +190,6 @@ interface UiState {
   questDialogue: QuestDialogue | null;
   game: GameHandle | null;
 
-  /** @deprecated See the field docblock above. */
-  setAdventureEditorSession(session: AdventureEditorSession | null): void;
-  /**
-   * @deprecated Editor-only write into `state/atoms.ts`'s `adventureTestSessionAtom`, routed
-   * through the navigation seam (`getGameNavigation()`) — this store no longer holds an
-   * `adventureTestSession` field itself; nothing reads it back through zustand (`Hud.tsx`,
-   * `AdventureTestOverlay.tsx` read the atom directly). A no-op before the seam installs (e.g. an
-   * editor unit test that renders bare, with no `AppRouter` mounted). Task 6 removes this once the
-   * editor writes the atom directly instead.
-   */
-  setAdventureTestSession(session: AdventureTestSession | null): void;
-  /**
-   * @deprecated Editor-only write into `state/atoms.ts`'s `activePartyAtom`, routed through the
-   * navigation seam — same shape as `setAdventureTestSession` above (the editor's own launch-failure
-   * cleanup is the only remaining caller; `game/session.ts` and every other write site now call
-   * `getGameNavigation()?.setActiveParty(...)` directly). A no-op before the seam installs. Task 6
-   * removes this once the editor writes the atom directly instead.
-   */
-  setActiveParty(party: ActiveParty | null): void;
-  /**
-   * @deprecated Routes a `UiScreen` name to a `$page` push through the installed navigation seam
-   * (`ROUTE_BY_SCREEN`) — this store no longer holds a `screen` field; the `$page` router
-   * (`ui/AppRouter.tsx`) is the real navigation truth. A no-op before the seam installs. Kept only
-   * for callers not yet migrated to `useRouter().push(...)` — the editor package, and a handful of
-   * still-unmigrated client screens. Task 6 removes it.
-   */
-  setScreen(screen: UiScreen): void;
   setSelf(self: SelfHud | null): void;
   setSelfState(state: SelfState): void;
   setQuestStatus(status: QuestStatus): void;
@@ -390,7 +319,6 @@ function clearedGameSessionFields() {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  adventureEditorSession: null,
   self: null,
   selfState: null,
   questStatus: "available",
@@ -420,20 +348,6 @@ export const useUiStore = create<UiState>((set) => ({
   questDialogue: null,
   game: null,
 
-  setAdventureEditorSession: (adventureEditorSession) => {
-    getGameNavigation()?.setAdventureEditorSession(adventureEditorSession);
-    set({ adventureEditorSession });
-  },
-  setAdventureTestSession: (session) => {
-    getGameNavigation()?.setAdventureTestSession(session);
-  },
-  setActiveParty: (party) => {
-    getGameNavigation()?.setActiveParty(party);
-  },
-  setScreen: (screen) => {
-    const route = ROUTE_BY_SCREEN[screen];
-    if (route) getGameNavigation()?.push(route);
-  },
   setSelf: (self) =>
     set((state) => {
       if (selfHudEqual(state.self, self)) return {};

@@ -1,6 +1,6 @@
 import { type AdventureDraft, emptyDraft } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { QuestWorkspaceDialog } from "@lindocara/editor/ui/editor/QuestWorkspaceDialog.js";
 import {
   createStructuredQuestObjective,
@@ -11,9 +11,11 @@ import {
   createAuthoredQuestDefinition,
 } from "@lindocara/engine/adventure-state.js";
 import { defaultEventPage, type MapEvent } from "@lindocara/engine/map-events.js";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Alepha } from "alepha";
+import { renderWithAlepha } from "alepha/react/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const MAP_ID = "11111111-1111-4111-8111-111111111111";
 const EVENT_ID = "22222222-2222-4222-8222-222222222222";
@@ -40,21 +42,34 @@ const CURRENT_MAP: QuestMapCatalog = {
   events: [npc()],
 };
 
-function seed(quests: readonly AuthoredQuestDefinition[] = []): void {
-  const draft = {
+function sessionFixture(quests: readonly AuthoredQuestDefinition[] = []) {
+  const draft: AdventureDraft = {
     ...emptyDraft(),
     title: "The Green Road",
     registry: { switches: [], variables: [], ...(quests.length > 0 ? { quests } : {}) },
   };
-  useUiStore.setState({
-    adventureEditorSession: {
-      adventureId: "adv-1",
-      draftId: "draft-1",
-      draft,
-      invalidatedLinks: [],
-      savedDraft: JSON.stringify(draft),
-    },
-  });
+  return {
+    adventureId: "adv-1",
+    draftId: "draft-1",
+    draft,
+    invalidatedLinks: [],
+    savedDraft: JSON.stringify(draft),
+  };
+}
+
+/** `QuestWorkspaceDialog` reads/writes `adventureEditorSessionAtom` directly (Task 6) — seed the
+ *  atom on a pre-configured Alepha instance BEFORE the first render, mirroring
+ *  `registry-dialog.test.tsx`'s own helper (same rationale, see that file's docblock). */
+function mountDialog(
+  session: ReturnType<typeof sessionFixture>,
+  props: Omit<Parameters<typeof QuestWorkspaceDialog>[0], "open" | "onOpenChange" | "onOpenHelp">,
+) {
+  const alepha = Alepha.create();
+  alepha.store.set(adventureEditorSessionAtom, session);
+  return renderWithAlepha(
+    <QuestWorkspaceDialog open onOpenChange={() => {}} onOpenHelp={() => {}} {...props} />,
+    { alepha },
+  );
 }
 
 function mapListBackend() {
@@ -86,25 +101,26 @@ function mapListBackend() {
 }
 
 describe("QuestWorkspaceDialog", () => {
+  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+
   beforeEach(() => {
     setLocale("en");
-    seed();
     vi.stubGlobal("fetch", mapListBackend());
+  });
+
+  afterEach(async () => {
+    for (const alepha of alephaInstances) await alepha.stop();
+    alephaInstances = [];
   });
 
   it("creates and saves a structured ten-monster objective through the primary quest surface", async () => {
     const user = userEvent.setup();
     const onSaveDraft = vi.fn(async (draft: AdventureDraft) => draft);
-    render(
-      <QuestWorkspaceDialog
-        open
-        onOpenChange={() => {}}
-        onSessionExpired={() => {}}
-        onOpenHelp={() => {}}
-        currentMap={CURRENT_MAP}
-        onSaveDraft={onSaveDraft}
-      />,
-    );
+    const { alepha } = await mountDialog(sessionFixture(), {
+      currentMap: CURRENT_MAP,
+      onSaveDraft,
+    });
+    alephaInstances.push(alepha);
 
     await screen.findByText(t("editor.quest.workspace.emptySelection"));
     const createButton = screen.getAllByRole("button", { name: t("editor.quest.add") })[0];
@@ -155,17 +171,9 @@ describe("QuestWorkspaceDialog", () => {
       turnInTarget: { mapId: MAP_ID, eventId: "33333333-3333-4333-8333-333333333333" },
       objectives: [kill],
     };
-    seed([quest]);
     const user = userEvent.setup();
-    render(
-      <QuestWorkspaceDialog
-        open
-        onOpenChange={() => {}}
-        onSessionExpired={() => {}}
-        onOpenHelp={() => {}}
-        currentMap={CURRENT_MAP}
-      />,
-    );
+    const { alepha } = await mountDialog(sessionFixture([quest]), { currentMap: CURRENT_MAP });
+    alephaInstances.push(alepha);
 
     await screen.findByDisplayValue("Village defense");
     await user.click(screen.getByRole("button", { name: t("editor.quest.duplicate") }));

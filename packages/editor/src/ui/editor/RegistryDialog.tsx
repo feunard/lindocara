@@ -8,7 +8,7 @@ import {
   updateAdventureApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import {
   type AdventureRegistry,
   MAX_REGISTRY_SWITCHES,
@@ -26,9 +26,17 @@ import {
   DialogTitle,
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
+import { useStore } from "alepha/react";
 import { CircleHelp } from "lucide-react";
 import { useEffect, useState } from "react";
 
+/**
+ * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
+ * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
+ * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
+ * docblock. Task 6 dropped this dialog's `onSessionExpired` prop once that global hook was
+ * confirmed to cover every one of the editor's machine codes.
+ */
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
@@ -45,7 +53,6 @@ const KIND_MAX: Record<RegistryKind, number> = {
 interface RegistryDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
-  onSessionExpired(): void;
   onOpenHelp(): void;
 }
 
@@ -61,15 +68,9 @@ interface RegistryDialogProps {
  * (`activePageIndex` reads any orphaned id as off/0 — the fail-closed default) but the confirm says
  * so. Stock shadcn / native controls, no Tiny Swords chrome — this is a creator surface.
  */
-export function RegistryDialog({
-  open,
-  onOpenChange,
-  onSessionExpired,
-  onOpenHelp,
-}: RegistryDialogProps) {
+export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialogProps) {
   useLocale();
-  const session = useUiStore((state) => state.adventureEditorSession);
-  const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  const [session, setSession] = useStore(adventureEditorSessionAtom);
 
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -88,8 +89,8 @@ export function RegistryDialog({
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) onSessionExpired();
-    else setError(code);
+    if (isSessionError(code)) return;
+    setError(code);
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload the picker each time it opens

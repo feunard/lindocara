@@ -89,13 +89,12 @@ describe("AppRouter", () => {
     });
   });
 
-  // Task 2 replaced the temporary screen-to-router bridge with the `state/navigation.ts` seam: the
-  // layout installs a `GameNavigation` on mount and clears it on unmount. Proves a reused screen's
-  // still-unmigrated `setScreen(...)` call (the store's now-deprecated shim) lands on the router
-  // through that seam, so main stays clickable for `TitleScreen`/`MainMenu`/etc. until they are
-  // wired onto the router directly.
-  it("installs the navigation seam on mount so a legacy setScreen(...) call still lands on the router", async () => {
-    const { useUiStore } = await import("@lindocara/client/store.js");
+  // The layout installs a `GameNavigation` (`state/navigation.ts`) on mount and clears it on
+  // unmount — `game/session.ts` is the sole consumer left after Task 6 removed the store's dead
+  // `setScreen`/`setAdventureEditorSession` shims (every UI caller reaches `useRouter()`/
+  // `useStore()` directly now). Proves the installed seam's `toMenu()` genuinely lands on the
+  // router, not just that it was installed.
+  it("installs the navigation seam on mount, and its toMenu() genuinely navigates", async () => {
     const { getGameNavigation } = await import("@lindocara/client/state/navigation.js");
     alepha = Alepha.create().with(AlephaReact).with(AppRouter);
     await alepha.start();
@@ -110,7 +109,7 @@ describe("AppRouter", () => {
     });
 
     await act(async () => {
-      useUiStore.getState().setScreen("menu");
+      getGameNavigation()?.toMenu();
     });
 
     await waitFor(() => {

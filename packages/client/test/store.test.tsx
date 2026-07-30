@@ -10,14 +10,13 @@ function fakeNavigation(overrides: Partial<GameNavigation> = {}): GameNavigation
     toGame: vi.fn(),
     toMenu: vi.fn(),
     toAuth: vi.fn(),
+    toEditor: vi.fn(),
     setActiveParty: vi.fn(),
     getActiveParty: () => null,
     setAdventureTestSession: vi.fn(),
     getAdventureTestSession: () => null,
     getQuickItems: () => [null, null, null],
     logout: vi.fn(),
-    setAdventureEditorSession: vi.fn(),
-    push: vi.fn(),
     ...overrides,
   };
 }
@@ -25,15 +24,20 @@ function fakeNavigation(overrides: Partial<GameNavigation> = {}): GameNavigation
 describe("ui store", () => {
   afterEach(() => setGameNavigation(null));
 
-  it("no longer carries a screen field or a resetToTitle/resetToSaves API — the router owns navigation", () => {
+  it("no longer carries a screen field, screen-machine API or editor-session field — the router owns navigation and the atoms own editor state", () => {
     const state = useUiStore.getState();
     expect("screen" in state).toBe(false);
+    expect("setScreen" in state).toBe(false);
     expect("resetToTitle" in state).toBe(false);
     expect("resetToSaves" in state).toBe(false);
     expect("activeParty" in state).toBe(false);
     expect("quickItems" in state).toBe(false);
     expect("questTracking" in state).toBe(false);
     expect("adventureTestSession" in state).toBe(false);
+    expect("setAdventureTestSession" in state).toBe(false);
+    expect("adventureEditorSession" in state).toBe(false);
+    expect("setAdventureEditorSession" in state).toBe(false);
+    expect("setActiveParty" in state).toBe(false);
   });
 
   it("does not retain a combat target or a target mutation API", () => {
@@ -53,86 +57,6 @@ describe("ui store", () => {
     expect(state.chat.at(-1)?.text).toBe("line 9");
     expect(state.chat.at(-1)?.channel).toBe("local");
     expect(state.chat.find((line) => line.channel === "system")?.text).toBe("event 0");
-  });
-
-  describe("setScreen (deprecated shim)", () => {
-    it("is a no-op before a navigation seam installs", () => {
-      expect(() => useUiStore.getState().setScreen("menu")).not.toThrow();
-    });
-
-    it("routes every legacy screen name to the matching $page push, through the installed seam", () => {
-      const nav = fakeNavigation();
-      setGameNavigation(nav);
-      useUiStore.getState().setScreen("title");
-      useUiStore.getState().setScreen("menu");
-      useUiStore.getState().setScreen("auth");
-      useUiStore.getState().setScreen("new");
-      useUiStore.getState().setScreen("continue");
-      useUiStore.getState().setScreen("join");
-      useUiStore.getState().setScreen("credits");
-      useUiStore.getState().setScreen("game");
-      useUiStore.getState().setScreen("adventure-editor");
-      expect(nav.push).toHaveBeenCalledWith("title");
-      expect(nav.push).toHaveBeenCalledWith("menu");
-      expect(nav.push).toHaveBeenCalledWith("auth");
-      expect(nav.push).toHaveBeenCalledWith("playNew");
-      expect(nav.push).toHaveBeenCalledWith("playContinue");
-      expect(nav.push).toHaveBeenCalledWith("playJoin");
-      expect(nav.push).toHaveBeenCalledWith("credits");
-      expect(nav.push).toHaveBeenCalledWith("game");
-      expect(nav.push).toHaveBeenCalledWith("editor");
-    });
-
-    it("pushes nothing for the blank initial 'boot' state", () => {
-      const nav = fakeNavigation();
-      setGameNavigation(nav);
-      useUiStore.getState().setScreen("boot");
-      expect(nav.push).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("setAdventureEditorSession (deprecated editor shim)", () => {
-    it("dual-writes the seam (the atom) and the store's own field, so the editor stays reactive", () => {
-      const nav = fakeNavigation();
-      setGameNavigation(nav);
-      const session = {
-        adventureId: "adv-1",
-        draftId: "draft-1",
-        draft: {} as never,
-        invalidatedLinks: [],
-        savedDraft: null,
-      };
-      useUiStore.getState().setAdventureEditorSession(session);
-      expect(nav.setAdventureEditorSession).toHaveBeenCalledWith(session);
-      expect(useUiStore.getState().adventureEditorSession).toBe(session);
-    });
-
-    it("still updates the local field when no seam is installed (editor tests render bare)", () => {
-      const session = {
-        adventureId: "adv-1",
-        draftId: "draft-1",
-        draft: {} as never,
-        invalidatedLinks: [],
-        savedDraft: null,
-      };
-      expect(() => useUiStore.getState().setAdventureEditorSession(session)).not.toThrow();
-      expect(useUiStore.getState().adventureEditorSession).toBe(session);
-    });
-  });
-
-  describe("setAdventureTestSession (deprecated editor shim)", () => {
-    it("writes only through the seam — the store keeps no readable field for it", () => {
-      const nav = fakeNavigation();
-      setGameNavigation(nav);
-      const session = { id: "test-1" } as never;
-      useUiStore.getState().setAdventureTestSession(session);
-      expect(nav.setAdventureTestSession).toHaveBeenCalledWith(session);
-      expect("adventureTestSession" in useUiStore.getState()).toBe(false);
-    });
-
-    it("is a no-op before a navigation seam installs", () => {
-      expect(() => useUiStore.getState().setAdventureTestSession(null)).not.toThrow();
-    });
   });
 
   it("clearedGameSession clears the game handle, reconnect banner, and every overlay flag, but does not navigate", () => {
@@ -228,7 +152,7 @@ describe("ui store", () => {
     // The store itself never navigates anymore — no call reached the seam.
     expect(nav.toMenu).not.toHaveBeenCalled();
     expect(nav.toGame).not.toHaveBeenCalled();
-    expect(nav.push).not.toHaveBeenCalled();
+    expect(nav.toEditor).not.toHaveBeenCalled();
   });
 
   it("setSelf is referentially stable for equal values", () => {

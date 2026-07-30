@@ -18,6 +18,13 @@ import {
 import { Label } from "@lindocara/ui/components/label.js";
 import { useEffect, useState } from "react";
 
+/**
+ * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
+ * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
+ * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
+ * docblock. Task 6 dropped this dialog's `onSessionExpired` prop once that global hook was
+ * confirmed to cover every one of the editor's machine codes.
+ */
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
@@ -30,7 +37,6 @@ interface LoadAdventureDialogProps {
   onPick(id: string): void;
   /** Keep the editor session coherent when the adventure currently open in the shell was deleted. */
   onDeleted(id: string): void;
-  onSessionExpired(): void;
 }
 
 /**
@@ -47,7 +53,6 @@ export function LoadAdventureDialog({
   onOpenChange,
   onPick,
   onDeleted,
-  onSessionExpired,
 }: LoadAdventureDialogProps) {
   useLocale();
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
@@ -55,7 +60,6 @@ export function LoadAdventureDialog({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reload the list each time the dialog opens
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -66,8 +70,7 @@ export function LoadAdventureDialog({
         setAdventures(await fetchAllAdventures());
       } catch (caught) {
         const code = errorCode(caught);
-        if (isSessionError(code)) onSessionExpired();
-        else setError(code);
+        if (!isSessionError(code)) setError(code);
       }
     })();
   }, [open]);
@@ -86,8 +89,7 @@ export function LoadAdventureDialog({
     } catch (caught) {
       const code = errorCode(caught);
       setConfirmingDelete(null);
-      if (isSessionError(code)) onSessionExpired();
-      else setError(code);
+      if (!isSessionError(code)) setError(code);
     } finally {
       setDeletingId(null);
     }

@@ -8,7 +8,7 @@ import {
   updateAdventureApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { mintRegistryId } from "@lindocara/engine/adventure-state.js";
 import {
   type AuthoredQuestDefinition,
@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
+import { useAlepha, useStore } from "alepha/react";
 import { CircleHelp, Copy, LoaderCircle, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QuestDefinitionEditor } from "./QuestDefinitionEditor.js";
@@ -40,7 +41,6 @@ import {
 interface QuestWorkspaceDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
-  onSessionExpired(): void;
   onOpenHelp(): void;
   /** Current in-memory map, including unsaved event edits. It replaces that map's stored payload in
    * the reference catalogue so a just-created NPC can immediately become a giver. */
@@ -50,6 +50,13 @@ interface QuestWorkspaceDialogProps {
   onSaveDraft?(draft: AdventureDraft): Promise<AdventureDraft | null>;
 }
 
+/**
+ * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
+ * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
+ * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
+ * docblock. Task 6 dropped this dialog's `onSessionExpired` prop once that global hook was
+ * confirmed to cover every one of the editor's machine codes.
+ */
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
@@ -68,14 +75,13 @@ function questDiagnostics(
 export function QuestWorkspaceDialog({
   open,
   onOpenChange,
-  onSessionExpired,
   onOpenHelp,
   currentMap,
   onSaveDraft,
 }: QuestWorkspaceDialogProps) {
   useLocale();
-  const session = useUiStore((state) => state.adventureEditorSession);
-  const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  const alepha = useAlepha();
+  const [session, setSession] = useStore(adventureEditorSessionAtom);
   const [quests, setQuests] = useState<readonly AuthoredQuestDefinition[]>([]);
   const [baseline, setBaseline] = useState("[]");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -139,8 +145,7 @@ export function QuestWorkspaceDialog({
       } catch (caught) {
         if (cancelled) return;
         const code = errorCode(caught);
-        if (isSessionError(code)) onSessionExpired();
-        else setError(code);
+        if (!isSessionError(code)) setError(code);
       } finally {
         if (!cancelled) setLoadingMaps(false);
       }
@@ -195,8 +200,8 @@ export function QuestWorkspaceDialog({
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) onSessionExpired();
-    else setError(code);
+    if (isSessionError(code)) return;
+    setError(code);
   }
 
   async function save(): Promise<void> {
@@ -221,7 +226,7 @@ export function QuestWorkspaceDialog({
       } else {
         const payload = await updateAdventureApi(session.adventureId, input);
         const savedDraft = { ...nextDraft, registry: payload.registry };
-        const latest = useUiStore.getState().adventureEditorSession;
+        const latest = alepha.store.get(adventureEditorSessionAtom);
         if (latest) {
           setSession({
             ...latest,

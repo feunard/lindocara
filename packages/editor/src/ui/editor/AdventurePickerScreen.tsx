@@ -7,7 +7,7 @@ import {
   fetchAllAdventures,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import { Checkbox } from "@lindocara/ui/components/checkbox.js";
 import {
@@ -19,9 +19,19 @@ import {
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
+import { useStore } from "alepha/react";
+import { useRouter } from "alepha/react/router";
 import { useEffect, useState } from "react";
 import { loadAdventureSession } from "./adventure-session.js";
 
+/**
+ * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing a
+ * generic error banner while the client's global 401 seam (`packages/client/src/api.ts`'s `api()`
+ * helper, `state/navigation.ts`'s `onUnauthorized`) is already redirecting to `/auth` — that redirect
+ * itself is no longer this screen's job (Task 6 removed the editor's local `setScreen("auth")`
+ * navigation once the global hook was confirmed to cover every one of the editor's own machine
+ * codes, `unauthorized` included).
+ */
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
@@ -29,8 +39,8 @@ function isSessionError(code: string): boolean {
 /** Explicit landing page for creator tools: entering the editor never silently picks or creates data. */
 export function AdventurePickerScreen() {
   useLocale();
-  const setScreen = useUiStore((state) => state.setScreen);
-  const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  const router = useRouter();
+  const [, setSession] = useStore(adventureEditorSessionAtom);
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,17 +57,15 @@ export function AdventurePickerScreen() {
       } catch (caught) {
         if (cancelled) return;
         const code = errorCode(caught);
-        if (isSessionError(code)) setScreen("auth");
-        else {
-          setAdventures([]);
-          setError(code);
-        }
+        if (isSessionError(code)) return;
+        setAdventures([]);
+        setError(code);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [setScreen]);
+  }, []);
 
   async function openAdventure(id: string): Promise<void> {
     if (busy) return;
@@ -69,9 +77,9 @@ export function AdventurePickerScreen() {
       setSession(loaded);
     } catch (caught) {
       const code = errorCode(caught);
-      if (isSessionError(code)) setScreen("auth");
-      else setError(code);
       setBusy(false);
+      if (isSessionError(code)) return;
+      setError(code);
     }
   }
 
@@ -87,9 +95,9 @@ export function AdventurePickerScreen() {
       setSession(loaded);
     } catch (caught) {
       const code = errorCode(caught);
-      if (isSessionError(code)) setScreen("auth");
-      else setError(code);
       setBusy(false);
+      if (isSessionError(code)) return;
+      setError(code);
     }
   }
 
@@ -106,8 +114,8 @@ export function AdventurePickerScreen() {
     } catch (caught) {
       const code = errorCode(caught);
       setConfirmingDelete(null);
-      if (isSessionError(code)) setScreen("auth");
-      else setError(code);
+      if (isSessionError(code)) return;
+      setError(code);
     } finally {
       setDeletingId(null);
     }
@@ -121,7 +129,7 @@ export function AdventurePickerScreen() {
             <h1 className="text-2xl font-semibold">{t("editor.picker.title")}</h1>
             <p className="mt-1 text-sm text-zinc-500">{t("editor.picker.subtitle")}</p>
           </div>
-          <Button variant="outline" onClick={() => setScreen("menu")}>
+          <Button variant="outline" onClick={() => void router.push("menu")}>
             {t("editor.shell.quit")}
           </Button>
         </header>

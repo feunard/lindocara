@@ -1,15 +1,17 @@
 import type { AdventureDraft, DraftMemberInfo } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { AdventureSettingsDialog } from "@lindocara/editor/ui/editor/AdventureSettingsDialog.js";
 import { EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Alepha } from "alepha";
+import { renderWithAlepha } from "alepha/react/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const OPEN_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers.map(
   encodeTileLayer,
@@ -104,24 +106,47 @@ function member(mapId: string, name: string, entryId: string, exitId: string): D
   };
 }
 
-function seedSession(draft: AdventureDraft, adventureId: string | null): void {
-  useUiStore.setState({
-    adventureEditorSession: {
-      adventureId,
-      draftId: "draft-1",
-      draft,
-      invalidatedLinks: [],
-      savedDraft: adventureId ? JSON.stringify(draft) : null,
-    },
-  });
+interface EditorSessionFixture {
+  adventureId: string | null;
+  draftId: string;
+  draft: AdventureDraft;
+  invalidatedLinks: string[];
+  savedDraft: string | null;
+}
+
+function sessionFixture(draft: AdventureDraft, adventureId: string | null): EditorSessionFixture {
+  return {
+    adventureId,
+    draftId: "draft-1",
+    draft,
+    invalidatedLinks: [],
+    savedDraft: adventureId ? JSON.stringify(draft) : null,
+  };
 }
 
 const noop = () => {};
 
+/** `AdventureSettingsDialog` reads/writes `adventureEditorSessionAtom` directly (Task 6) — seed the
+ *  atom on a pre-configured Alepha instance BEFORE the first render, mirroring
+ *  `registry-dialog.test.tsx`'s own helper (same rationale, see that file's docblock). */
+function mountDialog(session: EditorSessionFixture, onSaved: () => void = noop) {
+  const alepha = Alepha.create();
+  alepha.store.set(adventureEditorSessionAtom, session);
+  return renderWithAlepha(<AdventureSettingsDialog open onOpenChange={noop} onSaved={onSaved} />, {
+    alepha,
+  });
+}
+
 describe("AdventureSettingsDialog", () => {
+  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ adventureEditorSession: null });
+  });
+
+  afterEach(async () => {
+    for (const alepha of alephaInstances) await alepha.stop();
+    alephaInstances = [];
   });
 
   it("round-trips the title and max players through the update endpoint", async () => {
@@ -132,12 +157,10 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
     };
-    seedSession(complete, "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
-    render(
-      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
-    );
+    const { alepha } = await mountDialog(sessionFixture(complete, "adv-1"));
+    alephaInstances.push(alepha);
 
     const title = await screen.findByLabelText(t("adventure.name"));
     await userEvent.clear(title);
@@ -172,12 +195,10 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
     };
-    seedSession(complete, "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
-    render(
-      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
-    );
+    const { alepha } = await mountDialog(sessionFixture(complete, "adv-1"));
+    alephaInstances.push(alepha);
 
     // Delete is confirm-gated: the first click only raises the confirm, it does not call the endpoint.
     await userEvent.click(await screen.findByRole("button", { name: t("editor.delete") }));
@@ -195,7 +216,7 @@ describe("AdventureSettingsDialog", () => {
       ),
     );
     // The deleted adventure's editing session is torn down, so the dialog falls back to the picker.
-    await waitFor(() => expect(useUiStore.getState().adventureEditorSession).toBeNull());
+    await waitFor(() => expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull());
   });
 
   it("can explicitly force deletion of the active party saves", async () => {
@@ -206,12 +227,10 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
     };
-    seedSession(complete, "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
-    render(
-      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
-    );
+    const { alepha } = await mountDialog(sessionFixture(complete, "adv-1"));
+    alephaInstances.push(alepha);
 
     await userEvent.click(await screen.findByRole("button", { name: t("editor.delete") }));
     await userEvent.click(screen.getByRole("checkbox", { name: t("editor.delete.force") }));
@@ -233,11 +252,9 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "gate")],
       registry: EMPTY_REGISTRY,
     };
-    seedSession(draft, "adv-1");
     vi.stubGlobal("fetch", backend());
-    render(
-      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
-    );
+    const { alepha } = await mountDialog(sessionFixture(draft, "adv-1"));
+    alephaInstances.push(alepha);
 
     // Only the shell fields remain — no Exits/bindings destination selects, no validation readout.
     expect(await screen.findByLabelText(t("adventure.name"))).toBeInTheDocument();
@@ -255,12 +272,10 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "gate")],
       registry: EMPTY_REGISTRY,
     };
-    seedSession(draft, "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
-    render(
-      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
-    );
+    const { alepha } = await mountDialog(sessionFixture(draft, "adv-1"));
+    alephaInstances.push(alepha);
 
     const save = await screen.findByRole("button", { name: t("editor.save") });
     expect(save).toBeEnabled();

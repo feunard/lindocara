@@ -1,20 +1,19 @@
 /**
- * The `$page` route tree — Alepha's router replacing the old zustand `screen` machine
+ * The `$page` route tree — Alepha's router that replaced the old zustand `screen` machine
  * (`ui/LegacyShell.tsx`, the frozen rollback-only counterpart `App.tsx` used to be — see that
- * file's docblock). `title`/`menu`/`credits`/`auth`, the three launch carousels
- * (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own docblock
- * below) and, since Task 5, `game` are all live. `editor` still exists purely (per the plan's
- * Global Constraints route map) so `router.push("editor")` typechecks ahead of its own task — it
- * renders a bare, textless marker div until Task 6 builds the real screen.
+ * file's docblock). Every route is live now: `title`/`menu`/`credits`/`auth`, the three launch
+ * carousels (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own
+ * docblock below), `game` (Task 5) and, since Task 6, `editor` — a lazy-loaded route (see its own
+ * field docblock below) rendering the real `@lindocara/editor` shell instead of a stub.
  *
  * The root `layout` carries the chrome the old `App.tsx` used to own directly (now
  * `LegacyShell.tsx`'s equivalent lines): the boot ping (now `ReactAuth.ping()` -> guest fallback
  * -> /auth, replacing the old `fetchMe()`), the launch-menu music effect and the
  * LocaleToggle/StatusBar immersive toggle, all now driven by the URL instead of `screen`.
- * `TitleScreen`/`MainMenu`/`CreditsScreen` are
- * reused unmodified — they still call the store's deprecated `setScreen` shim (`store.ts`), which
- * now pushes through the navigation seam this layout installs below (`state/navigation.ts`) rather
- * than writing a `screen` field nobody reads anymore.
+ * `TitleScreen`/`MainMenu`/`CreditsScreen` push through `useRouter()` directly (Task 6) — the
+ * store's `setScreen`/`screen` machine is fully dead, both as a store field (removed Task 2) and
+ * as the deprecated shim that routed through this layout's installed navigation seam (removed
+ * Task 6 alongside the editor package's own migration off it).
  *
  * Task 3 also adds the lore idiom's global 401 recovery: an `AppRouter`-class `$hook({ on:
  * "client:onError" })`, below, for anything that goes through Alepha's own `HttpClient`
@@ -39,12 +38,7 @@ import {
 import { menuAudio } from "../game/menu-audio.js";
 import { continueAsGuest } from "../guest.js";
 import { useLocale } from "../i18n.js";
-import {
-  activePartyAtom,
-  adventureEditorSessionAtom,
-  adventureTestSessionAtom,
-  quickItemsAtom,
-} from "../state/atoms.js";
+import { activePartyAtom, adventureTestSessionAtom, quickItemsAtom } from "../state/atoms.js";
 import type { GameNavigation } from "../state/navigation.js";
 import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/navigation.js";
 import { useUiStore } from "../store.js";
@@ -138,11 +132,6 @@ function GameScreen() {
 /** Paths where the launch-menu music bed plays (was `App.tsx:71-72`, now `LegacyShell.tsx`). */
 const LAUNCH_MENU_PATHS = new Set<string>(["/menu", "/play/continue", "/play/new", "/play/join"]);
 
-/** A textless marker for a route whose real screen is a later task's job — see the file docblock. */
-function RouteStub({ name }: { name: string }) {
-  return <div data-route-stub={name} />;
-}
-
 function AppLayout() {
   useLocale();
   const alepha = useAlepha();
@@ -204,28 +193,29 @@ function AppLayout() {
     else menuAudio.stopMusic();
   }, [pathname]);
 
-  // Installs the navigation seam (`state/navigation.ts`) `game/session.ts` and the store's
-  // deprecated editor-facing shims (`setScreen`, `setAdventureEditorSession`,
-  // `setAdventureTestSession`) route through — the ONE place in the app that actually closes over
-  // both `router.push` and `alepha.store.set/get`, since neither `game/**` nor the zustand store
-  // itself may import `alepha`/`alepha/react` (see the repo AGENTS.md and `state/navigation.ts`'s
-  // docblock). Also installs the sibling 401 seam (`onUnauthorized`/`setOnUnauthorized`): the ONE
-  // place "clear the auth atom, go to /auth" is implemented, called both by this class's own
-  // `client:onError` $hook below and by `api.ts`'s plain-`fetch` 401 path. Both seams are cleared on
-  // unmount so neither survives into the next mount (a fresh test, or a future hot reload).
+  // Installs the navigation seam (`state/navigation.ts`) `game/session.ts` routes through — the ONE
+  // place in the app that actually closes over both `router.push` and `alepha.store.set/get`, since
+  // `game/**` may not import `alepha`/`alepha/react` (see the repo AGENTS.md and
+  // `state/navigation.ts`'s docblock). Task 6 removed the store's deprecated `setScreen`/
+  // `setAdventureEditorSession` shims that used to route through this same seam — every former
+  // caller (the editor package, `TitleScreen`/`MainMenu`/`CreditsScreen`) now reaches `useRouter()`/
+  // `useStore(adventureEditorSessionAtom)` directly instead. Also installs the sibling 401 seam
+  // (`onUnauthorized`/`setOnUnauthorized`): the ONE place "clear the auth atom, go to /auth" is
+  // implemented, called both by this class's own `client:onError` $hook below and by `api.ts`'s
+  // plain-`fetch` 401 path. Both seams are cleared on unmount so neither survives into the next
+  // mount (a fresh test, or a future hot reload).
   useEffect(() => {
     const nav: GameNavigation = {
       toGame: () => void router.push("game"),
       toMenu: () => void router.push("menu"),
       toAuth: () => void router.push("auth"),
+      toEditor: () => void router.push("editor"),
       setActiveParty: (party) => alepha.store.set(activePartyAtom, party),
       getActiveParty: () => alepha.store.get(activePartyAtom),
       setAdventureTestSession: (session) => alepha.store.set(adventureTestSessionAtom, session),
       getAdventureTestSession: () => alepha.store.get(adventureTestSessionAtom),
       getQuickItems: () => alepha.store.get(quickItemsAtom),
       logout: () => alepha.inject(ReactAuth).logout(),
-      setAdventureEditorSession: (session) => alepha.store.set(adventureEditorSessionAtom, session),
-      push: (routeName) => void router.push(routeName),
     };
     setGameNavigation(nav);
     setOnUnauthorized(() => {
@@ -379,7 +369,25 @@ export class AppRouter {
     },
   });
 
-  // Stub — Task 6 replaces `component` with the real screen. Field name is the typed
-  // `push()`/`path()` key (the plan's Global Constraints route map); do not rename it.
-  editor = $page({ path: "/editor", component: () => <RouteStub name="editor" /> });
+  /**
+   * The creator tools, lazy-loaded (Task 6) — this is the ONE undeclared cross-package edge in the
+   * whole app: `packages/client/package.json` deliberately does NOT depend on `@lindocara/editor`
+   * (see the root AGENTS.md — "the client App lazy-`import()`s the editor at runtime without
+   * declaring it, so there is no static `client -> editor` cycle"), the same pattern
+   * `LegacyShell.tsx`'s own `lazy(async () => ...)` used before this route existed. `$page`'s own
+   * `lazy` contract (`$page.ts`) is `() => Promise<{ default: FC<...> }>`, not React's `lazy()`
+   * shape, and `AdventureEditorScreen` is a NAMED export — `.then()` reshapes the module into the
+   * `{ default }` envelope `ReactPageProvider.createElement` awaits and destructures inline, no
+   * separate wrapper module needed. `npm run typecheck:client` resolves the type across the package
+   * boundary via the workspace's node_modules symlink (created by npm workspaces regardless of a
+   * declared `package.json` dependency), the same way it already resolved for `LegacyShell.tsx`'s
+   * own lazy import.
+   */
+  editor = $page({
+    path: "/editor",
+    lazy: async () => {
+      const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
+      return { default: module.AdventureEditorScreen };
+    },
+  });
 }

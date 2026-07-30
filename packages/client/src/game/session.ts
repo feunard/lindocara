@@ -61,18 +61,17 @@ function stopCurrentSession(): void {
 /**
  * Clears the game session on the store, then navigates away through the seam — the store itself no
  * longer navigates (it dropped `screen`/`activeParty`). A live editor test session still returns to
- * the editor screen (via the store's deprecated `setScreen` shim: the editor route has no
- * `GameNavigation` member of its own, see that type's docblock); every other disconnect — whether
- * or not it was a persistent party — now lands on the main menu, since `GameNavigation` only names
- * one non-game, non-auth destination. Shared by `endGame` and `launchGameIdentity`'s launch-failure
- * catch, which previously duplicated this exact branch.
+ * the editor (`nav.toEditor()`); every other disconnect — whether or not it was a persistent party —
+ * now lands on the main menu, since `GameNavigation` only names one non-game, non-auth, non-editor
+ * destination. Shared by `endGame` and `launchGameIdentity`'s launch-failure catch, which previously
+ * duplicated this exact branch.
  */
 function returnFromGameSession(): void {
   const store = useUiStore.getState();
   const nav = getGameNavigation();
   store.clearedGameSession();
   if (nav?.getAdventureTestSession()) {
-    store.setScreen("adventure-editor");
+    nav.toEditor();
   } else {
     nav?.setActiveParty(null);
     nav?.toMenu();

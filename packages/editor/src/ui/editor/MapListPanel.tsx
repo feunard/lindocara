@@ -69,9 +69,15 @@ interface MapListPanelProps {
   onOpenMapAudio(): void;
   onOpenSettings(): void;
   onError(code: string): void;
-  onSessionExpired(): void;
 }
 
+/**
+ * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
+ * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
+ * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
+ * docblock. Task 6 dropped this panel's `onSessionExpired` prop once that global hook was confirmed
+ * to cover every one of the editor's machine codes.
+ */
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
@@ -101,7 +107,6 @@ export function MapListPanel({
   onOpenMapAudio,
   onOpenSettings,
   onError,
-  onSessionExpired,
 }: MapListPanelProps) {
   useLocale();
   const [maps, setMaps] = useState<MapSummary[]>([]);
@@ -115,8 +120,8 @@ export function MapListPanel({
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) onSessionExpired();
-    else onError(code);
+    if (isSessionError(code)) return;
+    onError(code);
   }
 
   async function refresh(): Promise<void> {

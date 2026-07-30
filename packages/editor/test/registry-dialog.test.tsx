@@ -1,15 +1,25 @@
 import type { AdventureDraft, DraftMemberInfo } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { RegistryDialog } from "@lindocara/editor/ui/editor/RegistryDialog.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { createAuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
 import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Alepha } from "alepha";
+import { renderWithAlepha } from "alepha/react/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const noop = () => {};
+
+interface EditorSessionFixture {
+  adventureId: string | null;
+  draftId: string;
+  draft: AdventureDraft;
+  invalidatedLinks: string[];
+  savedDraft: string | null;
+}
 
 function member(mapId: string, name: string, entryId: string, exitId: string): DraftMemberInfo {
   return {
@@ -36,15 +46,28 @@ function completeDraft(registry: AdventureRegistry): AdventureDraft {
   };
 }
 
-function seedSession(draft: AdventureDraft, adventureId: string | null): void {
-  useUiStore.setState({
-    adventureEditorSession: {
-      adventureId,
-      draftId: "draft-1",
-      draft,
-      invalidatedLinks: [],
-      savedDraft: JSON.stringify(draft),
-    },
+function sessionFixture(draft: AdventureDraft, adventureId: string | null): EditorSessionFixture {
+  return {
+    adventureId,
+    draftId: "draft-1",
+    draft,
+    invalidatedLinks: [],
+    savedDraft: JSON.stringify(draft),
+  };
+}
+
+/**
+ * `RegistryDialog` reads/writes `adventureEditorSessionAtom` directly (Task 6, off the store's
+ * deleted `adventureEditorSession`/`setAdventureEditorSession` shims), so it needs a real Alepha
+ * instance to mount at all. Seeding the atom on a pre-configured instance BEFORE the first render —
+ * rather than rendering bare and seeding via `act()` afterward — avoids the dialog's own "no
+ * session" effect (`fetchAllAdventures()`) firing once for nothing on every seeded test.
+ */
+function mountDialog(session: EditorSessionFixture | null) {
+  const alepha = Alepha.create();
+  if (session) alepha.store.set(adventureEditorSessionAtom, session);
+  return renderWithAlepha(<RegistryDialog open onOpenChange={noop} onOpenHelp={noop} />, {
+    alepha,
   });
 }
 
@@ -72,17 +95,25 @@ function backend() {
 }
 
 describe("RegistryDialog", () => {
+  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ adventureEditorSession: null });
+  });
+
+  afterEach(async () => {
+    for (const alepha of alephaInstances) await alepha.stop();
+    alephaInstances = [];
   });
 
   it("mints, renames and deletes, then persists the exact registry through the adventure PUT", async () => {
     const user = userEvent.setup();
-    seedSession(completeDraft({ switches: [], variables: [] }), "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
-    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} onOpenHelp={noop} />);
+    const { alepha } = await mountDialog(
+      sessionFixture(completeDraft({ switches: [], variables: [] }), "adv-1"),
+    );
+    alephaInstances.push(alepha);
 
     const switches = screen.getByRole("region", { name: t("editor.registry.switches") });
     // Add mints 0001, then 0002 — monotone.
@@ -163,7 +194,8 @@ describe("RegistryDialog", () => {
       return Promise.resolve(new Response(null, { status: 404 }));
     });
     vi.stubGlobal("fetch", mock);
-    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} onOpenHelp={noop} />);
+    const { alepha } = await mountDialog(null);
+    alephaInstances.push(alepha);
 
     expect(await screen.findByText("Ruines")).toBeVisible();
     expect(screen.getByText(t("editor.registry.pick"))).toBeVisible();
@@ -175,11 +207,13 @@ describe("RegistryDialog", () => {
       acceptance: "automatic" as const,
       completion: "automatic" as const,
     };
-    seedSession(completeDraft({ switches: [], variables: [], quests: [quest] }), "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
     const user = userEvent.setup();
-    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} onOpenHelp={noop} />);
+    const { alepha } = await mountDialog(
+      sessionFixture(completeDraft({ switches: [], variables: [], quests: [quest] }), "adv-1"),
+    );
+    alephaInstances.push(alepha);
 
     const switches = screen.getByRole("region", { name: t("editor.registry.switches") });
     await user.click(

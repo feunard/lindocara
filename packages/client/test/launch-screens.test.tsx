@@ -216,14 +216,13 @@ describe("HeroCreate flows to game via the navigation seam", () => {
       toGame,
       toMenu: vi.fn(),
       toAuth: vi.fn(),
+      toEditor: vi.fn(),
       setActiveParty: vi.fn(),
       getActiveParty: () => null,
       setAdventureTestSession: vi.fn(),
       getAdventureTestSession: () => null,
       getQuickItems: () => [null, null, null],
       logout: vi.fn(),
-      setAdventureEditorSession: vi.fn(),
-      push: vi.fn(),
     });
   });
 

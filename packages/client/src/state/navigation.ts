@@ -1,11 +1,10 @@
 /**
- * The navigation seam `game/session.ts` (and the zustand store's deprecated editor-facing shims)
- * use to reach the router and the application atoms without importing React or `alepha/react`
- * themselves. `packages/client/src/game/**` must not import either — the whole point of the
- * client/renderer split (see the root AGENTS.md) — and must never write an atom directly, so this
- * module carries zero `alepha` dependency of its own: it is just a type plus a module-level
- * mutable holder, safe to import from anywhere in the package (including the strict, non-Alepha
- * `tsconfig.json` program `game/**` and `store.ts` compile under).
+ * The navigation seam `game/session.ts` uses to reach the router and the application atoms without
+ * importing React or `alepha/react` itself. `packages/client/src/game/**` must not import either —
+ * the whole point of the client/renderer split (see the root AGENTS.md) — and must never write an
+ * atom directly, so this module carries zero `alepha` dependency of its own: it is just a type plus
+ * a module-level mutable holder, safe to import from anywhere in the package (including the strict,
+ * non-Alepha `tsconfig.json` program `game/**` and `store.ts` compile under).
  *
  * `packages/client/src/ui/AppRouter.tsx`'s root layout installs the real implementation on mount,
  * closing over the Alepha instance's `ReactRouter` and `store` (which DOES need `alepha`, hence
@@ -16,33 +15,37 @@
  * Task 3 adds a second, sibling seam below (`onUnauthorized`/`setOnUnauthorized`) for the SAME
  * reason: `api.ts`'s plain-`fetch` calls need to react to a 401 without importing `alepha`
  * themselves. It is deliberately not folded into `GameNavigation` — that type is documented as
- * `game/session.ts` + the store's editor shims specifically, and `api.ts` is a different, broader
- * caller (every screen, both packages).
+ * `game/session.ts` specifically, and `api.ts` is a different, broader caller (every screen, both
+ * packages).
  */
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { AdventureTestSession, PartyListing } from "../api.js";
-import type { AdventureEditorSession } from "../store.js";
 
 export type ActiveParty = PartyListing;
 export type QuickItems = readonly [ConsumableId | null, ConsumableId | null, ConsumableId | null];
 
 /**
- * `toGame`/`toMenu`/`toAuth` are the player-facing destinations `game/session.ts` actually
- * reaches. `setActiveParty`/`getActiveParty`, `getAdventureTestSession` and `getQuickItems` are the
- * atom writes/reads its branches need (an atom's live value, outside React, only exists behind this
- * seam — see `state/atoms.ts`'s docblock; `getQuickItems` backs the `useQuickItem` hotkey, which
- * used to read the zustand `quickItems` field directly). `setAdventureTestSession`/
- * `setAdventureEditorSession` back the store's deprecated `setAdventureTestSession`/
- * `setAdventureEditorSession`/`setActiveParty` shims (editor writers only — Task 6 removes all
- * three alongside the editor's zustand coupling). `push` is a deliberately loose escape hatch for
- * the store's deprecated `setScreen` shim (removed in Task 6 alongside the `screen` field): it
- * still has to reach destinations (`title`, `new`/`continue`/`join`, `credits`, the editor) this
- * typed surface has no other reason to name.
+ * `toGame`/`toMenu`/`toAuth`/`toEditor` are the player-facing destinations `game/session.ts`
+ * actually reaches (a game session ending with a live editor test session returns to the editor,
+ * not the menu — see `returnFromGameSession()`). `setActiveParty`/`getActiveParty`,
+ * `getAdventureTestSession` and `getQuickItems` are the atom writes/reads its branches need (an
+ * atom's live value, outside React, only exists behind this seam — see `state/atoms.ts`'s
+ * docblock; `getQuickItems` backs the `useQuickItem` hotkey, which used to read the zustand
+ * `quickItems` field directly). `setAdventureTestSession` backs `game/session.ts`'s own
+ * launch/launch-failure paths for the disposable test session atom.
+ *
+ * Task 6 removed the type's two prior escape hatches — `setAdventureEditorSession` and the untyped
+ * `push(routeName: string)` — once the store's deprecated `setScreen`/`setAdventureEditorSession`
+ * shims died: every former caller is a React component now (the editor, `MainMenu`, …), so it
+ * reaches `useStore(adventureEditorSessionAtom)`/`useRouter().push(...)` directly instead of this
+ * non-React seam. `toEditor` is the one remaining non-React caller's (`game/session.ts`) sole
+ * navigation need that the router's own typed `push` doesn't otherwise reach for it.
  */
 export type GameNavigation = {
   toGame(): void;
   toMenu(): void;
   toAuth(): void;
+  toEditor(): void;
   setActiveParty(party: ActiveParty | null): void;
   getActiveParty(): ActiveParty | null;
   setAdventureTestSession(session: AdventureTestSession | null): void;
@@ -52,10 +55,6 @@ export type GameNavigation = {
    *  server's redirect response makes the browser navigate away on its own — no manual
    *  `window.location.reload()` needed after it, unlike the old `api.ts` `logout()` it replaces). */
   logout(): void;
-  /** @deprecated Editor-shim-only — see the type docblock. */
-  setAdventureEditorSession(session: AdventureEditorSession | null): void;
-  /** @deprecated Editor/legacy-screen-shim-only — see the type docblock. */
-  push(routeName: string): void;
 };
 
 let installed: GameNavigation | null = null;
