@@ -1,10 +1,13 @@
 /**
- * The socketed world room — tranche α of the legacy `World` Durable Object on an Alepha `$room`
- * (`roomId = partyId:mapId`, tickHz 20). This task ports admission (`onJoin`, the 13-step
+ * The socketed world room — the legacy `World` Durable Object on an Alepha `$room`
+ * (`roomId = partyId:mapId`, tickHz 20). Tranche α ported admission (`onJoin`, the 13-step
  * `handleJoinHero` + `World.fetch` sequence), the message boundary caps, one-command-per-tick
- * movement and the 10Hz snapshot/resync flush; combat, monsters, loot, events and fenced saves
- * land in Tasks 5-7. The world systems under `../../world/` are reused as-is, keyed by Alepha
- * connection-id string instead of a workerd `WebSocket` (their `TSocket` generic).
+ * movement and the 10Hz snapshot/resync flush; tranche β (Task 5) added the full authoritative
+ * tick order and the combat/consumable/chat intents — the shell stays thin because both live in
+ * `worldTick.ts`, wired through `glue()`. Events/quests (Task 7), fenced saves (Task 6) and map
+ * transitions (Task 8) remain stubbed seams on that glue. The world systems under `../../world/`
+ * are reused as-is, keyed by Alepha connection-id string instead of a workerd `WebSocket` (their
+ * `TSocket` generic).
  *
  * ## Identity on the wire
  *
@@ -34,6 +37,7 @@ import {
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { flattenColliderIndex } from "@lindocara/engine/collider.js";
 import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
+import { canAct } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import { CEMETERIES } from "@lindocara/engine/game.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
@@ -44,12 +48,7 @@ import {
   type WorldEventSnapshot,
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
-import {
-  NETWORK_TICKS_PER_SNAPSHOT,
-  NO_INPUT,
-  PLAYER_SIZE,
-  TICK_HZ,
-} from "@lindocara/engine/simulation.js";
+import { NO_INPUT, PLAYER_SIZE, TICK_HZ } from "@lindocara/engine/simulation.js";
 import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
@@ -66,14 +65,9 @@ import {
 import { addPlayer, isRateLimited, removePlayer } from "../../world/connection-system.js";
 import type { InterestSystemContext } from "../../world/interest-system.js";
 import { worldView } from "../../world/interest-system.js";
-import { advancePlayers } from "../../world/movement-system.js";
+import { selfState } from "../../world/snapshot-system.js";
 import {
-  broadcastNetworkUpdates,
-  selfState,
-  sendWorldResync,
-} from "../../world/snapshot-system.js";
-import {
-  D1_SAVE_EVERY_TICKS,
+  combatCooldownsFromPlayer,
   MAX_FRAME_BYTES,
   MAX_MALFORMED,
   MAX_QUEUED_COMMANDS,
@@ -97,6 +91,20 @@ import {
   parseWorldRoomId,
   type WorldRoomState,
 } from "./worldState.ts";
+import {
+  advanceWorldTick,
+  finishHeldPlayerAction,
+  handleBuyConsumable,
+  handleChat,
+  handleInteract,
+  handleRelease,
+  handleTalentReset,
+  handleTalentUnlock,
+  handleUseConsumable,
+  sendResyncTo,
+  startPlayerAction,
+  type WorldGlue,
+} from "./worldTick.ts";
 
 /** Copied from legacy `character-presence.ts`'s `PRESENCE_HEARTBEAT_MS` (that module defines a
  *  Durable Object and cannot load under Node) — how often the room re-asserts every player's
@@ -379,7 +387,11 @@ export class WorldRoom {
   // Messages
   // -----------------------------------------------------------------------------------------------
 
-  protected handleMessage(room: WorldRoomHandle, conn: RoomConnection, message: unknown): void {
+  protected handleMessage(
+    room: WorldRoomHandle,
+    conn: RoomConnection,
+    message: unknown,
+  ): void | Promise<void> {
     const state = room.state;
     const player = state.players.get(conn.id);
     if (!player?.authorized) return;
@@ -405,18 +417,51 @@ export class WorldRoom {
       return;
     }
     player.malformedCount = 0;
-    this.dispatch(room, state, conn.id, player, parsed);
+    return this.dispatch(room, state, conn.id, player, parsed);
   }
 
-  /** Tranche α dispatches movement intent and the resync request; every other intent lands with
-   *  its system in Tasks 5-7 and is deliberately ignored (never an error) until then. */
+  /**
+   * The full intent surface, mirroring legacy `#handleMessage`'s arm ORDER (`world.ts:1741-1910`)
+   * — the order is load-bearing: journal/dialogue intents stay reachable while downed, everything
+   * physical sits behind the `canAct` gate, and chat is the one thing a spirit keeps. The authored
+   * quest/dialogue intents (`quest.abandon`, `quest.action`, `event.advance`, `event.choose`) land
+   * with the interpreter in Task 7 and are deliberately ignored (never an error) until then; the
+   * legacy runtime-party `party.*` mechanic is rollback-only and refused for heroes exactly as
+   * legacy refuses it.
+   */
   protected dispatch(
     room: WorldRoomHandle,
     state: WorldRoomState,
     connectionId: string,
     player: PlayerRuntime,
     message: ClientMessage,
-  ): void {
+  ): void | Promise<void> {
+    if (message.t === "navigation.debug") {
+      if (process.env.NAVIGATION_DEBUG === "true") player.navigationDebug = message.enabled;
+      return;
+    }
+    if (message.t === "world.resync") {
+      const now = Date.now();
+      // A throttled request is owed, not dropped: the client latches until a resync arrives. The
+      // tick loop pays the debt once the cooldown lifts (`flushQueuedResyncs`).
+      if (now - player.lastResyncAt < RESYNC_COOLDOWN_MS) {
+        player.resyncQueued = true;
+        return;
+      }
+      player.resyncQueued = false;
+      player.lastResyncAt = now;
+      sendResyncTo(this.glue(room), connectionId, player);
+      return;
+    }
+    const w = this.glue(room);
+    if (message.t === "talent.unlock") {
+      handleTalentUnlock(w, connectionId, player, message.nodeId);
+      return;
+    }
+    if (message.t === "talent.reset") {
+      handleTalentReset(w, connectionId, player);
+      return;
+    }
     if (message.t === "input") {
       if (message.seq <= player.lastSeq) return;
       player.lastSeq = message.seq;
@@ -432,18 +477,96 @@ export class WorldRoom {
       player.queue.push({ seq: message.seq, input: message.input });
       return;
     }
-    if (message.t === "world.resync") {
-      const now = Date.now();
-      // A throttled request is owed, not dropped: the client latches until a resync arrives. The
-      // tick loop pays the debt once the cooldown lifts (`flushQueuedResyncs`).
-      if (now - player.lastResyncAt < RESYNC_COOLDOWN_MS) {
-        player.resyncQueued = true;
-        return;
-      }
-      player.resyncQueued = false;
-      player.lastResyncAt = now;
-      this.sendResync(room, state, connectionId, player);
+    if (message.t === "release") {
+      handleRelease(w, connectionId, player);
+      return;
     }
+    if (message.t === "skill.release") {
+      finishHeldPlayerAction(w, connectionId, player, Date.now(), message.slot);
+      return;
+    }
+    if (message.t.startsWith("party.")) {
+      // Hero sessions must not expose the legacy runtime-party mechanic (CLAUDE.md); the
+      // persistent D1 party is the only membership there is.
+      this.send(room, connectionId, { t: "event", code: "party.invalid", tone: "bad" });
+      return;
+    }
+    // The resurrection draught is the only item intentionally usable while lying as a corpse.
+    // The server still validates the exact life state and owns the delayed outcome.
+    if (message.t === "item.use") {
+      return handleUseConsumable(w, connectionId, player, message.item);
+    }
+    // Task 7: `quest.abandon`, `quest.action`, `event.advance`, `event.choose` slot in here.
+    // The dead act only through the explicit non-physical exits above. Chat is the one thing a
+    // spirit keeps in the room.
+    if (message.t !== "chat" && !canAct(player.life)) return;
+    if (message.t === "attack") {
+      if (startPlayerAction(w, connectionId, player, 1)) {
+        return this.checkpointCooldownsOrReject(room, state, connectionId, player);
+      }
+      return;
+    }
+    if (message.t === "interact") {
+      return handleInteract(w, connectionId, player).then(({ cooldownStarted }) => {
+        if (cooldownStarted) {
+          return this.checkpointCooldownsOrReject(room, state, connectionId, player);
+        }
+      });
+    }
+    if (message.t === "use") {
+      return handleUseConsumable(w, connectionId, player, "health_potion");
+    }
+    if (message.t === "merchant.buy") {
+      handleBuyConsumable(w, connectionId, player, message.item);
+      return;
+    }
+    if (message.t === "skill") {
+      if (startPlayerAction(w, connectionId, player, message.slot)) {
+        return this.checkpointCooldownsOrReject(room, state, connectionId, player);
+      }
+      return;
+    }
+    if (message.t === "chat") {
+      handleChat(w, connectionId, player, message.channel, message.text);
+    }
+  }
+
+  /**
+   * Port of legacy `#checkpointCooldowns` + `#checkpointCooldownsOrReject` + `#rejectStaleSave`
+   * (`world.ts:4169-4203`): starting an action checkpoints the spent cooldowns onto the presence
+   * lease; a refusal means the lease moved on, so the player is dropped with the legacy 4003.
+   */
+  protected async checkpointCooldownsOrReject(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+  ): Promise<void> {
+    let accepted: unknown = false;
+    try {
+      accepted = await this.presenceRoom.room.call(
+        player.id,
+        "checkpointCooldowns",
+        player.connectionId,
+        player.sessionEpoch,
+        combatCooldownsFromPlayer(player),
+      );
+    } catch (error) {
+      this.logError("cooldown_checkpoint_failed", error, { heroId: player.id });
+    }
+    if (accepted === true) return;
+    this.removeRuntimePlayer(state, connectionId, player);
+    console.warn(
+      JSON.stringify({
+        event: "stale_character_save_rejected",
+        characterId: player.id,
+        connectionId: player.connectionId,
+        sessionEpoch: player.sessionEpoch,
+        roomKey: player.roomKey,
+      }),
+    );
+    this.send(room, connectionId, { t: "event", code: "presence.lost", tone: "bad" });
+    room.close(connectionId, WS_CLOSE.PRESENCE_LOST, "presence epoch is stale");
   }
 
   // -----------------------------------------------------------------------------------------------
@@ -451,40 +574,66 @@ export class WorldRoom {
   // -----------------------------------------------------------------------------------------------
 
   /** SYNCHRONOUS by contract: an async onTick slower than its 50ms period silently skips beats
-   *  (RoomEngine's reentrancy guard). Async work (presence renews, future saves) is fired through
-   *  `waitUntil`-style detached promises, never awaited here. */
+   *  (RoomEngine's reentrancy guard). Async work (presence renews, coordinator RPCs, future saves)
+   *  is fired through `waitUntil`-style detached promises, never awaited here. A throwing tick is
+   *  contained (legacy `#advance`) so one bad tick cannot kill the loop around live sockets. */
   protected handleTick(room: WorldRoomHandle): void {
-    const state = room.state;
-    if (state.players.size === 0 || state.location === null) return;
-    state.tick += 1;
-    const now = Date.now();
-    advancePlayers<string>({
-      players: state.players,
-      playerGrid: state.playerGrid,
-      zone: state.location.definition,
-      now,
-      presenceHeartbeatMs: PRESENCE_HEARTBEAT_MS,
-      writeAttachment: false,
-      // The cadence is wired now so Task 6 only swaps the stub for the fenced save.
-      writeD1: state.tick % D1_SAVE_EVERY_TICKS === 0,
-      waitUntil: (promise) => {
-        void promise.catch((error) => this.logError("world_tick_async_failed", error));
-      },
-      renewPresence: (player) => this.renewPresence(room, state, player),
-      reclaimCorpse: () => {}, // Task 5 (death flows).
-      collectLoot: () => {}, // Task 5 (loot system).
-      savePlayer: async () => true, // Task 6 (fenced persistence).
-    });
-    if (state.tick % NETWORK_TICKS_PER_SNAPSHOT === 0) {
-      broadcastNetworkUpdates(
-        state.players,
-        state.tick,
-        (player) => worldView(this.interestContext(state), player),
-        (connectionId, message) => this.send(room, connectionId, message),
-        NO_EVENTS,
-      );
+    try {
+      advanceWorldTick(this.glue(room));
+    } catch (error) {
+      this.logError("world_tick_failed", error, { roomId: room.roomId });
     }
-    this.flushQueuedResyncs(room, state, now);
+  }
+
+  /**
+   * Binds the room handle to the seams `worldTick.ts` runs on. The Task 6/7/8 members are the
+   * stubs the plan pins for those tasks: fenced saves resolve `true` without writing, the quest
+   * reward claim reports already-claimed, the potion decrement is in-memory, the event-run drain
+   * and the adventure-exit transition do nothing.
+   */
+  protected glue(room: WorldRoomHandle): WorldGlue {
+    const state = room.state;
+    return {
+      state,
+      deps: {
+        now: () => Date.now(),
+        send: (connectionId, message) => this.send(room, connectionId, message),
+        waitUntil: (promise) => {
+          void promise.catch((error) => this.logError("world_tick_async_failed", error));
+        },
+        renewPresence: (player) => this.renewPresence(room, state, player),
+        savePlayer: async () => true, // Task 6 (fenced persistence).
+        presenceHeartbeatMs: PRESENCE_HEARTBEAT_MS,
+        navigationDebugAvailable: process.env.NAVIGATION_DEBUG === "true",
+        markPermanentMonsterDefeated: (eventId) => {
+          void this.partyRoom.room
+            .call(state.partyId, "markPermanentMonsterDefeated", eventId)
+            .catch((error) =>
+              this.logError("permanent_monster_defeat_save_failed", error, { eventId }),
+            );
+        },
+        recordQuestEvent: (partyId, event) => {
+          // Task 7 consumes the returned quest changes for automatic reward claims.
+          void this.partyRoom.room
+            .call(partyId, "recordQuestEvent", event)
+            .catch((error) => this.logError("authored_quest_event_failed", error, { partyId }));
+        },
+        broadcastToParty: (partyId, message) => {
+          void this.partyRoom.room
+            .call(partyId, "broadcastToParty", message)
+            .catch((error) => this.logError("party_chat_broadcast_failed", error, { partyId }));
+        },
+        drainEventRuns: () => {}, // Task 7 (the interpreter's budgeted drain).
+        transitionAdventureExit: () => {}, // Task 8 (freeze → save → handoff → 4008).
+        claimQuestReward: async () => false, // Task 6 (idempotent D1 claim).
+        consumePotion: async (player) => {
+          // Task 6 replaces this with the legacy fenced save-then-decrement D1 chain
+          // (`#consumePotion`); until then the in-memory count is the sole truth.
+          if (!player.authorized || player.inventory.potions <= 0) return null;
+          return player.inventory.potions - 1;
+        },
+      },
+    };
   }
 
   /** Port of legacy `#renewPresence` + the party-directory re-registration the task brief pins to
@@ -515,33 +664,6 @@ export class WorldRoom {
     this.removeRuntimePlayer(state, connectionId, player);
     this.send(room, connectionId, { t: "event", code: "presence.lost", tone: "bad" });
     room.close(connectionId, WS_CLOSE.PRESENCE_LOST, "presence expired");
-  }
-
-  /** Pays back the resyncs the cooldown deferred — the rate limit holds, only honoured late. */
-  protected flushQueuedResyncs(room: WorldRoomHandle, state: WorldRoomState, now: number): void {
-    for (const [connectionId, player] of state.players) {
-      if (!player.resyncQueued || !player.authorized) continue;
-      if (now - player.lastResyncAt < RESYNC_COOLDOWN_MS) continue;
-      player.resyncQueued = false;
-      player.lastResyncAt = now;
-      this.sendResync(room, state, connectionId, player);
-    }
-  }
-
-  protected sendResync(
-    room: WorldRoomHandle,
-    state: WorldRoomState,
-    connectionId: string,
-    player: PlayerRuntime,
-  ): void {
-    sendWorldResync(
-      connectionId,
-      player,
-      state.tick,
-      (recipient) => worldView(this.interestContext(state), recipient),
-      (recipientId, message) => this.send(room, recipientId, message),
-      NO_EVENTS,
-    );
   }
 
   // -----------------------------------------------------------------------------------------------
@@ -610,7 +732,7 @@ export class WorldRoom {
       playerGrid: state.playerGrid,
       monsterGrid: state.monsterGrid,
       lootGrid: state.lootGrid,
-      navigationDebugAvailable: false,
+      navigationDebugAvailable: process.env.NAVIGATION_DEBUG === "true",
       now: Date.now,
     };
   }

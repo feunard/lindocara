@@ -46,18 +46,23 @@ export interface SpawnProjectileOptions {
   ricochetRemaining?: number;
 }
 
-export interface ProjectileSystemContext {
+/**
+ * Generic over the socket key (`TSocket`), same contract as `MovementSystemContext`: the legacy
+ * Durable Object addresses recipients by workerd `WebSocket` (the default), the Alepha room host
+ * by connection-id string.
+ */
+export interface ProjectileSystemContext<TSocket = WebSocket> {
   projectiles: ProjectileRuntime[];
   terrain: TerrainGeometry;
   monsters: MonsterRuntime[];
-  players: Map<WebSocket, PlayerRuntime>;
+  players: Map<TSocket, PlayerRuntime>;
   monsterGrid: SpatialGrid<MonsterRuntime>;
   playerGrid: SpatialGrid<PlayerRuntime>;
   canHeal(owner: PlayerRuntime, target: PlayerRuntime): boolean;
   damageMonster(projectile: ProjectileRuntime, monster: MonsterRuntime, now: number): void;
   healPlayer(
     projectile: ProjectileRuntime,
-    socket: WebSocket,
+    socket: TSocket,
     player: PlayerRuntime,
     now: number,
   ): void;
@@ -118,17 +123,17 @@ function entityCenter(entity: Vec2): Vec2 {
   return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
 }
 
-function entityImpacts(
+function entityImpacts<TSocket>(
   projectile: ProjectileRuntime,
   from: Vec2,
   to: Vec2,
-  context: ProjectileSystemContext,
+  context: ProjectileSystemContext<TSocket>,
   now: number,
 ): {
   impact: SegmentImpact;
   monster?: MonsterRuntime;
   player?: PlayerRuntime;
-  socket?: WebSocket;
+  socket?: TSocket;
 }[] {
   const midpoint = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
   // Widened by the largest body any monster presents: a troll's edge can lie inside the sweep while
@@ -193,12 +198,15 @@ function entityImpacts(
       ): entry is {
         impact: SegmentImpact;
         player: PlayerRuntime;
-        socket: WebSocket;
+        socket: TSocket;
       } => entry.impact !== null && entry.socket !== undefined,
     );
 }
 
-export function advanceProjectiles(context: ProjectileSystemContext, now: number): void {
+export function advanceProjectiles<TSocket>(
+  context: ProjectileSystemContext<TSocket>,
+  now: number,
+): void {
   const survivors: ProjectileRuntime[] = [];
   for (const projectile of context.projectiles) {
     if (now >= projectile.expiresAt || projectile.rangeRemaining <= 0) continue;

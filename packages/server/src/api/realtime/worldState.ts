@@ -14,13 +14,20 @@ import { MAP_LAYERS, terrainFromMap } from "@lindocara/engine/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import { parseTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
+import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
+import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
+import type { NpcMovementRuntime } from "../../world/npc-movement-system.js";
+import type { SanctuaryRuntime } from "../../world/priest-variant-system.js";
 import { SpatialGrid } from "../../world/spatial-grid.js";
-import type {
-  GroundLoot,
-  GuardRuntime,
-  MonsterRuntime,
-  PlayerRuntime,
-  ProjectileRuntime,
+import {
+  type ActiveWorldEvent,
+  createGuards,
+  createMonsters,
+  type GroundLoot,
+  type GuardRuntime,
+  type MonsterRuntime,
+  type PlayerRuntime,
+  type ProjectileRuntime,
 } from "../../world/world-runtime.js";
 import type { MapPayload } from "../services/MapService.ts";
 
@@ -128,11 +135,29 @@ export interface WorldRoomState {
   playerGrid: SpatialGrid<PlayerRuntime>;
   monsterGrid: SpatialGrid<MonsterRuntime>;
   lootGrid: SpatialGrid<GroundLoot>;
-  /** Empty until Task 5 ports the full tick order. */
+  /** Seeded from the zone definition at state creation (the legacy `#configure` path). Authored
+   *  maps carry no zone-level spawns — their monsters/guards arrive as event-page reconciliation
+   *  in Task 7 — but the seeding path is the same one, so Task 7 only adds the reconcile calls. */
   monsters: MonsterRuntime[];
   guards: GuardRuntime[];
   loot: GroundLoot[];
   projectiles: ProjectileRuntime[];
+  /** Room-local priest sanctuaries (legacy `#sanctuaries`). */
+  sanctuaries: SanctuaryRuntime[];
+  /** Room-local damage-over-time stacks (legacy `#damageOverTime`). */
+  damageOverTime: DamageOverTimeRuntime[];
+  /** Quest resource-site respawn deadlines (legacy `#siteRespawnAt`). */
+  siteRespawnAt: Map<string, number>;
+  /** A* runtime for this room's terrain; `null` exactly when `location` is. */
+  navigation: NavigationRuntime | null;
+  /** Last hero-party-state payload actually broadcast, per party (legacy `#heroPartyBroadcasts`). */
+  heroPartyBroadcasts: Map<string, string>;
+  /** Authored events whose page currently holds. Always empty until Task 7 evaluates pages. */
+  activeEvents: readonly ActiveWorldEvent[];
+  /** Autonomous NPC movement runtimes keyed by event id (Task 7 populates via reconcile). */
+  npcMovement: Map<string, NpcMovementRuntime>;
+  /** Which authored exit each hero currently occupies (legacy `#occupiedExitByPlayerId`). */
+  occupiedExitByPlayerId: Map<string, string>;
   tick: number;
   /** The party coordinator's read-only snapshot — stub storage until Task 7 evaluates it. */
   adventureState: { state: PartyAdventureState | null; version: number };
@@ -143,6 +168,14 @@ export function createWorldRoomState(
   parsed: ParsedWorldRoomId | null,
   location: ZoneLocation | null,
 ): WorldRoomState {
+  // Zone-runtime init, the port of legacy `#configure`: bake the navigation grid and seed the
+  // zone's authored monsters/guards into runtime collections. `$room` discards this state when the
+  // room empties, which reproduces the legacy empty-room reset (temporary monsters/loot reset).
+  const definition = location?.definition ?? null;
+  const monsters = definition ? createMonsters(definition.monsters) : [];
+  const guards = definition ? createGuards(definition.guards) : [];
+  const monsterGrid = new SpatialGrid<MonsterRuntime>(SPATIAL_CELL_SIZE);
+  for (const monster of monsters) monsterGrid.insert(monster);
   return {
     partyId: parsed?.partyId ?? "",
     mapId: parsed?.mapId ?? "",
@@ -151,12 +184,22 @@ export function createWorldRoomState(
     players: new Map(),
     connectionIdByHeroId: new Map(),
     playerGrid: new SpatialGrid<PlayerRuntime>(SPATIAL_CELL_SIZE),
-    monsterGrid: new SpatialGrid<MonsterRuntime>(SPATIAL_CELL_SIZE),
+    monsterGrid,
     lootGrid: new SpatialGrid<GroundLoot>(SPATIAL_CELL_SIZE),
-    monsters: [],
-    guards: [],
+    monsters,
+    guards,
     loot: [],
     projectiles: [],
+    sanctuaries: [],
+    damageOverTime: [],
+    siteRespawnAt: new Map(),
+    navigation: definition
+      ? createNavigationRuntime(definition.terrain, definition.navigation)
+      : null,
+    heroPartyBroadcasts: new Map(),
+    activeEvents: [],
+    npcMovement: new Map(),
+    occupiedExitByPlayerId: new Map(),
     tick: 0,
     adventureState: { state: null, version: -1 },
   };

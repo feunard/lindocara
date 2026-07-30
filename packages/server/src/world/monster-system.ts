@@ -35,8 +35,13 @@ import { isRogueStealthed } from "./rogue-state-system.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { GuardRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
-export interface MonsterSystemContext {
-  players: Map<WebSocket, PlayerRuntime>;
+/**
+ * Generic over the socket key (`TSocket`), same contract as `MovementSystemContext`: the legacy
+ * Durable Object keys players by workerd `WebSocket` (the default), the Alepha room host by
+ * connection-id string. The system itself never touches the key beyond map iteration.
+ */
+export interface MonsterSystemContext<TSocket = WebSocket> {
+  players: Map<TSocket, PlayerRuntime>;
   monsters: MonsterRuntime[];
   guards: GuardRuntime[];
   monsterGrid: SpatialGrid<MonsterRuntime>;
@@ -81,7 +86,10 @@ export function forgetPlayerFromMonsters(
   for (const monster of monsters) abandonMonsterTarget(monster, playerId, "target_hidden");
 }
 
-export function advanceMonsters(context: MonsterSystemContext, now: number): void {
+export function advanceMonsters<TSocket>(
+  context: MonsterSystemContext<TSocket>,
+  now: number,
+): void {
   const players = Array.from(context.players.entries()).filter(
     ([, player]) =>
       player.authorized &&
@@ -216,8 +224,8 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
   processNavigationBudget(context.navigation, now);
 }
 
-function navigateMonster(
-  context: MonsterSystemContext,
+function navigateMonster<TSocket>(
+  context: MonsterSystemContext<TSocket>,
   monster: MonsterRuntime,
   destination: Vec2,
   targetId: string | null,
@@ -291,8 +299,8 @@ function navigateMonster(
   }
 }
 
-function moveMonsterDirect(
-  context: MonsterSystemContext,
+function moveMonsterDirect<TSocket>(
+  context: MonsterSystemContext<TSocket>,
   monster: MonsterRuntime,
   target: Vec2,
 ): boolean {
@@ -339,7 +347,7 @@ export function resetMonsterNavigation(monster: MonsterRuntime): void {
   monster.navigation.directBlockedDestination = null;
 }
 
-export function advanceGuards(context: MonsterSystemContext, now: number): void {
+export function advanceGuards<TSocket>(context: MonsterSystemContext<TSocket>, now: number): void {
   const terrain = context.zone.terrain;
   for (const guard of context.guards) {
     let target: MonsterRuntime | undefined;
@@ -391,7 +399,11 @@ export function advanceGuards(context: MonsterSystemContext, now: number): void 
   }
 }
 
-function moveGuardToward(context: MonsterSystemContext, guard: GuardRuntime, target: Vec2): void {
+function moveGuardToward<TSocket>(
+  context: MonsterSystemContext<TSocket>,
+  guard: GuardRuntime,
+  target: Vec2,
+): void {
   const dx = target.x - guard.x;
   const dy = target.y - guard.y;
   const distance = Math.hypot(dx, dy);

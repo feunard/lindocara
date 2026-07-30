@@ -4,16 +4,21 @@ import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { GroundLoot, PlayerRuntime } from "./world-runtime.js";
 
-export interface LootSystemContext {
+/**
+ * Generic over the socket key (`TSocket`), same contract as `MovementSystemContext`: the legacy
+ * Durable Object addresses recipients by workerd `WebSocket` (the default), the Alepha room host
+ * by connection-id string.
+ */
+export interface LootSystemContext<TSocket = WebSocket> {
   loot: GroundLoot[];
   lootGrid: SpatialGrid<GroundLoot>;
-  send(socket: WebSocket, message: ServerMessage): void;
-  sendState(socket: WebSocket, player: PlayerRuntime): void;
+  send(socket: TSocket, message: ServerMessage): void;
+  sendState(socket: TSocket, player: PlayerRuntime): void;
 }
 
-export function collectLoot(
-  context: LootSystemContext,
-  socket: WebSocket,
+export function collectLoot<TSocket>(
+  context: LootSystemContext<TSocket>,
+  socket: TSocket,
   player: PlayerRuntime,
 ): void {
   if (!canAct(player.life)) return;
