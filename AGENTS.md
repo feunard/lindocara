@@ -15,13 +15,13 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | **alepha dev** — the new `apps/main` stack, Node + auto-synced SQLite, serving the Alepha-ported `/api/*` (see "Alepha migration status" below) |
-| `npm run dev:legacy` | Vite + the Worker + the Durable Object, all in workerd — the **playable game** (the old `/api/*` + `/api/ws`) |
+| `npm run dev` | **alepha dev** — the **playable game** on the pure Alepha stack: Node + auto-synced SQLite, `/api/*`, the `/ws/world` realtime rooms and the SPA shell (see "Alepha migration status" below) |
+| `npm run dev:legacy` | Vite + the Worker + the Durable Object, all in workerd — the old stack, **rollback only** until the cleanup tranche |
 | `npm run v` (`npx alepha verify`) | the full verify pipeline: lint → typecheck + tests (parallel) → catalog/map content checks → both builds; `--fast` skips content checks and builds |
 | `npm run check` | lint, typecheck, test — run this before committing |
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
 | `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` main (each sync = its own commit, pinned in `.vendor/vendor.json`) |
-| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test against the legacy stack; remote targets require explicit opt-in |
+| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test against the alepha stack (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + a Node tooling program (see below) |
 | `npm test` | Vitest — every package's project plus the Node-only `server-api` project (see below) |
@@ -36,18 +36,22 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 ### Alepha migration status
 
-`apps/main` currently runs **two parallel implementations of `/api/*`**: the legacy one
-(`packages/server/src/index.ts` + `world.ts`, workerd, the original D1 schema) and a new one built
-on the vendored [Alepha](./.vendor/alepha) framework (`packages/server/src/api/`, Node/SQLite in
-dev, a generated Cloudflare artifact for later). **The legacy stack is authoritative for the running
-game** — the client (`packages/client`) still talks only to it — **until the realtime tranche** ports
-`/api/ws`, `World`/`GameSession`/`HeroPresence` and epoch-fenced hero saves onto Alepha. Until then,
-`npm run dev`/`npm run build` exercise the new stack in isolation (registration, login, maps,
-adventures, parties, heroes — no gameplay), and `npm run dev:legacy`/`build:legacy`/`deploy:legacy`
-remain how you actually run or ship the playable game. CF deploy of the Alepha stack is frozen to
-manual `workflow_dispatch` until then. See
+**`npm run dev` IS the playable game on the pure Alepha stack** (realtime tranche, 2026-07-30):
+the vendored [Alepha](./.vendor/alepha) framework (`packages/server/src/api/`, Node/SQLite in dev)
+now serves `/api/*`, the auth routes, the SPA shell (`SpaController` + `apps/main/src/main.browser.ts`)
+and the realtime rooms under `packages/server/src/api/realtime/` — `/api/join` admission,
+`/ws/world` simulation with the full tick order, party coordination, presence leases and
+epoch-fenced hero saves (see `packages/server/AGENTS.md`). The client (`packages/client`) talks
+only to the alepha wire (`resolveJoin` + the `{roomId, message}` envelope in `net.ts`), and
+`scripts/loadtest.mjs` targets it too. The legacy stack (`packages/server/src/index.ts` +
+`world.ts`, workerd, the original D1 schema) is **rollback only** via
+`dev:legacy`/`build:legacy`/`deploy:legacy` until the cleanup tranche retires it — it remains how
+production ships (`deploy:legacy`, `workflow_dispatch`) until the deploy tranche lands the
+Cloudflare deploy of the Alepha stack (still frozen: `$room` DO wiring, D1 provisioning and a
+migrations baseline are that tranche's work). See
 [`docs/superpowers/specs/2026-07-29-alepha-migration-design.md`](./docs/superpowers/specs/2026-07-29-alepha-migration-design.md)
-for the full plan and rationale.
+and [`docs/superpowers/plans/2026-07-30-alepha-migration-realtime.md`](./docs/superpowers/plans/2026-07-30-alepha-migration-realtime.md)
+for the plan and rationale.
 
 ## Architecture
 

@@ -1,10 +1,13 @@
 # @lindocara/server
 
-The Cloudflare Worker: the authoritative game server. Runs in **workerd**. **The server decides
-outcomes** — clients send movement and action *intent*, never positions, damage, health, inventory,
-XP, deaths, loot or quest completion. This package owns everything that must be trusted.
+The authoritative game server. **The server decides outcomes** — clients send movement and action
+*intent*, never positions, damage, health, inventory, XP, deaths, loot or quest completion. This
+package owns everything that must be trusted. Since the realtime tranche it holds TWO stacks: the
+live Alepha one under `src/api/` (see below — `npm run dev`, Node, the playable game) and the
+legacy Cloudflare Worker (workerd, everything the "Responsibility" section below describes),
+rollback-only via `dev:legacy` until the cleanup tranche.
 
-## Responsibility
+## Responsibility (legacy workerd stack)
 
 - `index.ts` — Worker entry (`/api/*` only; assets never reach it). The primary WS route is
   `/api/ws?party=<partyId>&hero=<heroId>`; it verifies account/membership/ownership and reads the
@@ -35,16 +38,18 @@ npm run db:generate             # (root) diff db/schema.ts -> migrations/*.sql
 npm run db:migrate              # apply migrations to the local D1 (reads this package's wrangler)
 ```
 
-## `src/api/` — the Alepha-ported API (migration tranches 0-1)
+## `src/api/` — the Alepha-ported API (migration tranches 0-1 + the realtime tranche)
 
-A second, parallel implementation of `/api/*` lives under `src/api/`, built on the vendored
+The Alepha implementation of the server lives under `src/api/`, built on the vendored
 [Alepha](../../.vendor/alepha) framework instead of a hand-rolled Worker. It runs on Node/SQLite in
 dev (`npm run dev` from the repo root, i.e. `apps/main`'s `alepha dev`) and targets Cloudflare
 Workers + D1 for a later deploy (`alepha build --target cloudflare`, still frozen — see the root
-`AGENTS.md`/`CLAUDE.md` "Alepha migration status"). **It is a from-scratch reimplementation of the
-primary authored/save flow only** (accounts, maps, adventures, parties, heroes) — it does not touch
-`world.ts`, `game-session.ts`, `hero-presence.ts` or the rest of this document. `/api/ws`, realtime
-simulation and epoch-fenced hero saves are explicitly deferred to a later "realtime" tranche.
+`AGENTS.md`/`CLAUDE.md` "Alepha migration status"). It is a from-scratch reimplementation of the
+primary authored/save flow (accounts, maps, adventures, parties, heroes) **plus, since the
+realtime tranche, the whole running game**: `src/api/realtime/` (below) replaces `/api/ws`,
+`World`, `GameSession` and `HeroPresence` on this stack. It still does not touch the legacy
+sources (`world.ts`, `game-session.ts`, `hero-presence.ts`, `index.ts`), which stay runnable via
+`dev:legacy` as rollback until the cleanup tranche.
 
 - `src/api/entities/*.ts` — Alepha ORM entity definitions (Drizzle-backed), one file per table:
   `maps`, `adventures`, `parties`, `partyMembers`, `heroes`, plus the normalized hero-child tables
@@ -70,6 +75,50 @@ simulation and epoch-fenced hero saves are explicitly deferred to a later "realt
   auth is Alepha's own `/api/users/register` (two-phase: `createRegistrationIntent`, then
   `createUserFromIntent` at `/api/users/register/complete`) plus `/_auth/token?provider=credentials`
   and `/_auth/userinfo`.
+- `src/api/controllers/SpaController.ts` — the SPA shell: `$route` (not `$action` — no `/api`
+  prefix) serving `GET /` and `/index.html` with the load-bearing DOM (`<canvas id="stage">` as a
+  sibling BEFORE `#root` — the canvas is not React's). Dev head = Vite client + React Fast Refresh
+  preamble + `apps/main/src/main.browser.ts`; production head is resolved from the embedded client
+  manifest. Without it a `$page`-less alepha app serves nothing at `/`.
+
+### `src/api/realtime/` — the running game (realtime tranche)
+
+Three `$room`s (all registered in `LindocaraApi`, served by `AlephaWebSocket`) replace the legacy
+Durable Objects on this stack. `channels.ts` declares `/ws/world`, `/ws/party`, `/ws/presence`
+with deliberately LOOSE zod schemas: **`@lindocara/engine`'s `parseClientMessage`/
+`encodeServerMessage` stay the single wire truth** — never duplicate the message variants in zod.
+
+- **`WorldRoom`** (`/ws/world`, roomId `partyId:mapId`) — the `World` successor: admission, the
+  full authoritative tick order (`worldTick.ts`: movement, combat actions, projectiles, monsters,
+  guards, loot, events, quests, snapshots/deltas), reusing the pure `src/world/*` systems with
+  injected dependencies. Admission: the client first calls `GET /api/join?party&hero`
+  (`JoinController` + `AdmissionService`) for a `{roomId, channelPath}` HINT, then dials
+  `/ws/world?roomId=…&party=…&hero=…`; the room re-validates everything against D1 in `onJoin` —
+  no query parameter selects an outcome. `conn` carries only `userId` (resolved at the upgrade
+  from the bearer token or, for browsers, the encrypted session cookie — a vendored
+  `resolveUserId` fallback, since a browser WebSocket cannot send an `Authorization` header).
+  Close codes are the legacy 4001-4008 vocabulary verbatim (`engine/close-codes.ts`).
+- **`PartyRoom`** (headless, roomId `partyId`) — the `GameSession` successor: room directory,
+  party chat/victory fan-out, single writer of adventure state. State is **write-through to D1 on
+  every mutation** (no 5s debounce — rooms have no alarm primitive).
+- **`PresenceRoom`** (headless, roomId `heroId`) — the `HeroPresence` successor: the lease
+  (`connectionId`, epoch, room, TTL 30s). D1 stays the single monotone source of
+  `hero.session_epoch` (`HeroEpochService`); every hero save keeps the
+  `WHERE session_epoch = ?` fence.
+
+**Wire envelope**: client→server frames arrive wrapped `{roomId, message}` (the room unwraps
+before `parseClientMessage`); server→client frames are sent raw, and the transport may stamp a
+`__alephaRoom` key the client strips (`net.ts`). **App-level caps port verbatim** (2 KiB frames,
+35 msg/s, 5 malformed, 12 queued commands, resync 1/s) — Alepha has no built-in frame cap or rate
+limit. `onTick` stays SYNCHRONOUS: an async tick slower than its 50ms period silently skips
+beats.
+
+**Volatile-state caveats (accepted this tranche, documented in the room docblocks)**: headless
+room state is memory-only — Node sweeps idle rooms after 5 minutes and a CF isolate eviction
+loses it. The tick stops when a room empties and state is recreated on the next join (matching
+the legacy empty-room reset of temporary monsters/loot); a lost presence lease degrades to a 4003
+kick and the D1 epoch fence keeps writes safe regardless. CF deploy is the deploy tranche's
+(`BuildCloudflareTask` wires `$websocket` only, not `$room` — known gap).
 
 **D1 discipline**, both load-bearing and easy to violate:
 - `repo.transaction()` throws on D1 — use the `$transactional()` middleware instead, and know it
