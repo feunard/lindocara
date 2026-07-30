@@ -1,0 +1,1 @@
+ALTER TABLE `party_adventure_state` ADD `shop_purchases` text DEFAULT '{}' NOT NULL;

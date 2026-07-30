@@ -7,7 +7,12 @@ import {
   normalizeAuthoredQuestProgress,
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
-import { CONSUMABLE_IDS, CONSUMABLE_MAX_STACK } from "@lindocara/engine/consumables.js";
+import {
+  CONSUMABLE_IDS,
+  CONSUMABLE_MAX_STACK,
+  type ConsumableId,
+  isConsumableId,
+} from "@lindocara/engine/consumables.js";
 import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
 import { applyExperience, maxHpForLevel } from "@lindocara/engine/game.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
@@ -23,6 +28,7 @@ import {
   questPrerequisitesHold,
 } from "@lindocara/engine/quest-runtime.js";
 import type { AuthoredQuestDefinition, QuestEventReference } from "@lindocara/engine/quests.js";
+import { SHOP_STOCK_MAX, type ShopStockReservation } from "@lindocara/engine/shop.js";
 import {
   loadAdventureEventIds,
   loadPartyAdventureState,
@@ -330,6 +336,40 @@ export class GameSession extends DurableObject<Env> {
         }),
         true,
       );
+    });
+  }
+
+  /** Atomically reserve one unit from an authored shop's party-wide finite stock. */
+  async reserveShopStock(
+    partyId: string,
+    eventId: string,
+    item: ConsumableId,
+    stock: number | null,
+  ): Promise<ShopStockReservation> {
+    if (
+      !isUuid(eventId) ||
+      !isConsumableId(item) ||
+      (stock !== null && (!Number.isSafeInteger(stock) || stock < 1 || stock > SHOP_STOCK_MAX))
+    ) {
+      return { reserved: false, remaining: 0 };
+    }
+    if (stock === null) return { reserved: true, remaining: null };
+    return this.#enqueueStateWrite(async () => {
+      const current = await this.#ensureState(partyId);
+      const purchased = current.state.shopPurchases?.[eventId]?.[item] ?? 0;
+      if (purchased >= stock) return { reserved: false, remaining: 0 };
+      const nextCount = purchased + 1;
+      await this.#applyStateChange(partyId, (state) => ({
+        ...state,
+        shopPurchases: {
+          ...(state.shopPurchases ?? {}),
+          [eventId]: {
+            ...(state.shopPurchases?.[eventId] ?? {}),
+            [item]: nextCount,
+          },
+        },
+      }));
+      return { reserved: true, remaining: stock - nextCount };
     });
   }
 

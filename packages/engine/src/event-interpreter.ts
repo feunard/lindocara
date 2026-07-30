@@ -50,6 +50,7 @@ import {
   variableAtLeast,
 } from "./adventure-state.js";
 import type { ChoiceOption, EventCommand, EventCondition } from "./event-commands.js";
+import { DEFAULT_SHOP_OFFERS, type ShopOfferDefinition } from "./shop.js";
 
 /**
  * One block of the running program. `commands` is the block's ordered command list (the root
@@ -218,7 +219,7 @@ export type EventEffect =
     }
   | { readonly kind: "endAdventure" }
   /** Open the consumables shop for the triggering hero, anchored at this event's cell. */
-  | { readonly kind: "openShop" }
+  | { readonly kind: "openShop"; readonly offers: readonly ShopOfferDefinition[] }
   | { readonly kind: "changeGold"; readonly amount: number }
   | { readonly kind: "changeItems"; readonly itemId: string; readonly count: number }
   | {
@@ -448,7 +449,7 @@ function executeCommand(
       // follow the counter with a parting `say`.
       return {
         context: running(context, advanceTop(frames)),
-        effects: [{ kind: "openShop" }],
+        effects: [{ kind: "openShop", offers: command.offers ?? DEFAULT_SHOP_OFFERS }],
       };
     case "changeGold":
       return {

@@ -69,6 +69,7 @@ import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from 
 import type { MerchantDefinition } from "./merchant.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
+import { type MerchantOffer, parseMerchantOffers } from "./shop.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { isTalentId, type TalentState } from "./talents.js";
@@ -509,6 +510,7 @@ export const EVENT_CODES = [
   "item.resurrected",
   "merchant.purchased",
   "merchant.insufficient",
+  "merchant.out_of_stock",
   "player.down",
   "loot.picked",
   "item.full",
@@ -623,7 +625,7 @@ export type ServerMessage =
   | { t: "chat"; channel: ChatChannel; from: string; text: string }
   | { t: "party.invite"; inviteId: string; fromId: string; from: string; expiresAt: number }
   | { t: "party.state"; party: PartyState | null }
-  | { t: "merchant.open" }
+  | { t: "merchant.open"; offers: readonly MerchantOffer[] }
   | CombatAnimation
   | RogueShadowDanceSequence
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
@@ -1627,7 +1629,10 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     if (value.t === "party.state" && (value.party === null || isPartyState(value.party)))
       return value as unknown as ServerMessage;
-    if (value.t === "merchant.open" && hasOnlyKeys(value, ["t"])) return { t: "merchant.open" };
+    if (value.t === "merchant.open" && hasOnlyKeys(value, ["t", "offers"])) {
+      const offers = parseMerchantOffers(value.offers);
+      if (offers) return { t: "merchant.open", offers };
+    }
     if (
       value.t === "animation" &&
       (value.actorKind === "player" || value.actorKind === "monster") &&

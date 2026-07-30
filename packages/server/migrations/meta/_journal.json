@@ -267,6 +267,13 @@
       "when": 1785424510045,
       "tag": "0037_glorious_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1785428204499,
+      "tag": "0038_steep_moonstone",
+      "breakpoints": true
     }
   ]
 }

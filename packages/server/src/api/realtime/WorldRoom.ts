@@ -632,8 +632,7 @@ export class WorldRoom {
       return handleUseConsumable(w, connectionId, player, "health_potion");
     }
     if (message.t === "merchant.buy") {
-      handleBuyConsumable(w, connectionId, player, message.item);
-      return;
+      return handleBuyConsumable(w, connectionId, player, message.item);
     }
     if (message.t === "skill") {
       if (startPlayerAction(w, connectionId, player, message.slot)) {
@@ -853,6 +852,14 @@ export class WorldRoom {
         applyStateChanges: async (mutations) => {
           await this.partyRoom.room.call(state.partyId, "applyStateChanges", mutations);
         },
+        reserveShopStock: async (eventId, item, stock) =>
+          (await this.partyRoom.room.call(
+            state.partyId,
+            "reserveShopStock",
+            eventId,
+            item,
+            stock,
+          )) as import("@lindocara/engine/shop.js").ShopStockReservation,
         acceptAuthoredQuest: async (partyId, actor, questId, target, inventory) =>
           (await this.partyRoom.room.call(
             partyId,

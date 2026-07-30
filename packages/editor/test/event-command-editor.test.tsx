@@ -358,6 +358,42 @@ describe("EventCommandEditor", () => {
     expect(within(menu).queryByText(/BGM/i)).toBeNull();
   });
 
+  it("configures a shop assortment and finite stock", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    render(<Harness latest={latest} />);
+
+    await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
+    await user.click(screen.getByRole("menuitem", { name: t("editor.event.cmd.new.openShop") }));
+    await user.selectOptions(
+      screen.getByRole("combobox", {
+        name: t("editor.event.cmd.shop.stockModeFor", { index: 1 }),
+      }),
+      "limited",
+    );
+    const stock = screen.getByRole("spinbutton", {
+      name: t("editor.event.cmd.shop.stockFor", { index: 1 }),
+    });
+    await user.clear(stock);
+    await user.type(stock, "7");
+    await user.tab();
+
+    const configured = latest.current[0];
+    expect(configured?.t === "openShop" ? configured.offers?.[0] : null).toEqual({
+      item: "health_potion",
+      stock: 7,
+    });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: t("editor.event.cmd.shop.remove", { index: 1 }),
+      }),
+    );
+    const command = latest.current[0];
+    expect(command?.t === "openShop" ? command.offers : null).toHaveLength(15);
+    expect(screen.getByRole("button", { name: t("editor.event.cmd.shop.add") })).toBeEnabled();
+  });
+
   it("disables the teleport command when the adventure has no maps", async () => {
     const user = userEvent.setup();
     const latest = { current: [] as readonly EventCommand[] };

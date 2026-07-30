@@ -17,6 +17,7 @@
  */
 import { isUuid } from "./identifiers.js";
 import { CONDITION_ID_PATTERN, isSelfSwitch, type SelfSwitch } from "./map-events.js";
+import { parseShopOffers, type ShopOfferDefinition } from "./shop.js";
 import { TILE_SIZE } from "./tilemap.js";
 
 /**
@@ -143,7 +144,11 @@ export type EventCommand =
    * room). Field-free like `endAdventure`; the event's own cell is the counter the buy path measures
    * against, so a hero cannot keep shopping after walking away.
    */
-  | { readonly t: "openShop" }
+  | {
+      readonly t: "openShop";
+      /** Optional only for source compatibility with maps authored before configurable shops. */
+      readonly offers?: readonly ShopOfferDefinition[];
+    }
   | { readonly t: "changeGold"; readonly amount: number }
   | { readonly t: "changeItems"; readonly itemId: string; readonly count: number }
   /** Emit a server-authored area-arrival fact for structured reach objectives. */
@@ -303,9 +308,10 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       // The optional end-game beat: marks the party's save complete when it runs. Field-free, like
       // `exitRun`/`breakLoop` — an author drops it wherever the ending should fire.
       return { t: "endAdventure" };
-    case "openShop":
-      // Field-free too: the shop's stock is `CONSUMABLES`, and the counter is the event's own cell.
-      return { t: "openShop" };
+    case "openShop": {
+      const offers = parseShopOffers(record.offers, true);
+      return offers ? { t: "openShop", offers } : null;
+    }
     case "changeGold": {
       if (!Number.isSafeInteger(record.amount)) return null;
       return { t: "changeGold", amount: record.amount as number };

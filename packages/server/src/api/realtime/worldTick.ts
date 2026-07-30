@@ -143,6 +143,11 @@ import {
 } from "@lindocara/engine/resources.js";
 import { ROGUE_BALANCE, roguePoisonTickPower } from "@lindocara/engine/rogue.js";
 import {
+  DEFAULT_SHOP_OFFERS,
+  remainingShopOffers,
+  type ShopStockReservation,
+} from "@lindocara/engine/shop.js";
+import {
   NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
   PLAYER_SIZE,
@@ -344,6 +349,12 @@ export interface WorldTickDeps {
    * (`state.eventStateSync`) while simulation keeps ticking.
    */
   applyStateChanges(mutations: readonly StateMutation[]): Promise<void>;
+  /** Atomic party-wide reservation for a finite authored shop article. */
+  reserveShopStock(
+    eventId: string,
+    item: ConsumableId,
+    stock: number | null,
+  ): Promise<ShopStockReservation>;
   /** Authored-quest RPC round-trips to the party coordinator (legacy `#gameSession(...)`). */
   acceptAuthoredQuest(
     partyId: string,
@@ -3079,7 +3090,13 @@ export async function handleInteract(
   }
   const merchant = merchantForRuntimeRoom();
   if (merchant && pointDistance(player, merchant) <= INTERACTION_RANGE) {
-    w.deps.send(connectionId, { t: "merchant.open" });
+    player.shopAnchor = merchant;
+    player.shopEventId = null;
+    player.shopOffers = DEFAULT_SHOP_OFFERS;
+    w.deps.send(connectionId, {
+      t: "merchant.open",
+      offers: remainingShopOffers(DEFAULT_SHOP_OFFERS),
+    });
     return { cooldownStarted: false };
   }
   // A corpse is just one more thing you can be standing next to. The skill bar is full and this
@@ -3264,16 +3281,29 @@ export async function handleUseConsumable(
 }
 
 /** Port of `#buyConsumable` (`world.ts:4012`): the counter the hero was served at, or nothing. */
-export function handleBuyConsumable(
+export async function handleBuyConsumable(
   w: WorldGlue,
   connectionId: string,
   player: PlayerRuntime,
   item: ConsumableId,
-): void {
+): Promise<void> {
   const counter = player.shopAnchor ?? merchantForRuntimeRoom();
   if (!counter || pointDistance(player, counter) > INTERACTION_RANGE) {
     player.shopAnchor = null;
+    player.shopEventId = null;
+    player.shopOffers = null;
     w.deps.send(connectionId, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
+    return;
+  }
+  const offers = player.shopOffers ?? DEFAULT_SHOP_OFFERS;
+  const offer = offers.find((candidate) => candidate.item === item);
+  if (!offer) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "item.invalid",
+      params: { item },
+      tone: "bad",
+    });
     return;
   }
   const definition = CONSUMABLES[item];
@@ -3285,6 +3315,34 @@ export function handleBuyConsumable(
       tone: "bad",
     });
     return;
+  }
+  let reservedRemaining = offer.stock;
+  if (offer.stock !== null) {
+    const eventId = player.shopEventId;
+    if (!eventId) {
+      w.deps.send(connectionId, {
+        t: "event",
+        code: "item.invalid",
+        params: { item },
+        tone: "bad",
+      });
+      return;
+    }
+    const reservation = await w.deps.reserveShopStock(eventId, item, offer.stock);
+    reservedRemaining = reservation.remaining;
+    if (!reservation.reserved) {
+      w.deps.send(connectionId, { t: "event", code: "merchant.out_of_stock", tone: "bad" });
+      w.deps.send(connectionId, {
+        t: "merchant.open",
+        offers: remainingShopOffers(
+          offers,
+          w.state.adventureState.state.shopPurchases?.[eventId] ?? {},
+        ).map((candidate) =>
+          candidate.item === item ? { ...candidate, remaining: reservation.remaining } : candidate,
+        ),
+      });
+      return;
+    }
   }
   const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
   player.inventory.consumables = counts;
@@ -3308,6 +3366,16 @@ export function handleBuyConsumable(
     tone: "good",
   });
   sendStateTo(w, connectionId, player);
+  const eventId = player.shopEventId;
+  w.deps.send(connectionId, {
+    t: "merchant.open",
+    offers: remainingShopOffers(
+      offers,
+      eventId ? (w.state.adventureState.state.shopPurchases?.[eventId] ?? {}) : {},
+    ).map((candidate) =>
+      candidate.item === item ? { ...candidate, remaining: reservedRemaining } : candidate,
+    ),
+  });
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -3770,14 +3838,26 @@ function dispatchTeleport(
 
 /** Port of `#dispatchOpenShop` (`world.ts:5011`): the event's cell becomes the hero's counter —
  *  `handleBuyConsumable` measures against it, so walking away ends the trade. */
-function dispatchOpenShop(w: WorldGlue, dispatch: DispatchEffect): void {
+function dispatchOpenShop(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "openShop" }>,
+): void {
   const connectionId = connectionOf(w.state, dispatch.heroId);
   const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
   if (connectionId === undefined || !player?.authorized || player.life !== "alive") return;
   const event = (zone(w.state).events ?? []).find((candidate) => candidate.id === dispatch.eventId);
   if (!event) return;
   player.shopAnchor = activeEventCentre(w.state, event);
-  w.deps.send(connectionId, { t: "merchant.open" });
+  player.shopEventId = event.id;
+  player.shopOffers = effect.offers;
+  w.deps.send(connectionId, {
+    t: "merchant.open",
+    offers: remainingShopOffers(
+      effect.offers,
+      w.state.adventureState.state.shopPurchases?.[event.id] ?? {},
+    ),
+  });
 }
 
 /** Port of `#dispatchEndAdventure` (`world.ts:5023`): mark the party's save complete and broadcast
@@ -3838,7 +3918,7 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
       } else if (effect.kind === "endAdventure") {
         dispatchEndAdventure(w, dispatch);
       } else if (effect.kind === "openShop") {
-        dispatchOpenShop(w, dispatch);
+        dispatchOpenShop(w, dispatch, effect);
       } else if (effect.kind === "changeGold") {
         dispatchGold(w, dispatch, effect);
       } else if (effect.kind === "changeItems") {

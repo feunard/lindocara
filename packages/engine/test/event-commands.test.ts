@@ -43,6 +43,7 @@ const ONE_OF_EACH: EventCommand[] = [
   { t: "exitRun" },
   { t: "wait", frames: 1 },
   { t: "teleport", mapId: UUID, col: 0, row: 12, category: "geographic" },
+  { t: "openShop", offers: [{ item: "health_potion", stock: 4 }] },
   { t: "changeGold", amount: -50 },
   { t: "changeItems", itemId: "health_potion", count: 3 },
   { t: "enterArea", areaId: "north_gate" },
@@ -60,6 +61,26 @@ describe("parseEventCommands: good payloads", () => {
 
   it("accepts the empty program", () => {
     expect(parseEventCommands([])).toEqual([]);
+  });
+
+  it("normalizes legacy shops and rejects duplicate or invalid offers", () => {
+    const legacy = parseEventCommands([{ t: "openShop" }]);
+    expect(legacy?.[0]).toMatchObject({ t: "openShop" });
+    expect(legacy?.[0]?.t === "openShop" ? legacy[0].offers?.length : 0).toBeGreaterThan(0);
+    expect(
+      parseEventCommands([
+        {
+          t: "openShop",
+          offers: [
+            { item: "health_potion", stock: 1 },
+            { item: "health_potion", stock: null },
+          ],
+        },
+      ]),
+    ).toBeNull();
+    expect(
+      parseEventCommands([{ t: "openShop", offers: [{ item: "health_potion", stock: 0 }] }]),
+    ).toBeNull();
   });
 
   it("normalizes legacy teleports and rejects unknown transition categories", () => {

@@ -155,11 +155,44 @@ describe("client protocol", () => {
 });
 
 describe("server protocol", () => {
-  it("accepts only the exact merchant-open signal", () => {
-    expect(parseServerMessage(JSON.stringify({ t: "merchant.open" }))).toEqual({
+  it("accepts only bounded, unique merchant offers", () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "merchant.open",
+          offers: [
+            { item: "health_potion", remaining: null },
+            { item: "critical_manual", remaining: 2 },
+          ],
+        }),
+      ),
+    ).toEqual({
       t: "merchant.open",
+      offers: [
+        { item: "health_potion", remaining: null },
+        { item: "critical_manual", remaining: 2 },
+      ],
     });
-    expect(parseServerMessage(JSON.stringify({ t: "merchant.open", gold: 999 }))).toBeNull();
+    expect(parseServerMessage(JSON.stringify({ t: "merchant.open" }))).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "merchant.open",
+          offers: [
+            { item: "health_potion", remaining: 1 },
+            { item: "health_potion", remaining: 1 },
+          ],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "merchant.open",
+          offers: [{ item: "health_potion", remaining: -1 }],
+        }),
+      ),
+    ).toBeNull();
   });
   it("rejects unknown or structurally incomplete messages", () => {
     expect(parseServerMessage(JSON.stringify({ t: "unknown" }))).toBeNull();

@@ -256,6 +256,7 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       variables: { "0001": 5, "0002": -3 },
       selfSwitches: { [`${EVENT_A}:A`]: true, [`${EVENT_B}:A`]: false },
       defeatedMonsters: { [EVENT_A]: true },
+      shopPurchases: { [EVENT_B]: { health_potion: 2, critical_manual: 1 } },
     };
     expect(parsePartyAdventureState(value)).toEqual(value);
   });
@@ -275,6 +276,33 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
         variables: {},
         selfSwitches: {},
         defeatedMonsters: { [EVENT_A]: false },
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects malformed shop purchase state", () => {
+    expect(
+      parsePartyAdventureState({
+        switches: {},
+        variables: {},
+        selfSwitches: {},
+        shopPurchases: { "not-an-event-id": { health_potion: 1 } },
+      }),
+    ).toBeNull();
+    expect(
+      parsePartyAdventureState({
+        switches: {},
+        variables: {},
+        selfSwitches: {},
+        shopPurchases: { [EVENT_A]: { unknown_item: 1 } },
+      }),
+    ).toBeNull();
+    expect(
+      parsePartyAdventureState({
+        switches: {},
+        variables: {},
+        selfSwitches: {},
+        shopPurchases: { [EVENT_A]: { health_potion: 0 } },
       }),
     ).toBeNull();
   });

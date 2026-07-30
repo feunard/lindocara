@@ -240,6 +240,10 @@ function testGlue(
     recordQuestEvent: () => {},
     broadcastToParty: () => {},
     applyStateChanges: async () => {},
+    reserveShopStock: async (_eventId, _item, stock) => ({
+      reserved: true,
+      remaining: stock === null ? null : Math.max(0, stock - 1),
+    }),
     acceptAuthoredQuest: async () => ({ ok: false, reason: "party" }),
     abandonAuthoredQuest: async () => ({ ok: false, reason: "party" }),
     completeAuthoredQuest: async () => ({ ok: false, reason: "party" }),

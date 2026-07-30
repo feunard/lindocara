@@ -16,6 +16,7 @@ import {
   createAuthoredQuestDefinition,
   createManualQuestObjective,
 } from "@lindocara/engine/quests.js";
+import type { ShopStockReservation } from "@lindocara/engine/shop.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
@@ -31,6 +32,7 @@ import { createTestApp } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 const HEALTH_POTION_ID = "health_potion";
+const SHOP_EVENT_ID = "11111111-1111-4111-8111-111111111111";
 
 class SeedProbe {
   adventures = $repository(adventures);
@@ -254,6 +256,24 @@ describe("applyStateChanges", () => {
     const row = await probe.partyAdventureStates.findById(partyId);
     expect(row?.version).toBe(1);
     expect(JSON.parse(row?.switches ?? "{}")).toEqual({ "0001": true });
+  });
+});
+
+describe("reserveShopStock", () => {
+  test("serializes competing purchases and persists the party-wide stock", async () => {
+    const { partyId } = await newPartyOnly("shopstock");
+
+    const results = (await Promise.all([
+      partyRoom.room.call(partyId, "reserveShopStock", SHOP_EVENT_ID, "health_potion", 1),
+      partyRoom.room.call(partyId, "reserveShopStock", SHOP_EVENT_ID, "health_potion", 1),
+    ])) as ShopStockReservation[];
+
+    expect(results.filter((result) => result.reserved)).toHaveLength(1);
+    expect(results.filter((result) => !result.reserved)).toHaveLength(1);
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(JSON.parse(row?.shopPurchases ?? "{}")).toEqual({
+      [SHOP_EVENT_ID]: { health_potion: 1 },
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AuthoredQuestDefinition, RegistryEntry } from "@lindocara/engine/adventure-state.js";
-import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
+import { CONSUMABLE_IDS, type ConsumableId } from "@lindocara/engine/consumables.js";
 import {
   COMMAND_TEXT_MAX,
   type EventCommand,
@@ -14,6 +14,11 @@ import {
 } from "@lindocara/engine/event-commands.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
+import {
+  DEFAULT_SHOP_OFFERS,
+  SHOP_STOCK_MAX,
+  type ShopOfferDefinition,
+} from "@lindocara/engine/shop.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import type * as React from "react";
 import { useMemo, useState } from "react";
@@ -138,7 +143,7 @@ function defaultCommand(
     case "endAdventure":
       return { t: "endAdventure" };
     case "openShop":
-      return { t: "openShop" };
+      return { t: "openShop", offers: DEFAULT_SHOP_OFFERS.map((offer) => ({ ...offer })) };
     case "wait":
       return { t: "wait", frames: WAIT_FRAMES_MIN };
     case "teleport": {
@@ -790,6 +795,8 @@ function ParamBody({
           </Field>
         </div>
       );
+    case "openShop":
+      return <OpenShopParams command={command} onChange={onChange} />;
     case "setVariable":
       return (
         <div className="flex flex-wrap items-end gap-2">
@@ -972,6 +979,124 @@ function ParamBody({
     default:
       return <p className="text-[11.5px] text-zinc-400">{t("editor.event.cmd.noParam")}</p>;
   }
+}
+
+function OpenShopParams({
+  command,
+  onChange,
+}: {
+  command: Extract<EventCommand, { t: "openShop" }>;
+  onChange(command: EventCommand): void;
+}) {
+  const offers = command.offers ?? DEFAULT_SHOP_OFFERS;
+  const used = new Set(offers.map((offer) => offer.item));
+  const firstAvailable = CONSUMABLE_IDS.find((item) => !used.has(item));
+
+  const replace = (index: number, offer: ShopOfferDefinition): void => {
+    onChange({
+      ...command,
+      offers: offers.map((current, currentIndex) => (currentIndex === index ? offer : current)),
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {offers.length === 0 && (
+        <p className="text-[11.5px] text-zinc-400">{t("editor.event.cmd.shop.empty")}</p>
+      )}
+      {offers.map((offer, index) => (
+        <div
+          className="flex flex-wrap items-end gap-2 rounded-lg border border-input p-2"
+          key={offer.item}
+        >
+          <Field label={t("editor.event.cmd.field.item")}>
+            <FieldSelect
+              aria-label={t("editor.event.cmd.shop.item", { index: index + 1 })}
+              className="w-44"
+              value={offer.item}
+              onChange={(event) =>
+                replace(index, {
+                  ...offer,
+                  item: event.currentTarget.value as ConsumableId,
+                })
+              }
+            >
+              {CONSUMABLE_IDS.filter((item) => item === offer.item || !used.has(item)).map(
+                (item) => (
+                  <option key={item} value={item}>
+                    {t(`consumable.${item}.name`)}
+                  </option>
+                ),
+              )}
+            </FieldSelect>
+          </Field>
+          <Field label={t("editor.event.cmd.shop.stockMode")}>
+            <FieldSelect
+              aria-label={t("editor.event.cmd.shop.stockModeFor", { index: index + 1 })}
+              className="w-28"
+              value={offer.stock === null ? "unlimited" : "limited"}
+              onChange={(event) =>
+                replace(index, {
+                  ...offer,
+                  stock: event.currentTarget.value === "limited" ? (offer.stock ?? 1) : null,
+                })
+              }
+            >
+              <option value="unlimited">{t("editor.event.cmd.shop.unlimited")}</option>
+              <option value="limited">{t("editor.event.cmd.shop.limited")}</option>
+            </FieldSelect>
+          </Field>
+          {offer.stock !== null && (
+            <Field label={t("editor.event.cmd.shop.stock")}>
+              <NumberField
+                ariaLabel={t("editor.event.cmd.shop.stockFor", { index: index + 1 })}
+                className="w-24"
+                value={offer.stock}
+                onChange={(stock) => replace(index, { ...offer, stock })}
+                onBlur={() =>
+                  replace(index, {
+                    ...offer,
+                    stock: clampInt(offer.stock ?? 1, 1, SHOP_STOCK_MAX, 1),
+                  })
+                }
+              />
+            </Field>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-destructive"
+            aria-label={t("editor.event.cmd.shop.remove", { index: index + 1 })}
+            onClick={() =>
+              onChange({
+                ...command,
+                offers: offers.filter((_, currentIndex) => currentIndex !== index),
+              })
+            }
+          >
+            {t("common.remove")}
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="h-7 self-start"
+        disabled={firstAvailable === undefined}
+        onClick={() => {
+          if (firstAvailable === undefined) return;
+          onChange({
+            ...command,
+            offers: [...offers, { item: firstAvailable, stock: null }],
+          });
+        }}
+      >
+        {t("editor.event.cmd.shop.add")}
+      </Button>
+    </div>
+  );
 }
 
 function QuestFactIdField({

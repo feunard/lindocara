@@ -9,6 +9,7 @@ import type {
   QuestStatus,
   SelfState,
 } from "@lindocara/engine/protocol.js";
+import type { MerchantOffer } from "@lindocara/engine/shop.js";
 import type { Input } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { create } from "zustand";
@@ -217,6 +218,7 @@ interface UiState {
   inventoryOpen: boolean;
   questJournalOpen: boolean;
   merchantOpen: boolean;
+  merchantOffers: readonly MerchantOffer[];
   /** The current zone's i18n key, carried by the welcome message. Null until the first
    *  welcome arrives; refreshed on every zone transition so the world map titles itself
    *  correctly after walking through a portal. */
@@ -281,7 +283,7 @@ interface UiState {
   setTalentsOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
   setQuestJournalOpen(open: boolean): void;
-  setMerchantOpen(open: boolean): void;
+  setMerchantOpen(open: boolean, offers?: readonly MerchantOffer[]): void;
   setZoneNameKey(key: MessageKey): void;
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
@@ -378,6 +380,7 @@ function clearedGameSessionFields() {
     inventoryOpen: false,
     questJournalOpen: false,
     merchantOpen: false,
+    merchantOffers: [],
     zoneNameKey: null,
     worldSize: null,
     reconnect: null,
@@ -411,6 +414,7 @@ export const useUiStore = create<UiState>((set) => ({
   inventoryOpen: false,
   questJournalOpen: false,
   merchantOpen: false,
+  merchantOffers: [],
   zoneNameKey: null,
   worldSize: null,
   reconnect: null,
@@ -508,7 +512,8 @@ export const useUiStore = create<UiState>((set) => ({
   setTalentsOpen: (open) => set({ talentsOpen: open }),
   setInventoryOpen: (open) => set({ inventoryOpen: open }),
   setQuestJournalOpen: (open) => set({ questJournalOpen: open }),
-  setMerchantOpen: (open) => set({ merchantOpen: open }),
+  setMerchantOpen: (open, offers = []) =>
+    set({ merchantOpen: open, merchantOffers: open ? offers : [] }),
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),

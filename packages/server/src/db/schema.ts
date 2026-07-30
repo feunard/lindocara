@@ -744,6 +744,7 @@ export const partyAdventureState = sqliteTable("party_adventure_state", {
   selfSwitches: text("self_switches").notNull(),
   quests: text("quests").notNull().default("{}"),
   defeatedMonsters: text("defeated_monsters").notNull().default("{}"),
+  shopPurchases: text("shop_purchases").notNull().default("{}"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
 });
 

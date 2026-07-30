@@ -50,6 +50,7 @@ export const partyAdventureStates = $entity({
     selfSwitches: z.string(),
     quests: db.default(z.string(), "{}"),
     defeatedMonsters: db.default(z.string(), "{}"),
+    shopPurchases: db.default(z.string(), "{}"),
     version: db.default(z.integer(), 0),
     updatedAt: db.updatedAt(),
   }),

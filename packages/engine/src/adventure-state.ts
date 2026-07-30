@@ -18,6 +18,7 @@
  * here with the same totality discipline as `map-events.ts`: untrusted input in, a valid value or
  * `null` out, never a throw.
  */
+import { CONSUMABLE_IDS, isConsumableId } from "./consumables.js";
 import { isUuid } from "./identifiers.js";
 import {
   CONDITION_ID_PATTERN,
@@ -46,6 +47,7 @@ import {
   type QuestScope,
   requiredQuestObjectivesComplete,
 } from "./quests.js";
+import { SHOP_STOCK_MAX } from "./shop.js";
 
 export * from "./quests.js";
 
@@ -166,6 +168,8 @@ export interface PartyAdventureState {
   quests?: Record<string, AuthoredQuestProgress>;
   /** Stable event ids of authored `never`-respawn monsters defeated by this party. */
   defeatedMonsters?: Record<string, true>;
+  /** Items already bought from each finite authored shop, shared by the party. */
+  shopPurchases?: Record<string, Record<string, number>>;
 }
 
 export interface AuthoredQuestProgress {
@@ -262,6 +266,7 @@ function isSelfSwitchKey(key: string): boolean {
  *  applies regardless of whether a caller prunes. */
 export const MAX_SELF_SWITCH_ENTRIES = 512;
 export const MAX_DEFEATED_MONSTER_ENTRIES = 512;
+export const MAX_SHOP_PURCHASE_ENTRIES = 512;
 
 function parseSelfSwitches(value: unknown): Record<string, boolean> | null {
   if (!isPlainObject(value)) return null;
@@ -286,6 +291,33 @@ function parseDefeatedMonsters(value: unknown): Record<string, true> | null {
     defeatedMonsters[eventId] = true;
   }
   return defeatedMonsters;
+}
+
+function parseShopPurchases(value: unknown): Record<string, Record<string, number>> | null {
+  if (value === undefined) return {};
+  if (!isPlainObject(value)) return null;
+  const shops = Object.entries(value);
+  if (shops.length > MAX_SHOP_PURCHASE_ENTRIES) return null;
+  const purchases: Record<string, Record<string, number>> = {};
+  for (const [eventId, rawItems] of shops) {
+    if (!isUuid(eventId) || !isPlainObject(rawItems)) return null;
+    const entries = Object.entries(rawItems);
+    if (entries.length > CONSUMABLE_IDS.length) return null;
+    const items: Record<string, number> = {};
+    for (const [item, count] of entries) {
+      if (
+        !isConsumableId(item) ||
+        !Number.isSafeInteger(count) ||
+        (count as number) < 1 ||
+        (count as number) > SHOP_STOCK_MAX
+      ) {
+        return null;
+      }
+      items[item] = count as number;
+    }
+    purchases[eventId] = items;
+  }
+  return purchases;
 }
 
 function parseQuestProgress(value: unknown): Record<string, AuthoredQuestProgress> | null {
@@ -382,12 +414,15 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
   if (!quests) return null;
   const defeatedMonsters = parseDefeatedMonsters(value.defeatedMonsters);
   if (!defeatedMonsters) return null;
+  const shopPurchases = parseShopPurchases(value.shopPurchases);
+  if (!shopPurchases) return null;
   return {
     switches,
     variables,
     selfSwitches,
     ...(Object.keys(quests).length > 0 ? { quests } : {}),
     ...(Object.keys(defeatedMonsters).length > 0 ? { defeatedMonsters } : {}),
+    ...(Object.keys(shopPurchases).length > 0 ? { shopPurchases } : {}),
   };
 }
 

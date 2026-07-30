@@ -38,6 +38,7 @@ describe("merchant and inventory", () => {
     useUiStore.setState({
       inventoryOpen: false,
       merchantOpen: false,
+      merchantOffers: [],
       game: null,
       self: {
         nick: "Mira",
@@ -97,7 +98,11 @@ describe("merchant and inventory", () => {
 
   it("sends only the selected item id when buying", async () => {
     const game = gameHandle();
-    useUiStore.setState({ merchantOpen: true, game });
+    useUiStore.setState({
+      merchantOpen: true,
+      merchantOffers: [{ item: "health_potion", remaining: 2 }],
+      game,
+    });
     const view = await render(<MerchantOverlay />);
 
     expect(screen.getByLabelText("20 Sunmarks")).toBeInTheDocument();
@@ -109,6 +114,21 @@ describe("merchant and inventory", () => {
     if (!healthCard) throw new Error("health card missing");
     await userEvent.click(within(healthCard).getByRole("button", { name: /8/ }));
     expect(game.buyItem).toHaveBeenCalledWith("health_potion");
+    expect(healthCard).toHaveTextContent("Stock: 2");
+  });
+
+  it("disables a sold-out article", async () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      merchantOpen: true,
+      merchantOffers: [{ item: "health_potion", remaining: 0 }],
+      game,
+    });
+    await render(<MerchantOverlay />);
+
+    const healthCard = screen.getByText("Heartroot tonic").closest("article");
+    if (!healthCard) throw new Error("health card missing");
+    expect(within(healthCard).getByRole("button", { name: /8/ })).toBeDisabled();
   });
 
   it("uses quick items and shows the authoritative inventory count", async () => {

@@ -34,6 +34,7 @@ import {
   type WorldEventSnapshot,
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
+import type { MerchantOffer } from "@lindocara/engine/shop.js";
 import {
   type Input,
   NETWORK_TICKS_PER_SNAPSHOT,
@@ -144,7 +145,7 @@ export interface ConnectionHandlers {
   onChat(from: string, text: string, channel: "local" | "party"): void;
   onPartyInvite(inviteId: string, fromId: string, from: string, expiresAt: number): void;
   onPartyState(party: PartyState | null): void;
-  onMerchantOpen(): void;
+  onMerchantOpen(offers: readonly MerchantOffer[]): void;
   onAnimation(animation: CombatAnimation): void;
   onShadowDance(sequence: RogueShadowDanceSequence): void;
   /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
@@ -540,7 +541,7 @@ export class WorldClient {
       return;
     }
     if (message.t === "merchant.open") {
-      handlers.onMerchantOpen();
+      handlers.onMerchantOpen(message.offers);
       return;
     }
     if (message.t === "animation") {

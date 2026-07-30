@@ -142,6 +142,7 @@ export class AdventureStateService {
         selfSwitches: JSON.parse(row.selfSwitches),
         quests: JSON.parse(row.quests),
         defeatedMonsters: JSON.parse(row.defeatedMonsters),
+        shopPurchases: JSON.parse(row.shopPurchases),
       };
     } catch {
       warnCorruptPartyState(partyId, "invalid_json");
@@ -169,6 +170,7 @@ export class AdventureStateService {
       selfSwitches: JSON.stringify(state.selfSwitches),
       quests: JSON.stringify(state.quests ?? {}),
       defeatedMonsters: JSON.stringify(state.defeatedMonsters ?? {}),
+      shopPurchases: JSON.stringify(state.shopPurchases ?? {}),
       version,
     });
   }

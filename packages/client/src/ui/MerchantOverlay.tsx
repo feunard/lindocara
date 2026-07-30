@@ -1,8 +1,4 @@
-import {
-  CONSUMABLE_IDS,
-  CONSUMABLES,
-  normalizeConsumables,
-} from "@lindocara/engine/consumables.js";
+import { CONSUMABLES, normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
 import { consumableIconSource } from "@lindocara/renderer/tiny-swords-art.js";
 import { useEffect, useRef, useState } from "react";
@@ -14,11 +10,17 @@ import { TinyButton } from "./tiny-swords/TinyButton.js";
 export function MerchantOverlay() {
   useLocale();
   const open = useUiStore((state) => state.merchantOpen);
+  const offers = useUiStore((state) => state.merchantOffers);
   const selfState = useUiStore((state) => state.selfState);
   const game = useUiStore((state) => state.game);
   const setOpen = useUiStore((state) => state.setMerchantOpen);
   const [selected, setSelected] = useState(0);
   const selectedRef = useRef(0);
+  useEffect(() => {
+    if (selectedRef.current < offers.length) return;
+    selectedRef.current = 0;
+    setSelected(0);
+  }, [offers.length]);
   useEffect(() => {
     if (!open) return;
     let frame = 0;
@@ -28,18 +30,17 @@ export function MerchantOverlay() {
       const pressed = new Set<number>();
       if (pad) {
         for (const index of [0, 1, 12, 13]) if (pad.buttons[index]?.pressed) pressed.add(index);
-        if (pressed.has(12) && !previous.has(12)) {
-          selectedRef.current =
-            (selectedRef.current + CONSUMABLE_IDS.length - 1) % CONSUMABLE_IDS.length;
+        if (pressed.has(12) && !previous.has(12) && offers.length > 0) {
+          selectedRef.current = (selectedRef.current + offers.length - 1) % offers.length;
           setSelected(selectedRef.current);
         }
-        if (pressed.has(13) && !previous.has(13)) {
-          selectedRef.current = (selectedRef.current + 1) % CONSUMABLE_IDS.length;
+        if (pressed.has(13) && !previous.has(13) && offers.length > 0) {
+          selectedRef.current = (selectedRef.current + 1) % offers.length;
           setSelected(selectedRef.current);
         }
         if (pressed.has(0) && !previous.has(0)) {
-          const item = CONSUMABLE_IDS[selectedRef.current];
-          if (item) game?.buyItem?.(item);
+          const offer = offers[selectedRef.current];
+          if (offer && offer.remaining !== 0) game?.buyItem?.(offer.item);
         }
         if (pressed.has(1) && !previous.has(1)) setOpen(false);
       }
@@ -48,7 +49,7 @@ export function MerchantOverlay() {
     };
     frame = window.requestAnimationFrame(poll);
     return () => window.cancelAnimationFrame(frame);
-  }, [game, open, setOpen]);
+  }, [game, offers, open, setOpen]);
   if (!open || !selfState) return null;
   const counts = normalizeConsumables(selfState.inventory.consumables, selfState.inventory.potions);
 
@@ -82,7 +83,8 @@ export function MerchantOverlay() {
       </header>
       <p className="item-overlay__hint">{t("merchant.hint")}</p>
       <div className="item-grid">
-        {CONSUMABLE_IDS.map((item, index) => {
+        {offers.map((offer, index) => {
+          const item = offer.item;
           const definition = CONSUMABLES[item];
           const funds = selfState.inventory[definition.currency];
           return (
@@ -93,9 +95,14 @@ export function MerchantOverlay() {
                 <span>{t(`consumable.${item}.description`)}</span>
               </div>
               <b className="item-card__count">{t("merchant.owned", { count: counts[item] })}</b>
+              <span className="item-card__count">
+                {offer.remaining === null
+                  ? t("merchant.stock.unlimited")
+                  : t("merchant.stock.remaining", { count: offer.remaining })}
+              </span>
               <TinyButton
                 size="sm"
-                disabled={!game?.buyItem || funds < definition.price}
+                disabled={!game?.buyItem || funds < definition.price || offer.remaining === 0}
                 onClick={() => game?.buyItem?.(item)}
               >
                 <CurrencyAmount

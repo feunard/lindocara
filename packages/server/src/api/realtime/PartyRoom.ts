@@ -5,7 +5,12 @@ import {
   normalizeAuthoredQuestProgress,
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
-import { CONSUMABLE_IDS, CONSUMABLE_MAX_STACK } from "@lindocara/engine/consumables.js";
+import {
+  CONSUMABLE_IDS,
+  CONSUMABLE_MAX_STACK,
+  type ConsumableId,
+  isConsumableId,
+} from "@lindocara/engine/consumables.js";
 import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
 import { applyExperience, maxHpForLevel } from "@lindocara/engine/game.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
@@ -22,6 +27,7 @@ import {
   questPrerequisitesHold,
 } from "@lindocara/engine/quest-runtime.js";
 import type { AuthoredQuestDefinition, QuestEventReference } from "@lindocara/engine/quests.js";
+import { SHOP_STOCK_MAX, type ShopStockReservation } from "@lindocara/engine/shop.js";
 import { $inject } from "alepha";
 import { $room } from "alepha/websocket";
 // Pure, D1-free authored-quest business-event engine reused as-is from the legacy source tree —
@@ -228,6 +234,8 @@ export class PartyRoom {
         this.applyStateChanges(room.roomId, room.state, mutations),
       markPermanentMonsterDefeated: (room, eventId: string) =>
         this.markPermanentMonsterDefeated(room.roomId, room.state, eventId),
+      reserveShopStock: (room, eventId: string, item: ConsumableId, stock: number | null) =>
+        this.reserveShopStock(room.roomId, room.state, eventId, item, stock),
       recordQuestEvent: (room, event: QuestBusinessEvent) =>
         this.recordQuestEvent(room.roomId, room.state, event),
       acceptAuthoredQuest: (
@@ -389,6 +397,41 @@ export class PartyRoom {
         ...current.state,
         defeatedMonsters: { ...(current.state.defeatedMonsters ?? {}), [eventId]: true },
       });
+    });
+  }
+
+  /** Atomically reserve one unit from an authored shop's party-wide finite stock. */
+  protected async reserveShopStock(
+    partyId: string,
+    state: PartyRoomState,
+    eventId: string,
+    item: ConsumableId,
+    stock: number | null,
+  ): Promise<ShopStockReservation> {
+    if (
+      !isUuid(eventId) ||
+      !isConsumableId(item) ||
+      (stock !== null && (!Number.isSafeInteger(stock) || stock < 1 || stock > SHOP_STOCK_MAX))
+    ) {
+      return { reserved: false, remaining: 0 };
+    }
+    if (stock === null) return { reserved: true, remaining: null };
+    return this.enqueueStateWrite(state, async () => {
+      const current = await this.ensureState(partyId, state);
+      const purchased = current.state.shopPurchases?.[eventId]?.[item] ?? 0;
+      if (purchased >= stock) return { reserved: false, remaining: 0 };
+      const nextCount = purchased + 1;
+      await this.commitState(partyId, state, {
+        ...current.state,
+        shopPurchases: {
+          ...(current.state.shopPurchases ?? {}),
+          [eventId]: {
+            ...(current.state.shopPurchases?.[eventId] ?? {}),
+            [item]: nextCount,
+          },
+        },
+      });
+      return { reserved: true, remaining: stock - nextCount };
     });
   }
 

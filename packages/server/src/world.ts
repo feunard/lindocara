@@ -142,6 +142,7 @@ import {
   spendResource,
 } from "@lindocara/engine/resources.js";
 import { ROGUE_BALANCE, roguePoisonTickPower } from "@lindocara/engine/rogue.js";
+import { DEFAULT_SHOP_OFFERS, remainingShopOffers } from "@lindocara/engine/shop.js";
 import {
   NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
@@ -1901,7 +1902,7 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t === "merchant.buy") {
-      this.#buyConsumable(ws, player, message.item);
+      await this.#buyConsumable(ws, player, message.item);
       return;
     }
     if (message.t === "skill") {
@@ -3497,7 +3498,13 @@ export class World extends DurableObject<Env> {
     }
     const merchant = merchantForRuntimeRoom();
     if (merchant && pointDistance(player, merchant) <= INTERACTION_RANGE) {
-      this.#send(ws, { t: "merchant.open" });
+      player.shopAnchor = merchant;
+      player.shopEventId = null;
+      player.shopOffers = DEFAULT_SHOP_OFFERS;
+      this.#send(ws, {
+        t: "merchant.open",
+        offers: remainingShopOffers(DEFAULT_SHOP_OFFERS),
+      });
       return;
     }
     // A corpse is just one more thing you can be standing next to. The skill bar is full and
@@ -4052,13 +4059,21 @@ export class World extends DurableObject<Env> {
     this.#sendState(ws, player);
   }
 
-  #buyConsumable(ws: WebSocket, player: Player, item: ConsumableId): void {
+  async #buyConsumable(ws: WebSocket, player: Player, item: ConsumableId): Promise<void> {
     // The counter the hero was served at, not a room-global merchant: a map may carry several
     // traders, and a client that keeps the overlay open after walking away buys nothing. The
     // compiled-zone merchant remains a rollback seam and still answers for its own rooms.
     const counter = player.shopAnchor ?? merchantForRuntimeRoom();
     if (!counter || pointDistance(player, counter) > INTERACTION_RANGE) {
       player.shopAnchor = null;
+      player.shopEventId = null;
+      player.shopOffers = null;
+      this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
+      return;
+    }
+    const offers = player.shopOffers ?? DEFAULT_SHOP_OFFERS;
+    const offer = offers.find((candidate) => candidate.item === item);
+    if (!offer) {
       this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
       return;
     }
@@ -4071,6 +4086,37 @@ export class World extends DurableObject<Env> {
         tone: "bad",
       });
       return;
+    }
+    let reservedRemaining = offer.stock;
+    if (offer.stock !== null) {
+      const partyId = player.partyId;
+      const eventId = player.shopEventId;
+      if (!partyId || !eventId) {
+        this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
+        return;
+      }
+      const reservation = await this.#gameSession(partyId).reserveShopStock(
+        partyId,
+        eventId,
+        item,
+        offer.stock,
+      );
+      reservedRemaining = reservation.remaining;
+      if (!reservation.reserved) {
+        this.#send(ws, { t: "event", code: "merchant.out_of_stock", tone: "bad" });
+        this.#send(ws, {
+          t: "merchant.open",
+          offers: remainingShopOffers(
+            offers,
+            this.#adventureState.shopPurchases?.[eventId] ?? {},
+          ).map((candidate) =>
+            candidate.item === item
+              ? { ...candidate, remaining: reservation.remaining }
+              : candidate,
+          ),
+        });
+        return;
+      }
     }
     const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
     player.inventory.consumables = counts;
@@ -4089,6 +4135,16 @@ export class World extends DurableObject<Env> {
     }));
     this.#send(ws, { t: "event", code: "merchant.purchased", params: { item }, tone: "good" });
     this.#sendState(ws, player);
+    const eventId = player.shopEventId;
+    this.#send(ws, {
+      t: "merchant.open",
+      offers: remainingShopOffers(
+        offers,
+        eventId ? (this.#adventureState.shopPurchases?.[eventId] ?? {}) : {},
+      ).map((candidate) =>
+        candidate.item === item ? { ...candidate, remaining: reservedRemaining } : candidate,
+      ),
+    });
   }
 
   #forgetPlayer(player: Player): void {
@@ -4523,7 +4579,7 @@ export class World extends DurableObject<Env> {
         } else if (effect.kind === "endAdventure") {
           this.#dispatchEndAdventure(dispatch);
         } else if (effect.kind === "openShop") {
-          this.#dispatchOpenShop(dispatch);
+          this.#dispatchOpenShop(dispatch, effect);
         } else if (effect.kind === "changeGold") {
           this.#dispatchGold(dispatch, effect);
         } else if (effect.kind === "changeItems") {
@@ -5058,7 +5114,10 @@ export class World extends DurableObject<Env> {
    * marker — `merchantForRuntimeRoom` returned null for every room, which is why the finished shop,
    * protocol and overlay had never been reachable from an authored adventure.
    */
-  #dispatchOpenShop(dispatch: DispatchEffect): void {
+  #dispatchOpenShop(
+    dispatch: DispatchEffect,
+    effect: Extract<DispatchEffect["effect"], { kind: "openShop" }>,
+  ): void {
     const socket = this.#socketByPlayerId.get(dispatch.heroId);
     const player = socket ? this.#players.get(socket) : undefined;
     if (!socket || !player?.authorized || player.life !== "alive") return;
@@ -5067,7 +5126,15 @@ export class World extends DurableObject<Env> {
     );
     if (!event) return;
     player.shopAnchor = this.#activeEventCentre(event);
-    this.#send(socket, { t: "merchant.open" });
+    player.shopEventId = event.id;
+    player.shopOffers = effect.offers;
+    this.#send(socket, {
+      t: "merchant.open",
+      offers: remainingShopOffers(
+        effect.offers,
+        this.#adventureState.shopPurchases?.[event.id] ?? {},
+      ),
+    });
   }
 
   #dispatchEndAdventure(dispatch: DispatchEffect): void {

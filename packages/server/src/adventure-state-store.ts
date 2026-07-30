@@ -69,6 +69,7 @@ export async function loadPartyAdventureState(
       selfSwitches: JSON.parse(row.selfSwitches),
       quests: JSON.parse(row.quests),
       defeatedMonsters: JSON.parse(row.defeatedMonsters),
+      shopPurchases: JSON.parse(row.shopPurchases),
     };
   } catch {
     warnCorruptPartyState(partyId, "invalid_json");
@@ -110,11 +111,19 @@ function pruneOrphanEventState(
   const defeatedMonsters = Object.fromEntries(
     Object.entries(state.defeatedMonsters ?? {}).filter(([eventId]) => liveEventIds.has(eventId)),
   ) as Record<string, true>;
-  const { defeatedMonsters: _staleDefeatedMonsters, ...base } = state;
+  const shopPurchases = Object.fromEntries(
+    Object.entries(state.shopPurchases ?? {}).filter(([eventId]) => liveEventIds.has(eventId)),
+  );
+  const {
+    defeatedMonsters: _staleDefeatedMonsters,
+    shopPurchases: _staleShopPurchases,
+    ...base
+  } = state;
   return {
     ...base,
     selfSwitches,
     ...(Object.keys(defeatedMonsters).length > 0 ? { defeatedMonsters } : {}),
+    ...(Object.keys(shopPurchases).length > 0 ? { shopPurchases } : {}),
   };
 }
 
@@ -132,6 +141,7 @@ export async function savePartyAdventureState(
     selfSwitches: JSON.stringify(pruned.selfSwitches),
     quests: JSON.stringify(pruned.quests ?? {}),
     defeatedMonsters: JSON.stringify(pruned.defeatedMonsters ?? {}),
+    shopPurchases: JSON.stringify(pruned.shopPurchases ?? {}),
     updatedAt: new Date(),
   };
   await db
@@ -145,6 +155,7 @@ export async function savePartyAdventureState(
         selfSwitches: values.selfSwitches,
         quests: values.quests,
         defeatedMonsters: values.defeatedMonsters,
+        shopPurchases: values.shopPurchases,
         updatedAt: values.updatedAt,
       },
     });

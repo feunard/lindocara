@@ -48,6 +48,7 @@ import type {
   ServerMessage,
 } from "@lindocara/engine/protocol.js";
 import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
+import type { ShopOfferDefinition } from "@lindocara/engine/shop.js";
 import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
@@ -307,6 +308,10 @@ export interface PlayerRuntime extends PlayerProfile {
    * carry several traders and what stops a hero buying from across the map after walking away.
    */
   shopAnchor: Vec2 | null;
+  /** Authored event id owning finite stock; null identifies a compiled unlimited merchant. */
+  shopEventId: string | null;
+  /** The authoritative assortment offered by the currently open counter. */
+  shopOffers: readonly ShopOfferDefinition[] | null;
 }
 
 export interface MonsterRuntime extends Vec2 {
@@ -516,12 +521,16 @@ export function newPlayer(
   };
   // A fresh session never arrives mid-purchase: a shop is opened by talking to its keeper.
   const shopAnchor = null;
+  const shopEventId = null;
+  const shopOffers = null;
   const healCooldownMs = CLASS_STATS[profile.class].heal?.cooldownMs ?? 0;
   const guardReduction =
     CLASS_SKILLS[profile.class].find((skill) => skill.effect === "guard")?.reduction ?? 0;
   return {
     ...profile,
     shopAnchor,
+    shopEventId,
+    shopOffers,
     appearance: { ...profile.appearance },
     equipment: { ...profile.equipment },
     corpse: profile.corpse === null ? null : { ...profile.corpse },

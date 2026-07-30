@@ -464,14 +464,14 @@ async function startGameIdentity(
       addEvent(t("party.invite_received", { name: from }), "info");
     },
     onPartyState: (party) => useUiStore.getState().setParty(party),
-    onMerchantOpen: () => {
+    onMerchantOpen: (offers) => {
       const store = useUiStore.getState();
       store.setMapOpen(false);
       store.setTalentsOpen(false);
       store.setSettingsOpen(false);
       store.setInventoryOpen(false);
       store.setQuestJournalOpen(false);
-      store.setMerchantOpen(true);
+      store.setMerchantOpen(true, offers);
       input.reset();
     },
     onAnimation: (animation: CombatAnimation) => {

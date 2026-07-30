@@ -5,6 +5,7 @@
 
 export const en = {
   "common.close": "Close",
+  "common.remove": "Remove",
   "common.cancel": "Cancel",
   // Dialogue-panel chrome (spec Decision 4). The authored say/choice PROSE renders verbatim from the
   // wire; only this framing is i18n. `dialogue.continue` labels the advance affordance on a say page.
@@ -50,6 +51,8 @@ export const en = {
   "merchant.wallet": "Wallet",
   "merchant.hint": "Tonics cost gold. Rare preparations cost crystals.",
   "merchant.owned": "Owned: {count}",
+  "merchant.stock.unlimited": "Unlimited stock",
+  "merchant.stock.remaining": "Stock: {count}",
   "prompt.merchant": "[E] Trade with Bramble",
   "consumable.health_potion.name": "Heartroot tonic",
   "consumable.health_potion.description": "Restores 45 health.",
@@ -883,6 +886,7 @@ export const en = {
   "event.item.resurrected": "The resurrection draught pulls you back to life.",
   "event.merchant.purchased": "Purchased {item}.",
   "event.merchant.insufficient": "You do not have enough {currency}.",
+  "event.merchant.out_of_stock": "This article is sold out.",
   "event.player.down": "{name} was knocked out.",
   "event.loot.picked": "Picked up {amount} {kind}.",
   "event.item.full": "Your pack is full — cannot take any more {item}.",
@@ -1566,6 +1570,16 @@ export const en = {
   "editor.event.cmd.transition.recovery": "error recovery",
   "editor.event.cmd.endAdventure": "End adventure",
   "editor.event.cmd.openShop": "Open the shop",
+  "editor.event.cmd.shop.empty": "This shop has no articles.",
+  "editor.event.cmd.shop.item": "Article {index}",
+  "editor.event.cmd.shop.stockMode": "Stock type",
+  "editor.event.cmd.shop.stockModeFor": "Stock type for article {index}",
+  "editor.event.cmd.shop.unlimited": "Unlimited",
+  "editor.event.cmd.shop.limited": "Limited",
+  "editor.event.cmd.shop.stock": "Initial stock",
+  "editor.event.cmd.shop.stockFor": "Initial stock for article {index}",
+  "editor.event.cmd.shop.remove": "Remove article {index}",
+  "editor.event.cmd.shop.add": "Add an article",
   "editor.event.cmd.changeGold": "Gold {amount}",
   "editor.event.cmd.changeItems": "Item {item} {count}",
   "editor.event.cmd.comment": "Internal note: {text}",

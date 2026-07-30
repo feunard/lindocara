@@ -121,6 +121,7 @@ describe("loadPartyAdventureState", () => {
       variables: { "0001": 5, "0002": -3 },
       selfSwitches: { [`${EVENT_A}:A`]: true },
       defeatedMonsters: { [EVENT_A]: true },
+      shopPurchases: { [EVENT_A]: { health_potion: 2 } },
     };
     await savePartyAdventureState(db, partyId, state);
     expect(await loadPartyAdventureState(db, partyId)).toEqual(state);
@@ -197,7 +198,7 @@ describe("savePartyAdventureState: self-switch pruning", () => {
     expect(await loadPartyAdventureState(db, partyId)).toEqual(state);
   });
 
-  it("prunes self-switches and permanent defeats whose event is absent from the live set", async () => {
+  it("prunes event-owned state whose event is absent from the live set", async () => {
     const db = createDb(env.DB);
     const partyId = await seedParty(db);
     const state: PartyAdventureState = {
@@ -209,6 +210,10 @@ describe("savePartyAdventureState: self-switch pruning", () => {
         [`${EVENT_B}:A`]: true,
       },
       defeatedMonsters: { [EVENT_A]: true, [EVENT_B]: true },
+      shopPurchases: {
+        [EVENT_A]: { health_potion: 1 },
+        [EVENT_B]: { critical_manual: 2 },
+      },
     };
     // Only EVENT_A is still live; EVENT_B's entries are orphans.
     await savePartyAdventureState(db, partyId, state, new Set([EVENT_A]));
@@ -217,6 +222,7 @@ describe("savePartyAdventureState: self-switch pruning", () => {
       variables: { "0001": 3 },
       selfSwitches: { [`${EVENT_A}:A`]: true, [`${EVENT_A}:B`]: false },
       defeatedMonsters: { [EVENT_A]: true },
+      shopPurchases: { [EVENT_A]: { health_potion: 1 } },
     });
   });
 
