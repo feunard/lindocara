@@ -40,7 +40,7 @@ afterEach(async () => {
   await alepha.stop();
 });
 
-async function registerAndLogin(prefix: string): Promise<{ token: string }> {
+async function registerAndLogin(prefix: string): Promise<{ token: string; cookie: string }> {
   userCount += 1;
   const username = `${prefix}${userCount}`;
   const users = alepha.inject(UserController);
@@ -53,8 +53,14 @@ async function registerAndLogin(prefix: string): Promise<{ token: string }> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ username, password: PASSWORD }),
   });
+  // The browser's credential for the very same session: the encrypted `tokens` cookie the login
+  // response sets. Joined into a `Cookie` request header for the cookie-auth admission test.
+  const cookie = login.headers
+    .getSetCookie()
+    .map((header) => header.split(";", 1)[0])
+    .join("; ");
   const tokens = (await login.json()) as { access_token: string };
-  return { token: tokens.access_token };
+  return { token: tokens.access_token, cookie };
 }
 
 function authedFetch(path: string, token: string, init: RequestInit = {}): Promise<Response> {
@@ -70,6 +76,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
 
 interface Playable {
   token: string;
+  cookie: string;
   adventureId: string;
   mapId: string;
   partyId: string;
@@ -78,7 +85,7 @@ interface Playable {
 
 /** One fresh account with an adventure, a party on it and one hero, end-to-end over HTTP. */
 async function newPlayableHero(prefix: string): Promise<Playable> {
-  const { token } = await registerAndLogin(prefix);
+  const { token, cookie } = await registerAndLogin(prefix);
   const adventureResponse = await authedFetch("/api/adventures", token, {
     method: "POST",
     body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
@@ -97,7 +104,14 @@ async function newPlayableHero(prefix: string): Promise<Playable> {
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
-  return { token, adventureId: adventure.id, mapId: adventure.defaultMap.id, partyId, heroId };
+  return {
+    token,
+    cookie,
+    adventureId: adventure.id,
+    mapId: adventure.defaultMap.id,
+    partyId,
+    heroId,
+  };
 }
 
 interface SocketProbe {
@@ -109,11 +123,16 @@ interface SocketProbe {
   closed: Promise<number>;
 }
 
-function openWorldSocket(roomId: string, heroId: string | null, token: string | null): SocketProbe {
+function openWorldSocket(
+  roomId: string,
+  heroId: string | null,
+  token: string | null,
+  headers?: Record<string, string>,
+): SocketProbe {
   const wsHost = hostname.replace(/^http/, "ws");
   const heroQuery = heroId === null ? "" : `&hero=${heroId}`;
   const socket = new WebSocket(`${wsHost}/ws/world?roomId=${roomId}${heroQuery}`, {
-    headers: token === null ? {} : { authorization: `Bearer ${token}` },
+    headers: headers ?? (token === null ? {} : { authorization: `Bearer ${token}` }),
   });
   openSockets.push(socket);
   const messages: ServerMessage[] = [];
@@ -222,6 +241,19 @@ describe("world room admission", () => {
 
     const probe = openWorldSocket(`${partyId}:${otherMapId}`, heroId, token);
     await expect(probe.closed).resolves.toBe(4007);
+  });
+
+  test("a browser-style socket authenticated by the session cookie alone is admitted", async () => {
+    // Browsers cannot attach an Authorization header to a WebSocket handshake — the encrypted
+    // `tokens` cookie set by `/_auth/token` is their only credential. This is the exact path the
+    // real client takes and is served by the vendored `resolveUserId` cookie fallback
+    // (WebSocketServerProvider → ServerAuthProvider.accessTokenFromCookieHeader); without it every
+    // browser session closed 4004 while bearer-authenticated sockets (the other tests) passed.
+    const { cookie, partyId, mapId, heroId } = await newPlayableHero("cookieauth");
+    const probe = openWorldSocket(`${partyId}:${mapId}`, heroId, null, { cookie });
+    const welcome = await probe.waitFor("welcome");
+    if (welcome.t !== "welcome") throw new Error("unreachable");
+    expect(welcome.selfId).toBe(heroId);
   });
 
   test("an unauthenticated socket closes 4004", async () => {
