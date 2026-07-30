@@ -1,8 +1,10 @@
 # lindocara — agent & contributor guide
 
-A modern cooperative RPG adventure creator on Cloudflare Workers, targeting solo play through
-four-player sessions. The current authoritative vertical slice contains players, terrain, Warden
-Mira, roaming monsters, combat, loot, progression, quests, local chat and a D1-backed map editor.
+A modern cooperative RPG adventure creator built on the [Alepha](./.vendor/alepha) framework —
+Node + SQLite in dev, Cloudflare Workers + Durable Objects + D1 in production
+([lindocara.alepha.dev](https://lindocara.alepha.dev)) — targeting solo play through four-player
+sessions. The current authoritative vertical slice contains players, terrain, Warden Mira,
+roaming monsters, combat, loot, progression, quests, local chat and a database-backed map editor.
 Those systems are foundations for authored multi-map adventures, not a commitment to MMO scale.
 
 The primary UX is title → login → resumable parties/saves. Creating a new party then selects an
@@ -15,46 +17,34 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | **alepha dev** — the **playable game** on the pure Alepha stack: Node + auto-synced SQLite, `/api/*`, the `/ws/world` realtime rooms and the SPA shell (see "Alepha migration status" below) |
-| `npm run dev:legacy` | Vite + the Worker + the Durable Object, all in workerd — the old stack, **rollback only** until the cleanup tranche |
-| `npm run v` (`npx alepha verify`) | the full verify pipeline: lint → typecheck + tests (parallel) → catalog/map content checks → both builds; `--fast` skips content checks and builds |
-| `npm run check` | lint, typecheck, test — run this before committing |
+| `npm run dev` | `alepha dev` — the whole app on Node: auto-synced SQLite, `/api/*`, auth, the `/ws/*` realtime rooms and the SPA shell |
+| `npm run v` (`npx alepha verify`) | the full verify pipeline: lint → typecheck + tests (parallel) → migrations drift check → catalog/map content checks → build; `--fast` keeps the migrations check but skips content checks and the build |
+| `npm run check` | catalog/map checks, lint, typecheck, test — run this before committing |
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
-| `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` main (each sync = its own commit, pinned in `.vendor/vendor.json`) |
-| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test against the alepha stack (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
+| `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` (each sync = its own commit, pinned in `.vendor/vendor.json`) |
+| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
-| `npm test` | Vitest — every package's project plus the Node-only `server` project (see below) |
-| `npm run build` | **alepha build** — bundles `apps/main` for its configured `platform()` adapter (`--target cloudflare` emits a Cloudflare artifact under `apps/main/dist/`; deploy stays frozen, see below) |
-| `npm run build:legacy` | client bundle + deployable `wrangler.json` for the legacy workerd stack |
-| `npm run deploy` | `alepha platform up -e production` — **not used yet**, deploy is frozen (see below) |
-| `npm run deploy:legacy` | `build:legacy` then `wrangler deploy` — the actual way the playable game ships today (`workflow_dispatch` only) |
-| `npm run cf-typegen` | regenerate `src/worker-configuration.d.ts` from the legacy `wrangler.jsonc` |
-| `npm run db:generate` | diff `db/schema.ts` into a new `migrations/*.sql` (legacy D1 schema; the Alepha side has no migrations yet, see below) |
-| `npm run db:migrate` | apply migrations to the local D1 |
-| `npm run db:migrate:remote` | apply migrations to production D1 (CI does this on deploy) |
+| `npm test` | Vitest — every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
+| `npm run build` | `alepha build` — bundles `apps/main`; CI adds the deploy target via `npm run build -w @lindocara/main -- --target cloudflare` |
+| `npm run deploy` | `alepha platform up -e production` — provision, build, migrate D1, deploy, push secrets; CI runs it on every push to `main` |
+| `npm run db:generate -w @lindocara/main` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration |
+| `npm run check:migrations -w @lindocara/main` | fail on entity/migration drift (also part of `npm run v`) |
 
-### Alepha migration status
+### History: the Alepha migration (2026-07-29 → 2026-07-31)
 
-**`npm run dev` IS the playable game on the pure Alepha stack** (realtime tranche, 2026-07-30):
-the vendored [Alepha](./.vendor/alepha) framework (`packages/server/src/api/`, Node/SQLite in dev)
-serves `/api/*` and the auth routes; the SPA shell is served by `@lindocara/client`'s
-`ui/AppRouter.tsx` `$page` tree (the react-shell tranche, 2026-07-30 — replaced the deleted
-`SpaController`), registered alongside `LindocaraApi` by `apps/main/src/main.ts`
-(server entry) and mounted browser-side by `apps/main/src/main.browser.ts`. Also served: the
-realtime rooms under `packages/server/src/api/realtime/` — `/api/join` admission,
-`/ws/world` simulation with the full tick order, party coordination, presence leases and
-epoch-fenced hero saves (see `packages/server/AGENTS.md`). The client (`packages/client`) talks
-only to the alepha wire (`resolveJoin` + the `{roomId, message}` envelope in `net.ts`), and
-`scripts/loadtest.mjs` targets it too. The legacy stack (`packages/server/src/index.ts` +
-`world.ts`, workerd, the original D1 schema) is **rollback only** via
-`dev:legacy`/`build:legacy`/`deploy:legacy` until the cleanup tranche retires it — it remains how
-production ships (`deploy:legacy`, `workflow_dispatch`) until the deploy tranche lands the
-Cloudflare deploy of the Alepha stack (still frozen: `$room` DO wiring, D1 provisioning and a
-migrations baseline are that tranche's work). See
-[`docs/superpowers/specs/2026-07-29-alepha-migration-design.md`](./docs/superpowers/specs/2026-07-29-alepha-migration-design.md)
-and [`docs/superpowers/plans/2026-07-30-alepha-migration-realtime.md`](./docs/superpowers/plans/2026-07-30-alepha-migration-realtime.md)
-for the plan and rationale.
+lindocara is a pure Alepha app. The original hand-rolled stack — a Cloudflare Worker entry,
+`World`/`GameSession`/`HeroPresence` Durable Objects, wrangler-managed D1 with Drizzle, a zustand
+screen machine — was migrated in four tranches (API port, realtime rooms, React shell, deploy +
+cleanup) and then fully retired: no legacy code, config or rollback path remains, and production
+ships through `alepha platform up` at [lindocara.alepha.dev](https://lindocara.alepha.dev). The
+memory of the migration lives in git and in the
+[spec](./docs/superpowers/specs/2026-07-29-alepha-migration-design.md) + plans
+([tranches 0-1](./docs/superpowers/plans/2026-07-29-alepha-migration-tranches-0-1.md),
+[realtime](./docs/superpowers/plans/2026-07-30-alepha-migration-realtime.md),
+[react-shell](./docs/superpowers/plans/2026-07-30-alepha-migration-react-shell.md),
+[deploy + cleanup](./docs/superpowers/plans/2026-07-30-alepha-migration-deploy-cleanup.md)).
+Everything below describes the present.
 
 ## Architecture
 
@@ -74,14 +64,20 @@ prefixes in the file map further down map straight onto these homes:
 | Package | Old path | Depends on | Runtime |
 | --- | --- | --- | --- |
 | [`@lindocara/engine`](./packages/engine/AGENTS.md) | `src/shared/` | — | pure (ni DOM ni Workers) |
-| [`@lindocara/server`](./packages/server/AGENTS.md) | `src/server/` + `wrangler.jsonc`, `migrations/`, `drizzle.config.ts`, `.dev.vars` | engine | workerd |
+| [`@lindocara/server`](./packages/server/AGENTS.md) | `src/server/` — now Alepha services/entities/controllers (`src/api/`), the realtime rooms (`src/api/realtime/`) and the world systems (`src/world/`) | engine, alepha | Node (dev) / workerd (prod) |
 | [`@lindocara/renderer`](./packages/renderer/AGENTS.md) | drawing half of `src/client/game/` (+ `input`, `locale`, `scene-sample`) | engine | browser, React-free (PixiJS) |
 | [`@lindocara/ui`](./packages/ui/AGENTS.md) | the stock shadcn tree (base-nova) + `cn` + `globals.css` tokens — shadcn monorepo mode | npm only | browser + React |
 | [`@lindocara/client`](./packages/client/AGENTS.md) | rest of `src/client/` + `public/` (app shell, HUD, Tiny-Swords tree, store, api, i18n, glue) | engine, renderer, ui | browser + React |
 | [`@lindocara/editor`](./packages/editor/AGENTS.md) | `src/client/ui/editor/` + editor game files | engine, renderer, client, ui | browser + React |
 | [`@lindocara/catalog`](./packages/catalog/AGENTS.md) | `assets/` (raw Tiny Swords art) + the catalogue codegen (was `scripts/tiny-swords-catalog-*`) | engine | node (dev) |
 | [`@lindocara/testing`](./packages/testing/AGENTS.md) | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup) | engine | node/jsdom (dev) |
-| [`@lindocara/main`](./apps/main/AGENTS.md) | **the deployable app** — `index.html`, `vite.config.ts`, build/deploy | client, server | build → Worker + assets |
+| [`@lindocara/main`](./apps/main/AGENTS.md) | **the deployable app** — `alepha.config.ts`, the server/browser entries, `migrations/`, build/deploy | client, server | build → Worker + assets |
+
+`.vendor/alepha` is the vendored framework — a real workspace member, pinned by
+`.vendor/vendor.json` to a commit of the sibling `../alepha` repo. **The dogfood loop for
+framework work:** a framework fix is implemented in `../alepha` (its tests live there), verified
+with `yarn v` upstream, committed and pushed, then pulled here with `npx alepha vendor sync` — the
+sync is its own commit. `npx alepha vendor diff` shows any local patches; keep it clean.
 
 The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client, editor}`, `{client, ui} ←
 editor`; `apps/main` composes `client` + `server` into one deploy. The client's `ui/AppRouter.tsx`
@@ -94,26 +90,26 @@ the client source root everywhere.
 extends alepha's own base config, the same fix `packages/client/tsconfig.api.json` already needed,
 because both entries import the alepha-flavored `AppRouter`) and the Node tooling program; `npm run
 typecheck:<pkg>` (or `typecheck:main`) checks one. **Tests are co-located per package** in
-`packages/<pkg>/test/`, each with its own
-`vitest.config.ts` (engine/catalog = node, server = workerd/cloudflare-pool, renderer/client/editor =
-jsdom). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything and
+`packages/<pkg>/test/` (the server's live in `packages/server/test-api/`), each with its own
+`vitest.config.ts` (engine/catalog/server = node, renderer/client/editor = jsdom). The root
+`vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything and
 `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`) runs one.
 
-**The Worker's config lives with the Worker:** `packages/server/wrangler.jsonc` + `.dev.vars` +
-`migrations/`. `apps/main/vite.config.ts` points the Cloudflare plugin at it; server tests read it
-locally; `cf-typegen`/`db:migrate` run in the server package. The deploy is one `wrangler deploy` of
-the built `apps/main/dist/lindocara/`. See
+**The app's config lives with the app:** `apps/main/alepha.config.ts` declares the production
+platform (domain + Cloudflare adapter) and the Cloudflare assets block; `apps/main/migrations/`
+holds the database migrations; `apps/main/src/main.ts`/`main.browser.ts` are the server and
+browser entries. The deploy is one `alepha platform up -e production` in `apps/main`. See
 [`docs/superpowers/specs/2026-07-22-monorepo-packages-design.md`](./docs/superpowers/specs/2026-07-22-monorepo-packages-design.md)
 and [`docs/superpowers/plans/2026-07-22-monorepo-packages.md`](./docs/superpowers/plans/2026-07-22-monorepo-packages.md).
 The file map below keeps its original `src/…` prefixes; read them through the table above.
 
 ### Current party-adventure foundation
 
-Before changing world routing, room ownership, hero location persistence, or splitting
-`world.ts`, read [`docs/adventure-runtime-architecture.md`](./docs/adventure-runtime-architecture.md)
-and the historical [`docs/mmo-migration-plan.md`](./docs/mmo-migration-plan.md). The latter records
-verified current flows, D1 changes, duplicate-character risks and rollback strategy; its MMO scale
-target is historical, while its fencing and routing analysis remains valid.
+Before changing world routing, room ownership or hero location persistence, read
+[`docs/adventure-runtime-architecture.md`](./docs/adventure-runtime-architecture.md) and the
+historical [`docs/mmo-migration-plan.md`](./docs/mmo-migration-plan.md). Both predate the Alepha
+migration (their `World`/`GameSession`/`HeroPresence` are today's `WorldRoom`/`PartyRoom`/
+`PresenceRoom`), but their fencing and routing analysis remains the design record.
 
 ```
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
@@ -137,40 +133,34 @@ src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
   map-migrate.ts one-shot projection of the old `blocks` model into layers.
   tilesets/     the shipped Tiny Swords tileset, as data.
 
-src/server/     runs in workerd.
-  index.ts      Worker entry: /api/* only. Assets never reach it.
-  session.ts    HMAC-signed cookie carrying the account identity. accounts.ts owns
-                username/password (PBKDF2).
-  accounts.ts   register/login: username uniqueness, password hashing and verification.
-  maps.ts/adventures.ts/parties.ts/heroes.ts own the primary authored/save flow.
-  password.ts   PBKDF2 password hashing.
-  hero-profile.ts D1 hero core-profile load/save boundary, fenced by sessionEpoch.
-  hero-presence.ts deterministic per-hero lease and connection authority.
-  game-session.ts party coordinator: room routing and cross-map broadcasts.
-  world.ts      Durable Object adapter and room owner: admission, WebSocket lifecycle and tick order.
-  profile.ts/character-presence.ts/characters.ts remain rollback-only character seams.
-  world/        explicit-dependency systems used by World; no module-level mutable room state.
-  db/           D1 schema + Drizzle.
+src/server/     the authoritative server, on Alepha. Node in dev, workerd in production.
+  api/index.ts  LindocaraApi: registers every controller, service, provider and room.
+  api/entities/ Alepha ORM `$entity` definitions, one file per table (heroes, parties, maps,
+                adventures, the normalized hero-child tables, map events/elements, ...).
+  api/services/ one `*Service.ts` per domain (every `$repository` read/write) + a matching
+                pure `*Authoring.ts` (parsing/validation/error-mapping, unit-testable without
+                booting the app). HeroSaveService/HeroEpochService own the fenced hero saves.
+  api/controllers/ one `$action`-based controller per surface; `$action` auto-prefixes `/api`.
+                JoinController + AdmissionService issue the `/api/join` room hint.
+  api/providers/AppSecurityProvider.ts the app's `$realm()` (username+password credentials).
+  api/realtime/ the running game: WorldRoom (`/ws/world`), PartyRoom, PresenceRoom,
+                worldTick.ts (the tick order), channels.ts (the `$room` channel declarations).
+  world/        explicit-dependency domain systems used by WorldRoom; no module-level mutable
+                room state.
 
 src/client/     runs in a browser.
-  main.tsx      the shared pre-mount bootstrap (locale, theme, the `#stage` canvas — created
-                imperatively, before anything mounts) plus `mountLegacyApp()`, the rollback-only
-                mount point below. The primary path's own mount call lives in
-                `apps/main/src/main.browser.ts`, which boots Alepha and mounts `ui/AppRouter.tsx`.
-  ui/AppRouter.tsx  the Alepha `$page` router that REPLACED the old zustand `screen` state
-                machine (Tasks 1-6 of the react-shell tranche, 2026-07-30): one typed route per
+  main.tsx      the shared pre-mount bootstrap, `bootClient()`: locale, theme, the `#stage`
+                canvas (created imperatively, before anything mounts) and the DEV-only
+                `?preview` route. The mount itself lives in `apps/main/src/main.browser.ts`,
+                which runs `bootClient()`, boots Alepha and mounts `ui/AppRouter.tsx`.
+  ui/AppRouter.tsx  the Alepha `$page` router: one typed route per
                 screen (`title` `/`, `menu` `/menu`, `credits` `/credits`, `auth` `/auth`,
                 `playContinue` `/play/continue`, `playNew` `/play/new`, `playJoin` `/play/join`,
                 `game` `/game`, `editor` `/editor` — lazy-loaded). The root layout owns the chrome
                 every route shares (LocaleToggle/StatusBar visibility, menu music) and installs
                 `state/navigation.ts`'s seam on mount. Navigation is `useRouter().push("name")`,
-                never a store write.
-  ui/LegacyShell.tsx  the frozen, rollback-only screen-machine counterpart, mounted only by the
-                separate `dev:legacy`/`build:legacy` Cloudflare-Worker deploy target. It never
-                installs the navigation seam, so its `screen` clicks are dead — as of the react-
-                shell tranche's Task 6 its body is emptied entirely (LocaleToggle/StatusBar/
-                SettingsMenu chrome over a blank body, nothing else): it is non-interactive chrome,
-                kept only to keep `build:legacy`/`typecheck:client` green, not a playable fallback.
+                never a store write. Registered server-side too (`apps/main/src/main.ts`), which
+                is what serves the HTML shell.
   ui/           the rest: screens, HUD, chat, overlays and creator tools.
     components/ stock shadcn (Base UI, base-nova). Generated by `shadcn add` — do not
                 hand-edit. The vocabulary for creator tools and any non-game surface.
@@ -208,8 +198,9 @@ src/client/     runs in a browser.
 
 ### Server world systems
 
-`World` remains the Durable Object entry point and owns every mutable room collection, timer and
-save queue. Modules under `src/server/world/` are concrete domain systems, not an ECS:
+`WorldRoom` (`packages/server/src/api/realtime/WorldRoom.ts`) is the room entry point and owns
+every mutable room collection and timer; `worldTick.ts` composes the readable tick order it runs.
+Modules under `packages/server/src/world/` are concrete domain systems, not an ECS:
 
 - `world-runtime.ts` defines player, monster, guard, loot and room runtime types plus attachment
   hydration/serialization and entity factories.
@@ -223,32 +214,38 @@ save queue. Modules under `src/server/world/` are concrete domain systems, not a
   collision-resolved mobility and line-of-sight helpers. Player combat never selects an entity.
 - `monster-system.ts` advances monster AI, respawns and guards. Guard kills remain a separate path
   that cannot grant player rewards.
-- `quest-system.ts` exposes zone-owned quest ordering; quest mutations and interzone handoff remain
-  orchestrated by `World` because they cross persistence, presence and connection boundaries.
+- `quest-system.ts` exposes zone-owned quest ordering; quest mutations and intermap handoff remain
+  orchestrated by `WorldRoom` because they cross persistence, presence and connection boundaries.
 - `loot-system.ts` collects and expires ground loot while keeping the non-authoritative grid in
   sync.
-- `persistence-system.ts` serializes fenced D1 saves per character. It receives the room save map,
-  database and stale-save callback explicitly.
 - `interest-system.ts` builds per-recipient AOI views; `snapshot-system.ts` turns those views into
   welcome state, deltas and resync responses.
-- `zone-runtime.ts` initializes zone-scoped monsters/guards and resolves zone quest definitions.
 - `event-run-system.ts` holds the room's live event runs: the `eventId`-keyed run lock, the
-  budgeted per-tick drain with its working-copy read model, and the buffered per-triggerer dialogue.
-  Trigger DETECTION and effect DISPATCH stay in `World` (it owns positions, sockets, the coordinator
-  seam); this owns only the bookkeeping that must never touch a socket, a clock or the coordinator.
+  budgeted per-tick drain with its working-copy read model, and the buffered per-triggerer
+  dialogue. Trigger DETECTION and effect DISPATCH stay in `WorldRoom`/`worldTick.ts` (they own
+  positions, sockets, the coordinator seam); this owns only the bookkeeping that must never touch
+  a socket, a clock or the coordinator.
+- the class-variant systems (`warrior/ranger/priest/rogue-*-system.ts`), the authored-content
+  systems (`authored-monster/guard-system.ts` and the root `authored-quest-system.ts`),
+  `damage-over-time-system.ts`, `npc-movement-system.ts` and `cheat-command-system.ts` follow the
+  same explicit-dependency shape.
 - `spatial-grid.ts` is the world-system import boundary for the existing non-authoritative grid.
 
-Allowed dependency direction is `world.ts -> world systems -> shared rules`. Systems may import
-server persistence/binding boundaries when that is their stated responsibility, but never client
-code. Shared modules must not import server systems. Systems receive room collections, grids,
-services and callbacks as arguments; do not add mutable module globals or hide room state in a
-singleton.
+Fenced hero persistence is not a world system: it lives in `api/services/HeroSaveService.ts` and
+is called from `WorldRoom` on the periodic dirty-flush beat, disconnect and transitions.
+
+Allowed dependency direction is `WorldRoom/worldTick -> world systems -> shared rules`. Systems
+may import server persistence boundaries when that is their stated responsibility, but never
+client code. Shared modules must not import server systems. Systems receive room collections,
+grids, services and callbacks as arguments; do not add mutable module globals or hide room state
+in a singleton.
 
 To add a mechanic, first place platform-free rules in `src/shared/` when both client and server need
 them. Add the authoritative mutation to the narrowest existing server system (or a small new domain
-system), pass its dependencies from `World`, add it explicitly to the readable tick/action order,
-then cover the pure/system edge with a unit test and the authoritative flow with the existing real
-Durable Object harness.
+system), pass its dependencies from `WorldRoom`/`worldTick.ts`, add it explicitly to the readable
+tick/action order, then cover the pure/system edge with a unit test and the authoritative flow with
+the real-app harness in `packages/server/test-api/` (it boots the Alepha app and drives real HTTP
+and WebSockets).
 
 To add a network message, define and defensively parse its wire shape in `shared/protocol.ts`. For a
 client intent, dispatch it in the connection/action boundary and pass only validated intent to the
@@ -296,12 +293,12 @@ commands over a stale position lands exactly where the server lands.
 
 ### Per-package tsconfigs, not one
 
-The DOM lib and the Workers runtime types both declare `WebSocket`, `Response`, and `fetch`
+The DOM lib and the Workers/Node runtime types both declare `WebSocket`, `Response`, and `fetch`
 with incompatible shapes — loading both into one program produces a blizzard of nonsense
-errors. The **package boundary now carries that split**: `engine` is pure (neither lib),
-`server` is Workers, `renderer`/`client`/`editor`/`ui` are DOM. Each package has one
-`tsconfig.json` extending the root `tsconfig.json` base and typechecking its own `src` **and**
-`test/`. The only root program is `tsconfig.tooling.json` (Node): the Vite/vitest/drizzle
+errors. The **package boundary carries that split**: `engine` is pure (neither lib),
+`renderer`/`client`/`editor`/`ui` are DOM, `server` extends alepha's base (below). Each package
+has one `tsconfig.json` extending the root `tsconfig.json` base and typechecking its own `src`
+**and** `test/`. The only root program is `tsconfig.tooling.json` (Node): the Vite/vitest
 configs, the root `scripts/`, and the engine's tests (which use Node globals its pure src
 config can't host). `npm run typecheck` runs each package's `tsc` then the tooling one;
 `npm run typecheck:<pkg>` runs just one.
@@ -319,10 +316,9 @@ never checked under both regimes. `npm run typecheck:<pkg>` runs both programs f
 package. `apps/main/tsconfig.json` follows the same fix for its two bootstrap entries (`main.ts`,
 `main.browser.ts`), which both import the alepha-flavored `AppRouter` — extending alepha's base
 directly rather than needing a plain-vs-alepha split of its own, since neither entry has a
-non-alepha half to keep separate. `server` no longer has this split: the legacy retirement
-(2026-07-30 alepha-migration deploy-cleanup tranche, Task 7) deleted the workerd program entirely
-and widened the alepha-base program (formerly `tsconfig.api.json`, now the package's sole
-`tsconfig.json`) to cover all of `src` — one program, `npm run typecheck:server`.
+non-alepha half to keep separate. `server` needs no split at all: its sole `tsconfig.json`
+extends alepha's base and covers all of `src` plus `test-api/` — one program,
+`npm run typecheck:server`.
 
 ### Classes
 
@@ -388,83 +384,101 @@ all three, and it will catch you.
 
 ### `run_worker_first`
 
-`assets.not_found_handling: "single-page-application"` means any unmatched path returns
-`index.html`. Without `assets.run_worker_first: ["/api/*"]`, that fallback would answer API
-calls with the SPA shell and the Worker would never see them. Both settings are load-bearing;
-changing one without the other breaks routing in a way tests will catch.
+The Cloudflare assets block is authored in `apps/main/alepha.config.ts`
+(`build.cloudflare.config.assets`) and spread into the generated wrangler config.
+`not_found_handling: "single-page-application"` means any unmatched path returns the app shell.
+Without `run_worker_first: ["/api/*", "/ws/*", "/_auth/*", "/oauth/*"]`, that fallback would
+answer API/WebSocket/auth calls with HTML and the Worker would never see them. Both settings are
+load-bearing — and so is the merge order: the user config spreads in AHEAD of the framework's
+`assets ??= { directory, binding }` default, so the block must author all four keys
+(`directory`/`binding` included); an `assets` key carrying only the two routing fields would
+silently swallow the generated defaults and break asset serving entirely (the full explanation
+lives in the config's own comment).
 
 ## Database
 
-D1 (`DB` binding) with **Drizzle ORM**. `src/server/db/schema.ts` is the single source of
-truth; `drizzle-kit generate` diffs it into a numbered `.sql` file under `migrations/`, and
-`wrangler d1 migrations apply` runs those files. drizzle-kit never talks to D1 — there is one
-migration system, not two.
-
-Changing the schema:
+The **alepha ORM**. `packages/server/src/api/entities/*.ts` are the `$entity` definitions — one
+file per table, the single source of truth — and services access them through `$repository`. In
+dev, `alepha dev` runs SQLite and auto-syncs the schema; production is Cloudflare D1. Migrations
+live in `apps/main/migrations/sqlite/`:
 
 ```bash
-# edit src/server/db/schema.ts
-npm run db:generate     # writes migrations/NNNN_name.sql — commit it
-npm run db:migrate      # apply locally
-npm run cf-typegen      # only if you changed bindings, not the schema
+# edit packages/server/src/api/entities/*.ts
+npm run db:generate -w @lindocara/main        # alepha db migrations create — commit the output
+npm run check:migrations -w @lindocara/main   # entity/migration drift check (also inside `npm run v`)
 ```
 
+`alepha platform up` applies migrations to production D1 **before** shipping the code, so a
+column always exists before the code that reads it.
+
+**D1 discipline** — load-bearing and easy to violate:
+
+- `repo.transaction()` throws on D1 — use the `$transactional()` middleware instead, and know it
+  degrades to a no-op there (the D1 provider reports `supportsTransactions: false`), so it never
+  serializes a read-then-write sequence against a concurrent request.
+- Bulk writes/deletes are chunked under D1's ~100 bound-parameter cap per statement — see
+  `MapService`'s chunked element/layer writes.
+- A count-then-insert invariant (party size cap, unique colour slot) cannot rely on a transaction
+  to serialize it. Build the guarded row as **one single-statement conditional
+  `INSERT ... SELECT ... WHERE (SELECT count(*) ...) < cap`** via `Repository.query()` and
+  classify a zero-row result against a follow-up read — never a `count()` read followed by a
+  separate `create()` call.
+
 Objects, equipment, skills and multi-quest progression use separate normalized ownership tables
-documented in [`docs/persistence-model.md`](./docs/persistence-model.md). The rollback flow owns
-`character_*`; the primary party flow owns `hero_*`. Never point one family at the other. Hero
-inventory, equipment, currencies, class resource, skills, quest rows, talents, bounded cooldowns
-and timed consumable effects are durable alongside its map, position, core stats, life, corpse and
-fencing epoch. Every hero child-table mutation must include an `EXISTS` fence against
+documented in [`docs/persistence-model.md`](./docs/persistence-model.md) (written pre-migration;
+its `hero_*` model carried over, its `character_*` rollback family did not). Hero inventory,
+equipment, currencies, class resource, skills, quest rows, talents, bounded cooldowns and timed
+consumable effects are durable alongside its map, position, core stats, life, corpse and fencing
+epoch. Every hero child-table mutation must include an `EXISTS` fence against
 `hero.session_epoch` (or be a server-side create before a session exists).
 
-Deploying applies migrations to production **before** shipping the code, so a column always
-exists before the code that reads it.
-
-One `account` row exists per registered user (`username` unique, stored lowercase). The primary
-post-login screen lists persistent parties as resumable saves. Each `hero` belongs to one account
-and one party and is selected inside that party; the old three-character account roster remains
-for rollback only and must not be reintroduced into `App` as the normal launch route. Dirty hero
-profiles are saved every five seconds, on disconnect and at map transitions.
+Accounts are Alepha's own `users` (username+password credentials realm — see
+`api/providers/AppSecurityProvider.ts`). The primary post-login screen lists persistent parties as
+resumable saves. Each `hero` belongs to one user and one party and is selected inside that party.
+Dirty hero profiles are saved every five seconds, on disconnect and at map transitions.
 
 ### Hero presence and save fencing
 
-`HeroPresence` is a SQLite-backed Durable Object addressed with
-`HERO_PRESENCE.getByName(heroId)`. D1 is the single monotone source of `hero.session_epoch`; the
-presence DO stores only the active lease (`connectionId`, epoch, room, zone, instance, timestamps).
+`PresenceRoom` (`/ws/presence`, headless, roomId `heroId`) owns the per-hero lease
+(`connectionId`, epoch, room, timestamps). The database is the single monotone source of
+`hero.session_epoch` (`HeroEpochService`); the presence room stores only the active lease.
 
 - Acquisition freezes and saves the previous owner while its epoch is still valid, increments the
-  D1 epoch atomically, then installs the new lease.
-- The lease lasts 30 seconds and `World` renews it every 10 seconds. Inputs use local authority and
-  do not call the presence DO per command or tick.
+  epoch atomically, then installs the new lease.
+- The lease lasts 30 seconds (`PRESENCE_TTL_MS`) and `WorldRoom` renews it on a 10-second beat
+  (`PRESENCE_HEARTBEAT_MS`). Inputs use local authority and never touch the presence room per
+  command or tick. A refused renew is a lost lease: the player is dropped with 4003.
 - Normal disconnect saves with `WHERE id = ? AND session_epoch = ?`, releases the matching lease,
   then removes the runtime player.
 - A stale save changes no row, logs a stale-save diagnostic, invalidates local authority,
   and closes the socket with `WS_CLOSE.PRESENCE_LOST`.
-- Hero core and normalized progression writes share the same D1 batch and epoch fence. A stale room
-  may update neither the `hero` row nor inventory, equipment, skill or quest children.
+- Hero core and normalized progression writes share the same batch and epoch fence
+  (`HeroSaveService`). A stale room may update neither the `hero` row nor inventory, equipment,
+  skill or quest children.
 
-Adventure-map handoff uses the same epoch fence: freeze source actions, save the source, then let
-`HeroPresence.handoff()` conditionally write destination map/position and epoch N+1. Only then
-remove/close the source socket with `WS_CLOSE.ZONE_TRANSITION`. The client reconnects with only its
-party/hero identity; `index.ts` reads the destination from D1. `CharacterPresence` retains the old
-compiled-zone equivalent as a rollback seam.
+Adventure-map handoff uses the same epoch fence: freeze source actions, save the source, then
+conditionally write destination map/position and epoch N+1. Only then remove/close the source
+socket with `WS_CLOSE.ZONE_TRANSITION`. The client reconnects with only its party/hero identity;
+admission reads the destination from the database.
 
 ### Party routing and room isolation
 
-The primary WebSocket route is `/api/ws?party=<partyId>&hero=<heroId>`. `index.ts` verifies account,
-membership, hero ownership and adventure-map membership, then reads the authoritative map and
-position from D1. No query parameter or client message may select a destination map or position.
+Admission is two steps: the client calls `GET /api/join?party=<partyId>&hero=<heroId>`
+(`JoinController` + `AdmissionService`) for a `{roomId, channelPath}` **hint**, then dials
+`/ws/world?roomId=…&party=…&hero=…`. The room re-validates account, membership, hero ownership
+and adventure-map membership against the database in `onJoin` and reads the authoritative map and
+position there — no query parameter or client message may select a destination map or position.
+Close codes keep the 4001-4008 vocabulary (`engine/close-codes.ts`).
 
-`GameSession` is addressed by `partyId` and coordinates its room directory and party-wide
-broadcasts. Simulation is currently sharded into `World` objects addressed by `partyId:mapId`;
-each owns only that room's players, monsters, loot, timers, navigation and local chat. Persistent
-party chat and victory fan out through `GameSession`. This sharded implementation preserves the
-session isolation invariant, although converging the rooms into one multi-room Durable Object
-remains a possible later topology change. Compiled catalogue zones remain rollback/test content.
+`PartyRoom` (headless, roomId `partyId`) coordinates the room directory and party-wide
+broadcasts. Simulation is sharded into `WorldRoom` instances addressed by `partyId:mapId`; each
+owns only that room's players, monsters, loot, timers, navigation and local chat. Persistent
+party chat and victory fan out through `PartyRoom`. This sharding preserves the session isolation
+invariant. Compiled catalogue zones remain test content.
 
 ### Maps and the editor
 
-Maps live in D1 (`src/server/maps.ts`) and are private to their author account. Every successful
+Maps live in the database (`MapService`) and are private to their author account. Every successful
 content/name update increments a monotone `revision`; failed updates do not. Adventures may only
 reference their author's maps, their full graph is revalidated before a referenced map mutation,
 and delete/edit operations cannot silently invalidate a saved adventure. Legacy ownerless rows are
@@ -550,9 +564,9 @@ floating over that centre, like the selection inspector, must re-enable pointer 
 Get this backwards and either every chrome click is eaten by the canvas, or every stroke is blocked
 by the chrome.
 
-Maps now carry authored **events** — their own `map_event`/`map_event_page` D1 tables, saved inside
-the same map-save transaction as elements and layers, chunked under D1's 100-bound-parameter cap the
-same way tranche 1 had to chunk elements. An event is a client-minted uuid (stable so tranche 5's
+Maps now carry authored **events** — their own `mapEvents`/`mapEventPages` tables, saved inside
+the same map-save write path as elements and layers, chunked under D1's ~100-bound-parameter cap
+the same way the element writes are. An event is a client-minted uuid (stable so tranche 5's
 commands can reference it) plus a per-map creation-order ordinal (the `EV001` chip — display only,
 never identity) and 1–8 ordered pages, each carrying conditions, appearance, autonomous-movement
 settings, options and a trigger. **Nothing executes**: the game runtime is untouched, and an
@@ -580,37 +594,37 @@ is superseded.
 
 ### Adventure state: switches, variables and page selection
 
-An event's conditions now read something real. **State belongs to the party, not the hero** — a
-party is the save, so `GameSession` (addressed by `partyId`) is the single writer of switches,
-variables and per-event self-switches; `World` rooms never write it, they install a read-only
-snapshot `GameSession` pushes over the same coordinator seam party chat and victory already cross.
-Persistence is a debounced 5s save, matching the hero-profile cadence, plus an immediate flush (with
-orphan self-switch pruning, against D1's live event ids) when the party empties, so the last owner
-never leaves a stale row behind. The registry — switch/variable ids and names, up to 200 of each —
-rides the adventure row as bounded JSON, not a new table: it is small, atomic with the adventure, and
-authored entirely in the editor's registry dialog.
+An event's conditions read something real. **State belongs to the party, not the hero** — a
+party is the save, so `PartyRoom` (roomId `partyId`) is the single writer of switches,
+variables and per-event self-switches; `WorldRoom`s never write it, they install a read-only
+snapshot `PartyRoom` pushes over the same coordinator seam party chat and victory already cross.
+Persistence is **write-through**: every accepted mutation batch is saved to the database before
+the push (`AdventureStateService`), so the stored row is never behind the coordinator. The
+registry — switch/variable ids and names, up to 200 of each — rides the adventure row as bounded
+JSON, not a new table: it is small, atomic with the adventure, and authored entirely in the
+editor's registry dialog.
 
 **Page selection is XP's rule, not a per-tick one.** For each event, the active page is the
 highest-position page whose conditions all hold; an unknown switch/variable id reads as false/0; no
-page holding means the event is dormant. `World` evaluates this against the state snapshot on
-snapshot install and on hero join — **never per tick** — because nothing yet mutates state within a
-room's lifetime; re-evaluation on state-change is the reason the snapshot push exists at all.
-Hibernation restore pulls the current state from `GameSession` (`getAdventureState`, a reverse RPC
-into the coordinator), never from D1: the debounce can leave D1 several seconds stale, and reading
-storage directly would be a second, uncoordinated writer.
+page holding means the event is dormant. `WorldRoom` evaluates this against the state snapshot on
+snapshot install and on hero join — **never per tick**; re-evaluation on state-change is the
+reason the snapshot push exists at all. A room re-deriving its state (a fresh room, an evicted
+isolate) pulls the current `(state, version)` from `PartyRoom` (`getAdventureState`, a reverse RPC
+into the coordinator), never from the database directly: the coordinator's held version is the
+ordering authority, and reading storage beside it would be a second, uncoordinated reader.
 
 Active events reach the client as `WorldInfo.events` — the third member of the `elements`/`layers`
 family: id, cell, the active page's appearance and options, **appearance only**. Collision still
 comes exclusively from `tiles`; an event carries no collider in this tranche regardless of its
 authored "traversable" flag.
 
-**The interpreter now mutates state** (tranche 5). `#applyStateChange` on `GameSession` is the real
-single writer: an event run's `mutateState` effect flows UP as a coordinator RPC, is applied
-serially, bumps a **monotone `version`** shipped with every snapshot, and pushes the new state to
-every room. `installAdventureState` carries a **`>=` version guard** so a room that receives two
-pushes out of order keeps the newer one, and it must **never throw** — `GameSession` awaits the
-install ahead of room admission, so a throwing install would block every join. The debounce is a
-`ctx.storage.setAlarm`, not a `setTimeout`, so a coordinator eviction cannot lose a flip. See
+**The interpreter mutates state.** `applyStateChanges` on `PartyRoom` is the real single
+writer: an event run's `mutateState` effects flow UP as a coordinator RPC, are applied
+serially, bump a **monotone `version`** (once per batch) shipped with every snapshot and written
+through to the database before the new state is pushed to every room. `installAdventureState`
+carries a **`>=` version guard** so a room that receives two pushes out of order keeps the newer
+one, and it must **never throw** — `PartyRoom` awaits the push, so a throwing install would block
+the writer. See
 [`docs/superpowers/specs/2026-07-19-adventure-state-design.md`](./docs/superpowers/specs/2026-07-19-adventure-state-design.md)
 and the interpreter design below.
 
@@ -643,8 +657,8 @@ model + total parser; `shared/event-interpreter.ts` is the **pure, clockless ste
   seeded from the snapshot at drain start and folded forward with the shared pure `applyStateMutation`
   after each `mutateState`; every later step THIS tick (command execution and `if`/waiting-condition
   evaluation alike) reads that copy. The batch still flows up unchanged. If the command budget splits
-  a run across ticks, `World` pauses only the event drain until `GameSession` has applied and pushed
-  that batch; simulation keeps ticking. The next drain therefore seeds from the acknowledged snapshot,
+  a run across ticks, `WorldRoom` pauses only the event drain until `PartyRoom` has applied and
+  pushed that batch; simulation keeps ticking. The next drain therefore seeds from the acknowledged snapshot,
   never from a pre-batch value that would replay a non-idempotent `add`. Cross-room propagation remains
   asynchronous relative to simulation, but the source run cannot outrun its own coordinator writes.
 
@@ -677,7 +691,7 @@ building collider, quest-keeper coordinate, spawn, and guard home; `client/game/
 owns only visual roads, districts, signs and decor density. Keep those two descriptions aligned.
 All quest keepers must remain inside `SAFE_ZONE` on walkable ground.
 
-Guards are simulated by `World` and emitted in snapshots. They target only live monsters already
+Guards are simulated by the world room and emitted in snapshots. They target only live monsters already
 inside the safe zone, cannot leave their home patrol radius, and never attack players. A guard
 kill sets the monster respawn state directly: it must never call the player reward path, create
 loot, grant XP, or advance a kill quest.
@@ -690,8 +704,8 @@ signal alpha. World-space notifications are limited by `MAX_ACTIVE_WORLD_EFFECTS
 
 ### Spatial grid and area of interest
 
-`server/spatial-grid.ts` is a non-authoritative index: `World` collections remain the source of
-truth. Cells are 256 px. Per-recipient views query nearby players (900 px), monsters (850 px) and
+`server/spatial-grid.ts` is a non-authoritative index: the room's own collections remain the
+source of truth. Cells are 256 px. Per-recipient views query nearby players (900 px), monsters (850 px) and
 loot (650 px), with a 96 px exit hysteresis; self is unconditional. Guards and corpses use a
 900 px view, spatial events 850 px, and local chat 700 px. `welcome` is the complete baseline;
 `world.delta` is emitted at 10 Hz while simulation stays at 20 Hz. Per-player network maps compare
@@ -713,11 +727,11 @@ reserve future `guild`, `global`, and `whisper` names.
 
 `shared/cooperation.ts` owns the pure bounded-threat, contribution eligibility, taunt and XP-split
 rules. `shared/resources.ts` is the single class-resource table. Room-owned mutable maps remain in
-`World`; `world/monster-system.ts` selects and prunes threat, `world/contribution-system.ts` fences
-reward attribution and `world/interest-system.ts` filters personal loot. `world/party-system.ts`
-still contains the old room-local group mechanic for rollback character sessions; hero sessions
-must not expose its create/invite/dissolve UI. Their `party` chat means the persistent D1 party and
-is routed by `GameSession` across map rooms.
+`WorldRoom`; `world/monster-system.ts` selects and prunes threat, `world/contribution-system.ts`
+fences reward attribution and `world/interest-system.ts` filters personal loot.
+`world/party-system.ts` still contains an older room-local group mechanic; hero sessions must not
+expose its create/invite/dissolve UI. Their `party` chat means the persistent database party and
+is routed by `PartyRoom` across map rooms.
 
 Useful healing means actual missing HP restored; overhealing never creates threat or contribution.
 Personal loot is protected twice: it is omitted from every other player's AOI/delta and collection
@@ -741,19 +755,20 @@ known limits.
 
 ### Observability, load and security boundaries
 
-`world/observability-system.ts` owns bounded, room-local counters. `World` records tick duration,
-network bytes/messages and delta sizes, successful/erroring D1 saves, saturated command queues,
-navigation work, transitions, reconnects and rejected traffic. Every active room emits one
-structured `world_metrics` record per 20-second window; it never logs individual inputs, attacks,
-chat messages or inventory operations. Cloudflare logs retain these aggregates and traces are
-sampled at 1%. Do not place metrics in module globals: a metric window belongs to exactly one room.
+The legacy per-room `world_metrics` observability system was retired with the workerd stack;
+observability parity on the alepha rooms is an open follow-up, and rooms currently rely on
+structured error logs plus the Cloudflare/platform dashboards. When it returns, keep the old
+discipline: bounded room-local counters, aggregate windows only, never individual inputs, attacks,
+chat messages or inventory operations, and no metrics in module globals — a metric window belongs
+to exactly one room.
 
-`scripts/loadtest.mjs` is the black-box load boundary. It provisions through `/api/*`, connects
-through `/api/ws`, sends only legal client intent and reports client-observed throughput and ACK
-latency. It groups accounts into parties of up to four and must use the primary
-`?party=<partyId>&hero=<heroId>` admission route so `HeroPresence`, `GameSession` and normalized hero
-persistence are under load. Its default target is localhost. Keep production behind both explicit
-remote and production opt-ins, and never put production credentials in the script.
+`scripts/loadtest.mjs` is the black-box load boundary. It provisions through `/api/*`, resolves
+admission through `GET /api/join` and connects through `/ws/world`, sends only legal client intent
+and reports client-observed throughput and ACK latency. It groups accounts into parties of up to
+four so `PresenceRoom`, `PartyRoom` and normalized hero persistence are all under load. Its
+default target is localhost. Keep production behind both explicit remote and production opt-ins
+(`--allow-remote=true` + `--allow-production=true`), and never put production credentials in the
+script.
 
 Security limits live beside the boundary they protect: HTTP JSON is capped before parsing,
 WebSocket frames are capped at 2 KiB, identifiers are server-minted UUIDs, malformed/rate-limited
@@ -766,59 +781,73 @@ the per-room limiter is not a credential-stuffing defense.
 
 ## Gotchas worth knowing
 
-**`vite dev` stacks Worker versions.** After a hot reload the *previous* Worker can keep
-running, its Durable Object still ticking and still broadcasting to your open socket. Two
-reloads, three live worlds — all writing to the same client. Symptoms: your square appears to
-teleport between a few fixed positions, or players you never created show up. It is not a bug
-in the game. **Restart the dev server.** Production runs exactly one object per id.
+**Alepha atoms are not for the 60Hz path.** Every write to a `$atom` validates its zod schema and
+fires an unfiltered global event — fine for state a screen transition writes once, disqualifying
+for anything written 20-60x/s. The game bridge stays zustand (`store.ts`); atoms
+(`state/atoms.ts`) hold only screen-transition state.
 
-**`evictDurableObject()` hangs on a ticking world.** It waits for in-flight work to drain and
-the `setInterval` never drains. That's why the rebuild path is tested as two halves — the
-write (`persists a moved player's position onto their socket`) and the read
-(`positionFromAttachment`) — rather than end-to-end.
+**`$action` names must not collide with alepha builtins.** Duplicate action names fail the
+framework's configure hook at boot — and the collision can surface only in the workerd graph
+(some framework providers register there and not in Node dev), so dev can look green while the
+deployed Worker is dead. `HealthController.apiHealth` is named that, not `health`, because
+alepha's own `ServerHealthProvider` registers `health`.
 
-**The world Durable Object is a singleton across a test file.** Assert on *which* player ids
-are present, never on how many; a straggler still disconnecting from an earlier test must not
-be able to fail an unrelated assertion.
+**A green `alepha build` is not a working deploy.** `platform up` is the pipeline — provision,
+build (`--target cloudflare`), apply D1 migrations, deploy Worker + Durable Object + assets, push
+the `$env` secrets. A build alone proves compilation. Relatedly, any `alepha db` command boots the
+real server entry (`apps/main/src/main.ts`) and needs a resolvable `DATABASE_URL` (the dev SQLite
+default suffices locally).
 
-**The test pool does not isolate storage between tests.** Rows written by one test are visible
-to the next. `test/db.test.ts` truncates in `afterEach`. Do not reach for `reset()` from
-`cloudflare:test` to fix this — it wipes every binding, Durable Object storage included.
+**IDE tsserver misprojects the vendored-source programs.** alepha's `package.json` points `types`
+at raw framework source, so an open file can be assigned the wrong tsconfig program and show false
+diagnostics that no CI check reproduces. `npm run typecheck` is the truth, not the editor
+squiggles.
 
-**Durable Object billing follows the tick loop.** The loop runs while at least one player is
-connected, and an active object is billed for its duration. An empty world stops the loop and
-costs nothing. Don't make the loop unconditional.
+**Empty rooms reset.** Room state is memory-only: the tick stops when a room empties, Node sweeps
+idle rooms after 5 minutes in dev, and a Cloudflare isolate eviction loses it — temporary
+monsters/loot reset and state is recreated on the next join. Durable truth (hero saves, adventure
+state) is written through to the database, epoch-fenced; never park durable truth in room memory.
+Don't make the tick unconditional either: on Cloudflare an active Durable Object is billed for
+its duration, and an empty, silent room costs nothing.
 
-**Players spawn at a random x.** A test that always pushes "right" will occasionally start
-against the right wall and fail for reasons unrelated to what it tests. Use
-`awayFromNearestWall()` in `world.test.ts`. The same trap bites manual checks: a square that
-sits still may be clamped, not broken.
+**A running party is isolated by `partyId`.** `PartyRoom` owns party-wide coordination while each
+active `partyId:mapId` `WorldRoom` owns room-local simulation; production runs exactly one room
+per id. Do not route authored maps by `mapId` alone or bypass the coordinator for party-wide
+chat/victory.
+
+**`onTick` is synchronous.** An async tick slower than its 50 ms period silently skips beats.
+
+**A square that sits still may be clamped, not broken.** Heroes enter at their persisted position
+or the map's authored spawn, so a test — or a manual check — that pushes one fixed direction may
+simply be pressing into a wall or a collider.
 
 **`import.meta.env.DEV` exposes `window.__lindocara`** (`self()`, `all()`) for measuring input
 latency and interpolation from outside the app. It is stripped from production builds.
 
-**A running party is isolated by `partyId`.** `GameSession` owns party-wide coordination while each
-active `partyId:mapId` `World` owns room-local simulation. Empty rooms stop ticking and reset
-temporary monsters/loot. Do not route authored maps by `mapId` alone or bypass the coordinator for
-party-wide chat/victory. A future one-object multi-room consolidation must preserve these boundaries.
-
 **Server events are codes, not sentences.** `{ t: "event", code, params }` — the client owns
-all wording via `src/shared/i18n/`. Never add an English string to a `#send` in `world.ts`; add
+all wording via `src/shared/i18n/`. Never add an English string to a server send; add
 an `EventCode` and two dictionary entries instead (the i18n test enforces parity).
 
-**The canvas is not React's.** `#stage` is a sibling of `#root`; nothing in `ui/` may touch it.
+**The canvas is not React's.** `#stage` is a sibling of `#root`, created by the client bootstrap
+(`bootClient()` in `main.tsx`), not by the served HTML; nothing in `ui/` may touch it.
 
 ## Secrets
 
-`SESSION_SECRET` signs the session cookie.
+`APP_SECRET` is the one production secret: alepha's SecretProvider derives session encryption
+from it and **throws in production when it is defaulted** — that throw is the guarantee. Dev
+needs nothing; the framework default applies.
 
-- locally: `npm run dev` prepares `packages/server/.dev.vars` automatically; copy
-  `packages/server/.dev.vars.example` there only when you want to manage it manually
-- production: `npx wrangler secret put SESSION_SECRET`
-- CI: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets
+- production: stored as a GitHub repository secret (`gh secret set APP_SECRET`); the deploy job
+  exports it and `alepha platform up` pushes it to the Worker. Rotating it is `gh secret set`
+  with a new value plus a redeploy — this invalidates every live session.
+- CI/deploy also needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (and `SEED_PASSWORD`
+  for the Liin adventure publish step) as repository secrets.
 
-It is typed in `src/env.d.ts` rather than inferred from `.dev.vars`, so CI and a laptop see
-the same `Env`.
+The three game envs — `WEBSOCKET_MAX_PAYLOAD`, `NAVIGATION_DEBUG`, `CHEATS_ENABLED` — are `$env`
+primitives with safe defaults; being `$env`-declared is what puts them on the manifest allowlist
+`platform up` pushes from the deploy job's environment, so set them there only if a non-default
+production value is ever wanted. `$env` parses once per Alepha instance from a boot-time env
+snapshot — there is no live env mutation, in tests or on Workers.
 
 ## Conventions
 
@@ -826,8 +855,10 @@ the same `Env`.
   skill, never the Claude-in-Chrome extension.
 - Biome formats and lints. `noNonNullAssertion` is on: no `!`, narrow properly.
 - Never trust a client message. `parseClientMessage` returns `null` and the frame is dropped.
-- Prefer a test that drives the real Durable Object over one that mocks it. The existing
-  suite opens real WebSockets against real workerd; follow that.
+- Prefer a test that drives the real app over one that mocks it. `packages/server/test-api/`
+  boots the Alepha app and opens real HTTP requests and WebSockets; follow that. No `vi.mock`.
+- Alepha classes (services, controllers, rooms) use no TypeScript `private` members; JSDoc
+  comments are multi-line (`/** … */` blocks), matching the framework's own style.
 - Every player-facing string lives in `src/shared/i18n/` in both languages. API errors are
   machine codes.
 - UI is React; game code under `src/client/game/` must not import React. The store is the

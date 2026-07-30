@@ -5,12 +5,12 @@ glue that binds the renderer to the network. Browser + React. This is the base t
 
 ## Responsibility
 
-- `main.tsx`/`ui/AppRouter.tsx` — entry + routing on Alepha's `$page` router (title → login →
-  resumable parties/saves; the editor is lazy-`import()`ed). `ui/LegacyShell.tsx` is the frozen,
-  rollback-only zustand-screen-machine counterpart mounted only by the separate `dev:legacy`/
-  `build:legacy` deploy target — see its own docblock. `ui/*` — screens (`AuthScreen`,
-  `PartiesScreen`, `PartyScreen`, …). `ui/hud/` — the in-game HUD. `ui/tiny-swords/` — the game
-  component tree (its own `--tiny-*` tokens).
+- `main.tsx`/`ui/AppRouter.tsx` — bootstrap + routing. `main.tsx`'s `bootClient()` is the shared
+  pre-mount bootstrap (locale, theme, the `#stage` canvas, the DEV-only `?preview` route), run by
+  `apps/main/src/main.browser.ts` before it mounts `AppRouter` on Alepha's `$page` router (title
+  → login → resumable parties/saves; the editor is lazy-`import()`ed). `ui/*` — screens
+  (`AuthScreen`, `PartiesScreen`, `PartyScreen`, …). `ui/hud/` — the in-game HUD.
+  `ui/tiny-swords/` — the game component tree (its own `--tiny-*` tokens).
 - `state/atoms.ts` — Alepha `$atom`s for the application state that used to live on the store but
   isn't part of the 60Hz game bridge: `activePartyAtom`, `adventureTestSessionAtom`,
   `adventureEditorSessionAtom`, `quickItemsAtom` (localStorage-persisted), `questTrackingAtom`.
