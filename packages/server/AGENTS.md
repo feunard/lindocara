@@ -101,7 +101,11 @@ mutate `index.ts`, `world.ts`, `world/`, `game-session.ts`, `hero-presence.ts`,
 `accounts.ts`/`session.ts`/`password.ts`, `maps.ts`/`adventures.ts`/`parties.ts`/`heroes.ts`, or
 `db/schema.ts` — every rule ported into `src/api/` is a read-and-reimplement against those files, not
 a shared call. If a legacy fix also applies to the Alepha port, port it explicitly into the matching
-`src/api/` file; do not reach into the legacy module from `src/api/` to "reuse" it.
+`src/api/` file; do not reach into the legacy module from `src/api/` to "reuse" it. **Exception:**
+`src/api/realtime/` may import pure runtime-neutral systems under `src/world/` (e.g.
+`connection-system.ts`, `interest-system.ts`, `movement-system.ts`, `snapshot-system.ts`,
+`world-runtime.ts`, `spatial-grid.ts`, `map-zone.ts`) with injected dependencies; the legacy shells
+(`world.ts`, `game-session.ts`, `hero-presence.ts`, `character-presence.ts`) remain forbidden.
 
 ## Rules
 
