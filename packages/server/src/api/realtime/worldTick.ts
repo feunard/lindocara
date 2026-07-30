@@ -41,6 +41,12 @@ import {
   MONSTER_SPECIAL_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
 import {
+  combatStatsForClass,
+  type DamageType,
+  resolveCriticalDamage,
+  resolveIncomingAttack,
+} from "@lindocara/engine/combat-stats.js";
+import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLE_MAX_STACK,
   CONSUMABLES,
@@ -405,6 +411,7 @@ export interface WorldGlue {
 }
 
 interface MonsterDamageContext {
+  damageType?: DamageType;
   damageOverTime?: boolean;
   persistentOwnerCredit?: boolean;
   poisonRupture?: boolean;
@@ -1222,16 +1229,20 @@ function damageMonster(
     (basic
       ? attackDamageFor(player.class, player.level)
       : skill.power + Math.max(0, player.level - 1) * 2);
-  const damage = Math.max(
-    1,
-    Math.round(
-      baseDamage *
-        (opening ? 1 + opening.bonusRatio : 1) *
-        (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
-        (1 + activeRallyPowerMultiplier(player, now)) *
-        (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
-    ),
+  const criticalOutcome = resolveCriticalDamage(
+    baseDamage *
+      (opening ? 1 + opening.bonusRatio : 1) *
+      (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
+      (1 + activeRallyPowerMultiplier(player, now)) *
+      (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
+    combatStatsForClass(player.class),
+    player.combatEntropy,
+    !context.damageOverTime && !context.poisonRupture,
   );
+  player.combatEntropy = criticalOutcome.entropy;
+  const damage = criticalOutcome.damage;
+  const damageType =
+    context.damageType ?? actionForClassSlot(player.class, skill.slot).damageType ?? "physical";
   const actualDamage = Math.min(target.hp, damage);
   const result = applyDamage(target.hp, damage);
   target.hp = result.hp;
@@ -1256,6 +1267,8 @@ function damageMonster(
           damage: actualDamage,
           skill: skill.id,
           actorId: player.id,
+          damageType,
+          ...(criticalOutcome.critical ? { critical: 1 } : {}),
           ...(basic ? { basic: 1 } : {}),
           ...(context.damageOverTime ? { poisonTick: 1 } : {}),
           ...(context.poisonRupture ? { poisonRupture: 1 } : {}),
@@ -1328,15 +1341,35 @@ function damagePlayer(
   connectionId: string,
   player: PlayerRuntime,
   damage: number,
+  damageType: DamageType,
   species: MonsterSpecies,
   monsterId: string,
   now: number,
-): void {
-  if (isPlayerInvulnerable(player, now)) return;
+): number {
+  if (isPlayerInvulnerable(player, now)) return 0;
   const stealthEnded = exitRogueStealth(player, now);
+  const incoming = resolveIncomingAttack(
+    damage,
+    damageType,
+    combatStatsForClass(player.class),
+    player.combatEntropy,
+  );
+  player.combatEntropy = incoming.entropy;
+  if (incoming.avoidedBy) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: incoming.avoidedBy === "dodge" ? "combat.dodged" : "combat.parried",
+      params: { species, monsterId, damageType },
+      tone: "good",
+      x: player.x,
+      y: player.y,
+    });
+    if (stealthEnded) sendStateTo(w, connectionId, player);
+    return 0;
+  }
   const protectedDamage = damageAfterWarriorProtection(
     player,
-    damage,
+    incoming.damage,
     w.state.players.values(),
     now,
     (source, target) => areCombatAllies(source, target),
@@ -1373,7 +1406,7 @@ function damagePlayer(
       );
     }
     if (stealthEnded) sendStateTo(w, connectionId, player);
-    return;
+    return 0;
   }
   player.hp = result.hp;
   generateResource(player.class, player.resource, "damage_taken", appliedDamage);
@@ -1382,13 +1415,14 @@ function damagePlayer(
     t: "event",
     code: "combat.hurt",
     // Keep the damage event tied to the same authoritative attacker as the spatial animation.
-    params: { species, damage: appliedDamage, monsterId },
+    params: { species, damage: appliedDamage, damageType, monsterId },
     tone: "bad",
     x: player.x,
     y: player.y,
   });
   if (result.killed) killPlayer(w, connectionId, player);
   sendStateTo(w, connectionId, player);
+  return appliedDamage;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1477,6 +1511,7 @@ export function resolveMonsterAction(
     1,
     Math.round(monster.damage * (specialDefinition?.damageMultiplier ?? 1)),
   );
+  const damageType = specialDefinition?.damageType ?? definition.damageType;
   let drainedDamage = 0;
   const hits = (target: Vec2, radius: number): boolean => {
     if (!hasLineOfSight(monster, target, zone(w.state).terrain.tiles)) return false;
@@ -1501,8 +1536,16 @@ export function resolveMonsterAction(
       !hits(player, PLAYER_SIZE / 2)
     )
       continue;
-    damagePlayer(w, connectionId, player, damage, monster.species, monster.id, now);
-    drainedDamage += damage;
+    drainedDamage += damagePlayer(
+      w,
+      connectionId,
+      player,
+      damage,
+      damageType,
+      monster.species,
+      monster.id,
+      now,
+    );
   }
   for (const guard of w.state.guards) {
     if (!hits(guard, PLAYER_SIZE / 2)) continue;
@@ -2487,6 +2530,7 @@ export function resolvePlayerAction(
       );
       if (consumedPower > 0) {
         damageMonster(w, connectionId, player, target, skill, now, false, consumedPower, {
+          damageType: "magical",
           poisonRupture: true,
         });
       }
@@ -4349,6 +4393,7 @@ export function advanceWorldTick(w: WorldGlue): void {
       if (sourceConnectionId === undefined || !source || !target || !baseSkill) return;
       const skill = skillWithTalents(source.class, source.talents, baseSkill.slot);
       damageMonster(w, sourceConnectionId, source, target, skill, now, false, tick.power, {
+        damageType: "magical",
         damageOverTime: true,
         persistentOwnerCredit: true,
       });

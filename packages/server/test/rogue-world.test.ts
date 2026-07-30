@@ -356,7 +356,10 @@ describe("Rogue authoritative opening and mobility", { timeout: 12_000 }, () => 
               message.params?.skill === "dual_slash",
           ),
       );
-      expect(hit).toMatchObject({ params: { damage: 39, basic: 1 } });
+      expect(hit).toMatchObject({ params: { basic: 1 } });
+      if (hit.t !== "event") throw new Error("expected Opening hit event");
+      const openingDamage = hit.params?.critical === 1 ? 59 : 39;
+      expect(hit.params?.damage).toBe(openingDamage);
       await scheduler.wait(150);
       expect(
         client.received
@@ -369,7 +372,7 @@ describe("Rogue authoritative opening and mobility", { timeout: 12_000 }, () => 
           ),
       ).toHaveLength(1);
       expect(client.latestSnapshot?.monsters.find((monster) => monster.id === target.id)?.hp).toBe(
-        beforeMissHp - 39,
+        beforeMissHp - openingDamage,
       );
       expect(client.latestState?.rogue?.openingUntil).toBe(0);
     } finally {
@@ -593,7 +596,7 @@ describe("Rogue authoritative poison", { timeout: 15_000 }, () => {
       client.release();
 
       const tickDamage = await until(
-        "five poison ticks and distant kill credit",
+        "poison ticks and distant kill credit",
         () => {
           const ticks = client.received
             .slice(eventOffset)
@@ -607,13 +610,17 @@ describe("Rogue authoritative poison", { timeout: 15_000 }, () => {
           const reward = client.received
             .slice(eventOffset)
             .find((message) => message.t === "event" && message.code === "monster.defeated");
-          return ticks.length === 5 && reward
+          return ticks.length >= 4 && reward
             ? ticks.map((message) => (message.t === "event" ? message.params?.damage : undefined))
             : undefined;
         },
         6_500,
       );
-      expect(tickDamage).toEqual([12, 12, 12, 12, 11]);
+      expect(tickDamage.length).toBeGreaterThanOrEqual(4);
+      expect(tickDamage.length).toBeLessThanOrEqual(5);
+      expect(tickDamage.slice(0, -1).every((damage) => damage === 12)).toBe(true);
+      expect(tickDamage.at(-1)).toBeGreaterThan(0);
+      expect(tickDamage.at(-1)).toBeLessThanOrEqual(12);
       expect(client.latestState?.xp).toBeGreaterThan(0);
       const diagnostics = await env.WORLD.getByName(hero.roomKey).roomDiagnostics();
       expect(diagnostics.loot.some((loot) => loot.ownerId === hero.heroId)).toBe(true);
@@ -733,7 +740,9 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
 
       expect(sequence.strikes).toHaveLength(5);
       expect(new Set(sequence.strikes.map((strike) => strike.targetId)).size).toBe(5);
-      expect(sequence.strikes.map((strike) => strike.damage)).toEqual([50, 50, 50, 50, 50]);
+      expect(sequence.strikes.map((strike) => strike.damage).sort((a, b) => a - b)).toEqual([
+        50, 50, 50, 50, 75,
+      ]);
       expect(sequence.strikes.map((strike) => strike.impactAt)).toEqual(
         sequence.strikes.map(
           (_strike, index) =>
@@ -766,9 +775,11 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
       expect(client.self()?.x).toBeCloseTo(sequence.finalPosition.x, 2);
       expect(client.self()?.y).toBeCloseTo(sequence.finalPosition.y, 2);
       for (const target of welcome.monsters) {
+        const strike = sequence.strikes.find((candidate) => candidate.targetId === target.id);
+        if (!strike) throw new Error(`missing strike for ${target.id}`);
         expect(
           client.latestSnapshot?.monsters.find((monster) => monster.id === target.id)?.hp,
-        ).toBe(450);
+        ).toBe(500 - strike.damage);
       }
       expect(client.latestState?.cooldowns?.skillCooldowns[4]).toBeGreaterThan(
         client.latestState?.serverNow ?? 0,
@@ -798,9 +809,9 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
         client.received.find((message) => message.t === "rogue.shadow_dance"),
       );
       if (sequence.t !== "rogue.shadow_dance") throw new Error("expected Shadow Dance result");
-      expect(sequence.strikes).toEqual([
-        expect.objectContaining({ targetId: target.id, damage: 50, killed: false }),
-      ]);
+      expect(sequence.strikes).toHaveLength(1);
+      expect(sequence.strikes[0]).toMatchObject({ targetId: target.id, killed: false });
+      expect([50, 75]).toContain(sequence.strikes[0]?.damage);
       await until("single Dance damage snapshot", () => {
         const current = client.latestSnapshot?.monsters.find((monster) => monster.id === target.id);
         return current?.hp === 450 ? current : undefined;
@@ -1247,7 +1258,10 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
         true,
         true,
       ]);
-      expect(sequence.strikes.map((strike) => strike.damage)).toEqual([54, 32, 32, 32, 32]);
+      const damages = sequence.strikes.map((strike) => strike.damage);
+      expect([54, 81]).toContain(damages[0]);
+      expect(damages.slice(1).every((damage) => damage === 32 || damage === 48)).toBe(true);
+      expect(damages.filter((damage) => damage === 81 || damage === 48)).toHaveLength(1);
     } finally {
       client.close();
     }

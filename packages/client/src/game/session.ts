@@ -538,7 +538,7 @@ async function startGameIdentity(
       if (shouldFloatEvent(code)) {
         const compact =
           code === "combat.hit" || code === "combat.hurt"
-            ? `-${String(params?.damage ?? "")}`
+            ? `-${String(params?.damage ?? "")}${params?.critical === 1 ? " !" : ""}`
             : code === "heal.cast" || code === "heal.received"
               ? `+${String(params?.amount ?? "")}`
               : text;

@@ -4,6 +4,7 @@ import {
   type PrimaryColor,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
+import { type CombatEntropyState, initialCombatEntropy } from "@lindocara/engine/combat-stats.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLES,
@@ -256,6 +257,8 @@ export interface PlayerRuntime extends PlayerProfile {
   rogueShadowDanceInvulnerableUntil: number;
   rogueShadowReturn: RogueShadowReturnRuntime | null;
   rogueExecution: RogueExecutionRuntime | null;
+  /** Anti-streak proc accumulators. Session-local and server-authored. */
+  combatEntropy: CombatEntropyState;
   /** Deliberately limited cleanse surface; currently only poison is compatible. */
   negativeEffects: Map<CleanseableNegativeEffect, NegativeEffectRuntime>;
   lastResurrectAt: number;
@@ -540,6 +543,7 @@ export function newPlayer(
     rogueShadowDanceInvulnerableUntil: 0,
     rogueShadowReturn: null,
     rogueExecution: null,
+    combatEntropy: initialCombatEntropy(profile.id),
     negativeEffects: new Map(),
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,

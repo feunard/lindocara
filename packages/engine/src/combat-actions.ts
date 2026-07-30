@@ -1,3 +1,4 @@
+import type { DamageType } from "./combat-stats.js";
 import type { MonsterSpecies, PlayerClass } from "./game.js";
 import type { ProjectileKind } from "./protocol.js";
 
@@ -39,6 +40,8 @@ export interface PlayerActionDefinition {
   halfAngleRadians?: number;
   hitboxRadius?: number;
   projectile?: ProjectileActionDefinition;
+  /** Present only when this action can directly deal damage. */
+  damageType?: DamageType;
 }
 
 export interface MonsterActionDefinition {
@@ -46,6 +49,7 @@ export interface MonsterActionDefinition {
   recoveryMs: number;
   range: number;
   hitboxRadius: number;
+  damageType: DamageType;
 }
 
 export interface MonsterSpecialActionDefinition {
@@ -55,6 +59,7 @@ export interface MonsterSpecialActionDefinition {
   range: number;
   damageMultiplier: number;
   shape: "circle" | "cone";
+  damageType: DamageType;
   halfAngleRadians?: number;
   healRatio?: number;
 }
@@ -79,6 +84,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       recoveryMs: 215,
       halfAngleRadians: (65 * Math.PI) / 180,
       hitboxRadius: 15,
+      damageType: "physical",
     },
     { skillId: "iron_guard", shape: "guard", anticipationMs: 180, recoveryMs: 420 },
     {
@@ -87,9 +93,16 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 180,
       recoveryMs: 480,
       hitboxRadius: 18,
+      damageType: "physical",
     },
     { skillId: "battle_cry", shape: "area_taunt", anticipationMs: 300, recoveryMs: 500 },
-    { skillId: "whirlwind", shape: "area_damage", anticipationMs: 320, recoveryMs: 600 },
+    {
+      skillId: "whirlwind",
+      shape: "area_damage",
+      anticipationMs: 320,
+      recoveryMs: 600,
+      damageType: "physical",
+    },
   ],
   ranger: [
     {
@@ -98,6 +111,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 130,
       recoveryMs: 195,
       projectile: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
+      damageType: "physical",
     },
     {
       skillId: "piercing_arrow",
@@ -105,6 +119,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 300,
       recoveryMs: 500,
       projectile: { kind: "piercing_arrow", speed: 600, radius: 7, pierce: 7 },
+      damageType: "physical",
     },
     {
       skillId: "volley",
@@ -119,6 +134,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
         count: 5,
         spreadRadians: (36 * Math.PI) / 180,
       },
+      damageType: "physical",
     },
     { skillId: "dash", shape: "dash", anticipationMs: 120, recoveryMs: 380 },
     {
@@ -127,6 +143,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 360,
       recoveryMs: 700,
       projectile: { kind: "heartseeker", speed: 700, radius: 9, pierce: 0 },
+      damageType: "physical",
     },
   ],
   priest: [
@@ -136,6 +153,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 140,
       recoveryMs: 185,
       projectile: { kind: "radiant_bolt", speed: 480, radius: 8, pierce: 0 },
+      damageType: "magical",
     },
     {
       skillId: "mend",
@@ -146,7 +164,13 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
     },
     { skillId: "blink", shape: "teleport", anticipationMs: 180, recoveryMs: 420 },
     { skillId: "prayer", shape: "area_heal", anticipationMs: 320, recoveryMs: 640 },
-    { skillId: "divine_nova", shape: "nova", anticipationMs: 400, recoveryMs: 700 },
+    {
+      skillId: "divine_nova",
+      shape: "nova",
+      anticipationMs: 400,
+      recoveryMs: 700,
+      damageType: "magical",
+    },
   ],
   rogue: [
     {
@@ -156,6 +180,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       recoveryMs: 220,
       halfAngleRadians: (58 * Math.PI) / 180,
       hitboxRadius: 14,
+      damageType: "physical",
     },
     {
       skillId: "shadow_step",
@@ -176,12 +201,14 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       recoveryMs: 300,
       halfAngleRadians: (48 * Math.PI) / 180,
       hitboxRadius: 12,
+      damageType: "physical",
     },
     {
       skillId: "shadow_dance",
       shape: "shadow_dance",
       anticipationMs: 180,
       recoveryMs: 420,
+      damageType: "physical",
     },
   ],
 };
@@ -197,6 +224,7 @@ const STANDARD_MONSTER_ACTION: MonsterActionDefinition = {
   recoveryMs: 500,
   range: 42,
   hitboxRadius: 18,
+  damageType: "physical",
 };
 
 export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefinition>> = {
@@ -204,7 +232,13 @@ export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefin
   torch_goblin: { ...STANDARD_MONSTER_ACTION, anticipationMs: 460, hitboxRadius: 16 },
   // A hex is thrown, so it reaches further than a spear and takes longer to shape. Still a melee
   // capsule: monsters have no projectile shape, so the reach is the honest approximation.
-  hex_shaman: { ...STANDARD_MONSTER_ACTION, anticipationMs: 620, recoveryMs: 640, range: 74 },
+  hex_shaman: {
+    ...STANDARD_MONSTER_ACTION,
+    anticipationMs: 620,
+    recoveryMs: 640,
+    range: 74,
+    damageType: "magical",
+  },
   // A charge: the shortest wind-up in the bestiary — but still 400ms, because every monster strike
   // must be telegraphed long enough to be answered (pinned in `combat-actions.test.ts`). Its speed
   // reads through the tiny reach and the long recovery while it wheels around, not through a
@@ -252,6 +286,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 112,
     damageMultiplier: 1.45,
     shape: "circle",
+    damageType: "physical",
   },
   shadow_cone: {
     anticipationMs: 720,
@@ -260,6 +295,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 168,
     damageMultiplier: 1.3,
     shape: "cone",
+    damageType: "magical",
     halfAngleRadians: Math.PI / 3,
   },
   soul_drain: {
@@ -269,6 +305,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 128,
     damageMultiplier: 1.05,
     shape: "circle",
+    damageType: "magical",
     healRatio: 0.65,
   },
   spear_fan: {
@@ -278,6 +315,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 160,
     damageMultiplier: 1.2,
     shape: "cone",
+    damageType: "physical",
     halfAngleRadians: Math.PI / 4,
   },
   fire_burst: {
@@ -287,6 +325,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 120,
     damageMultiplier: 1.35,
     shape: "circle",
+    damageType: "magical",
   },
   marauder_frenzy: {
     anticipationMs: 680,
@@ -295,6 +334,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 145,
     damageMultiplier: 1.55,
     shape: "cone",
+    damageType: "physical",
     halfAngleRadians: Math.PI / 3,
   },
   bone_cleave: {
@@ -304,6 +344,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 170,
     damageMultiplier: 1.45,
     shape: "cone",
+    damageType: "physical",
     halfAngleRadians: Math.PI / 3,
   },
   grave_siphon: {
@@ -313,6 +354,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 140,
     damageMultiplier: 1.1,
     shape: "circle",
+    damageType: "magical",
     healRatio: 0.5,
   },
   horn_charge: {
@@ -322,6 +364,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 220,
     damageMultiplier: 1.65,
     shape: "cone",
+    damageType: "physical",
     halfAngleRadians: Math.PI / 7,
   },
   labyrinth_stomp: {
@@ -331,6 +374,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 155,
     damageMultiplier: 1.5,
     shape: "circle",
+    damageType: "physical",
   },
   troll_quake: {
     anticipationMs: 1_100,
@@ -339,6 +383,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 180,
     damageMultiplier: 1.7,
     shape: "circle",
+    damageType: "physical",
   },
   troll_sweep: {
     anticipationMs: 880,
@@ -347,6 +392,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 200,
     damageMultiplier: 1.45,
     shape: "cone",
+    damageType: "physical",
     halfAngleRadians: Math.PI / 2.5,
   },
   hex_burst: {
@@ -356,6 +402,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 170,
     damageMultiplier: 1.25,
     shape: "circle",
+    damageType: "magical",
   },
   tusk_charge: {
     anticipationMs: 650,
@@ -364,6 +411,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 175,
     damageMultiplier: 1.5,
     shape: "cone",
+    damageType: "physical",
     halfAngleRadians: Math.PI / 7,
   },
   mounted_trample: {
@@ -373,6 +421,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     range: 190,
     damageMultiplier: 1.55,
     shape: "cone",
+    damageType: "physical",
     halfAngleRadians: Math.PI / 5,
   },
 } as const satisfies Readonly<

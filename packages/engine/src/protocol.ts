@@ -30,6 +30,7 @@ import {
   OFF_HAND_ITEMS,
   type PrimaryColor,
 } from "./character.js";
+import type { CombatStats } from "./combat-stats.js";
 import {
   CONSUMABLE_IDS,
   type ConsumableCounts,
@@ -213,6 +214,8 @@ export interface SelfState {
   cooldowns?: CombatCooldownState;
   /** Present on current servers; optional so an in-flight older welcome remains readable. */
   talents?: TalentState;
+  /** Effective ratios after class identity and authored bonuses. */
+  combatStats?: CombatStats;
   /** Absolute server deadline shared by every consumable. */
   consumableCooldownUntil?: number;
   effects?: {
@@ -482,6 +485,8 @@ export const EVENT_CODES = [
   "wake",
   "combat.hit",
   "combat.hurt",
+  "combat.dodged",
+  "combat.parried",
   "monster.defeated",
   "level_up",
   "interact.nothing",
@@ -1141,6 +1146,29 @@ function isSelfState(value: unknown): value is SelfState {
       !talents.selected.every(isTalentId) ||
       !isNonNegativeInteger(talents.pointsSpent) ||
       !isNonNegativeInteger(talents.pointsAvailable)
+    ) {
+      return false;
+    }
+  }
+  if (value.combatStats !== undefined) {
+    const stats = value.combatStats;
+    if (
+      !isRecord(stats) ||
+      !isFiniteNumber(stats.dodgeChance) ||
+      stats.dodgeChance < 0 ||
+      stats.dodgeChance > 1 ||
+      !isFiniteNumber(stats.parryChance) ||
+      stats.parryChance < 0 ||
+      stats.parryChance > 1 ||
+      !isFiniteNumber(stats.physicalResistance) ||
+      stats.physicalResistance < 0 ||
+      stats.physicalResistance > 1 ||
+      !isFiniteNumber(stats.magicalResistance) ||
+      stats.magicalResistance < 0 ||
+      stats.magicalResistance > 1 ||
+      !isFiniteNumber(stats.criticalChance) ||
+      stats.criticalChance < 0 ||
+      stats.criticalChance > 1
     ) {
       return false;
     }

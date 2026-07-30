@@ -2144,6 +2144,27 @@ kbd {
   color: #9eb8ab;
   font-size: 0.75rem;
 }
+.combat-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+}
+.combat-stat-grid > div {
+  padding: 0.5rem;
+  border: 1px solid rgb(142 215 195 / 28%);
+  border-radius: 0.35rem;
+  background: rgb(142 215 195 / 6%);
+}
+.combat-stat-grid dt {
+  color: #b8cec7;
+  font-size: 0.68rem;
+}
+.combat-stat-grid dd {
+  margin: 0.15rem 0 0;
+  color: #f6df9d;
+  font-weight: 700;
+}
 .item-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2276,6 +2297,9 @@ kbd {
 }
 
 @media (max-width: 700px) {
+  .combat-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .item-grid {
     grid-template-columns: 1fr;
   }

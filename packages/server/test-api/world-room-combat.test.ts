@@ -339,6 +339,8 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const target = playerOf(state, host.heroId); // the wind-up's chosen target
     const bystander = playerOf(state, guest.heroId);
+    // This test isolates strike geometry; start below both avoidance thresholds so contact lands.
+    bystander.combatEntropy = { dodge: 0, parry: 0, critical: 0 };
 
     let t = Date.now() + 1_000;
     const { w, sent } = testGlue(state, () => t);

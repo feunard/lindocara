@@ -80,6 +80,8 @@ export function InventoryOverlay() {
     selfState?.inventory.consumables,
     selfState?.inventory.potions ?? 0,
   );
+  const combatStats = selfState?.combatStats;
+  const percentage = (value: number) => `${Math.round(value * 100)} %`;
 
   return (
     <section
@@ -113,6 +115,30 @@ export function InventoryOverlay() {
       <p className="item-overlay__hint item-overlay__hint--controller">
         {t("inventory.controller_hint")}
       </p>
+      {combatStats ? (
+        <dl className="combat-stat-grid" aria-label={t("combat_stats.title")}>
+          <div>
+            <dt>{t("combat_stats.dodge")}</dt>
+            <dd>{percentage(combatStats.dodgeChance)}</dd>
+          </div>
+          <div>
+            <dt>{t("combat_stats.parry")}</dt>
+            <dd>{percentage(combatStats.parryChance)}</dd>
+          </div>
+          <div>
+            <dt>{t("combat_stats.physical_resistance")}</dt>
+            <dd>{percentage(combatStats.physicalResistance)}</dd>
+          </div>
+          <div>
+            <dt>{t("combat_stats.magical_resistance")}</dt>
+            <dd>{percentage(combatStats.magicalResistance)}</dd>
+          </div>
+          <div>
+            <dt>{t("combat_stats.critical")}</dt>
+            <dd>{percentage(combatStats.criticalChance)}</dd>
+          </div>
+        </dl>
+      ) : null}
       <div className="item-grid">
         {CONSUMABLE_IDS.map((item, itemIndex) => (
           <article

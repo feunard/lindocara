@@ -23,6 +23,12 @@ import {
   MONSTER_SPECIAL_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
 import {
+  combatStatsForClass,
+  type DamageType,
+  resolveCriticalDamage,
+  resolveIncomingAttack,
+} from "@lindocara/engine/combat-stats.js";
+import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLE_MAX_STACK,
   CONSUMABLES,
@@ -395,6 +401,7 @@ interface PendingQuestConversation {
 }
 
 interface MonsterDamageContext {
+  damageType?: DamageType;
   damageOverTime?: boolean;
   persistentOwnerCredit?: boolean;
   poisonRupture?: boolean;
@@ -2386,6 +2393,7 @@ export class World extends DurableObject<Env> {
         );
         if (consumedPower > 0) {
           this.#damageMonster(socket, player, target, skill, now, false, consumedPower, {
+            damageType: "magical",
             poisonRupture: true,
           });
         }
@@ -2789,16 +2797,20 @@ export class World extends DurableObject<Env> {
       (basic
         ? attackDamageFor(player.class, player.level)
         : skill.power + Math.max(0, player.level - 1) * 2);
-    const damage = Math.max(
-      1,
-      Math.round(
-        baseDamage *
-          (opening ? 1 + opening.bonusRatio : 1) *
-          (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
-          (1 + activeRallyPowerMultiplier(player, now)) *
-          (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
-      ),
+    const criticalOutcome = resolveCriticalDamage(
+      baseDamage *
+        (opening ? 1 + opening.bonusRatio : 1) *
+        (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
+        (1 + activeRallyPowerMultiplier(player, now)) *
+        (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
+      combatStatsForClass(player.class),
+      player.combatEntropy,
+      !context.damageOverTime && !context.poisonRupture,
     );
+    player.combatEntropy = criticalOutcome.entropy;
+    const damage = criticalOutcome.damage;
+    const damageType =
+      context.damageType ?? actionForClassSlot(player.class, skill.slot).damageType ?? "physical";
     const actualDamage = Math.min(target.hp, damage);
     const result = applyDamage(target.hp, damage);
     target.hp = result.hp;
@@ -2823,6 +2835,8 @@ export class World extends DurableObject<Env> {
             damage: actualDamage,
             skill: skill.id,
             actorId: player.id,
+            damageType,
+            ...(criticalOutcome.critical ? { critical: 1 } : {}),
             ...(basic ? { basic: 1 } : {}),
             ...(context.damageOverTime ? { poisonTick: 1 } : {}),
             ...(context.poisonRupture ? { poisonRupture: 1 } : {}),
@@ -4314,6 +4328,7 @@ export class World extends DurableObject<Env> {
         if (!sourceSocket || !source || !target || !baseSkill) return;
         const skill = skillWithTalents(source.class, source.talents, baseSkill.slot);
         this.#damageMonster(sourceSocket, source, target, skill, now, false, tick.power, {
+          damageType: "magical",
           damageOverTime: true,
           persistentOwnerCredit: true,
         });
@@ -5553,6 +5568,7 @@ export class World extends DurableObject<Env> {
       1,
       Math.round(monster.damage * (specialDefinition?.damageMultiplier ?? 1)),
     );
+    const damageType = specialDefinition?.damageType ?? definition.damageType;
     let drainedDamage = 0;
     const hits = (target: Vec2, radius: number): boolean => {
       if (!hasLineOfSight(monster, target, this.#zone().terrain.tiles)) return false;
@@ -5577,8 +5593,15 @@ export class World extends DurableObject<Env> {
         !hits(player, PLAYER_SIZE / 2)
       )
         continue;
-      this.#damagePlayer(socket, player, damage, monster.species, monster.id, now);
-      drainedDamage += damage;
+      drainedDamage += this.#damagePlayer(
+        socket,
+        player,
+        damage,
+        damageType,
+        monster.species,
+        monster.id,
+        now,
+      );
     }
     for (const guard of this.#guards) {
       if (!hits(guard, PLAYER_SIZE / 2)) continue;
@@ -5597,15 +5620,35 @@ export class World extends DurableObject<Env> {
     ws: WebSocket,
     player: Player,
     damage: number,
+    damageType: DamageType,
     species: MonsterSpecies,
     monsterId: string,
     now: number,
-  ): void {
-    if (isPlayerInvulnerable(player, now)) return;
+  ): number {
+    if (isPlayerInvulnerable(player, now)) return 0;
     const stealthEnded = exitRogueStealth(player, now);
+    const incoming = resolveIncomingAttack(
+      damage,
+      damageType,
+      combatStatsForClass(player.class),
+      player.combatEntropy,
+    );
+    player.combatEntropy = incoming.entropy;
+    if (incoming.avoidedBy) {
+      this.#send(ws, {
+        t: "event",
+        code: incoming.avoidedBy === "dodge" ? "combat.dodged" : "combat.parried",
+        params: { species, monsterId, damageType },
+        tone: "good",
+        x: player.x,
+        y: player.y,
+      });
+      if (stealthEnded) this.#sendState(ws, player);
+      return 0;
+    }
     const protectedDamage = damageAfterWarriorProtection(
       player,
-      damage,
+      incoming.damage,
       this.#players.values(),
       now,
       (source, target) => this.#areCombatAllies(source, target),
@@ -5641,7 +5684,7 @@ export class World extends DurableObject<Env> {
         );
       }
       if (stealthEnded) this.#sendState(ws, player);
-      return;
+      return 0;
     }
     player.hp = result.hp;
     generateResource(player.class, player.resource, "damage_taken", appliedDamage);
@@ -5650,13 +5693,14 @@ export class World extends DurableObject<Env> {
       t: "event",
       code: "combat.hurt",
       // Keep the damage event tied to the same authoritative attacker as the spatial animation.
-      params: { species, damage: appliedDamage, monsterId },
+      params: { species, damage: appliedDamage, damageType, monsterId },
       tone: "bad",
       x: player.x,
       y: player.y,
     });
     if (result.killed) this.#killPlayer(ws, player);
     this.#sendState(ws, player);
+    return appliedDamage;
   }
 
   /** Dying does not move you. Your body stays exactly where it fell, and you wait over it. */
