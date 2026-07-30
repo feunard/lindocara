@@ -11,6 +11,7 @@
       "!.vendor",
       "!packages/server/src/worker-configuration.d.ts",
       "!packages/server/migrations/meta",
+      "!apps/main/migrations",
       "!packages/catalog/assets/index.json",
       "!packages/catalog/assets/lindocara-asset-catalog.json",
       "!packages/client/public/assets/lindocara/tiny-swords/catalog.json",

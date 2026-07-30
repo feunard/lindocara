@@ -12,6 +12,7 @@ import { AppSecurityProvider } from "./providers/AppSecurityProvider.js";
 import { PartyRoom } from "./realtime/PartyRoom.js";
 import { PresenceRoom } from "./realtime/PresenceRoom.js";
 import { WorldRoom } from "./realtime/WorldRoom.js";
+import { WebSocketTransportCapProvider } from "./websocketTransportCap.js";
 
 // `LindocaraApi` is the module every later tranche 1 controller registers
 // into. `$module()` already returns a Service class — mirroring
@@ -33,6 +34,11 @@ import { WorldRoom } from "./realtime/WorldRoom.js";
 // The three realtime rooms MUST be listed (Task 4): nothing else constructs
 // them, so an unlisted room means no `/ws/world` endpoint, no presence lease
 // authority and no party coordinator in the running app.
+//
+// `WebSocketTransportCapProvider` MUST also be listed explicitly (see its own
+// docblock): nothing else constructs it, so leaving it out means the
+// transport-level WebSocket frame cap silently reverts to the framework's
+// 1 MiB default instead of this app's 16 KiB one.
 export const LindocaraApi = $module({
   name: "lindocara.api",
   imports: [AlephaWebSocket],
@@ -49,5 +55,6 @@ export const LindocaraApi = $module({
     PresenceRoom,
     PartyRoom,
     WorldRoom,
+    WebSocketTransportCapProvider,
   ],
 });

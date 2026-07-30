@@ -25,6 +25,10 @@ export default defineConfig({
           // typecheck and the vitest projects share no state — parallel.
           await run(["npm run typecheck", "npm test"]);
 
+          // Catches schema drift (an edited entity with no matching migration) before it ships —
+          // cheap (boots the app once, no build), so it stays in even under --fast.
+          await run("npm run check:migrations -w @lindocara/main");
+
           if (flags.fast) return;
 
           // Content checks stay sequential: map:check regenerates tracked

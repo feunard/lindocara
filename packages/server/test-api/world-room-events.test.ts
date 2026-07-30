@@ -167,6 +167,24 @@ afterEach(async () => {
   await alepha.stop();
 });
 
+/**
+ * `WorldRoom.env` (`websocketTransportCap.ts`'s conversion sibling, `worldRoomEnvSchema`)
+ * resolves `CHEATS_ENABLED` through `$env` once at construction — matching real Cloudflare
+ * Workers semantics, where there is no live env to mutate mid-request. A test proving the cheat
+ * gate is actually ON must therefore boot its own app with the env var already set, rather than
+ * flip `process.env` under the app `beforeEach` already started.
+ */
+async function bootAppWithCheats(): Promise<void> {
+  await alepha.stop();
+  process.env.CHEATS_ENABLED = "true";
+  alepha = createTestApp();
+  probe = alepha.inject(Probe);
+  partyRoom = alepha.inject(PartyRoom);
+  presenceRoom = alepha.inject(PresenceRoom);
+  await alepha.start();
+  hostname = alepha.inject(ServerProvider).hostname;
+}
+
 async function registerAndLogin(prefix: string): Promise<{ token: string; userId: string }> {
   userCount += 1;
   const username = `${prefix}${userCount}`;
@@ -621,8 +639,12 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
-  test("/tp works only with CHEATS_ENABLED and moves the hero server-side", async () => {
-    const fixture = await newPlayableParty("cheattp", []);
+  // Split in two (was one test flipping `process.env.CHEATS_ENABLED` mid-test): `WorldRoom.env`
+  // now resolves `CHEATS_ENABLED` through `$env` once at construction, so a value change after
+  // the app has booted no longer has any effect — see `bootAppWithCheats`'s docblock above.
+  test("/tp is refused when CHEATS_ENABLED is not set", async () => {
+    // `beforeEach` boots with `CHEATS_ENABLED` unset, matching the schema's `false` default.
+    const fixture = await newPlayableParty("cheattpoff", []);
     const clock = new FakeClock();
     const engine = createEngine(fixture.roomId, clock);
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
@@ -631,7 +653,6 @@ describe("world room events (FakeClock)", () => {
     const player = playerOf(state, fixture.heroId);
     const before = { x: player.x, y: player.y };
 
-    delete process.env.CHEATS_ENABLED;
     await engine.message(socket.id, { t: "chat", text: "/tp 5 3" });
     expect(player.x).toBe(before.x);
     expect(player.y).toBe(before.y);
@@ -640,8 +661,19 @@ describe("world room events (FakeClock)", () => {
         (message) => message.t === "event" && message.code === "cheat.disabled",
       ),
     ).toBe(true);
+    engine.dispose();
+  });
 
-    process.env.CHEATS_ENABLED = "true";
+  test("/tp moves the hero server-side once CHEATS_ENABLED is set", async () => {
+    await bootAppWithCheats();
+    const fixture = await newPlayableParty("cheattpon", []);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const player = playerOf(state, fixture.heroId);
+
     await engine.message(socket.id, { t: "chat", text: "/tp 5 3" });
     const destination = eventCellCentre({ col: 5, row: 3 });
     expect(player.x).toBe(destination.x);

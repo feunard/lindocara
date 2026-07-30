@@ -7,6 +7,8 @@
     "dev": "alepha dev",
     "build": "alepha build",
     "deploy": "alepha platform up -e production",
+    "db:generate": "alepha db migrations create",
+    "check:migrations": "alepha db migrations check",
     "dev:legacy": "node ../../scripts/prepare-local-env.mjs && vite dev --config vite.legacy.config.ts",
     "build:legacy": "vite build --config vite.legacy.config.ts",
     "preview": "vite preview --config vite.legacy.config.ts",

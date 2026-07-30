@@ -132,6 +132,25 @@ afterEach(async () => {
   await alepha.stop();
 });
 
+/**
+ * `WorldRoom.env` (`websocketTransportCap.ts`'s conversion sibling, `worldRoomEnvSchema`)
+ * resolves `CHEATS_ENABLED` through `$env` once at construction — matching real Cloudflare
+ * Workers semantics, where there is no live env to mutate mid-request. A test that only needs the
+ * `/tp` cheat as SETUP plumbing (moving a hero onto an exit tile deterministically, not exercising
+ * the gate itself) must boot its own app with the env var already set, rather than flip
+ * `process.env` under the app `beforeEach` already started.
+ */
+async function bootAppWithCheats(): Promise<void> {
+  await alepha.stop();
+  process.env.CHEATS_ENABLED = "true";
+  alepha = createTestApp();
+  probe = alepha.inject(Probe);
+  presenceRoom = alepha.inject(PresenceRoom);
+  partyRoom = alepha.inject(PartyRoom);
+  await alepha.start();
+  hostname = alepha.inject(ServerProvider).hostname;
+}
+
 async function registerAndLogin(prefix: string): Promise<{ token: string; userId: string }> {
   userCount += 1;
   const username = `${prefix}${userCount}`;
@@ -541,7 +560,7 @@ function openWorldSocket(roomId: string, heroId: string, token: string): SocketP
 
 describe("adventure exit, end-to-end over real sockets", () => {
   test("closes 4008, persists the destination in D1, and a fresh join lands there", async () => {
-    process.env.CHEATS_ENABLED = "true";
+    await bootAppWithCheats();
     const fixture = await twoMapAdventure("exite2e");
     const beforeRow = await probe.heroes.findById(fixture.heroId);
     if (!beforeRow) throw new Error("hero row missing");

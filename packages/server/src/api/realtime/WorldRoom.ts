@@ -62,7 +62,7 @@ import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
 import type { ZoneLocation } from "@lindocara/engine/zones.js";
-import { $hook, $inject, z } from "alepha";
+import { $env, $hook, $inject, z } from "alepha";
 import { $repository, sql } from "alepha/orm";
 import {
   $room,
@@ -149,6 +149,35 @@ export const PRESENCE_HEARTBEAT_MS = 10_000;
 
 const PARTY_ID_ROW_SCHEMA = z.object({ id: z.uuid() });
 
+/**
+ * `NAVIGATION_DEBUG`/`CHEATS_ENABLED` were raw `process.env` reads — harmless in Node dev/test,
+ * but `process.env` does not exist on the Cloudflare Workers runtime this app deploys to. Reading
+ * through `$env` instead sources them from `alepha.env` (populated from the Workers `env` binding
+ * by `Alepha#loadEnv`, or from `process.env` in Node), and — the actual point of the
+ * conversion — declaring them here puts both in the manifest's `$env` allowlist, which is what
+ * `alepha platform up` pushes as Cloudflare secrets/vars. Neither flag is meant to change while a
+ * deployed Worker instance is running (matching real Workers semantics, where there is no live
+ * env to mutate mid-request), so a `$env` field resolved once at `WorldRoom` construction — not a
+ * per-message re-read — is the correct shape; dev/test toggles that need a NEW value must boot a
+ * fresh app with the env var already set (see `test-api/helpers.ts` callers).
+ */
+export const worldRoomEnvSchema = z.object({
+  NAVIGATION_DEBUG: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Enables per-player opt-in to the server-authoritative monster-navigation debug overlay " +
+        '(`navigation.debug` messages). Off unless the string "true".',
+    ),
+  CHEATS_ENABLED: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Enables dev/test-only chat cheats (e.g. `/tp`). Must stay off in production unless " +
+        'explicitly enabled. Off unless the string "true".',
+    ),
+});
+
 type WorldSchemas =
   RealtimeChannels["worldChannel"] extends ChannelPrimitive<infer TIn, infer TOut>
     ? { in: TIn; out: TOut }
@@ -170,6 +199,7 @@ export class WorldRoom {
   adventureStateService = $inject(AdventureStateService);
   adventureService = $inject(AdventureService);
   mapService = $inject(MapService);
+  env = $env(worldRoomEnvSchema);
 
   parties = $repository(parties);
   adventures = $repository(adventures);
@@ -530,7 +560,7 @@ export class WorldRoom {
     message: ClientMessage,
   ): void | Promise<void> {
     if (message.t === "navigation.debug") {
-      if (process.env.NAVIGATION_DEBUG === "true") player.navigationDebug = message.enabled;
+      if (this.env.NAVIGATION_DEBUG) player.navigationDebug = message.enabled;
       return;
     }
     if (message.t === "world.resync") {
@@ -828,8 +858,8 @@ export class WorldRoom {
         renewPresence: (player) => this.renewPresence(room, state, player),
         savePlayer: (player, connectionId) => this.savePlayer(room, state, player, connectionId),
         presenceHeartbeatMs: PRESENCE_HEARTBEAT_MS,
-        navigationDebugAvailable: process.env.NAVIGATION_DEBUG === "true",
-        cheatsEnabled: process.env.CHEATS_ENABLED === "true",
+        navigationDebugAvailable: this.env.NAVIGATION_DEBUG,
+        cheatsEnabled: this.env.CHEATS_ENABLED,
         markPermanentMonsterDefeated: (eventId) => {
           void this.partyRoom.room
             .call(state.partyId, "markPermanentMonsterDefeated", eventId)
@@ -1440,7 +1470,7 @@ export class WorldRoom {
       playerGrid: state.playerGrid,
       monsterGrid: state.monsterGrid,
       lootGrid: state.lootGrid,
-      navigationDebugAvailable: process.env.NAVIGATION_DEBUG === "true",
+      navigationDebugAvailable: this.env.NAVIGATION_DEBUG,
       now: Date.now,
     };
   }
