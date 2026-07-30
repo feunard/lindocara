@@ -1,14 +1,40 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { $inject, AlephaError } from "alepha";
 import type { RunnerMethod } from "alepha/command";
+import { DateTimeProvider } from "alepha/datetime";
 import { $logger } from "alepha/logger";
 import { FileSystemProvider, ShellProvider } from "alepha/system";
+import type { BayCredential } from "../providers/BayCredentialProvider.ts";
+import { BayCredentialProvider } from "../providers/BayCredentialProvider.ts";
 import {
   PlatformAdapter,
   type PlatformContext,
   type PlatformState,
 } from "./PlatformAdapter.ts";
+
+/**
+ * How the CLI identifies itself to the authorization server.
+ */
+const CLIENT_ID = "alepha-cli";
+
+/**
+ * How long before expiry a token is renewed.
+ *
+ * A minute, because the token is checked once and then used for a whole
+ * deploy: one that is valid at the check and dead by the upload fails halfway
+ * through, which is far worse than renewing slightly too often.
+ */
+const TOKEN_REFRESH_SKEW_MS = 60_000;
+
+/**
+ * The subset of an OAuth token response this adapter stores.
+ */
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  error?: string;
+}
 
 /**
  * Deploys to Alepha Bay — a self-hosted application server on a machine you own.
@@ -29,6 +55,8 @@ export class BayAdapter extends PlatformAdapter {
   protected readonly log = $logger();
   protected readonly fs = $inject(FileSystemProvider);
   protected readonly shell = $inject(ShellProvider);
+  protected readonly credentials = $inject(BayCredentialProvider);
+  protected readonly dateTime = $inject(DateTimeProvider);
 
   /**
    * The Bay whose control panel this deploys through.
@@ -52,40 +80,250 @@ export class BayAdapter extends PlatformAdapter {
   /**
    * Reads the credential, without ever printing it.
    *
-   * An API key rather than an interactive login because `alepha platform up`
-   * runs in CI as often as on a laptop, and a device flow has nobody there to
-   * complete it. An interactive login is worth adding later as a convenience
-   * for a developer's machine; it cannot replace this.
+   * `$BAY_API_KEY` first, so CI supplies one with no file and no login. A laptop
+   * gets one from `alepha platform auth login`, which is the same currency —
+   * one kind of credential in the whole system, revocable in one place.
    */
-  protected async apiKey(): Promise<string> {
-    const fromEnv = process.env.BAY_API_KEY;
-    if (fromEnv) {
-      return fromEnv;
+  protected async apiKey(ctx: PlatformContext): Promise<string> {
+    const endpoint = this.endpoint(ctx);
+    const credential = await this.credentials.get(endpoint);
+    if (!credential) {
+      throw new AlephaError(
+        `Not logged in to ${endpoint}. Run \`alepha platform auth login --env ${ctx.env}\`, ` +
+          "or export BAY_API_KEY for a non-interactive caller.",
+      );
     }
-    // A file so the key never has to live in shell history, and so CI and a
-    // laptop use the same code path.
-    const path = join(
-      process.env.HOME ?? ".",
-      ".config",
-      "alepha",
-      "bay-api-key",
+    return await this.usableToken(endpoint, ctx.env, credential);
+  }
+
+  /**
+   * Returns an access token that will still be accepted when it is used.
+   *
+   * Access tokens last fifteen minutes and refresh tokens thirty days, so
+   * without this a login is unusable a quarter of an hour later — and the
+   * failure arrives as a bare 401 from whatever call happened to be next.
+   *
+   * Renewed slightly early: a token that passes the check and expires during
+   * the upload fails halfway through a deploy, which is the worst moment to
+   * discover it.
+   */
+  protected async usableToken(
+    endpoint: string,
+    env: string,
+    credential: BayCredential,
+  ): Promise<string> {
+    const expiresSoon =
+      credential.expiresAt !== undefined &&
+      credential.expiresAt - this.dateTime.nowMillis() < TOKEN_REFRESH_SKEW_MS;
+    if (!expiresSoon) {
+      return credential.accessToken;
+    }
+    if (!credential.refreshToken) {
+      // Nothing to renew from — an API key, or a credential stored before
+      // refresh tokens were kept. Say so instead of sending a dead token.
+      throw new AlephaError(
+        `Your login to ${endpoint} has expired. ` +
+          `Run \`alepha platform auth login --env ${env}\`.`,
+      );
+    }
+
+    const res = await this.post(`${endpoint}/oauth/token`, {
+      grant_type: "refresh_token",
+      refresh_token: credential.refreshToken,
+      client_id: CLIENT_ID,
+    });
+    if (!res.ok) {
+      // A refresh token is good for thirty days; past that, or once revoked,
+      // there is exactly one thing to do and no point guessing why.
+      throw new AlephaError(
+        `Your login to ${endpoint} has expired and could not be renewed ` +
+          `(${res.status}). Run \`alepha platform auth login --env ${env}\`.`,
+      );
+    }
+    const renewed = this.toCredential(
+      res.body as TokenResponse,
+      credential.refreshToken,
     );
-    try {
-      const body = await readFile(path, "utf8");
-      const key = body.trim();
-      if (key) {
-        return key;
+    await this.credentials.set(endpoint, renewed);
+    this.log.debug(`Renewed the credential for ${endpoint}`);
+    return renewed.accessToken;
+  }
+
+  /**
+   * Shapes a token endpoint response for storage.
+   *
+   * `previousRefresh` is kept when the server does not rotate: dropping it
+   * would silently turn a thirty-day login into a fifteen-minute one.
+   */
+  protected toCredential(
+    body: TokenResponse,
+    previousRefresh?: string,
+  ): BayCredential {
+    return {
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token ?? previousRefresh,
+      expiresAt: body.expires_in
+        ? this.dateTime.nowMillis() + body.expires_in * 1000
+        : undefined,
+    };
+  }
+
+  /**
+   * Waits between polls.
+   *
+   * A seam for the same reason as `post`: the back-off is the part worth
+   * testing, and a test that honoured it would take half a minute to prove one
+   * addition.
+   */
+  protected async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * One place where this adapter speaks JSON to the authorization server.
+   *
+   * A seam, not an abstraction: every OAuth call here is the same shape, and
+   * routing them through one method is what lets a test substitute the network
+   * without `vi.mock` — which this codebase does not use.
+   */
+  protected async post(
+    url: string,
+    body: Record<string, unknown>,
+  ): Promise<{ ok: boolean; status: number; body: unknown }> {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { ok: res.ok, status: res.status, body: await res.json() };
+  }
+
+  /**
+   * Obtains a credential through the device grant (RFC 8628).
+   *
+   * The flow exists because a terminal cannot receive a browser redirect: it
+   * prints a short code, the human approves it in a session that already
+   * exists, and the CLI polls until it does. Nothing secret is ever typed into
+   * the terminal, and nothing lands in shell history.
+   */
+  async login(ctx: PlatformContext, run: RunnerMethod): Promise<void> {
+    const endpoint = this.endpoint(ctx);
+
+    const start = await this.post(`${endpoint}/oauth/device_authorization`, {
+      client_id: CLIENT_ID,
+      scope: "deploy",
+    });
+    if (!start.ok) {
+      throw new AlephaError(
+        `${endpoint} does not offer a device login (${start.status}). ` +
+          "Is it a Bay admin panel, and is its OAuth server enabled?",
+      );
+    }
+    const grant = start.body as {
+      device_code: string;
+      user_code: string;
+      verification_uri: string;
+      verification_uri_complete?: string;
+      interval?: number;
+      expires_in?: number;
+    };
+
+    // Printed, not logged: this is the one moment the user must read something,
+    // and a log prefix in front of it makes it harder to see, not easier.
+    process.stdout.write(
+      `\n  Open       ${grant.verification_uri_complete ?? grant.verification_uri}\n` +
+        `  Your code  ${grant.user_code}\n\n`,
+    );
+
+    // Assigned rather than returned: the runner logs whatever its handler
+    // returns, and this is a bearer token. Returning it would print it in the
+    // terminal and into every CI log that ever runs this command.
+    let credential: BayCredential | undefined;
+    await run({
+      name: "waiting for approval",
+      handler: async () => {
+        credential = await this.pollForToken(endpoint, grant.device_code, {
+          intervalMs: (grant.interval ?? 5) * 1000,
+          // One second less than the server's own expiry, so the CLI gives up
+          // just before the code does and can say why rather than reporting
+          // whatever the server returns at the boundary.
+          deadline:
+            this.dateTime.nowMillis() + ((grant.expires_in ?? 600) - 1) * 1000,
+        });
+      },
+    });
+
+    await this.credentials.set(endpoint, credential!);
+    this.log.info(`Logged in to ${endpoint}`);
+  }
+
+  async logout(ctx: PlatformContext, _run: RunnerMethod): Promise<void> {
+    const endpoint = this.endpoint(ctx);
+    const had = await this.credentials.clear(endpoint);
+    this.log.info(
+      had
+        ? `Forgot the credential for ${endpoint}. It is still valid — revoke it in the admin UI to be sure.`
+        : `No stored credential for ${endpoint}.`,
+    );
+  }
+
+  /**
+   * Polls the token endpoint until the human answers.
+   *
+   * Every branch here is an error string RFC 8628 defines, and each means
+   * something different to do: keep waiting, back off, stop because the user
+   * said no, stop because the code died. Treating them alike would either spin
+   * forever on a refusal or give up on a slow user.
+   */
+  protected async pollForToken(
+    endpoint: string,
+    deviceCode: string,
+    opts: { intervalMs: number; deadline: number },
+  ): Promise<BayCredential> {
+    let wait = opts.intervalMs;
+    while (this.dateTime.nowMillis() < opts.deadline) {
+      await this.sleep(wait);
+
+      const res = await this.post(`${endpoint}/oauth/token`, {
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        device_code: deviceCode,
+        client_id: CLIENT_ID,
+      });
+      const body = res.body as TokenResponse;
+
+      if (res.ok && body.access_token) {
+        // The refresh token is the whole point of keeping a record: without it
+        // this login stops working fifteen minutes from now.
+        return this.toCredential(body);
       }
-    } catch {}
+      switch (body.error) {
+        case "authorization_pending":
+          continue;
+        case "slow_down":
+          // The server is telling us we are too fast; obeying is the whole
+          // point of it saying so.
+          wait += 5000;
+          continue;
+        case "access_denied":
+          throw new AlephaError("Login refused.");
+        case "expired_token":
+          throw new AlephaError(
+            "The code expired before it was approved. Run the command again.",
+          );
+        default:
+          throw new AlephaError(
+            `Unexpected answer from ${endpoint}: ${body.error ?? res.status}`,
+          );
+      }
+    }
     throw new AlephaError(
-      "No Bay credential. Create an API key in the Bay admin UI, then either " +
-        `export BAY_API_KEY, or write it to ${path}.`,
+      "Gave up waiting for approval. Run the command again when you are ready.",
     );
   }
 
   async authenticate(ctx: PlatformContext, _run: RunnerMethod): Promise<void> {
     const endpoint = this.endpoint(ctx);
-    const key = await this.apiKey();
+    const key = await this.apiKey(ctx);
     // Fail here rather than after a two-minute build. `authenticate` runs first
     // precisely so a bad credential costs a second, not a full pipeline.
     const res = await fetch(`${endpoint}/api/bay/status`, {
@@ -132,7 +370,7 @@ export class BayAdapter extends PlatformAdapter {
     run: RunnerMethod,
   ): Promise<string | undefined> {
     const endpoint = this.endpoint(ctx);
-    const key = await this.apiKey();
+    const key = await this.apiKey(ctx);
 
     let artifact = "";
     await run({
@@ -203,7 +441,7 @@ export class BayAdapter extends PlatformAdapter {
 
   async inspect(ctx: PlatformContext): Promise<PlatformState> {
     const endpoint = this.endpoint(ctx);
-    const key = await this.apiKey();
+    const key = await this.apiKey(ctx);
     const res = await fetch(`${endpoint}/api/bay/apps`, {
       headers: { authorization: `Bearer ${key}` },
     });
@@ -248,7 +486,7 @@ export class BayAdapter extends PlatformAdapter {
    */
   async teardown(ctx: PlatformContext, run: RunnerMethod): Promise<void> {
     const endpoint = this.endpoint(ctx);
-    const key = await this.apiKey();
+    const key = await this.apiKey(ctx);
     await run({
       name: `remove ${ctx.project}/${ctx.env}`,
       handler: async () => {
