@@ -1,0 +1,34 @@
+{
+  // `alepha`'s package.json points its "types" condition at raw source (`.vendor/alepha/src/core/
+  // index.ts`, not a compiled .d.ts), so any file importing `alepha`/`alepha/react/router` pulls
+  // the WHOLE framework source tree into whichever program does the resolving, type-checked under
+  // THAT program's compilerOptions — including `alepha/server`/`alepha/system`'s Node-only
+  // providers, reached transitively even from the browser-only `alepha/react/router` entry (tsc
+  // resolves the `types` export condition, not `browser` — there is no way to make it pick the
+  // narrower browser variant for type-checking, since `types` is always first-matched). Under
+  // `tsconfig.json`'s stricter-than-`alepha`-itself bundle (`exactOptionalPropertyTypes`,
+  // `noUncheckedIndexedAccess`, …) that source fails to type-check by the hundreds — none of it
+  // is code this repo owns or should patch. `packages/server/tsconfig.api.json` hit the identical
+  // problem first; this mirrors its fix: a separate program, extending alepha's OWN base config
+  // (which lacks those extra flags) instead of this package's own `tsconfig.json`.
+  //
+  // Scope is deliberately narrow — ONLY the files Task 1 of the alepha react-shell tranche added
+  // that actually import `alepha` (`ui/AppRouter.tsx` + its test), excluded from `tsconfig.json`'s
+  // `include` so they are not double-checked under two incompatible strictness regimes. Later
+  // tasks in that tranche (atoms, navigation, the auth/launch/game/editor routes) will add more
+  // files that import `alepha`/`alepha/react/*` — each one needs adding here AND excluding from
+  // `tsconfig.json`, or (if the alepha surface ends up touching most of the package by the end of
+  // the tranche) this split may be worth reconsidering as one program extending alepha's base for
+  // the whole package instead of two diverging ones. Flagged, not decided, in the Task 1 report.
+  "extends": "../../.vendor/alepha/tsconfig.base.json",
+  "compilerOptions": {
+    // No `lib` override: alepha's own internals (`Alepha.ts`) use ES2024 Iterator Helpers
+    // (`MapIterator.filter`), which `ES2022` doesn't have. Leaving `lib` unset lets it default
+    // from `target: "esnext"` (inherited from the base) — ESNext + DOM, same as
+    // `tsconfig.api.json`'s server twin, which doesn't override `lib` either.
+    "types": ["vite/client", "@testing-library/jest-dom", "node", "bun"],
+    "jsx": "react-jsx",
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src/ui/AppRouter.tsx", "test/app-router.test.tsx"]
+}

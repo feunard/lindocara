@@ -11,6 +11,7 @@
     "@lindocara/engine": "*",
     "@lindocara/renderer": "*",
     "@lindocara/ui": "*",
+    "alepha": "*",
     "class-variance-authority": "^0.7.1",
     "radix-ui": "^1.6.2",
     "react": "^19.2.7",

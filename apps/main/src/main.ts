@@ -1,3 +1,4 @@
+import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
 import { WEBSOCKET_OPTIONS_SEED } from "@lindocara/server/api/websocketTransportCap.js";
@@ -16,8 +17,13 @@ import { Alepha, run } from "alepha";
 // constant across many Alepha instances is an actual cross-test leak). One process only ever
 // calls this once, so it is harmless here today, but a shallow copy costs nothing and keeps this
 // call site correct if that ever changes.
-const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED, ...WEBSOCKET_OPTIONS_SEED }).with(
-  LindocaraApi,
-);
+// `AppRouter` (from `@lindocara/client`, which `@lindocara/server` deliberately does not depend
+// on) is registered here rather than inside `LindocaraApi` — this app is the one workspace that
+// depends on both `client` and `server`, and composing them is exactly its job (see its own
+// AGENTS.md). Registering the `$page` tree is what makes it also serve the shell: with the old
+// `SpaController` deleted, nothing else answers `GET /`.
+const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED, ...WEBSOCKET_OPTIONS_SEED })
+  .with(LindocaraApi)
+  .with(AppRouter);
 
 run(alepha);

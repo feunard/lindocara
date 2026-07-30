@@ -16,6 +16,11 @@ const STORAGE_KEY = "lindocara_locale";
 const listeners = new Set<() => void>();
 
 function detectLocale(): Locale {
+  // Guarded like `input-settings.ts`'s `loadSettings`/`firstConnectedGamepad`: this module is now
+  // reachable from a Node import (the Alepha server entry statically imports the `$page` tree,
+  // which imports the screens, which import `t` from here) with `ssr: false` on the root layout —
+  // the component never renders server-side, but the module still has to EVALUATE without a DOM.
+  if (typeof localStorage === "undefined" || typeof navigator === "undefined") return "en";
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === "en" || stored === "fr") return stored;
   return navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";

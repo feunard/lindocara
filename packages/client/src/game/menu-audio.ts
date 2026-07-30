@@ -41,6 +41,15 @@ function clamp01(value: number): number {
   return value < 0 ? 0 : value > 1 ? 1 : value;
 }
 
+/** `HTMLMediaElement.play()` returns a Promise in every real browser, but jsdom's stub (no
+ *  `HTMLMediaElement` implementation) returns `undefined` — calling `.catch` straight off it then
+ *  throws instead of rejecting. `Promise.resolve` normalizes both shapes so a component that
+ *  starts the bed under jsdom (an app-shell test navigating into the launch menu, say) degrades
+ *  silently instead of crashing the render. */
+function safePlay(el: HTMLMediaElement): void {
+  void Promise.resolve(el.play()).catch(() => undefined);
+}
+
 class MenuAudio {
   #ctx: AudioContext | null = null;
   /** Decoded one-shot samples, keyed by src; and the in-flight loads, so each decodes once. */
@@ -83,7 +92,7 @@ class MenuAudio {
         void this.#ctx?.suspend();
       } else if (this.#musicOn) {
         void this.#ctx?.resume();
-        void this.#music?.play().catch(() => undefined);
+        if (this.#music) safePlay(this.#music);
       }
     });
   }
@@ -184,7 +193,7 @@ class MenuAudio {
     const el = this.#ensureMusic();
     if (!el) return;
     this.#musicOn = true;
-    void el.play().catch(() => undefined);
+    safePlay(el);
     this.#fadeToTarget();
   }
 

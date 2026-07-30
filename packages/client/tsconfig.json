@@ -10,5 +10,8 @@
     "jsx": "react-jsx",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "test"]
+  // `ui/AppRouter.tsx` and its test are excluded here and typechecked by `tsconfig.api.json`
+  // instead — see that file's docblock for why importing `alepha` needs a separate program.
+  "include": ["src", "test"],
+  "exclude": ["src/ui/AppRouter.tsx", "test/app-router.test.tsx"]
 }

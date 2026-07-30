@@ -8,6 +8,14 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("../client/src", import.meta.url)) },
+    // Alepha ships browser/server variants of its react packages behind package.json export
+    // conditions (e.g. `alepha/react/router` -> `index.browser.ts`, which registers the
+    // ReactBrowserProvider/ReactBrowserRendererProvider that actually mount into `#root`). jsdom
+    // tests need the browser condition explicitly — Vitest otherwise resolves the Node/SSR
+    // variant, and `router.push()` would validate routes but never render anything. Mirrors
+    // alepha's own jsdom project config (`vitest.config.ts` in the alepha repo).
+    conditions: ["browser", "module", "import", "default"],
+    mainFields: ["browser", "module", "main"],
   },
   test: {
     name: "client",
