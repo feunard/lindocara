@@ -196,6 +196,8 @@ export class WorldRoom {
         heroId: string,
         progress: Readonly<Record<string, AuthoredQuestProgress>>,
       ) => this.installPersonalQuestProgress(room, heroId, progress),
+      broadcastToAdmitted: (room, message: ServerMessage) =>
+        this.broadcastToAdmitted(room, message),
     },
   };
 
@@ -212,8 +214,15 @@ export class WorldRoom {
       this.partyRoom.pushToRoom = async (roomKey, state, version) => {
         await this.room.call(roomKey, "installAdventureState", state, version);
       };
+      // NOT `this.room.broadcast(roomKey, message)`: `RoomEngine.broadcast` fans out to every
+      // socket the engine has registered, which includes a socket `join()` added to its registry
+      // BEFORE `onJoin` (admission) resolves — and even one `onJoin` goes on to REFUSE, since
+      // nothing removes a refused socket from that registry until its transport-level close event
+      // fires and `leave()` runs (see `broadcastToAdmitted`'s own docblock). Party chat/victory
+      // must reach only players `handleJoin` has actually admitted into `state.players`, so this
+      // routes through the named room method instead of the raw broadcast.
       this.partyRoom.sendToRoom = async (roomKey, message) => {
-        await this.room.broadcast(roomKey, message);
+        await this.room.call(roomKey, "broadcastToAdmitted", message);
       };
       this.partyRoom.pushPersonalToRoom = async (roomKey, heroId, progress) => {
         await this.room.call(roomKey, "installPersonalQuestProgress", heroId, progress);
@@ -1393,6 +1402,27 @@ export class WorldRoom {
       sendStateTo(this.glue(room), connectionId, player);
     } catch (error) {
       this.logError("personal_quest_progress_install_failed", error, { roomId: room.roomId });
+    }
+  }
+
+  /**
+   * The party coordinator's chat/victory fan-out (`PartyRoom.sendToRoom`, wired in
+   * `wirePartySeams`), sent to only this room's ADMITTED players — `state.players`, the map
+   * `handleJoin` populates strictly AFTER a join actually succeeds (never before, and never for a
+   * join it goes on to refuse). Deliberately narrower than `RoomContext.broadcast`/
+   * `RoomEngine.broadcast`, which iterate the engine's raw socket registry: `RoomEngine.join()`
+   * adds a socket to that registry BEFORE awaiting `onJoin`, and nothing removes a refused socket
+   * from it until the transport's own close event fires and `leave()` runs — a real-world gap of
+   * up to one round trip. Routing party-wide messages through the raw broadcast would leak them to
+   * a socket that is still mid-admission, or one `handleJoin` already decided to refuse. Never
+   * throws: `PartyRoom.broadcastToParty` awaits every room's push via `Promise.allSettled` and
+   * only logs a rejection, so a throw here would be swallowed anyway, but there is nothing here
+   * that can throw.
+   */
+  protected broadcastToAdmitted(room: WorldRoomHandle, message: ServerMessage): void {
+    const state = room.state;
+    for (const [connectionId, player] of state.players) {
+      if (player.authorized) this.send(room, connectionId, message);
     }
   }
 
