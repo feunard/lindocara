@@ -23,7 +23,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` main (each sync = its own commit, pinned in `.vendor/vendor.json`) |
 | `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test against the alepha stack (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
-| `npm run typecheck` | one tsc per package + a Node tooling program (see below) |
+| `npm run typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
 | `npm test` | Vitest — every package's project plus the Node-only `server-api` project (see below) |
 | `npm run build` | **alepha build** — bundles `apps/main` for its configured `platform()` adapter (`--target cloudflare` emits a Cloudflare artifact under `apps/main/dist/`; deploy stays frozen, see below) |
 | `npm run build:legacy` | client bundle + deployable `wrangler.json` for the legacy workerd stack |
@@ -38,8 +38,11 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 **`npm run dev` IS the playable game on the pure Alepha stack** (realtime tranche, 2026-07-30):
 the vendored [Alepha](./.vendor/alepha) framework (`packages/server/src/api/`, Node/SQLite in dev)
-now serves `/api/*`, the auth routes, the SPA shell (`SpaController` + `apps/main/src/main.browser.ts`)
-and the realtime rooms under `packages/server/src/api/realtime/` — `/api/join` admission,
+serves `/api/*` and the auth routes; the SPA shell is served by `@lindocara/client`'s
+`ui/AppRouter.tsx` `$page` tree (the react-shell tranche, 2026-07-30 — replaced the deleted
+`SpaController`), registered alongside `LindocaraApi` by `apps/main/src/main.ts`
+(server entry) and mounted browser-side by `apps/main/src/main.browser.ts`. Also served: the
+realtime rooms under `packages/server/src/api/realtime/` — `/api/join` admission,
 `/ws/world` simulation with the full tick order, party coordination, presence leases and
 epoch-fenced hero saves (see `packages/server/AGENTS.md`). The client (`packages/client`) talks
 only to the alepha wire (`resolveJoin` + the `{roomId, message}` envelope in `net.ts`), and
@@ -81,12 +84,17 @@ prefixes in the file map further down map straight onto these homes:
 | [`@lindocara/main`](./apps/main/AGENTS.md) | **the deployable app** — `index.html`, `vite.config.ts`, build/deploy | client, server | build → Worker + assets |
 
 The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client, editor}`, `{client, ui} ←
-editor`; `apps/main` composes `client` + `server` into one deploy. The client App lazy-`import()`s the
-editor at runtime without declaring it, so there is no `client → editor` cycle. Cross-package imports
-use `@lindocara/<pkg>/<file>.js`; the `@` alias means the client source root everywhere.
+editor`; `apps/main` composes `client` + `server` into one deploy. The client's `ui/AppRouter.tsx`
+`editor` route lazy-`import()`s the editor screen at runtime without declaring it, so there is no
+`client → editor` cycle. Cross-package imports use `@lindocara/<pkg>/<file>.js`; the `@` alias means
+the client source root everywhere.
 
-`npm run typecheck` runs every package `tsc` plus the Node tooling program; `npm run typecheck:<pkg>`
-checks one. **Tests are co-located per package** in `packages/<pkg>/test/`, each with its own
+`npm run typecheck` runs every package `tsc`, `apps/main`'s own `tsconfig.json` (covers its
+`main.ts`/`main.browser.ts` bootstrap entries, previously typechecked by no program at all — it
+extends alepha's own base config, the same fix `packages/client/tsconfig.api.json` already needed,
+because both entries import the alepha-flavored `AppRouter`) and the Node tooling program; `npm run
+typecheck:<pkg>` (or `typecheck:main`) checks one. **Tests are co-located per package** in
+`packages/<pkg>/test/`, each with its own
 `vitest.config.ts` (engine/catalog = node, server = workerd/cloudflare-pool, renderer/client/editor =
 jsdom). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything and
 `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`) runs one.
@@ -145,18 +153,54 @@ src/server/     runs in workerd.
   db/           D1 schema + Drizzle.
 
 src/client/     runs in a browser.
-  main.tsx      React entry; mounts <App/> beside the canvas.
-  ui/           React components: screens, HUD, chat, overlays and creator tools.
+  main.tsx      the shared pre-mount bootstrap (locale, theme, the `#stage` canvas — created
+                imperatively, before anything mounts) plus `mountLegacyApp()`, the rollback-only
+                mount point below. The primary path's own mount call lives in
+                `apps/main/src/main.browser.ts`, which boots Alepha and mounts `ui/AppRouter.tsx`.
+  ui/AppRouter.tsx  the Alepha `$page` router that REPLACED the old zustand `screen` state
+                machine (Tasks 1-6 of the react-shell tranche, 2026-07-30): one typed route per
+                screen (`title` `/`, `menu` `/menu`, `credits` `/credits`, `auth` `/auth`,
+                `playContinue` `/play/continue`, `playNew` `/play/new`, `playJoin` `/play/join`,
+                `game` `/game`, `editor` `/editor` — lazy-loaded). The root layout owns the chrome
+                every route shares (LocaleToggle/StatusBar visibility, menu music) and installs
+                `state/navigation.ts`'s seam on mount. Navigation is `useRouter().push("name")`,
+                never a store write.
+  ui/LegacyShell.tsx  the frozen, rollback-only screen-machine counterpart, mounted only by the
+                separate `dev:legacy`/`build:legacy` Cloudflare-Worker deploy target. It never
+                installs the navigation seam, so its `screen` clicks are dead — as of the react-
+                shell tranche's Task 6 its body is emptied entirely (LocaleToggle/StatusBar/
+                SettingsMenu chrome over a blank body, nothing else): it is non-interactive chrome,
+                kept only to keep `build:legacy`/`typecheck:client` green, not a playable fallback.
+  ui/           the rest: screens, HUD, chat, overlays and creator tools.
     components/ stock shadcn (Base UI, base-nova). Generated by `shadcn add` — do not
                 hand-edit. The vocabulary for creator tools and any non-game surface.
     tiny-swords/ the game superset: TinyButton/TinyInput/TinyLabel/TinyFieldSelect/TinyKbd
                 plus panels and bars. Reads its own `--tiny-*` tokens from tokens.css and
                 never a shadcn token, so the two trees can be restyled independently.
-  store.ts      zustand bridge: the game session writes, React reads. Text state is
-                i18n keys + params, never rendered strings.
+  state/atoms.ts  Alepha `$atom`s for application state that is read/written from React but is
+                NOT part of the 60Hz game bridge: `activePartyAtom`, `adventureTestSessionAtom`,
+                `adventureEditorSessionAtom`, `quickItemsAtom` (localStorage-persisted),
+                `questTrackingAtom`. Atoms are deliberately NOT for the hot path: every
+                `store.set` on one validates its zod schema and fires an unfiltered global event
+                — fine for state a screen transition writes once, disqualifying for anything
+                written 20-60x/s, which is why the game bridge below stays zustand.
+  state/navigation.ts  the injected-callback seam `game/session.ts` uses to reach the router and
+                the atoms above without importing React or `alepha`/`alepha/react` itself (see
+                "Per-package tsconfigs" below for why that import boundary is load-bearing, not
+                just style) — `ui/AppRouter.tsx`'s root layout installs the real implementation on
+                mount and clears it on unmount; a test installs a plain fake by reassignment.
+  store.ts      the zustand bridge, now REDUCED to exactly the 60Hz game bridge: `self`,
+                `selfState`, cooldowns, `party`, chat, `events`, dialogue/overlay flags, the
+                `GameHandle` and the equality helpers. `screen` (and every navigation write)
+                died with the router; the fields above moved to `state/atoms.ts`. React reads it
+                with the same hooks as before — only its scope shrank. Text state stays i18n keys
+                + params, never rendered strings.
   api.ts        fetch client; machine-code errors mapped to dictionary keys.
   game/         the game loop: net.ts (prediction), renderer.ts (PixiJS), input.ts,
-                sound.ts, session.ts (owns the store writes). No React in here.
+                sound.ts, session.ts (owns the store writes, navigates only through
+                `state/navigation.ts`). No React, and no `alepha`/`alepha/react` import, in here —
+                enforced by keeping `game/**` in the package's plain (non-alepha) `tsconfig.json`
+                program, which fails loudly if an alepha import leaks in.
                 tile-draw.ts holds the per-cell tile id → draw instruction arithmetic, shared
                 by the renderer and the editor stage so the two cannot drift.
   i18n.ts       locale state; useLocale() for React, t() for everyone.
@@ -261,6 +305,21 @@ errors. The **package boundary now carries that split**: `engine` is pure (neith
 configs, the root `scripts/`, and the engine's tests (which use Node globals its pure src
 config can't host). `npm run typecheck` runs each package's `tsc` then the tooling one;
 `npm run typecheck:<pkg>` runs just one.
+
+The Alepha migration added a second split inside `server`, `client` and `editor`: alepha's own
+package.json points `types` at raw framework source rather than a compiled `.d.ts`, so any file
+importing `alepha`/`alepha/react*` pulls the whole framework source tree into whichever program
+resolves it, type-checked under THAT program's `compilerOptions` — and this repo's base is
+stricter than alepha's own (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, …), so
+alepha's internals fail it by the hundreds. Each affected package therefore also has a
+`tsconfig.api.json`, extending `.vendor/alepha/tsconfig.base.json` instead of the repo base, that
+owns only the files that import alepha (`src/api/**`+`test-api/` for `server`; `ui/AppRouter.tsx`,
+`state/atoms.ts` and their alepha-reading consumers for `client`/`editor`) — each such file is
+`exclude`d from the package's plain `tsconfig.json` so it is never checked under both regimes.
+`npm run typecheck:<pkg>` runs both programs for an affected package. `apps/main/tsconfig.json`
+follows the same fix for its two bootstrap entries (`main.ts`, `main.browser.ts`), which both
+import the alepha-flavored `AppRouter` — extending alepha's base directly rather than needing a
+plain-vs-alepha split of its own, since neither entry has a non-alepha half to keep separate.
 
 ### Classes
 

@@ -75,11 +75,12 @@ sources (`world.ts`, `game-session.ts`, `hero-presence.ts`, `index.ts`), which s
   auth is Alepha's own `/api/users/register` (two-phase: `createRegistrationIntent`, then
   `createUserFromIntent` at `/api/users/register/complete`) plus `/_auth/token?provider=credentials`
   and `/_auth/userinfo`.
-- `src/api/controllers/SpaController.ts` — the SPA shell: `$route` (not `$action` — no `/api`
-  prefix) serving `GET /` and `/index.html` with the load-bearing DOM (`<canvas id="stage">` as a
-  sibling BEFORE `#root` — the canvas is not React's). Dev head = Vite client + React Fast Refresh
-  preamble + `apps/main/src/main.browser.ts`; production head is resolved from the embedded client
-  manifest. Without it a `$page`-less alepha app serves nothing at `/`.
+- The SPA shell is no longer this package's job. The react-shell tranche deleted
+  `src/api/controllers/SpaController.ts`: `GET /` and every other route are now served by
+  `@lindocara/client`'s `ui/AppRouter.tsx` `$page` tree, registered alongside `LindocaraApi` in
+  `apps/main/src/main.ts` (the app's server entry, the one workspace that depends on both `client`
+  and `server` — see its own AGENTS.md). `src/api/` still owns nothing HTML-shaped; it stays
+  `/api/*` plus auth plus the realtime rooms.
 
 ### `src/api/realtime/` — the running game (realtime tranche)
 
