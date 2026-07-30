@@ -16,12 +16,13 @@
  * authored `action`/`player-touch`/`monster` triggers, quest conversations, cheat commands and the
  * real D1-backed quest-reward claim / potion decrement (through `WorldTickDeps`). Page
  * EVALUATION stays out of the tick entirely — `worldEvents.ts`'s `evaluateActiveEvents` runs on
- * state install and hero join only. Deliberately NOT ported here:
- * - portal/adventure-exit transitions and authored cross-map teleports — Task 8 (map transitions);
- *   the exit DETECTION runs and the cross-map teleport dispatch exists, but both land on deps
- *   stubs;
- * - the legacy runtime-party (`party.*`) mechanic — rollback-only per CLAUDE.md (hero sessions
- *   must not expose it), not ported at all.
+ * state install and hero join only. Task 8 filled the last two deps stubs: adventure-exit
+ * transitions and authored cross-map teleports both ride `WorldRoom`'s epoch-fenced handoff
+ * choreography (freeze → checkpoint → forced save → `PresenceRoom.handoff` → remove → close 4008),
+ * reached through `deps.transitionAdventureExit`/`deps.teleportCrossMap`; the detection and dispatch
+ * in this file were already correct and are unchanged. Deliberately NOT ported here: the legacy
+ * runtime-party (`party.*`) mechanic — rollback-only per CLAUDE.md (hero sessions must not expose
+ * it), not ported at all.
  */
 
 import {
@@ -362,15 +363,17 @@ export interface WorldTickDeps {
   completeAdventure(partyId: string): Promise<void>;
   /** Whether cheat commands are honoured (legacy `env.CHEATS_ENABLED === "true"`). */
   cheatsEnabled: boolean;
-  /** Task 8: the authored-exit handoff. Stubbed to a no-op; detection still runs in order. */
+  /** The authored-exit handoff (`WorldRoom.transitionAdventureExit`): freeze, checkpoint, force-save,
+   *  epoch-fenced `PresenceRoom.handoff`, then remove and close `ZONE_TRANSITION` (4008). A stale
+   *  handoff aborts through the same `rejectStaleSave` path every other epoch loss uses. */
   transitionAdventureExit(
     connectionId: string,
     player: PlayerRuntime,
     exitId: string,
     now: number,
   ): void;
-  /** Task 8: an authored cross-map teleport rides the same epoch-fenced handoff as an exit.
-   *  Stubbed to a logged refusal until then; same-map teleports are fully authoritative here. */
+  /** An authored cross-map teleport rides the same epoch-fenced handoff as an exit
+   *  (`WorldRoom.teleportCrossMap`); same-map teleports are fully authoritative here already. */
   teleportCrossMap(
     connectionId: string,
     player: PlayerRuntime,
@@ -3002,9 +3005,11 @@ async function completeQuestChapter(
 
 /**
  * Port of `#interact` (`world.ts:3459`), the in-room parts. Portals only name catalogue zones and
- * an authored map has none, so a (currently impossible) portal hit refuses with the legacy denial
- * code until Task 8 lands the transition. Authored quest bindings and `action` event triggers slot
- * in between the resurrection and the legacy quest keepers with Task 7.
+ * an authored map has none (`zoneFromMapPayload` always bakes `portals: []`), so this arm is
+ * currently unreachable; it stays ported verbatim (the legacy denial code, not Task 8's real
+ * handoff) so a future catalogue-portal authoring path has a safe default rather than a silent
+ * no-op. Authored quest bindings and `action` event triggers slot in between the resurrection and
+ * the legacy quest keepers with Task 7.
  */
 export async function handleInteract(
   w: WorldGlue,
@@ -3017,7 +3022,8 @@ export async function handleInteract(
     (candidate) => pointDistance(player, candidate) <= INTERACTION_RANGE,
   );
   if (portal) {
-    // Task 8: catalogue-portal transition. Refusing is the safe authoritative answer until then.
+    // Unreachable today (see the docblock above); refusing is the safe authoritative answer for
+    // whenever a catalogue portal exists to hit.
     w.deps.send(connectionId, { t: "event", code: "zone.transition_denied", tone: "bad" });
     return { cooldownStarted: false };
   }
@@ -3644,7 +3650,8 @@ function dispatchItems(
 }
 
 /** Port of `#dispatchTeleport` (`world.ts:4932`). Same-map is fully authoritative here; cross-map
- *  rides the Task-8 handoff seam (`deps.teleportCrossMap`, stubbed to a logged refusal). */
+ *  rides `deps.teleportCrossMap` (`WorldRoom.teleportCrossMap`), the same epoch-fenced handoff an
+ *  authored exit uses. */
 function dispatchTeleport(
   w: WorldGlue,
   dispatch: DispatchEffect,
@@ -4253,7 +4260,7 @@ function advanceConsumableEffects(w: WorldGlue, now: number): void {
 }
 
 /** Port of `#detectAdventureExits` (`world.ts:5220`). Detection runs in its legacy slot; the
- *  transition itself is the Task 8 seam (`deps.transitionAdventureExit`). */
+ *  transition itself is `deps.transitionAdventureExit` (`WorldRoom.transitionAdventureExit`). */
 function detectAdventureExits(w: WorldGlue, now: number): void {
   const exits = exitEvents(zone(w.state).events ?? []);
   if (exits.length === 0) return;

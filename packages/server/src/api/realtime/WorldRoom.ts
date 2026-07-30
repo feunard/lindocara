@@ -7,9 +7,11 @@
  * `worldTick.ts`, wired through `glue()`. Task 6 wired the dirty-hero save cadence, the forced
  * disconnect save and stale-epoch rejection through `HeroSaveService`; the quest-reward claim and
  * potion-decrement seams stay in-memory stubs pending their in-game paths. Events/quests (Task 7)
- * and map transitions (Task 8) remain stubbed seams on that glue. The world systems under
- * `../../world/` are reused as-is, keyed by Alepha connection-id string instead of a workerd
- * `WebSocket` (their `TSocket` generic).
+ * filled the interpreter/quest glue; map transitions (Task 8) filled the last two —
+ * `transitionAdventureExit`/`teleportCrossMap` — with the epoch-fenced freeze/save/handoff/close
+ * choreography (see the "Map transitions" section below). The world systems under `../../world/`
+ * are reused as-is, keyed by Alepha connection-id string instead of a workerd `WebSocket` (their
+ * `TSocket` generic).
  *
  * ## Identity on the wire
  *
@@ -45,7 +47,8 @@ import { flattenColliderIndex } from "@lindocara/engine/collider.js";
 import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
 import { canAct } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { CEMETERIES } from "@lindocara/engine/game.js";
+import { CEMETERIES, clampRestoredPosition, isWalkable } from "@lindocara/engine/game.js";
+import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
 import {
   type ClientMessage,
@@ -54,6 +57,7 @@ import {
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
 import { NO_INPUT, PLAYER_SIZE, TICK_HZ } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
@@ -68,10 +72,13 @@ import {
   type RoomPrimitiveOptions,
 } from "alepha/websocket";
 import type { AuthoredQuestChange } from "../../authored-quest-system.js";
+import { cancelCombatAction } from "../../world/combat-action-system.js";
 import { addPlayer, isRateLimited, removePlayer } from "../../world/connection-system.js";
 import { abortRunsForHero } from "../../world/event-run-system.js";
 import type { InterestSystemContext } from "../../world/interest-system.js";
 import { worldView } from "../../world/interest-system.js";
+import { removeProjectilesByOwner } from "../../world/projectile-system.js";
+import { exitRogueStealth } from "../../world/rogue-state-system.js";
 import {
   combatCooldownsFromPlayer,
   MAX_FRAME_BYTES,
@@ -84,6 +91,7 @@ import {
 } from "../../world/world-runtime.js";
 import { adventures } from "../entities/adventures.ts";
 import { parties } from "../entities/parties.ts";
+import { AdventureService, type StoredAdventure } from "../services/AdventureService.ts";
 import { AdventureStateService } from "../services/AdventureStateService.ts";
 import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { HeroEpochService } from "../services/HeroEpochService.ts";
@@ -109,6 +117,7 @@ import {
   locationFromMapPayload,
   parseWorldRoomId,
   type WorldRoomState,
+  zoneFromMapPayload,
 } from "./worldState.ts";
 import {
   advanceWorldTick,
@@ -159,6 +168,7 @@ export class WorldRoom {
   heroEpochService = $inject(HeroEpochService);
   heroSaveService = $inject(HeroSaveService);
   adventureStateService = $inject(AdventureStateService);
+  adventureService = $inject(AdventureService);
   mapService = $inject(MapService);
 
   parties = $repository(parties);
@@ -630,7 +640,9 @@ export class WorldRoom {
   /**
    * Port of legacy `#checkpointCooldowns` + `#checkpointCooldownsOrReject` + `#rejectStaleSave`
    * (`world.ts:4169-4203`): starting an action checkpoints the spent cooldowns onto the presence
-   * lease; a refusal means the lease moved on, so the player is dropped with the legacy 4003.
+   * lease; a refusal means the lease moved on, so the player is dropped with the legacy 4003. A thin
+   * wrapper over {@link checkpointCooldownsForTransition} for callers (`dispatch`'s attack/skill/
+   * interact arms) that never need to know whether the checkpoint landed.
    */
   protected async checkpointCooldownsOrReject(
     room: WorldRoomHandle,
@@ -638,6 +650,22 @@ export class WorldRoom {
     connectionId: string,
     player: PlayerRuntime,
   ): Promise<void> {
+    await this.checkpointCooldownsForTransition(room, state, connectionId, player);
+  }
+
+  /**
+   * Boolean-returning twin of {@link checkpointCooldownsOrReject}, for a caller (Task 8's map
+   * transitions) that must know whether to proceed to the forced save — legacy's separate
+   * `#checkpointCooldowns(player): Promise<boolean>` plus an explicit `#rejectStaleSave(ws, player)`
+   * on the caller's own site (`world.ts:3579,3654,3704,5177`), rather than
+   * `#checkpointCooldownsOrReject`'s own baked-in reject.
+   */
+  protected async checkpointCooldownsForTransition(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+  ): Promise<boolean> {
     let accepted: unknown = false;
     try {
       accepted = await this.presenceRoom.room.call(
@@ -650,8 +678,9 @@ export class WorldRoom {
     } catch (error) {
       this.logError("cooldown_checkpoint_failed", error, { heroId: player.id });
     }
-    if (accepted === true) return;
+    if (accepted === true) return true;
     this.rejectStaleSave(room, state, connectionId, player);
+    return false;
   }
 
   /**
@@ -842,15 +871,43 @@ export class WorldRoom {
             heroState,
           )) as QuestTurnInResult,
         completeAdventure: (partyId) => this.completeAdventure(partyId),
-        transitionAdventureExit: () => {}, // Task 8 (freeze → save → handoff → 4008).
-        teleportCrossMap: (_connectionId, player, mapId, col, row, _now, eventId) => {
-          // Task 8: the epoch-fenced cross-map handoff. Refusing (once, structured) keeps the run
-          // and the hero coherent; silently half-transitioning would strand both.
-          logTeleportRefusedOnce(state, eventId, "cross_map_pending_task8", {
-            heroId: player.id,
-            destinationMapId: mapId,
+        // Fire-and-forget, matching legacy `#detectAdventureExits`'s own `ctx.waitUntil(...).catch`
+        // wrapper (`world.ts:5248-5265`) — `detectAdventureExits` calls this dep synchronously and
+        // does not await it, so the containment has to live here.
+        transitionAdventureExit: (connectionId, player, exitId, now) => {
+          void this.transitionAdventureExit(room, state, connectionId, player, exitId, now).catch(
+            (error) => {
+              this.logError("adventure_exit_transition_failed", error, {
+                heroId: player.id,
+                roomKey: player.roomKey,
+              });
+            },
+          );
+        },
+        // The `player.transitioning = true` claim below MUST happen synchronously, before any
+        // `await` — legacy claims it in the SYNCHRONOUS `#dispatchTeleport` caller, before its own
+        // `waitUntil`-wrapped async body, so a second teleport effect dispatched later in the SAME
+        // drain sees the claim and refuses (`world.ts:4965-4969`). `dispatchTeleport` in
+        // `worldTick.ts` calls this dep directly with no wrapping of its own, so the claim has to be
+        // the first synchronous statement here.
+        teleportCrossMap: (connectionId, player, mapId, col, row, now, eventId) => {
+          player.transitioning = true;
+          void this.teleportCrossMap(
+            room,
+            state,
+            connectionId,
+            player,
+            mapId,
             col,
             row,
+            now,
+            eventId,
+          ).catch((error) => {
+            this.logError("event_teleport_transition_failed", error, {
+              heroId: player.id,
+              roomKey: player.roomKey,
+              eventId,
+            });
           });
         },
         claimQuestReward: (player, reward) =>
@@ -954,6 +1011,277 @@ export class WorldRoom {
     this.removeRuntimePlayer(state, connectionId, player);
     this.send(room, connectionId, { t: "event", code: "presence.lost", tone: "bad" });
     room.close(connectionId, WS_CLOSE.PRESENCE_LOST, "presence expired");
+  }
+
+  // -----------------------------------------------------------------------------------------------
+  // Map transitions (Task 8)
+  // -----------------------------------------------------------------------------------------------
+
+  /**
+   * Port of legacy `#transitionAdventureExit` (`world.ts:3616-3739`): a hero standing on an
+   * authored `exit` event (detection already ran in `detectAdventureExits`, `worldTick.ts:4257`,
+   * which re-checks `player.transitioning` and dedupes on `state.occupiedExitByPlayerId` before
+   * calling this once per newly-occupied exit). Everything is re-derived from D1 rather than
+   * trusted from the runtime player, exactly like legacy re-reads the party/adventure/map on every
+   * transition — a client can only ever say "I am standing on exit X", never where it leads.
+   *
+   * `link.dest === "end"` completes the party (the same fenced `UPDATE ... WHERE status != 'completed'`
+   * `completeAdventure` already exposes to the authored `endAdventure` command); any other `dest` is
+   * a `{mapId, entryId}` anchor and rides {@link performHandoff}. Both branches wrap the freeze in a
+   * `try/finally` that clears `transitioning` and restores `authorized` — inert on the success/reject
+   * path (the player is already fully removed by then) but the only thing standing between a
+   * transient D1 hiccup and a permanently frozen hero on the source map.
+   */
+  protected async transitionAdventureExit(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+    exitId: string,
+    now: number,
+  ): Promise<void> {
+    const partyId = player.partyId;
+    if (
+      player.identityKind !== "hero" ||
+      !partyId ||
+      player.life !== "alive" ||
+      player.transitioning
+    ) {
+      return;
+    }
+    const party = await this.parties.findById(partyId);
+    if (!party || !player.authorized) return;
+    // By id, not owner-fenced: an owner fence would deny every exit to a party whose host is not
+    // the adventure's author (legacy's exact rationale, `world.ts:3634`).
+    let adventure: StoredAdventure;
+    try {
+      adventure = await this.adventureService.getAdventure(party.adventureId);
+    } catch {
+      this.send(room, connectionId, { t: "event", code: "zone.transition_denied", tone: "bad" });
+      return;
+    }
+    const link = adventure.graph.links.find(
+      (candidate) => candidate.mapId === state.location?.zoneId && candidate.exitId === exitId,
+    );
+    if (!link) {
+      this.send(room, connectionId, { t: "event", code: "zone.transition_denied", tone: "bad" });
+      return;
+    }
+
+    player.transitioning = true;
+    player.lastTransitionAt = now;
+    player.lastInput = NO_INPUT;
+    player.queue = [];
+    cancelCombatAction(player);
+    removeProjectilesByOwner(state.projectiles, player.id);
+    exitRogueStealth(player, now);
+
+    if (link.dest === "end") {
+      try {
+        if (!(await this.checkpointCooldownsForTransition(room, state, connectionId, player))) {
+          return;
+        }
+        if (!(await this.savePlayer(room, state, player, connectionId))) return;
+        await this.completeAdventure(partyId);
+      } finally {
+        if (player.authorized) player.transitioning = false;
+      }
+      return;
+    }
+
+    const destinationAnchor = link.dest;
+    let claimedAuthorization = false;
+    try {
+      if (!adventure.mapIds.includes(destinationAnchor.mapId)) {
+        this.send(room, connectionId, { t: "event", code: "zone.transition_denied", tone: "bad" });
+        return;
+      }
+      let destinationMap: Awaited<ReturnType<typeof this.mapService.getMap>>;
+      try {
+        destinationMap = await this.mapService.getMap(destinationAnchor.mapId);
+      } catch {
+        this.send(room, connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      const entry = destinationMap.events.find(
+        (candidate) => candidate.kind === "entry" && candidate.id === destinationAnchor.entryId,
+      );
+      if (!entry) {
+        this.send(room, connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      // Audio does not affect terrain: a default config is enough to bake the destination's
+      // collision for the arrival clamp, without an extra adventure-audio read per transition.
+      const terrain = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO).terrain;
+      const spawn = clampRestoredPosition(eventCellCentre(entry), player.id, terrain);
+
+      claimedAuthorization = true;
+      player.authorized = false;
+      await this.performHandoff(
+        room,
+        state,
+        connectionId,
+        player,
+        destinationMap.id,
+        spawn.x,
+        spawn.y,
+        { t: "event", code: "zone.transition", tone: "good" },
+        "adventure map transition",
+      );
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
+    }
+  }
+
+  /**
+   * Port of legacy `#teleportCrossMap` (`world.ts:5112-5218`): the authored `teleport` command's
+   * cross-map branch (`dispatchTeleport`, `worldTick.ts:3648`, already claims `player.transitioning`
+   * synchronously before calling this — see the glue-site comment). Unlike an exit anchor, the
+   * destination cell is authored directly on the command (no `entry` event lookup), so it is
+   * validated in bounds and walkable against the destination's own baked terrain, exactly like a
+   * same-map teleport validates against this room's terrain.
+   */
+  protected async teleportCrossMap(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+    mapId: string,
+    col: number,
+    row: number,
+    now: number,
+    eventId: string,
+  ): Promise<void> {
+    const partyId = player.partyId;
+    let claimedAuthorization = false;
+    try {
+      if (player.identityKind !== "hero" || !partyId || player.life !== "alive") return;
+      const party = await this.parties.findById(partyId);
+      if (!party || !player.authorized) return;
+      let adventure: StoredAdventure;
+      try {
+        adventure = await this.adventureService.getAdventure(party.adventureId);
+      } catch {
+        this.send(room, connectionId, { t: "event", code: "zone.transition_denied", tone: "bad" });
+        return;
+      }
+      // By id, same reason as the exit-anchor branch: an owner fence would refuse every cross-map
+      // teleport inside someone else's adventure. Membership of `mapIds` is still the authority on
+      // where a teleport may land.
+      if (!adventure.mapIds.includes(mapId)) {
+        this.send(room, connectionId, { t: "event", code: "zone.transition_denied", tone: "bad" });
+        return;
+      }
+      let destinationMap: Awaited<ReturnType<typeof this.mapService.getMap>>;
+      try {
+        destinationMap = await this.mapService.getMap(mapId);
+      } catch {
+        this.send(room, connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      const terrain = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO).terrain;
+      const inBounds =
+        col >= 0 && row >= 0 && col < terrain.width / TILE_SIZE && row < terrain.height / TILE_SIZE;
+      if (!inBounds) {
+        if (logTeleportRefusedOnce(state, eventId, "out_of_bounds", { mapId, col, row })) {
+          this.send(room, connectionId, {
+            t: "event",
+            code: "zone.transition_failed",
+            tone: "bad",
+          });
+        }
+        return;
+      }
+      const spawn = eventCellCentre({ col, row });
+      if (!isWalkable(spawn, PLAYER_SIZE, terrain)) {
+        if (logTeleportRefusedOnce(state, eventId, "unwalkable", { mapId, col, row })) {
+          this.send(room, connectionId, {
+            t: "event",
+            code: "zone.transition_failed",
+            tone: "bad",
+          });
+        }
+        return;
+      }
+
+      player.lastTransitionAt = now;
+      player.lastInput = NO_INPUT;
+      player.queue = [];
+      cancelCombatAction(player);
+      removeProjectilesByOwner(state.projectiles, player.id);
+      exitRogueStealth(player, now);
+      claimedAuthorization = true;
+      player.authorized = false;
+
+      const fromX = player.x + PLAYER_SIZE / 2;
+      const fromY = player.y + PLAYER_SIZE / 2;
+      await this.performHandoff(
+        room,
+        state,
+        connectionId,
+        player,
+        destinationMap.id,
+        spawn.x,
+        spawn.y,
+        {
+          t: "event",
+          code: "zone.transition",
+          params: { teleport: 1 },
+          tone: "good",
+          x: fromX,
+          y: fromY,
+        },
+        "event teleport",
+      );
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
+    }
+  }
+
+  /**
+   * The shared tail of both map-changing transitions above (legacy `world.ts:3704-3737` and
+   * `:5177-5213`): checkpoint cooldowns, force-save, then the epoch-fenced presence handoff
+   * (`PresenceRoom.handoff`, Task 2's single-statement move+increment). A `null` handoff — the
+   * epoch already moved on — rejects exactly like a failed cooldown checkpoint or a stale save
+   * (`rejectStaleSave`), never partially applying a move. On success the runtime player is fully
+   * removed and the socket closed BEFORE either caller's `finally` restores `player.authorized`, so
+   * that restore is inert — see this class's docblock on replacement semantics for the same pattern.
+   */
+  protected async performHandoff(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+    destinationMapId: string,
+    x: number,
+    y: number,
+    successMessage: ServerMessage,
+    closeReason: string,
+  ): Promise<void> {
+    if (!(await this.checkpointCooldownsForTransition(room, state, connectionId, player))) return;
+    if (!(await this.savePlayer(room, state, player, connectionId))) return;
+    let next: { sessionEpoch: number } | null = null;
+    try {
+      next = (await this.presenceRoom.room.call(player.id, "handoff", {
+        connectionId: player.connectionId,
+        sessionEpoch: player.sessionEpoch,
+        mapId: destinationMapId,
+        x,
+        y,
+      })) as { sessionEpoch: number } | null;
+    } catch (error) {
+      this.logError("hero_presence_handoff_failed", error, { heroId: player.id });
+    }
+    if (!next) {
+      this.rejectStaleSave(room, state, connectionId, player);
+      return;
+    }
+    player.disconnecting = true;
+    this.removeRuntimePlayer(state, connectionId, player);
+    this.send(room, connectionId, successMessage);
+    room.close(connectionId, WS_CLOSE.ZONE_TRANSITION, closeReason);
   }
 
   // -----------------------------------------------------------------------------------------------
