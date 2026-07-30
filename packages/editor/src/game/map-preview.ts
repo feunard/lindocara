@@ -31,7 +31,12 @@ import {
   resolveTerrain,
 } from "@lindocara/engine/game.js";
 import { type MapData, mapSpawnPoint, terrainFromMap } from "@lindocara/engine/map-data.js";
-import { eventCellCentre, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
+import {
+  eventCellCentre,
+  isActiveWorldEventKind,
+  type MapEvent,
+  monsterEvents,
+} from "@lindocara/engine/map-events.js";
 import { MAX_ACCUMULATED_SECONDS } from "@lindocara/engine/prediction.js";
 import type {
   MonsterSnapshot,
@@ -233,7 +238,7 @@ export async function startMapPreview(
   // Page 1 is what the preview shows: the editor has no party state to select an active page against,
   // and page 1 is the page an author is looking at while composing.
   const previewEvents: WorldEventSnapshot[] = events.flatMap((event: MapEvent) => {
-    if (event.kind !== "normal") return [];
+    if (!isActiveWorldEventKind(event.kind)) return [];
     const page = event.pages[0];
     if (!page?.graphicAssetId) return [];
     return [

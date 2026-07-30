@@ -558,6 +558,23 @@ export function setEventDraftGuardRadius(draft: MapEvent, patrolRadius: number):
   return draft.kind === "guard" ? { ...draft, patrolRadius } : draft;
 }
 
+/** Draft mutator for a free NPC's editable survivability, power and movement zone. */
+export function setEventDraftNpc(
+  draft: MapEvent,
+  patrolRadius: number,
+  tuningPatch: Partial<Pick<MonsterTuning, "maxHp" | "damage">> = {},
+): MapEvent {
+  if (draft.kind !== "npc") return draft;
+  const defaults = defaultMonsterTuning("spear_goblin");
+  return {
+    ...draft,
+    patrolRadius,
+    monsterMaxHp: tuningPatch.maxHp ?? draft.monsterMaxHp ?? defaults.maxHp,
+    monsterDamage: tuningPatch.damage ?? draft.monsterDamage ?? defaults.damage,
+    monsterSpeed: draft.monsterSpeed ?? defaults.speed,
+  };
+}
+
 /** Draft mutator: merge a patch into one page. Everything on a page is per-page (XP semantics), so
  *  a field edit routes through the page index the dialog has open. Out-of-range index is a no-op. */
 export function updateEventDraftPage(
@@ -1197,6 +1214,37 @@ export function applyTool(
           patrolRadius,
         });
         return { ...map, events: [...map.events, event] };
+      }
+      if (tool.eventKind === "npc") {
+        const { patrolRadius } = tool;
+        if (
+          patrolRadius === undefined ||
+          !Number.isSafeInteger(patrolRadius) ||
+          patrolRadius < MIN_PATROL_RADIUS ||
+          patrolRadius > MAX_PATROL_RADIUS
+        ) {
+          return null;
+        }
+        const page = defaultEventPage();
+        const event = functionalEvent({
+          id: crypto.randomUUID(),
+          col,
+          row,
+          ordinal,
+          kind: "npc",
+          name: "",
+          patrolRadius,
+        });
+        return {
+          ...map,
+          events: [
+            ...map.events,
+            {
+              ...event,
+              pages: [{ ...page, moveType: "random", moveSpeed: 3, moveFreq: 2 }],
+            },
+          ],
+        };
       }
       const event = functionalEvent({
         id: crypto.randomUUID(),

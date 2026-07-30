@@ -299,6 +299,34 @@ describe("parseMapEvents: commands thread through pages", () => {
 
     expect(parseMapEvents([conditional], COLS, ROWS)?.[0]?.pages).toHaveLength(2);
   });
+
+  it("accepts a free NPC with characteristics and an autonomous routine", () => {
+    const npc = event({
+      kind: "npc",
+      species: null,
+      patrolRadius: 128,
+      monsterMaxHp: 250,
+      monsterDamage: 18,
+      pages: [
+        page({
+          graphicAssetId: GOOD_ASSET_ID,
+          moveType: "custom",
+          moveSpeed: 3,
+          moveFreq: 2,
+          commands: [{ t: "say", text: "Belle journée.", name: "Mara" }],
+        }),
+      ],
+    });
+
+    expect(parseMapEvents([npc], COLS, ROWS)?.[0]).toMatchObject({
+      kind: "npc",
+      species: null,
+      patrolRadius: 128,
+      monsterMaxHp: 250,
+      monsterDamage: 18,
+      pages: [{ moveType: "custom" }],
+    });
+  });
 });
 
 describe("parseMapEvents: authored monster tuning", () => {

@@ -476,6 +476,7 @@ const EVENT_HIGHLIGHT_COLOR = 0xf59e0b;
  */
 const EVENT_KIND_PLACEHOLDER_COLOR: Record<EventKind, number> = {
   normal: 0x7c3aed,
+  npc: 0x0d9488,
   entry: 0x6fd44c,
   exit: 0x9a6cf0,
   monster: 0xd9484a,
@@ -549,7 +550,10 @@ export function paintEventCell(
   }
 
   // Monsters and allied guards carry authoritative patrol radii, shown on the EV plane.
-  if ((event.kind === "monster" || event.kind === "guard") && event.patrolRadius !== null) {
+  if (
+    (event.kind === "monster" || event.kind === "guard" || event.kind === "npc") &&
+    event.patrolRadius !== null
+  ) {
     const ring = new Graphics();
     ring
       .circle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, event.patrolRadius)

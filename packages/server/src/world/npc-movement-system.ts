@@ -1,5 +1,5 @@
 /**
- * Deterministic, authoritative movement for authored normal events.
+ * Deterministic, authoritative movement for authored scripted events and free NPCs.
  *
  * The editor has always persisted XP-style movement modes on each event page. This system gives
  * those fields runtime meaning without introducing Liin-specific routes or client-owned motion.
@@ -22,6 +22,7 @@ export interface NpcMovementDefinition {
   moveSpeed: number;
   moveFreq: number;
   through: boolean;
+  patrolRadius: number;
 }
 
 export interface NpcMovementRuntime extends NpcMovementDefinition {
@@ -146,7 +147,7 @@ function candidateFor(
   const direction =
     DIRECTIONS[stableHash(`${runtime.id}:${runtime.routeStep}`) % DIRECTIONS.length] ??
     DIRECTIONS[0];
-  const radius = runtime.moveSpeed >= 4 ? 2 : 1;
+  const radius = Math.max(1, Math.floor(runtime.patrolRadius / TILE_SIZE));
   const candidate = {
     col: current.col + direction.col,
     row: current.row + direction.row,
@@ -208,7 +209,22 @@ export function advanceNpcEvents(params: {
     }
     runtime.nextMoveTick =
       params.tick + npcMovementIntervalTicks(runtime.moveSpeed, runtime.moveFreq);
-    const candidate = candidateFor(event, runtime, params.players);
+    const proposed = candidateFor(event, runtime, params.players);
+    const distanceFromHome = Math.hypot(
+      proposed.cell.col - runtime.homeCol,
+      proposed.cell.row - runtime.homeRow,
+    );
+    const radiusInCells = Math.max(1, runtime.patrolRadius / TILE_SIZE);
+    const candidate =
+      distanceFromHome <= radiusInCells
+        ? proposed
+        : {
+            cell: stepToward(
+              { col: event.col, row: event.row },
+              { col: runtime.homeCol, row: runtime.homeRow },
+            ),
+            routeStep: proposed.routeStep,
+          };
     runtime.routeStep = candidate.routeStep;
     if (
       (candidate.cell.col === event.col && candidate.cell.row === event.row) ||

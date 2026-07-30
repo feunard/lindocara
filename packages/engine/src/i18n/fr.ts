@@ -984,6 +984,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.exit": "Sortie",
   "editor.inspector.monster": "Apparition de monstre",
   "editor.inspector.guard": "Garde alliée",
+  "editor.inspector.npc": "PNJ libre",
   "editor.inspector.event": "Événement",
   "editor.inspector.spawn": "Repli et test de la carte",
   "editor.inspector.walkable": "Praticable",
@@ -1002,6 +1003,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.monster.respawnMode.never": "Mort définitive pour ce groupe",
   "editor.monster.hp": "Points de vie",
   "editor.monster.damage": "Puissance d’attaque",
+  "editor.npc.power": "Puissance",
   "editor.monster.speed": "Vitesse de déplacement",
   "editor.monster.xp": "Expérience accordée",
   "editor.monster.weakness": "Faiblesse",
@@ -1606,6 +1608,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.kind.heading": "Type d’événement",
   "editor.event.monsters.heading": "Monstres",
   "editor.event.kind.normal": "Événement personnalisé",
+  "editor.event.kind.npc": "PNJ libre",
   "editor.event.kind.entry": "Entrée",
   "editor.event.kind.exit": "Sortie",
   "editor.event.kind.monster": "Monstre",
@@ -1617,6 +1620,8 @@ export const fr: Record<keyof typeof en, string> = {
     "Ce point est le départ global de l’aventure. Il est distinct du repli technique de chaque carte.",
   "editor.event.kind.guard.hint":
     "Combattant allié géré par le serveur. Ses pages conditionnelles déterminent sa présence et son rayon limite ses déplacements.",
+  "editor.event.kind.npc.hint":
+    "Personnage libre avec apparence, dialogues, points de vie, puissance, vitesse, zone de déplacement et routine autonome.",
   "editor.event.preset.heading": "Placer",
   "editor.event.preset.raw": "Événement vierge",
   "editor.event.preset.teleporter": "Téléporteur",

@@ -748,7 +748,7 @@ describe("editor history", () => {
   });
 });
 
-describe("applyTool: functional event kinds (entry / exit / monster / guard)", () => {
+describe("applyTool: functional event kinds (entry / exit / monster / guard / NPC)", () => {
   const base = blankMap("m", 20, 15);
 
   it("places an entry event as a functionalEvent-shaped MapEvent with a uuid", () => {
@@ -797,6 +797,7 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard)", (
       ),
     ).toBeNull();
     expect(place(wet, { kind: "event", eventKind: "guard", patrolRadius: 96 }, 3, 3)).toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 3, 3)).toBeNull();
     // A `normal` event floats above collision, so water is fine.
     expect(place(wet, { kind: "event", eventKind: "normal" }, 3, 3)).not.toBeNull();
   });
@@ -839,6 +840,31 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard)", (
     expect(event.pages).toEqual([defaultEventPage()]);
     expect(place(base, { kind: "event", eventKind: "guard", patrolRadius: 8 }, 9, 6)).toBeNull();
     expect(place(base, { kind: "event", eventKind: "guard" }, 9, 6)).toBeNull();
+  });
+
+  it("places a free NPC with characteristics and a random walking routine", () => {
+    const placed = place(
+      base,
+      { kind: "event", eventKind: "npc", patrolRadius: 128 },
+      8,
+      6,
+    ) as EditorMap;
+    const event = placed.events[0] as MapEvent;
+
+    expect(event).toMatchObject({
+      kind: "npc",
+      species: null,
+      patrolRadius: 128,
+      monsterMaxHp: expect.any(Number),
+      monsterDamage: expect.any(Number),
+    });
+    expect(event.pages[0]).toMatchObject({
+      moveType: "random",
+      moveSpeed: 3,
+      moveFreq: 2,
+    });
+    expect(place(base, { kind: "event", eventKind: "npc", patrolRadius: 8 }, 8, 6)).toBeNull();
+    expect(place(base, { kind: "event", eventKind: "npc" }, 8, 6)).toBeNull();
   });
 
   it("still refuses a second event on an occupied cell, whatever the kind", () => {

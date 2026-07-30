@@ -57,7 +57,7 @@ import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
  * it without a second combat system or an autonomous event runner. A monster page runs its command
  * program on defeat; a guard page carries no commands and only selects presence.
  */
-export const EVENT_KINDS = ["normal", "entry", "exit", "monster", "guard", "spawn"] as const;
+export const EVENT_KINDS = ["normal", "npc", "entry", "exit", "monster", "guard", "spawn"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 export function isEventKind(value: unknown): value is EventKind {
@@ -153,13 +153,14 @@ export interface MapEvent {
   name: string;
   /** Creation order, per map. Display only (the wireframe's `EV{ordinal}`); never identity. */
   ordinal: number;
-  /** UX wave #12. `normal` is the scripted event; entry/exit/monster are the reborn markers. */
+  /** `normal` and `npc` are scripted world events; the other kinds have dedicated runtime roles. */
   kind: EventKind;
   /** Set (and validated) iff `kind === "monster"`; `null` for every other kind. */
   species: MonsterSpecies | null;
-  /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) for monsters and guards; else `null`. */
+  /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) for monsters, guards and free NPCs. */
   patrolRadius: number | null;
   monsterRank?: MonsterRank | null;
+  /** Combat-ready characteristics for monsters and free NPCs. */
   monsterMaxHp?: number | null;
   monsterDamage?: number | null;
   monsterSpeed?: number | null;
@@ -192,6 +193,16 @@ export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
 /** Authored allied combatants. Their active page, unlike a monster's, controls runtime presence. */
 export function guardEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "guard");
+}
+
+/** Free authored NPCs use event pages for appearance, dialogue and autonomous routines. */
+export function npcEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "npc");
+}
+
+/** Both scripted scenery and free NPCs are projected into the active world-event collection. */
+export function isActiveWorldEventKind(kind: EventKind): boolean {
+  return kind === "normal" || kind === "npc";
 }
 
 /** The adventure-start anchors on a map (D25). A map with at least one is a candidate first map. */
@@ -244,6 +255,8 @@ export function functionalEvent(params: {
   monsterRespawnMode?: MonsterRespawnMode | undefined;
 }): MapEvent {
   const isMonster = params.kind === "monster";
+  const isNpc = params.kind === "npc";
+  const hasTuning = isMonster || isNpc;
   const isGuard = params.kind === "guard";
   const species = params.species ?? "spear_goblin";
   const tuning = {
@@ -258,19 +271,20 @@ export function functionalEvent(params: {
     ordinal: params.ordinal,
     kind: params.kind,
     species: isMonster ? species : null,
-    patrolRadius: isMonster
-      ? (params.patrolRadius ?? null)
-      : isGuard
-        ? (params.patrolRadius ?? MIN_PATROL_RADIUS)
-        : null,
-    monsterRank: isMonster ? tuning.rank : null,
-    monsterMaxHp: isMonster ? tuning.maxHp : null,
-    monsterDamage: isMonster ? tuning.damage : null,
-    monsterSpeed: isMonster ? tuning.speed : null,
-    monsterXp: isMonster ? tuning.xp : null,
-    monsterWeakness: isMonster ? tuning.weakness : null,
-    monsterWeaknessPercent: isMonster ? tuning.weaknessPercent : null,
-    monsterSpecialTechnique: isMonster ? tuning.specialTechnique : null,
+    patrolRadius:
+      isMonster || isNpc
+        ? (params.patrolRadius ?? null)
+        : isGuard
+          ? (params.patrolRadius ?? MIN_PATROL_RADIUS)
+          : null,
+    monsterRank: hasTuning ? tuning.rank : null,
+    monsterMaxHp: hasTuning ? tuning.maxHp : null,
+    monsterDamage: hasTuning ? tuning.damage : null,
+    monsterSpeed: hasTuning ? tuning.speed : null,
+    monsterXp: hasTuning ? tuning.xp : null,
+    monsterWeakness: hasTuning ? tuning.weakness : null,
+    monsterWeaknessPercent: hasTuning ? tuning.weaknessPercent : null,
+    monsterSpecialTechnique: hasTuning ? tuning.specialTechnique : null,
     ...(isMonster ? { monsterRespawnMode: params.monsterRespawnMode ?? "timed" } : {}),
     pages: [defaultEventPage()],
   };
@@ -423,9 +437,9 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     const kind = record.kind === undefined ? "normal" : record.kind;
     if (!isEventKind(kind)) return null;
 
-    // Monster events carry `species` + `patrolRadius`; guards carry only `patrolRadius`; every
-    // other kind carries neither. Checked here rather than deferred, so no unvalidated data slips
-    // past.
+    // Monster events carry `species` + tuning + radius. Free NPCs reuse the persisted HP/power
+    // tuning columns without a species, and guards carry only a radius. Validate all of it here so
+    // no untrusted half-event can cross the wire boundary.
     let species: MonsterSpecies | null = null;
     let patrolRadius: number | null = null;
     let monsterRank: MonsterRank | null = null;
@@ -437,14 +451,19 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     let monsterWeaknessPercent: number | null = null;
     let monsterSpecialTechnique: MonsterSpecialTechnique | null = null;
     let monsterRespawnMode: MonsterRespawnMode | undefined;
-    if (kind === "monster") {
-      if (!isMonsterSpecies(record.species)) return null;
-      species = record.species;
+    if (kind === "monster" || kind === "npc") {
+      const isMonster = kind === "monster";
+      if (isMonster) {
+        if (!isMonsterSpecies(record.species)) return null;
+        species = record.species;
+      } else if (record.species !== undefined && record.species !== null) {
+        return null;
+      }
       if (!Number.isSafeInteger(record.patrolRadius)) return null;
       const radius = record.patrolRadius as number;
       if (radius < MIN_PATROL_RADIUS || radius > MAX_PATROL_RADIUS) return null;
       patrolRadius = radius;
-      const defaults = defaultMonsterTuning(species);
+      const defaults = defaultMonsterTuning(species ?? "spear_goblin");
       const rank = record.monsterRank ?? defaults.rank;
       const weakness = record.monsterWeakness ?? defaults.weakness;
       const specialTechnique = record.monsterSpecialTechnique ?? defaults.specialTechnique;
@@ -453,14 +472,16 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         !isMonsterRank(rank) ||
         !isMonsterWeakness(weakness) ||
         !isMonsterSpecialTechnique(specialTechnique) ||
-        !isMonsterSpecialTechniqueForSpecies(species, specialTechnique) ||
-        (respawnMode !== undefined && !isMonsterRespawnMode(respawnMode))
+        !isMonsterSpecialTechniqueForSpecies(species ?? "spear_goblin", specialTechnique) ||
+        (isMonster
+          ? respawnMode !== undefined && !isMonsterRespawnMode(respawnMode)
+          : respawnMode !== undefined && respawnMode !== null)
       )
         return null;
       monsterRank = rank;
       monsterWeakness = weakness;
       monsterSpecialTechnique = specialTechnique;
-      monsterRespawnMode = respawnMode as MonsterRespawnMode | undefined;
+      if (isMonster) monsterRespawnMode = respawnMode as MonsterRespawnMode | undefined;
       monsterMaxHp = boundedMonsterInteger(
         record.monsterMaxHp,
         defaults.maxHp,
@@ -527,9 +548,15 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
 
     const parsedPages = parseEventPages(pages);
     if (!parsedPages) return null;
-    // Anchors have exactly one page. Monsters and guards keep multiple conditional pages so
-    // party-state decisions can select their presence without running an autonomous script.
-    if (kind !== "normal" && kind !== "monster" && kind !== "guard" && parsedPages.length !== 1)
+    // Anchors have exactly one page. NPCs, monsters and guards keep multiple conditional pages so
+    // party-state decisions can select their presence or routine.
+    if (
+      kind !== "normal" &&
+      kind !== "npc" &&
+      kind !== "monster" &&
+      kind !== "guard" &&
+      parsedPages.length !== 1
+    )
       return null;
     // Nothing over the wire may smuggle scripted behaviour onto an entry/exit/spawn anchor.
     if (

@@ -120,7 +120,8 @@ function eventToolFor(
   selfMapId: string | null,
 ): EditorTool {
   if (eventKind === "monster") return { kind: "event", eventKind, species, patrolRadius };
-  if (eventKind === "guard") return { kind: "event", eventKind, patrolRadius };
+  if (eventKind === "guard" || eventKind === "npc")
+    return { kind: "event", eventKind, patrolRadius };
   if (eventKind === "normal") {
     // A preset placement names itself, in the author's language, so the event list distinguishes the
     // five presets. `raw` stays unnamed: it IS the generic custom event, and the list's own kind

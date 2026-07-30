@@ -339,6 +339,46 @@ describe("EventDialog", () => {
     expect(committed.pages[0]?.commands).toEqual([]);
   });
 
+  it("authors a free NPC's characteristics, patrol zone and walking routine", async () => {
+    const user = userEvent.setup({ delay: null });
+    const { onCommit } = renderDialog(
+      seedEvent({
+        kind: "npc",
+        species: null,
+        patrolRadius: 96,
+        pages: [{ ...defaultEventPage(), moveType: "random" }],
+      }),
+      RUNTIME_REGISTRY,
+    );
+
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(screen.getByText(t("editor.event.kind.npc.hint"))).toBeVisible();
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.markers.radius") }), {
+      target: { value: "160" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.hp") }), {
+      target: { value: "275" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.npc.power") }), {
+      target: { value: "24" },
+    });
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.event.move.type") }),
+      "custom",
+    );
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed).toMatchObject({
+      kind: "npc",
+      species: null,
+      patrolRadius: 160,
+      monsterMaxHp: 275,
+      monsterDamage: 24,
+    });
+    expect(committed.pages[0]?.moveType).toBe("custom");
+  });
+
   it("shows only a label field for an entry event and round-trips the label", async () => {
     const user = userEvent.setup();
     const { onCommit } = renderDialog(seedEvent({ kind: "entry", name: "" }));

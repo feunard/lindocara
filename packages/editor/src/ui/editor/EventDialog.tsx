@@ -19,6 +19,7 @@ import {
   MAX_PAGES_PER_EVENT,
   type MapEvent,
   type MapEventPage,
+  MOVE_TYPES,
   SELF_SWITCHES,
   type SelfSwitch,
   validateEventName,
@@ -44,6 +45,7 @@ import {
   setEventDraftMonster,
   setEventDraftMonsterRespawnMode,
   setEventDraftName,
+  setEventDraftNpc,
   updateEventDraftPage,
 } from "../../game/editor-state.js";
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
@@ -63,6 +65,8 @@ const RUNTIME_EVENT_TRIGGERS = [
   "action",
   "player-touch",
 ] as const satisfies readonly EventTrigger[];
+const NPC_MOVE_SPEEDS = [0, 1, 2, 3, 4, 5] as const;
+const NPC_MOVE_FREQUENCIES = [0, 1, 2, 3, 4] as const;
 
 function runtimeTrigger(trigger: EventTrigger): boolean {
   return (RUNTIME_EVENT_TRIGGERS as readonly EventTrigger[]).includes(trigger);
@@ -349,6 +353,67 @@ function MonsterEventFields({
   );
 }
 
+/** Free-NPC characteristics shared by persistence and its authoritative movement routine. */
+function NpcEventFields({
+  draft,
+  onChange,
+}: {
+  draft: MapEvent;
+  onChange(patrolRadius: number, tuning?: Partial<Pick<MonsterTuning, "maxHp" | "damage">>): void;
+}) {
+  const defaults = defaultMonsterTuning("spear_goblin");
+  const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
+  const values = {
+    maxHp: draft.monsterMaxHp ?? defaults.maxHp,
+    damage: draft.monsterDamage ?? defaults.damage,
+  };
+  return (
+    <section className="grid gap-3 border-y border-zinc-200 py-3">
+      <p className="text-xs text-muted-foreground">{t("editor.event.kind.npc.hint")}</p>
+      <div className="grid grid-cols-3 gap-3">
+        <label
+          htmlFor="npc-patrol-radius"
+          className="flex flex-col gap-1 text-[11px] text-zinc-500"
+        >
+          {t("editor.markers.radius")}
+          <Input
+            id="npc-patrol-radius"
+            type="number"
+            min={MIN_PATROL_RADIUS}
+            max={MAX_PATROL_RADIUS}
+            value={patrolRadius}
+            onChange={(event) => onChange(Number(event.currentTarget.value))}
+          />
+        </label>
+        {(
+          [
+            ["maxHp", "editor.monster.hp", MONSTER_TUNING_LIMITS.maxHp],
+            ["damage", "editor.npc.power", MONSTER_TUNING_LIMITS.damage],
+          ] as const
+        ).map(([field, label, limits]) => (
+          <label
+            key={field}
+            htmlFor={`npc-${field}`}
+            className="flex flex-col gap-1 text-[11px] text-zinc-500"
+          >
+            {t(label)}
+            <Input
+              id={`npc-${field}`}
+              type="number"
+              min={limits.min}
+              max={limits.max}
+              value={values[field]}
+              onChange={(event) =>
+                onChange(patrolRadius, { [field]: Number(event.currentTarget.value) })
+              }
+            />
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 interface EventDialogProps {
   /** The draft seed: a deep copy of the event to edit, from `beginEventDraft`. */
   event: MapEvent;
@@ -503,6 +568,13 @@ export function EventDialog({
           </div>
         )}
 
+        {draft.kind === "npc" && (
+          <NpcEventFields
+            draft={draft}
+            onChange={(radius, tuning) => setDraft(setEventDraftNpc(draft, radius, tuning))}
+          />
+        )}
+
         {draft.kind === "guard" && (
           <section className="flex flex-col gap-3 border-y border-zinc-200 py-3">
             <p className="text-xs text-muted-foreground">{t("editor.event.kind.guard.hint")}</p>
@@ -539,7 +611,7 @@ export function EventDialog({
 
         {/* Normal events expose complete pages. Guards reuse only the page tabs and party-state
             conditions: their pages declare presence and may never run commands. */}
-        {(draft.kind === "normal" || draft.kind === "guard") && (
+        {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
           <>
             {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
             <div
@@ -587,7 +659,13 @@ export function EventDialog({
               </Button>
             </div>
 
-            <div className={draft.kind === "normal" ? "grid gap-4 sm:grid-cols-2" : "grid gap-4"}>
+            <div
+              className={
+                draft.kind === "normal" || draft.kind === "npc"
+                  ? "grid gap-4 sm:grid-cols-2"
+                  : "grid gap-4"
+              }
+            >
               {/* Left column: the authored page fields. */}
               <div className="flex flex-col gap-4">
                 <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
@@ -670,7 +748,7 @@ export function EventDialog({
                       {t("editor.event.cond.variable.empty.hint")}
                     </p>
                   )}
-                  {draft.kind === "normal" && (
+                  {(draft.kind === "normal" || draft.kind === "npc") && (
                     <CheckRow
                       checked={page.condSelfSwitch !== null}
                       onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}
@@ -695,7 +773,7 @@ export function EventDialog({
                   )}
                 </section>
 
-                {draft.kind === "normal" && (
+                {(draft.kind === "normal" || draft.kind === "npc") && (
                   <>
                     <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
                       <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
@@ -717,6 +795,75 @@ export function EventDialog({
                         {t("editor.event.opt.onTop")}
                       </label>
                     </section>
+
+                    {draft.kind === "npc" && (
+                      <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                        <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                          {t("editor.event.movement")}
+                        </h3>
+                        <label
+                          htmlFor="npc-move-type"
+                          className="flex flex-col gap-1 text-[11px] text-zinc-500"
+                        >
+                          {t("editor.event.move.type")}
+                          <FieldSelect
+                            id="npc-move-type"
+                            value={page.moveType}
+                            onChange={(event) =>
+                              update({
+                                moveType: event.currentTarget.value as MapEventPage["moveType"],
+                              })
+                            }
+                          >
+                            {MOVE_TYPES.map((moveType) => (
+                              <option key={moveType} value={moveType}>
+                                {t(`editor.event.moveType.${moveType}`)}
+                              </option>
+                            ))}
+                          </FieldSelect>
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label
+                            htmlFor="npc-move-speed"
+                            className="flex flex-col gap-1 text-[11px] text-zinc-500"
+                          >
+                            {t("editor.event.move.speed")}
+                            <FieldSelect
+                              id="npc-move-speed"
+                              value={page.moveSpeed}
+                              onChange={(event) =>
+                                update({ moveSpeed: Number(event.currentTarget.value) })
+                              }
+                            >
+                              {NPC_MOVE_SPEEDS.map((value) => (
+                                <option key={value} value={value}>
+                                  {t(`editor.event.speed.${value}`)}
+                                </option>
+                              ))}
+                            </FieldSelect>
+                          </label>
+                          <label
+                            htmlFor="npc-move-frequency"
+                            className="flex flex-col gap-1 text-[11px] text-zinc-500"
+                          >
+                            {t("editor.event.move.freq")}
+                            <FieldSelect
+                              id="npc-move-frequency"
+                              value={page.moveFreq}
+                              onChange={(event) =>
+                                update({ moveFreq: Number(event.currentTarget.value) })
+                              }
+                            >
+                              {NPC_MOVE_FREQUENCIES.map((value) => (
+                                <option key={value} value={value}>
+                                  {t(`editor.event.freq.${value}`)}
+                                </option>
+                              ))}
+                            </FieldSelect>
+                          </label>
+                        </div>
+                      </section>
+                    )}
 
                     <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
                       <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
@@ -748,7 +895,7 @@ export function EventDialog({
               </div>
 
               {/* Right column: the page's guided action list. */}
-              {draft.kind === "normal" && (
+              {(draft.kind === "normal" || draft.kind === "npc") && (
                 <EventCommandEditor
                   commands={page.commands}
                   switches={registry.switches}

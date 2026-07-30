@@ -46,6 +46,7 @@ describe("authoritative NPC movement", () => {
           moveSpeed: 4,
           moveFreq: 4,
           through: false,
+          patrolRadius: 4 * TILE_SIZE,
         },
       ],
       0,
@@ -94,6 +95,7 @@ describe("authoritative NPC movement", () => {
           moveSpeed: 4,
           moveFreq: 4,
           through: false,
+          patrolRadius: 4 * TILE_SIZE,
         },
       ],
       0,
@@ -120,5 +122,41 @@ describe("authoritative NPC movement", () => {
       pausedEventIds: new Set(["guard"]),
     });
     expect(paused).toEqual(moved);
+  });
+
+  it("keeps an approaching NPC inside its authored patrol radius", () => {
+    const movement = reconcileNpcMovement(
+      new Map(),
+      [
+        {
+          id: "villager",
+          homeCol: 3,
+          homeRow: 3,
+          moveType: "approach",
+          moveSpeed: 4,
+          moveFreq: 4,
+          through: false,
+          patrolRadius: TILE_SIZE,
+        },
+      ],
+      0,
+    );
+    const players = [
+      { x: 7 * TILE_SIZE, y: 3 * TILE_SIZE, authorized: true, life: "alive" as const },
+    ];
+    let events: ActiveWorldEvent[] = [event("villager", 3, 3)];
+    for (const tick of [8, 16, 24, 32]) {
+      events = advanceNpcEvents({
+        events,
+        movement,
+        players,
+        terrain,
+        tick,
+        pausedEventIds: new Set(),
+      });
+      expect(Math.hypot((events[0]?.col ?? 0) - 3, (events[0]?.row ?? 0) - 3)).toBeLessThanOrEqual(
+        1,
+      );
+    }
   });
 });

@@ -97,6 +97,7 @@ import {
   type EventTrigger,
   eventCellCentre,
   exitEvents,
+  isActiveWorldEventKind,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
@@ -1039,7 +1040,7 @@ export class World extends DurableObject<Env> {
     event: MapEvent,
     trigger: EventTrigger,
   ): { pageIndex: number; program: readonly EventCommand[] } | null {
-    if (event.kind !== "normal") return null;
+    if (!isActiveWorldEventKind(event.kind)) return null;
     const pageIndex = activePageIndex(event, this.#adventureState);
     if (pageIndex === null) return null;
     const page = event.pages[pageIndex];
@@ -1151,7 +1152,7 @@ export class World extends DurableObject<Env> {
     if (!mapId) return false;
     let nearest: { event: MapEvent; pageIndex: number; distance: number } | null = null;
     for (const event of this.#location?.definition.events ?? []) {
-      if (event.kind !== "normal") continue;
+      if (!isActiveWorldEventKind(event.kind)) continue;
       const pageIndex = activePageIndex(event, this.#adventureState);
       if (pageIndex === null) continue;
       const page = event.pages[pageIndex];
@@ -1398,7 +1399,7 @@ export class World extends DurableObject<Env> {
       runnable: { pageIndex: number; program: readonly EventCommand[] };
     } | null = null;
     for (const event of events) {
-      if (event.kind !== "normal") continue;
+      if (!isActiveWorldEventKind(event.kind)) continue;
       const runnable = this.#runnablePage(event, "player-touch");
       if (
         runnable !== null &&
@@ -1432,7 +1433,7 @@ export class World extends DurableObject<Env> {
     if (!events || events.length === 0 || !mapId) return;
     const movementTolerance = (monster.speed * TICK_MS) / 1_000;
     for (const event of events) {
-      if (event.kind !== "normal") continue;
+      if (!isActiveWorldEventKind(event.kind)) continue;
       const pageIndex = activePageIndex(event, this.#adventureState);
       if (pageIndex === null) continue;
       const page = event.pages[pageIndex];
@@ -1511,9 +1512,9 @@ export class World extends DurableObject<Env> {
     const active: ActiveWorldEvent[] = [];
     const movement = [];
     for (const event of events) {
-      // Only `normal` events have an appearance. Anchors and monster spawns are consumed elsewhere;
-      // guard events are projected above into the authoritative guard collection.
-      if (event.kind !== "normal") continue;
+      // Scripted events and free NPCs have an appearance. Anchors and monster spawns are consumed
+      // elsewhere; guards are projected above into the authoritative guard collection.
+      if (!isActiveWorldEventKind(event.kind)) continue;
       const index = activePageIndex(event, this.#adventureState);
       if (index === null) continue;
       const page = event.pages[index];
@@ -1538,6 +1539,7 @@ export class World extends DurableObject<Env> {
         moveSpeed: page.moveSpeed,
         moveFreq: page.moveFreq,
         through: page.optThrough,
+        patrolRadius: event.patrolRadius ?? TILE_SIZE * 2,
       });
     }
     this.#activeEvents = active;

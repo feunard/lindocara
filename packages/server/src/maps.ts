@@ -556,13 +556,15 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
     // half-row: drop it rather than surface an event the wire parser would reject. Guards must keep
     // their radius on GET because the editor reuses that payload for the next PUT.
     const isMonster = row.kind === "monster";
+    const isNpc = row.kind === "npc";
+    const isTuned = isMonster || isNpc;
     const isGuard = row.kind === "guard";
     if (
       (isMonster && (row.species === null || row.patrolRadius === null)) ||
-      (isGuard && row.patrolRadius === null)
+      ((isGuard || isNpc) && row.patrolRadius === null)
     )
       return [];
-    const tuning = isMonster && row.species !== null ? defaultMonsterTuning(row.species) : null;
+    const tuning = isTuned ? defaultMonsterTuning(row.species ?? "spear_goblin") : null;
     return [
       {
         id: row.id,
@@ -572,17 +574,17 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
         ordinal: row.ordinal,
         kind: row.kind,
         species: isMonster ? row.species : null,
-        patrolRadius: isMonster || isGuard ? row.patrolRadius : null,
-        monsterRank: isMonster ? (row.monsterRank ?? tuning?.rank ?? null) : null,
-        monsterMaxHp: isMonster ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
-        monsterDamage: isMonster ? (row.monsterDamage ?? tuning?.damage ?? null) : null,
-        monsterSpeed: isMonster ? (row.monsterSpeed ?? tuning?.speed ?? null) : null,
-        monsterXp: isMonster ? (row.monsterXp ?? tuning?.xp ?? null) : null,
-        monsterWeakness: isMonster ? (row.monsterWeakness ?? tuning?.weakness ?? null) : null,
-        monsterWeaknessPercent: isMonster
+        patrolRadius: isMonster || isGuard || isNpc ? row.patrolRadius : null,
+        monsterRank: isTuned ? (row.monsterRank ?? tuning?.rank ?? null) : null,
+        monsterMaxHp: isTuned ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
+        monsterDamage: isTuned ? (row.monsterDamage ?? tuning?.damage ?? null) : null,
+        monsterSpeed: isTuned ? (row.monsterSpeed ?? tuning?.speed ?? null) : null,
+        monsterXp: isTuned ? (row.monsterXp ?? tuning?.xp ?? null) : null,
+        monsterWeakness: isTuned ? (row.monsterWeakness ?? tuning?.weakness ?? null) : null,
+        monsterWeaknessPercent: isTuned
           ? (row.monsterWeaknessPercent ?? tuning?.weaknessPercent ?? null)
           : null,
-        monsterSpecialTechnique: isMonster
+        monsterSpecialTechnique: isTuned
           ? (row.monsterSpecialTechnique ?? tuning?.specialTechnique ?? null)
           : null,
         ...(isMonster && row.monsterRespawnMode !== null

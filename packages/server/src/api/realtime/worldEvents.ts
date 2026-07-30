@@ -13,7 +13,12 @@
 import { activePageIndex } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { isWalkable } from "@lindocara/engine/game.js";
-import { type EventTrigger, eventCellCentre, type MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  type EventTrigger,
+  eventCellCentre,
+  isActiveWorldEventKind,
+  type MapEvent,
+} from "@lindocara/engine/map-events.js";
 import { PLAYER_SIZE, PLAYER_SPEED, TICK_MS, type Vec2 } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
@@ -60,9 +65,9 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
   const active: ActiveWorldEvent[] = [];
   const movement = [];
   for (const event of events) {
-    // Only `normal` events have an appearance. Anchors and monster spawns are consumed elsewhere;
-    // guard events are projected above into the authoritative guard collection.
-    if (event.kind !== "normal") continue;
+    // Scripted events and free NPCs have an appearance. Anchors and monster spawns are consumed
+    // elsewhere; guards are projected above into the authoritative guard collection.
+    if (!isActiveWorldEventKind(event.kind)) continue;
     const index = activePageIndex(event, adventureState);
     if (index === null) continue;
     const page = event.pages[index];
@@ -87,6 +92,7 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
       moveSpeed: page.moveSpeed,
       moveFreq: page.moveFreq,
       through: page.optThrough,
+      patrolRadius: event.patrolRadius ?? TILE_SIZE * 2,
     });
   }
   state.activeEvents = active;
@@ -142,7 +148,7 @@ export function touchesEventCell(
   );
 }
 
-/** Port of `#runnablePage` (`world.ts:1038`): the active page of a `normal` event carrying a
+/** Port of `#runnablePage` (`world.ts:1038`): the active page of a scripted event carrying a
  *  runnable program under `trigger`, or null. Only a satisfied active page with a non-empty
  *  program can fire — a blank appearance-only event is not a script. */
 export function runnablePage(
@@ -150,7 +156,7 @@ export function runnablePage(
   event: MapEvent,
   trigger: EventTrigger,
 ): { pageIndex: number; program: readonly EventCommand[] } | null {
-  if (event.kind !== "normal") return null;
+  if (!isActiveWorldEventKind(event.kind)) return null;
   const pageIndex = activePageIndex(event, state.adventureState.state);
   if (pageIndex === null) return null;
   const page = event.pages[pageIndex];
@@ -175,7 +181,7 @@ export function detectPlayerTouch(
   if (!events || events.length === 0) return;
   const movementTolerance = (PLAYER_SPEED * TICK_MS) / 1_000;
   for (const event of events) {
-    if (event.kind !== "normal") continue;
+    if (!isActiveWorldEventKind(event.kind)) continue;
     const runnable = runnablePage(state, event, "player-touch");
     if (
       runnable !== null &&
@@ -252,7 +258,7 @@ export function detectMonsterTouch(
   if (!events || events.length === 0 || !mapId) return;
   const movementTolerance = (monster.speed * TICK_MS) / 1_000;
   for (const event of events) {
-    if (event.kind !== "normal") continue;
+    if (!isActiveWorldEventKind(event.kind)) continue;
     const pageIndex = activePageIndex(event, state.adventureState.state);
     if (pageIndex === null) continue;
     const page = event.pages[pageIndex];

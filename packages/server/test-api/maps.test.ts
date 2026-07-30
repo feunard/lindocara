@@ -337,6 +337,51 @@ describe("list, get, update, delete", () => {
     expect(editorSave.status).toBe(200);
   });
 
+  test("round-trips a free NPC with characteristics and a walking routine", async () => {
+    const { userId, token } = await registerAndLogin("mapnpc");
+    const adventureId = await newAdventure(userId);
+    await newMapId(adventureId, token, "Keepalive");
+    const id = await newMapId(adventureId, token, "Village");
+    const npcEvent = {
+      id: crypto.randomUUID(),
+      col: 5,
+      row: 5,
+      name: "Mara",
+      ordinal: 1,
+      kind: "npc",
+      species: null,
+      patrolRadius: 160,
+      monsterMaxHp: 275,
+      monsterDamage: 24,
+      pages: [wirePage({ moveType: "random", moveSpeed: 3, moveFreq: 2 })],
+    };
+
+    const authored = await putMap(id, token, mapBody({ name: "Village", events: [npcEvent] }));
+    expect(authored.status).toBe(200);
+
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as {
+      events: {
+        kind: string;
+        patrolRadius: number;
+        monsterMaxHp: number;
+        monsterDamage: number;
+        pages: { moveType: string }[];
+      }[];
+    };
+    expect(payload.events[0]).toMatchObject({
+      kind: "npc",
+      patrolRadius: 160,
+      monsterMaxHp: 275,
+      monsterDamage: 24,
+      pages: [{ moveType: "random" }],
+    });
+
+    const editorSave = await putMap(id, token, payload);
+    expect(editorSave.status).toBe(200);
+  });
+
   // Regression coverage for the chunked-write fix: `MapService.writeElements`/`writeEvents` used
   // to hand `createMany` an unchunked array. Alepha's `Repository.createMany` batches by ROW COUNT
   // only (`.vendor/alepha/src/orm/core/services/Repository.ts:866-908`), never by bound-parameter

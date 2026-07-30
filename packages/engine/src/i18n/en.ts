@@ -971,6 +971,7 @@ export const en = {
   "editor.inspector.exit": "Exit",
   "editor.inspector.monster": "Monster spawn",
   "editor.inspector.guard": "Allied guard",
+  "editor.inspector.npc": "Free NPC",
   "editor.inspector.event": "Event",
   "editor.inspector.spawn": "Map fallback and test start",
   "editor.inspector.walkable": "Walkable",
@@ -989,6 +990,7 @@ export const en = {
   "editor.monster.respawnMode.never": "Permanent death for this party",
   "editor.monster.hp": "Health points",
   "editor.monster.damage": "Attack power",
+  "editor.npc.power": "Power",
   "editor.monster.speed": "Movement speed",
   "editor.monster.xp": "Experience reward",
   "editor.monster.weakness": "Weakness",
@@ -1588,6 +1590,7 @@ export const en = {
   "editor.event.kind.heading": "Event kind",
   "editor.event.monsters.heading": "Monsters",
   "editor.event.kind.normal": "Custom event",
+  "editor.event.kind.npc": "Free NPC",
   "editor.event.kind.entry": "Entry",
   "editor.event.kind.exit": "Exit",
   "editor.event.kind.monster": "Monster",
@@ -1599,6 +1602,8 @@ export const en = {
     "This is the adventure’s global starting point. It is separate from each map’s technical fallback.",
   "editor.event.kind.guard.hint":
     "Server-driven allied combatant. Conditional pages determine its presence and its radius bounds movement.",
+  "editor.event.kind.npc.hint":
+    "Free character with appearance, dialogue, health, power, speed, movement zone and an autonomous routine.",
   "editor.event.preset.heading": "Place",
   "editor.event.preset.raw": "Blank custom event",
   "editor.event.preset.teleporter": "Teleporter",

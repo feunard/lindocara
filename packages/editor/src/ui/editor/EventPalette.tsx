@@ -29,10 +29,11 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
  *  have their own visible catalogue below so every supported species is directly selectable.
  *  Existing entry/exit events on an old adventure's map still render and list — they just cannot be
  *  authored anew. */
-const FUNCTIONAL_KINDS = ["spawn", "guard"] as const;
+const FUNCTIONAL_KINDS = ["npc", "spawn", "guard"] as const;
 
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   normal: "editor.event.kind.normal",
+  npc: "editor.event.kind.npc",
   entry: "editor.event.kind.entry",
   exit: "editor.event.kind.exit",
   monster: "editor.event.kind.monster",
@@ -137,7 +138,11 @@ export function EventPalette({
               key={kind}
               label={t(EVENT_KIND_LABEL[kind])}
               active={eventKind === kind}
-              preview={<SpriteSheetPreview source={EDITOR_MARKER_PREVIEWS[kind]} frame={192} />}
+              preview={
+                kind === "npc" ? undefined : (
+                  <SpriteSheetPreview source={EDITOR_MARKER_PREVIEWS[kind]} frame={192} />
+                )
+              }
               onClick={() => onSelectEventKind(kind)}
             />
           ))}
@@ -164,7 +169,7 @@ export function EventPalette({
           })}
         </div>
 
-        {(eventKind === "monster" || eventKind === "guard") && (
+        {(eventKind === "monster" || eventKind === "guard" || eventKind === "npc") && (
           <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">
             <Label htmlFor="marker-radius" className="text-[11px] text-zinc-500">
               {t("editor.markers.radius")}

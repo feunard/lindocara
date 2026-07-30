@@ -104,7 +104,12 @@ import {
   withinRange,
 } from "@lindocara/engine/game.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/interest.js";
-import { eventCellCentre, exitEvents, type MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  eventCellCentre,
+  exitEvents,
+  isActiveWorldEventKind,
+  type MapEvent,
+} from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
 import type {
   ClientMessage,
@@ -3941,7 +3946,7 @@ function triggerQuestTargetNearby(
   if (!mapId) return false;
   let nearest: { event: MapEvent; pageIndex: number; distance: number } | null = null;
   for (const event of state.location?.definition.events ?? []) {
-    if (event.kind !== "normal") continue;
+    if (!isActiveWorldEventKind(event.kind)) continue;
     const pageIndex = activePageIndex(event, state.adventureState.state);
     if (pageIndex === null) continue;
     const page = event.pages[pageIndex];

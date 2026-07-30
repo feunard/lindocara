@@ -96,6 +96,19 @@ describe("EventPalette (D13/D14)", () => {
     expect(onMarkerRadiusChange).toHaveBeenCalledWith(160);
   });
 
+  it("offers a free NPC tool with an editable movement radius", () => {
+    setLocale("en");
+    const onSelectEventKind = vi.fn();
+    render(<EventPalette {...baseProps()} eventKind="npc" onSelectEventKind={onSelectEventKind} />);
+
+    fireEvent.click(screen.getByRole("button", { name: t("editor.event.kind.npc") }));
+    expect(onSelectEventKind).toHaveBeenCalledWith("npc");
+    expect(screen.getByRole("spinbutton", { name: t("editor.markers.radius") })).toHaveValue(96);
+    expect(
+      screen.queryByRole("combobox", { name: t("editor.markers.species") }),
+    ).not.toBeInTheDocument();
+  });
+
   it("lists the map's events and highlights on hover, selects on click", () => {
     setLocale("en");
     const list = events();
