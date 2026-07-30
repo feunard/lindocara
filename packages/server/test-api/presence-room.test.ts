@@ -358,3 +358,128 @@ describe("cooldown checkpoints", () => {
     expect(readBack).toEqual(emptyCombatCooldowns());
   });
 });
+
+describe("cooldown promotion", () => {
+  test("a still-active cooldown survives a reconnect (new acquire, new connection)", async () => {
+    const { heroId } = await newHero("promoteacquire");
+    let now = 1_000_000;
+    presenceRoom.now = () => now;
+
+    const first = (await presenceRoom.room.call(heroId, "acquire", {
+      connectionId: "conn-1",
+      roomKey: "party:map",
+      zoneId: "map",
+      instanceId: "main",
+    })) as { sessionEpoch: number };
+
+    const cooldowns = { ...emptyCombatCooldowns(), attackUntil: now + 100 };
+    const checkpointed = await presenceRoom.room.call(
+      heroId,
+      "checkpointCooldowns",
+      "conn-1",
+      first.sessionEpoch,
+      cooldowns,
+    );
+    expect(checkpointed).toBe(true);
+
+    // Reconnect from a DIFFERENT connection, still well inside the cooldown's window.
+    now += 10;
+    const second = (await presenceRoom.room.call(heroId, "acquire", {
+      connectionId: "conn-2",
+      roomKey: "party:map",
+      zoneId: "map",
+      instanceId: "main",
+    })) as { sessionEpoch: number };
+    expect(second.sessionEpoch).toBe(first.sessionEpoch + 1);
+
+    // The old connection is dead (lost the race), but the cooldown itself must still be there
+    // under the NEW lease — a reconnect must not be a free cooldown reset.
+    const readBack = await presenceRoom.room.call(
+      heroId,
+      "readCooldowns",
+      "conn-2",
+      second.sessionEpoch,
+    );
+    expect(readBack).toEqual(cooldowns);
+  });
+
+  test("a still-active cooldown survives a map handoff", async () => {
+    const { heroId, mapId } = await newHero("promotehandoff");
+    let now = 2_000_000;
+    presenceRoom.now = () => now;
+
+    const acquired = (await presenceRoom.room.call(heroId, "acquire", {
+      connectionId: "conn-1",
+      roomKey: "party:map",
+      zoneId: mapId,
+      instanceId: "main",
+    })) as { sessionEpoch: number };
+
+    const cooldowns = { ...emptyCombatCooldowns(), attackUntil: now + 100 };
+    const checkpointed = await presenceRoom.room.call(
+      heroId,
+      "checkpointCooldowns",
+      "conn-1",
+      acquired.sessionEpoch,
+      cooldowns,
+    );
+    expect(checkpointed).toBe(true);
+
+    now += 10;
+    const handedOff = (await presenceRoom.room.call(heroId, "handoff", {
+      connectionId: "conn-1",
+      sessionEpoch: acquired.sessionEpoch,
+      mapId: "next-map",
+      x: 10,
+      y: 20,
+    })) as { sessionEpoch: number };
+    expect(handedOff.sessionEpoch).toBe(acquired.sessionEpoch + 1);
+
+    const readBack = await presenceRoom.room.call(
+      heroId,
+      "readCooldowns",
+      "conn-1",
+      handedOff.sessionEpoch,
+    );
+    expect(readBack).toEqual(cooldowns);
+  });
+
+  test("an already-expired entry is dropped during promotion, not carried forward", async () => {
+    const { heroId } = await newHero("promoteexpired");
+    let now = 3_000_000;
+    presenceRoom.now = () => now;
+
+    const first = (await presenceRoom.room.call(heroId, "acquire", {
+      connectionId: "conn-1",
+      roomKey: "party:map",
+      zoneId: "map",
+      instanceId: "main",
+    })) as { sessionEpoch: number };
+
+    const cooldowns = { ...emptyCombatCooldowns(), attackUntil: now + 100 };
+    await presenceRoom.room.call(
+      heroId,
+      "checkpointCooldowns",
+      "conn-1",
+      first.sessionEpoch,
+      cooldowns,
+    );
+
+    // Advance well past the checkpointed deadline before the next acquire.
+    now += 200;
+    const second = (await presenceRoom.room.call(heroId, "acquire", {
+      connectionId: "conn-2",
+      roomKey: "party:map",
+      zoneId: "map",
+      instanceId: "main",
+    })) as { sessionEpoch: number };
+
+    const readBack = await presenceRoom.room.call(
+      heroId,
+      "readCooldowns",
+      "conn-2",
+      second.sessionEpoch,
+    );
+    expect(readBack).toEqual(emptyCombatCooldowns());
+  });
+});

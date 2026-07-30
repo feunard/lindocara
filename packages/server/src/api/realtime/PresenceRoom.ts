@@ -1,6 +1,7 @@
 import {
   type CombatCooldownState,
   emptyCombatCooldowns,
+  hasActiveCombatCooldowns,
   normalizeCombatCooldowns,
 } from "@lindocara/engine/cooldowns.js";
 import { $inject } from "alepha";
@@ -50,20 +51,25 @@ interface PresenceRoomState {
  * The headless per-hero presence/lease room, successor to legacy `CharacterPresence`/
  * `HeroPresence` (`packages/server/src/character-presence.ts:107-240`). `roomId` is the hero id;
  * `state()` is created lazily on first `call()` and holds exactly one lease plus one cooldown
- * checkpoint — there is never more than one authoritative holder per hero.
+ * checkpoint — there is never more than one authoritative holder per hero. The cooldown checkpoint
+ * OUTLIVES any single lease: both `acquire` (reconnect) and `handoff` (map transition) carry
+ * still-active cooldowns forward onto the new lease's epoch (`promoteCooldowns`), matching legacy's
+ * `#promoteCooldowns` — a reconnect or a zone hop must never be a free cooldown refresh.
  *
  * **Volatility, and why it is still safe.** Unlike the legacy Durable-Object-backed
  * `CharacterPresence`, this room's state lives ONLY in this process's memory: Alepha's headless
  * `$room` has no storage/alarm primitive (see the realtime-tranche plan's "Verified recon
  * findings" #4). A headless room that receives no `call()` for `NodeWebSocketServerProvider`'s
- * 5-minute idle sweep (`ROOM_IDLE_TTL_MS`) is disposed and its lease is gone — indistinguishable,
- * from the caller's point of view, from the lease simply expiring. Either way the very next
- * `isAuthorized` call returns `false`, and the room holding the hero's WebSocket (`WorldRoom`,
- * Task 4+) closes that socket with `WS_CLOSE.PRESENCE_LOST` (4003), sending the player back
- * through the reconnect flow. **D1 is what actually keeps data safe**: every fenced write goes
- * through `HeroEpochService`, which gates on `hero.session_epoch` in the SAME statement as the
- * mutation, so a lost lease can only ever cost a player a reconnect — it can never let two
- * connections both believe they hold the authoritative copy of one hero.
+ * 5-minute idle sweep (`ROOM_IDLE_TTL_MS`) is disposed and its lease (and any promoted cooldown
+ * checkpoint) is gone — indistinguishable, from the caller's point of view, from the lease simply
+ * expiring. Either way the very next `isAuthorized` call returns `false`, and the room holding the
+ * hero's WebSocket (`WorldRoom`, Task 4+) closes that socket with `WS_CLOSE.PRESENCE_LOST` (4003),
+ * sending the player back through the reconnect flow, where a lost cooldown checkpoint restores as
+ * empty — a rare eviction-triggered refresh, not the routine one an unconditional reset would have
+ * been. **D1 is what actually keeps hero data safe**: every fenced write goes through
+ * `HeroEpochService`, which gates on `hero.session_epoch` in the SAME statement as the mutation, so
+ * a lost lease can only ever cost a player a reconnect — it can never let two connections both
+ * believe they hold the authoritative copy of one hero.
  */
 export class PresenceRoom {
   heroEpochService = $inject(HeroEpochService);
@@ -112,7 +118,8 @@ export class PresenceRoom {
    * freezing the previous room before acquiring elsewhere): bumps the D1 epoch, then installs a
    * fresh lease unconditionally. A second `acquire` for the same hero (a reconnect, or the same
    * character opened elsewhere) always wins over whatever lease existed — the old holder's next
-   * `isAuthorized` simply starts failing.
+   * `isAuthorized` simply starts failing. Any still-active checkpointed cooldowns survive the new
+   * lease (`promoteCooldowns`) — a reconnect is not a free cooldown reset.
    */
   protected async acquire(
     heroId: string,
@@ -129,9 +136,7 @@ export class PresenceRoom {
       instanceId: request.instanceId,
       expiresAt: this.now() + PRESENCE_TTL_MS,
     };
-    // A fresh epoch starts a fresh session: any cooldown checkpoint recorded under the previous
-    // lease belongs to a holder this acquire just replaced.
-    state.cooldowns = null;
+    this.promoteCooldowns(state, sessionEpoch);
     return { sessionEpoch };
   }
 
@@ -174,7 +179,9 @@ export class PresenceRoom {
    * saved its player; this conditionally moves the durable location and bumps the epoch in one D1
    * statement (`HeroEpochService.handoffEpoch`), fencing every late source-room save before the
    * browser is ever asked to reconnect at the new location. A stale `sessionEpoch` — or a lease
-   * that already lapsed — aborts without touching D1 or the in-memory lease.
+   * that already lapsed — aborts without touching D1 or the in-memory lease. Any still-active
+   * checkpointed cooldowns survive the map transition (`promoteCooldowns`) — a zone hop is not a
+   * free cooldown reset any more than a reconnect is.
    */
   protected async handoff(
     heroId: string,
@@ -200,14 +207,15 @@ export class PresenceRoom {
     });
     if (nextEpoch === null) return null;
     state.lease = { ...lease, sessionEpoch: nextEpoch, expiresAt: this.now() + PRESENCE_TTL_MS };
-    state.cooldowns = null;
+    this.promoteCooldowns(state, nextEpoch);
     return { sessionEpoch: nextEpoch };
   }
 
   /**
    * Records a cooldown checkpoint for the current lease holder. Purely in-memory (see the class
-   * docblock): a lost checkpoint restores empty cooldowns on the next `readCooldowns`, matching a
-   * fresh-session experience rather than corrupting anything durable.
+   * docblock): still-active cooldowns survive the routine `acquire`/`handoff` path via
+   * `promoteCooldowns`; only an actual room eviction (the rare volatile-state case) loses the
+   * checkpoint and restores empty cooldowns on the next `readCooldowns` — never anything durable.
    */
   protected checkpointCooldowns(
     state: PresenceRoomState,
@@ -225,8 +233,12 @@ export class PresenceRoom {
 
   /**
    * Reads back the current lease holder's cooldown checkpoint. Returns `emptyCombatCooldowns()`
-   * (never `null`) once authorization holds but nothing has been checkpointed yet or under this
-   * exact epoch; returns `null` only when the caller is not the live lease holder.
+   * (never `null`) once authorization holds but nothing has been checkpointed yet under this
+   * exact epoch — the `sessionEpoch` mismatch arm is a defensive fallback (mirrors legacy's own
+   * `readCooldowns`), not dead code: `promoteCooldowns` re-tags surviving cooldowns onto every new
+   * epoch, but a caller that skipped straight to `readCooldowns` without ever going through
+   * `acquire`/`handoff` for the epoch it names would otherwise read another epoch's checkpoint.
+   * Returns `null` only when the caller is not the live lease holder.
    */
   protected readCooldowns(
     state: PresenceRoomState,
@@ -241,6 +253,25 @@ export class PresenceRoom {
       return emptyCombatCooldowns();
     }
     return state.cooldowns.state;
+  }
+
+  /**
+   * Carries any still-active checkpointed cooldowns forward onto a NEW `sessionEpoch`, called by
+   * both `acquire` and `handoff` right after they install their new lease — port of legacy
+   * `CharacterPresence`'s `#promoteCooldowns` (`character-presence.ts:349,:403,:514-517`).
+   * Without this, a reconnect or a map transition would silently reset every cooldown (including a
+   * long ultimate), which is a live-play exploit, not just a UX regression: a player could hop
+   * zones or reconnect to refresh a skill early. Cooldowns are re-normalized against `this.now()`
+   * first (`normalizeCombatCooldowns`, the same bounded-deadline pass `checkpointCooldowns` already
+   * runs), so an entry whose expiry has already passed is dropped rather than promoted; if nothing
+   * survives, `state.cooldowns` becomes `null` instead of an inert empty record.
+   */
+  protected promoteCooldowns(state: PresenceRoomState, sessionEpoch: number): void {
+    if (!state.cooldowns) return;
+    const survivors = normalizeCombatCooldowns(state.cooldowns.state, this.now());
+    state.cooldowns = hasActiveCombatCooldowns(survivors)
+      ? { sessionEpoch, state: survivors }
+      : null;
   }
 
   /**
