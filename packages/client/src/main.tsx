@@ -2,7 +2,7 @@ import { applyTinySwordsTheme } from "@lindocara/renderer/tiny-swords-assets.js"
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { currentLocale } from "./i18n.js";
-import { App } from "./ui/App.js";
+import { LegacyShell } from "./ui/LegacyShell.js";
 import "./styles/app.css";
 
 document.documentElement.lang = currentLocale();
@@ -50,16 +50,17 @@ export function bootClient(): boolean {
 }
 
 /**
- * Mounts the old zustand-screen-machine `<App/>` into `#root`. Lives here rather than in
- * `apps/main/src/legacy/main.ts` (a plain `.ts` file, no JSX) — the rollback-only counterpart to
- * the primary path, which mounts Alepha's `$page` router (`ui/AppRouter.js`) instead.
+ * Mounts the old zustand-screen-machine `<LegacyShell/>` (formerly `<App/>`, `ui/App.tsx` — Task 5
+ * renamed the file once `ui/AppRouter.tsx`'s `$page` tree became the real app) into `#root`. Lives
+ * here rather than in `apps/main/src/legacy/main.ts` (a plain `.ts` file, no JSX) — the
+ * rollback-only counterpart to the primary path, which mounts Alepha's router instead.
  */
 export function mountLegacyApp(): void {
   const root = document.querySelector("#root");
   if (!root) throw new Error("index.html is missing #root");
   createRoot(root).render(
     <StrictMode>
-      <App />
+      <LegacyShell />
     </StrictMode>,
   );
 }

@@ -5,9 +5,12 @@ glue that binds the renderer to the network. Browser + React. This is the base t
 
 ## Responsibility
 
-- `main.tsx`/`ui/App.tsx` — entry + routing (title → login → resumable parties/saves; the editor is
-  lazy-`import()`ed). `ui/*` — screens (`AuthScreen`, `PartiesScreen`, `PartyScreen`, …). `ui/hud/`
-  — the in-game HUD. `ui/tiny-swords/` — the game component tree (its own `--tiny-*` tokens).
+- `main.tsx`/`ui/AppRouter.tsx` — entry + routing on Alepha's `$page` router (title → login →
+  resumable parties/saves; the editor is lazy-`import()`ed). `ui/LegacyShell.tsx` is the frozen,
+  rollback-only zustand-screen-machine counterpart mounted only by the separate `dev:legacy`/
+  `build:legacy` deploy target — see its own docblock. `ui/*` — screens (`AuthScreen`,
+  `PartiesScreen`, `PartyScreen`, …). `ui/hud/` — the in-game HUD. `ui/tiny-swords/` — the game
+  component tree (its own `--tiny-*` tokens).
 - `store.ts` — the zustand bridge (game session writes, React reads; text is i18n keys + params,
   never rendered strings). `api.ts` — the fetch client (machine codes → dictionary keys). `i18n.ts`
   — re-exports the renderer's locale core + the React `useLocale` hook and `setLocale` (flushSync).

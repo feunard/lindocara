@@ -251,7 +251,23 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
                 <div className="settings-session-actions">
                   <SettingsMenuItem
                     order={30}
-                    onActivate={() => (game ? game.switchCharacter() : window.location.reload())}
+                    onActivate={() => {
+                      if (game) {
+                        game.switchCharacter();
+                        return;
+                      }
+                      // Defensive fallback for a settings menu somehow open with no live game
+                      // handle (e.g. the brief window mid-launch, before `session.ts` has called
+                      // `setGame`) — same shape as `returnToTitle`'s fallback right below: clear
+                      // the session, then navigate through the seam (the store no longer does
+                      // either itself). Task 5 replaced this branch's `window.location.reload()`:
+                      // nothing about switching character genuinely needs a cold start, and a
+                      // reload was the one thing this pair of buttons disagreed on.
+                      useUiStore.getState().clearedGameSession();
+                      const nav = getGameNavigation();
+                      nav?.setActiveParty(null);
+                      nav?.toMenu();
+                    }}
                   >
                     <TinyButton type="button">{t("hud.switch_character")}</TinyButton>
                   </SettingsMenuItem>

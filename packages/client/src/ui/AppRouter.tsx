@@ -1,15 +1,17 @@
 /**
- * The `$page` route tree — Alepha's router replacing the zustand `screen` machine (App.tsx).
- * `title`/`menu`/`credits`/`auth` and, since Task 4, the three launch carousels
+ * The `$page` route tree — Alepha's router replacing the old zustand `screen` machine
+ * (`ui/LegacyShell.tsx`, the frozen rollback-only counterpart `App.tsx` used to be — see that
+ * file's docblock). `title`/`menu`/`credits`/`auth`, the three launch carousels
  * (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own docblock
- * below) are live. `game`/`editor` still exist now (per the plan's Global Constraints route map)
- * purely so `router.push("game")` etc. typecheck ahead of their own tasks — each renders a bare,
- * textless marker div until its own task builds the real screen.
+ * below) and, since Task 5, `game` are all live. `editor` still exists purely (per the plan's
+ * Global Constraints route map) so `router.push("editor")` typechecks ahead of its own task — it
+ * renders a bare, textless marker div until Task 6 builds the real screen.
  *
- * The root `layout` carries the chrome App.tsx used to own directly: the boot ping (now
- * `ReactAuth.ping()` -> guest fallback -> /auth, replacing the old `fetchMe()`, `App.tsx:49-65`),
- * the launch-menu music effect and the LocaleToggle/StatusBar immersive toggle (`App.tsx:70-84`),
- * all now driven by the URL instead of `screen`. `TitleScreen`/`MainMenu`/`CreditsScreen` are
+ * The root `layout` carries the chrome the old `App.tsx` used to own directly (now
+ * `LegacyShell.tsx`'s equivalent lines): the boot ping (now `ReactAuth.ping()` -> guest fallback
+ * -> /auth, replacing the old `fetchMe()`), the launch-menu music effect and the
+ * LocaleToggle/StatusBar immersive toggle, all now driven by the URL instead of `screen`.
+ * `TitleScreen`/`MainMenu`/`CreditsScreen` are
  * reused unmodified — they still call the store's deprecated `setScreen` shim (`store.ts`), which
  * now pushes through the navigation seam this layout installs below (`state/navigation.ts`) rather
  * than writing a `screen` field nobody reads anymore.
@@ -24,7 +26,7 @@
 import { $hook, $inject, Alepha } from "alepha";
 import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
-import { $page, NestedView, useRouter, useRouterState } from "alepha/react/router";
+import { $page, NestedView, Redirection, useRouter, useRouterState } from "alepha/react/router";
 import { currentUserAtom } from "alepha/security";
 import { HttpError } from "alepha/server";
 import { useEffect, useRef } from "react";
@@ -45,18 +47,49 @@ import {
 } from "../state/atoms.js";
 import type { GameNavigation } from "../state/navigation.js";
 import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/navigation.js";
+import { useUiStore } from "../store.js";
+import { AdventureTestOverlay } from "./AdventureTestOverlay.js";
 import { AuthScreen } from "./AuthScreen.js";
+import { Chat } from "./Chat.js";
+import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { CreditsScreen } from "./CreditsScreen.js";
+import { EventLog } from "./EventLog.js";
+import { HelpBar } from "./HelpBar.js";
+import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
+import { Hud } from "./hud/Hud.js";
+import { Minimap } from "./hud/Minimap.js";
+import { QuestDialoguePanel } from "./hud/QuestDialoguePanel.js";
+import { InteriorOverlay } from "./InteriorOverlay.js";
+import { InventoryOverlay } from "./InventoryOverlay.js";
 import { ContinueScreen, JoinScreen, NewGameScreen } from "./LaunchScreens.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MainMenu } from "./MainMenu.js";
+import { MerchantOverlay } from "./MerchantOverlay.js";
+import { MobileControls } from "./MobileControls.js";
+import { Prompt } from "./Prompt.js";
+import { QuestJournalOverlay } from "./QuestJournalOverlay.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
+import { TalentTree } from "./TalentTree.js";
 import { TitleScreen } from "./TitleScreen.js";
+import { VictoryOverlay } from "./VictoryOverlay.js";
+import { WorldMap } from "./WorldMap.js";
 
-/** Paths where the game-chrome LocaleToggle/StatusBar hide (`App.tsx:77-84`'s `immersive` set,
- *  ported verbatim). Kept as pathnames rather than page names: pathname is what the layout's
- *  `useRouterState()` naturally exposes, and every route below is still flat (no params). */
+/**
+ * Paths where the game-chrome LocaleToggle/StatusBar hide — the pre-router `immersive` set ported
+ * verbatim from what was `App.tsx:77-84` (now `LegacyShell.tsx`, same lines). Kept as pathnames
+ * rather than page names: pathname is what the layout's `useRouterState()` naturally exposes, and
+ * every route below is still flat (no params).
+ *
+ * `/game` is DELIBERATELY absent, matching the pre-router set: that floating locale chip/status
+ * pill are anchored bottom-right precisely so they stay visible during actual gameplay (see the
+ * comment that used to sit next to this toggle in `App.tsx`, before Task 1 folded it into this
+ * set) — only `/editor`'s dense, full-viewport chrome and the non-game menu/launch screens hide
+ * them. The plan's own Task 5 interface note ("derives from the active route (game + editor)")
+ * reads as if `/game` should join this set too; that is a plan-text bug against the verified
+ * pre-migration behaviour (`git show 61836eb:packages/client/src/ui/App.tsx`, `immersive` never
+ * included `"game"`), not a deviation this task introduces — see the Task 5 report.
+ */
 const IMMERSIVE_PATHS = new Set<string>([
   "/",
   "/menu",
@@ -67,7 +100,42 @@ const IMMERSIVE_PATHS = new Set<string>([
   "/editor",
 ]);
 
-/** Paths where the launch-menu music bed plays (`App.tsx:71-72`). */
+/**
+ * The in-game React tree (Task 5) — every component `LegacyShell.tsx`'s frozen ancestor rendered
+ * under `screen === "game"` before Task 2 dropped that branch (that file's own docblock explains
+ * why: the legacy pre-router shell can never reach `"game"` again). Every one of these already
+ * reads the untouched zustand bridge (`store.ts`'s `self`/`selfState`/`party`/overlay
+ * flags/`GameHandle`, per the plan's measured line) or a Task 2 atom directly
+ * (`AdventureTestOverlay`/`Hud` read `adventureTestSessionAtom`) — nothing here changes what they
+ * read, only where they mount. `SettingsMenu` is NOT repeated here: `AppLayout` above already
+ * renders exactly one instance for the whole app, toggling `inGame` from the pathname.
+ */
+function GameScreen() {
+  return (
+    <>
+      <Hud />
+      <Minimap />
+      <Chat />
+      <EventLog />
+      <Prompt />
+      <HelpBar />
+      <InteriorOverlay />
+      <InventoryOverlay />
+      <MerchantOverlay />
+      <EventDialoguePanel />
+      <QuestDialoguePanel />
+      <QuestJournalOverlay />
+      <WorldMap />
+      <TalentTree />
+      <MobileControls />
+      <ConnectionOverlay />
+      <VictoryOverlay />
+      <AdventureTestOverlay />
+    </>
+  );
+}
+
+/** Paths where the launch-menu music bed plays (was `App.tsx:71-72`, now `LegacyShell.tsx`). */
 const LAUNCH_MENU_PATHS = new Set<string>(["/menu", "/play/continue", "/play/new", "/play/join"]);
 
 /** A textless marker for a route whose real screen is a later task's job — see the file docblock. */
@@ -282,8 +350,36 @@ export class AppRouter {
     },
   });
 
-  // Stubs — later tasks replace `component` with the real screen. Field names are the typed
-  // `push()`/`path()` keys (the plan's Global Constraints route map); do not rename them.
-  game = $page({ path: "/game", component: () => <RouteStub name="game" /> });
+  /**
+   * A game session lives only in browser memory — the zustand bridge's `game` handle plus a live
+   * WebSocket — and never survives a reload; the server never has one to begin with (every SSR
+   * request starts a brand-new `useUiStore`, `store`/`state/atoms.ts`'s docblock). So this loader
+   * makes exactly one check and it is correct in BOTH places it runs: a genuine reload, a typed
+   * URL, or a bare deep link to `/game` reads `game`/`heroLoading` as null (on the server, always;
+   * on a fresh client, always) and redirects to `/menu` BEFORE the game shell ever mounts — no
+   * flash, since a loader-thrown `Redirection` is resolved ahead of rendering
+   * (`$page.ts`'s sanctioned shape; server-side it becomes a real `Location` redirect,
+   * `ReactServerProvider.ts`). A real launch (`game/session.ts`'s `launchGameIdentity`) reads
+   * through clean: `nav.toGame()` fires first, but `router.push()` awaits two event-bus emits
+   * before it ever reaches this loader (`ReactBrowserRouterProvider.transition`), and `startGameIdentity`
+   * sets `heroLoading` synchronously in the very next line of the SAME calling script turn — so by
+   * the time this loader's continuation resumes, `heroLoading` is already set. See the Task 5
+   * report for the full ordering proof. `game` alone covers the reconnect window once the handle
+   * exists (a network drop never clears it — only `endGame` does, which also navigates away).
+   */
+  game = $page({
+    path: "/game",
+    component: GameScreen,
+    loader: async () => {
+      const store = useUiStore.getState();
+      if (!store.game && !store.heroLoading) {
+        throw new Redirection("/menu");
+      }
+      return {};
+    },
+  });
+
+  // Stub — Task 6 replaces `component` with the real screen. Field name is the typed
+  // `push()`/`path()` key (the plan's Global Constraints route map); do not rename it.
   editor = $page({ path: "/editor", component: () => <RouteStub name="editor" /> });
 }

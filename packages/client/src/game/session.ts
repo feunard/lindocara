@@ -833,6 +833,12 @@ async function startGameIdentity(
   };
   const switchCharacter = () => {
     if (persistentParty) stopSession();
+    // Task 5 reload audit: kept deliberately. `persistentParty` is only ever null when this whole
+    // session was launched via the rollback-only `startGame()` entrypoint (the compiled
+    // three-character roster) — the primary post-login UI always launches through
+    // `startGameAsHero()`, which always carries a party. That legacy flow has no `$page`/store
+    // state worth preserving across a character swap, so a hard reload is the correct,
+    // genuinely-cold-start behaviour here, not a shortcut around the navigation seam.
     else window.location.reload();
   };
   const logoutAndReload = () => {

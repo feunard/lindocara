@@ -23,18 +23,23 @@ const AdventureEditorScreen = lazy(async () => {
  * plain pre-Alepha React tree, cannot) install the `state/navigation.ts` seam `AppRouter.tsx`'s
  * layout installs on mount.
  *
+ * Formerly `App.tsx`/`export function App()` — Task 5 renamed both the file and the component
+ * once the real `App` concept (the thing that owns the whole UI) fully became `AppRouter.tsx`'s
+ * `$page` tree. Nothing else changed: this remains a frozen snapshot of the pre-router shell, kept
+ * compiling for the legacy deploy target rather than kept fully interactive.
+ *
  * `screen` used to be a zustand field every screen component (`TitleScreen`, `MainMenu`, …) wrote
  * through the store's `setScreen`. Task 2 turned that into a deprecated shim that pushes through
  * the navigation seam instead of writing a field — a no-op here, since no seam is ever installed
- * under this legacy mount. So `screen` is now local, App-owned state that this component's OWN
- * effect can still drive (the boot flow below), but that the shared screen components' clicks no
- * longer advance: this file is a frozen snapshot of the pre-router shell, kept compiling for the
- * legacy deploy target rather than kept fully interactive. The in-game HUD tree (`Hud`,
- * `InventoryOverlay`, `QuestJournalOverlay`, `AdventureTestOverlay`, …) is dropped entirely below
- * for the same reason: `screen` can never actually become `"game"` through this shell anymore, and
- * those components now read the `state/atoms.ts` atoms this legacy tree has no Alepha instance to
- * provide. See `docs/adventure-runtime-architecture.md`/the Task 2 report for the full rationale;
- * `AppRouter.tsx`'s own `/game` route (a later task) is the one true home for that tree now.
+ * under this legacy mount. So `screen` is now local, component-owned state that this component's
+ * OWN effect can still drive (the boot flow below), but that the shared screen components' clicks
+ * no longer advance: this file's shared screens no longer navigate under this mount, only render.
+ * The in-game HUD tree (`Hud`, `InventoryOverlay`, `QuestJournalOverlay`, `AdventureTestOverlay`,
+ * …) is dropped entirely below for the same reason: `screen` can never actually become `"game"`
+ * through this shell anymore, and those components now read the `state/atoms.ts` atoms this
+ * legacy tree has no Alepha instance to provide. See `docs/adventure-runtime-architecture.md`/the
+ * Task 2 report for the full rationale; `AppRouter.tsx`'s own `/game` route (built Task 5) is the
+ * one true home for that tree now.
  *
  * Task 3 shrinks this further: `AuthScreen`/`ContinueScreen`/`NewGameScreen`/`JoinScreen` now call
  * `useAuth()`/`useAlepha()`/`useRouter()` (Task 3's real auth flow), which throw hard without an
@@ -46,7 +51,7 @@ const AdventureEditorScreen = lazy(async () => {
  * Title/menu/credits (untouched this task) remain the only screens this legacy shell can actually
  * show — `AppRouter.tsx`'s router-driven equivalents are the real, live surface now.
  */
-export function App() {
+export function LegacyShell() {
   useLocale();
   const [screen, setScreen] = useState<UiScreen>("boot");
 
