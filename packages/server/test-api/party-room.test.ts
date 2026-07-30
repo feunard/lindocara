@@ -1,0 +1,404 @@
+/**
+ * `PartyRoom` — the headless party coordinator, successor to legacy `GameSession` — against real
+ * party/adventure/hero rows created through the ordinary HTTP flow, same idiom as
+ * `presence-room.test.ts`. Every test calls room methods the way `WorldRoom` (Task 4+) will:
+ * `alepha.inject(PartyRoom).room.call(partyId, "<method>", ...)`.
+ *
+ * Covers, per the task brief: `applyStateChanges` bumps the version and lands in D1 immediately (no
+ * clock advance); two racing `applyStateChanges` calls serialize instead of losing an update;
+ * `pushToRoom` receives the committed `(state, version)` AFTER the D1 write; a throwing `pushToRoom`
+ * does not lose that write; `acceptAuthoredQuest`/`completeAuthoredQuest` refuse a stale-epoch actor
+ * without mutating anything; `registerRoom`/`roomEmptied` maintain the room directory and
+ * `broadcastToParty` fans out only to currently registered rooms.
+ */
+
+import {
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
+} from "@lindocara/engine/quests.js";
+import { UserController } from "alepha/api/users";
+import { $repository } from "alepha/orm";
+import { ServerProvider } from "alepha/server";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { adventures } from "../src/api/entities/adventures.ts";
+import { heroes } from "../src/api/entities/heroes.ts";
+import { heroItems } from "../src/api/entities/heroItems.ts";
+import { heroQuests } from "../src/api/entities/heroQuests.ts";
+import { partyAdventureStates } from "../src/api/entities/partyAdventureStates.ts";
+import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
+import { createTestApp } from "./helpers.ts";
+
+const PASSWORD = "Sup3rSecret";
+const HEALTH_POTION_ID = "health_potion";
+
+class SeedProbe {
+  adventures = $repository(adventures);
+  heroes = $repository(heroes);
+  heroItems = $repository(heroItems);
+  heroQuests = $repository(heroQuests);
+  partyAdventureStates = $repository(partyAdventureStates);
+}
+
+let alepha: ReturnType<typeof createTestApp>;
+let probe: SeedProbe;
+let partyRoom: PartyRoom;
+let hostname: string;
+let userCount = 0;
+
+beforeEach(async () => {
+  alepha = createTestApp();
+  probe = alepha.inject(SeedProbe);
+  partyRoom = alepha.inject(PartyRoom);
+  await alepha.start();
+  hostname = alepha.inject(ServerProvider).hostname;
+});
+
+afterEach(async () => {
+  await alepha.stop();
+});
+
+async function registerAndLogin(prefix: string): Promise<{ token: string }> {
+  userCount += 1;
+  const username = `${prefix}${userCount}`;
+  const users = alepha.inject(UserController);
+  const intent = await users.createRegistrationIntent.fetch({
+    body: { username, password: PASSWORD },
+  });
+  await users.createUserFromIntent.fetch({ body: { intentId: intent.data.intentId } });
+  const login = await fetch(`${hostname}/_auth/token?provider=credentials`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password: PASSWORD }),
+  });
+  const tokens = (await login.json()) as { access_token: string };
+  return { token: tokens.access_token };
+}
+
+function authedFetch(path: string, token: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${hostname}${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+      ...(init.headers ?? {}),
+    },
+  });
+}
+
+async function newPlayableAdventureWithMap(
+  token: string,
+): Promise<{ adventureId: string; mapId: string }> {
+  const response = await authedFetch("/api/adventures", token, {
+    method: "POST",
+    body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
+  });
+  expect(response.status).toBe(201);
+  const created = (await response.json()) as { id: string; defaultMap: { id: string } };
+  return { adventureId: created.id, mapId: created.defaultMap.id };
+}
+
+async function newParty(token: string, adventureId: string): Promise<string> {
+  const response = await authedFetch("/api/parties", token, {
+    method: "POST",
+    body: JSON.stringify({ adventureId }),
+  });
+  expect(response.status).toBe(201);
+  return ((await response.json()) as { id: string }).id;
+}
+
+/** Creates one fresh party (no hero) end-to-end and returns its id. */
+async function newPartyOnly(prefix: string): Promise<{ partyId: string; adventureId: string }> {
+  const { token } = await registerAndLogin(prefix);
+  const { adventureId } = await newPlayableAdventureWithMap(token);
+  const partyId = await newParty(token, adventureId);
+  return { partyId, adventureId };
+}
+
+/** Creates one fresh party AND one fresh hero in it, end-to-end. */
+async function newPartyWithHero(
+  prefix: string,
+): Promise<{ partyId: string; adventureId: string; heroId: string }> {
+  const { token } = await registerAndLogin(prefix);
+  const { adventureId } = await newPlayableAdventureWithMap(token);
+  const partyId = await newParty(token, adventureId);
+  const response = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
+    method: "POST",
+    body: JSON.stringify({ name: "Mira", class: "priest" }),
+  });
+  expect(response.status).toBe(201);
+  const hero = (await response.json()) as { id: string };
+  return { partyId, adventureId, heroId: hero.id };
+}
+
+/** A minimal, personal-scope, auto-completing quest — just enough registry content to exercise
+ *  `acceptAuthoredQuest`/`completeAuthoredQuest`'s epoch fencing without a full objective-progress
+ *  simulation (the room's `recordQuestEvent` path is Task 7's concern, not this task's). */
+function buildPersonalQuest() {
+  const quest = createAuthoredQuestDefinition("0001", "Offrande");
+  return {
+    ...quest,
+    scope: "personal" as const,
+    acceptance: "manual" as const,
+    completion: "automatic" as const,
+    abandonable: true,
+    giver: { mapId: crypto.randomUUID(), eventId: crypto.randomUUID() },
+    objectives: [createManualQuestObjective("0001", "Faire l'offrande", 1)],
+    rewards: {
+      ...quest.rewards,
+      experience: 10,
+      gold: 5,
+      items: [{ itemId: HEALTH_POTION_ID, quantity: 1 }],
+    },
+  };
+}
+
+async function seedRegistryWithQuest(
+  adventureId: string,
+  quest: ReturnType<typeof buildPersonalQuest>,
+) {
+  const registry = { switches: [], variables: [], quests: [quest] };
+  await probe.adventures.updateById(adventureId, { registry: JSON.stringify(registry) });
+}
+
+/** Writes a `hero_quest` row whose progress is already `completed` — standing in for the
+ *  objective-progress simulation `recordQuestEvent` (Task 7) would normally drive. */
+async function seedCompletedPersonalProgress(
+  heroId: string,
+  quest: ReturnType<typeof buildPersonalQuest>,
+) {
+  await probe.heroQuests.create({
+    id: crypto.randomUUID(),
+    heroId,
+    questId: quest.id,
+    status: "completed",
+    progress: 1,
+    data: {
+      authoredProgress: {
+        status: "completed",
+        objectives: { "0001": 1 },
+        definitionSnapshot: quest,
+        definitionVersion: 1,
+        rewardClaimed: false,
+        completionCount: 0,
+        processedEventKeys: [],
+      },
+    },
+  });
+}
+
+describe("applyStateChanges", () => {
+  test("bumps the version and lands in D1 immediately, no clock advance", async () => {
+    const { partyId } = await newPartyOnly("applybump");
+
+    await partyRoom.room.call(partyId, "applyStateChanges", [
+      { type: "setSwitch", switchId: "0001", value: true },
+    ]);
+
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(row?.version).toBe(1);
+    expect(JSON.parse(row?.switches ?? "{}")).toEqual({ "0001": true });
+  });
+
+  test("two racing calls serialize: both applied, version +2, no lost update", async () => {
+    const { partyId } = await newPartyOnly("applyrace");
+
+    // Fired without awaiting in between — the room's per-party write queue must still serialize
+    // the read-modify-write so neither mutation clobbers the other.
+    await Promise.all([
+      partyRoom.room.call(partyId, "applyStateChanges", [
+        { type: "setSwitch", switchId: "0001", value: true },
+      ]),
+      partyRoom.room.call(partyId, "applyStateChanges", [
+        { type: "setSwitch", switchId: "0002", value: true },
+      ]),
+    ]);
+
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(row?.version).toBe(2);
+    expect(JSON.parse(row?.switches ?? "{}")).toEqual({ "0001": true, "0002": true });
+  });
+
+  test("pushToRoom receives the committed (state, version) AFTER the D1 write", async () => {
+    const { partyId } = await newPartyOnly("applypush");
+    await partyRoom.room.call(partyId, "registerRoom", `${partyId}:map`);
+
+    const calls: { roomKey: string; version: number; switches: Record<string, boolean> }[] = [];
+    partyRoom.pushToRoom = async (roomKey, state, version) => {
+      // Read D1 directly inside the callback: if the write hadn't landed yet, this would still
+      // show the PREVIOUS version.
+      const row = await probe.partyAdventureStates.findById(partyId);
+      expect(row?.version).toBe(version);
+      calls.push({ roomKey, version, switches: state.switches });
+    };
+
+    await partyRoom.room.call(partyId, "applyStateChanges", [
+      { type: "setSwitch", switchId: "0001", value: true },
+    ]);
+
+    expect(calls).toEqual([{ roomKey: `${partyId}:map`, version: 1, switches: { "0001": true } }]);
+  });
+
+  test("a throwing pushToRoom does not lose the D1 write", async () => {
+    const { partyId } = await newPartyOnly("applypushthrow");
+    await partyRoom.room.call(partyId, "registerRoom", `${partyId}:map`);
+    partyRoom.pushToRoom = async () => {
+      throw new Error("world room unreachable");
+    };
+
+    await partyRoom.room.call(partyId, "applyStateChanges", [
+      { type: "setSwitch", switchId: "0001", value: true },
+    ]);
+
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(row?.version).toBe(1);
+    expect(JSON.parse(row?.switches ?? "{}")).toEqual({ "0001": true });
+  });
+});
+
+describe("registerRoom / roomEmptied / broadcastToParty", () => {
+  test("the directory tracks registered rooms; broadcast fans out only to those", async () => {
+    const partyId = crypto.randomUUID();
+    const roomA = `${partyId}:map-a`;
+    const roomB = `${partyId}:map-b`;
+    const delivered: string[] = [];
+    partyRoom.sendToRoom = async (roomKey) => {
+      delivered.push(roomKey);
+    };
+
+    await partyRoom.room.call(partyId, "registerRoom", roomA);
+    await partyRoom.room.call(partyId, "registerRoom", roomB);
+    await partyRoom.room.call(partyId, "broadcastToParty", {
+      t: "event",
+      code: "test",
+      params: {},
+    });
+    expect(delivered.sort()).toEqual([roomA, roomB]);
+
+    delivered.length = 0;
+    await partyRoom.room.call(partyId, "roomEmptied", roomA);
+    await partyRoom.room.call(partyId, "broadcastToParty", {
+      t: "event",
+      code: "test",
+      params: {},
+    });
+    expect(delivered).toEqual([roomB]);
+  });
+});
+
+describe("acceptAuthoredQuest", () => {
+  test("a stale-epoch actor mutates nothing", async () => {
+    const { partyId, adventureId, heroId } = await newPartyWithHero("acceptstale");
+    const quest = buildPersonalQuest();
+    await seedRegistryWithQuest(adventureId, quest);
+    const before = await probe.heroQuests.findMany({ where: { heroId: { eq: heroId } } });
+
+    // Every synchronous check (target, availability, prerequisites) passes — the fenced personal-
+    // progress write is the only thing standing between this actor and a written row, and a stale
+    // epoch must refuse it, mutating nothing.
+    const result = await partyRoom.room.call(
+      partyId,
+      "acceptAuthoredQuest",
+      { heroId, sessionEpoch: 999, level: 1 },
+      quest.id,
+      quest.giver,
+      {},
+    );
+
+    expect(result).toEqual({ ok: false, reason: "fence" });
+    const after = await probe.heroQuests.findMany({ where: { heroId: { eq: heroId } } });
+    expect(after).toEqual(before);
+  });
+
+  test("the correct epoch accepts and persists personal progress", async () => {
+    const { partyId, adventureId, heroId } = await newPartyWithHero("acceptok");
+    const quest = buildPersonalQuest();
+    await seedRegistryWithQuest(adventureId, quest);
+    const hero = await probe.heroes.findById(heroId);
+
+    const result = await partyRoom.room.call(
+      partyId,
+      "acceptAuthoredQuest",
+      { heroId, sessionEpoch: hero?.sessionEpoch ?? 0, level: 1 },
+      quest.id,
+      quest.giver,
+      {},
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    // `HeroService.createHero` also seeds a default "three_offerings" row, so filter to this quest.
+    const rows = await probe.heroQuests.findMany({
+      where: { heroId: { eq: heroId }, questId: { eq: quest.id } },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe("active");
+  });
+});
+
+describe("completeAuthoredQuest", () => {
+  test("a stale-epoch actor mutates nothing (no reward claim, no gold, no item)", async () => {
+    const { partyId, adventureId, heroId } = await newPartyWithHero("completestale");
+    const quest = buildPersonalQuest();
+    await seedRegistryWithQuest(adventureId, quest);
+    await seedCompletedPersonalProgress(heroId, quest);
+    const heroBefore = await probe.heroes.findById(heroId);
+    const itemsBefore = await probe.heroItems.findMany({ where: { heroId: { eq: heroId } } });
+
+    const result = await partyRoom.room.call(
+      partyId,
+      "completeAuthoredQuest",
+      { heroId, sessionEpoch: (heroBefore?.sessionEpoch ?? 0) + 1, level: 1 },
+      quest.id,
+      null,
+      undefined,
+      { level: 1, xp: 0, hp: 100, inventory: {} },
+    );
+
+    expect(result).toEqual({ ok: false, reason: "fence" });
+    const heroAfter = await probe.heroes.findById(heroId);
+    expect(heroAfter).toEqual(heroBefore);
+    const itemsAfter = await probe.heroItems.findMany({ where: { heroId: { eq: heroId } } });
+    expect(itemsAfter).toEqual(itemsBefore);
+  });
+
+  test("the correct epoch claims the reward exactly once (gold, xp and item granted)", async () => {
+    const { partyId, adventureId, heroId } = await newPartyWithHero("completeok");
+    const quest = buildPersonalQuest();
+    await seedRegistryWithQuest(adventureId, quest);
+    await seedCompletedPersonalProgress(heroId, quest);
+    const hero = await probe.heroes.findById(heroId);
+    const goldBefore = hero?.gold ?? 0;
+
+    const result = await partyRoom.room.call(
+      partyId,
+      "completeAuthoredQuest",
+      { heroId, sessionEpoch: hero?.sessionEpoch ?? 0, level: 1 },
+      quest.id,
+      null,
+      undefined,
+      { level: 1, xp: 0, hp: 100, inventory: {} },
+    );
+
+    expect(result).toMatchObject({ ok: true, experience: 10, gold: 5 });
+    const heroAfter = await probe.heroes.findById(heroId);
+    expect(heroAfter?.gold).toBe(goldBefore + 5);
+    const items = await probe.heroItems.findMany({
+      where: { heroId: { eq: heroId }, itemDefinitionId: { eq: HEALTH_POTION_ID } },
+    });
+    expect(items).toHaveLength(1);
+
+    // A second attempt must not silently double-grant. The progress row's own `rewardClaimed`
+    // flag (persisted by the first `completeAuthoredQuest`) already rejects it at the state check,
+    // before ever reaching the reward-claim table's uniqueness fence — that fence is defense in
+    // depth for a race between two concurrent completions, not the only guard.
+    const second = await partyRoom.room.call(
+      partyId,
+      "completeAuthoredQuest",
+      { heroId, sessionEpoch: heroAfter?.sessionEpoch ?? 0, level: 1 },
+      quest.id,
+      null,
+      undefined,
+      { level: 1, xp: 0, hp: 100, inventory: {} },
+    );
+    expect(second).toEqual({ ok: false, reason: "state" });
+  });
+});

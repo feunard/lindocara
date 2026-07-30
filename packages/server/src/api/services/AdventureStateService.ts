@@ -1,0 +1,303 @@
+/**
+ * D1 boundary for `PartyRoom` (Task 3, realtime tranche) — the party's live adventure state
+ * (switches/variables/self-switches/quests/defeatedMonsters + the monotone push version) and the
+ * fenced, epoch-gated writes a quest reward touches on a hero: core stats (gold/level/xp/hp),
+ * items, personal quest progress and the reward-claim idempotency row.
+ *
+ * Every write below is scoped to exactly the row(s) it needs to touch and, wherever it mutates a
+ * hero, is gated on `hero.session_epoch` in the SAME statement as the mutation — the repo-wide
+ * fencing discipline (`HeroEpochService`'s docblock, the root `CLAUDE.md`'s "Hero presence and save
+ * fencing"). `claimQuestReward` additionally checks the hero epoch UP FRONT, before issuing any
+ * statement, so a stale-epoch caller mutates nothing at all rather than relying solely on the
+ * per-statement fences to no-op.
+ *
+ * **Not one atomic D1 transaction.** Legacy's `claimAuthoredQuestReward` (`authored-quest-
+ * rewards.ts`) issued one `D1Database.batch(...)`, which Cloudflare D1 documents as atomic —
+ * either every statement lands or none does. Alepha's D1 provider reports
+ * `supportsTransactions: false` (`$transactional()` degrades to a no-op there, per the tranche-1
+ * discipline every other `src/api/` service already follows), and there is no equivalent raw batch
+ * primitive exposed through `$repository`/`Repository.query()`. `claimQuestReward` below is
+ * therefore a SEQUENCE of individually fenced statements: the claim-row insert first (the
+ * idempotency + epoch gate — if this inserts zero rows nothing after it runs), then the hero core
+ * update, then one statement per item change. Each statement is safe on its own (fenced or
+ * conditioned on the claim existing), but the sequence as a whole is not all-or-nothing against a
+ * mid-sequence crash the way legacy's batch was. Documented as a known gap in the task report;
+ * revisit if/when Alepha exposes a real D1 batch escape hatch.
+ */
+import type {
+  AdventureRegistry,
+  AuthoredQuestProgress,
+  PartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
+import {
+  EMPTY_ADVENTURE_STATE,
+  parsePartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
+import type { QuestItemReward } from "@lindocara/engine/quests.js";
+import { z } from "alepha";
+import { $repository, sql } from "alepha/orm";
+import { decodeStoredAdventureRegistry } from "../../adventure-registry.js";
+import { adventures } from "../entities/adventures.ts";
+import { authoredQuestRewardClaims } from "../entities/authoredQuestRewardClaims.ts";
+import { heroes } from "../entities/heroes.ts";
+import { heroItems } from "../entities/heroItems.ts";
+import { heroQuests } from "../entities/heroQuests.ts";
+import { parties } from "../entities/parties.ts";
+import { partyAdventureStates } from "../entities/partyAdventureStates.ts";
+
+export interface PartyContext {
+  adventureId: string;
+  status: "open" | "completed";
+}
+
+export interface VersionedPartyAdventureState {
+  state: PartyAdventureState;
+  version: number;
+}
+
+export interface ClaimQuestRewardInput {
+  ownerKind: "party" | "personal";
+  ownerId: string;
+  heroId: string;
+  sessionEpoch: number;
+  questId: string;
+  attempt: number;
+  resultingLevel: number;
+  resultingXp: number;
+  resultingHp: number;
+  gold: number;
+  items: readonly QuestItemReward[];
+  consumeItems: readonly QuestItemReward[];
+}
+
+function warnCorruptPartyState(partyId: string, reason: string): void {
+  console.warn(JSON.stringify({ event: "party_adventure_state_corrupt", partyId, reason }));
+}
+
+/** Aggregate objective progress, matching legacy `authored-quest-rewards.ts`'s `aggregateProgress`
+ *  (a single integer column mirrors the JSON detail, for anything that only reads the coarse
+ *  number). */
+function aggregateProgress(progress: AuthoredQuestProgress): number {
+  return Object.values(progress.objectives).reduce((total, value) => total + value, 0);
+}
+
+/** Row-shape schema for `Repository.query()`'s narrow `RETURNING` clauses below — the tranche-1
+ *  convention every raw-SQL escape hatch in `src/api/services/` already follows. */
+const QUEST_ID_ROW_SCHEMA = z.object({ questId: z.string() });
+const ID_ROW_SCHEMA = z.object({ id: z.uuid() });
+
+export class AdventureStateService {
+  parties = $repository(parties);
+  adventures = $repository(adventures);
+  partyAdventureStates = $repository(partyAdventureStates);
+  heroes = $repository(heroes);
+  heroItems = $repository(heroItems);
+  heroQuests = $repository(heroQuests);
+  authoredQuestRewardClaims = $repository(authoredQuestRewardClaims);
+
+  /** The party's adventure id + completion status, or `null` for an unknown party. */
+  async loadParty(partyId: string): Promise<PartyContext | null> {
+    const row = await this.parties.findById(partyId).catch(() => undefined);
+    if (!row) return null;
+    return { adventureId: row.adventureId, status: row.status };
+  }
+
+  /** Degrades to `EMPTY_REGISTRY` for any adventure id this party context cannot resolve, matching
+   *  legacy's own posture ("a hero's connection must never fail because authored content is
+   *  missing"). */
+  async loadRegistry(adventureId: string): Promise<AdventureRegistry> {
+    const row = await this.adventures.findById(adventureId).catch(() => undefined);
+    if (!row) return { switches: [], variables: [] };
+    return decodeStoredAdventureRegistry(row.registry);
+  }
+
+  /**
+   * Reads the party's live state + version. A missing row (no party has ever touched state) and a
+   * corrupt row both degrade to `{ state: EMPTY_ADVENTURE_STATE, version: 0 }`, never throwing —
+   * the same posture `adventure-state-store.ts`'s `loadPartyAdventureState` documents.
+   */
+  async load(partyId: string): Promise<VersionedPartyAdventureState> {
+    const row = await this.partyAdventureStates.findById(partyId).catch(() => undefined);
+    if (!row) return { state: EMPTY_ADVENTURE_STATE, version: 0 };
+    let raw: unknown;
+    try {
+      raw = {
+        switches: JSON.parse(row.switches),
+        variables: JSON.parse(row.variables),
+        selfSwitches: JSON.parse(row.selfSwitches),
+        quests: JSON.parse(row.quests),
+        defeatedMonsters: JSON.parse(row.defeatedMonsters),
+      };
+    } catch {
+      warnCorruptPartyState(partyId, "invalid_json");
+      return { state: EMPTY_ADVENTURE_STATE, version: 0 };
+    }
+    const state = parsePartyAdventureState(raw);
+    if (!state) {
+      warnCorruptPartyState(partyId, "malformed_state");
+      return { state: EMPTY_ADVENTURE_STATE, version: 0 };
+    }
+    return { state, version: row.version };
+  }
+
+  /**
+   * Write-through: upserts the whole state row (every column, `version` included) in ONE
+   * statement, so a caller that immediately reads the row back (no clock advance, no debounce)
+   * always sees it — the invariant the realtime tranche's write-through design replaces the legacy
+   * 5s alarm debounce with.
+   */
+  async save(partyId: string, state: PartyAdventureState, version: number): Promise<void> {
+    await this.partyAdventureStates.upsert({
+      partyId,
+      switches: JSON.stringify(state.switches),
+      variables: JSON.stringify(state.variables),
+      selfSwitches: JSON.stringify(state.selfSwitches),
+      quests: JSON.stringify(state.quests ?? {}),
+      defeatedMonsters: JSON.stringify(state.defeatedMonsters ?? {}),
+      version,
+    });
+  }
+
+  /** Every authored-quest progress row for one hero, decoded the same way legacy
+   *  `hero-persistence.ts`'s `authoredProgressFromRows` does (reusing `parsePartyAdventureState`'s
+   *  own quest-progress parser rather than a second copy of its validation). */
+  async loadPersonalQuestProgress(heroId: string): Promise<Record<string, AuthoredQuestProgress>> {
+    const rows = await this.heroQuests.findMany({ where: { heroId: { eq: heroId } } });
+    const progress: Record<string, AuthoredQuestProgress> = {};
+    for (const row of rows) {
+      if (!/^\d{4}$/.test(row.questId)) continue;
+      const raw = (row.data as { authoredProgress?: unknown } | undefined)?.authoredProgress;
+      const parsed = parsePartyAdventureState({
+        switches: {},
+        variables: {},
+        selfSwitches: {},
+        quests: { [row.questId]: raw },
+      });
+      const entry = parsed?.quests?.[row.questId];
+      if (entry) progress[row.questId] = entry;
+    }
+    return progress;
+  }
+
+  /**
+   * Fenced upsert of one hero's personal quest progress row, port of legacy
+   * `hero-persistence.ts`'s `saveHeroAuthoredQuestProgress`: a single INSERT ... SELECT ... WHERE
+   * the hero's CURRENT `session_epoch` still matches `sessionEpoch`, falling to an ON CONFLICT
+   * UPDATE under the same fence. Returns `false` (and changes nothing) when the fence fails.
+   */
+  async savePersonalQuestProgress(input: {
+    heroId: string;
+    sessionEpoch: number;
+    questId: string;
+    progress: AuthoredQuestProgress;
+  }): Promise<boolean> {
+    const now = new Date().toISOString();
+    const data = { authoredProgress: input.progress };
+    const rows = await this.heroQuests.query(
+      (table) => sql`
+        INSERT INTO ${table}
+          (${sql.raw(table.id.name)}, ${sql.raw(table.heroId.name)}, ${sql.raw(table.questId.name)},
+           status, progress, ${sql.raw(table.acceptedAt.name)}, ${sql.raw(table.completedAt.name)}, data)
+        SELECT ${crypto.randomUUID()}, ${input.heroId}, ${input.questId}, ${input.progress.status},
+               ${aggregateProgress(input.progress)}, ${now},
+               ${input.progress.status === "completed" ? now : null}, ${JSON.stringify(data)}
+        WHERE EXISTS (
+          SELECT 1 FROM ${this.heroes.table}
+          WHERE ${this.heroes.table.id} = ${input.heroId}
+            AND ${this.heroes.table.sessionEpoch} = ${input.sessionEpoch}
+        )
+        ON CONFLICT(${sql.raw(table.heroId.name)}, ${sql.raw(table.questId.name)}) DO UPDATE SET
+          status = excluded.status,
+          progress = excluded.progress,
+          ${sql.raw(table.acceptedAt.name)} = COALESCE(${sql.raw(table.acceptedAt.name)}, excluded.${sql.raw(table.acceptedAt.name)}),
+          ${sql.raw(table.completedAt.name)} = excluded.${sql.raw(table.completedAt.name)},
+          data = excluded.data
+        RETURNING ${table.questId}
+      `,
+      QUEST_ID_ROW_SCHEMA,
+    );
+    return rows.length > 0;
+  }
+
+  /**
+   * The reward-claim idempotency fence + hero core stats + item grants/consumption. See this
+   * file's docblock for why this is a sequence of fenced statements rather than one atomic batch.
+   * Returns `false` — with NOTHING mutated — as soon as any precondition fails: an unknown/stale
+   * hero epoch, an already-claimed `(ownerKind, ownerId, questId, attempt)` tuple, or insufficient
+   * inventory for a consumed item.
+   */
+  async claimQuestReward(input: ClaimQuestRewardInput): Promise<boolean> {
+    const hero = await this.heroes.findById(input.heroId).catch(() => undefined);
+    if (!hero || hero.sessionEpoch !== input.sessionEpoch) return false;
+
+    if (input.consumeItems.length > 0) {
+      const owned = await this.heroItems.findMany({
+        where: {
+          heroId: { eq: input.heroId },
+          itemDefinitionId: { inArray: input.consumeItems.map((item) => item.itemId) },
+        },
+      });
+      const quantities = new Map(owned.map((row) => [row.itemDefinitionId, row.quantity]));
+      for (const item of input.consumeItems) {
+        if ((quantities.get(item.itemId) ?? 0) < item.quantity) return false;
+      }
+    }
+
+    const claimId = crypto.randomUUID();
+    const claimed = await this.authoredQuestRewardClaims.query(
+      (table) => sql`
+        INSERT INTO ${table}
+          (${sql.raw(table.id.name)}, ${sql.raw(table.ownerKind.name)}, ${sql.raw(table.ownerId.name)},
+           ${sql.raw(table.recipientHeroId.name)}, ${sql.raw(table.questId.name)}, attempt)
+        SELECT ${claimId}, ${input.ownerKind}, ${input.ownerId}, ${input.heroId}, ${input.questId},
+               ${input.attempt}
+        WHERE EXISTS (
+          SELECT 1 FROM ${this.heroes.table}
+          WHERE ${this.heroes.table.id} = ${input.heroId}
+            AND ${this.heroes.table.sessionEpoch} = ${input.sessionEpoch}
+        )
+        ON CONFLICT(${sql.raw(table.ownerKind.name)}, ${sql.raw(table.ownerId.name)},
+                    ${sql.raw(table.questId.name)}, attempt)
+          DO NOTHING
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+    if (claimed.length === 0) return false;
+
+    await this.heroes.query(
+      (table) => sql`
+        UPDATE ${table}
+        SET gold = gold + ${input.gold}, level = ${input.resultingLevel}, xp = ${input.resultingXp},
+            hp = ${input.resultingHp}
+        WHERE ${table.id} = ${input.heroId} AND ${table.sessionEpoch} = ${input.sessionEpoch}
+      `,
+    );
+
+    for (const item of input.consumeItems) {
+      await this.heroItems.query(
+        (table) => sql`
+          UPDATE ${table}
+          SET quantity = quantity - ${item.quantity}
+          WHERE ${table.heroId} = ${input.heroId} AND ${table.itemDefinitionId} = ${item.itemId}
+            AND quantity >= ${item.quantity}
+        `,
+      );
+    }
+    for (const item of input.items) {
+      await this.heroItems.upsert(
+        {
+          id: crypto.randomUUID(),
+          heroId: input.heroId,
+          itemDefinitionId: item.itemId,
+          quantity: item.quantity,
+        },
+        {
+          target: ["heroId", "itemDefinitionId"],
+          set: { quantity: sql`quantity + ${item.quantity}` },
+        },
+      );
+    }
+    return true;
+  }
+}
