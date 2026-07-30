@@ -36,6 +36,7 @@ import {
   type PartyListing,
 } from "../api.js";
 import { menuAudio } from "../game/menu-audio.js";
+import { stopActiveGameSession } from "../game/session.js";
 import { continueAsGuest } from "../guest.js";
 import { useLocale } from "../i18n.js";
 import { activePartyAtom, adventureTestSessionAtom, quickItemsAtom } from "../state/atoms.js";
@@ -228,6 +229,30 @@ function AppLayout() {
       setOnUnauthorized(null);
     };
   }, [alepha, router]);
+
+  // Browser BACK out of `/game` is not a sanctioned exit: the router re-renders (`GameScreen`
+  // unmounts, dropping the HUD/overlays), but nothing tells the live socket/renderer/window input
+  // listeners to stop — WASD still drives the hero underneath the menu. Every SANCTIONED path away
+  // from `/game` (a natural disconnect, a launch failure, the editor test overlay's "Exit" button)
+  // already runs through `game/session.ts`'s `returnFromGameSession()`, which clears `store.game`
+  // SYNCHRONOUSLY before it ever calls `nav.toMenu()`/`toEditor()` — so by the time THIS effect
+  // observes the resulting `pathname` change, `store.game` is already null for every one of those,
+  // and this effect is a no-op for them. The only way to reach here with `store.game` still set and
+  // `pathname !== "/game"` is the browser having moved history out from under the router directly
+  // (`popstate`), which is exactly the leak this effect closes. Reads `useUiStore.getState()`
+  // directly (not `useStore`) — the game bridge deliberately stays off React re-renders for anything
+  // written this often, see `store.ts`'s own docblock.
+  //
+  // `{ navigate: false }` matters: `stopActiveGameSession()` normally re-navigates through the SAME
+  // seam it's using here — calling that unconditionally would `router.push()` a SECOND time to
+  // wherever the browser already put us (duplicating that history entry), or, if a deeper BACK
+  // skipped past `/menu`/`/editor` entirely, forcibly override the destination the user actually
+  // chose. See `returnFromGameSession`'s own docblock in `game/session.ts` for the full reasoning.
+  useEffect(() => {
+    if (pathname === "/game") return;
+    if (!useUiStore.getState().game) return;
+    stopActiveGameSession({ navigate: false });
+  }, [pathname]);
 
   const immersive = IMMERSIVE_PATHS.has(pathname);
 

@@ -97,6 +97,31 @@ describe("state/atoms", () => {
     localStorage.removeItem("lindocara.quickItems");
   });
 
+  // Guards the schema this atom now carries instead of `Type.custom` (see its own docblock): a
+  // corrupt/tampered `localStorage` value must fail `StateManager.bindWebStorage()`'s
+  // `safeValidate` and fall back to the default — a `Type.custom<T>()` passthrough would have let
+  // any of these three flow straight through into `useQuickItem`'s hotkey dispatch instead.
+  it.each([
+    ["not JSON at all", "{not json"],
+    ["the wrong shape entirely", JSON.stringify({ potions: ["health_potion"] })],
+    [
+      "an unknown consumable id smuggled into a real slot",
+      JSON.stringify(["not_a_real_item", null, null]),
+    ],
+  ])("quickItemsAtom discards a corrupted persisted value (%s) and falls back to the default", async (_case, raw) => {
+    localStorage.setItem("lindocara.quickItems", raw);
+    const { alepha } = await renderWithAlepha(<div />);
+    alephaInstances.push(alepha);
+
+    expect(alepha.store.get(quickItemsAtom)).toEqual([
+      "health_potion",
+      "mana_potion",
+      "invisibility_potion",
+    ]);
+    // The bad key is discarded, not left behind to keep re-failing on every later read.
+    expect(localStorage.getItem("lindocara.quickItems")).toBeNull();
+  });
+
   it("questTrackingAtom defaults to an empty record and round-trips per-quest overrides", async () => {
     const { alepha } = await renderWithAlepha(<div />);
     alephaInstances.push(alepha);

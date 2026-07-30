@@ -50,12 +50,17 @@ function required<T extends Element>(selector: string): T {
   return element;
 }
 
+/** Shared by every teardown entry point below: `navigate: false` still clears the store/atoms but
+ *  skips the router push, for a caller that already knows the browser is somewhere else (see
+ *  `returnFromGameSession`'s docblock). Defaults to `true` everywhere else. */
+type StopOptions = { navigate?: boolean };
+
 const sound = new GameSound();
 let activeLaunchId = 0;
-let stopActiveSession: (() => void) | null = null;
+let stopActiveSession: ((options?: StopOptions) => void) | null = null;
 
-function stopCurrentSession(): void {
-  stopActiveSession?.();
+function stopCurrentSession(options?: StopOptions): void {
+  stopActiveSession?.(options);
 }
 
 /**
@@ -65,15 +70,26 @@ function stopCurrentSession(): void {
  * now lands on the main menu, since `GameNavigation` only names one non-game, non-auth, non-editor
  * destination. Shared by `endGame` and `launchGameIdentity`'s launch-failure catch, which previously
  * duplicated this exact branch.
+ *
+ * `options.navigate === false` still clears the store/active-party the same way, but skips the
+ * `nav.toEditor()`/`nav.toMenu()` push — `ui/AppRouter.tsx`'s history-BACK leave effect is the one
+ * caller that needs this: by the time it runs, the browser has ALREADY moved the URL out from under
+ * `/game` (a real `popstate`, not a `router.push()`), so pushing again would either stack a
+ * duplicate history entry on top of where the user already landed, or — if a deeper BACK skipped
+ * past `/menu`/`/editor` entirely — forcibly override the destination the user actually chose. Every
+ * other caller (a natural disconnect, the editor test overlay's own "Exit" button, a launch failure)
+ * still wants the push: none of them already changed the URL themselves.
  */
-function returnFromGameSession(): void {
+function returnFromGameSession(options?: StopOptions): void {
   const store = useUiStore.getState();
   const nav = getGameNavigation();
   store.clearedGameSession();
-  if (nav?.getAdventureTestSession()) {
-    nav.toEditor();
+  const testSession = nav?.getAdventureTestSession();
+  if (!testSession) nav?.setActiveParty(null);
+  if (options?.navigate === false) return;
+  if (testSession) {
+    nav?.toEditor();
   } else {
-    nav?.setActiveParty(null);
     nav?.toMenu();
   }
 }
@@ -637,8 +653,8 @@ async function startGameIdentity(
     intentionallyClosed = true;
     connection?.close();
   };
-  let stopSession: () => void;
-  const endGame = (key: MessageKey) => {
+  let stopSession: (options?: StopOptions) => void;
+  const endGame = (key: MessageKey, options?: StopOptions) => {
     if (ended) return;
     ended = true;
     if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
@@ -656,13 +672,13 @@ async function startGameIdentity(
     // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal
     // disconnect and reappears full-screen the instant the next character's world loads, over a
     // world that has not sent it a welcome yet.
-    returnFromGameSession();
+    returnFromGameSession(options);
     setStatus("status.disconnected", { reason: t(key) });
   };
-  stopSession = () => {
+  stopSession = (options?: StopOptions) => {
     intentionallyClosed = true;
     connection?.close();
-    endGame("status.close.generic");
+    endGame("status.close.generic", options);
   };
   stopActiveSession = stopSession;
 
@@ -1092,9 +1108,14 @@ export function startGameAsHero(hero: StoredHero, party: PartyListing): Promise<
   return launchGameIdentity(hero, party);
 }
 
-/** Cleanly tear down the current renderer/socket before an editor playtest reset or return. */
-export function stopActiveGameSession(): void {
+/**
+ * Cleanly tear down the current renderer/socket before an editor playtest reset or return.
+ *
+ * `{ navigate: false }` is for `ui/AppRouter.tsx`'s history-BACK leave effect only — see
+ * `returnFromGameSession`'s docblock for why that one caller must not also push a route.
+ */
+export function stopActiveGameSession(options?: StopOptions): void {
   activeLaunchId += 1;
-  stopCurrentSession();
+  stopCurrentSession(options);
   stopActiveSession = null;
 }

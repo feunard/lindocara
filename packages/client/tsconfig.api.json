@@ -38,6 +38,7 @@
     "src/ui/AppRouter.tsx",
     "test/app-router.test.tsx",
     "test/game-route.test.tsx",
+    "test/game-route-back.test.tsx",
     "src/state/atoms.ts",
     "src/ui/hud/Hud.tsx",
     "src/ui/hud/QuickItemBar.tsx",
