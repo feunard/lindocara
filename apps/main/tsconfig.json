@@ -1,0 +1,27 @@
+{
+  // Covers the app's browser and server bootstrap entries (`src/main.ts`, `src/main.browser.ts`,
+  // `src/legacy/main.ts`) — previously typechecked by NO program at all (S7 must-fix, Task 1
+  // ledger). Both `main.ts` and `main.browser.ts` import `@lindocara/client/ui/AppRouter.js`,
+  // which is itself alepha-flavored (see `packages/client/tsconfig.api.json`'s docblock for why
+  // anything importing `alepha`/`alepha/react*` needs alepha's OWN base config, not this repo's
+  // stricter one) — so this program extends `.vendor/alepha/tsconfig.base.json`, the same fix
+  // `packages/client/tsconfig.api.json`/`packages/server/tsconfig.api.json` already applied.
+  //
+  // One program hosts both the Node server entry and the DOM browser entry (unlike the
+  // client/server split elsewhere in the repo, which needs two because workerd's and DOM's
+  // globals collide): this app's Node runtime is plain Node (`alepha dev`/`alepha build`, not
+  // Cloudflare Workers — the Workers deploy stays frozen, see the root AGENTS.md), and `@types/
+  // node`'s modern globals (`fetch`, `Response`, `URL`, …) are designed to coexist with `lib.dom`,
+  // unlike workerd's incompatible shapes. Proven by running this program clean with both files
+  // included and by deliberately breaking each file to see `npm run typecheck` fail (Task 7
+  // report).
+  "extends": "../../.vendor/alepha/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "bun", "vite/client"],
+    // `@lindocara/client`'s own source uses its package-internal `@/*` alias (Vite-resolved at
+    // build time); `tsc` needs the same mapping to follow it here, same as
+    // `packages/client/tsconfig.api.json`'s `paths` for the identical reason.
+    "paths": { "@/*": ["../../packages/client/src/*"] }
+  },
+  "include": ["src"]
+}
