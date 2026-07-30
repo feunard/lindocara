@@ -504,6 +504,10 @@ export class WorldRoom {
 
   /** Legacy `#closedSocket`: one machine-code event so the client can print why, then the close. */
   protected refuseLocation(room: WorldRoomHandle, connectionId: string, reason: string): void {
+    // The reason reaches the client only inside the close frame; without this record a refused
+    // admission is invisible in server logs (which is exactly how the first production join
+    // failure had to be bisected by hand — never again).
+    this.logError("world_room_admission_refused", reason, { roomId: room.roomId, connectionId });
     this.send(room, connectionId, { t: "event", code: "room.invalid_location", tone: "bad" });
     room.close(connectionId, WS_CLOSE.INVALID_LOCATION, reason);
   }

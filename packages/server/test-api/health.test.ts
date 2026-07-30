@@ -18,6 +18,6 @@ afterEach(async () => {
 
 test("health responds ok", async ({ expect }) => {
   const health = alepha.inject(HealthController);
-  const res = await health.health.fetch({});
+  const res = await health.apiHealth.fetch({});
   expect(res.data).toEqual({ ok: true });
 });
