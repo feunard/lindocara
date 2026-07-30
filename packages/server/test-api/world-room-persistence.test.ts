@@ -13,7 +13,10 @@
  * 4. a checkpointed combat cooldown survives a disconnect+reconnect BOTH via `PresenceRoom`'s
  *    in-memory promotion (the `welcome.self.cooldowns`) AND via the hero row's persisted
  *    `combatCooldowns` column;
- * 5. a child-table mutation (consumable quantity) lands on the same save beat as the core row.
+ * 5. a child-table mutation (consumable quantity) lands on the same save beat as the core row;
+ * 6. two saves for the SAME hero (e.g. a periodic beat still in flight when a disconnect fires
+ *    moments later) never land out of order — `WorldRoom.queueHeroSave` chains them, and the
+ *    later save's snapshot is captured AFTER the earlier one settles, not at enqueue time.
  *
  * The periodic save (`D1_SAVE_EVERY_TICKS`) is fired through `deps.waitUntil` — fire-and-forget
  * from the synchronous tick's point of view, exactly like production. `clock.advanceTicks(...)`
@@ -357,6 +360,70 @@ describe("world room persistence (FakeClock)", () => {
       });
       expect(item?.quantity).toBe(3);
     });
+    engine.dispose();
+  });
+
+  test("two saves for the same hero never land out of order", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("orderedsave");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    const worldRoom = alepha.inject(WorldRoom); // the same singleton `createEngine` injected
+    const socket = fakeSocket(userId, heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const player = playerOf(state, heroId);
+
+    // Wrap the REAL `saveHero` (a plain instance-level reassignment — the same idiom
+    // `PresenceRoom.now` reassignment already uses in `presence-room.test.ts`, not `vi.mock`) so
+    // the FIRST call can be held open on a manually-controlled gate while a SECOND, NEWER save is
+    // enqueued behind it — deterministically reproducing "an older save is still in flight when a
+    // newer one starts" without depending on real driver timing.
+    const original = worldRoom.heroSaveService.saveHero.bind(worldRoom.heroSaveService);
+    const observedX: number[] = [];
+    let releaseFirst: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let callCount = 0;
+    worldRoom.heroSaveService.saveHero = async (profile, epoch) => {
+      callCount += 1;
+      observedX.push(profile.x);
+      if (callCount === 1) await gate;
+      return original(profile, epoch);
+    };
+
+    const queueSave = () =>
+      (
+        worldRoom as unknown as {
+          queueHeroSave(roomState: WorldRoomState, roomPlayer: PlayerRuntime): Promise<unknown>;
+        }
+      ).queueHeroSave(state, player);
+
+    player.x = 111;
+    const first = queueSave();
+    // Let the first save's chained callback actually run and reach the (now held-open) real save
+    // before mutating state for the second — production has real ticks/time between two saves for
+    // the same hero; these microtask yields are the deterministic equivalent.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(observedX).toEqual([111]);
+
+    player.x = 222;
+    const second = queueSave();
+    // The second save must not have started yet: `queueHeroSave` chains it behind the first,
+    // which is still held open on the gate.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(observedX).toEqual([111]);
+
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    // The second save's snapshot was taken AFTER the first settled (freshness), and it landed in
+    // D1 strictly after the first (ordering) — the row ends at the NEWER state, never reverted.
+    expect(observedX).toEqual([111, 222]);
+    const row = await probe.heroes.findById(heroId);
+    expect(row?.x).toBe(222);
     engine.dispose();
   });
 });

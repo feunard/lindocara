@@ -161,6 +161,15 @@ export interface WorldRoomState {
   tick: number;
   /** The party coordinator's read-only snapshot — stub storage until Task 7 evaluates it. */
   adventureState: { state: PartyAdventureState | null; version: number };
+  /**
+   * Per-hero save serialization, keyed by heroId — port of legacy `persistence-system.ts`'s
+   * `pendingSaves` (there, a `World`-instance field; here, per-room state, since a hero belongs to
+   * exactly one room's `players` map at a time). A new save chains after whatever save is already
+   * in flight for the same hero rather than racing it, so the periodic dirty-flush beat and a
+   * forced `onLeave` save (or two periodic beats back to back) can never land out of order — see
+   * `WorldRoom.queueHeroSave`, the only writer/reader of this map.
+   */
+  pendingSaves: Map<string, Promise<unknown>>;
 }
 
 export function createWorldRoomState(
@@ -202,5 +211,6 @@ export function createWorldRoomState(
     occupiedExitByPlayerId: new Map(),
     tick: 0,
     adventureState: { state: null, version: -1 },
+    pendingSaves: new Map(),
   };
 }

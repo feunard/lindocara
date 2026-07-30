@@ -82,7 +82,7 @@ import { adventures } from "../entities/adventures.ts";
 import { parties } from "../entities/parties.ts";
 import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { HeroEpochService } from "../services/HeroEpochService.ts";
-import { HeroSaveService } from "../services/HeroSaveService.ts";
+import { type HeroSaveResult, HeroSaveService } from "../services/HeroSaveService.ts";
 import { MapService } from "../services/MapService.ts";
 import { AdmissionService } from "./AdmissionService.ts";
 import { RealtimeChannels } from "./channels.ts";
@@ -605,9 +605,9 @@ export class WorldRoom {
     player: PlayerRuntime,
     connectionId: string,
   ): Promise<boolean> {
-    let result: "saved" | "stale";
+    let result: HeroSaveResult;
     try {
-      result = await this.heroSaveService.saveHero(toProfile(player), player.sessionEpoch);
+      result = await this.queueHeroSave(state, player);
     } catch (error) {
       this.logError("hero_save_failed", error, { heroId: player.id });
       if (state.players.get(connectionId) === player && player.authorized) player.dirty = true;
@@ -618,6 +618,49 @@ export class WorldRoom {
       return false;
     }
     return true;
+  }
+
+  /**
+   * Per-hero save serialization — port of legacy `persistence-system.ts::persistPlayer`'s
+   * `pendingSaves` chain (`world.ts:4132-4144` wires it as `this.#profileSaves`, one map per
+   * Durable Object; here it lives on `WorldRoomState`, one map per room, since a hero belongs to
+   * exactly one room's `players` at a time). Reimplemented rather than imported: that module's
+   * `PersistenceSystemContext` carries a `db: Db` field typed against the legacy D1/Drizzle `Db`
+   * (`../db/index.js`), which does not resolve under this program's Node/Alepha typecheck — it is
+   * NOT one of the pure systems the server `AGENTS.md` carve-out lists for `src/api/realtime/`
+   * reuse (`connection-system.ts`/`interest-system.ts`/`movement-system.ts`/`snapshot-system.ts`/
+   * `world-runtime.ts`/`spatial-grid.ts`/`map-zone.ts`).
+   *
+   * A new save for a hero chains AFTER whatever save is already in flight for that same hero,
+   * rather than racing it — this is the load-bearing invariant a bare epoch fence cannot provide on
+   * its own: two saves under the SAME epoch (e.g. the periodic dirty-flush beat still in flight when
+   * `onLeave` fires a forced save moments later) both pass the fence, so ordering must be enforced
+   * here instead. `toProfile(player)` is read INSIDE the chained callback, i.e. AFTER the previous
+   * save has settled — never before — so a save that had to wait behind another one still captures
+   * the FRESHEST snapshot at the moment it actually runs, not a stale one taken back when it was
+   * merely enqueued.
+   */
+  protected queueHeroSave(state: WorldRoomState, player: PlayerRuntime): Promise<HeroSaveResult> {
+    const previous = state.pendingSaves.get(player.id);
+    const start = previous
+      ? previous.then(
+          () => undefined,
+          () => undefined,
+        )
+      : Promise.resolve();
+    const save = start.then(() =>
+      this.heroSaveService.saveHero(toProfile(player), player.sessionEpoch),
+    );
+    state.pendingSaves.set(player.id, save);
+    void save.then(
+      () => {
+        if (state.pendingSaves.get(player.id) === save) state.pendingSaves.delete(player.id);
+      },
+      () => {
+        if (state.pendingSaves.get(player.id) === save) state.pendingSaves.delete(player.id);
+      },
+    );
+    return save;
   }
 
   // -----------------------------------------------------------------------------------------------
@@ -730,7 +773,10 @@ export class WorldRoom {
    * when that save actually landed. A `"stale"` or thrown save means the epoch already moved on (a
    * competing acquire beat this disconnect to the punch); releasing the lease in that case would
    * tear down whatever NEWER session now legitimately holds it, so it is skipped entirely and the
-   * short lease is left to expire on its own — exactly legacy's posture.
+   * short lease is left to expire on its own — exactly legacy's posture. Goes through
+   * `queueHeroSave` exactly like the periodic path, so a disconnect firing while an earlier periodic
+   * save for the same hero is still in flight cannot land before (and be overwritten by) that older
+   * save — the two are ordered, not raced.
    */
   protected async handleLeave(room: WorldRoomHandle, conn: RoomConnection): Promise<void> {
     const state = room.state;
@@ -739,7 +785,7 @@ export class WorldRoom {
     this.removeRuntimePlayer(state, conn.id, player);
     let saved = false;
     try {
-      const result = await this.heroSaveService.saveHero(toProfile(player), player.sessionEpoch);
+      const result = await this.queueHeroSave(state, player);
       saved = result === "saved";
     } catch (error) {
       this.logError("hero_disconnect_save_failed", error, { heroId: player.id });
