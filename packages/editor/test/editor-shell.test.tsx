@@ -859,7 +859,7 @@ describe("AdventureEditorScreen shell", () => {
     stageMock.current.mockReturnValue(edited);
     const mock = mapsBackend(twoMaps);
     vi.stubGlobal("fetch", mock);
-    await mountReady();
+    await mountReady(alepha);
 
     const audioButton = screen.getByRole("button", { name: t("editor.audio.mapButton") });
     await userEvent.click(audioButton);
