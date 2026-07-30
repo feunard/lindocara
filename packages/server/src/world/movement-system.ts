@@ -10,8 +10,15 @@ import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import { MAX_STARVED_TICKS, type PlayerRuntime, toAttachment } from "./world-runtime.js";
 
-export interface MovementSystemContext {
-  players: Map<WebSocket, PlayerRuntime>;
+/**
+ * Generic over the socket key (`TSocket`) so both hosts can drive it: the legacy Durable Object
+ * keys players by real workerd `WebSocket`s (the default), while the Alepha `$room` host
+ * (`src/api/realtime/WorldRoom.ts`) keys them by connection-id string — the room abstraction never
+ * exposes a raw socket. The system itself only ever treats the key as an opaque map key and
+ * callback argument, except for the one attachment write below (see its cast).
+ */
+export interface MovementSystemContext<TSocket = WebSocket> {
+  players: Map<TSocket, PlayerRuntime>;
   playerGrid: SpatialGrid<PlayerRuntime>;
   zone: ZoneDefinition;
   now: number;
@@ -21,21 +28,21 @@ export interface MovementSystemContext {
   writeD1: boolean;
   waitUntil(promise: Promise<unknown>): void;
   renewPresence(player: PlayerRuntime): Promise<void>;
-  reclaimCorpse(socket: WebSocket, player: PlayerRuntime): void;
-  collectLoot(socket: WebSocket, player: PlayerRuntime): void;
-  savePlayer(player: PlayerRuntime, socket: WebSocket): Promise<boolean>;
+  reclaimCorpse(socket: TSocket, player: PlayerRuntime): void;
+  collectLoot(socket: TSocket, player: PlayerRuntime): void;
+  savePlayer(player: PlayerRuntime, socket: TSocket): Promise<boolean>;
   /** Fired right after a player's authoritative position changed this tick, with where they were
    *  before. `World` uses it to detect a hero's box landing on a `player-touch` event's cell — a
    *  movement-edge check, not a per-tick scan. Absent for rooms that do not run events. */
   onPlayerMoved?(
-    socket: WebSocket,
+    socket: TSocket,
     player: PlayerRuntime,
     previousPosition: { x: number; y: number },
   ): void;
 }
 
 /** Applies at most one queued command per player and performs movement-adjacent maintenance. */
-export function advancePlayers(context: MovementSystemContext): void {
+export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>): void {
   for (const [socket, player] of context.players) {
     if (!player.authorized) continue;
     const resourceBefore = player.resource?.current;
@@ -120,7 +127,13 @@ export function advancePlayers(context: MovementSystemContext): void {
     if (canReclaim(player.life, player, player.corpse)) context.reclaimCorpse(socket, player);
     context.collectLoot(socket, player);
     if (context.writeAttachment && (player.dirty || player.resource)) {
-      socket.serializeAttachment(toAttachment(player));
+      // Only the Durable Object host sets `writeAttachment` — its `TSocket` IS a workerd
+      // WebSocket, the one key type carrying `serializeAttachment`. The Alepha room host keys by
+      // connection-id string and always passes `writeAttachment: false` (rooms have no attachment
+      // concept), so this narrowing is never reached with a non-socket key.
+      (socket as unknown as { serializeAttachment(value: unknown): void }).serializeAttachment(
+        toAttachment(player),
+      );
     }
     if (context.writeD1 && player.dirty) {
       context.waitUntil(context.savePlayer(player, socket));

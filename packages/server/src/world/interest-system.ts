@@ -45,8 +45,13 @@ function combatActionSnapshot(
   };
 }
 
-export interface InterestSystemContext {
-  players: Map<WebSocket, PlayerRuntime>;
+/**
+ * Generic over the socket key (`TSocket`), same contract as `MovementSystemContext`: the legacy
+ * Durable Object keys players by workerd `WebSocket` (the default), the Alepha room host by
+ * connection-id string. This system only ever iterates `players.values()`.
+ */
+export interface InterestSystemContext<TSocket = WebSocket> {
+  players: Map<TSocket, PlayerRuntime>;
   monsters: MonsterRuntime[];
   guards: GuardRuntime[];
   loot: GroundLoot[];
@@ -58,7 +63,10 @@ export interface InterestSystemContext {
   now(): number;
 }
 
-export function worldView(context: InterestSystemContext, viewer: PlayerRuntime): WorldView {
+export function worldView<TSocket>(
+  context: InterestSystemContext<TSocket>,
+  viewer: PlayerRuntime,
+): WorldView {
   return {
     players: visiblePlayerSnapshots(context, viewer),
     monsters: visibleMonsterSnapshots(context, viewer),
@@ -90,8 +98,8 @@ export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerS
   };
 }
 
-function visiblePlayerSnapshots(
-  context: InterestSystemContext,
+function visiblePlayerSnapshots<TSocket>(
+  context: InterestSystemContext<TSocket>,
   viewer: PlayerRuntime,
 ): PlayerSnapshot[] {
   const selection = queryWithHysteresis(
@@ -114,7 +122,10 @@ function visiblePlayerSnapshots(
     .map((player) => playerSnapshot(player, now));
 }
 
-function corpseSnapshots(context: InterestSystemContext, viewer: PlayerRuntime): CorpseSnapshot[] {
+function corpseSnapshots<TSocket>(
+  context: InterestSystemContext<TSocket>,
+  viewer: PlayerRuntime,
+): CorpseSnapshot[] {
   const corpses: CorpseSnapshot[] = [];
   const radiusSquared = CORPSE_VISIBILITY_RADIUS * CORPSE_VISIBILITY_RADIUS;
   for (const player of context.players.values()) {
@@ -134,8 +145,8 @@ function corpseSnapshots(context: InterestSystemContext, viewer: PlayerRuntime):
   return corpses;
 }
 
-function visibleMonsterSnapshots(
-  context: InterestSystemContext,
+function visibleMonsterSnapshots<TSocket>(
+  context: InterestSystemContext<TSocket>,
   viewer: PlayerRuntime,
 ): MonsterSnapshot[] {
   const selection = queryWithHysteresis(
@@ -167,8 +178,8 @@ function visibleMonsterSnapshots(
   }));
 }
 
-export function guardSnapshots(
-  context: InterestSystemContext,
+export function guardSnapshots<TSocket>(
+  context: InterestSystemContext<TSocket>,
   viewer?: PlayerRuntime,
 ): GuardSnapshot[] {
   const now = context.now();
@@ -187,8 +198,8 @@ export function guardSnapshots(
   }));
 }
 
-function visibleLootSnapshots(
-  context: InterestSystemContext,
+function visibleLootSnapshots<TSocket>(
+  context: InterestSystemContext<TSocket>,
   viewer: PlayerRuntime,
 ): LootSnapshot[] {
   const selection = queryWithHysteresis(

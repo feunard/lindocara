@@ -46,9 +46,19 @@ import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { createWorldCache, type WorldCache } from "@lindocara/engine/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
-import { PRESENCE_HEARTBEAT_MS } from "../character-presence.js";
-import type { PlayerProfile, SaveableProfile } from "../profile.js";
+import type { PlayerProfile, SaveableProfile } from "../profile-types.js";
 import { SpatialGrid } from "./spatial-grid.js";
+
+/**
+ * Copied verbatim from `../character-presence.ts`'s `PRESENCE_HEARTBEAT_MS` rather than imported:
+ * that module imports `cloudflare:workers` (it defines a Durable Object), and this file is now also
+ * loaded by the Node-hosted Alepha realtime rooms (`src/api/realtime/`), where that specifier does
+ * not resolve. Every world system must stay platform-free the way `@lindocara/engine` is. The value
+ * only seeds `newPlayer`'s first heartbeat; the room re-arms it against its own configured clock
+ * (`World.#addPlayer`), so a drift here would cost one early heartbeat, never correctness — but if
+ * the legacy constant ever changes, re-copy it by hand.
+ */
+const PRESENCE_HEARTBEAT_MS = 10_000;
 
 /**
  * The appearance-only projection of an authored event whose active page currently holds — the

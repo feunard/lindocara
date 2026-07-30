@@ -18,7 +18,13 @@ import {
 } from "@lindocara/engine/world-delta.js";
 import { combatCooldownsFromPlayer, type PlayerRuntime } from "./world-runtime.js";
 
-export type SendMessage = (socket: WebSocket, message: ServerMessage) => void;
+/**
+ * Generic over the socket key (`TSocket`), same contract as `MovementSystemContext`: the legacy
+ * Durable Object addresses recipients by workerd `WebSocket` (the default), the Alepha room host
+ * by connection-id string. Sends only ever flow through the injected `SendMessage` callback, so
+ * the key stays opaque to this system.
+ */
+export type SendMessage<TSocket = WebSocket> = (socket: TSocket, message: ServerMessage) => void;
 export type ViewForPlayer = (player: PlayerRuntime) => WorldView;
 
 export function selfState(
@@ -74,11 +80,11 @@ export function selfState(
   };
 }
 
-export function sendState(
-  socket: WebSocket,
+export function sendState<TSocket>(
+  socket: TSocket,
   player: PlayerRuntime,
   questTarget: number | undefined,
-  send: SendMessage,
+  send: SendMessage<TSocket>,
   authoredQuests: readonly AuthoredQuestTracker[] = [],
   authoredQuestMarkers: readonly AuthoredQuestMarker[] = [],
 ): void {
@@ -88,11 +94,11 @@ export function sendState(
   });
 }
 
-export function broadcastNetworkUpdates(
-  players: Map<WebSocket, PlayerRuntime>,
+export function broadcastNetworkUpdates<TSocket>(
+  players: Map<TSocket, PlayerRuntime>,
   tick: number,
   viewForPlayer: ViewForPlayer,
-  send: SendMessage,
+  send: SendMessage<TSocket>,
   activeEvents: readonly WorldEventSnapshot[],
 ): void {
   for (const [socket, player] of players) {
@@ -106,12 +112,12 @@ export function broadcastNetworkUpdates(
   }
 }
 
-export function sendWorldResync(
-  socket: WebSocket,
+export function sendWorldResync<TSocket>(
+  socket: TSocket,
   player: PlayerRuntime,
   tick: number,
   viewForPlayer: ViewForPlayer,
-  send: SendMessage,
+  send: SendMessage<TSocket>,
   activeEvents: readonly WorldEventSnapshot[],
 ): void {
   const view = viewForPlayer(player);

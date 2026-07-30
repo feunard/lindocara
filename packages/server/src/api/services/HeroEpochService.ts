@@ -45,6 +45,31 @@ export class HeroEpochService {
    * `sessionEpoch` — the caller lost a race, or is a zombie holder whose lease already moved on —
    * matches zero rows and returns `null`, changing nothing (no partial move, no epoch bump).
    */
+  /**
+   * The fenced move WITHOUT an epoch bump — port of `index.ts`'s `relocateHero` (the admission
+   * fallback that re-homes a hero whose stored map vanished onto the adventure's resolved start).
+   * The caller has just acquired the epoch it names, so gating on it means a concurrent second
+   * acquire (which bumped the epoch again) makes this a no-op `null` instead of a blind move.
+   */
+  async relocate(fenced: {
+    heroId: string;
+    sessionEpoch: number;
+    mapId: string;
+    x: number;
+    y: number;
+  }): Promise<boolean> {
+    try {
+      await this.heroes.updateOne(
+        { id: { eq: fenced.heroId }, sessionEpoch: { eq: fenced.sessionEpoch } },
+        { mapId: fenced.mapId, x: fenced.x, y: fenced.y },
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof DbEntityNotFoundError) return false;
+      throw error;
+    }
+  }
+
   async handoffEpoch(fenced: {
     heroId: string;
     sessionEpoch: number;

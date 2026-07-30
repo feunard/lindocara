@@ -1,23 +1,17 @@
-import type { AuthoredQuestProgress } from "@lindocara/engine/adventure-state.js";
 import {
-  type CharacterAppearance,
-  type Equipment,
   isEquipmentForClass,
   normalizeAppearance,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
-import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
 import { isLifeState, type LifeState } from "@lindocara/engine/death.js";
 import {
   clampRestoredPosition,
   isWalkable,
   maxHpForLevel,
-  type PlayerClass,
   type TerrainGeometry,
 } from "@lindocara/engine/game.js";
 import { terrainFromMap } from "@lindocara/engine/map-data.js";
-import type { Inventory, QuestState } from "@lindocara/engine/protocol.js";
-import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
+import { initialResource } from "@lindocara/engine/resources.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { isKnownZone, resolveZoneLocation } from "@lindocara/engine/zones.js";
@@ -27,36 +21,12 @@ import { type Character, character, type Db } from "./db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
 import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
 
-export interface PlayerProfile extends Vec2 {
-  id: string;
-  nick: string;
-  level: number;
-  xp: number;
-  hp: number;
-  appearance: CharacterAppearance;
-  class: PlayerClass;
-  equipment: Equipment;
-  inventory: Inventory;
-  quest: QuestState;
-  /** Personal authored quests. Party-scoped authored progress lives in GameSession instead. */
-  authoredQuestProgress?: Record<string, AuthoredQuestProgress>;
-  zoneId: string;
-  instanceId: string;
-  sessionEpoch: number;
-  wardRunExpiresAt: number | null;
-  life: LifeState;
-  /** Null exactly when `life` is "alive". */
-  corpse: Vec2 | null;
-  resource?: ClassResourceState;
-  cooldowns?: CombatCooldownState;
-  consumableCooldownUntil?: number;
-  damageBoostUntil?: number;
-  forgottenUntil?: number;
-  invisibleUntil?: number;
-  resurrectionAt?: number;
-  /** Hero-owned talent ids. Legacy characters keep this session-local until an explicit migration. */
-  talents?: readonly string[];
-}
+// The shape moved to `profile-types.ts` (platform-free) so the Alepha realtime rooms can
+// type-import it without this module's D1/workers imports; re-exported here so every legacy
+// importer keeps working unchanged.
+export type { PlayerProfile, SaveableProfile } from "./profile-types.js";
+
+import type { PlayerProfile, SaveableProfile } from "./profile-types.js";
 
 /**
  * A dead row must carry a body. If the two ever disagree — a hand-edited row, a half-applied
@@ -148,8 +118,6 @@ export async function loadProfile(db: Db, characterId: string): Promise<PlayerPr
   await db.update(character).set({ lastSeenAt: new Date() }).where(eq(character.id, characterId));
   return fromRow(db, row);
 }
-
-export type SaveableProfile = PlayerProfile;
 
 export async function acquireSessionEpoch(db: Db, characterId: string): Promise<number | null> {
   const updated = await db

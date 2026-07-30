@@ -289,9 +289,11 @@ export class HeroService {
   /**
    * The full port of `resolveAdventureStart` (`adventures.ts:350-387`) — see this file's docblock
    * for the three tiers and their exact precedence. Returns `null` only when the adventure has no
-   * maps at all.
+   * maps at all. Public since the realtime tranche: world admission (`AdmissionService`) re-runs
+   * exactly this resolution when a hero's stored map is gone, the same way legacy `handleJoinHero`
+   * called `resolveAdventureStart` directly.
    */
-  private async resolveHeroStart(
+  async resolveHeroStart(
     adventureId: string,
   ): Promise<{ mapId: string; x: number; y: number } | null> {
     const memberMaps = await this.maps.findMany({
