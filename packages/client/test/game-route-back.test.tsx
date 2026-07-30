@@ -103,9 +103,11 @@ describe("leaving /game via history-BACK", () => {
     sessionMock.start.mockReset();
     sessionMock.stop.mockReset();
     // Stands in for the real teardown chain's `store.clearedGameSession()` — the assertion below
-    // proves the leave effect actually results in a cleared bridge, not just a called mock.
+    // proves the leave effect actually results in a cleared bridge, not just a called mock. The
+    // real teardown clears `heroLoading` too (`clearedGameSessionFields()`), which matters for the
+    // loading-window test below.
     sessionMock.stop.mockImplementation(() => {
-      useUiStore.setState({ game: null });
+      useUiStore.setState({ game: null, heroLoading: null });
     });
   });
 
@@ -156,6 +158,51 @@ describe("leaving /game via history-BACK", () => {
     expect(sessionMock.stop).toHaveBeenCalledTimes(1);
     expect(sessionMock.stop).toHaveBeenCalledWith({ navigate: false });
     expect(useUiStore.getState().game).toBeNull();
+  });
+
+  it("invalidates a mid-flight launch when leaving /game while only heroLoading is set (no game handle yet)", async () => {
+    const instance = Alepha.create().with(AlephaReact).with(AppRouter);
+    alepha = instance;
+    await act(async () => {
+      await instance.start();
+    });
+    const router = instance.inject(ReactRouter<AppRouter>);
+
+    await act(async () => {
+      await router.push("/menu");
+    });
+    await waitFor(() => expect(document.querySelector(".main-menu")).toBeTruthy());
+
+    // Stands in for `startGameIdentity`'s window between "loading started" and "the game handle is
+    // installed" — `session.ts`'s own launch-id recheck after its one `await` (`Renderer.create()`)
+    // is what actually tears the launch down in that window; see `game-launch-abort.test.tsx` for
+    // that half. Here the router has not entered `/game` yet, which matches the real ordering:
+    // `nav.toGame()` fires first, but `heroLoading` is already set by the time the router's own
+    // `/game` loader (or, as here, this leave effect) next runs.
+    useUiStore.setState({
+      heroLoading: {
+        name: "Hero",
+        class: "warrior",
+        color: "azure",
+        phase: "preparing",
+        progress: 8,
+      },
+    });
+
+    await act(async () => {
+      await router.push("/game");
+    });
+    await waitFor(() => expect(document.querySelector(".connection-overlay")).toBeTruthy());
+    expect(sessionMock.stop).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await router.push("/menu");
+    });
+
+    await waitFor(() => expect(document.querySelector(".main-menu")).toBeTruthy());
+    expect(sessionMock.stop).toHaveBeenCalledTimes(1);
+    expect(sessionMock.stop).toHaveBeenCalledWith({ navigate: false });
+    expect(useUiStore.getState().heroLoading).toBeNull();
   });
 
   it("does nothing when leaving /game through a sanctioned exit that already cleared the session", async () => {

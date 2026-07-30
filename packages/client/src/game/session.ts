@@ -322,10 +322,17 @@ async function startGameIdentity(
   const canvas = required<HTMLCanvasElement>("#stage");
   const serverClock = new ServerClock();
   const renderer = await Renderer.create(canvas, serverClock);
-  // Renderer creation is asynchronous. If another hero was launched while assets were loading,
-  // this result no longer owns the page and must not install listeners or a WebSocket session.
+  // Renderer creation is asynchronous — the ONLY `await` between "loading started" and "the game
+  // handle is installed". `activeLaunchId` may have moved on for two reasons: another hero was
+  // launched while assets were loading (`launchGameIdentity`'s own `++activeLaunchId`), or the
+  // browser navigated away from `/game` mid-load (`ui/AppRouter.tsx`'s leave effect, widened to also
+  // watch `heroLoading`, calling `stopActiveGameSession({ navigate: false })`, which bumps this same
+  // counter). Either way this result no longer owns the page: destroy what it built and clear the
+  // loading state through the same seam a launch failure already uses, WITHOUT navigating — the
+  // caller (a fresh launch, or the browser itself) already owns where the app is going next.
   if (launchId !== activeLaunchId) {
     renderer.destroy();
+    returnFromGameSession({ navigate: false });
     return;
   }
   useUiStore.getState().setHeroLoading({

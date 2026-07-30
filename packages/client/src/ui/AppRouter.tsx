@@ -243,6 +243,16 @@ function AppLayout() {
   // directly (not `useStore`) — the game bridge deliberately stays off React re-renders for anything
   // written this often, see `store.ts`'s own docblock.
   //
+  // `heroLoading` is checked too, not just `game`: `startGameIdentity` (`game/session.ts`) sets
+  // `heroLoading` synchronously before its one `await` (`Renderer.create()`) and only installs
+  // `game` after that await resolves — a BACK landing in THAT window would otherwise be invisible to
+  // this effect (`game` still null) and the launch would finish unattended, installing an orphaned
+  // live session under the menu a moment later. `stopActiveGameSession()` bumps the module-level
+  // launch id unconditionally (see its own docblock), which is exactly what `startGameIdentity`
+  // rechecks right after that await — stale, it tears down what it built (the renderer) and returns
+  // without ever installing `game`. See `game/session.ts`'s launch-id recheck and
+  // `game-launch-abort.test.tsx` for that half; this effect only has to widen its trigger.
+  //
   // `{ navigate: false }` matters: `stopActiveGameSession()` normally re-navigates through the SAME
   // seam it's using here — calling that unconditionally would `router.push()` a SECOND time to
   // wherever the browser already put us (duplicating that history entry), or, if a deeper BACK
@@ -250,7 +260,8 @@ function AppLayout() {
   // chose. See `returnFromGameSession`'s own docblock in `game/session.ts` for the full reasoning.
   useEffect(() => {
     if (pathname === "/game") return;
-    if (!useUiStore.getState().game) return;
+    const state = useUiStore.getState();
+    if (!state.game && !state.heroLoading) return;
     stopActiveGameSession({ navigate: false });
   }, [pathname]);
 
