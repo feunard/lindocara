@@ -6,7 +6,6 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const PRODUCTION_HOST = "lindocara.alepha.dev";
 const PASSWORD = process.env.LINDOCARA_LOADTEST_PASSWORD ?? "LindoLoad-Local-2026";
 const PARTY_SIZE = 4;
-const PARTY_COLORS = ["blue", "red", "yellow", "purple"];
 const LOAD_MAP_TWO = "LoadMap2";
 const LOAD_END_EVENT = "loadtest-end";
 const RECONNECT_DELAY_MS = 250;
@@ -52,16 +51,12 @@ function configuration(argv) {
   };
 }
 
-async function requestJson(target, path, init = {}, cookie) {
+async function requestJson(target, path, init = {}, token) {
   const headers = { "Content-Type": "application/json", ...init.headers };
-  if (cookie) headers.Cookie = cookie;
+  if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(new URL(path, target), { ...init, headers });
   const body = response.status === 204 ? null : await response.json().catch(() => null);
   return { response, body };
-}
-
-function sessionCookie(response) {
-  return response.headers.get("set-cookie")?.split(";", 1)[0] ?? null;
 }
 
 function requestFailure(operation, result) {
@@ -69,21 +64,45 @@ function requestFailure(operation, result) {
   return new Error(`${operation} failed (${result.response.status}${code})`);
 }
 
+/**
+ * Alepha auth: `POST /_auth/token?provider=credentials` yields the bearer token every `/api/*`
+ * call and the `/ws/world` upgrade authenticate with (same idiom as the server-api test suite's
+ * `registerAndLogin`). Registration is two-phase (`POST /api/users/register` mints an intent,
+ * `/api/users/register/complete` creates the account) and only attempted when login fails.
+ */
+async function login(config, credentials) {
+  return requestJson(config.target, "/_auth/token?provider=credentials", {
+    method: "POST",
+    body: credentials,
+  });
+}
+
 async function authenticateVirtualPlayer(config, index) {
   const suffix = String(index).padStart(3, "0");
   const username = `${config.prefix}${suffix}`.slice(0, 16);
   const credentials = JSON.stringify({ username, password: PASSWORD });
-  let auth = await requestJson(config.target, "/api/register", {
-    method: "POST",
-    body: credentials,
-  });
-  if (auth.response.status === 409) {
-    auth = await requestJson(config.target, "/api/session", { method: "POST", body: credentials });
+  // Login first: virtual accounts survive across runs, and Alepha rate-limits registration
+  // attempts, so re-registering an existing account would trip the limiter under load.
+  let auth = await login(config, credentials);
+  if (!auth.response.ok) {
+    const intent = await requestJson(config.target, "/api/users/register", {
+      method: "POST",
+      body: credentials,
+    });
+    if (!intent.response.ok) throw requestFailure("registration", intent);
+    const intentId = intent.body?.intentId;
+    if (typeof intentId !== "string") throw new Error("registration intent has no intentId");
+    const completed = await requestJson(config.target, "/api/users/register/complete", {
+      method: "POST",
+      body: JSON.stringify({ intentId }),
+    });
+    if (!completed.response.ok) throw requestFailure("registration completion", completed);
+    auth = await login(config, credentials);
   }
-  if (!auth.response.ok) throw new Error(`authentication failed (${auth.response.status})`);
-  const cookie = sessionCookie(auth.response);
-  if (!cookie) throw new Error("authentication response omitted the session cookie");
-  return { index, suffix, username, cookie };
+  if (!auth.response.ok || typeof auth.body?.access_token !== "string") {
+    throw new Error(`authentication failed (${auth.response.status})`);
+  }
+  return { index, suffix, username, token: auth.body.access_token };
 }
 
 async function adventureById(config, account, adventureId) {
@@ -91,7 +110,7 @@ async function adventureById(config, account, adventureId) {
     config.target,
     `/api/adventures/${encodeURIComponent(adventureId)}`,
     { method: "GET" },
-    account.cookie,
+    account.token,
   );
   if (!result.response.ok || typeof result.body?.id !== "string") {
     throw requestFailure("adventure read", result);
@@ -104,7 +123,7 @@ async function mapById(config, account, mapId) {
     config.target,
     `/api/maps/${encodeURIComponent(mapId)}`,
     { method: "GET" },
-    account.cookie,
+    account.token,
   );
   if (!result.response.ok || typeof result.body?.id !== "string") {
     throw requestFailure("map read", result);
@@ -137,11 +156,34 @@ function eventCell(map, offsets) {
   throw new Error(`load-test map ${map.id} has no free event cell near its spawn`);
 }
 
+/**
+ * The engine's `defaultEventPage()` shape (`@lindocara/engine/map-events.ts`), inlined because
+ * this script is plain Node and cannot import the TypeScript engine. A fresh map carries no
+ * events at all ("entry/exit are explicit author choices"), so there is no template page to
+ * clone — the script mints the same blank page the editor would.
+ */
+function defaultEventPage() {
+  return {
+    condSwitchId: null,
+    condVariableId: null,
+    condVariableMin: null,
+    condSelfSwitch: null,
+    graphicAssetId: null,
+    moveType: "fixed",
+    moveSpeed: 4,
+    moveFreq: 3,
+    optMoveAnim: true,
+    optStopAnim: false,
+    optDirFix: false,
+    optThrough: false,
+    optOnTop: false,
+    trigger: "action",
+    commands: [],
+  };
+}
+
 function functionalEvent(map, { name, kind, cell, species = null, patrolRadius = null }) {
-  const templatePage = map.events?.[0]?.pages?.[0];
-  if (!templatePage) throw new Error(`load-test map ${map.id} has no functional event page`);
-  const page = structuredClone(templatePage);
-  page.commands = [];
+  const page = defaultEventPage();
   return {
     id: crypto.randomUUID(),
     ...cell,
@@ -206,7 +248,7 @@ async function saveMap(config, account, map) {
     config.target,
     `/api/maps/${encodeURIComponent(map.id)}`,
     { method: "PUT", body: JSON.stringify(mapSaveBody(map)) },
-    account.cookie,
+    account.token,
   );
   if (!result.response.ok || typeof result.body?.id !== "string") {
     throw requestFailure("map update", result);
@@ -243,12 +285,7 @@ function eventCentre(event) {
 async function ensureLoadAdventure(config, host, cohortIndex) {
   const cohort = String(cohortIndex).padStart(3, "0");
   const title = `Loadtest ${config.prefix} ${config.scenario} ${cohort}`;
-  const listed = await requestJson(
-    config.target,
-    "/api/adventures",
-    { method: "GET" },
-    host.cookie,
-  );
+  const listed = await requestJson(config.target, "/api/adventures", { method: "GET" }, host.token);
   if (!listed.response.ok || !Array.isArray(listed.body)) {
     throw requestFailure("adventure listing", listed);
   }
@@ -258,7 +295,7 @@ async function ensureLoadAdventure(config, host, cohortIndex) {
       config.target,
       "/api/adventures",
       { method: "POST", body: JSON.stringify({ title, maxPlayers: PARTY_SIZE }) },
-      host.cookie,
+      host.token,
     );
     if (!created.response.ok || typeof created.body?.id !== "string") {
       throw requestFailure("adventure creation", created);
@@ -274,7 +311,7 @@ async function ensureLoadAdventure(config, host, cohortIndex) {
     config.target,
     `/api/maps?adventure=${encodeURIComponent(adventureId)}`,
     { method: "GET" },
-    host.cookie,
+    host.token,
   );
   if (!mapsResult.response.ok || !Array.isArray(mapsResult.body)) {
     throw requestFailure("map listing", mapsResult);
@@ -298,7 +335,7 @@ async function ensureLoadAdventure(config, host, cohortIndex) {
         method: "PUT",
         body: JSON.stringify({ title, maxPlayers: PARTY_SIZE, graph: { start: null, links: [] } }),
       },
-      host.cookie,
+      host.token,
     );
     if (!draft.response.ok) {
       throw new Error(
@@ -311,7 +348,7 @@ async function ensureLoadAdventure(config, host, cohortIndex) {
         config.target,
         "/api/maps",
         { method: "POST", body: JSON.stringify({ adventureId, name: LOAD_MAP_TWO }) },
-        host.cookie,
+        host.token,
       );
       if (!createdMap.response.ok || typeof createdMap.body?.id !== "string") {
         throw requestFailure("second map creation", createdMap);
@@ -330,8 +367,45 @@ async function ensureLoadAdventure(config, host, cohortIndex) {
     endEvent = ensuredEnd.event;
   }
 
-  const mapOneChanged = ensureCombatEvents(mapOne, "a");
-  const mapTwoChanged = ensureCombatEvents(mapTwo, "b");
+  // Fresh maps carry NO events at all (entry/exit are explicit author choices, not auto-seeded),
+  // so the script authors its own transition anchors before wiring the graph.
+  const anchorOffsets = [
+    [3, 0],
+    [0, 3],
+    [-3, 0],
+    [0, -3],
+    [3, 3],
+    [-3, -3],
+    [3, -3],
+    [-3, 3],
+  ];
+  let mapOneChanged = ensureCombatEvents(mapOne, "a");
+  let mapTwoChanged = ensureCombatEvents(mapTwo, "b");
+  for (const [mapRef, definitions] of [
+    [
+      mapOne,
+      [
+        { name: "loadtest-a-entry", kind: "entry" },
+        { name: "loadtest-a-exit", kind: "exit" },
+      ],
+    ],
+    [
+      mapTwo,
+      [
+        { name: "loadtest-b-entry", kind: "entry" },
+        { name: "loadtest-b-return", kind: "exit" },
+      ],
+    ],
+  ]) {
+    for (const definition of definitions) {
+      const ensured = ensureNamedEvent(mapRef, {
+        ...definition,
+        cell: eventCell(mapRef, anchorOffsets),
+      });
+      if (mapRef === mapOne) mapOneChanged ||= ensured.changed;
+      else mapTwoChanged ||= ensured.changed;
+    }
+  }
   if (mapOneChanged) mapOne = await saveMap(config, host, mapOne);
   if (mapTwoChanged || !configured) mapTwo = await saveMap(config, host, mapTwo);
 
@@ -358,7 +432,7 @@ async function ensureLoadAdventure(config, host, cohortIndex) {
       config.target,
       `/api/adventures/${encodeURIComponent(adventureId)}`,
       { method: "PUT", body: JSON.stringify({ title, maxPlayers: PARTY_SIZE, graph }) },
-      host.cookie,
+      host.token,
     );
     if (!updated.response.ok) throw requestFailure("adventure graph update", updated);
   }
@@ -376,7 +450,7 @@ async function listParties(config, account) {
   let cursor = null;
   for (let page = 0; page < 20; page++) {
     const suffix = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-    const result = await requestJson(config.target, `/api/parties${suffix}`, {}, account.cookie);
+    const result = await requestJson(config.target, `/api/parties${suffix}`, {}, account.token);
     if (!result.response.ok) throw requestFailure("party listing", result);
     if (Array.isArray(result.body)) return result.body;
     if (!Array.isArray(result.body?.items)) throw new Error("party listing returned a bad page");
@@ -399,9 +473,10 @@ async function ensureLoadParty(config, host, cohortIndex, adventureId) {
       "/api/parties",
       {
         method: "POST",
-        body: JSON.stringify({ adventureId, name, color: PARTY_COLORS[0] }),
+        // The alepha party API assigns colours server-side; the body carries no colour.
+        body: JSON.stringify({ adventureId, name }),
       },
-      host.cookie,
+      host.token,
     );
     if (!created.response.ok || typeof created.body?.id !== "string") {
       throw requestFailure("party creation", created);
@@ -416,8 +491,9 @@ async function provisionPartyHero(config, account, slot, partyId, transitionTarg
     const joined = await requestJson(
       config.target,
       `/api/parties/${encodeURIComponent(partyId)}/join`,
-      { method: "POST", body: JSON.stringify({ color: PARTY_COLORS[slot] }) },
-      account.cookie,
+      // No body: the server assigns the colour (`POST /api/parties/:id/join` -> 204).
+      { method: "POST" },
+      account.token,
     );
     const alreadyJoined =
       joined.response.status === 409 && joined.body?.error === "party_already_member";
@@ -425,7 +501,7 @@ async function provisionPartyHero(config, account, slot, partyId, transitionTarg
   }
 
   const heroPath = `/api/parties/${encodeURIComponent(partyId)}/heroes`;
-  const listed = await requestJson(config.target, heroPath, { method: "GET" }, account.cookie);
+  const listed = await requestJson(config.target, heroPath, { method: "GET" }, account.token);
   if (!listed.response.ok || !Array.isArray(listed.body)) {
     throw requestFailure("hero listing", listed);
   }
@@ -443,7 +519,7 @@ async function provisionPartyHero(config, account, slot, partyId, transitionTarg
           class: classes[account.index % classes.length],
         }),
       },
-      account.cookie,
+      account.token,
     );
     if (!created.response.ok || typeof created.body?.id !== "string") {
       throw requestFailure("hero creation", created);
@@ -454,7 +530,7 @@ async function provisionPartyHero(config, account, slot, partyId, transitionTarg
   return {
     index: account.index,
     username: account.username,
-    cookie: account.cookie,
+    token: account.token,
     partyId,
     heroId: hero.id,
     transitionTargets,
@@ -616,6 +692,7 @@ class VirtualPlayer {
     this.config = config;
     this.metrics = metrics;
     this.socket = null;
+    this.roomId = null;
     this.seq = 0;
     this.sentAt = new Map();
     this.selfId = identity.heroId;
@@ -636,22 +713,37 @@ class VirtualPlayer {
     this.actionTimer = null;
   }
 
-  websocketUrl() {
-    const url = new URL(
-      `/api/ws?party=${encodeURIComponent(this.identity.partyId)}&hero=${encodeURIComponent(this.identity.heroId)}`,
+  /**
+   * The alepha admission flow, mirroring `net.ts`: `GET /api/join` resolves the roomId hint the
+   * room re-validates against D1, then the raw socket dials `channelPath` with
+   * `roomId`/`party`/`hero` in the query. Re-running the join on every (re)connect is what makes
+   * the 4008 map-transition reconnect land in the DESTINATION room.
+   */
+  async resolveWebsocketUrl() {
+    const join = await requestJson(
       this.config.target,
+      `/api/join?party=${encodeURIComponent(this.identity.partyId)}&hero=${encodeURIComponent(this.identity.heroId)}`,
+      { method: "GET" },
+      this.identity.token,
     );
+    if (!join.response.ok || typeof join.body?.roomId !== "string") {
+      throw requestFailure("join resolution", join);
+    }
+    this.roomId = join.body.roomId;
+    const url = new URL(join.body.channelPath ?? "/ws/world", this.config.target);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.search = `?roomId=${encodeURIComponent(this.roomId)}&party=${encodeURIComponent(this.identity.partyId)}&hero=${encodeURIComponent(this.identity.heroId)}`;
     return url;
   }
 
-  connect(timeoutMs = 8_000) {
+  async connect(timeoutMs = 8_000) {
+    const websocketUrl = await this.resolveWebsocketUrl();
     return new Promise((resolve, reject) => {
       let settled = false;
       let welcomed = false;
       let failedBeforeWelcome = false;
-      const socket = new WebSocket(this.websocketUrl(), {
-        headers: { Cookie: this.identity.cookie },
+      const socket = new WebSocket(websocketUrl, {
+        headers: { Authorization: `Bearer ${this.identity.token}` },
       });
       this.socket = socket;
       const timeout = setTimeout(() => {
@@ -673,6 +765,9 @@ class VirtualPlayer {
           this.metrics.protocolErrors += 1;
           return;
         }
+        // Alepha's room-targeted broadcast path may stamp a transport-level `__alephaRoom` key on
+        // the frame; strip it before reading the engine message (same as `net.ts`).
+        if (message && typeof message === "object") delete message.__alephaRoom;
         if (!message || typeof message.t !== "string") {
           this.metrics.protocolErrors += 1;
           return;
@@ -791,7 +886,9 @@ class VirtualPlayer {
 
   send(message) {
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
-    this.socket.send(JSON.stringify(message));
+    // The alepha wire wraps every client frame as `{roomId, message}` (the room envelope
+    // `WorldRoom.handleMessage` unwraps before `parseClientMessage`), exactly like `net.ts`.
+    this.socket.send(JSON.stringify({ roomId: this.roomId, message }));
     return true;
   }
 
