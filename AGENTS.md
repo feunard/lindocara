@@ -24,7 +24,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test against the alepha stack (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
-| `npm test` | Vitest — every package's project plus the Node-only `server-api` project (see below) |
+| `npm test` | Vitest — every package's project plus the Node-only `server` project (see below) |
 | `npm run build` | **alepha build** — bundles `apps/main` for its configured `platform()` adapter (`--target cloudflare` emits a Cloudflare artifact under `apps/main/dist/`; deploy stays frozen, see below) |
 | `npm run build:legacy` | client bundle + deployable `wrangler.json` for the legacy workerd stack |
 | `npm run deploy` | `alepha platform up -e production` — **not used yet**, deploy is frozen (see below) |
@@ -306,20 +306,23 @@ configs, the root `scripts/`, and the engine's tests (which use Node globals its
 config can't host). `npm run typecheck` runs each package's `tsc` then the tooling one;
 `npm run typecheck:<pkg>` runs just one.
 
-The Alepha migration added a second split inside `server`, `client` and `editor`: alepha's own
-package.json points `types` at raw framework source rather than a compiled `.d.ts`, so any file
-importing `alepha`/`alepha/react*` pulls the whole framework source tree into whichever program
-resolves it, type-checked under THAT program's `compilerOptions` — and this repo's base is
-stricter than alepha's own (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, …), so
-alepha's internals fail it by the hundreds. Each affected package therefore also has a
-`tsconfig.api.json`, extending `.vendor/alepha/tsconfig.base.json` instead of the repo base, that
-owns only the files that import alepha (`src/api/**`+`test-api/` for `server`; `ui/AppRouter.tsx`,
-`state/atoms.ts` and their alepha-reading consumers for `client`/`editor`) — each such file is
-`exclude`d from the package's plain `tsconfig.json` so it is never checked under both regimes.
-`npm run typecheck:<pkg>` runs both programs for an affected package. `apps/main/tsconfig.json`
-follows the same fix for its two bootstrap entries (`main.ts`, `main.browser.ts`), which both
-import the alepha-flavored `AppRouter` — extending alepha's base directly rather than needing a
-plain-vs-alepha split of its own, since neither entry has a non-alepha half to keep separate.
+The Alepha migration added a second split inside `client` and `editor`: alepha's own package.json
+points `types` at raw framework source rather than a compiled `.d.ts`, so any file importing
+`alepha`/`alepha/react*` pulls the whole framework source tree into whichever program resolves it,
+type-checked under THAT program's `compilerOptions` — and this repo's base is stricter than
+alepha's own (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, …), so alepha's internals
+fail it by the hundreds. Each affected package therefore also has a `tsconfig.api.json`, extending
+`.vendor/alepha/tsconfig.base.json` instead of the repo base, that owns only the files that import
+alepha (`ui/AppRouter.tsx`, `state/atoms.ts` and their alepha-reading consumers for
+`client`/`editor`) — each such file is `exclude`d from the package's plain `tsconfig.json` so it is
+never checked under both regimes. `npm run typecheck:<pkg>` runs both programs for an affected
+package. `apps/main/tsconfig.json` follows the same fix for its two bootstrap entries (`main.ts`,
+`main.browser.ts`), which both import the alepha-flavored `AppRouter` — extending alepha's base
+directly rather than needing a plain-vs-alepha split of its own, since neither entry has a
+non-alepha half to keep separate. `server` no longer has this split: the legacy retirement
+(2026-07-30 alepha-migration deploy-cleanup tranche, Task 7) deleted the workerd program entirely
+and widened the alepha-base program (formerly `tsconfig.api.json`, now the package's sole
+`tsconfig.json`) to cover all of `src` — one program, `npm run typecheck:server`.
 
 ### Classes
 

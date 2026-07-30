@@ -1,5 +1,5 @@
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
-import type { PlayerProfile } from "@lindocara/server/profile.js";
+import type { PlayerProfile } from "@lindocara/server/profile-types.js";
 import {
   answerPartyInvite,
   broadcastPartyStateIfChanged,

@@ -135,16 +135,17 @@ kick and the D1 epoch fence keeps writes safe regardless. CF deploy is the deplo
   race-artifact color clash) against a follow-up read — never a `count()` read followed by a separate
   `create()` call.
 
-**Tests**: `packages/server/test-api/` is a separate, Node-only Vitest project (`server-api` —
+**Tests**: `packages/server/test-api/` is this package's sole, Node-only Vitest project (`server` —
 its own `vitest.config.ts`, `environment: "node"`, collected by the root aggregator alongside every
-other package's project). It drives the Alepha app with real HTTP (`action.fetch()`/plain `fetch()`
-against `ServerProvider.hostname`) the same way the workerd suite drives the real Durable Object —
-no mocking. **Typechecking**: `src/api/**` and `test-api/` get their own program,
-`packages/server/tsconfig.api.json` (extending `.vendor/alepha`'s own base config, not this
-package's workerd `tsconfig.json`), because Alepha's own internals need Node/DOM globals and
-`allowImportingTsExtensions` that the workerd program deliberately excludes — `npm run
-typecheck:server` runs both `tsc -p packages/server/tsconfig.json` and `tsc -p
-packages/server/tsconfig.api.json`.
+other package's project; `npm run test:server` or `npm test -w @lindocara/server`). It drives the
+Alepha app with real HTTP (`action.fetch()`/plain `fetch()` against `ServerProvider.hostname`) —
+no mocking — and, since the legacy retirement (2026-07-30 alepha-migration deploy-cleanup tranche,
+Task 7), also holds the pure `src/world/**` system-test suites migrated off the deleted workerd
+pool. **Typechecking**: the whole package (`src` + `test-api/`) is one program,
+`packages/server/tsconfig.json` (extending `.vendor/alepha`'s own base config), because Alepha's
+own internals need Node/DOM globals and `allowImportingTsExtensions` that the repo's plain root
+`tsconfig.json` doesn't carry — `npm run typecheck:server` runs `tsc -p
+packages/server/tsconfig.json`.
 
 **The legacy stack stays untouched during this migration.** Nothing in `src/api/` may import from or
 mutate `index.ts`, `world.ts`, `world/`, `game-session.ts`, `hero-presence.ts`,

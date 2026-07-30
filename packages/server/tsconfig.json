@@ -1,22 +1,27 @@
 {
-  // INTERIM/BROKEN, pending Task 7 (2026-07-30 alepha-migration-deploy-cleanup, legacy retirement
-  // β): Task 6 deleted the legacy Worker/Durable-Object entry (`src/index.ts`, `src/world.ts`) and
-  // its wrangler-generated `src/worker-configuration.d.ts`, which used to supply this program's
-  // only source of workerd ambient globals (`WebSocket`, `crypto`, `scheduler`, `Env`, ...) for the
-  // remaining `src/world/**` KEEP modules. Without it this program no longer typechecks clean, and
-  // `test/` (Task 7's DIE/MIGRATE split, still physically present) additionally references both
-  // `cloudflare:test` and now-deleted src modules. `npm run typecheck:server` therefore no longer
-  // invokes this config — `tsconfig.api.json` alone already typechecks `src/world/**` and every
-  // remaining root keeper cleanly via transitive imports from `src/api/**` (verified: `tsc -p
-  // tsconfig.api.json --noEmit` is clean, using `@cloudflare/workers-types`' ambient globals
-  // through `node`/`bun` types rather than this program's `@cloudflare/vitest-pool-workers/types`).
-  // Task 7's plan already calls for `tsconfig.api.json` to become this package's sole
-  // `tsconfig.json` — that re-plumb retires this file rather than repairing it in place.
-  "extends": "../../tsconfig.json",
+  // The package's sole program, since the legacy retirement (2026-07-30 alepha-migration
+  // deploy-cleanup tranche, Task 7). There used to be two: a workerd one for the legacy Worker +
+  // Durable Object stack (`src/index.ts`, `src/world.ts`, ...) and this one for the runtime-neutral
+  // Alepha port (`src/api/**`). Task 6 deleted the legacy stack; this config simply widens from
+  // `src/api` to all of `src` so it also covers `src/world/**` (the pure systems the Alepha realtime
+  // rooms import) and the handful of root keepers (`adventure-registry.ts`,
+  // `authored-quest-system.ts`, `profile-types.ts`, `items.ts`, `spatial-grid.ts`).
+  //
+  // Alepha's own vendored `alepha` package points its package.json "types" at raw source
+  // (`.vendor/alepha/src/core/index.ts`, not a compiled .d.ts), so TypeScript pulls the whole
+  // framework source tree into whichever program imports it, type-checked under THAT program's
+  // compilerOptions — hence extending alepha's own base config (it needs
+  // `allowImportingTsExtensions` plus node/DOM globals) rather than the repo's plain root
+  // `tsconfig.json`.
+  "extends": "../../.vendor/alepha/tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022"],
-    "types": ["@cloudflare/vitest-pool-workers/types"]
+    // `node` covers our own code. `bun` is additive: alepha's own
+    // `BunHttpServerProvider.ts` (an alternate runtime backend we don't use — we run on
+    // Node) references the ambient `Bun` global, and without its types that file fails to
+    // check even though nothing in this program actually exercises it. `@types/bun` is
+    // already in the tree (a `.vendor/alepha` devDependency, hoisted to the workspace
+    // root), so this is a zero-cost addition, not a new dependency.
+    "types": ["node", "bun"]
   },
-  "include": ["src", "test"],
-  "exclude": ["src/api"]
+  "include": ["src", "test-api"]
 }

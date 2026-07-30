@@ -1,7 +1,7 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { CHEAT_COMMAND_SYNTAX, parseCheatCommand } from "@lindocara/engine/cheats.js";
 import { maxHpForLevel, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
-import type { PlayerProfile } from "@lindocara/server/profile.js";
+import type { PlayerProfile } from "@lindocara/server/profile-types.js";
 import { executeCheatCommand } from "@lindocara/server/world/cheat-command-system.js";
 import { isPlayerInvulnerable } from "@lindocara/server/world/combat-system.js";
 import { newPlayer } from "@lindocara/server/world/world-runtime.js";
