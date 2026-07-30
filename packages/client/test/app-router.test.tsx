@@ -1,4 +1,5 @@
 import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
 import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { waitFor } from "@testing-library/dom";
 import { Alepha } from "alepha";
@@ -43,6 +44,9 @@ describe("AppRouter", () => {
     // `#stage` beside it.
     document.body.innerHTML = '<div id="root"></div>';
     stubFetch();
+    // The store is a module-level singleton across the whole test file — reset the field the
+    // deprecated screen-to-router bridge reads, so an earlier test's write can't leak in here.
+    useUiStore.setState({ screen: "boot" });
   });
 
   afterEach(async () => {
@@ -76,6 +80,32 @@ describe("AppRouter", () => {
     await act(async () => {
       await router.push("/menu");
     });
+    await waitFor(() => {
+      expect(document.querySelector(".main-menu")).toBeTruthy();
+      expect(document.querySelector(".title-screen")).toBeNull();
+    });
+  });
+
+  // Temporary bridge coverage (see `AppRouter.tsx`'s `@deprecated` docblock on `SCREEN_TO_ROUTE`
+  // and the layout's screen-forwarding effect) — removed alongside the bridge in Task 2. Proves a
+  // reused screen's un-migrated `setScreen(...)` call still lands somewhere real, so main stays
+  // clickable while `TitleScreen`/`MainMenu`/etc. haven't been rewired onto the router yet.
+  it("forwards a setScreen write onto the router (temporary bridge, Task 2 removes it)", async () => {
+    alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+    await alepha.start();
+    const router = alepha.inject(ReactRouter);
+
+    await act(async () => {
+      await router.push("/");
+    });
+    await waitFor(() => {
+      expect(document.querySelector(".title-screen")).toBeTruthy();
+    });
+
+    await act(async () => {
+      useUiStore.getState().setScreen("menu");
+    });
+
     await waitFor(() => {
       expect(document.querySelector(".main-menu")).toBeTruthy();
       expect(document.querySelector(".title-screen")).toBeNull();

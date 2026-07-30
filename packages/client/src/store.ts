@@ -153,6 +153,11 @@ export interface HeroLoadingState {
   progress: number;
 }
 
+/** @deprecated Task 2 removes this alongside the `screen` field it names — exported only so
+ *  `AppRouter.tsx`'s temporary screen-to-router bridge can type its lookup table without
+ *  duplicating the literal union. */
+export type UiScreen = UiState["screen"];
+
 interface UiState {
   screen:
     | "boot"
