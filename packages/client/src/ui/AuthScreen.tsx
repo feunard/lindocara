@@ -1,18 +1,23 @@
+import { useAlepha } from "alepha/react";
+import { ReactAuth, useAuth } from "alepha/react/auth";
+import { useRouter } from "alepha/react/router";
 import { useState } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
-import { authErrorText, errorCode, login, register } from "../api.js";
+import { authErrorText, errorCode, register } from "../api.js";
 import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
-import { useUiStore } from "../store.js";
+import type { AppRouter } from "./AppRouter.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 type Tab = "login" | "register";
 
 export function AuthScreen() {
   useLocale();
-  const setScreen = useUiStore((s) => s.setScreen);
+  const alepha = useAlepha();
+  const router = useRouter<AppRouter>();
+  const { login } = useAuth();
   const [tab, setTab] = useState<Tab>("login");
   const [error, setError] = useState<string | null>(null); // machine code, not text
   const [busy, setBusy] = useState(false);
@@ -21,8 +26,13 @@ export function AuthScreen() {
     setError(null);
     setBusy(true);
     try {
+      // `continueAsGuest()` is the same plain-fetch two-phase register/login as before (`guest.ts`
+      // has no Alepha instance to reach) — it authenticates the session cookie but never touches
+      // `currentUserAtom` itself, so a re-`ping()` syncs it the same way the layout's boot effect
+      // does for its own automatic guest fallback (`AppRouter.tsx`'s docblock).
       await continueAsGuest();
-      setScreen("menu");
+      await alepha.inject(ReactAuth).ping();
+      await router.push("menu");
     } catch (caught) {
       setError(errorCode(caught));
     } finally {
@@ -42,8 +52,19 @@ export function AuthScreen() {
     try {
       const username = String(data.get("username"));
       const password = String(data.get("password"));
-      await (tab === "login" ? login(username, password) : register(username, password));
-      setScreen("menu");
+      if (tab === "register") {
+        // Two-phase intent creation stays on `api.ts` (`alepha/api/users`'s own registration
+        // flow), then the same re-`ping()` sync as the guest path above — `register()`'s own
+        // trailing plain-fetch login already authenticated the cookie.
+        await register(username, password);
+        await alepha.inject(ReactAuth).ping();
+      } else {
+        // The one call that goes through Alepha's `HttpClient` rather than `api.ts`'s plain
+        // `fetch`: `ReactAuth.login()` authenticates AND fills `currentUserAtom` in one round
+        // trip, so no follow-up `ping()` is needed here.
+        await login("credentials", { username, password });
+      }
+      await router.push("menu");
     } catch (caught) {
       setError(errorCode(caught));
     } finally {

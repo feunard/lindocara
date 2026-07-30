@@ -30,7 +30,7 @@ import { type InteriorDoor, nearestInterior } from "@lindocara/renderer/interior
 import { MapSurface } from "@lindocara/renderer/minimap-surface.js";
 import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
-import { type CharacterSummary, logout, type PartyListing, type StoredHero } from "../api.js";
+import type { CharacterSummary, PartyListing, StoredHero } from "../api.js";
 import { t } from "../i18n.js";
 import { questTrackerNotifications } from "../quest-presentation.js";
 import { getGameNavigation } from "../state/navigation.js";
@@ -837,7 +837,10 @@ async function startGameIdentity(
   };
   const logoutAndReload = () => {
     stopSession();
-    void logout();
+    // `GameNavigation.logout()` (Task 3): Alepha's `ReactAuth.logout()`, a `<form>` POST whose
+    // server-side redirect navigates the browser away on its own — no manual reload needed after
+    // it, unlike the old `api.ts` `logout()` this replaces.
+    getGameNavigation()?.logout();
   };
   /**
    * Leave the running game and go back to the title screen, KEEPING the session.

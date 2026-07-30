@@ -12,6 +12,12 @@
  * that file living in the separate `tsconfig.api.json` program), and clears it on unmount. A test
  * installs a plain fake object by reassignment (`setGameNavigation({...})`) — no Alepha instance
  * required.
+ *
+ * Task 3 adds a second, sibling seam below (`onUnauthorized`/`setOnUnauthorized`) for the SAME
+ * reason: `api.ts`'s plain-`fetch` calls need to react to a 401 without importing `alepha`
+ * themselves. It is deliberately not folded into `GameNavigation` — that type is documented as
+ * `game/session.ts` + the store's editor shims specifically, and `api.ts` is a different, broader
+ * caller (every screen, both packages).
  */
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { AdventureTestSession, PartyListing } from "../api.js";
@@ -42,6 +48,10 @@ export type GameNavigation = {
   setAdventureTestSession(session: AdventureTestSession | null): void;
   getAdventureTestSession(): AdventureTestSession | null;
   getQuickItems(): QuickItems;
+  /** Signs the player out through Alepha's `ReactAuth` (a `<form>` POST to `/oauth/logout`; the
+   *  server's redirect response makes the browser navigate away on its own — no manual
+   *  `window.location.reload()` needed after it, unlike the old `api.ts` `logout()` it replaces). */
+  logout(): void;
   /** @deprecated Editor-shim-only — see the type docblock. */
   setAdventureEditorSession(session: AdventureEditorSession | null): void;
   /** @deprecated Editor/legacy-screen-shim-only — see the type docblock. */
@@ -61,4 +71,34 @@ export function setGameNavigation(nav: GameNavigation | null): void {
  *  `game/session.ts` already treats `connection`/timers as possibly absent. */
 export function getGameNavigation(): GameNavigation | null {
   return installed;
+}
+
+/**
+ * The ONE 401-recovery seam (Task 3): "clear the auth atom, navigate to `/auth`" is implemented in
+ * exactly one place — the closure `AppLayout` installs below, alongside `GameNavigation` — and both
+ * call sites that can notice an unauthenticated response funnel through it rather than each
+ * reimplementing recovery:
+ *
+ * - `AppRouter`'s own `$hook({ on: "client:onError" })` (the lore idiom), for anything that goes
+ *   through Alepha's own `HttpClient` (`ReactAuth.ping()`/`login()` today; a future task's typed
+ *   `$client<T>()` loaders tomorrow) — that event never fires for a plain `fetch()`.
+ * - `api.ts`'s `api()` helper, for its own plain-`fetch` calls, on an `UnauthorizedError`/
+ *   `session_expired` machine code specifically (never on `InvalidCredentialsError` — a wrong
+ *   password during login/register is not a dead session, and must not bounce the auth form back
+ *   onto itself).
+ *
+ * A no-op before install (a bare-render test, or a genuinely offline call before the app has
+ * mounted) — every caller must stay just as null-safe as `getGameNavigation()`'s callers already
+ * are, just via a call instead of `?.`.
+ */
+let onUnauthorizedHandler: (() => void) | null = null;
+
+/** Installed by the AppRouter layout on mount, cleared (`null`) on unmount — same lifecycle as
+ *  `setGameNavigation`. A test installs a plain fake by reassignment. */
+export function setOnUnauthorized(handler: (() => void) | null): void {
+  onUnauthorizedHandler = handler;
+}
+
+export function onUnauthorized(): void {
+  onUnauthorizedHandler?.();
 }

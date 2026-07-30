@@ -1,9 +1,11 @@
 import { setLocale } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
-import { AuthScreen } from "@lindocara/client/ui/AuthScreen.js";
-import { render, screen } from "@testing-library/react";
+import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
+import { screen, waitFor } from "@testing-library/dom";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Alepha } from "alepha";
+import { AlephaReact } from "alepha/react";
+import { act } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -12,20 +14,57 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-/** Stubs a single fixed response for every fetch call — enough for a login-only flow (one call:
- *  `POST /_auth/token`). */
-function stubFetch(status: number, body: unknown): ReturnType<typeof vi.fn> {
+/**
+ * `ReactAuth.login()`/`.ping()` go through Alepha's own `HttpClient`, which decodes every response
+ * against a `zod` schema (`tokenResponseSchema`/`userinfoResponseSchema`) BEFORE handing it back —
+ * unlike this file's plain-`fetch`-based `register()`/`continueAsGuest()` calls, which read the
+ * body as loose JSON. A body missing a required field (`api`, the token fields) fails that decode
+ * and rejects the call with a validation error, which `AuthScreen`'s `catch` then maps to the
+ * generic error code — so every response standing in for `/_auth/token`/`/_auth/userinfo` below
+ * must satisfy both schemas' required shape, not just the `user` field the OLD hand-rolled server
+ * ever needed. `actions: {}` is the minimal legal `api` registry; the token fields are otherwise
+ * unused by this app.
+ */
+function tokenBody(user: { id: string; username: string }) {
+  return {
+    provider: "credentials",
+    access_token: "test-token",
+    issued_at: Date.now(),
+    user,
+    api: { actions: {} },
+  };
+}
+
+function userinfoBody(user?: { id: string; username: string }) {
+  return { user, api: { actions: {} } };
+}
+
+/** Drops `/api/parties` calls — `MainMenu`'s own "has saves" probe, fired once the auth flow
+ *  navigates there, is not what these tests are asserting on. Alepha's root renders under React
+ *  StrictMode (`ReactPageProvider.ts`), which double-invokes a freshly-mounted component's
+ *  effects, so a bare count is timing-dependent noise; filtering the path out entirely keeps the
+ *  auth-flow-specific sequence assertions exact without caring how many times it fired. */
+function withoutMainMenuNoise(paths: string[]): string[] {
+  return paths.filter((path) => path !== "/api/parties");
+}
+
+/** Stubs a single fixed response for every `/_auth/token` call — enough for a login-only flow. */
+function stubToken(status: number, body: unknown): ReturnType<typeof vi.fn> {
   const mock = vi.fn().mockResolvedValue(jsonResponse(status, body));
   vi.stubGlobal("fetch", mock);
   return mock;
 }
 
 /**
- * Stubs the alepha auth routes by path, since `register()` drives three sequential calls with
- * three different response shapes (`POST /api/users/register` -> `{intentId}`, `POST
- * /api/users/register/complete` -> the created user resource, `POST /_auth/token` -> `{user}`) and
- * `login()` alone drives the last of those. Defaults describe a happy path for `username`; callers
- * override only the phase they want to fail.
+ * Stubs the alepha auth routes by path. `register()` (`api.ts`, unchanged this task) drives three
+ * sequential plain-`fetch` calls (`POST /api/users/register` -> `{intentId}`, `POST
+ * /api/users/register/complete` -> the created user resource, `POST /_auth/token` -> `{user}`, its
+ * own trailing plain-fetch login); `continueAsGuest()` drives the same three. Task 3 adds a FOURTH
+ * call after either: `AuthScreen` re-`ping()`s (`GET /_auth/userinfo`) to sync `currentUserAtom`,
+ * since neither of those two plain-fetch flows touches the atom itself. The login TAB alone drives
+ * only the `/_auth/token` call (via `useAuth().login()`, Alepha's `HttpClient` — no re-ping needed,
+ * `ReactAuth.login()` fills the atom itself). Defaults describe a happy path for `username`;
+ * callers override only the phase they want to fail.
  */
 function stubAuthFlow(
   username: string,
@@ -33,6 +72,7 @@ function stubAuthFlow(
     intent?: Response;
     complete?: Response;
     token?: Response;
+    userinfo?: Response;
   } = {},
 ): ReturnType<typeof vi.fn> {
   const mock = vi.fn((input: RequestInfo | URL) => {
@@ -51,8 +91,15 @@ function stubAuthFlow(
           }),
       );
     }
+    if (path.startsWith("/_auth/userinfo")) {
+      return Promise.resolve(
+        overrides.userinfo ?? jsonResponse(200, userinfoBody({ id: "a", username })),
+      );
+    }
     if (path.startsWith("/_auth/token")) {
-      return Promise.resolve(overrides.token ?? jsonResponse(200, { user: { id: "a", username } }));
+      return Promise.resolve(
+        overrides.token ?? jsonResponse(200, tokenBody({ id: "a", username })),
+      );
     }
     throw new Error(`auth-screen.test.tsx: unexpected fetch ${path}`);
   });
@@ -61,20 +108,36 @@ function stubAuthFlow(
 }
 
 describe("AuthScreen", () => {
-  // AuthScreen still calls the store's deprecated `setScreen` shim (Task 3 rewires it onto the
-  // router directly) — with no navigation seam installed in this bare render, the shim itself is a
-  // no-op, so "reached the saved-parties home" is asserted via the call, not a `screen` field the
-  // store no longer has.
-  let setScreenSpy: ReturnType<typeof vi.spyOn>;
+  let alepha: Alepha | undefined;
 
   beforeEach(() => {
     setLocale("en");
-    setScreenSpy = vi.spyOn(useUiStore.getState(), "setScreen");
+    document.title = "";
+    document.head.innerHTML = "";
+    document.body.innerHTML = '<div id="root"></div>';
+    // Mount directly at `/auth`, BEFORE `alepha.start()` — `ReactBrowserProvider`'s first render
+    // reads `window.location` synchronously, so the layout's boot effect sees `/auth` on its very
+    // first run and skips its own automatic ping/guest-fallback entirely (`AppRouter.tsx`'s
+    // docblock). Without this, that boot effect would race every test below with its OWN
+    // `continueAsGuest()`/`ping()` calls against the exact same stubbed endpoints.
+    history.pushState({}, "", "/auth");
   });
 
+  afterEach(async () => {
+    await alepha?.stop();
+  });
+
+  async function mount(): Promise<void> {
+    alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+    await act(async () => {
+      await alepha?.start();
+    });
+    await waitFor(() => expect(document.querySelector(".auth-shell")).toBeTruthy());
+  }
+
   it("switches to register and blocks mismatched passwords client-side", async () => {
-    const mock = stubFetch(200, {});
-    render(<AuthScreen />);
+    const mock = stubToken(200, {});
+    await mount();
     await userEvent.click(screen.getByRole("button", { name: "New here? Create an account" }));
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
@@ -87,13 +150,16 @@ describe("AuthScreen", () => {
   it("shows the machine-code error localized, and re-localizes on toggle", async () => {
     // `POST /_auth/token` rejects wrong credentials with Alepha's own `InvalidCredentialsError`
     // (401), not this app's legacy `invalid_credentials` code — `ERROR_KEYS` maps the class name
-    // onto the same dictionary entry.
-    stubFetch(401, {
+    // onto the same dictionary entry. `useAuth().login()` throws Alepha's `HttpError`, not this
+    // file's `ApiError`; `errorCode()`'s duck-typing fallback (`api.ts`) reads its `.error` field
+    // the same way. An error response is decoded against `errorSchema`, not `tokenResponseSchema`
+    // — no `api`/token padding needed here.
+    stubToken(401, {
       error: "InvalidCredentialsError",
       status: 401,
       message: "Invalid credentials",
     });
-    render(<AuthScreen />);
+    await mount();
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.click(screen.getByRole("button", { name: "Play" }));
@@ -105,29 +171,49 @@ describe("AuthScreen", () => {
   });
 
   it("moves to the saved-parties home on successful login", async () => {
-    stubFetch(200, { user: { id: "a", username: "nico" } });
-    render(<AuthScreen />);
+    const mock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith("/_auth/token")) {
+        return Promise.resolve(jsonResponse(200, tokenBody({ id: "a", username: "nico" })));
+      }
+      if (path.startsWith("/api/parties")) {
+        // MainMenu's own "has saves" probe, once the router lands there.
+        return Promise.resolve(jsonResponse(200, []));
+      }
+      throw new Error(`unexpected fetch ${path}`);
+    });
+    vi.stubGlobal("fetch", mock);
+    await mount();
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.click(screen.getByRole("button", { name: "Play" }));
-    await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
+    await waitFor(() => expect(document.querySelector(".main-menu")).toBeTruthy());
+    const paths = mock.mock.calls.map((call) => String(call[0]));
+    // `/api/parties` (MainMenu's own "has saves" probe) can legitimately appear more than once —
+    // Alepha's root renders under React StrictMode (`ReactPageProvider.ts`), which double-invokes
+    // a freshly-mounted component's effects — so this asserts the auth call happened, not an exact
+    // trailing count.
+    expect(paths[0]).toBe("/_auth/token?provider=credentials");
+    expect(paths.slice(1)).toEqual(paths.slice(1).map(() => "/api/parties"));
+    expect(paths.length).toBeGreaterThanOrEqual(2);
   });
 
   it("registers through the two-phase intent flow, then logs in", async () => {
     const mock = stubAuthFlow("nico");
-    render(<AuthScreen />);
+    await mount();
     await userEvent.click(screen.getByRole("button", { name: "New here? Create an account" }));
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.type(screen.getByLabelText("Confirm password"), "12345678");
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
+    await waitFor(() => expect(document.querySelector(".auth-shell")).toBeNull());
 
-    const paths = mock.mock.calls.map((call) => String(call[0]));
+    const paths = withoutMainMenuNoise(mock.mock.calls.map((call) => String(call[0])));
     expect(paths).toEqual([
       "/api/users/register",
       "/api/users/register/complete",
       "/_auth/token?provider=credentials",
+      "/_auth/userinfo",
     ]);
     const intentBody = JSON.parse(String(mock.mock.calls[0]?.[1]?.body)) as {
       username: string;
@@ -148,7 +234,7 @@ describe("AuthScreen", () => {
         message: "These registration details are not available",
       }),
     });
-    render(<AuthScreen />);
+    await mount();
     await userEvent.click(screen.getByRole("button", { name: "New here? Create an account" }));
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
@@ -162,15 +248,16 @@ describe("AuthScreen", () => {
 
     it("registers a fresh guest and keeps the credential for the next visit", async () => {
       const mock = stubAuthFlow("guest-abcdefghij");
-      render(<AuthScreen />);
+      await mount();
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
+      await waitFor(() => expect(document.querySelector(".auth-shell")).toBeNull());
 
-      const paths = mock.mock.calls.map((call) => String(call[0]));
+      const paths = withoutMainMenuNoise(mock.mock.calls.map((call) => String(call[0])));
       expect(paths).toEqual([
         "/api/users/register",
         "/api/users/register/complete",
         "/_auth/token?provider=credentials",
+        "/_auth/userinfo",
       ]);
       // The credential is minted client-side, so the server must never be asked to invent one.
       const sent = JSON.parse(String(mock.mock.calls[0]?.[1]?.body)) as {
@@ -185,14 +272,28 @@ describe("AuthScreen", () => {
     it("logs the stored guest back in instead of minting a second account", async () => {
       const stored = { username: "guest-abcdefghij", password: "x".repeat(32) };
       localStorage.setItem("lindocara.guest", JSON.stringify(stored));
-      const mock = stubFetch(200, { user: { id: "a", username: stored.username } });
-      render(<AuthScreen />);
+      const mock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+        const path = String(input);
+        if (path.startsWith("/_auth/userinfo")) {
+          return Promise.resolve(
+            jsonResponse(200, userinfoBody({ id: "a", username: stored.username })),
+          );
+        }
+        if (path.startsWith("/_auth/token")) {
+          return Promise.resolve(
+            jsonResponse(200, tokenBody({ id: "a", username: stored.username })),
+          );
+        }
+        throw new Error(`unexpected fetch ${path}`);
+      });
+      vi.stubGlobal("fetch", mock);
+      await mount();
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
+      await waitFor(() => expect(document.querySelector(".auth-shell")).toBeNull());
 
-      expect(mock).toHaveBeenCalledTimes(1);
-      const [path, init] = mock.mock.calls[0] as [string, RequestInit];
-      expect(path).toBe("/_auth/token?provider=credentials");
+      const paths = withoutMainMenuNoise(mock.mock.calls.map((call) => String(call[0])));
+      expect(paths).toEqual(["/_auth/token?provider=credentials", "/_auth/userinfo"]);
+      const [, init] = mock.mock.calls[0] as [string, RequestInit];
       expect(JSON.parse(String(init.body))).toEqual(stored);
     });
 
@@ -208,6 +309,11 @@ describe("AuthScreen", () => {
       let tokenCalls = 0;
       const mock = vi.fn((input: RequestInfo | URL) => {
         const path = String(input);
+        if (path.startsWith("/_auth/userinfo")) {
+          return Promise.resolve(
+            jsonResponse(200, userinfoBody({ id: "a", username: "guest-newnewnew" })),
+          );
+        }
         if (path.startsWith("/_auth/token")) {
           tokenCalls += 1;
           if (tokenCalls === 1) {
@@ -220,7 +326,7 @@ describe("AuthScreen", () => {
             );
           }
           return Promise.resolve(
-            jsonResponse(200, { user: { id: "a", username: "guest-newnewnew" } }),
+            jsonResponse(200, tokenBody({ id: "a", username: "guest-newnewnew" })),
           );
         }
         if (path.startsWith("/api/users/register/complete")) {
@@ -240,16 +346,17 @@ describe("AuthScreen", () => {
       });
       vi.stubGlobal("fetch", mock);
 
-      render(<AuthScreen />);
+      await mount();
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
+      await waitFor(() => expect(document.querySelector(".auth-shell")).toBeNull());
 
-      const paths = mock.mock.calls.map((call) => String(call[0]));
+      const paths = withoutMainMenuNoise(mock.mock.calls.map((call) => String(call[0])));
       expect(paths).toEqual([
         "/_auth/token?provider=credentials",
         "/api/users/register",
         "/api/users/register/complete",
         "/_auth/token?provider=credentials",
+        "/_auth/userinfo",
       ]);
       const replaced = JSON.parse(String(localStorage.getItem("lindocara.guest"))) as {
         username: string;
@@ -263,16 +370,17 @@ describe("AuthScreen", () => {
         JSON.stringify({ username: "!!", password: "short" }),
       );
       const mock = stubAuthFlow("guest-abcdefghij");
-      render(<AuthScreen />);
+      await mount();
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
+      await waitFor(() => expect(document.querySelector(".auth-shell")).toBeNull());
 
       // Straight to register: storage is user-writable, so it is validated like any wire input.
-      const paths = mock.mock.calls.map((call) => String(call[0]));
+      const paths = withoutMainMenuNoise(mock.mock.calls.map((call) => String(call[0])));
       expect(paths).toEqual([
         "/api/users/register",
         "/api/users/register/complete",
         "/_auth/token?provider=credentials",
+        "/_auth/userinfo",
       ]);
     });
   });

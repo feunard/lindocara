@@ -43,10 +43,13 @@
     "src/ui/InventoryOverlay.tsx",
     "src/ui/QuestJournalOverlay.tsx",
     "src/ui/AdventureTestOverlay.tsx",
+    "src/ui/AuthScreen.tsx",
+    "src/ui/LaunchScreens.tsx",
     "test/atoms.test.tsx",
     "test/hud.test.tsx",
     "test/quest-journal-overlay.test.tsx",
     "test/inventory-merchant.test.tsx",
-    "test/adventure-test-overlay.test.tsx"
+    "test/adventure-test-overlay.test.tsx",
+    "test/auth-screen.test.tsx"
   ]
 }

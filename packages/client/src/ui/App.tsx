@@ -3,10 +3,8 @@ import { fetchMe } from "../api.js";
 import { menuAudio } from "../game/menu-audio.js";
 import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
-import { type UiScreen, useUiStore } from "../store.js";
-import { AuthScreen } from "./AuthScreen.js";
+import type { UiScreen } from "../store.js";
 import { CreditsScreen } from "./CreditsScreen.js";
-import { ContinueScreen, JoinScreen, NewGameScreen } from "./LaunchScreens.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MainMenu } from "./MainMenu.js";
 import { SettingsMenu } from "./SettingsMenu.js";
@@ -37,29 +35,36 @@ const AdventureEditorScreen = lazy(async () => {
  * those components now read the `state/atoms.ts` atoms this legacy tree has no Alepha instance to
  * provide. See `docs/adventure-runtime-architecture.md`/the Task 2 report for the full rationale;
  * `AppRouter.tsx`'s own `/game` route (a later task) is the one true home for that tree now.
+ *
+ * Task 3 shrinks this further: `AuthScreen`/`ContinueScreen`/`NewGameScreen`/`JoinScreen` now call
+ * `useAuth()`/`useAlepha()`/`useRouter()` (Task 3's real auth flow), which throw hard without an
+ * Alepha context — this legacy mount has none. Importing any of them would ALSO transitively drag
+ * `alepha`'s whole source tree into this file's plain, non-`alepha` tsconfig program (the same
+ * cascade Task 2's own docblock above already hit for the HUD tree), so their imports are dropped
+ * here too, not just their render branches: `screen` can still be SET to `"auth"`/`"continue"`/
+ * `"new"`/`"join"` by the boot effect below, it just now renders nothing for those three states.
+ * Title/menu/credits (untouched this task) remain the only screens this legacy shell can actually
+ * show — `AppRouter.tsx`'s router-driven equivalents are the real, live surface now.
  */
 export function App() {
   useLocale();
   const [screen, setScreen] = useState<UiScreen>("boot");
-  const setAccountId = useUiStore((s) => s.setAccountId);
 
   useEffect(() => {
     void (async () => {
       const me = await fetchMe();
       if (me) {
-        setAccountId(me.id);
         setScreen("title");
         return;
       }
       try {
-        const guest = await continueAsGuest();
-        setAccountId(guest.id);
+        await continueAsGuest();
         setScreen("title");
       } catch {
         setScreen("auth");
       }
     })();
-  }, [setAccountId]);
+  }, []);
 
   useEffect(() => {
     const inLaunchMenu =
@@ -81,12 +86,8 @@ export function App() {
     <>
       {!immersive && <LocaleToggle />}
       {!immersive && <StatusBar />}
-      {screen === "auth" && <AuthScreen />}
       {screen === "title" && <TitleScreen />}
       {screen === "menu" && <MainMenu />}
-      {screen === "continue" && <ContinueScreen />}
-      {screen === "new" && <NewGameScreen />}
-      {screen === "join" && <JoinScreen />}
       {screen === "credits" && <CreditsScreen />}
       {screen === "adventure-editor" && (
         <Suspense

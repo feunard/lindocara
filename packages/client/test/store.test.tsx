@@ -15,6 +15,7 @@ function fakeNavigation(overrides: Partial<GameNavigation> = {}): GameNavigation
     setAdventureTestSession: vi.fn(),
     getAdventureTestSession: () => null,
     getQuickItems: () => [null, null, null],
+    logout: vi.fn(),
     setAdventureEditorSession: vi.fn(),
     push: vi.fn(),
     ...overrides,

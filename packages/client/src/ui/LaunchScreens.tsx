@@ -4,6 +4,7 @@
  *   New      → an adventure carousel → HeroCreate (creates the party, auto colour) → game.
  *   Join     → other players' open parties → HeroCreate (joins) → game.
  */
+import { useAuth } from "alepha/react/auth";
 import { useEffect, useState } from "react";
 import {
   type AdventureSummary,
@@ -26,7 +27,10 @@ function accentFor(id: string): number {
 /** CONTINUE — resume one of my saves straight into the game. */
 export function ContinueScreen() {
   const setScreen = useUiStore((s) => s.setScreen);
-  const accountId = useUiStore((s) => s.accountId);
+  // Task 3: the store's `accountId` field died — every hero/party ownership check now reads the
+  // Alepha-authenticated identity directly.
+  const { user } = useAuth();
+  const accountId = user?.id ?? null;
   const [parties, setParties] = useState<PartyListing[] | null>(null);
   const [pending, setPending] = useState<PartyListing | null>(null);
 

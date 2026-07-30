@@ -14,6 +14,7 @@ import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { t } from "./i18n.js";
+import { onUnauthorized } from "./state/navigation.js";
 
 export interface Me {
   id: string;
@@ -51,6 +52,12 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
         ? body.error
         : "generic";
+    // The 401 seam (`state/navigation.ts`'s docblock): a dead/expired session — never a wrong
+    // password (`InvalidCredentialsError`), which must not bounce the auth form back onto itself.
+    // `UnauthorizedError` is Alepha's own `$secure()` class name (the framework port's routes);
+    // `session_expired` is the legacy hand-rolled Worker's equivalent code — both mean the same
+    // thing to a caller of this function.
+    if (code === "UnauthorizedError" || code === "session_expired") onUnauthorized();
     throw new ApiError(code, body);
   }
   return body as T;
@@ -394,25 +401,29 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   hero_cap: "hero.error.cap",
 };
 
+/**
+ * `error instanceof ApiError` covers this file's own plain-`fetch` failures (`.code`). Anything
+ * that instead went through Alepha's `HttpClient` (`ReactAuth.login()`/`ping()`, a future task's
+ * `$client<T>()`) throws a structurally different `HttpError` — never imported here (it would drag
+ * `alepha/server` into this plain, non-`alepha` tsconfig program, see `AGENTS.md`'s per-package
+ * tsconfig split) — so it is recognised by duck-typing its own `.error` field instead, which the
+ * server serializes with the SAME machine-code vocabulary (`HttpError.toJSON`/`errorNameByStatus`:
+ * a class name like `InvalidCredentialsError`/`ConflictError`/`UnauthorizedError`) `ERROR_KEYS`
+ * already maps.
+ */
 export function errorCode(error: unknown): string {
-  return error instanceof ApiError ? error.code : "generic";
+  if (error instanceof ApiError) return error.code;
+  if (
+    error &&
+    typeof error === "object" &&
+    "error" in error &&
+    typeof (error as { error?: unknown }).error === "string"
+  ) {
+    return (error as { error: string }).error;
+  }
+  return "generic";
 }
 
 export function authErrorText(code: string): string {
   return t(ERROR_KEYS[code] ?? "auth.error.generic");
-}
-
-export async function logout(): Promise<void> {
-  try {
-    // `alephaServerAuthRoutes.logout` (`.vendor/alepha/src/server/auth/constants/routes.ts`):
-    // deletes the session cookie server-side and answers with a redirect, which this best-effort
-    // call never follows anywhere meaningful — only the cookie deletion matters here.
-    await fetch("/oauth/logout", { method: "POST" });
-  } catch (error) {
-    // A failed best-effort revocation must not strand the user in a half-closed game session.
-    // Reloading still clears all in-memory authority; an unexpired cookie can then be retried.
-    console.warn("session logout request failed", error);
-  } finally {
-    window.location.reload();
-  }
 }

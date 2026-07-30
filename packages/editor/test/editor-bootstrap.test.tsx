@@ -35,8 +35,10 @@ describe("AdventureEditorScreen explicit picker", () => {
   beforeEach(() => {
     setLocale("en");
     localStorage.clear();
+    // `accountId` died as a store field in Task 3 (the store's identity concept is gone;
+    // `readLastEditedAdventure`/etc. keyed by "acct" below are exercising this test's OWN
+    // localStorage fixture, not anything the store still carries).
     useUiStore.setState({
-      accountId: "acct",
       adventureEditorSession: null,
     });
   });

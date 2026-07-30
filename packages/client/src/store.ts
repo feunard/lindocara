@@ -189,7 +189,6 @@ const ROUTE_BY_SCREEN: Partial<Record<UiScreen, string>> = {
 };
 
 interface UiState {
-  accountId: string | null;
   /**
    * @deprecated Editor-only mirror of `state/atoms.ts`'s `adventureEditorSessionAtom`, kept so the
    * (not-yet-migrated) editor package's `useUiStore(state => state.adventureEditorSession)` reads
@@ -235,7 +234,6 @@ interface UiState {
   questDialogue: QuestDialogue | null;
   game: GameHandle | null;
 
-  setAccountId(accountId: string | null): void;
   /** @deprecated See the field docblock above. */
   setAdventureEditorSession(session: AdventureEditorSession | null): void;
   /**
@@ -392,7 +390,6 @@ function clearedGameSessionFields() {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  accountId: null,
   adventureEditorSession: null,
   self: null,
   selfState: null,
@@ -423,7 +420,6 @@ export const useUiStore = create<UiState>((set) => ({
   questDialogue: null,
   game: null,
 
-  setAccountId: (accountId) => set({ accountId }),
   setAdventureEditorSession: (adventureEditorSession) => {
     getGameNavigation()?.setAdventureEditorSession(adventureEditorSession);
     set({ adventureEditorSession });

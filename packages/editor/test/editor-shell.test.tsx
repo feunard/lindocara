@@ -47,6 +47,7 @@ beforeEach(() => {
     setAdventureTestSession: adventureTestSessionMock,
     getAdventureTestSession: () => null,
     getQuickItems: () => [null, null, null],
+    logout: vi.fn(),
     setAdventureEditorSession: vi.fn(),
     push: vi.fn(),
   };
@@ -1936,7 +1937,6 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
 describe("main menu → editor navigation", () => {
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ accountId: "me" });
   });
 
   it("routes the discreet editor button to the merged adventure editor", async () => {

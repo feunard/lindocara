@@ -16,7 +16,10 @@
   // `InventoryOverlay`, `QuestJournalOverlay`, `AdventureTestOverlay`) and their tests — `App.tsx`
   // (the only thing in THIS program that used to reach them) no longer renders any of the five, so
   // this program never sees them transitively either. `state/navigation.ts` has no `alepha` import
-  // of its own (by design — see its docblock) and stays in this program.
+  // of its own (by design — see its docblock) and stays in this program. Task 3 added
+  // `AuthScreen.tsx` (now `useAuth`/`useAlepha`/`useRouter`) and `LaunchScreens.tsx` (its
+  // `ContinueScreen` now `useAuth`) plus their tests — `App.tsx` dropped its imports of both for
+  // the SAME reason it dropped the HUD tree in Task 2 (see its own docblock).
   "include": ["src", "test"],
   "exclude": [
     "src/ui/AppRouter.tsx",
@@ -27,10 +30,13 @@
     "src/ui/InventoryOverlay.tsx",
     "src/ui/QuestJournalOverlay.tsx",
     "src/ui/AdventureTestOverlay.tsx",
+    "src/ui/AuthScreen.tsx",
+    "src/ui/LaunchScreens.tsx",
     "test/atoms.test.tsx",
     "test/hud.test.tsx",
     "test/quest-journal-overlay.test.tsx",
     "test/inventory-merchant.test.tsx",
-    "test/adventure-test-overlay.test.tsx"
+    "test/adventure-test-overlay.test.tsx",
+    "test/auth-screen.test.tsx"
   ]
 }
