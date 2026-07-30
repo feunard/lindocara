@@ -83,7 +83,6 @@ import {
   LOOT_EXPIRY_MS,
   MAX_MONSTER_BODY_RADIUS,
   MONSTER_MIN_HEROES_BY_RANK,
-  MONSTER_RESPAWN_MS,
   type MonsterSpecies,
   maxHpForLevel,
   monsterBodyRadius,
@@ -3431,7 +3430,7 @@ export class World extends DurableObject<Env> {
     cancelCombatAction(monster);
     removeDamageOverTimeByTarget(this.#damageOverTime, "monster", monster.id);
     monster.deadUntil =
-      monster.respawnMode === "never" ? Number.POSITIVE_INFINITY : now + MONSTER_RESPAWN_MS;
+      monster.respawnMode === "never" ? Number.POSITIVE_INFINITY : now + monster.respawnDelayMs;
     monster.vx = 0;
     monster.vy = 0;
     if (

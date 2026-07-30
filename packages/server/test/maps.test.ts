@@ -690,6 +690,7 @@ describe("maps", () => {
         species: "minotaur_brute",
         patrolRadius: 96,
         monsterRespawnMode: "never",
+        monsterRespawnDelayMs: 75_000,
         monsterTuning: {
           rank: "elite",
           detectionRange: 512,
@@ -700,6 +701,7 @@ describe("maps", () => {
       expect(created.events[0]?.monsterRespawnMode).toBe("never");
       expect((await loadMap(db, created.id))?.events[0]).toMatchObject({
         monsterRespawnMode: "never",
+        monsterRespawnDelayMs: 75_000,
         monsterDetectionRange: 512,
       });
     });

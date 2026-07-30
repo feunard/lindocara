@@ -389,6 +389,7 @@ export const mapEvent = sqliteTable(
     monsterWeaknessPercent: integer("monster_weakness_percent"),
     monsterSpecialTechnique: text("monster_special_technique").$type<MonsterSpecialTechnique>(),
     monsterRespawnMode: text("monster_respawn_mode").$type<MonsterRespawnMode>(),
+    monsterRespawnDelayMs: integer("monster_respawn_delay_ms"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
   (table) => [

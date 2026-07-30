@@ -14,7 +14,6 @@ import {
   GUARD_DETECTION_RANGE,
   GUARD_SPEED,
   MONSTER_ATTACK_COOLDOWN_MS,
-  MONSTER_RESPAWN_MS,
   pointDistance,
   resolveTerrain,
   safeZoneShelters,
@@ -388,7 +387,7 @@ export function advanceGuards<TSocket>(context: MonsterSystemContext<TSocket>, n
     if (context.defeatMonster) {
       context.defeatMonster(target, now);
     } else {
-      target.deadUntil = now + MONSTER_RESPAWN_MS;
+      target.deadUntil = now + target.respawnDelayMs;
       target.action = null;
       target.vx = 0;
       target.vy = 0;

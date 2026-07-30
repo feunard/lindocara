@@ -4,6 +4,7 @@
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
+  defaultMonsterRespawnDelayMs,
   defaultMonsterTuning,
   type MonsterRespawnMode,
   type MonsterSpecies,
@@ -535,6 +536,7 @@ export function setEventDraftMonster(
         }
       : defaults;
   const tuning = { ...current, ...tuningPatch };
+  const resetRespawnDelay = draft.species !== species || rankChanged;
   return {
     ...draft,
     species,
@@ -548,6 +550,9 @@ export function setEventDraftMonster(
     monsterWeakness: tuning.weakness,
     monsterWeaknessPercent: tuning.weaknessPercent,
     monsterSpecialTechnique: tuning.specialTechnique,
+    monsterRespawnDelayMs: resetRespawnDelay
+      ? defaultMonsterRespawnDelayMs(species, tuning.rank)
+      : (draft.monsterRespawnDelayMs ?? defaultMonsterRespawnDelayMs(species, tuning.rank)),
   };
 }
 
@@ -557,6 +562,13 @@ export function setEventDraftMonsterRespawnMode(
   monsterRespawnMode: MonsterRespawnMode,
 ): MapEvent {
   return draft.kind === "monster" ? { ...draft, monsterRespawnMode } : draft;
+}
+
+export function setEventDraftMonsterRespawnDelay(
+  draft: MapEvent,
+  monsterRespawnDelayMs: number,
+): MapEvent {
+  return draft.kind === "monster" ? { ...draft, monsterRespawnDelayMs } : draft;
 }
 
 /** Draft mutator for an authored allied guard's authoritative movement leash. */

@@ -4,7 +4,12 @@
  * branches called out in the plan (duplicate-cell rejection, bounds rejection).
  */
 
-import { defaultMonsterTuning, MONSTER_TUNING_LIMITS } from "@lindocara/engine/game.js";
+import {
+  BOSS_RESPAWN_MS,
+  defaultMonsterTuning,
+  MONSTER_TUNING_LIMITS,
+  SMALL_MONSTER_RESPAWN_MS,
+} from "@lindocara/engine/game.js";
 import {
   EVENT_NAME_MAX,
   MAX_EVENTS_PER_MAP,
@@ -349,6 +354,7 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterSpecialTechnique: "none",
     });
     expect(parsed?.monsterRespawnMode).toBeUndefined();
+    expect(parsed?.monsterRespawnDelayMs).toBe(SMALL_MONSTER_RESPAWN_MS);
   });
 
   it("accepts permanent death only on monster events", () => {
@@ -360,6 +366,7 @@ describe("parseMapEvents: authored monster tuning", () => {
     });
     expect(parseMapEvents([permanent], COLS, ROWS)?.[0]?.monsterRespawnMode).toBe("never");
     expect(parseMapEvents([event({ monsterRespawnMode: "never" })], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([event({ monsterRespawnDelayMs: 40_000 })], COLS, ROWS)).toBeNull();
     expect(
       parseMapEvents(
         [
@@ -368,6 +375,20 @@ describe("parseMapEvents: authored monster tuning", () => {
             species: "spear_goblin",
             patrolRadius: 64,
             monsterRespawnMode: "invalid" as "never",
+          }),
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+    expect(
+      parseMapEvents(
+        [
+          event({
+            kind: "monster",
+            species: "spear_goblin",
+            patrolRadius: 64,
+            monsterRespawnDelayMs: -1,
           }),
         ],
         COLS,
@@ -390,6 +411,7 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterWeakness: "priest",
       monsterWeaknessPercent: 175,
       monsterSpecialTechnique: "grave_siphon",
+      monsterRespawnDelayMs: BOSS_RESPAWN_MS,
     });
     expect(parseMapEvents([boss], COLS, ROWS)).toEqual([boss]);
   });

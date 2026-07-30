@@ -84,9 +84,10 @@ const D1_BOUND_PARAM_BUDGET = 90;
 export const MAP_ELEMENT_COLUMNS = 8;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterDetectionRange, monsterXp, monsterWeakness,
- *  monsterWeaknessPercent, monsterSpecialTechnique, monsterRespawnMode. Exported — see
+ *  monsterWeaknessPercent, monsterSpecialTechnique, monsterRespawnMode, monsterRespawnDelayMs.
+ *  Exported — see
  *  `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_COLUMNS = 20;
+export const MAP_EVENT_COLUMNS = 21;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix, optThrough,
  *  optOnTop, trigger, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s comment. */
@@ -457,6 +458,7 @@ export class MapService {
         monsterWeaknessPercent: event.monsterWeaknessPercent ?? undefined,
         monsterSpecialTechnique: event.monsterSpecialTechnique ?? undefined,
         monsterRespawnMode: event.monsterRespawnMode ?? undefined,
+        monsterRespawnDelayMs: event.monsterRespawnDelayMs ?? undefined,
       })),
       { batchSize: MAP_EVENT_BATCH_SIZE },
     );
@@ -581,6 +583,9 @@ export class MapService {
             : null,
           ...(isMonster && row.monsterRespawnMode != null
             ? { monsterRespawnMode: row.monsterRespawnMode }
+            : {}),
+          ...(isMonster && row.monsterRespawnDelayMs != null
+            ? { monsterRespawnDelayMs: row.monsterRespawnDelayMs }
             : {}),
           pages,
         } as MapEvent,

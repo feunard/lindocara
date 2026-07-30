@@ -19,12 +19,14 @@ import {
   applyDamage,
   applyExperience,
   attackDamageFor,
+  BOSS_RESPAWN_MS,
   BOUNDARY_OBSTACLES,
   CEMETERIES,
   CITY_GUARDS,
   CLASS_STATS,
   CURATED_MONSTER_SPECIES,
   clampRestoredPosition,
+  defaultMonsterRespawnDelayMs,
   defaultMonsterTuning,
   hasLineOfSight,
   healAmountFor,
@@ -56,10 +58,12 @@ import {
   resolveTerrain,
   resolveTerrainForLumen,
   SAFE_ZONE,
+  SMALL_MONSTER_RESPAWN_MS,
   SPAWN_POINTS,
   spawnPosition,
   TERRAIN_BLOCKERS,
   type TerrainGeometry,
+  TROLL_RESPAWN_MS,
   WORLD_BOUNDARY_DEPTH,
   WORLD_LANDMARKS,
   withinRange,
@@ -742,6 +746,16 @@ describe("the Tiny Swords bestiary", () => {
     expect(MONSTER_STATS.skull).toEqual({ maxHp: 190, damage: 16, speed: 82, xp: 65 });
     expect(MONSTER_STATS.minotaur).toEqual({ maxHp: 310, damage: 21, speed: 65, xp: 95 });
     expect(MONSTER_STATS.troll).toEqual({ maxHp: 420, damage: 25, speed: 60, xp: 125 });
+  });
+
+  it("uses readable respawn windows for small monsters, trolls, and bosses", () => {
+    expect(defaultMonsterRespawnDelayMs("spear_goblin")).toBe(SMALL_MONSTER_RESPAWN_MS);
+    expect(SMALL_MONSTER_RESPAWN_MS).toBe(40_000);
+    expect(defaultMonsterRespawnDelayMs("mire_troll")).toBe(TROLL_RESPAWN_MS);
+    expect(TROLL_RESPAWN_MS).toBe(60_000);
+    expect(defaultMonsterRespawnDelayMs("spear_goblin", "boss")).toBe(BOSS_RESPAWN_MS);
+    expect(defaultMonsterRespawnDelayMs("mire_troll", "boss")).toBe(BOSS_RESPAWN_MS);
+    expect(BOSS_RESPAWN_MS).toBe(120_000);
   });
 
   it("keeps normal fights readable and makes elite/boss defaults group encounters", () => {

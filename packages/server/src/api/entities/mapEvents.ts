@@ -51,6 +51,7 @@ export const mapEvents = $entity({
     monsterWeaknessPercent: z.integer().optional(),
     monsterSpecialTechnique: z.string().optional(),
     monsterRespawnMode: z.string().optional(),
+    monsterRespawnDelayMs: z.integer().optional(),
   }),
   indexes: [
     // One event per cell — the editor moves an event rather than replacing on overlap.

@@ -325,6 +325,7 @@ describe("list, get, update, delete", () => {
       monsterDetectionRange: 640,
       monsterXp: 10_000,
       monsterWeaknessPercent: 0,
+      monsterRespawnDelayMs: 75_000,
       pages: [wirePage()],
     };
     const authored = await putMap(id, token, mapBody({ name: "Wolves", events: [monsterEvent] }));
@@ -341,6 +342,7 @@ describe("list, get, update, delete", () => {
         monsterDetectionRange: number | null;
         monsterXp: number | null;
         monsterWeaknessPercent: number | null;
+        monsterRespawnDelayMs: number | null;
       }[];
     };
     expect(payload.events[0]).toMatchObject({
@@ -352,6 +354,7 @@ describe("list, get, update, delete", () => {
       monsterDetectionRange: 640,
       monsterXp: 10_000,
       monsterWeaknessPercent: 0,
+      monsterRespawnDelayMs: 75_000,
     });
     // Explicit zeroes must survive persistence instead of being replaced by species defaults.
     expect(payload.events[0]?.monsterMaxHp).toBe(0);

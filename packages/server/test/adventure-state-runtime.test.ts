@@ -660,6 +660,8 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
         row,
         species: "spear_goblin" as const,
         patrolRadius: 32,
+        // This scenario proves quest progression across maps, not the production 40-second timer.
+        respawnDelayMs: 100,
       }));
     const party = await testParty("kill-ten-complete", {
       maps: [

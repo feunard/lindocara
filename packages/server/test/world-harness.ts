@@ -222,7 +222,10 @@ export interface TestMapOptions {
   rows?: number;
   spawn?: { col: number; row: number };
   exit?: { col: number; row: number };
-  monsterSpawns?: MapMarkers["monsterSpawns"];
+  monsterSpawns?: readonly (MapMarkers["monsterSpawns"][number] & {
+    /** Test-only override for scenarios concerned with quest flow rather than production timing. */
+    respawnDelayMs?: number;
+  })[];
   /** Authored events placed on the map — appearance-only, evaluated server-side. */
   events?: MapEvent[];
 }
@@ -259,6 +262,7 @@ export function testMapInput(name: string, options: TestMapOptions = {}): TestMa
         kind: "monster",
         species: spawnMarker.species,
         patrolRadius: spawnMarker.patrolRadius,
+        monsterRespawnDelayMs: spawnMarker.respawnDelayMs,
       }),
     ),
     ...(options.events ?? []),

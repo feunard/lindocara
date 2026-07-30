@@ -272,6 +272,8 @@ export interface MonsterSpawn extends Vec2 {
   /** Authored encounters may stay defeated for this party's entire save. Catalogue spawns default
    *  to the historical timed respawn. */
   respawnMode?: MonsterRespawnMode;
+  /** Authoritative delay for timed respawns. */
+  respawnDelayMs?: number;
   /** Border patrols may naturally cross the city boundary and be handled by guards. */
   mayEnterSafeZone?: boolean;
 }
@@ -971,7 +973,19 @@ export const PLAYER_HP_PER_LEVEL = 12;
 export const ATTACK_COOLDOWN_MS = 325;
 export const MONSTER_ATTACK_RANGE = 42;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
-export const MONSTER_RESPAWN_MS = 6_000;
+export const SMALL_MONSTER_RESPAWN_MS = 40_000;
+export const TROLL_RESPAWN_MS = 60_000;
+export const BOSS_RESPAWN_MS = 120_000;
+/** Compatibility name for ordinary catalogue monsters. */
+export const MONSTER_RESPAWN_MS = SMALL_MONSTER_RESPAWN_MS;
+
+export function defaultMonsterRespawnDelayMs(
+  species: MonsterSpecies,
+  rank: MonsterRank = "normal",
+): number {
+  if (rank === "boss") return BOSS_RESPAWN_MS;
+  return MONSTER_SPECIES_KIND[species] === "troll" ? TROLL_RESPAWN_MS : SMALL_MONSTER_RESPAWN_MS;
+}
 export const INTERACTION_RANGE = 92;
 export const LOOT_PICKUP_RANGE = 46;
 /** How long a dropped stack waits on the ground before `loot-system` sweeps it away. */

@@ -2,6 +2,7 @@ import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import {
   CURATED_MONSTER_SPECIES,
+  defaultMonsterRespawnDelayMs,
   defaultMonsterTuning,
   MONSTER_RANKS,
   MONSTER_RESPAWN_MODES,
@@ -43,6 +44,7 @@ import {
   normalizeEventDraftConditions,
   setEventDraftGuardRadius,
   setEventDraftMonster,
+  setEventDraftMonsterRespawnDelay,
   setEventDraftMonsterRespawnMode,
   setEventDraftName,
   setEventDraftNpc,
@@ -176,6 +178,7 @@ function MonsterEventFields({
     patrolRadius: number,
     tuning?: Partial<MonsterTuning>,
     respawnMode?: MonsterRespawnMode,
+    respawnDelayMs?: number,
   ): void;
 }) {
   const species = draft.species ?? CURATED_MONSTER_SPECIES[0] ?? "spear_goblin";
@@ -199,6 +202,9 @@ function MonsterEventFields({
   const techniqueOptions = speciesTechniques.includes(tuning.specialTechnique)
     ? speciesTechniques
     : [tuning.specialTechnique, ...speciesTechniques];
+  const respawnMode = draft.monsterRespawnMode ?? "timed";
+  const respawnDelayMs =
+    draft.monsterRespawnDelayMs ?? defaultMonsterRespawnDelayMs(species, tuning.rank);
   return (
     <section className="flex flex-col gap-3 border-y border-zinc-200 py-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -258,7 +264,7 @@ function MonsterEventFields({
           <FieldSelect
             aria-label={t("editor.monster.respawnMode")}
             className="h-8 text-sm"
-            value={draft.monsterRespawnMode ?? "timed"}
+            value={respawnMode}
             onChange={(event) =>
               onChange(
                 species,
@@ -275,6 +281,28 @@ function MonsterEventFields({
             ))}
           </FieldSelect>
         </span>
+        {respawnMode === "timed" && (
+          <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+            {t("editor.monster.respawnDelay")}
+            <Input
+              aria-label={t("editor.monster.respawnDelay")}
+              type="number"
+              className="h-8 text-sm tabular-nums"
+              min={0}
+              max={Math.floor(Number.MAX_SAFE_INTEGER / 1_000)}
+              value={respawnDelayMs / 1_000}
+              onChange={(event) =>
+                onChange(
+                  species,
+                  patrolRadius,
+                  undefined,
+                  undefined,
+                  Math.round(Number(event.currentTarget.value) * 1_000),
+                )
+              }
+            />
+          </span>
+        )}
         {(
           [
             ["maxHp", "editor.monster.hp", MONSTER_TUNING_LIMITS.maxHp],
@@ -555,10 +583,16 @@ export function EventDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <MonsterEventFields
               draft={draft}
-              onChange={(species, radius, tuning, respawnMode) => {
+              onChange={(species, radius, tuning, respawnMode, respawnDelayMs) => {
                 const monster = setEventDraftMonster(draft, species, radius, tuning);
+                const withMode =
+                  respawnMode === undefined
+                    ? monster
+                    : setEventDraftMonsterRespawnMode(monster, respawnMode);
                 setDraft(
-                  respawnMode ? setEventDraftMonsterRespawnMode(monster, respawnMode) : monster,
+                  respawnDelayMs === undefined
+                    ? withMode
+                    : setEventDraftMonsterRespawnDelay(withMode, respawnDelayMs),
                 );
               }}
             />
