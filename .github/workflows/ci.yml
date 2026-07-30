@@ -46,11 +46,13 @@ jobs:
       - name: Test
         run: npm test
 
-      # Production still runs the legacy Worker shell while the Alepha router migration is in
-      # progress. This target carries the existing D1, Durable Object and rate-limit bindings and
-      # emits the `dist/lindocara/wrangler.json` consumed by the deploy job.
+      # Production runs the pure Alepha stack now. The root `build` script is itself
+      # `npm run build -w @lindocara/main`, so `npm run build -- --target cloudflare` would hand
+      # `--target cloudflare` to that inner `npm run` rather than to `alepha build` — call the
+      # workspace script directly so the flag reaches the CLI. Emits `apps/main/dist/wrangler.jsonc`
+      # plus the worker bundle and assets, consumed by the deploy job.
       - name: Build deployable Worker
-        run: npm run build:legacy -w @lindocara/main
+        run: npm run build -w @lindocara/main -- --target cloudflare
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

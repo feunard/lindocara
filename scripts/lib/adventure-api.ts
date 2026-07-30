@@ -1,6 +1,12 @@
 /**
  * The shared HTTP client for adventure tooling (seed + import/export CLIs): target gating,
- * register-or-login session cookie, JSON round-trips with machine-code failures. Node only.
+ * register-or-login bearer token, JSON round-trips with machine-code failures. Node only.
+ *
+ * Auth is the Alepha idiom (`scripts/loadtest.mjs`, `packages/server/test-api/auth.test.ts`):
+ * login first via `POST /_auth/token?provider=credentials`, and only on failure fall back to the
+ * two-phase registration (`POST /api/users/register` mints an intent, `POST
+ * /api/users/register/complete` creates the account) before logging in again. The legacy
+ * `/api/register` + `/api/session` cookie flow is gone with the legacy stack.
  */
 
 export const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -55,7 +61,7 @@ export interface ApiResult {
 }
 
 export class ApiClient {
-  #cookie: string | null = null;
+  #token: string | null = null;
   readonly config: ApiConfig;
 
   constructor(config: ApiConfig) {
@@ -67,7 +73,7 @@ export class ApiClient {
       "Content-Type": "application/json",
       ...(init.headers as Record<string, string> | undefined),
     };
-    if (this.#cookie) headers.Cookie = this.#cookie;
+    if (this.#token) headers.Authorization = `Bearer ${this.#token}`;
     const response = await fetch(new URL(path, this.config.target), { ...init, headers });
     const body = response.status === 204 ? null : await response.json().catch(() => null);
     return { response, body };
@@ -79,20 +85,37 @@ export class ApiClient {
     return new Error(`${operation} failed (${result.response.status}${code})`);
   }
 
-  /** Register, falling back to login on 409 — the loadtest pattern. */
+  /** Login first (accounts survive across runs); only register when login fails. */
   async ensureSession(): Promise<void> {
     const credentials = JSON.stringify({
       username: this.config.username,
       password: this.config.password,
     });
-    let auth = await this.request("/api/register", { method: "POST", body: credentials });
-    if (auth.response.status === 409) {
-      auth = await this.request("/api/session", { method: "POST", body: credentials });
+    let auth = await this.request("/_auth/token?provider=credentials", {
+      method: "POST",
+      body: credentials,
+    });
+    if (!auth.response.ok) {
+      const intent = await this.request("/api/users/register", {
+        method: "POST",
+        body: credentials,
+      });
+      if (!intent.response.ok) throw this.failure("registration", intent);
+      const intentId = (intent.body as { intentId?: string } | null)?.intentId;
+      if (typeof intentId !== "string") throw new Error("registration intent has no intentId");
+      const completed = await this.request("/api/users/register/complete", {
+        method: "POST",
+        body: JSON.stringify({ intentId }),
+      });
+      if (!completed.response.ok) throw this.failure("registration completion", completed);
+      auth = await this.request("/_auth/token?provider=credentials", {
+        method: "POST",
+        body: credentials,
+      });
     }
-    if (!auth.response.ok) throw this.failure("authentication", auth);
-    const cookie = auth.response.headers.get("set-cookie")?.split(";", 1)[0] ?? null;
-    if (!cookie) throw new Error("authentication response omitted the session cookie");
-    this.#cookie = cookie;
+    const token = (auth.body as { access_token?: string } | null)?.access_token;
+    if (!auth.response.ok || typeof token !== "string") throw this.failure("authentication", auth);
+    this.#token = token;
     console.log(`session ok (${this.config.username} @ ${this.config.target.origin})`);
   }
 

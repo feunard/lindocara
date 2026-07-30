@@ -1,6 +1,9 @@
 name: Deploy
 
 on:
+  # Manual only for now (2026-07-30 alepha migration deploy+cleanup tranche, Task 4): the Alepha
+  # stack has not yet run in production. `on: push: branches: [main]` returns once Task 5 has
+  # proven a real `platform up` + prod smoke test, at which point continuous deploy resumes.
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +25,14 @@ jobs:
     environment:
       name: production
       url: https://lindocara.alepha.dev
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Alepha's SecretProvider requires this in production and throws on the dev default —
+      # that's the guarantee we want. No other app secret exists: SESSION_SECRET died with the
+      # legacy stack. WEBSOCKET_MAX_PAYLOAD/NAVIGATION_DEBUG/CHEATS_ENABLED are $env primitives
+      # with safe defaults; add them here too only if a non-default production value is ever wanted.
+      APP_SECRET: ${{ secrets.APP_SECRET }}
     steps:
       - uses: actions/checkout@v5
 
@@ -32,45 +43,13 @@ jobs:
 
       - run: npm ci
 
-      - name: Download checked build
-        uses: actions/download-artifact@v4
-        with:
-          name: lindocara-build
-          path: apps/main/dist
-
-      # Schema first: code that expects a column must never reach production before the
-      # column does. Migrations are additive, so this is safe to run on every deploy.
-      - name: Apply D1 migrations
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: d1 migrations apply lindocara --remote --config packages/server/wrangler.jsonc
-
-      # Cloudflare's deployments endpoint occasionally returns a transient 522 or an internal
-      # code 10013 after the upload has completed. Retry only those known transient failures;
-      # real Wrangler/configuration failures remain immediately visible.
-      - name: Deploy Worker (retry transient Cloudflare errors)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            log=$(mktemp)
-            if npx wrangler deploy --config apps/main/dist/lindocara/wrangler.json 2>&1 | tee "$log"; then
-              exit 0
-            fi
-            if ! grep -Eq -- '-> 522|\[code: 10013\]' "$log"; then
-              exit 1
-            fi
-            if [ "$attempt" = 3 ]; then
-              echo "::error::Cloudflare deployments API kept returning transient errors after 3 attempts."
-              exit 1
-            fi
-            echo "::warning::Transient Cloudflare deploy error on attempt $attempt/3; retrying."
-            sleep "$((attempt * 10))"
-          done
+      # `alepha platform up` is the whole pipeline, same shape as ../alepha's own
+      # `deploy-lore-production` job: provision D1, build (`--target cloudflare`), apply
+      # migrations, deploy the worker + Durable Object + assets, then bulk-push the $env secrets
+      # allowlisted by the manifest. Nothing here downloads CI's build artifact — this step builds
+      # its own.
+      - name: Deploy to Cloudflare
+        run: npm run deploy -w @lindocara/main
 
       - name: Publish Liin Adventure IA
         env:
