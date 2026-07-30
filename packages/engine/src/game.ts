@@ -212,7 +212,9 @@ export function isMonsterRespawnMode(value: unknown): value is MonsterRespawnMod
 export const MONSTER_TUNING_LIMITS = {
   maxHp: { min: 0, max: 100_000 },
   damage: { min: 0, max: 1_000 },
-  speed: { min: 0, max: 300 },
+  // Authoring has no gameplay ceiling for movement speed. The safe-integer ceiling is the actual
+  // JavaScript/wire precision boundary, not a balance rule; movement itself remains collision-bound.
+  speed: { min: 0, max: Number.MAX_SAFE_INTEGER },
   xp: { min: 0, max: 100_000 },
   weaknessPercent: { min: 0, max: 400 },
 } as const;

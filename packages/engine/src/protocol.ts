@@ -847,7 +847,7 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     isFiniteNumber(value.hp) &&
     value.hp >= 0 &&
     isFiniteNumber(value.maxHp) &&
-    value.maxHp > 0 &&
+    value.maxHp >= 0 &&
     value.hp <= value.maxHp &&
     typeof value.dead === "boolean" &&
     isDirection(value.facing) &&

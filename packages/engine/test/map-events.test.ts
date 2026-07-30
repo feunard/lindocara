@@ -381,7 +381,7 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterRank: "boss",
       monsterMaxHp: 4_000,
       monsterDamage: 85,
-      monsterSpeed: 72,
+      monsterSpeed: 400,
       monsterXp: 10_000,
       monsterWeakness: "priest",
       monsterWeaknessPercent: 175,

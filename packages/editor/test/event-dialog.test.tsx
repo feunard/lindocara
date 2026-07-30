@@ -304,7 +304,7 @@ describe("EventDialog", () => {
       target: { value: "0" },
     });
     fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.speed") }), {
-      target: { value: "0" },
+      target: { value: "400" },
     });
     fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.xp") }), {
       target: { value: "10000" },
@@ -325,7 +325,7 @@ describe("EventDialog", () => {
     expect(committed.patrolRadius).toBe(0);
     expect(committed.monsterMaxHp).toBe(0);
     expect(committed.monsterDamage).toBe(0);
-    expect(committed.monsterSpeed).toBe(0);
+    expect(committed.monsterSpeed).toBe(400);
     expect(committed.monsterXp).toBe(10_000);
     expect(committed.monsterWeaknessPercent).toBe(0);
     expect(committed.monsterRespawnMode).toBe("never");

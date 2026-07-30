@@ -114,6 +114,7 @@ import {
   TINY_SWORDS_ENEMIES,
 } from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
+import { runRecoverableFrame } from "./frame-recovery.js";
 import { onLocaleChange, t } from "./locale.js";
 import { sameRenderedMap } from "./map-render-cache.js";
 import type { SceneSample } from "./scene-sample.js";
@@ -1765,9 +1766,13 @@ export class Renderer {
   }
 
   #clearTransientCombatViews(): void {
-    for (const view of this.#projectiles.values()) view.container.destroy({ children: true });
+    for (const view of this.#projectiles.values()) {
+      if (!view.container.destroyed) view.container.destroy({ children: true });
+    }
     this.#projectiles.clear();
-    for (const effect of this.#activeEffects) effect.container.destroy({ children: true });
+    for (const effect of this.#activeEffects) {
+      if (!effect.container.destroyed) effect.container.destroy({ children: true });
+    }
     this.#activeEffects = [];
     this.#shadowDanceSequences = [];
     for (const view of this.#players.values()) this.#resetVisualAction(view);
@@ -4804,7 +4809,20 @@ export class Renderer {
   }
 
   onFrame(callback: (nowMs: number, deltaSeconds: number) => void): void {
-    const tick = (ticker: Ticker): void => callback(performance.now(), ticker.deltaMS / 1000);
+    let lastReportedAt = Number.NEGATIVE_INFINITY;
+    const tick = (ticker: Ticker): void => {
+      const now = performance.now();
+      runRecoverableFrame(
+        () => callback(now, ticker.deltaMS / 1000),
+        () => this.#clearTransientCombatViews(),
+        (error) => {
+          // A persistent asset or state error must not flood the console on every animation frame.
+          if (now - lastReportedAt < 1_000) return;
+          lastReportedAt = now;
+          console.error("Renderer frame failed; transient combat visuals were reset", error);
+        },
+      );
+    };
     this.#frameCallbacks.push(tick);
     this.#app.ticker.add(tick);
   }
