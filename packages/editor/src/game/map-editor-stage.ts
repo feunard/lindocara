@@ -161,9 +161,10 @@ export interface MapEditorStageState {
   placementRejectedAt: number | null;
 }
 
-/** Camera zoom is clamped to this range, both to keep pixels legible and to stop the map sailing
- *  off into empty space. Matches the brief's 0.5x–2x. */
-const MIN_ZOOM = 0.5;
+/** Camera zoom is allowed to pull back far enough for the largest authored map to fit in the centre
+ *  pane. The former 0.5 floor cut every map that needed a wider overview, including legal 256×256
+ *  maps. Authors can still zoom back in for pixel-accurate edits, then pan to either edge. */
+const MIN_ZOOM = 0.01;
 const MAX_ZOOM = 2;
 
 /** How far the two non-active planes fade when "dim other modes" is on. Editor-only; the game
@@ -705,6 +706,17 @@ export function clampCameraAxis(
     : clamp(current, viewportStart + viewportSize - contentSize, viewportStart);
 }
 
+/** Scale a whole map into the editor's actual centre pane, with a small breathing margin. */
+export function fitCameraScale(
+  contentWidth: number,
+  contentHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): number {
+  const fit = Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight) * 0.92;
+  return clamp(fit, MIN_ZOOM, MAX_ZOOM);
+}
+
 /**
  * Draws one cell's worth of layers, routing each resolved tile into the container its own tileset
  * entry's `priority` selects — `land` for "below", `above` for "above". Mirrors `renderer.ts`'s
@@ -1090,8 +1102,7 @@ async function buildSession(
     const mapW = mapCols() * TILE_SIZE;
     const mapH = mapRows() * TILE_SIZE;
     const viewport = viewportRect();
-    const fit = Math.min(viewport.width / mapW, viewport.height / mapH) * 0.92;
-    world.scale.set(clamp(fit, MIN_ZOOM, MAX_ZOOM));
+    world.scale.set(fitCameraScale(mapW, mapH, viewport.width, viewport.height));
     clampCamera();
     onZoomChange?.(Math.round(world.scale.x * 100));
   }

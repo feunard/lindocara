@@ -6,6 +6,7 @@ import {
   defaultDimForMode,
   eventChipLabel,
   eventOverlayToggled,
+  fitCameraScale,
   paintCollisionOverlay,
   paintElementSelectionOutline,
   paintEventCell,
@@ -39,6 +40,17 @@ describe("clampCameraAxis", () => {
 
   it("centres a small map inside the centre pane rather than the full canvas", () => {
     expect(clampCameraAxis(0, 400, 240, 700)).toBe(390);
+  });
+});
+
+describe("fitCameraScale", () => {
+  it("fits a maximal legal map below the former 50% zoom floor", () => {
+    const maximalMapPixels = 256 * 64;
+    const scale = fitCameraScale(maximalMapPixels, maximalMapPixels, 700, 500);
+
+    expect(scale).toBeCloseTo((500 / maximalMapPixels) * 0.92);
+    expect(maximalMapPixels * scale).toBeLessThanOrEqual(500);
+    expect(scale).toBeLessThan(0.5);
   });
 });
 
