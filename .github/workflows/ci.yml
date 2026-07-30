@@ -46,9 +46,11 @@ jobs:
       - name: Test
         run: npm test
 
-      # Catches Vite/Wrangler bundling errors that typecheck and tests cannot see.
-      - name: Build
-        run: npm run build
+      # Production still runs the legacy Worker shell while the Alepha router migration is in
+      # progress. This target carries the existing D1, Durable Object and rate-limit bindings and
+      # emits the `dist/lindocara/wrangler.json` consumed by the deploy job.
+      - name: Build deployable Worker
+        run: npm run build:legacy -w @lindocara/main
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
