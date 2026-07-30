@@ -160,7 +160,7 @@ describe("session gate", () => {
 
 describe("createHero", () => {
   test("Tier 3 fallback: spawns at the map's own default spawn point when no graph.start or spawn event exists", async () => {
-    const { token } = await registerAndLogin("herospawn");
+    const { token, userId } = await registerAndLogin("herospawn");
     const adventureId = await newPlayableAdventure(token);
     const adventureRes = await authedFetch(`/api/adventures/${adventureId}`, token);
     const adventure = (await adventureRes.json()) as { mapIds: string[] };
@@ -173,7 +173,7 @@ describe("createHero", () => {
     expect(response.status).toBe(201);
     const hero = (await response.json()) as {
       partyId: string;
-      userId: string;
+      accountId: string;
       name: string;
       class: string;
       mapId: string;
@@ -187,6 +187,10 @@ describe("createHero", () => {
     const expectedSpawnRow = Math.floor(MAP_MIN_ROWS / 2);
     expect(hero).toMatchObject({
       partyId,
+      // The legacy wire calls this `accountId` (heroes.ts `StoredHero`), and the client's resume
+      // flow matches heroes by it (`LaunchScreens.tsx`: `h.accountId === accountId`) — emitting
+      // the internal `userId` column name broke party resume in the browser.
+      accountId: userId,
       name: "Mira",
       class: "priest",
       mapId: adventure.mapIds[0],

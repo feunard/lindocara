@@ -82,7 +82,12 @@ import { partyMembers } from "../entities/partyMembers.ts";
 export interface StoredHero {
   id: string;
   partyId: string;
-  userId: string;
+  /**
+   * The legacy wire name for the owning account (`heroes.ts`'s `StoredHero.accountId`). The
+   * client matches "my hero in this party" by it (`LaunchScreens.tsx`), so the payload keeps the
+   * legacy key even though this app's column is `userId`.
+   */
+  accountId: string;
   name: string;
   class: PlayerClass;
   mapId: string;
@@ -101,7 +106,7 @@ function toStored(row: Hero): StoredHero {
   return {
     id: row.id,
     partyId: row.partyId,
-    userId: row.userId,
+    accountId: row.userId,
     name: row.name,
     class: row.class,
     mapId: row.mapId,
