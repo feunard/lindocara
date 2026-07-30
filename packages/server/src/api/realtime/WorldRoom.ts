@@ -4,10 +4,12 @@
  * `handleJoinHero` + `World.fetch` sequence), the message boundary caps, one-command-per-tick
  * movement and the 10Hz snapshot/resync flush; tranche β (Task 5) added the full authoritative
  * tick order and the combat/consumable/chat intents — the shell stays thin because both live in
- * `worldTick.ts`, wired through `glue()`. Events/quests (Task 7), fenced saves (Task 6) and map
- * transitions (Task 8) remain stubbed seams on that glue. The world systems under `../../world/`
- * are reused as-is, keyed by Alepha connection-id string instead of a workerd `WebSocket` (their
- * `TSocket` generic).
+ * `worldTick.ts`, wired through `glue()`. Task 6 wired the dirty-hero save cadence, the forced
+ * disconnect save and stale-epoch rejection through `HeroSaveService`; the quest-reward claim and
+ * potion-decrement seams stay in-memory stubs pending their in-game paths. Events/quests (Task 7)
+ * and map transitions (Task 8) remain stubbed seams on that glue. The world systems under
+ * `../../world/` are reused as-is, keyed by Alepha connection-id string instead of a workerd
+ * `WebSocket` (their `TSocket` generic).
  *
  * ## Identity on the wire
  *
@@ -74,11 +76,13 @@ import {
   newPlayer,
   type PlayerRuntime,
   RESYNC_COOLDOWN_MS,
+  toProfile,
 } from "../../world/world-runtime.js";
 import { adventures } from "../entities/adventures.ts";
 import { parties } from "../entities/parties.ts";
 import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { HeroEpochService } from "../services/HeroEpochService.ts";
+import { HeroSaveService } from "../services/HeroSaveService.ts";
 import { MapService } from "../services/MapService.ts";
 import { AdmissionService } from "./AdmissionService.ts";
 import { RealtimeChannels } from "./channels.ts";
@@ -131,6 +135,7 @@ export class WorldRoom {
   partyRoom = $inject(PartyRoom);
   admissionService = $inject(AdmissionService);
   heroEpochService = $inject(HeroEpochService);
+  heroSaveService = $inject(HeroSaveService);
   mapService = $inject(MapService);
 
   parties = $repository(parties);
@@ -555,6 +560,22 @@ export class WorldRoom {
       this.logError("cooldown_checkpoint_failed", error, { heroId: player.id });
     }
     if (accepted === true) return;
+    this.rejectStaleSave(room, state, connectionId, player);
+  }
+
+  /**
+   * Port of legacy `#rejectStaleSave` (`world.ts:4183-4203`): the epoch this player's runtime
+   * thinks it holds has already moved on (a competing acquire/handoff won the race, or a fenced
+   * save came back `"stale"`). Local authority is invalidated, the runtime entry is dropped, and
+   * the socket is closed with the legacy code — the client's reconnect flow re-derives a fresh
+   * lease from scratch.
+   */
+  protected rejectStaleSave(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+  ): void {
     this.removeRuntimePlayer(state, connectionId, player);
     console.warn(
       JSON.stringify({
@@ -567,6 +588,36 @@ export class WorldRoom {
     );
     this.send(room, connectionId, { t: "event", code: "presence.lost", tone: "bad" });
     room.close(connectionId, WS_CLOSE.PRESENCE_LOST, "presence epoch is stale");
+  }
+
+  /**
+   * Task 6: the fenced D1 hero save behind both the periodic dirty-flush cadence
+   * (`D1_SAVE_EVERY_TICKS`, wired through `movement-system.advancePlayers`) and any other tick-order
+   * caller (`worldTick.ts`'s quest/consumable seams). A `"stale"` result — the epoch already moved
+   * on — rejects the save exactly like a failed cooldown checkpoint: local authority drops and the
+   * socket closes `PRESENCE_LOST`. A thrown D1 error is NOT staleness: it is logged and the player
+   * is re-marked dirty so the next save beat retries, mirroring legacy `#savePlayerInBackground`'s
+   * catch block — a transient database error must not silently drop a player's unsaved progress.
+   */
+  protected async savePlayer(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    player: PlayerRuntime,
+    connectionId: string,
+  ): Promise<boolean> {
+    let result: "saved" | "stale";
+    try {
+      result = await this.heroSaveService.saveHero(toProfile(player), player.sessionEpoch);
+    } catch (error) {
+      this.logError("hero_save_failed", error, { heroId: player.id });
+      if (state.players.get(connectionId) === player && player.authorized) player.dirty = true;
+      return false;
+    }
+    if (result === "stale") {
+      this.rejectStaleSave(room, state, connectionId, player);
+      return false;
+    }
+    return true;
   }
 
   // -----------------------------------------------------------------------------------------------
@@ -586,10 +637,13 @@ export class WorldRoom {
   }
 
   /**
-   * Binds the room handle to the seams `worldTick.ts` runs on. The Task 6/7/8 members are the
-   * stubs the plan pins for those tasks: fenced saves resolve `true` without writing, the quest
-   * reward claim reports already-claimed, the potion decrement is in-memory, the event-run drain
-   * and the adventure-exit transition do nothing.
+   * Binds the room handle to the seams `worldTick.ts` runs on. `savePlayer` is Task 6's real
+   * `HeroSaveService`-backed fenced save. The `claimQuestReward`/`consumePotion` members remain
+   * deliberate stubs — port of the legacy idempotent quest-chapter reward claim and the D1-backed
+   * potion decrement — since no in-game path yet exercises them; `claimQuestReward` reports
+   * already-claimed and `consumePotion` decrements the in-memory count only, matching the plan's
+   * "acceptable if no in-game path exists yet" allowance (see the Task 6 report). The event-run
+   * drain (Task 7) and the adventure-exit transition (Task 8) remain no-ops.
    */
   protected glue(room: WorldRoomHandle): WorldGlue {
     const state = room.state;
@@ -602,7 +656,7 @@ export class WorldRoom {
           void promise.catch((error) => this.logError("world_tick_async_failed", error));
         },
         renewPresence: (player) => this.renewPresence(room, state, player),
-        savePlayer: async () => true, // Task 6 (fenced persistence).
+        savePlayer: (player, connectionId) => this.savePlayer(room, state, player, connectionId),
         presenceHeartbeatMs: PRESENCE_HEARTBEAT_MS,
         navigationDebugAvailable: process.env.NAVIGATION_DEBUG === "true",
         markPermanentMonsterDefeated: (eventId) => {
@@ -670,13 +724,27 @@ export class WorldRoom {
   // Leave / empty
   // -----------------------------------------------------------------------------------------------
 
+  /**
+   * Port of legacy `#drop` (`world.ts:4099-4129`): a forced save regardless of the `dirty` flag —
+   * a disconnect must not wait for the next periodic beat — then the presence release, but ONLY
+   * when that save actually landed. A `"stale"` or thrown save means the epoch already moved on (a
+   * competing acquire beat this disconnect to the punch); releasing the lease in that case would
+   * tear down whatever NEWER session now legitimately holds it, so it is skipped entirely and the
+   * short lease is left to expire on its own — exactly legacy's posture.
+   */
   protected async handleLeave(room: WorldRoomHandle, conn: RoomConnection): Promise<void> {
     const state = room.state;
     const player = state.players.get(conn.id);
     if (!player) return;
     this.removeRuntimePlayer(state, conn.id, player);
-    // The fenced disconnect save arrives with Task 6; the release is best-effort exactly like
-    // legacy `#drop`'s — an expired lease self-heals, a mismatched one no-ops.
+    let saved = false;
+    try {
+      const result = await this.heroSaveService.saveHero(toProfile(player), player.sessionEpoch);
+      saved = result === "saved";
+    } catch (error) {
+      this.logError("hero_disconnect_save_failed", error, { heroId: player.id });
+    }
+    if (!saved) return;
     try {
       await this.presenceRoom.room.call(
         player.id,

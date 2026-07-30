@@ -17,7 +17,10 @@
  *   authored-monster/guard page reconciliation — Task 7 (events & adventure state);
  * - portal/adventure-exit transitions — Task 8 (map transitions); the exit DETECTION runs, its
  *   transition seam is a deps stub;
- * - fenced D1 saves, quest-reward claims and the D1-backed potion decrement — Task 6 (persistence);
+ * - the built-in quest-chapter reward claim and the D1-backed potion decrement — `WorldTickDeps`'s
+ *   `claimQuestReward`/`consumePotion` remain in-memory stubs (no in-game path yet exercises the
+ *   idempotent D1 claim/decrement chain legacy runs there); `savePlayer` itself is Task 6's real
+ *   `HeroSaveService`-backed fenced save, wired through `WorldRoom.glue()`;
  * - cheat commands and the legacy runtime-party (`party.*`) mechanic — the latter is rollback-only
  *   per CLAUDE.md (hero sessions must not expose it) and is not ported at all.
  */
@@ -264,7 +267,9 @@ export interface WorldTickDeps {
   waitUntil(promise: Promise<unknown>): void;
   /** Movement-adjacent lease renewal (legacy `#renewPresence`), fired on the 10s heartbeat. */
   renewPresence(player: PlayerRuntime): Promise<void>;
-  /** Fenced D1 save. Task 6 replaces the stub; until then it resolves `true` and saves nothing. */
+  /** Fenced D1 save (`WorldRoom.savePlayer`, backed by `HeroSaveService`). Resolves `false` on a
+   *  stale epoch (the caller has already invalidated local authority and closed the socket) or a
+   *  transient D1 error (the caller re-marks the player dirty for the next save beat). */
   savePlayer(player: PlayerRuntime, connectionId: string): Promise<boolean>;
   presenceHeartbeatMs: number;
   navigationDebugAvailable: boolean;
@@ -284,12 +289,15 @@ export interface WorldTickDeps {
     exitId: string,
     now: number,
   ): void;
-  /** Task 6: the idempotent D1 quest-reward claim. Stubbed to `false` (already-claimed path). */
+  /** The idempotent D1 quest-reward claim (built-in quest chapters). Stubbed to `false`
+   *  (already-claimed path) — no in-game path yet exercises the legacy fenced claim chain; see the
+   *  Task 6 report for the follow-up. */
   claimQuestReward(player: PlayerRuntime, reward: QuestRewardClaim): Promise<boolean>;
   /**
    * Consume one health potion and return the remaining count, or `null` when none can be spent.
-   * Task 6 replaces the in-memory stub with the fenced save-then-decrement D1 chain the legacy
-   * `#consumePotion` runs; the in-memory count is authoritative either way.
+   * Stubbed to an in-memory decrement — the legacy fenced save-then-decrement D1 chain
+   * (`#consumePotion`) has no in-game path exercising it yet; the in-memory count is authoritative
+   * either way, and the periodic `savePlayer` cadence still lands the resulting quantity in D1.
    */
   consumePotion(player: PlayerRuntime, connectionId: string): Promise<number | null>;
 }
