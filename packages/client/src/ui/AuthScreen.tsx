@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
-import { api, authErrorText, errorCode, type Me } from "../api.js";
+import { authErrorText, errorCode, login, register } from "../api.js";
 import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
@@ -40,10 +40,9 @@ export function AuthScreen() {
     }
     setBusy(true);
     try {
-      await api<Me>(tab === "login" ? "/api/session" : "/api/register", {
-        method: "POST",
-        body: JSON.stringify({ username: data.get("username"), password: data.get("password") }),
-      });
+      const username = String(data.get("username"));
+      const password = String(data.get("password"));
+      await (tab === "login" ? login(username, password) : register(username, password));
       setScreen("menu");
     } catch (caught) {
       setError(errorCode(caught));
@@ -75,9 +74,9 @@ export function AuthScreen() {
                 id="auth-username"
                 name="username"
                 type="text"
-                minLength={2}
+                minLength={3}
                 maxLength={16}
-                pattern="[A-Za-z0-9_\-]{2,16}"
+                pattern="[A-Za-z0-9_\-]{3,16}"
                 autoComplete="username"
                 required
               />

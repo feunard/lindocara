@@ -56,7 +56,62 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export const fetchMe = () => api<Me>("/api/me").catch(() => null);
+/** The shape `/_auth/userinfo` echoes back — only the fields `fetchMe`/`login`/`register` read. */
+interface AlephaUserInfo {
+  id: string;
+  username?: string;
+}
+
+function toMe(user: AlephaUserInfo): Me {
+  // The realm registers every account with a username (`AppSecurityProvider`'s `username:
+  // "required"`), so the fallback below is defensive only — it never fires against this server.
+  return { id: user.id, username: user.username ?? user.id };
+}
+
+/**
+ * `GET /_auth/userinfo` (Alepha's own route, not `/api/*`): 200 with `{ user: undefined }` when
+ * signed out rather than a 401, since the same route also serves an anonymous caller's public API
+ * links. `fetchMe` folds that "no user" shape onto the old `null` contract every caller already
+ * expects.
+ */
+export const fetchMe = () =>
+  api<{ user?: AlephaUserInfo }>("/_auth/userinfo")
+    .then((response) => (response.user ? toMe(response.user) : null))
+    .catch(() => null);
+
+/**
+ * Signs in through Alepha's credentials provider (`POST /_auth/token?provider=credentials`). The
+ * server sets the session as an httpOnly cookie; the JSON body only echoes the authenticated user,
+ * which is all this client tracks. Wrong credentials come back as a framework-level
+ * `InvalidCredentialsError` (401) rather than this app's legacy `invalid_credentials` code — see
+ * `ERROR_KEYS`, which maps the class name onto the SAME dictionary entry.
+ */
+export const login = (username: string, password: string) =>
+  api<{ user: AlephaUserInfo }>("/_auth/token?provider=credentials", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  }).then((response) => toMe(response.user));
+
+/**
+ * Two-phase registration (`alepha/api/users`): phase 1 (`POST /api/users/register`) validates and
+ * mints an intent from username+password — this realm collects neither email nor phone, so
+ * nothing else is required to complete it. Phase 2 (`POST /api/users/register/complete`) creates
+ * the account from that intent. Neither phase authenticates the browser, unlike the legacy single
+ * `/api/register` call, so `register` finishes with an explicit `login()` to keep returning an
+ * authenticated `Me` the way every caller already expects. A taken username surfaces as a
+ * framework-level `ConflictError` (409) — see `ERROR_KEYS`.
+ */
+export async function register(username: string, password: string): Promise<Me> {
+  const intent = await api<{ intentId: string }>("/api/users/register", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+  await api<unknown>("/api/users/register/complete", {
+    method: "POST",
+    body: JSON.stringify({ intentId: intent.intentId }),
+  });
+  return login(username, password);
+}
 
 export interface MapSummary {
   id: string;
@@ -261,6 +316,15 @@ export const deleteHeroApi = (partyId: string, heroId: string) =>
 
 /** Stable machine codes (from ApiError, or synthesized client-side) mapped to i18n keys. */
 export const ERROR_KEYS: Record<string, MessageKey> = {
+  // Alepha's own auth routes (`/api/users/register*`, `/_auth/token`) are framework code, not this
+  // app's `src/api/controllers/*`, so they throw generic HttpError subclasses rather than our
+  // snake_case machine codes. These three wire the class names `auth.test.ts` observes back onto
+  // the SAME dictionary entries the legacy hand-rolled server used, so player-facing text is
+  // unchanged. Every OTHER `/api/*` route (maps, adventures, parties, heroes, ...) still throws its
+  // own explicit `error:` code (see e.g. `mapAuthoring.ts`), so this mapping cannot shadow those.
+  ConflictError: "auth.error.username_taken",
+  InvalidCredentialsError: "auth.error.invalid_credentials",
+  UnauthorizedError: "auth.error.session_expired",
   username_taken: "auth.error.username_taken",
   invalid_credentials: "auth.error.invalid_credentials",
   invalid_username: "auth.error.invalid_username",
@@ -321,7 +385,10 @@ export function authErrorText(code: string): string {
 
 export async function logout(): Promise<void> {
   try {
-    await fetch("/api/session", { method: "DELETE" });
+    // `alephaServerAuthRoutes.logout` (`.vendor/alepha/src/server/auth/constants/routes.ts`):
+    // deletes the session cookie server-side and answers with a redirect, which this best-effort
+    // call never follows anywhere meaningful — only the cookie deletion matters here.
+    await fetch("/oauth/logout", { method: "POST" });
   } catch (error) {
     // A failed best-effort revocation must not strand the user in a half-closed game session.
     // Reloading still clears all in-memory authority; an unexpired cookie can then be retried.

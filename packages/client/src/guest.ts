@@ -13,7 +13,7 @@
  * credential is generated, never reused elsewhere, and guards nothing but this game's save. Never
  * put a human-chosen password through here.
  */
-import { ApiError, api, type Me } from "./api.js";
+import { ApiError, login, type Me, register } from "./api.js";
 
 const STORAGE_KEY = "lindocara.guest";
 /** Matches the server's USERNAME_PATTERN alphabet, lowercased since accounts are stored that way. */
@@ -102,16 +102,15 @@ async function registerGuest(): Promise<Me> {
   for (let attempt = 0; attempt < REGISTER_ATTEMPTS; attempt += 1) {
     const credentials = mintGuestCredentials();
     try {
-      const me = await api<Me>("/api/register", {
-        method: "POST",
-        body: JSON.stringify(credentials),
-      });
+      const me = await register(credentials.username, credentials.password);
       // Only after the server accepted it: storing first would leave a credential behind that no
       // account answers to, and the next visit would fail its login and mint a second account.
       saveGuest(credentials);
       return me;
     } catch (error) {
-      if (!(error instanceof ApiError) || error.code !== "username_taken") throw error;
+      // Alepha's registration intent throws a framework-level `ConflictError` (409) for any taken
+      // identifier, not this app's legacy `username_taken` code — see `ERROR_KEYS` in `api.ts`.
+      if (!(error instanceof ApiError) || error.code !== "ConflictError") throw error;
     }
   }
   throw new Error("guest registration exhausted its attempts");
@@ -125,12 +124,14 @@ export async function continueAsGuest(): Promise<Me> {
   const stored = readGuest();
   if (!stored) return registerGuest();
   try {
-    return await api<Me>("/api/session", { method: "POST", body: JSON.stringify(stored) });
+    return await login(stored.username, stored.password);
   } catch (error) {
     // The stored account no longer answers — a wiped database, a deleted account. Mint a fresh one
     // rather than stranding someone on a credential they can neither see nor retype. Any other
-    // failure (rate limit, network, server error) is real and must surface.
-    if (!(error instanceof ApiError) || error.code !== "invalid_credentials") throw error;
+    // failure (rate limit, network, server error) is real and must surface. `login()` surfaces a
+    // wrong password as Alepha's framework-level `InvalidCredentialsError` (401), not this app's
+    // legacy `invalid_credentials` code — see `ERROR_KEYS` in `api.ts`.
+    if (!(error instanceof ApiError) || error.code !== "InvalidCredentialsError") throw error;
     forgetGuest();
     return registerGuest();
   }
