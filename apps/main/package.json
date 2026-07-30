@@ -18,5 +18,8 @@
     "@lindocara/client": "*",
     "@lindocara/server": "*",
     "alepha": "*"
+  },
+  "devDependencies": {
+    "wrangler": "^4.112.0"
   }
 }
