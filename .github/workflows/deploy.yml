@@ -1,9 +1,9 @@
 name: Deploy
 
 on:
-  # Manual only for now (2026-07-30 alepha migration deploy+cleanup tranche, Task 4): the Alepha
-  # stack has not yet run in production. `on: push: branches: [main]` returns once Task 5 has
-  # proven a real `platform up` + prod smoke test, at which point continuous deploy resumes.
+  push:
+    branches: [main]
+  # Lets you redeploy the current main without pushing an empty commit.
   workflow_dispatch:
 
 concurrency:
