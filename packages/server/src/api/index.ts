@@ -7,6 +7,7 @@ import { JoinController } from "./controllers/JoinController.js";
 import { MapController } from "./controllers/MapController.js";
 import { MeController } from "./controllers/MeController.js";
 import { PartyController } from "./controllers/PartyController.js";
+import { SpaController } from "./controllers/SpaController.js";
 import { TestSessionController } from "./controllers/TestSessionController.js";
 import { AppSecurityProvider } from "./providers/AppSecurityProvider.js";
 import { PartyRoom } from "./realtime/PartyRoom.js";
@@ -46,6 +47,7 @@ export const LindocaraApi = $module({
     HeroController,
     TestSessionController,
     JoinController,
+    SpaController,
     PresenceRoom,
     PartyRoom,
     WorldRoom,
