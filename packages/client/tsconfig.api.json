@@ -50,6 +50,7 @@
     "test/quest-journal-overlay.test.tsx",
     "test/inventory-merchant.test.tsx",
     "test/adventure-test-overlay.test.tsx",
-    "test/auth-screen.test.tsx"
+    "test/auth-screen.test.tsx",
+    "test/launch-screens.test.tsx"
   ]
 }

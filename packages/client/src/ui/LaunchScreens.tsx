@@ -3,18 +3,20 @@
  *   Continue → my saved parties (each = an adventure + my hero) → enter the game directly.
  *   New      → an adventure carousel → HeroCreate (creates the party, auto colour) → game.
  *   Join     → other players' open parties → HeroCreate (joins) → game.
+ *
+ * The party/adventure list for each screen is loader data (`ui/AppRouter.tsx`'s `playContinue`/
+ * `playNew`/`playJoin`), not a local `useEffect` fetch — it is ready before the component mounts, so
+ * none of the three carries a `loading` state for its own list any more. `HeroCreate`'s `pending`/
+ * `pickedId` sub-screen selection stays local `useState` (no URL for it — YAGNI, see the plan);
+ * "Back" from a carousel is a real navigation (`router.push("menu")`), while "Back" from `HeroCreate`
+ * just clears the local pick and returns to the carousel already on screen.
  */
 import { useAuth } from "alepha/react/auth";
-import { useEffect, useState } from "react";
-import {
-  type AdventureSummary,
-  fetchHeroes,
-  fetchParties,
-  fetchPlayableAdventures,
-  type PartyListing,
-} from "../api.js";
+import { useRouter } from "alepha/react/router";
+import { useState } from "react";
+import { type AdventureSummary, fetchHeroes, type PartyListing } from "../api.js";
 import { t } from "../i18n.js";
-import { useUiStore } from "../store.js";
+import type { AppRouter } from "./AppRouter.js";
 import { Carousel, type CarouselCard } from "./Carousel.js";
 import { HeroCreate } from "./HeroCreate.js";
 
@@ -25,23 +27,16 @@ function accentFor(id: string): number {
 }
 
 /** CONTINUE — resume one of my saves straight into the game. */
-export function ContinueScreen() {
-  const setScreen = useUiStore((s) => s.setScreen);
+export function ContinueScreen({ parties }: { parties: PartyListing[] }) {
+  const router = useRouter<AppRouter>();
   // Task 3: the store's `accountId` field died — every hero/party ownership check now reads the
   // Alepha-authenticated identity directly.
   const { user } = useAuth();
   const accountId = user?.id ?? null;
-  const [parties, setParties] = useState<PartyListing[] | null>(null);
   const [pending, setPending] = useState<PartyListing | null>(null);
 
-  useEffect(() => {
-    void fetchParties()
-      .then((all) => setParties(all.filter((p) => p.mine)))
-      .catch(() => setParties([]));
-  }, []);
-
   async function enter(id: string) {
-    const party = parties?.find((p) => p.id === id);
+    const party = parties.find((p) => p.id === id);
     if (!party) return;
     const heroes = await fetchHeroes(party.id);
     const mine = heroes.find((h) => h.accountId === accountId);
@@ -55,7 +50,7 @@ export function ContinueScreen() {
 
   if (pending) return <HeroCreate party={pending} onBack={() => setPending(null)} />;
 
-  const cards: CarouselCard[] = (parties ?? []).map((p) => ({
+  const cards: CarouselCard[] = parties.map((p) => ({
     id: p.id,
     title: p.adventureTitle,
     subtitle:
@@ -69,29 +64,21 @@ export function ContinueScreen() {
     <Carousel
       title={t("menu.continue")}
       cards={cards}
-      loading={parties === null}
       emptyLabel={t("continue.empty")}
       onSelect={(id) => void enter(id)}
-      onBack={() => setScreen("menu")}
+      onBack={() => void router.push("menu")}
     />
   );
 }
 
 /** NEW — pick an adventure, then create a hero for a fresh party. */
-export function NewGameScreen() {
-  const setScreen = useUiStore((s) => s.setScreen);
-  const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
+export function NewGameScreen({ adventures }: { adventures: AdventureSummary[] }) {
+  const router = useRouter<AppRouter>();
   const [pickedId, setPickedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    void fetchPlayableAdventures()
-      .then(setAdventures)
-      .catch(() => setAdventures([]));
-  }, []);
 
   if (pickedId) return <HeroCreate adventureId={pickedId} onBack={() => setPickedId(null)} />;
 
-  const cards: CarouselCard[] = (adventures ?? []).map((a) => ({
+  const cards: CarouselCard[] = adventures.map((a) => ({
     id: a.id,
     title: a.title,
     subtitle: a.author
@@ -104,33 +91,21 @@ export function NewGameScreen() {
     <Carousel
       title={t("menu.new")}
       cards={cards}
-      loading={adventures === null}
       emptyLabel={t("new.empty")}
       onSelect={setPickedId}
-      onBack={() => setScreen("menu")}
+      onBack={() => void router.push("menu")}
     />
   );
 }
 
 /** JOIN — pick another player's open party, then create a hero in it. */
-export function JoinScreen() {
-  const setScreen = useUiStore((s) => s.setScreen);
-  const [parties, setParties] = useState<PartyListing[] | null>(null);
+export function JoinScreen({ parties }: { parties: PartyListing[] }) {
+  const router = useRouter<AppRouter>();
   const [pending, setPending] = useState<PartyListing | null>(null);
-
-  useEffect(() => {
-    void fetchParties()
-      .then((all) =>
-        setParties(
-          all.filter((p) => !p.mine && p.status === "open" && p.colors.length < p.maxPlayers),
-        ),
-      )
-      .catch(() => setParties([]));
-  }, []);
 
   if (pending) return <HeroCreate party={pending} onBack={() => setPending(null)} />;
 
-  const cards: CarouselCard[] = (parties ?? []).map((p) => ({
+  const cards: CarouselCard[] = parties.map((p) => ({
     id: p.id,
     title: p.adventureTitle,
     subtitle: t("parties.slots", { used: p.colors.length, max: p.maxPlayers }),
@@ -141,13 +116,12 @@ export function JoinScreen() {
     <Carousel
       title={t("menu.join")}
       cards={cards}
-      loading={parties === null}
       emptyLabel={t("join.empty")}
       onSelect={(id) => {
-        const party = parties?.find((p) => p.id === id);
+        const party = parties.find((p) => p.id === id);
         if (party) setPending(party);
       }}
-      onBack={() => setScreen("menu")}
+      onBack={() => void router.push("menu")}
     />
   );
 }

@@ -1,8 +1,10 @@
 /**
- * The `$page` route tree — Alepha's router replacing the zustand `screen` machine (App.tsx). Only
- * `title`/`menu`/`credits`/`auth` are live; the remaining five fields exist now (per the plan's
- * Global Constraints route map) purely so `router.push("game")` etc. typecheck from the next task
- * onward — each renders a bare, textless marker div until its own task builds the real screen.
+ * The `$page` route tree — Alepha's router replacing the zustand `screen` machine (App.tsx).
+ * `title`/`menu`/`credits`/`auth` and, since Task 4, the three launch carousels
+ * (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own docblock
+ * below) are live. `game`/`editor` still exist now (per the plan's Global Constraints route map)
+ * purely so `router.push("game")` etc. typecheck ahead of their own tasks — each renders a bare,
+ * textless marker div until its own task builds the real screen.
  *
  * The root `layout` carries the chrome App.tsx used to own directly: the boot ping (now
  * `ReactAuth.ping()` -> guest fallback -> /auth, replacing the old `fetchMe()`, `App.tsx:49-65`),
@@ -26,6 +28,12 @@ import { $page, NestedView, useRouter, useRouterState } from "alepha/react/route
 import { currentUserAtom } from "alepha/security";
 import { HttpError } from "alepha/server";
 import { useEffect, useRef } from "react";
+import {
+  type AdventureSummary,
+  fetchParties,
+  fetchPlayableAdventures,
+  type PartyListing,
+} from "../api.js";
 import { menuAudio } from "../game/menu-audio.js";
 import { continueAsGuest } from "../guest.js";
 import { useLocale } from "../i18n.js";
@@ -39,6 +47,7 @@ import type { GameNavigation } from "../state/navigation.js";
 import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/navigation.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { CreditsScreen } from "./CreditsScreen.js";
+import { ContinueScreen, JoinScreen, NewGameScreen } from "./LaunchScreens.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MainMenu } from "./MainMenu.js";
 import { SettingsMenu } from "./SettingsMenu.js";
@@ -223,14 +232,58 @@ export class AppRouter {
 
   auth = $page({ path: "/auth", component: AuthScreen });
 
-  // Stubs — later tasks replace `component` with the real screen. Field names are the typed
-  // `push()`/`path()` keys (the plan's Global Constraints route map); do not rename them.
+  /**
+   * The three launch carousels (Task 4). Each loader replaces the screen's old `useEffect` fetch —
+   * data is ready before the component ever mounts, so `ContinueScreen`/`NewGameScreen`/
+   * `JoinScreen` no longer carry a `loading` local state for their list. All three call `api.ts`'s
+   * existing helpers (`fetchParties`/`fetchPlayableAdventures`) rather than a typed `$client<T>()`:
+   * a type-only `import type { PartyController } from "@lindocara/server/api/controllers/
+   * PartyController.js"` DOES compile cleanly under this package's `tsconfig.api.json` program (
+   * verified — `PartyController`/`HeroController`/`AdventureController` all type-check with zero
+   * errors), so this is a deliberate choice, not the documented compiler-failure fallback. Two
+   * reasons: (1) `PartyController.getParties`/`HeroController.getHeroes` declare `response: z.any()`
+   * (see those controllers' `schema`), so a `$client` call would type as `Promise<any>` anyway —
+   * no typing win over `api.ts` for the two calls these loaders actually need; (2) `getParties`
+   * answers ONE cursor page (`PartyListingPage`), and `fetchParties()` already walks every page and
+   * unwraps it into a flat, tested `PartyListing[]` — reimplementing that pagination loop here would
+   * duplicate already-covered logic for a return type that is `any` either way. `fetchPlayableAdventures`
+   * -> `AdventureController.getAdventures` DOES have a real typed `z.array(adventureSummarySchema)`
+   * response and would have been a clean `$client` candidate on its own, but mixing network paths
+   * (Alepha's own `HttpClient` for one loader, `api.ts`'s plain `fetch` for the other two) for no
+   * behavioural gain was not worth the inconsistency. See the Task 4 report for the compiler
+   * evidence both ways.
+   */
   playContinue = $page({
     path: "/play/continue",
-    component: () => <RouteStub name="playContinue" />,
+    component: ContinueScreen,
+    loader: async () => {
+      const parties = await fetchParties().catch(() => [] as PartyListing[]);
+      return { parties: parties.filter((p) => p.mine) };
+    },
   });
-  playNew = $page({ path: "/play/new", component: () => <RouteStub name="playNew" /> });
-  playJoin = $page({ path: "/play/join", component: () => <RouteStub name="playJoin" /> });
+  playNew = $page({
+    path: "/play/new",
+    component: NewGameScreen,
+    loader: async () => {
+      const adventures = await fetchPlayableAdventures().catch(() => [] as AdventureSummary[]);
+      return { adventures };
+    },
+  });
+  playJoin = $page({
+    path: "/play/join",
+    component: JoinScreen,
+    loader: async () => {
+      const parties = await fetchParties().catch(() => [] as PartyListing[]);
+      return {
+        parties: parties.filter(
+          (p) => !p.mine && p.status === "open" && p.colors.length < p.maxPlayers,
+        ),
+      };
+    },
+  });
+
+  // Stubs — later tasks replace `component` with the real screen. Field names are the typed
+  // `push()`/`path()` keys (the plan's Global Constraints route map); do not rename them.
   game = $page({ path: "/game", component: () => <RouteStub name="game" /> });
   editor = $page({ path: "/editor", component: () => <RouteStub name="editor" /> });
 }
