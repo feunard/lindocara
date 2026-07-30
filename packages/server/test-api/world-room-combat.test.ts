@@ -32,6 +32,7 @@ import {
   CHAT_MAX_LENGTH,
   createGuards,
   createMonsters,
+  hasRequiredHeroesForMonster,
   type PlayerRuntime,
 } from "@lindocara/server/world/world-runtime.js";
 import { UserController } from "alepha/api/users";
@@ -43,6 +44,7 @@ import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
   advanceWorldTick,
   resolveMonsterAction,
+  resolvePlayerAction,
   startMonsterAttack,
   startPlayerAction,
   type WorldGlue,
@@ -266,7 +268,7 @@ function seedMonster(
   id: string,
   x: number,
   y: number,
-  overrides: { maxHp?: number } = {},
+  overrides: { maxHp?: number; rank?: "normal" | "elite" | "boss"; speed?: number } = {},
 ) {
   const [monster] = createMonsters([
     {
@@ -330,6 +332,47 @@ describe("world room combat (FakeClock)", () => {
     t = castAt + ATTACK_COOLDOWN_MS + 400;
     expect(startPlayerAction(w, connectionId, player, 1)).toBe(true);
     expect(player.lastAttackAt).toBe(t);
+    engine.dispose();
+  });
+
+  test("elite and boss health is protected until two party heroes fight nearby", async () => {
+    const host = await newPlayableHero("grouprank");
+    const guest = await joinAsSecondHero(host, "grouprankguest");
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    await engine.join(fakeSocket(host.userId, host.heroId));
+    const state = roomState(engine);
+    const player = playerOf(state, host.heroId);
+    player.facing = { x: 0, y: 1 };
+    const monster = seedMonster(state, "elite-1", player.x, player.y + 30, {
+      rank: "elite",
+      maxHp: 200,
+      speed: 0,
+    });
+    const t = Date.now() + 1_000;
+    const { w, sent } = testGlue(state, () => t);
+    const connectionId = `c-${host.heroId}`;
+
+    expect(hasRequiredHeroesForMonster(state.players.values(), player, monster)).toBe(false);
+    expect(startPlayerAction(w, connectionId, player, 1)).toBe(true);
+    const soloAction = player.action;
+    if (!soloAction) throw new Error("expected a player action");
+    soloAction.direction = { x: 0, y: 1 };
+    resolvePlayerAction(w, player, soloAction, t + 500);
+    expect(monster.hp).toBe(monster.maxHp);
+    expect(
+      sentTo(sent, host.heroId).some(
+        (message) => message.t === "event" && message.code === "combat.group_required",
+      ),
+    ).toBe(true);
+
+    await engine.join(fakeSocket(guest.userId, guest.heroId));
+    const ally = playerOf(state, guest.heroId);
+    const previous = { x: ally.x, y: ally.y };
+    ally.x = player.x;
+    ally.y = player.y;
+    state.playerGrid.update(ally, previous);
+    expect(hasRequiredHeroesForMonster(state.players.values(), player, monster)).toBe(true);
     engine.dispose();
   });
 

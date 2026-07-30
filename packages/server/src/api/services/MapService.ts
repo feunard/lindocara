@@ -26,7 +26,11 @@ import {
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
-import { defaultMonsterTuning, type MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  defaultMonsterTuning,
+  isMonsterRank,
+  type MonsterSpecies,
+} from "@lindocara/engine/game.js";
 import { EMPTY_MARKERS, type MapElement } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
@@ -544,7 +548,12 @@ export class MapService {
         return [];
       }
       const species = isMonster ? (row.species as MonsterSpecies) : null;
-      const tuning = isTuned ? defaultMonsterTuning(species ?? "spear_goblin") : null;
+      const tuning = isTuned
+        ? defaultMonsterTuning(
+            species ?? "spear_goblin",
+            isMonsterRank(row.monsterRank) ? row.monsterRank : "normal",
+          )
+        : null;
       return [
         {
           id: row.id,

@@ -812,9 +812,10 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
       expect(sequence.strikes).toHaveLength(1);
       expect(sequence.strikes[0]).toMatchObject({ targetId: target.id, killed: false });
       expect([50, 75]).toContain(sequence.strikes[0]?.damage);
+      const strikeDamage = sequence.strikes[0]?.damage ?? 0;
       await until("single Dance damage snapshot", () => {
         const current = client.latestSnapshot?.monsters.find((monster) => monster.id === target.id);
-        return current?.hp === 450 ? current : undefined;
+        return current?.hp === target.maxHp - strikeDamage ? current : undefined;
       });
     } finally {
       client.close();

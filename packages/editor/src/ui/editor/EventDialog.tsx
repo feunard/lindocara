@@ -180,7 +180,7 @@ function MonsterEventFields({
 }) {
   const species = draft.species ?? CURATED_MONSTER_SPECIES[0] ?? "spear_goblin";
   const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
-  const defaults = defaultMonsterTuning(species);
+  const defaults = defaultMonsterTuning(species, draft.monsterRank ?? "normal");
   const tuning: MonsterTuning = {
     rank: draft.monsterRank ?? defaults.rank,
     maxHp: draft.monsterMaxHp ?? defaults.maxHp,
@@ -216,6 +216,11 @@ function MonsterEventFields({
               </option>
             ))}
           </FieldSelect>
+          {tuning.rank !== "normal" && (
+            <span className="text-[10px] text-amber-700">
+              {t("editor.monster.rank.groupHint", { count: 2 })}
+            </span>
+          )}
         </span>
         <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
           {t("editor.monster.rank")}

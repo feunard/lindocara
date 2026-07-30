@@ -564,7 +564,9 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
       ((isGuard || isNpc) && row.patrolRadius === null)
     )
       return [];
-    const tuning = isTuned ? defaultMonsterTuning(row.species ?? "spear_goblin") : null;
+    const tuning = isTuned
+      ? defaultMonsterTuning(row.species ?? "spear_goblin", row.monsterRank ?? "normal")
+      : null;
     return [
       {
         id: row.id,

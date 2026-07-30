@@ -18,7 +18,11 @@ import {
   normalizeConsumables,
 } from "@lindocara/engine/consumables.js";
 import { type CombatCooldownState, normalizeCombatCooldowns } from "@lindocara/engine/cooldowns.js";
-import type { CombatContribution, ThreatEntry } from "@lindocara/engine/cooperation.js";
+import {
+  type CombatContribution,
+  REWARD_DISTANCE,
+  type ThreatEntry,
+} from "@lindocara/engine/cooperation.js";
 import { type LifeState, RESURRECT_COOLDOWN_MS } from "@lindocara/engine/death.js";
 import {
   ATTACK_COOLDOWN_MS,
@@ -27,6 +31,7 @@ import {
   defaultMonsterTuning,
   GUARD_MAX_HP,
   type GuardDefinition,
+  MONSTER_MIN_HEROES_BY_RANK,
   type MonsterKind,
   type MonsterRank,
   type MonsterRespawnMode,
@@ -35,6 +40,7 @@ import {
   type MonsterSpecies,
   type MonsterWeakness,
   maxHpForLevel,
+  pointDistance,
   spawnPosition,
   type TerrainGeometry,
 } from "@lindocara/engine/game.js";
@@ -312,6 +318,8 @@ export interface PlayerRuntime extends PlayerProfile {
   shopEventId: string | null;
   /** The authoritative assortment offered by the currently open counter. */
   shopOffers: readonly ShopOfferDefinition[] | null;
+  /** Throttles the elite/boss party-size warning in the combat log. */
+  groupRequirementNoticeAt: number;
 }
 
 export interface MonsterRuntime extends Vec2 {
@@ -345,6 +353,28 @@ export interface MonsterRuntime extends Vec2 {
   navigation: MonsterNavigationRuntime;
   facing: Vec2;
   action: CombatActionRuntime | null;
+}
+
+export function hasRequiredHeroesForMonster(
+  players: Iterable<PlayerRuntime>,
+  attacker: PlayerRuntime,
+  monster: MonsterRuntime,
+): boolean {
+  const required = MONSTER_MIN_HEROES_BY_RANK[monster.rank];
+  if (required <= 1) return true;
+  let present = 0;
+  for (const candidate of players) {
+    if (
+      candidate.authorized &&
+      candidate.life === "alive" &&
+      (attacker.partyId === null || candidate.partyId === attacker.partyId) &&
+      pointDistance(candidate, monster) <= REWARD_DISTANCE
+    ) {
+      present += 1;
+      if (present >= required) return true;
+    }
+  }
+  return false;
 }
 
 export interface MonsterNavigationRuntime {
@@ -531,6 +561,7 @@ export function newPlayer(
     shopAnchor,
     shopEventId,
     shopOffers,
+    groupRequirementNoticeAt: 0,
     appearance: { ...profile.appearance },
     equipment: { ...profile.equipment },
     corpse: profile.corpse === null ? null : { ...profile.corpse },
@@ -707,7 +738,7 @@ export function positionFromAttachment(attachment: Attachment | null): Vec2 {
 
 export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[] {
   return spawns.map((spawn) => {
-    const defaults = defaultMonsterTuning(spawn.species);
+    const defaults = defaultMonsterTuning(spawn.species, spawn.rank ?? "normal");
     const tuning = {
       ...defaults,
       ...(spawn.rank ? { rank: spawn.rank } : {}),

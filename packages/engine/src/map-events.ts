@@ -267,8 +267,9 @@ export function functionalEvent(params: {
   const hasTuning = isMonster || isNpc;
   const isGuard = params.kind === "guard";
   const species = params.species ?? "spear_goblin";
+  const rank = params.monsterTuning?.rank ?? "normal";
   const tuning = {
-    ...defaultMonsterTuning(species),
+    ...defaultMonsterTuning(species, rank),
     ...params.monsterTuning,
   };
   return {
@@ -473,13 +474,14 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       const radius = record.patrolRadius as number;
       if (radius < MIN_PATROL_RADIUS || radius > MAX_PATROL_RADIUS) return null;
       patrolRadius = radius;
-      const defaults = defaultMonsterTuning(species ?? "spear_goblin");
-      const rank = record.monsterRank ?? defaults.rank;
+      const baseDefaults = defaultMonsterTuning(species ?? "spear_goblin");
+      const rank = record.monsterRank ?? baseDefaults.rank;
+      if (!isMonsterRank(rank)) return null;
+      const defaults = defaultMonsterTuning(species ?? "spear_goblin", rank);
       const weakness = record.monsterWeakness ?? defaults.weakness;
       const specialTechnique = record.monsterSpecialTechnique ?? defaults.specialTechnique;
       const respawnMode = record.monsterRespawnMode;
       if (
-        !isMonsterRank(rank) ||
         !isMonsterWeakness(weakness) ||
         !isMonsterSpecialTechnique(specialTechnique) ||
         !isMonsterSpecialTechniqueForSpecies(species ?? "spear_goblin", specialTechnique) ||

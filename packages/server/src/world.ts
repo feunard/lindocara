@@ -82,6 +82,7 @@ import {
   isWalkableForLumen,
   LOOT_EXPIRY_MS,
   MAX_MONSTER_BODY_RADIUS,
+  MONSTER_MIN_HEROES_BY_RANK,
   MONSTER_RESPAWN_MS,
   type MonsterSpecies,
   maxHpForLevel,
@@ -366,6 +367,7 @@ import {
   D1_SAVE_EVERY_TICKS,
   type GroundLoot,
   type GuardRuntime as Guard,
+  hasRequiredHeroesForMonster,
   MAX_FRAME_BYTES,
   MAX_MALFORMED,
   MAX_QUEUED_COMMANDS,
@@ -2791,6 +2793,19 @@ export class World extends DurableObject<Env> {
     context: MonsterDamageContext = {},
   ): { actualDamage: number; killed: boolean } | null {
     if (target.deadUntil > now) return null;
+    const requiredHeroes = MONSTER_MIN_HEROES_BY_RANK[target.rank];
+    if (!hasRequiredHeroesForMonster(this.#players.values(), player, target)) {
+      if (now >= player.groupRequirementNoticeAt) {
+        player.groupRequirementNoticeAt = now + 2_000;
+        this.#send(ws, {
+          t: "event",
+          code: "combat.group_required",
+          params: { count: requiredHeroes },
+          tone: "bad",
+        });
+      }
+      return null;
+    }
     const opening =
       basic && player.class === "rogue" && skill.id === "dual_slash"
         ? activeRogueOpening(player, now)

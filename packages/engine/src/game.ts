@@ -131,6 +131,20 @@ export const CURATED_MONSTER_SPECIES: readonly MonsterSpecies[] = Object.keys(
 export const MONSTER_RANKS = ["normal", "elite", "boss"] as const;
 export type MonsterRank = (typeof MONSTER_RANKS)[number];
 
+export const MONSTER_MIN_HEROES_BY_RANK: Readonly<Record<MonsterRank, number>> = {
+  normal: 1,
+  elite: 2,
+  boss: 2,
+};
+
+export const MONSTER_RANK_MULTIPLIERS: Readonly<
+  Record<MonsterRank, { maxHp: number; damage: number; xp: number }>
+> = {
+  normal: { maxHp: 1, damage: 1, xp: 1 },
+  elite: { maxHp: 3, damage: 1.45, xp: 3 },
+  boss: { maxHp: 6, damage: 1.8, xp: 6 },
+};
+
 export const MONSTER_WEAKNESSES = ["none", "warrior", "ranger", "priest"] as const;
 export type MonsterWeakness = (typeof MONSTER_WEAKNESSES)[number];
 
@@ -881,28 +895,32 @@ export interface MonsterStats {
 }
 
 export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
-  goblin: { maxHp: 48, damage: 7, speed: 105, xp: 28 },
-  gnoll: { maxHp: 72, damage: 10, speed: 88, xp: 42 },
-  minotaur: { maxHp: 110, damage: 14, speed: 65, xp: 62 },
-  skull: { maxHp: 78, damage: 11, speed: 82, xp: 48 },
-  troll: { maxHp: 145, damage: 16, speed: 60, xp: 78 },
+  goblin: { maxHp: 120, damage: 11, speed: 105, xp: 40 },
+  gnoll: { maxHp: 175, damage: 14, speed: 88, xp: 58 },
+  minotaur: { maxHp: 310, damage: 21, speed: 65, xp: 95 },
+  skull: { maxHp: 190, damage: 16, speed: 82, xp: 65 },
+  troll: { maxHp: 420, damage: 25, speed: 60, xp: 125 },
   // A caster: frail, slow, and the hardest hitter per blow of anything goblin-sized.
-  shaman: { maxHp: 54, damage: 15, speed: 74, xp: 55 },
+  shaman: { maxHp: 115, damage: 17, speed: 74, xp: 52 },
   // Livestock that panics forward. Fast and weak — dangerous only in a drove.
-  boar: { maxHp: 40, damage: 6, speed: 128, xp: 22 },
+  boar: { maxHp: 90, damage: 9, speed: 128, xp: 30 },
   // The warband's elite: a spear goblin with a mount under it.
-  pig_rider: { maxHp: 96, damage: 13, speed: 118, xp: 66 },
+  pig_rider: { maxHp: 260, damage: 19, speed: 118, xp: 85 },
 };
 
-export function defaultMonsterTuning(species: MonsterSpecies): MonsterTuning {
+export function defaultMonsterTuning(
+  species: MonsterSpecies,
+  rank: MonsterRank = "normal",
+): MonsterTuning {
   const stats = MONSTER_STATS[MONSTER_SPECIES_KIND[species]];
+  const multiplier = MONSTER_RANK_MULTIPLIERS[rank];
   return {
-    rank: "normal",
-    maxHp: stats.maxHp,
-    damage: stats.damage,
+    rank,
+    maxHp: Math.round(stats.maxHp * multiplier.maxHp),
+    damage: Math.round(stats.damage * multiplier.damage),
     speed: stats.speed,
     detectionRange: MONSTER_AGGRO_RANGE,
-    xp: stats.xp,
+    xp: Math.round(stats.xp * multiplier.xp),
     weakness: "none",
     weaknessPercent: 150,
     specialTechnique: "none",

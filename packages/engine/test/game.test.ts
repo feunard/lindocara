@@ -15,6 +15,7 @@ import {
   speedForLife,
 } from "@lindocara/engine/death.js";
 import {
+  ATTACK_COOLDOWN_MS,
   applyDamage,
   applyExperience,
   attackDamageFor,
@@ -22,7 +23,9 @@ import {
   CEMETERIES,
   CITY_GUARDS,
   CLASS_STATS,
+  CURATED_MONSTER_SPECIES,
   clampRestoredPosition,
+  defaultMonsterTuning,
   hasLineOfSight,
   healAmountFor,
   INTERACTION_RANGE,
@@ -33,6 +36,8 @@ import {
   MAX_MONSTER_BODY_RADIUS,
   MONSTER_AGGRO_RANGE,
   MONSTER_BODY_RADIUS,
+  MONSTER_MIN_HEROES_BY_RANK,
+  MONSTER_RANK_MULTIPLIERS,
   MONSTER_SPAWNS,
   MONSTER_SPECIES_KIND,
   MONSTER_STATS,
@@ -729,15 +734,40 @@ describe("the death state machine", () => {
   });
 });
 
-// This slice moves the monsters onto the one art pack the rest of the game already uses. The stat
-// tiers are unchanged — only their names move onto the art.
+// The bestiary keeps distinct silhouettes while its default combat windows remain measurable.
 describe("the Tiny Swords bestiary", () => {
-  it("keeps the five stat tiers exactly as they were", () => {
-    expect(MONSTER_STATS.goblin).toEqual({ maxHp: 48, damage: 7, speed: 105, xp: 28 });
-    expect(MONSTER_STATS.gnoll).toEqual({ maxHp: 72, damage: 10, speed: 88, xp: 42 });
-    expect(MONSTER_STATS.skull).toEqual({ maxHp: 78, damage: 11, speed: 82, xp: 48 });
-    expect(MONSTER_STATS.minotaur).toEqual({ maxHp: 110, damage: 14, speed: 65, xp: 62 });
-    expect(MONSTER_STATS.troll).toEqual({ maxHp: 145, damage: 16, speed: 60, xp: 78 });
+  it("uses the rebalanced normal stat tiers", () => {
+    expect(MONSTER_STATS.goblin).toEqual({ maxHp: 120, damage: 11, speed: 105, xp: 40 });
+    expect(MONSTER_STATS.gnoll).toEqual({ maxHp: 175, damage: 14, speed: 88, xp: 58 });
+    expect(MONSTER_STATS.skull).toEqual({ maxHp: 190, damage: 16, speed: 82, xp: 65 });
+    expect(MONSTER_STATS.minotaur).toEqual({ maxHp: 310, damage: 21, speed: 65, xp: 95 });
+    expect(MONSTER_STATS.troll).toEqual({ maxHp: 420, damage: 25, speed: 60, xp: 125 });
+  });
+
+  it("keeps normal fights readable and makes elite/boss defaults group encounters", () => {
+    const weakestLevelOneAttack = attackDamageFor("priest", 1);
+    const duoDamagePerRound = attackDamageFor("warrior", 1) + attackDamageFor("priest", 1);
+    for (const species of CURATED_MONSTER_SPECIES) {
+      const normal = defaultMonsterTuning(species);
+      const normalTtkMs = Math.ceil(normal.maxHp / weakestLevelOneAttack) * ATTACK_COOLDOWN_MS;
+      expect(normalTtkMs, `${species} normal solo TTK`).toBeLessThanOrEqual(10_000);
+      expect(Math.ceil(100 / normal.damage), `${species} attacks to down`).toBeGreaterThanOrEqual(
+        4,
+      );
+
+      for (const rank of ["elite", "boss"] as const) {
+        const tuning = defaultMonsterTuning(species, rank);
+        const multiplier = MONSTER_RANK_MULTIPLIERS[rank];
+        expect(tuning.maxHp).toBe(Math.round(normal.maxHp * multiplier.maxHp));
+        expect(tuning.damage).toBe(Math.round(normal.damage * multiplier.damage));
+        expect(tuning.xp).toBe(Math.round(normal.xp * multiplier.xp));
+        const duoTtkMs = Math.ceil(tuning.maxHp / duoDamagePerRound) * ATTACK_COOLDOWN_MS;
+        expect(duoTtkMs, `${species} ${rank} duo TTK`).toBeLessThanOrEqual(
+          rank === "elite" ? 12_000 : 25_000,
+        );
+      }
+    }
+    expect(MONSTER_MIN_HEROES_BY_RANK).toEqual({ normal: 1, elite: 2, boss: 2 });
   });
 
   it("gives every spawned species a stat tier that exists", () => {

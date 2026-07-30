@@ -515,9 +515,13 @@ export function setEventDraftMonster(
   tuningPatch: Partial<MonsterTuning> = {},
 ): MapEvent {
   if (draft.kind !== "monster") return draft;
-  const defaults = defaultMonsterTuning(species);
+  const requestedRank =
+    tuningPatch.rank ?? (draft.species === species ? (draft.monsterRank ?? "normal") : "normal");
+  const defaults = defaultMonsterTuning(species, requestedRank);
+  const rankChanged =
+    tuningPatch.rank !== undefined && tuningPatch.rank !== (draft.monsterRank ?? "normal");
   const current =
-    draft.species === species
+    draft.species === species && !rankChanged
       ? {
           rank: draft.monsterRank ?? defaults.rank,
           maxHp: draft.monsterMaxHp ?? defaults.maxHp,

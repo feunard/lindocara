@@ -1606,14 +1606,14 @@ describe("cooperative rewards inside a party room", { timeout: 20_000 }, () => {
       );
     });
 
-    // A goblin is worth 28 XP. Two eligible heroes means 14 each — the killer keeping all 28 is
+    // A goblin is worth 40 XP. Two eligible heroes means 20 each — the killer keeping all 40 is
     // exactly the symptom of the party never being consulted.
-    expect(killed).toMatchObject({ params: { xp: 14 } });
+    expect(killed).toMatchObject({ params: { xp: 20 } });
     const shared = await until("the idle member shares the kill", () =>
       idle.received.find((message) => message.t === "event" && message.code === "monster.defeated"),
     );
-    expect(shared).toMatchObject({ params: { xp: 14 } });
-    await until("the idle member banks its share", () => idle.latestState?.xp === 14);
+    expect(shared).toMatchObject({ params: { xp: 20 } });
+    await until("the idle member banks its share", () => idle.latestState?.xp === 20);
 
     // Loot and quest credit are minted per recipient, so they stay with the contributor. Loot is
     // only ever sent to its owner, so an empty list is proof of absence rather than of distance.

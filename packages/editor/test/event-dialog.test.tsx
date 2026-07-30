@@ -2,6 +2,7 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import { defaultEventPage } from "@lindocara/editor/game/editor-state.js";
 import { EventDialog } from "@lindocara/editor/ui/editor/EventDialog.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import { defaultMonsterTuning } from "@lindocara/engine/game.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -335,6 +336,36 @@ describe("EventDialog", () => {
     expect(committed.monsterRespawnMode).toBe("never");
     // A functional event stays single-page — the wire parser refuses extra pages.
     expect(committed.pages).toHaveLength(1);
+  });
+
+  it("applies balanced defaults when the monster rank changes", async () => {
+    const user = userEvent.setup();
+    const { onCommit } = renderDialog(
+      seedEvent({ kind: "monster", species: "mire_troll", patrolRadius: 96 }),
+    );
+    const expected = defaultMonsterTuning("mire_troll", "elite");
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.monster.rank") }),
+      "elite",
+    );
+    expect(screen.getByRole("spinbutton", { name: t("editor.monster.hp") })).toHaveValue(
+      expected.maxHp,
+    );
+    expect(screen.getByRole("spinbutton", { name: t("editor.monster.damage") })).toHaveValue(
+      expected.damage,
+    );
+    expect(screen.getByRole("spinbutton", { name: t("editor.monster.xp") })).toHaveValue(
+      expected.xp,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+    expect(onCommit.mock.calls[0]?.[0]).toMatchObject({
+      monsterRank: "elite",
+      monsterMaxHp: expected.maxHp,
+      monsterDamage: expected.damage,
+      monsterXp: expected.xp,
+    });
   });
 
   it("authors a guard dialogue and round-trips its authoritative patrol radius", async () => {

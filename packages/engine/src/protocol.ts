@@ -488,6 +488,7 @@ export const EVENT_CODES = [
   "combat.hurt",
   "combat.dodged",
   "combat.parried",
+  "combat.group_required",
   "monster.defeated",
   "level_up",
   "interact.nothing",

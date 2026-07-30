@@ -208,7 +208,7 @@ export async function startMapPreview(
     if (species === null) return [];
     const kind = MONSTER_SPECIES_KIND[species];
     const stats = {
-      ...defaultMonsterTuning(species),
+      ...defaultMonsterTuning(species, event.monsterRank ?? "normal"),
       ...(event.monsterRank ? { rank: event.monsterRank } : {}),
       ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
         ? {}
