@@ -813,11 +813,18 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     expect(event.kind).toBe("monster");
     expect(event.species).toBe("spear_goblin");
     expect(event.patrolRadius).toBe(96);
-    // Out-of-range radius and a missing species are refused (would be rejected by the wire parser).
+    // A one-pixel radius is a stationary leash; a negative radius and a missing species are refused.
+    const stationary = place(
+      base,
+      { kind: "event", eventKind: "monster", species: "spear_goblin", patrolRadius: 1 },
+      7,
+      6,
+    ) as EditorMap;
+    expect(stationary.events[0]?.patrolRadius).toBe(1);
     expect(
       place(
         base,
-        { kind: "event", eventKind: "monster", species: "spear_goblin", patrolRadius: 8 },
+        { kind: "event", eventKind: "monster", species: "spear_goblin", patrolRadius: -1 },
         6,
         6,
       ),
@@ -838,7 +845,7 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     expect(event.patrolRadius).toBe(128);
     expect(event.monsterRank).toBeNull();
     expect(event.pages).toEqual([defaultEventPage()]);
-    expect(place(base, { kind: "event", eventKind: "guard", patrolRadius: 8 }, 9, 6)).toBeNull();
+    expect(place(base, { kind: "event", eventKind: "guard", patrolRadius: -1 }, 9, 6)).toBeNull();
     expect(place(base, { kind: "event", eventKind: "guard" }, 9, 6)).toBeNull();
   });
 
@@ -863,7 +870,7 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
       moveSpeed: 3,
       moveFreq: 2,
     });
-    expect(place(base, { kind: "event", eventKind: "npc", patrolRadius: 8 }, 8, 6)).toBeNull();
+    expect(place(base, { kind: "event", eventKind: "npc", patrolRadius: -1 }, 8, 6)).toBeNull();
     expect(place(base, { kind: "event", eventKind: "npc" }, 8, 6)).toBeNull();
   });
 

@@ -324,7 +324,7 @@ describe("map markers", () => {
       {
         entries: [],
         exits: [],
-        monsterSpawns: [{ col: 0, row: 0, species: "mire_troll", patrolRadius: 8 }],
+        monsterSpawns: [{ col: 0, row: 0, species: "mire_troll", patrolRadius: -1 }],
       },
       {
         entries: [],

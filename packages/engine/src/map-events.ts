@@ -157,7 +157,8 @@ export interface MapEvent {
   kind: EventKind;
   /** Set (and validated) iff `kind === "monster"`; `null` for every other kind. */
   species: MonsterSpecies | null;
-  /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) for monsters, guards and free NPCs. */
+  /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) for monsters, guards and free NPCs.
+   * A zero radius keeps the character at its spawn point. */
   patrolRadius: number | null;
   monsterRank?: MonsterRank | null;
   /** Combat-ready characteristics for monsters and free NPCs. */

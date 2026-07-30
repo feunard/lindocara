@@ -318,7 +318,12 @@ describe("list, get, update, delete", () => {
       ordinal: 1,
       kind: "monster",
       species: "spear_goblin",
-      patrolRadius: 200,
+      patrolRadius: 0,
+      monsterMaxHp: 0,
+      monsterDamage: 0,
+      monsterSpeed: 0,
+      monsterXp: 10_000,
+      monsterWeaknessPercent: 0,
       pages: [wirePage()],
     };
     const authored = await putMap(id, token, mapBody({ name: "Wolves", events: [monsterEvent] }));
@@ -326,11 +331,27 @@ describe("list, get, update, delete", () => {
 
     const fetched = await authedFetch(`/api/maps/${id}`, token);
     const payload = (await fetched.json()) as {
-      events: { species: string; patrolRadius: number; monsterMaxHp: number | null }[];
+      events: {
+        species: string;
+        patrolRadius: number;
+        monsterMaxHp: number | null;
+        monsterDamage: number | null;
+        monsterSpeed: number | null;
+        monsterXp: number | null;
+        monsterWeaknessPercent: number | null;
+      }[];
     };
-    expect(payload.events[0]).toMatchObject({ species: "spear_goblin", patrolRadius: 200 });
-    // The species-default tuning is filled in — not left null — matching legacy's `defaultMonsterTuning`.
-    expect(payload.events[0]?.monsterMaxHp).not.toBeNull();
+    expect(payload.events[0]).toMatchObject({
+      species: "spear_goblin",
+      patrolRadius: 0,
+      monsterMaxHp: 0,
+      monsterDamage: 0,
+      monsterSpeed: 0,
+      monsterXp: 10_000,
+      monsterWeaknessPercent: 0,
+    });
+    // Explicit zeroes must survive persistence instead of being replaced by species defaults.
+    expect(payload.events[0]?.monsterMaxHp).toBe(0);
 
     // The editor reuses that GET payload as its next PUT body without turning it into a 400.
     const editorSave = await putMap(id, token, payload);

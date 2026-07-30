@@ -210,11 +210,11 @@ export function isMonsterRespawnMode(value: unknown): value is MonsterRespawnMod
 }
 
 export const MONSTER_TUNING_LIMITS = {
-  maxHp: { min: 1, max: 100_000 },
-  damage: { min: 1, max: 1_000 },
-  speed: { min: 20, max: 300 },
+  maxHp: { min: 0, max: 100_000 },
+  damage: { min: 0, max: 1_000 },
+  speed: { min: 0, max: 300 },
   xp: { min: 0, max: 100_000 },
-  weaknessPercent: { min: 100, max: 400 },
+  weaknessPercent: { min: 0, max: 400 },
 } as const;
 
 export function isMonsterRank(value: unknown): value is MonsterRank {

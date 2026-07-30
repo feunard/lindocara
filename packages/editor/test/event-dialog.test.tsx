@@ -273,7 +273,7 @@ describe("EventDialog", () => {
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a monster block (no pages/conditions) and round-trips species and radius", async () => {
+  it("round-trips freely authored zero stats and a five-digit XP reward", async () => {
     // `delay: null` batches the clear+type keystrokes into one synchronous act() flush instead of
     // pacing them with real `setTimeout`s. Vitest runs multiple test files concurrently inside one
     // worker's single JS thread; a sibling file's synchronous work (e.g. a heavy render loop) can
@@ -292,11 +292,27 @@ describe("EventDialog", () => {
       screen.queryByRole("checkbox", { name: t("editor.event.cond.switch") }),
     ).not.toBeInTheDocument();
 
-    // The species picker and patrol-radius input are present; edit the radius and save.
+    // Every non-negative authored value is valid, including stationary/harmless tuning.
     expect(screen.getByRole("combobox", { name: t("editor.markers.species") })).toBeInTheDocument();
     const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
     await user.clear(radius);
-    await user.type(radius, "128");
+    await user.type(radius, "0");
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.hp") }), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.damage") }), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.speed") }), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.xp") }), {
+      target: { value: "10000" },
+    });
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: t("editor.monster.weaknessPercent") }),
+      { target: { value: "0" } },
+    );
     await user.selectOptions(
       screen.getByRole("combobox", { name: t("editor.monster.respawnMode") }),
       "never",
@@ -306,7 +322,12 @@ describe("EventDialog", () => {
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
     expect(committed.kind).toBe("monster");
     expect(committed.species).toBe("spear_goblin");
-    expect(committed.patrolRadius).toBe(128);
+    expect(committed.patrolRadius).toBe(0);
+    expect(committed.monsterMaxHp).toBe(0);
+    expect(committed.monsterDamage).toBe(0);
+    expect(committed.monsterSpeed).toBe(0);
+    expect(committed.monsterXp).toBe(10_000);
+    expect(committed.monsterWeaknessPercent).toBe(0);
     expect(committed.monsterRespawnMode).toBe("never");
     // A functional event stays single-page — the wire parser refuses extra pages.
     expect(committed.pages).toHaveLength(1);

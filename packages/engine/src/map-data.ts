@@ -82,7 +82,8 @@ export const EMPTY_MARKERS: MapMarkers = { entries: [], exits: [], monsterSpawns
 export const MAX_MAP_ENTRIES = 8;
 export const MAX_MAP_EXITS = 8;
 export const MAX_MAP_MONSTER_SPAWNS = 32;
-export const MIN_PATROL_RADIUS = 32;
+/** Zero is a valid authored leash and keeps a character at its spawn point. */
+export const MIN_PATROL_RADIUS = 0;
 export const MAX_PATROL_RADIUS = 768;
 export const MARKER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 export const MARKER_LABEL_MAX = 48;

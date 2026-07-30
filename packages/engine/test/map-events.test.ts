@@ -377,17 +377,47 @@ describe("parseMapEvents: authored monster tuning", () => {
     const boss = event({
       kind: "monster",
       species: "skull_warden",
-      patrolRadius: 96,
+      patrolRadius: 1,
       monsterRank: "boss",
       monsterMaxHp: 4_000,
       monsterDamage: 85,
       monsterSpeed: 72,
-      monsterXp: 2_500,
+      monsterXp: 10_000,
       monsterWeakness: "priest",
       monsterWeaknessPercent: 175,
       monsterSpecialTechnique: "grave_siphon",
     });
     expect(parseMapEvents([boss], COLS, ROWS)).toEqual([boss]);
+  });
+
+  it("accepts zero-valued tuning and rejects a negative patrol radius", () => {
+    const stationary = event({
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 0,
+      monsterMaxHp: 0,
+      monsterDamage: 0,
+      monsterSpeed: 0,
+      monsterXp: 0,
+      monsterWeaknessPercent: 0,
+    });
+    expect(parseMapEvents([stationary], COLS, ROWS)).toEqual([
+      expect.objectContaining({
+        patrolRadius: 0,
+        monsterMaxHp: 0,
+        monsterDamage: 0,
+        monsterSpeed: 0,
+        monsterXp: 0,
+        monsterWeaknessPercent: 0,
+      }),
+    ]);
+    expect(
+      parseMapEvents(
+        [event({ kind: "monster", species: "spear_goblin", patrolRadius: -1 })],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
   });
 
   it("rejects a technique authored for another monster asset", () => {
