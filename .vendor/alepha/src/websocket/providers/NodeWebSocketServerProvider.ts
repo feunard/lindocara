@@ -158,9 +158,16 @@ export class NodeWebSocketServerProvider extends WebSocketServerProvider {
    */
   protected attachedUpgradeServer?: {
     on(event: "upgrade", listener: (...args: any[]) => void): unknown;
-    removeListener(event: "upgrade", listener: (...args: any[]) => void): unknown;
+    removeListener(
+      event: "upgrade",
+      listener: (...args: any[]) => void,
+    ): unknown;
   };
-  protected upgradeListener?: (request: IncomingMessage, socket: any, head: Buffer) => void;
+  protected upgradeListener?: (
+    request: IncomingMessage,
+    socket: any,
+    head: Buffer,
+  ) => void;
 
   /**
    * The server to attach the WebSocket `upgrade` listener to. Standalone Node
@@ -176,7 +183,11 @@ export class NodeWebSocketServerProvider extends WebSocketServerProvider {
     const own = this.alepha.store.get("alepha.node.server");
     if (own) return own;
     const vite = this.alepha.store.get("alepha.vite.server" as any) as
-      | { httpServer?: NodeWebSocketServerProvider["attachedUpgradeServer"] | null }
+      | {
+          httpServer?:
+            | NodeWebSocketServerProvider["attachedUpgradeServer"]
+            | null;
+        }
       | undefined;
     return vite?.httpServer ?? undefined;
   }
@@ -967,7 +978,10 @@ export class NodeWebSocketServerProvider extends WebSocketServerProvider {
       // provider (see attachedUpgradeServer), so leaving it would leak one
       // dead handler per dev reload.
       if (this.attachedUpgradeServer && this.upgradeListener) {
-        this.attachedUpgradeServer.removeListener("upgrade", this.upgradeListener);
+        this.attachedUpgradeServer.removeListener(
+          "upgrade",
+          this.upgradeListener,
+        );
         this.attachedUpgradeServer = undefined;
         this.upgradeListener = undefined;
       }
