@@ -1,7 +1,9 @@
 import { normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { consumableIconSource } from "@lindocara/renderer/tiny-swords-art.js";
+import { useSelector } from "alepha/react";
 import { useEffect, useMemo, useState } from "react";
 import { t, useLocale } from "../../i18n.js";
+import { quickItemsAtom } from "../../state/atoms.js";
 import { useUiStore } from "../../store.js";
 import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 
@@ -14,7 +16,7 @@ export function QuickItemBar() {
   const game = useUiStore((state) => state.game);
   const self = useUiStore((state) => state.self);
   const selfState = useUiStore((state) => state.selfState);
-  const quickItems = useUiStore((state) => state.quickItems);
+  const quickItems = useSelector(quickItemsAtom, (s) => s);
   const [now, setNow] = useState(() => performance.now());
   const localDeadline = useMemo(() => {
     const remaining = Math.max(

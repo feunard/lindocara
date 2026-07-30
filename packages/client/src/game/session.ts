@@ -33,6 +33,7 @@ import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import { type CharacterSummary, logout, type PartyListing, type StoredHero } from "../api.js";
 import { t } from "../i18n.js";
 import { questTrackerNotifications } from "../quest-presentation.js";
+import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import {
   clientCooldownDeadlines,
@@ -55,6 +56,27 @@ let stopActiveSession: (() => void) | null = null;
 
 function stopCurrentSession(): void {
   stopActiveSession?.();
+}
+
+/**
+ * Clears the game session on the store, then navigates away through the seam — the store itself no
+ * longer navigates (it dropped `screen`/`activeParty`). A live editor test session still returns to
+ * the editor screen (via the store's deprecated `setScreen` shim: the editor route has no
+ * `GameNavigation` member of its own, see that type's docblock); every other disconnect — whether
+ * or not it was a persistent party — now lands on the main menu, since `GameNavigation` only names
+ * one non-game, non-auth destination. Shared by `endGame` and `launchGameIdentity`'s launch-failure
+ * catch, which previously duplicated this exact branch.
+ */
+function returnFromGameSession(): void {
+  const store = useUiStore.getState();
+  const nav = getGameNavigation();
+  store.clearedGameSession();
+  if (nav?.getAdventureTestSession()) {
+    store.setScreen("adventure-editor");
+  } else {
+    nav?.setActiveParty(null);
+    nav?.toMenu();
+  }
 }
 
 /** The store is the single source of truth for whether the interior panel is open;
@@ -272,7 +294,7 @@ async function startGameIdentity(
 ): Promise<void> {
   const loadingStartedAt = performance.now();
   const initialStore = useUiStore.getState();
-  initialStore.setActiveParty(persistentParty);
+  getGameNavigation()?.setActiveParty(persistentParty);
   initialStore.setAdventureVictory(false);
   initialStore.setHeroLoading({
     name: identity.name,
@@ -508,9 +530,10 @@ async function startGameIdentity(
       const text = eventText(code, params, currentSelf?.class ?? identity.class);
       if (shouldLogEvent(code)) addEvent(text, tone);
       if (code === "adventure.victory") {
-        const store = useUiStore.getState();
-        store.setAdventureVictory(true);
-        if (store.activeParty) store.setActiveParty({ ...store.activeParty, status: "completed" });
+        useUiStore.getState().setAdventureVictory(true);
+        const nav = getGameNavigation();
+        const activeParty = nav?.getActiveParty() ?? null;
+        if (activeParty) nav?.setActiveParty({ ...activeParty, status: "completed" });
       }
       if (shouldFloatEvent(code)) {
         const compact =
@@ -634,12 +657,7 @@ async function startGameIdentity(
     // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal
     // disconnect and reappears full-screen the instant the next character's world loads, over a
     // world that has not sent it a welcome yet.
-    const store = useUiStore.getState();
-    if (store.adventureTestSession) {
-      store.resetToSaves();
-      store.setScreen("adventure-editor");
-    } else if (persistentParty) store.resetToSaves();
-    else store.resetToTitle();
+    returnFromGameSession();
     setStatus("status.disconnected", { reason: t(key) });
   };
   stopSession = () => {
@@ -830,7 +848,13 @@ async function startGameIdentity(
    */
   const returnToTitle = () => {
     stopSession();
-    useUiStore.getState().resetToTitle();
+    // `stopSession` already ran `endGame` -> `returnFromGameSession` above (clearing the session
+    // and navigating), but that branch can land on the editor screen for a live test session — this
+    // button's contract is unconditional ("go back to the title/menu"), so it always finishes by
+    // overriding to the menu.
+    const nav = getGameNavigation();
+    nav?.setActiveParty(null);
+    nav?.toMenu();
   };
   const toggleSettings = () => {
     if (interiorOpen()) {
@@ -871,7 +895,7 @@ async function startGameIdentity(
       interact,
       usePotion,
       useQuickItem: (index) => {
-        const item = useUiStore.getState().quickItems[index];
+        const item = getGameNavigation()?.getQuickItems()[index];
         if (item) useItem(item);
       },
       release,
@@ -1038,19 +1062,14 @@ async function launchGameIdentity(
   const launchId = ++activeLaunchId;
   stopCurrentSession();
   stopActiveSession = null;
-  useUiStore.getState().setScreen("game");
+  getGameNavigation()?.toGame();
   try {
     await startGameIdentity(identity, persistentParty, launchId);
   } catch (error) {
     if (launchId === activeLaunchId) {
       stopCurrentSession();
       stopActiveSession = null;
-      const store = useUiStore.getState();
-      if (store.adventureTestSession) {
-        store.resetToSaves();
-        store.setScreen("adventure-editor");
-      } else if (persistentParty) store.resetToSaves();
-      else store.resetToTitle();
+      returnFromGameSession();
     }
     throw error;
   }

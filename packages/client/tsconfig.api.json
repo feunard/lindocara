@@ -12,14 +12,18 @@
   // problem first; this mirrors its fix: a separate program, extending alepha's OWN base config
   // (which lacks those extra flags) instead of this package's own `tsconfig.json`.
   //
-  // Scope is deliberately narrow — ONLY the files Task 1 of the alepha react-shell tranche added
-  // that actually import `alepha` (`ui/AppRouter.tsx` + its test), excluded from `tsconfig.json`'s
-  // `include` so they are not double-checked under two incompatible strictness regimes. Later
-  // tasks in that tranche (atoms, navigation, the auth/launch/game/editor routes) will add more
-  // files that import `alepha`/`alepha/react/*` — each one needs adding here AND excluding from
-  // `tsconfig.json`, or (if the alepha surface ends up touching most of the package by the end of
-  // the tranche) this split may be worth reconsidering as one program extending alepha's base for
-  // the whole package instead of two diverging ones. Flagged, not decided, in the Task 1 report.
+  // Scope started narrow (Task 1: only `ui/AppRouter.tsx` + its test) and Task 2 grew it by the
+  // files it added/touched that import `alepha`/`alepha/react/*`: `state/atoms.ts` (the `$atom`
+  // definitions) and the five UI components that read/write them through `useStore`/`useSelector`
+  // (`Hud`, `QuickItemBar`, `InventoryOverlay`, `QuestJournalOverlay`, `AdventureTestOverlay`),
+  // plus their tests. Each is also excluded from `tsconfig.json` so it is not double-checked under
+  // two incompatible strictness regimes. `state/navigation.ts` deliberately has NO `alepha` import
+  // of its own (see its docblock) and is NOT listed here — it typechecks fine, and more usefully
+  // stays reachable, from the plain `tsconfig.json` program (`game/session.ts`, `store.ts`).
+  // Later tasks (the auth/launch/game/editor routes) will keep adding files here — or, if the
+  // alepha surface ends up touching most of the package, this split may be worth reconsidering as
+  // one program extending alepha's base for the whole package instead of two diverging ones.
+  // Flagged, not decided, in the Task 1 report and still true after Task 2.
   "extends": "../../.vendor/alepha/tsconfig.base.json",
   "compilerOptions": {
     // No `lib` override: alepha's own internals (`Alepha.ts`) use ES2024 Iterator Helpers
@@ -30,5 +34,19 @@
     "jsx": "react-jsx",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src/ui/AppRouter.tsx", "test/app-router.test.tsx"]
+  "include": [
+    "src/ui/AppRouter.tsx",
+    "test/app-router.test.tsx",
+    "src/state/atoms.ts",
+    "src/ui/hud/Hud.tsx",
+    "src/ui/hud/QuickItemBar.tsx",
+    "src/ui/InventoryOverlay.tsx",
+    "src/ui/QuestJournalOverlay.tsx",
+    "src/ui/AdventureTestOverlay.tsx",
+    "test/atoms.test.tsx",
+    "test/hud.test.tsx",
+    "test/quest-journal-overlay.test.tsx",
+    "test/inventory-merchant.test.tsx",
+    "test/adventure-test-overlay.test.tsx"
+  ]
 }

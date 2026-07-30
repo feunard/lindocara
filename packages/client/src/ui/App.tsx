@@ -1,51 +1,48 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { fetchMe } from "../api.js";
 import { menuAudio } from "../game/menu-audio.js";
 import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
-import { useUiStore } from "../store.js";
-import { AdventureTestOverlay } from "./AdventureTestOverlay.js";
+import { type UiScreen, useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
-import { Chat } from "./Chat.js";
-import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { CreditsScreen } from "./CreditsScreen.js";
-import { EventLog } from "./EventLog.js";
-import { HelpBar } from "./HelpBar.js";
-import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
-import { Hud } from "./hud/Hud.js";
-import { Minimap } from "./hud/Minimap.js";
-import { QuestDialoguePanel } from "./hud/QuestDialoguePanel.js";
-import { InteriorOverlay } from "./InteriorOverlay.js";
-import { InventoryOverlay } from "./InventoryOverlay.js";
 import { ContinueScreen, JoinScreen, NewGameScreen } from "./LaunchScreens.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MainMenu } from "./MainMenu.js";
-import { MerchantOverlay } from "./MerchantOverlay.js";
-import { MobileControls } from "./MobileControls.js";
-import { Prompt } from "./Prompt.js";
-import { QuestJournalOverlay } from "./QuestJournalOverlay.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
-import { TalentTree } from "./TalentTree.js";
 import { TitleScreen } from "./TitleScreen.js";
-import { VictoryOverlay } from "./VictoryOverlay.js";
-import { WorldMap } from "./WorldMap.js";
 
 const AdventureEditorScreen = lazy(async () => {
   const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
   return { default: module.AdventureEditorScreen };
 });
 
+/**
+ * The pre-router screen machine — the rollback-only counterpart to `ui/AppRouter.tsx`'s `$page`
+ * tree, mounted by `main.tsx`'s `mountLegacyApp()` on the separate `vite.legacy.config.ts`
+ * Cloudflare-Worker deploy (`npm run dev:legacy`/`deploy:legacy`), which does not (and, being a
+ * plain pre-Alepha React tree, cannot) install the `state/navigation.ts` seam `AppRouter.tsx`'s
+ * layout installs on mount.
+ *
+ * `screen` used to be a zustand field every screen component (`TitleScreen`, `MainMenu`, …) wrote
+ * through the store's `setScreen`. Task 2 turned that into a deprecated shim that pushes through
+ * the navigation seam instead of writing a field — a no-op here, since no seam is ever installed
+ * under this legacy mount. So `screen` is now local, App-owned state that this component's OWN
+ * effect can still drive (the boot flow below), but that the shared screen components' clicks no
+ * longer advance: this file is a frozen snapshot of the pre-router shell, kept compiling for the
+ * legacy deploy target rather than kept fully interactive. The in-game HUD tree (`Hud`,
+ * `InventoryOverlay`, `QuestJournalOverlay`, `AdventureTestOverlay`, …) is dropped entirely below
+ * for the same reason: `screen` can never actually become `"game"` through this shell anymore, and
+ * those components now read the `state/atoms.ts` atoms this legacy tree has no Alepha instance to
+ * provide. See `docs/adventure-runtime-architecture.md`/the Task 2 report for the full rationale;
+ * `AppRouter.tsx`'s own `/game` route (a later task) is the one true home for that tree now.
+ */
 export function App() {
   useLocale();
-  const screen = useUiStore((s) => s.screen);
-  const setScreen = useUiStore((s) => s.setScreen);
+  const [screen, setScreen] = useState<UiScreen>("boot");
   const setAccountId = useUiStore((s) => s.setAccountId);
 
-  // There is no login screen in the normal flow: an unauthenticated visitor is signed straight in as
-  // the guest this browser already owns (or a freshly minted one, its creds saved to localStorage),
-  // so the app always opens on the title. A named-account path will live in Options later. Auth is
-  // kept only as a fallback for when the server can't be reached at all, so nobody is ever stranded.
   useEffect(() => {
     void (async () => {
       const me = await fetchMe();
@@ -62,11 +59,8 @@ export function App() {
         setScreen("auth");
       }
     })();
-  }, [setScreen, setAccountId]);
+  }, [setAccountId]);
 
-  // The music bed plays across the launch menu (the central menu and its carousels), and stops the
-  // moment the player drops into the game, the editor, the title or auth. The title stays silent:
-  // audio is unlocked by the title-screen press, and the menu is where the bed begins.
   useEffect(() => {
     const inLaunchMenu =
       screen === "menu" || screen === "continue" || screen === "new" || screen === "join";
@@ -85,9 +79,6 @@ export function App() {
 
   return (
     <>
-      {/* The floating game-chrome locale chip and status pill are anchored bottom-right and would
-          collide with the editor's own bottom-right chrome (the "Adventure settings" button). The
-          dense editor shell owns its whole viewport, so keep these Tiny Swords widgets off it. */}
       {!immersive && <LocaleToggle />}
       {!immersive && <StatusBar />}
       {screen === "auth" && <AuthScreen />}
@@ -114,29 +105,7 @@ export function App() {
           <AdventureEditorScreen />
         </Suspense>
       )}
-      {screen === "game" && (
-        <>
-          <Hud />
-          <Minimap />
-          <Chat />
-          <EventLog />
-          <Prompt />
-          <HelpBar />
-          <InteriorOverlay />
-          <InventoryOverlay />
-          <MerchantOverlay />
-          <EventDialoguePanel />
-          <QuestDialoguePanel />
-          <QuestJournalOverlay />
-          <WorldMap />
-          <TalentTree />
-          <MobileControls />
-          <ConnectionOverlay />
-          <VictoryOverlay />
-          <AdventureTestOverlay />
-        </>
-      )}
-      <SettingsMenu inGame={screen === "game"} />
+      <SettingsMenu inGame={false} />
     </>
   );
 }

@@ -13,7 +13,9 @@ import type { Input } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { create } from "zustand";
 import type { AdventureDraft } from "./adventure-draft.js";
-import type { AdventureTestSession, PartyListing } from "./api.js";
+import type { AdventureTestSession } from "./api.js";
+import type { ActiveParty } from "./state/navigation.js";
+import { getGameNavigation } from "./state/navigation.js";
 
 export interface AdventureEditorSession {
   adventureId: string | null;
@@ -52,7 +54,7 @@ export interface ChatLine {
  * The dialogue panel's current beat (spec Decision 4), or null when no panel is open. A per-player
  * WoW-style panel: the server pushes `event.say`/`event.choices` to the triggerer and `event.close`
  * ends it. `runId` names the run the intents (`eventAdvance`/`eventChoose`) route back to. The prose
- * (`text`/`name`/`prompt`/`options`) is the AUTHOR's data rendered verbatim — the sanctioned
+ * (`text`/`name`/`prompt`/options) is the AUTHOR's data rendered verbatim — the sanctioned
  * codes-not-sentences exception; every chrome string around it stays i18n-governed.
  */
 export type EventDialogue =
@@ -153,28 +155,49 @@ export interface HeroLoadingState {
   progress: number;
 }
 
-/** @deprecated Task 2 removes this alongside the `screen` field it names — exported only so
- *  `AppRouter.tsx`'s temporary screen-to-router bridge can type its lookup table without
- *  duplicating the literal union. */
-export type UiScreen = UiState["screen"];
+/**
+ * @deprecated The `$page` router (`ui/AppRouter.tsx`) is the real navigation truth now — a screen
+ * name is just the vocabulary the store's deprecated `setScreen` shim still accepts, so callers
+ * that have not been migrated to `useRouter().push(...)` yet (the editor package; a handful of
+ * still-unmigrated client screens) keep compiling. Task 6 removes this alongside the shim.
+ */
+export type UiScreen =
+  | "boot"
+  | "title"
+  | "auth"
+  | "menu"
+  | "new"
+  | "continue"
+  | "join"
+  | "credits"
+  | "game"
+  | "adventure-editor";
+
+/** `setScreen`'s deprecated-shim routing table: the `$page` field name (`AppRouter.tsx`) each old
+ *  screen name now pushes to, via the installed navigation seam. "boot" has no entry — it was only
+ *  ever the store's blank initial state, never a real destination. */
+const ROUTE_BY_SCREEN: Partial<Record<UiScreen, string>> = {
+  title: "title",
+  auth: "auth",
+  menu: "menu",
+  new: "playNew",
+  continue: "playContinue",
+  join: "playJoin",
+  credits: "credits",
+  game: "game",
+  "adventure-editor": "editor",
+};
 
 interface UiState {
-  screen:
-    | "boot"
-    | "title"
-    | "auth"
-    | "menu"
-    | "new"
-    | "continue"
-    | "join"
-    | "credits"
-    | "game"
-    | "adventure-editor";
   accountId: string | null;
-  activeParty: PartyListing | null;
+  /**
+   * @deprecated Editor-only mirror of `state/atoms.ts`'s `adventureEditorSessionAtom`, kept so the
+   * (not-yet-migrated) editor package's `useUiStore(state => state.adventureEditorSession)` reads
+   * stay reactive. `setAdventureEditorSession` below dual-writes this field AND the atom, so any
+   * client code reading the atom directly (e.g. `AdventureTestOverlay.tsx`) still sees the editor's
+   * writes. Task 6 removes this field once the editor reads the atom directly instead.
+   */
   adventureEditorSession: AdventureEditorSession | null;
-  /** Disposable real-runtime session launched by the creator editor. Never appears as a save. */
-  adventureTestSession: AdventureTestSession | null;
   self: SelfHud | null;
   selfState: SelfState | null;
   questStatus: QuestStatus;
@@ -194,10 +217,7 @@ interface UiState {
   talentsOpen: boolean;
   inventoryOpen: boolean;
   questJournalOpen: boolean;
-  /** Per-session player overrides; absent means active/ready quests are tracked by default. */
-  questTracking: Record<string, boolean>;
   merchantOpen: boolean;
-  quickItems: readonly [ConsumableId | null, ConsumableId | null, ConsumableId | null];
   /** The current zone's i18n key, carried by the welcome message. Null until the first
    *  welcome arrives; refreshed on every zone transition so the world map titles itself
    *  correctly after walking through a portal. */
@@ -215,11 +235,34 @@ interface UiState {
   questDialogue: QuestDialogue | null;
   game: GameHandle | null;
 
-  setScreen(screen: UiState["screen"]): void;
   setAccountId(accountId: string | null): void;
-  setActiveParty(activeParty: PartyListing | null): void;
+  /** @deprecated See the field docblock above. */
   setAdventureEditorSession(session: AdventureEditorSession | null): void;
+  /**
+   * @deprecated Editor-only write into `state/atoms.ts`'s `adventureTestSessionAtom`, routed
+   * through the navigation seam (`getGameNavigation()`) — this store no longer holds an
+   * `adventureTestSession` field itself; nothing reads it back through zustand (`Hud.tsx`,
+   * `AdventureTestOverlay.tsx` read the atom directly). A no-op before the seam installs (e.g. an
+   * editor unit test that renders bare, with no `AppRouter` mounted). Task 6 removes this once the
+   * editor writes the atom directly instead.
+   */
   setAdventureTestSession(session: AdventureTestSession | null): void;
+  /**
+   * @deprecated Editor-only write into `state/atoms.ts`'s `activePartyAtom`, routed through the
+   * navigation seam — same shape as `setAdventureTestSession` above (the editor's own launch-failure
+   * cleanup is the only remaining caller; `game/session.ts` and every other write site now call
+   * `getGameNavigation()?.setActiveParty(...)` directly). A no-op before the seam installs. Task 6
+   * removes this once the editor writes the atom directly instead.
+   */
+  setActiveParty(party: ActiveParty | null): void;
+  /**
+   * @deprecated Routes a `UiScreen` name to a `$page` push through the installed navigation seam
+   * (`ROUTE_BY_SCREEN`) — this store no longer holds a `screen` field; the `$page` router
+   * (`ui/AppRouter.tsx`) is the real navigation truth. A no-op before the seam installs. Kept only
+   * for callers not yet migrated to `useRouter().push(...)` — the editor package, and a handful of
+   * still-unmigrated client screens. Task 6 removes it.
+   */
+  setScreen(screen: UiScreen): void;
   setSelf(self: SelfHud | null): void;
   setSelfState(state: SelfState): void;
   setQuestStatus(status: QuestStatus): void;
@@ -240,9 +283,7 @@ interface UiState {
   setTalentsOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
   setQuestJournalOpen(open: boolean): void;
-  setQuestTracked(questId: string, tracked: boolean): void;
   setMerchantOpen(open: boolean): void;
-  setQuickItem(index: 0 | 1 | 2, item: ConsumableId | null): void;
   setZoneNameKey(key: MessageKey): void;
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
@@ -253,9 +294,12 @@ interface UiState {
   setGame(game: GameHandle | null): void;
   /** Everything a terminal disconnect must clear before a launch screen is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
-   *  into the next hero's session, already open over a world that has not welcomed it. */
-  resetToTitle(): void;
-  resetToSaves(): void;
+   *  into the next hero's session, already open over a world that has not welcomed it.
+   *
+   *  Replaces the old `resetToTitle`/`resetToSaves` — the store no longer navigates (it has no
+   *  `screen`/`activeParty` to navigate with); `game/session.ts` calls this AND THEN the navigation
+   *  seam (`getGameNavigation()?.toMenu()` etc.) at each call site. */
+  clearedGameSession(): void;
 }
 
 let eventIdCounter = 0;
@@ -315,7 +359,7 @@ function localizedTextEqual(a: LocalizedText | null, b: LocalizedText | null): b
 
 const EMPTY_SKILL_COOLDOWNS: Record<SkillSlot, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
-function clearedGameSession() {
+function clearedGameSessionFields() {
   return {
     self: null,
     selfState: null,
@@ -335,7 +379,6 @@ function clearedGameSession() {
     talentsOpen: false,
     inventoryOpen: false,
     questJournalOpen: false,
-    questTracking: {},
     merchantOpen: false,
     zoneNameKey: null,
     worldSize: null,
@@ -349,13 +392,8 @@ function clearedGameSession() {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  // "boot" is a brief, invisible holding state while fetchMe() is in flight, so a logged-in
-  // user does not see a flash of the title screen before landing on their saved parties.
-  screen: "boot",
   accountId: null,
-  activeParty: null,
   adventureEditorSession: null,
-  adventureTestSession: null,
   self: null,
   selfState: null,
   questStatus: "available",
@@ -375,9 +413,7 @@ export const useUiStore = create<UiState>((set) => ({
   talentsOpen: false,
   inventoryOpen: false,
   questJournalOpen: false,
-  questTracking: {},
   merchantOpen: false,
-  quickItems: ["health_potion", "mana_potion", "invisibility_potion"],
   zoneNameKey: null,
   worldSize: null,
   reconnect: null,
@@ -387,11 +423,21 @@ export const useUiStore = create<UiState>((set) => ({
   questDialogue: null,
   game: null,
 
-  setScreen: (screen) => set({ screen }),
   setAccountId: (accountId) => set({ accountId }),
-  setActiveParty: (activeParty) => set({ activeParty }),
-  setAdventureEditorSession: (adventureEditorSession) => set({ adventureEditorSession }),
-  setAdventureTestSession: (adventureTestSession) => set({ adventureTestSession }),
+  setAdventureEditorSession: (adventureEditorSession) => {
+    getGameNavigation()?.setAdventureEditorSession(adventureEditorSession);
+    set({ adventureEditorSession });
+  },
+  setAdventureTestSession: (session) => {
+    getGameNavigation()?.setAdventureTestSession(session);
+  },
+  setActiveParty: (party) => {
+    getGameNavigation()?.setActiveParty(party);
+  },
+  setScreen: (screen) => {
+    const route = ROUTE_BY_SCREEN[screen];
+    if (route) getGameNavigation()?.push(route);
+  },
   setSelf: (self) =>
     set((state) => {
       if (selfHudEqual(state.self, self)) return {};
@@ -466,19 +512,7 @@ export const useUiStore = create<UiState>((set) => ({
   setTalentsOpen: (open) => set({ talentsOpen: open }),
   setInventoryOpen: (open) => set({ inventoryOpen: open }),
   setQuestJournalOpen: (open) => set({ questJournalOpen: open }),
-  setQuestTracked: (questId, tracked) =>
-    set((state) => ({ questTracking: { ...state.questTracking, [questId]: tracked } })),
   setMerchantOpen: (open) => set({ merchantOpen: open }),
-  setQuickItem: (index, item) =>
-    set((state) => {
-      const quickItems = [...state.quickItems] as [
-        ConsumableId | null,
-        ConsumableId | null,
-        ConsumableId | null,
-      ];
-      quickItems[index] = item;
-      return { quickItems };
-    }),
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
@@ -487,16 +521,5 @@ export const useUiStore = create<UiState>((set) => ({
   setEventDialogue: (eventDialogue) => set({ eventDialogue }),
   setQuestDialogue: (questDialogue) => set({ questDialogue }),
   setGame: (game) => set({ game }),
-  resetToTitle: () =>
-    set({
-      ...clearedGameSession(),
-      screen: "title",
-      activeParty: null,
-    }),
-  resetToSaves: () =>
-    set({
-      ...clearedGameSession(),
-      screen: "continue",
-      activeParty: null,
-    }),
+  clearedGameSession: () => set(clearedGameSessionFields()),
 }));

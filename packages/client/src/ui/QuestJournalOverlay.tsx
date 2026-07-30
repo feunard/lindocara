@@ -1,4 +1,5 @@
 import type { AuthoredQuestTracker } from "@lindocara/engine/adventure-state.js";
+import { useStore } from "alepha/react";
 import { useEffect, useState } from "react";
 import { t, useLocale } from "../i18n.js";
 import {
@@ -7,6 +8,7 @@ import {
   questScopeLabel,
   questStatusLabel,
 } from "../quest-presentation.js";
+import { questTrackingAtom } from "../state/atoms.js";
 import { useUiStore } from "../store.js";
 import { Bar } from "./hud/Bar.js";
 import { TinyButton } from "./tiny-swords/TinyButton.js";
@@ -76,8 +78,9 @@ export function QuestJournalOverlay() {
   const open = useUiStore((state) => state.questJournalOpen);
   const setOpen = useUiStore((state) => state.setQuestJournalOpen);
   const quests = useUiStore((state) => state.selfState?.authoredQuests ?? EMPTY_QUESTS);
-  const tracking = useUiStore((state) => state.questTracking);
-  const setTracked = useUiStore((state) => state.setQuestTracked);
+  const [tracking, setTracking] = useStore(questTrackingAtom);
+  const setTracked = (questId: string, tracked: boolean) =>
+    setTracking({ ...tracking, [questId]: tracked });
   const game = useUiStore((state) => state.game);
   const [filter, setFilter] = useState<JournalFilter>("main");
   const [selectedId, setSelectedId] = useState<string | null>(null);

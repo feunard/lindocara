@@ -1,10 +1,13 @@
 import { emptyDraft } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
+import { activePartyAtom, adventureTestSessionAtom } from "@lindocara/client/state/atoms.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { AdventureTestOverlay } from "@lindocara/client/ui/AdventureTestOverlay.js";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithAlepha } from "alepha/react/testing";
+import { act } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiMock = vi.hoisted(() => ({ create: vi.fn(), remove: vi.fn() }));
 vi.mock("@lindocara/client/api.js", async (importOriginal) => ({
@@ -70,9 +73,6 @@ function seedStore() {
     },
   ];
   useUiStore.setState({
-    screen: "game",
-    activeParty: testSession.party,
-    adventureTestSession: testSession,
     adventureEditorSession: {
       adventureId: "adventure-1",
       draftId: "draft-1",
@@ -84,6 +84,8 @@ function seedStore() {
 }
 
 describe("AdventureTestOverlay", () => {
+  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+
   beforeEach(() => {
     setLocale("en");
     apiMock.create.mockReset();
@@ -93,8 +95,23 @@ describe("AdventureTestOverlay", () => {
     seedStore();
   });
 
-  it("makes isolation and the readable selected map explicit", () => {
-    render(<AdventureTestOverlay />);
+  afterEach(async () => {
+    for (const alepha of alephaInstances) await alepha.stop();
+    alephaInstances = [];
+  });
+
+  async function renderOverlay() {
+    const result = await renderWithAlepha(<AdventureTestOverlay />);
+    alephaInstances.push(result.alepha);
+    await act(async () => {
+      result.alepha.store.set(activePartyAtom, testSession.party);
+      result.alepha.store.set(adventureTestSessionAtom, testSession);
+    });
+    return result;
+  }
+
+  it("makes isolation and the readable selected map explicit", async () => {
+    await renderOverlay();
     expect(screen.getByText(t("editor.test.overlay.badge"))).toBeInTheDocument();
     expect(screen.getByText(t("editor.test.overlay.title"))).toBeInTheDocument();
     expect(screen.getByText(t("editor.test.overlay.start", { name: "Caves" }))).toBeInTheDocument();
@@ -109,7 +126,7 @@ describe("AdventureTestOverlay", () => {
     };
     apiMock.create.mockResolvedValue(replacement);
     sessionMock.start.mockResolvedValue(undefined);
-    render(<AdventureTestOverlay />);
+    const { alepha } = await renderOverlay();
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.reset") }));
     await waitFor(() => expect(sessionMock.start).toHaveBeenCalledTimes(1));
@@ -117,21 +134,21 @@ describe("AdventureTestOverlay", () => {
       startMapId: "map-2",
       heroClass: "ranger",
     });
-    expect(useUiStore.getState().adventureTestSession).toEqual(replacement);
+    expect(alepha.store.get(adventureTestSessionAtom)).toEqual(replacement);
     expect(sessionMock.start).toHaveBeenCalledWith(replacement.hero, replacement.party);
   });
 
   it("deletes the disposable party before returning to the editor", async () => {
     apiMock.remove.mockResolvedValue(undefined);
-    render(<AdventureTestOverlay />);
+    const setScreenSpy = vi.spyOn(useUiStore.getState(), "setScreen");
+    const { alepha } = await renderOverlay();
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.exit") }));
     await waitFor(() => expect(apiMock.remove).toHaveBeenCalledWith("test-1"));
     expect(sessionMock.stop).toHaveBeenCalledTimes(1);
-    expect(useUiStore.getState()).toMatchObject({
-      screen: "adventure-editor",
-      activeParty: null,
-      adventureTestSession: null,
-    });
+    expect(alepha.store.get(activePartyAtom)).toBeNull();
+    expect(alepha.store.get(adventureTestSessionAtom)).toBeNull();
+    expect(setScreenSpy).toHaveBeenCalledWith("adventure-editor");
+    setScreenSpy.mockRestore();
   });
 });

@@ -1,6 +1,8 @@
 import { emptyDraft } from "@lindocara/client/adventure-draft.js";
 import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
+import type { GameNavigation } from "@lindocara/client/state/navigation.js";
+import { setGameNavigation } from "@lindocara/client/state/navigation.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { MainMenu } from "@lindocara/client/ui/MainMenu.js";
 import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game/editor-state.js";
@@ -12,7 +14,48 @@ import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// `screen` DIED as a store field in Task 2 (the `$page` router is the real navigation truth now) —
+// the store's `setScreen` is a deprecated shim that pushes through a navigation seam nothing
+// installs in these bare-render tests, so it is a no-op. Every assertion that used to read
+// `useUiStore.getState().screen` now asserts on this spy instead (which call, with which name).
+//
+// `adventureTestSession` DIED as a store field in the same task — the store's
+// `setAdventureTestSession` is a write-ONLY shim into `state/atoms.ts`'s `adventureTestSessionAtom`
+// through the navigation seam (no zustand-local echo, unlike `adventureEditorSession`, because
+// nothing reads it back through zustand anymore — see `store.ts`'s docblock). A bare render like
+// this one has no Alepha instance to hold that atom, so a fake seam is installed here purely to
+// capture what the shim calls it with; every assertion that used to read
+// `useUiStore.getState().adventureTestSession` now reads `adventureTestSessionMock.mock.calls` (or
+// its last-call convenience below) instead.
+let setScreenSpy: ReturnType<typeof vi.spyOn>;
+const adventureTestSessionMock = vi.fn();
+function lastAdventureTestSession(): unknown {
+  const calls = adventureTestSessionMock.mock.calls;
+  return calls.length > 0 ? calls[calls.length - 1]?.[0] : undefined;
+}
+beforeEach(() => {
+  setScreenSpy = vi.spyOn(useUiStore.getState(), "setScreen");
+  adventureTestSessionMock.mockReset();
+  const fakeNav: GameNavigation = {
+    toGame: vi.fn(),
+    toMenu: vi.fn(),
+    toAuth: vi.fn(),
+    setActiveParty: vi.fn(),
+    getActiveParty: () => null,
+    setAdventureTestSession: adventureTestSessionMock,
+    getAdventureTestSession: () => null,
+    getQuickItems: () => [null, null, null],
+    setAdventureEditorSession: vi.fn(),
+    push: vi.fn(),
+  };
+  setGameNavigation(fakeNav);
+});
+afterEach(() => {
+  setScreenSpy.mockRestore();
+  setGameNavigation(null);
+});
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the mode selector
@@ -242,7 +285,6 @@ describe("AdventureEditorScreen shell", () => {
     // A map belongs to one adventure, so the editor loads maps for the session's adventure. Seed a
     // loaded adventure so the auto-open fetches `/api/maps?adventure=adv-1` and mounts the stage.
     useUiStore.setState({
-      screen: "adventure-editor",
       adventureEditorSession: {
         adventureId: "adv-1",
         draftId: "draft-1",
@@ -250,7 +292,6 @@ describe("AdventureEditorScreen shell", () => {
         invalidatedLinks: [],
         savedDraft: null,
       },
-      adventureTestSession: null,
     });
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
@@ -570,7 +611,8 @@ describe("AdventureEditorScreen shell", () => {
     // The registry dialog's own title appears (distinct from the menu item's "Database…").
     expect(await screen.findByText(t("editor.registry.title"))).toBeInTheDocument();
     expect(previewMock.startMapPreview).not.toHaveBeenCalled();
-    expect(useUiStore.getState().screen).toBe("adventure-editor");
+    // Opening the database dialog never navigates away from the editor.
+    expect(setScreenSpy).not.toHaveBeenCalled();
   });
 
   it("opens the first-class quest workspace from the Game menu", async () => {
@@ -952,7 +994,7 @@ describe("AdventureEditorScreen shell", () => {
         body: JSON.stringify({ startMapId: null, heroClass: "warrior" }),
       }),
     );
-    expect(useUiStore.getState().adventureTestSession).toEqual(testSession);
+    expect(lastAdventureTestSession()).toEqual(testSession);
     expect(gameSessionMock.startGameAsHero).toHaveBeenCalledWith(
       testSession.hero,
       testSession.party,
@@ -1015,7 +1057,7 @@ describe("AdventureEditorScreen shell", () => {
     );
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
     expect(stageMock.dispose).toHaveBeenCalledTimes(1);
-    expect(useUiStore.getState().adventureTestSession).toBeNull();
+    expect(lastAdventureTestSession()).toBeNull();
     expect(screen.getByText(t("auth.error.generic"))).toBeInTheDocument();
   });
 
@@ -1523,11 +1565,11 @@ describe("AdventureEditorScreen shell", () => {
       const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
       await userEvent.click(quitButton);
       expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
-      expect(useUiStore.getState().screen).toBe("adventure-editor");
+      expect(setScreenSpy).not.toHaveBeenCalled();
 
       confirm.mockReturnValue(true);
       await userEvent.click(quitButton);
-      expect(useUiStore.getState().screen).toBe("title");
+      expect(setScreenSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
     });
 
@@ -1614,11 +1656,11 @@ describe("AdventureEditorScreen shell", () => {
       await openQuit();
       expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
       // Cancelled: still in the editor.
-      expect(useUiStore.getState().screen).toBe("adventure-editor");
+      expect(setScreenSpy).not.toHaveBeenCalled();
 
       confirm.mockReturnValue(true);
       await openQuit();
-      expect(useUiStore.getState().screen).toBe("title");
+      expect(setScreenSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
     });
 
@@ -1638,7 +1680,7 @@ describe("AdventureEditorScreen shell", () => {
       await waitFor(() => expect(screen.queryByText(t("editor.registry.title"))).toBeNull());
       // …and the editor SURVIVES: still mounted on adv-1, never unloaded to a bare/parties screen.
       expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
-      expect(useUiStore.getState().screen).toBe("adventure-editor");
+      expect(setScreenSpy).not.toHaveBeenCalled();
     });
   });
 });
@@ -1647,7 +1689,6 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
   /** The one-map session the editor opens, flagged unnamed so the first save prompts for a name. */
   function seedUnnamed(titleUntouched: boolean): void {
     useUiStore.setState({
-      screen: "adventure-editor",
       adventureEditorSession: {
         adventureId: "adv-1",
         draftId: "draft-1",
@@ -1895,7 +1936,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
 describe("main menu → editor navigation", () => {
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ screen: "menu", accountId: "me", activeParty: null });
+    useUiStore.setState({ accountId: "me" });
   });
 
   it("routes the discreet editor button to the merged adventure editor", async () => {
@@ -1911,7 +1952,7 @@ describe("main menu → editor navigation", () => {
     render(<MainMenu />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Editor" }));
-    expect(useUiStore.getState().screen).toBe("adventure-editor");
+    expect(setScreenSpy).toHaveBeenCalledWith("adventure-editor");
     expect(useUiStore.getState().adventureEditorSession).toBeNull();
   });
 });

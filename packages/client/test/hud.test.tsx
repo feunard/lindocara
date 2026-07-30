@@ -1,16 +1,31 @@
 import { setLocale } from "@lindocara/client/i18n.js";
+import { activePartyAtom } from "@lindocara/client/state/atoms.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { Hud } from "@lindocara/client/ui/hud/Hud.js";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { screen } from "@testing-library/react";
+import { renderWithAlepha } from "alepha/react/testing";
+import { act } from "react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("Hud", () => {
+  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ activeParty: null });
   });
 
-  it("renders identity, bars, quest and inventory from the store", () => {
+  afterEach(async () => {
+    for (const alepha of alephaInstances) await alepha.stop();
+    alephaInstances = [];
+  });
+
+  async function renderHud() {
+    const result = await renderWithAlepha(<Hud />);
+    alephaInstances.push(result.alepha);
+    return result;
+  }
+
+  it("renders identity, bars, quest and inventory from the store", async () => {
     useUiStore.setState({
       self: {
         nick: "Hero",
@@ -32,7 +47,7 @@ describe("Hud", () => {
         quest: { status: "active", progress: 1, target: 3 },
       },
     });
-    render(<Hud />);
+    await renderHud();
     expect(document.querySelector('[data-portrait-kind="unit"]')).toBeInTheDocument();
     expect(document.querySelector("#target-frame, .target-frame, [data-target-frame]")).toBeNull();
     expect(screen.getByText("Hero")).toBeInTheDocument();
@@ -50,20 +65,8 @@ describe("Hud", () => {
     expect(screen.getByText("Niveau 3")).toBeInTheDocument();
   });
 
-  it("shows authored quest progress without leaking the compiled quest into an authored party", () => {
+  it("shows authored quest progress without leaking the compiled quest into an authored party", async () => {
     useUiStore.setState({
-      activeParty: {
-        id: "party-1",
-        name: "Road patrol",
-        adventureId: "adventure-1",
-        adventureTitle: "The old road",
-        maxPlayers: 4,
-        status: "open",
-        hostAccountId: "account-1",
-        colors: ["blue"],
-        mine: true,
-        myColor: "blue",
-      },
       self: {
         nick: "Questkeeper",
         level: 3,
@@ -123,7 +126,22 @@ describe("Hud", () => {
       },
     });
 
-    render(<Hud />);
+    const { alepha } = await renderHud();
+    await act(async () => {
+      alepha.store.set(activePartyAtom, {
+        id: "party-1",
+        name: "Road patrol",
+        adventureId: "adventure-1",
+        adventureTitle: "The old road",
+        maxPlayers: 4,
+        status: "open",
+        hostAccountId: "account-1",
+        colors: ["blue"],
+        mine: true,
+        myColor: "blue",
+      });
+    });
+
     expect(
       screen.queryByText("Gather heartwood, provisions, then sun-ore (1/3)"),
     ).not.toBeInTheDocument();
@@ -131,7 +149,7 @@ describe("Hud", () => {
     expect(screen.getByText("Defeat the beasts: 2 / 3")).toBeInTheDocument();
   });
 
-  it("shows the class name and a heal bar for priests", () => {
+  it("shows the class name and a heal bar for priests", async () => {
     useUiStore.setState({
       self: {
         nick: "Mercy",
@@ -154,13 +172,13 @@ describe("Hud", () => {
       },
       healCooldownUntil: performance.now() + 1000,
     });
-    render(<Hud />);
+    await renderHud();
     expect(screen.getByText("Priest")).toBeInTheDocument();
     expect(screen.getAllByText("Mend")).toHaveLength(2);
     expect(screen.getAllByRole("progressbar")).toHaveLength(3); // vit, spark, heal cooldown
   });
 
-  it("makes a timed quest and locked skill requirements explicit", () => {
+  it("makes a timed quest and locked skill requirements explicit", async () => {
     useUiStore.setState({
       self: {
         nick: "Vanguard",
@@ -189,7 +207,7 @@ describe("Hud", () => {
       },
       game: null,
     });
-    render(<Hud />);
+    await renderHud();
     expect(screen.getByText(/WARD RUN: 1[45]s/)).toBeInTheDocument();
     expect(
       screen.getByText("A reliable close-range sweep in your facing direction."),
@@ -197,7 +215,7 @@ describe("Hud", () => {
     expect(screen.getAllByText("Unlocks at level 5").length).toBeGreaterThan(0);
   });
 
-  it("never shows the heal bar for non-priests, even mid-cooldown", () => {
+  it("never shows the heal bar for non-priests, even mid-cooldown", async () => {
     useUiStore.setState({
       self: {
         nick: "Bruiser",
@@ -220,13 +238,13 @@ describe("Hud", () => {
       },
       healCooldownUntil: performance.now() + 1000,
     });
-    render(<Hud />);
+    await renderHud();
     expect(screen.getByText("Warrior")).toBeInTheDocument();
     expect(screen.queryByText("Mend")).not.toBeInTheDocument();
     expect(screen.getAllByRole("progressbar")).toHaveLength(2); // vit, spark only
   });
 
-  it("shows the authoritative class resource and same-zone party health", () => {
+  it("shows the authoritative class resource and same-zone party health", async () => {
     useUiStore.setState({
       self: {
         id: "11111111-1111-4111-8111-111111111111",
@@ -263,7 +281,7 @@ describe("Hud", () => {
         ],
       },
     });
-    render(<Hud />);
+    await renderHud();
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("45/100")).toBeInTheDocument();
     expect(screen.getByText("Ally")).toBeInTheDocument();

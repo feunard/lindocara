@@ -1,8 +1,14 @@
-import { CONSUMABLE_IDS, normalizeConsumables } from "@lindocara/engine/consumables.js";
+import {
+  CONSUMABLE_IDS,
+  type ConsumableId,
+  normalizeConsumables,
+} from "@lindocara/engine/consumables.js";
 import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
 import { consumableIconSource } from "@lindocara/renderer/tiny-swords-art.js";
-import { useEffect, useRef, useState } from "react";
+import { useStore } from "alepha/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { t, useLocale } from "../i18n.js";
+import { quickItemsAtom } from "../state/atoms.js";
 import { useUiStore } from "../store.js";
 import { CurrencyAmount } from "./CurrencyAmount.js";
 import { TinyButton } from "./tiny-swords/TinyButton.js";
@@ -11,8 +17,19 @@ export function InventoryOverlay() {
   useLocale();
   const open = useUiStore((state) => state.inventoryOpen);
   const selfState = useUiStore((state) => state.selfState);
-  const quickItems = useUiStore((state) => state.quickItems);
-  const setQuickItem = useUiStore((state) => state.setQuickItem);
+  const [quickItems, setQuickItems] = useStore(quickItemsAtom);
+  const setQuickItem = useCallback(
+    (index: 0 | 1 | 2, item: ConsumableId | null) => {
+      const next = [...quickItems] as [
+        ConsumableId | null,
+        ConsumableId | null,
+        ConsumableId | null,
+      ];
+      next[index] = item;
+      setQuickItems(next);
+    },
+    [quickItems, setQuickItems],
+  );
   const setOpen = useUiStore((state) => state.setInventoryOpen);
   const [selectedItem, setSelectedItem] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<0 | 1 | 2>(0);

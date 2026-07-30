@@ -1,13 +1,15 @@
 import { setLocale } from "@lindocara/client/i18n.js";
+import { quickItemsAtom } from "@lindocara/client/state/atoms.js";
 import type { GameHandle } from "@lindocara/client/store.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { QuickItemBar } from "@lindocara/client/ui/hud/QuickItemBar.js";
 import { InventoryOverlay } from "@lindocara/client/ui/InventoryOverlay.js";
 import { MerchantOverlay } from "@lindocara/client/ui/MerchantOverlay.js";
 import { emptyConsumables } from "@lindocara/engine/consumables.js";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithAlepha } from "alepha/react/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function gameHandle(): GameHandle {
   return {
@@ -28,12 +30,14 @@ function gameHandle(): GameHandle {
 }
 
 describe("merchant and inventory", () => {
+  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+
   beforeEach(() => {
     setLocale("en");
+    localStorage.removeItem("lindocara.quickItems");
     useUiStore.setState({
       inventoryOpen: false,
       merchantOpen: false,
-      quickItems: ["health_potion", "mana_potion", "invisibility_potion"],
       game: null,
       self: {
         nick: "Mira",
@@ -64,9 +68,21 @@ describe("merchant and inventory", () => {
     });
   });
 
+  afterEach(async () => {
+    for (const alepha of alephaInstances) await alepha.stop();
+    alephaInstances = [];
+    localStorage.removeItem("lindocara.quickItems");
+  });
+
+  async function render(element: React.ReactElement) {
+    const result = await renderWithAlepha(element);
+    alephaInstances.push(result.alepha);
+    return result;
+  }
+
   it("assigns an owned item to any quick slot", async () => {
     useUiStore.setState({ inventoryOpen: true, game: gameHandle() });
-    const view = render(<InventoryOverlay />);
+    const view = await render(<InventoryOverlay />);
 
     expect(screen.getByLabelText("20 Sunmarks")).toBeInTheDocument();
     expect(screen.getByLabelText("5 Gloam shards")).toBeInTheDocument();
@@ -76,13 +92,13 @@ describe("merchant and inventory", () => {
     const manaCard = screen.getByText("Lumen phial").closest("article");
     if (!manaCard) throw new Error("mana card missing");
     await userEvent.click(within(manaCard).getByRole("button", { name: "3" }));
-    expect(useUiStore.getState().quickItems[2]).toBe("mana_potion");
+    expect(view.alepha.store.get(quickItemsAtom)[2]).toBe("mana_potion");
   });
 
   it("sends only the selected item id when buying", async () => {
     const game = gameHandle();
     useUiStore.setState({ merchantOpen: true, game });
-    const view = render(<MerchantOverlay />);
+    const view = await render(<MerchantOverlay />);
 
     expect(screen.getByLabelText("20 Sunmarks")).toBeInTheDocument();
     expect(screen.getByLabelText("5 Gloam shards")).toBeInTheDocument();
@@ -98,7 +114,7 @@ describe("merchant and inventory", () => {
   it("uses quick items and shows the authoritative inventory count", async () => {
     const game = gameHandle();
     useUiStore.setState({ game });
-    render(<QuickItemBar />);
+    await render(<QuickItemBar />);
 
     const health = screen.getByRole("button", { name: "Use Heartroot tonic" });
     expect(health).toHaveTextContent("×2");

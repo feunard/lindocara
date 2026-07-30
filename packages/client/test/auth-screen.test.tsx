@@ -61,9 +61,15 @@ function stubAuthFlow(
 }
 
 describe("AuthScreen", () => {
+  // AuthScreen still calls the store's deprecated `setScreen` shim (Task 3 rewires it onto the
+  // router directly) — with no navigation seam installed in this bare render, the shim itself is a
+  // no-op, so "reached the saved-parties home" is asserted via the call, not a `screen` field the
+  // store no longer has.
+  let setScreenSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ screen: "auth" });
+    setScreenSpy = vi.spyOn(useUiStore.getState(), "setScreen");
   });
 
   it("switches to register and blocks mismatched passwords client-side", async () => {
@@ -104,7 +110,7 @@ describe("AuthScreen", () => {
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.click(screen.getByRole("button", { name: "Play" }));
-    await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
+    await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
   });
 
   it("registers through the two-phase intent flow, then logs in", async () => {
@@ -115,7 +121,7 @@ describe("AuthScreen", () => {
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.type(screen.getByLabelText("Confirm password"), "12345678");
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
+    await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
 
     const paths = mock.mock.calls.map((call) => String(call[0]));
     expect(paths).toEqual([
@@ -158,7 +164,7 @@ describe("AuthScreen", () => {
       const mock = stubAuthFlow("guest-abcdefghij");
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
+      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
 
       const paths = mock.mock.calls.map((call) => String(call[0]));
       expect(paths).toEqual([
@@ -182,7 +188,7 @@ describe("AuthScreen", () => {
       const mock = stubFetch(200, { user: { id: "a", username: stored.username } });
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
+      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
 
       expect(mock).toHaveBeenCalledTimes(1);
       const [path, init] = mock.mock.calls[0] as [string, RequestInit];
@@ -236,7 +242,7 @@ describe("AuthScreen", () => {
 
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
+      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
 
       const paths = mock.mock.calls.map((call) => String(call[0]));
       expect(paths).toEqual([
@@ -259,7 +265,7 @@ describe("AuthScreen", () => {
       const mock = stubAuthFlow("guest-abcdefghij");
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
+      await vi.waitFor(() => expect(setScreenSpy).toHaveBeenCalledWith("menu"));
 
       // Straight to register: storage is user-writable, so it is validated like any wire input.
       const paths = mock.mock.calls.map((call) => String(call[0]));

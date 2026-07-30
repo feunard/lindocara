@@ -8,17 +8,27 @@
  * guest fallback -> /auth, `App.tsx:49-65`), the launch-menu music effect and the
  * LocaleToggle/StatusBar immersive toggle (`App.tsx:70-84`), all now driven by the URL instead of
  * `screen`. `TitleScreen`/`MainMenu`/`CreditsScreen` are reused unmodified — they still call the
- * store's `setScreen`, which is now a write nobody reads; wiring their navigation through the
- * router is the session/atoms seam a later task builds (see the task brief).
+ * store's deprecated `setScreen` shim (`store.ts`), which now pushes through the navigation seam
+ * this layout installs below (`state/navigation.ts`) rather than writing a `screen` field nobody
+ * reads anymore.
  */
 
+import { useAlepha } from "alepha/react";
 import { $page, NestedView, useRouter, useRouterState } from "alepha/react/router";
 import { useEffect } from "react";
 import { fetchMe } from "../api.js";
 import { menuAudio } from "../game/menu-audio.js";
 import { continueAsGuest } from "../guest.js";
 import { useLocale } from "../i18n.js";
-import { type UiScreen, useUiStore } from "../store.js";
+import {
+  activePartyAtom,
+  adventureEditorSessionAtom,
+  adventureTestSessionAtom,
+  quickItemsAtom,
+} from "../state/atoms.js";
+import type { GameNavigation } from "../state/navigation.js";
+import { setGameNavigation } from "../state/navigation.js";
+import { useUiStore } from "../store.js";
 import { CreditsScreen } from "./CreditsScreen.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MainMenu } from "./MainMenu.js";
@@ -42,27 +52,6 @@ const IMMERSIVE_PATHS = new Set<string>([
 /** Paths where the launch-menu music bed plays (`App.tsx:71-72`). */
 const LAUNCH_MENU_PATHS = new Set<string>(["/menu", "/play/continue", "/play/new", "/play/join"]);
 
-/**
- * @deprecated Task 2 removes this bridge along with the screen field.
- *
- * `screen` -> `{ name, path }` for the temporary screen-to-router bridge below. `name` is the
- * `$page` field to push by (the typed `push()` key); `path` is what that route resolves to, kept
- * alongside it so the bridge's effect can compare against `useRouterState()`'s pathname without a
- * second lookup. "boot" has no entry: it is the store's blank initial state, never a real
- * destination, and must not push anywhere.
- */
-const SCREEN_TO_ROUTE: Partial<Record<UiScreen, { name: string; path: string }>> = {
-  title: { name: "title", path: "/" },
-  menu: { name: "menu", path: "/menu" },
-  auth: { name: "auth", path: "/auth" },
-  new: { name: "playNew", path: "/play/new" },
-  continue: { name: "playContinue", path: "/play/continue" },
-  join: { name: "playJoin", path: "/play/join" },
-  credits: { name: "credits", path: "/credits" },
-  game: { name: "game", path: "/game" },
-  "adventure-editor": { name: "editor", path: "/editor" },
-};
-
 /** A textless marker for a route whose real screen is a later task's job — see the file docblock. */
 function RouteStub({ name }: { name: string }) {
   return <div data-route-stub={name} />;
@@ -71,7 +60,7 @@ function RouteStub({ name }: { name: string }) {
 function AppLayout() {
   useLocale();
   const setAccountId = useUiStore((s) => s.setAccountId);
-  const screen = useUiStore((s) => s.screen);
+  const alepha = useAlepha();
   const router = useRouter<AppRouter>();
   const { url } = useRouterState();
   const pathname = url.pathname;
@@ -102,29 +91,29 @@ function AppLayout() {
     else menuAudio.stopMusic();
   }, [pathname]);
 
-  /**
-   * @deprecated Task 2 removes this bridge along with the screen field.
-   *
-   * Temporary compatibility bridge so main stays clickable while the migration is in flight.
-   * `TitleScreen`/`MainMenu`/`CreditsScreen`/`LaunchScreens`/`AuthScreen`/`AdventureTestOverlay`
-   * are all reused unmodified per the Task 1 brief and still call the zustand store's `setScreen`
-   * — without this, that write would go nowhere (nothing reads `screen` once `App.tsx` isn't
-   * mounted), so pressing Start or any menu button would silently do nothing. This subscribes to
-   * `screen` (via the ordinary selector — reactive, no manual `useUiStore.subscribe`) and forwards
-   * each write onto the router through `SCREEN_TO_ROUTE`.
-   *
-   * One-way only: `screen` -> router. Nothing pushes back from the router onto `screen`, so there
-   * is no bridge-vs-bridge loop — the `route.path === pathname` guard below exists only to skip a
-   * redundant `push()` when `screen` changes to a value that already matches the current route
-   * (e.g. a direct `/menu` load, where `screen` is later set to `"menu"` by nothing in particular
-   * but would otherwise still fire a no-op navigation).
-   */
+  // Installs the navigation seam (`state/navigation.ts`) `game/session.ts` and the store's
+  // deprecated editor-facing shims (`setScreen`, `setAdventureEditorSession`,
+  // `setAdventureTestSession`) route through — the ONE place in the app that actually closes over
+  // both `router.push` and `alepha.store.set/get`, since neither `game/**` nor the zustand store
+  // itself may import `alepha`/`alepha/react` (see the repo AGENTS.md and `state/navigation.ts`'s
+  // docblock). Cleared on unmount so a stale seam never survives into the next mount (a fresh test,
+  // or a future hot reload).
   useEffect(() => {
-    const route = SCREEN_TO_ROUTE[screen];
-    if (!route) return; // "boot" — the store's blank initial state, never a real destination.
-    if (route.path === pathname) return;
-    void router.push(route.name);
-  }, [screen, pathname, router]);
+    const nav: GameNavigation = {
+      toGame: () => void router.push("game"),
+      toMenu: () => void router.push("menu"),
+      toAuth: () => void router.push("auth"),
+      setActiveParty: (party) => alepha.store.set(activePartyAtom, party),
+      getActiveParty: () => alepha.store.get(activePartyAtom),
+      setAdventureTestSession: (session) => alepha.store.set(adventureTestSessionAtom, session),
+      getAdventureTestSession: () => alepha.store.get(adventureTestSessionAtom),
+      getQuickItems: () => alepha.store.get(quickItemsAtom),
+      setAdventureEditorSession: (session) => alepha.store.set(adventureEditorSessionAtom, session),
+      push: (routeName) => void router.push(routeName),
+    };
+    setGameNavigation(nav);
+    return () => setGameNavigation(null);
+  }, [alepha, router]);
 
   const immersive = IMMERSIVE_PATHS.has(pathname);
 

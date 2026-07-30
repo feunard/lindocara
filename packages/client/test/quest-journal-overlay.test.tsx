@@ -1,9 +1,11 @@
 import { setLocale } from "@lindocara/client/i18n.js";
+import { questTrackingAtom } from "@lindocara/client/state/atoms.js";
 import { type GameHandle, useUiStore } from "@lindocara/client/store.js";
 import { QuestJournalOverlay } from "@lindocara/client/ui/QuestJournalOverlay.js";
 import type { AuthoredQuestTracker } from "@lindocara/engine/adventure-state.js";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithAlepha } from "alepha/react/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function activeQuest(): AuthoredQuestTracker {
   return {
@@ -70,11 +72,12 @@ function game(abandonQuest: (questId: string) => void): GameHandle {
 }
 
 describe("QuestJournalOverlay", () => {
+  let alephaInstances: Array<{ stop(): Promise<void> }> = [];
+
   beforeEach(() => {
     setLocale("en");
     useUiStore.setState({
       questJournalOpen: true,
-      questTracking: {},
       selfState: {
         xp: 0,
         xpToNext: 100,
@@ -87,16 +90,27 @@ describe("QuestJournalOverlay", () => {
     });
   });
 
-  it("keeps the pre-welcome empty snapshot stable", () => {
+  afterEach(async () => {
+    for (const alepha of alephaInstances) await alepha.stop();
+    alephaInstances = [];
+  });
+
+  async function render() {
+    const result = await renderWithAlepha(<QuestJournalOverlay />);
+    alephaInstances.push(result.alepha);
+    return result;
+  }
+
+  it("keeps the pre-welcome empty snapshot stable", async () => {
     useUiStore.setState({ selfState: null });
-    render(<QuestJournalOverlay />);
+    await render();
 
     expect(screen.getByRole("dialog", { name: "Quest journal" })).toBeInTheDocument();
     expect(screen.getAllByText("No quests in this section.").length).toBeGreaterThan(0);
   });
 
-  it("shows readable objectives and reward previews without technical ids", () => {
-    render(<QuestJournalOverlay />);
+  it("shows readable objectives and reward previews without technical ids", async () => {
+    await render();
 
     expect(screen.getByRole("dialog", { name: "Quest journal" })).toBeInTheDocument();
     expect(screen.getAllByText("Goblin watch").length).toBeGreaterThan(0);
@@ -106,13 +120,13 @@ describe("QuestJournalOverlay", () => {
     expect(screen.queryByText("0001")).not.toBeInTheDocument();
   });
 
-  it("lets the player untrack and explicitly confirm abandonment", () => {
+  it("lets the player untrack and explicitly confirm abandonment", async () => {
     const abandonQuest = vi.fn();
     useUiStore.setState({ game: game(abandonQuest) });
-    render(<QuestJournalOverlay />);
+    const { alepha } = await render();
 
     fireEvent.click(screen.getByRole("button", { name: "Stop tracking" }));
-    expect(useUiStore.getState().questTracking["0001"]).toBe(false);
+    await waitFor(() => expect(alepha.store.get(questTrackingAtom)["0001"]).toBe(false));
 
     fireEvent.click(screen.getByRole("button", { name: "Abandon quest" }));
     expect(

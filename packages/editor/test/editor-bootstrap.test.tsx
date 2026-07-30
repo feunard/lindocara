@@ -36,7 +36,6 @@ describe("AdventureEditorScreen explicit picker", () => {
     setLocale("en");
     localStorage.clear();
     useUiStore.setState({
-      screen: "adventure-editor",
       accountId: "acct",
       adventureEditorSession: null,
     });

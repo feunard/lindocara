@@ -1,5 +1,6 @@
 import { Badge } from "@lindocara/ui/components/badge.js";
 import { Button } from "@lindocara/ui/components/button.js";
+import { useStore } from "alepha/react";
 import { useEffect, useState } from "react";
 import {
   ApiError,
@@ -10,6 +11,7 @@ import {
 } from "../api.js";
 import { startGameAsHero, stopActiveGameSession } from "../game/session.js";
 import { t, useLocale } from "../i18n.js";
+import { activePartyAtom, adventureTestSessionAtom } from "../state/atoms.js";
 import { useUiStore } from "../store.js";
 
 /**
@@ -19,10 +21,9 @@ import { useUiStore } from "../store.js";
  */
 export function AdventureTestOverlay() {
   useLocale();
-  const session = useUiStore((state) => state.adventureTestSession);
+  const [session, setTestSession] = useStore(adventureTestSessionAtom);
   const editorSession = useUiStore((state) => state.adventureEditorSession);
-  const setTestSession = useUiStore((state) => state.setAdventureTestSession);
-  const setActiveParty = useUiStore((state) => state.setActiveParty);
+  const [, setActiveParty] = useStore(activePartyAtom);
   const setScreen = useUiStore((state) => state.setScreen);
   const [busy, setBusy] = useState<"reset" | "exit" | null>(null);
   const [error, setError] = useState<string | null>(null);

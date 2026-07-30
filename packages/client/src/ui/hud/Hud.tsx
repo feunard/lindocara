@@ -1,9 +1,11 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { QuestState } from "@lindocara/engine/protocol.js";
 import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
+import { useStore } from "alepha/react";
 import { useEffect, useRef, useState } from "react";
 import { t, useLocale } from "../../i18n.js";
 import { questObjectiveProgressText } from "../../quest-presentation.js";
+import { activePartyAtom, adventureTestSessionAtom, questTrackingAtom } from "../../state/atoms.js";
 import { useUiStore } from "../../store.js";
 import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 import { Bar } from "./Bar.js";
@@ -41,9 +43,9 @@ export function Hud() {
   const game = useUiStore((s) => s.game);
   const party = useUiStore((s) => s.party);
   const partyInvite = useUiStore((s) => s.partyInvite);
-  const activeParty = useUiStore((s) => s.activeParty);
-  const adventureTestSession = useUiStore((s) => s.adventureTestSession);
-  const questTracking = useUiStore((s) => s.questTracking);
+  const [activeParty] = useStore(activePartyAtom);
+  const [adventureTestSession] = useStore(adventureTestSessionAtom);
+  const [questTracking] = useStore(questTrackingAtom);
   const setQuestJournalOpen = useUiStore((s) => s.setQuestJournalOpen);
 
   // Legacy juice (styles/legacy.css: .pulse / @keyframes panel-pulse) removed and re-added

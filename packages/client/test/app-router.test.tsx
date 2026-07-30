@@ -1,5 +1,4 @@
 import { setLocale } from "@lindocara/client/i18n.js";
-import { useUiStore } from "@lindocara/client/store.js";
 import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { waitFor } from "@testing-library/dom";
 import { Alepha } from "alepha";
@@ -44,9 +43,6 @@ describe("AppRouter", () => {
     // `#stage` beside it.
     document.body.innerHTML = '<div id="root"></div>';
     stubFetch();
-    // The store is a module-level singleton across the whole test file — reset the field the
-    // deprecated screen-to-router bridge reads, so an earlier test's write can't leak in here.
-    useUiStore.setState({ screen: "boot" });
   });
 
   afterEach(async () => {
@@ -86,11 +82,14 @@ describe("AppRouter", () => {
     });
   });
 
-  // Temporary bridge coverage (see `AppRouter.tsx`'s `@deprecated` docblock on `SCREEN_TO_ROUTE`
-  // and the layout's screen-forwarding effect) — removed alongside the bridge in Task 2. Proves a
-  // reused screen's un-migrated `setScreen(...)` call still lands somewhere real, so main stays
-  // clickable while `TitleScreen`/`MainMenu`/etc. haven't been rewired onto the router yet.
-  it("forwards a setScreen write onto the router (temporary bridge, Task 2 removes it)", async () => {
+  // Task 2 replaced the temporary screen-to-router bridge with the `state/navigation.ts` seam: the
+  // layout installs a `GameNavigation` on mount and clears it on unmount. Proves a reused screen's
+  // still-unmigrated `setScreen(...)` call (the store's now-deprecated shim) lands on the router
+  // through that seam, so main stays clickable for `TitleScreen`/`MainMenu`/etc. until they are
+  // wired onto the router directly.
+  it("installs the navigation seam on mount so a legacy setScreen(...) call still lands on the router", async () => {
+    const { useUiStore } = await import("@lindocara/client/store.js");
+    const { getGameNavigation } = await import("@lindocara/client/state/navigation.js");
     alepha = Alepha.create().with(AlephaReact).with(AppRouter);
     await alepha.start();
     const router = alepha.inject(ReactRouter);
@@ -100,6 +99,7 @@ describe("AppRouter", () => {
     });
     await waitFor(() => {
       expect(document.querySelector(".title-screen")).toBeTruthy();
+      expect(getGameNavigation()).not.toBeNull();
     });
 
     await act(async () => {

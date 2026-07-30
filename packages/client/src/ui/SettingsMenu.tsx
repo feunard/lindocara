@@ -11,6 +11,7 @@ import {
   subscribeAudioSettings,
 } from "../game/audio-settings.js";
 import { t, useLocale } from "../i18n.js";
+import { getGameNavigation } from "../state/navigation.js";
 import { useUiStore } from "../store.js";
 import { ControlsSettings } from "./ControlsSettings.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
@@ -256,9 +257,19 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
                   </SettingsMenuItem>
                   <SettingsMenuItem
                     order={31}
-                    onActivate={() =>
-                      game ? game.returnToTitle() : useUiStore.getState().resetToTitle()
-                    }
+                    onActivate={() => {
+                      if (game) {
+                        game.returnToTitle();
+                        return;
+                      }
+                      // Defensive fallback for a settings menu somehow open with no live game
+                      // handle — mirrors `game/session.ts`'s `returnToTitle`: clear the session,
+                      // then navigate through the seam (the store no longer does either itself).
+                      useUiStore.getState().clearedGameSession();
+                      const nav = getGameNavigation();
+                      nav?.setActiveParty(null);
+                      nav?.toMenu();
+                    }}
                   >
                     <TinyButton type="button">{t("hud.return_to_title")}</TinyButton>
                   </SettingsMenuItem>
