@@ -229,9 +229,9 @@ export class ReactBrowserProvider {
     // `this.state` is undefined until the FIRST successful (non-redirect) render commits it
     // (the getter reads an atom nothing has ever `set` yet). The redirect-follow-up call below
     // (`return await this.render({ url: redirect, transitionId: myTransitionId })`) omits
-    // `previous` entirely, so a route whose loader redirects on the very first browser render
-    // ever (a cold `/game` deep link with no live session — see `AppRouter.tsx`'s `game` loader)
-    // used to crash here reading `.layers` off `undefined` instead of completing the redirect.
+    // `previous` entirely, so when the very first render's route loader throws a Redirection,
+    // this.state is still unset — fall back to an empty layer stack instead of crashing when
+    // reading `.layers` off `undefined`.
     // Optional-chained with a `[]` fallback, matching the same defensive read this file already
     // uses for `this.state?.url.pathname` a few lines below.
     const previous = options.previous ?? this.state?.layers ?? [];
