@@ -71,6 +71,7 @@ const stageMock = vi.hoisted(() => ({
   setZoom: vi.fn(),
   current: vi.fn(),
   setName: vi.fn(),
+  setAudio: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),
   markSaved: vi.fn(),
@@ -102,6 +103,7 @@ function stageHandle() {
     setZoom: stageMock.setZoom,
     current: stageMock.current,
     setName: stageMock.setName,
+    setAudio: stageMock.setAudio,
     undo: stageMock.undo,
     redo: stageMock.redo,
     markSaved: stageMock.markSaved,
@@ -846,6 +848,48 @@ describe("AdventureEditorScreen shell", () => {
       ),
     );
     expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists map music settings from their own Save button and closes the dialog", async () => {
+    const edited = {
+      name: "Verdant Reach",
+      audio: {
+        music: "town-theme" as const,
+        ambience: "swamp-ambience" as const,
+        combatMusic: "battle-theme" as const,
+      },
+      layers: OPEN_TILE_LAYERS,
+      elements: [],
+      spawn: { col: 20, row: 15 },
+      markers: EMPTY_MARKERS,
+      events: [],
+    };
+    stageMock.current.mockReturnValue(edited);
+    const mock = mapsBackend(twoMaps);
+    vi.stubGlobal("fetch", mock);
+    await mountReady();
+
+    const audioButton = screen.getByRole("button", { name: t("editor.audio.mapButton") });
+    await userEvent.click(audioButton);
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(t("editor.audio.mapTitle", { name: edited.name })),
+    ).toBeVisible();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: t("editor.save") }));
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/maps/m1",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ ...toSaveInput(edited), expectedRevision: 1 }),
+        }),
+      ),
+    );
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(stageMock.setAudio).toHaveBeenCalledWith(edited.audio);
+    expect(stageMock.markSaved).toHaveBeenCalledWith(edited);
   });
 
   it("deduplicates an in-flight save and anchors it to the captured snapshot", async () => {
