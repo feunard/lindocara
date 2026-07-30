@@ -3,6 +3,7 @@ import {
   COMBAT_STAT_CAPS,
   CRITICAL_DAMAGE_MULTIPLIER,
   combatStatsForClass,
+  effectiveCombatStats,
   initialCombatEntropy,
   resolveCriticalDamage,
   resolveEntropyChance,
@@ -70,6 +71,24 @@ describe("balanced class combat statistics", () => {
       magicalResistance: COMBAT_STAT_CAPS.magicalResistance,
       criticalChance: COMBAT_STAT_CAPS.criticalChance,
     });
+  });
+
+  it("combines permanent and currently active boosts, then expires only the temporary part", () => {
+    const boosted = effectiveCombatStats(
+      "warrior",
+      { magicalResistance: 0.05 },
+      { magicalResistance: { bonus: 0.1, until: 20_000 } },
+      10_000,
+    );
+    expect(boosted.magicalResistance).toBe(0.2);
+    expect(
+      effectiveCombatStats(
+        "warrior",
+        { magicalResistance: 0.05 },
+        { magicalResistance: { bonus: 0.1, until: 20_000 } },
+        20_001,
+      ).magicalResistance,
+    ).toBe(0.1);
   });
 });
 

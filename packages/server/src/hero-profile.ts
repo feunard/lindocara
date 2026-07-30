@@ -3,6 +3,10 @@ import {
   type PrimaryColor,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
+import {
+  normalizeCombatStatBonuses,
+  normalizeTemporaryCombatStatBoosts,
+} from "@lindocara/engine/combat-stats.js";
 import { normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { emptyCombatCooldowns, normalizeCombatCooldowns } from "@lindocara/engine/cooldowns.js";
 import { isLifeState, type LifeState } from "@lindocara/engine/death.js";
@@ -112,6 +116,8 @@ export async function loadHeroProfile(db: Db, heroId: string): Promise<PlayerPro
     forgottenUntil: safeDeadline(row.forgottenUntil),
     invisibleUntil: safeDeadline(row.invisibleUntil),
     resurrectionAt: safeDeadline(row.resurrectionAt),
+    combatStatBonuses: normalizeCombatStatBonuses(row.combatStatBonuses),
+    combatStatBoosts: normalizeTemporaryCombatStatBoosts(row.combatStatBoosts),
   };
 }
 
@@ -177,6 +183,7 @@ export async function saveHeroProfile(db: Db, profile: SaveableProfile): Promise
           x = ?, y = ?, level = ?, xp = ?, hp = ?, gold = ?, crystals = ?,
           resource_current = ?, combat_cooldowns = ?, consumable_cooldown_until = ?,
           damage_boost_until = ?, forgotten_until = ?, invisible_until = ?, resurrection_at = ?,
+          combat_stat_bonuses = ?, combat_stat_boosts = ?,
           talents = ?, life = ?, corpse_x = ?, corpse_y = ?, updated_at = ?
          WHERE id = ? AND session_epoch = ?
          RETURNING id`,
@@ -196,6 +203,8 @@ export async function saveHeroProfile(db: Db, profile: SaveableProfile): Promise
         safeDeadline(profile.forgottenUntil ?? 0),
         safeDeadline(profile.invisibleUntil ?? 0),
         safeDeadline(profile.resurrectionAt ?? 0),
+        JSON.stringify(normalizeCombatStatBonuses(profile.combatStatBonuses)),
+        JSON.stringify(normalizeTemporaryCombatStatBoosts(profile.combatStatBoosts, now)),
         JSON.stringify(normalizeTalentSelection(profile.class, profile.level, profile.talents)),
         profile.life,
         profile.corpse?.x ?? null,

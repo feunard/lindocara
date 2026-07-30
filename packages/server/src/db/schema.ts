@@ -117,6 +117,8 @@ export const character = sqliteTable(
       .default("alive"),
     corpseX: real("corpse_x"),
     corpseY: real("corpse_y"),
+    combatStatBonuses: text("combat_stat_bonuses").notNull().default("{}"),
+    combatStatBoosts: text("combat_stat_boosts").notNull().default("{}"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
@@ -557,6 +559,8 @@ export const hero = sqliteTable(
     forgottenUntil: integer("forgotten_until").notNull().default(0),
     invisibleUntil: integer("invisible_until").notNull().default(0),
     resurrectionAt: integer("resurrection_at").notNull().default(0),
+    combatStatBonuses: text("combat_stat_bonuses").notNull().default("{}"),
+    combatStatBoosts: text("combat_stat_boosts").notNull().default("{}"),
     /** JSON array of server-validated talent ids. Roots are derived and never stored. */
     talents: text("talents").notNull().default("[]"),
     sessionEpoch: integer("session_epoch").notNull().default(0),

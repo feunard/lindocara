@@ -3,6 +3,11 @@ import {
   normalizeAppearance,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
+import {
+  normalizeCombatStatBonuses,
+  normalizeTemporaryCombatStatBoosts,
+} from "@lindocara/engine/combat-stats.js";
+import { normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { isLifeState, type LifeState } from "@lindocara/engine/death.js";
 import {
   clampRestoredPosition,
@@ -18,7 +23,7 @@ import { isKnownZone, resolveZoneLocation } from "@lindocara/engine/zones.js";
 import { and, eq, sql } from "drizzle-orm";
 import { loadNormalizedCharacterState } from "./character-persistence.js";
 import { type Character, character, type Db } from "./db/index.js";
-import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
+import { ownedItemId } from "./items.js";
 import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
 
 // The shape moved to `profile-types.ts` (platform-free) so the Alepha realtime rooms can
@@ -97,6 +102,7 @@ async function fromRow(db: Db, row: Character): Promise<PlayerProfile> {
       potions: normalized.potions,
       gold: Math.max(0, row.gold),
       crystals: Math.max(0, row.crystals),
+      consumables: normalized.consumables,
     },
     quest: normalized.quest,
     zoneId: row.zoneId,
@@ -105,6 +111,8 @@ async function fromRow(db: Db, row: Character): Promise<PlayerProfile> {
     wardRunExpiresAt: normalized.wardRunExpiresAt,
     ...(resource ? { resource } : {}),
     ...lifeFromRow(row, terrain),
+    combatStatBonuses: normalizeCombatStatBonuses(row.combatStatBonuses),
+    combatStatBoosts: normalizeTemporaryCombatStatBoosts(row.combatStatBoosts),
   };
 }
 
@@ -193,7 +201,9 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<boo
           name = ?, x = ?, y = ?, level = ?, xp = ?, hp = ?,
           appearance = ?, appearance_body = ?, appearance_primary_color = ?, class = ?,
           gold = ?, crystals = ?, zone_id = ?, instance_id = ?, life = ?,
-          corpse_x = ?, corpse_y = ?, resource_current = ?, last_seen_at = ?, persistence_version = 1
+          corpse_x = ?, corpse_y = ?, resource_current = ?,
+          combat_stat_bonuses = ?, combat_stat_boosts = ?,
+          last_seen_at = ?, persistence_version = 1
          WHERE id = ? AND session_epoch = ?
          RETURNING id`,
       )
@@ -216,26 +226,36 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<boo
         profile.corpse?.x ?? null,
         profile.corpse?.y ?? null,
         profile.resource?.current ?? null,
-        now,
-        profile.id,
-        profile.sessionEpoch,
-      ),
-    db.$client
-      .prepare(
-        `INSERT INTO character_item
-          (id, character_id, item_definition_id, quantity, created_at)
-         SELECT ?, id, ?, ?, ? FROM character WHERE id = ? AND session_epoch = ?
-         ON CONFLICT(character_id, item_definition_id) DO UPDATE SET quantity = excluded.quantity`,
-      )
-      .bind(
-        ownedItemId(profile.id, HEALTH_POTION_ID),
-        HEALTH_POTION_ID,
-        profile.inventory.potions,
+        JSON.stringify(normalizeCombatStatBonuses(profile.combatStatBonuses)),
+        JSON.stringify(normalizeTemporaryCombatStatBoosts(profile.combatStatBoosts, now)),
         now,
         profile.id,
         profile.sessionEpoch,
       ),
   ];
+  const consumables = normalizeConsumables(
+    profile.inventory.consumables,
+    profile.inventory.potions,
+  );
+  for (const [definitionId, quantity] of Object.entries(consumables)) {
+    statements.push(
+      db.$client
+        .prepare(
+          `INSERT INTO character_item
+            (id, character_id, item_definition_id, quantity, created_at)
+           SELECT ?, id, ?, ?, ? FROM character WHERE id = ? AND session_epoch = ?
+           ON CONFLICT(character_id, item_definition_id) DO UPDATE SET quantity = excluded.quantity`,
+        )
+        .bind(
+          ownedItemId(profile.id, definitionId),
+          definitionId,
+          quantity,
+          now,
+          profile.id,
+          profile.sessionEpoch,
+        ),
+    );
+  }
   for (const [slot, definitionId] of [
     ["main_hand", equipment.mainHand],
     ["off_hand", equipment.offHand],

@@ -2,7 +2,7 @@ import type {
   AuthoredQuestMarker,
   AuthoredQuestTracker,
 } from "@lindocara/engine/adventure-state.js";
-import { combatStatsForClass } from "@lindocara/engine/combat-stats.js";
+import { effectiveCombatStats } from "@lindocara/engine/combat-stats.js";
 import { type QuestChapter, xpForNextLevel } from "@lindocara/engine/game.js";
 import type {
   SelfState,
@@ -60,7 +60,12 @@ export function selfState(
     serverNow,
     cooldowns: combatCooldownsFromPlayer(player, serverNow),
     talents: talentState(player.class, player.level, player.talents),
-    combatStats: combatStatsForClass(player.class),
+    combatStats: effectiveCombatStats(
+      player.class,
+      player.combatStatBonuses,
+      player.combatStatBoosts,
+      serverNow,
+    ),
     consumableCooldownUntil: player.consumableCooldownUntil,
     effects: {
       damageUntil: player.damageBoostUntil,

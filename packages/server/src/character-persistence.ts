@@ -1,5 +1,10 @@
 import type { Equipment } from "@lindocara/engine/character.js";
 import { normalizeEquipment, starterEquipmentFor } from "@lindocara/engine/character.js";
+import {
+  type ConsumableCounts,
+  isConsumableId,
+  normalizeConsumables,
+} from "@lindocara/engine/consumables.js";
 import { type QuestChapter, questDefinition } from "@lindocara/engine/game.js";
 import type { QuestState } from "@lindocara/engine/protocol.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
@@ -30,6 +35,7 @@ const QUEST_ORDER: readonly QuestChapter[] = [
 
 export interface NormalizedCharacterState {
   potions: number;
+  consumables: ConsumableCounts;
   equipment: Equipment;
   quest: QuestState;
   wardRunExpiresAt: number | null;
@@ -161,7 +167,13 @@ export async function loadNormalizedCharacterState(
       .where(eq(characterEquipment.characterId, row.id)),
     listCharacterQuests(db, row.id),
   ]);
-  const potions = items.find((item) => item.itemDefinitionId === HEALTH_POTION_ID)?.quantity ?? 0;
+  const consumables = normalizeConsumables(undefined);
+  for (const item of items) {
+    if (isConsumableId(item.itemDefinitionId)) {
+      consumables[item.itemDefinitionId] = Math.max(0, item.quantity);
+    }
+  }
+  const potions = consumables.health_potion;
   let mainHand: string | undefined;
   let offHand: string | null = null;
   for (const item of equipped) {
@@ -177,6 +189,7 @@ export async function loadNormalizedCharacterState(
   const questChapter = isQuestChapter(chapter) ? chapter : "three_offerings";
   return {
     potions: Math.max(0, potions),
+    consumables,
     equipment,
     quest: {
       chapter: questChapter,

@@ -1432,7 +1432,9 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     isConsumableId(value.item) &&
     hasOnlyKeys(value, ["t", "item"])
   ) {
-    return { t: value.t, item: value.item };
+    return value.t === "item.use"
+      ? { t: "item.use", item: value.item }
+      : { t: "merchant.buy", item: value.item };
   }
   if (value.t === "world.resync" && hasOnlyKeys(value, ["t"])) return { t: "world.resync" };
   if (

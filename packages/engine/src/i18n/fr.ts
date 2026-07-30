@@ -60,6 +60,28 @@ export const fr: Record<keyof typeof en, string> = {
   "consumable.resurrection_potion.name": "Cordial du phénix",
   "consumable.resurrection_potion.description":
     "Une fois à terre, ramène à la vie après 10 secondes.",
+  "consumable.evasion_tonic.name": "Tonique de pas-de-brume",
+  "consumable.evasion_tonic.description": "+8 % d'esquive pendant 60 secondes.",
+  "consumable.parrying_oil.name": "Huile de parade",
+  "consumable.parrying_oil.description": "+8 % de parade pendant 60 secondes.",
+  "consumable.stoneskin_tonic.name": "Tonique peau-de-pierre",
+  "consumable.stoneskin_tonic.description": "+10 % de résistance physique pendant 60 secondes.",
+  "consumable.arcane_ward_tonic.name": "Tonique de garde arcanique",
+  "consumable.arcane_ward_tonic.description": "+10 % de résistance magique pendant 60 secondes.",
+  "consumable.precision_tonic.name": "Tonique d'œil-de-faucon",
+  "consumable.precision_tonic.description": "+10 % de critique pendant 60 secondes.",
+  "consumable.evasion_manual.name": "Manuel permanent d'esquive",
+  "consumable.evasion_manual.description": "+1 % d'esquive permanent, jusqu'à +5 %.",
+  "consumable.parrying_manual.name": "Manuel permanent de parade",
+  "consumable.parrying_manual.description": "+1 % de parade permanent, jusqu'à +5 %.",
+  "consumable.physical_resistance_manual.name": "Manuel permanent de robustesse",
+  "consumable.physical_resistance_manual.description":
+    "+1 % de résistance physique permanente, jusqu'à +5 %.",
+  "consumable.magical_resistance_manual.name": "Manuel permanent de garde mystique",
+  "consumable.magical_resistance_manual.description":
+    "+1 % de résistance magique permanente, jusqu'à +5 %.",
+  "consumable.critical_manual.name": "Manuel permanent de précision",
+  "consumable.critical_manual.description": "+1 % de critique permanent, jusqu'à +5 %.",
   // Écran de connexion
   "auth.eyebrow": "Un petit monde en ligne",
   "auth.subtitle": "Une aventure coopérative en 2D",

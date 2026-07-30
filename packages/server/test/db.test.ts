@@ -89,6 +89,8 @@ describe("account and character tables", () => {
       "appearance_body",
       "appearance_primary_color",
       "class",
+      "combat_stat_bonuses",
+      "combat_stat_boosts",
       "corpse_x",
       "corpse_y",
       "created_at",

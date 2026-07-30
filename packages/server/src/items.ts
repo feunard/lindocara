@@ -1,4 +1,5 @@
 import type { Equipment, MainHandItem, OffHandItem } from "@lindocara/engine/character.js";
+import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { EquipmentSlot } from "./db/schema.js";
 
@@ -14,54 +15,17 @@ export interface ItemDefinitionRecord {
 }
 
 export const ITEM_DEFINITIONS: readonly ItemDefinitionRecord[] = [
-  {
-    id: HEALTH_POTION_ID,
-    type: "consumable",
-    stackable: true,
-    maxStack: 9_999,
-    equipmentSlot: null,
-    allowedClass: null,
-  },
-  {
-    id: "mana_potion",
-    type: "consumable",
-    stackable: true,
-    maxStack: 9_999,
-    equipmentSlot: null,
-    allowedClass: null,
-  },
-  {
-    id: "damage_elixir",
-    type: "consumable",
-    stackable: true,
-    maxStack: 9_999,
-    equipmentSlot: null,
-    allowedClass: null,
-  },
-  {
-    id: "oblivion_draught",
-    type: "consumable",
-    stackable: true,
-    maxStack: 9_999,
-    equipmentSlot: null,
-    allowedClass: null,
-  },
-  {
-    id: "invisibility_potion",
-    type: "consumable",
-    stackable: true,
-    maxStack: 9_999,
-    equipmentSlot: null,
-    allowedClass: null,
-  },
-  {
-    id: "resurrection_potion",
-    type: "consumable",
-    stackable: true,
-    maxStack: 9_999,
-    equipmentSlot: null,
-    allowedClass: null,
-  },
+  ...CONSUMABLE_IDS.map(
+    (id) =>
+      ({
+        id,
+        type: "consumable",
+        stackable: true,
+        maxStack: 9_999,
+        equipmentSlot: null,
+        allowedClass: null,
+      }) satisfies ItemDefinitionRecord,
+  ),
   {
     id: "weathered_sword",
     type: "weapon",

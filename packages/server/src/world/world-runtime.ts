@@ -4,7 +4,14 @@ import {
   type PrimaryColor,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
-import { type CombatEntropyState, initialCombatEntropy } from "@lindocara/engine/combat-stats.js";
+import {
+  type CombatEntropyState,
+  type CombatStatBonuses,
+  initialCombatEntropy,
+  normalizeCombatStatBonuses,
+  normalizeTemporaryCombatStatBoosts,
+  type TemporaryCombatStatBoosts,
+} from "@lindocara/engine/combat-stats.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLES,
@@ -122,6 +129,8 @@ export interface Attachment extends Vec2 {
   forgottenUntil?: number;
   invisibleUntil?: number;
   resurrectionAt?: number;
+  combatStatBonuses?: CombatStatBonuses;
+  combatStatBoosts?: TemporaryCombatStatBoosts;
 }
 
 export interface PlayerInterest {
@@ -259,6 +268,8 @@ export interface PlayerRuntime extends PlayerProfile {
   rogueExecution: RogueExecutionRuntime | null;
   /** Anti-streak proc accumulators. Session-local and server-authored. */
   combatEntropy: CombatEntropyState;
+  combatStatBonuses: CombatStatBonuses;
+  combatStatBoosts: TemporaryCombatStatBoosts;
   /** Deliberately limited cleanse surface; currently only poison is compatible. */
   negativeEffects: Map<CleanseableNegativeEffect, NegativeEffectRuntime>;
   lastResurrectAt: number;
@@ -450,6 +461,8 @@ export function toProfile(player: PlayerRuntime): SaveableProfile {
     forgottenUntil: player.forgottenUntil,
     invisibleUntil: player.invisibleUntil,
     resurrectionAt: player.resurrectionAt,
+    combatStatBonuses: { ...player.combatStatBonuses },
+    combatStatBoosts: { ...player.combatStatBoosts },
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }
@@ -544,6 +557,8 @@ export function newPlayer(
     rogueShadowReturn: null,
     rogueExecution: null,
     combatEntropy: initialCombatEntropy(profile.id),
+    combatStatBonuses: normalizeCombatStatBonuses(profile.combatStatBonuses),
+    combatStatBoosts: normalizeTemporaryCombatStatBoosts(profile.combatStatBoosts, now),
     negativeEffects: new Map(),
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
@@ -664,6 +679,8 @@ export function profileFromAttachment(
     forgottenUntil: attachment.forgottenUntil ?? 0,
     invisibleUntil: attachment.invisibleUntil ?? 0,
     resurrectionAt: attachment.resurrectionAt ?? 0,
+    combatStatBonuses: normalizeCombatStatBonuses(attachment.combatStatBonuses),
+    combatStatBoosts: normalizeTemporaryCombatStatBoosts(attachment.combatStatBoosts),
     ...lifeFromAttachment(attachment),
   };
 }

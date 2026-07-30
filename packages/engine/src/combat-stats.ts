@@ -23,6 +23,15 @@ export interface CombatStats {
 
 export type CombatStatBonuses = Readonly<Partial<Record<CombatStatKey, number>>>;
 
+export interface TemporaryCombatStatBoost {
+  bonus: number;
+  until: number;
+}
+
+export type TemporaryCombatStatBoosts = Readonly<
+  Partial<Record<CombatStatKey, TemporaryCombatStatBoost>>
+>;
+
 /**
  * Hard caps keep permanent progression useful without letting one character erase another class's
  * identity. Active Warrior guard and talent parries are separate authored mechanics.
@@ -71,6 +80,8 @@ export const CLASS_COMBAT_STATS: Readonly<Record<PlayerClass, CombatStats>> = {
 };
 
 export const CRITICAL_DAMAGE_MULTIPLIER = 1.5;
+export const PERMANENT_COMBAT_STAT_BONUS_CAP = 0.05;
+export const TEMPORARY_COMBAT_STAT_BOOST_MAX_MS = 60_000;
 
 export interface CombatEntropyState {
   dodge: number;
@@ -127,6 +138,81 @@ export function combatStatsForClass(
       COMBAT_STAT_CAPS.criticalChance,
     ),
   };
+}
+
+export function normalizeCombatStatBonuses(value: unknown): CombatStatBonuses {
+  let decoded = value;
+  if (typeof decoded === "string") {
+    try {
+      decoded = JSON.parse(decoded);
+    } catch {
+      return {};
+    }
+  }
+  if (typeof decoded !== "object" || decoded === null) return {};
+  const candidate = decoded as Record<string, unknown>;
+  const normalized: Partial<Record<CombatStatKey, number>> = {};
+  for (const key of COMBAT_STAT_KEYS) {
+    const bonus = candidate[key];
+    if (typeof bonus === "number" && Number.isFinite(bonus) && bonus > 0) {
+      normalized[key] = Math.min(PERMANENT_COMBAT_STAT_BONUS_CAP, bonus);
+    }
+  }
+  return normalized;
+}
+
+export function normalizeTemporaryCombatStatBoosts(
+  value: unknown,
+  now = Date.now(),
+): TemporaryCombatStatBoosts {
+  let decoded = value;
+  if (typeof decoded === "string") {
+    try {
+      decoded = JSON.parse(decoded);
+    } catch {
+      return {};
+    }
+  }
+  if (typeof decoded !== "object" || decoded === null) return {};
+  const candidate = decoded as Record<string, unknown>;
+  const normalized: Partial<Record<CombatStatKey, TemporaryCombatStatBoost>> = {};
+  for (const key of COMBAT_STAT_KEYS) {
+    const boost = candidate[key];
+    if (typeof boost !== "object" || boost === null) continue;
+    const record = boost as Record<string, unknown>;
+    if (
+      typeof record.bonus !== "number" ||
+      !Number.isFinite(record.bonus) ||
+      record.bonus <= 0 ||
+      typeof record.until !== "number" ||
+      !Number.isFinite(record.until) ||
+      record.until <= now ||
+      record.until > now + TEMPORARY_COMBAT_STAT_BOOST_MAX_MS
+    ) {
+      continue;
+    }
+    normalized[key] = {
+      bonus: Math.min(COMBAT_STAT_CAPS[key], record.bonus),
+      until: record.until,
+    };
+  }
+  return normalized;
+}
+
+export function effectiveCombatStats(
+  playerClass: PlayerClass,
+  permanentBonuses: CombatStatBonuses,
+  temporaryBoosts: TemporaryCombatStatBoosts,
+  now: number,
+): CombatStats {
+  const bonuses: Partial<Record<CombatStatKey, number>> = {
+    ...normalizeCombatStatBonuses(permanentBonuses),
+  };
+  for (const key of COMBAT_STAT_KEYS) {
+    const boost = temporaryBoosts[key];
+    if (boost && boost.until > now) bonuses[key] = (bonuses[key] ?? 0) + boost.bonus;
+  }
+  return combatStatsForClass(playerClass, bonuses);
 }
 
 /**

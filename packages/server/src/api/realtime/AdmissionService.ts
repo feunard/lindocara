@@ -19,6 +19,10 @@ import {
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
 import {
+  normalizeCombatStatBonuses,
+  normalizeTemporaryCombatStatBoosts,
+} from "@lindocara/engine/combat-stats.js";
+import {
   CONSUMABLE_IDS,
   type ConsumableCounts,
   emptyConsumables,
@@ -327,6 +331,8 @@ export class AdmissionService {
       forgottenUntil: safeDeadline(row.forgottenUntil),
       invisibleUntil: safeDeadline(row.invisibleUntil),
       resurrectionAt: safeDeadline(row.resurrectionAt),
+      combatStatBonuses: normalizeCombatStatBonuses(row.combatStatBonuses),
+      combatStatBoosts: normalizeTemporaryCombatStatBoosts(row.combatStatBoosts),
     };
   }
 }

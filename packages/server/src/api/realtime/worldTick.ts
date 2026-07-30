@@ -41,12 +41,14 @@ import {
   MONSTER_SPECIAL_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
 import {
-  combatStatsForClass,
   type DamageType,
+  effectiveCombatStats,
+  normalizeTemporaryCombatStatBoosts,
   resolveCriticalDamage,
   resolveIncomingAttack,
 } from "@lindocara/engine/combat-stats.js";
 import {
+  applyCombatStatConsumable,
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLE_MAX_STACK,
   CONSUMABLES,
@@ -1235,7 +1237,7 @@ function damageMonster(
       (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
       (1 + activeRallyPowerMultiplier(player, now)) *
       (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
-    combatStatsForClass(player.class),
+    effectiveCombatStats(player.class, player.combatStatBonuses, player.combatStatBoosts, now),
     player.combatEntropy,
     !context.damageOverTime && !context.poisonRupture,
   );
@@ -1351,7 +1353,7 @@ function damagePlayer(
   const incoming = resolveIncomingAttack(
     damage,
     damageType,
-    combatStatsForClass(player.class),
+    effectiveCombatStats(player.class, player.combatStatBonuses, player.combatStatBoosts, now),
     player.combatEntropy,
   );
   player.combatEntropy = incoming.entropy;
@@ -3174,6 +3176,21 @@ export async function handleUseConsumable(
   }
 
   const definition = CONSUMABLES[item];
+  const combatStatApplication = applyCombatStatConsumable(
+    item,
+    player.combatStatBonuses,
+    player.combatStatBoosts,
+    now,
+  );
+  if (combatStatApplication && !combatStatApplication.applied) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "item.invalid",
+      params: { item },
+      tone: "info",
+    });
+    return;
+  }
   if (item === "health_potion") {
     const maxHp = maxHpForLevel(player.level);
     if (player.hp >= maxHp) {
@@ -3207,6 +3224,10 @@ export async function handleUseConsumable(
     );
   } else {
     counts[item] -= 1;
+    if (combatStatApplication) {
+      player.combatStatBonuses = combatStatApplication.permanentBonuses;
+      player.combatStatBoosts = combatStatApplication.temporaryBoosts;
+    }
     if (item === "damage_elixir") player.damageBoostUntil = now + definition.durationMs;
     if (item === "oblivion_draught") {
       player.forgottenUntil = now + definition.durationMs;
@@ -4292,6 +4313,12 @@ export async function handleQuestAbandon(
 /** Port of `#advanceConsumableEffects` (`world.ts:4423`): the resurrection draught fires. */
 function advanceConsumableEffects(w: WorldGlue, now: number): void {
   for (const [connectionId, player] of w.state.players) {
+    const activeBoosts = normalizeTemporaryCombatStatBoosts(player.combatStatBoosts, now);
+    if (Object.keys(activeBoosts).length !== Object.keys(player.combatStatBoosts).length) {
+      player.combatStatBoosts = activeBoosts;
+      player.dirty = true;
+      sendStateTo(w, connectionId, player);
+    }
     if (player.resurrectionAt <= 0 || player.resurrectionAt > now) continue;
     player.resurrectionAt = 0;
     if (player.life !== "corpse") continue;

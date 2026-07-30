@@ -7,6 +7,10 @@
  */
 import type { AuthoredQuestProgress } from "@lindocara/engine/adventure-state.js";
 import type { CharacterAppearance, Equipment } from "@lindocara/engine/character.js";
+import type {
+  CombatStatBonuses,
+  TemporaryCombatStatBoosts,
+} from "@lindocara/engine/combat-stats.js";
 import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
 import type { LifeState } from "@lindocara/engine/death.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
@@ -41,6 +45,8 @@ export interface PlayerProfile extends Vec2 {
   forgottenUntil?: number;
   invisibleUntil?: number;
   resurrectionAt?: number;
+  combatStatBonuses?: CombatStatBonuses;
+  combatStatBoosts?: TemporaryCombatStatBoosts;
   /** Hero-owned talent ids. Legacy characters keep this session-local until an explicit migration. */
   talents?: readonly string[];
 }

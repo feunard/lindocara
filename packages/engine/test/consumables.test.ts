@@ -1,6 +1,9 @@
 import {
+  applyCombatStatConsumable,
   CONSUMABLE_COOLDOWN_MS,
+  CONSUMABLE_IDS,
   CONSUMABLES,
+  emptyConsumables,
   normalizeConsumables,
   RESURRECTION_DELAY_MS,
 } from "@lindocara/engine/consumables.js";
@@ -30,6 +33,45 @@ describe("consumable catalogue", () => {
       mana_potion: 2,
       damage_elixir: 0,
       invisibility_potion: 0,
+    });
+  });
+
+  it("keeps every shop item represented in inventory and gameplay data", () => {
+    expect(Object.keys(CONSUMABLES)).toEqual([...CONSUMABLE_IDS]);
+    expect(Object.keys(emptyConsumables())).toEqual([...CONSUMABLE_IDS]);
+  });
+
+  it("refreshes temporary combat boosts without stacking the same item", () => {
+    const now = 10_000;
+    const first = applyCombatStatConsumable("evasion_tonic", {}, {}, now);
+    expect(first).toMatchObject({
+      applied: true,
+      temporaryBoosts: { dodgeChance: { bonus: 0.08, until: 70_000 } },
+    });
+    if (!first) throw new Error("expected temporary combat-stat application");
+    const refreshed = applyCombatStatConsumable(
+      "evasion_tonic",
+      first.permanentBonuses,
+      first.temporaryBoosts,
+      now + 20_000,
+    );
+    expect(refreshed?.temporaryBoosts.dodgeChance).toEqual({
+      bonus: 0.08,
+      until: 90_000,
+    });
+  });
+
+  it("stops permanent manuals at five one-point upgrades", () => {
+    let permanent = {};
+    for (let use = 0; use < 5; use += 1) {
+      const application = applyCombatStatConsumable("critical_manual", permanent, {}, 10_000);
+      expect(application?.applied).toBe(true);
+      permanent = application?.permanentBonuses ?? {};
+    }
+    expect(permanent).toEqual({ criticalChance: 0.05 });
+    expect(applyCombatStatConsumable("critical_manual", permanent, {}, 10_000)).toMatchObject({
+      applied: false,
+      permanentBonuses: { criticalChance: 0.05 },
     });
   });
 });

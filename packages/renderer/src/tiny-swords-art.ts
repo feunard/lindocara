@@ -302,6 +302,16 @@ const CONSUMABLE_ICON_INDEX: Readonly<Record<ConsumableId, number>> = {
   oblivion_draught: 12,
   invisibility_potion: 8,
   resurrection_potion: 4,
+  evasion_tonic: 8,
+  parrying_oil: 1,
+  stoneskin_tonic: 2,
+  arcane_ward_tonic: 4,
+  precision_tonic: 6,
+  evasion_manual: 9,
+  parrying_manual: 1,
+  physical_resistance_manual: 2,
+  magical_resistance_manual: 11,
+  critical_manual: 6,
 };
 
 export function consumableIconSource(item: ConsumableId): string {

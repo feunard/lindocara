@@ -350,6 +350,10 @@ describe("world room persistence (FakeClock)", () => {
       ...normalizeConsumables(player.inventory.consumables, player.inventory.potions),
       mana_potion: 3,
     };
+    player.combatStatBonuses = { dodgeChance: 0.02 };
+    player.combatStatBoosts = {
+      criticalChance: { bonus: 0.1, until: Date.now() + 30_000 },
+    };
     player.dirty = true;
 
     clock.advanceTicks(D1_SAVE_EVERY_TICKS);
@@ -359,6 +363,11 @@ describe("world room persistence (FakeClock)", () => {
         where: { heroId: { eq: heroId }, itemDefinitionId: { eq: "mana_potion" } },
       });
       expect(item?.quantity).toBe(3);
+      const hero = await probe.heroes.findById(heroId);
+      expect(JSON.parse(hero?.combatStatBonuses ?? "{}")).toEqual({ dodgeChance: 0.02 });
+      expect(JSON.parse(hero?.combatStatBoosts ?? "{}")).toMatchObject({
+        criticalChance: { bonus: 0.1 },
+      });
     });
     engine.dispose();
   });

@@ -5,6 +5,7 @@
  */
 import { env } from "cloudflare:test";
 import type { AdventureInput } from "@lindocara/engine/adventure.js";
+import { emptyConsumables } from "@lindocara/engine/consumables.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { createAuthoredQuestProgress } from "@lindocara/engine/quest-runtime.js";
@@ -202,6 +203,7 @@ describe("createHero", () => {
       gold: 17,
       crystals: 3,
       consumables: {
+        ...emptyConsumables(),
         health_potion: 4,
         mana_potion: 3,
         damage_elixir: 1,
@@ -228,6 +230,10 @@ describe("createHero", () => {
     profile.consumableCooldownUntil = now + 1_000;
     profile.damageBoostUntil = now + 2_000;
     profile.invisibleUntil = now + 2_000;
+    profile.combatStatBonuses = { magicalResistance: 0.03 };
+    profile.combatStatBoosts = {
+      criticalChance: { bonus: 0.1, until: now + 30_000 },
+    };
     expect(await saveHeroProfile(db, profile)).toBe(true);
 
     const restored = await loadHeroProfile(db, created.id);
@@ -243,6 +249,10 @@ describe("createHero", () => {
       consumableCooldownUntil: profile.consumableCooldownUntil,
       damageBoostUntil: profile.damageBoostUntil,
       invisibleUntil: profile.invisibleUntil,
+      combatStatBonuses: { magicalResistance: 0.03 },
+      combatStatBoosts: {
+        criticalChance: { bonus: 0.1, until: now + 30_000 },
+      },
     });
     expect(restored?.cooldowns?.skillCooldowns[1]).toBe(profile.cooldowns.skillCooldowns[1]);
 

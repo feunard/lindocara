@@ -528,6 +528,34 @@ describe("World", () => {
     }
   });
 
+  it("consumes a permanent combat manual and publishes the upgraded stat", async () => {
+    const session = await testCharacter("combat_manual", {
+      zoneId: "verdant-reach",
+      instanceId: "combat-manual",
+    });
+    await env.DB.prepare(
+      `INSERT INTO character_item
+        (id, character_id, item_definition_id, quantity, created_at)
+       VALUES (?, ?, 'critical_manual', 1, unixepoch() * 1000)`,
+    )
+      .bind(`${session.characterId}:critical_manual`, session.characterId)
+      .run();
+    const client = await Client.joinCharacter(session);
+    try {
+      const welcome = await until("combat manual welcome", () => client.welcome);
+      expect(welcome.self.combatStats?.criticalChance).toBe(0.07);
+      client.sendRaw(JSON.stringify({ t: "item.use", item: "critical_manual" }));
+      await until("combat manual application", () => {
+        const state = client.latestState;
+        return state?.combatStats?.criticalChance === 0.08 ? state : undefined;
+      });
+      expect(client.latestState?.inventory.consumables?.critical_manual).toBe(0);
+    } finally {
+      client.close();
+      await waitForRoomSockets("verdant-reach:combat-manual", 0);
+    }
+  });
+
   it("does not let the URL select a room", async () => {
     const session = await testCharacter("url_room", {
       zoneId: "verdant-reach",

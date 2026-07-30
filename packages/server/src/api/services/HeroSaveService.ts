@@ -33,6 +33,10 @@ import {
   isEquipmentForClass,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
+import {
+  normalizeCombatStatBonuses,
+  normalizeTemporaryCombatStatBoosts,
+} from "@lindocara/engine/combat-stats.js";
 import type { ConsumableCounts } from "@lindocara/engine/consumables.js";
 import { normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { type CombatCooldownState, normalizeCombatCooldowns } from "@lindocara/engine/cooldowns.js";
@@ -257,6 +261,12 @@ export class HeroSaveService {
             ${sql.raw(table.forgottenUntil.name)} = ${safeDeadline(profile.forgottenUntil ?? 0)},
             ${sql.raw(table.invisibleUntil.name)} = ${safeDeadline(profile.invisibleUntil ?? 0)},
             ${sql.raw(table.resurrectionAt.name)} = ${safeDeadline(profile.resurrectionAt ?? 0)},
+            ${sql.raw(table.combatStatBonuses.name)} = ${JSON.stringify(
+              normalizeCombatStatBonuses(profile.combatStatBonuses),
+            )},
+            ${sql.raw(table.combatStatBoosts.name)} = ${JSON.stringify(
+              normalizeTemporaryCombatStatBoosts(profile.combatStatBoosts),
+            )},
             ${sql.raw(table.talents.name)} = ${talents},
             ${sql.raw(table.life.name)} = ${profile.life},
             ${sql.raw(table.corpseX.name)} = ${profile.corpse?.x ?? null},

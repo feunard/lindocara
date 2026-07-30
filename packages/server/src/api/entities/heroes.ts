@@ -48,6 +48,9 @@ export const heroes = $entity({
     forgottenUntil: db.default(z.integer(), 0),
     invisibleUntil: db.default(z.integer(), 0),
     resurrectionAt: db.default(z.integer(), 0),
+    /** JSON permanent bonuses and bounded temporary boosts, normalized at admission. */
+    combatStatBonuses: db.default(z.string(), "{}"),
+    combatStatBoosts: db.default(z.string(), "{}"),
     /** JSON array of server-validated talent ids. Roots are derived and never stored. */
     talents: db.default(z.string(), "[]"),
     sessionEpoch: db.default(z.integer(), 0),
