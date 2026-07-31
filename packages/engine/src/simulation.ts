@@ -23,7 +23,7 @@ export const WORLD_WIDTH = 4800;
 export const WORLD_HEIGHT = 2700;
 export const PLAYER_SIZE = 32;
 
-/** Pixels per second at full tilt. */
+/** Warrior/default pixels per second at full tilt. Per-class values live in `CLASS_STATS`. */
 export const PLAYER_SPEED = 260;
 
 export interface Vec2 {

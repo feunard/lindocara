@@ -299,6 +299,13 @@
   color: rgba(244, 233, 210, 0.7);
   text-align: center;
 }
+
+.class-card__stat {
+  color: var(--tiny-gold, #d9b96e);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
 .carousel-card--focused,
 .class-card--focused {
   border-color: var(--launch-gold);

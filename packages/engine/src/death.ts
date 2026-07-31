@@ -14,7 +14,7 @@
  * resurrect a ghost — so the choice actually costs something.
  */
 
-import { maxHpForLevel } from "./game.js";
+import { CLASS_STATS, maxHpForLevel, type PlayerClass } from "./game.js";
 import { PLAYER_SPEED, type Vec2 } from "./simulation.js";
 
 export const LIFE_STATES = ["alive", "corpse", "ghost"] as const;
@@ -48,10 +48,10 @@ export function isLifeState(value: unknown): value is LifeState {
 }
 
 /** The living walk; the dead do not move at all; ghosts hurry. Both sides derive speed here. */
-export function speedForLife(life: LifeState): number {
+export function speedForLife(life: LifeState, playerClass: PlayerClass = "warrior"): number {
   if (life === "ghost") return GHOST_SPEED;
   if (life === "corpse") return 0;
-  return PLAYER_SPEED;
+  return CLASS_STATS[playerClass].movementSpeed;
 }
 
 /** A corpse is inert and a ghost is intent-inert: only movement and chat survive. */

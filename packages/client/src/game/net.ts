@@ -352,7 +352,10 @@ export class WorldClient {
     this.#input = input;
     // A corpse is frozen over its body; a ghost walks, and faster than the living.
     if (this.#selfSnapshot && !canMove(this.#selfSnapshot.life)) return;
-    const speed = speedForLife(this.#selfSnapshot?.life ?? "alive");
+    const speed = speedForLife(
+      this.#selfSnapshot?.life ?? "alive",
+      this.#selfSnapshot?.class ?? "warrior",
+    );
 
     this.#accumulator = Math.min(this.#accumulator + dt, MAX_ACCUMULATED_SECONDS);
     while (this.#accumulator >= TICK_DT) {
@@ -640,6 +643,7 @@ export class WorldClient {
       this.#pending,
       this.#geometry,
       authoritative.life,
+      authoritative.class,
     );
 
     const drawnAfter = this.#samplePredictedPosition();
@@ -664,7 +668,7 @@ export class WorldClient {
       this.#input,
       this.#accumulator,
       this.#geometry,
-      speedForLife(life),
+      speedForLife(life, this.#selfSnapshot?.class ?? "warrior"),
     );
   }
 

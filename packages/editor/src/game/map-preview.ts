@@ -5,7 +5,7 @@
  * runs to predict its own square (`net.ts`'s `predictPartial`) and the same rules the server runs to
  * decide truth:
  *
- *   position = resolveTerrain(position, step(position, input, TICK_DT, PLAYER_SPEED, geometry), geometry);
+ *   position = resolveTerrain(position, step(position, input, TICK_DT, classSpeed, geometry), geometry);
  *
  * Because the preview calls the exact shared `step()` + `resolveTerrain()` on the exact `terrainFromMap`
  * bake the server would build, parity is not a promise kept by hand — it is the same functions on the
@@ -25,6 +25,7 @@ import {
 } from "@lindocara/engine/character.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import {
+  CLASS_STATS,
   defaultMonsterTuning,
   MONSTER_SPECIES_KIND,
   movementSpeedAt,
@@ -44,7 +45,7 @@ import type {
   QuestState,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
+import { step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { AMBIENCE_NONE, type AmbienceConfig } from "@lindocara/renderer/ambience.js";
 import { trackInput } from "@lindocara/renderer/input.js";
@@ -291,7 +292,13 @@ export async function startMapPreview(
       // truth the server and client prediction both run.
       position = resolveTerrain(
         position,
-        step(position, input, TICK_DT, movementSpeedAt(position, PLAYER_SPEED, geometry), geometry),
+        step(
+          position,
+          input,
+          TICK_DT,
+          movementSpeedAt(position, CLASS_STATS.warrior.movementSpeed, geometry),
+          geometry,
+        ),
         geometry,
       );
       // Same conversion `movement-system.ts` applies to a dequeued command every tick: the last
@@ -311,7 +318,7 @@ export async function startMapPreview(
         position,
         input,
         accumulator,
-        movementSpeedAt(position, PLAYER_SPEED, geometry),
+        movementSpeedAt(position, CLASS_STATS.warrior.movementSpeed, geometry),
         geometry,
       ),
       geometry,

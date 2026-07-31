@@ -3,6 +3,7 @@ import { ROGUE_BALANCE } from "./rogue.js";
 import {
   clampToWorld,
   PLAYER_SIZE,
+  PLAYER_SPEED,
   type Vec2,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -1215,24 +1216,38 @@ export interface ClassStats {
   attackBase: number;
   attackPerLevel: number;
   attackRange: number;
+  /** Authoritative walking speed in world units per second. Shared by server and prediction. */
+  movementSpeed: number;
   heal?: { base: number; perLevel: number; range: number; cooldownMs: number };
 }
 
 export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
-  warrior: { attackBase: 27, attackPerLevel: 4, attackRange: 60 },
-  ranger: { attackBase: 16, attackPerLevel: 2, attackRange: 382.5 },
+  warrior: { attackBase: 27, attackPerLevel: 4, attackRange: 60, movementSpeed: PLAYER_SPEED },
+  ranger: {
+    attackBase: 16,
+    attackPerLevel: 2,
+    attackRange: 382.5,
+    movementSpeed: 286, // +10% versus Warrior.
+  },
   priest: {
     attackBase: 14,
     attackPerLevel: 2,
     attackRange: 337.5,
+    movementSpeed: 234, // -10% versus Warrior.
     heal: { base: 35, perLevel: 3, range: 390, cooldownMs: 1_500 },
   },
   rogue: {
     attackBase: ROGUE_BALANCE.attack.base,
     attackPerLevel: ROGUE_BALANCE.attack.perLevel,
     attackRange: ROGUE_BALANCE.attack.range,
+    movementSpeed: 312, // +20% versus Warrior.
   },
 };
+
+/** Highest living-class speed, used by swept/contact checks that must cover any hero class. */
+export const MAX_CLASS_MOVEMENT_SPEED = Math.max(
+  ...PLAYER_CLASSES.map((playerClass) => CLASS_STATS[playerClass].movementSpeed),
+);
 
 export function attackDamageFor(playerClass: PlayerClass, level: number): number {
   return (

@@ -1,6 +1,7 @@
 import { colliderIndexFrom, emptyColliderIndex } from "@lindocara/engine/collider.js";
 import { speedForLife } from "@lindocara/engine/death.js";
 import {
+  CLASS_STATS,
   RAMP_SPEED_MULTIPLIER,
   resolveTerrain,
   type TerrainGeometry,
@@ -105,6 +106,25 @@ describe("reconcile", () => {
     expect(reconcile(origin, commands, VERDANT_REACH_TERRAIN, "ghost")).toEqual(server);
     // And the living replay must NOT land there — otherwise this test proves nothing.
     expect(reconcile(origin, commands, VERDANT_REACH_TERRAIN, "alive")).not.toEqual(server);
+  });
+
+  it.each([
+    "warrior",
+    "ranger",
+    "priest",
+    "rogue",
+  ] as const)("replays %s movement at the same class speed as the server", (playerClass) => {
+    const commands = [command(1, { right: true }), command(2, { right: true })];
+    let server: Vec2 = origin;
+    for (const pending of commands) {
+      server = resolveTerrain(
+        server,
+        step(server, pending.input, TICK_DT, CLASS_STATS[playerClass].movementSpeed),
+      );
+    }
+    expect(reconcile(origin, commands, VERDANT_REACH_TERRAIN, "alive", playerClass)).toEqual(
+      server,
+    );
   });
 
   it("respects the world walls while replaying", () => {

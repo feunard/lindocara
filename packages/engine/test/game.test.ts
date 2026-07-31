@@ -612,21 +612,25 @@ describe("class rules", () => {
       attackBase: 27,
       attackPerLevel: 4,
       attackRange: 60,
+      movementSpeed: 260,
     });
     expect(CLASS_STATS.ranger).toMatchObject({
       attackBase: 16,
       attackPerLevel: 2,
       attackRange: 382.5,
+      movementSpeed: 286,
     });
     expect(CLASS_STATS.priest).toMatchObject({
       attackBase: 14,
       attackPerLevel: 2,
       attackRange: 337.5,
+      movementSpeed: 234,
     });
     expect(CLASS_STATS.rogue).toEqual({
       attackBase: 22,
       attackPerLevel: 3,
       attackRange: 58,
+      movementSpeed: 312,
     });
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
@@ -635,6 +639,9 @@ describe("class rules", () => {
       cooldownMs: 1500,
     });
     expect(CLASS_STATS.warrior.heal).toBeUndefined();
+    expect(CLASS_STATS.ranger.movementSpeed / CLASS_STATS.warrior.movementSpeed).toBeCloseTo(1.1);
+    expect(CLASS_STATS.priest.movementSpeed / CLASS_STATS.warrior.movementSpeed).toBeCloseTo(0.9);
+    expect(CLASS_STATS.rogue.movementSpeed / CLASS_STATS.warrior.movementSpeed).toBeCloseTo(1.2);
   });
 
   it("scales damage and healing by level", () => {
@@ -688,6 +695,9 @@ describe("cemeteries", () => {
 describe("the death state machine", () => {
   it("freezes a corpse and hurries a ghost", () => {
     expect(speedForLife("alive")).toBe(PLAYER_SPEED);
+    expect(speedForLife("alive", "ranger")).toBe(CLASS_STATS.ranger.movementSpeed);
+    expect(speedForLife("alive", "priest")).toBe(CLASS_STATS.priest.movementSpeed);
+    expect(speedForLife("alive", "rogue")).toBe(CLASS_STATS.rogue.movementSpeed);
     expect(speedForLife("corpse")).toBe(0);
     expect(speedForLife("ghost")).toBeGreaterThan(PLAYER_SPEED);
   });

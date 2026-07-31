@@ -74,7 +74,7 @@ export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>)
             player,
             player.lastInput,
             TICK_DT,
-            movementSpeedAt(player, speedForLife(player.life), context.zone.terrain),
+            movementSpeedAt(player, speedForLife(player.life, player.class), context.zone.terrain),
             context.zone.terrain,
           );
       const heldBlink =

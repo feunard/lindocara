@@ -4,7 +4,7 @@
  * D-pad sweep and one button away. Reached from "New" (with an adventure) or "Join" (with a party).
  */
 
-import type { PlayerClass } from "@lindocara/engine/game.js";
+import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
 import { HERO_CLASSES } from "@lindocara/engine/hero.js";
 import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
 import { type CSSProperties, useState } from "react";
@@ -61,6 +61,13 @@ const CLASS_PREVIEW_COLOR = {
   rogue: "violet",
 } as const;
 
+/** Player-facing comparison; the editable numeric authority remains `CLASS_STATS`. */
+export function classMovementPercent(heroClass: PlayerClass): number {
+  return Math.round(
+    (CLASS_STATS[heroClass].movementSpeed / CLASS_STATS.warrior.movementSpeed) * 100,
+  );
+}
+
 function ClassCard({
   heroClass,
   order,
@@ -94,6 +101,9 @@ function ClassCard({
       </span>
       <span className="class-card__name">{t(`class.${heroClass}`)}</span>
       <span className="class-card__blurb">{t(`class.${heroClass}.blurb`)}</span>
+      <span className="class-card__stat">
+        {t("hero.create.movementSpeed", { percent: classMovementPercent(heroClass) })}
+      </span>
     </button>
   );
 }

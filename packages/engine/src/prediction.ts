@@ -12,7 +12,7 @@
  */
 
 import { type LifeState, speedForLife } from "./death.js";
-import { movementSpeedAt, resolveTerrain, type TerrainGeometry } from "./game.js";
+import { movementSpeedAt, type PlayerClass, resolveTerrain, type TerrainGeometry } from "./game.js";
 import type { Command } from "./protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "./simulation.js";
 
@@ -76,8 +76,9 @@ export function reconcile(
   pending: readonly Command[],
   geometry: TerrainGeometry,
   life: LifeState = "alive",
+  playerClass: PlayerClass = "warrior",
 ): Vec2 {
-  const speed = speedForLife(life);
+  const speed = speedForLife(life, playerClass);
   let position: Vec2 = authoritative;
   for (const command of pending) {
     position = predictStep(position, command, geometry, speed);

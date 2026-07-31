@@ -1,5 +1,5 @@
 import { setLocale } from "@lindocara/client/i18n.js";
-import { HeroCreate } from "@lindocara/client/ui/HeroCreate.js";
+import { classMovementPercent, HeroCreate } from "@lindocara/client/ui/HeroCreate.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,6 +37,17 @@ describe("hero creation class cards", () => {
       const before = input.value;
       fireEvent.click(dice);
       expect(input.value).not.toBe(before);
+    }
+  });
+
+  it("shows each class movement speed relative to the Warrior", () => {
+    render(<HeroCreate adventureId="adventure" onBack={vi.fn()} />);
+    expect(classMovementPercent("warrior")).toBe(100);
+    expect(classMovementPercent("ranger")).toBe(110);
+    expect(classMovementPercent("priest")).toBe(90);
+    expect(classMovementPercent("rogue")).toBe(120);
+    for (const percent of [100, 110, 90, 120]) {
+      expect(screen.getByText(`Speed · ${percent}%`)).toBeVisible();
     }
   });
 });
