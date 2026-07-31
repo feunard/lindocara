@@ -104,9 +104,9 @@ export interface MapData {
 
 /**
  * The most elements one map may carry. Independent of the layer/body byte cap
- * (`MAX_MAP_JSON_BYTES` in `server/index.ts`, sized against the tile layers, not this): a run-length
+ * (`MAX_MAP_JSON_BYTES` in `server/api/bodySizeCap.ts`, sized against the tile layers, not this): a run-length
  * layer already dominates that cap on its own, but leaving the element count unbounded would still
- * let a few thousand elements push a legitimate body past it with no useful message. Enforced on
+ * let many thousands of elements push a legitimate body past it with no useful message. Enforced on
  * the server (`validateMapInput`) and refused up front by the editor (`applyTool`) so a builder
  * never paints past what will save. Lives beside the shared catalogue lookup because both server
  * and browser read it and neither may import the other.
@@ -131,7 +131,7 @@ export const LEGACY_ELEMENT_ASSETS = {
   ],
 } as const satisfies Readonly<Record<ElementKind, readonly EditorAssetId[]>>;
 
-export const MAX_MAP_ELEMENTS = 400;
+export const MAX_MAP_ELEMENTS = 2_000;
 
 export function isElementKind(value: unknown): value is ElementKind {
   return typeof value === "string" && (ELEMENT_KINDS as readonly string[]).includes(value);

@@ -435,22 +435,28 @@ describe("list, get, update, delete", () => {
   // such limit. This test cannot exercise the D1 cap itself (that requires production D1, not
   // `:memory:`), but it does prove the batched write path still round-trips every row intact — the
   // thing a bad chunk boundary (an off-by-one slice, a wrong batch size) would break first.
-  test("round-trips 40+ elements and 15+ events (with pages) through GET -> PUT, across multiple write batches", async () => {
+  test("round-trips content beyond the former 400-element and 64-event caps", async () => {
     const { userId, token } = await registerAndLogin("mapbulk");
     const adventureId = await newAdventure(userId);
     const id = await newMapId(adventureId, token, "Bulk");
 
-    const ELEMENT_COUNT = 44;
-    const EVENT_COUNT = 17;
+    const ELEMENT_COUNT = 401;
+    const EVENT_COUNT = 65;
 
-    // Distinct cells, all with a one-cell margin from every edge (a bush's visual footprint spans
-    // the anchor's 8 neighbours) and clear of the spawn cell (0,0) and the water strip at row 1.
-    const elements = Array.from({ length: ELEMENT_COUNT }, (_, i) => ({
-      col: 3 + (i % 15),
-      row: 3 + Math.floor(i / 15),
-      kind: "bush",
-      variant: 0,
-    }));
+    // Distinct quarter-cell slots, all with a one-cell margin from every edge (a bush's visual
+    // footprint spans the anchor's neighbours) and clear of the spawn and water strip.
+    const elements = Array.from({ length: ELEMENT_COUNT }, (_, i) => {
+      const slot = i % 16;
+      const cell = Math.floor(i / 16);
+      return {
+        col: 3 + (cell % 15),
+        row: 3 + Math.floor(cell / 15),
+        offsetX: slot % 4,
+        offsetY: Math.floor(slot / 4),
+        kind: "bush",
+        variant: 0,
+      };
+    });
 
     // A different row band so no event cell collides with an element cell (elements/events are
     // independent tables, but keeping them apart makes the fixture easy to reason about).

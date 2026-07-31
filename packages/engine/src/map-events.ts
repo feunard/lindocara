@@ -126,12 +126,21 @@ export function parseNpcRoutine(value: unknown): NpcRoutineStep[] | null {
 export const SELF_SWITCHES = ["A", "B", "C", "D"] as const;
 export type SelfSwitch = (typeof SELF_SWITCHES)[number];
 
-/** The most events one map may carry, and the most pages one event may carry — matching the
- *  wireframe's own scale. Both feed `MAX_MAP_JSON_BYTES`'s worst-case derivation
- *  (`server/index.ts`); raise either only alongside that comment. */
-export const MAX_EVENTS_PER_MAP = 64;
+/** Explicit authoring budgets: the total keeps save payloads and editor lists finite, while the
+ * runtime subset protects the 20 Hz simulation from maps made entirely of moving actors. Anchors
+ * consume the total budget but not the runtime budget. */
+export const MAX_EVENTS_PER_MAP = 256;
+export const MAX_RUNTIME_EVENTS_PER_MAP = 128;
 export const MAX_PAGES_PER_EVENT = 8;
 export const EVENT_NAME_MAX = 32;
+
+export function isRuntimeEventKind(kind: EventKind): boolean {
+  return kind === "normal" || kind === "npc" || kind === "monster" || kind === "guard";
+}
+
+export function runtimeEventCount(events: readonly Pick<MapEvent, "kind">[]): number {
+  return events.reduce((count, event) => count + Number(isRuntimeEventKind(event.kind)), 0);
+}
 
 /** Inclusive range of the wireframe's move-speed and move-frequency selects. */
 const MOVE_SPEED_MAX = 5;
@@ -494,6 +503,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
   const seenCells = new Set<string>();
   const seenIds = new Set<string>();
   const events: MapEvent[] = [];
+  let runtimeEvents = 0;
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return null;
     const record = raw as Record<string, unknown>;
@@ -516,6 +526,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     // species, or a functional anchor carrying pages it may not have is rejected outright.
     const kind = record.kind === undefined ? "normal" : record.kind;
     if (!isEventKind(kind)) return null;
+    if (isRuntimeEventKind(kind)) {
+      runtimeEvents += 1;
+      if (runtimeEvents > MAX_RUNTIME_EVENTS_PER_MAP) return null;
+    }
 
     // Monster events carry `species` + tuning + radius. Free NPCs reuse the persisted HP/power
     // tuning columns without a species, and guards carry only a radius. Validate all of it here so

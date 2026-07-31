@@ -1,7 +1,12 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { EventPalette } from "@lindocara/editor/ui/editor/EventPalette.js";
 import { presetEvent } from "@lindocara/engine/event-presets.js";
-import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  functionalEvent,
+  MAX_EVENTS_PER_MAP,
+  MAX_RUNTIME_EVENTS_PER_MAP,
+  type MapEvent,
+} from "@lindocara/engine/map-events.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   DEFAULT_NPC_MODEL_ASSET_ID,
@@ -211,6 +216,36 @@ describe("EventPalette (D13/D14)", () => {
     expect(onHoverEvent).toHaveBeenLastCalledWith(null);
     fireEvent.click(firstRow);
     expect(onSelectEvent).toHaveBeenCalledWith(list[0]?.id);
+  });
+
+  it("shows the total and active-entity safety budgets", () => {
+    setLocale("en");
+    render(<EventPalette {...baseProps()} events={events()} />);
+
+    const budget = screen.getByTestId("event-budget");
+    expect(budget).toHaveTextContent(`Events 2/${MAX_EVENTS_PER_MAP}`);
+    expect(budget).toHaveTextContent(`Active entities 1/${MAX_RUNTIME_EVENTS_PER_MAP}`);
+  });
+
+  it("explains and disables actor placement at the active-entity limit", () => {
+    setLocale("en");
+    const full = Array.from({ length: MAX_RUNTIME_EVENTS_PER_MAP }, (_, index) =>
+      presetEvent({
+        id: crypto.randomUUID(),
+        col: index % 20,
+        row: Math.floor(index / 20),
+        ordinal: index + 1,
+        preset: "raw",
+        selfMapId: MAP_ID,
+      }),
+    );
+    render(<EventPalette {...baseProps()} events={full} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      `${MAX_RUNTIME_EVENTS_PER_MAP}-active-entity safety limit`,
+    );
+    expect(screen.getByRole("button", { name: t("editor.event.kind.npc") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("editor.event.kind.spawn") })).toBeEnabled();
   });
 
   it("shows an empty-state hint with no events", () => {

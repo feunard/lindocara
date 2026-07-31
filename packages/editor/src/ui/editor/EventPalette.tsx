@@ -3,7 +3,14 @@ import { EVENT_PRESETS, type EventPreset } from "@lindocara/engine/event-presets
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
-import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  type EventKind,
+  isRuntimeEventKind,
+  MAX_EVENTS_PER_MAP,
+  MAX_RUNTIME_EVENTS_PER_MAP,
+  type MapEvent,
+  runtimeEventCount,
+} from "@lindocara/engine/map-events.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { Input } from "@lindocara/ui/components/input.js";
@@ -110,6 +117,11 @@ export function EventPalette({
   onSelectEvent,
 }: EventPaletteProps) {
   useLocale();
+  const activeCount = runtimeEventCount(events);
+  const eventLimitReached = events.length >= MAX_EVENTS_PER_MAP;
+  const runtimeLimitReached = activeCount >= MAX_RUNTIME_EVENTS_PER_MAP;
+  const placementDisabled = (kind: EventKind) =>
+    eventLimitReached || (isRuntimeEventKind(kind) && runtimeLimitReached);
 
   return (
     <aside
@@ -123,6 +135,27 @@ export function EventPalette({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
+        <div
+          data-testid="event-budget"
+          className="grid grid-cols-2 gap-1 border-y border-zinc-200 py-1 text-[10.5px] font-semibold text-zinc-500"
+        >
+          <span className={eventLimitReached ? "text-red-600" : undefined}>
+            {t("editor.mapBudget.events", { count: events.length, max: MAX_EVENTS_PER_MAP })}
+          </span>
+          <span className={runtimeLimitReached ? "text-red-600" : undefined}>
+            {t("editor.mapBudget.runtimeEvents", {
+              count: activeCount,
+              max: MAX_RUNTIME_EVENTS_PER_MAP,
+            })}
+          </span>
+        </div>
+        {(eventLimitReached || runtimeLimitReached) && (
+          <p role="status" className="rounded-md bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+            {eventLimitReached
+              ? t("editor.mapBudget.eventsReached", { max: MAX_EVENTS_PER_MAP })
+              : t("editor.mapBudget.runtimeEventsReached", { max: MAX_RUNTIME_EVENTS_PER_MAP })}
+          </p>
+        )}
         <div className="flex h-6 items-center text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
           {t("editor.event.preset.heading")}
         </div>
@@ -132,7 +165,9 @@ export function EventPalette({
               key={preset}
               label={t(PRESET_LABEL[preset])}
               active={eventKind === "normal" && eventPreset === preset}
-              disabled={preset === "teleporter" && !teleporterEnabled}
+              disabled={
+                placementDisabled("normal") || (preset === "teleporter" && !teleporterEnabled)
+              }
               title={
                 preset === "teleporter" && !teleporterEnabled
                   ? t("editor.event.preset.teleporter.disabled")
@@ -152,6 +187,7 @@ export function EventPalette({
               key={kind}
               label={t(EVENT_KIND_LABEL[kind])}
               active={eventKind === kind}
+              disabled={placementDisabled(kind)}
               preview={
                 kind === "npc" ? undefined : (
                   <SpriteSheetPreview source={EDITOR_MARKER_PREVIEWS[kind]} frame={192} />
@@ -174,6 +210,7 @@ export function EventPalette({
           </p>
           <CatalogueAssetPicker
             usage="character"
+            disabled={placementDisabled("npc")}
             value={npcGraphic}
             onSelectAsset={onSelectNpcGraphic}
           />
@@ -189,6 +226,7 @@ export function EventPalette({
             </p>
             <CatalogueAssetPicker
               usage="guard"
+              disabled={placementDisabled("guard")}
               value={guardGraphic}
               onSelectAsset={onSelectGuardGraphic}
             />
@@ -205,6 +243,7 @@ export function EventPalette({
               <SwatchButton
                 key={species}
                 label={t(`monster.${species}`)}
+                disabled={placementDisabled("monster")}
                 active={
                   eventKind === "monster" && markerSpecies === species && enemyGraphic === null
                 }
@@ -234,8 +273,10 @@ export function EventPalette({
           <p className="text-[10.5px] text-zinc-500">{t("editor.event.enemies.description")}</p>
           <CatalogueAssetPicker
             usage="enemy"
+            disabled={placementDisabled("monster")}
             value={enemyGraphic}
             onSelectAsset={(assetId) => {
+              if (placementDisabled("monster")) return;
               onSelectEnemyGraphic(assetId);
               onSelectEventKind("monster");
             }}

@@ -20,6 +20,7 @@ interface CatalogueAssetPickerProps {
   onSelectNone?: (() => void) | undefined;
   noneLabel?: string | undefined;
   usage?: "scenery" | "event" | "character" | "enemy" | "guard";
+  disabled?: boolean | undefined;
 }
 
 const ASSET_PAGE_SIZE = 12;
@@ -131,6 +132,7 @@ export function CatalogueAssetPicker({
   onSelectNone,
   noneLabel,
   usage = "scenery",
+  disabled = false,
 }: CatalogueAssetPickerProps) {
   useLocale();
   const [query, setQuery] = useState("");
@@ -187,6 +189,7 @@ export function CatalogueAssetPicker({
         <button
           type="button"
           aria-pressed={value === null}
+          disabled={disabled}
           onClick={onSelectNone}
           className={`rounded-md px-2 py-1.5 text-left text-[12px] font-medium ${
             value === null ? "bg-zinc-900 text-zinc-50" : "text-zinc-600 hover:bg-zinc-200/70"
@@ -197,6 +200,7 @@ export function CatalogueAssetPicker({
       )}
       <Input
         type="search"
+        disabled={disabled}
         value={query}
         aria-label={t("editor.palette.search")}
         placeholder={t("editor.palette.search")}
@@ -207,6 +211,7 @@ export function CatalogueAssetPicker({
         }}
       />
       <select
+        disabled={disabled}
         className="h-7 w-full rounded-md border border-input bg-white px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
         value={category}
         aria-label={t("editor.palette.category.all")}
@@ -239,6 +244,7 @@ export function CatalogueAssetPicker({
                   asset={asset}
                   selected={asset.id === value}
                   onSelect={onSelectAsset}
+                  disabled={disabled}
                 />
               ))}
             </div>
@@ -248,6 +254,7 @@ export function CatalogueAssetPicker({
       {visibleCount < filteredAssets.length && (
         <button
           type="button"
+          disabled={disabled}
           className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs font-medium text-zinc-600 hover:border-zinc-400"
           onClick={() => setVisibleCount((count) => count + ASSET_PAGE_SIZE)}
         >
@@ -265,10 +272,12 @@ function AssetChoice({
   asset,
   selected,
   onSelect,
+  disabled,
 }: {
   asset: EditorAssetDefinition;
   selected: boolean;
   onSelect(assetId: EditorAssetId): void;
+  disabled: boolean;
 }) {
   const collides = asset.editor.collider !== undefined;
   const displayName = assetDisplayName(asset);
@@ -280,11 +289,12 @@ function AssetChoice({
   return (
     <button
       type="button"
+      disabled={disabled}
       aria-pressed={selected}
       data-asset-id={asset.id}
       title={displayName}
       onClick={() => onSelect(asset.id as EditorAssetId)}
-      className={`flex min-w-0 flex-col items-center gap-0.5 rounded-md border p-1 text-center ${
+      className={`flex min-w-0 flex-col items-center gap-0.5 rounded-md border p-1 text-center disabled:cursor-not-allowed disabled:opacity-40 ${
         selected ? "border-zinc-900 bg-white" : "border-zinc-200 bg-white hover:border-zinc-400"
       }`}
     >

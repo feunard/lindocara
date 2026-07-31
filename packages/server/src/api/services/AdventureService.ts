@@ -48,7 +48,7 @@ import { DEFAULT_FIRST_MAP_NAME } from "./mapAuthoring.ts";
 // `mapEventPages.deleteMany`'s `eventId: { inArray: [...] }` binds exactly one parameter per event
 // id (unlike an INSERT, there is no per-column multiplication — see `MapService`'s own docblock for
 // the fuller D1 ~100-bound-parameter-cap explanation). A single map's event count is bounded by
-// `MAX_EVENTS_PER_MAP` (64), comfortably under that cap on its own, but every other bulk op in this
+// `MAX_EVENTS_PER_MAP`, but every other bulk op in this
 // codebase chunks rather than trusting a ceiling to never move — this stays consistent with that
 // discipline (and with `MapService`'s own chunked writes) rather than being the one exception.
 const MAP_EVENT_PAGE_DELETE_CHUNK = 40;

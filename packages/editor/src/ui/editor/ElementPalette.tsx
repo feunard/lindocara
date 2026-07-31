@@ -37,12 +37,22 @@ export function ElementPalette({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
-        <div className="flex h-6 items-center justify-between border-y border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
-          <span>{t("editor.shell.decor.heading")}</span>
+        <div
+          data-testid="element-budget"
+          className={`flex h-6 items-center justify-between border-y border-zinc-200 text-[10.5px] font-semibold tracking-wide uppercase ${
+            elementCount >= MAX_MAP_ELEMENTS ? "text-red-600" : "text-zinc-400"
+          }`}
+        >
+          <span>{t("editor.mapBudget.scenery")}</span>
           <span className="tabular-nums lowercase">
-            {elementCount}/{MAX_MAP_ELEMENTS}
+            {elementCount.toLocaleString()}/{MAX_MAP_ELEMENTS.toLocaleString()}
           </span>
         </div>
+        {elementCount >= MAX_MAP_ELEMENTS && (
+          <p role="status" className="rounded-md bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+            {t("editor.mapBudget.sceneryReached", { max: MAX_MAP_ELEMENTS })}
+          </p>
+        )}
         <div data-testid="catalogue-picker" className="contents">
           <CatalogueAssetPicker value={selectedAsset} onSelectAsset={onSelectAsset} />
         </div>

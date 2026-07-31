@@ -1137,6 +1137,15 @@ export const en = {
   "editor.shell.terrain.level1": "Plateau +1",
   "editor.shell.terrain.level2": "Plateau +2",
   "editor.shell.decor.heading": "Elements",
+  "editor.mapBudget.scenery": "Scenery safety budget",
+  "editor.mapBudget.sceneryReached":
+    "This map has reached the {max}-scenery safety limit. Remove scenery before placing more.",
+  "editor.mapBudget.events": "Events {count}/{max}",
+  "editor.mapBudget.runtimeEvents": "Active entities {count}/{max}",
+  "editor.mapBudget.eventsReached":
+    "This map has reached the {max}-event safety limit. Remove an event before placing more.",
+  "editor.mapBudget.runtimeEventsReached":
+    "This map has reached the {max}-active-entity safety limit. NPCs, monsters, guards and scripted events share it.",
   "editor.shell.fill.water_disabled": "Fill cannot paint water — pick another tool for water.",
   "editor.shell.tool.stairs": "Stairs",
   "editor.stairs.highSide": "Uphill direction",

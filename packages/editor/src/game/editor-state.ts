@@ -29,10 +29,13 @@ import {
   EVENT_GRAPHIC_TINT_DEFAULT,
   type EventKind,
   functionalEvent,
+  isRuntimeEventKind,
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
+  MAX_RUNTIME_EVENTS_PER_MAP,
   type MapEvent,
   type MapEventPage,
+  runtimeEventCount,
 } from "@lindocara/engine/map-events.js";
 import {
   defaultMapHeroSettings,
@@ -503,6 +506,7 @@ export function convertElementToEvent(
   binding: ElementEventBinding,
 ): { map: EditorMap; eventId: string } | null {
   if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
+  if (runtimeEventCount(map.events) >= MAX_RUNTIME_EVENTS_PER_MAP) return null;
   const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
   if (!element) return null;
   if (map.events.some((event) => event.col === element.col && event.row === element.row))
@@ -1228,6 +1232,11 @@ export function applyTool(
     case "event": {
       if (map.events.some((event) => event.col === col && event.row === row)) return null;
       if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
+      if (
+        isRuntimeEventKind(tool.eventKind) &&
+        runtimeEventCount(map.events) >= MAX_RUNTIME_EVENTS_PER_MAP
+      )
+        return null;
       if (!functionalEventPlacementOk(map, tool.eventKind, col, row)) return null;
       const ordinal = nextEventOrdinal(map.events);
       if (tool.eventKind === "normal") {

@@ -15,6 +15,7 @@ import {
   EVENT_NAME_MAX,
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
+  MAX_RUNTIME_EVENTS_PER_MAP,
   type MapEvent,
   type MapEventPage,
   parseMapEvents,
@@ -23,8 +24,8 @@ import {
 import { DEFAULT_GUARD_APPEARANCE_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
-const COLS = 10;
-const ROWS = 10;
+const COLS = 16;
+const ROWS = 17;
 
 const GOOD_ASSET_ID = "building.buildings-black-buildings.archery";
 const ID_A = "11111111-1111-4111-8111-111111111111";
@@ -182,9 +183,37 @@ describe("parseMapEvents: good payloads round-trip unchanged", () => {
         col: i % COLS,
         row: Math.floor(i / COLS),
         ordinal: i,
+        kind: "entry",
       }),
     );
     expect(parseMapEvents(events, COLS, ROWS)).toEqual(events);
+  });
+
+  it("bounds runtime entities separately from inert anchors", () => {
+    const runtimeEvents = Array.from({ length: MAX_RUNTIME_EVENTS_PER_MAP }, (_, i) =>
+      event({
+        id: `${String(i).padStart(8, "0")}-1111-4111-8111-111111111111`,
+        col: i % COLS,
+        row: Math.floor(i / COLS),
+        ordinal: i,
+      }),
+    );
+    expect(parseMapEvents(runtimeEvents, COLS, ROWS)).toEqual(runtimeEvents);
+    expect(
+      parseMapEvents(
+        [
+          ...runtimeEvents,
+          event({
+            id: "99999999-1111-4111-8111-111111111111",
+            col: 0,
+            row: Math.ceil(MAX_RUNTIME_EVENTS_PER_MAP / COLS),
+            ordinal: MAX_RUNTIME_EVENTS_PER_MAP,
+          }),
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
   });
 
   it("accepts up to MAX_PAGES_PER_EVENT pages", () => {
@@ -246,6 +275,7 @@ describe("parseMapEvents: totality — every malformed field lands on null, neve
         col: i % COLS,
         row: Math.floor(i / COLS),
         ordinal: i,
+        kind: "entry",
       }),
     ),
   };

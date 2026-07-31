@@ -1153,6 +1153,15 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.terrain.level1": "Plateau +1",
   "editor.shell.terrain.level2": "Plateau +2",
   "editor.shell.decor.heading": "Éléments",
+  "editor.mapBudget.scenery": "Budget de sécurité des décors",
+  "editor.mapBudget.sceneryReached":
+    "Cette carte a atteint la limite de sécurité de {max} décors. Supprimez un décor avant d’en placer un autre.",
+  "editor.mapBudget.events": "Événements {count}/{max}",
+  "editor.mapBudget.runtimeEvents": "Entités actives {count}/{max}",
+  "editor.mapBudget.eventsReached":
+    "Cette carte a atteint la limite de sécurité de {max} événements. Supprimez un événement avant d’en placer un autre.",
+  "editor.mapBudget.runtimeEventsReached":
+    "Cette carte a atteint la limite de sécurité de {max} entités actives. Les PNJ, monstres, gardes et événements animés la partagent.",
   "editor.shell.fill.water_disabled":
     "Le remplissage ne peut pas peindre l'eau — choisissez un autre outil pour l'eau.",
   "editor.shell.tool.stairs": "Escalier",

@@ -27,7 +27,13 @@ import {
 } from "@lindocara/editor/game/editor-state.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
-import { entryEvents, exitEvents, type MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  entryEvents,
+  exitEvents,
+  functionalEvent,
+  MAX_RUNTIME_EVENTS_PER_MAP,
+  type MapEvent,
+} from "@lindocara/engine/map-events.js";
 import {
   eraseRect,
   paintRectAutotile,
@@ -222,8 +228,8 @@ describe("applyTool: element", () => {
   });
 
   it("refuses a new element once the map already holds the cap, but still allows replacing one", () => {
-    // A 100x100 blank map so geometry is not the limit — the cap is. Fill rows 0-3 with bushes
-    // (400 cells, all grass, clear of the centred spawn).
+    // A 100x100 blank map so geometry is not the limit — the cap is. Fill from the top with bushes
+    // (all grass and clear of the centred spawn).
     const base = blankMap("m", 100, 100);
     const elements: MapElement[] = Array.from({ length: MAX_MAP_ELEMENTS }, (_, i) => ({
       col: i % 100,
@@ -234,9 +240,9 @@ describe("applyTool: element", () => {
     }));
     const full: EditorMap = { ...base, elements };
 
-    // A new cell is refused: it would be element 401.
+    // A new empty cell is refused because it would exceed the shared safety budget.
     const treeTool: EditorTool = { kind: "element", assetId: TREE };
-    expect(place(full, treeTool, 10, 10, true, "element")).toBeNull();
+    expect(place(full, treeTool, 10, 30, true, "element")).toBeNull();
 
     // Replacing an element already on a cell is fine — the count does not grow.
     const replaced = place(
@@ -1061,6 +1067,23 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
       6,
     ) as EditorMap;
     expect(placed.events[0]?.pages[0]?.graphicAssetId).toBe(DEFAULT_NPC_MODEL_ASSET_ID);
+  });
+
+  it("refuses another active entity after the runtime safety budget is reached", () => {
+    const events = Array.from({ length: MAX_RUNTIME_EVENTS_PER_MAP }, (_, index) =>
+      functionalEvent({
+        id: crypto.randomUUID(),
+        col: index % 20,
+        row: Math.floor(index / 20),
+        ordinal: index + 1,
+        kind: "npc",
+        patrolRadius: 96,
+      }),
+    );
+    const full: EditorMap = { ...base, events };
+
+    expect(place(full, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 19, 14)).toBeNull();
+    expect(place(full, { kind: "event", eventKind: "spawn" }, 19, 14)).not.toBeNull();
   });
 
   it("still refuses a second event on an occupied cell, whatever the kind", () => {
