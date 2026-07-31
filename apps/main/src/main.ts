@@ -29,9 +29,11 @@ const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi)
 // the router and therefore serves the SPA shell and page routes.
 const schemaImport = typeof process !== "undefined" && process.env.ALEPHA_CLI_IMPORT === "true";
 if (!schemaImport) {
-  void import("@lindocara/client/ui/AppRouter.js").then(({ AppRouter }) => {
-    run(alepha.with(AppRouter));
-  });
+  // The build analyzer must observe the fully composed container before this module finishes.
+  // Leaving this import as a detached promise lets analysis complete against the server-only
+  // container, which makes Alepha skip the entire browser/public-assets build.
+  const { AppRouter } = await import("@lindocara/client/ui/AppRouter.js");
+  run(alepha.with(AppRouter));
 } else {
   run(alepha);
 }
