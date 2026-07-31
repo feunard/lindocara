@@ -16,7 +16,7 @@ interface MapAudioDialogProps {
   mapName: string;
   initial: MapAudioConfig;
   onOpenChange(open: boolean): void;
-  onSave(audio: MapAudioConfig): void;
+  onSave(audio: MapAudioConfig): Promise<boolean>;
 }
 
 export function MapAudioDialog({
@@ -28,14 +28,28 @@ export function MapAudioDialog({
 }: MapAudioDialogProps) {
   useLocale();
   const [audio, setAudio] = useState<MapAudioConfig>(initial);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setAudio(initial);
+    if (open) {
+      setAudio(initial);
+      setSaving(false);
+    }
   }, [initial, open]);
+
+  async function save(): Promise<void> {
+    if (saving) return;
+    setSaving(true);
+    try {
+      if (await onSave(audio)) onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent key={`${mapName}:${open}`} className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("editor.audio.mapTitle", { name: mapName })}</DialogTitle>
         </DialogHeader>
@@ -45,7 +59,9 @@ export function MapAudioDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("adventure.delete.cancel")}
           </Button>
-          <Button onClick={() => onSave(audio)}>{t("editor.save")}</Button>
+          <Button disabled={saving} onClick={() => void save()}>
+            {t("editor.save")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

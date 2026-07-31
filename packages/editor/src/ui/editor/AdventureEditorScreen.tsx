@@ -1436,16 +1436,15 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             mapName={currentMap.name}
             initial={currentMap.audio}
             onOpenChange={setMapAudioOpen}
-            onSave={(audio) => {
+            onSave={async (audio) => {
               const handle = handleRef.current;
-              if (!handle) return;
+              if (!handle) return false;
               // "Save" in this dedicated dialog must persist the choice, not merely leave it as an
               // unsaved stage edit. The previous flow closed the popup after setAudio(), so music,
               // ambience and combat themes disappeared on reload unless the author happened to use
               // the editor-wide Save afterwards.
               handle.setAudio(audio);
-              setMapAudioOpen(false);
-              void doSaveMap();
+              return (await doSaveMap()) !== null;
             }}
           />
         )}
