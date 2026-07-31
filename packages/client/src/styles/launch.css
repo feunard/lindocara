@@ -366,9 +366,34 @@
 }
 .hero-create__name {
   display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.hero-create__name-field {
+  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
+}
+.hero-create__name-dice {
+  padding: 0.4rem 0.6rem;
+  border: 2px solid var(--launch-edge);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--launch-gold-bright);
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1.35;
+  cursor: var(--tiny-cursor-link, pointer);
+}
+.hero-create__name-dice:hover:not(:disabled) {
+  border-color: var(--launch-gold);
+}
+.hero-create__name-dice:focus-visible {
+  outline: none;
+  border-color: var(--launch-gold);
+  box-shadow: var(--launch-glow);
 }
 .hero-create__name-label {
   font-family: system-ui, sans-serif;

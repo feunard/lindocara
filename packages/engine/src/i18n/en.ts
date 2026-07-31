@@ -1810,6 +1810,7 @@ export const en = {
   "join.empty": "No open party to join right now.",
   "hero.create.title": "Create your hero",
   "hero.create.name": "Name",
+  "hero.create.name.random": "Random name",
   "hero.create.error": "Could not create the hero. Try again.",
   "hero.create.hint.start": "Pick a class & play",
   "parties.completed": "Finished",

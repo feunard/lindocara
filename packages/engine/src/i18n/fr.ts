@@ -1834,6 +1834,7 @@ export const fr: Record<keyof typeof en, string> = {
   "join.empty": "Aucune partie ouverte pour l'instant.",
   "hero.create.title": "Crée ton héros",
   "hero.create.name": "Nom",
+  "hero.create.name.random": "Nom aléatoire",
   "hero.create.error": "Impossible de créer le héros. Réessaie.",
   "hero.create.hint.start": "Choisis une classe & joue",
   "parties.completed": "Terminée",

@@ -37,6 +37,16 @@ function suggestName(): string {
   return NAME_POOL[Math.floor(Math.random() * NAME_POOL.length)] as string;
 }
 
+/**
+ * The dice re-roll. Draws from the pool minus whatever is on screen, so a click always visibly
+ * changes the field — a suggestion that re-suggests itself reads as a broken button.
+ */
+function rollName(current: string): string {
+  const others = NAME_POOL.filter((n) => n !== current.trim());
+  const pool = others.length > 0 ? others : NAME_POOL;
+  return pool[Math.floor(Math.random() * pool.length)] as string;
+}
+
 const CLASS_EMBLEM: Record<PlayerClass, string> = {
   warrior: "⚔",
   ranger: "🏹",
@@ -130,16 +140,28 @@ export function HeroCreate({
     <main className="hero-create">
       <header className="hero-create__head">
         <h1 className="hero-create__title">{t("hero.create.title")}</h1>
-        <label className="hero-create__name">
-          <span className="hero-create__name-label">{t("hero.create.name")}</span>
-          <input
-            className="hero-create__name-input"
-            value={name}
-            maxLength={24}
-            onChange={(e) => setName(e.target.value)}
+        <div className="hero-create__name">
+          <label className="hero-create__name-field">
+            <span className="hero-create__name-label">{t("hero.create.name")}</span>
+            <input
+              className="hero-create__name-input"
+              value={name}
+              maxLength={24}
+              onChange={(e) => setName(e.target.value)}
+              disabled={busy}
+            />
+          </label>
+          <button
+            type="button"
+            className="hero-create__name-dice"
+            onClick={() => setName(rollName)}
             disabled={busy}
-          />
-        </label>
+            title={t("hero.create.name.random")}
+            aria-label={t("hero.create.name.random")}
+          >
+            <span aria-hidden="true">🎲</span>
+          </button>
+        </div>
       </header>
 
       {error && <p className="hero-create__error">{error}</p>}
