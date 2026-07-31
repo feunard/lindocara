@@ -47,6 +47,7 @@ import {
 import { TooltipProvider } from "@lindocara/ui/components/tooltip.js";
 import { useAlepha, useStore } from "alepha/react";
 import { useRouter } from "alepha/react/router";
+import { XIcon } from "lucide-react";
 import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -1383,6 +1384,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                       if (selection.kind === "event") setOpenEventId(selection.id);
                       if (selection.kind === "element") setBindingSelection(selection);
                     }}
+                    onClose={() => handleRef.current?.clearSelection()}
                     onDelete={() => handleRef.current?.deleteSelected()}
                   />
                 </div>
@@ -1603,6 +1605,7 @@ function SelectionInspector({
   onMove,
   onSetOffset,
   onOpenEditor,
+  onClose,
   onDelete,
 }: {
   selection: EditorSelection;
@@ -1610,6 +1613,7 @@ function SelectionInspector({
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
   onOpenEditor(): void;
+  onClose(): void;
   onDelete(): void;
 }) {
   useLocale();
@@ -1635,9 +1639,20 @@ function SelectionInspector({
       className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
       aria-label={t("editor.inspector.title")}
     >
-      <p className="text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-        {t(titleKey)}
-      </p>
+      <div className="-mr-1 flex items-start justify-between gap-2">
+        <p className="pt-1 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
+          {t(titleKey)}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("editor.inspector.close")}
+          onClick={onClose}
+        >
+          <XIcon aria-hidden="true" />
+        </Button>
+      </div>
 
       {selectedEvent && (
         <>

@@ -71,6 +71,7 @@ const stageMock = vi.hoisted(() => ({
   redo: vi.fn(),
   markSaved: vi.fn(),
   selected: vi.fn(),
+  clearSelection: vi.fn(),
   moveSelected: vi.fn(),
   setSelectedElementAsset: vi.fn(),
   deleteSelected: vi.fn(),
@@ -103,6 +104,7 @@ function stageHandle() {
     redo: stageMock.redo,
     markSaved: stageMock.markSaved,
     selected: stageMock.selected,
+    clearSelection: stageMock.clearSelection,
     moveSelected: stageMock.moveSelected,
     setSelectedElementAsset: stageMock.setSelectedElementAsset,
     deleteSelected: stageMock.deleteSelected,
@@ -769,6 +771,10 @@ describe("AdventureEditorScreen shell", () => {
     // Scoped to the inspector: the D14 sidebar event list now also carries this event's EV001 chip.
     const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
     expect(within(inspector).getByText(/EV001/)).toBeInTheDocument();
+    await userEvent.click(
+      within(inspector).getByRole("button", { name: t("editor.inspector.close") }),
+    );
+    expect(stageMock.clearSelection).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
     expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
   });

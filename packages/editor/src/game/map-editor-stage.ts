@@ -121,6 +121,8 @@ export interface MapEditorStageHandle {
    * keeps edits made while that request was in flight dirty instead of falsely clearing them. */
   markSaved(saved?: EditorMap): void;
   selected(): EditorSelection | null;
+  /** Clear the inspector selection without mutating authored content. */
+  clearSelection(): void;
   moveSelected(col: number, row: number): boolean;
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
   /** Re-place the selected element at a new quarter-cell offset (0..3 per axis) as one history entry;
@@ -903,6 +905,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     redo() {},
     markSaved() {},
     selected: () => null,
+    clearSelection() {},
     moveSelected: () => false,
     setSelectedElementAsset: () => false,
     setSelectedElementOffset: () => false,
@@ -1831,6 +1834,12 @@ async function buildSession(
     },
     selected() {
       return selected;
+    },
+    clearSelection() {
+      if (!selected) return;
+      selected = null;
+      redraw();
+      notify();
     },
     moveSelected(col, row) {
       if (!selected) return false;

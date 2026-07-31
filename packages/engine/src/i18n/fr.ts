@@ -991,6 +991,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.offsetX": "Décalage X",
   "editor.inspector.offsetY": "Décalage Y",
   "editor.inspector.openEditor": "Ouvrir l’éditeur",
+  "editor.inspector.close": "Fermer l’inspecteur",
   "editor.tool.variant": "Variante",
   "editor.markers.species": "Espèce",
   "editor.markers.radius": "Rayon de patrouille",

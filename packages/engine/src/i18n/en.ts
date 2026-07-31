@@ -978,6 +978,7 @@ export const en = {
   "editor.inspector.offsetX": "Offset X",
   "editor.inspector.offsetY": "Offset Y",
   "editor.inspector.openEditor": "Open editor",
+  "editor.inspector.close": "Close inspector",
   "editor.tool.variant": "Variant",
   "editor.markers.species": "Species",
   "editor.markers.radius": "Patrol radius",
