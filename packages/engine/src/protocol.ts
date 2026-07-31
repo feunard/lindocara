@@ -777,7 +777,10 @@ function isDirection(value: unknown): value is Vec2 {
   return length >= 0.999 && length <= 1.001;
 }
 
-function isActionSnapshot(value: unknown): value is CombatActionSnapshot {
+function isActionSnapshot(
+  value: unknown,
+  actorKind: "player" | "monster",
+): value is CombatActionSnapshot {
   if (value === null) return false;
   if (
     !isRecord(value) ||
@@ -797,12 +800,18 @@ function isActionSnapshot(value: unknown): value is CombatActionSnapshot {
   ) {
     return false;
   }
-  return (
-    ((value.kind === "skill" || value.kind === "basic") &&
+  if (actorKind === "player") {
+    return (
+      (value.kind === "skill" || value.kind === "basic") &&
       typeof value.skillId === "string" &&
       value.skillId.length >= 1 &&
-      value.skillId.length <= 64) ||
-    (value.kind === "monster_attack" && value.skillId === undefined)
+      value.skillId.length <= 64
+    );
+  }
+  return (
+    value.kind === "monster_attack" &&
+    (value.skillId === undefined ||
+      (isMonsterSpecialTechnique(value.skillId) && value.skillId !== "none"))
   );
 }
 
@@ -828,7 +837,7 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     isDirection(value.facing) &&
     (value.guarding === undefined || typeof value.guarding === "boolean") &&
     (value.invisible === undefined || typeof value.invisible === "boolean") &&
-    (value.action === null || isActionSnapshot(value.action))
+    (value.action === null || isActionSnapshot(value.action, "player"))
   );
 }
 
@@ -852,7 +861,7 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     typeof value.dead === "boolean" &&
     isDirection(value.facing) &&
     (value.navigationDebug === undefined || isNavigationDebug(value.navigationDebug)) &&
-    (value.action === null || isActionSnapshot(value.action))
+    (value.action === null || isActionSnapshot(value.action, "monster"))
   );
 }
 
@@ -1599,7 +1608,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       (value.actorKind === "player" || value.actorKind === "monster") &&
       isWireId(value.actionId) &&
       isWireId(value.actorId) &&
-      (value.action === "attack" || (value.actorKind === "player" && value.action === "skill")) &&
+      (value.action === "attack" || value.action === "skill") &&
       isDirection(value.direction) &&
       isFiniteNumber(value.startedAt) &&
       isFiniteNumber(value.impactAt) &&
@@ -1611,8 +1620,10 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       (value.talented === undefined || value.talented === true) &&
       (value.evolved === undefined || value.evolved === true) &&
       ((value.actorKind === "monster" &&
-        value.action === "attack" &&
-        value.skillId === undefined) ||
+        ((value.action === "attack" && value.skillId === undefined) ||
+          (value.action === "skill" &&
+            isMonsterSpecialTechnique(value.skillId) &&
+            value.skillId !== "none"))) ||
         (value.actorKind === "player" &&
           typeof value.skillId === "string" &&
           value.skillId.length >= 1 &&

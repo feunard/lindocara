@@ -265,6 +265,93 @@ describe("server protocol", () => {
     ).toBeNull();
   });
 
+  it("accepts a monster special action inside authoritative snapshots", () => {
+    const quake = {
+      id: "boss-quake-1",
+      kind: "monster_attack",
+      skillId: "troll_quake",
+      direction: { x: 1, y: 0 },
+      startedAt: 1_000,
+      impactAt: 1_850,
+      recoveryEndsAt: 2_750,
+      resolved: false,
+    };
+    const boss = {
+      id: "boss-1",
+      name: "BOSS",
+      species: "gate_troll",
+      kind: "troll",
+      rank: "boss",
+      specialTechnique: "troll_quake",
+      x: 32,
+      y: 32,
+      hp: 2_000,
+      maxHp: 2_000,
+      dead: false,
+      facing: { x: 1, y: 0 },
+      action: quake,
+    };
+    const normal = {
+      ...boss,
+      id: "normal-1",
+      name: "Normal",
+      rank: "normal",
+      specialTechnique: "none",
+      hp: 145,
+      maxHp: 145,
+      action: {
+        ...quake,
+        id: "normal-strike-1",
+        skillId: undefined,
+      },
+    };
+    const elite = {
+      ...boss,
+      id: "elite-1",
+      name: "Elite",
+      rank: "elite",
+      hp: 900,
+      maxHp: 900,
+      action: {
+        ...quake,
+        id: "elite-quake-1",
+      },
+    };
+
+    const parsed = parseServerMessage(
+      JSON.stringify({
+        t: "world.resync",
+        tick: 20,
+        players: [player],
+        monsters: [normal, elite, boss],
+        guards: [],
+        loot: [],
+        corpses: [],
+        projectiles: [],
+        events: [],
+      }),
+    );
+    expect(parsed).toMatchObject({
+      t: "world.resync",
+      monsters: [
+        { rank: "normal", action: { kind: "monster_attack" } },
+        { rank: "elite", action: { kind: "monster_attack", skillId: "troll_quake" } },
+        { rank: "boss", action: { kind: "monster_attack", skillId: "troll_quake" } },
+      ],
+    });
+    if (parsed?.t !== "world.resync") throw new Error("expected a full resynchronization");
+    expect(parsed.monsters[0]?.action).not.toHaveProperty("skillId");
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          players: [{ ...player, action: quake }],
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("accepts any well-formed zone id, since terrain now travels in the welcome itself", () => {
     expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world }))).toMatchObject({
       t: "welcome",
@@ -584,6 +671,28 @@ describe("combat animation messages", () => {
       evolved: true,
     });
     expect(parseServerMessage(monster)).toMatchObject({ t: "animation", actorKind: "monster" });
+  });
+
+  it("round-trips a server-authored monster special animation", () => {
+    const quake = encodeServerMessage({
+      t: "animation",
+      actionId: "action-monster-quake-1",
+      actorKind: "monster",
+      actorId: "boss-1",
+      action: "skill",
+      skillId: "troll_quake",
+      direction: { x: 1, y: 0 },
+      startedAt: 100,
+      impactAt: 950,
+      recoveryEndsAt: 1_850,
+    });
+
+    expect(parseServerMessage(quake)).toMatchObject({
+      t: "animation",
+      actorKind: "monster",
+      action: "skill",
+      skillId: "troll_quake",
+    });
   });
 
   it("accepts only bounded ordered server-owned multi-hit contacts", () => {

@@ -26,7 +26,11 @@ import {
   maxHpForLevel,
   pointDistance,
 } from "@lindocara/engine/game.js";
-import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import {
+  encodeServerMessage,
+  parseServerMessage,
+  type ServerMessage,
+} from "@lindocara/engine/protocol.js";
 import { PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
 import {
   CHAT_MAX_LENGTH,
@@ -379,6 +383,85 @@ describe("world room combat (FakeClock)", () => {
     expect(sentTo(sent, host.heroId).some((m) => m.t === "event" && m.code === "combat.hurt")).toBe(
       false,
     );
+    engine.dispose();
+  });
+
+  test("elite and boss special wind-ups remain valid on the client wire", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("bosswire");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const target = playerOf(state, heroId);
+    const monsters = createMonsters([
+      {
+        id: "elite-wire-1",
+        name: "ELITE",
+        kind: "troll",
+        species: "gate_troll",
+        zone: "gate",
+        x: target.x - 40,
+        y: target.y,
+        patrolRadius: 10,
+        rank: "elite",
+        maxHp: 900,
+        damage: 45,
+        speed: 120,
+        xp: 900,
+        weakness: "none",
+        weaknessPercent: 150,
+        specialTechnique: "troll_quake",
+      },
+      {
+        id: "boss-wire-1",
+        name: "BOSS",
+        kind: "troll",
+        species: "gate_troll",
+        zone: "gate",
+        x: target.x - 40,
+        y: target.y,
+        patrolRadius: 10,
+        rank: "boss",
+        maxHp: 2_000,
+        damage: 70,
+        speed: 150,
+        xp: 2_000,
+        weakness: "none",
+        weaknessPercent: 150,
+        specialTechnique: "troll_quake",
+      },
+    ]);
+    expect(monsters).toHaveLength(2);
+    for (const monster of monsters) {
+      state.monsters.push(monster);
+      state.monsterGrid.insert(monster);
+    }
+
+    const t = Date.now() + 1_000;
+    const { w, sent } = testGlue(state, () => t);
+    for (const monster of monsters) startMonsterAttack(w, monster, target, t);
+
+    expect(monsters.map((monster) => monster.action)).toEqual([
+      expect.objectContaining({ kind: "monster_attack", skillId: "troll_quake" }),
+      expect.objectContaining({ kind: "monster_attack", skillId: "troll_quake" }),
+    ]);
+    const animations = sentTo(sent, heroId).filter(
+      (message) => message.t === "animation" && message.skillId === "troll_quake",
+    );
+    expect(animations).toHaveLength(2);
+    for (const animation of animations) {
+      expect(animation).toMatchObject({
+        t: "animation",
+        actorKind: "monster",
+        action: "skill",
+        skillId: "troll_quake",
+      });
+      expect(parseServerMessage(encodeServerMessage(animation))).toMatchObject({
+        t: "animation",
+        actorKind: "monster",
+        skillId: "troll_quake",
+      });
+    }
     engine.dispose();
   });
 

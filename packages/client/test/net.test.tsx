@@ -217,6 +217,112 @@ describe("WorldClient lifecycle", () => {
     ).toMatchObject({ x: 96, y: 32 });
   });
 
+  it("keeps snapshots flowing while a boss performs a special technique", async () => {
+    stubJoin();
+    const callbacks = handlers();
+    const client = new WorldClient();
+    client.connect(callbacks, "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME);
+    const action = {
+      id: "boss-quake-1",
+      kind: "monster_attack" as const,
+      skillId: "troll_quake",
+      direction: { x: 1, y: 0 },
+      startedAt: 1_000,
+      impactAt: 1_850,
+      recoveryEndsAt: 2_750,
+      resolved: false,
+    };
+    const boss = {
+      id: "boss-1",
+      name: "BOSS",
+      species: "gate_troll" as const,
+      kind: "troll" as const,
+      rank: "boss" as const,
+      specialTechnique: "troll_quake" as const,
+      x: 64,
+      y: 32,
+      hp: 2_000,
+      maxHp: 2_000,
+      dead: false,
+      facing: { x: 1, y: 0 },
+      action,
+    };
+    const normal = {
+      ...boss,
+      id: "normal-1",
+      name: "Normal",
+      rank: "normal" as const,
+      specialTechnique: "none" as const,
+      hp: 145,
+      maxHp: 145,
+      action: {
+        ...action,
+        id: "normal-strike-1",
+        skillId: undefined,
+      },
+    };
+    const elite = {
+      ...boss,
+      id: "elite-1",
+      name: "Elite",
+      rank: "elite" as const,
+      hp: 900,
+      maxHp: 900,
+      action: {
+        ...action,
+        id: "elite-quake-1",
+      },
+    };
+    socket?.message({
+      t: "animation",
+      actionId: action.id,
+      actorKind: "monster",
+      actorId: boss.id,
+      action: "skill",
+      skillId: "troll_quake",
+      direction: action.direction,
+      startedAt: action.startedAt,
+      impactAt: action.impactAt,
+      recoveryEndsAt: action.recoveryEndsAt,
+    });
+    socket?.message({
+      t: "world.resync",
+      tick: 2,
+      players: WELCOME.players,
+      monsters: [normal, elite, boss],
+      guards: [],
+      loot: [],
+      corpses: [],
+      projectiles: [],
+      events: [],
+    });
+
+    expect(callbacks.onAnimation).toHaveBeenCalledWith(
+      expect.objectContaining({ actorKind: "monster", skillId: "troll_quake" }),
+    );
+    const monsters = client.sample(performance.now()).monsters;
+    expect(monsters).toEqual([
+      expect.objectContaining({
+        id: "normal-1",
+        rank: "normal",
+        action: expect.objectContaining({ kind: "monster_attack" }),
+      }),
+      expect.objectContaining({
+        id: "elite-1",
+        rank: "elite",
+        action: expect.objectContaining({ skillId: "troll_quake" }),
+      }),
+      expect.objectContaining({ id: "boss-1", rank: "boss", action }),
+    ]);
+    expect(monsters[0]?.action).not.toHaveProperty("skillId");
+    const messages =
+      socket?.sent.map((raw) => (JSON.parse(raw) as { message: { t: string } }).message) ?? [];
+    expect(messages.filter((message) => message.t === "world.resync")).toHaveLength(0);
+  });
+
   it("reports an error followed by close only once", async () => {
     stubJoin();
     const callbacks = handlers();
