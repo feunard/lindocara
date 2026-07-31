@@ -170,6 +170,8 @@ import {
   cameraAxisOffset,
   elevatedCameraAxisOffset,
   gameCameraScale,
+  PLAYER_HEALTH_BAR_Y,
+  PLAYER_LABEL_Y,
   playerRenderScale,
   tileWindowForBounds,
   type WorldBounds,
@@ -3218,7 +3220,7 @@ export class Renderer {
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
-    hp.position.set(0, -10);
+    hp.position.set(0, PLAYER_HEALTH_BAR_Y);
     container.addChild(hp);
     const label = new Text({
       text: player.nick,
@@ -3231,7 +3233,7 @@ export class Renderer {
     });
     label.label = "label";
     label.anchor.set(0.5, 1);
-    label.position.set(PLAYER_SIZE / 2, -14);
+    label.position.set(PLAYER_SIZE / 2, PLAYER_LABEL_Y);
     container.addChild(label);
     this.#actors.addChild(container);
     return {
@@ -3432,7 +3434,7 @@ export class Renderer {
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
-    hp.position.set(0, -10);
+    hp.position.set(0, PLAYER_HEALTH_BAR_Y);
     container.addChild(hp);
     const label = new Text({
       text: t("npc.city_guard.name"),
@@ -3446,7 +3448,7 @@ export class Renderer {
     });
     label.label = "label";
     label.anchor.set(0.5, 1);
-    label.position.set(16, -14);
+    label.position.set(16, PLAYER_LABEL_Y);
     container.addChild(label);
     this.#localizedTexts.push({ node: label, compute: () => t("npc.city_guard.name") });
     this.#actors.addChild(container);
@@ -3632,12 +3634,15 @@ export class Renderer {
 
       let level = 0;
       while (level < 4) {
-        const candidate = { x: player.x + PLAYER_SIZE / 2, y: player.y - 14 - level * 15 };
+        const candidate = {
+          x: player.x + PLAYER_SIZE / 2,
+          y: player.y + PLAYER_LABEL_Y - level * 15,
+        };
         const collides = occupied.some(
           (other) => Math.abs(other.x - candidate.x) < 88 && Math.abs(other.y - candidate.y) < 15,
         );
         if (!collides || local) {
-          label.position.set(PLAYER_SIZE / 2, -14 - level * 15);
+          label.position.set(PLAYER_SIZE / 2, PLAYER_LABEL_Y - level * 15);
           label.alpha = baseAlpha;
           occupied.push(candidate);
           break;

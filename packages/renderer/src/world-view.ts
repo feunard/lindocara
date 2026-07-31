@@ -28,6 +28,12 @@ export interface TileWindow {
 export const PLAYER_RENDER_SCALE = 1;
 export const GAME_CAMERA_ZOOM = 0.8;
 
+/** Tiny Swords hero pixels begin around y=-60 once their native frame is grounded. Keep the
+ * nameplate and six-pixel health bar entirely above that silhouette instead of covering its head. */
+export const PLAYER_VISIBLE_TOP_Y = -60;
+export const PLAYER_LABEL_Y = -72;
+export const PLAYER_HEALTH_BAR_Y = -68;
+
 /** Every living avatar and corpse uses one scale, regardless of which client is looking at it. */
 export function playerRenderScale(_playerId: string, _selfId: string | null): number {
   return PLAYER_RENDER_SCALE;

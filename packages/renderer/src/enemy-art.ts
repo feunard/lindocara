@@ -61,8 +61,8 @@ export interface EnemyRenderMetrics {
  *
  * `bodyBottom` sets the standing position: the padding under the feet (`frame - bodyBottom`) is
  * pushed below the ground line so the enemy stands on it rather than hanging off it. `bodyTop` sets
- * the chrome: the label sits just under the sprite's top, the HP bar 8px below it, the alert `!`
- * 14px above it — the same three offsets the old hand-tuned table already encoded, now stated once.
+ * the chrome: the label and HP bar sit entirely above the sprite's top, while the alert stays above
+ * both. This keeps every enemy silhouette readable instead of covering its head.
  *
  * Idle drives it because idle is the resting pose. A run or attack frame may reach lower (a lunge, a
  * crouch); letting those move the ground line would make an enemy sink as it swung.
@@ -70,7 +70,7 @@ export interface EnemyRenderMetrics {
 function enemyMetrics(frame: number, bodyTop: number, bodyBottom: number): EnemyRenderMetrics {
   const spriteY = MONSTER_GROUND_Y + (frame - bodyBottom);
   const headY = spriteY - (frame - bodyTop);
-  return { spriteSize: frame, spriteY, labelY: headY + 3, hpY: headY + 11, alertY: headY - 14 };
+  return { spriteSize: frame, spriteY, labelY: headY - 12, hpY: headY - 8, alertY: headY - 31 };
 }
 
 /** Several species share a sheet, exactly as `goblin_scout` and `goblin_raider` shared one before:

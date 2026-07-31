@@ -4,7 +4,10 @@ import {
   elevatedCameraAxisOffset,
   GAME_CAMERA_ZOOM,
   gameCameraScale,
+  PLAYER_HEALTH_BAR_Y,
+  PLAYER_LABEL_Y,
   PLAYER_RENDER_SCALE,
+  PLAYER_VISIBLE_TOP_Y,
   playerRenderScale,
   tileWindowForBounds,
 } from "@lindocara/renderer/world-view.js";
@@ -20,6 +23,11 @@ describe("multizone camera geometry", () => {
     expect(gameCameraScale(2440, 1400)).toBe(1.6);
     expect(playerRenderScale("hero", "hero")).toBe(PLAYER_RENDER_SCALE);
     expect(playerRenderScale("party-member", "hero")).toBe(PLAYER_RENDER_SCALE);
+  });
+
+  it("keeps hero names and health bars above the visible sprite", () => {
+    expect(PLAYER_LABEL_Y).toBeLessThan(PLAYER_HEALTH_BAR_Y);
+    expect(PLAYER_HEALTH_BAR_Y + 6).toBeLessThanOrEqual(PLAYER_VISIBLE_TOP_Y);
   });
 
   it("centres a zone that is smaller than the viewport", () => {

@@ -71,9 +71,10 @@ describe("enemy render metrics", () => {
       const headY = spriteY - (spriteSize - body.top);
       // One rule for the whole bestiary, so a taller enemy carries its chrome up with it rather than
       // wearing a name tag across its chest.
-      expect(labelY, `${species} label`).toBe(headY + 3);
-      expect(hpY, `${species} HP bar`).toBe(headY + 11);
-      expect(alertY, `${species} alert`).toBe(headY - 14);
+      expect(labelY, `${species} label`).toBe(headY - 12);
+      expect(hpY, `${species} HP bar`).toBe(headY - 8);
+      expect(hpY + 6, `${species} HP bar bottom`).toBeLessThanOrEqual(headY);
+      expect(alertY, `${species} alert`).toBe(headY - 31);
       expect(alertY).toBeLessThan(labelY);
     }
   });
