@@ -120,6 +120,7 @@ export function AdventureTestOverlay() {
           type="button"
           size="sm"
           variant="outline"
+          className="bg-white text-zinc-950 hover:bg-zinc-100 hover:text-zinc-950 disabled:text-zinc-500"
           disabled={busy !== null}
           onClick={() => void exit()}
         >

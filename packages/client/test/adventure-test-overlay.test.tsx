@@ -212,6 +212,11 @@ describe("AdventureTestOverlay", () => {
     expect(screen.getByText(t("editor.test.overlay.badge"))).toBeInTheDocument();
     expect(screen.getByText(t("editor.test.overlay.title"))).toBeInTheDocument();
     expect(screen.getByText(t("editor.test.overlay.start", { name: "Caves" }))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("editor.test.exit") })).toHaveClass(
+      "bg-white",
+      "text-zinc-950",
+      "disabled:text-zinc-500",
+    );
   });
 
   it("replaces the authoritative session when reset is requested", async () => {
