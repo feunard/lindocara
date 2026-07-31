@@ -727,6 +727,18 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.priest.divine_nova.b.name": "Miséricorde",
   "talent.evolution.priest.divine_nova.b.description":
     "Soigne à 140 %, réduit les dégâts à 60 % et, si la résurrection est disponible, relève le corps allié valide le plus proche dans la zone.",
+  "talent.ultimate.priest.mend.name": "Lien de vie",
+  "talent.ultimate.priest.mend.description":
+    "Lie les cibles soignées pendant 5 secondes et partage une part plafonnée de leurs prochains soins utiles.",
+  "talent.ultimate.priest.blink.name": "Porte de Lumen",
+  "talent.ultimate.priest.blink.description":
+    "Relie le départ et l'arrivée pendant quelques secondes ; chaque allié peut emprunter le passage une fois.",
+  "talent.ultimate.priest.prayer.name": "Ancre d'âme",
+  "talent.ultimate.priest.prayer.description":
+    "Pendant 4 secondes, un coup mortel laisse les alliés touchés à 1 PV et les ramène au centre de la prière.",
+  "talent.ultimate.priest.divine_nova.name": "Orbe de polarité",
+  "talent.ultimate.priest.divine_nova.description":
+    "La Nova devient un anneau aller-retour qui affecte chaque cible une fois par passage.",
   "talent.evolution.rogue.shadow_step.a.name": "Exécuteur",
   "talent.evolution.rogue.shadow_step.a.description":
     "Pas de l'ombre donne une Ouverture bien plus forte ; si la cible frappée meurt sous 2 secondes, la recharge restante est réduite de moitié.",

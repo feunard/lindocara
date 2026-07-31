@@ -198,16 +198,25 @@ import type { NavigationRuntime } from "../../world/navigation-system.js";
 import { advanceNpcEvents } from "../../world/npc-movement-system.js";
 import { heroPartyState } from "../../world/party-system.js";
 import {
+  advancePolarityOrbs,
   advanceSanctuaries,
+  armLifeLink,
   cleanseNegativeEffect,
   emergencyMendPower,
+  expireLumenPortals,
   luminousTransfigurationPower,
+  mirroredLifeLinkPower,
   nearestMercyCorpse,
   novaJudgmentDamageMultiplier,
   novaSpecializationMultipliers,
+  type PolarityOrbRuntime,
+  removeLumenPortalsByOwner,
+  removePolarityOrbsByOwner,
   removeSanctuariesByOwner,
   type SanctuaryRuntime,
   sacredPassageTargets,
+  startLumenPortal,
+  startPolarityOrb,
   startSanctuary,
 } from "../../world/priest-variant-system.js";
 import {
@@ -772,10 +781,14 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   player.warriorVortex = null;
   player.rangerVolleySequence = null;
   player.rangerAfterimage = null;
+  player.priestLifeLinks = [];
+  player.priestSoulAnchor = null;
   clearRogueTransientState(player);
   player.negativeEffects.clear();
   removeDamageOverTimeBySource(w.state.damageOverTime, player.id);
   removeSanctuariesByOwner(w.state.sanctuaries, player.id);
+  removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
+  removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   removeProjectilesByOwner(w.state.projectiles, player.id);
   player.dirty = true;
 }
@@ -1304,6 +1317,7 @@ function healPlayer(
   skillId: string,
   now: number,
   selfCast: boolean,
+  mirrored = false,
 ): number {
   if (target.life !== "alive" || !areCombatAllies(caster, target)) return 0;
   const maxHp = maxHpForLevel(target.level);
@@ -1341,7 +1355,52 @@ function healPlayer(
     y: target.y,
   });
   sendStateTo(w, targetConnectionId, target);
+  if (!mirrored) mirrorLifeLinks(w, target, actualAmount, now);
   return actualAmount;
+}
+
+function mirrorLifeLinks(
+  w: WorldGlue,
+  healedTarget: PlayerRuntime,
+  usefulHealing: number,
+  now: number,
+): void {
+  for (const [ownerConnectionId, owner] of w.state.players) {
+    owner.priestLifeLinks = owner.priestLifeLinks.filter((link) => link.expiresAt > now);
+    for (const link of owner.priestLifeLinks) {
+      const linkedConnectionId = connectionOf(w.state, link.targetId);
+      if (linkedConnectionId === undefined) continue;
+      const linked = w.state.players.get(linkedConnectionId);
+      if (
+        linked?.life !== "alive" ||
+        owner.life !== "alive" ||
+        pointDistance(owner, linked) > link.range ||
+        !hasLineOfSight(owner, linked, zone(w.state).terrain.tiles)
+      )
+        continue;
+      const counterpart =
+        healedTarget.id === owner.id
+          ? { connectionId: linkedConnectionId, player: linked }
+          : healedTarget.id === linked.id
+            ? { connectionId: ownerConnectionId, player: owner }
+            : null;
+      if (!counterpart) continue;
+      const power = mirroredLifeLinkPower(usefulHealing, link);
+      if (power <= 0) continue;
+      healPlayer(
+        w,
+        ownerConnectionId,
+        owner,
+        counterpart.connectionId,
+        counterpart.player,
+        power,
+        "mend",
+        now,
+        counterpart.player === owner,
+        true,
+      );
+    }
+  }
 }
 
 /** Port of `#damagePlayer` (`world.ts:5583`). */
@@ -1355,6 +1414,7 @@ function damagePlayer(
   now: number,
 ): void {
   if (isPlayerInvulnerable(player, now)) return;
+  const hpBefore = player.hp;
   const stealthEnded = exitRogueStealth(player, now);
   const protectedDamage = damageAfterWarriorProtection(
     player,
@@ -1410,6 +1470,40 @@ function damagePlayer(
     }
     if (stealthEnded) sendStateTo(w, connectionId, player);
     return;
+  }
+  const soulAnchor = player.priestSoulAnchor;
+  if (
+    result.killed &&
+    soulAnchor &&
+    soulAnchor.expiresAt > now &&
+    isWalkable(soulAnchor, PLAYER_SIZE, zone(w.state).terrain)
+  ) {
+    const owner = playerById(w.state, soulAnchor.ownerId);
+    if (owner?.authorized && owner.life === "alive" && areCombatAllies(owner, player)) {
+      const previous = { x: player.x, y: player.y };
+      player.hp = 1;
+      player.x = soulAnchor.x;
+      player.y = soulAnchor.y;
+      player.priestSoulAnchor = null;
+      if (soulAnchor.cleansePoison) {
+        cleanseNegativeEffect(player, "poison");
+        removeDamageOverTimeByTarget(w.state.damageOverTime, "player", player.id);
+      }
+      w.state.playerGrid.update(player, previous);
+      const anchorDamage = Math.max(0, hpBefore - 1);
+      generateResource(player.class, player.resource, "damage_taken", anchorDamage);
+      player.dirty = true;
+      w.deps.send(connectionId, {
+        t: "event",
+        code: "combat.hurt",
+        params: { species, damage: anchorDamage, monsterId },
+        tone: "bad",
+        x: player.x,
+        y: player.y,
+      });
+      sendStateTo(w, connectionId, player);
+      return;
+    }
   }
   player.hp = result.hp;
   generateResource(player.class, player.resource, "damage_taken", appliedDamage);
@@ -1693,6 +1787,8 @@ function projectileHeal(
   const emergency = baseSkill
     ? talentEffect(owner.player.class, owner.player.talents, "emergency_mend", baseSkill.slot)
     : undefined;
+  const targetWasCritical =
+    target.hp / Math.max(1, maxHpForLevel(target.level)) <= (emergency?.threshold ?? 0);
   const healingPower = emergency
     ? emergencyMendPower(projectile.power, target.hp, maxHpForLevel(target.level), emergency)
     : projectile.power;
@@ -1707,9 +1803,21 @@ function projectileHeal(
     now,
     false,
   );
+  const lifeLink = baseSkill
+    ? talentEffect(owner.player.class, owner.player.talents, "life_link", baseSkill.slot)
+    : undefined;
   const chain = baseSkill
     ? talentEffect(owner.player.class, owner.player.talents, "chain_heal", baseSkill.slot)
     : undefined;
+  if (lifeLink && restored > 0) {
+    armLifeLink(
+      owner.player,
+      target.id,
+      lifeLink,
+      now,
+      emergency && targetWasCritical ? "emergency" : chain ? "chain" : "base",
+    );
+  }
   if (!chain || restored <= 0) return;
   const chained = [...w.state.players]
     .filter(
@@ -1723,8 +1831,8 @@ function projectileHeal(
         hasLineOfSight(target, candidate, zone(w.state).terrain.tiles),
     )
     .sort(([, a], [, b]) => pointDistance(target, a) - pointDistance(target, b))[0];
-  if (chained)
-    healPlayer(
+  if (chained) {
+    const chainedHealing = healPlayer(
       w,
       owner.connectionId,
       owner.player,
@@ -1735,6 +1843,9 @@ function projectileHeal(
       now,
       false,
     );
+    if (lifeLink && chainedHealing > 0)
+      armLifeLink(owner.player, chained[1].id, lifeLink, now, "chain");
+  }
 }
 
 /** Port of `#projectileBlocked` (`world.ts:5462`). */
@@ -1834,6 +1945,41 @@ export function finishHeldPlayerAction(
           false,
         );
       }
+    }
+    const lumenGate = talentEffect(player.class, player.talents, "lumen_gate", 3);
+    const lumenOrigin = action.priestLumenOrigin;
+    if (
+      lumenGate &&
+      lumenOrigin &&
+      pointDistance(lumenOrigin, player) > 1 &&
+      isWalkable(lumenOrigin, PLAYER_SIZE, terrain) &&
+      isWalkable(player, PLAYER_SIZE, terrain)
+    ) {
+      const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", 3);
+      const portal = startLumenPortal(w.state.lumenPortals, {
+        ownerId: player.id,
+        from: lumenOrigin,
+        to: { x: player.x, y: player.y },
+        effect: lumenGate,
+        now,
+        transfiguration: Boolean(transfiguration),
+        healingPower: sacredPassage
+          ? sacredPassage.power + Math.max(0, player.level - 1) * sacredPassage.powerPerLevel
+          : 0,
+      });
+      sendSpatialEventAcross(
+        w,
+        {
+          t: "priest.lumen_portal",
+          id: portal.id,
+          actorId: player.id,
+          from: portal.from,
+          to: portal.to,
+          startedAt: now,
+          endsAt: portal.expiresAt,
+        },
+        [portal.from, portal.to],
+      );
     }
   }
   if (action?.skillId === "heartseeker") {
@@ -2222,6 +2368,8 @@ export function startPlayerAction(
   }
   if (talentEffect(player.class, player.talents, "sacred_passage", slot))
     action.sacredPassageHealedIds = new Set();
+  if (skill.id === "blink" && talentEffect(player.class, player.talents, "lumen_gate", slot))
+    action.priestLumenOrigin = { x: player.x, y: player.y };
 
   if (skill.id !== "vanish") {
     const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
@@ -2975,6 +3123,33 @@ export function resolvePlayerAction(
   const judgment = talentEffect(player.class, player.talents, "nova_judgment", slot as SkillSlot);
   const mercy = talentEffect(player.class, player.talents, "nova_mercy", slot as SkillSlot);
   const novaMultipliers = novaSpecializationMultipliers(judgment, mercy);
+  const polarityOrb = talentEffect(player.class, player.talents, "polarity_orb", slot as SkillSlot);
+  if (definition.shape === "nova" && polarityOrb) {
+    const orb = startPolarityOrb(
+      w.state.polarityOrbs,
+      player.id,
+      { x: player.x, y: player.y },
+      skill.radius ?? skill.range,
+      polarityOrb,
+      now,
+    );
+    sendSpatialEvent(
+      w,
+      {
+        t: "priest.polarity_orb",
+        id: orb.id,
+        actorId: player.id,
+        x: orb.x,
+        y: orb.y,
+        maximumRadius: orb.maximumRadius,
+        startedAt: orb.startedAt,
+        returnsAt: orb.returnsAt,
+        endsAt: orb.endsAt,
+      },
+      orb,
+    );
+    return;
+  }
   if (definition.shape === "area_damage" || definition.shape === "nova") {
     const cyclone = talentEffect(player.class, player.talents, "cyclone", slot as SkillSlot);
     const eyeOfTheStorm = talentEffect(
@@ -3043,6 +3218,29 @@ export function resolvePlayerAction(
   }
   if (definition.shape === "area_heal" || definition.shape === "nova") {
     areaHeal(w, connectionId, player, skill, now, novaMultipliers.healing);
+    const soulAnchor = talentEffect(player.class, player.talents, "soul_anchor", slot as SkillSlot);
+    if (skill.id === "prayer" && soulAnchor) {
+      const radius = skill.radius ?? skill.range;
+      const cleansePoison = Boolean(
+        talentEffect(player.class, player.talents, "absolution", slot as SkillSlot),
+      );
+      for (const target of w.state.players.values()) {
+        if (
+          target.life !== "alive" ||
+          !areCombatAllies(player, target) ||
+          pointDistance(player, target) > radius ||
+          !hasLineOfSight(player, target, terrain.tiles)
+        )
+          continue;
+        target.priestSoulAnchor = {
+          ownerId: player.id,
+          x: player.x,
+          y: player.y,
+          expiresAt: now + soulAnchor.durationMs,
+          cleansePoison,
+        };
+      }
+    }
     if (mercy?.reviveNearest && now - player.lastResurrectAt >= RESURRECT_COOLDOWN_MS) {
       const radius = skill.radius ?? skill.range;
       const corpse = nearestMercyCorpse(
@@ -3311,6 +3509,145 @@ function applySacredPassage(
       "blink",
       now,
       false,
+    );
+  }
+}
+
+function applyLumenPortal(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  now: number,
+): void {
+  const terrain = zone(w.state).terrain;
+  for (const portal of [...w.state.lumenPortals].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (
+      portal.expiresAt <= now ||
+      portal.ownerId === player.id ||
+      portal.usedPlayerIds.has(player.id)
+    )
+      continue;
+    const ownerConnectionId = connectionOf(w.state, portal.ownerId);
+    if (ownerConnectionId === undefined) continue;
+    const owner = w.state.players.get(ownerConnectionId);
+    if (!owner?.authorized || owner.life !== "alive" || !areCombatAllies(owner, player)) continue;
+    const atFrom = pointDistance(player, portal.from) <= portal.triggerRadius;
+    const atTo = pointDistance(player, portal.to) <= portal.triggerRadius;
+    if (!atFrom && !atTo) continue;
+    const destination = atFrom ? portal.to : portal.from;
+    if (!isWalkable(destination, PLAYER_SIZE, terrain)) continue;
+    portal.usedPlayerIds.add(player.id);
+    const previous = { x: player.x, y: player.y };
+    player.x = destination.x;
+    player.y = destination.y;
+    player.dirty = true;
+    w.state.playerGrid.update(player, previous);
+    if (portal.healingPower > 0)
+      healPlayer(
+        w,
+        ownerConnectionId,
+        owner,
+        connectionId,
+        player,
+        portal.healingPower,
+        "blink",
+        now,
+        false,
+      );
+    sendStateTo(w, connectionId, player);
+    return;
+  }
+}
+
+function crossedRing(
+  distance: number,
+  fromRadius: number,
+  toRadius: number,
+  bodyRadius: number,
+): boolean {
+  const minimum = Math.min(fromRadius, toRadius) - bodyRadius;
+  const maximum = Math.max(fromRadius, toRadius) + bodyRadius;
+  return distance >= Math.max(0, minimum) && distance <= maximum;
+}
+
+function resolvePolarityOrbStep(
+  w: WorldGlue,
+  orb: PolarityOrbRuntime,
+  fromRadius: number,
+  toRadius: number,
+  returning: boolean,
+  now: number,
+): void {
+  const ownerConnectionId = connectionOf(w.state, orb.ownerId);
+  if (ownerConnectionId === undefined) return;
+  const owner = w.state.players.get(ownerConnectionId);
+  if (!owner?.authorized || owner.life !== "alive") return;
+  const skill = skillWithTalents(owner.class, owner.talents, 5);
+  const judgment = talentEffect(owner.class, owner.talents, "nova_judgment", 5);
+  const mercy = talentEffect(owner.class, owner.talents, "nova_mercy", 5);
+  const multipliers = novaSpecializationMultipliers(judgment, mercy);
+  const hitIds = returning ? orb.returnHitIds : orb.outwardHitIds;
+  const center = { x: orb.x, y: orb.y };
+  for (const monster of [...w.state.monsters].sort((a, b) => a.id.localeCompare(b.id))) {
+    const hitId = `monster:${monster.id}`;
+    if (
+      monster.deadUntil > now ||
+      hitIds.has(hitId) ||
+      !crossedRing(
+        pointDistance(center, monster),
+        fromRadius,
+        toRadius,
+        monsterBodyRadius(monster.species),
+      ) ||
+      !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
+    )
+      continue;
+    hitIds.add(hitId);
+    damageMonster(
+      w,
+      ownerConnectionId,
+      owner,
+      monster,
+      skill,
+      now,
+      false,
+      Math.max(
+        1,
+        Math.round(
+          (skill.power + Math.max(0, owner.level - 1) * 2) *
+            (judgment
+              ? novaJudgmentDamageMultiplier(monster.hp, monster.maxHp, judgment)
+              : multipliers.damage),
+        ),
+      ),
+    );
+  }
+  for (const [targetConnectionId, target] of [...w.state.players].sort(([, a], [, b]) =>
+    a.id.localeCompare(b.id),
+  )) {
+    const hitId = `player:${target.id}`;
+    if (
+      target.life !== "alive" ||
+      !areCombatAllies(owner, target) ||
+      hitIds.has(hitId) ||
+      !crossedRing(pointDistance(center, target), fromRadius, toRadius, PLAYER_SIZE / 2) ||
+      !hasLineOfSight(center, target, zone(w.state).terrain.tiles)
+    )
+      continue;
+    hitIds.add(hitId);
+    healPlayer(
+      w,
+      ownerConnectionId,
+      owner,
+      targetConnectionId,
+      target,
+      Math.max(
+        1,
+        Math.round((skill.power + Math.max(0, owner.level - 1) * 2) * multipliers.healing),
+      ),
+      skill.id,
+      now,
+      target === owner,
     );
   }
 }
@@ -3880,6 +4217,10 @@ export function handleTalentReset(w: WorldGlue, connectionId: string, player: Pl
   player.warriorVortex = null;
   player.rangerVolleySequence = null;
   player.rangerAfterimage = null;
+  player.priestLifeLinks = [];
+  player.priestSoulAnchor = null;
+  removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
+  removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   if (player.guarding) {
     player.guardReduction = skillWithTalents(player.class, player.talents, 2).reduction ?? 0;
     player.guardActivatedAt = 0;
@@ -4918,6 +5259,9 @@ export function advanceWorldTick(w: WorldGlue): void {
     expireRogueExecution(player, now);
     expireRoguePredatorShiv(player, now);
     expireRogueShadowDanceProtection(player, now);
+    player.priestLifeLinks = player.priestLifeLinks.filter((link) => link.expiresAt > now);
+    if (player.priestSoulAnchor && player.priestSoulAnchor.expiresAt <= now)
+      player.priestSoulAnchor = null;
     const shadowReturnExpired = expireRogueShadowReturn(player, now);
     const smokeProtectionExpired = expireRogueSmokeProtection(player, now);
     const selfStateChanged = shadowReturnExpired || smokeProtectionExpired;
@@ -4969,8 +5313,10 @@ export function advanceWorldTick(w: WorldGlue): void {
     onPlayerMoved: (connectionId, player, previous) => {
       detectPlayerTouch(state, player, previous);
       applySacredPassage(w, connectionId, player, previous, now);
+      applyLumenPortal(w, connectionId, player, now);
     },
   });
+  expireLumenPortals(state.lumenPortals, now);
   // NPCs held by a live event run or an open quest conversation stand still for the exchange.
   const pausedNpcIds = new Set([
     ...state.eventRuns.contexts.keys(),
@@ -5012,6 +5358,9 @@ export function advanceWorldTick(w: WorldGlue): void {
       return Boolean(owner?.authorized && !owner.transitioning && owner.life === "alive");
     },
     (sanctuary) => resolveSanctuaryTick(w, sanctuary, now),
+  );
+  advancePolarityOrbs(state.polarityOrbs, now, (orb, fromRadius, toRadius, returning) =>
+    resolvePolarityOrbStep(w, orb, fromRadius, toRadius, returning, now),
   );
   advanceProjectiles<string>(
     {

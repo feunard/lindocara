@@ -115,6 +115,8 @@ function handlers(): ConnectionHandlers {
     onMerchantOpen: vi.fn(),
     onAnimation: vi.fn(),
     onShadowDance: vi.fn(),
+    onLumenPortal: vi.fn(),
+    onPolarityOrb: vi.fn(),
     onEvent: vi.fn(),
     onEventSay: vi.fn(),
     onEventChoices: vi.fn(),

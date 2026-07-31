@@ -41,6 +41,8 @@ function resetCooldowns(player: PlayerRuntime): void {
   player.warriorVortex = null;
   player.rangerVolleySequence = null;
   player.rangerAfterimage = null;
+  player.priestLifeLinks = [];
+  player.priestSoulAnchor = null;
 }
 
 /** Mutates session state only; World remains responsible for life-state transitions and sends. */

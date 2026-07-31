@@ -10,6 +10,9 @@ type LuminousTransfigurationEffect = Extract<TalentEffect, { kind: "luminous_tra
 type SanctuaryEffect = Extract<TalentEffect, { kind: "sanctuary" }>;
 type NovaJudgmentEffect = Extract<TalentEffect, { kind: "nova_judgment" }>;
 type NovaMercyEffect = Extract<TalentEffect, { kind: "nova_mercy" }>;
+type LifeLinkEffect = Extract<TalentEffect, { kind: "life_link" }>;
+type LumenGateEffect = Extract<TalentEffect, { kind: "lumen_gate" }>;
+type PolarityOrbEffect = Extract<TalentEffect, { kind: "polarity_orb" }>;
 
 export interface SanctuaryRuntime {
   id: string;
@@ -21,6 +24,171 @@ export interface SanctuaryRuntime {
   nextTickAt: number;
   intervalMs: number;
   ticksRemaining: number;
+}
+
+export interface LumenPortalRuntime {
+  id: string;
+  ownerId: string;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  expiresAt: number;
+  triggerRadius: number;
+  usedPlayerIds: Set<string>;
+  healingPower: number;
+}
+
+export interface PolarityOrbRuntime {
+  id: string;
+  ownerId: string;
+  x: number;
+  y: number;
+  maximumRadius: number;
+  startedAt: number;
+  returnsAt: number;
+  endsAt: number;
+  previousRadius: number;
+  outwardHitIds: Set<string>;
+  returnHitIds: Set<string>;
+}
+
+export function armLifeLink(
+  caster: PlayerRuntime,
+  targetId: string,
+  effect: LifeLinkEffect,
+  now: number,
+  variant: "base" | "chain" | "emergency",
+): void {
+  const ratio =
+    variant === "chain"
+      ? effect.chainRatio
+      : variant === "emergency"
+        ? effect.emergencyRatio
+        : effect.ratio;
+  const next = {
+    targetId,
+    expiresAt: now + Math.max(0, effect.durationMs),
+    range: Math.max(0, effect.range),
+    ratio: Math.max(0, Math.min(1, ratio)),
+    maximumMirroredPower: Math.max(0, effect.maximumMirroredPower),
+  };
+  caster.priestLifeLinks = caster.priestLifeLinks
+    .filter((link) => link.expiresAt > now && link.targetId !== targetId)
+    .concat(next)
+    .slice(variant === "chain" ? -2 : -1);
+}
+
+export function mirroredLifeLinkPower(
+  usefulHealing: number,
+  link: PlayerRuntime["priestLifeLinks"][number],
+): number {
+  return Math.max(
+    0,
+    Math.min(link.maximumMirroredPower, Math.round(Math.max(0, usefulHealing) * link.ratio)),
+  );
+}
+
+export function startLumenPortal(
+  portals: LumenPortalRuntime[],
+  options: {
+    ownerId: string;
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+    effect: LumenGateEffect;
+    now: number;
+    transfiguration: boolean;
+    healingPower: number;
+  },
+): LumenPortalRuntime {
+  removeLumenPortalsByOwner(portals, options.ownerId);
+  const duration = options.transfiguration
+    ? options.effect.transfigurationDurationMs
+    : options.effect.durationMs;
+  const portal: LumenPortalRuntime = {
+    id: crypto.randomUUID(),
+    ownerId: options.ownerId,
+    from: { ...options.from },
+    to: { ...options.to },
+    expiresAt: options.now + Math.max(0, duration),
+    triggerRadius: Math.max(1, options.effect.triggerRadius),
+    usedPlayerIds: new Set(),
+    healingPower: Math.max(0, Math.round(options.healingPower)),
+  };
+  portals.push(portal);
+  return portal;
+}
+
+export function expireLumenPortals(portals: LumenPortalRuntime[], now: number): void {
+  for (let index = portals.length - 1; index >= 0; index--) {
+    if ((portals[index]?.expiresAt ?? 0) <= now) portals.splice(index, 1);
+  }
+}
+
+export function removeLumenPortalsByOwner(portals: LumenPortalRuntime[], ownerId: string): void {
+  for (let index = portals.length - 1; index >= 0; index--) {
+    if (portals[index]?.ownerId === ownerId) portals.splice(index, 1);
+  }
+}
+
+export function startPolarityOrb(
+  orbs: PolarityOrbRuntime[],
+  ownerId: string,
+  center: { x: number; y: number },
+  maximumRadius: number,
+  effect: PolarityOrbEffect,
+  now: number,
+): PolarityOrbRuntime {
+  removePolarityOrbsByOwner(orbs, ownerId);
+  const outwardMs = Math.max(100, effect.outwardMs);
+  const returnMs = Math.max(100, effect.returnMs);
+  const orb: PolarityOrbRuntime = {
+    id: crypto.randomUUID(),
+    ownerId,
+    ...center,
+    maximumRadius: Math.max(0, maximumRadius),
+    startedAt: now,
+    returnsAt: now + outwardMs,
+    endsAt: now + outwardMs + returnMs,
+    previousRadius: 0,
+    outwardHitIds: new Set(),
+    returnHitIds: new Set(),
+  };
+  orbs.push(orb);
+  return orb;
+}
+
+export function polarityOrbRadius(orb: PolarityOrbRuntime, now: number): number {
+  if (now <= orb.startedAt) return 0;
+  if (now < orb.returnsAt)
+    return orb.maximumRadius * ((now - orb.startedAt) / (orb.returnsAt - orb.startedAt));
+  if (now < orb.endsAt)
+    return orb.maximumRadius * (1 - (now - orb.returnsAt) / (orb.endsAt - orb.returnsAt));
+  return 0;
+}
+
+export function advancePolarityOrbs(
+  orbs: PolarityOrbRuntime[],
+  now: number,
+  advance: (
+    orb: PolarityOrbRuntime,
+    fromRadius: number,
+    toRadius: number,
+    returning: boolean,
+  ) => void,
+): void {
+  for (let index = orbs.length - 1; index >= 0; index--) {
+    const orb = orbs[index];
+    if (!orb) continue;
+    const radius = polarityOrbRadius(orb, now);
+    advance(orb, orb.previousRadius, radius, now >= orb.returnsAt);
+    orb.previousRadius = radius;
+    if (now >= orb.endsAt) orbs.splice(index, 1);
+  }
+}
+
+export function removePolarityOrbsByOwner(orbs: PolarityOrbRuntime[], ownerId: string): void {
+  for (let index = orbs.length - 1; index >= 0; index--) {
+    if (orbs[index]?.ownerId === ownerId) orbs.splice(index, 1);
+  }
 }
 
 export function emergencyMendPower(

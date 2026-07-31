@@ -25,6 +25,8 @@ import {
   type MonsterSnapshot,
   type PartyState,
   type PlayerSnapshot,
+  type PriestLumenPortalVisual,
+  type PriestPolarityOrbVisual,
   type ProjectileSnapshot,
   parseServerMessage,
   parseWorldColliders,
@@ -147,6 +149,8 @@ export interface ConnectionHandlers {
   onMerchantOpen(): void;
   onAnimation(animation: CombatAnimation): void;
   onShadowDance(sequence: RogueShadowDanceSequence): void;
+  onLumenPortal(portal: PriestLumenPortalVisual): void;
+  onPolarityOrb(orb: PriestPolarityOrbVisual): void;
   /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
    *  close that ends the run. `text`/`name`/`prompt`/`options` are authored prose, not i18n codes. */
   onEventSay(runId: string, text: string, name?: string): void;
@@ -543,6 +547,14 @@ export class WorldClient {
           performance.now() + Math.max(0, message.endsAt - message.startedAt);
       }
       handlers.onShadowDance(message);
+      return;
+    }
+    if (message.t === "priest.lumen_portal") {
+      handlers.onLumenPortal(message);
+      return;
+    }
+    if (message.t === "priest.polarity_orb") {
+      handlers.onPolarityOrb(message);
       return;
     }
     if (message.t === "event.say") {

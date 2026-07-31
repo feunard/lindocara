@@ -89,11 +89,27 @@ export type TalentEffect =
   | { kind: "sworn_prey"; maximumHoldMs: number; turnRateRadians: number }
   | { kind: "chain_heal"; ratio: number; range: number }
   | { kind: "emergency_mend"; threshold: number; powerMultiplier: number }
+  | {
+      kind: "life_link";
+      durationMs: number;
+      range: number;
+      ratio: number;
+      chainRatio: number;
+      emergencyRatio: number;
+      maximumMirroredPower: number;
+    }
   | { kind: "blink_heal"; value: number }
   | { kind: "luminous_transfiguration"; radius: number; power: number; powerPerLevel: number }
   | { kind: "sacred_passage"; width: number; power: number; powerPerLevel: number }
+  | {
+      kind: "lumen_gate";
+      durationMs: number;
+      transfigurationDurationMs: number;
+      triggerRadius: number;
+    }
   | { kind: "sanctuary"; ticks: number; intervalMs: number; tickPowerRatio: number }
   | { kind: "absolution"; cleanse: "poison" }
+  | { kind: "soul_anchor"; durationMs: number }
   | {
       kind: "nova_judgment";
       damageMultiplier: number;
@@ -107,6 +123,7 @@ export type TalentEffect =
       healMultiplier: number;
       reviveNearest: boolean;
     }
+  | { kind: "polarity_orb"; outwardMs: number; returnMs: number }
   | {
       kind: "rogue_executor";
       openingBonusRatio: number;
@@ -604,93 +621,154 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
     ),
   ],
   priest: [
-    ...branch("priest", 2, [
-      { key: "grace", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+    ...branch(
+      "priest",
+      2,
+      [
+        { key: "grace", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "chain",
+          label: "chain_heal",
+          effects: [{ kind: "chain_heal", ratio: 0.5, range: 140 }],
+        },
+        {
+          key: "emergency",
+          label: "emergency_mend",
+          effects: [{ kind: "emergency_mend", threshold: 0.3, powerMultiplier: 0.75 }],
+        },
+      ],
       {
-        key: "chain",
-        label: "chain_heal",
-        effects: [{ kind: "chain_heal", ratio: 0.5, range: 140 }],
+        ultimate: {
+          key: "life_link",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "life_link",
+              durationMs: 5_000,
+              range: 320,
+              ratio: 0.3,
+              chainRatio: 0.2,
+              emergencyRatio: 0.45,
+              maximumMirroredPower: 45,
+            },
+          ],
+        },
       },
+    ),
+    ...branch(
+      "priest",
+      3,
+      [
+        { key: "distance", label: "distance", effects: [distance()] },
+        { key: "renewal", label: "blink_heal", effects: [{ kind: "blink_heal", value: 20 }] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "mastery",
+          effects: [
+            distance(0.3),
+            cooldown(0.12),
+            { kind: "luminous_transfiguration", radius: 95, power: 16, powerPerLevel: 1 },
+          ],
+        },
+        {
+          key: "sacred_passage",
+          label: "sacred_passage",
+          effects: [{ kind: "sacred_passage", width: 22, power: 18, powerPerLevel: 1 }],
+        },
+      ],
       {
-        key: "emergency",
-        label: "emergency_mend",
-        effects: [{ kind: "emergency_mend", threshold: 0.3, powerMultiplier: 0.75 }],
+        ultimate: {
+          key: "lumen_gate",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "lumen_gate",
+              durationMs: 4_000,
+              transfigurationDurationMs: 6_000,
+              triggerRadius: 28,
+            },
+          ],
+        },
       },
-    ]),
-    ...branch("priest", 3, [
-      { key: "distance", label: "distance", effects: [distance()] },
-      { key: "renewal", label: "blink_heal", effects: [{ kind: "blink_heal", value: 20 }] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+    ),
+    ...branch(
+      "priest",
+      4,
+      [
+        { key: "grace", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "mastery",
+          effects: [
+            power(0.3),
+            range(0.15),
+            { kind: "sanctuary", ticks: 3, intervalMs: 1_000, tickPowerRatio: 0.35 },
+          ],
+        },
+        {
+          key: "absolution",
+          label: "absolution",
+          effects: [power(0.8), { kind: "absolution", cleanse: "poison" }],
+        },
+      ],
       {
-        key: "mastery",
-        label: "mastery",
-        effects: [
-          distance(0.3),
-          cooldown(0.12),
-          { kind: "luminous_transfiguration", radius: 95, power: 16, powerPerLevel: 1 },
-        ],
+        ultimate: {
+          key: "soul_anchor",
+          label: "ultimate",
+          effects: [{ kind: "soul_anchor", durationMs: 4_000 }],
+        },
       },
+    ),
+    ...branch(
+      "priest",
+      5,
+      [
+        { key: "radiance", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "nova_judgment",
+          effects: [
+            power(0.35),
+            range(0.1),
+            {
+              kind: "nova_judgment",
+              damageMultiplier: 1.4,
+              healMultiplier: 0.6,
+              executeThreshold: 0.3,
+              executeMultiplier: 0.35,
+            },
+          ],
+        },
+        {
+          key: "mercy",
+          label: "nova_mercy",
+          effects: [
+            power(0.35),
+            range(0.1),
+            {
+              kind: "nova_mercy",
+              damageMultiplier: 0.6,
+              healMultiplier: 1.4,
+              reviveNearest: true,
+            },
+          ],
+        },
+      ],
       {
-        key: "sacred_passage",
-        label: "sacred_passage",
-        effects: [{ kind: "sacred_passage", width: 22, power: 18, powerPerLevel: 1 }],
+        ultimate: {
+          key: "polarity_orb",
+          label: "ultimate",
+          effects: [{ kind: "polarity_orb", outwardMs: 900, returnMs: 900 }],
+        },
       },
-    ]),
-    ...branch("priest", 4, [
-      { key: "grace", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "mastery",
-        label: "mastery",
-        effects: [
-          power(0.3),
-          range(0.15),
-          { kind: "sanctuary", ticks: 3, intervalMs: 1_000, tickPowerRatio: 0.35 },
-        ],
-      },
-      {
-        key: "absolution",
-        label: "absolution",
-        effects: [power(0.8), { kind: "absolution", cleanse: "poison" }],
-      },
-    ]),
-    ...branch("priest", 5, [
-      { key: "radiance", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "mastery",
-        label: "nova_judgment",
-        effects: [
-          power(0.35),
-          range(0.1),
-          {
-            kind: "nova_judgment",
-            damageMultiplier: 1.4,
-            healMultiplier: 0.6,
-            executeThreshold: 0.3,
-            executeMultiplier: 0.35,
-          },
-        ],
-      },
-      {
-        key: "mercy",
-        label: "nova_mercy",
-        effects: [
-          power(0.35),
-          range(0.1),
-          {
-            kind: "nova_mercy",
-            damageMultiplier: 0.6,
-            healMultiplier: 1.4,
-            reviveNearest: true,
-          },
-        ],
-      },
-    ]),
+    ),
   ],
   rogue: [
     ...branch(

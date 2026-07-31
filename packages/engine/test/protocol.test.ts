@@ -882,3 +882,67 @@ describe("Rogue Shadow Dance result messages", () => {
     ).toBeNull();
   });
 });
+
+describe("Priest ultimate visual messages", () => {
+  it("accepts bounded Lumen portals and Polarity Orbs", () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.lumen_portal",
+          id: "gate-1",
+          actorId: "priest-1",
+          from: { x: 10, y: 20 },
+          to: { x: 90, y: 40 },
+          startedAt: 1_000,
+          endsAt: 5_000,
+        }),
+      ),
+    ).toMatchObject({ t: "priest.lumen_portal", id: "gate-1" });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.polarity_orb",
+          id: "orb-1",
+          actorId: "priest-1",
+          x: 20,
+          y: 30,
+          maximumRadius: 160,
+          startedAt: 1_000,
+          returnsAt: 1_900,
+          endsAt: 2_800,
+        }),
+      ),
+    ).toMatchObject({ t: "priest.polarity_orb", maximumRadius: 160 });
+  });
+
+  it("rejects invalid timelines and unbounded portal lifetimes", () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.lumen_portal",
+          id: "gate-1",
+          actorId: "priest-1",
+          from: { x: 10, y: 20 },
+          to: { x: 90, y: 40 },
+          startedAt: 1_000,
+          endsAt: 20_000,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.polarity_orb",
+          id: "orb-1",
+          actorId: "priest-1",
+          x: 20,
+          y: 30,
+          maximumRadius: 160,
+          startedAt: 1_000,
+          returnsAt: 900,
+          endsAt: 2_800,
+        }),
+      ),
+    ).toBeNull();
+  });
+});

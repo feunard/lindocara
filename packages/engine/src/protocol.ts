@@ -341,6 +341,28 @@ export interface RogueShadowDanceSequence {
   finalPosition: Vec2;
 }
 
+export interface PriestLumenPortalVisual {
+  t: "priest.lumen_portal";
+  id: string;
+  actorId: string;
+  from: Vec2;
+  to: Vec2;
+  startedAt: number;
+  endsAt: number;
+}
+
+export interface PriestPolarityOrbVisual {
+  t: "priest.polarity_orb";
+  id: string;
+  actorId: string;
+  x: number;
+  y: number;
+  maximumRadius: number;
+  startedAt: number;
+  returnsAt: number;
+  endsAt: number;
+}
+
 /**
  * The active page of an authored map event, projected to its appearance for the wire — the third
  * member of the `elements`/`layers` family. **Appearance only:** collision is already baked into
@@ -635,6 +657,8 @@ export type ServerMessage =
   | { t: "merchant.open" }
   | CombatAnimation
   | RogueShadowDanceSequence
+  | PriestLumenPortalVisual
+  | PriestPolarityOrbVisual
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
   // The three dialogue beats pushed to the run's TRIGGERER only (spec Decision 4: dialogue is a
   // per-player panel). `text`/`name`/`prompt`/`options` are AUTHORED PROSE — see `isAuthoredText`:
@@ -761,6 +785,40 @@ function isRogueShadowDanceSequence(value: unknown): value is RogueShadowDanceSe
   const last = value.strikes.at(-1);
   return Boolean(
     last && last.landing.x === value.finalPosition.x && last.landing.y === value.finalPosition.y,
+  );
+}
+
+function isPriestLumenPortalVisual(value: unknown): value is PriestLumenPortalVisual {
+  return (
+    isRecord(value) &&
+    value.t === "priest.lumen_portal" &&
+    isWireId(value.id) &&
+    isWireId(value.actorId) &&
+    isPosition(value.from) &&
+    isPosition(value.to) &&
+    isFiniteNumber(value.startedAt) &&
+    isFiniteNumber(value.endsAt) &&
+    value.endsAt >= value.startedAt &&
+    value.endsAt - value.startedAt <= 10_000
+  );
+}
+
+function isPriestPolarityOrbVisual(value: unknown): value is PriestPolarityOrbVisual {
+  return (
+    isRecord(value) &&
+    value.t === "priest.polarity_orb" &&
+    isWireId(value.id) &&
+    isWireId(value.actorId) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.maximumRadius) &&
+    value.maximumRadius >= 0 &&
+    isFiniteNumber(value.startedAt) &&
+    isFiniteNumber(value.returnsAt) &&
+    isFiniteNumber(value.endsAt) &&
+    value.startedAt <= value.returnsAt &&
+    value.returnsAt <= value.endsAt &&
+    value.endsAt - value.startedAt <= 10_000
   );
 }
 
@@ -1669,6 +1727,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     }
     if (isRogueShadowDanceSequence(value)) return value;
+    if (isPriestLumenPortalVisual(value) || isPriestPolarityOrbVisual(value)) return value;
     if (
       value.t === "event" &&
       typeof value.code === "string" &&

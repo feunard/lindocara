@@ -719,6 +719,18 @@ export const en = {
   "talent.evolution.priest.divine_nova.b.name": "Mercy",
   "talent.evolution.priest.divine_nova.b.description":
     "Heal at 140%, deal 60% damage, and, when resurrection is ready, revive the nearest valid allied corpse inside the Nova.",
+  "talent.ultimate.priest.mend.name": "Life Link",
+  "talent.ultimate.priest.mend.description":
+    "Link healed targets for 5 seconds and share a capped portion of their next useful heals.",
+  "talent.ultimate.priest.blink.name": "Lumen Gate",
+  "talent.ultimate.priest.blink.description":
+    "Connect departure and arrival for a few seconds; each ally may cross the passage once.",
+  "talent.ultimate.priest.prayer.name": "Soul Anchor",
+  "talent.ultimate.priest.prayer.description":
+    "For 4 seconds, a lethal hit leaves affected allies at 1 health and returns them to Prayer's center.",
+  "talent.ultimate.priest.divine_nova.name": "Polarity Orb",
+  "talent.ultimate.priest.divine_nova.description":
+    "Turn Nova into an outward-and-returning ring that affects each target once per pass.",
   "talent.evolution.rogue.shadow_step.a.name": "Executor",
   "talent.evolution.rogue.shadow_step.a.description":
     "Shadow Step grants a much stronger Opening; if its struck target dies within 2 seconds, halve the remaining cooldown.",

@@ -162,6 +162,8 @@ export interface CombatActionRuntime {
   warriorChargeFollowup?: { excludedTargetId: string };
   /** Frozen server-selected target for Proie jurée. */
   rangerSwornPreyTargetId?: string;
+  /** Frozen departure point for Porte de Lumen. */
+  priestLumenOrigin?: Vec2;
 }
 
 export interface WarriorCycloneRuntime {
@@ -205,6 +207,20 @@ export interface RangerVolleySequenceRuntime {
 
 export interface RangerAfterimageRuntime extends Vec2 {
   expiresAt: number;
+}
+
+export interface PriestLifeLinkRuntime {
+  targetId: string;
+  expiresAt: number;
+  range: number;
+  ratio: number;
+  maximumMirroredPower: number;
+}
+
+export interface PriestSoulAnchorRuntime extends Vec2 {
+  ownerId: string;
+  expiresAt: number;
+  cleansePoison: boolean;
 }
 
 export type RogueOpeningSource = "shadow_step" | "vanish";
@@ -304,6 +320,8 @@ export interface PlayerRuntime extends PlayerProfile {
   warriorVortex: WarriorVortexRuntime | null;
   rangerVolleySequence: RangerVolleySequenceRuntime | null;
   rangerAfterimage: RangerAfterimageRuntime | null;
+  priestLifeLinks: PriestLifeLinkRuntime[];
+  priestSoulAnchor: PriestSoulAnchorRuntime | null;
   /** Server-only Rogue windows. They are reset on every runtime/session boundary. */
   opening: RogueOpeningRuntime | null;
   rogueStealthUntil: number;
@@ -602,6 +620,8 @@ export function newPlayer(
     warriorVortex: null,
     rangerVolleySequence: null,
     rangerAfterimage: null,
+    priestLifeLinks: [],
+    priestSoulAnchor: null,
     opening: null,
     rogueStealthUntil: 0,
     rogueSmokeProtectionUntil: 0,

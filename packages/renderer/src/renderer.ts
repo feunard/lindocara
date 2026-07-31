@@ -23,6 +23,8 @@ import type {
   LootSnapshot,
   MonsterSnapshot,
   PlayerSnapshot,
+  PriestLumenPortalVisual,
+  PriestPolarityOrbVisual,
   ProjectileSnapshot,
   QuestState,
   RogueShadowDanceSequence,
@@ -3765,6 +3767,38 @@ export class Renderer {
       nextStrikeIndex: 0,
       localEndsAt: replay.localEndsAt,
     });
+  }
+
+  playLumenPortal(portal: PriestLumenPortalVisual): void {
+    const color = this.#players.get(portal.actorId)?.data.appearance.primaryColor ?? "azure";
+    const art = combatArt("priest", "blink", color).impact;
+    if (art) {
+      this.#playCombatSheet(art, portal.from.x + PLAYER_SIZE / 2, portal.from.y + PLAYER_SIZE / 2);
+      this.#playCombatSheet(art, portal.to.x + PLAYER_SIZE / 2, portal.to.y + PLAYER_SIZE / 2);
+    }
+    const duration = Math.max(250, portal.endsAt - portal.startedAt);
+    this.#addPulse(
+      portal.from.x + PLAYER_SIZE / 2,
+      portal.from.y + PLAYER_SIZE / 2,
+      0xaeeeff,
+      22,
+      duration,
+    );
+    this.#addPulse(
+      portal.to.x + PLAYER_SIZE / 2,
+      portal.to.y + PLAYER_SIZE / 2,
+      0xaeeeff,
+      22,
+      duration,
+    );
+  }
+
+  playPolarityOrb(orb: PriestPolarityOrbVisual): void {
+    const centerX = orb.x + PLAYER_SIZE / 2;
+    const centerY = orb.y + PLAYER_SIZE / 2;
+    const duration = Math.max(300, orb.endsAt - orb.startedAt);
+    this.#playRangeIndicator(centerX, centerY, orb.maximumRadius, 0xd8b7ff, orb.id);
+    this.#addPulse(centerX, centerY, 0xffe6a6, Math.max(12, orb.maximumRadius * 0.18), duration);
   }
 
   #actionFrame(

@@ -10,6 +10,8 @@ import type {
   EventCode,
   EventParams,
   PlayerSnapshot,
+  PriestLumenPortalVisual,
+  PriestPolarityOrbVisual,
   QuestState,
   RogueShadowDanceSequence,
   SelfState,
@@ -512,6 +514,8 @@ async function startGameIdentity(
       renderer.playShadowDance(sequence);
       sound.combatPulse();
     },
+    onLumenPortal: (portal: PriestLumenPortalVisual) => renderer.playLumenPortal(portal),
+    onPolarityOrb: (orb: PriestPolarityOrbVisual) => renderer.playPolarityOrb(orb),
     // The dialogue panel (spec Decision 4): the server pushes beats to THIS player, the store holds
     // the open panel, EventDialoguePanel renders it. Prose is authored data rendered verbatim; the
     // panel's own chrome stays i18n. `event.close` only clears if it names the run currently shown —

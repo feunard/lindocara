@@ -1,16 +1,24 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { talentEffect } from "@lindocara/engine/talents.js";
 import {
+  advancePolarityOrbs,
   advanceSanctuaries,
   applyCleanseableNegativeEffect,
+  armLifeLink,
   cleanseNegativeEffect,
   emergencyMendPower,
+  type LumenPortalRuntime,
   luminousTransfigurationPower,
+  mirroredLifeLinkPower,
   nearestMercyCorpse,
   novaJudgmentDamageMultiplier,
   novaSpecializationMultipliers,
+  type PolarityOrbRuntime,
+  polarityOrbRadius,
   type SanctuaryRuntime,
   sacredPassageTargets,
+  startLumenPortal,
+  startPolarityOrb,
   startSanctuary,
 } from "@lindocara/server/world/priest-variant-system.js";
 import { newPlayer, type PlayerRuntime, toProfile } from "@lindocara/server/world/world-runtime.js";
@@ -44,6 +52,57 @@ function priest(id = "priest"): PlayerRuntime {
 }
 
 describe("authoritative priest evolution systems", () => {
+  it("keeps Life Link bounded and gives the chosen evolution its intended strength", () => {
+    const caster = priest();
+    const effect = talentEffect("priest", ["priest.mend.life_link"], "life_link", 2);
+    if (!effect) throw new Error("missing Life Link effect");
+    armLifeLink(caster, "first", effect, 1_000, "chain");
+    armLifeLink(caster, "second", effect, 1_100, "chain");
+    armLifeLink(caster, "third", effect, 1_200, "chain");
+    expect(caster.priestLifeLinks.map((link) => link.targetId)).toEqual(["second", "third"]);
+    const chainLink = caster.priestLifeLinks[0];
+    if (!chainLink) throw new Error("missing chain link");
+    expect(mirroredLifeLinkPower(100, chainLink)).toBe(20);
+    armLifeLink(caster, "critical", effect, 2_000, "emergency");
+    expect(caster.priestLifeLinks).toHaveLength(1);
+    const emergencyLink = caster.priestLifeLinks[0];
+    if (!emergencyLink) throw new Error("missing emergency link");
+    expect(mirroredLifeLinkPower(200, emergencyLink)).toBe(45);
+  });
+
+  it("creates one-use Lumen gates with the selected evolution duration", () => {
+    const effect = talentEffect("priest", ["priest.blink.lumen_gate"], "lumen_gate", 3);
+    if (!effect) throw new Error("missing Lumen Gate effect");
+    const portals: LumenPortalRuntime[] = [];
+    const portal = startLumenPortal(portals, {
+      ownerId: "priest",
+      from: { x: 10, y: 20 },
+      to: { x: 90, y: 20 },
+      effect,
+      now: 1_000,
+      transfiguration: true,
+      healingPower: 24,
+    });
+    expect(portal).toMatchObject({ expiresAt: 7_000, healingPower: 24 });
+    portal.usedPlayerIds.add("ally");
+    expect(portal.usedPlayerIds.has("ally")).toBe(true);
+  });
+
+  it("advances Polarity Orb outward and back exactly once per phase", () => {
+    const effect = talentEffect("priest", ["priest.divine_nova.polarity_orb"], "polarity_orb", 5);
+    if (!effect) throw new Error("missing Polarity Orb effect");
+    const orbs: PolarityOrbRuntime[] = [];
+    const orb = startPolarityOrb(orbs, "priest", { x: 0, y: 0 }, 100, effect, 1_000);
+    expect(polarityOrbRadius(orb, 1_450)).toBe(50);
+    expect(polarityOrbRadius(orb, 2_350)).toBe(50);
+    const phases: boolean[] = [];
+    advancePolarityOrbs(orbs, 1_450, (_orb, _from, _to, returning) => phases.push(returning));
+    advancePolarityOrbs(orbs, 1_900, (_orb, _from, _to, returning) => phases.push(returning));
+    advancePolarityOrbs(orbs, 2_800, (_orb, _from, _to, returning) => phases.push(returning));
+    expect(phases).toEqual([false, true, true]);
+    expect(orbs).toEqual([]);
+  });
+
   it("amplifies Secours d'urgence only at or below the bounded health threshold", () => {
     const effect = talentEffect("priest", ["priest.mend.emergency"], "emergency_mend", 2);
     if (!effect) throw new Error("missing Emergency Aid effect");

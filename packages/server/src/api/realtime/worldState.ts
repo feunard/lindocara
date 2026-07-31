@@ -24,7 +24,11 @@ import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.
 import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
 import type { NpcMovementRuntime } from "../../world/npc-movement-system.js";
-import type { SanctuaryRuntime } from "../../world/priest-variant-system.js";
+import type {
+  LumenPortalRuntime,
+  PolarityOrbRuntime,
+  SanctuaryRuntime,
+} from "../../world/priest-variant-system.js";
 import { SpatialGrid } from "../../world/spatial-grid.js";
 import {
   type ActiveWorldEvent,
@@ -164,6 +168,8 @@ export interface WorldRoomState {
   projectiles: ProjectileRuntime[];
   /** Room-local priest sanctuaries (legacy `#sanctuaries`). */
   sanctuaries: SanctuaryRuntime[];
+  lumenPortals: LumenPortalRuntime[];
+  polarityOrbs: PolarityOrbRuntime[];
   /** Room-local damage-over-time stacks (legacy `#damageOverTime`). */
   damageOverTime: DamageOverTimeRuntime[];
   /** Quest resource-site respawn deadlines (legacy `#siteRespawnAt`). */
@@ -249,6 +255,8 @@ export function createWorldRoomState(
     loot: [],
     projectiles: [],
     sanctuaries: [],
+    lumenPortals: [],
+    polarityOrbs: [],
     damageOverTime: [],
     siteRespawnAt: new Map(),
     navigation: definition

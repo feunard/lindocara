@@ -30,6 +30,7 @@ describe("class talents", () => {
         const hasUltimate =
           playerClass === "warrior" ||
           playerClass === "ranger" ||
+          playerClass === "priest" ||
           (playerClass === "rogue" && slot === 2);
 
         expect(branch).toHaveLength(hasUltimate ? 7 : 6);
