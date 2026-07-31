@@ -36,9 +36,10 @@ import {
 import { parseCheatCommand } from "@lindocara/engine/cheats.js";
 import {
   actionForClassSlot,
+  isMonsterRangedAction,
   LUMEN_STEP_MAX_HOLD_MS,
-  MONSTER_ACTIONS,
   MONSTER_SPECIAL_ACTIONS,
+  monsterActionDefinition,
 } from "@lindocara/engine/combat-actions.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
@@ -1601,7 +1602,7 @@ export function startMonsterAttack(
       : null;
   const definition = specialTechnique
     ? MONSTER_SPECIAL_ACTIONS[specialTechnique]
-    : MONSTER_ACTIONS[monster.species];
+    : monsterActionDefinition(monster.species, monster.graphicAssetId);
   const direction = normalizeDirection(
     { x: target.x - monster.x, y: target.y - monster.y },
     monster.facing,
@@ -1651,7 +1652,25 @@ export function resolveMonsterAction(
       ? action.skillId
       : null;
   const specialDefinition = specialTechnique ? MONSTER_SPECIAL_ACTIONS[specialTechnique] : null;
-  const definition = MONSTER_ACTIONS[monster.species];
+  const definition = monsterActionDefinition(monster.species, monster.graphicAssetId);
+  if (!specialDefinition && isMonsterRangedAction(definition)) {
+    const origin = projectileOrigin(monster, action.direction, definition.projectile.radius);
+    spawnProjectile(w.state.projectiles, {
+      actionId: action.id,
+      owner: monster,
+      roomKey: w.state.roomKey,
+      origin,
+      direction: action.direction,
+      definition: definition.projectile,
+      range: definition.range,
+      power: monster.damage,
+      targetFilter: "players_and_guards",
+      sourceSkillId: "monster_ranged_attack",
+      basic: true,
+      now,
+    });
+    return;
+  }
   const origin = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
   const hitbox = specialDefinition
     ? null
@@ -5575,6 +5594,7 @@ export function advanceWorldTick(w: WorldGlue): void {
       terrain: zone(state).terrain,
       monsters: state.monsters,
       players: state.players,
+      guards: state.guards,
       monsterGrid: state.monsterGrid,
       playerGrid: state.playerGrid,
       canHeal: (owner, target) => areCombatAllies(owner, target),
@@ -5582,6 +5602,22 @@ export function advanceWorldTick(w: WorldGlue): void {
         projectileDamage(w, projectile, monster, impactAt),
       healPlayer: (projectile, connectionId, target, impactAt) =>
         projectileHeal(w, projectile, connectionId, target, impactAt),
+      damagePlayer: (projectile, connectionId, target, impactAt) => {
+        const attacker = state.monsters.find((monster) => monster.id === projectile.ownerId);
+        if (attacker)
+          damagePlayer(
+            w,
+            connectionId,
+            target,
+            projectile.power,
+            attacker.species,
+            attacker.id,
+            impactAt,
+          );
+      },
+      damageGuard: (projectile, guard) => {
+        guard.hp = Math.max(1, guard.hp - projectile.power);
+      },
       blocked: (projectile, point) => projectileBlocked(w, projectile, point),
     },
     now,

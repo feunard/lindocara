@@ -5,6 +5,7 @@ import {
   MAX_PROJECTILES_PER_ROOM,
   MONSTER_ACTIONS,
   MONSTER_SPECIAL_ACTIONS,
+  monsterActionDefinition,
   PLAYER_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
 import { ATTACK_COOLDOWN_MS, PLAYER_CLASSES } from "@lindocara/engine/game.js";
@@ -136,6 +137,23 @@ describe("directional class kit contract", () => {
       expect(action.range).toBeGreaterThan(0);
       expect(action.hitboxRadius).toBeGreaterThan(0);
     }
+  });
+
+  it("uses natural ranged attacks for shamans and authored ranged models", () => {
+    expect(monsterActionDefinition("hex_shaman", null)).toMatchObject({
+      range: 280,
+      projectile: { kind: "hex_orb" },
+    });
+    expect(
+      monsterActionDefinition("spear_goblin", "character.units-blue-units-archer.archer-idle"),
+    ).toMatchObject({ range: 300, projectile: { kind: "arrow" } });
+    expect(
+      monsterActionDefinition(
+        "spear_goblin",
+        "enemy.enemy-pack-enemies-pirate-fish-harpoon-shark.harpoon-shark-idle",
+      ),
+    ).toMatchObject({ projectile: { kind: "enemy_harpoon" } });
+    expect(monsterActionDefinition("spear_goblin", null)).toBe(MONSTER_ACTIONS.spear_goblin);
   });
 
   it("defines distinct telegraphed boss techniques", () => {

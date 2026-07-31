@@ -1,4 +1,7 @@
-import { MONSTER_ACTIONS, MONSTER_SPECIAL_ACTIONS } from "@lindocara/engine/combat-actions.js";
+import {
+  MONSTER_SPECIAL_ACTIONS,
+  monsterActionDefinition,
+} from "@lindocara/engine/combat-actions.js";
 import {
   addThreat,
   CONTRIBUTION_EXPIRES_MS,
@@ -59,7 +62,7 @@ function monsterAttackRange(monster: MonsterRuntime, now: number): number {
   if (monster.specialTechnique !== "none" && now >= monster.nextSpecialAt) {
     return MONSTER_SPECIAL_ACTIONS[monster.specialTechnique].range;
   }
-  return MONSTER_ACTIONS[monster.species].range;
+  return monsterActionDefinition(monster.species, monster.graphicAssetId).range;
 }
 
 export function abandonMonsterTarget(

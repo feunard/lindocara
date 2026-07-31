@@ -48,6 +48,10 @@ export interface MonsterActionDefinition {
   hitboxRadius: number;
 }
 
+export interface MonsterRangedActionDefinition extends MonsterActionDefinition {
+  projectile: ProjectileActionDefinition;
+}
+
 export interface MonsterSpecialActionDefinition {
   anticipationMs: number;
   recoveryMs: number;
@@ -243,6 +247,61 @@ export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefin
     hitboxRadius: 25,
   },
 };
+
+const MONSTER_RANGED_ACTIONS = {
+  arrow: {
+    anticipationMs: 560,
+    recoveryMs: 620,
+    range: 300,
+    hitboxRadius: 0,
+    projectile: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
+  },
+  hex: {
+    anticipationMs: 620,
+    recoveryMs: 640,
+    range: 280,
+    hitboxRadius: 0,
+    projectile: { kind: "hex_orb", speed: 390, radius: 9, pierce: 0 },
+  },
+  harpoon: {
+    anticipationMs: 600,
+    recoveryMs: 680,
+    range: 290,
+    hitboxRadius: 0,
+    projectile: { kind: "enemy_harpoon", speed: 470, radius: 6, pierce: 0 },
+  },
+  bomb: {
+    anticipationMs: 680,
+    recoveryMs: 760,
+    range: 240,
+    hitboxRadius: 0,
+    projectile: { kind: "enemy_bomb", speed: 330, radius: 10, pierce: 0 },
+  },
+} as const satisfies Readonly<Record<string, MonsterRangedActionDefinition>>;
+
+/**
+ * Resolves the authored model's natural attack without trusting the client or duplicating combat
+ * tuning in the editor. The built-in Hex Shaman is ranged even when it uses its species artwork;
+ * catalogue actors opt in through their stable model id.
+ */
+export function monsterActionDefinition(
+  species: MonsterSpecies,
+  graphicAssetId: string | null,
+): MonsterActionDefinition | MonsterRangedActionDefinition {
+  const model = graphicAssetId?.toLowerCase() ?? "";
+  if (species === "hex_shaman" || /(?:^|[./-])(?:hex-)?shaman(?:[./-]|$)/.test(model))
+    return MONSTER_RANGED_ACTIONS.hex;
+  if (/(?:^|[./-])archer(?:[./-]|$)/.test(model)) return MONSTER_RANGED_ACTIONS.arrow;
+  if (/(?:^|[./-])harpoon(?:[./-]|$)/.test(model)) return MONSTER_RANGED_ACTIONS.harpoon;
+  if (/(?:^|[./-])bomb-fish(?:[./-]|$)/.test(model)) return MONSTER_RANGED_ACTIONS.bomb;
+  return MONSTER_ACTIONS[species];
+}
+
+export function isMonsterRangedAction(
+  definition: MonsterActionDefinition | MonsterRangedActionDefinition,
+): definition is MonsterRangedActionDefinition {
+  return "projectile" in definition;
+}
 
 export const MONSTER_SPECIAL_ACTIONS = {
   ground_slam: {

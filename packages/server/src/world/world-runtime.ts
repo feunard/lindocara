@@ -261,7 +261,7 @@ export interface NegativeEffectRuntime {
   expiresAt: number;
 }
 
-export type ProjectileTargetFilter = "monsters" | "wounded_allies";
+export type ProjectileTargetFilter = "monsters" | "wounded_allies" | "players_and_guards";
 
 export interface ProjectileRuntime extends Vec2 {
   id: string;

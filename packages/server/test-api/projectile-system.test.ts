@@ -91,9 +91,12 @@ function context(options: {
   monsters?: MonsterRuntime[];
   allies?: PlayerRuntime[];
   world?: TerrainGeometry;
+  hostile?: boolean;
 }) {
   const monsters = options.monsters ?? [];
-  const players = [options.owner, ...(options.allies ?? [])];
+  const players = options.hostile
+    ? (options.allies ?? [])
+    : [options.owner, ...(options.allies ?? [])];
   const sockets = players.map(
     (entry) => [{ id: `socket-${entry.id}` } as unknown as WebSocket, entry] as const,
   );
@@ -103,27 +106,36 @@ function context(options: {
   for (const entry of players) playerGrid.insert(entry);
   const damageMonster = vi.fn();
   const healPlayer = vi.fn();
+  const damagePlayer = vi.fn();
+  const damageGuard = vi.fn();
   const blocked = vi.fn();
   const value: ProjectileSystemContext = {
     projectiles: options.projectiles,
     terrain: options.world ?? terrain(),
     monsters,
     players: new Map(sockets),
+    guards: [],
     monsterGrid,
     playerGrid,
     canHeal: (owner, target) => owner.partyId !== null && owner.partyId === target.partyId,
     damageMonster,
     healPlayer,
+    damagePlayer,
+    damageGuard,
     blocked,
   };
-  return { value, damageMonster, healPlayer, blocked };
+  return { value, damageMonster, healPlayer, damagePlayer, damageGuard, blocked };
 }
 
 function launch(
   projectiles: ProjectileRuntime[],
   owner: PlayerRuntime,
   kind: ProjectileKind,
-  options: { pierce?: number; range?: number; targetFilter?: "monsters" | "wounded_allies" } = {},
+  options: {
+    pierce?: number;
+    range?: number;
+    targetFilter?: "monsters" | "wounded_allies" | "players_and_guards";
+  } = {},
 ): ProjectileRuntime {
   const projectile = spawnProjectile(projectiles, {
     actionId: "11111111-1111-4111-8111-111111111111",
@@ -165,6 +177,57 @@ describe("authoritative projectile system", () => {
     expect(harness.blocked).toHaveBeenCalledTimes(1);
     expect(harness.damageMonster).not.toHaveBeenCalled();
     expect(projectiles).toHaveLength(0);
+  });
+
+  it("lets an enemy projectile hit a living hero and never pass through terrain", () => {
+    const caster = monster("archer", 0);
+    const target = player("target", 90);
+    const projectiles: ProjectileRuntime[] = [];
+    const projectile = spawnProjectile(projectiles, {
+      actionId: "77777777-7777-4777-8777-777777777777",
+      owner: caster,
+      roomKey: target.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("arrow"),
+      range: 300,
+      power: 17,
+      targetFilter: "players_and_guards",
+      sourceSkillId: "monster_ranged_attack",
+      basic: true,
+      now: 1_000,
+    });
+    expect(projectile).not.toBeNull();
+    const open = context({ owner: target, projectiles, allies: [target], hostile: true });
+    advanceProjectiles(open.value, 1_050);
+    expect(open.damagePlayer).toHaveBeenCalledTimes(1);
+
+    const blockedProjectiles: ProjectileRuntime[] = [];
+    spawnProjectile(blockedProjectiles, {
+      actionId: "88888888-8888-4888-8888-888888888888",
+      owner: caster,
+      roomKey: target.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("hex_orb"),
+      range: 300,
+      power: 17,
+      targetFilter: "players_and_guards",
+      sourceSkillId: "monster_ranged_attack",
+      basic: true,
+      now: 1_000,
+    });
+    const wall = [{ x: 55, y: 0, width: 20, height: 64 }];
+    const blocked = context({
+      owner: target,
+      projectiles: blockedProjectiles,
+      allies: [target],
+      hostile: true,
+      world: terrain(wall),
+    });
+    advanceProjectiles(blocked.value, 1_050);
+    expect(blocked.damagePlayer).not.toHaveBeenCalled();
+    expect(blocked.blocked).toHaveBeenCalledTimes(1);
   });
 
   it("pierces several monsters without hitting either one twice", () => {

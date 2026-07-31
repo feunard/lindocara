@@ -15,6 +15,14 @@ const HEX_SHAMAN_IMPACT_SOURCE = new URL(
   "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Explosion.png",
   import.meta.url,
 ).href;
+const HARPOON_PROJECTILE_SOURCE = new URL(
+  "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Harpoon Shark/Harpoon.png",
+  import.meta.url,
+).href;
+const BOMB_PROJECTILE_SOURCE = new URL(
+  "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_Idle.png",
+  import.meta.url,
+).href;
 
 const FACTION: Readonly<Record<PrimaryColor, string>> = {
   azure: "blue",
@@ -229,7 +237,15 @@ function arrow(color: PrimaryColor, kind: ProjectileKind): CombatProjectileArt {
   return base;
 }
 
-function magicProjectile(kind: "radiant_bolt" | "healing_light") {
+function magicProjectile(kind: "radiant_bolt" | "healing_light" | "hex_orb") {
+  if (kind === "hex_orb") {
+    return {
+      ...MAGIC_PROJECTILE,
+      tint: 0xc65cff,
+      scale: 0.72,
+      trail: { color: 0x9b45df, length: 34, width: 5, glowRadius: 12 },
+    };
+  }
   if (kind === "healing_light") {
     return {
       ...MAGIC_PROJECTILE,
@@ -250,6 +266,19 @@ export function projectileArt(kind: ProjectileKind, color: PrimaryColor): Combat
     kind === "heartseeker"
   )
     return arrow(color, kind);
+  if (kind === "enemy_harpoon")
+    return {
+      ...sheet(HARPOON_PROJECTILE_SOURCE, 64, 64, 1, 1_000, 0),
+      rotationOffset: 0,
+      scale: 1.05,
+    };
+  if (kind === "enemy_bomb")
+    return {
+      ...sheet(BOMB_PROJECTILE_SOURCE, 192, 192, 8, 650, 3),
+      rotationOffset: 0,
+      scale: 0.46,
+      trail: { color: 0xff8d4a, length: 18, width: 3, glowRadius: 6 },
+    };
   return magicProjectile(kind);
 }
 
@@ -403,6 +432,10 @@ export function allCombatSheets(): CombatSheetArt[] {
         }
       }
     }
+  }
+  for (const kind of ["hex_orb", "enemy_harpoon", "enemy_bomb"] as const) {
+    const projectile = projectileArt(kind, "ember");
+    unique.set(projectile.source, projectile);
   }
   const teleport = teleportEffectArt();
   unique.set(teleport.source, teleport);

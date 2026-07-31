@@ -1,5 +1,6 @@
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "@lindocara/engine/game.js";
 import {
+  allCombatSheets,
   combatActionFrameIndex,
   combatArt,
   monsterCombatArt,
@@ -100,6 +101,15 @@ describe("Tiny Swords directional combat art", () => {
     expect(specialShots.every((kind) => projectileArt(kind, "azure").trail !== undefined)).toBe(
       true,
     );
+  });
+
+  it("preloads every authored enemy projectile sheet", () => {
+    const sheets = new Set(allCombatSheets().map((entry) => entry.source));
+    for (const kind of ["hex_orb", "enemy_harpoon", "enemy_bomb"] as const) {
+      const art = projectileArt(kind, "ember");
+      expect(sheets.has(art.source)).toBe(true);
+      expect(art.source).not.toBe("");
+    }
   });
 
   it("uses a green Radiant-Bolt-style projectile for ally-only Mend", () => {

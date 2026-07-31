@@ -489,6 +489,35 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("a shaman resolves its attack as a server-authored magic projectile", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("shamanbolt");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const target = playerOf(state, heroId);
+    const t = Date.now() + 1_000;
+    const { w } = testGlue(state, () => t);
+    const monster = seedMonster(state, "shaman-ranged", target.x - 180, target.y);
+    monster.species = "hex_shaman";
+
+    startMonsterAttack(w, monster, target, t);
+    const action = monster.action;
+    if (!action) throw new Error("shaman wind-up did not start");
+    resolveMonsterAction(w, monster, action, action.impactAt);
+
+    expect(target.hp).toBe(maxHpForLevel(1));
+    expect(state.projectiles).toEqual([
+      expect.objectContaining({
+        ownerId: monster.id,
+        kind: "hex_orb",
+        targetFilter: "players_and_guards",
+        power: monster.damage,
+      }),
+    ]);
+    engine.dispose();
+  });
+
   test("elite and boss special wind-ups remain valid on the client wire", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("bosswire");
     const clock = new FakeClock();

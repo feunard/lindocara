@@ -22,6 +22,7 @@ import {
 import { PLAYER_SIZE, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type {
+  GuardRuntime,
   MonsterRuntime,
   PlayerRuntime,
   ProjectileRuntime,
@@ -30,7 +31,7 @@ import type {
 
 export interface SpawnProjectileOptions {
   actionId: string;
-  owner: PlayerRuntime;
+  owner: Pick<PlayerRuntime, "id" | "partyId" | "appearance"> | MonsterRuntime;
   roomKey: string;
   origin: Vec2;
   direction: Vec2;
@@ -59,6 +60,7 @@ export interface ProjectileSystemContext<TSocket = WebSocket> {
   terrain: TerrainGeometry;
   monsters: MonsterRuntime[];
   players: Map<TSocket, PlayerRuntime>;
+  guards: GuardRuntime[];
   monsterGrid: SpatialGrid<MonsterRuntime>;
   playerGrid: SpatialGrid<PlayerRuntime>;
   canHeal(owner: PlayerRuntime, target: PlayerRuntime): boolean;
@@ -69,10 +71,17 @@ export interface ProjectileSystemContext<TSocket = WebSocket> {
     player: PlayerRuntime,
     now: number,
   ): void;
+  damagePlayer(
+    projectile: ProjectileRuntime,
+    socket: TSocket,
+    player: PlayerRuntime,
+    now: number,
+  ): void;
+  damageGuard(projectile: ProjectileRuntime, guard: GuardRuntime, now: number): void;
   blocked(projectile: ProjectileRuntime, point: Vec2): void;
 }
 
-export function projectileOrigin(owner: PlayerRuntime, direction: Vec2, radius: number): Vec2 {
+export function projectileOrigin(owner: Vec2, direction: Vec2, radius: number): Vec2 {
   const facing = normalizeDirection(direction);
   const center = { x: owner.x + PLAYER_SIZE / 2, y: owner.y + PLAYER_SIZE / 2 };
   const offset = PLAYER_SIZE / 2 + radius + 2;
@@ -94,8 +103,8 @@ export function spawnProjectile(
     id: crypto.randomUUID(),
     actionId: options.actionId,
     ownerId: options.owner.id,
-    ownerPartyId: options.owner.partyId,
-    color: options.owner.appearance.primaryColor,
+    ownerPartyId: "partyId" in options.owner ? options.owner.partyId : null,
+    color: "appearance" in options.owner ? options.owner.appearance.primaryColor : "ember",
     roomKey: options.roomKey,
     kind: options.definition.kind,
     targetFilter: options.targetFilter,
@@ -183,6 +192,7 @@ function entityImpacts<TSocket>(
   impact: SegmentImpact;
   monster?: MonsterRuntime;
   player?: PlayerRuntime;
+  guard?: GuardRuntime;
   socket?: TSocket;
 }[] {
   const midpoint = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
@@ -213,6 +223,55 @@ function entityImpacts<TSocket>(
         (entry): entry is { impact: SegmentImpact; monster: MonsterRuntime } =>
           entry.impact !== null,
       );
+  }
+
+  if (projectile.targetFilter === "players_and_guards") {
+    const playerContacts = context.playerGrid
+      .queryRadius(midpoint, searchRadius)
+      .filter(
+        (player) =>
+          player.authorized &&
+          player.life === "alive" &&
+          !player.transitioning &&
+          !projectile.hitEntityIds.has(player.id) &&
+          !projectile.activationHitEntityIds?.has(player.id),
+      )
+      .map((player) => {
+        const socket = [...context.players].find(
+          ([, candidate]) => candidate.id === player.id,
+        )?.[0];
+        return {
+          impact: sweptProjectileEntityImpact(
+            from,
+            to,
+            projectile.radius,
+            { center: entityCenter(player), radius: PLAYER_SIZE / 2 },
+            player.id,
+          ),
+          player,
+          socket,
+        };
+      })
+      .filter(
+        (entry): entry is { impact: SegmentImpact; player: PlayerRuntime; socket: TSocket } =>
+          entry.impact !== null && entry.socket !== undefined,
+      );
+    const guardContacts = context.guards
+      .filter((guard) => !projectile.hitEntityIds.has(guard.id))
+      .map((guard) => ({
+        impact: sweptProjectileEntityImpact(
+          from,
+          to,
+          projectile.radius,
+          { center: entityCenter(guard), radius: PLAYER_SIZE / 2 },
+          guard.id,
+        ),
+        guard,
+      }))
+      .filter(
+        (entry): entry is { impact: SegmentImpact; guard: GuardRuntime } => entry.impact !== null,
+      );
+    return [...playerContacts, ...guardContacts];
   }
 
   const ownerSocket = [...context.players].find(([, player]) => player.id === projectile.ownerId);
@@ -328,8 +387,12 @@ export function advanceProjectiles<TSocket>(
         );
       }
       if (contact.monster) context.damageMonster(projectile, contact.monster, now);
-      else if (contact.player && contact.socket)
-        context.healPlayer(projectile, contact.socket, contact.player, now);
+      else if (contact.guard) context.damageGuard(projectile, contact.guard, now);
+      else if (contact.player && contact.socket) {
+        if (projectile.targetFilter === "players_and_guards")
+          context.damagePlayer(projectile, contact.socket, contact.player, now);
+        else context.healPlayer(projectile, contact.socket, contact.player, now);
+      }
       if (projectile.pierceRemaining <= 0 || projectile.targetFilter === "wounded_allies") {
         blockingContact = contact.impact;
         break;

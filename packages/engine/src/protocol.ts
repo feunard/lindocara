@@ -282,6 +282,9 @@ export const PROJECTILE_KINDS = [
   "heartseeker",
   "radiant_bolt",
   "healing_light",
+  "hex_orb",
+  "enemy_harpoon",
+  "enemy_bomb",
 ] as const;
 export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
 
