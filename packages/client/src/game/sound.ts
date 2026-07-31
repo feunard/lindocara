@@ -21,6 +21,7 @@ const MUSIC_BASE = 0.32;
 const AMBIENCE_BASE = 0.1;
 const CHARGE_IMPACT_WINDOW_MS = 900;
 const COMBAT_MUSIC_HOLD_MS = 8_000;
+const COMBAT_THREAT_RELEASE_MS = 500;
 const MUSIC_CROSSFADE_MS = 650;
 
 interface MusicFade {
@@ -42,6 +43,7 @@ export class GameSound {
   #scene: AdventureAudioConfig = { ...DEFAULT_ADVENTURE_AUDIO };
   #combatUntil = 0;
   #combatThreatened = false;
+  #combatThreatReleaseAt = 0;
   #combatActive = false;
   #explorationWeight = 1;
   #combatWeight = 0;
@@ -67,6 +69,7 @@ export class GameSound {
     this.#scene = { ...audio };
     this.#combatUntil = 0;
     this.#combatThreatened = false;
+    this.#combatThreatReleaseAt = 0;
     this.#combatActive = false;
     this.#explorationWeight = 1;
     this.#combatWeight = 0;
@@ -83,18 +86,26 @@ export class GameSound {
 
   /**
    * Installs the latest server-authored aggro state for this player. Losing the last threat clears
-   * any activity hold left by previous hits, so combat audio exits as soon as the authority says
-   * nobody living is threatening the player.
+   * any activity hold left by previous hits after a short confirmation window. That window absorbs
+   * one missing/delayed snapshot without hiding a real end of combat.
    */
   setCombatThreatened(threatened: boolean): void {
     if (threatened === this.#combatThreatened) return;
     const wasThreatened = this.#combatThreatened;
     this.#combatThreatened = threatened;
-    if (wasThreatened && !threatened) this.#combatUntil = 0;
-    this.#refreshCombatMusic(performance.now());
+    const now = performance.now();
+    if (threatened) this.#combatThreatReleaseAt = 0;
+    else if (wasThreatened) {
+      this.#combatUntil = 0;
+      this.#combatThreatReleaseAt = now + COMBAT_THREAT_RELEASE_MS;
+    }
+    this.#refreshCombatMusic(now);
   }
 
   update(now = performance.now()): void {
+    if (this.#combatThreatReleaseAt !== 0 && now >= this.#combatThreatReleaseAt) {
+      this.#combatThreatReleaseAt = 0;
+    }
     if (this.#combatUntil !== 0 && now >= this.#combatUntil) {
       this.#combatUntil = 0;
     }
@@ -114,6 +125,7 @@ export class GameSound {
     this.#ambienceSrc = null;
     this.#combatUntil = 0;
     this.#combatThreatened = false;
+    this.#combatThreatReleaseAt = 0;
     this.#combatActive = false;
     this.#explorationWeight = 1;
     this.#combatWeight = 0;
@@ -191,7 +203,8 @@ export class GameSound {
 
   #refreshCombatMusic(now: number): void {
     const shouldFight =
-      this.#combatMusicSrc !== null && (this.#combatThreatened || this.#combatUntil > now);
+      this.#combatMusicSrc !== null &&
+      (this.#combatThreatened || this.#combatThreatReleaseAt > now || this.#combatUntil > now);
     if (shouldFight === this.#combatActive) return;
     this.#applyMusicFade(now);
     this.#combatActive = shouldFight;

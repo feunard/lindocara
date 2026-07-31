@@ -62,6 +62,8 @@ describe("GameSound authored scene audio", () => {
 
     now += 100;
     sound.setCombatThreatened(false);
+    now += 500;
+    sound.update(now);
     now += 650;
     sound.update(now);
 
@@ -70,6 +72,39 @@ describe("GameSound authored scene audio", () => {
     expect(exploration.volume).toBeCloseTo(0.144);
     expect(combat?.volume).toBe(0);
     expect(combat?.currentTime).toBe(0);
+  });
+
+  it("ignores a transient missing threat snapshot while combat is still active", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    let now = 3_000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const sound = new GameSound();
+    sound.configureScene({
+      music: "town-theme",
+      ambience: null,
+      combatMusic: "battle-theme",
+    });
+
+    const exploration = FakeAudio.created[0];
+    if (!exploration) throw new Error("missing exploration channel");
+    sound.setCombatThreatened(true);
+    now += 650;
+    sound.update(now);
+    const combat = FakeAudio.created.at(-1);
+    expect(exploration.volume).toBe(0);
+    if (!combat) throw new Error("missing combat channel");
+    combat.currentTime = 12;
+
+    sound.setCombatThreatened(false);
+    now += 250;
+    sound.update(now);
+    sound.setCombatThreatened(true);
+    now += 1_000;
+    sound.update(now);
+
+    expect(exploration.volume).toBe(0);
+    expect(combat.volume).toBeCloseTo(0.144);
+    expect(combat.currentTime).toBe(12);
   });
 
   it("keeps attack activity as a fallback when no aggro snapshot has arrived yet", () => {
@@ -90,5 +125,28 @@ describe("GameSound authored scene audio", () => {
     now += 650;
     sound.update(now);
     expect(FakeAudio.created[0]?.volume).toBeCloseTo(0.144);
+  });
+
+  it("keeps a fresh attack pulse after the server releases its last threat", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    let now = 10_000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const sound = new GameSound();
+    sound.configureScene({
+      music: "town-theme",
+      ambience: null,
+      combatMusic: "battle-theme",
+    });
+
+    sound.setCombatThreatened(true);
+    now += 650;
+    sound.update(now);
+    sound.setCombatThreatened(false);
+    sound.combatPulse();
+    now += 501;
+    sound.update(now);
+
+    expect(FakeAudio.created[0]?.volume).toBe(0);
+    expect(FakeAudio.created.at(-1)?.volume).toBeCloseTo(0.144);
   });
 });

@@ -177,9 +177,10 @@ function visibleMonsterSnapshots<TSocket>(
     INTEREST_HYSTERESIS,
     viewer.interest.monsters,
   );
-  viewer.interest.monsters = selection.visibleIds;
   const now = context.now();
-  return selection.entities.map((monster) => ({
+  const entities = includeThreateningMonsters(selection.entities, context.monsters, viewer.id, now);
+  viewer.interest.monsters = new Set(entities.map((monster) => monster.id));
+  return entities.map((monster) => ({
     id: monster.id,
     name: monster.name,
     kind: monster.kind,
@@ -209,6 +210,24 @@ export function monsterThreatensViewer(
   now: number,
 ): boolean {
   return monster.deadUntil <= now && monster.threat.has(viewerId);
+}
+
+/** Threat follows its real leash, not the shorter visual AOI, so combat UI/audio cannot drop while
+ * an off-edge monster is still authoritatively pursuing this viewer. */
+export function includeThreateningMonsters(
+  visible: readonly MonsterRuntime[],
+  all: readonly MonsterRuntime[],
+  viewerId: string,
+  now: number,
+): MonsterRuntime[] {
+  const result = [...visible];
+  const ids = new Set(result.map((monster) => monster.id));
+  for (const monster of all) {
+    if (ids.has(monster.id) || !monsterThreatensViewer(monster, viewerId, now)) continue;
+    ids.add(monster.id);
+    result.push(monster);
+  }
+  return result;
 }
 
 export function guardSnapshots<TSocket>(

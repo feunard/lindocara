@@ -1,4 +1,5 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { THREAT_EXPIRES_MS } from "@lindocara/engine/cooperation.js";
 import {
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
@@ -150,6 +151,32 @@ describe("authored monster tuning", () => {
 });
 
 describe("monster navigation on the tile grid", () => {
+  it("keeps threat alive while the monster is still pursuing its valid target", () => {
+    const monster = chasingMonster();
+    const player = targetPlayer(500, 220);
+    const socket = { id: "pursuit-socket" } as unknown as WebSocket;
+    monster.threat.set(player.id, { playerId: player.id, amount: 50, updatedAt: 1_000 });
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone,
+      tick: 0,
+      navigation: createNavigationRuntime(terrain, zone.navigation),
+      startAttack: vi.fn(),
+    };
+
+    const firstRefresh = 1_000 + THREAT_EXPIRES_MS - 1;
+    advanceMonsters(context, firstRefresh);
+    const secondRefresh = firstRefresh + THREAT_EXPIRES_MS - 1;
+    advanceMonsters(context, secondRefresh);
+
+    expect(monster.threat.get(player.id)?.updatedAt).toBe(secondRefresh);
+  });
+
   it("abandons a vanished Rogue immediately without erasing earned contribution", () => {
     const monster = chasingMonster();
     const player = targetPlayer(260, 220);

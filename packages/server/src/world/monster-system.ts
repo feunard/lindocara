@@ -4,6 +4,7 @@ import {
   CONTRIBUTION_EXPIRES_MS,
   highestThreat,
   initialProximityThreat,
+  refreshThreat,
   THREAT_EXPIRES_MS,
   THREAT_LEASH_DISTANCE,
 } from "@lindocara/engine/cooperation.js";
@@ -185,6 +186,7 @@ export function advanceMonsters<TSocket>(
 
     if (target) {
       const [, player] = target;
+      refreshThreat(monster.threat, player.id, now);
       const afterimage =
         player.rangerAfterimage && player.rangerAfterimage.expiresAt > now
           ? player.rangerAfterimage

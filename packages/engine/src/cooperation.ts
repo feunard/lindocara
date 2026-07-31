@@ -51,6 +51,18 @@ export function addThreat(
   return next;
 }
 
+/** Keeps an already-established threat entry alive while authoritative AI is still pursuing it. */
+export function refreshThreat(
+  table: Map<string, ThreatEntry>,
+  playerId: string,
+  now: number,
+): boolean {
+  const entry = table.get(playerId);
+  if (!entry || !Number.isFinite(now)) return false;
+  entry.updatedAt = now;
+  return true;
+}
+
 export function tauntThreat(
   table: Map<string, ThreatEntry>,
   playerId: string,

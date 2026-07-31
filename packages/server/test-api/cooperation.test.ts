@@ -18,7 +18,11 @@ import {
   beginRewardAttribution,
   removePlayerCombatState,
 } from "@lindocara/server/world/contribution-system.js";
-import { canSeeLoot, monsterThreatensViewer } from "@lindocara/server/world/interest-system.js";
+import {
+  canSeeLoot,
+  includeThreateningMonsters,
+  monsterThreatensViewer,
+} from "@lindocara/server/world/interest-system.js";
 import type { GroundLoot } from "@lindocara/server/world/world-runtime.js";
 import { createMonsters } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it } from "vitest";
@@ -112,6 +116,26 @@ describe("cooperative combat rules", () => {
     expect(monsterThreatensViewer(monster, "bystander", 2)).toBe(false);
     monster.deadUntil = 100;
     expect(monsterThreatensViewer(monster, "spotted", 2)).toBe(false);
+  });
+
+  it("keeps a threatening monster in the viewer snapshot outside the visual radius", () => {
+    const monster = createMonsters([
+      {
+        id: "off-edge-pursuer",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 900,
+        y: 0,
+        patrolRadius: 10,
+      },
+    ])[0];
+    if (!monster) throw new Error("missing monster");
+    addThreat(monster.threat, "spotted", 10, 1);
+
+    expect(includeThreateningMonsters([], [monster], "spotted", 2)).toEqual([monster]);
+    expect(includeThreateningMonsters([], [monster], "bystander", 2)).toEqual([]);
+    expect(includeThreateningMonsters([monster], [monster], "spotted", 2)).toEqual([monster]);
   });
 
   it("keeps personal loot private", () => {
