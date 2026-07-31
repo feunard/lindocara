@@ -6,6 +6,7 @@ import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   DEFAULT_NPC_MODEL_ASSET_ID,
   GUARD_APPEARANCE_ASSETS,
+  NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -56,6 +57,21 @@ function baseProps() {
 }
 
 describe("EventPalette (D13/D14)", () => {
+  it("shows every free NPC model before the NPC placement mode is selected", () => {
+    setLocale("en");
+    const onSelectNpcGraphic = vi.fn();
+    render(<EventPalette {...baseProps()} onSelectNpcGraphic={onSelectNpcGraphic} />);
+    const catalogue = screen.getByTestId("npc-catalogue");
+    const actorButtons = within(catalogue)
+      .getAllByRole("button")
+      .filter((button) => button.dataset.assetId);
+    expect(actorButtons).toHaveLength(NPC_MODEL_ASSETS.length);
+    const peasant = actorButtons.find((button) => button.dataset.assetId?.includes("pawn-idle"));
+    expect(peasant).toBeDefined();
+    if (peasant) fireEvent.click(peasant);
+    expect(onSelectNpcGraphic).toHaveBeenCalledWith(expect.stringContaining("pawn-idle"));
+  });
+
   it("offers presets and no inline graphic catalogue", () => {
     setLocale("en");
     render(<EventPalette {...baseProps()} />);

@@ -135,7 +135,8 @@ export function CatalogueAssetPicker({
   useLocale();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  const [visibleCount, setVisibleCount] = useState(ASSET_PAGE_SIZE);
+  const actorPageSize = usage === "character" ? NPC_MODEL_ASSETS.length : ASSET_PAGE_SIZE;
+  const [visibleCount, setVisibleCount] = useState(actorPageSize);
 
   const source =
     usage === "event"
@@ -201,7 +202,7 @@ export function CatalogueAssetPicker({
         className="h-7 text-xs"
         onChange={(event) => {
           setQuery(event.currentTarget.value);
-          setVisibleCount(ASSET_PAGE_SIZE);
+          setVisibleCount(actorPageSize);
         }}
       />
       <select
@@ -210,7 +211,7 @@ export function CatalogueAssetPicker({
         aria-label={t("editor.palette.category.all")}
         onChange={(event) => {
           setCategory(event.currentTarget.value);
-          setVisibleCount(ASSET_PAGE_SIZE);
+          setVisibleCount(actorPageSize);
         }}
       >
         <option value="all">{t("editor.palette.category.all")}</option>

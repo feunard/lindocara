@@ -158,21 +158,22 @@ export function EventPalette({
           ))}
         </div>
 
-        {eventKind === "npc" && (
-          <section
-            data-testid="npc-catalogue"
-            className="flex flex-col gap-2 rounded-md bg-zinc-100 p-2"
-          >
-            <p className="text-[10.5px] text-zinc-500">
-              {t("editor.event.appearance.nativeVariants")}
-            </p>
-            <CatalogueAssetPicker
-              usage="character"
-              value={npcGraphic}
-              onSelectAsset={onSelectNpcGraphic}
-            />
-          </section>
-        )}
+        <section
+          data-testid="npc-catalogue"
+          aria-label={t("editor.event.kind.npc")}
+          className={`flex flex-col gap-2 rounded-md border p-2 ${
+            eventKind === "npc" ? "border-zinc-400 bg-zinc-100" : "border-zinc-200 bg-white"
+          }`}
+        >
+          <p className="text-[10.5px] text-zinc-500">
+            {t("editor.event.appearance.nativeVariants")}
+          </p>
+          <CatalogueAssetPicker
+            usage="character"
+            value={npcGraphic}
+            onSelectAsset={onSelectNpcGraphic}
+          />
+        </section>
 
         {eventKind === "guard" && (
           <section
