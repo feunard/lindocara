@@ -215,6 +215,8 @@ describe("Rogue runtime contract", () => {
       rogueShadowDanceInvulnerableUntil: 0,
       rogueShadowReturn: null,
       rogueExecution: null,
+      rogueSilhouette: null,
+      rogueDanceMarks: [],
     });
 
     player.opening = { source: "shadow_step", expiresAt: 1_500, bonusRatio: 0.4 };
@@ -235,6 +237,7 @@ describe("Rogue runtime contract", () => {
       stealthUntil: 8_000,
       smokeProtectionUntil: 500,
       shadowReturnUntil: 2_000,
+      danceMarksUntil: 0,
     });
 
     clearRogueTransientState(player);
@@ -244,6 +247,7 @@ describe("Rogue runtime contract", () => {
       stealthUntil: 0,
       smokeProtectionUntil: 0,
       shadowReturnUntil: 0,
+      danceMarksUntil: 0,
     });
   });
 

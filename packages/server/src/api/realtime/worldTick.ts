@@ -174,6 +174,7 @@ import {
   applyDamageOverTime,
   removeDamageOverTimeBySource,
   removeDamageOverTimeByTarget,
+  spreadDamageOverTime,
 } from "../../world/damage-over-time-system.js";
 import {
   abortRunsForHero,
@@ -1091,6 +1092,50 @@ function defeatMonster(
     )
       sendStateTo(w, connectionId, candidate);
   }
+  for (const poison of [...w.state.damageOverTime].filter(
+    (effect) =>
+      effect.kind === "poison" && effect.targetKind === "monster" && effect.targetId === monster.id,
+  )) {
+    const source = playerById(w.state, poison.sourceId);
+    const contagion = source
+      ? talentEffect(source.class, source.talents, "rogue_contagion", 4)
+      : undefined;
+    if (!source?.authorized || !contagion) continue;
+    const targets = w.state.monsters
+      .filter(
+        (candidate) =>
+          candidate.id !== monster.id &&
+          candidate.deadUntil <= now &&
+          pointDistance(monster, candidate) <= contagion.range &&
+          hasLineOfSight(monster, candidate, zone(w.state).terrain.tiles) &&
+          !w.state.damageOverTime.some(
+            (effect) =>
+              effect.kind === "poison" &&
+              effect.sourceId === source.id &&
+              effect.targetKind === "monster" &&
+              effect.targetId === candidate.id,
+          ),
+      )
+      .sort(
+        (left, right) =>
+          pointDistance(monster, left) - pointDistance(monster, right) ||
+          left.id.localeCompare(right.id),
+      )
+      .slice(0, Math.max(0, contagion.maximumTargets));
+    const concentrated = talentEffect(source.class, source.talents, "rogue_concentrated_venom", 4);
+    spreadDamageOverTime(
+      w.state.damageOverTime,
+      {
+        kind: "poison",
+        sourceId: source.id,
+        sourceSkillId: "poisoned_shiv",
+        targetKind: "monster",
+        targetId: monster.id,
+      },
+      targets.map((target) => target.id),
+      concentrated?.maxStacks ?? 1,
+    );
+  }
   markMonsterDead(w, monster, now);
   const directlyEligible = [...monster.contributions.values()]
     .filter((contribution) => {
@@ -1621,6 +1666,23 @@ export function resolveMonsterAction(
       pointDistance(origin, circle.center) <= specialDefinition.range + radius
     );
   };
+  for (const [connectionId, player] of w.state.players) {
+    const silhouette = player.rogueSilhouette;
+    if (
+      !silhouette ||
+      silhouette.expiresAt <= now ||
+      !monster.threat.has(player.id) ||
+      !hits(silhouette, PLAYER_SIZE / 2)
+    )
+      continue;
+    silhouette.hp = Math.max(0, silhouette.hp - damage);
+    monster.revealedUntil = Math.max(monster.revealedUntil, now + 900);
+    if (silhouette.hp <= 0) {
+      player.rogueSilhouette = null;
+      monster.threat.delete(player.id);
+    }
+    sendStateTo(w, connectionId, player);
+  }
   for (const [connectionId, player] of w.state.players) {
     if (
       !player.authorized ||
@@ -2191,6 +2253,85 @@ export function startPlayerAction(
     );
     return true;
   }
+  const danceMaster =
+    skill.id === "shadow_dance"
+      ? talentEffect(player.class, player.talents, "rogue_dance_master", 5)
+      : undefined;
+  player.rogueDanceMarks = player.rogueDanceMarks.filter((mark) => mark.expiresAt > now);
+  if (danceMaster && player.rogueDanceMarks.length > 0) {
+    const markedIds = new Set(player.rogueDanceMarks.map((mark) => mark.targetId));
+    const candidates = w.state.monsters
+      .filter(
+        (monster) =>
+          markedIds.has(monster.id) &&
+          monster.deadUntil <= now &&
+          hasRogueLineOfSight(player, monster, zone(w.state).terrain),
+      )
+      .sort((left, right) => {
+        const leftDirection = normalizeDirection(
+          { x: left.x - player.x, y: left.y - player.y },
+          player.facing,
+        );
+        const rightDirection = normalizeDirection(
+          { x: right.x - player.x, y: right.y - player.y },
+          player.facing,
+        );
+        const leftAlignment = leftDirection.x * player.facing.x + leftDirection.y * player.facing.y;
+        const rightAlignment =
+          rightDirection.x * player.facing.x + rightDirection.y * player.facing.y;
+        return (
+          rightAlignment - leftAlignment ||
+          pointDistance(player, left) - pointDistance(player, right) ||
+          left.id.localeCompare(right.id)
+        );
+      });
+    const destination = candidates
+      .map((target) =>
+        planShadowDance(player, [target], skill.range, 1, now, zone(w.state).terrain, (monster) =>
+          monsterBodyRadius(monster.species),
+        ),
+      )
+      .find((result) => result.ok)?.plan.strikes[0]?.landing;
+    if (!destination) {
+      deps.send(connectionId, {
+        t: "event",
+        code: "skill.no_target",
+        params: { skill: skill.id },
+        tone: "info",
+      });
+      return false;
+    }
+    const origin = { x: player.x, y: player.y };
+    cancelCombatAction(player);
+    player.x = destination.x;
+    player.y = destination.y;
+    player.rogueDanceMarks = [];
+    player.dirty = true;
+    w.state.playerGrid.update(player, origin);
+    sendStateTo(w, connectionId, player);
+    sendSpatialEvent(
+      w,
+      {
+        t: "animation",
+        actionId: crypto.randomUUID(),
+        actorKind: "player",
+        actorId: player.id,
+        action: "skill",
+        skillId: skill.id,
+        talented: true,
+        evolved: true,
+        direction: normalizeDirection(
+          { x: destination.x - origin.x, y: destination.y - origin.y },
+          player.facing,
+        ),
+        startedAt: now,
+        impactAt: now,
+        recoveryEndsAt: now + 180,
+      },
+      player,
+    );
+    return true;
+  }
   if (skill.id === "vanish" && isRogueStealthed(player, now)) return false;
   if (player.guarding) {
     if (skill.id !== "iron_guard") return false;
@@ -2556,6 +2697,19 @@ function resolveShadowDance(
       sendStateTo(w, connectionId, player);
     }
   }
+  const danceMaster = talentEffect(player.class, player.talents, "rogue_dance_master", 5);
+  if (danceMaster) {
+    player.rogueDanceMarks = [...new Set(strikes.map((strike) => strike.targetId))]
+      .filter((targetId) => {
+        const target = w.state.monsters.find((monster) => monster.id === targetId);
+        return Boolean(target && target.deadUntil <= now);
+      })
+      .map((targetId) => ({
+        targetId,
+        expiresAt: endsAt + Math.max(0, danceMaster.markDurationMs),
+      }));
+    sendStateTo(w, connectionId, player);
+  }
 
   const sequence: RogueShadowDanceSequence = {
     t: "rogue.shadow_dance",
@@ -2855,9 +3009,18 @@ export function resolvePlayerAction(
 
   if (definition.shape === "stealth") {
     if (enterRogueStealth(player, now)) {
+      const silhouette = talentEffect(player.class, player.talents, "rogue_silhouette", 3);
+      if (silhouette) {
+        player.rogueSilhouette = {
+          x: player.x,
+          y: player.y,
+          hp: Math.max(1, silhouette.health),
+          expiresAt: now + Math.max(0, silhouette.durationMs),
+        };
+      }
       const smokeScreen = talentEffect(player.class, player.talents, "rogue_smoke_screen", 3);
       if (smokeScreen) applyRogueSmokeProtection(player, now, smokeScreen);
-      forgetPlayer(w, player);
+      if (!silhouette) forgetPlayer(w, player);
       sendStateTo(w, connectionId, player);
     }
     return;
@@ -5264,7 +5427,17 @@ export function advanceWorldTick(w: WorldGlue): void {
       player.priestSoulAnchor = null;
     const shadowReturnExpired = expireRogueShadowReturn(player, now);
     const smokeProtectionExpired = expireRogueSmokeProtection(player, now);
-    const selfStateChanged = shadowReturnExpired || smokeProtectionExpired;
+    const silhouetteExpired = Boolean(
+      player.rogueSilhouette && player.rogueSilhouette.expiresAt <= now,
+    );
+    if (silhouetteExpired) player.rogueSilhouette = null;
+    const marksBefore = player.rogueDanceMarks.length;
+    player.rogueDanceMarks = player.rogueDanceMarks.filter((mark) => mark.expiresAt > now);
+    const selfStateChanged =
+      shadowReturnExpired ||
+      smokeProtectionExpired ||
+      silhouetteExpired ||
+      marksBefore !== player.rogueDanceMarks.length;
     if (expireRogueStealth(player, now) || selfStateChanged) sendStateTo(w, connectionId, player);
   }
   advanceDamageOverTime(state.damageOverTime, now, {

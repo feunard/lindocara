@@ -758,6 +758,16 @@ export const en = {
   "talent.evolution.rogue.shadow_dance.b.name": "Thousand Cuts",
   "talent.evolution.rogue.shadow_dance.b.description":
     "If fewer than five distinct targets exist, return to the primary target for 60%-power strikes.",
+  "talent.ultimate.rogue.vanish.name": "Left Silhouette",
+  "talent.ultimate.rogue.vanish.description":
+    "Leave a destructible 3-second decoy that retains engaged attention and reveals its attackers.",
+  "talent.ultimate.rogue.poisoned_shiv.name": "Black Contagion",
+  "talent.ultimate.rogue.poisoned_shiv.description":
+    "When a poisoned target dies, split its remaining poison between two nearby visible enemies.",
+  "talent.ultimate.rogue.shadow_dance.name": "Dance Master",
+  "talent.ultimate.rogue.shadow_dance.description":
+    "Mark struck targets for 2 seconds; reactivate to freely reach the one closest to your facing.",
+  "skill.rogue.dance_master.ready": "Reposition ready",
   "talent.node.mastery.name": "Mastery",
   "talent.node.mastery.description": "Greatly improve {skill}'s defining strengths.",
   "status.connecting": "connecting as {name}...",

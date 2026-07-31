@@ -766,6 +766,16 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.rogue.shadow_dance.b.name": "Mille coupures",
   "talent.evolution.rogue.shadow_dance.b.description":
     "S'il existe moins de cinq cibles distinctes, revenez sur la cible principale avec des frappes à 60 % de puissance.",
+  "talent.ultimate.rogue.vanish.name": "Silhouette laissée",
+  "talent.ultimate.rogue.vanish.description":
+    "Laisse pendant 3 secondes un leurre destructible qui retient l'attention engagée et révèle ses assaillants.",
+  "talent.ultimate.rogue.poisoned_shiv.name": "Contagion noire",
+  "talent.ultimate.rogue.poisoned_shiv.description":
+    "À la mort d'une cible empoisonnée, répartit son poison restant entre deux ennemis visibles proches.",
+  "talent.ultimate.rogue.shadow_dance.name": "Maître de la danse",
+  "talent.ultimate.rogue.shadow_dance.description":
+    "Marque les cibles touchées pendant 2 secondes ; réactivez pour rejoindre gratuitement celle qui fait face à votre direction.",
+  "skill.rogue.dance_master.ready": "Repositionnement disponible",
   "talent.node.mastery.name": "Maîtrise",
   "talent.node.mastery.description": "Améliore fortement les atouts principaux de {skill}.",
   "status.connecting": "connexion en tant que {name}...",

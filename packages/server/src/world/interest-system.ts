@@ -120,9 +120,27 @@ function visiblePlayerSnapshots<TSocket>(
   const now = context.now();
   return selection.entities
     .filter(
-      (player) => player.authorized && (player.id === viewer.id || !isRogueStealthed(player, now)),
+      (player) =>
+        player.authorized &&
+        (player.id === viewer.id ||
+          !isRogueStealthed(player, now) ||
+          (player.rogueSilhouette?.expiresAt ?? 0) > now),
     )
-    .map((player) => playerSnapshot(player, now));
+    .map((player) => {
+      const snapshot = playerSnapshot(player, now);
+      const silhouette =
+        player.id !== viewer.id && isRogueStealthed(player, now) ? player.rogueSilhouette : null;
+      return silhouette && silhouette.expiresAt > now
+        ? {
+            ...snapshot,
+            x: silhouette.x,
+            y: silhouette.y,
+            invisible: false,
+            silhouette: true,
+            action: null,
+          }
+        : snapshot;
+    });
 }
 
 function corpseSnapshots<TSocket>(
@@ -174,6 +192,7 @@ function visibleMonsterSnapshots<TSocket>(
     maxHp: monster.maxHp,
     dead: monster.deadUntil > now,
     threatening: monsterThreatensViewer(monster, viewer.id, now),
+    ...(monster.revealedUntil > now ? { revealed: true as const } : {}),
     facing: { ...monster.facing },
     action: combatActionSnapshot(monster.action),
     ...(context.navigationDebugAvailable && viewer.navigationDebug

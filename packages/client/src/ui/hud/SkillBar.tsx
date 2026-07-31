@@ -41,6 +41,11 @@ export function SkillBar() {
     const remaining = Math.max(0, afterimageUntil - shadowReturnServerNow);
     return remaining > 0 ? performance.now() + remaining : 0;
   }, [afterimageUntil, shadowReturnServerNow]);
+  const danceMarksUntil = self?.class === "rogue" ? (selfState?.rogue?.danceMarksUntil ?? 0) : 0;
+  const danceMarksLocalDeadline = useMemo(() => {
+    const remaining = Math.max(0, danceMarksUntil - shadowReturnServerNow);
+    return remaining > 0 ? performance.now() + remaining : 0;
+  }, [danceMarksUntil, shadowReturnServerNow]);
 
   useEffect(() => {
     const releaseHeldPointer = (event: PointerEvent) => {
@@ -65,6 +70,7 @@ export function SkillBar() {
       attackCooldownUntil,
       shadowReturnLocalDeadline,
       afterimageLocalDeadline,
+      danceMarksLocalDeadline,
       ...Object.values(cooldowns),
     );
     const startedAt = performance.now();
@@ -83,7 +89,13 @@ export function SkillBar() {
     return () => {
       if (timer !== null) window.clearInterval(timer);
     };
-  }, [afterimageLocalDeadline, attackCooldownUntil, cooldowns, shadowReturnLocalDeadline]);
+  }, [
+    afterimageLocalDeadline,
+    attackCooldownUntil,
+    cooldowns,
+    danceMarksLocalDeadline,
+    shadowReturnLocalDeadline,
+  ]);
 
   if (!self) return null;
   const ironGuardActive = self.class === "warrior" && self.guarding === true;
@@ -97,7 +109,10 @@ export function SkillBar() {
           self.class === "rogue" && skill.slot === 2 && now < shadowReturnLocalDeadline;
         const afterimageReady =
           self.class === "ranger" && skill.slot === 4 && now < afterimageLocalDeadline;
-        const cooling = remaining > 0 && !shadowReturnReady && !afterimageReady;
+        const danceRepositionReady =
+          self.class === "rogue" && skill.slot === 5 && now < danceMarksLocalDeadline;
+        const cooling =
+          remaining > 0 && !shadowReturnReady && !afterimageReady && !danceRepositionReady;
         const evolution = activeEvolutionVariant(
           self.class,
           selfState?.talents?.selected ?? [],
@@ -152,12 +167,13 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady || afterimageReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
+            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady || afterimageReady || danceRepositionReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
             style={{ gridRow: layout.row, gridColumn: layout.column }}
             data-numpad={layout.numpad}
             data-evolution-variant={evolution?.variantId}
             data-shadow-return-ready={shadowReturnReady || undefined}
             data-afterimage-ready={afterimageReady || undefined}
+            data-dance-reposition-ready={danceRepositionReady || undefined}
             disabled={!game || self.life !== "alive" || unavailable}
             onPointerDown={
               heldSkill
@@ -176,7 +192,7 @@ export function SkillBar() {
               }
             }}
             aria-pressed={guardToggle ? ironGuardActive : undefined}
-            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}`}
+            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}${danceRepositionReady ? `. ${t("skill.rogue.dance_master.ready")}` : ""}`}
             aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
             title={
               unlocked
@@ -208,6 +224,9 @@ export function SkillBar() {
             )}
             {afterimageReady && (
               <span className="skill-slot__return">{t("skill.ranger.afterimage.ready")}</span>
+            )}
+            {danceRepositionReady && (
+              <span className="skill-slot__return">{t("skill.rogue.dance_master.ready")}</span>
             )}
             {cooling && (
               <span className="skill-slot__cooldown" aria-hidden="true">

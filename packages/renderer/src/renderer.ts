@@ -4625,11 +4625,13 @@ export class Renderer {
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.65 : 0;
           view.container.alpha = ghost
             ? 0.5
-            : player.invisible
-              ? player.id === this.#selfId
-                ? 0.28
-                : 0.06
-              : 1;
+            : player.silhouette
+              ? 0.58
+              : player.invisible
+                ? player.id === this.#selfId
+                  ? 0.28
+                  : 0.06
+                : 1;
           // A ghost has no health to show; it has a body to find.
           this.#drawHp(view, ghost ? 0 : player.hp, player.maxHp);
         }
@@ -4702,7 +4704,10 @@ export class Renderer {
               if (frame) view.unitSprite.texture = frame;
             }
           }
-          if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.7 : 0;
+          if (view.flash) {
+            view.flash.tint = monster.revealed ? 0xc47cff : 0xffffff;
+            view.flash.alpha = monster.revealed ? 0.48 : (view.hitUntil ?? 0) > now ? 0.7 : 0;
+          }
           if (view.alert) {
             view.alert.visible = aggro;
             view.alert.y = ENEMY_RENDER_METRICS[monster.species].alertY + Math.sin(now / 120) * 2;

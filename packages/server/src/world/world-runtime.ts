@@ -209,6 +209,16 @@ export interface RangerAfterimageRuntime extends Vec2 {
   expiresAt: number;
 }
 
+export interface RogueSilhouetteRuntime extends Vec2 {
+  expiresAt: number;
+  hp: number;
+}
+
+export interface RogueDanceMarkRuntime {
+  targetId: string;
+  expiresAt: number;
+}
+
 export interface PriestLifeLinkRuntime {
   targetId: string;
   expiresAt: number;
@@ -330,6 +340,8 @@ export interface PlayerRuntime extends PlayerProfile {
   rogueShadowDanceInvulnerableUntil: number;
   rogueShadowReturn: RogueShadowReturnRuntime | null;
   rogueExecution: RogueExecutionRuntime | null;
+  rogueSilhouette: RogueSilhouetteRuntime | null;
+  rogueDanceMarks: RogueDanceMarkRuntime[];
   /** Deliberately limited cleanse surface; currently only poison is compatible. */
   negativeEffects: Map<CleanseableNegativeEffect, NegativeEffectRuntime>;
   lastResurrectAt: number;
@@ -386,6 +398,7 @@ export interface MonsterRuntime extends Vec2 {
   /** Temporary movement penalty; reset on respawn and never serialized. */
   slowUntil: number;
   slowMultiplier: number;
+  revealedUntil: number;
   xp: number;
   weakness: MonsterWeakness;
   weaknessPercent: number;
@@ -629,6 +642,8 @@ export function newPlayer(
     rogueShadowDanceInvulnerableUntil: 0,
     rogueShadowReturn: null,
     rogueExecution: null,
+    rogueSilhouette: null,
+    rogueDanceMarks: [],
     negativeEffects: new Map(),
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
@@ -790,6 +805,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       speed: tuning.speed,
       slowUntil: 0,
       slowMultiplier: 1,
+      revealedUntil: 0,
       xp: tuning.xp,
       weakness: tuning.weakness,
       weaknessPercent: tuning.weaknessPercent,

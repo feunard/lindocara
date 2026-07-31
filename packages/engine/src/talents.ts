@@ -139,10 +139,13 @@ export type TalentEffect =
       poisonPowerMultiplier: number;
     }
   | { kind: "rogue_smoke_screen"; protectionMs: number }
+  | { kind: "rogue_silhouette"; durationMs: number; health: number }
   | { kind: "rogue_concentrated_venom"; maxStacks: number }
   | { kind: "rogue_rupture"; remainingDamageRatio: number; detonationMultiplier: number }
+  | { kind: "rogue_contagion"; maximumTargets: number; range: number }
   | { kind: "rogue_dark_harvest"; cooldownReductionPerKillMs: number }
-  | { kind: "rogue_thousand_cuts"; repeatPowerRatio: number };
+  | { kind: "rogue_thousand_cuts"; repeatPowerRatio: number }
+  | { kind: "rogue_dance_master"; markDurationMs: number };
 
 export type TalentLabel =
   | "root"
@@ -809,89 +812,139 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         },
       },
     ),
-    ...branch("rogue", 3, [
-      { key: "ambush", label: "power", effects: [power()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+    ...branch(
+      "rogue",
+      3,
+      [
+        { key: "ambush", label: "power", effects: [power()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "mastery",
+          effects: [power(0.08), cooldown(0.08)],
+        },
+        {
+          key: "predator",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_predator",
+              openingBonusRatio: ROGUE_BALANCE.opening.predatorBonusRatio,
+              shivWindowMs: ROGUE_BALANCE.vanish.predatorShivWindowMs,
+              poisonPowerMultiplier: ROGUE_BALANCE.vanish.predatorPoisonPowerMultiplier,
+            },
+          ],
+        },
+        {
+          key: "smoke_screen",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_smoke_screen",
+              protectionMs: ROGUE_BALANCE.vanish.smokeProtectionMs,
+            },
+            cooldown(ROGUE_BALANCE.vanish.smokeCooldownReductionRatio),
+          ],
+        },
+      ],
       {
-        key: "mastery",
-        label: "mastery",
-        effects: [power(0.08), cooldown(0.08)],
+        ultimate: {
+          key: "left_silhouette",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "rogue_silhouette",
+              durationMs: ROGUE_BALANCE.vanish.silhouetteDurationMs,
+              health: ROGUE_BALANCE.vanish.silhouetteHealth,
+            },
+          ],
+        },
       },
+    ),
+    ...branch(
+      "rogue",
+      4,
+      [
+        { key: "force", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "concentrated_venom",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_concentrated_venom",
+              maxStacks: ROGUE_BALANCE.poisonedShiv.concentratedVenomMaxStacks,
+            },
+          ],
+        },
+        {
+          key: "rupture",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_rupture",
+              remainingDamageRatio: ROGUE_BALANCE.poisonedShiv.ruptureRemainingDamageRatio,
+              detonationMultiplier: ROGUE_BALANCE.poisonedShiv.ruptureDetonationMultiplier,
+            },
+          ],
+        },
+      ],
       {
-        key: "predator",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_predator",
-            openingBonusRatio: ROGUE_BALANCE.opening.predatorBonusRatio,
-            shivWindowMs: ROGUE_BALANCE.vanish.predatorShivWindowMs,
-            poisonPowerMultiplier: ROGUE_BALANCE.vanish.predatorPoisonPowerMultiplier,
-          },
-        ],
+        ultimate: {
+          key: "black_contagion",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "rogue_contagion",
+              maximumTargets: ROGUE_BALANCE.poisonedShiv.contagionTargets,
+              range: ROGUE_BALANCE.poisonedShiv.contagionRange,
+            },
+          ],
+        },
       },
+    ),
+    ...branch(
+      "rogue",
+      5,
+      [
+        { key: "force", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "dark_harvest",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_dark_harvest",
+              cooldownReductionPerKillMs: ROGUE_BALANCE.shadowDance.darkHarvestCooldownReductionMs,
+            },
+          ],
+        },
+        {
+          key: "thousand_cuts",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_thousand_cuts",
+              repeatPowerRatio: ROGUE_BALANCE.shadowDance.thousandCutsPowerRatio,
+            },
+          ],
+        },
+      ],
       {
-        key: "smoke_screen",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_smoke_screen",
-            protectionMs: ROGUE_BALANCE.vanish.smokeProtectionMs,
-          },
-          cooldown(ROGUE_BALANCE.vanish.smokeCooldownReductionRatio),
-        ],
+        ultimate: {
+          key: "dance_master",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "rogue_dance_master",
+              markDurationMs: ROGUE_BALANCE.shadowDance.danceMasterMarkDurationMs,
+            },
+          ],
+        },
       },
-    ]),
-    ...branch("rogue", 4, [
-      { key: "force", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "concentrated_venom",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_concentrated_venom",
-            maxStacks: ROGUE_BALANCE.poisonedShiv.concentratedVenomMaxStacks,
-          },
-        ],
-      },
-      {
-        key: "rupture",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_rupture",
-            remainingDamageRatio: ROGUE_BALANCE.poisonedShiv.ruptureRemainingDamageRatio,
-            detonationMultiplier: ROGUE_BALANCE.poisonedShiv.ruptureDetonationMultiplier,
-          },
-        ],
-      },
-    ]),
-    ...branch("rogue", 5, [
-      { key: "force", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "dark_harvest",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_dark_harvest",
-            cooldownReductionPerKillMs: ROGUE_BALANCE.shadowDance.darkHarvestCooldownReductionMs,
-          },
-        ],
-      },
-      {
-        key: "thousand_cuts",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_thousand_cuts",
-            repeatPowerRatio: ROGUE_BALANCE.shadowDance.thousandCutsPowerRatio,
-          },
-        ],
-      },
-    ]),
+    ),
   ],
 };
 

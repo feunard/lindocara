@@ -186,7 +186,7 @@ describe("TalentTree", () => {
     const ultimate = screen.getByRole("button", { name: /Veil Crossing\..*Available/ });
     expect(ultimate).toHaveClass("talent-node--ultimate", "talent-node--available");
     expect(ultimate).toHaveStyle({ gridRow: "5", gridColumn: "2" });
-    expect(view.container.querySelectorAll(".talent-node--ultimate")).toHaveLength(1);
+    expect(view.container.querySelectorAll(".talent-node--ultimate")).toHaveLength(4);
 
     await userEvent.click(ultimate);
     expect(game.unlockTalent).toHaveBeenCalledWith("rogue.shadow_step.veil_crossing");

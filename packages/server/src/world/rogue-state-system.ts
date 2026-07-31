@@ -293,4 +293,6 @@ export function clearRogueTransientState(player: PlayerRuntime): void {
   player.rogueShadowDanceInvulnerableUntil = 0;
   player.rogueShadowReturn = null;
   player.rogueExecution = null;
+  player.rogueSilhouette = null;
+  player.rogueDanceMarks = [];
 }

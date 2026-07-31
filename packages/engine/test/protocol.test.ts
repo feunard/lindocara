@@ -242,6 +242,7 @@ describe("server protocol", () => {
         stealthUntil: 8_000,
         smokeProtectionUntil: 500,
         shadowReturnUntil: 2_000,
+        danceMarksUntil: 0,
       },
     };
     expect(

@@ -31,7 +31,7 @@ describe("class talents", () => {
           playerClass === "warrior" ||
           playerClass === "ranger" ||
           playerClass === "priest" ||
-          (playerClass === "rogue" && slot === 2);
+          playerClass === "rogue";
 
         expect(branch).toHaveLength(hasUltimate ? 7 : 6);
         expect(root).toMatchObject({

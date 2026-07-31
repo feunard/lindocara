@@ -208,6 +208,7 @@ describe("skill bar cooldowns", () => {
           stealthUntil: 0,
           smokeProtectionUntil: 0,
           shadowReturnUntil: 3_000,
+          danceMarksUntil: 0,
         },
         talents: {
           selected: ["rogue.shadow_step.shadow_return"],

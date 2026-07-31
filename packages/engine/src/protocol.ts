@@ -128,6 +128,8 @@ export interface PlayerSnapshot {
   invisible?: boolean;
   /** Ranger decoy authored by the room; appearance only on recipients. */
   afterimage?: { x: number; y: number; expiresAt: number };
+  /** A departure decoy; its coordinates replace the hidden Rogue's real position for recipients. */
+  silhouette?: boolean;
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -160,6 +162,7 @@ export interface MonsterSnapshot {
    * recipient whether the living monster currently considers them a threat.
    */
   threatening?: boolean;
+  revealed?: boolean;
   facing: Vec2;
   action: CombatActionSnapshot | null;
   navigationDebug?: NavigationDebugSnapshot;
@@ -199,6 +202,7 @@ export interface RogueSelfState {
   stealthUntil: number;
   smokeProtectionUntil: number;
   shadowReturnUntil: number;
+  danceMarksUntil?: number;
 }
 
 export interface RangerSelfState {
@@ -915,6 +919,7 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
       (isRecord(value.afterimage) &&
         isPosition(value.afterimage) &&
         isFiniteNumber(value.afterimage.expiresAt))) &&
+    (value.silhouette === undefined || typeof value.silhouette === "boolean") &&
     (value.action === null || isActionSnapshot(value.action, "player"))
   );
 }
@@ -938,6 +943,7 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     value.hp <= value.maxHp &&
     typeof value.dead === "boolean" &&
     (value.threatening === undefined || typeof value.threatening === "boolean") &&
+    (value.revealed === undefined || typeof value.revealed === "boolean") &&
     isDirection(value.facing) &&
     (value.navigationDebug === undefined || isNavigationDebug(value.navigationDebug)) &&
     (value.action === null || isActionSnapshot(value.action, "monster"))
@@ -1255,7 +1261,8 @@ function isSelfState(value: unknown): value is SelfState {
       !isFiniteNumber(rogue.openingUntil) ||
       !isFiniteNumber(rogue.stealthUntil) ||
       !isFiniteNumber(rogue.smokeProtectionUntil) ||
-      !isFiniteNumber(rogue.shadowReturnUntil)
+      !isFiniteNumber(rogue.shadowReturnUntil) ||
+      (rogue.danceMarksUntil !== undefined && !isFiniteNumber(rogue.danceMarksUntil))
     ) {
       return false;
     }

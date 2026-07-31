@@ -860,7 +860,17 @@ async function startGameIdentity(
       store.self?.class === "ranger" && slot === 4
         ? clientShadowReturnDeadline(store.selfState?.ranger?.afterimageUntil ?? 0, serverClock)
         : 0;
-    if (skillCooldownBlocksCast(cooldownUntil, Math.max(shadowReturnUntil, afterimageUntil), now))
+    const danceMarksUntil =
+      store.self?.class === "rogue" && slot === 5
+        ? clientShadowReturnDeadline(store.selfState?.rogue?.danceMarksUntil ?? 0, serverClock)
+        : 0;
+    if (
+      skillCooldownBlocksCast(
+        cooldownUntil,
+        Math.max(shadowReturnUntil, afterimageUntil, danceMarksUntil),
+        now,
+      )
+    )
       return;
     if (slot === 1) {
       attack();

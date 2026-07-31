@@ -6,6 +6,7 @@ import {
   damageOverTimeRemainingPower,
   removeDamageOverTimeBySource,
   removeDamageOverTimeByTarget,
+  spreadDamageOverTime,
 } from "@lindocara/server/world/damage-over-time-system.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -133,5 +134,24 @@ describe("server-timed damage over time", () => {
     poison(effects, 4_000);
     removeDamageOverTimeBySource(effects, "rogue");
     expect(effects).toEqual([]);
+  });
+
+  it("spreads remaining poison without adding or losing scheduled power", () => {
+    const effects: DamageOverTimeRuntime[] = [];
+    const source = poison(effects, 1_000, 3);
+    poison(effects, 1_100, 3);
+    expect(damageOverTimeRemainingPower(source)).toBe(60);
+    expect(
+      spreadDamageOverTime(
+        effects,
+        { kind: "poison", sourceId: "rogue", targetKind: "monster", targetId: "boss" },
+        ["a", "b"],
+        3,
+      ),
+    ).toBe(60);
+    expect(effects.map((effect) => effect.targetId).sort()).toEqual(["a", "b"]);
+    expect(effects.reduce((total, effect) => total + damageOverTimeRemainingPower(effect), 0)).toBe(
+      60,
+    );
   });
 });

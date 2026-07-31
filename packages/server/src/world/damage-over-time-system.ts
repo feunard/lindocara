@@ -204,6 +204,72 @@ export function damageOverTimeRemainingPower(effect: DamageOverTimeRuntime): num
   );
 }
 
+/**
+ * Moves the remaining scheduled power to distinct targets without minting damage. Each tick is
+ * split deterministically by target order; due dates and stack boundaries are preserved.
+ */
+export function spreadDamageOverTime(
+  effects: DamageOverTimeRuntime[],
+  query: DamageOverTimeQuery,
+  targetIds: readonly string[],
+  maxStacks: number,
+): number {
+  const destinations = [...new Set(targetIds)].filter((id) => id.length > 0);
+  if (destinations.length === 0) return 0;
+  const matching = effects.filter((effect) => matchesQuery(effect, query));
+  let transferred = 0;
+  for (const effect of matching) {
+    const sourcePower = damageOverTimeRemainingPower(effect);
+    removeEffect(effects, effect);
+    const distributed = destinations.map((targetId) => ({
+      targetId,
+      stacks: [] as DamageOverTimeStack[],
+    }));
+    for (const stack of [...effect.stacks].sort((a, b) => a.sequence - b.sequence)) {
+      const targetStacks = distributed.map(() => ({
+        sequence: stack.sequence,
+        appliedAt: stack.appliedAt,
+        ticks: [] as DamageOverTimeTick[],
+      }));
+      for (const tick of stack.ticks) {
+        const base = Math.floor(tick.power / destinations.length);
+        let remainder = tick.power % destinations.length;
+        for (let index = 0; index < targetStacks.length; index++) {
+          const power = base + (remainder > 0 ? 1 : 0);
+          if (remainder > 0) remainder -= 1;
+          if (power > 0) targetStacks[index]?.ticks.push({ dueAt: tick.dueAt, power });
+        }
+      }
+      for (let index = 0; index < distributed.length; index++) {
+        const targetStack = targetStacks[index];
+        if (targetStack && targetStack.ticks.length > 0)
+          distributed[index]?.stacks.push(targetStack);
+      }
+    }
+    for (const destination of distributed) {
+      if (destination.stacks.length === 0) continue;
+      const existing = effects.find((candidate) =>
+        sameEffect(candidate, { ...effect, targetId: destination.targetId }),
+      );
+      if (existing) {
+        existing.stacks = [...existing.stacks, ...destination.stacks]
+          .sort((a, b) => a.sequence - b.sequence)
+          .slice(-Math.max(1, maxStacks));
+        existing.nextSequence = Math.max(existing.nextSequence, effect.nextSequence);
+        existing.lastAppliedAt = Math.max(existing.lastAppliedAt, effect.lastAppliedAt);
+      } else {
+        effects.push({
+          ...effect,
+          targetId: destination.targetId,
+          stacks: destination.stacks,
+        });
+      }
+    }
+    transferred += sourcePower;
+  }
+  return transferred;
+}
+
 function matchesQuery(effect: DamageOverTimeRuntime, query: DamageOverTimeQuery): boolean {
   return (
     (query.kind === undefined || effect.kind === query.kind) &&

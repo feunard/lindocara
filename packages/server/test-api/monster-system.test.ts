@@ -239,6 +239,35 @@ describe("monster navigation on the tile grid", () => {
     expect(monster.navigation.destination?.x).toBe(player.x);
   });
 
+  it("keeps pursuing a vanished Rogue's silhouette until it expires", () => {
+    const monster = chasingMonster();
+    const player = targetPlayer(260, 220);
+    player.class = "rogue";
+    player.rogueStealthUntil = 4_000;
+    player.rogueSilhouette = { x: 400, y: 220, hp: 45, expiresAt: 3_000 };
+    monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 1_000 });
+    const socket = { id: "silhouette-socket" } as unknown as WebSocket;
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone,
+      tick: 0,
+      navigation: createNavigationRuntime(terrain, zone.navigation),
+      startAttack: vi.fn(),
+    };
+
+    advanceMonsters(context, 1_000);
+    expect(monster.threat.has(player.id)).toBe(true);
+    expect(monster.navigation.destination?.x).toBe(400);
+    advanceMonsters(context, 3_001);
+    expect(player.rogueSilhouette).toBeNull();
+    expect(monster.threat.has(player.id)).toBe(false);
+  });
+
   it("telegraphs a monster attack before the guard defeats it", () => {
     const combatTerrain: TerrainGeometry = {
       ...terrain,

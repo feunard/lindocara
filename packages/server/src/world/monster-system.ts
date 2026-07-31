@@ -90,14 +90,17 @@ export function advanceMonsters<TSocket>(
   context: MonsterSystemContext<TSocket>,
   now: number,
 ): void {
-  const players = Array.from(context.players.entries()).filter(
-    ([, player]) =>
+  const players = Array.from(context.players.entries()).filter(([, player]) => {
+    if (player.rogueSilhouette && player.rogueSilhouette.expiresAt <= now)
+      player.rogueSilhouette = null;
+    const activeSilhouette = player.rogueSilhouette && player.rogueSilhouette.expiresAt > now;
+    return Boolean(
       player.authorized &&
-      player.life === "alive" &&
-      player.forgottenUntil <= now &&
-      player.invisibleUntil <= now &&
-      !isRogueStealthed(player, now),
-  );
+        player.life === "alive" &&
+        player.forgottenUntil <= now &&
+        ((player.invisibleUntil <= now && !isRogueStealthed(player, now)) || activeSilhouette),
+    );
+  });
   for (let index = 0; index < context.monsters.length; index++) {
     const monster = context.monsters[index];
     if (!monster || monster.deadUntil > now) continue;
@@ -111,6 +114,7 @@ export function advanceMonsters<TSocket>(
       monster.vy = 0;
       monster.slowUntil = 0;
       monster.slowMultiplier = 1;
+      monster.revealedUntil = 0;
       monster.threat.clear();
       monster.contributions.clear();
       monster.rewardsGranted = false;
@@ -124,13 +128,18 @@ export function advanceMonsters<TSocket>(
     for (const [playerId, entry] of monster.threat) {
       const socket = [...context.players.entries()].find(([, player]) => player.id === playerId);
       const player = socket?.[1];
-      const tooFar = player ? pointDistance(monster, player) > THREAT_LEASH_DISTANCE : false;
+      const activeSilhouette =
+        player?.rogueSilhouette && player.rogueSilhouette.expiresAt > now
+          ? player.rogueSilhouette
+          : null;
+      const tooFar = player
+        ? pointDistance(monster, activeSilhouette || player) > THREAT_LEASH_DISTANCE
+        : false;
       if (
         !player?.authorized ||
         player.life !== "alive" ||
         player.forgottenUntil > now ||
-        player.invisibleUntil > now ||
-        isRogueStealthed(player, now) ||
+        ((player.invisibleUntil > now || isRogueStealthed(player, now)) && !activeSilhouette) ||
         safeZoneShelters(player, context.zone.terrain) ||
         now - entry.updatedAt > THREAT_EXPIRES_MS ||
         tooFar
@@ -145,6 +154,7 @@ export function advanceMonsters<TSocket>(
 
     for (const candidate of players) {
       const player = candidate[1];
+      if (player.invisibleUntil > now || isRogueStealthed(player, now)) continue;
       if (safeZoneShelters(player, context.zone.terrain)) continue;
       if (
         monster.navigation.unreachableTargetId === player.id &&
@@ -180,7 +190,12 @@ export function advanceMonsters<TSocket>(
           ? player.rangerAfterimage
           : null;
       if (player.rangerAfterimage && !afterimage) player.rangerAfterimage = null;
-      const targetPosition = afterimage ?? player;
+      const silhouette =
+        player.rogueSilhouette && player.rogueSilhouette.expiresAt > now
+          ? player.rogueSilhouette
+          : null;
+      if (player.rogueSilhouette && !silhouette) player.rogueSilhouette = null;
+      const targetPosition = silhouette ?? afterimage ?? player;
       const targetDistance = pointDistance(monster, targetPosition);
       const targetChanged = monster.navigation.targetId !== player.id;
       if (monster.action && monster.action.recoveryEndsAt > now) {
@@ -197,7 +212,9 @@ export function advanceMonsters<TSocket>(
           monster.lastAttackAt = now;
           context.startAttack(
             monster,
-            afterimage ? { ...player, x: afterimage.x, y: afterimage.y } : player,
+            targetPosition === player
+              ? player
+              : { ...player, x: targetPosition.x, y: targetPosition.y },
             now,
           );
         }
