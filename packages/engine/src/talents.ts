@@ -12,6 +12,11 @@ export type TalentEffect =
   | { kind: "perfect_retaliation"; ratio: number }
   | { kind: "ally_guard"; radius: number; reduction: number }
   | {
+      kind: "colossus_charge";
+      throughPowerRatio: number;
+      maxTargets: number;
+    }
+  | {
       kind: "seismic_impact";
       radius: number;
       powerRatio: number;
@@ -24,10 +29,10 @@ export type TalentEffect =
     }
   | {
       kind: "rallying_cry";
-      radius: number;
       durationMs: number;
       powerMultiplier: number;
     }
+  | { kind: "steel_tempest" }
   | {
       kind: "cyclone";
       ticks: number;
@@ -44,6 +49,7 @@ export type TalentEffect =
       minimumPowerRatio: number;
     }
   | { kind: "dash_invulnerability" }
+  | { kind: "windstep" }
   | {
       kind: "retreat_shot";
       projectiles: number;
@@ -61,11 +67,23 @@ export type TalentEffect =
   | { kind: "chain_heal"; ratio: number; range: number }
   | { kind: "emergency_mend"; threshold: number; powerMultiplier: number }
   | { kind: "blink_heal"; value: number }
+  | { kind: "luminous_transfiguration"; radius: number; power: number; powerPerLevel: number }
   | { kind: "sacred_passage"; width: number; power: number; powerPerLevel: number }
-  | { kind: "sanctuary"; ticks: number; intervalMs: number }
+  | { kind: "sanctuary"; ticks: number; intervalMs: number; tickPowerRatio: number }
   | { kind: "absolution"; cleanse: "poison" }
-  | { kind: "nova_judgment"; damageMultiplier: number; healMultiplier: number }
-  | { kind: "nova_mercy"; damageMultiplier: number; healMultiplier: number }
+  | {
+      kind: "nova_judgment";
+      damageMultiplier: number;
+      healMultiplier: number;
+      executeThreshold: number;
+      executeMultiplier: number;
+    }
+  | {
+      kind: "nova_mercy";
+      damageMultiplier: number;
+      healMultiplier: number;
+      reviveNearest: boolean;
+    }
   | {
       kind: "rogue_executor";
       openingBonusRatio: number;
@@ -82,7 +100,7 @@ export type TalentEffect =
     }
   | { kind: "rogue_smoke_screen"; protectionMs: number }
   | { kind: "rogue_concentrated_venom"; maxStacks: number }
-  | { kind: "rogue_rupture"; remainingDamageRatio: number }
+  | { kind: "rogue_rupture"; remainingDamageRatio: number; detonationMultiplier: number }
   | { kind: "rogue_dark_harvest"; cooldownReductionPerKillMs: number }
   | { kind: "rogue_thousand_cuts"; repeatPowerRatio: number };
 
@@ -302,7 +320,15 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       { key: "impact", label: "power", effects: [power()] },
       { key: "onslaught", label: "range", effects: [range(), distance()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.3), distance(0.2)] },
+      {
+        key: "mastery",
+        label: "mastery",
+        effects: [
+          power(0.3),
+          distance(0.2),
+          { kind: "colossus_charge", throughPowerRatio: 0.7, maxTargets: 6 },
+        ],
+      },
       {
         key: "seismic_impact",
         label: "seismic_impact",
@@ -337,7 +363,6 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         effects: [
           {
             kind: "rallying_cry",
-            radius: 90,
             durationMs: 4_500,
             powerMultiplier: 0.15,
           },
@@ -348,7 +373,11 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       { key: "force", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.35), range(0.1)] },
+      {
+        key: "mastery",
+        label: "mastery",
+        effects: [power(0.35), range(0.1), { kind: "steel_tempest" }],
+      },
       {
         key: "cyclone",
         label: "cyclone",
@@ -402,7 +431,11 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         effects: [{ kind: "dash_invulnerability" }],
       },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [distance(0.3), cooldown(0.12)] },
+      {
+        key: "mastery",
+        label: "mastery",
+        effects: [distance(0.3), cooldown(0.12), { kind: "windstep" }],
+      },
       {
         key: "retreat_shot",
         label: "retreat_shot",
@@ -460,7 +493,15 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       { key: "distance", label: "distance", effects: [distance()] },
       { key: "renewal", label: "blink_heal", effects: [{ kind: "blink_heal", value: 20 }] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [distance(0.3), cooldown(0.12)] },
+      {
+        key: "mastery",
+        label: "mastery",
+        effects: [
+          distance(0.3),
+          cooldown(0.12),
+          { kind: "luminous_transfiguration", radius: 95, power: 16, powerPerLevel: 1 },
+        ],
+      },
       {
         key: "sacred_passage",
         label: "sacred_passage",
@@ -474,12 +515,16 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       {
         key: "mastery",
         label: "mastery",
-        effects: [power(0.3), range(0.15), { kind: "sanctuary", ticks: 3, intervalMs: 1_000 }],
+        effects: [
+          power(0.3),
+          range(0.15),
+          { kind: "sanctuary", ticks: 3, intervalMs: 1_000, tickPowerRatio: 0.35 },
+        ],
       },
       {
         key: "absolution",
         label: "absolution",
-        effects: [power(0.45), { kind: "absolution", cleanse: "poison" }],
+        effects: [power(0.8), { kind: "absolution", cleanse: "poison" }],
       },
     ]),
     ...branch("priest", 5, [
@@ -492,7 +537,13 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         effects: [
           power(0.35),
           range(0.1),
-          { kind: "nova_judgment", damageMultiplier: 1.4, healMultiplier: 0.6 },
+          {
+            kind: "nova_judgment",
+            damageMultiplier: 1.4,
+            healMultiplier: 0.6,
+            executeThreshold: 0.3,
+            executeMultiplier: 0.35,
+          },
         ],
       },
       {
@@ -501,7 +552,12 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         effects: [
           power(0.35),
           range(0.1),
-          { kind: "nova_mercy", damageMultiplier: 0.6, healMultiplier: 1.4 },
+          {
+            kind: "nova_mercy",
+            damageMultiplier: 0.6,
+            healMultiplier: 1.4,
+            reviveNearest: true,
+          },
         ],
       },
     ]),
@@ -573,6 +629,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
             kind: "rogue_smoke_screen",
             protectionMs: ROGUE_BALANCE.vanish.smokeProtectionMs,
           },
+          cooldown(ROGUE_BALANCE.vanish.smokeCooldownReductionRatio),
         ],
       },
     ]),
@@ -597,6 +654,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
           {
             kind: "rogue_rupture",
             remainingDamageRatio: ROGUE_BALANCE.poisonedShiv.ruptureRemainingDamageRatio,
+            detonationMultiplier: ROGUE_BALANCE.poisonedShiv.ruptureDetonationMultiplier,
           },
         ],
       },

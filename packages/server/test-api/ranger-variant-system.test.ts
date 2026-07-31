@@ -7,6 +7,7 @@ import {
   focusedVolleyPowerRatio,
   linePiercerPowerRatio,
   retreatShotDirections,
+  windstepCanInterrupt,
 } from "@lindocara/server/world/ranger-variant-system.js";
 import { newPlayer, type PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it, vi } from "vitest";
@@ -69,7 +70,7 @@ describe("authoritative ranger evolution systems", () => {
     expect(focusedVolleyPowerRatio(20, effect)).toBe(0.35);
   });
 
-  it("fires Tir de repli as a stable three-arrow forward fan and drops evolved dash immunity", () => {
+  it("fires Tir de repli as a stable three-arrow fan without losing purchased dash immunity", () => {
     const retreat = ranger("retreat", [...DASH_PREREQUISITES, "ranger.dash.retreat_shot"]);
     const effect = talentEffect("ranger", retreat.talents, "retreat_shot", 4);
     if (!effect) throw new Error("missing Retreat Shot effect");
@@ -91,7 +92,9 @@ describe("authoritative ranger evolution systems", () => {
       });
     }
     expect(isPlayerInvulnerable(windstep, 1_001)).toBe(true);
-    expect(isPlayerInvulnerable(retreat, 1_001)).toBe(false);
+    expect(isPlayerInvulnerable(retreat, 1_001)).toBe(true);
+    expect(windstepCanInterrupt(windstep.action, 1_001)).toBe(true);
+    expect(windstepCanInterrupt(windstep.action, 1_500)).toBe(false);
   });
 
   it("explodes Flèche comète in stable order without duplicating or crossing blocked targets", () => {

@@ -7,6 +7,7 @@ import {
   applyKingsChallenge,
   applyRallyingCry,
   applySeismicImpact,
+  colossusChargeImpacts,
   cycloneImpactTimes,
   damageAfterWarriorProtection,
   startWarriorCyclone,
@@ -138,31 +139,57 @@ describe("authoritative warrior evolution systems", () => {
       ...BATTLE_CRY_PREREQUISITES,
       "warrior.battle_cry.rallying_cry",
     ]);
-    const ally = runtime("rally-ally", "ranger", 30);
+    const ally = runtime("rally-ally", "ranger", 130);
+    const outside = runtime("rally-outside", "priest", 145);
     const effect = talentEffect("warrior", caster.talents, "rallying_cry", 4);
     if (!effect) throw new Error("missing Rallying Cry effect");
+    const radius = skillWithTalents("warrior", caster.talents, 4).radius ?? 0;
+    expect(radius).toBe(141.8);
 
     expect(
       applyRallyingCry(
         caster,
-        [caster, ally],
+        [caster, ally, outside],
         effect,
+        radius,
         1_000,
         () => true,
         () => true,
       ),
     ).toBe(2);
     expect(activeRallyPowerMultiplier(ally, 1_001)).toBe(0.15);
+    expect(activeRallyPowerMultiplier(outside, 1_001)).toBe(0);
     applyRallyingCry(
       caster,
       [ally],
       effect,
+      radius,
       2_000,
       () => true,
       () => true,
     );
     expect(activeRallyPowerMultiplier(ally, 2_001)).toBe(0.15);
     expect(activeRallyPowerMultiplier(ally, 6_501)).toBe(0);
+  });
+
+  it("lets Colossus Charge cross a bounded ordered enemy line until terrain stops it", () => {
+    const effect = talentEffect("warrior", ["warrior.shield_bash.mastery"], "colossus_charge", 3);
+    if (!effect) throw new Error("missing Colossus Charge effect");
+    const contacts = colossusChargeImpacts(
+      [
+        { target: { id: "late" }, fraction: 0.8 },
+        { target: { id: "z-tie" }, fraction: 0.2 },
+        { target: { id: "a-tie" }, fraction: 0.2 },
+        { target: { id: "behind-wall" }, fraction: 0.9 },
+      ],
+      0.85,
+      effect,
+    );
+    expect(contacts).toEqual([
+      { target: { id: "a-tie" }, powerRatio: 1 },
+      { target: { id: "z-tie" }, powerRatio: 0.7 },
+      { target: { id: "late" }, powerRatio: 0.7 },
+    ]);
   });
 
   it("resolves Impact Sismique in stable order without duplicating the direct target", () => {

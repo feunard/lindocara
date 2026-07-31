@@ -1,12 +1,44 @@
 import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { skillWithTalents, type TalentEffect, talentEffects } from "@lindocara/engine/talents.js";
+import {
+  consumeDamageOverTimePower,
+  type DamageOverTimeRuntime,
+} from "./damage-over-time-system.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 
 type ExecutorEffect = Extract<TalentEffect, { kind: "rogue_executor" }>;
 type PredatorEffect = Extract<TalentEffect, { kind: "rogue_predator" }>;
 type SmokeScreenEffect = Extract<TalentEffect, { kind: "rogue_smoke_screen" }>;
 type DarkHarvestEffect = Extract<TalentEffect, { kind: "rogue_dark_harvest" }>;
+type RuptureEffect = Extract<TalentEffect, { kind: "rogue_rupture" }>;
+
+/**
+ * Poisoned Shiv detonates a bounded share of its own existing poison. Consumed future ticks are
+ * removed first, then amplified so Rupture accelerates damage and adds real total damage.
+ */
+export function rupturePoisonWithShiv(
+  effects: DamageOverTimeRuntime[],
+  sourceId: string,
+  targetId: string,
+  effect: RuptureEffect,
+): { consumedPower: number; damage: number } {
+  const consumedPower = consumeDamageOverTimePower(
+    effects,
+    {
+      kind: "poison",
+      sourceId,
+      sourceSkillId: "poisoned_shiv",
+      targetKind: "monster",
+      targetId,
+    },
+    effect.remainingDamageRatio,
+  );
+  return {
+    consumedPower,
+    damage: Math.max(0, Math.round(consumedPower * Math.max(1, effect.detonationMultiplier))),
+  };
+}
 
 /**
  * Grants one bounded Opening window. A second source replaces the first instead of stacking its

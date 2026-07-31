@@ -307,7 +307,13 @@ describe("class talents", () => {
     const colossus = skillWithTalents("warrior", ["warrior.shield_bash.mastery"], 3);
     const seismic = skillWithTalents("warrior", ["warrior.shield_bash.seismic_impact"], 3);
     expect(colossus.power).toBe(Math.round((CLASS_SKILLS.warrior[2]?.power ?? 0) * 1.3));
+    expect(
+      talentEffect("warrior", ["warrior.shield_bash.mastery"], "colossus_charge", 3),
+    ).toMatchObject({ throughPowerRatio: 0.7, maxTargets: 6 });
     expect(seismic.distance).toBeLessThan(CLASS_SKILLS.warrior[2]?.distance ?? 0);
+    expect(talentEffect("warrior", ["warrior.whirlwind.mastery"], "steel_tempest", 5)).toEqual({
+      kind: "steel_tempest",
+    });
     expect(talentEffect("warrior", ["warrior.whirlwind.cyclone"], "cyclone", 5)).toMatchObject({
       ticks: 4,
       intervalMs: 250,
@@ -322,10 +328,16 @@ describe("class talents", () => {
     const ranger = skillWithTalents("ranger", ["ranger.dash.mastery"], 4);
     expect(ranger.distance).toBeGreaterThan(CLASS_SKILLS.ranger[3]?.distance ?? 0);
     expect(ranger.cooldownMs).toBeLessThan(CLASS_SKILLS.ranger[3]?.cooldownMs ?? Infinity);
+    expect(talentEffect("ranger", ["ranger.dash.mastery"], "windstep", 4)).toEqual({
+      kind: "windstep",
+    });
 
     const priest = skillWithTalents("priest", ["priest.prayer.mastery"], 4);
     expect(priest.power).toBeGreaterThan(CLASS_SKILLS.priest[3]?.power ?? 0);
     expect(priest.radius).toBeGreaterThan(CLASS_SKILLS.priest[3]?.radius ?? 0);
+    expect(
+      talentEffect("priest", ["priest.blink.mastery"], "luminous_transfiguration", 3),
+    ).toMatchObject({ radius: 95, power: 16, powerPerLevel: 1 });
   });
 
   it("adds four arrows to the five-arrow Volley", () => {
@@ -363,6 +375,7 @@ describe("class talents", () => {
     expect(talentEffect("priest", ["priest.prayer.mastery"], "sanctuary", 4)).toMatchObject({
       ticks: 3,
       intervalMs: 1_000,
+      tickPowerRatio: 0.35,
     });
     expect(talentEffect("priest", ["priest.prayer.absolution"], "absolution", 4)).toEqual({
       kind: "absolution",
@@ -370,10 +383,16 @@ describe("class talents", () => {
     });
     expect(
       talentEffect("priest", ["priest.divine_nova.mastery"], "nova_judgment", 5),
-    ).toMatchObject({ damageMultiplier: 1.4, healMultiplier: 0.6 });
+    ).toMatchObject({
+      damageMultiplier: 1.4,
+      healMultiplier: 0.6,
+      executeThreshold: 0.3,
+      executeMultiplier: 0.35,
+    });
     expect(talentEffect("priest", ["priest.divine_nova.mercy"], "nova_mercy", 5)).toMatchObject({
       damageMultiplier: 0.6,
       healMultiplier: 1.4,
+      reviveNearest: true,
     });
   });
 
@@ -395,7 +414,8 @@ describe("class talents", () => {
     });
     expect(
       talentEffect("rogue", ["rogue.vanish.smoke_screen"], "rogue_smoke_screen", 3),
-    ).toMatchObject({ protectionMs: 500 });
+    ).toMatchObject({ protectionMs: 750 });
+    expect(skillWithTalents("rogue", ["rogue.vanish.smoke_screen"], 3).cooldownMs).toBe(11_200);
     expect(
       talentEffect(
         "rogue",
@@ -406,7 +426,7 @@ describe("class talents", () => {
     ).toMatchObject({ maxStacks: 3 });
     expect(
       talentEffect("rogue", ["rogue.poisoned_shiv.rupture"], "rogue_rupture", 4),
-    ).toMatchObject({ remainingDamageRatio: 0.6 });
+    ).toMatchObject({ remainingDamageRatio: 0.6, detonationMultiplier: 1.5 });
     expect(
       talentEffect("rogue", ["rogue.shadow_dance.dark_harvest"], "rogue_dark_harvest", 5),
     ).toMatchObject({ cooldownReductionPerKillMs: 1_500 });

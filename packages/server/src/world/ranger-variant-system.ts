@@ -1,11 +1,20 @@
 import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { TalentEffect } from "@lindocara/engine/talents.js";
+import type { CombatActionRuntime } from "./world-runtime.js";
 
 type LinePiercerEffect = Extract<TalentEffect, { kind: "line_piercer" }>;
 type FocusedVolleyEffect = Extract<TalentEffect, { kind: "focused_volley" }>;
 type RetreatShotEffect = Extract<TalentEffect, { kind: "retreat_shot" }>;
 type CometArrowEffect = Extract<TalentEffect, { kind: "comet_arrow" }>;
+
+/** Windstep may cancel an unresolved hit or recovery, but never a stale action. */
+export function windstepCanInterrupt(
+  action: CombatActionRuntime | null,
+  now: number,
+): action is CombatActionRuntime {
+  return action !== null && action.recoveryEndsAt > now;
+}
 
 /** First target takes normal damage; every prior distinct target raises the next impact. */
 export function linePiercerPowerRatio(

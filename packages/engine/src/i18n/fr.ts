@@ -543,13 +543,13 @@ export const fr: Record<keyof typeof en, string> = {
     "Réduit brièvement les dégâts subis pour chaque ennemi défié, dans une limite fixe.",
   "talent.node.rallying_cry.name": "Cri de ralliement",
   "talent.node.rallying_cry.description":
-    "Renforce les alliés proches sans cumuler l'effet de plusieurs Guerriers.",
+    "Renforce les alliés dans tout le rayon amélioré du cri, sans cumuler l'effet de plusieurs Guerriers.",
   "talent.node.cyclone.name": "Cyclone",
   "talent.node.cyclone.description":
     "Transforme {skill} en une courte séquence mobile de quatre frappes bornées.",
   "talent.node.ricochet.name": "Ricochet",
   "talent.node.ricochet.description":
-    "Après un impact, {skill} rebondit sur un autre ennemi pour {value} % des dégâts.",
+    "Chaque ennemi traversé par la flèche originale déclenche un rebond vers un autre ennemi pour {value} % des dégâts.",
   "talent.node.line_piercer.name": "Perce-ligne",
   "talent.node.line_piercer.description":
     "Chaque ennemi distinct traversé augmente les dégâts sur le suivant, dans une limite fixe.",
@@ -563,7 +563,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Vous ne pouvez pas subir de dégâts pendant le déplacement de {skill}.",
   "talent.node.retreat_shot.name": "Tir de repli",
   "talent.node.retreat_shot.description":
-    "Tire trois flèches modérées dirigées par le serveur pendant le bond arrière.",
+    "Tire trois flèches modérées dirigées par le serveur pendant le bond arrière invulnérable.",
   "talent.node.execute.name": "Exécuteur",
   "talent.node.execute.description":
     "{skill} inflige davantage de dégâts aux ennemis sous {value} % de vie.",
@@ -590,22 +590,22 @@ export const fr: Record<keyof typeof en, string> = {
     "Renforce le soin instantané et retire le poison compatible des alliés visibles.",
   "talent.node.nova_judgment.name": "Jugement",
   "talent.node.nova_judgment.description":
-    "Spécialise {skill} vers des dégâts nettement augmentés et des soins réduits.",
+    "Spécialise {skill} vers des dégâts augmentés et achève plus brutalement les ennemis affaiblis.",
   "talent.node.nova_mercy.name": "Miséricorde",
   "talent.node.nova_mercy.description":
-    "Spécialise {skill} vers des soins nettement augmentés et des dégâts réduits.",
+    "Spécialise {skill} vers les soins et relève le corps allié valide le plus proche.",
   "talent.evolution.warrior.iron_guard.name": "Riposte parfaite",
   "talent.evolution.warrior.iron_guard.description":
     "Une garde absolue : parade parfaite sans dégâts et riposte renvoyant l'attaque.",
   "talent.evolution.warrior.shield_bash.name": "Charge du colosse",
   "talent.evolution.warrior.shield_bash.description":
-    "Une charge beaucoup plus longue et puissante, enveloppée d'un impact renforcé.",
+    "Une charge longue qui traverse plusieurs ennemis avant que le terrain ne l'arrête.",
   "talent.evolution.warrior.battle_cry.name": "Défi du roi",
   "talent.evolution.warrior.battle_cry.description":
     "Un défi monumental qui provoque les ennemis sur une zone considérablement agrandie.",
   "talent.evolution.warrior.whirlwind.name": "Tempête d'acier",
   "talent.evolution.warrior.whirlwind.description":
-    "Le tourbillon devient une tempête plus large et dévastatrice aux effets démultipliés.",
+    "Le tourbillon devient une tempête instantanée plus large qui provoque tous les ennemis frappés.",
   "talent.evolution.warrior.iron_guard.a.name": "Riposte parfaite",
   "talent.evolution.warrior.iron_guard.a.description":
     "Une parade au timing parfait annule tous les dégâts et riposte contre l'attaquant.",
@@ -614,7 +614,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Pendant Garde de fer, les alliés proches subissent 25 % de dégâts en moins, sans renvoi pour eux.",
   "talent.evolution.warrior.shield_bash.a.name": "Charge du colosse",
   "talent.evolution.warrior.shield_bash.a.description":
-    "Charge beaucoup plus loin et frappe le premier ennemi avec un impact massivement renforcé.",
+    "Traverse jusqu'à six ennemis : le premier subit le plein impact, les suivants 70 %, et seul le terrain arrête la charge.",
   "talent.evolution.warrior.shield_bash.b.name": "Impact sismique",
   "talent.evolution.warrior.shield_bash.b.description":
     "Charge moins loin, puis blesse et provoque les ennemis proches dans une onde de choc à l'arrivée.",
@@ -623,28 +623,28 @@ export const fr: Record<keyof typeof en, string> = {
     "Provoque une zone bien plus vaste et réduit brièvement les dégâts selon le nombre d'ennemis défiés.",
   "talent.evolution.warrior.battle_cry.b.name": "Cri de ralliement",
   "talent.evolution.warrior.battle_cry.b.description":
-    "Renonce à la provocation pour donner 15 % de dégâts aux alliés proches pendant 4,5 s, sans cumul.",
+    "Renonce à la provocation pour donner 15 % de dégâts aux alliés dans tout le rayon amélioré pendant 4,5 s, sans cumul.",
   "talent.evolution.warrior.whirlwind.a.name": "Tempête d'acier",
   "talent.evolution.warrior.whirlwind.a.description":
-    "Conserve le Tourbillon instantané existant, plus large et dévastateur, à pleine puissance évoluée.",
+    "Déchaîne un large Tourbillon instantané à pleine puissance et provoque chaque ennemi effectivement frappé.",
   "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
   "talent.evolution.warrior.whirlwind.b.description":
     "Canalise quatre frappes rapides et bornées tout en permettant de se repositionner.",
   "talent.evolution.ranger.piercing_arrow.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.description":
-    "La flèche perforante ricoche vers un second ennemi avec 60 % de sa puissance.",
+    "Chaque ennemi traversé par la flèche originale produit un rebond vers un autre ennemi à 60 % de puissance.",
   "talent.evolution.ranger.volley.name": "Déluge de flèches",
   "talent.evolution.ranger.volley.description":
     "La volée libère quatre flèches supplémentaires dans un déluge spectaculaire.",
   "talent.evolution.ranger.dash.name": "Pas du vent",
   "talent.evolution.ranger.dash.description":
-    "Un déplacement plus long et plus fréquent, invulnérable pendant toute sa traversée.",
+    "Un déplacement invulnérable plus long qui peut interrompre immédiatement une autre action.",
   "talent.evolution.ranger.heartseeker.name": "Arrêt du cœur",
   "talent.evolution.ranger.heartseeker.description":
     "Un trait fatal qui inflige 35 % de dégâts supplémentaires aux cibles sous 35 % de vie.",
   "talent.evolution.ranger.piercing_arrow.a.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.a.description":
-    "Conserve le rebond existant vers un second ennemi visible avec 60 % de puissance.",
+    "Chaque ennemi traversé par la flèche originale déclenche son propre rebond vers un autre ennemi visible à 60 % de puissance.",
   "talent.evolution.ranger.piercing_arrow.b.name": "Perce-ligne",
   "talent.evolution.ranger.piercing_arrow.b.description":
     "Chaque ennemi distinct traversé ajoute 15 % de dégâts au suivant, jusqu'à 60 %.",
@@ -656,10 +656,10 @@ export const fr: Record<keyof typeof en, string> = {
     "Resserre le cône pour qu'une grande cible subisse plusieurs impacts de puissance décroissante.",
   "talent.evolution.ranger.dash.a.name": "Pas du vent",
   "talent.evolution.ranger.dash.a.description":
-    "Parcourt une plus grande distance, plus souvent, en restant invulnérable pendant le dash.",
+    "Interrompt l'action en cours pour bondir immédiatement plus loin, plus souvent et en restant invulnérable.",
   "talent.evolution.ranger.dash.b.name": "Tir de repli",
   "talent.evolution.ranger.dash.b.description":
-    "Bondit en arrière sans l'invulnérabilité évoluée et tire trois flèches modérées vers l'avant.",
+    "Conserve l'invulnérabilité achetée et tire trois flèches modérées vers l'avant pendant le bond arrière.",
   "talent.evolution.ranger.heartseeker.a.name": "Arrêt du cœur",
   "talent.evolution.ranger.heartseeker.a.description":
     "Conserve le bonus d'exécution existant de 35 % contre les cibles sous 35 % de vie.",
@@ -671,13 +671,13 @@ export const fr: Record<keyof typeof en, string> = {
     "Le soin rebondit vers un second allié blessé avec la moitié de sa puissance.",
   "talent.evolution.priest.blink.name": "Transfiguration lumineuse",
   "talent.evolution.priest.blink.description":
-    "Le nuage voyage plus loin, revient plus vite et restaure la vie à la réapparition.",
+    "Le nuage voyage plus loin et libère un soin de groupe à sa réapparition.",
   "talent.evolution.priest.prayer.name": "Sanctuaire vivant",
   "talent.evolution.priest.prayer.description":
     "La prière devient un vaste sanctuaire aux soins nettement amplifiés.",
   "talent.evolution.priest.divine_nova.name": "Jugement",
   "talent.evolution.priest.divine_nova.description":
-    "La nova conserve sa puissance et sa portée évoluées, puis inflige bien plus de dégâts au prix des soins.",
+    "La nova devient un Jugement offensif qui frappe encore plus fort les ennemis déjà affaiblis.",
   "talent.evolution.priest.mend.a.name": "Grâce bondissante",
   "talent.evolution.priest.mend.a.description":
     "Conserve le rebond existant vers un second allié blessé et visible avec la moitié de la puissance.",
@@ -686,22 +686,22 @@ export const fr: Record<keyof typeof en, string> = {
     "Renonce au rebond pour augmenter le soin de 75 % sur un allié à 30 % de vie ou moins.",
   "talent.evolution.priest.blink.a.name": "Transfiguration lumineuse",
   "talent.evolution.priest.blink.a.description":
-    "Conserve le Pas de Lumen plus long, plus rapide à recharger et son soin à la rematérialisation.",
+    "Conserve le Pas de Lumen plus long et son soin personnel, puis soigne aussi les alliés proches à la rematérialisation.",
   "talent.evolution.priest.blink.b.name": "Passage sacré",
   "talent.evolution.priest.blink.b.description":
     "Laisse une traînée collisionnée qui soigne chaque allié traversé une fois, jamais à l'arrêt.",
   "talent.evolution.priest.prayer.a.name": "Sanctuaire vivant",
   "talent.evolution.priest.prayer.a.description":
-    "Conserve la Prière plus forte et plus large, puis ancre trois ticks de soin à son point de lancement.",
+    "Ancre trois soins supplémentaires à 35 % de puissance au point de lancement, efficaces mais différés.",
   "talent.evolution.priest.prayer.b.name": "Absolution",
   "talent.evolution.priest.prayer.b.description":
-    "Déclenche une Prière instantanée supérieure et retire le poison compatible des alliés visibles.",
+    "Déclenche une Prière instantanée fortement amplifiée et retire le poison compatible des alliés visibles.",
   "talent.evolution.priest.divine_nova.a.name": "Jugement",
   "talent.evolution.priest.divine_nova.a.description":
-    "Multiplie les dégâts de la Nova évoluée par 140 % et réduit ses soins à 60 %.",
+    "Inflige 140 % de dégâts, puis 35 % de plus contre les ennemis à 30 % de vie ou moins ; les soins tombent à 60 %.",
   "talent.evolution.priest.divine_nova.b.name": "Miséricorde",
   "talent.evolution.priest.divine_nova.b.description":
-    "Multiplie les soins de la Nova évoluée par 140 % et réduit ses dégâts à 60 %.",
+    "Soigne à 140 %, réduit les dégâts à 60 % et, si la résurrection est disponible, relève le corps allié valide le plus proche dans la zone.",
   "talent.evolution.rogue.shadow_step.a.name": "Exécuteur",
   "talent.evolution.rogue.shadow_step.a.description":
     "Pas de l'ombre donne une Ouverture bien plus forte ; si la cible frappée meurt sous 2 secondes, la recharge restante est réduite de moitié.",
@@ -716,13 +716,13 @@ export const fr: Record<keyof typeof en, string> = {
     "Sortez de Disparition avec une Ouverture renforcée et amplifiez le prochain Surin empoisonné utilisé sous 2 secondes.",
   "talent.evolution.rogue.vanish.b.name": "Écran de fumée",
   "talent.evolution.rogue.vanish.b.description":
-    "Supprime immédiatement l'aggro et accorde 500 ms de protection autoritaire à l'entrée en furtivité.",
+    "Supprime immédiatement l'aggro, accorde 750 ms de protection autoritaire et réduit encore de 20 % la recharge.",
   "talent.evolution.rogue.poisoned_shiv.a.name": "Venin concentré",
   "talent.evolution.rogue.poisoned_shiv.a.description":
     "Le poison peut former trois charges indépendantes, rafraîchies de manière déterministe sur la même cible.",
   "talent.evolution.rogue.poisoned_shiv.b.name": "Rupture",
   "talent.evolution.rogue.poisoned_shiv.b.description":
-    "Pas de l'ombre consomme et inflige immédiatement 60 % des dégâts de poison encore planifiés.",
+    "Surin empoisonné consomme 60 % du poison déjà planifié et le fait exploser à 150 %, ajoutant réellement des dégâts avant de réappliquer le poison.",
   "talent.evolution.rogue.shadow_dance.a.name": "Moisson noire",
   "talent.evolution.rogue.shadow_dance.a.description":
     "Chaque ennemi tué pendant la séquence retire 1,5 seconde de recharge à Danse des ombres, sans jamais passer sous zéro.",

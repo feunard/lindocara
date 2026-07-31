@@ -171,7 +171,6 @@ import { beginRewardAttribution, clearMonsterCombat } from "../../world/contribu
 import {
   advanceDamageOverTime,
   applyDamageOverTime,
-  consumeDamageOverTimePower,
   removeDamageOverTimeBySource,
   removeDamageOverTimeByTarget,
 } from "../../world/damage-over-time-system.js";
@@ -201,6 +200,9 @@ import {
   advanceSanctuaries,
   cleanseNegativeEffect,
   emergencyMendPower,
+  luminousTransfigurationPower,
+  nearestMercyCorpse,
+  novaJudgmentDamageMultiplier,
   novaSpecializationMultipliers,
   removeSanctuariesByOwner,
   type SanctuaryRuntime,
@@ -219,6 +221,7 @@ import {
   focusedVolleyPowerRatio,
   linePiercerPowerRatio,
   retreatShotDirections,
+  windstepCanInterrupt,
 } from "../../world/ranger-variant-system.js";
 import { planShadowDance } from "../../world/rogue-shadow-dance-system.js";
 import {
@@ -250,6 +253,7 @@ import {
   reduceRogueShadowDanceCooldown,
   resolveRogueExecutionKill,
   rogueOpeningBonusRatio,
+  rupturePoisonWithShiv,
 } from "../../world/rogue-state-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "../../world/skill-system.js";
 import {
@@ -264,6 +268,7 @@ import {
   applyKingsChallenge,
   applyRallyingCry,
   applySeismicImpact,
+  colossusChargeImpacts,
   cycloneImpactTimes,
   cycloneRecoveryMs,
   damageAfterWarriorProtection,
@@ -1769,6 +1774,36 @@ export function finishHeldPlayerAction(
         true,
       );
     }
+    const transfiguration = talentEffect(
+      player.class,
+      player.talents,
+      "luminous_transfiguration",
+      3,
+    );
+    if (transfiguration) {
+      const power = luminousTransfigurationPower(player.level, transfiguration);
+      for (const [targetConnectionId, target] of w.state.players) {
+        if (
+          target === player ||
+          target.life !== "alive" ||
+          !areCombatAllies(player, target) ||
+          pointDistance(player, target) > transfiguration.radius ||
+          !hasLineOfSight(player, target, terrain.tiles)
+        )
+          continue;
+        healPlayer(
+          w,
+          connectionId,
+          player,
+          targetConnectionId,
+          target,
+          power,
+          action.skillId,
+          now,
+          false,
+        );
+      }
+    }
   }
   sendStateTo(w, connectionId, player);
   return true;
@@ -1980,6 +2015,11 @@ export function startPlayerAction(
     definition.shape === "area_damage"
       ? talentEffect(player.class, player.talents, "cyclone", slot)
       : undefined;
+  const windstep =
+    definition.shape === "dash"
+      ? talentEffect(player.class, player.talents, "windstep", slot)
+      : undefined;
+  if (windstep && windstepCanInterrupt(player.action, now)) cancelCombatAction(player);
   const action = startCombatAction(player, {
     kind: slot === 1 ? "basic" : "skill",
     skillId: skill.id,
@@ -2251,6 +2291,43 @@ function resolveShieldBash(
       (entry): entry is { monster: MonsterRuntime; impact: NonNullable<typeof entry.impact> } =>
         entry.impact !== null,
     );
+  const colossus = talentEffect(player.class, player.talents, "colossus_charge", skill.slot);
+  if (colossus) {
+    const terrainFraction = terrainImpact?.fraction ?? 1;
+    const contacts = colossusChargeImpacts(
+      monsterImpacts.map(({ monster, impact }) => ({
+        target: monster,
+        fraction: impact.fraction,
+      })),
+      terrainFraction,
+      colossus,
+    );
+    movePlayer(w, player, action.direction, Math.max(0, distance * terrainFraction - 1));
+    const basePower = skill.power + Math.max(0, player.level - 1) * 2;
+    for (const contact of contacts) {
+      damageMonster(
+        w,
+        connectionId,
+        player,
+        contact.target,
+        skill,
+        now,
+        false,
+        Math.max(1, Math.round(basePower * contact.powerRatio)),
+      );
+    }
+    if (terrainImpact) {
+      w.deps.send(connectionId, {
+        t: "event",
+        code: "skill.blocked",
+        params: { skill: skill.id },
+        tone: "info",
+        x: terrainImpact.point.x,
+        y: terrainImpact.point.y,
+      });
+    }
+    return;
+  }
   const first = firstSegmentImpact([terrainImpact, ...monsterImpacts.map(({ impact }) => impact)]);
   const travel = Math.max(0, distance * (first?.fraction ?? 1) - 1);
   movePlayer(w, player, action.direction, travel);
@@ -2472,25 +2549,6 @@ export function resolvePlayerAction(
       now,
       rogueOpeningBonusRatio(player, 2, executor?.openingBonusRatio),
     );
-    const rupture = talentEffect(player.class, player.talents, "rogue_rupture", 4);
-    if (rupture) {
-      const consumedPower = consumeDamageOverTimePower(
-        w.state.damageOverTime,
-        {
-          kind: "poison",
-          sourceId: player.id,
-          sourceSkillId: "poisoned_shiv",
-          targetKind: "monster",
-          targetId: target.id,
-        },
-        rupture.remainingDamageRatio,
-      );
-      if (consumedPower > 0) {
-        damageMonster(w, connectionId, player, target, skill, now, false, consumedPower, {
-          poisonRupture: true,
-        });
-      }
-    }
     sendStateTo(w, connectionId, player);
     return;
   }
@@ -2532,8 +2590,32 @@ export function resolvePlayerAction(
     const resolvedTargets = player.class === "rogue" ? targets.slice(0, 1) : targets;
     for (const monster of resolvedTargets) {
       const result = damageMonster(w, connectionId, player, monster, skill, now, slot === 1);
-      if (skill.id === "poisoned_shiv" && result && !result.killed)
+      if (skill.id === "poisoned_shiv" && result && !result.killed) {
+        const rupture = talentEffect(player.class, player.talents, "rogue_rupture", 4);
+        if (rupture) {
+          const detonation = rupturePoisonWithShiv(
+            w.state.damageOverTime,
+            player.id,
+            monster.id,
+            rupture,
+          );
+          if (detonation.damage > 0) {
+            const ruptureResult = damageMonster(
+              w,
+              connectionId,
+              player,
+              monster,
+              skill,
+              now,
+              false,
+              detonation.damage,
+              { poisonRupture: true },
+            );
+            if (ruptureResult?.killed) continue;
+          }
+        }
         applyRoguePoison(w, player, monster, skill, now);
+      }
     }
     return;
   }
@@ -2581,6 +2663,7 @@ export function resolvePlayerAction(
         player,
         w.state.players.values(),
         rally,
+        skill.radius ?? skill.range,
         now,
         (source, target) => areCombatAllies(source, target),
         (source, target) => hasLineOfSight(source, target, terrain.tiles),
@@ -2613,16 +2696,21 @@ export function resolvePlayerAction(
     if (challenge) applyKingsChallenge(player, taunted, challenge, now);
     return;
   }
-  const novaMultipliers = novaSpecializationMultipliers(
-    talentEffect(player.class, player.talents, "nova_judgment", slot as SkillSlot),
-    talentEffect(player.class, player.talents, "nova_mercy", slot as SkillSlot),
-  );
+  const judgment = talentEffect(player.class, player.talents, "nova_judgment", slot as SkillSlot);
+  const mercy = talentEffect(player.class, player.talents, "nova_mercy", slot as SkillSlot);
+  const novaMultipliers = novaSpecializationMultipliers(judgment, mercy);
   if (definition.shape === "area_damage" || definition.shape === "nova") {
     const cyclone = talentEffect(player.class, player.talents, "cyclone", slot as SkillSlot);
     if (cyclone) {
       startWarriorCyclone(player, action.id, skill, cyclone, now);
       return;
     }
+    const steelTempest = talentEffect(
+      player.class,
+      player.talents,
+      "steel_tempest",
+      slot as SkillSlot,
+    );
     const radius = skill.radius ?? skill.range;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
@@ -2632,8 +2720,8 @@ export function resolvePlayerAction(
         monster.deadUntil <= now &&
         withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
         hasLineOfSight(player, monster, terrain.tiles)
-      )
-        damageMonster(
+      ) {
+        const result = damageMonster(
           w,
           connectionId,
           player,
@@ -2643,13 +2731,41 @@ export function resolvePlayerAction(
           false,
           Math.max(
             1,
-            Math.round((skill.power + Math.max(0, player.level - 1) * 2) * novaMultipliers.damage),
+            Math.round(
+              (skill.power + Math.max(0, player.level - 1) * 2) *
+                (judgment
+                  ? novaJudgmentDamageMultiplier(monster.hp, monster.maxHp, judgment)
+                  : novaMultipliers.damage),
+            ),
           ),
         );
+        if (result && !result.killed && steelTempest) tauntMonster(player, monster, now);
+      }
     }
   }
   if (definition.shape === "area_heal" || definition.shape === "nova") {
     areaHeal(w, connectionId, player, skill, now, novaMultipliers.healing);
+    if (mercy?.reviveNearest && now - player.lastResurrectAt >= RESURRECT_COOLDOWN_MS) {
+      const radius = skill.radius ?? skill.range;
+      const corpse = nearestMercyCorpse(
+        w.state.players.values(),
+        (candidate) => pointDistance(player, candidate.corpse ?? candidate),
+        (candidate) =>
+          candidate !== player &&
+          candidate.life === "corpse" &&
+          candidate.corpse !== null &&
+          areCombatAllies(player, candidate) &&
+          pointDistance(player, candidate.corpse) <= radius &&
+          hasLineOfSight(player, candidate.corpse, terrain.tiles),
+      );
+      if (corpse) {
+        const targetConnectionId = connectionOf(w.state, corpse.id);
+        if (targetConnectionId !== undefined) {
+          player.lastResurrectAt = now;
+          revivePlayerByPriest(w, connectionId, player, targetConnectionId, corpse, now);
+        }
+      }
+    }
     const sanctuary = talentEffect(player.class, player.talents, "sanctuary", slot as SkillSlot);
     if (sanctuary) {
       startSanctuary(w.state.sanctuaries, {
@@ -2812,6 +2928,40 @@ function resolveSanctuaryTick(w: WorldGlue, sanctuary: SanctuaryRuntime, now: nu
 // Interact, quests, consumables, merchant
 // -------------------------------------------------------------------------------------------------
 
+function revivePlayerByPriest(
+  w: WorldGlue,
+  casterConnectionId: string,
+  caster: PlayerRuntime,
+  targetConnectionId: string,
+  target: PlayerRuntime,
+  now: number,
+): void {
+  target.life = "alive";
+  target.resurrectionAt = 0;
+  target.corpse = null;
+  target.hp = resurrectHp(target.level);
+  grantReviveGrace(w, target, now);
+  freeze(w, target);
+
+  w.deps.send(casterConnectionId, {
+    t: "event",
+    code: "resurrect.cast",
+    params: { name: target.nick },
+    tone: "good",
+    x: target.x,
+    y: target.y,
+  });
+  w.deps.send(targetConnectionId, {
+    t: "event",
+    code: "death.resurrected",
+    params: { name: caster.nick },
+    tone: "good",
+    x: target.x,
+    y: target.y,
+  });
+  sendStateTo(w, targetConnectionId, target);
+}
+
 /** Port of `#resurrectNearbyCorpse` (`world.ts:3748`): the interact key is the priest's revive. */
 function resurrectNearbyCorpse(
   w: WorldGlue,
@@ -2851,30 +3001,7 @@ function resurrectNearbyCorpse(
   }
 
   player.lastResurrectAt = now;
-  target.life = "alive";
-  target.resurrectionAt = 0;
-  target.corpse = null;
-  target.hp = resurrectHp(target.level);
-  grantReviveGrace(w, target, now);
-  freeze(w, target);
-
-  w.deps.send(connectionId, {
-    t: "event",
-    code: "resurrect.cast",
-    params: { name: target.nick },
-    tone: "good",
-    x: target.x,
-    y: target.y,
-  });
-  w.deps.send(targetConnectionId, {
-    t: "event",
-    code: "death.resurrected",
-    params: { name: player.nick },
-    tone: "good",
-    x: target.x,
-    y: target.y,
-  });
-  sendStateTo(w, targetConnectionId, target);
+  revivePlayerByPriest(w, connectionId, player, targetConnectionId, target, now);
   return { handled: true, cooldownStarted: true };
 }
 

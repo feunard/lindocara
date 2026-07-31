@@ -6,6 +6,7 @@ import type {
 } from "./world-runtime.js";
 
 type EmergencyMendEffect = Extract<TalentEffect, { kind: "emergency_mend" }>;
+type LuminousTransfigurationEffect = Extract<TalentEffect, { kind: "luminous_transfiguration" }>;
 type SanctuaryEffect = Extract<TalentEffect, { kind: "sanctuary" }>;
 type NovaJudgmentEffect = Extract<TalentEffect, { kind: "nova_judgment" }>;
 type NovaMercyEffect = Extract<TalentEffect, { kind: "nova_mercy" }>;
@@ -31,6 +32,43 @@ export function emergencyMendPower(
   const woundedRatio = Math.max(0, targetHp) / Math.max(1, targetMaxHp);
   const multiplier = woundedRatio <= effect.threshold ? 1 + effect.powerMultiplier : 1;
   return Math.max(0, Math.round(basePower * multiplier));
+}
+
+export function luminousTransfigurationPower(
+  level: number,
+  effect: LuminousTransfigurationEffect,
+): number {
+  return Math.max(
+    0,
+    Math.round(effect.power + Math.max(0, Math.floor(level) - 1) * effect.powerPerLevel),
+  );
+}
+
+export function novaJudgmentDamageMultiplier(
+  targetHp: number,
+  targetMaxHp: number,
+  effect: NovaJudgmentEffect | undefined,
+): number {
+  if (!effect) return 1;
+  const healthRatio = Math.max(0, targetHp) / Math.max(1, targetMaxHp);
+  const execution = healthRatio <= effect.executeThreshold ? 1 + effect.executeMultiplier : 1;
+  return Math.max(0, effect.damageMultiplier) * Math.max(0, execution);
+}
+
+/** Mercy revives at most one corpse, selected by distance then stable hero id. */
+export function nearestMercyCorpse<T extends { id: string }>(
+  candidates: Iterable<T>,
+  distanceToCorpse: (candidate: T) => number,
+  canRevive: (candidate: T) => boolean,
+): T | null {
+  return (
+    [...candidates]
+      .filter(canRevive)
+      .sort(
+        (left, right) =>
+          distanceToCorpse(left) - distanceToCorpse(right) || left.id.localeCompare(right.id),
+      )[0] ?? null
+  );
 }
 
 /**
@@ -89,7 +127,7 @@ export function startSanctuary(
     x: options.x,
     y: options.y,
     radius: Math.max(0, options.radius),
-    power: Math.max(0, options.power),
+    power: Math.max(0, Math.round(options.power * Math.max(0, options.effect.tickPowerRatio))),
     nextTickAt: options.now + intervalMs,
     intervalMs,
     ticksRemaining: ticks,

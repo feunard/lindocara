@@ -5,6 +5,9 @@ import {
   applyCleanseableNegativeEffect,
   cleanseNegativeEffect,
   emergencyMendPower,
+  luminousTransfigurationPower,
+  nearestMercyCorpse,
+  novaJudgmentDamageMultiplier,
   novaSpecializationMultipliers,
   type SanctuaryRuntime,
   sacredPassageTargets,
@@ -78,8 +81,16 @@ describe("authoritative priest evolution systems", () => {
 
     expect(tick).toHaveBeenCalledTimes(3);
     expect(tick.mock.calls.every((call) => call[0] === sanctuary)).toBe(true);
-    expect(sanctuary).toMatchObject({ x: 40, y: 80, radius: 120 });
+    expect(sanctuary).toMatchObject({ x: 40, y: 80, radius: 120, power: 11 });
     expect(sanctuaries).toEqual([]);
+  });
+
+  it("turns Luminous Transfiguration into a level-scaled endpoint group heal", () => {
+    const effect = talentEffect("priest", ["priest.blink.mastery"], "luminous_transfiguration", 3);
+    if (!effect) throw new Error("missing Luminous Transfiguration effect");
+    expect(effect.radius).toBe(95);
+    expect(luminousTransfigurationPower(1, effect)).toBe(16);
+    expect(luminousTransfigurationPower(10, effect)).toBe(25);
   });
 
   it("limits Absolution to the supported poison effect and never persists it", () => {
@@ -117,5 +128,21 @@ describe("authoritative priest evolution systems", () => {
       damage: 1,
       healing: 1,
     });
+    expect(novaJudgmentDamageMultiplier(31, 100, judgment)).toBe(1.4);
+    expect(novaJudgmentDamageMultiplier(30, 100, judgment)).toBeCloseTo(1.89);
+
+    const candidates = [
+      { id: "far", distance: 80, corpse: true },
+      { id: "z-tie", distance: 20, corpse: true },
+      { id: "a-tie", distance: 20, corpse: true },
+      { id: "ghost", distance: 5, corpse: false },
+    ];
+    expect(
+      nearestMercyCorpse(
+        candidates,
+        (candidate) => candidate.distance,
+        (candidate) => candidate.corpse,
+      ),
+    ).toEqual({ id: "a-tie", distance: 20, corpse: true });
   });
 });

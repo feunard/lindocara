@@ -17,10 +17,8 @@ export function isLumenCloudInvulnerable(player: PlayerRuntime, now: number): bo
 /** Every authoritative damage path asks this single predicate before mutating HP. */
 export function isPlayerInvulnerable(player: PlayerRuntime, now: number): boolean {
   const dashInvulnerability = talentEffect(player.class, player.talents, "dash_invulnerability", 4);
-  const retreatShot = talentEffect(player.class, player.talents, "retreat_shot", 4);
   const dashing = Boolean(
     dashInvulnerability &&
-      !retreatShot &&
       player.action?.skillId === "dash" &&
       now >= player.action.impactAt &&
       now < player.action.recoveryEndsAt,

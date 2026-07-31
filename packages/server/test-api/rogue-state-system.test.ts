@@ -2,6 +2,11 @@ import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { talentEffect } from "@lindocara/engine/talents.js";
 import { isPlayerInvulnerable } from "@lindocara/server/world/combat-system.js";
 import {
+  applyDamageOverTime,
+  type DamageOverTimeRuntime,
+  damageOverTimeRemainingPower,
+} from "@lindocara/server/world/damage-over-time-system.js";
+import {
   activeRogueOpening,
   applyRogueSmokeProtection,
   armRogueExecution,
@@ -20,6 +25,7 @@ import {
   reduceRogueShadowDanceCooldown,
   resolveRogueExecutionKill,
   rogueOpeningBonusRatio,
+  rupturePoisonWithShiv,
 } from "@lindocara/server/world/rogue-state-system.js";
 import { selfState } from "@lindocara/server/world/snapshot-system.js";
 import { newPlayer, toProfile } from "@lindocara/server/world/world-runtime.js";
@@ -154,13 +160,36 @@ describe("Rogue runtime contract", () => {
 
     const protectedRogue = rogue(["rogue.vanish.smoke_screen"]);
     applyRogueSmokeProtection(protectedRogue, 1_000, smoke);
-    expect(isPlayerInvulnerable(protectedRogue, 1_499)).toBe(true);
-    expect(isPlayerInvulnerable(protectedRogue, 1_500)).toBe(false);
+    expect(isPlayerInvulnerable(protectedRogue, 1_749)).toBe(true);
+    expect(isPlayerInvulnerable(protectedRogue, 1_750)).toBe(false);
 
     const hunter = rogue(["rogue.vanish.predator"]);
     armRoguePredatorShiv(hunter, 2_000, predator);
     expect(consumeRoguePredatorShivMultiplier(hunter, 3_999, predator)).toBe(1.5);
     expect(consumeRoguePredatorShivMultiplier(hunter, 3_999, predator)).toBe(1);
+  });
+
+  it("makes Poisoned Shiv Rupture consume old poison and add net detonation damage", () => {
+    const effect = talentEffect("rogue", ["rogue.poisoned_shiv.rupture"], "rogue_rupture", 4);
+    if (!effect) throw new Error("missing Rupture effect");
+    const damageOverTime: DamageOverTimeRuntime[] = [];
+    const poison = applyDamageOverTime(damageOverTime, {
+      kind: "poison",
+      sourceId: "rogue",
+      sourceSkillId: "poisoned_shiv",
+      targetKind: "monster",
+      targetId: "boss",
+      now: 1_000,
+      tickCount: 5,
+      tickPower: 6,
+      intervalMs: 1_000,
+      maxStacks: 1,
+    });
+    expect(rupturePoisonWithShiv(damageOverTime, "rogue", "boss", effect)).toEqual({
+      consumedPower: 18,
+      damage: 27,
+    });
+    expect(damageOverTimeRemainingPower(poison)).toBe(12);
   });
 
   it("bounds Dark Harvest at the authoritative present even with excessive kills", () => {

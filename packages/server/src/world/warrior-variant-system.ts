@@ -6,6 +6,7 @@ type AllyPredicate = (source: PlayerRuntime, target: PlayerRuntime) => boolean;
 type VisibilityPredicate = (source: PlayerRuntime, target: PlayerRuntime) => boolean;
 
 type SeismicImpactEffect = Extract<TalentEffect, { kind: "seismic_impact" }>;
+type ColossusChargeEffect = Extract<TalentEffect, { kind: "colossus_charge" }>;
 type KingChallengeEffect = Extract<TalentEffect, { kind: "king_challenge" }>;
 type RallyingCryEffect = Extract<TalentEffect, { kind: "rallying_cry" }>;
 type CycloneEffect = Extract<TalentEffect, { kind: "cyclone" }>;
@@ -85,6 +86,7 @@ export function applyRallyingCry(
   caster: PlayerRuntime,
   players: Iterable<PlayerRuntime>,
   effect: RallyingCryEffect,
+  radius: number,
   now: number,
   areAllies: AllyPredicate,
   hasVisibility: VisibilityPredicate,
@@ -95,7 +97,7 @@ export function applyRallyingCry(
       target.life !== "alive" ||
       !target.authorized ||
       !areAllies(caster, target) ||
-      distance(caster, target) > effect.radius ||
+      distance(caster, target) > Math.max(0, radius) ||
       !hasVisibility(caster, target)
     )
       continue;
@@ -105,6 +107,29 @@ export function applyRallyingCry(
     affected += 1;
   }
   return affected;
+}
+
+/**
+ * Colossus Charge crosses living enemies until terrain stops it. Contacts are ordered by their
+ * swept fraction, then id, and bounded so one cast can never fan out into an unbounded room hit.
+ */
+export function colossusChargeImpacts<T extends { id: string }>(
+  impacts: readonly { target: T; fraction: number }[],
+  terrainFraction: number,
+  effect: ColossusChargeEffect,
+): { target: T; powerRatio: number }[] {
+  const limit = Math.max(1, Math.min(12, Math.floor(effect.maxTargets)));
+  return impacts
+    .filter((entry) => entry.fraction <= terrainFraction)
+    .sort(
+      (left, right) =>
+        left.fraction - right.fraction || left.target.id.localeCompare(right.target.id),
+    )
+    .slice(0, limit)
+    .map((entry, index) => ({
+      target: entry.target,
+      powerRatio: index === 0 ? 1 : Math.max(0, effect.throughPowerRatio),
+    }));
 }
 
 /**

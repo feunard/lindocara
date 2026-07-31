@@ -537,13 +537,13 @@ export const en = {
     "Briefly reduce incoming damage for each enemy challenged, up to a fixed limit.",
   "talent.node.rallying_cry.name": "Rallying cry",
   "talent.node.rallying_cry.description":
-    "Empower nearby allies without stacking the effect from several warriors.",
+    "Empower allies across the cry's fully upgraded radius without stacking several warriors.",
   "talent.node.cyclone.name": "Cyclone",
   "talent.node.cyclone.description":
     "Turn {skill} into a short mobile sequence of four bounded strikes.",
   "talent.node.ricochet.name": "Ricochet",
   "talent.node.ricochet.description":
-    "After hitting, {skill} jumps to another enemy for {value}% damage.",
+    "Each enemy pierced by the original arrow triggers a bounce into another enemy for {value}% damage.",
   "talent.node.line_piercer.name": "Linebreaker",
   "talent.node.line_piercer.description":
     "Each distinct enemy pierced increases damage against the next, up to a fixed limit.",
@@ -557,7 +557,7 @@ export const en = {
     "You cannot take damage while {skill} is moving you.",
   "talent.node.retreat_shot.name": "Retreat shot",
   "talent.node.retreat_shot.description":
-    "Fire three moderate server-directed arrows forward while leaping backward.",
+    "Fire three moderate server-directed arrows forward during the invulnerable backward leap.",
   "talent.node.execute.name": "Executioner",
   "talent.node.execute.description":
     "{skill} deals increased damage to enemies below {value}% health.",
@@ -583,22 +583,22 @@ export const en = {
     "Strengthen the instant heal and remove compatible poison from visible allies.",
   "talent.node.nova_judgment.name": "Judgment",
   "talent.node.nova_judgment.description":
-    "Specialize {skill} toward greatly increased damage and reduced healing.",
+    "Specialize {skill} toward increased damage and a harsher finish against weakened enemies.",
   "talent.node.nova_mercy.name": "Mercy",
   "talent.node.nova_mercy.description":
-    "Specialize {skill} toward greatly increased healing and reduced damage.",
+    "Specialize {skill} toward healing and revive the nearest valid allied corpse.",
   "talent.evolution.warrior.iron_guard.name": "Perfect Riposte",
   "talent.evolution.warrior.iron_guard.description":
     "An absolute guard: perfect parries prevent all damage and reflect the attack.",
   "talent.evolution.warrior.shield_bash.name": "Colossus Charge",
   "talent.evolution.warrior.shield_bash.description":
-    "A much longer, stronger charge wrapped in an amplified impact.",
+    "A long charge that crosses several enemies before terrain stops it.",
   "talent.evolution.warrior.battle_cry.name": "King's Challenge",
   "talent.evolution.warrior.battle_cry.description":
     "A monumental challenge that taunts enemies across a considerably larger area.",
   "talent.evolution.warrior.whirlwind.name": "Steel Tempest",
   "talent.evolution.warrior.whirlwind.description":
-    "Whirlwind becomes a wider, devastating tempest with multiplied effects.",
+    "Whirlwind becomes a wider instant tempest that taunts every enemy it hits.",
   "talent.evolution.warrior.iron_guard.a.name": "Perfect Riposte",
   "talent.evolution.warrior.iron_guard.a.description":
     "A frame-perfect parry prevents all damage and retaliates against the attacker.",
@@ -607,7 +607,7 @@ export const en = {
     "While Iron Guard is held, nearby allies take 25% less damage; no damage is reflected for them.",
   "talent.evolution.warrior.shield_bash.a.name": "Colossus Charge",
   "talent.evolution.warrior.shield_bash.a.description":
-    "Charge much farther and strike the first enemy with a massively reinforced impact.",
+    "Cross up to six enemies: the first takes full impact, later targets take 70%, and only terrain stops the charge.",
   "talent.evolution.warrior.shield_bash.b.name": "Seismic Impact",
   "talent.evolution.warrior.shield_bash.b.description":
     "Charge a shorter distance, then damage and taunt nearby enemies in an arrival shockwave.",
@@ -616,28 +616,28 @@ export const en = {
     "Taunt a much larger area and briefly gain bounded damage reduction for each enemy challenged.",
   "talent.evolution.warrior.battle_cry.b.name": "Rallying Cry",
   "talent.evolution.warrior.battle_cry.b.description":
-    "Forgo the taunt to grant nearby allies 15% more damage for 4.5 seconds without stacking.",
+    "Forgo the taunt to grant allies across the fully upgraded radius 15% more damage for 4.5 seconds without stacking.",
   "talent.evolution.warrior.whirlwind.a.name": "Steel Tempest",
   "talent.evolution.warrior.whirlwind.a.description":
-    "Deliver the existing wider, devastating instant Whirlwind at full evolved power.",
+    "Deliver a wide instant Whirlwind at full power and taunt every enemy actually struck.",
   "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
   "talent.evolution.warrior.whirlwind.b.description":
     "Channel four rapid bounded strikes while remaining able to reposition.",
   "talent.evolution.ranger.piercing_arrow.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.description":
-    "Piercing Arrow ricochets into a second enemy at 60% power.",
+    "Each enemy pierced by the original arrow produces a bounce into another enemy at 60% power.",
   "talent.evolution.ranger.volley.name": "Arrow Deluge",
   "talent.evolution.ranger.volley.description":
     "Volley releases four additional arrows in a spectacular deluge.",
   "talent.evolution.ranger.dash.name": "Windstep",
   "talent.evolution.ranger.dash.description":
-    "Travel farther and more often while remaining invulnerable throughout the dash.",
+    "Make a longer invulnerable move that can immediately interrupt another action.",
   "talent.evolution.ranger.heartseeker.name": "Heartstopper",
   "talent.evolution.ranger.heartseeker.description":
     "A fatal shot dealing 35% more damage to targets below 35% health.",
   "talent.evolution.ranger.piercing_arrow.a.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.a.description":
-    "Preserves the existing bounce into a second visible enemy at 60% power.",
+    "Each enemy pierced by the original arrow triggers its own bounce into another visible enemy at 60% power.",
   "talent.evolution.ranger.piercing_arrow.b.name": "Linebreaker",
   "talent.evolution.ranger.piercing_arrow.b.description":
     "Each distinct enemy pierced adds 15% damage to the next, capped at 60%.",
@@ -649,10 +649,10 @@ export const en = {
     "Narrows the cone so a large target can take several progressively weaker impacts.",
   "talent.evolution.ranger.dash.a.name": "Windstep",
   "talent.evolution.ranger.dash.a.description":
-    "Travel farther and more often while remaining invulnerable throughout the dash.",
+    "Interrupt the current action to leap immediately, farther and more often, while remaining invulnerable.",
   "talent.evolution.ranger.dash.b.name": "Retreat Shot",
   "talent.evolution.ranger.dash.b.description":
-    "Leap backward without evolved invulnerability while firing three moderate arrows forward.",
+    "Keep the purchased invulnerability while firing three moderate arrows forward during the backward leap.",
   "talent.evolution.ranger.heartseeker.a.name": "Heartstopper",
   "talent.evolution.ranger.heartseeker.a.description":
     "Preserves the existing 35% execution bonus against targets below 35% health.",
@@ -664,13 +664,13 @@ export const en = {
     "The heal bounces to a second wounded ally at half strength.",
   "talent.evolution.priest.blink.name": "Luminous Transfiguration",
   "talent.evolution.priest.blink.description":
-    "The cloud travels farther, returns sooner, and restores health on rematerialization.",
+    "The cloud travels farther and releases a group heal on rematerialization.",
   "talent.evolution.priest.prayer.name": "Living Sanctuary",
   "talent.evolution.priest.prayer.description":
     "Prayer becomes a vast sanctuary with substantially amplified healing.",
   "talent.evolution.priest.divine_nova.name": "Judgment",
   "talent.evolution.priest.divine_nova.description":
-    "The nova keeps its evolved power and reach, then deals far more damage at the cost of healing.",
+    "The nova becomes an offensive Judgment that hits already weakened enemies even harder.",
   "talent.evolution.priest.mend.a.name": "Leaping Grace",
   "talent.evolution.priest.mend.a.description":
     "Preserves the existing bounce to a second wounded visible ally at half strength.",
@@ -679,22 +679,22 @@ export const en = {
     "Forgo the bounce to increase healing by 75% on an ally at or below 30% health.",
   "talent.evolution.priest.blink.a.name": "Luminous Transfiguration",
   "talent.evolution.priest.blink.a.description":
-    "Preserves the longer, faster Lumen Step and its healing on rematerialization.",
+    "Keep the longer Lumen Step and personal heal, then also heal nearby allies on rematerialization.",
   "talent.evolution.priest.blink.b.name": "Sacred Passage",
   "talent.evolution.priest.blink.b.description":
     "Leave a collision-resolved trail that heals every crossed ally once, and never while stationary.",
   "talent.evolution.priest.prayer.a.name": "Living Sanctuary",
   "talent.evolution.priest.prayer.a.description":
-    "Preserves the stronger, wider Prayer and anchors three additional healing ticks at its cast point.",
+    "Anchor three additional 35%-power heals at the cast point: effective, but delayed.",
   "talent.evolution.priest.prayer.b.name": "Absolution",
   "talent.evolution.priest.prayer.b.description":
-    "Deliver a stronger instant Prayer and cleanse the supported poison effect from visible allies.",
+    "Deliver a heavily amplified instant Prayer and cleanse the supported poison effect from visible allies.",
   "talent.evolution.priest.divine_nova.a.name": "Judgment",
   "talent.evolution.priest.divine_nova.a.description":
-    "Multiply evolved Nova damage by 140% while reducing its healing output to 60%.",
+    "Deal 140% damage, plus another 35% below 30% target health; healing falls to 60%.",
   "talent.evolution.priest.divine_nova.b.name": "Mercy",
   "talent.evolution.priest.divine_nova.b.description":
-    "Multiply evolved Nova healing by 140% while reducing its damage output to 60%.",
+    "Heal at 140%, deal 60% damage, and, when resurrection is ready, revive the nearest valid allied corpse inside the Nova.",
   "talent.evolution.rogue.shadow_step.a.name": "Executor",
   "talent.evolution.rogue.shadow_step.a.description":
     "Shadow Step grants a much stronger Opening; if its struck target dies within 2 seconds, halve the remaining cooldown.",
@@ -709,13 +709,13 @@ export const en = {
     "Leave Vanish with a stronger Opening and empower the next Poisoned Shiv used within 2 seconds.",
   "talent.evolution.rogue.vanish.b.name": "Smoke Screen",
   "talent.evolution.rogue.vanish.b.description":
-    "Immediately clear aggro and gain 500 ms of authoritative protection while entering stealth.",
+    "Immediately clear aggro, gain 750 ms of authoritative protection, and reduce cooldown by another 20%.",
   "talent.evolution.rogue.poisoned_shiv.a.name": "Concentrated Venom",
   "talent.evolution.rogue.poisoned_shiv.a.description":
     "Poison can build three independent, deterministically refreshed stacks on the same target.",
   "talent.evolution.rogue.poisoned_shiv.b.name": "Rupture",
   "talent.evolution.rogue.poisoned_shiv.b.description":
-    "Shadow Step consumes and immediately deals 60% of your poison's remaining scheduled damage.",
+    "Poisoned Shiv consumes 60% of already scheduled poison and detonates it at 150%, adding real damage before reapplying poison.",
   "talent.evolution.rogue.shadow_dance.a.name": "Dark Harvest",
   "talent.evolution.rogue.shadow_dance.a.description":
     "Each enemy killed during the sequence removes 1.5 seconds from Shadow Dance's cooldown, never below zero.",

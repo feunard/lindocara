@@ -26,7 +26,8 @@ export const ROGUE_BALANCE = {
     maximumDurationMs: 8_000,
     predatorShivWindowMs: 2_000,
     predatorPoisonPowerMultiplier: 1.5,
-    smokeProtectionMs: 500,
+    smokeProtectionMs: 750,
+    smokeCooldownReductionRatio: 0.2,
   },
   poisonedShiv: {
     cooldownMs: 6_000,
@@ -38,6 +39,7 @@ export const ROGUE_BALANCE = {
     poisonIntervalMs: 1_000,
     concentratedVenomMaxStacks: 3,
     ruptureRemainingDamageRatio: 0.6,
+    ruptureDetonationMultiplier: 1.5,
   },
   shadowDance: {
     cooldownMs: 11_000,
