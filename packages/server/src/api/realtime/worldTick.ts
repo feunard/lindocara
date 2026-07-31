@@ -3314,6 +3314,31 @@ export function resolvePlayerAction(
   const judgment = talentEffect(player.class, player.talents, "nova_judgment", slot as SkillSlot);
   const mercy = talentEffect(player.class, player.talents, "nova_mercy", slot as SkillSlot);
   const novaMultipliers = novaSpecializationMultipliers(judgment, mercy);
+  if (
+    definition.shape === "nova" &&
+    mercy?.reviveNearest &&
+    now - player.lastResurrectAt >= RESURRECT_COOLDOWN_MS
+  ) {
+    const radius = skill.radius ?? skill.range;
+    const corpse = nearestMercyCorpse(
+      w.state.players.values(),
+      (candidate) => pointDistance(player, candidate.corpse ?? candidate),
+      (candidate) =>
+        candidate !== player &&
+        candidate.life === "corpse" &&
+        candidate.corpse !== null &&
+        areCombatAllies(player, candidate) &&
+        pointDistance(player, candidate.corpse) <= radius &&
+        hasLineOfSight(player, candidate.corpse, terrain.tiles),
+    );
+    if (corpse) {
+      const targetConnectionId = connectionOf(w.state, corpse.id);
+      if (targetConnectionId !== undefined) {
+        player.lastResurrectAt = now;
+        revivePlayerByPriest(w, connectionId, player, targetConnectionId, corpse, now);
+      }
+    }
+  }
   const polarityOrb = talentEffect(player.class, player.talents, "polarity_orb", slot as SkillSlot);
   if (definition.shape === "nova" && polarityOrb) {
     const orb = startPolarityOrb(
@@ -3430,27 +3455,6 @@ export function resolvePlayerAction(
           expiresAt: now + soulAnchor.durationMs,
           cleansePoison,
         };
-      }
-    }
-    if (mercy?.reviveNearest && now - player.lastResurrectAt >= RESURRECT_COOLDOWN_MS) {
-      const radius = skill.radius ?? skill.range;
-      const corpse = nearestMercyCorpse(
-        w.state.players.values(),
-        (candidate) => pointDistance(player, candidate.corpse ?? candidate),
-        (candidate) =>
-          candidate !== player &&
-          candidate.life === "corpse" &&
-          candidate.corpse !== null &&
-          areCombatAllies(player, candidate) &&
-          pointDistance(player, candidate.corpse) <= radius &&
-          hasLineOfSight(player, candidate.corpse, terrain.tiles),
-      );
-      if (corpse) {
-        const targetConnectionId = connectionOf(w.state, corpse.id);
-        if (targetConnectionId !== undefined) {
-          player.lastResurrectAt = now;
-          revivePlayerByPriest(w, connectionId, player, targetConnectionId, corpse, now);
-        }
       }
     }
     const sanctuary = talentEffect(player.class, player.talents, "sanctuary", slot as SkillSlot);

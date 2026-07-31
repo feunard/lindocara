@@ -348,6 +348,39 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("Polarity Orb preserves Mercy's nearest-corpse resurrection", async () => {
+    const host = await newPlayableHero("orbmercy", "priest");
+    const ally = await joinAsSecondHero(host, "orbmercyally");
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    await engine.join(fakeSocket(host.userId, host.heroId));
+    await engine.join(fakeSocket(ally.userId, ally.heroId));
+    const state = roomState(engine);
+    const priest = playerOf(state, host.heroId);
+    const corpse = playerOf(state, ally.heroId);
+    priest.level = 10;
+    priest.talents = ["priest.divine_nova.mercy", "priest.divine_nova.polarity_orb"];
+    corpse.life = "corpse";
+    corpse.hp = 0;
+    corpse.x = priest.x + 20;
+    corpse.y = priest.y;
+    corpse.corpse = { x: corpse.x, y: corpse.y };
+
+    let t = Date.now() + 1_000;
+    const { w } = testGlue(state, () => t);
+    expect(startPlayerAction(w, `c-${host.heroId}`, priest, 5)).toBe(true);
+    const impactAt = priest.action?.impactAt;
+    if (impactAt === undefined) throw new Error("missing Divine Nova impact");
+    t = impactAt;
+    advanceWorldTick(w);
+
+    expect(state.polarityOrbs).toHaveLength(1);
+    expect(corpse.life).toBe("alive");
+    expect(corpse.corpse).toBeNull();
+    expect(corpse.hp).toBeGreaterThan(0);
+    engine.dispose();
+  });
+
   test("attack consumes its cooldown even on a miss", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("attackmiss");
     const clock = new FakeClock();
