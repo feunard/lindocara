@@ -76,7 +76,7 @@ import {
   moveSelection,
   placementLegalAt,
   redoEditorHistory,
-  selectionAt,
+  selectionAtMode,
   setActiveMode,
   toMapData,
   undoEditorHistory,
@@ -1415,6 +1415,7 @@ async function buildSession(
   // state, distinct from any real placement key.
   let lastPaintedKey = "";
   let strokeStart: EditorMap | null = null;
+  let dragSelection: EditorSelection | null = null;
 
   // The last cell handed to `onCursorCell`, so a pointer sliding within one cell reports once, not
   // per pixel. `"none"` is the off-canvas state, distinct from any real cell.
@@ -1451,15 +1452,44 @@ async function buildSession(
     };
   }
 
+  const commitInspectorChange = (
+    next: EditorMap | null,
+    nextSelection: EditorSelection | null = selected,
+  ): boolean => {
+    if (!next || next === map) return false;
+    history = commitEditorHistory({ ...history, present: map }, next);
+    map = next;
+    selected = nextSelection;
+    redraw();
+    notify();
+    return true;
+  };
+
   function paintAt(clientX: number, clientY: number, isStrokeStart: boolean): void {
     const { col, row, offsetX, offsetY } = placementAt(clientX, clientY);
     const paintKey = `${col},${row},${offsetX},${offsetY}`;
     if (paintKey === lastPaintedKey) return;
     lastPaintedKey = paintKey;
     if (tool.kind === "select") {
-      // Events remain visible in Select, so redraw their selection outline as well as notifying the
-      // React inspector.
-      selected = selectionAt(map, col, row);
+      if (isStrokeStart) {
+        dragSelection = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
+        selected = dragSelection;
+        canvas.dataset.cursor = selected ? "grabbing" : "select";
+        redraw();
+        notify();
+        return;
+      }
+      // A drag only moves the object captured on pointer-down. Sweeping from an empty cell must not
+      // accidentally grab the first prop/event crossed by the pointer.
+      if (!dragSelection) return;
+      const previous = dragSelection;
+      const next = moveSelection(map, previous, col, row, offsetX, offsetY);
+      if (!next || next === map) return;
+      const nextSelection: EditorSelection =
+        previous.kind === "element" ? { ...previous, col, row, offsetX, offsetY } : previous;
+      map = next;
+      dragSelection = nextSelection;
+      selected = nextSelection;
       redraw();
       notify();
       return;
@@ -1597,6 +1627,7 @@ async function buildSession(
       notify();
     }
     strokeStart = null;
+    dragSelection = null;
     painting = false;
     panning = false;
     canvas.dataset.cursor =
@@ -1625,22 +1656,7 @@ async function buildSession(
   const onDoubleClick = (event: MouseEvent): void => {
     if (!onOpenSelection) return;
     const { col, row, offsetX, offsetY } = placementAt(event.clientX, event.clientY);
-    const cellTarget = selectionAt(map, col, row);
-    // An event remains topmost. In Element mode, otherwise prefer the exact quarter-slot under the
-    // pointer so two stacked props in one cell can each be promoted independently.
-    const exactElement =
-      history.activeMode === "element" && cellTarget?.kind !== "event"
-        ? map.elements.find(
-            (candidate) =>
-              candidate.col === col &&
-              candidate.row === row &&
-              candidate.offsetX === offsetX &&
-              candidate.offsetY === offsetY,
-          )
-        : undefined;
-    const target: EditorSelection | null = exactElement
-      ? { kind: "element", col, row, offsetX, offsetY }
-      : cellTarget;
+    const target = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
     if (!target) return;
     selected = target;
     redraw();
@@ -1661,6 +1677,16 @@ async function buildSession(
       )
     )
       return;
+    if (
+      tool.kind === "select" &&
+      selected &&
+      selected.kind !== "spawn" &&
+      (event.key === "Delete" || event.key === "Backspace")
+    ) {
+      event.preventDefault();
+      commitInspectorChange(deleteSelection(map, selected), null);
+      return;
+    }
     const delta = keyboardCameraPanDelta(event.key, event.shiftKey);
     if (!delta) return;
     event.preventDefault();
@@ -1728,19 +1754,6 @@ async function buildSession(
   const session: StageSession = { destroy };
   activeSession = session;
 
-  const commitInspectorChange = (
-    next: EditorMap | null,
-    nextSelection: EditorSelection | null = selected,
-  ): boolean => {
-    if (!next || next === map) return false;
-    history = commitEditorHistory({ ...history, present: map }, next);
-    map = next;
-    selected = nextSelection;
-    redraw();
-    notify();
-    return true;
-  };
-
   const ensureAsset = (assetId: EditorAssetId): void => {
     if (textures.editorAssets.has(assetId)) return;
     void loadEditorAssetArt(assetId).then((art) => {
@@ -1770,6 +1783,15 @@ async function buildSession(
     },
     setActiveMode(mode) {
       history = setActiveMode(history, mode);
+      const selectionMatchesMode =
+        (mode === "field" && selected?.kind === "spawn") ||
+        (mode === "element" && selected?.kind === "element") ||
+        (mode === "event" && selected?.kind === "event");
+      if (selected && !selectionMatchesMode) {
+        selected = null;
+        redraw();
+        notify();
+      }
       applyModeDim(tileLayers, elementContainers, eventLayer, mode, dim);
       // The quarter-cell sub-grid and the hover snap belong to Element mode only, so both are rebuilt
       // when the active mode changes.

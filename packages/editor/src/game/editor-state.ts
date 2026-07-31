@@ -299,6 +299,48 @@ export function selectionAt(map: EditorMap, col: number, row: number): EditorSel
   return null;
 }
 
+/**
+ * Resolves the Select tool against the collection named by the active editor mode. Events may be
+ * visible while scenery is being authored (and conversely), but a click must never grab a dimmed
+ * plane instead of the plane the author is actively editing.
+ */
+export function selectionAtMode(
+  map: EditorMap,
+  col: number,
+  row: number,
+  mode: EditorMode,
+  offsetX = 0,
+  offsetY = 0,
+): EditorSelection | null {
+  if (mode === "event") {
+    const event = map.events.find((candidate) => candidate.col === col && candidate.row === row);
+    return event ? { kind: "event", id: event.id } : null;
+  }
+  if (mode === "element") {
+    // Prefer the exact quarter-cell anchor under the pointer. If the author clicks another visible
+    // cell of a multi-cell asset, fall back to the topmost footprint covering that cell.
+    const topFirst = [...map.elements].reverse();
+    const exact = topFirst.find(
+      (candidate) =>
+        candidate.col === col &&
+        candidate.row === row &&
+        candidate.offsetX === offsetX &&
+        candidate.offsetY === offsetY,
+    );
+    const covering = exact ?? topFirst.find((candidate) => elementCoversCell(candidate, col, row));
+    return covering
+      ? {
+          kind: "element",
+          col: covering.col,
+          row: covering.row,
+          offsetX: covering.offsetX,
+          offsetY: covering.offsetY,
+        }
+      : null;
+  }
+  return map.spawn.col === col && map.spawn.row === row ? { kind: "spawn" } : null;
+}
+
 export function deleteSelection(map: EditorMap, selection: EditorSelection): EditorMap {
   switch (selection.kind) {
     case "element":
@@ -320,15 +362,29 @@ export function moveSelection(
   selection: EditorSelection,
   col: number,
   row: number,
+  offsetX = selection.kind === "element" ? selection.offsetX : 0,
+  offsetY = selection.kind === "element" ? selection.offsetY : 0,
 ): EditorMap | null {
   switch (selection.kind) {
     case "element": {
       const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
       if (!element) return null;
+      const destination = { col, row, offsetX, offsetY };
+      if (sameElementSlot(element, destination)) return map;
+      // Moving must never silently replace a different decoration already anchored at the target
+      // sub-position. Authors can still stack props by dropping onto another quarter-cell.
+      if (
+        map.elements.some(
+          (candidate) =>
+            !sameElementSlot(candidate, selection) && sameElementSlot(candidate, destination),
+        )
+      )
+        return null;
       const without = deleteSelection(map, selection);
       // An element move is an Element-mode operation whatever tool is active, so it names its own
       // mode rather than depending on the UI's — otherwise the mode gate would refuse the re-place.
-      // The sub-cell offset rides along so a drag preserves the quarter-cell alignment.
+      // Inspector moves preserve the current sub-cell offset through the defaults above; pointer
+      // drags provide the quarter-cell under the cursor so the prop follows the hand precisely.
       return applyTool(
         without,
         { kind: "element", assetId: element.assetId },
@@ -336,8 +392,8 @@ export function moveSelection(
         row,
         true,
         "element",
-        element.offsetX,
-        element.offsetY,
+        offsetX,
+        offsetY,
       );
     }
     case "event": {

@@ -374,6 +374,14 @@ select:disabled {
   cursor: grab;
 }
 
+#stage[data-cursor="select"] {
+  cursor: grab;
+}
+
+#stage[data-cursor="grabbing"] {
+  cursor: grabbing;
+}
+
 /* `.editor-root` covers the editor shell; the `[data-slot="…"]` selectors cover every portal Base
    UI opens out to <body>, outside `.editor-root` — dialogs, menu bar dropdowns, plain dropdowns,
    selects and tooltips — which would otherwise inherit the game chrome from the `html, body, #root`

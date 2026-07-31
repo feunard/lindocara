@@ -18,6 +18,7 @@ import {
   placementLegalAt,
   redoEditorHistory,
   selectionAt,
+  selectionAtMode,
   setActiveMode,
   setEventDraftName,
   toSaveInput,
@@ -247,6 +248,139 @@ describe("applyTool: element", () => {
     expect(replaced?.elements.find((e) => e.col === 10 && e.row === 2)?.assetId).toBe(
       SMALL_DECOR_ALT,
     );
+  });
+});
+
+describe("Select tool collection targeting and dragging", () => {
+  it("only grabs the collection owned by the active mode on a shared cell", () => {
+    let map = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "element", assetId: BUSH },
+      3,
+      4,
+      true,
+      "element",
+      2,
+      1,
+    ) as EditorMap;
+    map = place(map, { kind: "event", eventKind: "normal" }, 3, 4) as EditorMap;
+    const eventId = map.events[0]?.id ?? "";
+
+    expect(selectionAtMode(map, 3, 4, "event", 2, 1)).toEqual({
+      kind: "event",
+      id: eventId,
+    });
+    expect(selectionAtMode(map, 3, 4, "element", 2, 1)).toEqual({
+      kind: "element",
+      col: 3,
+      row: 4,
+      offsetX: 2,
+      offsetY: 1,
+    });
+    expect(selectionAtMode(map, 3, 4, "field", 2, 1)).toBeNull();
+    expect(selectionAtMode(map, map.spawn.col, map.spawn.row, "field")).toEqual({
+      kind: "spawn",
+    });
+  });
+
+  it("prefers the exact quarter-cell prop in a stacked scenery cell", () => {
+    let map = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "element", assetId: BUSH },
+      4,
+      5,
+      true,
+      "element",
+      0,
+      0,
+    ) as EditorMap;
+    map = applyTool(
+      map,
+      { kind: "element", assetId: SMALL_DECOR },
+      4,
+      5,
+      true,
+      "element",
+      3,
+      2,
+    ) as EditorMap;
+
+    expect(selectionAtMode(map, 4, 5, "element", 0, 0)).toEqual({
+      kind: "element",
+      col: 4,
+      row: 5,
+      offsetX: 0,
+      offsetY: 0,
+    });
+    expect(selectionAtMode(map, 4, 5, "element", 3, 2)).toEqual({
+      kind: "element",
+      col: 4,
+      row: 5,
+      offsetX: 3,
+      offsetY: 2,
+    });
+  });
+
+  it("moves a captured prop to the pointer's cell and quarter offset as one operation", () => {
+    const placed = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "element", assetId: BUSH },
+      3,
+      4,
+      true,
+      "element",
+      1,
+      2,
+    ) as EditorMap;
+    const selection = {
+      kind: "element",
+      col: 3,
+      row: 4,
+      offsetX: 1,
+      offsetY: 2,
+    } as const;
+    const moved = moveSelection(placed, selection, 7, 8, 3, 0) as EditorMap;
+
+    expect(moved.elements).toEqual([{ col: 7, row: 8, offsetX: 3, offsetY: 0, assetId: BUSH }]);
+    const history = commitEditorHistory(createEditorHistory(placed), moved);
+    expect(history.past).toHaveLength(1);
+    expect(
+      deleteSelection(moved, {
+        kind: "element",
+        col: 7,
+        row: 8,
+        offsetX: 3,
+        offsetY: 0,
+      }).elements,
+    ).toEqual([]);
+  });
+
+  it("refuses to overwrite another prop already anchored at the drag destination", () => {
+    let map = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "element", assetId: BUSH },
+      3,
+      4,
+      true,
+      "element",
+      1,
+      1,
+    ) as EditorMap;
+    map = applyTool(
+      map,
+      { kind: "element", assetId: SMALL_DECOR },
+      7,
+      8,
+      true,
+      "element",
+      2,
+      3,
+    ) as EditorMap;
+
+    expect(
+      moveSelection(map, { kind: "element", col: 3, row: 4, offsetX: 1, offsetY: 1 }, 7, 8, 2, 3),
+    ).toBeNull();
+    expect(map.elements).toHaveLength(2);
   });
 });
 
