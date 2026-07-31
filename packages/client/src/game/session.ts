@@ -796,9 +796,8 @@ async function startGameIdentity(
   const attack = (): boolean => {
     if (interiorOpen()) return false;
     sound.unlock();
-    // Immediate local cue; the next snapshots replace this short activity hold with the
-    // authoritative per-monster threat state.
-    sound.combatPulse();
+    // The intent itself does not start combat music: an attack into empty space has no threat.
+    // Authoritative aggro snapshots and confirmed hit/hurt events own that transition.
     connection?.attack();
     return true;
   };
