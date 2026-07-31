@@ -811,6 +811,23 @@ describe("AdventureEditorScreen shell", () => {
     );
   });
 
+  it("re-arms free-NPC placement after the selection tool", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.select") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.npc") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "npc",
+      patrolRadius: 96,
+      graphic: expect.stringContaining("pawn-idle"),
+    });
+  });
+
   it("saves the stage's current map to the update endpoint", async () => {
     const edited = {
       name: "Verdant Reach",

@@ -670,39 +670,41 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // fresh too).
   function selectEventKind(kind: EventKind): void {
     setEventKind(kind);
-    if (toolKey === "event") {
-      pushTool(
-        eventToolFor(
-          kind,
-          eventPreset,
-          markerSpecies,
-          markerRadius,
-          map?.id ?? null,
-          npcGraphic,
-          guardGraphic,
-          enemyGraphic,
-        ),
-      );
-    }
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool(
+      eventToolFor(
+        kind,
+        eventPreset,
+        markerSpecies,
+        markerRadius,
+        map?.id ?? null,
+        npcGraphic,
+        guardGraphic,
+        enemyGraphic,
+      ),
+    );
   }
 
   function selectNpcGraphic(assetId: EditorAssetId): void {
     setNpcGraphic(assetId);
     setEventKind("npc");
-    if (toolKey === "event") {
-      pushTool({
-        kind: "event",
-        eventKind: "npc",
-        patrolRadius: markerRadius,
-        graphic: assetId,
-      });
-    }
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool({
+      kind: "event",
+      eventKind: "npc",
+      patrolRadius: markerRadius,
+      graphic: assetId,
+    });
   }
 
   function selectEnemyGraphic(assetId: EditorAssetId | null): void {
     setEnemyGraphic(assetId);
-    if (assetId === null || toolKey !== "event") return;
+    if (assetId === null) return;
     setEventKind("monster");
+    setToolKey("event");
+    setSelectedAsset(null);
     pushTool({
       kind: "event",
       eventKind: "monster",
@@ -715,14 +717,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   function selectGuardGraphic(assetId: EditorAssetId): void {
     setGuardGraphic(assetId);
     setEventKind("guard");
-    if (toolKey === "event") {
-      pushTool({
-        kind: "event",
-        eventKind: "guard",
-        patrolRadius: markerRadius,
-        graphic: assetId,
-      });
-    }
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool({
+      kind: "event",
+      eventKind: "guard",
+      patrolRadius: markerRadius,
+      graphic: assetId,
+    });
   }
 
   // The preset selector (D13): pick a popular scripted-event template. Every preset places a `normal`
@@ -730,20 +732,20 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   function selectEventPreset(preset: EventPreset): void {
     setEventKind("normal");
     setEventPreset(preset);
-    if (toolKey === "event") {
-      pushTool(
-        eventToolFor(
-          "normal",
-          preset,
-          markerSpecies,
-          markerRadius,
-          map?.id ?? null,
-          npcGraphic,
-          guardGraphic,
-          enemyGraphic,
-        ),
-      );
-    }
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool(
+      eventToolFor(
+        "normal",
+        preset,
+        markerSpecies,
+        markerRadius,
+        map?.id ?? null,
+        npcGraphic,
+        guardGraphic,
+        enemyGraphic,
+      ),
+    );
   }
 
   // UX wave #11: exactly one selection. Picking a terrain content is a terrain-tool selection, so if a
