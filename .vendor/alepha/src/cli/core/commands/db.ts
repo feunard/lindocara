@@ -960,7 +960,9 @@ export class DbCommand {
     );
 
     const config: Record<string, any> = {
-      schema: entitiesJsPath,
+      // Drizzle treats `schema` as a glob. Native Windows separators are not valid glob
+      // separators, even though the file itself exists, so normalize only this generated path.
+      schema: entitiesJsPath.replaceAll("\\", "/"),
       out: `./migrations/${options.providerName}`,
       dialect: options.dialect,
       dbCredentials: {
@@ -1032,14 +1034,16 @@ export class DbCommand {
     const getModelsCall = withoutSchema
       ? "kit.getModelsWithoutSchema(provider)"
       : "kit.getModels(provider)";
+    const entrySpecifier = JSON.stringify(entry);
+    const providerName = JSON.stringify(provider);
 
     return `
-import "${entry}";
+import ${entrySpecifier};
 import { DrizzleKitProvider, Repository } from "alepha/orm";
 
 const alepha = globalThis.__alepha;
 const kit = alepha.inject(DrizzleKitProvider);
-const provider = alepha.services(Repository).find((it) => it.provider.name === "${provider}").provider;
+const provider = alepha.services(Repository).find((it) => it.provider.name === ${providerName}).provider;
 const models = ${getModelsCall};
 
 ${models.map((it: string) => `export const ${it} = models["${it}"];`).join("\n")}

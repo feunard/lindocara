@@ -1,4 +1,3 @@
-import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
 import { Alepha, run } from "alepha";
@@ -22,8 +21,17 @@ import { Alepha, run } from "alepha";
 // depends on both `client` and `server`, and composing them is exactly its job (see its own
 // AGENTS.md). Registering the `$page` tree is what makes it also serve the shell: with the old
 // `SpaController` deleted, nothing else answers `GET /`.
-const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED })
-  .with(LindocaraApi)
-  .with(AppRouter);
+const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi);
 
-run(alepha);
+// Drizzle executes this entry under plain Node to discover server entities. Importing the browser
+// router in that process also imports Vite-only `import.meta.glob` asset modules, which plain Node
+// cannot evaluate. The generated schema command sets this flag; every real app boot still composes
+// the router and therefore serves the SPA shell and page routes.
+const schemaImport = typeof process !== "undefined" && process.env.ALEPHA_CLI_IMPORT === "true";
+if (!schemaImport) {
+  void import("@lindocara/client/ui/AppRouter.js").then(({ AppRouter }) => {
+    run(alepha.with(AppRouter));
+  });
+} else {
+  run(alepha);
+}
