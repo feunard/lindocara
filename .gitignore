@@ -1,6 +1,8 @@
 node_modules/
 dist/
 *.tsbuildinfo
+.dev.vars*
+.wrangler/
 
 .DS_Store
 .idea/

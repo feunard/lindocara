@@ -41,6 +41,7 @@
     "map:check": "npm run map:build && git diff --exit-code -- packages/engine/src/zones/verdant-reach-tiles.ts packages/engine/src/zones/mmo-test-zone-tiles.ts packages/engine/src/zones/sunken-isles-tiles.ts",
     "catalog:build": "npm run catalog:build -w @lindocara/catalog",
     "catalog:check": "npm run catalog:check -w @lindocara/catalog",
+    "cloudflare:check": "node scripts/check-cloudflare-readiness.mjs",
     "format": "biome format --write .",
     "typecheck": "npm run typecheck:engine && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:editor && npm run typecheck:ui && npm run typecheck:testing && npm run typecheck:catalog && npm run typecheck:main && tsc -p tsconfig.tooling.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",

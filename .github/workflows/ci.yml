@@ -53,6 +53,13 @@ jobs:
       # plus the worker bundle and assets, consumed by the deploy job.
       - name: Build deployable Worker
         run: npm run build -w @lindocara/main -- --target cloudflare
+        env:
+          # Static CI builds do not run `platform up`, so provide the production
+          # host explicitly and verify that the generated route is retained.
+          CLOUDFLARE_DOMAIN: lindocara.alepha.dev
+
+      - name: Audit Cloudflare artifact
+        run: npm run cloudflare:check
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
