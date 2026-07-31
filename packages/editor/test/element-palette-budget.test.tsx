@@ -15,7 +15,10 @@ describe("ElementPalette safety budget", () => {
       />,
     );
 
-    expect(screen.getByTestId("element-budget")).toHaveTextContent(/2\s000\/2\s000/);
+    const formattedLimit = MAX_MAP_ELEMENTS.toLocaleString("en");
+    expect(screen.getByTestId("element-budget")).toHaveTextContent(
+      `${formattedLimit}/${formattedLimit}`,
+    );
     expect(screen.getByRole("status")).toHaveTextContent(
       `${MAX_MAP_ELEMENTS}-scenery safety limit`,
     );

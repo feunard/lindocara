@@ -23,7 +23,7 @@ export function ElementPalette({
   elementCount,
   onSelectAsset,
 }: ElementPaletteProps) {
-  useLocale();
+  const locale = useLocale();
 
   return (
     <aside
@@ -45,7 +45,7 @@ export function ElementPalette({
         >
           <span>{t("editor.mapBudget.scenery")}</span>
           <span className="tabular-nums lowercase">
-            {elementCount.toLocaleString()}/{MAX_MAP_ELEMENTS.toLocaleString()}
+            {elementCount.toLocaleString(locale)}/{MAX_MAP_ELEMENTS.toLocaleString(locale)}
           </span>
         </div>
         {elementCount >= MAX_MAP_ELEMENTS && (
