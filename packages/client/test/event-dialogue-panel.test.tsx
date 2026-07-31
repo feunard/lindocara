@@ -79,6 +79,25 @@ describe("EventDialoguePanel", () => {
     expect(eventChoose).toHaveBeenCalledTimes(2);
   });
 
+  it("uses the direction keys to navigate choices before confirming", () => {
+    useUiStore.setState({
+      eventDialogue: {
+        kind: "choices",
+        runId: "run-arrows",
+        prompt: "Enter the maze?",
+        options: ["Yes", "No"],
+      },
+    });
+    render(<EventDialoguePanel />);
+
+    expect(screen.getByRole("button", { name: /1 Yes/ }).parentElement).toHaveFocus();
+    fireEvent.keyDown(window, { key: "ArrowDown", code: "ArrowDown" });
+    expect(screen.getByRole("button", { name: /2 No/ }).parentElement).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Enter", code: "Enter" });
+
+    expect(eventChoose).toHaveBeenCalledWith("run-arrows", 1);
+  });
+
   // MUTATION PROOF (c): the panel must never emit a choose with no pending choices offer. On a SAY
   // page, a number key reaches `chooseOption`, whose `kind !== "choices"` guard drops it. Remove that
   // guard and this fires `eventChoose` on a say page — this assertion then fails.

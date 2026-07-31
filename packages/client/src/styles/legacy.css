@@ -1691,8 +1691,8 @@ kbd {
   font-size: 0.68rem;
 }
 
-/* The per-player dialogue panel (spec Decision 4): a bottom-centred WoW-style card. Non-modal — it
-   never blocks the pointer outside itself, so movement/combat stay live around it. */
+/* Dialogue is a focused game surface: the carved Tiny Swords border stays visible while a dark
+   centre keeps authored prose and keyboard choices readable over every map palette. */
 .event-dialogue.tiny-panel {
   position: fixed;
   z-index: 84;
@@ -1704,6 +1704,16 @@ kbd {
   flex-direction: column;
   gap: 0.6rem;
   padding: 1rem 1.15rem;
+  border-width: 20px;
+  border-image-slice: 64;
+  border-image-width: 20px;
+  background:
+    linear-gradient(rgb(9 32 26 / 96%), rgb(4 18 15 / 98%)),
+    var(--tiny-panel) center / cover no-repeat;
+  box-shadow:
+    0 0 0 2px rgb(238 199 108 / 68%),
+    0 0 0 5px rgb(35 19 12 / 90%),
+    0 1.2rem 3rem rgb(0 0 0 / 62%);
   pointer-events: auto;
 }
 .event-dialogue__name {
@@ -1732,7 +1742,7 @@ kbd {
 .event-dialogue__legend {
   padding: 0;
   margin-bottom: 0.4rem;
-  color: #d9a94a;
+  color: #f7df9b;
   font-size: 0.72rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1866,7 +1876,7 @@ kbd {
 }
 
 .quest-journal__eyebrow {
-  color: #d9a94a;
+  color: #f7df9b;
   font-size: 0.62rem;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -2015,7 +2025,7 @@ kbd {
 }
 
 .quest-journal__section h4 {
-  color: #d9a94a;
+  color: #f7df9b;
   font-size: 0.67rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2130,7 +2140,7 @@ kbd {
   color: #ffe6a1;
 }
 .item-overlay__eyebrow {
-  color: #d9a94a;
+  color: #f7df9b;
   font-size: 0.72rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;

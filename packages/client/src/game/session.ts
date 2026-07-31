@@ -110,7 +110,7 @@ function talentsOpen(): boolean {
   return useUiStore.getState().talentsOpen;
 }
 
-function gameplayPaused(): boolean {
+export function isGameplayInputPaused(): boolean {
   const store = useUiStore.getState();
   return (
     interiorOpen() ||
@@ -119,6 +119,8 @@ function gameplayPaused(): boolean {
     store.inventoryOpen ||
     store.questJournalOpen ||
     store.merchantOpen ||
+    store.eventDialogue !== null ||
+    store.questDialogue !== null ||
     store.heroLoading !== null
   );
 }
@@ -523,6 +525,7 @@ async function startGameIdentity(
     // a late close for an already-superseded run must not blank a fresh one.
     onEventSay: (runId, text, name) => {
       sound.interact();
+      input.reset();
       useUiStore
         .getState()
         .setEventDialogue(
@@ -530,14 +533,19 @@ async function startGameIdentity(
         );
     },
     onEventChoices: (runId, prompt, options) => {
+      input.reset();
       useUiStore.getState().setEventDialogue({ kind: "choices", runId, prompt, options });
     },
     onEventClose: (runId) => {
       const store = useUiStore.getState();
-      if (store.eventDialogue?.runId === runId) store.setEventDialogue(null);
+      if (store.eventDialogue?.runId === runId) {
+        input.reset();
+        store.setEventDialogue(null);
+      }
     },
     onQuestOpen: (conversationId, entries) => {
       sound.interact();
+      input.reset();
       const store = useUiStore.getState();
       store.setEventDialogue(null);
       store.setQuestDialogue({ kind: "open", conversationId, entries });
@@ -558,7 +566,10 @@ async function startGameIdentity(
     },
     onQuestClose: (conversationId) => {
       const store = useUiStore.getState();
-      if (store.questDialogue?.conversationId === conversationId) store.setQuestDialogue(null);
+      if (store.questDialogue?.conversationId === conversationId) {
+        input.reset();
+        store.setQuestDialogue(null);
+      }
     },
     onEvent: (code, params, tone, x, y) => {
       const text = eventText(code, params, currentSelf?.class ?? identity.class);
@@ -999,7 +1010,7 @@ async function startGameIdentity(
       },
       toggleSettings,
     },
-    () => !gameplayPaused(),
+    () => !isGameplayInputPaused(),
   );
 
   useUiStore.getState().setGame({
@@ -1064,7 +1075,7 @@ async function startGameIdentity(
 
   renderer.onFrame((now, dt) => {
     sound.update(now);
-    client.update(gameplayPaused() ? NO_INPUT : input.current(), dt);
+    client.update(isGameplayInputPaused() ? NO_INPUT : input.current(), dt);
     const sample = client.sample(now);
     sound.setCombatThreatened(
       sample.monsters.some((monster) => monster.threatening === true && !monster.dead),
