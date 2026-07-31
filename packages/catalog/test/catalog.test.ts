@@ -198,6 +198,23 @@ describe("Tiny Swords semantic catalogue", () => {
     }
   });
 
+  it("crops the coloured Update 010 troop grids to one visible 192px pose", () => {
+    const troops = editorDefinitions(catalog).filter((entry) =>
+      /\/Factions\/Knights\/Troops\/(?:Archer|Pawn|Warrior)\/(?:Blue|Purple|Red|Yellow)\/[^/]+\.png$/i.test(
+        entry.sourcePath,
+      ),
+    );
+    expect(troops).toHaveLength(12);
+    for (const troop of troops) {
+      expect(troop.editor.sourceRect, troop.sourcePath).toEqual({
+        x: 0,
+        y: 0,
+        width: 192,
+        height: 192,
+      });
+    }
+  });
+
   it("exposes only official atmosphere and offshore effects with their native geometry", () => {
     const byId = new Map(editorDefinitions(catalog).map((entry) => [entry.id, entry]));
     for (let index = 1; index <= 8; index += 1) {

@@ -6034,7 +6034,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6081,7 +6087,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6127,7 +6139,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6173,7 +6191,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6264,7 +6288,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6310,7 +6340,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6356,7 +6392,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6402,7 +6444,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6448,7 +6496,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6494,7 +6548,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6540,7 +6600,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {
@@ -6586,7 +6652,13 @@ export const GENERATED_EDITOR_ASSETS = [
           "col": 0,
           "row": 0
         }
-      ]
+      ],
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
     }
   },
   {

@@ -828,11 +828,33 @@ function inferredActorPlacement(
   entry: TinySwordsCatalogEntry,
 ): EditorPlacementMetadata | undefined {
   if (entry.domain !== "character" && entry.domain !== "enemy") return undefined;
+  // Update 010's coloured Archer/Pawn/Warrior files are 2D animation grids, unlike the horizontal
+  // strips used by the Free and Enemy packs. The raw frame detector has a one-axis model, so it
+  // flattens e.g. an 8x7 Archer grid into 56 slices of 27x1344 transparent slivers. For editor/NPC
+  // appearances we need one representative pose, not the whole action atlas: derive its square cell
+  // from total area / frame count and crop the top-left pose. This stays scoped to the twelve known
+  // troop atlases; other action sheets retain their existing animation metadata.
+  const combinedTroop =
+    /\/Factions\/Knights\/Troops\/(?:Archer|Pawn|Warrior)\/(?:Blue|Purple|Red|Yellow)\/[^/]+\.png$/i.test(
+      entry.sourcePath,
+    );
+  const cellSize = entry.frame
+    ? Math.sqrt((entry.width * entry.height) / entry.frame.count)
+    : Number.NaN;
+  const sourceRect =
+    combinedTroop &&
+    Number.isSafeInteger(cellSize) &&
+    cellSize > 0 &&
+    entry.width % cellSize === 0 &&
+    entry.height % cellSize === 0
+      ? { sourceRect: { x: 0, y: 0, width: cellSize, height: cellSize } }
+      : {};
   return {
     category: entry.domain === "character" ? "characters" : "creatures",
     allowedTerrain: ["grass"],
     renderLayer: "object",
     visualFootprint: [{ col: 0, row: 0 }],
+    ...sourceRect,
   };
 }
 

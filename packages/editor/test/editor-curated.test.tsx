@@ -52,6 +52,20 @@ describe("editor asset catalogue", () => {
     }
   });
 
+  it("previews combined coloured troop sheets through one visible grid cell", () => {
+    setLocale("en");
+    render(<CatalogueAssetPicker usage="character" value={null} onSelectAsset={() => {}} />);
+    const archer = screen
+      .getAllByRole("button")
+      .find(
+        (button) =>
+          button.dataset.assetId === "character.factions-knights-troops-archer-blue.archer-blue",
+      );
+    expect(archer).toBeDefined();
+    const crop = archer?.querySelector<HTMLElement>('[aria-hidden="true"] > span');
+    expect(crop).toHaveStyle({ width: "192px", height: "192px", backgroundPosition: "0px 0px" });
+  });
+
   it("shows every supported runtime species as a directly placeable monster", () => {
     setLocale("en");
     const onSelectEventKind = vi.fn();
