@@ -237,6 +237,7 @@ describe("Rogue runtime contract", () => {
       stealthUntil: 8_000,
       smokeProtectionUntil: 500,
       shadowReturnUntil: 2_000,
+      danceMarksAvailableAt: 0,
       danceMarksUntil: 0,
     });
 
@@ -247,6 +248,7 @@ describe("Rogue runtime contract", () => {
       stealthUntil: 0,
       smokeProtectionUntil: 0,
       shadowReturnUntil: 0,
+      danceMarksAvailableAt: 0,
       danceMarksUntil: 0,
     });
   });

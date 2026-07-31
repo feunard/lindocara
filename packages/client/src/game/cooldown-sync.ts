@@ -19,6 +19,15 @@ export function clientShadowReturnDeadline(shadowReturnUntil: number, clock: Ser
   return clock.toLocal(shadowReturnUntil) ?? 0;
 }
 
+/** A follow-up can bypass its base cooldown only inside the complete server-authored window. */
+export function activeReactivationDeadline(
+  availableAt: number,
+  expiresAt: number,
+  now: number,
+): number {
+  return availableAt <= now && expiresAt > now ? expiresAt : 0;
+}
+
 /** Shadow Return is a server-authorized second activation inside the base skill's cooldown. */
 export function skillCooldownBlocksCast(
   cooldownUntil: number,

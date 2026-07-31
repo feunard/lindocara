@@ -7,6 +7,7 @@ import { activeEvolutionVariant, talentEffect } from "@lindocara/engine/talents.
 import { keyboardBindingLabel } from "@lindocara/renderer/input-settings.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { activeReactivationDeadline } from "../../game/cooldown-sync.js";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
@@ -44,6 +45,12 @@ export function SkillBar() {
     return remaining > 0 ? performance.now() + remaining : 0;
   }, [afterimageUntil, shadowReturnServerNow]);
   const danceMarksUntil = self?.class === "rogue" ? (selfState?.rogue?.danceMarksUntil ?? 0) : 0;
+  const danceMarksAvailableAt =
+    self?.class === "rogue" ? (selfState?.rogue?.danceMarksAvailableAt ?? 0) : 0;
+  const danceMarksLocalAvailableAt = useMemo(() => {
+    const remaining = Math.max(0, danceMarksAvailableAt - shadowReturnServerNow);
+    return remaining > 0 ? performance.now() + remaining : 0;
+  }, [danceMarksAvailableAt, shadowReturnServerNow]);
   const danceMarksLocalDeadline = useMemo(() => {
     const remaining = Math.max(0, danceMarksUntil - shadowReturnServerNow);
     return remaining > 0 ? performance.now() + remaining : 0;
@@ -72,6 +79,7 @@ export function SkillBar() {
       attackCooldownUntil,
       shadowReturnLocalDeadline,
       afterimageLocalDeadline,
+      danceMarksLocalAvailableAt,
       danceMarksLocalDeadline,
       ...Object.values(cooldowns),
     );
@@ -95,6 +103,7 @@ export function SkillBar() {
     afterimageLocalDeadline,
     attackCooldownUntil,
     cooldowns,
+    danceMarksLocalAvailableAt,
     danceMarksLocalDeadline,
     shadowReturnLocalDeadline,
   ]);
@@ -112,7 +121,9 @@ export function SkillBar() {
         const afterimageReady =
           self.class === "ranger" && skill.slot === 4 && now < afterimageLocalDeadline;
         const danceRepositionReady =
-          self.class === "rogue" && skill.slot === 5 && now < danceMarksLocalDeadline;
+          self.class === "rogue" &&
+          skill.slot === 5 &&
+          activeReactivationDeadline(danceMarksLocalAvailableAt, danceMarksLocalDeadline, now) > 0;
         const cooling =
           remaining > 0 && !shadowReturnReady && !afterimageReady && !danceRepositionReady;
         const evolution = activeEvolutionVariant(

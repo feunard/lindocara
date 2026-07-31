@@ -1,4 +1,5 @@
 import {
+  activeReactivationDeadline,
   clientCooldownDeadlines,
   clientShadowReturnDeadline,
   skillCooldownBlocksCast,
@@ -77,5 +78,11 @@ describe("shared browser server clock", () => {
     expect(clientShadowReturnDeadline(100_000, clock)).toBe(0);
     expect(skillCooldownBlocksCast(5_000, returnUntil, 1_000)).toBe(false);
     expect(skillCooldownBlocksCast(5_000, returnUntil, 2_500)).toBe(true);
+  });
+
+  it("keeps Dance Master locked until the visual sequence has ended", () => {
+    expect(activeReactivationDeadline(1_500, 3_500, 1_499)).toBe(0);
+    expect(activeReactivationDeadline(1_500, 3_500, 1_500)).toBe(3_500);
+    expect(activeReactivationDeadline(1_500, 3_500, 3_500)).toBe(0);
   });
 });

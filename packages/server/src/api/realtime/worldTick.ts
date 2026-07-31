@@ -2284,8 +2284,9 @@ export function startPlayerAction(
       ? talentEffect(player.class, player.talents, "rogue_dance_master", 5)
       : undefined;
   player.rogueDanceMarks = player.rogueDanceMarks.filter((mark) => mark.expiresAt > now);
-  if (danceMaster && player.rogueDanceMarks.length > 0) {
-    const markedIds = new Set(player.rogueDanceMarks.map((mark) => mark.targetId));
+  const availableDanceMarks = player.rogueDanceMarks.filter((mark) => mark.availableAt <= now);
+  if (danceMaster && availableDanceMarks.length > 0) {
+    const markedIds = new Set(availableDanceMarks.map((mark) => mark.targetId));
     const candidates = w.state.monsters
       .filter(
         (monster) =>
@@ -2732,6 +2733,7 @@ function resolveShadowDance(
       })
       .map((targetId) => ({
         targetId,
+        availableAt: endsAt,
         expiresAt: endsAt + Math.max(0, danceMaster.markDurationMs),
       }));
     sendStateTo(w, connectionId, player);

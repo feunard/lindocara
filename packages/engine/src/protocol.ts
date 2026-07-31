@@ -205,6 +205,7 @@ export interface RogueSelfState {
   stealthUntil: number;
   smokeProtectionUntil: number;
   shadowReturnUntil: number;
+  danceMarksAvailableAt?: number;
   danceMarksUntil?: number;
 }
 
@@ -1270,6 +1271,7 @@ function isSelfState(value: unknown): value is SelfState {
       !isFiniteNumber(rogue.stealthUntil) ||
       !isFiniteNumber(rogue.smokeProtectionUntil) ||
       !isFiniteNumber(rogue.shadowReturnUntil) ||
+      (rogue.danceMarksAvailableAt !== undefined && !isFiniteNumber(rogue.danceMarksAvailableAt)) ||
       (rogue.danceMarksUntil !== undefined && !isFiniteNumber(rogue.danceMarksUntil))
     ) {
       return false;

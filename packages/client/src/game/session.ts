@@ -38,6 +38,7 @@ import { questTrackerNotifications } from "../quest-presentation.js";
 import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import {
+  activeReactivationDeadline,
   clientCooldownDeadlines,
   clientShadowReturnDeadline,
   skillCooldownBlocksCast,
@@ -875,10 +876,22 @@ async function startGameIdentity(
       store.self?.class === "rogue" && slot === 5
         ? clientShadowReturnDeadline(store.selfState?.rogue?.danceMarksUntil ?? 0, serverClock)
         : 0;
+    const danceMarksAvailableAt =
+      store.self?.class === "rogue" && slot === 5
+        ? clientShadowReturnDeadline(
+            store.selfState?.rogue?.danceMarksAvailableAt ?? 0,
+            serverClock,
+          )
+        : 0;
+    const danceReactivationUntil = activeReactivationDeadline(
+      danceMarksAvailableAt,
+      danceMarksUntil,
+      now,
+    );
     if (
       skillCooldownBlocksCast(
         cooldownUntil,
-        Math.max(shadowReturnUntil, afterimageUntil, danceMarksUntil),
+        Math.max(shadowReturnUntil, afterimageUntil, danceReactivationUntil),
         now,
       )
     )

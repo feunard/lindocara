@@ -216,6 +216,7 @@ export interface RogueSilhouetteRuntime extends Vec2 {
 
 export interface RogueDanceMarkRuntime {
   targetId: string;
+  availableAt: number;
   expiresAt: number;
 }
 

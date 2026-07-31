@@ -73,6 +73,10 @@ export function selfState(
             stealthUntil: player.rogueStealthUntil,
             smokeProtectionUntil: player.rogueSmokeProtectionUntil,
             shadowReturnUntil: player.rogueShadowReturn?.expiresAt ?? 0,
+            danceMarksAvailableAt:
+              player.rogueDanceMarks.length > 0
+                ? Math.min(...player.rogueDanceMarks.map((mark) => mark.availableAt))
+                : 0,
             danceMarksUntil: Math.max(0, ...player.rogueDanceMarks.map((mark) => mark.expiresAt)),
           },
         }

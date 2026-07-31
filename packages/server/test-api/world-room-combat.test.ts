@@ -317,7 +317,7 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
-  test("Dance Master reactivation is free and follows the Rogue's facing toward a live mark", async () => {
+  test("Dance Master opens its free reactivation only after the dance sequence ends", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("dancemaster", "rogue");
     const clock = new FakeClock();
     const engine = createEngine(roomId, clock);
@@ -333,18 +333,34 @@ describe("world room combat (FakeClock)", () => {
       "rogue.shadow_dance.dance_master",
     ];
     player.facing = { x: 1, y: 0 };
-    const target = seedMonster(state, "dance-mark", player.x + 120, player.y);
-    const t = Date.now() + 1_000;
+    seedMonster(state, "dance-mark", player.x + 120, player.y, { maxHp: 5_000 });
+    let t = Date.now() + 1_000;
     const { w } = testGlue(state, () => t);
-    player.skillCooldowns[4] = t + 9_000;
-    player.rogueDanceMarks = [{ targetId: target.id, expiresAt: t + 1_000 }];
-    const origin = { x: player.x, y: player.y };
-
     expect(startPlayerAction(w, `c-${heroId}`, player, 5)).toBe(true);
-    expect(pointDistance(player, origin)).toBeGreaterThan(20);
+    const impactAt = player.action?.impactAt;
+    if (impactAt === undefined) throw new Error("missing Shadow Dance impact");
+    const cooldownUntil = player.skillCooldowns[4];
+    t = impactAt;
+    advanceWorldTick(w);
+    const mark = player.rogueDanceMarks[0];
+    if (!mark) throw new Error("missing Dance Master mark");
+    expect(mark.availableAt).toBe(player.rogueShadowDanceInvulnerableUntil);
+    expect(mark.expiresAt).toBe(mark.availableAt + 2_000);
+
+    const danceLanding = { x: player.x, y: player.y };
+    player.x -= 100;
+    state.playerGrid.update(player, danceLanding);
+    const repositionOrigin = { x: player.x, y: player.y };
+
+    expect(startPlayerAction(w, `c-${heroId}`, player, 5)).toBe(false);
+    expect(player).toMatchObject(repositionOrigin);
+    expect(player.rogueDanceMarks).toEqual([mark]);
+
+    t = mark.availableAt;
+    expect(startPlayerAction(w, `c-${heroId}`, player, 5)).toBe(true);
+    expect(pointDistance(player, repositionOrigin)).toBeGreaterThan(20);
     expect(player.rogueDanceMarks).toEqual([]);
-    expect(player.skillCooldowns[4]).toBe(t + 9_000);
-    expect(target.hp).toBe(target.maxHp);
+    expect(player.skillCooldowns[4]).toBe(cooldownUntil);
     engine.dispose();
   });
 
