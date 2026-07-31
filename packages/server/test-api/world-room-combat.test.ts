@@ -393,6 +393,7 @@ describe("world room combat (FakeClock)", () => {
 
     // Monster and guard together, the hero far outside aggro range: only the guard can kill.
     const monster = seedMonster(state, "guarded-1", player.x - 600, player.y);
+    monster.respawnDelayMs = 42_000;
     seedGuard(state, "guard-1", monster.x, monster.y + 40);
     expect(pointDistance(monster, player)).toBeGreaterThan(MONSTER_AGGRO_RANGE);
 
@@ -402,7 +403,7 @@ describe("world room combat (FakeClock)", () => {
 
     // Killed by GUARD_DAMAGE, respawn state set directly — never the reward path.
     expect(monster.hp).toBe(0);
-    expect(monster.deadUntil).toBe(t + MONSTER_RESPAWN_MS);
+    expect(monster.deadUntil).toBe(t + 42_000);
     expect(monster.rewardsGranted).toBe(false);
     expect(state.loot).toHaveLength(0);
     expect(player.xp).toBe(xpBefore);

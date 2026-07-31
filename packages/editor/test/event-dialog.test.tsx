@@ -2,6 +2,7 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import { defaultEventPage } from "@lindocara/editor/game/editor-state.js";
 import { EventDialog } from "@lindocara/editor/ui/editor/EventDialog.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import { MONSTER_RESPAWN_MS } from "@lindocara/engine/game.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -313,10 +314,18 @@ describe("EventDialog", () => {
       screen.getByRole("spinbutton", { name: t("editor.monster.weaknessPercent") }),
       { target: { value: "0" } },
     );
+    const respawnDelay = screen.getByRole("spinbutton", {
+      name: t("editor.monster.respawnDelay"),
+    });
+    expect(respawnDelay).toHaveValue(MONSTER_RESPAWN_MS / 1_000);
+    fireEvent.change(respawnDelay, { target: { value: "75" } });
     await user.selectOptions(
       screen.getByRole("combobox", { name: t("editor.monster.respawnMode") }),
       "never",
     );
+    expect(
+      screen.queryByRole("spinbutton", { name: t("editor.monster.respawnDelay") }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
@@ -329,6 +338,7 @@ describe("EventDialog", () => {
     expect(committed.monsterXp).toBe(10_000);
     expect(committed.monsterWeaknessPercent).toBe(0);
     expect(committed.monsterRespawnMode).toBe("never");
+    expect(committed.monsterRespawnDelayMs).toBe(75_000);
     // A functional event stays single-page — the wire parser refuses extra pages.
     expect(committed.pages).toHaveLength(1);
   });

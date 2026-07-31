@@ -51,6 +51,7 @@ describe("authored monster projection", () => {
         x: 11 * TILE_SIZE + TILE_SIZE / 2,
         y: 6 * TILE_SIZE + TILE_SIZE / 2,
         patrolRadius: 120,
+        respawnDelayMs: 6_000,
       }),
     ]);
   });
@@ -83,6 +84,7 @@ describe("authored monster projection", () => {
       x: retained.x,
       spawnX: retainedDefinition.x,
       spawnY: retainedDefinition.y,
+      respawnDelayMs: 6_000,
     });
   });
 

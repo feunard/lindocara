@@ -209,6 +209,12 @@ export function isMonsterRespawnMode(value: unknown): value is MonsterRespawnMod
   return typeof value === "string" && (MONSTER_RESPAWN_MODES as readonly string[]).includes(value);
 }
 
+/** Authorable timed-respawn bounds. Stored in milliseconds; the editor exposes whole seconds. */
+export const MONSTER_RESPAWN_DELAY_LIMITS = {
+  min: 1_000,
+  max: 86_400_000,
+} as const;
+
 export const MONSTER_TUNING_LIMITS = {
   maxHp: { min: 0, max: 100_000 },
   damage: { min: 0, max: 1_000 },
@@ -250,6 +256,8 @@ export interface MonsterSpawn extends Vec2 {
   /** Authored encounters may stay defeated for this party's entire save. Catalogue spawns default
    *  to the historical timed respawn. */
   respawnMode?: MonsterRespawnMode;
+  /** Authoritative delay for timed respawns. Missing catalogue values keep the common default. */
+  respawnDelayMs?: number;
   /** Border patrols may naturally cross the city boundary and be handled by guards. */
   mayEnterSafeZone?: boolean;
 }

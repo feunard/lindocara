@@ -1,0 +1,1 @@
+ALTER TABLE `mapEvents` ADD `monster_respawn_delay_ms` integer;

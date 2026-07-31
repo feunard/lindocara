@@ -553,6 +553,14 @@ export function setEventDraftMonsterRespawnMode(
   return draft.kind === "monster" ? { ...draft, monsterRespawnMode } : draft;
 }
 
+/** Draft mutator for a timed monster encounter's authoritative respawn delay. */
+export function setEventDraftMonsterRespawnDelay(
+  draft: MapEvent,
+  monsterRespawnDelayMs: number,
+): MapEvent {
+  return draft.kind === "monster" ? { ...draft, monsterRespawnDelayMs } : draft;
+}
+
 /** Draft mutator for an authored allied guard's authoritative movement leash. */
 export function setEventDraftGuardRadius(draft: MapEvent, patrolRadius: number): MapEvent {
   return draft.kind === "guard" ? { ...draft, patrolRadius } : draft;

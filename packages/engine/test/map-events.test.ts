@@ -4,7 +4,12 @@
  * branches called out in the plan (duplicate-cell rejection, bounds rejection).
  */
 
-import { defaultMonsterTuning, MONSTER_TUNING_LIMITS } from "@lindocara/engine/game.js";
+import {
+  defaultMonsterTuning,
+  MONSTER_RESPAWN_DELAY_LIMITS,
+  MONSTER_RESPAWN_MS,
+  MONSTER_TUNING_LIMITS,
+} from "@lindocara/engine/game.js";
 import {
   EVENT_NAME_MAX,
   MAX_EVENTS_PER_MAP,
@@ -346,6 +351,7 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterSpecialTechnique: "none",
     });
     expect(parsed?.monsterRespawnMode).toBeUndefined();
+    expect(parsed?.monsterRespawnDelayMs).toBe(MONSTER_RESPAWN_MS);
   });
 
   it("accepts permanent death only on monster events", () => {
@@ -358,6 +364,9 @@ describe("parseMapEvents: authored monster tuning", () => {
     expect(parseMapEvents([permanent], COLS, ROWS)?.[0]?.monsterRespawnMode).toBe("never");
     expect(parseMapEvents([event({ monsterRespawnMode: "never" })], COLS, ROWS)).toBeNull();
     expect(
+      parseMapEvents([event({ monsterRespawnDelayMs: MONSTER_RESPAWN_MS })], COLS, ROWS),
+    ).toBeNull();
+    expect(
       parseMapEvents(
         [
           event({
@@ -365,6 +374,20 @@ describe("parseMapEvents: authored monster tuning", () => {
             species: "spear_goblin",
             patrolRadius: 64,
             monsterRespawnMode: "invalid" as "never",
+          }),
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+    expect(
+      parseMapEvents(
+        [
+          event({
+            kind: "monster",
+            species: "spear_goblin",
+            patrolRadius: 64,
+            monsterRespawnDelayMs: MONSTER_RESPAWN_DELAY_LIMITS.min - 1,
           }),
         ],
         COLS,
@@ -386,6 +409,7 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterWeakness: "priest",
       monsterWeaknessPercent: 175,
       monsterSpecialTechnique: "grave_siphon",
+      monsterRespawnDelayMs: 90_000,
     });
     expect(parseMapEvents([boss], COLS, ROWS)).toEqual([boss]);
   });
