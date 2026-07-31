@@ -80,6 +80,7 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
       col: current?.col ?? event.col,
       row: current?.row ?? event.row,
       graphicAssetId: page.graphicAssetId,
+      graphicTint: page.graphicTint ?? 0xffffff,
       onTop: page.optOnTop,
       moveSpeed: page.moveSpeed,
       moveFrequency: page.moveFreq,
@@ -95,6 +96,7 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
       moveFreq: page.moveFreq,
       through: page.optThrough,
       patrolRadius: event.patrolRadius ?? TILE_SIZE * 2,
+      route: page.moveRoute ?? [],
     });
   }
   state.activeEvents = active;

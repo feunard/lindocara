@@ -284,6 +284,7 @@ export interface QuestDefinition {
 export interface GuardDefinition extends Vec2 {
   id: string;
   patrolRadius: number;
+  graphicTint?: number;
 }
 
 export type LandmarkKind =

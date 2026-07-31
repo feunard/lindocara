@@ -247,6 +247,7 @@ export async function startMapPreview(
         col: event.col,
         row: event.row,
         graphicAssetId: page.graphicAssetId,
+        graphicTint: page.graphicTint ?? 0xffffff,
         onTop: page.optOnTop,
         moveSpeed: page.moveSpeed,
         moveFrequency: page.moveFreq,

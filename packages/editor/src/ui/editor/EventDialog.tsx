@@ -16,12 +16,17 @@ import {
 } from "@lindocara/engine/game.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
+  EVENT_GRAPHIC_TINT_DEFAULT,
   EVENT_NAME_MAX,
   type EventTrigger,
+  MAX_NPC_ROUTINE_STEPS,
   MAX_PAGES_PER_EVENT,
   type MapEvent,
   type MapEventPage,
   MOVE_TYPES,
+  NPC_ROUTINE_OFFSET_LIMIT,
+  NPC_ROUTINE_WAIT_LIMITS,
+  type NpcRoutineStep,
   SELF_SWITCHES,
   type SelfSwitch,
   validateEventName,
@@ -165,6 +170,205 @@ function StatFieldError({ id, error }: { id: string; error: EventStatError | und
         max: error.max,
       })}
     </span>
+  );
+}
+
+function tintHex(value: number | undefined): string {
+  return `#${(value ?? EVENT_GRAPHIC_TINT_DEFAULT).toString(16).padStart(6, "0")}`;
+}
+
+function GraphicTintField({
+  value,
+  onChange,
+}: {
+  value: number | undefined;
+  onChange(value: number): void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-[11px] text-zinc-500">
+        {t("editor.event.appearance.color")}
+        <input
+          type="color"
+          aria-label={t("editor.event.appearance.color")}
+          value={tintHex(value)}
+          className="h-7 w-10 cursor-pointer rounded border border-input bg-white p-0.5"
+          onChange={(event) => onChange(Number.parseInt(event.currentTarget.value.slice(1), 16))}
+        />
+      </label>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7"
+        onClick={() => onChange(EVENT_GRAPHIC_TINT_DEFAULT)}
+      >
+        {t("editor.event.appearance.color.reset")}
+      </Button>
+    </div>
+  );
+}
+
+function NpcRoutineEditor({
+  route,
+  onChange,
+}: {
+  route: readonly NpcRoutineStep[];
+  onChange(route: readonly NpcRoutineStep[]): void;
+}) {
+  const updateStep = (index: number, patch: Partial<NpcRoutineStep>): void => {
+    onChange(route.map((step, current) => (current === index ? { ...step, ...patch } : step)));
+  };
+  const moveStep = (index: number, direction: -1 | 1): void => {
+    const target = index + direction;
+    if (target < 0 || target >= route.length) return;
+    const next = [...route];
+    const current = next[index];
+    const replacement = next[target];
+    if (!current || !replacement) return;
+    next[index] = replacement;
+    next[target] = current;
+    onChange(next);
+  };
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-medium text-zinc-700">{t("editor.event.routine.title")}</p>
+          <p className="text-[10.5px] text-zinc-500">{t("editor.event.routine.hint")}</p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7"
+          disabled={route.length >= MAX_NPC_ROUTINE_STEPS}
+          onClick={() => onChange([...route, { offsetCol: 0, offsetRow: 0, waitMs: 0 }])}
+        >
+          {t("editor.event.routine.add")}
+        </Button>
+      </div>
+      {route.length === 0 && (
+        <p className="text-[10.5px] text-zinc-400">{t("editor.event.routine.empty")}</p>
+      )}
+      {route.map((step, index) => (
+        <div
+          // biome-ignore lint/suspicious/noArrayIndexKey: routine steps are positional by design
+          key={index}
+          className="grid grid-cols-[auto_1fr_1fr_1.2fr_auto] items-end gap-1.5 rounded bg-zinc-50 p-1.5"
+        >
+          <span className="self-center text-[10px] font-semibold text-zinc-400">{index + 1}</span>
+          <label
+            htmlFor={`npc-routine-${index}-x`}
+            className="flex flex-col gap-0.5 text-[10px] text-zinc-500"
+          >
+            {t("editor.event.routine.offsetX")}
+            <Input
+              id={`npc-routine-${index}-x`}
+              type="number"
+              className="h-7 text-xs"
+              min={-NPC_ROUTINE_OFFSET_LIMIT}
+              max={NPC_ROUTINE_OFFSET_LIMIT}
+              value={step.offsetCol}
+              onChange={(event) =>
+                updateStep(index, {
+                  offsetCol: Math.max(
+                    -NPC_ROUTINE_OFFSET_LIMIT,
+                    Math.min(
+                      NPC_ROUTINE_OFFSET_LIMIT,
+                      Math.round(Number(event.currentTarget.value)),
+                    ),
+                  ),
+                })
+              }
+            />
+          </label>
+          <label
+            htmlFor={`npc-routine-${index}-y`}
+            className="flex flex-col gap-0.5 text-[10px] text-zinc-500"
+          >
+            {t("editor.event.routine.offsetY")}
+            <Input
+              id={`npc-routine-${index}-y`}
+              type="number"
+              className="h-7 text-xs"
+              min={-NPC_ROUTINE_OFFSET_LIMIT}
+              max={NPC_ROUTINE_OFFSET_LIMIT}
+              value={step.offsetRow}
+              onChange={(event) =>
+                updateStep(index, {
+                  offsetRow: Math.max(
+                    -NPC_ROUTINE_OFFSET_LIMIT,
+                    Math.min(
+                      NPC_ROUTINE_OFFSET_LIMIT,
+                      Math.round(Number(event.currentTarget.value)),
+                    ),
+                  ),
+                })
+              }
+            />
+          </label>
+          <label
+            htmlFor={`npc-routine-${index}-wait`}
+            className="flex flex-col gap-0.5 text-[10px] text-zinc-500"
+          >
+            {t("editor.event.routine.wait")}
+            <Input
+              id={`npc-routine-${index}-wait`}
+              type="number"
+              className="h-7 text-xs"
+              min={NPC_ROUTINE_WAIT_LIMITS.min / 1_000}
+              max={NPC_ROUTINE_WAIT_LIMITS.max / 1_000}
+              step={0.5}
+              value={step.waitMs / 1_000}
+              onChange={(event) =>
+                updateStep(index, {
+                  waitMs: Math.max(
+                    NPC_ROUTINE_WAIT_LIMITS.min,
+                    Math.min(
+                      NPC_ROUTINE_WAIT_LIMITS.max,
+                      Math.round(Number(event.currentTarget.value) * 1_000),
+                    ),
+                  ),
+                })
+              }
+            />
+          </label>
+          <div className="flex gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={index === 0}
+              aria-label={t("editor.event.routine.up")}
+              onClick={() => moveStep(index, -1)}
+            >
+              ↑
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={index === route.length - 1}
+              aria-label={t("editor.event.routine.down")}
+              onClick={() => moveStep(index, 1)}
+            >
+              ↓
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-destructive"
+              aria-label={t("editor.event.routine.delete")}
+              onClick={() => onChange(route.filter((_step, current) => current !== index))}
+            >
+              ×
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -761,6 +965,10 @@ export function EventDialog({
                 error={visibleStatErrors.patrolRadius}
               />
             </label>
+            <GraphicTintField
+              value={page.graphicTint}
+              onChange={(graphicTint) => update({ graphicTint })}
+            />
           </section>
         )}
 
@@ -947,12 +1155,18 @@ export function EventDialog({
                         {t("editor.event.appearance")}
                       </h3>
                       <CatalogueAssetPicker
-                        usage="event"
+                        usage={draft.kind === "npc" ? "character" : "event"}
                         value={page.graphicAssetId}
                         onSelectAsset={(assetId) => update({ graphicAssetId: assetId })}
                         onSelectNone={() => update({ graphicAssetId: null })}
                         noneLabel={t("editor.shell.events.graphic.none")}
                       />
+                      {draft.kind === "npc" && (
+                        <GraphicTintField
+                          value={page.graphicTint}
+                          onChange={(graphicTint) => update({ graphicTint })}
+                        />
+                      )}
                       <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">
                         <input
                           type="checkbox"
@@ -1029,6 +1243,12 @@ export function EventDialog({
                             </FieldSelect>
                           </label>
                         </div>
+                        {page.moveType === "custom" && (
+                          <NpcRoutineEditor
+                            route={page.moveRoute ?? []}
+                            onChange={(moveRoute) => update({ moveRoute })}
+                          />
+                        )}
                       </section>
                     )}
 

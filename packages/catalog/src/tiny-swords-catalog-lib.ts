@@ -713,7 +713,14 @@ export function validateCatalog(
       raw: index.files.length,
       catalogued: catalog.entries.filter((entry) => entry.classification.status === "catalogued")
         .length,
-      editor: catalog.entries.filter((entry) => entry.editor !== undefined).length + 2,
+      editor:
+        catalog.entries.filter(
+          (entry) =>
+            entry.classification.status === "catalogued" &&
+            (entry.editor !== undefined ||
+              entry.domain === "character" ||
+              entry.domain === "enemy"),
+        ).length + 2,
       ui: catalog.entries.filter((entry) => entry.domain === "ui").length,
       ignored: catalog.entries.filter((entry) => entry.classification.status === "ignored").length,
       unclassified,
@@ -813,9 +820,26 @@ function runMotion(
   };
 }
 
+/** Every catalogue character/enemy animation is a valid event appearance, even when it was not
+ * manually annotated as scenery. The one-cell, non-colliding placement is deliberately conservative:
+ * an NPC's collision remains authoritative event geometry, never inferred from its chosen picture. */
+function inferredActorPlacement(
+  entry: TinySwordsCatalogEntry,
+): EditorPlacementMetadata | undefined {
+  if (entry.domain !== "character" && entry.domain !== "enemy") return undefined;
+  return {
+    category: entry.domain === "character" ? "characters" : "creatures",
+    allowedTerrain: ["grass"],
+    renderLayer: "object",
+    visualFootprint: [{ col: 0, row: 0 }],
+  };
+}
+
 export function editorDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinition[] {
   const definitions = catalog.entries.flatMap((entry): EditorAssetDefinition[] => {
-    if (!entry.editor || entry.classification.status !== "catalogued") return [];
+    if (entry.classification.status !== "catalogued") return [];
+    const editor = entry.editor ?? inferredActorPlacement(entry);
+    if (!editor) return [];
     const run = runMotion(catalog, entry);
     return [
       {
@@ -833,7 +857,7 @@ export function editorDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDe
         anchor: entry.anchor,
         footOffset: entry.footOffset,
         ...(run ? { motions: { run } } : {}),
-        editor: entry.editor,
+        editor,
       },
     ];
   });

@@ -5566,6 +5566,1030 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-blue-noarms",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Blue_(NoArms).png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "blue",
+      "noarms",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 96,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 96,
+      "height": 384,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-bow-blue",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Blue.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "blue",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 69,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 69,
+      "height": 384,
+      "count": 22,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-bow-purple",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Purple.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "purple",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 69,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 69,
+      "height": 384,
+      "count": 22,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-bow-red",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Red.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "red",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 69,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 69,
+      "height": 384,
+      "count": 22,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-bow-yellow",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Yellow.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "yellow",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 69,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 69,
+      "height": 384,
+      "count": 22,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-purple-noarms",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Purple_(NoArms).png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "purple",
+      "noarms",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 96,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 96,
+      "height": 384,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-red-noarms",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Red_(NoArms).png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "red",
+      "noarms",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 96,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 96,
+      "height": 384,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-archer-bow.archer-yellow-noarms",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Archer + Bow/Archer_Yellow_(NoArms).png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Archer + Bow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "bow",
+      "yellow",
+      "noarms",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 96,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 96,
+      "height": 384,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-arrow.arrow",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Arrow/Arrow.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Arrow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "arrow",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "animated",
+    "frame": {
+      "width": 64,
+      "height": 64,
+      "count": 2,
+      "axis": "y",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 22,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-blue.archer-blue",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Blue/Archer_Blue.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Blue",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "blue",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 27,
+    "height": 1344,
+    "nature": "animated",
+    "frame": {
+      "width": 27,
+      "height": 1344,
+      "count": 56,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 43,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-purple.archer-purlple",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Purple/Archer_Purlple.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Purple",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "purple",
+      "purlple",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 27,
+    "height": 1344,
+    "nature": "animated",
+    "frame": {
+      "width": 27,
+      "height": 1344,
+      "count": 56,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 43,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-red.archer-red",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Red/Archer_Red.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Red",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "red",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 27,
+    "height": 1344,
+    "nature": "animated",
+    "frame": {
+      "width": 27,
+      "height": 1344,
+      "count": 56,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 43,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-archer-yellow.archer-yellow",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Yellow/Archer_Yellow.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Archer/Yellow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "archer",
+      "yellow",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 27,
+    "height": 1344,
+    "nature": "animated",
+    "frame": {
+      "width": 27,
+      "height": 1344,
+      "count": 56,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 43,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-dead.dead",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Dead/Dead.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Dead",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "dead",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 64,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 64,
+      "height": 256,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 29,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-pawn-blue.pawn-blue",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Pawn/Blue",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "pawn",
+      "blue",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 32,
+    "height": 1152,
+    "nature": "animated",
+    "frame": {
+      "width": 32,
+      "height": 1152,
+      "count": 36,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 64,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-pawn-purple.pawn-purple",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Pawn/Purple/Pawn_Purple.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Pawn/Purple",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "pawn",
+      "purple",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 32,
+    "height": 1152,
+    "nature": "animated",
+    "frame": {
+      "width": 32,
+      "height": 1152,
+      "count": 36,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 64,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-pawn-red.pawn-red",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Pawn/Red/Pawn_Red.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Pawn/Red",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "pawn",
+      "red",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 32,
+    "height": 1152,
+    "nature": "animated",
+    "frame": {
+      "width": 32,
+      "height": 1152,
+      "count": 36,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 64,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-pawn-yellow.pawn-yellow",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Pawn/Yellow/Pawn_Yellow.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Pawn/Yellow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "pawn",
+      "yellow",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 32,
+    "height": 1152,
+    "nature": "animated",
+    "frame": {
+      "width": 32,
+      "height": 1152,
+      "count": 36,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 64,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-warrior-blue.warrior-blue",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Warrior/Blue/Warrior_Blue.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Warrior/Blue",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "warrior",
+      "blue",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 24,
+    "height": 1536,
+    "nature": "animated",
+    "frame": {
+      "width": 24,
+      "height": 1536,
+      "count": 48,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-warrior-purple.warrior-purple",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Warrior/Purple/Warrior_Purple.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Warrior/Purple",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "warrior",
+      "purple",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 24,
+    "height": 1536,
+    "nature": "animated",
+    "frame": {
+      "width": 24,
+      "height": 1536,
+      "count": 48,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-warrior-red.warrior-red",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Warrior/Red/Warrior_Red.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Warrior/Red",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "warrior",
+      "red",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 24,
+    "height": 1536,
+    "nature": "animated",
+    "frame": {
+      "width": 24,
+      "height": 1536,
+      "count": 48,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.factions-knights-troops-warrior-yellow.warrior-yellow",
+    "sourcePath": "Tiny Swords (Update 010)/Factions/Knights/Troops/Warrior/Yellow/Warrior_Yellow.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "character",
+    "category": "Factions/Knights/Troops/Warrior/Yellow",
+    "role": "character-animation",
+    "tags": [
+      "factions",
+      "knights",
+      "troops",
+      "warrior",
+      "yellow",
+      "character",
+      "update",
+      "010"
+    ],
+    "width": 24,
+    "height": 1536,
+    "nature": "animated",
+    "frame": {
+      "width": 24,
+      "height": 1536,
+      "count": 48,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-black-units-archer.archer-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -5655,6 +6679,311 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-archer.archer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "archer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-archer.archer-shoot",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Shoot.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "archer",
+      "shoot",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-archer.arrow",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Archer/Arrow.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "archer",
+      "arrow",
+      "character",
+      "free"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 26,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-down-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Down_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "down",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 18,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-down-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Down_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "down",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-downright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_DownRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "downright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-downright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_DownRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "downright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -5816,6 +7145,409 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-black-units-lancer.lancer-right-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Right_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "right",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-right-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Right_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "right",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 117,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-up-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Up_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "up",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 123,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-up-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Up_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "up",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-upright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_UpRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "upright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 125,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-upright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_UpRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "upright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 124,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-monk.heal",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Monk/Heal.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "monk",
+      "heal",
+      "character",
+      "free"
+    ],
+    "width": 150,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 150,
+      "height": 192,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-monk.heal-effect",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Monk/Heal_Effect.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "monk",
+      "heal",
+      "effect",
+      "character",
+      "free"
+    ],
+    "width": 40,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 40,
+      "height": 192,
+      "count": 52,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-black-units-monk.idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Monk/Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -5905,6 +7637,50 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-monk.run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Monk/Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "monk",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -6660,6 +8436,677 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-black-units-pawn.pawn-interact-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "interact",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-interact-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "interact",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 115,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 115,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 54,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-interact-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "interact",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 51,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-interact-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "interact",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 164,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 164,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-run-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "run",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-warrior.warrior-attack1",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Attack1.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "warrior",
+      "attack1",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 36,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-warrior.warrior-attack2",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Attack2.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "warrior",
+      "attack2",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-warrior.warrior-guard",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Guard.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "warrior",
+      "guard",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-black-units-warrior.warrior-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -6753,6 +9200,50 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-black-units-warrior.warrior-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "warrior",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-blue-units-archer.archer-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -6842,6 +9333,311 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-archer.archer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "archer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-archer.archer-shoot",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Shoot.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "archer",
+      "shoot",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-archer.arrow",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Archer/Arrow.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "archer",
+      "arrow",
+      "character",
+      "free"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 26,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-down-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Down_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "down",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 18,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-down-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Down_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "down",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-downright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_DownRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "downright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-downright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_DownRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "downright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -7003,6 +9799,409 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-blue-units-lancer.lancer-right-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Right_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "right",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-right-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Right_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "right",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 117,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-up-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Up_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "up",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 123,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-up-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Up_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "up",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-upright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_UpRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "upright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 125,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-upright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_UpRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "upright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 124,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-monk.heal",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Monk/Heal.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "monk",
+      "heal",
+      "character",
+      "free"
+    ],
+    "width": 150,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 150,
+      "height": 192,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-monk.heal-effect",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Monk/Heal_Effect.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "monk",
+      "heal",
+      "effect",
+      "character",
+      "free"
+    ],
+    "width": 40,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 40,
+      "height": 192,
+      "count": 52,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-blue-units-monk.idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Monk/Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -7092,6 +10291,50 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-monk.run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Monk/Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "monk",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -7847,6 +11090,677 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-blue-units-pawn.pawn-interact-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "interact",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-interact-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "interact",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 115,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 115,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 54,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-interact-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "interact",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 51,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-interact-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "interact",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 164,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 164,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-run-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "run",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-warrior.warrior-attack1",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Attack1.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "warrior",
+      "attack1",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 36,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-warrior.warrior-attack2",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Attack2.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "warrior",
+      "attack2",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-warrior.warrior-guard",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Guard.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "warrior",
+      "guard",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-blue-units-warrior.warrior-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -7940,6 +11854,50 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-blue-units-warrior.warrior-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "warrior",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-purple-units-archer.archer-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -8029,6 +11987,311 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-archer.archer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "archer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-archer.archer-shoot",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Shoot.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "archer",
+      "shoot",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-archer.arrow",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Archer/Arrow.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "archer",
+      "arrow",
+      "character",
+      "free"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 26,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-down-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Down_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "down",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 18,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-down-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Down_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "down",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-downright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_DownRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "downright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-downright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_DownRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "downright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -8190,6 +12453,409 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-purple-units-lancer.lancer-right-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Right_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "right",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-right-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Right_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "right",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 117,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-up-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Up_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "up",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 123,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-up-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Up_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "up",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-upright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_UpRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "upright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 125,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-upright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_UpRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "upright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 124,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-monk.heal",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Monk/Heal.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "monk",
+      "heal",
+      "character",
+      "free"
+    ],
+    "width": 150,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 150,
+      "height": 192,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-monk.heal-effect",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Monk/Heal_Effect.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "monk",
+      "heal",
+      "effect",
+      "character",
+      "free"
+    ],
+    "width": 40,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 40,
+      "height": 192,
+      "count": 52,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-purple-units-monk.idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Monk/Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -8279,6 +12945,50 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-monk.run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Monk/Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "monk",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -9034,6 +13744,677 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-purple-units-pawn.pawn-interact-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "interact",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-interact-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "interact",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 115,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 115,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 54,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-interact-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "interact",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 51,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-interact-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "interact",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 164,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 164,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-run-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "run",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-warrior.warrior-attack1",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Attack1.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "warrior",
+      "attack1",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 36,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-warrior.warrior-attack2",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Attack2.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "warrior",
+      "attack2",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-warrior.warrior-guard",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Guard.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "warrior",
+      "guard",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-purple-units-warrior.warrior-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -9127,6 +14508,50 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-purple-units-warrior.warrior-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "warrior",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-red-units-archer.archer-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -9216,6 +14641,311 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-archer.archer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "archer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-archer.archer-shoot",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Shoot.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "archer",
+      "shoot",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-archer.arrow",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Archer/Arrow.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "archer",
+      "arrow",
+      "character",
+      "free"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 26,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-down-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Down_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "down",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 18,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-down-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Down_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "down",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-downright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_DownRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "downright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-downright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_DownRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "downright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -9377,6 +15107,409 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-red-units-lancer.lancer-right-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Right_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "right",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-right-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Right_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "right",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 117,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-up-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Up_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "up",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 123,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-up-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Up_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "up",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-upright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_UpRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "upright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 125,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-upright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_UpRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "upright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 124,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-monk.heal",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Monk/Heal.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "monk",
+      "heal",
+      "character",
+      "free"
+    ],
+    "width": 150,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 150,
+      "height": 192,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-monk.heal-effect",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Monk/Heal_Effect.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "monk",
+      "heal",
+      "effect",
+      "character",
+      "free"
+    ],
+    "width": 40,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 40,
+      "height": 192,
+      "count": 52,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-red-units-monk.idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Monk/Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -9466,6 +15599,50 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-monk.run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Monk/Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "monk",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -10221,6 +16398,677 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-red-units-pawn.pawn-interact-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "interact",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-interact-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "interact",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 115,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 115,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 54,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-interact-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "interact",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 51,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-interact-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "interact",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 164,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 164,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-run-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "run",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-warrior.warrior-attack1",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Attack1.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "warrior",
+      "attack1",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 36,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-warrior.warrior-attack2",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Attack2.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "warrior",
+      "attack2",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-warrior.warrior-guard",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Guard.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "warrior",
+      "guard",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-red-units-warrior.warrior-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -10314,6 +17162,50 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-red-units-warrior.warrior-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "warrior",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-yellow-units-archer.archer-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -10403,6 +17295,311 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-archer.archer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "archer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-archer.archer-shoot",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Shoot.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "archer",
+      "shoot",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-archer.arrow",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Arrow.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "archer",
+      "arrow",
+      "character",
+      "free"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 26,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-down-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Down_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "down",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 18,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-down-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Down_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "down",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-downright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_DownRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "downright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-downright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_DownRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "downright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -10564,6 +17761,409 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-yellow-units-lancer.lancer-right-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Right_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "right",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-right-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Right_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "right",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 117,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-up-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Up_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "up",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 123,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-up-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Up_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "up",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-upright-attack",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_UpRight_Attack.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "upright",
+      "attack",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 125,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-upright-defence",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_UpRight_Defence.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "upright",
+      "defence",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 124,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-monk.heal",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Heal.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "monk",
+      "heal",
+      "character",
+      "free"
+    ],
+    "width": 150,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 150,
+      "height": 192,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-monk.heal-effect",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Heal_Effect.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "monk",
+      "heal",
+      "effect",
+      "character",
+      "free"
+    ],
+    "width": 40,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 40,
+      "height": 192,
+      "count": 52,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 46,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-yellow-units-monk.idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -10653,6 +18253,50 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-monk.run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "monk",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -11408,6 +19052,677 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-yellow-units-pawn.pawn-interact-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "interact",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-interact-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "interact",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 115,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 115,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 54,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-interact-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "interact",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 51,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-interact-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "interact",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 164,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 164,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-run-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "run",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-warrior.warrior-attack1",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Attack1.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "warrior",
+      "attack1",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 36,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-warrior.warrior-attack2",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Attack2.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "warrior",
+      "attack2",
+      "character",
+      "free"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-warrior.warrior-guard",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Guard.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "warrior",
+      "guard",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "character.units-yellow-units-warrior.warrior-idle",
     "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Idle.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -11497,6 +19812,50 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "characters",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-warrior.warrior-run",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Run.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "warrior",
+      "run",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -14450,6 +22809,50 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-caveborn-bear.bear-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Bear/Bear_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Bear",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "bear",
+      "attack"
+    ],
+    "width": 209,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 209,
+      "height": 256,
+      "count": 11,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 59,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-caveborn-bear.bear-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Bear/Bear_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -14570,6 +22973,138 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-caveborn-bear.bear-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Bear/Bear_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Bear",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "bear",
+      "run"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 76,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-lizard.lizard-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Lizard",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "lizard",
+      "attack"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 9,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 30,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-lizard.lizard-hit",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Hit.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Lizard",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "lizard",
+      "hit"
+    ],
+    "width": 96,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 96,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-caveborn-lizard.lizard-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -14642,6 +23177,94 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-lizard.lizard-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Lizard",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "lizard",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-snake.snake-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Snake/Snake_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Snake",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "snake",
+      "attack"
+    ],
+    "width": 144,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 144,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 42,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -14722,6 +23345,94 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-caveborn-snake.snake-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Snake/Snake_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Snake",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "snake",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 69,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-spider.spider-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Spider/Spider_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Spider",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "spider",
+      "attack"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 10,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-caveborn-spider.spider-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Spider/Spider_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -14794,6 +23505,184 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-spider.spider-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Spider/Spider_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Spider",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "spider",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-turtle.turtle-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Turtle/Turtle_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Turtle",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "turtle",
+      "attack"
+    ],
+    "width": 290,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 290,
+      "height": 320,
+      "count": 11,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 112,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-turtle.turtle-guard-in",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Turtle/Turtle_Guard_In.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Turtle",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "turtle",
+      "guard",
+      "in"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 104,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-turtle.turtle-guard-out",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Turtle/Turtle_Guard_Out.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Turtle",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "turtle",
+      "guard",
+      "out"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 112,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -14938,6 +23827,136 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-caveborn-turtle.turtle-walk",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Turtle/Turtle_Walk.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Turtle",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "turtle",
+      "walk"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 110,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-gnoll.gnoll-bone",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Bone.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnoll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnoll",
+      "bone"
+    ],
+    "width": 42,
+    "height": 64,
+    "nature": "animated",
+    "frame": {
+      "width": 42,
+      "height": 64,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 8,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-gnoll.gnoll-hit",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Hit.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnoll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnoll",
+      "hit"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 2,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-gnoll.gnoll-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -15009,6 +24028,135 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-gnoll.gnoll-throw",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Throw.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnoll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnoll",
+      "throw"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-gnoll.gnoll-walk",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Walk.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnoll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnoll",
+      "walk"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-gnome.gnome-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnome",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnome",
+      "attack"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -15088,6 +24236,188 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-gnome.gnome-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnome",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnome",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 65,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Hex Shaman",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "hex",
+      "shaman",
+      "attack"
+    ],
+    "width": 120,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 120,
+      "height": 192,
+      "count": 16,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-explosion",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Explosion.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Hex Shaman",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "hex",
+      "shaman",
+      "explosion"
+    ],
+    "width": 46,
+    "height": 128,
+    "nature": "animated",
+    "frame": {
+      "width": 46,
+      "height": 128,
+      "count": 25,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 25,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-explosion-spell",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Explosion Spell.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Hex Shaman",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "hex",
+      "shaman",
+      "explosion",
+      "spell"
+    ],
+    "width": 48,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 48,
+      "height": 192,
+      "count": 40,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 41,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -15162,6 +24492,192 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-projectile",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Hex Shaman",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "hex",
+      "shaman",
+      "projectile"
+    ],
+    "width": 128,
+    "height": 128,
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 49,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Hex Shaman",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "hex",
+      "shaman",
+      "run"
+    ],
+    "width": 153,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 153,
+      "height": 192,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-transformation-spell",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Transformation Spell.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Hex Shaman",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "hex",
+      "shaman",
+      "transformation",
+      "spell"
+    ],
+    "width": 162,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 162,
+      "height": 192,
+      "count": 13,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-pig-rider-spear-goblin.pig-rider-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin/Pig Rider_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "pig",
+      "rider",
+      "spear",
+      "attack"
+    ],
+    "width": 137,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 137,
+      "height": 256,
+      "count": 13,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 88,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -15289,6 +24805,53 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-pig-rider-spear-goblin.pig-rider-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin/Pig Rider_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "pig",
+      "rider",
+      "spear",
+      "run"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 90,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-goblin-raiders-pig.pig-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig/Pig_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -15362,6 +24925,143 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-pig.pig-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig/Pig_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Pig",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "pig",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-spear-goblin.spear-goblin-attack-fast",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Spear Goblin/Spear Goblin_Attack Fast.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Spear Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "spear",
+      "attack",
+      "fast"
+    ],
+    "width": 137,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 137,
+      "height": 256,
+      "count": 13,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 59,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-spear-goblin.spear-goblin-attack-strong",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Spear Goblin/Spear Goblin_Attack Strong.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Spear Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "spear",
+      "attack",
+      "strong"
+    ],
+    "width": 204,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 204,
+      "height": 256,
+      "count": 10,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 70,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -15487,6 +25187,96 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-spear-goblin.spear-goblin-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Spear Goblin/Spear Goblin_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Spear Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "spear",
+      "run"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 85,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-torch-goblin.torch-goblin-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Torch Goblin/Torch Goblin_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Torch Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "torch",
+      "attack"
+    ],
+    "width": 85,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 85,
+      "height": 192,
+      "count": 18,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 59,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-goblin-raiders-torch-goblin.torch-goblin-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Torch Goblin/Torch Goblin_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -15560,6 +25350,177 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-torch-goblin.torch-goblin-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Torch Goblin/Torch Goblin_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Torch Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "torch",
+      "run"
+    ],
+    "width": 164,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 164,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 59,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-wooden-fence.wooden-fence-64x64-tile",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Wooden Fence/Wooden Fence_64x64 tile.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Wooden Fence",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "wooden",
+      "fence",
+      "64x64",
+      "tile"
+    ],
+    "width": 256,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 11,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-minotaur.minotaur-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Minotaur/Minotaur_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Minotaur",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "minotaur",
+      "attack"
+    ],
+    "width": 274,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 274,
+      "height": 320,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 64,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-minotaur.minotaur-guard",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Minotaur/Minotaur_Guard.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Minotaur",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "minotaur",
+      "guard"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 11,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 103,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -15703,6 +25664,135 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-minotaur.minotaur-walk",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Minotaur/Minotaur_Walk.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Minotaur",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "minotaur",
+      "walk"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 106,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-panda.panda-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Panda/Panda_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Panda",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "panda",
+      "attack"
+    ],
+    "width": 175,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 175,
+      "height": 256,
+      "count": 19,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 52,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-panda.panda-guard",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Panda/Panda_Guard.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Panda",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "panda",
+      "guard"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 84,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-panda.panda-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Panda/Panda_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -15822,6 +25912,49 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-panda.panda-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Panda/Panda_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Panda",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "panda",
+      "run"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 84,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-pirate-fish-bomb-fish.bomb-fish-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb Fish/Bomb Fish_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -15899,6 +26032,141 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-bomb-fish.bomb-fish-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb Fish/Bomb Fish_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Bomb Fish",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "bomb",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-bomb-fish.bomb-fish-shoot",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb Fish/Bomb Fish_Shoot.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Bomb Fish",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "bomb",
+      "shoot"
+    ],
+    "width": 122,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 122,
+      "height": 192,
+      "count": 11,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 50,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-bomb.bomb-fuselit",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_FuseLit.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Bomb",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "bomb",
+      "fuselit"
+    ],
+    "width": 128,
+    "height": 128,
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 43,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-pirate-fish-bomb.bomb-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -15953,6 +26221,89 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-bomb.bomb-spinning",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_Spinning.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Bomb",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "bomb",
+      "spinning"
+    ],
+    "width": 128,
+    "height": 128,
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 4,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 38,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-harpoon-shark.harpoon",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Harpoon Shark/Harpoon.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Harpoon Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "harpoon",
+      "shark"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 1,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -16035,6 +26386,144 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-harpoon-shark.harpoon-shark-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Harpoon Shark/Harpoon Shark_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Harpoon Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "harpoon",
+      "shark",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-harpoon-shark.harpoon-shark-throw",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Harpoon Shark/Harpoon Shark_Throw.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Harpoon Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "harpoon",
+      "shark",
+      "throw"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-paddle-shark.paddle-shark-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Paddle Shark/Paddle Shark_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Paddle Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "paddle",
+      "shark",
+      "attack"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-pirate-fish-paddle-shark.paddle-shark-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Paddle Shark/Paddle Shark_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -16109,6 +26598,414 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-paddle-shark.paddle-shark-row",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Paddle Shark/Paddle Shark_Row.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Paddle Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "paddle",
+      "shark",
+      "row"
+    ],
+    "width": 103,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 103,
+      "height": 192,
+      "count": 13,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 10,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-paddle-shark.paddle-shark-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Paddle Shark/Paddle Shark_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Paddle Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "paddle",
+      "shark",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-root-troll.bones-01",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Bones_01.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Root Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "root",
+      "troll",
+      "bones",
+      "01"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 15,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-root-troll.bones-02",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Bones_02.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Root Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "root",
+      "troll",
+      "bones",
+      "02"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 18,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-root-troll.bones-03",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Bones_03.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Root Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "root",
+      "troll",
+      "bones",
+      "03"
+    ],
+    "width": 64,
+    "height": 64,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 19,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-root-troll.dead-tree",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Dead Tree.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Root Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "root",
+      "troll",
+      "dead",
+      "tree"
+    ],
+    "width": 384,
+    "height": 320,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 5,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-root-troll.skull-spike-01",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Skull Spike_01.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Root Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "root",
+      "troll",
+      "skull",
+      "spike",
+      "01"
+    ],
+    "width": 64,
+    "height": 128,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 33,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-root-troll.skull-spike-02",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Skull Spike_02.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Root Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "root",
+      "troll",
+      "skull",
+      "spike",
+      "02"
+    ],
+    "width": 64,
+    "height": 128,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 21,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-skull.skull-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Skull/Skull_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Skull",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "skull",
+      "attack"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-skull.skull-guard",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Skull/Skull_Guard.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Skull",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "skull",
+      "guard"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -16188,6 +27085,92 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "enemy.enemy-pack-enemies-skull.skull-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Skull/Skull_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Skull",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "skull",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-thief.thief-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Thief",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "thief",
+      "attack"
+    ],
+    "width": 128,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 192,
+      "count": 9,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
     "id": "enemy.enemy-pack-enemies-thief.thief-idle",
     "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Idle.png",
     "pack": "Tiny Swords (Enemy Pack)",
@@ -16259,6 +27242,221 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-thief.thief-run",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Run.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Thief",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "thief",
+      "run"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 59,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-attack",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Attack.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "attack"
+    ],
+    "width": 384,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 384,
+      "height": 384,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 81,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-clubpart1",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_ClubPart1.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "clubpart1"
+    ],
+    "width": 256,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 384,
+      "count": 15,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 111,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-clubpart2",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_ClubPart2.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "clubpart2"
+    ],
+    "width": 240,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 240,
+      "height": 384,
+      "count": 16,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 138,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-dead",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Dead.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "dead"
+    ],
+    "width": 274,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 274,
+      "height": 384,
+      "count": 14,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 73,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },
@@ -16466,6 +27664,135 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "creatures",
       "allowedTerrain": [
         "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-recovery",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Recovery.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "recovery"
+    ],
+    "width": 384,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 384,
+      "height": 384,
+      "count": 10,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 87,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-walk",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Walk.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "walk"
+    ],
+    "width": 384,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 384,
+      "height": 384,
+      "count": 10,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 87,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-windup",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Windup.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "windup"
+    ],
+    "width": 384,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 384,
+      "height": 384,
+      "count": 5,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 87,
+    "editor": {
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
       ]
     }
   },

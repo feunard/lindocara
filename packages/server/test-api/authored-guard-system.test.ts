@@ -26,7 +26,7 @@ function conditionalGuard(): MapEvent {
   });
   return {
     ...event,
-    pages: [{ ...defaultEventPage(), condSwitchId: "0041" }],
+    pages: [{ ...defaultEventPage(), condSwitchId: "0041", graphicTint: 0x22c55e }],
   };
 }
 
@@ -41,6 +41,7 @@ describe("authored guard projection", () => {
         x: 7 * TILE_SIZE + TILE_SIZE / 2,
         y: 9 * TILE_SIZE + TILE_SIZE / 2,
         patrolRadius: 160,
+        graphicTint: 0x22c55e,
       },
     ]);
   });
@@ -55,7 +56,7 @@ describe("authored guard projection", () => {
     const next = reconcileActiveGuards(
       [retained, withdrawn],
       [
-        { id: "retained", x: 64, y: 64, patrolRadius: 144 },
+        { id: "retained", x: 64, y: 64, patrolRadius: 144, graphicTint: 0x7c3aed },
         { id: "new", x: 192, y: 64, patrolRadius: 96 },
       ],
     );
@@ -67,6 +68,7 @@ describe("authored guard projection", () => {
       homeX: 64,
       homeY: 64,
       patrolRadius: 144,
+      graphicTint: 0x7c3aed,
     });
     expect(next[1]).toMatchObject({
       hp: next[1]?.maxHp,

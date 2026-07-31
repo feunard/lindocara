@@ -1610,6 +1610,7 @@ export class Renderer {
         view.animation = undefined;
         view.drawnGraphic = undefined;
       } else if (sprite) {
+        sprite.tint = event.graphicTint ?? 0xffffff;
         const running =
           movement.moving &&
           event.moveAnimation &&
@@ -1721,6 +1722,7 @@ export class Renderer {
           frame,
           art.definition,
         );
+        sprite.tint = event.graphicTint ?? 0xffffff;
         view.container.addChild(sprite);
         view.sprite = sprite;
         const run = art.motions?.run;
@@ -3324,6 +3326,7 @@ export class Renderer {
     // and the same measured offsets. It was 102 while players were 96 — two different wrong answers
     // to a question that has one right one.
     const unitSprite = new Sprite(animations.idle[0]);
+    unitSprite.tint = guard.graphicTint ?? 0xffffff;
     unitSprite.width = TINY_SWORDS_UNIT_FRAME;
     unitSprite.height = TINY_SWORDS_UNIT_FRAME;
     unitSprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
@@ -4672,6 +4675,7 @@ export class Renderer {
         view.container.position.set(guard.x, guard.y);
         view.container.zIndex = Math.round(guard.y + PLAYER_SIZE);
         if (visible && view.actor && view.unitSprite && view.unitAnimations) {
+          view.unitSprite.tint = guard.graphicTint ?? 0xffffff;
           const moving = (view.movingUntil ?? 0) > now;
           const motion: UnitMotion = guard.fighting ? "attack" : moving ? "run" : "idle";
           const frames = view.unitAnimations[motion];

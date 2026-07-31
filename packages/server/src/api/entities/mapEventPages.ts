@@ -26,7 +26,11 @@ export const mapEventPages = $entity({
     condSelfSwitch: z.enum(SELF_SWITCHES).optional(),
     /** Typed as `EditorAssetId` at the app layer; stored as unconstrained text (matches legacy). */
     graphicAssetId: z.string().optional(),
+    /** Neutral white by default; stored as a bounded RGB integer at the app boundary. */
+    graphicTint: db.default(z.integer(), 0xffffff),
     moveType: z.enum(MOVE_TYPES),
+    /** JSON array of validated NPC routine waypoints. */
+    moveRoute: db.default(z.string(), "[]"),
     moveSpeed: z.integer(),
     moveFreq: z.integer(),
     optMoveAnim: z.boolean(),

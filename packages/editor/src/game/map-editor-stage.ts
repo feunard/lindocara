@@ -533,14 +533,14 @@ export function paintEventCell(
     // page graphic identically — a fixed one-cell marker anchored bottom-centre and fit into ~1.6
     // tiles, deliberately NOT `createCatalogElementView`'s per-asset footprint. Same catalogue art,
     // one event placement contract for both trees.
-    container.addChild(
-      createEventGraphicSprite(
-        event.col,
-        event.row,
-        frame,
-        graphicId === null ? undefined : art?.definition,
-      ),
+    const sprite = createEventGraphicSprite(
+      event.col,
+      event.row,
+      frame,
+      graphicId === null ? undefined : art?.definition,
     );
+    sprite.tint = event.pages[0]?.graphicTint ?? 0xffffff;
+    container.addChild(sprite);
   } else {
     // The blank placeholder, coloured by kind so entry/exit/monster events (which never carry a
     // graphic) read apart from each other and from a scripted `normal` event.

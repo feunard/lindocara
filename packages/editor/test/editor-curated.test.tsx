@@ -2,7 +2,7 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import { CatalogueAssetPicker } from "@lindocara/editor/ui/editor/CatalogueAssetPicker.js";
 import { EventPalette } from "@lindocara/editor/ui/editor/EventPalette.js";
 import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
-import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { editorAsset, NPC_CHARACTER_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -33,6 +33,18 @@ describe("editor asset catalogue", () => {
     // Picker and stage share this source of truth, so choosing an asset cannot create a render hole.
     expect(editorAsset("resource.terrain-resources-wood-trees.tree2")).not.toBeNull();
     expect(editorAsset("decoration.terrain-decorations-bushes.bushe2")).not.toBeNull();
+  });
+
+  it("offers every catalogue actor to free NPCs, including heroes, workers and the Rogue thief", () => {
+    setLocale("en");
+    render(<CatalogueAssetPicker usage="character" value={null} onSelectAsset={() => {}} />);
+    expect(NPC_CHARACTER_ASSETS).toHaveLength(336);
+
+    const search = screen.getByRole("searchbox", { name: "Search placeable assets" });
+    for (const query of ["warrior idle", "pawn idle pickaxe", "thief idle"]) {
+      fireEvent.change(search, { target: { value: query } });
+      expect(screen.getAllByRole("button").some((button) => button.dataset.assetId)).toBe(true);
+    }
   });
 
   it("shows every supported runtime species as a directly placeable monster", () => {

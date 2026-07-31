@@ -73,6 +73,7 @@ export interface ActiveWorldEvent {
   col: number;
   row: number;
   graphicAssetId: EditorAssetId | null;
+  graphicTint?: number;
   onTop: boolean;
   moveSpeed: number;
   moveFrequency: number;
@@ -354,6 +355,7 @@ export interface GuardRuntime extends Vec2 {
   patrolRadius: number;
   lastAttackAt: number;
   fightingUntil: number;
+  graphicTint: number;
 }
 
 export interface GroundLoot extends LootSnapshot {
@@ -744,5 +746,6 @@ export function createGuards(definitions: readonly GuardDefinition[]): GuardRunt
     homeY: guard.y,
     lastAttackAt: 0,
     fightingUntil: 0,
+    graphicTint: guard.graphicTint ?? 0xffffff,
   }));
 }

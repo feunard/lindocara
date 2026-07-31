@@ -179,6 +179,7 @@ export interface GuardSnapshot {
   homeX: number;
   homeY: number;
   fighting: boolean;
+  graphicTint?: number;
 }
 
 export interface LootSnapshot {
@@ -347,6 +348,7 @@ export interface WorldEventSnapshot {
   col: number;
   row: number;
   graphicAssetId: string | null;
+  graphicTint?: number;
   onTop: boolean;
   moveSpeed: number;
   moveFrequency: number;
@@ -898,7 +900,11 @@ function isGuardSnapshot(value: unknown): value is GuardSnapshot {
     value.hp <= value.maxHp &&
     isFiniteNumber(value.homeX) &&
     isFiniteNumber(value.homeY) &&
-    typeof value.fighting === "boolean"
+    typeof value.fighting === "boolean" &&
+    (value.graphicTint === undefined ||
+      (Number.isSafeInteger(value.graphicTint) &&
+        (value.graphicTint as number) >= 0 &&
+        (value.graphicTint as number) <= 0xffffff))
   );
 }
 
@@ -1321,6 +1327,10 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     Number.isSafeInteger(value.row) &&
     (value.row as number) >= 0 &&
     (value.graphicAssetId === null || isEditorAssetId(value.graphicAssetId)) &&
+    (value.graphicTint === undefined ||
+      (Number.isSafeInteger(value.graphicTint) &&
+        (value.graphicTint as number) >= 0 &&
+        (value.graphicTint as number) <= 0xffffff)) &&
     typeof value.onTop === "boolean" &&
     Number.isSafeInteger(value.moveSpeed) &&
     (value.moveSpeed as number) >= 0 &&

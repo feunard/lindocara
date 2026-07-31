@@ -11,6 +11,7 @@ import {
   MONSTER_TUNING_LIMITS,
 } from "@lindocara/engine/game.js";
 import {
+  EVENT_GRAPHIC_TINT_DEFAULT,
   EVENT_NAME_MAX,
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
@@ -35,7 +36,9 @@ function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
     condVariableMin: null,
     condSelfSwitch: null,
     graphicAssetId: null,
+    graphicTint: EVENT_GRAPHIC_TINT_DEFAULT,
     moveType: "fixed",
+    moveRoute: [],
     moveSpeed: 3,
     moveFreq: 2,
     optMoveAnim: false,
@@ -116,6 +119,50 @@ describe("parseMapEvents: good payloads round-trip unchanged", () => {
   it("round-trips a minimal event", () => {
     const events = [event()];
     expect(parseMapEvents(events, COLS, ROWS)).toEqual(events);
+  });
+
+  it("round-trips a tinted NPC activity routine", () => {
+    const route = [
+      { offsetCol: 2, offsetRow: 0, waitMs: 1_500 },
+      { offsetCol: 0, offsetRow: -2, waitMs: 0 },
+    ];
+    const npc = event({
+      kind: "npc",
+      species: null,
+      patrolRadius: 256,
+      pages: [
+        page({
+          graphicTint: 0x7c3aed,
+          moveType: "custom",
+          moveRoute: route,
+        }),
+      ],
+    });
+    expect(parseMapEvents([npc], COLS, ROWS)?.[0]?.pages[0]).toMatchObject({
+      graphicTint: 0x7c3aed,
+      moveRoute: route,
+    });
+  });
+
+  it("rejects malformed colours and out-of-bounds routine steps", () => {
+    expect(
+      parseMapEvents([event({ pages: [page({ graphicTint: 0x1000000 })] })], COLS, ROWS),
+    ).toBeNull();
+    expect(
+      parseMapEvents(
+        [
+          event({
+            pages: [
+              page({
+                moveRoute: [{ offsetCol: 33, offsetRow: 0, waitMs: 0 }],
+              }),
+            ],
+          }),
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
   });
 
   it("round-trips an event with every field populated, across two pages", () => {

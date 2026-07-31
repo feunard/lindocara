@@ -26,6 +26,7 @@ import {
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
 import {
+  EVENT_GRAPHIC_TINT_DEFAULT,
   type EventKind,
   functionalEvent,
   MAX_EVENTS_PER_MAP,
@@ -698,7 +699,9 @@ export function defaultEventPage(): MapEventPage {
     condVariableMin: null,
     condSelfSwitch: null,
     graphicAssetId: null,
+    graphicTint: EVENT_GRAPHIC_TINT_DEFAULT,
     moveType: "fixed",
+    moveRoute: [],
     moveSpeed: 4,
     moveFreq: 3,
     optMoveAnim: true,

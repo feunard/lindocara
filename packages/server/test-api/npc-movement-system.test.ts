@@ -83,6 +83,51 @@ describe("authoritative NPC movement", () => {
     expect(blocked[0]).toMatchObject({ col: 5, row: 5 });
   });
 
+  it("follows an authored activity route and observes its waypoint pause", () => {
+    const movement = reconcileNpcMovement(
+      new Map(),
+      [
+        {
+          id: "artisan",
+          homeCol: 5,
+          homeRow: 5,
+          moveType: "custom",
+          moveSpeed: 4,
+          moveFreq: 4,
+          through: false,
+          patrolRadius: 4 * TILE_SIZE,
+          route: [
+            { offsetCol: 2, offsetRow: 0, waitMs: 1_000 },
+            { offsetCol: 0, offsetRow: 0, waitMs: 0 },
+          ],
+        },
+      ],
+      0,
+    );
+    let events: ActiveWorldEvent[] = [event("artisan", 5, 5)];
+    for (const tick of [8, 16, 24, 32, 40]) {
+      events = advanceNpcEvents({
+        events,
+        movement,
+        players: [],
+        terrain,
+        tick,
+        pausedEventIds: new Set(),
+      });
+    }
+    expect(events[0]).toMatchObject({ col: 7, row: 5 });
+
+    events = advanceNpcEvents({
+      events,
+      movement,
+      players: [],
+      terrain,
+      tick: 48,
+      pausedEventIds: new Set(),
+    });
+    expect(events[0]).toMatchObject({ col: 6, row: 5 });
+  });
+
   it("approaches a nearby hero but pauses while the NPC owns a conversation", () => {
     const movement = reconcileNpcMovement(
       new Map(),

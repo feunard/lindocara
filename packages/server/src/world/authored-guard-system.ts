@@ -22,12 +22,16 @@ export function activeAuthoredGuardDefinitions(
   state: PartyAdventureState,
 ): GuardDefinition[] {
   return guardEvents(events).flatMap((event) => {
-    if (activePageIndex(event, state) === null || event.patrolRadius === null) return [];
+    const pageIndex = activePageIndex(event, state);
+    if (pageIndex === null || event.patrolRadius === null) return [];
+    const page = event.pages[pageIndex];
+    if (!page) return [];
     return [
       {
         id: authoredGuardRuntimeId(event.id),
         ...eventCellCentre(event),
         patrolRadius: event.patrolRadius,
+        graphicTint: page.graphicTint ?? 0xffffff,
       },
     ];
   });
@@ -51,6 +55,7 @@ export function reconcileActiveGuards(
       homeX: definition.x,
       homeY: definition.y,
       patrolRadius: definition.patrolRadius,
+      graphicTint: definition.graphicTint ?? 0xffffff,
     };
   });
 }

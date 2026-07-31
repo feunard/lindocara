@@ -243,6 +243,12 @@ export const EVENT_GRAPHIC_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASS
     asset.domain === "enemy",
 );
 
+/** Complete catalogue-backed actor palette for free NPCs: every character and enemy animation,
+ * including hero classes, workers carrying resources, villagers and creatures. */
+export const NPC_CHARACTER_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
+  (asset) => asset.domain === "character" || asset.domain === "enemy",
+);
+
 /** Whether an asset id belongs to the historical focused-test subset. */
 export function isCuratedEditorAssetId(value: unknown): value is EditorAssetId {
   return typeof value === "string" && CURATED_EDITOR_ASSET_ID_SET.has(value);

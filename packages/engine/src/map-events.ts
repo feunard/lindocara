@@ -78,6 +78,47 @@ export type EventTrigger = (typeof EVENT_TRIGGERS)[number];
 export const MOVE_TYPES = ["fixed", "random", "approach", "custom"] as const;
 export type MoveType = (typeof MOVE_TYPES)[number];
 
+export const EVENT_GRAPHIC_TINT_DEFAULT = 0xffffff;
+export const MAX_NPC_ROUTINE_STEPS = 16;
+export const NPC_ROUTINE_OFFSET_LIMIT = 32;
+export const NPC_ROUTINE_WAIT_LIMITS = { min: 0, max: 60_000 } as const;
+
+export interface NpcRoutineStep {
+  /** Destination relative to the event's authored home cell. */
+  offsetCol: number;
+  offsetRow: number;
+  /** Pause after reaching the destination, in milliseconds. */
+  waitMs: number;
+}
+
+export function parseNpcRoutine(value: unknown): NpcRoutineStep[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_NPC_ROUTINE_STEPS) return null;
+  const steps: NpcRoutineStep[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "object" || raw === null) return null;
+    const { offsetCol, offsetRow, waitMs } = raw as Record<string, unknown>;
+    if (
+      !Number.isSafeInteger(offsetCol) ||
+      !Number.isSafeInteger(offsetRow) ||
+      !Number.isSafeInteger(waitMs)
+    )
+      return null;
+    const col = offsetCol as number;
+    const row = offsetRow as number;
+    const wait = waitMs as number;
+    if (
+      Math.abs(col) > NPC_ROUTINE_OFFSET_LIMIT ||
+      Math.abs(row) > NPC_ROUTINE_OFFSET_LIMIT ||
+      wait < NPC_ROUTINE_WAIT_LIMITS.min ||
+      wait > NPC_ROUTINE_WAIT_LIMITS.max
+    )
+      return null;
+    steps.push({ offsetCol: col, offsetRow: row, waitMs: wait });
+  }
+  return steps;
+}
+
 export const SELF_SWITCHES = ["A", "B", "C", "D"] as const;
 export type SelfSwitch = (typeof SELF_SWITCHES)[number];
 
@@ -129,7 +170,11 @@ export interface MapEventPage {
   condSelfSwitch: SelfSwitch | null;
   /** `null` is the wireframe's blank tile, a legitimate authored choice, not a missing value. */
   graphicAssetId: EditorAssetId | null;
+  /** RGB multiplier applied by the renderer. Missing legacy data means neutral white. */
+  graphicTint?: number;
   moveType: MoveType;
+  /** Authored custom route. An empty legacy route keeps the historical deterministic circuit. */
+  moveRoute?: readonly NpcRoutineStep[];
   /** 0-5, the wireframe's move-speed select. */
   moveSpeed: number;
   /** 0-4, the wireframe's move-frequency select. */
@@ -233,7 +278,9 @@ export function defaultEventPage(): MapEventPage {
     condVariableMin: null,
     condSelfSwitch: null,
     graphicAssetId: null,
+    graphicTint: EVENT_GRAPHIC_TINT_DEFAULT,
     moveType: "fixed",
+    moveRoute: [],
     moveSpeed: 4,
     moveFreq: 3,
     optMoveAnim: true,
@@ -334,7 +381,9 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     condVariableMin,
     condSelfSwitch,
     graphicAssetId,
+    graphicTint,
     moveType,
+    moveRoute,
     moveSpeed,
     moveFreq,
     optMoveAnim,
@@ -362,7 +411,16 @@ function parseEventPage(raw: unknown): MapEventPage | null {
   if ((condVariableId === null) !== (variableMin === null)) return null;
   if (condSelfSwitch !== null && !isSelfSwitch(condSelfSwitch)) return null;
   if (graphicAssetId !== null && !isEditorAssetId(graphicAssetId)) return null;
+  const parsedTint = graphicTint ?? EVENT_GRAPHIC_TINT_DEFAULT;
+  if (
+    !Number.isSafeInteger(parsedTint) ||
+    (parsedTint as number) < 0 ||
+    (parsedTint as number) > EVENT_GRAPHIC_TINT_DEFAULT
+  )
+    return null;
   if (!isMoveType(moveType)) return null;
+  const parsedRoute = parseNpcRoutine(moveRoute);
+  if (!parsedRoute) return null;
   if (!Number.isSafeInteger(moveSpeed)) return null;
   const speed = moveSpeed as number;
   if (speed < 0 || speed > MOVE_SPEED_MAX) return null;
@@ -392,7 +450,9 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     condVariableMin: variableMin,
     condSelfSwitch: condSelfSwitch as SelfSwitch | null,
     graphicAssetId: graphicAssetId as EditorAssetId | null,
+    graphicTint: parsedTint as number,
     moveType,
+    moveRoute: parsedRoute,
     moveSpeed: speed,
     moveFreq: freq,
     optMoveAnim,
@@ -603,6 +663,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
           page.condSelfSwitch !== null ||
           page.graphicAssetId !== null ||
           page.moveType !== "fixed" ||
+          (page.moveRoute?.length ?? 0) > 0 ||
           page.moveSpeed !== 4 ||
           page.moveFreq !== 3 ||
           !page.optMoveAnim ||

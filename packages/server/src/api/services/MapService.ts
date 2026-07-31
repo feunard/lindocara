@@ -33,6 +33,7 @@ import {
   exitEvents,
   type MapEvent,
   type MapEventPage,
+  parseNpcRoutine,
 } from "@lindocara/engine/map-events.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -84,9 +85,10 @@ export const MAP_ELEMENT_COLUMNS = 8;
  *  `MAP_ELEMENT_COLUMNS`'s comment. */
 export const MAP_EVENT_COLUMNS = 20;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
- *  graphicAssetId, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix, optThrough,
- *  optOnTop, trigger, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_PAGE_COLUMNS = 18;
+ *  graphicAssetId, graphicTint, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix,
+ *  optThrough, optOnTop, trigger, moveRoute, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s
+ *  comment. */
+export const MAP_EVENT_PAGE_COLUMNS = 20;
 const MAP_ELEMENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_ELEMENT_COLUMNS);
 const MAP_EVENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_COLUMNS);
 const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_PAGE_COLUMNS);
@@ -469,7 +471,9 @@ export class MapService {
         condVariableMin: page.condVariableMin ?? undefined,
         condSelfSwitch: page.condSelfSwitch ?? undefined,
         graphicAssetId: page.graphicAssetId ?? undefined,
+        graphicTint: page.graphicTint ?? 0xffffff,
         moveType: page.moveType,
+        moveRoute: JSON.stringify(page.moveRoute ?? []),
         moveSpeed: page.moveSpeed,
         moveFreq: page.moveFreq,
         optMoveAnim: page.optMoveAnim,
@@ -648,7 +652,9 @@ function pageToWire(page: MapEventPageRow): MapEventPage {
     condVariableMin: page.condVariableMin ?? null,
     condSelfSwitch: page.condSelfSwitch ?? null,
     graphicAssetId: (page.graphicAssetId as EditorAssetId | undefined) ?? null,
+    graphicTint: page.graphicTint,
     moveType: page.moveType,
+    moveRoute: parseRoutineColumn(page.moveRoute),
     moveSpeed: page.moveSpeed,
     moveFreq: page.moveFreq,
     optMoveAnim: page.optMoveAnim,
@@ -663,6 +669,14 @@ function pageToWire(page: MapEventPageRow): MapEventPage {
 
 /** Corrupt or unknown JSON degrades to the empty program rather than failing — the same
  *  "one bad row must not break the map" degrade `loadEvents` uses at the event level. */
+function parseRoutineColumn(text: string): NonNullable<MapEventPage["moveRoute"]> {
+  try {
+    return parseNpcRoutine(JSON.parse(text)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 function parseCommandsColumn(text: string): MapEventPage["commands"] {
   try {
     return parseEventCommands(JSON.parse(text)) ?? [];

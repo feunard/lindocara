@@ -129,6 +129,17 @@ describe("Tiny Swords semantic catalogue", () => {
     }
   });
 
+  it("exposes every catalogued character and enemy animation to NPC authoring", () => {
+    const expected = catalog.entries.filter(
+      (entry) =>
+        entry.classification.status === "catalogued" &&
+        (entry.domain === "character" || entry.domain === "enemy"),
+    );
+    const editorIds = new Set(editorDefinitions(catalog).map((entry) => entry.id));
+    expect(expected).toHaveLength(336);
+    for (const entry of expected) expect(editorIds.has(entry.id), entry.sourcePath).toBe(true);
+  });
+
   it("crops every multi-frame editor sprite to one frame, never the whole sheet", () => {
     // Regression for D20: rocks-in-water and the rubber duck are horizontal strips of many square
     // frames. Without a `frame` (to slice) or an `editor.sourceRect` (to crop), `sliceFrames` returns

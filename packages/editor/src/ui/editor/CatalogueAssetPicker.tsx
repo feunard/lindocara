@@ -6,6 +6,7 @@ import {
   type EditorAssetId,
   type EditorTerrain,
   EVENT_GRAPHIC_ASSETS,
+  NPC_CHARACTER_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { tinySwordsSourceUrl } from "@lindocara/renderer/tiny-swords-assets.js";
@@ -17,7 +18,7 @@ interface CatalogueAssetPickerProps {
   onSelectAsset(assetId: EditorAssetId): void;
   onSelectNone?: (() => void) | undefined;
   noneLabel?: string | undefined;
-  usage?: "scenery" | "event";
+  usage?: "scenery" | "event" | "character";
 }
 
 const ASSET_PAGE_SIZE = 12;
@@ -126,7 +127,12 @@ export function CatalogueAssetPicker({
   const [category, setCategory] = useState("all");
   const [visibleCount, setVisibleCount] = useState(ASSET_PAGE_SIZE);
 
-  const source = usage === "event" ? EVENT_GRAPHIC_ASSETS : PLACEABLE_EDITOR_ASSETS;
+  const source =
+    usage === "event"
+      ? EVENT_GRAPHIC_ASSETS
+      : usage === "character"
+        ? NPC_CHARACTER_ASSETS
+        : PLACEABLE_EDITOR_ASSETS;
   const categories = useMemo(
     () =>
       [...new Set(source.map((asset) => asset.editor.category))].sort(

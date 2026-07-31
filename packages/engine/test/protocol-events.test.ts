@@ -12,6 +12,7 @@ function event(overrides: Partial<Record<keyof WorldEventSnapshot, unknown>> = {
     col: 1,
     row: 1,
     graphicAssetId: GRAPHIC,
+    graphicTint: 0xffffff,
     onTop: false,
     moveSpeed: 3,
     moveFrequency: 3,
@@ -148,6 +149,19 @@ describe("events on the wire", () => {
       parseServerMessage(JSON.stringify(welcome([event({ graphicAssetId: "made.up.asset" })]))),
     ).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ graphicAssetId: 42 })])))).toBeNull();
+  });
+
+  it("validates the optional RGB graphic tint while accepting legacy omission", () => {
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ graphicTint: 0x7c3aed })]))),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ graphicTint: undefined })]))),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ graphicTint: 0x1000000 })]))),
+    ).toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ graphicTint: -1 })])))).toBeNull();
   });
 
   it("drops an event missing onTop or carrying a non-boolean one", () => {

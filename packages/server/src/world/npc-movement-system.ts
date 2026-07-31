@@ -9,8 +9,8 @@
 
 import { npcMovementIntervalTicks } from "@lindocara/engine/event-movement.js";
 import { isWalkable, type TerrainGeometry } from "@lindocara/engine/game.js";
-import type { MoveType } from "@lindocara/engine/map-events.js";
-import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import type { MoveType, NpcRoutineStep } from "@lindocara/engine/map-events.js";
+import { PLAYER_SIZE, TICK_MS } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { ActiveWorldEvent, PlayerRuntime } from "./world-runtime.js";
 
@@ -23,11 +23,13 @@ export interface NpcMovementDefinition {
   moveFreq: number;
   through: boolean;
   patrolRadius: number;
+  route?: readonly NpcRoutineStep[];
 }
 
 export interface NpcMovementRuntime extends NpcMovementDefinition {
   nextMoveTick: number;
   routeStep: number;
+  waitUntilTick: number;
 }
 
 const DIRECTIONS = [
@@ -74,6 +76,7 @@ export function reconcileNpcMovement(
             nextMoveTick:
               tick + npcMovementIntervalTicks(definition.moveSpeed, definition.moveFreq),
             routeStep: 0,
+            waitUntilTick: 0,
           },
     );
   }
@@ -104,6 +107,7 @@ function candidateFor(
   event: ActiveWorldEvent,
   runtime: NpcMovementRuntime,
   players: readonly Pick<PlayerRuntime, "x" | "y" | "authorized" | "life">[],
+  tick: number,
 ): { cell: { col: number; row: number }; routeStep: number } {
   const current = { col: event.col, row: event.row };
   if (runtime.moveType === "fixed") return { cell: current, routeStep: runtime.routeStep };
@@ -127,6 +131,34 @@ function candidateFor(
   }
 
   if (runtime.moveType === "custom") {
+    const authoredRoute = runtime.route ?? [];
+    if (authoredRoute.length > 0) {
+      const routeStep = runtime.routeStep % authoredRoute.length;
+      const step = authoredRoute[routeStep] as NpcRoutineStep;
+      const target = {
+        col: runtime.homeCol + step.offsetCol,
+        row: runtime.homeRow + step.offsetRow,
+      };
+      if (current.col === target.col && current.row === target.row) {
+        if (runtime.waitUntilTick === 0 && step.waitMs > 0) {
+          runtime.waitUntilTick = tick + Math.ceil(step.waitMs / TICK_MS);
+          return { cell: current, routeStep };
+        }
+        if (tick < runtime.waitUntilTick) return { cell: current, routeStep };
+        runtime.waitUntilTick = 0;
+        const nextRouteStep = (routeStep + 1) % authoredRoute.length;
+        const next = authoredRoute[nextRouteStep] as NpcRoutineStep;
+        return {
+          cell: stepToward(current, {
+            col: runtime.homeCol + next.offsetCol,
+            row: runtime.homeRow + next.offsetRow,
+          }),
+          routeStep: nextRouteStep,
+        };
+      }
+      runtime.waitUntilTick = 0;
+      return { cell: stepToward(current, target), routeStep };
+    }
     const offset = CIRCUIT[runtime.routeStep % CIRCUIT.length] ?? CIRCUIT[0];
     const target = {
       col: runtime.homeCol + offset.col,
@@ -209,7 +241,7 @@ export function advanceNpcEvents(params: {
     }
     runtime.nextMoveTick =
       params.tick + npcMovementIntervalTicks(runtime.moveSpeed, runtime.moveFreq);
-    const proposed = candidateFor(event, runtime, params.players);
+    const proposed = candidateFor(event, runtime, params.players, params.tick);
     const distanceFromHome = Math.hypot(
       proposed.cell.col - runtime.homeCol,
       proposed.cell.row - runtime.homeRow,

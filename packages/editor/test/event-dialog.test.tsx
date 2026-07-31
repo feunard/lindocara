@@ -465,12 +465,16 @@ describe("EventDialog", () => {
     const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
     await user.clear(radius);
     await user.type(radius, "160");
+    fireEvent.change(screen.getByLabelText(t("editor.event.appearance.color")), {
+      target: { value: "#dc2626" },
+    });
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
     expect(committed.kind).toBe("guard");
     expect(committed.species).toBeNull();
     expect(committed.patrolRadius).toBe(160);
+    expect(committed.pages[0]?.graphicTint).toBe(0xdc2626);
     expect(committed.pages).toHaveLength(1);
     expect(committed.pages[0]?.condSwitchId).toBe("0042");
     expect(committed.pages[0]?.commands).toEqual([
@@ -506,6 +510,19 @@ describe("EventDialog", () => {
       screen.getByRole("combobox", { name: t("editor.event.move.type") }),
       "custom",
     );
+    fireEvent.change(screen.getByLabelText(t("editor.event.appearance.color")), {
+      target: { value: "#7c3aed" },
+    });
+    await user.click(screen.getByRole("button", { name: t("editor.event.routine.add") }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.event.routine.offsetX") }), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.event.routine.offsetY") }), {
+      target: { value: "-1" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.event.routine.wait") }), {
+      target: { value: "1.5" },
+    });
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
@@ -517,6 +534,8 @@ describe("EventDialog", () => {
       monsterDamage: 24,
     });
     expect(committed.pages[0]?.moveType).toBe("custom");
+    expect(committed.pages[0]?.graphicTint).toBe(0x7c3aed);
+    expect(committed.pages[0]?.moveRoute).toEqual([{ offsetCol: 2, offsetRow: -1, waitMs: 1_500 }]);
   });
 
   it("shows only a label field for an entry event and round-trips the label", async () => {

@@ -377,7 +377,18 @@ describe("list, get, update, delete", () => {
       patrolRadius: 160,
       monsterMaxHp: 275,
       monsterDamage: 24,
-      pages: [wirePage({ moveType: "random", moveSpeed: 3, moveFreq: 2 })],
+      pages: [
+        wirePage({
+          graphicTint: 0x7c3aed,
+          moveType: "custom",
+          moveRoute: [
+            { offsetCol: 2, offsetRow: 0, waitMs: 1_500 },
+            { offsetCol: 0, offsetRow: -1, waitMs: 0 },
+          ],
+          moveSpeed: 3,
+          moveFreq: 2,
+        }),
+      ],
     };
 
     const authored = await putMap(id, token, mapBody({ name: "Village", events: [npcEvent] }));
@@ -391,7 +402,7 @@ describe("list, get, update, delete", () => {
         patrolRadius: number;
         monsterMaxHp: number;
         monsterDamage: number;
-        pages: { moveType: string }[];
+        pages: { graphicTint: number; moveType: string; moveRoute: unknown[] }[];
       }[];
     };
     expect(payload.events[0]).toMatchObject({
@@ -399,7 +410,16 @@ describe("list, get, update, delete", () => {
       patrolRadius: 160,
       monsterMaxHp: 275,
       monsterDamage: 24,
-      pages: [{ moveType: "random" }],
+      pages: [
+        {
+          graphicTint: 0x7c3aed,
+          moveType: "custom",
+          moveRoute: [
+            { offsetCol: 2, offsetRow: 0, waitMs: 1_500 },
+            { offsetCol: 0, offsetRow: -1, waitMs: 0 },
+          ],
+        },
+      ],
     });
 
     const editorSave = await putMap(id, token, payload);
