@@ -1,4 +1,6 @@
 import { $module } from "alepha";
+import { CacheProvider } from "alepha/cache";
+import { AlephaCacheDatabase, DatabaseCacheProvider } from "alepha/cache/database";
 import { AlephaWebSocket } from "alepha/websocket";
 import { AdventureController } from "./controllers/AdventureController.js";
 import { HealthController } from "./controllers/HealthController.js";
@@ -39,9 +41,23 @@ import { WebSocketTransportCapProvider } from "./websocketTransportCap.js";
 // docblock): nothing else constructs it, so leaving it out means the
 // transport-level WebSocket frame cap silently reverts to the framework's
 // 1 MiB default instead of this app's 16 KiB one.
+//
+// The global `CacheProvider` substitution is security-critical. Alepha's
+// workerd default is Cloudflare KV, but this app does not provision a KV
+// namespace: leaving the default in place makes `SessionService`'s defensive
+// login limiter catch the missing-binding error and fail open. The SQL cache
+// keeps both IP and account counters strongly consistent in the new D1, while
+// `AlephaCacheDatabase` registers the `cache_entries` entity/provider before
+// any auth request can use it.
 export const LindocaraApi = $module({
   name: "lindocara.api",
-  imports: [AlephaWebSocket],
+  imports: [AlephaWebSocket, AlephaCacheDatabase],
+  register: (alepha) => {
+    alepha.with({
+      provide: CacheProvider,
+      use: DatabaseCacheProvider,
+    });
+  },
   services: [
     HealthController,
     AppSecurityProvider,

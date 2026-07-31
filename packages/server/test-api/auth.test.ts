@@ -1,5 +1,7 @@
 import { MeController } from "@lindocara/server/api/controllers/MeController.js";
-import { UserController } from "alepha/api/users";
+import { RealmProvider, UserController } from "alepha/api/users";
+import { CacheProvider } from "alepha/cache";
+import { DatabaseCacheProvider } from "alepha/cache/database";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, test } from "vitest";
 import { createTestApp } from "./helpers.ts";
@@ -108,4 +110,45 @@ test("username shorter than 3 or with illegal chars is rejected", async ({ expec
     body: JSON.stringify({ username: "bad name!", password: PASSWORD }),
   });
   expect(illegal.status).toBe(400);
+});
+
+test("login rate limits use the new D1-compatible cache and preserve legacy thresholds", async ({
+  expect,
+}) => {
+  expect(alepha.inject(CacheProvider)).toBeInstanceOf(DatabaseCacheProvider);
+
+  const settings = await alepha.inject(RealmProvider).getRealm().getSettings();
+  expect(settings.loginRateLimit).toEqual({
+    ipMaxAttempts: 30,
+    accountMaxAttempts: 8,
+    windowMs: 60_000,
+  });
+
+  const users = alepha.inject(UserController);
+  const hostname = alepha.inject(ServerProvider).hostname;
+  const intent = await users.createRegistrationIntent.fetch({
+    body: { username: "ratelimited", password: PASSWORD },
+  });
+  await users.createUserFromIntent.fetch({
+    body: { intentId: intent.data.intentId },
+  });
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const response = await fetch(`${hostname}/_auth/token?provider=credentials`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: "ratelimited",
+        password: "wrong-password",
+      }),
+    });
+    expect(response.status).toBe(401);
+  }
+
+  const locked = await fetch(`${hostname}/_auth/token?provider=credentials`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username: "ratelimited", password: PASSWORD }),
+  });
+  expect(locked.status).toBe(401);
 });

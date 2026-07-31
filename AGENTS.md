@@ -776,8 +776,11 @@ connections are closed, command queues are bounded, resync is limited to one per
 cooldowns remain authoritative, and D1 mutations use ownership/epoch/idempotency constraints.
 When adding a message, assign its cost class: cheap intents use the connection window, expensive
 rebuild-like requests also need a dedicated cooldown. Add rejection coverage as well as the happy
-path. The remaining public-edge requirement is an account/login IP rate limit or Turnstile policy;
-the per-room limiter is not a credential-stuffing defense.
+path. Credential stuffing is guarded separately from room traffic: Alepha's login service keeps
+one 60-second D1-backed window per source IP (30 failures) and per account (8 failures).
+`LindocaraApi` must keep the global `CacheProvider -> DatabaseCacheProvider` substitution; the
+workerd default expects an unprovisioned KV namespace and its defensive error handling would
+otherwise fail open.
 
 ## Gotchas worth knowing
 

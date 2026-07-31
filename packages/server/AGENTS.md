@@ -83,6 +83,10 @@ reset); a lost presence lease degrades to a 4003 kick and the epoch fence keeps 
 regardless.
 
 **D1 discipline**, both load-bearing and easy to violate:
+- `LindocaraApi` globally substitutes `CacheProvider` with `DatabaseCacheProvider`. This is the
+  authoritative login-rate-limit store (30 failed attempts/IP/minute, 8/account/minute). Do not
+  remove the substitution: the workerd default expects a KV binding this app does not provision,
+  and `SessionService` deliberately fails open when its defensive cache is unavailable.
 - `repo.transaction()` throws on D1 — use the `$transactional()` middleware instead, and know it
   degrades to a no-op there (Alepha's D1 provider reports `supportsTransactions: false`), so it never
   serializes a read-then-write sequence against a concurrent request.

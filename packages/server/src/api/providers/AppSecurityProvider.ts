@@ -33,6 +33,9 @@ import { $realm } from "alepha/api/users";
  *   no verification/reset flows; `$realm()` would force these off anyway
  *   once `features.notifications` stays at its default `false`, but they
  *   are set explicitly here for clarity.
+ * - The login window also keeps the retired Worker's two production guards:
+ * 30 failed attempts per source IP and 8 per account in 60 seconds. Their
+ * counters use the D1-backed cache selected by `LindocaraApi`.
  */
 export class AppSecurityProvider {
   realm = $realm({
@@ -42,6 +45,13 @@ export class AppSecurityProvider {
       email: "none",
       resetPasswordAllowed: false,
       verifyEmailRequired: false,
+      loginRateLimit: {
+        // Preserve the two legacy production guards while storing their
+        // counters in the new Alepha D1: origin/IP and credential/account.
+        ipMaxAttempts: 30,
+        accountMaxAttempts: 8,
+        windowMs: 60_000,
+      },
     },
     identities: { credentials: true },
   });
