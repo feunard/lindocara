@@ -288,6 +288,7 @@ describe("server protocol", () => {
       hp: 2_000,
       maxHp: 2_000,
       dead: false,
+      threatening: true,
       facing: { x: 1, y: 0 },
       action: quake,
     };
@@ -334,9 +335,17 @@ describe("server protocol", () => {
     expect(parsed).toMatchObject({
       t: "world.resync",
       monsters: [
-        { rank: "normal", action: { kind: "monster_attack" } },
-        { rank: "elite", action: { kind: "monster_attack", skillId: "troll_quake" } },
-        { rank: "boss", action: { kind: "monster_attack", skillId: "troll_quake" } },
+        { rank: "normal", threatening: true, action: { kind: "monster_attack" } },
+        {
+          rank: "elite",
+          threatening: true,
+          action: { kind: "monster_attack", skillId: "troll_quake" },
+        },
+        {
+          rank: "boss",
+          threatening: true,
+          action: { kind: "monster_attack", skillId: "troll_quake" },
+        },
       ],
     });
     if (parsed?.t !== "world.resync") throw new Error("expected a full resynchronization");

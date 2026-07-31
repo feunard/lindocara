@@ -21,15 +21,31 @@ const MUSIC_BASE = 0.32;
 const AMBIENCE_BASE = 0.1;
 const CHARGE_IMPACT_WINDOW_MS = 900;
 const COMBAT_MUSIC_HOLD_MS = 8_000;
+const MUSIC_CROSSFADE_MS = 650;
+
+interface MusicFade {
+  startedAt: number;
+  explorationFrom: number;
+  combatFrom: number;
+  explorationTo: number;
+  combatTo: number;
+}
 
 export class GameSound {
   #context: AudioContext | null = null;
-  #music: HTMLAudioElement | null = null;
+  #explorationMusic: HTMLAudioElement | null = null;
+  #combatMusic: HTMLAudioElement | null = null;
   #ambience: HTMLAudioElement | null = null;
-  #musicSrc: string | null = null;
+  #explorationMusicSrc: string | null = null;
+  #combatMusicSrc: string | null = null;
   #ambienceSrc: string | null = null;
   #scene: AdventureAudioConfig = { ...DEFAULT_ADVENTURE_AUDIO };
   #combatUntil = 0;
+  #combatThreatened = false;
+  #combatActive = false;
+  #explorationWeight = 1;
+  #combatWeight = 0;
+  #musicFade: MusicFade | null = null;
   #unlocked = false;
   #visibilityBound = false;
   #settingsBound = false;
@@ -50,31 +66,58 @@ export class GameSound {
   configureScene(audio: AdventureAudioConfig = DEFAULT_ADVENTURE_AUDIO): void {
     this.#scene = { ...audio };
     this.#combatUntil = 0;
+    this.#combatThreatened = false;
+    this.#combatActive = false;
+    this.#explorationWeight = 1;
+    this.#combatWeight = 0;
+    this.#musicFade = null;
     this.#syncSceneAudio();
   }
 
   combatPulse(): void {
     if (this.#scene.combatMusic === null) return;
-    const wasExploring = performance.now() >= this.#combatUntil;
-    this.#combatUntil = performance.now() + COMBAT_MUSIC_HOLD_MS;
-    if (wasExploring) this.#syncMusic();
+    const now = performance.now();
+    this.#combatUntil = now + COMBAT_MUSIC_HOLD_MS;
+    this.#refreshCombatMusic(now);
+  }
+
+  /**
+   * Installs the latest server-authored aggro state for this player. Losing the last threat clears
+   * any activity hold left by previous hits, so combat audio exits as soon as the authority says
+   * nobody living is threatening the player.
+   */
+  setCombatThreatened(threatened: boolean): void {
+    if (threatened === this.#combatThreatened) return;
+    const wasThreatened = this.#combatThreatened;
+    this.#combatThreatened = threatened;
+    if (wasThreatened && !threatened) this.#combatUntil = 0;
+    this.#refreshCombatMusic(performance.now());
   }
 
   update(now = performance.now()): void {
     if (this.#combatUntil !== 0 && now >= this.#combatUntil) {
       this.#combatUntil = 0;
-      this.#syncMusic();
     }
+    this.#refreshCombatMusic(now);
+    this.#applyMusicFade(now);
   }
 
   stopAmbient(): void {
-    this.#stopElement(this.#music);
+    this.#stopElement(this.#explorationMusic);
+    this.#stopElement(this.#combatMusic);
     this.#stopElement(this.#ambience);
-    this.#music = null;
+    this.#explorationMusic = null;
+    this.#combatMusic = null;
     this.#ambience = null;
-    this.#musicSrc = null;
+    this.#explorationMusicSrc = null;
+    this.#combatMusicSrc = null;
     this.#ambienceSrc = null;
     this.#combatUntil = 0;
+    this.#combatThreatened = false;
+    this.#combatActive = false;
+    this.#explorationWeight = 1;
+    this.#combatWeight = 0;
+    this.#musicFade = null;
     this.#unlocked = false;
   }
 
@@ -127,15 +170,59 @@ export class GameSound {
   }
 
   #syncMusic(): void {
-    const combatActive = this.#combatUntil > performance.now();
-    const id = combatActive ? this.#scene.combatMusic : this.#scene.music;
-    const src = musicTrack(id)?.src ?? null;
-    if (src === this.#musicSrc) return;
-    this.#stopElement(this.#music);
-    this.#music = this.#createLoop(src);
-    this.#musicSrc = src;
+    const explorationSrc = musicTrack(this.#scene.music)?.src ?? null;
+    if (explorationSrc !== this.#explorationMusicSrc) {
+      this.#stopElement(this.#explorationMusic);
+      this.#explorationMusic = this.#createLoop(explorationSrc);
+      this.#explorationMusicSrc = explorationSrc;
+    }
+    const combatSrc = musicTrack(this.#scene.combatMusic)?.src ?? null;
+    if (combatSrc !== this.#combatMusicSrc) {
+      this.#stopElement(this.#combatMusic);
+      this.#combatMusic = null;
+      this.#combatMusicSrc = combatSrc;
+    } else if (this.#combatMusic) {
+      this.#combatMusic.pause();
+      this.#combatMusic.currentTime = 0;
+    }
     this.#syncVolumes();
     this.#syncPlayback();
+  }
+
+  #refreshCombatMusic(now: number): void {
+    const shouldFight =
+      this.#combatMusicSrc !== null && (this.#combatThreatened || this.#combatUntil > now);
+    if (shouldFight === this.#combatActive) return;
+    this.#applyMusicFade(now);
+    this.#combatActive = shouldFight;
+    if (shouldFight && !this.#combatMusic)
+      this.#combatMusic = this.#createLoop(this.#combatMusicSrc);
+    this.#musicFade = {
+      startedAt: now,
+      explorationFrom: this.#explorationWeight,
+      combatFrom: this.#combatWeight,
+      explorationTo: shouldFight ? 0 : 1,
+      combatTo: shouldFight ? 1 : 0,
+    };
+    this.#syncPlayback();
+    this.#applyMusicFade(now);
+  }
+
+  #applyMusicFade(now: number): void {
+    const fade = this.#musicFade;
+    if (!fade) return;
+    const progress = Math.max(0, Math.min(1, (now - fade.startedAt) / MUSIC_CROSSFADE_MS));
+    this.#explorationWeight =
+      fade.explorationFrom + (fade.explorationTo - fade.explorationFrom) * progress;
+    this.#combatWeight = fade.combatFrom + (fade.combatTo - fade.combatFrom) * progress;
+    this.#syncVolumes();
+    if (progress < 1) return;
+    this.#musicFade = null;
+    if (this.#explorationWeight === 0) this.#explorationMusic?.pause();
+    if (this.#combatWeight === 0 && this.#combatMusic) {
+      this.#combatMusic.pause();
+      this.#combatMusic.currentTime = 0;
+    }
   }
 
   #syncAmbience(): void {
@@ -164,8 +251,12 @@ export class GameSound {
 
   #syncVolumes(): void {
     const { muted, ambientVolume, musicEnabled } = getAudioSettings();
-    if (this.#music) {
-      this.#music.volume = muted || !musicEnabled ? 0 : MUSIC_BASE * ambientVolume;
+    const musicVolume = muted || !musicEnabled ? 0 : MUSIC_BASE * ambientVolume;
+    if (this.#explorationMusic) {
+      this.#explorationMusic.volume = musicVolume * this.#explorationWeight;
+    }
+    if (this.#combatMusic) {
+      this.#combatMusic.volume = musicVolume * this.#combatWeight;
     }
     if (this.#ambience) {
       this.#ambience.volume = muted ? 0 : AMBIENCE_BASE * ambientVolume;
@@ -175,9 +266,18 @@ export class GameSound {
   #syncPlayback(): void {
     const { muted, musicEnabled } = getAudioSettings();
     const canPlay = this.#unlocked && !document.hidden && !muted;
-    if (this.#music) {
-      if (canPlay && musicEnabled) void this.#music.play().catch(() => undefined);
-      else this.#music.pause();
+    const explorationNeeded =
+      this.#explorationWeight > 0 || (this.#musicFade?.explorationTo ?? 0) > 0;
+    const combatNeeded = this.#combatWeight > 0 || (this.#musicFade?.combatTo ?? 0) > 0;
+    if (this.#explorationMusic) {
+      if (canPlay && musicEnabled && explorationNeeded)
+        void this.#explorationMusic.play().catch(() => undefined);
+      else this.#explorationMusic.pause();
+    }
+    if (this.#combatMusic) {
+      if (canPlay && musicEnabled && combatNeeded)
+        void this.#combatMusic.play().catch(() => undefined);
+      else this.#combatMusic.pause();
     }
     if (this.#ambience) {
       if (canPlay) void this.#ambience.play().catch(() => undefined);

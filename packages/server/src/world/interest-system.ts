@@ -170,12 +170,22 @@ function visibleMonsterSnapshots<TSocket>(
     hp: monster.hp,
     maxHp: monster.maxHp,
     dead: monster.deadUntil > now,
+    threatening: monsterThreatensViewer(monster, viewer.id, now),
     facing: { ...monster.facing },
     action: combatActionSnapshot(monster.action),
     ...(context.navigationDebugAvailable && viewer.navigationDebug
       ? { navigationDebug: navigationDebugSnapshot(monster) }
       : {}),
   }));
+}
+
+/** Viewer-scoped combat pressure for UI/audio; target identity and the threat table stay private. */
+export function monsterThreatensViewer(
+  monster: MonsterRuntime,
+  viewerId: string,
+  now: number,
+): boolean {
+  return monster.deadUntil <= now && monster.threat.has(viewerId);
 }
 
 export function guardSnapshots<TSocket>(

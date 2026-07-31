@@ -153,6 +153,11 @@ export interface MonsterSnapshot {
   hp: number;
   maxHp: number;
   dead: boolean;
+  /**
+   * Viewer-specific authoritative aggro. This never identifies the target; it only tells this
+   * recipient whether the living monster currently considers them a threat.
+   */
+  threatening?: boolean;
   facing: Vec2;
   action: CombatActionSnapshot | null;
   navigationDebug?: NavigationDebugSnapshot;
@@ -859,6 +864,7 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     value.maxHp > 0 &&
     value.hp <= value.maxHp &&
     typeof value.dead === "boolean" &&
+    (value.threatening === undefined || typeof value.threatening === "boolean") &&
     isDirection(value.facing) &&
     (value.navigationDebug === undefined || isNavigationDebug(value.navigationDebug)) &&
     (value.action === null || isActionSnapshot(value.action, "monster"))

@@ -8,7 +8,7 @@ class FakeAudio {
   preload = "";
   volume = 1;
   currentTime = 0;
-  paused = false;
+  paused = true;
 
   constructor(src: string) {
     this.src = src;
@@ -31,8 +31,10 @@ describe("GameSound authored scene audio", () => {
     vi.unstubAllGlobals();
   });
 
-  it("loads exploration and ambience channels, then restores exploration after combat", () => {
+  it("crossfades from authoritative threat and resumes exploration at its retained position", () => {
     vi.stubGlobal("Audio", FakeAudio);
+    let now = 1_000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
     const sound = new GameSound();
     sound.configureScene({
       music: "town-theme",
@@ -45,11 +47,48 @@ describe("GameSound authored scene audio", () => {
       "/assets/lindocara/audio/swamp-ambience.ogg",
     ]);
 
-    const now = performance.now();
+    const exploration = FakeAudio.created[0];
+    if (!exploration) throw new Error("missing exploration channel");
+    exploration.currentTime = 37;
+
+    sound.setCombatThreatened(true);
+    const combat = FakeAudio.created.at(-1);
+    expect(combat?.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
+
+    now += 650;
+    sound.update(now);
+    expect(exploration.volume).toBe(0);
+    expect(combat?.volume).toBeCloseTo(0.144);
+
+    now += 100;
+    sound.setCombatThreatened(false);
+    now += 650;
+    sound.update(now);
+
+    expect(FakeAudio.created[0]).toBe(exploration);
+    expect(exploration.currentTime).toBe(37);
+    expect(exploration.volume).toBeCloseTo(0.144);
+    expect(combat?.volume).toBe(0);
+    expect(combat?.currentTime).toBe(0);
+  });
+
+  it("keeps attack activity as a fallback when no aggro snapshot has arrived yet", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    let now = 5_000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const sound = new GameSound();
+    sound.configureScene({
+      music: "town-theme",
+      ambience: null,
+      combatMusic: "battle-theme",
+    });
+
     sound.combatPulse();
     expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
-
-    sound.update(now + 9_000);
-    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/town-theme.mp3");
+    now += 8_001;
+    sound.update(now);
+    now += 650;
+    sound.update(now);
+    expect(FakeAudio.created[0]?.volume).toBeCloseTo(0.144);
   });
 });

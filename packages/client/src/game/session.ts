@@ -780,6 +780,9 @@ async function startGameIdentity(
   const attack = (): boolean => {
     if (interiorOpen()) return false;
     sound.unlock();
+    // Immediate local cue; the next snapshots replace this short activity hold with the
+    // authoritative per-monster threat state.
+    sound.combatPulse();
     connection?.attack();
     return true;
   };
@@ -1043,6 +1046,9 @@ async function startGameIdentity(
     sound.update(now);
     client.update(gameplayPaused() ? NO_INPUT : input.current(), dt);
     const sample = client.sample(now);
+    sound.setCombatThreatened(
+      sample.monsters.some((monster) => monster.threatening === true && !monster.dead),
+    );
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
     if (welcomed && self && !loadingCompletionScheduled) {
