@@ -671,6 +671,18 @@ export const en = {
   "talent.evolution.ranger.heartseeker.b.name": "Comet Arrow",
   "talent.evolution.ranger.heartseeker.b.description":
     "Deal 15% less direct damage, then explode for 65% power across a 105 px radius.",
+  "skill.ranger.afterimage.ready": "Swap ready",
+  "talent.ultimate.ranger.piercing_arrow.name": "Recall Arrow",
+  "talent.ultimate.ranger.piercing_arrow.description":
+    "The arrow returns to you and may hit enemies it missed on the outward path.",
+  "talent.ultimate.ranger.volley.name": "Triple Volley",
+  "talent.ultimate.ranger.volley.description": "Unleash three full volleys 1.5 seconds apart.",
+  "talent.ultimate.ranger.dash.name": "Afterimage",
+  "talent.ultimate.ranger.dash.description":
+    "Leave a decoy for 2 seconds. Reactivate once to swap positions with it.",
+  "talent.ultimate.ranger.heartseeker.name": "Sworn Prey",
+  "talent.ultimate.ranger.heartseeker.description":
+    "Hold to lock a visible enemy, then release a shot that gently curves toward it.",
   "talent.evolution.priest.mend.name": "Leaping Grace",
   "talent.evolution.priest.mend.description":
     "The heal bounces to a second wounded ally at half strength.",

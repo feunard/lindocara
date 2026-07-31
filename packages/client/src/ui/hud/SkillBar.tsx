@@ -2,7 +2,7 @@ import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
-import { activeEvolutionVariant } from "@lindocara/engine/talents.js";
+import { activeEvolutionVariant, talentEffect } from "@lindocara/engine/talents.js";
 import { keyboardBindingLabel } from "@lindocara/renderer/input-settings.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +36,11 @@ export function SkillBar() {
     const remaining = Math.max(0, shadowReturnUntil - shadowReturnServerNow);
     return remaining > 0 ? performance.now() + remaining : 0;
   }, [shadowReturnServerNow, shadowReturnUntil]);
+  const afterimageUntil = self?.class === "ranger" ? (selfState?.ranger?.afterimageUntil ?? 0) : 0;
+  const afterimageLocalDeadline = useMemo(() => {
+    const remaining = Math.max(0, afterimageUntil - shadowReturnServerNow);
+    return remaining > 0 ? performance.now() + remaining : 0;
+  }, [afterimageUntil, shadowReturnServerNow]);
 
   useEffect(() => {
     const releaseHeldPointer = (event: PointerEvent) => {
@@ -59,6 +64,7 @@ export function SkillBar() {
     const latestDeadline = Math.max(
       attackCooldownUntil,
       shadowReturnLocalDeadline,
+      afterimageLocalDeadline,
       ...Object.values(cooldowns),
     );
     const startedAt = performance.now();
@@ -77,7 +83,7 @@ export function SkillBar() {
     return () => {
       if (timer !== null) window.clearInterval(timer);
     };
-  }, [attackCooldownUntil, cooldowns, shadowReturnLocalDeadline]);
+  }, [afterimageLocalDeadline, attackCooldownUntil, cooldowns, shadowReturnLocalDeadline]);
 
   if (!self) return null;
   const ironGuardActive = self.class === "warrior" && self.guarding === true;
@@ -89,7 +95,9 @@ export function SkillBar() {
         const remaining = Math.max(0, cooldownUntil - now);
         const shadowReturnReady =
           self.class === "rogue" && skill.slot === 2 && now < shadowReturnLocalDeadline;
-        const cooling = remaining > 0 && !shadowReturnReady;
+        const afterimageReady =
+          self.class === "ranger" && skill.slot === 4 && now < afterimageLocalDeadline;
+        const cooling = remaining > 0 && !shadowReturnReady && !afterimageReady;
         const evolution = activeEvolutionVariant(
           self.class,
           selfState?.talents?.selected ?? [],
@@ -113,7 +121,12 @@ export function SkillBar() {
         const lacksMana =
           manaCost > 0 && (selfState?.resource?.current ?? Number.NEGATIVE_INFINITY) < manaCost;
         const guardToggle = self.class === "warrior" && skill.id === "iron_guard";
-        const heldSkill = self.class === "priest" && skill.id === "blink";
+        const heldSkill =
+          (self.class === "priest" && skill.id === "blink") ||
+          (self.class === "ranger" &&
+            skill.id === "heartseeker" &&
+            talentEffect(self.class, selfState?.talents?.selected ?? [], "sworn_prey", 5) !==
+              undefined);
         const blockedByGuard = ironGuardActive && !guardToggle;
         const unavailable = !unlocked || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
@@ -139,11 +152,12 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
+            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady || afterimageReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
             style={{ gridRow: layout.row, gridColumn: layout.column }}
             data-numpad={layout.numpad}
             data-evolution-variant={evolution?.variantId}
             data-shadow-return-ready={shadowReturnReady || undefined}
+            data-afterimage-ready={afterimageReady || undefined}
             disabled={!game || self.life !== "alive" || unavailable}
             onPointerDown={
               heldSkill
@@ -162,7 +176,7 @@ export function SkillBar() {
               }
             }}
             aria-pressed={guardToggle ? ironGuardActive : undefined}
-            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}`}
+            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}`}
             aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
             title={
               unlocked
@@ -191,6 +205,9 @@ export function SkillBar() {
             {!unlocked && <span className="skill-slot__lock">{requiredLevel}</span>}
             {shadowReturnReady && (
               <span className="skill-slot__return">{t("skill.rogue.shadow_return.ready")}</span>
+            )}
+            {afterimageReady && (
+              <span className="skill-slot__return">{t("skill.ranger.afterimage.ready")}</span>
             )}
             {cooling && (
               <span className="skill-slot__cooldown" aria-hidden="true">

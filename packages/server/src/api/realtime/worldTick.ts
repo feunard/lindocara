@@ -218,10 +218,13 @@ import {
 } from "../../world/projectile-system.js";
 import { nextQuestChapter, questDefinition } from "../../world/quest-system.js";
 import {
+  advanceAdditionalVolleys,
   applyCometExplosion,
   focusedVolleyPowerRatio,
   linePiercerPowerRatio,
   retreatShotDirections,
+  scheduleAdditionalVolleys,
+  swornPreyTarget,
   windstepCanInterrupt,
 } from "../../world/ranger-variant-system.js";
 import { planShadowDance } from "../../world/rogue-shadow-dance-system.js";
@@ -767,6 +770,8 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   player.warriorBannerChallengeReduction = 0;
   player.warriorBannerPower.clear();
   player.warriorVortex = null;
+  player.rangerVolleySequence = null;
+  player.rangerAfterimage = null;
   clearRogueTransientState(player);
   player.negativeEffects.clear();
   removeDamageOverTimeBySource(w.state.damageOverTime, player.id);
@@ -1831,6 +1836,31 @@ export function finishHeldPlayerAction(
       }
     }
   }
+  if (action?.skillId === "heartseeker") {
+    const target = action.rangerSwornPreyTargetId
+      ? w.state.monsters.find(
+          (monster) => monster.id === action.rangerSwornPreyTargetId && monster.deadUntil <= now,
+        )
+      : undefined;
+    if (target && hasLineOfSight(player, target, zone(w.state).terrain.tiles)) {
+      action.direction = normalizeDirection(
+        { x: target.x - player.x, y: target.y - player.y },
+        action.direction,
+      );
+    }
+    if (action.resolved) {
+      const skill = skillWithTalents(player.class, player.talents, 5);
+      spawnPlayerProjectiles(
+        w,
+        player,
+        action,
+        skill,
+        actionForClassSlot(player.class, 5),
+        "monsters",
+        now,
+      );
+    }
+  }
   sendStateTo(w, connectionId, player);
   return true;
 }
@@ -1952,6 +1982,69 @@ export function startPlayerAction(
     });
     return false;
   }
+  const afterimage =
+    skill.id === "dash" ? talentEffect(player.class, player.talents, "afterimage", 4) : undefined;
+  if (player.rangerAfterimage && player.rangerAfterimage.expiresAt <= now)
+    player.rangerAfterimage = null;
+  if (afterimage && player.rangerAfterimage) {
+    const destination = { x: player.rangerAfterimage.x, y: player.rangerAfterimage.y };
+    if (!isWalkable(destination, PLAYER_SIZE, zone(w.state).terrain)) {
+      deps.send(connectionId, {
+        t: "event",
+        code: "skill.blocked",
+        params: { skill: skill.id },
+        tone: "info",
+        ...destination,
+      });
+      return false;
+    }
+    const origin = { x: player.x, y: player.y };
+    cancelCombatAction(player);
+    player.x = destination.x;
+    player.y = destination.y;
+    player.rangerAfterimage = null;
+    player.dirty = true;
+    w.state.playerGrid.update(player, origin);
+    const swapDirection = normalizeDirection(
+      { x: destination.x - origin.x, y: destination.y - origin.y },
+      player.facing,
+    );
+    const swapAction: CombatActionRuntime = {
+      id: crypto.randomUUID(),
+      kind: "skill",
+      skillId: skill.id,
+      slot,
+      direction: swapDirection,
+      startedAt: now,
+      impactAt: now,
+      recoveryEndsAt: now + 180,
+      resolved: true,
+    };
+    if (talentEffect(player.class, player.talents, "dash_invulnerability", 4))
+      player.action = swapAction;
+    const retreatShot = talentEffect(player.class, player.talents, "retreat_shot", 4);
+    if (retreatShot) spawnRetreatShot(w, player, swapAction, skill, retreatShot, now);
+    sendStateTo(w, connectionId, player);
+    sendSpatialEvent(
+      w,
+      {
+        t: "animation",
+        actionId: swapAction.id,
+        actorKind: "player",
+        actorId: player.id,
+        action: "skill",
+        skillId: skill.id,
+        talented: true,
+        evolved: true,
+        direction: swapDirection,
+        startedAt: now,
+        impactAt: now,
+        recoveryEndsAt: now + 180,
+      },
+      player,
+    );
+    return true;
+  }
   if (skill.id === "vanish" && isRogueStealthed(player, now)) return false;
   if (player.guarding) {
     if (skill.id !== "iron_guard") return false;
@@ -2044,6 +2137,22 @@ export function startPlayerAction(
           (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
         )
       : null);
+  const swornPrey =
+    skill.id === "heartseeker"
+      ? talentEffect(player.class, player.talents, "sworn_prey", slot)
+      : undefined;
+  const swornTarget = swornPrey
+    ? swornPreyTarget(
+        player,
+        w.state.monsterGrid.queryRadius(
+          player,
+          skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+        ),
+        skill.range,
+        now,
+        (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
+      )
+    : null;
   const shadowDanceTarget =
     shadowDance?.ok === true ? shadowDance.plan.strikes[0]?.targetPosition : undefined;
   const direction =
@@ -2060,12 +2169,17 @@ export function startPlayerAction(
             { x: shadowDanceTarget.x - player.x, y: shadowDanceTarget.y - player.y },
             player.facing,
           )
-        : chargeTarget
+        : swornTarget
           ? normalizeDirection(
-              { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
+              { x: swornTarget.x - player.x, y: swornTarget.y - player.y },
               player.facing,
             )
-          : player.facing;
+          : chargeTarget
+            ? normalizeDirection(
+                { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
+                player.facing,
+              )
+            : player.facing;
   const cyclone =
     definition.shape === "area_damage"
       ? talentEffect(player.class, player.talents, "cyclone", slot)
@@ -2089,13 +2203,16 @@ export function startPlayerAction(
           mobilityDistance: skill.distance ?? 0,
           channelDurationMs: LUMEN_STEP_MAX_HOLD_MS,
         }
-      : {}),
+      : swornPrey
+        ? { channelDurationMs: swornPrey.maximumHoldMs }
+        : {}),
   });
   if (!action) return false;
   if (chargeFollowup) {
     action.warriorChargeFollowup = { excludedTargetId: chargeFollowup.excludedTargetId };
     player.warriorChargeFollowup = null;
   }
+  if (swornTarget) action.rangerSwornPreyTargetId = swornTarget.id;
   if (shadowStep?.ok === true) {
     action.rogueShadowStep = {
       targetId: shadowStep.plan.targetId,
@@ -2479,6 +2596,8 @@ function spawnPlayerProjectiles(
     skill.slot,
   );
   const focusedVolley = talentEffect(player.class, player.talents, "focused_volley", skill.slot);
+  const returningArrow = talentEffect(player.class, player.talents, "returning_arrow", skill.slot);
+  const swornPrey = talentEffect(player.class, player.talents, "sworn_prey", skill.slot);
   // Direction is frozen at wind-up, but projectile origin is frozen only when the projectile
   // actually appears. A moving ranger/priest therefore fires from their active-frame position.
   const source = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
@@ -2522,6 +2641,15 @@ function spawnPlayerProjectiles(
       basic: skill.slot === 1,
       now,
       ricochetRemaining: talentEffect(player.class, player.talents, "ricochet", skill.slot) ? 1 : 0,
+      ...(returningArrow
+        ? { returnRange: skill.range * Math.max(0, returningArrow.returnRangeMultiplier) }
+        : {}),
+      ...(swornPrey && action.rangerSwornPreyTargetId
+        ? {
+            homingTargetId: action.rangerSwornPreyTargetId,
+            homingTurnRateRadians: swornPrey.turnRateRadians,
+          }
+        : {}),
       ...(activationHitEntityIds ? { activationHitEntityIds } : {}),
       ...(activationHitCounts ? { activationHitCounts } : {}),
     });
@@ -2721,7 +2849,24 @@ export function resolvePlayerAction(
     return;
   }
   if (definition.shape === "dash") {
+    const origin = { x: player.x, y: player.y };
     movePlayer(w, player, { x: -action.direction.x, y: -action.direction.y }, skill.distance ?? 0);
+    const afterimage = talentEffect(player.class, player.talents, "afterimage", slot as SkillSlot);
+    if (afterimage) {
+      player.rangerAfterimage = {
+        ...origin,
+        expiresAt: now + Math.max(0, afterimage.durationMs),
+      };
+      for (const monster of w.state.monsterGrid.queryRadius(origin, afterimage.aggroRadius)) {
+        if (
+          monster.deadUntil <= now &&
+          pointDistance(origin, monster) <= afterimage.aggroRadius &&
+          hasLineOfSight(origin, monster, terrain.tiles)
+        )
+          tauntMonster(player, monster, now);
+      }
+      sendStateTo(w, connectionId, player);
+    }
     const retreatShot = talentEffect(
       player.class,
       player.talents,
@@ -2737,7 +2882,23 @@ export function resolvePlayerAction(
     return;
   }
   if (definition.shape === "projectile" || definition.shape === "volley") {
+    if (
+      skill.id === "heartseeker" &&
+      action.channelMaxEndsAt !== undefined &&
+      action.channelEndsAt === undefined
+    )
+      return;
     spawnPlayerProjectiles(w, player, action, skill, definition, "monsters", now);
+    if (definition.shape === "volley") {
+      const tripleVolley = talentEffect(
+        player.class,
+        player.talents,
+        "triple_volley",
+        slot as SkillSlot,
+      );
+      if (tripleVolley)
+        player.rangerVolleySequence = scheduleAdditionalVolleys(action, tripleVolley);
+    }
     return;
   }
   if (definition.shape === "heal_projectile") {
@@ -2940,6 +3101,57 @@ function resolveWarriorCycloneStrike(
       continue;
     damageMonster(w, connectionId, player, monster, skill, now, false, power);
   }
+}
+
+function advanceRangerVolley(w: WorldGlue, player: PlayerRuntime, now: number): void {
+  const sequence = player.rangerVolleySequence;
+  if (!sequence) return;
+  advanceAdditionalVolleys(
+    player,
+    now,
+    (salvo) => {
+      sendSpatialEvent(
+        w,
+        {
+          t: "animation",
+          actionId: salvo.actionId,
+          actorKind: "player",
+          actorId: player.id,
+          action: "skill",
+          skillId: "volley",
+          talented: true,
+          evolved: true,
+          direction: { ...sequence.direction },
+          startedAt: salvo.animationAt,
+          impactAt: salvo.impactAt,
+          recoveryEndsAt: salvo.recoveryEndsAt,
+        },
+        player,
+      );
+    },
+    (salvo) => {
+      const action: CombatActionRuntime = {
+        id: salvo.actionId,
+        kind: "skill",
+        skillId: "volley",
+        slot: 3,
+        direction: { ...sequence.direction },
+        startedAt: salvo.animationAt,
+        impactAt: salvo.impactAt,
+        recoveryEndsAt: salvo.recoveryEndsAt,
+        resolved: true,
+      };
+      spawnPlayerProjectiles(
+        w,
+        player,
+        action,
+        skillWithTalents(player.class, player.talents, 3),
+        actionForClassSlot(player.class, 3),
+        "monsters",
+        now,
+      );
+    },
+  );
 }
 
 function pushMonsterAwayFrom(
@@ -3666,6 +3878,8 @@ export function handleTalentReset(w: WorldGlue, connectionId: string, player: Pl
   player.warriorBannerChallengeReduction = 0;
   player.warriorBannerPower.clear();
   player.warriorVortex = null;
+  player.rangerVolleySequence = null;
+  player.rangerAfterimage = null;
   if (player.guarding) {
     player.guardReduction = skillWithTalents(player.class, player.talents, 2).reduction ?? 0;
     player.guardActivatedAt = 0;
@@ -4783,6 +4997,7 @@ export function advanceWorldTick(w: WorldGlue): void {
   advanceCombatActions(state.players.values(), now, (player, action) =>
     resolvePlayerAction(w, player, action, now),
   );
+  for (const player of state.players.values()) advanceRangerVolley(w, player, now);
   advanceWarriorCyclones(state.players.values(), now, (player, radius, power) =>
     resolveWarriorCycloneStrike(w, player, radius, power, now),
   );

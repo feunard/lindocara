@@ -76,6 +76,9 @@ export function selfState(
           },
         }
       : {}),
+    ...(player.class === "ranger"
+      ? { ranger: { afterimageUntil: player.rangerAfterimage?.expiresAt ?? 0 } }
+      : {}),
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }

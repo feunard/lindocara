@@ -236,4 +236,76 @@ describe("skill bar cooldowns", () => {
     fireEvent.click(shadowReturn);
     expect(game.castSkill).toHaveBeenCalledWith(2);
   });
+
+  it("keeps the Afterimage swap actionable during Dash cooldown", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      self: {
+        nick: "Echo",
+        level: 10,
+        hp: 100,
+        maxHp: 100,
+        life: "alive",
+        corpseDistance: null,
+        class: "ranger",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
+        equipment: { mainHand: "hunter_bow", offHand: null },
+      },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        serverNow: 1_000,
+        ranger: { afterimageUntil: 3_000 },
+        talents: {
+          selected: ["ranger.dash.mastery", "ranger.dash.afterimage"],
+          pointsSpent: 2,
+          pointsAvailable: 8,
+        },
+      },
+      skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: performance.now() + 5_000, 5: 0 },
+    });
+    render(<SkillBar />);
+
+    const swap = screen.getByRole("button", {
+      name: "4. Windstep. Evolution A. Swap ready",
+    });
+    expect(swap).toBeEnabled();
+    expect(swap).toHaveAttribute("data-afterimage-ready", "true");
+    fireEvent.click(swap);
+    expect(game.castSkill).toHaveBeenCalledWith(4);
+  });
+
+  it("treats Sworn Prey as a held skill and releases it on key-style activation", () => {
+    const game = gameHandle();
+    const self = useUiStore.getState().self;
+    if (!self) throw new Error("skill fixture missing");
+    useUiStore.setState({
+      game,
+      self: { ...self, class: "ranger", equipment: { mainHand: "hunter_bow", offHand: null } },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        talents: {
+          selected: ["ranger.heartseeker.execute", "ranger.heartseeker.sworn_prey"],
+          pointsSpent: 2,
+          pointsAvailable: 8,
+        },
+      },
+    });
+    render(<SkillBar />);
+
+    const heartseeker = screen.getByRole("button", { name: /5\. Heartstopper/ });
+    fireEvent.click(heartseeker, { detail: 0 });
+    expect(game.castSkill).toHaveBeenCalledWith(5);
+    expect(game.releaseSkill).toHaveBeenCalledWith(5);
+  });
 });

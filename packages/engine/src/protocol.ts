@@ -126,6 +126,8 @@ export interface PlayerSnapshot {
   guarding?: boolean;
   /** True while enemies cannot perceive this player. */
   invisible?: boolean;
+  /** Ranger decoy authored by the room; appearance only on recipients. */
+  afterimage?: { x: number; y: number; expiresAt: number };
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -199,6 +201,10 @@ export interface RogueSelfState {
   shadowReturnUntil: number;
 }
 
+export interface RangerSelfState {
+  afterimageUntil: number;
+}
+
 export interface SelfState {
   xp: number;
   xpToNext: number;
@@ -228,6 +234,8 @@ export interface SelfState {
   };
   /** Present only for the Rogue; all values are server deadlines and never persisted. */
   rogue?: RogueSelfState;
+  /** Present only for the Ranger; the swap window is room-local. */
+  ranger?: RangerSelfState;
 }
 
 export interface PartyMemberState {
@@ -845,6 +853,10 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     isDirection(value.facing) &&
     (value.guarding === undefined || typeof value.guarding === "boolean") &&
     (value.invisible === undefined || typeof value.invisible === "boolean") &&
+    (value.afterimage === undefined ||
+      (isRecord(value.afterimage) &&
+        isPosition(value.afterimage) &&
+        isFiniteNumber(value.afterimage.expiresAt))) &&
     (value.action === null || isActionSnapshot(value.action, "player"))
   );
 }
@@ -1190,6 +1202,11 @@ function isSelfState(value: unknown): value is SelfState {
       return false;
     }
   }
+  if (
+    value.ranger !== undefined &&
+    (!isRecord(value.ranger) || !isFiniteNumber(value.ranger.afterimageUntil))
+  )
+    return false;
   return true;
 }
 

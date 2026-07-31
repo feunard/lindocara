@@ -94,6 +94,9 @@ export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerS
     facing: { ...player.facing },
     guarding: player.guarding,
     invisible: player.invisibleUntil > now || isRogueStealthed(player, now),
+    ...(player.rangerAfterimage && player.rangerAfterimage.expiresAt > now
+      ? { afterimage: { ...player.rangerAfterimage } }
+      : {}),
     action: combatActionSnapshot(player.action),
   };
 }

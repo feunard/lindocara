@@ -44,6 +44,9 @@ export interface SpawnProjectileOptions {
   activationHitEntityIds?: Set<string>;
   activationHitCounts?: Map<string, number>;
   ricochetRemaining?: number;
+  returnRange?: number;
+  homingTargetId?: string;
+  homingTurnRateRadians?: number;
 }
 
 /**
@@ -110,6 +113,16 @@ export function spawnProjectile(
     sourceSkillId: options.sourceSkillId,
     basic: options.basic,
     ricochetRemaining: Math.max(0, Math.trunc(options.ricochetRemaining ?? 0)),
+    ...(options.returnRange === undefined
+      ? {}
+      : {
+          returnRange: Math.max(0, Math.min(options.returnRange, MAX_PROJECTILE_RANGE)),
+          returnPierce: Math.max(0, Math.trunc(options.definition.pierce)),
+        }),
+    ...(options.homingTargetId ? { homingTargetId: options.homingTargetId } : {}),
+    ...(options.homingTurnRateRadians === undefined
+      ? {}
+      : { homingTurnRateRadians: Math.max(0, options.homingTurnRateRadians) }),
     ...(options.activationHitEntityIds
       ? { activationHitEntityIds: options.activationHitEntityIds }
       : {}),
@@ -117,6 +130,43 @@ export function spawnProjectile(
   };
   projectiles.push(projectile);
   return projectile;
+}
+
+function playerById<TSocket>(
+  players: Map<TSocket, PlayerRuntime>,
+  playerId: string,
+): PlayerRuntime | undefined {
+  return [...players.values()].find((player) => player.id === playerId);
+}
+
+function turnToward(current: Vec2, target: Vec2, maximumRadians: number): Vec2 {
+  const currentAngle = Math.atan2(current.y, current.x);
+  const targetAngle = Math.atan2(target.y, target.x);
+  const delta = Math.atan2(
+    Math.sin(targetAngle - currentAngle),
+    Math.cos(targetAngle - currentAngle),
+  );
+  const angle = currentAngle + Math.max(-maximumRadians, Math.min(maximumRadians, delta));
+  return { x: Math.cos(angle), y: Math.sin(angle) };
+}
+
+function beginReturn<TSocket>(
+  projectile: ProjectileRuntime,
+  context: ProjectileSystemContext<TSocket>,
+  now: number,
+): boolean {
+  if (projectile.returningToOwner || !projectile.returnRange) return false;
+  const owner = playerById(context.players, projectile.ownerId);
+  if (!owner?.authorized || owner.transitioning || owner.life !== "alive") return false;
+  projectile.returningToOwner = true;
+  projectile.rangeRemaining = projectile.returnRange;
+  projectile.pierceRemaining = projectile.returnPierce ?? 0;
+  projectile.direction = normalizeDirection({
+    x: owner.x - projectile.x,
+    y: owner.y - projectile.y,
+  });
+  projectile.expiresAt = now + MAX_PROJECTILE_LIFETIME_MS;
+  return true;
 }
 
 function entityCenter(entity: Vec2): Vec2 {
@@ -210,6 +260,32 @@ export function advanceProjectiles<TSocket>(
   const survivors: ProjectileRuntime[] = [];
   for (const projectile of context.projectiles) {
     if (now >= projectile.expiresAt || projectile.rangeRemaining <= 0) continue;
+    const owner = playerById(context.players, projectile.ownerId);
+    if (projectile.returningToOwner) {
+      if (!owner?.authorized || owner.transitioning || owner.life !== "alive") continue;
+      const ownerCenter = entityCenter(owner);
+      if (
+        Math.hypot(ownerCenter.x - projectile.x, ownerCenter.y - projectile.y) <=
+        projectile.speed * TICK_DT
+      )
+        continue;
+      projectile.direction = normalizeDirection({
+        x: ownerCenter.x - projectile.x,
+        y: ownerCenter.y - projectile.y,
+      });
+    } else if (projectile.homingTargetId) {
+      const target = context.monsters.find(
+        (monster) => monster.id === projectile.homingTargetId && monster.deadUntil <= now,
+      );
+      if (target) {
+        const targetCenter = entityCenter(target);
+        projectile.direction = turnToward(
+          projectile.direction,
+          { x: targetCenter.x - projectile.x, y: targetCenter.y - projectile.y },
+          projectile.homingTurnRateRadians ?? 0,
+        );
+      }
+    }
     const desired = advanceProjectile(projectile, projectile.direction, projectile.speed, TICK_DT);
     const fullDistance = Math.min(desired.distance, projectile.rangeRemaining);
     const to = {
@@ -232,6 +308,10 @@ export function advanceProjectiles<TSocket>(
     if (first?.kind === "terrain") {
       projectile.x = first.point.x;
       projectile.y = first.point.y;
+      if (beginReturn(projectile, context, now)) {
+        survivors.push(projectile);
+        continue;
+      }
       context.blocked(projectile, first.point);
       continue;
     }
@@ -259,18 +339,24 @@ export function advanceProjectiles<TSocket>(
     if (blockingContact) {
       projectile.x = blockingContact.point.x;
       projectile.y = blockingContact.point.y;
+      if (beginReturn(projectile, context, now)) survivors.push(projectile);
       continue;
     }
     if (terrain) {
       projectile.x = terrain.point.x;
       projectile.y = terrain.point.y;
+      if (beginReturn(projectile, context, now)) {
+        survivors.push(projectile);
+        continue;
+      }
       context.blocked(projectile, terrain.point);
       continue;
     }
     projectile.x = to.x;
     projectile.y = to.y;
     projectile.rangeRemaining -= fullDistance;
-    if (projectile.rangeRemaining > 0) survivors.push(projectile);
+    if (projectile.rangeRemaining > 0 || beginReturn(projectile, context, now))
+      survivors.push(projectile);
   }
   context.projectiles.splice(0, context.projectiles.length, ...survivors);
 }

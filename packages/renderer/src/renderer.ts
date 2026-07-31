@@ -989,6 +989,7 @@ export class Renderer {
   #loot = new Map<string, EntityView<LootSnapshot>>();
   #corpses = new Map<string, EntityView<CorpseSnapshot>>();
   #projectiles = new Map<string, EntityView<ProjectileSnapshot>>();
+  #rangerAfterimages = new Map<string, { container: Container; sprite: Sprite }>();
   /** Drawn authored events, keyed by event id. Appearance only — nothing gameplay reads these; the
    *  server already resolved which page is active and baked collision into the tilemap. */
   #events = new Map<string, EventView>();
@@ -1770,6 +1771,8 @@ export class Renderer {
   #clearTransientCombatViews(): void {
     for (const view of this.#projectiles.values()) view.container.destroy({ children: true });
     this.#projectiles.clear();
+    for (const view of this.#rangerAfterimages.values()) view.container.destroy({ children: true });
+    this.#rangerAfterimages.clear();
     for (const effect of this.#activeEffects) effect.container.destroy({ children: true });
     this.#activeEffects = [];
     this.#shadowDanceSequences = [];
@@ -3245,6 +3248,37 @@ export class Renderer {
     };
   }
 
+  #updateRangerAfterimages(players: readonly PlayerSnapshot[], now: number): void {
+    const active = new Set<string>();
+    for (const player of players) {
+      const afterimage = player.afterimage;
+      if (!afterimage || afterimage.expiresAt <= now) continue;
+      active.add(player.id);
+      let view = this.#rangerAfterimages.get(player.id);
+      if (!view) {
+        const container = new Container();
+        const sprite = new Sprite(playerAnimations(player, this.art.units).idle[0]);
+        sprite.width = TINY_SWORDS_UNIT_FRAME;
+        sprite.height = TINY_SWORDS_UNIT_FRAME;
+        sprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
+        sprite.tint = 0x6ad9ff;
+        container.addChild(sprite);
+        this.#actors.addChild(container);
+        view = { container, sprite };
+        this.#rangerAfterimages.set(player.id, view);
+      }
+      view.container.position.set(afterimage.x, afterimage.y);
+      view.container.zIndex = Math.round(afterimage.y + PLAYER_SIZE - 1);
+      view.container.visible = this.#isVisibleWorld(afterimage.x, afterimage.y, ENTITY_CULL_MARGIN);
+      view.sprite.alpha = 0.28 + Math.sin(now / 90) * 0.08;
+    }
+    for (const [playerId, view] of this.#rangerAfterimages) {
+      if (active.has(playerId)) continue;
+      view.container.destroy({ children: true });
+      this.#rangerAfterimages.delete(playerId);
+    }
+  }
+
   #createMonster(monster: MonsterSnapshot): EntityView<MonsterSnapshot> {
     const container = new Container();
     const actor = new Container();
@@ -4407,6 +4441,7 @@ export class Renderer {
     this.#drawHitboxes(sample);
     this.#updateStaticVisibility();
     const self = sample.players.find((player) => player.id === this.#selfId);
+    this.#updateRangerAfterimages(sample.players, now);
 
     reconcile(
       this.#players,

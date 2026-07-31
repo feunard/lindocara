@@ -179,6 +179,91 @@ describe("authoritative projectile system", () => {
     expect(harness.damageMonster.mock.calls.map((call) => call[1].id)).toEqual(["first", "second"]);
   });
 
+  it("turns a piercing arrow back at maximum range without repeating outward hits", () => {
+    const owner = player("owner", 0);
+    const first = monster("first", 50);
+    const projectiles: ProjectileRuntime[] = [];
+    const projectile = spawnProjectile(projectiles, {
+      actionId: "44444444-4444-4444-8444-444444444444",
+      owner,
+      roomKey: owner.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("piercing_arrow", 7),
+      range: 80,
+      returnRange: 80,
+      power: 29,
+      targetFilter: "monsters",
+      sourceSkillId: "piercing_arrow",
+      basic: false,
+      now: 1_000,
+    });
+    if (!projectile) throw new Error("returning projectile rejected");
+    const harness = context({ owner, projectiles, monsters: [first] });
+    advanceProjectiles(harness.value, 1_050);
+    expect(projectile.returningToOwner).toBe(true);
+    expect(projectile.direction.x).toBeLessThan(0);
+    advanceProjectiles(harness.value, 1_100);
+    expect(harness.damageMonster.mock.calls.map((call) => call[1].id)).toEqual(["first"]);
+    expect(projectiles).toHaveLength(0);
+  });
+
+  it("returns from terrain instead of reporting the first obstacle as a failed shot", () => {
+    const owner = player("owner", 0);
+    const projectiles: ProjectileRuntime[] = [];
+    const projectile = spawnProjectile(projectiles, {
+      actionId: "55555555-5555-4555-8555-555555555555",
+      owner,
+      roomKey: owner.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("piercing_arrow", 7),
+      range: 200,
+      returnRange: 200,
+      power: 29,
+      targetFilter: "monsters",
+      sourceSkillId: "piercing_arrow",
+      basic: false,
+      now: 1_000,
+    });
+    if (!projectile) throw new Error("returning projectile rejected");
+    const wall = [{ x: 80, y: 0, width: 64, height: 64 }];
+    const harness = context({ owner, projectiles, world: terrain(wall) });
+    advanceProjectiles(harness.value, 1_050);
+    expect(projectile.returningToOwner).toBe(true);
+    expect(harness.blocked).not.toHaveBeenCalled();
+  });
+
+  it("curves Heartseeker gradually while leaving the first interceptor authoritative", () => {
+    const owner = player("owner", 0);
+    const interceptor = monster("interceptor", 70);
+    const target = monster("target", 150);
+    target.y = 100;
+    const projectiles: ProjectileRuntime[] = [];
+    const projectile = spawnProjectile(projectiles, {
+      actionId: "66666666-6666-4666-8666-666666666666",
+      owner,
+      roomKey: owner.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("heartseeker"),
+      range: 300,
+      power: 29,
+      targetFilter: "monsters",
+      sourceSkillId: "heartseeker",
+      basic: false,
+      now: 1_000,
+      homingTargetId: target.id,
+      homingTurnRateRadians: Math.PI / 24,
+    });
+    if (!projectile) throw new Error("guided projectile rejected");
+    const harness = context({ owner, projectiles, monsters: [interceptor, target] });
+    advanceProjectiles(harness.value, 1_050);
+    expect(projectile.direction.y).toBeGreaterThan(0);
+    expect(projectile.direction.y).toBeLessThan(0.2);
+    expect(harness.damageMonster.mock.calls[0]?.[1].id).toBe("interceptor");
+  });
+
   it("lets focused-volley arrows share a bounded per-target impact count", () => {
     const owner = player("owner", 0);
     const target = monster("large-target", 50);

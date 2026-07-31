@@ -60,6 +60,7 @@ export type TalentEffect =
     }
   | { kind: "ricochet"; ratio: number; range: number }
   | { kind: "line_piercer"; bonusPerTarget: number; maxBonus: number }
+  | { kind: "returning_arrow"; returnRangeMultiplier: number }
   | { kind: "extra_projectiles"; value: number }
   | {
       kind: "focused_volley";
@@ -67,6 +68,7 @@ export type TalentEffect =
       decayPerHit: number;
       minimumPowerRatio: number;
     }
+  | { kind: "triple_volley"; salvos: number; intervalMs: number }
   | { kind: "dash_invulnerability" }
   | { kind: "windstep" }
   | {
@@ -76,6 +78,7 @@ export type TalentEffect =
       powerRatio: number;
       range: number;
     }
+  | { kind: "afterimage"; durationMs: number; aggroRadius: number }
   | { kind: "execute"; threshold: number; multiplier: number }
   | {
       kind: "comet_arrow";
@@ -83,6 +86,7 @@ export type TalentEffect =
       radius: number;
       splashPowerRatio: number;
     }
+  | { kind: "sworn_prey"; maximumHoldMs: number; turnRateRadians: number }
   | { kind: "chain_heal"; ratio: number; range: number }
   | { kind: "emergency_mend"; threshold: number; powerMultiplier: number }
   | { kind: "blink_heal"; value: number }
@@ -468,92 +472,136 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
     ),
   ],
   ranger: [
-    ...branch("ranger", 2, [
-      { key: "force", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+    ...branch(
+      "ranger",
+      2,
+      [
+        { key: "force", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "ricochet",
+          label: "ricochet",
+          effects: [{ kind: "ricochet", ratio: 0.6, range: 160 }],
+        },
+        {
+          key: "line_piercer",
+          label: "line_piercer",
+          effects: [{ kind: "line_piercer", bonusPerTarget: 0.15, maxBonus: 0.6 }],
+        },
+      ],
       {
-        key: "ricochet",
-        label: "ricochet",
-        effects: [{ kind: "ricochet", ratio: 0.6, range: 160 }],
+        ultimate: {
+          key: "returning_arrow",
+          label: "ultimate",
+          effects: [{ kind: "returning_arrow", returnRangeMultiplier: 1 }],
+        },
       },
+    ),
+    ...branch(
+      "ranger",
+      3,
+      [
+        { key: "force", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "extra_projectiles",
+          effects: [{ kind: "extra_projectiles", value: 4 }],
+        },
+        {
+          key: "focused",
+          label: "focused_volley",
+          effects: [
+            {
+              kind: "focused_volley",
+              spreadMultiplier: 0.28,
+              decayPerHit: 0.22,
+              minimumPowerRatio: 0.35,
+            },
+          ],
+        },
+      ],
       {
-        key: "line_piercer",
-        label: "line_piercer",
-        effects: [{ kind: "line_piercer", bonusPerTarget: 0.15, maxBonus: 0.6 }],
+        ultimate: {
+          key: "triple_volley",
+          label: "ultimate",
+          effects: [{ kind: "triple_volley", salvos: 3, intervalMs: 1_500 }],
+        },
       },
-    ]),
-    ...branch("ranger", 3, [
-      { key: "force", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+    ),
+    ...branch(
+      "ranger",
+      4,
+      [
+        { key: "distance", label: "distance", effects: [distance()] },
+        {
+          key: "evasion",
+          label: "dash_invulnerability",
+          effects: [{ kind: "dash_invulnerability" }],
+        },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "mastery",
+          effects: [distance(0.3), cooldown(0.12), { kind: "windstep" }],
+        },
+        {
+          key: "retreat_shot",
+          label: "retreat_shot",
+          effects: [
+            {
+              kind: "retreat_shot",
+              projectiles: 3,
+              spreadRadians: (22 * Math.PI) / 180,
+              powerRatio: 0.45,
+              range: 280,
+            },
+          ],
+        },
+      ],
       {
-        key: "mastery",
-        label: "extra_projectiles",
-        effects: [{ kind: "extra_projectiles", value: 4 }],
+        ultimate: {
+          key: "afterimage",
+          label: "ultimate",
+          effects: [{ kind: "afterimage", durationMs: 2_000, aggroRadius: 240 }],
+        },
       },
+    ),
+    ...branch(
+      "ranger",
+      5,
+      [
+        { key: "force", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "execute",
+          label: "execute",
+          effects: [{ kind: "execute", threshold: 0.35, multiplier: 0.35 }],
+        },
+        {
+          key: "comet_arrow",
+          label: "comet_arrow",
+          effects: [
+            {
+              kind: "comet_arrow",
+              directPowerRatio: 0.85,
+              radius: 105,
+              splashPowerRatio: 0.65,
+            },
+          ],
+        },
+      ],
       {
-        key: "focused",
-        label: "focused_volley",
-        effects: [
-          {
-            kind: "focused_volley",
-            spreadMultiplier: 0.28,
-            decayPerHit: 0.22,
-            minimumPowerRatio: 0.35,
-          },
-        ],
+        ultimate: {
+          key: "sworn_prey",
+          label: "ultimate",
+          effects: [{ kind: "sworn_prey", maximumHoldMs: 1_500, turnRateRadians: Math.PI / 24 }],
+        },
       },
-    ]),
-    ...branch("ranger", 4, [
-      { key: "distance", label: "distance", effects: [distance()] },
-      {
-        key: "evasion",
-        label: "dash_invulnerability",
-        effects: [{ kind: "dash_invulnerability" }],
-      },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "mastery",
-        label: "mastery",
-        effects: [distance(0.3), cooldown(0.12), { kind: "windstep" }],
-      },
-      {
-        key: "retreat_shot",
-        label: "retreat_shot",
-        effects: [
-          {
-            kind: "retreat_shot",
-            projectiles: 3,
-            spreadRadians: (22 * Math.PI) / 180,
-            powerRatio: 0.45,
-            range: 280,
-          },
-        ],
-      },
-    ]),
-    ...branch("ranger", 5, [
-      { key: "force", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "execute",
-        label: "execute",
-        effects: [{ kind: "execute", threshold: 0.35, multiplier: 0.35 }],
-      },
-      {
-        key: "comet_arrow",
-        label: "comet_arrow",
-        effects: [
-          {
-            kind: "comet_arrow",
-            directPowerRatio: 0.85,
-            radius: 105,
-            splashPowerRatio: 0.65,
-          },
-        ],
-      },
-    ]),
+    ),
   ],
   priest: [
     ...branch("priest", 2, [

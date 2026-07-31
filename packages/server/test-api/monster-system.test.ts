@@ -212,6 +212,33 @@ describe("monster navigation on the tile grid", () => {
     expect(monster.threat.has(player.id)).toBe(true);
   });
 
+  it("pursues a live Ranger afterimage instead of the Ranger until the decoy expires", () => {
+    const monster = chasingMonster();
+    const player = targetPlayer(260, 220);
+    player.class = "ranger";
+    player.rangerAfterimage = { x: 400, y: 220, expiresAt: 3_000 };
+    monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 1_000 });
+    const socket = { id: "afterimage-socket" } as unknown as WebSocket;
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone,
+      tick: 0,
+      navigation: createNavigationRuntime(terrain, zone.navigation),
+      startAttack: vi.fn(),
+    };
+
+    advanceMonsters(context, 1_000);
+    expect(monster.navigation.destination?.x).toBe(400);
+    advanceMonsters(context, 3_001);
+    expect(player.rangerAfterimage).toBeNull();
+    expect(monster.navigation.destination?.x).toBe(player.x);
+  });
+
   it("telegraphs a monster attack before the guard defeats it", () => {
     const combatTerrain: TerrainGeometry = {
       ...terrain,

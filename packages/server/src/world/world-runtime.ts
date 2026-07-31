@@ -160,6 +160,8 @@ export interface CombatActionRuntime {
   };
   /** Free second leg of Percée inexorable; the first collision target is excluded. */
   warriorChargeFollowup?: { excludedTargetId: string };
+  /** Frozen server-selected target for Proie jurée. */
+  rangerSwornPreyTargetId?: string;
 }
 
 export interface WarriorCycloneRuntime {
@@ -185,6 +187,24 @@ export interface WarriorVortexRuntime extends Vec2 {
   slowRatio: number;
   slowDurationMs: number;
   followsOwner: boolean;
+}
+
+export interface RangerVolleySalvoRuntime {
+  actionId: string;
+  animationAt: number;
+  impactAt: number;
+  recoveryEndsAt: number;
+  animationSent: boolean;
+  fired: boolean;
+}
+
+export interface RangerVolleySequenceRuntime {
+  direction: Vec2;
+  salvos: RangerVolleySalvoRuntime[];
+}
+
+export interface RangerAfterimageRuntime extends Vec2 {
+  expiresAt: number;
 }
 
 export type RogueOpeningSource = "shadow_step" | "vanish";
@@ -242,6 +262,13 @@ export interface ProjectileRuntime extends Vec2 {
   activationHitCounts?: Map<string, number>;
   /** Bounded server-only bounce budget for talented projectiles. */
   ricochetRemaining: number;
+  /** Piercing Arrow's return leg keeps the original hit set. */
+  returningToOwner?: boolean;
+  returnRange?: number;
+  returnPierce?: number;
+  /** Heartseeker guidance turns gradually; terrain and interception still decide the hit. */
+  homingTargetId?: string;
+  homingTurnRateRadians?: number;
 }
 
 export interface PlayerRuntime extends PlayerProfile {
@@ -275,6 +302,8 @@ export interface PlayerRuntime extends PlayerProfile {
   warriorBannerChallengeReduction: number;
   warriorBannerPower: Map<string, { multiplier: number; expiresAt: number }>;
   warriorVortex: WarriorVortexRuntime | null;
+  rangerVolleySequence: RangerVolleySequenceRuntime | null;
+  rangerAfterimage: RangerAfterimageRuntime | null;
   /** Server-only Rogue windows. They are reset on every runtime/session boundary. */
   opening: RogueOpeningRuntime | null;
   rogueStealthUntil: number;
@@ -571,6 +600,8 @@ export function newPlayer(
     warriorBannerChallengeReduction: 0,
     warriorBannerPower: new Map(),
     warriorVortex: null,
+    rangerVolleySequence: null,
+    rangerAfterimage: null,
     opening: null,
     rogueStealthUntil: 0,
     rogueSmokeProtectionUntil: 0,

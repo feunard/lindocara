@@ -39,6 +39,8 @@ function resetCooldowns(player: PlayerRuntime): void {
   player.warriorBannerChallengeReduction = 0;
   player.warriorBannerPower.clear();
   player.warriorVortex = null;
+  player.rangerVolleySequence = null;
+  player.rangerAfterimage = null;
 }
 
 /** Mutates session state only; World remains responsible for life-state transitions and sends. */

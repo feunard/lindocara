@@ -3,10 +3,13 @@ import { talentEffect } from "@lindocara/engine/talents.js";
 import { startCombatAction } from "@lindocara/server/world/combat-action-system.js";
 import { isPlayerInvulnerable } from "@lindocara/server/world/combat-system.js";
 import {
+  advanceAdditionalVolleys,
   applyCometExplosion,
   focusedVolleyPowerRatio,
   linePiercerPowerRatio,
   retreatShotDirections,
+  scheduleAdditionalVolleys,
+  swornPreyTarget,
   windstepCanInterrupt,
 } from "@lindocara/server/world/ranger-variant-system.js";
 import { newPlayer, type PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
@@ -116,5 +119,55 @@ describe("authoritative ranger evolution systems", () => {
       ["a", 0.65],
       ["z", 0.65],
     ]);
+  });
+
+  it("schedules two extra Volley animations and impacts exactly 1.5 seconds apart", () => {
+    const actor = ranger("triple", [
+      "ranger.volley.force",
+      "ranger.volley.reach",
+      "ranger.volley.readiness",
+      "ranger.volley.mastery",
+      "ranger.volley.triple_volley",
+    ]);
+    const effect = talentEffect("ranger", actor.talents, "triple_volley", 3);
+    if (!effect) throw new Error("missing Triple Volley effect");
+    const action = startCombatAction(actor, {
+      kind: "skill",
+      skillId: "volley",
+      slot: 3,
+      direction: { x: 1, y: 0 },
+      now: 1_000,
+      anticipationMs: 360,
+      recoveryMs: 640,
+    });
+    if (!action) throw new Error("volley action missing");
+    actor.rangerVolleySequence = scheduleAdditionalVolleys(action, effect);
+    const animate = vi.fn();
+    const fire = vi.fn();
+
+    advanceAdditionalVolleys(actor, 2_499, animate, fire);
+    expect(animate).not.toHaveBeenCalled();
+    advanceAdditionalVolleys(actor, 2_500, animate, fire);
+    expect(animate).toHaveBeenCalledTimes(1);
+    advanceAdditionalVolleys(actor, 2_860, animate, fire);
+    expect(fire).toHaveBeenCalledTimes(1);
+    advanceAdditionalVolleys(actor, 4_360, animate, fire);
+    expect(animate).toHaveBeenCalledTimes(2);
+    expect(fire).toHaveBeenCalledTimes(2);
+    expect(actor.rangerVolleySequence).toBeNull();
+  });
+
+  it("locks Sworn Prey in the facing cone using distance then id deterministically", () => {
+    const actor = ranger("sworn", []);
+    actor.facing = { x: 1, y: 0 };
+    const candidate = (id: string, x: number) => ({ id, x, y: 0, deadUntil: 0 });
+    const result = swornPreyTarget(
+      actor,
+      [candidate("behind", -10), candidate("z", 80), candidate("a", 80)] as never,
+      200,
+      1_000,
+      () => true,
+    );
+    expect(result?.id).toBe("a");
   });
 });

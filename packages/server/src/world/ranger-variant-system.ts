@@ -1,12 +1,18 @@
 import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { TalentEffect } from "@lindocara/engine/talents.js";
-import type { CombatActionRuntime } from "./world-runtime.js";
+import type {
+  CombatActionRuntime,
+  MonsterRuntime,
+  PlayerRuntime,
+  RangerVolleySequenceRuntime,
+} from "./world-runtime.js";
 
 type LinePiercerEffect = Extract<TalentEffect, { kind: "line_piercer" }>;
 type FocusedVolleyEffect = Extract<TalentEffect, { kind: "focused_volley" }>;
 type RetreatShotEffect = Extract<TalentEffect, { kind: "retreat_shot" }>;
 type CometArrowEffect = Extract<TalentEffect, { kind: "comet_arrow" }>;
+type TripleVolleyEffect = Extract<TalentEffect, { kind: "triple_volley" }>;
 
 /** Windstep may cancel an unresolved hit or recovery, but never a stale action. */
 export function windstepCanInterrupt(
@@ -14,6 +20,88 @@ export function windstepCanInterrupt(
   now: number,
 ): action is CombatActionRuntime {
   return action !== null && action.recoveryEndsAt > now;
+}
+
+export function swornPreyTarget(
+  player: PlayerRuntime,
+  monsters: Iterable<MonsterRuntime>,
+  range: number,
+  now: number,
+  visible: (monster: MonsterRuntime) => boolean,
+): MonsterRuntime | null {
+  const facing = normalizeDirection(player.facing);
+  return (
+    [...monsters]
+      .filter((monster) => {
+        if (monster.deadUntil > now || !visible(monster)) return false;
+        const dx = monster.x - player.x;
+        const dy = monster.y - player.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance <= 0 || distance > range) return false;
+        const direction = { x: dx / distance, y: dy / distance };
+        return direction.x * facing.x + direction.y * facing.y >= Math.cos(Math.PI / 3);
+      })
+      .sort((left, right) => {
+        const leftDistance = Math.hypot(left.x - player.x, left.y - player.y);
+        const rightDistance = Math.hypot(right.x - player.x, right.y - player.y);
+        return leftDistance - rightDistance || left.id.localeCompare(right.id);
+      })[0] ?? null
+  );
+}
+
+export function scheduleAdditionalVolleys(
+  action: CombatActionRuntime,
+  effect: TripleVolleyEffect,
+): RangerVolleySequenceRuntime | null {
+  const salvos = Math.max(1, Math.min(5, Math.floor(effect.salvos)));
+  if (salvos <= 1) return null;
+  const intervalMs = Math.max(250, Math.min(5_000, Math.floor(effect.intervalMs)));
+  const anticipationMs = Math.max(0, action.impactAt - action.startedAt);
+  const recoveryMs = Math.max(0, action.recoveryEndsAt - action.impactAt);
+  return {
+    direction: { ...action.direction },
+    salvos: Array.from({ length: salvos - 1 }, (_, index) => {
+      const animationAt = action.startedAt + (index + 1) * intervalMs;
+      const impactAt = animationAt + anticipationMs;
+      return {
+        actionId: crypto.randomUUID(),
+        animationAt,
+        impactAt,
+        recoveryEndsAt: impactAt + recoveryMs,
+        animationSent: false,
+        fired: false,
+      };
+    }),
+  };
+}
+
+export function advanceAdditionalVolleys(
+  player: PlayerRuntime,
+  now: number,
+  animate: (salvo: RangerVolleySequenceRuntime["salvos"][number]) => void,
+  fire: (salvo: RangerVolleySequenceRuntime["salvos"][number]) => void,
+): void {
+  const sequence = player.rangerVolleySequence;
+  if (!sequence) return;
+  if (!player.authorized || player.transitioning || player.life !== "alive") {
+    player.rangerVolleySequence = null;
+    return;
+  }
+  for (const salvo of sequence.salvos) {
+    if (!salvo.animationSent && now >= salvo.animationAt) {
+      salvo.animationSent = true;
+      animate(salvo);
+    }
+    if (!salvo.fired && now >= salvo.impactAt) {
+      if (!salvo.animationSent) {
+        salvo.animationSent = true;
+        animate(salvo);
+      }
+      salvo.fired = true;
+      fire(salvo);
+    }
+  }
+  if (sequence.salvos.every((salvo) => salvo.fired)) player.rangerVolleySequence = null;
 }
 
 /** First target takes normal damage; every prior distinct target raises the next impact. */

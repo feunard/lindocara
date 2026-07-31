@@ -175,7 +175,13 @@ export function advanceMonsters<TSocket>(
 
     if (target) {
       const [, player] = target;
-      const targetDistance = pointDistance(monster, player);
+      const afterimage =
+        player.rangerAfterimage && player.rangerAfterimage.expiresAt > now
+          ? player.rangerAfterimage
+          : null;
+      if (player.rangerAfterimage && !afterimage) player.rangerAfterimage = null;
+      const targetPosition = afterimage ?? player;
+      const targetDistance = pointDistance(monster, targetPosition);
       const targetChanged = monster.navigation.targetId !== player.id;
       if (monster.action && monster.action.recoveryEndsAt > now) {
         monster.vx = 0;
@@ -184,16 +190,20 @@ export function advanceMonsters<TSocket>(
       }
       if (targetDistance <= monsterAttackRange(monster, now)) {
         monster.navigation.state = "chase";
-        monster.navigation.destination = { x: player.x, y: player.y };
+        monster.navigation.destination = { x: targetPosition.x, y: targetPosition.y };
         monster.vx = 0;
         monster.vy = 0;
         if (now - monster.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS) {
           monster.lastAttackAt = now;
-          context.startAttack(monster, player, now);
+          context.startAttack(
+            monster,
+            afterimage ? { ...player, x: afterimage.x, y: afterimage.y } : player,
+            now,
+          );
         }
         continue;
       }
-      navigateMonster(context, monster, player, player.id, "chase", now, targetChanged);
+      navigateMonster(context, monster, targetPosition, player.id, "chase", now, targetChanged);
     } else {
       const returning =
         (monster.navigation.state === "chase" ||

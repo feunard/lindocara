@@ -27,7 +27,10 @@ describe("class talents", () => {
         const finals = branch.filter((node) => node.tier === 3);
         const ultimates = branch.filter((node) => node.tier === 4);
         const group = `${playerClass}.${skill?.id}.evolution`;
-        const hasUltimate = playerClass === "warrior" || (playerClass === "rogue" && slot === 2);
+        const hasUltimate =
+          playerClass === "warrior" ||
+          playerClass === "ranger" ||
+          (playerClass === "rogue" && slot === 2);
 
         expect(branch).toHaveLength(hasUltimate ? 7 : 6);
         expect(root).toMatchObject({

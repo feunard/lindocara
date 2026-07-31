@@ -265,6 +265,25 @@ describe("server protocol", () => {
     ).toBeNull();
   });
 
+  it("accepts only a finite Ranger afterimage swap deadline", () => {
+    const rangerState = { ...self, ranger: { afterimageUntil: 2_000 } };
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, players: [player], self: rangerState }),
+      ),
+    ).toMatchObject({ t: "welcome", self: { ranger: { afterimageUntil: 2_000 } } });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          players: [player],
+          self: { ...self, ranger: { afterimageUntil: "later" } },
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("accepts a monster special action inside authoritative snapshots", () => {
     const quake = {
       id: "boss-quake-1",

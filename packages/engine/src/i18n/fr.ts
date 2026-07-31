@@ -678,6 +678,19 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.ranger.heartseeker.b.name": "Flèche comète",
   "talent.evolution.ranger.heartseeker.b.description":
     "Inflige 15 % de dégâts directs en moins, puis explose à 65 % de puissance dans un rayon de 105 px.",
+  "skill.ranger.afterimage.ready": "Échange disponible",
+  "talent.ultimate.ranger.piercing_arrow.name": "Flèche de rappel",
+  "talent.ultimate.ranger.piercing_arrow.description":
+    "La flèche revient vers vous et peut frapper au retour les ennemis épargnés à l'aller.",
+  "talent.ultimate.ranger.volley.name": "Triple salve",
+  "talent.ultimate.ranger.volley.description":
+    "Déchaîne trois salves complètes espacées de 1,5 seconde.",
+  "talent.ultimate.ranger.dash.name": "Après-image",
+  "talent.ultimate.ranger.dash.description":
+    "Laisse un leurre pendant 2 secondes. Réactivez pour échanger une fois vos positions.",
+  "talent.ultimate.ranger.heartseeker.name": "Proie jurée",
+  "talent.ultimate.ranger.heartseeker.description":
+    "Maintenez pour verrouiller un ennemi visible, puis libérez un tir qui infléchit sa course.",
   "talent.evolution.priest.mend.name": "Grâce bondissante",
   "talent.evolution.priest.mend.description":
     "Le soin rebondit vers un second allié blessé avec la moitié de sa puissance.",
