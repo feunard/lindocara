@@ -1,0 +1,1 @@
+ALTER TABLE `maps` ADD `hero_settings` text DEFAULT '' NOT NULL;

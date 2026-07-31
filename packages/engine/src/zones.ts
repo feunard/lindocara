@@ -15,6 +15,7 @@ import {
 } from "./game.js";
 import type { MapElement, MapMarkers } from "./map-data.js";
 import type { MapEvent } from "./map-events.js";
+import type { MapHeroSettings } from "./map-hero-settings.js";
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
 import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
@@ -70,6 +71,8 @@ export interface ZoneDefinition {
   readonly layers?: readonly string[];
   /** Resolved room audio. Catalogue zones omit it and use the client's silent legacy fallback. */
   readonly audio?: AdventureAudioConfig;
+  /** Authored hero balance for this map. Catalogue zones inherit code-owned defaults. */
+  readonly heroSettings?: MapHeroSettings;
 }
 
 /** A server-owned exit. The browser can only ask to interact near it. */

@@ -124,6 +124,7 @@ export function zoneFromMapPayload(
     layers: payload.layers,
     events: payload.events,
     audio: resolveMapAudio(adventureAudio, payload.audio),
+    heroSettings: payload.heroSettings,
   };
 }
 

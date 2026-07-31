@@ -35,6 +35,7 @@ import {
   type MapEventPage,
   parseNpcRoutine,
 } from "@lindocara/engine/map-events.js";
+import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { $inject } from "alepha";
@@ -55,6 +56,7 @@ import { HeroService } from "./HeroService.ts";
 import {
   decodeLayers,
   decodeMapAudio,
+  decodeMapHeroSettings,
   defaultMapInput,
   elementToWire,
   encodeLayers,
@@ -120,6 +122,7 @@ export interface MapPayload {
   markers: ReturnType<typeof markersOfRow>;
   events: MapEvent[];
   audio: ReturnType<typeof decodeMapAudio>;
+  heroSettings: MapHeroSettings;
 }
 
 export class MapService {
@@ -190,6 +193,7 @@ export class MapService {
       spawnRow: input.spawn.row,
       markers: markersJson(data.markers),
       audio: JSON.stringify(data.audio),
+      heroSettings: JSON.stringify(data.heroSettings),
       isFirst: firstCountForAccount === 0,
     });
     // `defaultMapInput` always yields empty elements/events; writing them here keeps this in step
@@ -260,6 +264,9 @@ export class MapService {
           spawnRow: input.spawn.row,
           markers: markersJson(data.markers),
           ...(input.audio !== undefined ? { audio: JSON.stringify(data.audio) } : {}),
+          ...(input.heroSettings !== undefined
+            ? { heroSettings: JSON.stringify(data.heroSettings) }
+            : {}),
           revision: sql`revision + 1`,
         },
       );
@@ -310,6 +317,10 @@ export class MapService {
       markers: data.markers ?? EMPTY_MARKERS,
       events: data.events,
       audio: input.audio === undefined ? decodeMapAudio(existing.audio) : data.audio,
+      heroSettings:
+        input.heroSettings === undefined
+          ? decodeMapHeroSettings(existing.heroSettings)
+          : data.heroSettings,
     };
   }
 
@@ -511,6 +522,7 @@ export class MapService {
       markers: markersOfRow({ markers: row.markers, cols: row.cols, rows: row.rows }),
       events,
       audio: decodeMapAudio(row.audio),
+      heroSettings: decodeMapHeroSettings(row.heroSettings),
     };
   }
 

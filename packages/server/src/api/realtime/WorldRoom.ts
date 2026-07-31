@@ -1496,6 +1496,7 @@ export class WorldRoom {
       // The active page of each authored event, appearance only — evaluated at join, never here.
       events: [...state.activeEvents],
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
+      ...(definition.heroSettings === undefined ? {} : { heroSettings: definition.heroSettings }),
       width: definition.terrain.width,
       height: definition.terrain.height,
       playerSize: PLAYER_SIZE,

@@ -65,6 +65,7 @@ import {
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
+import { parseMapHeroSettings } from "./map-hero-settings.js";
 import type { MerchantDefinition } from "./merchant.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
@@ -442,6 +443,8 @@ export interface WorldInfo {
   events: readonly WorldEventSnapshot[];
   /** Fully resolved room audio: map overrides have already been applied by the server. */
   audio?: AdventureAudioConfig;
+  /** Server-authored class balance and ability availability for this map. */
+  heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
   width: number;
   height: number;
   playerSize: number;
@@ -562,6 +565,7 @@ export const EVENT_CODES = [
   "skill.blocked",
   "skill.no_target",
   "skill.locked",
+  "skill.disabled",
   "resource.insufficient",
   "talent.unlocked",
   "talent.reset",
@@ -1373,6 +1377,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
       (event) => isWorldEventSnapshot(event) && event.col < tiles.cols && event.row < tiles.rows,
     ) &&
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
+    (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
     isFiniteNumber(value.width) &&
     value.width > 0 &&
     isFiniteNumber(value.height) &&

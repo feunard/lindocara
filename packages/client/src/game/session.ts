@@ -468,6 +468,7 @@ async function startGameIdentity(
       }
       useUiStore.getState().setZoneNameKey(world.zoneNameKey as MessageKey);
       useUiStore.getState().setWorldSize({ width: world.width, height: world.height });
+      useUiStore.getState().setMapHeroSettings(world.heroSettings ?? null);
       setStatus("status.connected_zone", { zone: t(world.zoneNameKey as MessageKey) });
       if (!welcomed) {
         welcomed = true;

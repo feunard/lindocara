@@ -294,6 +294,29 @@ function seedGuard(state: WorldRoomState, id: string, x: number, y: number) {
 }
 
 describe("world room combat (FakeClock)", () => {
+  test("map-authored ability locks are enforced by the room authority", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("abilitylock");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const player = playerOf(state, heroId);
+    const settings = state.location?.definition.heroSettings;
+    if (!settings) throw new Error("authored map did not carry hero settings");
+    settings.classes.warrior.disabledSkills = [1, 3];
+    const { w, sent } = testGlue(state, () => Date.now() + 1_000);
+
+    expect(startPlayerAction(w, `c-${heroId}`, player, 1)).toBe(false);
+    expect(player.lastAttackAt).toBe(0);
+    expect(sentTo(sent, heroId)).toContainEqual({
+      t: "event",
+      code: "skill.disabled",
+      params: { skill: "cleave" },
+      tone: "info",
+    });
+    engine.dispose();
+  });
+
   test("Dance Master reactivation is free and follows the Rogue's facing toward a live mark", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("dancemaster", "rogue");
     const clock = new FakeClock();

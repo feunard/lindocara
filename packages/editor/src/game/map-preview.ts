@@ -25,7 +25,6 @@ import {
 } from "@lindocara/engine/character.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import {
-  CLASS_STATS,
   defaultMonsterTuning,
   MONSTER_SPECIES_KIND,
   movementSpeedAt,
@@ -38,6 +37,8 @@ import {
   type MapEvent,
   monsterEvents,
 } from "@lindocara/engine/map-events.js";
+import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
+import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAX_ACCUMULATED_SECONDS } from "@lindocara/engine/prediction.js";
 import type {
   MonsterSnapshot,
@@ -78,6 +79,8 @@ function randomAppearance(): CharacterAppearance {
 let previewGeneration = 0;
 
 export interface MapPreviewOptions {
+  /** Map-authored hero balance; omitted callers inherit the standard Warrior speed. */
+  heroSettings?: MapHeroSettings;
   /**
    * Draw the per-player overlays (self ring, name/level plate, health bar). Default `true`.
    *
@@ -296,7 +299,11 @@ export async function startMapPreview(
           position,
           input,
           TICK_DT,
-          movementSpeedAt(position, CLASS_STATS.warrior.movementSpeed, geometry),
+          movementSpeedAt(
+            position,
+            mapHeroClassSettings(options.heroSettings, "warrior").stats.movementSpeed,
+            geometry,
+          ),
           geometry,
         ),
         geometry,
@@ -318,7 +325,11 @@ export async function startMapPreview(
         position,
         input,
         accumulator,
-        movementSpeedAt(position, CLASS_STATS.warrior.movementSpeed, geometry),
+        movementSpeedAt(
+          position,
+          mapHeroClassSettings(options.heroSettings, "warrior").stats.movementSpeed,
+          geometry,
+        ),
         geometry,
       ),
       geometry,

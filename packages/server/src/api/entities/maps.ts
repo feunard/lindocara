@@ -43,6 +43,8 @@ export const maps = $entity({
     markers: z.string().optional(),
     /** JSON MapAudioConfig. Empty string is the default/legacy sentinel. */
     audio: db.default(z.string(), ""),
+    /** JSON MapHeroSettings. Empty string makes pre-feature maps inherit current defaults. */
+    heroSettings: db.default(z.string(), ""),
     /** Monotone authored-content revision. Cache identity is `(mapId, revision)`. */
     revision: db.default(z.integer().min(1), 1),
     /** Internal compare-and-swap token for a whole-map rewrite, never exposed on the authoring API. */

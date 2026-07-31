@@ -14,6 +14,7 @@
  */
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
 import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
+import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
@@ -499,6 +500,35 @@ describe("list, get, update, delete", () => {
     const updated = await putMap(id, token, mapBody({ name: "Revision two" }));
     expect(updated.status).toBe(200);
     expect(await updated.json()).toMatchObject({ revision: 2 });
+  });
+
+  test("persists per-map hero stats and disabled abilities", async () => {
+    const { userId, token } = await registerAndLogin("mapheroes");
+    const adventureId = await newAdventure(userId);
+    const id = await newMapId(adventureId, token);
+    const heroSettings = defaultMapHeroSettings();
+    heroSettings.classes.rogue.stats.movementSpeed = 350;
+    heroSettings.classes.rogue.disabledSkills = [3, 5];
+
+    const updated = await putMap(id, token, mapBody({ heroSettings }));
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({
+      heroSettings: {
+        classes: {
+          rogue: { stats: { movementSpeed: 350 }, disabledSkills: [3, 5] },
+        },
+      },
+    });
+
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    expect(await fetched.json()).toMatchObject({
+      heroSettings: {
+        classes: {
+          rogue: { stats: { movementSpeed: 350 }, disabledSkills: [3, 5] },
+        },
+      },
+    });
   });
 
   test("refuses a save based on a stale editor revision", async () => {

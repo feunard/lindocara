@@ -77,8 +77,9 @@ export function reconcile(
   geometry: TerrainGeometry,
   life: LifeState = "alive",
   playerClass: PlayerClass = "warrior",
+  movementSpeed?: number,
 ): Vec2 {
-  const speed = speedForLife(life, playerClass);
+  const speed = speedForLife(life, playerClass, movementSpeed);
   let position: Vec2 = authoritative;
   for (const command of pending) {
     position = predictStep(position, command, geometry, speed);

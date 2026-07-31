@@ -80,8 +80,6 @@ import type { StateMutation } from "@lindocara/engine/event-interpreter.js";
 import {
   applyDamage,
   applyExperience,
-  attackDamageFor,
-  CLASS_STATS,
   hasLineOfSight,
   INTERACTION_RANGE,
   isMonsterSpecialTechnique,
@@ -110,6 +108,7 @@ import {
   isInteractiveWorldEventKind,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
+import { isMapSkillEnabled, mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
 import type {
   ClientMessage,
@@ -442,6 +441,26 @@ interface MonsterDamageContext {
 function zone(state: WorldRoomState): ZoneDefinition {
   if (!state.location) throw new Error("world room was not initialized with a zone");
   return state.location.definition;
+}
+
+function configuredSkill(w: WorldGlue, player: PlayerRuntime, slot: SkillSlot): SkillDefinition {
+  const skill = skillWithTalents(player.class, player.talents, slot);
+  const stats = mapHeroClassSettings(zone(w.state).heroSettings, player.class).stats;
+  if (slot === 1) return { ...skill, range: stats.attackRange };
+  if (player.class === "priest" && skill.id === "mend" && stats.heal) {
+    return {
+      ...skill,
+      range: stats.heal.range,
+      power: stats.heal.base,
+      allyPower: stats.heal.base,
+    };
+  }
+  return skill;
+}
+
+function configuredAttackDamage(w: WorldGlue, player: PlayerRuntime): number {
+  const stats = mapHeroClassSettings(zone(w.state).heroSettings, player.class).stats;
+  return stats.attackBase + Math.max(0, player.level - 1) * stats.attackPerLevel;
 }
 
 function navigationRuntime(state: WorldRoomState): NavigationRuntime {
@@ -1299,9 +1318,7 @@ function damageMonster(
       : null;
   const baseDamage =
     frozenPower ??
-    (basic
-      ? attackDamageFor(player.class, player.level)
-      : skill.power + Math.max(0, player.level - 1) * 2);
+    (basic ? configuredAttackDamage(w, player) : skill.power + Math.max(0, player.level - 1) * 2);
   const damage = Math.max(
     1,
     Math.round(
@@ -1501,7 +1518,7 @@ function damagePlayer(
       (monster) => monster.id === monsterId && monster.deadUntil <= now,
     );
     if (attacker && retaliationRatio > 0) {
-      const guardSkill = skillWithTalents(player.class, player.talents, 2);
+      const guardSkill = configuredSkill(w, player, 2);
       damageMonster(
         w,
         connectionId,
@@ -1744,7 +1761,7 @@ function projectileDamage(
     (candidate) => candidate.id === projectile.sourceSkillId,
   );
   if (!baseSkill) return;
-  const skill = skillWithTalents(owner.player.class, owner.player.talents, baseSkill.slot);
+  const skill = configuredSkill(w, owner.player, baseSkill.slot);
   const execute = talentEffect(owner.player.class, owner.player.talents, "execute", skill.slot);
   const linePiercer = talentEffect(
     owner.player.class,
@@ -2057,7 +2074,7 @@ export function finishHeldPlayerAction(
       );
     }
     if (action.resolved) {
-      const skill = skillWithTalents(player.class, player.talents, 5);
+      const skill = configuredSkill(w, player, 5);
       spawnPlayerProjectiles(
         w,
         player,
@@ -2082,12 +2099,21 @@ export function startPlayerAction(
   slot: SkillSlot,
 ): boolean {
   const { deps } = w;
-  const skill = skillWithTalents(player.class, player.talents, slot);
+  const skill = configuredSkill(w, player, slot);
   if (!isSkillUnlocked(player.level, slot)) {
     deps.send(connectionId, {
       t: "event",
       code: "skill.locked",
       params: { level: SKILL_UNLOCK_LEVEL[slot], skill: skill.id },
+      tone: "info",
+    });
+    return false;
+  }
+  if (!isMapSkillEnabled(zone(w.state).heroSettings, player.class, slot)) {
+    deps.send(connectionId, {
+      t: "event",
+      code: "skill.disabled",
+      params: { skill: skill.id },
       tone: "info",
     });
     return false;
@@ -2915,11 +2941,13 @@ function spawnPlayerProjectiles(
       x: action.direction.x * cosine - action.direction.y * sine,
       y: action.direction.x * sine + action.direction.y * cosine,
     });
+    const healStats = mapHeroClassSettings(zone(w.state).heroSettings, player.class).stats.heal;
     const power =
       targetFilter === "wounded_allies"
-        ? (skill.allyPower ?? skill.power) + Math.max(0, player.level - 1) * 3
+        ? (skill.allyPower ?? skill.power) +
+          Math.max(0, player.level - 1) * (healStats?.perLevel ?? 3)
         : skill.slot === 1
-          ? attackDamageFor(player.class, player.level)
+          ? configuredAttackDamage(w, player)
           : skill.power + Math.max(0, player.level - 1) * 2;
     spawnProjectile(w.state.projectiles, {
       actionId: action.id,
@@ -2971,7 +2999,7 @@ function spawnRetreatShot(
   if (!arrow) return;
   const power = Math.max(
     1,
-    Math.round(attackDamageFor(player.class, player.level) * Math.max(0, effect.powerRatio)),
+    Math.round(configuredAttackDamage(w, player) * Math.max(0, effect.powerRatio)),
   );
   for (const direction of retreatShotDirections(action.direction, effect)) {
     spawnProjectile(w.state.projectiles, {
@@ -3002,7 +3030,7 @@ export function resolvePlayerAction(
   const connectionId = connectionOf(w.state, player.id);
   const slot = action.slot;
   if (connectionId === undefined || slot === undefined || slot < 1 || slot > 5) return;
-  const skill = skillWithTalents(player.class, player.talents, slot as SkillSlot);
+  const skill = configuredSkill(w, player, slot as SkillSlot);
   const definition = actionForClassSlot(player.class, slot);
   const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
   const terrain = zone(w.state).terrain;
@@ -3450,7 +3478,7 @@ function resolveWarriorCycloneStrike(
 ): void {
   const connectionId = connectionOf(w.state, player.id);
   if (connectionId === undefined) return;
-  const skill = skillWithTalents(player.class, player.talents, 5);
+  const skill = configuredSkill(w, player, 5);
   for (const monster of w.state.monsterGrid
     .queryRadius(player, radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
     .sort((left, right) => left.id.localeCompare(right.id))) {
@@ -3506,7 +3534,7 @@ function advanceRangerVolley(w: WorldGlue, player: PlayerRuntime, now: number): 
         w,
         player,
         action,
-        skillWithTalents(player.class, player.talents, 3),
+        configuredSkill(w, player, 3),
         actionForClassSlot(player.class, 3),
         "monsters",
         now,
@@ -3745,7 +3773,7 @@ function resolvePolarityOrbStep(
   if (ownerConnectionId === undefined) return;
   const owner = w.state.players.get(ownerConnectionId);
   if (!owner?.authorized || owner.life !== "alive") return;
-  const skill = skillWithTalents(owner.class, owner.talents, 5);
+  const skill = configuredSkill(w, owner, 5);
   const judgment = talentEffect(owner.class, owner.talents, "nova_judgment", 5);
   const mercy = talentEffect(owner.class, owner.talents, "nova_mercy", 5);
   const multipliers = novaSpecializationMultipliers(judgment, mercy);
@@ -3930,7 +3958,7 @@ function resurrectNearbyCorpse(
   player: PlayerRuntime,
   now: number,
 ): { handled: boolean; cooldownStarted: boolean } {
-  const heal = CLASS_STATS[player.class].heal;
+  const heal = mapHeroClassSettings(zone(w.state).heroSettings, player.class).stats.heal;
   let target: PlayerRuntime | undefined;
   let targetConnectionId: string | undefined;
   let distance = heal?.range ?? INTERACTION_RANGE;
@@ -4356,7 +4384,7 @@ export function handleTalentUnlock(
   }
   player.talents = result.selected;
   if (player.guarding) {
-    player.guardReduction = skillWithTalents(player.class, player.talents, 2).reduction ?? 0;
+    player.guardReduction = configuredSkill(w, player, 2).reduction ?? 0;
     player.guardActivatedAt = 0;
   }
   player.dirty = true;
@@ -4385,7 +4413,7 @@ export function handleTalentReset(w: WorldGlue, connectionId: string, player: Pl
   removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
   removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   if (player.guarding) {
-    player.guardReduction = skillWithTalents(player.class, player.talents, 2).reduction ?? 0;
+    player.guardReduction = configuredSkill(w, player, 2).reduction ?? 0;
     player.guardActivatedAt = 0;
   }
   player.dirty = true;
@@ -5462,7 +5490,7 @@ export function advanceWorldTick(w: WorldGlue): void {
         ? CLASS_SKILLS[source.class].find((skill) => skill.id === effect.sourceSkillId)
         : undefined;
       if (sourceConnectionId === undefined || !source || !target || !baseSkill) return;
-      const skill = skillWithTalents(source.class, source.talents, baseSkill.slot);
+      const skill = configuredSkill(w, source, baseSkill.slot);
       damageMonster(w, sourceConnectionId, source, target, skill, now, false, tick.power, {
         damageOverTime: true,
         persistentOwnerCredit: true,

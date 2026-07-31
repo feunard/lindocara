@@ -12,7 +12,7 @@
 
 import { activePageIndex } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
-import { isWalkable, MAX_CLASS_MOVEMENT_SPEED } from "@lindocara/engine/game.js";
+import { isWalkable } from "@lindocara/engine/game.js";
 import {
   type EventTrigger,
   eventCellCentre,
@@ -20,6 +20,7 @@ import {
   isInteractiveWorldEventKind,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
+import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js";
 import { PLAYER_SIZE, TICK_MS, type Vec2 } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
@@ -189,7 +190,8 @@ export function detectPlayerTouch(
   if (player.identityKind !== "hero" || player.life !== "alive" || !player.authorized) return;
   const events = state.location?.definition.events;
   if (!events || events.length === 0) return;
-  const movementTolerance = (MAX_CLASS_MOVEMENT_SPEED * TICK_MS) / 1_000;
+  const movementTolerance =
+    (maxMapHeroMovementSpeed(state.location?.definition.heroSettings) * TICK_MS) / 1_000;
   for (const event of events) {
     if (!isActiveWorldEventKind(event.kind)) continue;
     const runnable = runnablePage(state, event, "player-touch");

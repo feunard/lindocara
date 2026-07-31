@@ -35,6 +35,10 @@ import {
   type MapEventPage,
 } from "@lindocara/engine/map-events.js";
 import {
+  defaultMapHeroSettings,
+  type MapHeroSettings,
+} from "@lindocara/engine/map-hero-settings.js";
+import {
   eraseRect,
   eraseTile,
   floodFill,
@@ -68,6 +72,8 @@ export interface EditorMap {
   name: string;
   /** Per-channel map overrides. Missing values inherit the adventure defaults. */
   audio: MapAudioConfig;
+  /** Authoritative class balance and ability availability for this map. */
+  heroSettings?: MapHeroSettings;
   /** Exactly `MAP_LAYERS`, all the same size. Index 0 is the ground, index 1 the cliff faces. */
   layers: TileLayer[];
   elements: MapElement[];
@@ -734,6 +740,7 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
   return {
     name,
     audio: EMPTY_MAP_AUDIO,
+    heroSettings: defaultMapHeroSettings(),
     layers,
     elements: [],
     spawn: { col: Math.floor(cols / 2), row: Math.floor(rows / 2) },
@@ -807,11 +814,13 @@ export function toSaveInput(map: EditorMap): {
   markers: MapMarkers;
   events: readonly MapEvent[];
   audio: MapAudioConfig;
+  heroSettings: MapHeroSettings;
 } {
   const data = toMapData(map);
   return {
     name: map.name,
     audio: map.audio,
+    heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
     tilesetId: data.tilesetId,
     cols: data.cols,
     rows: data.rows,

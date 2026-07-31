@@ -24,6 +24,7 @@ import {
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
 import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
+import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { stairsTilePlacements } from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
@@ -115,6 +116,8 @@ export interface MapEditorStageHandle {
   setName(name: string): void;
   /** Replace map-level audio overrides as one undoable content edit. */
   setAudio(audio: MapAudioConfig): void;
+  /** Replace the map-specific hero balance as one undoable content edit. */
+  setHeroSettings(settings: MapHeroSettings): void;
   undo(): void;
   redo(): void;
   /** Mark the exact map snapshot acknowledged by the server as saved. Passing the request snapshot
@@ -901,6 +904,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     current: () => map,
     setName() {},
     setAudio() {},
+    setHeroSettings() {},
     undo() {},
     redo() {},
     markSaved() {},
@@ -1824,6 +1828,13 @@ async function buildSession(
     setAudio(audio) {
       if (JSON.stringify(audio) === JSON.stringify(map.audio)) return;
       const next = { ...map, audio };
+      history = commitEditorHistory({ ...history, present: map }, next);
+      map = next;
+      notify();
+    },
+    setHeroSettings(heroSettings) {
+      if (JSON.stringify(heroSettings) === JSON.stringify(map.heroSettings)) return;
+      const next = { ...map, heroSettings };
       history = commitEditorHistory({ ...history, present: map }, next);
       map = next;
       notify();

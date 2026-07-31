@@ -1,4 +1,5 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import { isMapSkillEnabled } from "@lindocara/engine/map-hero-settings.js";
 import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
@@ -26,6 +27,7 @@ export function SkillBar() {
   const selfState = useUiStore((state) => state.selfState);
   const attackCooldownUntil = useUiStore((state) => state.attackCooldownUntil);
   const cooldowns = useUiStore((state) => state.skillCooldowns);
+  const mapHeroSettings = useUiStore((state) => state.mapHeroSettings);
   const { mode, settings: inputSettings } = useInputModeSettings();
   const [now, setNow] = useState(() => performance.now());
   const heldPointer = useRef<{ pointerId: number; slot: SkillSlot } | null>(null);
@@ -132,6 +134,11 @@ export function SkillBar() {
           : t(`skill.${self.class}.${skill.id}.description` as MessageKey);
         const requiredLevel = SKILL_UNLOCK_LEVEL[skill.slot];
         const unlocked = isSkillUnlocked(self.level, skill.slot);
+        const enabledOnMap = isMapSkillEnabled(
+          mapHeroSettings ?? undefined,
+          self.class,
+          skill.slot,
+        );
         const manaCost = skillResourceCost(self.class, skill.slot);
         const lacksMana =
           manaCost > 0 && (selfState?.resource?.current ?? Number.NEGATIVE_INFINITY) < manaCost;
@@ -143,7 +150,7 @@ export function SkillBar() {
             talentEffect(self.class, selfState?.talents?.selected ?? [], "sworn_prey", 5) !==
               undefined);
         const blockedByGuard = ironGuardActive && !guardToggle;
-        const unavailable = !unlocked || cooling || lacksMana || blockedByGuard;
+        const unavailable = !unlocked || !enabledOnMap || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
         const icon = skillIconArt(self.class, skill.slot);
         const control = `skill${skill.slot}` as const;
@@ -195,9 +202,11 @@ export function SkillBar() {
             aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}${danceRepositionReady ? `. ${t("skill.rogue.dance_master.ready")}` : ""}`}
             aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
             title={
-              unlocked
-                ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}`
-                : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
+              !enabledOnMap
+                ? `${name} — ${t("skill.disabled_on_map")}`
+                : unlocked
+                  ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}`
+                  : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
             }
           >
             <span className="skill-slot__key">{displayedLabels.join(" / ")}</span>
@@ -219,6 +228,7 @@ export function SkillBar() {
             )}
             {manaCost > 0 && <span className="skill-slot__cost">{manaCost}</span>}
             {!unlocked && <span className="skill-slot__lock">{requiredLevel}</span>}
+            {unlocked && !enabledOnMap && <span className="skill-slot__lock">×</span>}
             {shadowReturnReady && (
               <span className="skill-slot__return">{t("skill.rogue.shadow_return.ready")}</span>
             )}
@@ -234,9 +244,11 @@ export function SkillBar() {
               </span>
             )}
             <span className="skill-slot__tooltip" role="tooltip">
-              {unlocked
-                ? `${description}${manaText ? ` · ${manaText}` : ""}`
-                : t("skill.unlock_at", { level: requiredLevel })}
+              {!enabledOnMap
+                ? t("skill.disabled_on_map")
+                : unlocked
+                  ? `${description}${manaText ? ` · ${manaText}` : ""}`
+                  : t("skill.unlock_at", { level: requiredLevel })}
             </span>
           </button>
         );

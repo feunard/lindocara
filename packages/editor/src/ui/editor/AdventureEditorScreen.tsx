@@ -33,6 +33,7 @@ import {
   type MapEvent,
   monsterEvents,
 } from "@lindocara/engine/map-events.js";
+import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import {
@@ -94,6 +95,7 @@ import { PRESET_LABEL } from "./EventPalette.js";
 import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapAudioDialog } from "./MapAudioDialog.js";
+import { MapHeroSettingsDialog } from "./MapHeroSettingsDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
 import { QuestWorkspaceDialog } from "./QuestWorkspaceDialog.js";
@@ -177,6 +179,7 @@ function toEditorMap(map: MapPayload): EditorMap {
   return {
     name: map.name,
     audio: map.audio ?? EMPTY_MAP_AUDIO,
+    heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
     layers: editorLayersFromPayload(map),
     elements: map.elements,
     spawn: map.spawn,
@@ -363,6 +366,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mapAudioOpen, setMapAudioOpen] = useState(false);
+  const [mapHeroSettingsOpen, setMapHeroSettingsOpen] = useState(false);
   const [questWorkspaceOpen, setQuestWorkspaceOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -535,7 +539,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     let preview: { stop(): void } | null = null;
     // Events ride alongside the terrain: the preview draws the authored NPCs and monsters at rest
     // so an author can judge scale and composition without launching a party.
-    void startMapPreview(data, edited.events)
+    const previewStart = edited.heroSettings
+      ? startMapPreview(data, edited.events, { heroSettings: edited.heroSettings })
+      : startMapPreview(data, edited.events);
+    void previewStart
       .then((started) => {
         if (stopped) {
           started.stop();
@@ -1168,6 +1175,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       newMapOpen ||
       confirmDeleteId !== null ||
       settingsOpen ||
+      mapHeroSettingsOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
       helpOpen ||
@@ -1268,6 +1276,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       newMapOpen ||
       confirmDeleteId !== null ||
       settingsOpen ||
+      mapHeroSettingsOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
       helpOpen ||
@@ -1527,6 +1536,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               onOpenPayload={openPayload}
               onActiveDeleted={activeMapDeleted}
               onOpenMapAudio={() => setMapAudioOpen(true)}
+              onOpenHeroSettings={() => setMapHeroSettingsOpen(true)}
               onOpenSettings={() => setSettingsOpen(true)}
               onError={(code) => setError(code === "" ? null : code)}
             />
@@ -1560,6 +1570,22 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               // ambience and combat themes disappeared on reload unless the author happened to use
               // the editor-wide Save afterwards.
               handle.setAudio(audio);
+              return (await doSaveMap()) !== null;
+            }}
+          />
+        )}
+
+        {currentMap && (
+          <MapHeroSettingsDialog
+            key={`${map?.id ?? "map"}-hero-settings`}
+            open={mapHeroSettingsOpen}
+            mapName={currentMap.name}
+            initial={currentMap.heroSettings ?? defaultMapHeroSettings()}
+            onOpenChange={setMapHeroSettingsOpen}
+            onSave={async (heroSettings) => {
+              const handle = handleRef.current;
+              if (!handle) return false;
+              handle.setHeroSettings(heroSettings);
               return (await doSaveMap()) !== null;
             }}
           />

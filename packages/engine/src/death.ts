@@ -48,10 +48,14 @@ export function isLifeState(value: unknown): value is LifeState {
 }
 
 /** The living walk; the dead do not move at all; ghosts hurry. Both sides derive speed here. */
-export function speedForLife(life: LifeState, playerClass: PlayerClass = "warrior"): number {
+export function speedForLife(
+  life: LifeState,
+  playerClass: PlayerClass = "warrior",
+  movementSpeed = CLASS_STATS[playerClass].movementSpeed,
+): number {
   if (life === "ghost") return GHOST_SPEED;
   if (life === "corpse") return 0;
-  return CLASS_STATS[playerClass].movementSpeed;
+  return movementSpeed;
 }
 
 /** A corpse is inert and a ghost is intent-inert: only movement and chat survive. */

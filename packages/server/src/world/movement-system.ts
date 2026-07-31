@@ -4,6 +4,7 @@ import {
   movementDirectionFromInput,
 } from "@lindocara/engine/directional-combat.js";
 import { movementSpeedAt, resolveTerrain, resolveTerrainForLumen } from "@lindocara/engine/game.js";
+import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
@@ -74,7 +75,15 @@ export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>)
             player,
             player.lastInput,
             TICK_DT,
-            movementSpeedAt(player, speedForLife(player.life, player.class), context.zone.terrain),
+            movementSpeedAt(
+              player,
+              speedForLife(
+                player.life,
+                player.class,
+                mapHeroClassSettings(context.zone.heroSettings, player.class).stats.movementSpeed,
+              ),
+              context.zone.terrain,
+            ),
             context.zone.terrain,
           );
       const heldBlink =

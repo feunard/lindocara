@@ -4,6 +4,11 @@ import { canMove, type LifeState, speedForLife } from "@lindocara/engine/death.j
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import { movementSpeedAt, resolveTerrain, type TerrainGeometry } from "@lindocara/engine/game.js";
 import {
+  defaultMapHeroSettings,
+  type MapHeroSettings,
+  mapHeroClassSettings,
+} from "@lindocara/engine/map-hero-settings.js";
+import {
   CORRECTION_SMOOTHING_MS,
   MAX_ACCUMULATED_SECONDS,
   MAX_PENDING_COMMANDS,
@@ -221,6 +226,7 @@ export class WorldClient {
   // first welcome lands. A welcome's `world.zoneId` overwrites this with the zone the player is
   // actually in — without that, every zone but Verdant Reach would predict against its tilemap.
   #geometry: TerrainGeometry = zoneDefinition(DEFAULT_ZONE_ID).terrain;
+  #heroSettings: MapHeroSettings = defaultMapHeroSettings();
 
   #accumulator = 0;
   #input: Input = NO_INPUT;
@@ -355,6 +361,8 @@ export class WorldClient {
     const speed = speedForLife(
       this.#selfSnapshot?.life ?? "alive",
       this.#selfSnapshot?.class ?? "warrior",
+      mapHeroClassSettings(this.#heroSettings, this.#selfSnapshot?.class ?? "warrior").stats
+        .movementSpeed,
     );
 
     this.#accumulator = Math.min(this.#accumulator + dt, MAX_ACCUMULATED_SECONDS);
@@ -437,6 +445,7 @@ export class WorldClient {
       // compiled in. `parseServerMessage` has already checked it decodes, so these are the exact
       // bytes the authority baked — the client cannot disagree with a map it did not compute.
       this.#geometry = WorldClient.geometryFrom(message.world);
+      this.#heroSettings = message.world.heroSettings ?? defaultMapHeroSettings();
       replaceWorldCache(this.#worldCache, message);
       // Events ride inside `world`, not the top-level view; seed their baseline from there.
       seedEventCache(this.#worldCache, message.world.events);
@@ -644,6 +653,7 @@ export class WorldClient {
       this.#geometry,
       authoritative.life,
       authoritative.class,
+      mapHeroClassSettings(this.#heroSettings, authoritative.class).stats.movementSpeed,
     );
 
     const drawnAfter = this.#samplePredictedPosition();
@@ -668,7 +678,12 @@ export class WorldClient {
       this.#input,
       this.#accumulator,
       this.#geometry,
-      speedForLife(life, this.#selfSnapshot?.class ?? "warrior"),
+      speedForLife(
+        life,
+        this.#selfSnapshot?.class ?? "warrior",
+        mapHeroClassSettings(this.#heroSettings, this.#selfSnapshot?.class ?? "warrior").stats
+          .movementSpeed,
+      ),
     );
   }
 

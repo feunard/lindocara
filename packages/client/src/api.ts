@@ -10,6 +10,7 @@ import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
+import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { t } from "./i18n.js";
@@ -144,6 +145,8 @@ export interface MapPayload {
   markers: MapMarkers;
   /** Per-channel map overrides. Missing fields inherit the owning adventure. */
   audio?: MapAudioConfig;
+  /** Per-map authoritative class stats and disabled ability slots. */
+  heroSettings?: MapHeroSettings;
   /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
    *  events existed. Nothing here executes this tranche. */
   events: readonly MapEvent[];

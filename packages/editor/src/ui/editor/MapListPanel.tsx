@@ -30,7 +30,7 @@ import {
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lindocara/ui/components/tooltip.js";
-import { Music2, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
+import { Music2, Pencil, Plus, Settings2, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
@@ -67,6 +67,7 @@ interface MapListPanelProps {
   /** The open map was deleted: the screen decides what to show next. */
   onActiveDeleted(): void;
   onOpenMapAudio(): void;
+  onOpenHeroSettings?(): void;
   onOpenSettings(): void;
   onError(code: string): void;
 }
@@ -105,6 +106,7 @@ export function MapListPanel({
   onOpenPayload,
   onActiveDeleted,
   onOpenMapAudio,
+  onOpenHeroSettings,
   onOpenSettings,
   onError,
 }: MapListPanelProps) {
@@ -332,6 +334,16 @@ export function MapListPanel({
         >
           <Music2 />
           {t("editor.audio.mapButton")}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={!activeMapId || busy || locked}
+          onClick={() => onOpenHeroSettings?.()}
+        >
+          <SlidersHorizontal />
+          {t("editor.heroSettings.button")}
         </Button>
         <Button
           variant="outline"

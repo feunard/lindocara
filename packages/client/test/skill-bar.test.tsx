@@ -2,6 +2,7 @@ import { setLocale } from "@lindocara/client/i18n.js";
 import type { GameHandle } from "@lindocara/client/store.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { SKILL_PAD_LAYOUT, SkillBar } from "@lindocara/client/ui/hud/SkillBar.js";
+import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -40,6 +41,7 @@ describe("skill bar cooldowns", () => {
         equipment: { mainHand: "hunter_bow", offHand: null },
       },
       selfState: null,
+      mapHeroSettings: null,
       attackCooldownUntil: 0,
       skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
     });
@@ -68,6 +70,21 @@ describe("skill bar cooldowns", () => {
     expect(primary.querySelector(".skill-slot__pad")).toHaveTextContent("Num 5");
     expect(secondary.querySelector(".skill-slot__key")).toHaveTextContent("M");
     expect(secondary.querySelector(".skill-slot__pad")).toHaveTextContent("Num 3");
+  });
+
+  it("shows a map-disabled ability but never sends its cast intent", () => {
+    const game = gameHandle();
+    const mapHeroSettings = defaultMapHeroSettings();
+    mapHeroSettings.classes.ranger.disabledSkills = [2];
+    useUiStore.setState({ game, mapHeroSettings });
+    render(<SkillBar />);
+
+    const disabled = screen.getByRole("button", { name: "2. Piercing Arrow" });
+    expect(disabled).toBeDisabled();
+    expect(disabled).toHaveAttribute("title", "Piercing Arrow — Disabled on this map");
+    expect(disabled.querySelector(".skill-slot__lock")).toHaveTextContent("×");
+    fireEvent.click(disabled);
+    expect(game.castSkill).not.toHaveBeenCalled();
   });
 
   it("mirrors the five default numpad positions as a controller-style button cluster", () => {

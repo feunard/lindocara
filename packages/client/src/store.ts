@@ -3,6 +3,7 @@ import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { LifeState } from "@lindocara/engine/death.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type {
   PartyState,
   QuestDialogueEntry,
@@ -182,6 +183,7 @@ interface UiState {
    *  it lets the world map apply the true aspect ratio instead of assuming every zone is
    *  Verdant Reach's 16:9. */
   worldSize: { width: number; height: number } | null;
+  mapHeroSettings: MapHeroSettings | null;
   reconnect: ReconnectState | null;
   heroLoading: HeroLoadingState | null;
   adventureVictory: boolean;
@@ -223,6 +225,7 @@ interface UiState {
   setMerchantOpen(open: boolean): void;
   setZoneNameKey(key: MessageKey): void;
   setWorldSize(size: { width: number; height: number } | null): void;
+  setMapHeroSettings(settings: MapHeroSettings | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setHeroLoading(heroLoading: HeroLoadingState | null): void;
   setAdventureVictory(visible: boolean): void;
@@ -320,6 +323,7 @@ function clearedGameSessionFields() {
     merchantOpen: false,
     zoneNameKey: null,
     worldSize: null,
+    mapHeroSettings: null,
     reconnect: null,
     heroLoading: null,
     adventureVictory: false,
@@ -353,6 +357,7 @@ export const useUiStore = create<UiState>((set) => ({
   merchantOpen: false,
   zoneNameKey: null,
   worldSize: null,
+  mapHeroSettings: null,
   reconnect: null,
   heroLoading: null,
   adventureVictory: false,
@@ -438,6 +443,7 @@ export const useUiStore = create<UiState>((set) => ({
   setMerchantOpen: (open) => set({ merchantOpen: open }),
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
+  setMapHeroSettings: (mapHeroSettings) => set({ mapHeroSettings }),
   setReconnect: (reconnect) => set({ reconnect }),
   setHeroLoading: (heroLoading) => set({ heroLoading }),
   setAdventureVictory: (adventureVictory) => set({ adventureVictory }),

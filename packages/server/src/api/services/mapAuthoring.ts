@@ -40,6 +40,11 @@ import {
 } from "@lindocara/engine/map-data.js";
 import { type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
+  defaultMapHeroSettings,
+  type MapHeroSettings,
+  parseMapHeroSettings,
+} from "@lindocara/engine/map-hero-settings.js";
+import {
   MAP_MAX_COLS,
   MAP_MAX_ROWS,
   MAP_MIN_COLS,
@@ -73,6 +78,7 @@ export interface MapInput {
   markers?: MapMarkers | undefined;
   events?: readonly MapEvent[] | undefined;
   audio?: MapAudioConfig | undefined;
+  heroSettings?: MapHeroSettings | undefined;
 }
 
 /**
@@ -103,13 +109,17 @@ export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MI
     markers: EMPTY_MARKERS,
     events: [],
     audio: EMPTY_MAP_AUDIO,
+    heroSettings: defaultMapHeroSettings(),
   };
 }
 
 /** Rejects a map nobody could play before it reaches the database. Ported verbatim from `maps.ts`. */
-export function validateMapInput(
-  input: MapInput,
-): MapData & { name: string; events: MapEvent[]; audio: MapAudioConfig } {
+export function validateMapInput(input: MapInput): MapData & {
+  name: string;
+  events: MapEvent[];
+  audio: MapAudioConfig;
+  heroSettings: MapHeroSettings;
+} {
   const name = input.name.trim();
   if (name.length === 0 || name.length > MAP_NAME_MAX) {
     throw new Error("name: 1-48 characters");
@@ -185,7 +195,9 @@ export function validateMapInput(
   }
   const audio = input.audio === undefined ? EMPTY_MAP_AUDIO : parseMapAudioConfig(input.audio);
   if (!audio) throw new Error("audio: malformed map audio configuration");
-  return { ...data, markers, name, events, audio };
+  const heroSettings = parseMapHeroSettings(input.heroSettings);
+  if (!heroSettings) throw new Error("hero_settings: malformed hero configuration");
+  return { ...data, markers, name, events, audio, heroSettings };
 }
 
 /**
@@ -208,6 +220,13 @@ export function parseMapBody(body: unknown): MapInput | null {
     if (parsed === null) return null;
     audio = parsed;
   }
+  const rawHeroSettings = (body as { heroSettings?: unknown } | null)?.heroSettings;
+  let heroSettings: MapHeroSettings | undefined;
+  if (rawHeroSettings !== undefined) {
+    const parsed = parseMapHeroSettings(rawHeroSettings);
+    if (parsed === null) return null;
+    heroSettings = parsed;
+  }
   return {
     name,
     tilesetId: data.tilesetId,
@@ -219,6 +238,7 @@ export function parseMapBody(body: unknown): MapInput | null {
     markers: data.markers,
     events,
     ...(audio ? { audio } : {}),
+    ...(heroSettings ? { heroSettings } : {}),
   };
 }
 
@@ -305,6 +325,15 @@ export function decodeMapAudio(text: string): MapAudioConfig {
     return parseMapAudioConfig(JSON.parse(text)) ?? EMPTY_MAP_AUDIO;
   } catch {
     return EMPTY_MAP_AUDIO;
+  }
+}
+
+export function decodeMapHeroSettings(text: string): MapHeroSettings {
+  if (text === "") return defaultMapHeroSettings();
+  try {
+    return parseMapHeroSettings(JSON.parse(text)) ?? defaultMapHeroSettings();
+  } catch {
+    return defaultMapHeroSettings();
   }
 }
 
