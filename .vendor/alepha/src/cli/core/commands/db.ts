@@ -960,8 +960,10 @@ export class DbCommand {
     );
 
     const config: Record<string, any> = {
-      // Drizzle treats `schema` as a glob. Native Windows separators are not valid glob
-      // separators, even though the file itself exists, so normalize only this generated path.
+      // drizzle-kit treats `schema` as a glob, and a backslash is an escape
+      // character there rather than a separator. On Windows the path is
+      // perfectly valid and the file is right where it says — the glob simply
+      // matches nothing, so the generated migration comes out empty.
       schema: entitiesJsPath.replaceAll("\\", "/"),
       out: `./migrations/${options.providerName}`,
       dialect: options.dialect,
@@ -1034,6 +1036,11 @@ export class DbCommand {
     const getModelsCall = withoutSchema
       ? "kit.getModelsWithoutSchema(provider)"
       : "kit.getModels(provider)";
+
+    // Interpolated as JSON, not into bare quotes: `entry` is a filesystem path
+    // and `provider` a name, and either containing a quote or a backslash —
+    // every Windows path contains backslashes — produces a module that does not
+    // parse, or worse, one that parses as something else.
     const entrySpecifier = JSON.stringify(entry);
     const providerName = JSON.stringify(provider);
 

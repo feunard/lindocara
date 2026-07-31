@@ -24,3 +24,6 @@ artifacts/
 .claude/
 
 wireframes
+
+# `alepha pack` writes the artifact next to the app when -o is omitted.
+*.tar.gz

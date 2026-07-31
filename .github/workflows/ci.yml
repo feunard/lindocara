@@ -46,20 +46,17 @@ jobs:
       - name: Test
         run: npm test
 
-      # Production runs the pure Alepha stack now. The root `build` script is itself
-      # `npm run build -w @lindocara/main`, so `npm run build -- --target cloudflare` would hand
-      # `--target cloudflare` to that inner `npm run` rather than to `alepha build` — call the
-      # workspace script directly so the flag reaches the CLI. Emits `apps/main/dist/wrangler.jsonc`
-      # plus the worker bundle and assets, consumed by the deploy job.
-      - name: Build deployable Worker
-        run: npm run build -w @lindocara/main -- --target cloudflare
-        env:
-          # Static CI builds do not run `platform up`, so provide the production
-          # host explicitly and verify that the generated route is retained.
-          CLOUDFLARE_DOMAIN: lindocara.alepha.dev
-
-      - name: Audit Cloudflare artifact
-        run: npm run cloudflare:check
+      # `--target bare` is what Bay runs: plain Node, the framework's own
+      # websocket server, SQLite on disk. The root `build` script is itself
+      # `npm run build -w @lindocara/main`, so passing the flag through it would
+      # hand it to that inner `npm run` rather than to `alepha build` — call the
+      # workspace script directly.
+      #
+      # A build here and a build in the deploy job is deliberate duplication:
+      # this one proves a PR compiles, that one is what actually ships, and
+      # `platform up` refuses to deploy something it did not build itself.
+      - name: Build
+        run: npm run build -w @lindocara/main -- --target bare
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

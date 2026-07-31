@@ -5,37 +5,30 @@ export default defineConfig({
   plugins: [
     platform({
       environments: {
-        production: { domain: "lindocara.alepha.dev", adapter: "cloudflare" },
+        /**
+         * Deployed to Alepha Bay — a self-hosted server on a VPS we own.
+         *
+         * Replaces the Cloudflare Worker that served `lindocara.alepha.dev`.
+         * That address was never a production; it is a test platform, and
+         * running it on Workers forced the whole app into Cloudflare's shape —
+         * Durable Objects for the websocket rooms, D1 for the database — for a
+         * resilience it was not collecting.
+         *
+         * On Bay it is plain Node: the framework's own websocket server and a
+         * SQLite file on disk. Same code, one runtime instead of two, and the
+         * `build.cloudflare` block that used to live here is gone with it.
+         *
+         * `endpoint` is bay-admin, not Bay itself. Bay's control API listens on
+         * a unix socket and nothing else, so the only way in from a CI runner
+         * is through the panel that authenticates over HTTPS. `$BAY_ENDPOINT`
+         * overrides it without editing this file.
+         */
+        production: {
+          adapter: "bay",
+          domain: "lindocara.bay.alepha.dev",
+          endpoint: "https://admin.bay.alepha.dev",
+        },
       },
     }),
   ],
-  build: {
-    cloudflare: {
-      // `BuildCloudflareTask.generateCloudflare` spreads this whole object
-      // as `...ctx.options.cloudflare?.config` INTO the base wrangler
-      // object, ahead of its own `wrangler.assets ??= { directory: "./public",
-      // binding: "ASSETS" }` default. `??=` only fires when `wrangler.assets`
-      // is still undefined at that point — so an `assets` key here that
-      // carried only `not_found_handling`/`run_worker_first` would make
-      // `wrangler.assets` truthy and silently swallow the generated
-      // `directory`/`binding`, breaking asset serving entirely. All four
-      // keys are therefore authored together here, `directory`/`binding`
-      // matching the task's own generated defaults verbatim.
-      config: {
-        assets: {
-          directory: "./public",
-          binding: "ASSETS",
-          // The client is a single-page app: any unmatched path (a deep
-          // link, a browser refresh on `/game`) must fall back to
-          // `index.html` rather than 404 from the asset store.
-          not_found_handling: "single-page-application",
-          // Without `run_worker_first`, `not_found_handling` would also
-          // swallow `/api/*`/`/ws/*`/`/_auth/*`/`/oauth/*` — those must
-          // reach the Worker (and its Durable Objects) before the SPA
-          // fallback ever applies.
-          run_worker_first: ["/api/*", "/ws/*", "/_auth/*", "/oauth/*"],
-        },
-      },
-    },
-  },
 });

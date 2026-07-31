@@ -23,10 +23,15 @@ export class ViteBuildProvider {
     if (!this.alepha) {
       throw new AlephaError("ViteBuildProvider not initialized");
     }
-    // A dedicated browser entry is an explicit client contract. Depending only on whether the
-    // server-side analysis happened to instantiate ReactServerProvider makes the result sensitive
-    // to asynchronous/composed router registration and can silently omit the complete client and
-    // public-assets bundle from an otherwise successful build.
+    // A declared browser entry IS the client contract, and it settles the
+    // question before anything else is asked.
+    //
+    // The probe below only reports whether the server-side analysis happened to
+    // instantiate `ReactServerProvider`, which depends on when the router was
+    // registered — an app that composes it asynchronously (an `await import()`
+    // of its page tree) finishes analysis without it. The build then completes,
+    // reports success, and ships with no client bundle and no public assets.
+    // Found in an app that does exactly that.
     if (this.appEntry?.browser) {
       return true;
     }

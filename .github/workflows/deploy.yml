@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Never let two deploys race for the same Worker.
+  # Never let two deploys race for the same instance.
   group: deploy-production
   cancel-in-progress: false
 
 jobs:
-  # Nothing reaches production without passing exactly the checks CI runs on a PR.
+  # Nothing reaches the server without passing exactly the checks CI runs on a PR.
   check:
     if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/ci.yml
@@ -20,18 +20,21 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: check
-    name: deploy to Cloudflare
+    name: deploy to Bay
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://lindocara.alepha.dev
+      url: https://lindocara.bay.alepha.dev
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # Alepha's SecretProvider requires this in production and throws on the dev default —
-      # that's the guarantee we want. No other app secret exists: SESSION_SECRET died with the
-      # legacy stack. WEBSOCKET_MAX_PAYLOAD/NAVIGATION_DEBUG/CHEATS_ENABLED are $env primitives
-      # with safe defaults; add them here too only if a non-default production value is ever wanted.
+      # A key issued from bay-admin, tied to a user with the `admin` role. The
+      # adapter prefers `$BAY_API_KEY` over the stored credential precisely so
+      # CI needs no login and no file — a device flow wants a human, and there
+      # is nobody at the keyboard here.
+      BAY_API_KEY: ${{ secrets.BAY_API_KEY }}
+      # Alepha's SecretProvider requires this in production and throws on the
+      # dev default — that's the guarantee we want. Pushed to the instance's
+      # `.env` by `platform up`, which sends exactly the variables the manifest
+      # allowlists.
       APP_SECRET: ${{ secrets.APP_SECRET }}
     steps:
       - uses: actions/checkout@v5
@@ -43,12 +46,17 @@ jobs:
 
       - run: npm ci
 
-      # `alepha platform up` is the whole pipeline, same shape as ../alepha's own
-      # `deploy-lore-production` job: provision D1, build (`--target cloudflare`), apply
-      # migrations, deploy the worker + Durable Object + assets, then bulk-push the $env secrets
-      # allowlisted by the manifest. Nothing here downloads CI's build artifact — this step builds
-      # its own.
-      - name: Deploy to Cloudflare
+      # `alepha platform up` is the whole pipeline: build (`--target=bare`,
+      # because a workerd bundle has no node-runnable entry and Bay refuses
+      # it), pack the artifact with its migrations, upload it to bay-admin, and
+      # push the allowlisted `$env` values.
+      #
+      # Bay's own control API is a unix socket and nothing else, so bay-admin
+      # over HTTPS is the only way in from a runner — that indirection is what
+      # makes a CI deploy possible without exposing a root-equivalent port.
+      #
+      # Migrations run at app boot, not from here.
+      - name: Deploy to Bay
         run: npm run deploy -w @lindocara/main
 
       # « La Baie des Cent Voiles » n'a PAS d'étape ici, volontairement. Elle est publiée à la main
