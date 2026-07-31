@@ -94,6 +94,7 @@ describe("editor asset catalogue", () => {
       />,
     );
     const catalogue = screen.getByTestId("monster-catalogue");
+    fireEvent.click(within(catalogue).getByText(t("editor.event.monsters.heading")));
     const monsterButtons = within(catalogue).getAllByRole("button");
     expect(monsterButtons).toHaveLength(CURATED_MONSTER_SPECIES.length);
     for (const species of CURATED_MONSTER_SPECIES) {

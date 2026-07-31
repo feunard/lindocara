@@ -198,90 +198,105 @@ export function EventPalette({
           ))}
         </div>
 
-        <section
+        <details
           data-testid="npc-catalogue"
-          aria-label={t("editor.event.kind.npc")}
-          className={`flex flex-col gap-2 rounded-md border p-2 ${
+          className={`rounded-md border ${
             eventKind === "npc" ? "border-zinc-400 bg-zinc-100" : "border-zinc-200 bg-white"
           }`}
         >
-          <p className="text-[10.5px] text-zinc-500">
-            {t("editor.event.appearance.nativeVariants")}
-          </p>
-          <CatalogueAssetPicker
-            usage="character"
-            disabled={placementDisabled("npc")}
-            value={npcGraphic}
-            onSelectAsset={onSelectNpcGraphic}
-          />
-        </section>
-
-        {eventKind === "guard" && (
-          <section
-            data-testid="guard-appearance-catalogue"
-            className="flex flex-col gap-2 rounded-md bg-zinc-100 p-2"
-          >
+          <summary className="cursor-pointer px-2 py-1.5 text-[11px] font-semibold text-zinc-600">
+            {t("editor.event.kind.npc")}
+          </summary>
+          <div className="flex flex-col gap-2 border-t border-zinc-200 p-2">
             <p className="text-[10.5px] text-zinc-500">
               {t("editor.event.appearance.nativeVariants")}
             </p>
             <CatalogueAssetPicker
-              usage="guard"
-              disabled={placementDisabled("guard")}
-              value={guardGraphic}
-              onSelectAsset={onSelectGuardGraphic}
+              usage="character"
+              disabled={placementDisabled("npc")}
+              value={npcGraphic}
+              onSelectAsset={onSelectNpcGraphic}
             />
-          </section>
+          </div>
+        </details>
+
+        {eventKind === "guard" && (
+          <details
+            data-testid="guard-appearance-catalogue"
+            className="rounded-md border border-zinc-300 bg-zinc-100"
+          >
+            <summary className="cursor-pointer px-2 py-1.5 text-[11px] font-semibold text-zinc-600">
+              {t("editor.event.kind.guard")}
+            </summary>
+            <div className="flex flex-col gap-2 border-t border-zinc-200 p-2">
+              <p className="text-[10.5px] text-zinc-500">
+                {t("editor.event.appearance.nativeVariants")}
+              </p>
+              <CatalogueAssetPicker
+                usage="guard"
+                disabled={placementDisabled("guard")}
+                value={guardGraphic}
+                onSelectAsset={onSelectGuardGraphic}
+              />
+            </div>
+          </details>
         )}
 
-        <div className="mt-1 flex h-6 items-center border-t border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
-          {t("editor.event.monsters.heading")}
-        </div>
-        <div data-testid="monster-catalogue" className="flex flex-col gap-1">
-          {CURATED_MONSTER_SPECIES.map((species) => {
-            const idle = TINY_SWORDS_ENEMIES[species].idle;
-            return (
-              <SwatchButton
-                key={species}
-                label={t(`monster.${species}`)}
-                disabled={placementDisabled("monster")}
-                active={
-                  eventKind === "monster" && markerSpecies === species && enemyGraphic === null
-                }
-                preview={<SpriteSheetPreview source={idle.source} frame={idle.frame} />}
-                onClick={() => {
-                  onSelectEnemyGraphic(null);
-                  onMarkerSpeciesChange(species);
-                  onSelectEventKind("monster");
-                }}
-              />
-            );
-          })}
-        </div>
+        <details
+          data-testid="monster-catalogue"
+          className="rounded-md border border-zinc-200 bg-white"
+        >
+          <summary className="cursor-pointer px-2 py-1.5 text-[11px] font-semibold text-zinc-600">
+            {t("editor.event.monsters.heading")}
+          </summary>
+          <div className="flex flex-col gap-1 border-t border-zinc-200 p-2">
+            {CURATED_MONSTER_SPECIES.map((species) => {
+              const idle = TINY_SWORDS_ENEMIES[species].idle;
+              return (
+                <SwatchButton
+                  key={species}
+                  label={t(`monster.${species}`)}
+                  disabled={placementDisabled("monster")}
+                  active={
+                    eventKind === "monster" && markerSpecies === species && enemyGraphic === null
+                  }
+                  preview={<SpriteSheetPreview source={idle.source} frame={idle.frame} />}
+                  onClick={() => {
+                    onSelectEnemyGraphic(null);
+                    onMarkerSpeciesChange(species);
+                    onSelectEventKind("monster");
+                  }}
+                />
+              );
+            })}
+          </div>
+        </details>
 
-        <div className="mt-1 flex h-6 items-center border-t border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
-          {t("editor.event.enemies.heading")}
-        </div>
-        <section
+        <details
           data-testid="enemy-catalogue"
-          aria-label={t("editor.event.enemies.heading")}
-          className={`flex flex-col gap-2 rounded-md border p-2 ${
+          className={`rounded-md border ${
             eventKind === "monster" && enemyGraphic !== null
               ? "border-zinc-400 bg-zinc-100"
               : "border-zinc-200 bg-white"
           }`}
         >
-          <p className="text-[10.5px] text-zinc-500">{t("editor.event.enemies.description")}</p>
-          <CatalogueAssetPicker
-            usage="enemy"
-            disabled={placementDisabled("monster")}
-            value={enemyGraphic}
-            onSelectAsset={(assetId) => {
-              if (placementDisabled("monster")) return;
-              onSelectEnemyGraphic(assetId);
-              onSelectEventKind("monster");
-            }}
-          />
-        </section>
+          <summary className="cursor-pointer px-2 py-1.5 text-[11px] font-semibold text-zinc-600">
+            {t("editor.event.enemies.heading")}
+          </summary>
+          <div className="flex flex-col gap-2 border-t border-zinc-200 p-2">
+            <p className="text-[10.5px] text-zinc-500">{t("editor.event.enemies.description")}</p>
+            <CatalogueAssetPicker
+              usage="enemy"
+              disabled={placementDisabled("monster")}
+              value={enemyGraphic}
+              onSelectAsset={(assetId) => {
+                if (placementDisabled("monster")) return;
+                onSelectEnemyGraphic(assetId);
+                onSelectEventKind("monster");
+              }}
+            />
+          </div>
+        </details>
 
         {(eventKind === "monster" || eventKind === "guard" || eventKind === "npc") && (
           <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">

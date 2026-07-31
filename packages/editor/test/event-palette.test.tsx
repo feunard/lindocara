@@ -64,11 +64,16 @@ function baseProps() {
 }
 
 describe("EventPalette (D13/D14)", () => {
-  it("shows every free NPC model before the NPC placement mode is selected", () => {
+  it("keeps large actor catalogues closed until requested and then shows every free NPC model", () => {
     setLocale("en");
     const onSelectNpcGraphic = vi.fn();
     render(<EventPalette {...baseProps()} onSelectNpcGraphic={onSelectNpcGraphic} />);
     const catalogue = screen.getByTestId("npc-catalogue");
+    expect(catalogue).not.toHaveAttribute("open");
+    expect(screen.getByTestId("monster-catalogue")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("enemy-catalogue")).not.toHaveAttribute("open");
+    fireEvent.click(within(catalogue).getByText(t("editor.event.kind.npc")));
+    expect(catalogue).toHaveAttribute("open");
     const actorButtons = within(catalogue)
       .getAllByRole("button")
       .filter((button) => button.dataset.assetId);
@@ -127,6 +132,16 @@ describe("EventPalette (D13/D14)", () => {
     });
     expect(onMarkerRadiusChange).toHaveBeenCalledWith(160);
     expect(
+      within(screen.getByTestId("guard-appearance-catalogue")).getByText(
+        t("editor.event.kind.guard"),
+      ),
+    ).toBeVisible();
+    fireEvent.click(
+      within(screen.getByTestId("guard-appearance-catalogue")).getByText(
+        t("editor.event.kind.guard"),
+      ),
+    );
+    expect(
       within(screen.getByTestId("guard-appearance-catalogue"))
         .getAllByRole("button")
         .filter((button) => button.dataset.assetId),
@@ -153,6 +168,7 @@ describe("EventPalette (D13/D14)", () => {
       screen.queryByRole("combobox", { name: t("editor.markers.species") }),
     ).not.toBeInTheDocument();
     const catalogue = screen.getByTestId("npc-catalogue");
+    fireEvent.click(within(catalogue).getByText(t("editor.event.kind.npc")));
     fireEvent.change(within(catalogue).getByRole("searchbox"), {
       target: { value: "thief idle" },
     });
@@ -177,6 +193,7 @@ describe("EventPalette (D13/D14)", () => {
     );
 
     const catalogue = screen.getByTestId("enemy-catalogue");
+    fireEvent.click(within(catalogue).getByText(t("editor.event.enemies.heading")));
     expect(within(catalogue).getByText(t("editor.event.enemies.description"))).toBeVisible();
     const actors = within(catalogue)
       .getAllByRole("button")
