@@ -10,6 +10,7 @@ import {
   Grid3x3,
   Layers,
   MousePointer2,
+  Move,
   PaintBucket,
   Pencil,
   Play,
@@ -20,12 +21,13 @@ import type { ComponentProps, ComponentType } from "react";
 import type { EditorMode } from "../../game/editor-state.js";
 import { EditorModeControl } from "./EditorModeControl.js";
 
-/** The five paint tools the toolbar exposes as buttons. `stairs` and scenery live in the palette. */
-export type EditorPaintTool = "select" | "pencil" | "rect" | "fill" | "eraser";
+/** The six canvas tools the toolbar exposes as buttons. `stairs` and scenery live in the palette. */
+export type EditorPaintTool = "select" | "pan" | "pencil" | "rect" | "fill" | "eraser";
 
 /** The i18n key for every selectable tool key's label, shared with the status bar. */
 export const TOOL_LABEL_KEYS: Record<EditorPaintTool | "stairs", MessageKey> = {
   select: "editor.shell.tool.select",
+  pan: "editor.tool.pan",
   pencil: "editor.shell.tool.pencil",
   rect: "editor.shell.tool.rect",
   fill: "editor.shell.tool.fill",
@@ -40,6 +42,7 @@ export function toolLabelText(key: EditorPaintTool | "stairs"): string {
 
 const PAINT_TOOLS: { key: EditorPaintTool; icon: ComponentType }[] = [
   { key: "select", icon: MousePointer2 },
+  { key: "pan", icon: Move },
   { key: "pencil", icon: Pencil },
   { key: "rect", icon: Square },
   { key: "fill", icon: PaintBucket },

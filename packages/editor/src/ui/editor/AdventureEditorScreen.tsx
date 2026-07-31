@@ -103,14 +103,19 @@ const DEFAULT_STAIRS: Readonly<{
 }> = { direction: "east", lowLevel: 0 };
 
 type StageStatus = "loading" | "empty" | "ready" | "error";
-/** The active tool key. `stairs`, the hero-spawn tool, scenery and `event` have no *paint*-toolbar
- *  button — they are picked in the palette or the EV slot — so the paint toolbar highlights only for
- *  its five paint tools. */
+/** The active tool key. `stairs`, the hero-spawn tool, scenery and `event` have no toolbar button —
+ *  they are picked in the palette or the EV slot — so the toolbar highlights only its six canvas
+ *  tools. */
 type ToolKey = EditorPaintTool | "stairs" | "spawn" | "event";
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
-    key === "select" || key === "pencil" || key === "rect" || key === "fill" || key === "eraser"
+    key === "select" ||
+    key === "pan" ||
+    key === "pencil" ||
+    key === "rect" ||
+    key === "fill" ||
+    key === "eraser"
   );
 }
 
@@ -195,6 +200,8 @@ function paintToolFor(
   switch (key) {
     case "select":
       return { kind: "select" };
+    case "pan":
+      return { kind: "pan" };
     case "pencil":
       return content.kind === "elevation"
         ? { kind: "elevation", level: content.level }
@@ -1124,6 +1131,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         return;
       case "s":
         selectTool("select");
+        return;
+      case "m":
+        selectTool("pan");
         return;
       case "g":
         toggleGrid();

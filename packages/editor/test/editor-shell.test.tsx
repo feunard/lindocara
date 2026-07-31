@@ -312,6 +312,9 @@ describe("AdventureEditorScreen shell", () => {
     await user.click(screen.getByRole("button", { name: t("editor.shell.tool.select") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
 
+    await user.click(screen.getByRole("button", { name: t("editor.tool.pan") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "pan" });
+
     await user.click(screen.getByRole("button", { name: t("editor.shell.tool.pencil") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
 
@@ -1278,6 +1281,9 @@ describe("AdventureEditorScreen shell", () => {
 
       fireEvent.keyDown(host, { key: "s" });
       expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
+
+      fireEvent.keyDown(host, { key: "m" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "pan" });
 
       fireEvent.keyDown(host, { key: "p" });
       expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });

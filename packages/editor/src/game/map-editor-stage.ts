@@ -698,6 +698,28 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+const KEYBOARD_PAN_STEP = TILE_SIZE;
+
+/** Screen-space camera movement for one arrow press. Moving the map left reveals its right edge. */
+export function keyboardCameraPanDelta(
+  key: string,
+  accelerated = false,
+): { x: number; y: number } | null {
+  const step = KEYBOARD_PAN_STEP * (accelerated ? 4 : 1);
+  switch (key) {
+    case "ArrowLeft":
+      return { x: step, y: 0 };
+    case "ArrowRight":
+      return { x: -step, y: 0 };
+    case "ArrowUp":
+      return { x: 0, y: step };
+    case "ArrowDown":
+      return { x: 0, y: -step };
+    default:
+      return null;
+  }
+}
+
 /** Clamp one camera axis against the editor's real centre pane, not the full-window canvas. */
 export function clampCameraAxis(
   current: number,
@@ -1509,7 +1531,11 @@ async function buildSession(
   }
 
   function isPanTrigger(event: PointerEvent): boolean {
-    return event.button === 2 || (event.button === 0 && (spaceHeld || tool.kind === "pan"));
+    return (
+      event.button === 1 ||
+      event.button === 2 ||
+      (event.button === 0 && (spaceHeld || tool.kind === "pan"))
+    );
   }
 
   const onPointerDown = (event: PointerEvent): void => {
@@ -1621,7 +1647,23 @@ async function buildSession(
 
   const onContextMenu = (event: Event): void => event.preventDefault();
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.code === "Space") spaceHeld = true;
+    if (event.code === "Space") {
+      spaceHeld = true;
+      return;
+    }
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (
+      target?.closest(
+        'input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="dialog"]',
+      )
+    )
+      return;
+    const delta = keyboardCameraPanDelta(event.key, event.shiftKey);
+    if (!delta) return;
+    event.preventDefault();
+    world.x += delta.x;
+    world.y += delta.y;
+    clampCamera();
   };
   const onKeyUp = (event: KeyboardEvent): void => {
     if (event.code === "Space") spaceHeld = false;

@@ -7,6 +7,7 @@ import {
   eventChipLabel,
   eventOverlayToggled,
   fitCameraScale,
+  keyboardCameraPanDelta,
   paintCollisionOverlay,
   paintElementSelectionOutline,
   paintEventCell,
@@ -40,6 +41,20 @@ describe("clampCameraAxis", () => {
 
   it("centres a small map inside the centre pane rather than the full canvas", () => {
     expect(clampCameraAxis(0, 400, 240, 700)).toBe(390);
+  });
+});
+
+describe("keyboardCameraPanDelta", () => {
+  it("moves the map in the opposite direction to reveal the requested edge", () => {
+    expect(keyboardCameraPanDelta("ArrowLeft")).toEqual({ x: 64, y: 0 });
+    expect(keyboardCameraPanDelta("ArrowRight")).toEqual({ x: -64, y: 0 });
+    expect(keyboardCameraPanDelta("ArrowUp")).toEqual({ x: 0, y: 64 });
+    expect(keyboardCameraPanDelta("ArrowDown")).toEqual({ x: 0, y: -64 });
+  });
+
+  it("accelerates with Shift and ignores unrelated keys", () => {
+    expect(keyboardCameraPanDelta("ArrowRight", true)).toEqual({ x: -256, y: 0 });
+    expect(keyboardCameraPanDelta("Enter")).toBeNull();
   });
 });
 
