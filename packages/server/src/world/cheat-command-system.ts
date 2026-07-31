@@ -33,6 +33,12 @@ function resetCooldowns(player: PlayerRuntime): void {
   player.guardUntil = 0;
   player.guarding = false;
   player.guardActivatedAt = 0;
+  player.warriorChargeFollowup = null;
+  player.warriorCounterReserve = 0;
+  player.warriorBannerChallengeUntil = 0;
+  player.warriorBannerChallengeReduction = 0;
+  player.warriorBannerPower.clear();
+  player.warriorVortex = null;
 }
 
 /** Mutates session state only; World remains responsible for life-state transitions and sends. */

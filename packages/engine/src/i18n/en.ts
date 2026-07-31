@@ -623,6 +623,18 @@ export const en = {
   "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
   "talent.evolution.warrior.whirlwind.b.description":
     "Channel four rapid bounded strikes while remaining able to reposition.",
+  "talent.ultimate.warrior.iron_guard.name": "Counteroffensive",
+  "talent.ultimate.warrior.iron_guard.description":
+    "Store part of the damage you prevent. Releasing guard damages, pushes and taunts nearby enemies.",
+  "talent.ultimate.warrior.shield_bash.name": "Inexorable Breakthrough",
+  "talent.ultimate.warrior.shield_bash.description":
+    "After the first impact, reactivate within 2 seconds to charge a different enemy.",
+  "talent.ultimate.warrior.battle_cry.name": "War Banner",
+  "talent.ultimate.warrior.battle_cry.description":
+    "Extend your chosen evolution for 6 seconds and stack it with the initial cry.",
+  "talent.ultimate.warrior.whirlwind.name": "Eye of the Storm",
+  "talent.ultimate.warrior.whirlwind.description":
+    "Pull enemies toward Whirlwind and slow them heavily for 6 seconds.",
   "talent.evolution.ranger.piercing_arrow.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.description":
     "Each enemy pierced by the original arrow produces a bounce into another enemy at 60% power.",

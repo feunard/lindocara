@@ -100,6 +100,7 @@ import {
   QUEST_SITE_RESPAWN_MS,
   type QuestChapter,
   type QuestSite,
+  resolveTerrain,
   withinRange,
 } from "@lindocara/engine/game.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/interest.js";
@@ -265,14 +266,19 @@ import {
 import {
   activeRallyPowerMultiplier,
   advanceWarriorCyclones,
+  advanceWarriorVortices,
   applyKingsChallenge,
   applyRallyingCry,
   applySeismicImpact,
+  applyWarBanner,
+  chargeCounterOffensive,
   colossusChargeImpacts,
+  consumeCounterOffensive,
   cycloneImpactTimes,
   cycloneRecoveryMs,
   damageAfterWarriorProtection,
   startWarriorCyclone,
+  startWarriorVortex,
 } from "../../world/warrior-variant-system.js";
 import {
   ATTACHMENT_EVERY_TICKS,
@@ -755,6 +761,12 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   player.rallyPowerUntil = 0;
   player.rallyPowerMultiplier = 0;
   player.warriorCyclone = null;
+  player.warriorChargeFollowup = null;
+  player.warriorCounterReserve = 0;
+  player.warriorBannerChallengeUntil = 0;
+  player.warriorBannerChallengeReduction = 0;
+  player.warriorBannerPower.clear();
+  player.warriorVortex = null;
   clearRogueTransientState(player);
   player.negativeEffects.clear();
   removeDamageOverTimeBySource(w.state.damageOverTime, player.id);
@@ -1346,13 +1358,27 @@ function damagePlayer(
     now,
     (source, target) => areCombatAllies(source, target),
     (source, target) => hasLineOfSight(source, target, zone(w.state).terrain.tiles),
+    (protector, prevented) =>
+      chargeCounterOffensive(
+        protector,
+        prevented,
+        talentEffect(protector.class, protector.talents, "counter_offensive", 2),
+        "ally",
+      ),
   );
   const {
     amount: appliedDamage,
     result,
     parried,
+    prevented,
     retaliationRatio,
   } = guardedDamage(player, protectedDamage, now);
+  chargeCounterOffensive(
+    player,
+    prevented,
+    talentEffect(player.class, player.talents, "counter_offensive", 2),
+    parried ? "parry" : "guard",
+  );
   if (parried) {
     w.deps.send(connectionId, {
       t: "event",
@@ -1899,10 +1925,38 @@ export function startPlayerAction(
     );
     return true;
   }
+  const inexorable =
+    skill.id === "shield_bash"
+      ? talentEffect(player.class, player.talents, "inexorable_breakthrough", 3)
+      : undefined;
+  if (player.warriorChargeFollowup && player.warriorChargeFollowup.expiresAt <= now)
+    player.warriorChargeFollowup = null;
+  const chargeFollowup = inexorable ? player.warriorChargeFollowup : null;
+  const followupTarget = chargeFollowup
+    ? nearestChargeTarget(
+        player,
+        w.state.monsterGrid
+          .queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+          .filter((monster) => monster.id !== chargeFollowup.excludedTargetId),
+        skill.range,
+        now,
+        (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
+      )
+    : null;
+  if (chargeFollowup && !followupTarget) {
+    deps.send(connectionId, {
+      t: "event",
+      code: "skill.no_target",
+      params: { skill: skill.id },
+      tone: "info",
+    });
+    return false;
+  }
   if (skill.id === "vanish" && isRogueStealthed(player, now)) return false;
   if (player.guarding) {
     if (skill.id !== "iron_guard") return false;
     cancelCombatAction(player);
+    releaseCounterOffensive(w, connectionId, player, skill, now);
     player.guarding = false;
     player.guardActivatedAt = 0;
     player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
@@ -1911,13 +1965,13 @@ export function startPlayerAction(
     return true;
   }
   const resourceCost = skillResourceCost(player.class, slot);
-  if (!canSpendResource(player.resource, resourceCost)) {
+  if (!chargeFollowup && !canSpendResource(player.resource, resourceCost)) {
     deps.send(connectionId, { t: "event", code: "resource.insufficient", tone: "info" });
     return false;
   }
   if (slot === 1 && now - player.lastAttackAt < skill.cooldownMs) return false;
   if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
-  if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
+  if (!chargeFollowup && slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
   const definition = actionForClassSlot(player.class, slot);
   const shadowStepPhase =
     definition.shape === "shadow_step" &&
@@ -1977,7 +2031,8 @@ export function startPlayerAction(
     return false;
   }
   const chargeTarget =
-    definition.shape === "charge"
+    followupTarget ??
+    (definition.shape === "charge"
       ? nearestChargeTarget(
           player,
           w.state.monsterGrid.queryRadius(
@@ -1988,7 +2043,7 @@ export function startPlayerAction(
           now,
           (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
         )
-      : null;
+      : null);
   const shadowDanceTarget =
     shadowDance?.ok === true ? shadowDance.plan.strikes[0]?.targetPosition : undefined;
   const direction =
@@ -2020,6 +2075,7 @@ export function startPlayerAction(
       ? talentEffect(player.class, player.talents, "windstep", slot)
       : undefined;
   if (windstep && windstepCanInterrupt(player.action, now)) cancelCombatAction(player);
+  if (chargeFollowup) cancelCombatAction(player);
   const action = startCombatAction(player, {
     kind: slot === 1 ? "basic" : "skill",
     skillId: skill.id,
@@ -2036,6 +2092,10 @@ export function startPlayerAction(
       : {}),
   });
   if (!action) return false;
+  if (chargeFollowup) {
+    action.warriorChargeFollowup = { excludedTargetId: chargeFollowup.excludedTargetId };
+    player.warriorChargeFollowup = null;
+  }
   if (shadowStep?.ok === true) {
     action.rogueShadowStep = {
       targetId: shadowStep.plan.targetId,
@@ -2058,10 +2118,10 @@ export function startPlayerAction(
   player.invisibleUntil = 0;
 
   if (slot === 1) player.lastAttackAt = now;
-  else if (skill.id !== "iron_guard" && skill.id !== "vanish")
+  else if (!chargeFollowup && skill.id !== "iron_guard" && skill.id !== "vanish")
     player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
   if (skill.id === "mend") player.lastHealAt = now;
-  spendResource(player.resource, resourceCost);
+  if (!chargeFollowup) spendResource(player.resource, resourceCost);
   player.dirty = true;
   sendStateTo(w, connectionId, player);
   deps.send(connectionId, {
@@ -2273,7 +2333,10 @@ function resolveShieldBash(
   const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
   const monsterImpacts = w.state.monsterGrid
     .queryRadius(midpoint, distance / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
-    .filter((monster) => monster.deadUntil <= now)
+    .filter(
+      (monster) =>
+        monster.deadUntil <= now && monster.id !== action.warriorChargeFollowup?.excludedTargetId,
+    )
     .map((monster) => ({
       monster,
       impact: sweptProjectileEntityImpact(
@@ -2316,6 +2379,19 @@ function resolveShieldBash(
         Math.max(1, Math.round(basePower * contact.powerRatio)),
       );
     }
+    const firstTargetId = contacts[0]?.target.id;
+    const inexorable = talentEffect(
+      player.class,
+      player.talents,
+      "inexorable_breakthrough",
+      skill.slot,
+    );
+    if (firstTargetId && inexorable && !action.warriorChargeFollowup) {
+      player.warriorChargeFollowup = {
+        excludedTargetId: firstTargetId,
+        expiresAt: now + Math.max(0, inexorable.reactivationWindowMs),
+      };
+    }
     if (terrainImpact) {
       w.deps.send(connectionId, {
         t: "event",
@@ -2337,6 +2413,18 @@ function resolveShieldBash(
     if (target) {
       directTargetId = target.id;
       damageMonster(w, connectionId, player, target, skill, now, false);
+      const inexorable = talentEffect(
+        player.class,
+        player.talents,
+        "inexorable_breakthrough",
+        skill.slot,
+      );
+      if (inexorable && !action.warriorChargeFollowup) {
+        player.warriorChargeFollowup = {
+          excludedTargetId: target.id,
+          expiresAt: now + Math.max(0, inexorable.reactivationWindowMs),
+        };
+      }
     }
   } else if (first?.kind === "terrain") {
     w.deps.send(connectionId, {
@@ -2658,19 +2746,34 @@ export function resolvePlayerAction(
   }
   if (definition.shape === "area_taunt") {
     const rally = talentEffect(player.class, player.talents, "rallying_cry", slot as SkillSlot);
+    const banner = talentEffect(player.class, player.talents, "war_banner", slot as SkillSlot);
+    const radius = skill.radius ?? skill.range;
     if (rally) {
       applyRallyingCry(
         player,
         w.state.players.values(),
         rally,
-        skill.radius ?? skill.range,
+        radius,
         now,
         (source, target) => areCombatAllies(source, target),
         (source, target) => hasLineOfSight(source, target, terrain.tiles),
       );
+      if (banner) {
+        applyWarBanner(
+          player,
+          w.state.players.values(),
+          rally,
+          undefined,
+          banner.durationMs,
+          now,
+          (source, target) => areCombatAllies(source, target),
+          (target) =>
+            pointDistance(player, target) <= radius &&
+            hasLineOfSight(player, target, terrain.tiles),
+        );
+      }
       return;
     }
-    const radius = skill.radius ?? skill.range;
     let taunted = 0;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
@@ -2694,6 +2797,18 @@ export function resolvePlayerAction(
       slot as SkillSlot,
     );
     if (challenge) applyKingsChallenge(player, taunted, challenge, now);
+    if (banner && challenge) {
+      applyWarBanner(
+        player,
+        w.state.players.values(),
+        undefined,
+        challenge,
+        banner.durationMs,
+        now,
+        (source, target) => areCombatAllies(source, target),
+        () => true,
+      );
+    }
     return;
   }
   const judgment = talentEffect(player.class, player.talents, "nova_judgment", slot as SkillSlot);
@@ -2701,8 +2816,27 @@ export function resolvePlayerAction(
   const novaMultipliers = novaSpecializationMultipliers(judgment, mercy);
   if (definition.shape === "area_damage" || definition.shape === "nova") {
     const cyclone = talentEffect(player.class, player.talents, "cyclone", slot as SkillSlot);
+    const eyeOfTheStorm = talentEffect(
+      player.class,
+      player.talents,
+      "eye_of_the_storm",
+      slot as SkillSlot,
+    );
     if (cyclone) {
       startWarriorCyclone(player, action.id, skill, cyclone, now);
+      if (eyeOfTheStorm) {
+        startWarriorVortex(
+          player,
+          { x: player.x, y: player.y },
+          skill.radius ?? skill.range,
+          {
+            ...eyeOfTheStorm,
+            durationMs: cyclone.ticks * cyclone.intervalMs,
+          },
+          now,
+          true,
+        );
+      }
       return;
     }
     const steelTempest = talentEffect(
@@ -2741,6 +2875,9 @@ export function resolvePlayerAction(
         );
         if (result && !result.killed && steelTempest) tauntMonster(player, monster, now);
       }
+    }
+    if (steelTempest && eyeOfTheStorm) {
+      startWarriorVortex(player, { x: player.x, y: player.y }, radius, eyeOfTheStorm, now, false);
     }
   }
   if (definition.shape === "area_heal" || definition.shape === "nova") {
@@ -2802,6 +2939,118 @@ function resolveWarriorCycloneStrike(
     )
       continue;
     damageMonster(w, connectionId, player, monster, skill, now, false, power);
+  }
+}
+
+function pushMonsterAwayFrom(
+  w: WorldGlue,
+  monster: MonsterRuntime,
+  center: Vec2,
+  distance: number,
+): void {
+  const direction = normalizeDirection(
+    { x: monster.x - center.x, y: monster.y - center.y },
+    monster.facing,
+  );
+  const previous = { x: monster.x, y: monster.y };
+  const moved = resolveTerrain(
+    monster,
+    {
+      x: monster.x + direction.x * Math.max(0, distance),
+      y: monster.y + direction.y * Math.max(0, distance),
+    },
+    zone(w.state).terrain,
+  );
+  monster.x = moved.x;
+  monster.y = moved.y;
+  w.state.monsterGrid.update(monster, previous);
+}
+
+function releaseCounterOffensive(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  skill: SkillDefinition,
+  now: number,
+): void {
+  const effect = talentEffect(player.class, player.talents, "counter_offensive", 2);
+  if (!effect) {
+    player.warriorCounterReserve = 0;
+    return;
+  }
+  const power = consumeCounterOffensive(player);
+  if (power <= 0) return;
+  const center = { x: player.x, y: player.y };
+  for (const monster of w.state.monsterGrid
+    .queryRadius(center, effect.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .sort((left, right) => left.id.localeCompare(right.id))) {
+    if (
+      monster.deadUntil > now ||
+      !withinRange(player, monster, effect.radius + monsterBodyRadius(monster.species)) ||
+      !hasLineOfSight(player, monster, zone(w.state).terrain.tiles)
+    )
+      continue;
+    const result = damageMonster(w, connectionId, player, monster, skill, now, false, power);
+    if (!result?.killed) {
+      pushMonsterAwayFrom(w, monster, center, effect.knockbackDistance);
+      tauntMonster(player, monster, now);
+    }
+  }
+  sendSpatialEvent(
+    w,
+    {
+      t: "animation",
+      actionId: crypto.randomUUID(),
+      actorKind: "player",
+      actorId: player.id,
+      action: "skill",
+      skillId: skill.id,
+      talented: true,
+      evolved: true,
+      direction: { ...player.facing },
+      startedAt: now,
+      impactAt: now,
+      recoveryEndsAt: now + 240,
+    },
+    player,
+  );
+}
+
+function pulseWarriorVortex(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  center: Vec2,
+  effect: Extract<TalentEffect, { kind: "eye_of_the_storm" }>,
+  now: number,
+): void {
+  const radius = player.warriorVortex?.radius ?? 0;
+  for (const monster of w.state.monsterGrid
+    .queryRadius(center, radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .sort((left, right) => left.id.localeCompare(right.id))) {
+    if (
+      monster.deadUntil > now ||
+      pointDistance(center, monster) > radius + monsterBodyRadius(monster.species) ||
+      !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
+    )
+      continue;
+    const previous = { x: monster.x, y: monster.y };
+    const direction = normalizeDirection(
+      { x: center.x - monster.x, y: center.y - monster.y },
+      monster.facing,
+    );
+    const moved = resolveTerrain(
+      monster,
+      {
+        x: monster.x + direction.x * effect.pullDistance,
+        y: monster.y + direction.y * effect.pullDistance,
+      },
+      zone(w.state).terrain,
+    );
+    monster.x = moved.x;
+    monster.y = moved.y;
+    monster.slowMultiplier = Math.min(monster.slowMultiplier, 1 - effect.slowRatio);
+    monster.slowUntil = Math.max(monster.slowUntil, now + effect.slowDurationMs);
+    w.state.monsterGrid.update(monster, previous);
   }
 }
 
@@ -3411,6 +3660,12 @@ export function handleTalentUnlock(
 /** Port of the `talent.reset` arm of `#handleMessage` (`world.ts:1787`). */
 export function handleTalentReset(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
   player.talents = [];
+  player.warriorChargeFollowup = null;
+  player.warriorCounterReserve = 0;
+  player.warriorBannerChallengeUntil = 0;
+  player.warriorBannerChallengeReduction = 0;
+  player.warriorBannerPower.clear();
+  player.warriorVortex = null;
   if (player.guarding) {
     player.guardReduction = skillWithTalents(player.class, player.talents, 2).reduction ?? 0;
     player.guardActivatedAt = 0;
@@ -4443,6 +4698,8 @@ export function advanceWorldTick(w: WorldGlue): void {
 
   advanceConsumableEffects(w, now);
   for (const [connectionId, player] of state.players) {
+    if (player.warriorChargeFollowup && player.warriorChargeFollowup.expiresAt <= now)
+      player.warriorChargeFollowup = null;
     expireRogueOpening(player, now);
     expireRogueExecution(player, now);
     expireRoguePredatorShiv(player, now);
@@ -4528,6 +4785,9 @@ export function advanceWorldTick(w: WorldGlue): void {
   );
   advanceWarriorCyclones(state.players.values(), now, (player, radius, power) =>
     resolveWarriorCycloneStrike(w, player, radius, power, now),
+  );
+  advanceWarriorVortices(state.players.values(), now, (player, center, effect) =>
+    pulseWarriorVortex(w, player, center, effect, now),
   );
   advanceSanctuaries(
     state.sanctuaries,

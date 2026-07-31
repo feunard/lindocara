@@ -45,6 +45,7 @@ export function guardedDamage(player: PlayerRuntime, damage: number, now = Date.
     const retaliation = talentEffect(player.class, player.talents, "perfect_retaliation", 2);
     return {
       amount: 0,
+      prevented: Math.max(0, damage),
       result: applyDamage(player.hp, 0),
       parried: true,
       retaliationRatio: retaliation?.ratio ?? 0,
@@ -53,5 +54,11 @@ export function guardedDamage(player: PlayerRuntime, damage: number, now = Date.
   const amount = player.guarding
     ? Math.max(1, Math.ceil(damage * (1 - player.guardReduction)))
     : damage;
-  return { amount, result: applyDamage(player.hp, amount), parried: false, retaliationRatio: 0 };
+  return {
+    amount,
+    prevented: Math.max(0, damage - amount),
+    result: applyDamage(player.hp, amount),
+    parried: false,
+    retaliationRatio: 0,
+  };
 }

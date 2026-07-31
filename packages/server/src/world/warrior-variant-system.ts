@@ -1,3 +1,4 @@
+import { maxHpForLevel } from "@lindocara/engine/game.js";
 import type { SkillDefinition } from "@lindocara/engine/skills.js";
 import { type TalentEffect, talentEffect } from "@lindocara/engine/talents.js";
 import type { PlayerRuntime } from "./world-runtime.js";
@@ -10,6 +11,8 @@ type ColossusChargeEffect = Extract<TalentEffect, { kind: "colossus_charge" }>;
 type KingChallengeEffect = Extract<TalentEffect, { kind: "king_challenge" }>;
 type RallyingCryEffect = Extract<TalentEffect, { kind: "rallying_cry" }>;
 type CycloneEffect = Extract<TalentEffect, { kind: "cyclone" }>;
+type CounterOffensiveEffect = Extract<TalentEffect, { kind: "counter_offensive" }>;
+type EyeOfTheStormEffect = Extract<TalentEffect, { kind: "eye_of_the_storm" }>;
 
 function cycloneTiming(effect: CycloneEffect): { ticks: number; intervalMs: number } {
   return {
@@ -33,8 +36,10 @@ export function damageAfterWarriorProtection(
   now: number,
   areAllies: AllyPredicate,
   hasVisibility: VisibilityPredicate,
+  onPrevented?: (protector: PlayerRuntime, amount: number) => void,
 ): number {
   let allyReduction = 0;
+  let selectedProtector: PlayerRuntime | null = null;
   for (const protector of players) {
     if (
       protector === target ||
@@ -48,20 +53,167 @@ export function damageAfterWarriorProtection(
     const effect = talentEffect(protector.class, protector.talents, "ally_guard", 2);
     if (!effect || distance(protector, target) > effect.radius || !hasVisibility(protector, target))
       continue;
-    allyReduction = Math.max(allyReduction, effect.reduction);
+    if (
+      effect.reduction > allyReduction ||
+      (effect.reduction === allyReduction &&
+        (selectedProtector === null || protector.id.localeCompare(selectedProtector.id) < 0))
+    ) {
+      allyReduction = effect.reduction;
+      selectedProtector = protector;
+    }
   }
 
-  const challengeReduction = target.challengeReductionUntil > now ? target.challengeReduction : 0;
+  const challengeReduction = activeChallengeReduction(target, now);
   const combinedReduction = Math.min(
     0.65,
     1 - (1 - Math.max(0, allyReduction)) * (1 - Math.max(0, challengeReduction)),
   );
-  return Math.max(1, Math.ceil(Math.max(0, rawDamage) * (1 - combinedReduction)));
+  const applied = Math.max(1, Math.ceil(Math.max(0, rawDamage) * (1 - combinedReduction)));
+  if (selectedProtector && allyReduction > 0)
+    onPrevented?.(
+      selectedProtector,
+      Math.max(0, rawDamage - Math.ceil(rawDamage * (1 - allyReduction))),
+    );
+  return applied;
 }
 
 /** Returns the single bounded Rallying Cry multiplier active at the moment damage resolves. */
 export function activeRallyPowerMultiplier(player: PlayerRuntime, now: number): number {
-  return player.rallyPowerUntil > now ? Math.max(0, player.rallyPowerMultiplier) : 0;
+  let multiplier = player.rallyPowerUntil > now ? Math.max(0, player.rallyPowerMultiplier) : 0;
+  for (const [sourceId, banner] of player.warriorBannerPower) {
+    if (banner.expiresAt <= now) {
+      player.warriorBannerPower.delete(sourceId);
+      continue;
+    }
+    multiplier += Math.max(0, banner.multiplier);
+  }
+  return Math.min(0.75, multiplier);
+}
+
+export function activeChallengeReduction(player: PlayerRuntime, now: number): number {
+  const challenge = player.challengeReductionUntil > now ? player.challengeReduction : 0;
+  const banner =
+    player.warriorBannerChallengeUntil > now ? player.warriorBannerChallengeReduction : 0;
+  return Math.min(0.4, Math.max(0, challenge) + Math.max(0, banner));
+}
+
+export function chargeCounterOffensive(
+  player: PlayerRuntime,
+  preventedDamage: number,
+  effect: CounterOffensiveEffect | undefined,
+  source: "guard" | "parry" | "ally",
+): number {
+  if (!effect || preventedDamage <= 0) return player.warriorCounterReserve;
+  const ratio =
+    source === "parry"
+      ? effect.parryChargeRatio
+      : source === "ally"
+        ? effect.allyChargeRatio
+        : effect.guardedChargeRatio;
+  const cap = maxHpForLevel(player.level) * Math.max(0, effect.maxStoredRatio);
+  player.warriorCounterReserve = Math.min(
+    cap,
+    player.warriorCounterReserve + preventedDamage * Math.max(0, ratio),
+  );
+  return player.warriorCounterReserve;
+}
+
+export function consumeCounterOffensive(player: PlayerRuntime): number {
+  const power = Math.max(0, Math.round(player.warriorCounterReserve));
+  player.warriorCounterReserve = 0;
+  return power;
+}
+
+export function applyWarBanner(
+  caster: PlayerRuntime,
+  players: Iterable<PlayerRuntime>,
+  rally: RallyingCryEffect | undefined,
+  challenge: KingChallengeEffect | undefined,
+  durationMs: number,
+  now: number,
+  areAllies: AllyPredicate,
+  inAura: (target: PlayerRuntime) => boolean,
+): void {
+  const expiresAt = now + Math.max(0, durationMs);
+  if (rally) {
+    for (const target of players) {
+      if (
+        target.life !== "alive" ||
+        !target.authorized ||
+        !areAllies(caster, target) ||
+        !inAura(target)
+      )
+        continue;
+      target.warriorBannerPower.set(caster.id, {
+        multiplier: Math.max(0, rally.powerMultiplier),
+        expiresAt,
+      });
+    }
+  }
+  if (challenge) {
+    caster.warriorBannerChallengeReduction = Math.max(0, caster.challengeReduction);
+    caster.warriorBannerChallengeUntil = expiresAt;
+  }
+}
+
+export function startWarriorVortex(
+  player: PlayerRuntime,
+  center: { x: number; y: number },
+  radius: number,
+  effect: EyeOfTheStormEffect,
+  now: number,
+  followsOwner: boolean,
+): void {
+  player.warriorVortex = {
+    ...center,
+    radius: Math.max(0, radius),
+    expiresAt: now + Math.max(0, effect.durationMs),
+    nextPulseAt: now,
+    pulseIntervalMs: Math.max(50, effect.pulseIntervalMs),
+    pullDistance: Math.max(0, effect.pullDistance),
+    slowRatio: Math.max(0, Math.min(0.95, effect.slowRatio)),
+    slowDurationMs: Math.max(0, effect.slowDurationMs),
+    followsOwner,
+  };
+}
+
+export function advanceWarriorVortices(
+  players: Iterable<PlayerRuntime>,
+  now: number,
+  pulse: (
+    player: PlayerRuntime,
+    center: { x: number; y: number },
+    effect: EyeOfTheStormEffect,
+  ) => void,
+): void {
+  for (const player of players) {
+    const vortex = player.warriorVortex;
+    if (!vortex) continue;
+    if (
+      !player.authorized ||
+      player.transitioning ||
+      player.life !== "alive" ||
+      vortex.expiresAt <= now
+    ) {
+      player.warriorVortex = null;
+      continue;
+    }
+    if (vortex.followsOwner) {
+      vortex.x = player.x;
+      vortex.y = player.y;
+    }
+    while (vortex.nextPulseAt <= now && vortex.nextPulseAt < vortex.expiresAt) {
+      pulse(player, vortex, {
+        kind: "eye_of_the_storm",
+        durationMs: Math.max(0, vortex.expiresAt - vortex.nextPulseAt),
+        pulseIntervalMs: vortex.pulseIntervalMs,
+        pullDistance: vortex.pullDistance,
+        slowRatio: vortex.slowRatio,
+        slowDurationMs: vortex.slowDurationMs,
+      });
+      vortex.nextPulseAt += vortex.pulseIntervalMs;
+    }
+  }
 }
 
 export function applyKingsChallenge(

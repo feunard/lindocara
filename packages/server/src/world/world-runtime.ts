@@ -158,6 +158,8 @@ export interface CombatActionRuntime {
     /** Frozen from the selected Tier 4 talent when the server accepts this cast. */
     phaseThroughObstacles: boolean;
   };
+  /** Free second leg of Percée inexorable; the first collision target is excluded. */
+  warriorChargeFollowup?: { excludedTargetId: string };
 }
 
 export interface WarriorCycloneRuntime {
@@ -167,6 +169,22 @@ export interface WarriorCycloneRuntime {
   intervalMs: number;
   radius: number;
   power: number;
+}
+
+export interface WarriorChargeFollowupRuntime {
+  excludedTargetId: string;
+  expiresAt: number;
+}
+
+export interface WarriorVortexRuntime extends Vec2 {
+  expiresAt: number;
+  nextPulseAt: number;
+  pulseIntervalMs: number;
+  radius: number;
+  pullDistance: number;
+  slowRatio: number;
+  slowDurationMs: number;
+  followsOwner: boolean;
 }
 
 export type RogueOpeningSource = "shadow_step" | "vanish";
@@ -250,6 +268,13 @@ export interface PlayerRuntime extends PlayerProfile {
   rallyPowerMultiplier: number;
   /** Server tick-driven Cyclone sequence. No autonomous timers are created per cast. */
   warriorCyclone: WarriorCycloneRuntime | null;
+  /** Room-local ultimate windows and reservoirs. Never serialized or persisted. */
+  warriorChargeFollowup: WarriorChargeFollowupRuntime | null;
+  warriorCounterReserve: number;
+  warriorBannerChallengeUntil: number;
+  warriorBannerChallengeReduction: number;
+  warriorBannerPower: Map<string, { multiplier: number; expiresAt: number }>;
+  warriorVortex: WarriorVortexRuntime | null;
   /** Server-only Rogue windows. They are reset on every runtime/session boundary. */
   opening: RogueOpeningRuntime | null;
   rogueStealthUntil: number;
@@ -311,6 +336,9 @@ export interface MonsterRuntime extends Vec2 {
   maxHp: number;
   damage: number;
   speed: number;
+  /** Temporary movement penalty; reset on respawn and never serialized. */
+  slowUntil: number;
+  slowMultiplier: number;
   xp: number;
   weakness: MonsterWeakness;
   weaknessPercent: number;
@@ -537,6 +565,12 @@ export function newPlayer(
     rallyPowerUntil: 0,
     rallyPowerMultiplier: 0,
     warriorCyclone: null,
+    warriorChargeFollowup: null,
+    warriorCounterReserve: 0,
+    warriorBannerChallengeUntil: 0,
+    warriorBannerChallengeReduction: 0,
+    warriorBannerPower: new Map(),
+    warriorVortex: null,
     opening: null,
     rogueStealthUntil: 0,
     rogueSmokeProtectionUntil: 0,
@@ -703,6 +737,8 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       maxHp: tuning.maxHp,
       damage: tuning.damage,
       speed: tuning.speed,
+      slowUntil: 0,
+      slowMultiplier: 1,
       xp: tuning.xp,
       weakness: tuning.weakness,
       weaknessPercent: tuning.weaknessPercent,

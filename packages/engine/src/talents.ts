@@ -12,6 +12,15 @@ export type TalentEffect =
   | { kind: "perfect_retaliation"; ratio: number }
   | { kind: "ally_guard"; radius: number; reduction: number }
   | {
+      kind: "counter_offensive";
+      maxStoredRatio: number;
+      guardedChargeRatio: number;
+      parryChargeRatio: number;
+      allyChargeRatio: number;
+      radius: number;
+      knockbackDistance: number;
+    }
+  | {
       kind: "colossus_charge";
       throughPowerRatio: number;
       maxTargets: number;
@@ -21,6 +30,7 @@ export type TalentEffect =
       radius: number;
       powerRatio: number;
     }
+  | { kind: "inexorable_breakthrough"; reactivationWindowMs: number }
   | {
       kind: "king_challenge";
       durationMs: number;
@@ -32,12 +42,21 @@ export type TalentEffect =
       durationMs: number;
       powerMultiplier: number;
     }
+  | { kind: "war_banner"; durationMs: number }
   | { kind: "steel_tempest" }
   | {
       kind: "cyclone";
       ticks: number;
       intervalMs: number;
       powerRatio: number;
+    }
+  | {
+      kind: "eye_of_the_storm";
+      durationMs: number;
+      pulseIntervalMs: number;
+      pullDistance: number;
+      slowRatio: number;
+      slowDurationMs: number;
     }
   | { kind: "ricochet"; ratio: number; range: number }
   | { kind: "line_piercer"; bonusPerTarget: number; maxBonus: number }
@@ -293,97 +312,160 @@ const cooldown = (value = 0.12): TalentEffect => ({ kind: "cooldown_multiplier",
 
 export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>> = {
   warrior: [
-    ...branch("warrior", 2, [
+    ...branch(
+      "warrior",
+      2,
+      [
+        {
+          key: "fortified",
+          label: "guard_reduction",
+          effects: [{ kind: "guard_reduction", value: 0.1 }],
+        },
+        {
+          key: "perfect",
+          label: "perfect_parry",
+          effects: [{ kind: "perfect_parry", windowMs: 220 }],
+        },
+        { key: "readiness", label: "cooldown", effects: [cooldown(0.15)] },
+        {
+          key: "riposte",
+          label: "perfect_retaliation",
+          effects: [{ kind: "perfect_retaliation", ratio: 1 }],
+        },
+        {
+          key: "rempart",
+          label: "ally_guard",
+          effects: [{ kind: "ally_guard", radius: 120, reduction: 0.25 }],
+        },
+      ],
       {
-        key: "fortified",
-        label: "guard_reduction",
-        effects: [{ kind: "guard_reduction", value: 0.1 }],
+        ultimate: {
+          key: "counter_offensive",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "counter_offensive",
+              maxStoredRatio: 0.75,
+              guardedChargeRatio: 0.7,
+              parryChargeRatio: 1.25,
+              allyChargeRatio: 0.6,
+              radius: 135,
+              knockbackDistance: 72,
+            },
+          ],
+        },
       },
+    ),
+    ...branch(
+      "warrior",
+      3,
+      [
+        { key: "impact", label: "power", effects: [power()] },
+        { key: "onslaught", label: "range", effects: [range(), distance()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "mastery",
+          effects: [
+            power(0.3),
+            distance(0.2),
+            { kind: "colossus_charge", throughPowerRatio: 0.7, maxTargets: 6 },
+          ],
+        },
+        {
+          key: "seismic_impact",
+          label: "seismic_impact",
+          effects: [
+            range(-0.3),
+            distance(-0.3),
+            { kind: "seismic_impact", radius: 90, powerRatio: 0.55 },
+          ],
+        },
+      ],
       {
-        key: "perfect",
-        label: "perfect_parry",
-        effects: [{ kind: "perfect_parry", windowMs: 220 }],
+        ultimate: {
+          key: "inexorable_breakthrough",
+          label: "ultimate",
+          effects: [{ kind: "inexorable_breakthrough", reactivationWindowMs: 2_000 }],
+        },
       },
-      { key: "readiness", label: "cooldown", effects: [cooldown(0.15)] },
+    ),
+    ...branch(
+      "warrior",
+      4,
+      [
+        { key: "reach", label: "range", effects: [range(0.2)] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        { key: "command", label: "mastery", effects: [range(0.15)] },
+        {
+          key: "mastery",
+          label: "mastery",
+          effects: [
+            range(0.35),
+            cooldown(0.15),
+            {
+              kind: "king_challenge",
+              durationMs: 3_000,
+              reductionPerEnemy: 0.04,
+              maxReduction: 0.2,
+            },
+          ],
+        },
+        {
+          key: "rallying_cry",
+          label: "rallying_cry",
+          effects: [
+            {
+              kind: "rallying_cry",
+              durationMs: 4_500,
+              powerMultiplier: 0.15,
+            },
+          ],
+        },
+      ],
       {
-        key: "riposte",
-        label: "perfect_retaliation",
-        effects: [{ kind: "perfect_retaliation", ratio: 1 }],
+        ultimate: {
+          key: "war_banner",
+          label: "ultimate",
+          effects: [{ kind: "war_banner", durationMs: 6_000 }],
+        },
       },
+    ),
+    ...branch(
+      "warrior",
+      5,
+      [
+        { key: "force", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "mastery",
+          label: "mastery",
+          effects: [power(0.35), range(0.1), { kind: "steel_tempest" }],
+        },
+        {
+          key: "cyclone",
+          label: "cyclone",
+          effects: [{ kind: "cyclone", ticks: 4, intervalMs: 250, powerRatio: 0.32 }],
+        },
+      ],
       {
-        key: "rempart",
-        label: "ally_guard",
-        effects: [{ kind: "ally_guard", radius: 120, reduction: 0.25 }],
+        ultimate: {
+          key: "eye_of_the_storm",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "eye_of_the_storm",
+              durationMs: 3_000,
+              pulseIntervalMs: 250,
+              pullDistance: 18,
+              slowRatio: 0.6,
+              slowDurationMs: 6_000,
+            },
+          ],
+        },
       },
-    ]),
-    ...branch("warrior", 3, [
-      { key: "impact", label: "power", effects: [power()] },
-      { key: "onslaught", label: "range", effects: [range(), distance()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "mastery",
-        label: "mastery",
-        effects: [
-          power(0.3),
-          distance(0.2),
-          { kind: "colossus_charge", throughPowerRatio: 0.7, maxTargets: 6 },
-        ],
-      },
-      {
-        key: "seismic_impact",
-        label: "seismic_impact",
-        effects: [
-          range(-0.3),
-          distance(-0.3),
-          { kind: "seismic_impact", radius: 90, powerRatio: 0.55 },
-        ],
-      },
-    ]),
-    ...branch("warrior", 4, [
-      { key: "reach", label: "range", effects: [range(0.2)] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "command", label: "mastery", effects: [range(0.15)] },
-      {
-        key: "mastery",
-        label: "mastery",
-        effects: [
-          range(0.35),
-          cooldown(0.15),
-          {
-            kind: "king_challenge",
-            durationMs: 3_000,
-            reductionPerEnemy: 0.04,
-            maxReduction: 0.2,
-          },
-        ],
-      },
-      {
-        key: "rallying_cry",
-        label: "rallying_cry",
-        effects: [
-          {
-            kind: "rallying_cry",
-            durationMs: 4_500,
-            powerMultiplier: 0.15,
-          },
-        ],
-      },
-    ]),
-    ...branch("warrior", 5, [
-      { key: "force", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      {
-        key: "mastery",
-        label: "mastery",
-        effects: [power(0.35), range(0.1), { kind: "steel_tempest" }],
-      },
-      {
-        key: "cyclone",
-        label: "cyclone",
-        effects: [{ kind: "cyclone", ticks: 4, intervalMs: 250, powerRatio: 0.32 }],
-      },
-    ]),
+    ),
   ],
   ranger: [
     ...branch("ranger", 2, [

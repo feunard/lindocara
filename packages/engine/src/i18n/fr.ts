@@ -630,6 +630,18 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
   "talent.evolution.warrior.whirlwind.b.description":
     "Canalise quatre frappes rapides et bornées tout en permettant de se repositionner.",
+  "talent.ultimate.warrior.iron_guard.name": "Contre-offensive",
+  "talent.ultimate.warrior.iron_guard.description":
+    "Emmagasine une part des dégâts bloqués. Relâcher la garde blesse, repousse et provoque les ennemis proches.",
+  "talent.ultimate.warrior.shield_bash.name": "Percée inexorable",
+  "talent.ultimate.warrior.shield_bash.description":
+    "Après un premier impact, réactivez sous 2 secondes pour charger un nouvel ennemi.",
+  "talent.ultimate.warrior.battle_cry.name": "Bannière de guerre",
+  "talent.ultimate.warrior.battle_cry.description":
+    "Prolonge pendant 6 secondes l'effet de votre évolution et le cumule avec le cri initial.",
+  "talent.ultimate.warrior.whirlwind.name": "Œil de la tempête",
+  "talent.ultimate.warrior.whirlwind.description":
+    "Attire les ennemis vers le Tourbillon et les ralentit fortement pendant 6 secondes.",
   "talent.evolution.ranger.piercing_arrow.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.description":
     "Chaque ennemi traversé par la flèche originale produit un rebond vers un autre ennemi à 60 % de puissance.",

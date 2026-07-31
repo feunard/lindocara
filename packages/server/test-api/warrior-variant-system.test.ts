@@ -1,16 +1,21 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
-import type { PlayerClass } from "@lindocara/engine/game.js";
+import { maxHpForLevel, type PlayerClass } from "@lindocara/engine/game.js";
 import { skillWithTalents, talentEffect } from "@lindocara/engine/talents.js";
 import {
   activeRallyPowerMultiplier,
   advanceWarriorCyclones,
+  advanceWarriorVortices,
   applyKingsChallenge,
   applyRallyingCry,
   applySeismicImpact,
+  applyWarBanner,
+  chargeCounterOffensive,
   colossusChargeImpacts,
+  consumeCounterOffensive,
   cycloneImpactTimes,
   damageAfterWarriorProtection,
   startWarriorCyclone,
+  startWarriorVortex,
 } from "@lindocara/server/world/warrior-variant-system.js";
 import { newPlayer, type PlayerRuntime, toProfile } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it, vi } from "vitest";
@@ -252,6 +257,76 @@ describe("authoritative warrior evolution systems", () => {
     );
   });
 
+  it("stores prevented guard damage with a cap and makes perfect parries charge harder", () => {
+    const warrior = runtime("counter", "warrior", 0, [
+      ...IRON_GUARD_PREREQUISITES,
+      "warrior.iron_guard.riposte",
+      "warrior.iron_guard.counter_offensive",
+    ]);
+    const effect = talentEffect("warrior", warrior.talents, "counter_offensive", 2);
+    if (!effect) throw new Error("missing Counteroffensive effect");
+
+    expect(chargeCounterOffensive(warrior, 20, effect, "guard")).toBe(14);
+    expect(chargeCounterOffensive(warrior, 20, effect, "parry")).toBe(39);
+    chargeCounterOffensive(warrior, 10_000, effect, "parry");
+    expect(warrior.warriorCounterReserve).toBe(maxHpForLevel(10) * 0.75);
+    expect(consumeCounterOffensive(warrior)).toBeGreaterThan(39);
+    expect(warrior.warriorCounterReserve).toBe(0);
+  });
+
+  it("stacks War Banner with the initial rally and expires it after six seconds", () => {
+    const caster = runtime("banner", "warrior", 0, [
+      ...BATTLE_CRY_PREREQUISITES,
+      "warrior.battle_cry.rallying_cry",
+      "warrior.battle_cry.war_banner",
+    ]);
+    const ally = runtime("banner-ally", "ranger", 20);
+    const rally = talentEffect("warrior", caster.talents, "rallying_cry", 4);
+    const banner = talentEffect("warrior", caster.talents, "war_banner", 4);
+    if (!rally || !banner) throw new Error("missing War Banner effects");
+    applyRallyingCry(
+      caster,
+      [ally],
+      rally,
+      100,
+      1_000,
+      () => true,
+      () => true,
+    );
+    applyWarBanner(
+      caster,
+      [ally],
+      rally,
+      undefined,
+      banner.durationMs,
+      1_000,
+      () => true,
+      () => true,
+    );
+
+    expect(activeRallyPowerMultiplier(ally, 1_001)).toBe(0.3);
+    expect(activeRallyPowerMultiplier(ally, 7_001)).toBe(0);
+  });
+
+  it("ticks a bounded Eye of the Storm and follows the warrior only when requested", () => {
+    const warrior = runtime("vortex", "warrior", 10, [
+      ...WHIRLWIND_PREREQUISITES,
+      "warrior.whirlwind.cyclone",
+      "warrior.whirlwind.eye_of_the_storm",
+    ]);
+    const effect = talentEffect("warrior", warrior.talents, "eye_of_the_storm", 5);
+    if (!effect) throw new Error("missing Eye of the Storm effect");
+    const pulse = vi.fn();
+    startWarriorVortex(warrior, { x: 10, y: 20 }, 100, effect, 1_000, true);
+    warrior.x = 40;
+    advanceWarriorVortices([warrior], 1_500, pulse);
+
+    expect(pulse).toHaveBeenCalledTimes(3);
+    expect(pulse.mock.calls.every((call) => call[1].x === 40)).toBe(true);
+    advanceWarriorVortices([warrior], 5_000, pulse);
+    expect(warrior.warriorVortex).toBeNull();
+  });
+
   it("never persists room-local warrior buffs or an in-flight Cyclone across reconnection", () => {
     const warrior = runtime("transient", "warrior", 0);
     warrior.challengeReductionUntil = 9_000;
@@ -266,11 +341,27 @@ describe("authoritative warrior evolution systems", () => {
       radius: 90,
       power: 20,
     };
+    warrior.warriorChargeFollowup = { excludedTargetId: "old", expiresAt: 9_000 };
+    warrior.warriorCounterReserve = 50;
+    warrior.warriorBannerPower.set("old", { multiplier: 0.15, expiresAt: 9_000 });
+    warrior.warriorVortex = {
+      x: 10,
+      y: 20,
+      expiresAt: 9_000,
+      nextPulseAt: 8_000,
+      pulseIntervalMs: 250,
+      radius: 100,
+      pullDistance: 18,
+      slowRatio: 0.6,
+      slowDurationMs: 6_000,
+      followsOwner: false,
+    };
 
     const persisted = toProfile(warrior);
     expect(JSON.stringify(persisted)).not.toContain("challengeReduction");
     expect(JSON.stringify(persisted)).not.toContain("rallyPower");
     expect(JSON.stringify(persisted)).not.toContain("warriorCyclone");
+    expect(JSON.stringify(persisted)).not.toContain("warriorCounterReserve");
     const restored = newPlayer(persisted, "fresh-connection", warrior.roomKey);
     expect(restored).toMatchObject({
       challengeReductionUntil: 0,
@@ -278,6 +369,9 @@ describe("authoritative warrior evolution systems", () => {
       rallyPowerUntil: 0,
       rallyPowerMultiplier: 0,
       warriorCyclone: null,
+      warriorChargeFollowup: null,
+      warriorCounterReserve: 0,
+      warriorVortex: null,
     });
   });
 });

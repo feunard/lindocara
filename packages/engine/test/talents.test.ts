@@ -27,7 +27,7 @@ describe("class talents", () => {
         const finals = branch.filter((node) => node.tier === 3);
         const ultimates = branch.filter((node) => node.tier === 4);
         const group = `${playerClass}.${skill?.id}.evolution`;
-        const hasUltimate = playerClass === "rogue" && slot === 2;
+        const hasUltimate = playerClass === "warrior" || (playerClass === "rogue" && slot === 2);
 
         expect(branch).toHaveLength(hasUltimate ? 7 : 6);
         expect(root).toMatchObject({
@@ -59,7 +59,6 @@ describe("class talents", () => {
         expect(ultimates).toHaveLength(hasUltimate ? 1 : 0);
         if (hasUltimate) {
           expect(ultimates[0]).toMatchObject({
-            id: "rogue.shadow_step.veil_crossing",
             tier: 4,
             column: 0,
             label: "ultimate",

@@ -109,6 +109,8 @@ export function advanceMonsters<TSocket>(
       monster.y = monster.spawnY;
       monster.vx = 0;
       monster.vy = 0;
+      monster.slowUntil = 0;
+      monster.slowMultiplier = 1;
       monster.threat.clear();
       monster.contributions.clear();
       monster.rewardsGranted = false;
@@ -117,6 +119,7 @@ export function advanceMonsters<TSocket>(
       resetMonsterNavigation(monster);
       context.monsterGrid.update(monster, previousPosition);
     }
+    if (monster.slowUntil <= now) monster.slowMultiplier = 1;
 
     for (const [playerId, entry] of monster.threat) {
       const socket = [...context.players.entries()].find(([, player]) => player.id === playerId);
@@ -313,10 +316,11 @@ function moveMonsterDirect<TSocket>(
     monster.vy = 0;
     return false;
   }
-  monster.vx = (dx / length) * monster.speed;
-  monster.vy = (dy / length) * monster.speed;
+  const speed = monster.speed * Math.max(0.05, Math.min(1, monster.slowMultiplier));
+  monster.vx = (dx / length) * speed;
+  monster.vy = (dy / length) * speed;
   monster.facing = { x: dx / length, y: dy / length };
-  const travel = Math.min(monster.speed * TICK_DT, length);
+  const travel = Math.min(speed * TICK_DT, length);
   const desired = {
     x: monster.x + (dx / length) * travel,
     y: monster.y + (dy / length) * travel,
