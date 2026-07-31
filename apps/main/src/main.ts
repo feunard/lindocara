@@ -1,6 +1,6 @@
+import { AlephaPulse } from "@alepha/pulse-client";
 import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
-import { AlephaPulse } from "@alepha/pulse-client";
 import { Alepha, run } from "alepha";
 
 // Raises Alepha's global body-size ceiling (default 100_000 bytes) to the 4 MiB this app needs
