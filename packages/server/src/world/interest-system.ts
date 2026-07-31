@@ -191,6 +191,7 @@ function visibleMonsterSnapshots<TSocket>(
     hp: monster.hp,
     maxHp: monster.maxHp,
     dead: monster.deadUntil > now,
+    graphicAssetId: monster.graphicAssetId,
     threatening: monsterThreatensViewer(monster, viewer.id, now),
     ...(monster.revealedUntil > now ? { revealed: true as const } : {}),
     facing: { ...monster.facing },

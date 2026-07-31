@@ -19,7 +19,7 @@ interface CatalogueAssetPickerProps {
   onSelectAsset(assetId: EditorAssetId): void;
   onSelectNone?: (() => void) | undefined;
   noneLabel?: string | undefined;
-  usage?: "scenery" | "event" | "character" | "guard";
+  usage?: "scenery" | "event" | "character" | "enemy" | "guard";
 }
 
 const ASSET_PAGE_SIZE = 12;
@@ -135,13 +135,14 @@ export function CatalogueAssetPicker({
   useLocale();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  const actorPageSize = usage === "character" ? NPC_MODEL_ASSETS.length : ASSET_PAGE_SIZE;
+  const actorPageSize =
+    usage === "character" || usage === "enemy" ? NPC_MODEL_ASSETS.length : ASSET_PAGE_SIZE;
   const [visibleCount, setVisibleCount] = useState(actorPageSize);
 
   const source =
     usage === "event"
       ? EVENT_GRAPHIC_ASSETS
-      : usage === "character"
+      : usage === "character" || usage === "enemy"
         ? NPC_MODEL_ASSETS
         : usage === "guard"
           ? GUARD_APPEARANCE_ASSETS

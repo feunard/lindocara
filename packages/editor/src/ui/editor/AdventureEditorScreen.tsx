@@ -137,8 +137,16 @@ function eventToolFor(
   selfMapId: string | null,
   npcGraphic: EditorAssetId,
   guardGraphic: EditorAssetId,
+  enemyGraphic: EditorAssetId | null,
 ): EditorTool {
-  if (eventKind === "monster") return { kind: "event", eventKind, species, patrolRadius };
+  if (eventKind === "monster")
+    return {
+      kind: "event",
+      eventKind,
+      species,
+      patrolRadius,
+      ...(enemyGraphic ? { graphic: enemyGraphic } : {}),
+    };
   if (eventKind === "guard")
     return { kind: "event", eventKind, patrolRadius, graphic: guardGraphic };
   if (eventKind === "npc") return { kind: "event", eventKind, patrolRadius, graphic: npcGraphic };
@@ -341,6 +349,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [markerSpecies, setMarkerSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [markerRadius, setMarkerRadius] = useState(96);
   const [npcGraphic, setNpcGraphic] = useState<EditorAssetId>(DEFAULT_NPC_MODEL_ASSET_ID);
+  const [enemyGraphic, setEnemyGraphic] = useState<EditorAssetId | null>(null);
   const [guardGraphic, setGuardGraphic] = useState<EditorAssetId>(
     DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   );
@@ -588,6 +597,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       map?.id ?? null,
       npcGraphic,
       guardGraphic,
+      enemyGraphic,
     );
     pendingToolRef.current = tool;
     handleRef.current?.setTool(tool);
@@ -600,6 +610,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     map?.id,
     npcGraphic,
     guardGraphic,
+    enemyGraphic,
   ]);
 
   function pushTool(tool: EditorTool): void {
@@ -662,6 +673,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           map?.id ?? null,
           npcGraphic,
           guardGraphic,
+          enemyGraphic,
         ),
       );
     }
@@ -678,6 +690,19 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         graphic: assetId,
       });
     }
+  }
+
+  function selectEnemyGraphic(assetId: EditorAssetId | null): void {
+    setEnemyGraphic(assetId);
+    if (assetId === null || toolKey !== "event") return;
+    setEventKind("monster");
+    pushTool({
+      kind: "event",
+      eventKind: "monster",
+      species: markerSpecies,
+      patrolRadius: markerRadius,
+      graphic: assetId,
+    });
   }
 
   function selectGuardGraphic(assetId: EditorAssetId): void {
@@ -708,6 +733,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           map?.id ?? null,
           npcGraphic,
           guardGraphic,
+          enemyGraphic,
         ),
       );
     }
@@ -778,6 +804,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         map?.id ?? null,
         npcGraphic,
         guardGraphic,
+        enemyGraphic,
       ),
     );
   }
@@ -1385,6 +1412,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 markerSpecies,
                 markerRadius,
                 npcGraphic,
+                enemyGraphic,
                 guardGraphic,
                 events: currentMap?.events ?? [],
                 selectedEventId: selection?.kind === "event" ? selection.id : null,
@@ -1393,6 +1421,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 onMarkerSpeciesChange: setMarkerSpecies,
                 onMarkerRadiusChange: setMarkerRadius,
                 onSelectNpcGraphic: selectNpcGraphic,
+                onSelectEnemyGraphic: selectEnemyGraphic,
                 onSelectGuardGraphic: selectGuardGraphic,
                 onHoverEvent: (id) => handleRef.current?.highlightEvent(id),
                 onSelectEvent: (id) => handleRef.current?.selectEvent(id),

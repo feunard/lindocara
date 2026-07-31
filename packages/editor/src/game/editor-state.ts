@@ -1260,7 +1260,21 @@ export function applyTool(
           species,
           patrolRadius,
         });
-        return { ...map, events: [...map.events, event] };
+        return {
+          ...map,
+          events: [
+            ...map.events,
+            {
+              ...event,
+              pages: [
+                {
+                  ...(event.pages[0] ?? defaultEventPage()),
+                  graphicAssetId: tool.graphic ?? null,
+                },
+              ],
+            },
+          ],
+        };
       }
       if (tool.eventKind === "guard") {
         const { patrolRadius } = tool;

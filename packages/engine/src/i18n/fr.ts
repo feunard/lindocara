@@ -1673,6 +1673,9 @@ export const fr: Record<keyof typeof en, string> = {
     "Aucun compteur numérique n’est encore créé — ajoutez-en dans Jeu → États et compteurs.",
   "editor.event.kind.heading": "Type d’événement",
   "editor.event.monsters.heading": "Monstres",
+  "editor.event.enemies.heading": "Ennemis",
+  "editor.event.enemies.description":
+    "Utilise n’importe quelle créature ou apparence de personnage comme ennemi.",
   "editor.event.kind.normal": "Événement personnalisé",
   "editor.event.kind.npc": "PNJ libre",
   "editor.event.kind.entry": "Entrée",

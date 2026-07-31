@@ -259,6 +259,9 @@ export interface MonsterSpawn extends Vec2 {
   respawnMode?: MonsterRespawnMode;
   /** Authoritative delay for timed respawns. Missing catalogue values keep the common default. */
   respawnDelayMs?: number;
+  /** Catalogue-backed appearance selected by an authored map. Combat identity and tuning still
+   * come exclusively from `species`; this field is presentation only. */
+  graphicAssetId?: EditorAssetId | null;
   /** Border patrols may naturally cross the city boundary and be handled by guards. */
   mayEnterSafeZone?: boolean;
 }

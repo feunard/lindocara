@@ -346,6 +346,8 @@ interface EntityView<T extends { id: string }> {
   phase?: number;
   unitSprite?: Sprite;
   unitAnimations?: Record<UnitMotion, readonly Texture[]>;
+  /** Catalogue appearance currently installed on an authored monster. `null` means species art. */
+  drawnGraphic?: string | null | undefined;
   actionId?: string;
   actionSkillId?: string;
   actionTalented?: boolean;
@@ -3347,6 +3349,59 @@ export class Renderer {
     };
   }
 
+  /** Install an authored monster's catalogue appearance without changing any combat semantics.
+   * Species art remains the synchronous fallback while a selected model loads. */
+  #syncMonsterGraphic(view: EntityView<MonsterSnapshot>, monster: MonsterSnapshot): void {
+    const graphicId = monster.graphicAssetId ?? null;
+    if (view.drawnGraphic === graphicId || !view.unitSprite) return;
+    view.drawnGraphic = graphicId;
+    const metrics = ENEMY_RENDER_METRICS[monster.species];
+    const installSpeciesArt = (): void => {
+      if (!view.unitSprite) return;
+      const animations = this.art.monsters[monster.species];
+      view.unitAnimations = animations;
+      view.unitSprite.texture = animations.idle[0] ?? Texture.EMPTY;
+      view.unitSprite.anchor.set(0.5, 1);
+      view.unitSprite.width = metrics.spriteSize;
+      view.unitSprite.height = metrics.spriteSize;
+      view.unitSprite.position.set(18, metrics.spriteY);
+    };
+    if (graphicId === null || !isEditorAssetId(graphicId)) {
+      installSpeciesArt();
+      return;
+    }
+    const art = this.#eventAssetArt.get(graphicId);
+    if (!art) {
+      installSpeciesArt();
+      void loadEditorAssetArt(graphicId)
+        .then((loaded) => {
+          if (this.#destroyed) return;
+          this.#eventAssetArt.set(graphicId, loaded);
+          const current = this.#monsters.get(monster.id);
+          if (current && current.data.graphicAssetId === graphicId)
+            current.drawnGraphic = undefined;
+        })
+        .catch(() => {
+          // Appearance is optional. A missing catalogue texture keeps the safe species fallback.
+        });
+      return;
+    }
+    const idle = art.frames;
+    const first = idle[0];
+    if (!first) {
+      installSpeciesArt();
+      return;
+    }
+    const run = art.motions?.run?.frames ?? idle;
+    view.unitAnimations = { idle, run, attack: idle };
+    view.unitSprite.texture = first;
+    view.unitSprite.scale.set(1);
+    view.unitSprite.anchor.set(art.definition.anchor.x, art.definition.anchor.y);
+    // Catalogue footOffset measures the transparent gap below the opaque feet. Adding it here puts
+    // those feet on the monster body's ground line while preserving the pack's native proportions.
+    view.unitSprite.position.set(18, 29 + art.definition.footOffset);
+  }
+
   #createGuard(guard: GuardSnapshot): EntityView<GuardSnapshot> {
     const container = new Container();
     const actor = new Container();
@@ -4651,6 +4706,7 @@ export class Renderer {
       sample.monsters,
       (monster) => this.#createMonster(monster),
       (view, monster) => {
+        this.#syncMonsterGraphic(view, monster);
         this.#syncActionSnapshot(view, monster.action);
         if (monster.dead) this.#resetVisualAction(view);
         const dx = monster.x - (view.lastX ?? monster.x);

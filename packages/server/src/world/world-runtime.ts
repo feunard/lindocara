@@ -386,6 +386,7 @@ export interface MonsterRuntime extends Vec2 {
   name: string;
   kind: MonsterKind;
   species: MonsterSpecies;
+  graphicAssetId: EditorAssetId | null;
   rank: MonsterRank;
   spawnX: number;
   spawnY: number;
@@ -796,6 +797,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
     return {
       ...spawn,
       name: spawn.name ?? "",
+      graphicAssetId: spawn.graphicAssetId ?? null,
       rank: tuning.rank,
       spawnX: spawn.x,
       spawnY: spawn.y,

@@ -1651,6 +1651,8 @@ export const en = {
     "No numeric counter exists yet — add one under Game → States and counters.",
   "editor.event.kind.heading": "Event kind",
   "editor.event.monsters.heading": "Monsters",
+  "editor.event.enemies.heading": "Enemies",
+  "editor.event.enemies.description": "Use any creature or character appearance as an enemy.",
   "editor.event.kind.normal": "Custom event",
   "editor.event.kind.npc": "Free NPC",
   "editor.event.kind.entry": "Entry",

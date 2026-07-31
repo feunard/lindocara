@@ -970,6 +970,27 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     expect(place(base, { kind: "event", eventKind: "monster", patrolRadius: 96 }, 6, 6)).toBeNull();
   });
 
+  it("stores a catalogue appearance on a monster without changing its combat species", () => {
+    const placed = place(
+      base,
+      {
+        kind: "event",
+        eventKind: "monster",
+        species: "spear_goblin",
+        patrolRadius: 96,
+        graphic: DEFAULT_NPC_MODEL_ASSET_ID,
+      },
+      6,
+      6,
+    ) as EditorMap;
+    expect(placed.events[0]).toMatchObject({
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 96,
+    });
+    expect(placed.events[0]?.pages[0]?.graphicAssetId).toBe(DEFAULT_NPC_MODEL_ASSET_ID);
+  });
+
   it("places an allied guard with a validated radius and no monster tuning", () => {
     const placed = place(
       base,

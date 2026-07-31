@@ -62,6 +62,7 @@ interface EventPaletteProps {
   markerSpecies: MonsterSpecies;
   markerRadius: number;
   npcGraphic: EditorAssetId;
+  enemyGraphic: EditorAssetId | null;
   guardGraphic: EditorAssetId;
   /** The open map's events, listed for overview + find (D14). */
   events: readonly MapEvent[];
@@ -72,6 +73,7 @@ interface EventPaletteProps {
   onMarkerSpeciesChange(species: MonsterSpecies): void;
   onMarkerRadiusChange(radius: number): void;
   onSelectNpcGraphic(assetId: EditorAssetId): void;
+  onSelectEnemyGraphic(assetId: EditorAssetId | null): void;
   onSelectGuardGraphic(assetId: EditorAssetId): void;
   /** Hover a list row → emphasise that event on the canvas; `null` clears it. */
   onHoverEvent(id: string | null): void;
@@ -93,6 +95,7 @@ export function EventPalette({
   markerSpecies,
   markerRadius,
   npcGraphic,
+  enemyGraphic,
   guardGraphic,
   events,
   selectedEventId,
@@ -101,6 +104,7 @@ export function EventPalette({
   onMarkerSpeciesChange,
   onMarkerRadiusChange,
   onSelectNpcGraphic,
+  onSelectEnemyGraphic,
   onSelectGuardGraphic,
   onHoverEvent,
   onSelectEvent,
@@ -201,9 +205,12 @@ export function EventPalette({
               <SwatchButton
                 key={species}
                 label={t(`monster.${species}`)}
-                active={eventKind === "monster" && markerSpecies === species}
+                active={
+                  eventKind === "monster" && markerSpecies === species && enemyGraphic === null
+                }
                 preview={<SpriteSheetPreview source={idle.source} frame={idle.frame} />}
                 onClick={() => {
+                  onSelectEnemyGraphic(null);
                   onMarkerSpeciesChange(species);
                   onSelectEventKind("monster");
                 }}
@@ -211,6 +218,29 @@ export function EventPalette({
             );
           })}
         </div>
+
+        <div className="mt-1 flex h-6 items-center border-t border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
+          {t("editor.event.enemies.heading")}
+        </div>
+        <section
+          data-testid="enemy-catalogue"
+          aria-label={t("editor.event.enemies.heading")}
+          className={`flex flex-col gap-2 rounded-md border p-2 ${
+            eventKind === "monster" && enemyGraphic !== null
+              ? "border-zinc-400 bg-zinc-100"
+              : "border-zinc-200 bg-white"
+          }`}
+        >
+          <p className="text-[10.5px] text-zinc-500">{t("editor.event.enemies.description")}</p>
+          <CatalogueAssetPicker
+            usage="enemy"
+            value={enemyGraphic}
+            onSelectAsset={(assetId) => {
+              onSelectEnemyGraphic(assetId);
+              onSelectEventKind("monster");
+            }}
+          />
+        </section>
 
         {(eventKind === "monster" || eventKind === "guard" || eventKind === "npc") && (
           <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">

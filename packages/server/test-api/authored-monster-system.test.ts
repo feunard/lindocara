@@ -1,6 +1,7 @@
 import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { DEFAULT_NPC_MODEL_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 import {
   activeAuthoredMonsterDefinitions,
@@ -31,7 +32,7 @@ function conditionalMonster(): MapEvent {
     ...event,
     pages: [
       { ...base, condSwitchId: "0075" },
-      { ...base, condSwitchId: "0076" },
+      { ...base, condSwitchId: "0076", graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID },
     ],
   };
 }
@@ -52,8 +53,19 @@ describe("authored monster projection", () => {
         y: 6 * TILE_SIZE + TILE_SIZE / 2,
         patrolRadius: 120,
         respawnDelayMs: 6_000,
+        graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID,
       }),
     ]);
+  });
+
+  it("keeps the active page appearance on the runtime monster", () => {
+    const definition = activeAuthoredMonsterDefinitions(
+      [conditionalMonster()],
+      state({ "0076": true }),
+    )[0];
+    if (!definition) throw new Error("monster definition missing");
+    const monster = createMonsters([definition])[0];
+    expect(monster?.graphicAssetId).toBe(DEFAULT_NPC_MODEL_ASSET_ID);
   });
 
   it("preserves live combat state and removes encounters whose condition is withdrawn", () => {

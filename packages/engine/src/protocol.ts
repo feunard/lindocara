@@ -157,6 +157,8 @@ export interface MonsterSnapshot {
   hp: number;
   maxHp: number;
   dead: boolean;
+  /** Optional authored catalogue appearance. The species remains the authoritative combat model. */
+  graphicAssetId?: string | null;
   /**
    * Viewer-specific authoritative aggro. This never identifies the target; it only tells this
    * recipient whether the living monster currently considers them a threat.
@@ -942,6 +944,9 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     value.maxHp > 0 &&
     value.hp <= value.maxHp &&
     typeof value.dead === "boolean" &&
+    (value.graphicAssetId === undefined ||
+      value.graphicAssetId === null ||
+      isEditorAssetId(value.graphicAssetId)) &&
     (value.threatening === undefined || typeof value.threatening === "boolean") &&
     (value.revealed === undefined || typeof value.revealed === "boolean") &&
     isDirection(value.facing) &&

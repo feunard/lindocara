@@ -64,6 +64,7 @@ describe("editor asset catalogue", () => {
         markerSpecies="spear_goblin"
         markerRadius={96}
         npcGraphic={DEFAULT_NPC_MODEL_ASSET_ID}
+        enemyGraphic={null}
         guardGraphic={DEFAULT_GUARD_APPEARANCE_ASSET_ID}
         events={[]}
         selectedEventId={null}
@@ -72,6 +73,7 @@ describe("editor asset catalogue", () => {
         onMarkerSpeciesChange={onMarkerSpeciesChange}
         onMarkerRadiusChange={() => {}}
         onSelectNpcGraphic={() => {}}
+        onSelectEnemyGraphic={() => {}}
         onSelectGuardGraphic={() => {}}
         onHoverEvent={() => {}}
         onSelectEvent={() => {}}

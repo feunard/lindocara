@@ -12,7 +12,7 @@ import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
 
 const AUTHORED_MONSTER_PREFIX = "mon-";
 
-export function authoredMonsterDefinition(event: MapEvent): MonsterSpawn | null {
+export function authoredMonsterDefinition(event: MapEvent, pageIndex = 0): MonsterSpawn | null {
   if (event.kind !== "monster" || event.species === null || event.patrolRadius === null)
     return null;
   const species = event.species;
@@ -24,6 +24,7 @@ export function authoredMonsterDefinition(event: MapEvent): MonsterSpawn | null 
     zone: "route",
     ...eventCellCentre(event),
     patrolRadius: event.patrolRadius,
+    graphicAssetId: event.pages[pageIndex]?.graphicAssetId ?? null,
     ...(event.monsterRank ? { rank: event.monsterRank } : {}),
     ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
       ? {}
@@ -52,13 +53,14 @@ export function activeAuthoredMonsterDefinitions(
   state: PartyAdventureState,
 ): MonsterSpawn[] {
   return monsterEvents(events).flatMap((event) => {
-    if (activePageIndex(event, state) === null) return [];
+    const pageIndex = activePageIndex(event, state);
+    if (pageIndex === null) return [];
     if (
       (event.monsterRespawnMode ?? "timed") === "never" &&
       state.defeatedMonsters?.[event.id] === true
     )
       return [];
-    const definition = authoredMonsterDefinition(event);
+    const definition = authoredMonsterDefinition(event, pageIndex);
     return definition ? [definition] : [];
   });
 }
@@ -81,6 +83,7 @@ export function reconcileActiveMonsters(
       spawnX: definition.x,
       spawnY: definition.y,
       patrolRadius: definition.patrolRadius,
+      graphicAssetId: definition.graphicAssetId ?? null,
       respawnMode: definition.respawnMode ?? "timed",
       respawnDelayMs: definition.respawnDelayMs ?? existing.respawnDelayMs,
     };

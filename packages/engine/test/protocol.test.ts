@@ -5,6 +5,7 @@ import {
 } from "@lindocara/engine/protocol.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { DEFAULT_NPC_MODEL_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 describe("client protocol", () => {
@@ -308,6 +309,7 @@ describe("server protocol", () => {
       hp: 2_000,
       maxHp: 2_000,
       dead: false,
+      graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID,
       threatening: true,
       facing: { x: 1, y: 0 },
       action: quake,
@@ -370,6 +372,16 @@ describe("server protocol", () => {
     });
     if (parsed?.t !== "world.resync") throw new Error("expected a full resynchronization");
     expect(parsed.monsters[0]?.action).not.toHaveProperty("skillId");
+    expect(parsed.monsters[0]?.graphicAssetId).toBe(DEFAULT_NPC_MODEL_ASSET_ID);
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          monsters: [{ ...normal, graphicAssetId: "nope" }],
+        }),
+      ),
+    ).toBeNull();
     expect(
       parseServerMessage(
         JSON.stringify({

@@ -42,6 +42,7 @@ function baseProps() {
     markerSpecies: "spear_goblin" as const,
     markerRadius: 96,
     npcGraphic: DEFAULT_NPC_MODEL_ASSET_ID,
+    enemyGraphic: null,
     guardGraphic: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
     events: [] as MapEvent[],
     selectedEventId: null,
@@ -50,6 +51,7 @@ function baseProps() {
     onMarkerSpeciesChange: () => {},
     onMarkerRadiusChange: () => {},
     onSelectNpcGraphic: () => {},
+    onSelectEnemyGraphic: () => {},
     onSelectGuardGraphic: () => {},
     onHoverEvent: () => {},
     onSelectEvent: () => {},
@@ -155,6 +157,31 @@ describe("EventPalette (D13/D14)", () => {
     expect(thief).toBeDefined();
     if (thief) fireEvent.click(thief);
     expect(onSelectNpcGraphic).toHaveBeenCalledWith(expect.stringContaining("thief-idle"));
+  });
+
+  it("offers every creature and character model in a separate enemy catalogue", () => {
+    setLocale("en");
+    const onSelectEnemyGraphic = vi.fn();
+    const onSelectEventKind = vi.fn();
+    render(
+      <EventPalette
+        {...baseProps()}
+        onSelectEnemyGraphic={onSelectEnemyGraphic}
+        onSelectEventKind={onSelectEventKind}
+      />,
+    );
+
+    const catalogue = screen.getByTestId("enemy-catalogue");
+    expect(within(catalogue).getByText(t("editor.event.enemies.description"))).toBeVisible();
+    const actors = within(catalogue)
+      .getAllByRole("button")
+      .filter((button) => button.dataset.assetId);
+    expect(actors).toHaveLength(NPC_MODEL_ASSETS.length);
+    const bear = actors.find((button) => button.dataset.assetId?.includes("bear-idle"));
+    expect(bear).toBeDefined();
+    if (bear) fireEvent.click(bear);
+    expect(onSelectEnemyGraphic).toHaveBeenCalledWith(expect.stringContaining("bear-idle"));
+    expect(onSelectEventKind).toHaveBeenCalledWith("monster");
   });
 
   it("lists the map's events and highlights on hover, selects on click", () => {

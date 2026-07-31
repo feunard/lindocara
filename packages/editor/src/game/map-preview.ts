@@ -229,6 +229,7 @@ export async function startMapPreview(
         hp: stats.maxHp,
         maxHp: stats.maxHp,
         dead: false,
+        graphicAssetId: event.pages[0]?.graphicAssetId ?? null,
         facing: { x: 0, y: 1 },
         action: null,
       },
