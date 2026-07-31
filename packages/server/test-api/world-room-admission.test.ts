@@ -213,7 +213,7 @@ describe("GET /api/join", () => {
 });
 
 describe("world room admission", () => {
-  test("a valid join receives welcome with self, baked geometry and the wake event", async () => {
+  test("a valid join receives welcome without an unsolicited arrival event", async () => {
     const { token, partyId, mapId, heroId } = await newPlayableHero("admit");
     const probe = openWorldSocket(`${partyId}:${mapId}`, heroId, token);
 
@@ -227,7 +227,8 @@ describe("world room admission", () => {
     expect(welcome.players.some((player) => player.id === heroId)).toBe(true);
     expect(welcome.self.cooldowns).toBeDefined();
 
-    await probe.waitFor("event");
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(probe.messages.some((message) => message.t === "event")).toBe(false);
   });
 
   test("a roomId naming a map the hero is not on closes 4007", async () => {

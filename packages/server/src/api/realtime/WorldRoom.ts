@@ -499,7 +499,6 @@ export class WorldRoom {
       ...view,
       self: selfStateFor(w, player),
     });
-    this.send(room, conn.id, { t: "event", code: "wake", tone: "info" });
   }
 
   /** Legacy `#closedSocket`: one machine-code event so the client can print why, then the close. */

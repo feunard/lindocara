@@ -524,7 +524,6 @@ export type EventTone = "info" | "good" | "bad";
  * localized template (`event.<code>` in `shared/i18n/`). No prose crosses the wire.
  */
 export const EVENT_CODES = [
-  "wake",
   "combat.hit",
   "combat.hurt",
   "monster.defeated",

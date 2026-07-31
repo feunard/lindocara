@@ -883,8 +883,6 @@ export const fr: Record<keyof typeof en, string> = {
   "interior.close": "Fermer la vue du seuil",
 
   // Événements serveur
-  "event.wake":
-    "Vous vous éveillez sous le Cœur-Racine. Elowen, marquée d'or, attend votre serment [E].",
   "event.combat.hit": "Vous frappez {species} : {damage} dégâts.",
   "event.combat.hurt": "{species} vous inflige {damage} dégâts.",
   "event.monster.defeated": "{species} vaincu : +{xp} XP.",

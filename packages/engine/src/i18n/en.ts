@@ -874,7 +874,6 @@ export const en = {
   "interior.close": "Close threshold view",
 
   // Server events (wired in Task 9; declared now so the dictionaries are written once)
-  "event.wake": "You wake beneath the Heartroot. Elowen, marked in gold, awaits your oath [E].",
   "event.combat.hit": "You hit {species} for {damage}.",
   "event.combat.hurt": "{species} hits you for {damage}.",
   "event.monster.defeated": "Defeated {species}: +{xp} XP.",
