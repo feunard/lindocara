@@ -28,7 +28,7 @@ function renderDialog(event: MapEvent, registry: AdventureRegistry = EMPTY_REGIS
   const onCommit = vi.fn();
   const onDelete = vi.fn();
   const onCancel = vi.fn();
-  render(
+  const rendered = render(
     <EventDialog
       event={event}
       registry={registry}
@@ -39,7 +39,7 @@ function renderDialog(event: MapEvent, registry: AdventureRegistry = EMPTY_REGIS
       onOpenHelp={() => {}}
     />,
   );
-  return { onCommit, onDelete, onCancel };
+  return { onCommit, onDelete, onCancel, unmount: rendered.unmount };
 }
 
 const RUNTIME_REGISTRY = {
@@ -341,6 +341,96 @@ describe("EventDialog", () => {
     expect(committed.monsterRespawnDelayMs).toBe(75_000);
     // A functional event stays single-page — the wire parser refuses extra pages.
     expect(committed.pages).toHaveLength(1);
+  });
+
+  it("rejects out-of-bounds monster stats and explains each limit below its field", async () => {
+    const user = userEvent.setup({ delay: null });
+    const { onCommit } = renderDialog(
+      seedEvent({ kind: "monster", species: "spear_goblin", patrolRadius: 96 }),
+    );
+    const fields = {
+      patrolRadius: screen.getByRole("spinbutton", { name: t("editor.markers.radius") }),
+      respawnDelay: screen.getByRole("spinbutton", {
+        name: t("editor.monster.respawnDelay"),
+      }),
+      maxHp: screen.getByRole("spinbutton", { name: t("editor.monster.hp") }),
+      damage: screen.getByRole("spinbutton", { name: t("editor.monster.damage") }),
+      speed: screen.getByRole("spinbutton", { name: t("editor.monster.speed") }),
+      xp: screen.getByRole("spinbutton", { name: t("editor.monster.xp") }),
+      weaknessPercent: screen.getByRole("spinbutton", {
+        name: t("editor.monster.weaknessPercent"),
+      }),
+    };
+
+    fireEvent.change(fields.patrolRadius, { target: { value: "769" } });
+    fireEvent.change(fields.respawnDelay, { target: { value: "86401" } });
+    fireEvent.change(fields.maxHp, { target: { value: "100001" } });
+    fireEvent.change(fields.damage, { target: { value: "12.5" } });
+    fireEvent.change(fields.speed, { target: { value: "301" } });
+    fireEvent.change(fields.xp, { target: { value: "-1" } });
+    fireEvent.change(fields.weaknessPercent, { target: { value: "401" } });
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    expect(onCommit).not.toHaveBeenCalled();
+    for (const input of Object.values(fields)) {
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      const errorId = input.getAttribute("aria-describedby");
+      expect(errorId).toBeTruthy();
+      expect(document.getElementById(errorId ?? "")).toBeVisible();
+    }
+    expect(document.getElementById("monster-damage-error")).toHaveTextContent(
+      t("editor.event.validation.integer", { min: 0, max: 1_000 }),
+    );
+    expect(document.getElementById("monster-respawn-delay-error")).toHaveTextContent(
+      t("editor.event.validation.range", { min: 1, max: 86_400 }),
+    );
+
+    fireEvent.change(fields.damage, { target: { value: "12" } });
+    expect(fields.damage).toHaveAttribute("aria-invalid", "false");
+    expect(fields.damage).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("applies the same field-level limits to free NPC and guard stats", async () => {
+    const user = userEvent.setup({ delay: null });
+    const npc = renderDialog(
+      seedEvent({
+        kind: "npc",
+        species: null,
+        patrolRadius: 96,
+        pages: [{ ...defaultEventPage(), moveType: "random" }],
+      }),
+    );
+    const npcRadius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
+    const npcHp = screen.getByRole("spinbutton", { name: t("editor.monster.hp") });
+    const npcPower = screen.getByRole("spinbutton", { name: t("editor.npc.power") });
+    fireEvent.change(npcRadius, { target: { value: "-1" } });
+    fireEvent.change(npcHp, { target: { value: "100001" } });
+    fireEvent.change(npcPower, { target: { value: "1001" } });
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    expect(npc.onCommit).not.toHaveBeenCalled();
+    expect(npcRadius).toHaveAccessibleDescription(
+      t("editor.event.validation.range", { min: 0, max: 768 }),
+    );
+    expect(npcHp).toHaveAccessibleDescription(
+      t("editor.event.validation.range", { min: 0, max: 100_000 }),
+    );
+    expect(npcPower).toHaveAccessibleDescription(
+      t("editor.event.validation.range", { min: 0, max: 1_000 }),
+    );
+
+    npc.unmount();
+    const guard = renderDialog(
+      seedEvent({ kind: "guard", name: "Garde", species: null, patrolRadius: 96 }),
+    );
+    const guardRadius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
+    fireEvent.change(guardRadius, { target: { value: "769" } });
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    expect(guard.onCommit).not.toHaveBeenCalled();
+    expect(guardRadius).toHaveAccessibleDescription(
+      t("editor.event.validation.range", { min: 0, max: 768 }),
+    );
   });
 
   it("authors a guard dialogue and round-trips its authoritative patrol radius", async () => {

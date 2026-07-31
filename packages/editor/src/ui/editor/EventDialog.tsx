@@ -71,8 +71,101 @@ const RUNTIME_EVENT_TRIGGERS = [
 const NPC_MOVE_SPEEDS = [0, 1, 2, 3, 4, 5] as const;
 const NPC_MOVE_FREQUENCIES = [0, 1, 2, 3, 4] as const;
 
+type EventStatField =
+  | "patrolRadius"
+  | "respawnDelay"
+  | "maxHp"
+  | "damage"
+  | "speed"
+  | "xp"
+  | "weaknessPercent";
+
+interface EventStatError {
+  reason: "integer" | "range";
+  min: number;
+  max: number;
+}
+
+type EventStatErrors = Partial<Record<EventStatField, EventStatError | undefined>>;
+
 function runtimeTrigger(trigger: EventTrigger): boolean {
   return (RUNTIME_EVENT_TRIGGERS as readonly EventTrigger[]).includes(trigger);
+}
+
+function statError(value: number, min: number, max: number): EventStatError | undefined {
+  if (!Number.isSafeInteger(value)) return { reason: "integer", min, max };
+  if (value < min || value > max) return { reason: "range", min, max };
+  return undefined;
+}
+
+/** Validate the same numeric bounds as the shared wire parser, but retain a field-level reason so
+ * authors can correct a rejected stat without having to infer the server contract. */
+function validateEventStats(draft: MapEvent): EventStatErrors {
+  const errors: EventStatErrors = {};
+  if (draft.kind !== "monster" && draft.kind !== "npc" && draft.kind !== "guard") return errors;
+
+  const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
+  errors.patrolRadius = statError(patrolRadius, MIN_PATROL_RADIUS, MAX_PATROL_RADIUS);
+
+  if (draft.kind === "guard") return errors;
+
+  const species = draft.kind === "monster" ? (draft.species ?? "spear_goblin") : "spear_goblin";
+  const defaults = defaultMonsterTuning(species);
+  errors.maxHp = statError(
+    draft.monsterMaxHp ?? defaults.maxHp,
+    MONSTER_TUNING_LIMITS.maxHp.min,
+    MONSTER_TUNING_LIMITS.maxHp.max,
+  );
+  errors.damage = statError(
+    draft.monsterDamage ?? defaults.damage,
+    MONSTER_TUNING_LIMITS.damage.min,
+    MONSTER_TUNING_LIMITS.damage.max,
+  );
+
+  if (draft.kind === "npc") return errors;
+
+  errors.speed = statError(
+    draft.monsterSpeed ?? defaults.speed,
+    MONSTER_TUNING_LIMITS.speed.min,
+    MONSTER_TUNING_LIMITS.speed.max,
+  );
+  errors.xp = statError(
+    draft.monsterXp ?? defaults.xp,
+    MONSTER_TUNING_LIMITS.xp.min,
+    MONSTER_TUNING_LIMITS.xp.max,
+  );
+  errors.weaknessPercent = statError(
+    draft.monsterWeaknessPercent ?? defaults.weaknessPercent,
+    MONSTER_TUNING_LIMITS.weaknessPercent.min,
+    MONSTER_TUNING_LIMITS.weaknessPercent.max,
+  );
+  if ((draft.monsterRespawnMode ?? "timed") === "timed") {
+    const respawnError = statError(
+      draft.monsterRespawnDelayMs ?? MONSTER_RESPAWN_MS,
+      MONSTER_RESPAWN_DELAY_LIMITS.min,
+      MONSTER_RESPAWN_DELAY_LIMITS.max,
+    );
+    if (respawnError) {
+      errors.respawnDelay = {
+        ...respawnError,
+        min: respawnError.min / 1_000,
+        max: respawnError.max / 1_000,
+      };
+    }
+  }
+  return errors;
+}
+
+function StatFieldError({ id, error }: { id: string; error: EventStatError | undefined }) {
+  if (!error) return null;
+  return (
+    <span id={id} className="text-[10.5px] leading-tight text-destructive" role="alert">
+      {t(`editor.event.validation.${error.reason}`, {
+        min: error.min,
+        max: error.max,
+      })}
+    </span>
+  );
 }
 
 /** Dense native select styled to sit with the shadcn `Input`, mirroring `AdventureSettingsDialog`'s
@@ -171,9 +264,11 @@ function CheckRow({
  */
 function MonsterEventFields({
   draft,
+  errors,
   onChange,
 }: {
   draft: MapEvent;
+  errors: EventStatErrors;
   onChange(
     species: MonsterSpecies,
     patrolRadius: number,
@@ -245,6 +340,8 @@ function MonsterEventFields({
           {t("editor.markers.radius")}
           <Input
             aria-label={t("editor.markers.radius")}
+            aria-invalid={Boolean(errors.patrolRadius)}
+            aria-describedby={errors.patrolRadius ? "monster-patrol-radius-error" : undefined}
             type="number"
             className="h-8 text-sm tabular-nums"
             min={MIN_PATROL_RADIUS}
@@ -252,6 +349,7 @@ function MonsterEventFields({
             value={patrolRadius}
             onChange={(e) => onChange(species, Number(e.currentTarget.value))}
           />
+          <StatFieldError id="monster-patrol-radius-error" error={errors.patrolRadius} />
         </span>
         <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
           {t("editor.monster.respawnMode")}
@@ -280,6 +378,8 @@ function MonsterEventFields({
             {t("editor.monster.respawnDelay")}
             <Input
               aria-label={t("editor.monster.respawnDelay")}
+              aria-invalid={Boolean(errors.respawnDelay)}
+              aria-describedby={errors.respawnDelay ? "monster-respawn-delay-error" : undefined}
               type="number"
               className="h-8 text-sm tabular-nums"
               min={MONSTER_RESPAWN_DELAY_LIMITS.min / 1_000}
@@ -296,6 +396,7 @@ function MonsterEventFields({
                 )
               }
             />
+            <StatFieldError id="monster-respawn-delay-error" error={errors.respawnDelay} />
           </span>
         )}
         {(
@@ -310,6 +411,8 @@ function MonsterEventFields({
             {t(label)}
             <Input
               aria-label={t(label)}
+              aria-invalid={Boolean(errors[field])}
+              aria-describedby={errors[field] ? `monster-${field}-error` : undefined}
               type="number"
               className="h-8 text-sm tabular-nums"
               min={limits.min}
@@ -321,6 +424,7 @@ function MonsterEventFields({
                 })
               }
             />
+            <StatFieldError id={`monster-${field}-error`} error={errors[field]} />
           </span>
         ))}
         <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
@@ -346,6 +450,8 @@ function MonsterEventFields({
           {t("editor.monster.weaknessPercent")}
           <Input
             aria-label={t("editor.monster.weaknessPercent")}
+            aria-invalid={Boolean(errors.weaknessPercent)}
+            aria-describedby={errors.weaknessPercent ? "monster-weakness-percent-error" : undefined}
             type="number"
             className="h-8 text-sm tabular-nums"
             min={MONSTER_TUNING_LIMITS.weaknessPercent.min}
@@ -357,6 +463,7 @@ function MonsterEventFields({
               })
             }
           />
+          <StatFieldError id="monster-weakness-percent-error" error={errors.weaknessPercent} />
         </span>
         <span className="flex flex-col gap-1 text-[11px] text-zinc-500 lg:col-span-2">
           {t("editor.monster.technique")}
@@ -385,9 +492,11 @@ function MonsterEventFields({
 /** Free-NPC characteristics shared by persistence and its authoritative movement routine. */
 function NpcEventFields({
   draft,
+  errors,
   onChange,
 }: {
   draft: MapEvent;
+  errors: EventStatErrors;
   onChange(patrolRadius: number, tuning?: Partial<Pick<MonsterTuning, "maxHp" | "damage">>): void;
 }) {
   const defaults = defaultMonsterTuning("spear_goblin");
@@ -407,12 +516,15 @@ function NpcEventFields({
           {t("editor.markers.radius")}
           <Input
             id="npc-patrol-radius"
+            aria-invalid={Boolean(errors.patrolRadius)}
+            aria-describedby={errors.patrolRadius ? "npc-patrol-radius-error" : undefined}
             type="number"
             min={MIN_PATROL_RADIUS}
             max={MAX_PATROL_RADIUS}
             value={patrolRadius}
             onChange={(event) => onChange(Number(event.currentTarget.value))}
           />
+          <StatFieldError id="npc-patrol-radius-error" error={errors.patrolRadius} />
         </label>
         {(
           [
@@ -428,6 +540,8 @@ function NpcEventFields({
             {t(label)}
             <Input
               id={`npc-${field}`}
+              aria-invalid={Boolean(errors[field])}
+              aria-describedby={errors[field] ? `npc-${field}-error` : undefined}
               type="number"
               min={limits.min}
               max={limits.max}
@@ -436,6 +550,7 @@ function NpcEventFields({
                 onChange(patrolRadius, { [field]: Number(event.currentTarget.value) })
               }
             />
+            <StatFieldError id={`npc-${field}-error`} error={errors[field]} />
           </label>
         ))}
       </div>
@@ -486,10 +601,13 @@ export function EventDialog({
   const [draft, setDraft] = useState<MapEvent>(event);
   const [pageIndex, setPageIndex] = useState(0);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
 
   const index = Math.min(pageIndex, draft.pages.length - 1);
   const page = draft.pages[index];
   if (!page) return null;
+  const statErrors = validateEventStats(draft);
+  const visibleStatErrors = validationAttempted ? statErrors : {};
   const unsupportedTriggerPages = draft.pages.flatMap((candidate, candidateIndex) =>
     runtimeTrigger(candidate.trigger) ? [] : [candidateIndex + 1],
   );
@@ -514,6 +632,10 @@ export function EventDialog({
 
   const save = (): void => {
     if (unsupportedTriggerPages.length > 0) return;
+    if (Object.values(statErrors).some(Boolean)) {
+      setValidationAttempted(true);
+      return;
+    }
     // Re-normalize condition ids/thresholds here so old imported pages remain parser-safe even
     // though current authors can only pick named values.
     const normalized = normalizeEventDraftConditions(draft);
@@ -573,6 +695,7 @@ export function EventDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <MonsterEventFields
               draft={draft}
+              errors={visibleStatErrors}
               onChange={(species, radius, tuning, respawnMode, respawnDelayMs) => {
                 const monster = setEventDraftMonster(draft, species, radius, tuning);
                 const withMode =
@@ -606,6 +729,7 @@ export function EventDialog({
         {draft.kind === "npc" && (
           <NpcEventFields
             draft={draft}
+            errors={visibleStatErrors}
             onChange={(radius, tuning) => setDraft(setEventDraftNpc(draft, radius, tuning))}
           />
         )}
@@ -620,6 +744,10 @@ export function EventDialog({
               {t("editor.markers.radius")}
               <Input
                 id="guard-patrol-radius"
+                aria-invalid={Boolean(visibleStatErrors.patrolRadius)}
+                aria-describedby={
+                  visibleStatErrors.patrolRadius ? "guard-patrol-radius-error" : undefined
+                }
                 type="number"
                 min={MIN_PATROL_RADIUS}
                 max={MAX_PATROL_RADIUS}
@@ -627,6 +755,10 @@ export function EventDialog({
                 onChange={(event) =>
                   setDraft(setEventDraftGuardRadius(draft, Number(event.currentTarget.value)))
                 }
+              />
+              <StatFieldError
+                id="guard-patrol-radius-error"
+                error={visibleStatErrors.patrolRadius}
               />
             </label>
           </section>

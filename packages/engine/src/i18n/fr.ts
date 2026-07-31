@@ -1603,6 +1603,10 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.delete.confirm.title": "Supprimer cet événement ?",
   "editor.event.cancel": "Annuler",
   "editor.event.save": "Valider",
+  "editor.event.validation.integer":
+    "Valeur invalide : saisissez un nombre entier entre {min} et {max}.",
+  "editor.event.validation.range":
+    "Hors limites : la valeur doit être comprise entre {min} et {max}.",
   "editor.event.cond.switch.empty.hint":
     "Aucun état oui/non n’est encore créé — ajoutez-en dans Jeu → États et compteurs.",
   "editor.event.cond.variable.empty.hint":

@@ -1585,6 +1585,8 @@ export const en = {
   "editor.event.delete.confirm.title": "Delete this event?",
   "editor.event.cancel": "Cancel",
   "editor.event.save": "Save",
+  "editor.event.validation.integer": "Invalid value: enter a whole number between {min} and {max}.",
+  "editor.event.validation.range": "Out of bounds: the value must be between {min} and {max}.",
   "editor.event.cond.switch.empty.hint":
     "No yes/no state exists yet — add one under Game → States and counters.",
   "editor.event.cond.variable.empty.hint":
