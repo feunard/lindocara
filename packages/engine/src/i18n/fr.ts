@@ -188,7 +188,7 @@ export const fr: Record<keyof typeof en, string> = {
   "class.priest.skill.5": "Salut d'urgence",
   "class.rogue.skill.1": "Attaque de base aux deux dagues",
   "class.rogue.skill.2": "Repositionnement lié à l'ennemi",
-  "class.rogue.skill.3": "Furtivité autoritaire",
+  "class.rogue.skill.3": "Disparition totale",
   "class.rogue.skill.4": "Poison persistant",
   "class.rogue.skill.5": "Finisseur rapide multi-cibles",
   "skill.warrior.cleave.name": "Fendoir",
@@ -236,15 +236,15 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.rogue.poisoned_shiv.name": "Surin empoisonné",
   "skill.rogue.shadow_dance.name": "Danse des ombres",
   "skill.rogue.dual_slash.description":
-    "Frappe avec les deux dagues en une seule résolution de dégâts autoritaire.",
+    "Frappez simultanément avec vos deux dagues et profitez d'Ouverture.",
   "skill.rogue.shadow_step.description":
-    "Téléporte près de l'ennemi visible le plus proche choisi par le serveur et accorde Ouverture.",
+    "Rejoignez instantanément l'ennemi visible le plus proche et gagnez Ouverture.",
   "skill.rogue.vanish.description":
     "Disparaît jusqu'à huit secondes ; attaquer, lancer une technique ou subir des dégâts rompt la furtivité.",
   "skill.rogue.poisoned_shiv.description":
-    "Frappe au corps à corps et applique cinq ticks de poison cadencés par le serveur.",
+    "Frappez au corps à corps et infligez cinq morsures de poison successives.",
   "skill.rogue.shadow_dance.description":
-    "Enchaîne jusqu'à cinq ennemis choisis par le serveur sans traverser de terrain bloqué.",
+    "Bondissez rapidement entre cinq ennemis accessibles et frappez chacun à votre passage.",
   "skill.rogue.shadow_return.ready": "Retour prêt",
 
   // ATH
@@ -563,13 +563,13 @@ export const fr: Record<keyof typeof en, string> = {
     "Vous ne pouvez pas subir de dégâts pendant le déplacement de {skill}.",
   "talent.node.retreat_shot.name": "Tir de repli",
   "talent.node.retreat_shot.description":
-    "Tire trois flèches modérées dirigées par le serveur pendant le bond arrière invulnérable.",
+    "Tire trois flèches modérées vers l'avant pendant le bond arrière invulnérable.",
   "talent.node.execute.name": "Exécuteur",
   "talent.node.execute.description":
     "{skill} inflige davantage de dégâts aux ennemis sous {value} % de vie.",
   "talent.node.comet_arrow.name": "Flèche comète",
   "talent.node.comet_arrow.description":
-    "Échange un peu de dégâts directs contre une grande explosion d'impact respectant les collisions.",
+    "Échange un peu de dégâts directs contre une grande explosion à l'impact.",
   "talent.node.chain_heal.name": "Grâce fluide",
   "talent.node.chain_heal.description":
     "{skill} rebondit sur un autre allié blessé pour {value} % de soin.",
@@ -584,7 +584,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Laisse une traînée de soin qui peut restaurer chaque allié traversé une fois par lancement.",
   "talent.node.sanctuary.name": "Sanctuaire vivant",
   "talent.node.sanctuary.description":
-    "Ancre trois ticks de soin bornés là où {skill} est lancée ; la zone ne vous suit jamais.",
+    "Ancre trois vagues de soin là où {skill} est lancée ; la zone reste sur place.",
   "talent.node.absolution.name": "Absolution",
   "talent.node.absolution.description":
     "Renforce le soin instantané et retire le poison compatible des alliés visibles.",
@@ -677,7 +677,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Conserve le bonus d'exécution existant de 35 % contre les cibles sous 35 % de vie.",
   "talent.evolution.ranger.heartseeker.b.name": "Flèche comète",
   "talent.evolution.ranger.heartseeker.b.description":
-    "Inflige 15 % de dégâts directs en moins, puis explose à 65 % de puissance dans un rayon de 105 px.",
+    "Inflige 15 % de dégâts directs en moins, puis explose à 65 % de puissance dans une vaste zone.",
   "skill.ranger.afterimage.ready": "Échange disponible",
   "talent.ultimate.ranger.piercing_arrow.name": "Flèche de rappel",
   "talent.ultimate.ranger.piercing_arrow.description":
@@ -714,7 +714,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Conserve le Pas de Lumen plus long et son soin personnel, puis soigne aussi les alliés proches à la rematérialisation.",
   "talent.evolution.priest.blink.b.name": "Passage sacré",
   "talent.evolution.priest.blink.b.description":
-    "Laisse une traînée collisionnée qui soigne chaque allié traversé une fois, jamais à l'arrêt.",
+    "Laisse une traînée lumineuse qui soigne une fois chaque allié traversé, jamais à l'arrêt.",
   "talent.evolution.priest.prayer.a.name": "Sanctuaire vivant",
   "talent.evolution.priest.prayer.a.description":
     "Ancre trois soins supplémentaires à 35 % de puissance au point de lancement, efficaces mais différés.",
@@ -747,16 +747,16 @@ export const fr: Record<keyof typeof en, string> = {
     "Réactivez sous 2 secondes pour vous téléporter à travers les obstacles vers votre point de départ toujours praticable, sans générer une seconde Ouverture.",
   "talent.ultimate.rogue.shadow_step.name": "Traversée du voile",
   "talent.ultimate.rogue.shadow_step.description":
-    "Pas de l'ombre peut traverser murs, eau, colliders et changements d'élévation. La position d'arrivée choisie par le serveur doit rester libre et praticable.",
+    "Pas de l'ombre traverse murs, eau et dénivelés pour apparaître sur un emplacement libre près de sa cible.",
   "talent.evolution.rogue.vanish.a.name": "Prédateur",
   "talent.evolution.rogue.vanish.a.description":
     "Sortez de Disparition avec une Ouverture renforcée et amplifiez le prochain Surin empoisonné utilisé sous 2 secondes.",
   "talent.evolution.rogue.vanish.b.name": "Écran de fumée",
   "talent.evolution.rogue.vanish.b.description":
-    "Supprime immédiatement l'aggro, accorde 750 ms de protection autoritaire et réduit encore de 20 % la recharge.",
+    "Dissipe immédiatement l'attention ennemie, protège brièvement de tout dégât et réduit encore la recharge.",
   "talent.evolution.rogue.poisoned_shiv.a.name": "Venin concentré",
   "talent.evolution.rogue.poisoned_shiv.a.description":
-    "Le poison peut former trois charges indépendantes, rafraîchies de manière déterministe sur la même cible.",
+    "Le poison peut former jusqu'à trois charges indépendantes sur la même cible.",
   "talent.evolution.rogue.poisoned_shiv.b.name": "Rupture",
   "talent.evolution.rogue.poisoned_shiv.b.description":
     "Surin empoisonné consomme 60 % du poison déjà planifié et le fait exploser à 150 %, ajoutant réellement des dégâts avant de réappliquer le poison.",

@@ -189,7 +189,7 @@ export const en = {
   "class.priest.skill.5": "Emergency salvation",
   "class.rogue.skill.1": "Twin-dagger basic attack",
   "class.rogue.skill.2": "Enemy-bound repositioning",
-  "class.rogue.skill.3": "Authoritative stealth",
+  "class.rogue.skill.3": "Complete disappearance",
   "class.rogue.skill.4": "Persistent poison",
   "class.rogue.skill.5": "Rapid multi-target finisher",
   "skill.warrior.cleave.name": "Cleave",
@@ -234,15 +234,14 @@ export const en = {
   "skill.rogue.poisoned_shiv.name": "Poisoned Shiv",
   "skill.rogue.shadow_dance.name": "Shadow Dance",
   "skill.rogue.dual_slash.description":
-    "Strike with both daggers in one authoritative damage resolution.",
-  "skill.rogue.shadow_step.description":
-    "Blink beside the nearest visible enemy selected by the server and gain Opening.",
+    "Strike simultaneously with both daggers and benefit from Opening.",
+  "skill.rogue.shadow_step.description": "Blink beside the nearest visible enemy and gain Opening.",
   "skill.rogue.vanish.description":
     "Disappear for up to eight seconds; attacking, casting, or taking damage ends the stealth.",
   "skill.rogue.poisoned_shiv.description":
-    "Stab at close range and apply five server-timed poison ticks.",
+    "Stab at close range and inflict five successive bites of poison.",
   "skill.rogue.shadow_dance.description":
-    "Chain through up to five server-selected enemies without crossing blocked terrain.",
+    "Leap rapidly through five reachable enemies and strike each as you pass.",
   "skill.rogue.shadow_return.ready": "Return ready",
 
   // HUD
@@ -557,13 +556,13 @@ export const en = {
     "You cannot take damage while {skill} is moving you.",
   "talent.node.retreat_shot.name": "Retreat shot",
   "talent.node.retreat_shot.description":
-    "Fire three moderate server-directed arrows forward during the invulnerable backward leap.",
+    "Fire three moderate arrows forward during the invulnerable backward leap.",
   "talent.node.execute.name": "Executioner",
   "talent.node.execute.description":
     "{skill} deals increased damage to enemies below {value}% health.",
   "talent.node.comet_arrow.name": "Comet arrow",
   "talent.node.comet_arrow.description":
-    "Trade a little direct damage for a large, collision-respecting impact explosion.",
+    "Trade a little direct damage for a large impact explosion.",
   "talent.node.chain_heal.name": "Flowing grace",
   "talent.node.chain_heal.description":
     "{skill} bounces to another wounded ally for {value}% healing.",
@@ -577,7 +576,7 @@ export const en = {
     "Leave a healing trail that can restore each crossed ally once per cast.",
   "talent.node.sanctuary.name": "Living sanctuary",
   "talent.node.sanctuary.description":
-    "Anchor three bounded healing ticks where {skill} was cast; the zone never follows you.",
+    "Anchor three healing waves where {skill} was cast; the zone stays in place.",
   "talent.node.absolution.name": "Absolution",
   "talent.node.absolution.description":
     "Strengthen the instant heal and remove compatible poison from visible allies.",
@@ -670,7 +669,7 @@ export const en = {
     "Preserves the existing 35% execution bonus against targets below 35% health.",
   "talent.evolution.ranger.heartseeker.b.name": "Comet Arrow",
   "talent.evolution.ranger.heartseeker.b.description":
-    "Deal 15% less direct damage, then explode for 65% power across a 105 px radius.",
+    "Deal 15% less direct damage, then explode for 65% power across a wide area.",
   "skill.ranger.afterimage.ready": "Swap ready",
   "talent.ultimate.ranger.piercing_arrow.name": "Recall Arrow",
   "talent.ultimate.ranger.piercing_arrow.description":
@@ -706,7 +705,7 @@ export const en = {
     "Keep the longer Lumen Step and personal heal, then also heal nearby allies on rematerialization.",
   "talent.evolution.priest.blink.b.name": "Sacred Passage",
   "talent.evolution.priest.blink.b.description":
-    "Leave a collision-resolved trail that heals every crossed ally once, and never while stationary.",
+    "Leave a luminous trail that heals each crossed ally once, and never while stationary.",
   "talent.evolution.priest.prayer.a.name": "Living Sanctuary",
   "talent.evolution.priest.prayer.a.description":
     "Anchor three additional 35%-power heals at the cast point: effective, but delayed.",
@@ -739,16 +738,16 @@ export const en = {
     "Reactivate within 2 seconds to teleport back through obstacles to your still-walkable departure point, without a second Opening.",
   "talent.ultimate.rogue.shadow_step.name": "Veil Crossing",
   "talent.ultimate.rogue.shadow_step.description":
-    "Shadow Step may cross walls, water, colliders and elevation boundaries. Its server-selected landing must still be free and walkable.",
+    "Shadow Step crosses walls, water and elevation to appear on a free spot near its target.",
   "talent.evolution.rogue.vanish.a.name": "Predator",
   "talent.evolution.rogue.vanish.a.description":
     "Leave Vanish with a stronger Opening and empower the next Poisoned Shiv used within 2 seconds.",
   "talent.evolution.rogue.vanish.b.name": "Smoke Screen",
   "talent.evolution.rogue.vanish.b.description":
-    "Immediately clear aggro, gain 750 ms of authoritative protection, and reduce cooldown by another 20%.",
+    "Immediately clear enemy attention, briefly prevent all damage, and further reduce cooldown.",
   "talent.evolution.rogue.poisoned_shiv.a.name": "Concentrated Venom",
   "talent.evolution.rogue.poisoned_shiv.a.description":
-    "Poison can build three independent, deterministically refreshed stacks on the same target.",
+    "Poison can build up to three independent stacks on the same target.",
   "talent.evolution.rogue.poisoned_shiv.b.name": "Rupture",
   "talent.evolution.rogue.poisoned_shiv.b.description":
     "Poisoned Shiv consumes 60% of already scheduled poison and detonates it at 150%, adding real damage before reapplying poison.",
