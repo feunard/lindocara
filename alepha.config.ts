@@ -6,7 +6,9 @@ import { $command } from "alepha/command";
 export default defineConfig({
   plugins: [
     vendor({
-      packages: ["alepha"],
+      // `@alepha/pulse-client` alongside `alepha`: it is a workspace package in
+      // that repo, not something published, so it travels the same way.
+      packages: ["alepha", "@alepha/pulse-client"],
       remote: "file:///Users/nfo/git/alepha",
     }),
     () => ({

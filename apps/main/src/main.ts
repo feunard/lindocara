@@ -1,5 +1,6 @@
 import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
+import { AlephaPulse } from "@alepha/pulse-client";
 import { Alepha, run } from "alepha";
 
 // Raises Alepha's global body-size ceiling (default 100_000 bytes) to the 4 MiB this app needs
@@ -22,6 +23,12 @@ import { Alepha, run } from "alepha";
 // AGENTS.md). Registering the `$page` tree is what makes it also serve the shell: with the old
 // `SpaController` deleted, nothing else answers `GET /`.
 const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi);
+
+// Reports page views, web vitals and errors to Pulse. Without `PULSE_SINK` and
+// `PULSE_KEY` the module still captures and sends nothing — errors go to the
+// logger instead — so it is safe to register unconditionally, including in
+// development and in tests.
+alepha.with(AlephaPulse);
 
 // Drizzle executes this entry under plain Node to discover server entities. Importing the browser
 // router in that process also imports Vite-only `import.meta.glob` asset modules, which plain Node

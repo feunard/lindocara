@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/*",
     "apps/*",
-    ".vendor/alepha"
+    ".vendor/alepha",
+    ".vendor/@alepha/*"
   ],
   "engines": {
     "node": ">=22"
