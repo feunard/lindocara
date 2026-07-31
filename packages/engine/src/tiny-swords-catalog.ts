@@ -1,3 +1,4 @@
+import type { PrimaryColor } from "./character.js";
 import type { Rect } from "./game.js";
 import {
   GENERATED_EDITOR_ASSETS,
@@ -248,6 +249,54 @@ export const EVENT_GRAPHIC_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASS
 export const NPC_CHARACTER_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
   (asset) => asset.domain === "character" || asset.domain === "enemy",
 );
+
+/**
+ * Actual actor MODELS offered to free NPC authoring. Idle sheets represent every Free/Enemy Pack
+ * model and native colour/resource variant; a paired run sheet is linked when the pack provides one.
+ * Update 010 instead ships one combined sheet per coloured troop, so those canonical troop sheets
+ * are included explicitly while component layers (bows, arrows, detached arms) are not presented as
+ * characters.
+ */
+export const NPC_MODEL_ASSETS: readonly EditorAssetDefinition[] = NPC_CHARACTER_ASSETS.filter(
+  (asset) =>
+    asset.motions?.run !== undefined ||
+    asset.tags.includes("idle") ||
+    /\/Factions\/Knights\/Troops\/(?:Archer|Pawn|Warrior)\/(?:Blue|Purple|Red|Yellow)\/[^/]+\.png$/i.test(
+      asset.sourcePath,
+    ),
+);
+
+const GUARD_ASSET_BY_COLOR: Readonly<Record<PrimaryColor, EditorAssetId>> = {
+  azure: "character.units-blue-units-warrior.warrior-idle",
+  ember: "character.units-red-units-warrior.warrior-idle",
+  moss: "character.units-yellow-units-warrior.warrior-idle",
+  violet: "character.units-purple-units-warrior.warrior-idle",
+};
+
+const GUARD_COLOR_BY_ASSET = new Map<string, PrimaryColor>(
+  Object.entries(GUARD_ASSET_BY_COLOR).map(([color, assetId]) => [assetId, color as PrimaryColor]),
+);
+
+/** Four native Tiny Swords guard recolours, not artificial sprite tinting. */
+export const GUARD_APPEARANCE_ASSETS: readonly EditorAssetDefinition[] = Object.values(
+  GUARD_ASSET_BY_COLOR,
+).flatMap((assetId) => {
+  const asset = editorAsset(assetId);
+  return asset ? [asset] : [];
+});
+
+export const DEFAULT_NPC_MODEL_ASSET_ID =
+  "character.units-blue-units-pawn.pawn-idle" as EditorAssetId;
+export const DEFAULT_GUARD_APPEARANCE_ASSET_ID = GUARD_ASSET_BY_COLOR.moss;
+
+export function isGuardAppearanceAssetId(value: unknown): value is EditorAssetId {
+  return typeof value === "string" && GUARD_COLOR_BY_ASSET.has(value);
+}
+
+/** Maps an authored native guard sheet back to the renderer's semantic colour. */
+export function guardPrimaryColorForAsset(assetId: string | null | undefined): PrimaryColor {
+  return (assetId && GUARD_COLOR_BY_ASSET.get(assetId)) || "moss";
+}
 
 /** Whether an asset id belongs to the historical focused-test subset. */
 export function isCuratedEditorAssetId(value: unknown): value is EditorAssetId {

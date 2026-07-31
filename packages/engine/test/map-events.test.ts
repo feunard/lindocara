@@ -20,6 +20,7 @@ import {
   parseMapEvents,
   validateEventName,
 } from "@lindocara/engine/map-events.js";
+import { DEFAULT_GUARD_APPEARANCE_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 const COLS = 10;
@@ -531,7 +532,10 @@ describe("parseMapEvents: authored guards", () => {
       name: "Renforts des Bois",
       patrolRadius: 160,
       pages: [
-        guardPage({ condSwitchId: "0041" }),
+        guardPage({
+          condSwitchId: "0041",
+          graphicAssetId: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+        }),
         guardPage({ condSwitchId: "0042", condVariableId: "0007", condVariableMin: 3 }),
       ],
     });

@@ -173,42 +173,6 @@ function StatFieldError({ id, error }: { id: string; error: EventStatError | und
   );
 }
 
-function tintHex(value: number | undefined): string {
-  return `#${(value ?? EVENT_GRAPHIC_TINT_DEFAULT).toString(16).padStart(6, "0")}`;
-}
-
-function GraphicTintField({
-  value,
-  onChange,
-}: {
-  value: number | undefined;
-  onChange(value: number): void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <label className="flex items-center gap-2 text-[11px] text-zinc-500">
-        {t("editor.event.appearance.color")}
-        <input
-          type="color"
-          aria-label={t("editor.event.appearance.color")}
-          value={tintHex(value)}
-          className="h-7 w-10 cursor-pointer rounded border border-input bg-white p-0.5"
-          onChange={(event) => onChange(Number.parseInt(event.currentTarget.value.slice(1), 16))}
-        />
-      </label>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-7"
-        onClick={() => onChange(EVENT_GRAPHIC_TINT_DEFAULT)}
-      >
-        {t("editor.event.appearance.color.reset")}
-      </Button>
-    </div>
-  );
-}
-
 function NpcRoutineEditor({
   route,
   onChange,
@@ -965,9 +929,12 @@ export function EventDialog({
                 error={visibleStatErrors.patrolRadius}
               />
             </label>
-            <GraphicTintField
-              value={page.graphicTint}
-              onChange={(graphicTint) => update({ graphicTint })}
+            <CatalogueAssetPicker
+              usage="guard"
+              value={page.graphicAssetId}
+              onSelectAsset={(graphicAssetId) =>
+                update({ graphicAssetId, graphicTint: EVENT_GRAPHIC_TINT_DEFAULT })
+              }
             />
           </section>
         )}
@@ -1157,16 +1124,17 @@ export function EventDialog({
                       <CatalogueAssetPicker
                         usage={draft.kind === "npc" ? "character" : "event"}
                         value={page.graphicAssetId}
-                        onSelectAsset={(assetId) => update({ graphicAssetId: assetId })}
+                        onSelectAsset={(assetId) =>
+                          update({
+                            graphicAssetId: assetId,
+                            ...(draft.kind === "npc"
+                              ? { graphicTint: EVENT_GRAPHIC_TINT_DEFAULT }
+                              : {}),
+                          })
+                        }
                         onSelectNone={() => update({ graphicAssetId: null })}
                         noneLabel={t("editor.shell.events.graphic.none")}
                       />
-                      {draft.kind === "npc" && (
-                        <GraphicTintField
-                          value={page.graphicTint}
-                          onChange={(graphicTint) => update({ graphicTint })}
-                        />
-                      )}
                       <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">
                         <input
                           type="checkbox"

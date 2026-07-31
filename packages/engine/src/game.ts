@@ -17,6 +17,7 @@ import {
   TILE_SIZE,
   type TileMap,
 } from "./tilemap.js";
+import type { EditorAssetId } from "./tiny-swords-catalog.js";
 import { VERDANT_REACH_TILES } from "./zones/verdant-reach-tiles.js";
 
 export interface Rect {
@@ -284,6 +285,7 @@ export interface QuestDefinition {
 export interface GuardDefinition extends Vec2 {
   id: string;
   patrolRadius: number;
+  graphicAssetId?: EditorAssetId | null;
   graphicTint?: number;
 }
 

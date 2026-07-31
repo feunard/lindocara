@@ -31,6 +31,7 @@ export function activeAuthoredGuardDefinitions(
         id: authoredGuardRuntimeId(event.id),
         ...eventCellCentre(event),
         patrolRadius: event.patrolRadius,
+        graphicAssetId: page.graphicAssetId,
         graphicTint: page.graphicTint ?? 0xffffff,
       },
     ];
@@ -55,6 +56,7 @@ export function reconcileActiveGuards(
       homeX: definition.x,
       homeY: definition.y,
       patrolRadius: definition.patrolRadius,
+      graphicAssetId: definition.graphicAssetId ?? null,
       graphicTint: definition.graphicTint ?? 0xffffff,
     };
   });

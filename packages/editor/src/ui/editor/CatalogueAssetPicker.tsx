@@ -6,7 +6,8 @@ import {
   type EditorAssetId,
   type EditorTerrain,
   EVENT_GRAPHIC_ASSETS,
-  NPC_CHARACTER_ASSETS,
+  GUARD_APPEARANCE_ASSETS,
+  NPC_MODEL_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { tinySwordsSourceUrl } from "@lindocara/renderer/tiny-swords-assets.js";
@@ -18,7 +19,7 @@ interface CatalogueAssetPickerProps {
   onSelectAsset(assetId: EditorAssetId): void;
   onSelectNone?: (() => void) | undefined;
   noneLabel?: string | undefined;
-  usage?: "scenery" | "event" | "character";
+  usage?: "scenery" | "event" | "character" | "guard";
 }
 
 const ASSET_PAGE_SIZE = 12;
@@ -64,11 +65,18 @@ function folderVariant(asset: EditorAssetDefinition): string | null {
   const folder = parts.length >= 2 ? parts[parts.length - 2] : undefined;
   if (!folder) return null;
   const match = folder.match(COLOR_BUILDING_FOLDER);
-  return match?.[1] ?? null;
+  if (match?.[1]) return match[1];
+  // Actor recolours live either under "Blue Units" or a simple "Blue" folder. These are real
+  // separate Tiny Swords sheets, so expose that native variant instead of tinting one sprite.
+  for (const part of [...parts].reverse()) {
+    const color = part.match(/^(Black|Blue|Purple|Red|Yellow)(?: Units)?$/i);
+    if (color?.[1]) return color[1];
+  }
+  return null;
 }
 
 function baseAssetName(asset: EditorAssetDefinition): string {
-  return (
+  const name =
     asset.sourcePath
       .split("/")
       .at(-1)
@@ -76,8 +84,10 @@ function baseAssetName(asset: EditorAssetDefinition): string {
       .replaceAll("_", " ")
       .replaceAll("-", " ") ??
     asset.id.split(".").at(-1) ??
-    asset.id
-  );
+    asset.id;
+  if (name.toLowerCase() !== "idle") return name;
+  const parent = asset.sourcePath.split("/").at(-2);
+  return parent ? `${parent} ${name}` : name;
 }
 
 /** Every asset's display name, disambiguated (C3) only where the plain file-derived name actually
@@ -131,8 +141,10 @@ export function CatalogueAssetPicker({
     usage === "event"
       ? EVENT_GRAPHIC_ASSETS
       : usage === "character"
-        ? NPC_CHARACTER_ASSETS
-        : PLACEABLE_EDITOR_ASSETS;
+        ? NPC_MODEL_ASSETS
+        : usage === "guard"
+          ? GUARD_APPEARANCE_ASSETS
+          : PLACEABLE_EDITOR_ASSETS;
   const categories = useMemo(
     () =>
       [...new Set(source.map((asset) => asset.editor.category))].sort(

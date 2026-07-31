@@ -798,11 +798,12 @@ function runMotion(
   catalog: TinySwordsCatalogFile,
   entry: TinySwordsCatalogEntry,
 ): NonNullable<EditorAssetDefinition["motions"]>["run"] | undefined {
-  if (entry.domain !== "character" || !/idle/i.test(entry.sourcePath)) return undefined;
+  if ((entry.domain !== "character" && entry.domain !== "enemy") || !/idle/i.test(entry.sourcePath))
+    return undefined;
   const sourcePath = runSourcePath(entry.sourcePath);
   if (!sourcePath) return undefined;
   const run = catalog.entries.find((candidate) => candidate.sourcePath === sourcePath);
-  if (run?.domain !== "character" || run.height <= 0 || run.width % run.height !== 0) {
+  if (run?.domain !== entry.domain || run.height <= 0 || run.width % run.height !== 0) {
     return undefined;
   }
   const count = run.width / run.height;

@@ -42,6 +42,7 @@ import {
   type EditorAssetId,
   type EditorRenderLayer,
   editorAsset,
+  guardPrimaryColorForAsset,
   isEditorAssetId,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import {
@@ -3316,7 +3317,13 @@ export class Renderer {
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
     const animations = playerAnimations(
-      { class: "warrior", appearance: { body: "wayfarer", primaryColor: "moss" } },
+      {
+        class: "warrior",
+        appearance: {
+          body: "wayfarer",
+          primaryColor: guardPrimaryColorForAsset(guard.graphicAssetId),
+        },
+      },
       this.art.units,
     );
     const ring = new Graphics()
@@ -4675,6 +4682,18 @@ export class Renderer {
         view.container.position.set(guard.x, guard.y);
         view.container.zIndex = Math.round(guard.y + PLAYER_SIZE);
         if (visible && view.actor && view.unitSprite && view.unitAnimations) {
+          if (guard.graphicAssetId !== view.data.graphicAssetId) {
+            view.unitAnimations = playerAnimations(
+              {
+                class: "warrior",
+                appearance: {
+                  body: "wayfarer",
+                  primaryColor: guardPrimaryColorForAsset(guard.graphicAssetId),
+                },
+              },
+              this.art.units,
+            );
+          }
           view.unitSprite.tint = guard.graphicTint ?? 0xffffff;
           const moving = (view.movingUntil ?? 0) > now;
           const motion: UnitMotion = guard.fighting ? "attack" : moving ? "run" : "idle";

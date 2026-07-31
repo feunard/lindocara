@@ -1440,8 +1440,8 @@ export const en = {
   "editor.event.cond.selfSwitch": "This event’s local state",
   "editor.event.cond.missing": "Deleted value — choose another",
   "editor.event.appearance": "Appearance",
-  "editor.event.appearance.color": "Colour",
-  "editor.event.appearance.color.reset": "Natural colour",
+  "editor.event.appearance.nativeVariants":
+    "Choose the model and its native Tiny Swords colour variant.",
   "editor.event.movement": "Autonomous movement",
   "editor.event.move.type": "Type",
   "editor.event.move.speed": "Speed",

@@ -37,7 +37,11 @@ import {
 import { isUuid } from "./identifiers.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
 import { TILE_SIZE } from "./tilemap.js";
-import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
+import {
+  type EditorAssetId,
+  isEditorAssetId,
+  isGuardAppearanceAssetId,
+} from "./tiny-swords-catalog.js";
 
 /**
  * UX wave #12: markers die, their meaning becomes a typed event. A `normal` event is the wireframe
@@ -653,15 +657,15 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     ) {
       return null;
     }
-    // A guard page selects presence and may carry an action-triggered dialogue program. Appearance,
-    // movement and trigger selection remain owned by the guard simulation, so reject non-default
-    // ignored fields instead of persisting misleading authoring.
+    // A guard page selects presence, its native catalogue appearance and may carry an
+    // action-triggered dialogue program. Movement and trigger selection remain owned by the guard
+    // simulation, so reject other ignored fields instead of persisting misleading authoring.
     if (
       kind === "guard" &&
       parsedPages.some(
         (page) =>
           page.condSelfSwitch !== null ||
-          page.graphicAssetId !== null ||
+          (page.graphicAssetId !== null && !isGuardAppearanceAssetId(page.graphicAssetId)) ||
           page.moveType !== "fixed" ||
           (page.moveRoute?.length ?? 0) > 0 ||
           page.moveSpeed !== 4 ||

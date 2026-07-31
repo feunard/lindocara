@@ -205,6 +205,7 @@ export function guardSnapshots<TSocket>(
     homeX: guard.homeX,
     homeY: guard.homeY,
     fighting: guard.fightingUntil > now,
+    graphicAssetId: guard.graphicAssetId,
     graphicTint: guard.graphicTint,
   }));
 }

@@ -1456,8 +1456,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cond.selfSwitch": "État local de cet événement",
   "editor.event.cond.missing": "Donnée supprimée — choisissez-en une autre",
   "editor.event.appearance": "Apparence",
-  "editor.event.appearance.color": "Couleur",
-  "editor.event.appearance.color.reset": "Couleur naturelle",
+  "editor.event.appearance.nativeVariants":
+    "Choisissez le modèle et sa variante de couleur native Tiny Swords.",
   "editor.event.movement": "Déplacement autonome",
   "editor.event.move.type": "Type",
   "editor.event.move.speed": "Vitesse",

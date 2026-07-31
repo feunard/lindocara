@@ -1280,7 +1280,21 @@ export function applyTool(
           kind: "guard",
           patrolRadius,
         });
-        return { ...map, events: [...map.events, event] };
+        return {
+          ...map,
+          events: [
+            ...map.events,
+            {
+              ...event,
+              pages: [
+                {
+                  ...(event.pages[0] ?? defaultEventPage()),
+                  graphicAssetId: tool.graphic ?? null,
+                },
+              ],
+            },
+          ],
+        };
       }
       if (tool.eventKind === "npc") {
         const { patrolRadius } = tool;
@@ -1308,7 +1322,15 @@ export function applyTool(
             ...map.events,
             {
               ...event,
-              pages: [{ ...page, moveType: "random", moveSpeed: 3, moveFreq: 2 }],
+              pages: [
+                {
+                  ...page,
+                  graphicAssetId: tool.graphic ?? null,
+                  moveType: "random",
+                  moveSpeed: 3,
+                  moveFreq: 2,
+                },
+              ],
             },
           ],
         };

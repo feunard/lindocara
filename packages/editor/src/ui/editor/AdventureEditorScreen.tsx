@@ -35,7 +35,12 @@ import {
 } from "@lindocara/engine/map-events.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
-import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  DEFAULT_NPC_MODEL_ASSET_ID,
+  type EditorAssetId,
+  editorAsset,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
@@ -130,10 +135,13 @@ function eventToolFor(
   species: MonsterSpecies,
   patrolRadius: number,
   selfMapId: string | null,
+  npcGraphic: EditorAssetId,
+  guardGraphic: EditorAssetId,
 ): EditorTool {
   if (eventKind === "monster") return { kind: "event", eventKind, species, patrolRadius };
-  if (eventKind === "guard" || eventKind === "npc")
-    return { kind: "event", eventKind, patrolRadius };
+  if (eventKind === "guard")
+    return { kind: "event", eventKind, patrolRadius, graphic: guardGraphic };
+  if (eventKind === "npc") return { kind: "event", eventKind, patrolRadius, graphic: npcGraphic };
   if (eventKind === "normal") {
     // A preset placement names itself, in the author's language, so the event list distinguishes the
     // five presets. `raw` stays unnamed: it IS the generic custom event, and the list's own kind
@@ -332,6 +340,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [eventPreset, setEventPreset] = useState<EventPreset>("raw");
   const [markerSpecies, setMarkerSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [markerRadius, setMarkerRadius] = useState(96);
+  const [npcGraphic, setNpcGraphic] = useState<EditorAssetId>(DEFAULT_NPC_MODEL_ASSET_ID);
+  const [guardGraphic, setGuardGraphic] = useState<EditorAssetId>(
+    DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  );
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
   const [stageEpoch, setStageEpoch] = useState(0);
   const [previewing, setPreviewing] = useState(false);
@@ -560,22 +572,35 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     containerRef.current?.focus();
   }, [previewing]);
 
-  // Monster and guard event kinds bundle their tuning into the pushed tool, so a palette edit while
-  // either is active must re-push it before the next placement.
+  // Runtime event kinds bundle their tuning/appearance into the pushed tool, so a palette edit while
+  // one is active must re-push it before the next placement.
   useEffect(() => {
-    if (toolKey !== "event" || (eventKind !== "monster" && eventKind !== "guard")) return;
-    const tool: EditorTool =
-      eventKind === "monster"
-        ? {
-            kind: "event",
-            eventKind: "monster",
-            species: markerSpecies,
-            patrolRadius: markerRadius,
-          }
-        : { kind: "event", eventKind: "guard", patrolRadius: markerRadius };
+    if (
+      toolKey !== "event" ||
+      (eventKind !== "monster" && eventKind !== "guard" && eventKind !== "npc")
+    )
+      return;
+    const tool = eventToolFor(
+      eventKind,
+      eventPreset,
+      markerSpecies,
+      markerRadius,
+      map?.id ?? null,
+      npcGraphic,
+      guardGraphic,
+    );
     pendingToolRef.current = tool;
     handleRef.current?.setTool(tool);
-  }, [toolKey, eventKind, markerSpecies, markerRadius]);
+  }, [
+    toolKey,
+    eventKind,
+    eventPreset,
+    markerSpecies,
+    markerRadius,
+    map?.id,
+    npcGraphic,
+    guardGraphic,
+  ]);
 
   function pushTool(tool: EditorTool): void {
     pendingToolRef.current = tool;
@@ -628,7 +653,43 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   function selectEventKind(kind: EventKind): void {
     setEventKind(kind);
     if (toolKey === "event") {
-      pushTool(eventToolFor(kind, eventPreset, markerSpecies, markerRadius, map?.id ?? null));
+      pushTool(
+        eventToolFor(
+          kind,
+          eventPreset,
+          markerSpecies,
+          markerRadius,
+          map?.id ?? null,
+          npcGraphic,
+          guardGraphic,
+        ),
+      );
+    }
+  }
+
+  function selectNpcGraphic(assetId: EditorAssetId): void {
+    setNpcGraphic(assetId);
+    setEventKind("npc");
+    if (toolKey === "event") {
+      pushTool({
+        kind: "event",
+        eventKind: "npc",
+        patrolRadius: markerRadius,
+        graphic: assetId,
+      });
+    }
+  }
+
+  function selectGuardGraphic(assetId: EditorAssetId): void {
+    setGuardGraphic(assetId);
+    setEventKind("guard");
+    if (toolKey === "event") {
+      pushTool({
+        kind: "event",
+        eventKind: "guard",
+        patrolRadius: markerRadius,
+        graphic: assetId,
+      });
     }
   }
 
@@ -638,7 +699,17 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     setEventKind("normal");
     setEventPreset(preset);
     if (toolKey === "event") {
-      pushTool(eventToolFor("normal", preset, markerSpecies, markerRadius, map?.id ?? null));
+      pushTool(
+        eventToolFor(
+          "normal",
+          preset,
+          markerSpecies,
+          markerRadius,
+          map?.id ?? null,
+          npcGraphic,
+          guardGraphic,
+        ),
+      );
     }
   }
 
@@ -698,7 +769,17 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     }
     setToolKey("event");
     setSelectedAsset(null);
-    pushTool(eventToolFor(eventKind, eventPreset, markerSpecies, markerRadius, map?.id ?? null));
+    pushTool(
+      eventToolFor(
+        eventKind,
+        eventPreset,
+        markerSpecies,
+        markerRadius,
+        map?.id ?? null,
+        npcGraphic,
+        guardGraphic,
+      ),
+    );
   }
 
   function toggleGrid(): void {
@@ -1303,12 +1384,16 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 teleporterEnabled: map !== null,
                 markerSpecies,
                 markerRadius,
+                npcGraphic,
+                guardGraphic,
                 events: currentMap?.events ?? [],
                 selectedEventId: selection?.kind === "event" ? selection.id : null,
                 onSelectPreset: selectEventPreset,
                 onSelectEventKind: selectEventKind,
                 onMarkerSpeciesChange: setMarkerSpecies,
                 onMarkerRadiusChange: setMarkerRadius,
+                onSelectNpcGraphic: selectNpcGraphic,
+                onSelectGuardGraphic: selectGuardGraphic,
                 onHoverEvent: (id) => handleRef.current?.highlightEvent(id),
                 onSelectEvent: (id) => handleRef.current?.selectEvent(id),
               }}

@@ -2,6 +2,11 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import { EventPalette } from "@lindocara/editor/ui/editor/EventPalette.js";
 import { presetEvent } from "@lindocara/engine/event-presets.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  DEFAULT_NPC_MODEL_ASSET_ID,
+  GUARD_APPEARANCE_ASSETS,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,12 +40,16 @@ function baseProps() {
     teleporterEnabled: true,
     markerSpecies: "spear_goblin" as const,
     markerRadius: 96,
+    npcGraphic: DEFAULT_NPC_MODEL_ASSET_ID,
+    guardGraphic: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
     events: [] as MapEvent[],
     selectedEventId: null,
     onSelectPreset: () => {},
     onSelectEventKind: () => {},
     onMarkerSpeciesChange: () => {},
     onMarkerRadiusChange: () => {},
+    onSelectNpcGraphic: () => {},
+    onSelectGuardGraphic: () => {},
     onHoverEvent: () => {},
     onSelectEvent: () => {},
   };
@@ -94,12 +103,25 @@ describe("EventPalette (D13/D14)", () => {
       target: { value: "160" },
     });
     expect(onMarkerRadiusChange).toHaveBeenCalledWith(160);
+    expect(
+      within(screen.getByTestId("guard-appearance-catalogue"))
+        .getAllByRole("button")
+        .filter((button) => button.dataset.assetId),
+    ).toHaveLength(GUARD_APPEARANCE_ASSETS.length);
   });
 
-  it("offers a free NPC tool with an editable movement radius", () => {
+  it("offers free NPC models directly in the palette with an editable movement radius", () => {
     setLocale("en");
     const onSelectEventKind = vi.fn();
-    render(<EventPalette {...baseProps()} eventKind="npc" onSelectEventKind={onSelectEventKind} />);
+    const onSelectNpcGraphic = vi.fn();
+    render(
+      <EventPalette
+        {...baseProps()}
+        eventKind="npc"
+        onSelectEventKind={onSelectEventKind}
+        onSelectNpcGraphic={onSelectNpcGraphic}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: t("editor.event.kind.npc") }));
     expect(onSelectEventKind).toHaveBeenCalledWith("npc");
@@ -107,6 +129,16 @@ describe("EventPalette (D13/D14)", () => {
     expect(
       screen.queryByRole("combobox", { name: t("editor.markers.species") }),
     ).not.toBeInTheDocument();
+    const catalogue = screen.getByTestId("npc-catalogue");
+    fireEvent.change(within(catalogue).getByRole("searchbox"), {
+      target: { value: "thief idle" },
+    });
+    const thief = within(catalogue)
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId?.includes("thief-idle"));
+    expect(thief).toBeDefined();
+    if (thief) fireEvent.click(thief);
+    expect(onSelectNpcGraphic).toHaveBeenCalledWith(expect.stringContaining("thief-idle"));
   });
 
   it("lists the map's events and highlights on hover, selects on click", () => {

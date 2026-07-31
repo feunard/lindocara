@@ -4,6 +4,10 @@ import { EventDialog } from "@lindocara/editor/ui/editor/EventDialog.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { MONSTER_RESPAWN_MS } from "@lindocara/engine/game.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  type EditorAssetId,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -465,16 +469,19 @@ describe("EventDialog", () => {
     const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
     await user.clear(radius);
     await user.type(radius, "160");
-    fireEvent.change(screen.getByLabelText(t("editor.event.appearance.color")), {
-      target: { value: "#dc2626" },
-    });
+    const guardVariant = screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId === DEFAULT_GUARD_APPEARANCE_ASSET_ID);
+    expect(guardVariant).toBeDefined();
+    if (guardVariant) await user.click(guardVariant);
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
     expect(committed.kind).toBe("guard");
     expect(committed.species).toBeNull();
     expect(committed.patrolRadius).toBe(160);
-    expect(committed.pages[0]?.graphicTint).toBe(0xdc2626);
+    expect(committed.pages[0]?.graphicAssetId).toBe(DEFAULT_GUARD_APPEARANCE_ASSET_ID);
+    expect(committed.pages[0]?.graphicTint).toBe(0xffffff);
     expect(committed.pages).toHaveLength(1);
     expect(committed.pages[0]?.condSwitchId).toBe("0042");
     expect(committed.pages[0]?.commands).toEqual([
@@ -510,9 +517,15 @@ describe("EventDialog", () => {
       screen.getByRole("combobox", { name: t("editor.event.move.type") }),
       "custom",
     );
-    fireEvent.change(screen.getByLabelText(t("editor.event.appearance.color")), {
-      target: { value: "#7c3aed" },
+    const thiefAssetId = "enemy.enemy-pack-enemies-thief.thief-idle" as EditorAssetId;
+    fireEvent.change(screen.getByRole("searchbox", { name: t("editor.palette.search") }), {
+      target: { value: "thief idle" },
     });
+    const thief = screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId === thiefAssetId);
+    expect(thief).toBeDefined();
+    if (thief) await user.click(thief);
     await user.click(screen.getByRole("button", { name: t("editor.event.routine.add") }));
     fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.event.routine.offsetX") }), {
       target: { value: "2" },
@@ -534,7 +547,8 @@ describe("EventDialog", () => {
       monsterDamage: 24,
     });
     expect(committed.pages[0]?.moveType).toBe("custom");
-    expect(committed.pages[0]?.graphicTint).toBe(0x7c3aed);
+    expect(committed.pages[0]?.graphicAssetId).toBe(thiefAssetId);
+    expect(committed.pages[0]?.graphicTint).toBe(0xffffff);
     expect(committed.pages[0]?.moveRoute).toEqual([{ offsetCol: 2, offsetRow: -1, waitMs: 1_500 }]);
   });
 

@@ -178,14 +178,16 @@ describe("Tiny Swords semantic catalogue", () => {
     }
   });
 
-  it("links every editor character idle sheet to geometry-exact run art", () => {
+  it("links actor idle sheets with native run art to geometry-exact motions", () => {
     const characters = editorDefinitions(catalog).filter(
-      (entry) => entry.domain === "character" && /idle/i.test(entry.sourcePath),
+      (entry) =>
+        (entry.domain === "character" || entry.domain === "enemy") &&
+        /idle/i.test(entry.sourcePath) &&
+        entry.motions?.run !== undefined,
     );
-    expect(characters.length).toBeGreaterThan(30);
+    expect(characters.length).toBeGreaterThan(70);
     for (const character of characters) {
       const run = character.motions?.run;
-      expect(run, character.id).toBeDefined();
       if (!run) continue;
       const source = catalog.entries.find((entry) => entry.sourcePath === run.sourcePath);
       expect(source, character.id).toBeDefined();

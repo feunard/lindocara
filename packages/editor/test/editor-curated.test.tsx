@@ -2,7 +2,12 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import { CatalogueAssetPicker } from "@lindocara/editor/ui/editor/CatalogueAssetPicker.js";
 import { EventPalette } from "@lindocara/editor/ui/editor/EventPalette.js";
 import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
-import { editorAsset, NPC_CHARACTER_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  DEFAULT_NPC_MODEL_ASSET_ID,
+  editorAsset,
+  NPC_MODEL_ASSETS,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,10 +40,10 @@ describe("editor asset catalogue", () => {
     expect(editorAsset("decoration.terrain-decorations-bushes.bushe2")).not.toBeNull();
   });
 
-  it("offers every catalogue actor to free NPCs, including heroes, workers and the Rogue thief", () => {
+  it("offers every actor model to free NPCs, including native colours, workers and the Rogue thief", () => {
     setLocale("en");
     render(<CatalogueAssetPicker usage="character" value={null} onSelectAsset={() => {}} />);
-    expect(NPC_CHARACTER_ASSETS).toHaveLength(336);
+    expect(NPC_MODEL_ASSETS).toHaveLength(93);
 
     const search = screen.getByRole("searchbox", { name: "Search placeable assets" });
     for (const query of ["warrior idle", "pawn idle pickaxe", "thief idle"]) {
@@ -58,12 +63,16 @@ describe("editor asset catalogue", () => {
         teleporterEnabled
         markerSpecies="spear_goblin"
         markerRadius={96}
+        npcGraphic={DEFAULT_NPC_MODEL_ASSET_ID}
+        guardGraphic={DEFAULT_GUARD_APPEARANCE_ASSET_ID}
         events={[]}
         selectedEventId={null}
         onSelectPreset={() => {}}
         onSelectEventKind={onSelectEventKind}
         onMarkerSpeciesChange={onMarkerSpeciesChange}
         onMarkerRadiusChange={() => {}}
+        onSelectNpcGraphic={() => {}}
+        onSelectGuardGraphic={() => {}}
         onHoverEvent={() => {}}
         onSelectEvent={() => {}}
       />,

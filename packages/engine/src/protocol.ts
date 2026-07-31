@@ -179,6 +179,7 @@ export interface GuardSnapshot {
   homeX: number;
   homeY: number;
   fighting: boolean;
+  graphicAssetId?: string | null;
   graphicTint?: number;
 }
 
@@ -901,6 +902,9 @@ function isGuardSnapshot(value: unknown): value is GuardSnapshot {
     isFiniteNumber(value.homeX) &&
     isFiniteNumber(value.homeY) &&
     typeof value.fighting === "boolean" &&
+    (value.graphicAssetId === undefined ||
+      value.graphicAssetId === null ||
+      isEditorAssetId(value.graphicAssetId)) &&
     (value.graphicTint === undefined ||
       (Number.isSafeInteger(value.graphicTint) &&
         (value.graphicTint as number) >= 0 &&

@@ -43,6 +43,10 @@ import {
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
+import {
+  DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  DEFAULT_NPC_MODEL_ASSET_ID,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 /** The ground slot at a cell, or -1 for the void. Every terrain assertion below reads this rather
@@ -983,6 +987,21 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     expect(place(base, { kind: "event", eventKind: "guard" }, 9, 6)).toBeNull();
   });
 
+  it("stores the selected native guard colour sheet on its page", () => {
+    const placed = place(
+      base,
+      {
+        kind: "event",
+        eventKind: "guard",
+        patrolRadius: 128,
+        graphic: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+      },
+      9,
+      6,
+    ) as EditorMap;
+    expect(placed.events[0]?.pages[0]?.graphicAssetId).toBe(DEFAULT_GUARD_APPEARANCE_ASSET_ID);
+  });
+
   it("places a free NPC with characteristics and a random walking routine", () => {
     const placed = place(
       base,
@@ -1006,6 +1025,21 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     });
     expect(place(base, { kind: "event", eventKind: "npc", patrolRadius: -1 }, 8, 6)).toBeNull();
     expect(place(base, { kind: "event", eventKind: "npc" }, 8, 6)).toBeNull();
+  });
+
+  it("stores the selected free-NPC model directly at placement", () => {
+    const placed = place(
+      base,
+      {
+        kind: "event",
+        eventKind: "npc",
+        patrolRadius: 128,
+        graphic: DEFAULT_NPC_MODEL_ASSET_ID,
+      },
+      8,
+      6,
+    ) as EditorMap;
+    expect(placed.events[0]?.pages[0]?.graphicAssetId).toBe(DEFAULT_NPC_MODEL_ASSET_ID);
   });
 
   it("still refuses a second event on an occupied cell, whatever the kind", () => {

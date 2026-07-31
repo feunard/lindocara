@@ -4,9 +4,11 @@ import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
+import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
 /** The popular one-click placements. `raw` is a blank custom event; the rest pre-fill page 1 with
@@ -59,6 +61,8 @@ interface EventPaletteProps {
   /** The species/radius the next placed `monster` event will carry. */
   markerSpecies: MonsterSpecies;
   markerRadius: number;
+  npcGraphic: EditorAssetId;
+  guardGraphic: EditorAssetId;
   /** The open map's events, listed for overview + find (D14). */
   events: readonly MapEvent[];
   /** The selected event's id, so the list marks it. */
@@ -67,6 +71,8 @@ interface EventPaletteProps {
   onSelectEventKind(kind: EventKind): void;
   onMarkerSpeciesChange(species: MonsterSpecies): void;
   onMarkerRadiusChange(radius: number): void;
+  onSelectNpcGraphic(assetId: EditorAssetId): void;
+  onSelectGuardGraphic(assetId: EditorAssetId): void;
   /** Hover a list row → emphasise that event on the canvas; `null` clears it. */
   onHoverEvent(id: string | null): void;
   /** Click a list row → select that event on the canvas (like a canvas click). */
@@ -86,12 +92,16 @@ export function EventPalette({
   teleporterEnabled,
   markerSpecies,
   markerRadius,
+  npcGraphic,
+  guardGraphic,
   events,
   selectedEventId,
   onSelectPreset,
   onSelectEventKind,
   onMarkerSpeciesChange,
   onMarkerRadiusChange,
+  onSelectNpcGraphic,
+  onSelectGuardGraphic,
   onHoverEvent,
   onSelectEvent,
 }: EventPaletteProps) {
@@ -147,6 +157,38 @@ export function EventPalette({
             />
           ))}
         </div>
+
+        {eventKind === "npc" && (
+          <section
+            data-testid="npc-catalogue"
+            className="flex flex-col gap-2 rounded-md bg-zinc-100 p-2"
+          >
+            <p className="text-[10.5px] text-zinc-500">
+              {t("editor.event.appearance.nativeVariants")}
+            </p>
+            <CatalogueAssetPicker
+              usage="character"
+              value={npcGraphic}
+              onSelectAsset={onSelectNpcGraphic}
+            />
+          </section>
+        )}
+
+        {eventKind === "guard" && (
+          <section
+            data-testid="guard-appearance-catalogue"
+            className="flex flex-col gap-2 rounded-md bg-zinc-100 p-2"
+          >
+            <p className="text-[10.5px] text-zinc-500">
+              {t("editor.event.appearance.nativeVariants")}
+            </p>
+            <CatalogueAssetPicker
+              usage="guard"
+              value={guardGraphic}
+              onSelectAsset={onSelectGuardGraphic}
+            />
+          </section>
+        )}
 
         <div className="mt-1 flex h-6 items-center border-t border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
           {t("editor.event.monsters.heading")}

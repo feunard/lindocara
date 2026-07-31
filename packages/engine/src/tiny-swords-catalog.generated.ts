@@ -22882,6 +22882,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 79,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Bear/Bear_Run.png",
+        "frame": {
+          "width": 256,
+          "height": 256,
+          "count": 5,
+          "axis": "x",
+          "durationMs": 450
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 76
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -23134,6 +23151,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 40,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 40
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -23298,6 +23332,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 69,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Snake/Snake_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 8,
+          "axis": "x",
+          "durationMs": 720
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 69
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -23462,6 +23513,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 55,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Spider/Spider_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 5,
+          "axis": "x",
+          "durationMs": 450
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -24189,6 +24257,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 65,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 65
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -24449,6 +24534,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 55,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -24714,6 +24816,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 90,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin/Pig Rider_Run.png",
+        "frame": {
+          "width": 256,
+          "height": 256,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 90
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -24882,6 +25001,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 58,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig/Pig_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 58
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -25096,6 +25232,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 80,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Spear Goblin/Spear Goblin_Run.png",
+        "frame": {
+          "width": 256,
+          "height": 256,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 85
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -25307,6 +25460,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 59,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Torch Goblin/Torch Goblin_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 59
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -25821,6 +25991,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 84,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Panda/Panda_Run.png",
+        "frame": {
+          "width": 256,
+          "height": 256,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 84
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -25985,6 +26172,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb Fish/Bomb Fish_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -26339,6 +26543,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 56,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Harpoon Shark/Harpoon Shark_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -26555,6 +26776,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 56,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Paddle Shark/Paddle Shark_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 56
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -27038,6 +27276,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 62,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Skull/Skull_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 62
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -27199,6 +27454,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 60,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 59
+      }
+    },
     "editor": {
       "visualFootprint": [
         {

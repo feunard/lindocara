@@ -1,6 +1,7 @@
 import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { DEFAULT_GUARD_APPEARANCE_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 import {
   activeAuthoredGuardDefinitions,
@@ -26,7 +27,13 @@ function conditionalGuard(): MapEvent {
   });
   return {
     ...event,
-    pages: [{ ...defaultEventPage(), condSwitchId: "0041", graphicTint: 0x22c55e }],
+    pages: [
+      {
+        ...defaultEventPage(),
+        condSwitchId: "0041",
+        graphicAssetId: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+      },
+    ],
   };
 }
 
@@ -41,7 +48,8 @@ describe("authored guard projection", () => {
         x: 7 * TILE_SIZE + TILE_SIZE / 2,
         y: 9 * TILE_SIZE + TILE_SIZE / 2,
         patrolRadius: 160,
-        graphicTint: 0x22c55e,
+        graphicAssetId: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+        graphicTint: 0xffffff,
       },
     ]);
   });
@@ -56,7 +64,13 @@ describe("authored guard projection", () => {
     const next = reconcileActiveGuards(
       [retained, withdrawn],
       [
-        { id: "retained", x: 64, y: 64, patrolRadius: 144, graphicTint: 0x7c3aed },
+        {
+          id: "retained",
+          x: 64,
+          y: 64,
+          patrolRadius: 144,
+          graphicAssetId: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+        },
         { id: "new", x: 192, y: 64, patrolRadius: 96 },
       ],
     );
@@ -68,7 +82,8 @@ describe("authored guard projection", () => {
       homeX: 64,
       homeY: 64,
       patrolRadius: 144,
-      graphicTint: 0x7c3aed,
+      graphicAssetId: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+      graphicTint: 0xffffff,
     });
     expect(next[1]).toMatchObject({
       hp: next[1]?.maxHp,

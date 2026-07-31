@@ -1,5 +1,9 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { EditorPalette } from "@lindocara/editor/ui/editor/EditorPalette.js";
+import {
+  DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  DEFAULT_NPC_MODEL_ASSET_ID,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -37,12 +41,16 @@ function eventBody() {
     teleporterEnabled: true,
     markerSpecies: "spear_goblin" as const,
     markerRadius: 96,
+    npcGraphic: DEFAULT_NPC_MODEL_ASSET_ID,
+    guardGraphic: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
     events: [],
     selectedEventId: null,
     onSelectPreset: () => {},
     onSelectEventKind: () => {},
     onMarkerSpeciesChange: () => {},
     onMarkerRadiusChange: () => {},
+    onSelectNpcGraphic: () => {},
+    onSelectGuardGraphic: () => {},
     onHoverEvent: () => {},
     onSelectEvent: () => {},
   };

@@ -355,6 +355,7 @@ export interface GuardRuntime extends Vec2 {
   patrolRadius: number;
   lastAttackAt: number;
   fightingUntil: number;
+  graphicAssetId: EditorAssetId | null;
   graphicTint: number;
 }
 
@@ -746,6 +747,7 @@ export function createGuards(definitions: readonly GuardDefinition[]): GuardRunt
     homeY: guard.y,
     lastAttackAt: 0,
     fightingUntil: 0,
+    graphicAssetId: guard.graphicAssetId ?? null,
     graphicTint: guard.graphicTint ?? 0xffffff,
   }));
 }
