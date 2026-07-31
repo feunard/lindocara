@@ -51,18 +51,6 @@ jobs:
       - name: Deploy to Cloudflare
         run: npm run deploy -w @lindocara/main
 
-      - name: Publish Liin Adventure IA
-        env:
-          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
-        run: >-
-          npx tsx scripts/adventure-io.ts import
-          --file=adventures/liin-adventure-ia.json
-          --target=https://lindocara.alepha.dev
-          --username=liinreleasebot
-          --allow-remote=true
-          --allow-production=true
-          --replace-if-different=true
-
       # « La Baie des Cent Voiles » n'a PAS d'étape ici, volontairement. Elle est publiée à la main
       # sous le compte `baieauthor`, dont le mot de passe n'est pas celui de `secrets.SEED_PASSWORD`
       # (le pas de publication échouait en 401). Deux façons de l'automatiser, au choix : aligner le
