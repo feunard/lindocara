@@ -24,6 +24,8 @@ export interface PlayerProfile extends Vec2 {
   class: PlayerClass;
   equipment: Equipment;
   inventory: Inventory;
+  /** Settled additive harvest ledger already represented in `inventory.gold`. Server-only. */
+  harvestGoldLedgerBaseline?: number;
   quest: QuestState;
   /** Personal authored quests. Party-scoped authored progress lives in GameSession instead. */
   authoredQuestProgress?: Record<string, AuthoredQuestProgress>;

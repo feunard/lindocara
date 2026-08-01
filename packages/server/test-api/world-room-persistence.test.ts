@@ -38,9 +38,15 @@ import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { heroes } from "../src/api/entities/heroes.ts";
 import { heroItems } from "../src/api/entities/heroItems.ts";
+import {
+  type HitHarvestNodeResult,
+  PartyRoom,
+  type ReserveHarvestNodeResult,
+} from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
+import { AdventureStateService } from "../src/api/services/AdventureStateService.ts";
 import { createTestApp } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -359,6 +365,187 @@ describe("world room persistence (FakeClock)", () => {
         where: { heroId: { eq: heroId }, itemDefinitionId: { eq: "mana_potion" } },
       });
       expect(item?.quantity).toBe(3);
+    });
+    engine.dispose();
+  });
+
+  test("a settled harvest reward cannot be erased by an older absolute save", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("goldledger");
+    const partyId = roomId.split(":")[0];
+    if (!partyId) throw new Error("fixture room has no party id");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    const socket = fakeSocket(userId, heroId, "c-gold-1");
+    await engine.join(socket);
+    const player = playerOf(roomState(engine), heroId);
+    expect(player.inventory.gold).toBe(0);
+    expect(player.harvestGoldLedgerBaseline).toBe(0);
+
+    // This models settlement landing after the room's last state message was lost: the live player
+    // still holds the older visible balance/baseline when its disconnect save starts.
+    const ledger = alepha.inject(AdventureStateService);
+    const claim = await ledger.prepareHarvestGoldClaim({
+      partyId,
+      heroId,
+      sessionEpoch: player.sessionEpoch,
+      nodeId: "44444444-4444-4444-8444-444444444444",
+      generation: 0,
+      amount: 25,
+    });
+    if (!claim) throw new Error("gold claim was not prepared");
+    expect(
+      await ledger.settleHarvestGoldClaim({
+        claimId: claim.id,
+        partyId,
+        heroId,
+        nodeId: claim.nodeId,
+        generation: claim.generation,
+        amount: claim.amount,
+      }),
+    ).toBe(true);
+
+    await engine.leave(socket.id);
+    // The absolute save persisted only its mutable base. It did not overwrite the additive claim.
+    expect((await probe.heroes.findById(heroId))?.gold).toBe(0);
+    expect(await ledger.harvestGoldLedgerTotal(heroId)).toBe(25);
+
+    const reconnect = fakeSocket(userId, heroId, "c-gold-2");
+    await engine.join(reconnect);
+    expect(welcomeSelfState(reconnect)?.inventory.gold).toBe(25);
+
+    // A monotone ledger read must never move the baseline backwards: doing so would copy already
+    // accounted harvest gold into the mutable base and double it on the next successful read.
+    const reloadedPlayer = playerOf(roomState(engine), heroId);
+    const ledgerRead = vi.spyOn(ledger, "harvestGoldLedgerTotal").mockResolvedValueOnce(0);
+    reloadedPlayer.dirty = true;
+    clock.advanceTicks(D1_SAVE_EVERY_TICKS);
+    await vi.waitFor(() => {
+      expect(reloadedPlayer.dirty).toBe(true);
+      expect(reloadedPlayer.harvestGoldLedgerBaseline).toBe(25);
+      expect(reloadedPlayer.inventory.gold).toBe(25);
+    });
+    ledgerRead.mockRestore();
+    clock.advanceTicks(D1_SAVE_EVERY_TICKS);
+    await vi.waitFor(async () => {
+      expect((await probe.heroes.findById(heroId))?.gold).toBe(0);
+      expect(reloadedPlayer.harvestGoldLedgerBaseline).toBe(25);
+      expect(reloadedPlayer.inventory.gold).toBe(25);
+    });
+
+    // Spending from the ordinary visible balance is persisted as a base offset and reloads to the
+    // same non-negative balance; the immutable earned ledger itself is never decremented.
+    reloadedPlayer.inventory.gold = 20;
+    reloadedPlayer.dirty = true;
+    await engine.leave(reconnect.id);
+    expect((await probe.heroes.findById(heroId))?.gold).toBe(-5);
+    const finalReconnect = fakeSocket(userId, heroId, "c-gold-3");
+    await engine.join(finalReconnect);
+    expect(welcomeSelfState(finalReconnect)?.inventory.gold).toBe(20);
+    engine.dispose();
+  });
+
+  test("admission settles a committed gold depletion whose acknowledgement was lost", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("goldadmit");
+    const partyId = roomId.split(":")[0];
+    if (!partyId) throw new Error("fixture room has no party id");
+    const partyRoom = alepha.inject(PartyRoom);
+    partyRoom.now = () => 10_000;
+    const eventId = "55555555-5555-4555-8555-555555555555";
+    const reservation = (await partyRoom.room.call(partyId, "reserveHarvestNode", {
+      heroId,
+      sessionEpoch: 0,
+      eventId,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    })) as ReserveHarvestNodeResult;
+    if (!reservation.ok) throw new Error("gold reservation was rejected");
+    const settle = vi
+      .spyOn(partyRoom.adventureStateService, "settleHarvestGoldClaim")
+      .mockResolvedValueOnce(false);
+    const hit = (await partyRoom.room.call(partyId, "hitHarvestNode", {
+      heroId,
+      eventId,
+      reservationId: reservation.reservationId,
+    })) as HitHarvestNodeResult;
+    settle.mockRestore();
+    expect(hit).toMatchObject({ ok: true, rewarded: true, goldValue: 0, goldPending: true });
+    expect(
+      await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId),
+    ).toHaveLength(1);
+
+    // A transient strict-read failure refuses admission without leaving its newly acquired lease.
+    const engine = createEngine(roomId, new FakeClock());
+    const strictRead = vi
+      .spyOn(partyRoom.adventureStateService, "loadForHarvestGoldReconciliation")
+      .mockRejectedValueOnce(new Error("simulated strict admission read failure"));
+    const refused = fakeSocket(userId, heroId, "c-gold-refused");
+    await engine.join(refused);
+    strictRead.mockRestore();
+    expect(refused.closed?.code).toBe(WS_CLOSE.PRESENCE_ERROR);
+    const refusedEpoch = (await probe.heroes.findById(heroId))?.sessionEpoch;
+    if (refusedEpoch === undefined) throw new Error("failed admission did not acquire an epoch");
+    expect(
+      await presenceRoom.room.call(heroId, "isAuthorized", refused.id, refusedEpoch, roomId),
+    ).toBe(false);
+
+    // The immediate retry acquires a fresh epoch, reconciles the durable node first, then assembles
+    // the authoritative profile from base + settled ledger.
+    const socket = fakeSocket(userId, heroId, "c-gold-admit");
+    await engine.join(socket);
+    expect(welcomeSelfState(socket)?.inventory.gold).toBe(25);
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(25);
+    expect(await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId)).toEqual([]);
+    engine.dispose();
+  });
+
+  test("the periodic save beat reconciles pending gold for a connected hero", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("goldbeat");
+    const partyId = roomId.split(":")[0];
+    if (!partyId) throw new Error("fixture room has no party id");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    const socket = fakeSocket(userId, heroId, "c-gold-beat");
+    await engine.join(socket);
+    const player = playerOf(roomState(engine), heroId);
+    const partyRoom = alepha.inject(PartyRoom);
+    partyRoom.now = () => 20_000;
+    const eventId = "66666666-6666-4666-8666-666666666666";
+    const reservation = (await partyRoom.room.call(partyId, "reserveHarvestNode", {
+      heroId,
+      sessionEpoch: player.sessionEpoch,
+      eventId,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    })) as ReserveHarvestNodeResult;
+    if (!reservation.ok) throw new Error("gold reservation was rejected");
+    const settle = vi
+      .spyOn(partyRoom.adventureStateService, "settleHarvestGoldClaim")
+      .mockResolvedValueOnce(false);
+    const hit = (await partyRoom.room.call(partyId, "hitHarvestNode", {
+      heroId,
+      eventId,
+      reservationId: reservation.reservationId,
+    })) as HitHarvestNodeResult;
+    settle.mockRestore();
+    expect(hit).toMatchObject({ ok: true, goldPending: true });
+
+    player.dirty = true;
+    clock.advanceTicks(D1_SAVE_EVERY_TICKS);
+    await vi.waitFor(async () => {
+      expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(25);
+      expect(player.inventory.gold).toBe(25);
+      expect(player.harvestGoldLedgerBaseline).toBe(25);
+      expect(
+        parsedMessages(socket).some(
+          (message) => message.t === "state" && message.self.inventory.gold === 25,
+        ),
+      ).toBe(true);
     });
     engine.dispose();
   });

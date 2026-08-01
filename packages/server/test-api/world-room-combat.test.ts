@@ -214,6 +214,7 @@ async function seedPartyMaterials(
   const eventId = crypto.randomUUID();
   const reservation = (await partyRoom.room.call(partyId, "reserveHarvestNode", {
     heroId,
+    sessionEpoch: 0,
     eventId,
     generation: 0,
     requiredHits: 1,
@@ -298,7 +299,6 @@ function testGlue(
     reserveHarvestNode: async () => ({ ok: false, reason: "party" }),
     hitHarvestNode: async () => ({ ok: false, reason: "party" }),
     cancelHarvestNode: async () => false,
-    claimHarvestGold: async () => false,
     consumePotion: async () => null,
   };
   return { w: { state, deps }, sent };

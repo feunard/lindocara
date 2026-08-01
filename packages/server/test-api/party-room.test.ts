@@ -20,7 +20,7 @@ import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { WebSocketServerProvider } from "alepha/websocket";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { authoredQuestRewardClaims } from "../src/api/entities/authoredQuestRewardClaims.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
@@ -198,10 +198,14 @@ async function seedCompletedPersonalProgress(
 
 async function reserveHarvestNode(
   partyId: string,
-  request: Omit<ReserveHarvestNodeRequest, "goldValue"> & { goldValue?: number },
+  request: Omit<ReserveHarvestNodeRequest, "goldValue" | "sessionEpoch"> & {
+    goldValue?: number;
+    sessionEpoch?: number;
+  },
 ): Promise<ReserveHarvestNodeResult> {
   return (await partyRoom.room.call(partyId, "reserveHarvestNode", {
     goldValue: 0,
+    sessionEpoch: 0,
     ...request,
   })) as ReserveHarvestNodeResult;
 }
@@ -473,6 +477,216 @@ describe("shared party materials and harvest nodes", () => {
       generation: 0,
       depleted: true,
     });
+    expect((await probe.heroes.findById(heroId))?.gold).toBe(0);
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(25);
+  });
+
+  test("a stale hero epoch cannot deplete a gold resource", async () => {
+    const { partyId, heroId } = await newPartyWithHero("hgfen");
+    await probe.heroes.updateById(heroId, { sessionEpoch: 1 });
+    partyRoom.now = () => 1_700;
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      sessionEpoch: 0,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("gold reservation rejected");
+
+    expect(
+      await hitHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_B,
+        reservationId: reservation.reservationId,
+      }),
+    ).toEqual({ ok: false, reason: "fence" });
+    expect(await probe.partyAdventureStates.findById(partyId)).toBeUndefined();
+    expect(await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId)).toEqual([]);
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(0);
+  });
+
+  test("reconnect reconciliation settles gold after depletion outlives its acknowledgement", async () => {
+    const { partyId, heroId } = await newPartyWithHero("hgrec");
+    partyRoom.now = () => 1_800;
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("gold reservation rejected");
+    const settle = vi
+      .spyOn(partyRoom.adventureStateService, "settleHarvestGoldClaim")
+      .mockResolvedValueOnce(false);
+
+    expect(
+      await hitHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_B,
+        reservationId: reservation.reservationId,
+      }),
+    ).toMatchObject({ ok: true, rewarded: true, goldValue: 0, goldPending: true });
+    settle.mockRestore();
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(0);
+    expect(
+      await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId),
+    ).toHaveLength(1);
+
+    // A fresh room plus a newer presence epoch reproduces the reconnect after the response was
+    // lost. The durable depleted generation is the proof that makes settlement safe.
+    evictPartyRoom(partyId);
+    await probe.heroes.updateById(heroId, { sessionEpoch: 1 });
+    await partyRoom.room.call(partyId, "reconcileHarvestGoldClaims");
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(25);
+    expect(await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId)).toEqual([]);
+
+    // Replaying admission/reconciliation remains idempotent.
+    await partyRoom.room.call(partyId, "reconcileHarvestGoldClaims");
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(25);
+  });
+
+  test("a failed depletion write is aborted only after durable reconciliation", async () => {
+    const { partyId, heroId } = await newPartyWithHero("hgroll");
+    partyRoom.now = () => 1_900;
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("gold reservation rejected");
+    const save = vi
+      .spyOn(partyRoom.adventureStateService, "save")
+      .mockRejectedValueOnce(new Error("simulated D1 write failure"));
+
+    await expect(
+      hitHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_B,
+        reservationId: reservation.reservationId,
+      }),
+    ).rejects.toThrow("simulated D1 write failure");
+    save.mockRestore();
+    expect(
+      await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId),
+    ).toHaveLength(1);
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(0);
+
+    await partyRoom.room.call(partyId, "reconcileHarvestGoldClaims");
+    expect(await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId)).toEqual([]);
+    const reloaded = (await partyRoom.room.call(partyId, "getAdventureState")) as {
+      state: { harvestNodes: Record<string, unknown> };
+    };
+    expect(reloaded.state.harvestNodes).toEqual({});
+  });
+
+  test("a committed depletion with a lost D1 acknowledgement settles instead of aborting", async () => {
+    const { partyId, heroId } = await newPartyWithHero("hgack");
+    partyRoom.now = () => 1_950;
+    await partyRoom.room.call(partyId, "registerRoom", `${partyId}:map`);
+    const pushed: Array<{ version: number; depleted: boolean | undefined }> = [];
+    partyRoom.pushToRoom = async (_roomKey, state, version) => {
+      pushed.push({ version, depleted: state.harvestNodes?.[EVENT_B]?.depleted });
+    };
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("gold reservation rejected");
+    const originalSave = partyRoom.adventureStateService.save.bind(partyRoom.adventureStateService);
+    const save = vi
+      .spyOn(partyRoom.adventureStateService, "save")
+      .mockImplementationOnce(async (savedPartyId, state, version) => {
+        await originalSave(savedPartyId, state, version);
+        throw new Error("simulated lost D1 acknowledgement");
+      });
+
+    await expect(
+      hitHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_B,
+        reservationId: reservation.reservationId,
+      }),
+    ).rejects.toThrow("simulated lost D1 acknowledgement");
+    save.mockRestore();
+    expect(
+      await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId),
+    ).toHaveLength(1);
+    expect(
+      JSON.parse((await probe.partyAdventureStates.findById(partyId))?.harvestNodes ?? "{}"),
+    ).toHaveProperty(`${EVENT_B}.depleted`, true);
+    expect(pushed).toEqual([]);
+
+    await partyRoom.room.call(partyId, "reconcileHarvestGoldClaims");
+    expect(await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId)).toEqual([]);
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(25);
+    expect(pushed).toEqual([{ version: 1, depleted: true }]);
+  });
+
+  test("transient strict state or registry reads leave a prepared reward retryable", async () => {
+    const { partyId, heroId } = await newPartyWithHero("hgread");
+    partyRoom.now = () => 1_975;
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("gold reservation rejected");
+    const settle = vi
+      .spyOn(partyRoom.adventureStateService, "settleHarvestGoldClaim")
+      .mockResolvedValueOnce(false);
+    await hitHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      reservationId: reservation.reservationId,
+    });
+    settle.mockRestore();
+    const read = vi
+      .spyOn(partyRoom.adventureStateService.partyAdventureStates, "findById")
+      .mockRejectedValueOnce(new Error("simulated D1 read failure"));
+
+    await expect(partyRoom.room.call(partyId, "reconcileHarvestGoldClaims")).rejects.toThrow(
+      "simulated D1 read failure",
+    );
+    read.mockRestore();
+    expect(
+      await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId),
+    ).toHaveLength(1);
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(0);
+
+    const registryRead = vi
+      .spyOn(partyRoom.adventureStateService.adventures, "findById")
+      .mockRejectedValueOnce(new Error("simulated registry read failure"));
+    await expect(partyRoom.room.call(partyId, "reconcileHarvestGoldClaims")).rejects.toThrow(
+      "simulated registry read failure",
+    );
+    registryRead.mockRestore();
+    expect(
+      await partyRoom.adventureStateService.loadPendingHarvestGoldClaims(partyId),
+    ).toHaveLength(1);
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(0);
+
+    await partyRoom.room.call(partyId, "reconcileHarvestGoldClaims");
+    expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(heroId)).toBe(25);
   });
 
   test("a disconnected harvester loses only its volatile reservation", async () => {

@@ -53,6 +53,7 @@ import { maps } from "../entities/maps.ts";
 import { parties } from "../entities/parties.ts";
 import { partyMembers } from "../entities/partyMembers.ts";
 import { AdventureService, type StoredAdventure } from "../services/AdventureService.ts";
+import { AdventureStateService } from "../services/AdventureStateService.ts";
 import { HeroService } from "../services/HeroService.ts";
 import { TestSessionService } from "../services/TestSessionService.ts";
 
@@ -141,6 +142,7 @@ function restoredLife(
 export class AdmissionService {
   heroService = $inject(HeroService);
   adventureService = $inject(AdventureService);
+  adventureStateService = $inject(AdventureStateService);
   testSessionService = $inject(TestSessionService);
 
   parties = $repository(parties);
@@ -237,10 +239,11 @@ export class AdmissionService {
     });
     if (!membership) return null;
 
-    const [items, equipped, questRows] = await Promise.all([
+    const [items, equipped, questRows, harvestGoldLedgerBaseline] = await Promise.all([
       this.heroItems.findMany({ where: { heroId: { eq: row.id } } }),
       this.heroEquipment.findMany({ where: { heroId: { eq: row.id } } }),
       this.heroQuests.findMany({ where: { heroId: { eq: row.id } } }),
+      this.adventureStateService.harvestGoldLedgerTotal(row.id),
     ]);
 
     const consumables: ConsumableCounts = emptyConsumables();
@@ -304,10 +307,11 @@ export class AdmissionService {
       equipment,
       inventory: {
         potions: consumables[HEALTH_POTION_ID as keyof ConsumableCounts] ?? 0,
-        gold: Math.max(0, row.gold),
+        gold: Math.max(0, row.gold + harvestGoldLedgerBaseline),
         crystals: Math.max(0, row.crystals),
         consumables,
       },
+      harvestGoldLedgerBaseline,
       quest: {
         chapter,
         status: selected?.status ?? "available",

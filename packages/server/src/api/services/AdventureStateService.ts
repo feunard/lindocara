@@ -50,6 +50,7 @@ import {
   parsePartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
 import { HARVEST_PROFILE_LIMITS } from "@lindocara/engine/harvest.js";
+import { isUuid } from "@lindocara/engine/identifiers.js";
 import { isHarvestNodeId } from "@lindocara/engine/party-harvest-state.js";
 import type { QuestItemReward } from "@lindocara/engine/quests.js";
 import { z } from "alepha";
@@ -57,7 +58,7 @@ import { $repository, sql } from "alepha/orm";
 import { decodeStoredAdventureRegistry } from "../../adventure-registry.js";
 import { adventures } from "../entities/adventures.ts";
 import { authoredQuestRewardClaims } from "../entities/authoredQuestRewardClaims.ts";
-import { harvestGoldClaims } from "../entities/harvestGoldClaims.ts";
+import { type HarvestGoldClaim, harvestGoldClaims } from "../entities/harvestGoldClaims.ts";
 import { heroes } from "../entities/heroes.ts";
 import { heroItems } from "../entities/heroItems.ts";
 import { heroQuests } from "../entities/heroQuests.ts";
@@ -72,6 +73,11 @@ export interface PartyContext {
 export interface VersionedPartyAdventureState {
   state: PartyAdventureState;
   version: number;
+}
+
+export interface HarvestGoldReconciliationContext extends VersionedPartyAdventureState {
+  registry: AdventureRegistry;
+  partyCompleted: boolean;
 }
 
 export interface ClaimQuestRewardInput {
@@ -89,6 +95,33 @@ export interface ClaimQuestRewardInput {
   consumeItems: readonly QuestItemReward[];
 }
 
+export interface HarvestGoldClaimIdentity {
+  partyId: string;
+  heroId: string;
+  nodeId: string;
+  generation: number;
+  amount: number;
+}
+
+export interface PrepareHarvestGoldClaimInput extends HarvestGoldClaimIdentity {
+  sessionEpoch: number;
+}
+
+interface StoredPartyAdventureStateFields {
+  switches: string;
+  variables: string;
+  selfSwitches: string;
+  quests: string;
+  defeatedMonsters: string;
+  materials: string;
+  harvestNodes: string;
+  version: number;
+}
+
+type DecodedPartyAdventureState =
+  | { ok: true; value: VersionedPartyAdventureState }
+  | { ok: false; reason: "invalid_json" | "malformed_state" };
+
 function warnCorruptPartyState(partyId: string, reason: string): void {
   console.warn(JSON.stringify({ event: "party_adventure_state_corrupt", partyId, reason }));
 }
@@ -104,6 +137,44 @@ function aggregateProgress(progress: AuthoredQuestProgress): number {
  *  convention every raw-SQL escape hatch in `src/api/services/` already follows. */
 const QUEST_ID_ROW_SCHEMA = z.object({ questId: z.string() });
 const ID_ROW_SCHEMA = z.object({ id: z.uuid() });
+
+function validHarvestGoldClaim(input: PrepareHarvestGoldClaimInput): boolean {
+  return (
+    isUuid(input.partyId) &&
+    isUuid(input.heroId) &&
+    isHarvestNodeId(input.nodeId) &&
+    Number.isSafeInteger(input.generation) &&
+    input.generation >= 0 &&
+    Number.isSafeInteger(input.sessionEpoch) &&
+    input.sessionEpoch >= 0 &&
+    Number.isSafeInteger(input.amount) &&
+    input.amount >= 1 &&
+    input.amount <= HARVEST_PROFILE_LIMITS.goldValue.max
+  );
+}
+
+function decodePartyAdventureStateRow(
+  row: StoredPartyAdventureStateFields,
+): DecodedPartyAdventureState {
+  let raw: unknown;
+  try {
+    raw = {
+      switches: JSON.parse(row.switches),
+      variables: JSON.parse(row.variables),
+      selfSwitches: JSON.parse(row.selfSwitches),
+      quests: JSON.parse(row.quests),
+      defeatedMonsters: JSON.parse(row.defeatedMonsters),
+      materials: JSON.parse(row.materials),
+      harvestNodes: JSON.parse(row.harvestNodes),
+    };
+  } catch {
+    return { ok: false, reason: "invalid_json" };
+  }
+  const state = parsePartyAdventureState(raw);
+  return state
+    ? { ok: true, value: { state, version: row.version } }
+    : { ok: false, reason: "malformed_state" };
+}
 
 export class AdventureStateService {
   parties = $repository(parties);
@@ -139,27 +210,46 @@ export class AdventureStateService {
   async load(partyId: string): Promise<VersionedPartyAdventureState> {
     const row = await this.partyAdventureStates.findById(partyId).catch(() => undefined);
     if (!row) return { state: EMPTY_ADVENTURE_STATE, version: 0 };
-    let raw: unknown;
-    try {
-      raw = {
-        switches: JSON.parse(row.switches),
-        variables: JSON.parse(row.variables),
-        selfSwitches: JSON.parse(row.selfSwitches),
-        quests: JSON.parse(row.quests),
-        defeatedMonsters: JSON.parse(row.defeatedMonsters),
-        materials: JSON.parse(row.materials),
-        harvestNodes: JSON.parse(row.harvestNodes),
+    const decoded = decodePartyAdventureStateRow(row);
+    if (!decoded.ok) {
+      warnCorruptPartyState(partyId, decoded.reason);
+      return { state: EMPTY_ADVENTURE_STATE, version: 0 };
+    }
+    return decoded.value;
+  }
+
+  /**
+   * Strict durable read used only to decide a prepared gold claim. Unlike the ordinary gameplay
+   * loader, repository errors and corrupt JSON are not allowed to masquerade as an empty party:
+   * uncertainty must leave the claim pending for a later retry.
+   */
+  async loadForHarvestGoldReconciliation(
+    partyId: string,
+  ): Promise<HarvestGoldReconciliationContext> {
+    if (!isUuid(partyId)) throw new Error("invalid party id for harvest gold reconciliation");
+    const party = await this.parties.findById(partyId);
+    if (!party) throw new Error("cannot reconcile harvest gold for an unknown party");
+    const adventure = await this.adventures.findById(party.adventureId);
+    if (!adventure) throw new Error("cannot reconcile harvest gold for an unknown adventure");
+    const registry = decodeStoredAdventureRegistry(adventure.registry);
+    const row = await this.partyAdventureStates.findById(partyId);
+    if (!row) {
+      return {
+        state: EMPTY_ADVENTURE_STATE,
+        version: 0,
+        registry,
+        partyCompleted: party.status === "completed",
       };
-    } catch {
-      warnCorruptPartyState(partyId, "invalid_json");
-      return { state: EMPTY_ADVENTURE_STATE, version: 0 };
     }
-    const state = parsePartyAdventureState(raw);
-    if (!state) {
-      warnCorruptPartyState(partyId, "malformed_state");
-      return { state: EMPTY_ADVENTURE_STATE, version: 0 };
+    const decoded = decodePartyAdventureStateRow(row);
+    if (!decoded.ok) {
+      throw new Error(`cannot reconcile harvest gold from ${decoded.reason} party state`);
     }
-    return { state, version: row.version };
+    return {
+      ...decoded.value,
+      registry,
+      partyCompleted: party.status === "completed",
+    };
   }
 
   /**
@@ -339,40 +429,23 @@ export class AdventureStateService {
     return true;
   }
 
-  /**
-   * Credit existing hero gold once for one exhausted node generation. D1 exposes no transaction
-   * through Alepha, so the unique claim is inserted first and the epoch-fenced increment follows.
-   * A crash between them can under-credit once; it can never double-credit a replay.
-   */
-  async claimHarvestGold(input: {
-    partyId: string;
-    heroId: string;
-    sessionEpoch: number;
-    nodeId: string;
-    generation: number;
-    amount: number;
-  }): Promise<boolean> {
-    if (
-      !isHarvestNodeId(input.nodeId) ||
-      !Number.isSafeInteger(input.generation) ||
-      input.generation < 0 ||
-      !Number.isSafeInteger(input.sessionEpoch) ||
-      input.sessionEpoch < 0 ||
-      !Number.isSafeInteger(input.amount) ||
-      input.amount < 1 ||
-      input.amount > HARVEST_PROFILE_LIMITS.goldValue.max
-    ) {
-      return false;
-    }
+  /** Prepare the idempotency row under the currently-owned hero epoch, before node depletion. */
+  async prepareHarvestGoldClaim(
+    input: PrepareHarvestGoldClaimInput,
+  ): Promise<HarvestGoldClaim | null> {
+    if (!validHarvestGoldClaim(input)) return null;
     const claimId = crypto.randomUUID();
     const claimed = await this.harvestGoldClaims.query(
       (table) => sql`
         INSERT INTO ${table}
           (${sql.raw(table.id.name)}, ${sql.raw(table.partyId.name)},
            ${sql.raw(table.nodeId.name)}, generation,
-           ${sql.raw(table.recipientHeroId.name)}, amount)
+           ${sql.raw(table.recipientHeroId.name)},
+           ${sql.raw(table.earnedSessionEpoch.name)}, amount,
+           ${sql.raw(table.ledgerAmount.name)}, ${sql.raw(table.ledgerStatus.name)},
+           ${sql.raw(table.settledAt.name)})
         SELECT ${claimId}, ${input.partyId}, ${input.nodeId}, ${input.generation},
-               ${input.heroId}, ${input.amount}
+               ${input.heroId}, ${input.sessionEpoch}, ${input.amount}, 0, 'prepared', NULL
         WHERE EXISTS (
           SELECT 1 FROM ${this.heroes.table}
           WHERE ${this.heroes.table.id} = ${input.heroId}
@@ -385,24 +458,101 @@ export class AdventureStateService {
       `,
       ID_ROW_SCHEMA,
     );
-    if (claimed.length !== 1) return false;
-    const credited = await this.heroes.query(
+    if (claimed.length === 1) return (await this.harvestGoldClaims.findById(claimId)) ?? null;
+    const existing = await this.harvestGoldClaims.findOne({
+      where: {
+        partyId: { eq: input.partyId },
+        nodeId: { eq: input.nodeId },
+        generation: { eq: input.generation },
+      },
+    });
+    return existing?.recipientHeroId === input.heroId &&
+      existing.earnedSessionEpoch === input.sessionEpoch &&
+      existing.amount === input.amount
+      ? existing
+      : null;
+  }
+
+  /**
+   * One exactly-once ledger transition. The visible balance is the hero base plus this additive
+   * ledger, so no separately ordered hero UPDATE exists for a crash or absolute save to lose.
+   */
+  async settleHarvestGoldClaim(
+    input: HarvestGoldClaimIdentity & { claimId: string },
+  ): Promise<boolean> {
+    if (!isUuid(input.claimId) || !validHarvestGoldClaim({ ...input, sessionEpoch: 0 }))
+      return false;
+    const settled = await this.harvestGoldClaims.query(
       (table) => sql`
         UPDATE ${table}
-        SET gold = gold + ${input.amount}, ${sql.raw(table.updatedAt.name)} = ${new Date().toISOString()}
-        WHERE ${table.id} = ${input.heroId}
+        SET ${sql.raw(table.ledgerAmount.name)} = amount,
+            ${sql.raw(table.ledgerStatus.name)} = 'settled',
+            ${sql.raw(table.settledAt.name)} = ${new Date().toISOString()}
+        WHERE ${table.id} = ${input.claimId}
           AND ${table.partyId} = ${input.partyId}
-          AND ${table.sessionEpoch} = ${input.sessionEpoch}
-          AND EXISTS (
-            SELECT 1 FROM ${this.harvestGoldClaims.table}
-            WHERE ${this.harvestGoldClaims.table.id} = ${claimId}
-              AND ${this.harvestGoldClaims.table.recipientHeroId} = ${input.heroId}
-              AND ${this.harvestGoldClaims.table.amount} = ${input.amount}
-          )
+          AND ${table.nodeId} = ${input.nodeId}
+          AND generation = ${input.generation}
+          AND ${table.recipientHeroId} = ${input.heroId}
+          AND amount = ${input.amount}
+          AND ${sql.raw(table.ledgerAmount.name)} = 0
+          AND ${sql.raw(table.ledgerStatus.name)} = 'prepared'
+          AND ${sql.raw(table.settledAt.name)} IS NULL
         RETURNING ${table.id}
       `,
       ID_ROW_SCHEMA,
     );
-    return credited.length === 1;
+    if (settled.length === 1) return true;
+    const existing = await this.harvestGoldClaims.findById(input.claimId);
+    return Boolean(
+      existing &&
+        existing.partyId === input.partyId &&
+        existing.nodeId === input.nodeId &&
+        existing.generation === input.generation &&
+        existing.recipientHeroId === input.heroId &&
+        existing.amount === input.amount &&
+        existing.ledgerAmount === input.amount &&
+        existing.ledgerStatus === "settled" &&
+        existing.settledAt !== undefined,
+    );
+  }
+
+  /** Remove only an uncommitted preparation after the party state proves no depletion landed. */
+  async abortHarvestGoldClaim(claimId: string): Promise<boolean> {
+    if (!isUuid(claimId)) return false;
+    const deleted = await this.harvestGoldClaims.query(
+      (table) => sql`
+        DELETE FROM ${table}
+        WHERE ${table.id} = ${claimId}
+          AND ${sql.raw(table.ledgerAmount.name)} = 0
+          AND ${sql.raw(table.ledgerStatus.name)} = 'prepared'
+          AND ${sql.raw(table.settledAt.name)} IS NULL
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+    return deleted.length === 1;
+  }
+
+  async loadPendingHarvestGoldClaims(partyId: string): Promise<HarvestGoldClaim[]> {
+    if (!isUuid(partyId)) return [];
+    return this.harvestGoldClaims.findMany({
+      where: {
+        partyId: { eq: partyId },
+        ledgerStatus: { eq: "prepared" },
+        settledAt: { isNull: true },
+      },
+    });
+  }
+
+  /** Additive ledger baseline used by admission and absolute hero saves. */
+  async harvestGoldLedgerTotal(heroId: string): Promise<number> {
+    if (!isUuid(heroId)) return 0;
+    const rows = await this.harvestGoldClaims.aggregate({
+      select: { ledgerAmount: { sum: true } },
+      where: { recipientHeroId: { eq: heroId }, ledgerStatus: { eq: "settled" } },
+    });
+    const total = rows[0]?.ledgerAmount.sum ?? 0;
+    if (!Number.isSafeInteger(total) || total < 0) throw new Error("invalid harvest gold ledger");
+    return total;
   }
 }

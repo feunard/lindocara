@@ -93,6 +93,7 @@ export type QuestTurnInResult =
 
 export interface ReserveHarvestNodeRequest {
   heroId: string;
+  sessionEpoch: number;
   eventId: string;
   generation: number;
   requiredHits: number;
@@ -126,10 +127,18 @@ export type HitHarvestNodeResult =
       readonly materials: PartyMaterials;
       readonly rewarded: boolean;
       readonly goldValue: number;
+      readonly goldPending?: boolean;
     }
   | {
       readonly ok: false;
-      readonly reason: "invalid" | "party" | "reservation" | "generation" | "depleted" | "overflow";
+      readonly reason:
+        | "invalid"
+        | "party"
+        | "reservation"
+        | "generation"
+        | "depleted"
+        | "overflow"
+        | "fence";
     };
 
 export type ConsumePartyMaterialsResult =
@@ -162,6 +171,7 @@ const MAX_MATERIAL_RESERVATIONS = 128;
 interface HarvestReservation {
   id: string;
   heroId: string;
+  sessionEpoch: number;
   eventId: string;
   generation: number;
   requiredHits: number;
@@ -188,6 +198,8 @@ function parseReserveHarvestNodeRequest(value: unknown): ParsedReserveHarvestNod
   if (!isPlainObject(value) || !isUuid(value.heroId) || !isHarvestNodeId(value.eventId))
     return null;
   if (
+    !Number.isSafeInteger(value.sessionEpoch) ||
+    (value.sessionEpoch as number) < 0 ||
     !Number.isSafeInteger(value.generation) ||
     (value.generation as number) < 0 ||
     !Number.isSafeInteger(value.requiredHits) ||
@@ -217,6 +229,7 @@ function parseReserveHarvestNodeRequest(value: unknown): ParsedReserveHarvestNod
   }
   return {
     heroId: value.heroId,
+    sessionEpoch: value.sessionEpoch as number,
     eventId: value.eventId,
     generation: value.generation as number,
     requiredHits: value.requiredHits as number,
@@ -464,6 +477,8 @@ export class PartyRoom {
         this.reserveHarvestNode(room.roomId, room.state, request),
       hitHarvestNode: (room, request: unknown) =>
         this.hitHarvestNode(room.roomId, room.state, request),
+      reconcileHarvestGoldClaims: (room) =>
+        this.reconcileHarvestGoldClaims(room.roomId, room.state),
       cancelHarvestNode: (room, request: unknown) =>
         this.cancelHarvestNode(room.roomId, room.state, request),
       consumePartyMaterials: (room, costs: unknown) =>
@@ -529,6 +544,61 @@ export class PartyRoom {
     return this.ensureState(partyId, state);
   }
 
+  /**
+   * Resolve prepared gold claims against the durable node state. A matching depleted generation
+   * (or any later generation, which proves the earlier one completed) settles exactly once;
+   * preparation without a committed hit is safely removed. Called before respawn refreshes and as
+   * an admission barrier after a new presence epoch is acquired.
+   */
+  protected async reconcileHarvestGoldClaims(
+    partyId: string,
+    state: PartyRoomState,
+  ): Promise<void> {
+    await this.enqueueStateWrite(state, async () => {
+      await this.reconcileHarvestGoldClaimsFromDurableState(partyId, state);
+    });
+  }
+
+  protected async reconcileHarvestGoldClaimsFromDurableState(
+    partyId: string,
+    state: PartyRoomState,
+  ): Promise<void> {
+    const pending = await this.adventureStateService.loadPendingHarvestGoldClaims(partyId);
+    if (pending.length === 0) return;
+    const durable = await this.adventureStateService.loadForHarvestGoldReconciliation(partyId);
+    const recovered: VersionedState = {
+      state: normalizeAuthoredQuestProgress(durable.registry, durable.state),
+      version: durable.version,
+      registry: durable.registry,
+    };
+    state.partyCompleted = durable.partyCompleted;
+    state.cached = recovered;
+    pending.sort((left, right) => left.id.localeCompare(right.id));
+    for (const claim of pending) {
+      const node = durable.state.harvestNodes?.[claim.nodeId];
+      const committed =
+        node !== undefined &&
+        (node.generation > claim.generation ||
+          (node.generation === claim.generation && node.depleted));
+      if (committed) {
+        await this.adventureStateService.settleHarvestGoldClaim({
+          claimId: claim.id,
+          partyId,
+          heroId: claim.recipientHeroId,
+          nodeId: claim.nodeId,
+          generation: claim.generation,
+          amount: claim.amount,
+        });
+      } else if (node === undefined || (node.generation === claim.generation && !node.depleted)) {
+        await this.adventureStateService.abortHarvestGoldClaim(claim.id);
+      }
+    }
+    // Pending claims are rare and imply an interrupted/uncertain previous call. Republish the
+    // strictly reloaded state after every successful reconciliation: an earlier durable write may
+    // have lost its acknowledgement before its original fan-out.
+    await this.pushStateToRooms(partyId, state, recovered);
+  }
+
   /** Load the party's registry + state + version once, on first contact. Degrades to an empty
    *  registry/state rather than throwing (`AdventureStateService`'s own posture). */
   protected async ensureState(partyId: string, state: PartyRoomState): Promise<VersionedState> {
@@ -576,8 +646,27 @@ export class PartyRoom {
       version: current.version + 1,
       registry: current.registry,
     };
+    try {
+      await this.adventureStateService.save(partyId, next.state, next.version);
+    } catch (error) {
+      // A rejected D1 call is ambiguous: the write may have committed and only its response may
+      // have been lost. Force the next queued operation to reload durable truth before deciding.
+      state.cached = null;
+      throw error;
+    }
+    // Publish the cache only after the durable write. If D1 rejects, later queued work must still
+    // see the last committed state rather than a phantom depletion or material spend.
     state.cached = next;
-    await this.adventureStateService.save(partyId, next.state, next.version);
+    await this.pushStateToRooms(partyId, state, next);
+    return next;
+  }
+
+  /** Best-effort fan-out of already-durable state; a transport failure never rolls D1 back. */
+  protected async pushStateToRooms(
+    partyId: string,
+    state: PartyRoomState,
+    next: VersionedState,
+  ): Promise<void> {
     const results = await Promise.allSettled(
       [...state.rooms].map((roomKey) => this.pushToRoom(roomKey, next.state, next.version)),
     );
@@ -592,7 +681,6 @@ export class PartyRoom {
         );
       }
     }
-    return next;
   }
 
   /**
@@ -655,6 +743,7 @@ export class PartyRoom {
       if (!request) return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      await this.reconcileHarvestGoldClaimsFromDurableState(partyId, state);
       let current = await this.ensureState(partyId, state);
       if (state.partyCompleted) return { ok: false, reason: "party" };
 
@@ -675,6 +764,7 @@ export class PartyRoom {
       if (existing && existing.expiresAt > now) {
         if (
           existing.heroId === request.heroId &&
+          existing.sessionEpoch === request.sessionEpoch &&
           existing.generation === request.generation &&
           existing.requiredHits === request.requiredHits &&
           existing.respawnDelayMs === request.respawnDelayMs &&
@@ -688,7 +778,12 @@ export class PartyRoom {
             materials: { ...(current.state.materials ?? EMPTY_PARTY_MATERIALS) },
           };
         }
-        return { ok: false, reason: "busy" };
+        if (existing.heroId !== request.heroId || request.sessionEpoch <= existing.sessionEpoch) {
+          return { ok: false, reason: "busy" };
+        }
+        // A newer lease for the same hero supersedes its old volatile token. The fresh epoch is
+        // still checked by the prepared-claim INSERT before any gold depletion can commit.
+        state.harvestReservations.delete(request.eventId);
       }
       if (existing) state.harvestReservations.delete(request.eventId);
 
@@ -723,6 +818,7 @@ export class PartyRoom {
       if (!request) return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      await this.reconcileHarvestGoldClaimsFromDurableState(partyId, state);
       let current = await this.ensureState(partyId, state);
       current = await this.refreshMaterialReservations(partyId, state, current, now);
       if (state.partyCompleted) return { ok: false, reason: "party" };
@@ -765,17 +861,52 @@ export class PartyRoom {
         ) === null
       )
         return { ok: false, reason: "overflow" };
+      const goldClaim =
+        result.rewarded && reservation.goldValue > 0
+          ? await this.adventureStateService.prepareHarvestGoldClaim({
+              partyId,
+              heroId: reservation.heroId,
+              sessionEpoch: reservation.sessionEpoch,
+              nodeId: reservation.eventId,
+              generation: reservation.generation,
+              amount: reservation.goldValue,
+            })
+          : null;
+      if (result.rewarded && reservation.goldValue > 0 && !goldClaim) {
+        return { ok: false, reason: "fence" };
+      }
+      if (goldClaim && goldClaim.ledgerStatus !== "prepared") {
+        // A settled claim paired with a still-live generation is inconsistent durable state. Never
+        // deplete it again merely because the unique idempotency row could be replayed.
+        return { ok: false, reason: "fence" };
+      }
+      // Do not abort the preparation if this throws: a D1 write can commit and still lose its
+      // acknowledgement. commitState invalidates the cache; strict reconciliation will reload the
+      // node and either settle the durable depletion or abort a hit that truly did not land.
       await this.commitState(partyId, state, {
         ...current.state,
         materials: result.materials,
         harvestNodes: result.nodes,
       });
+      const goldSettled = goldClaim
+        ? await this.adventureStateService.settleHarvestGoldClaim({
+            claimId: goldClaim.id,
+            partyId,
+            heroId: goldClaim.recipientHeroId,
+            nodeId: goldClaim.nodeId,
+            generation: goldClaim.generation,
+            amount: goldClaim.amount,
+          })
+        : false;
       return {
         ok: true,
         node: { ...result.node },
         materials: { ...result.materials },
         rewarded: result.rewarded,
-        goldValue: result.rewarded ? reservation.goldValue : 0,
+        goldValue: result.rewarded && goldSettled ? reservation.goldValue : 0,
+        ...(result.rewarded && reservation.goldValue > 0 && !goldSettled
+          ? { goldPending: true }
+          : {}),
       };
     });
   }

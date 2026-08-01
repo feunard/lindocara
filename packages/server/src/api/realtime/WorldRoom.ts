@@ -398,6 +398,21 @@ export class WorldRoom {
       }
     }
 
+    // Claims prepared by a process that died after committing node depletion are reconciled under
+    // the party coordinator's write queue before this admission reads the additive gold ledger.
+    try {
+      await this.partyRoom.room.call(state.partyId, "reconcileHarvestGoldClaims");
+    } catch (error) {
+      this.logError("harvest_gold_reconciliation_failed", error, { heroId: join.heroId });
+      try {
+        await this.presenceRoom.room.call(join.heroId, "release", conn.id, acquired.sessionEpoch);
+      } catch {
+        // The short lease expires on its own; admission still fails closed on uncertain gold.
+      }
+      room.close(conn.id, WS_CLOSE.PRESENCE_ERROR, "gold reconciliation failed");
+      return;
+    }
+
     // Reload under the acquired epoch: a profile that moved on (a racing second acquire, a
     // handoff) refuses admission rather than admitting a stale copy.
     const profile = await this.admissionService.loadHeroProfile(
@@ -871,6 +886,7 @@ export class WorldRoom {
     connectionId: string,
   ): Promise<boolean> {
     let result: HeroSaveResult;
+    const goldBeforeSave = player.inventory.gold;
     try {
       result = await this.queueHeroSave(state, player);
     } catch (error) {
@@ -881,6 +897,13 @@ export class WorldRoom {
     if (result === "stale") {
       this.rejectStaleSave(room, state, connectionId, player);
       return false;
+    }
+    if (
+      player.inventory.gold !== goldBeforeSave &&
+      state.players.get(connectionId) === player &&
+      player.authorized
+    ) {
+      sendStateTo(this.glue(room), connectionId, player);
     }
     return true;
   }
@@ -913,9 +936,23 @@ export class WorldRoom {
           () => undefined,
         )
       : Promise.resolve();
-    const save = start.then(() =>
-      this.heroSaveService.saveHero(toProfile(player), player.sessionEpoch),
-    );
+    const save = start.then(async () => {
+      const result = await this.heroSaveService.saveHero(toProfile(player), player.sessionEpoch);
+      if (result === "saved") {
+        // A coordinator call may have committed depletion and then lost its settlement response.
+        // Periodic/disconnect saves are the retry beat for still-connected players; admission is
+        // the independent retry barrier after a reconnect.
+        await this.partyRoom.room.call(state.partyId, "reconcileHarvestGoldClaims");
+        const total = await this.adventureStateService.harvestGoldLedgerTotal(player.id);
+        const baseline = Math.max(0, player.harvestGoldLedgerBaseline ?? 0);
+        if (total < baseline) {
+          throw new Error(`harvest gold ledger regressed for ${player.id}: ${total} < ${baseline}`);
+        }
+        if (total > baseline) player.inventory.gold += total - baseline;
+        player.harvestGoldLedgerBaseline = total;
+      }
+      return result;
+    });
     state.pendingSaves.set(player.id, save);
     void save.then(
       () => {
@@ -1061,32 +1098,24 @@ export class WorldRoom {
           (await this.partyRoom.room.call(state.partyId, "reserveHarvestNode", request)) as Awaited<
             ReturnType<WorldGlue["deps"]["reserveHarvestNode"]>
           >,
-        hitHarvestNode: async (request) =>
-          (await this.partyRoom.room.call(state.partyId, "hitHarvestNode", request)) as Awaited<
-            ReturnType<WorldGlue["deps"]["hitHarvestNode"]>
-          >,
+        hitHarvestNode: (request) => this.hitHarvestNode(room, state, request),
         cancelHarvestNode: async (request) =>
           (await this.partyRoom.room.call(state.partyId, "cancelHarvestNode", request)) as boolean,
-        claimHarvestGold: (player, nodeId, generation, amount) =>
-          this.claimHarvestGold(room, state, player, nodeId, generation, amount),
         consumePotion: (player, connectionId) =>
           this.consumePotion(room, state, player, connectionId),
       },
     };
   }
 
-  /**
-   * Serialize the claim beside absolute hero saves. Otherwise an already-running `saveHero` could
-   * land after the SQL increment and overwrite gold with its older in-memory snapshot.
-   */
-  protected claimHarvestGold(
+  /** Serialize the prepared-claim settlement beside absolute hero saves and sync its baseline. */
+  protected hitHarvestNode(
     room: WorldRoomHandle,
     state: WorldRoomState,
-    player: PlayerRuntime,
-    nodeId: string,
-    generation: number,
-    amount: number,
-  ): Promise<boolean> {
+    request: import("./PartyRoom.ts").HitHarvestNodeRequest,
+  ): Promise<import("./PartyRoom.ts").HitHarvestNodeResult> {
+    const connectionId = state.connectionIdByHeroId.get(request.heroId);
+    const player = connectionId === undefined ? undefined : state.players.get(connectionId);
+    if (!player) return Promise.resolve({ ok: false, reason: "reservation" });
     const previous = state.pendingSaves.get(player.id);
     const start = previous
       ? previous.then(
@@ -1094,34 +1123,44 @@ export class WorldRoom {
           () => undefined,
         )
       : Promise.resolve();
-    const claim = start.then(async () => {
-      const claimed = await this.adventureStateService.claimHarvestGold({
-        partyId: state.partyId,
-        heroId: player.id,
-        sessionEpoch: player.sessionEpoch,
-        nodeId,
-        generation,
-        amount,
-      });
-      if (!claimed) return false;
-      player.inventory.gold += amount;
-      player.dirty = true;
-      const connectionId = state.connectionIdByHeroId.get(player.id);
-      if (connectionId !== undefined && state.players.get(connectionId) === player) {
-        sendStateTo(this.glue(room), connectionId, player);
+    const hit = start.then(async () => {
+      try {
+        const result = (await this.partyRoom.room.call(
+          state.partyId,
+          "hitHarvestNode",
+          request,
+        )) as import("./PartyRoom.ts").HitHarvestNodeResult;
+        if (result.ok && result.goldValue > 0) {
+          player.inventory.gold += result.goldValue;
+          player.harvestGoldLedgerBaseline =
+            Math.max(0, player.harvestGoldLedgerBaseline ?? 0) + result.goldValue;
+          player.dirty = true;
+          const activeConnectionId = state.connectionIdByHeroId.get(player.id);
+          if (
+            activeConnectionId !== undefined &&
+            state.players.get(activeConnectionId) === player
+          ) {
+            sendStateTo(this.glue(room), activeConnectionId, player);
+          }
+        } else if (result.ok && result.goldPending) {
+          player.dirty = true;
+        }
+        return result;
+      } catch (error) {
+        player.dirty = true;
+        throw error;
       }
-      return true;
     });
-    state.pendingSaves.set(player.id, claim);
-    void claim.then(
+    state.pendingSaves.set(player.id, hit);
+    void hit.then(
       () => {
-        if (state.pendingSaves.get(player.id) === claim) state.pendingSaves.delete(player.id);
+        if (state.pendingSaves.get(player.id) === hit) state.pendingSaves.delete(player.id);
       },
       () => {
-        if (state.pendingSaves.get(player.id) === claim) state.pendingSaves.delete(player.id);
+        if (state.pendingSaves.get(player.id) === hit) state.pendingSaves.delete(player.id);
       },
     );
-    return claim;
+    return hit;
   }
 
   /**

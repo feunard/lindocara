@@ -77,6 +77,18 @@ function safeDeadline(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+/** Persist only the mutable base; settled harvest claims remain an additive, monotone ledger. */
+function baseGoldFromProfile(profile: SaveableProfile): number {
+  const visible = Number.isSafeInteger(profile.inventory.gold)
+    ? Math.max(0, profile.inventory.gold)
+    : 0;
+  const ledger = Number.isSafeInteger(profile.harvestGoldLedgerBaseline)
+    ? Math.max(0, profile.harvestGoldLedgerBaseline ?? 0)
+    : 0;
+  const base = visible - ledger;
+  return Number.isSafeInteger(base) ? base : 0;
+}
+
 const EQUIPMENT_SLOTS = [
   ["main_hand", (equipment: Equipment) => equipment.mainHand],
   ["off_hand", (equipment: Equipment) => equipment.offHand],
@@ -248,7 +260,7 @@ export class HeroSaveService {
             ${sql.raw(table.level.name)} = ${profile.level},
             ${sql.raw(table.xp.name)} = ${profile.xp},
             ${sql.raw(table.hp.name)} = ${profile.hp},
-            ${sql.raw(table.gold.name)} = ${Math.max(0, profile.inventory.gold)},
+            ${sql.raw(table.gold.name)} = ${baseGoldFromProfile(profile)},
             ${sql.raw(table.crystals.name)} = ${Math.max(0, profile.inventory.crystals)},
             ${sql.raw(table.resourceCurrent.name)} = ${profile.resource?.current ?? null},
             ${sql.raw(table.combatCooldowns.name)} = ${JSON.stringify(cooldowns)},

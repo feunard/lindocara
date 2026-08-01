@@ -672,6 +672,7 @@ describe("world room transitions (FakeClock)", () => {
     // handoff as party state, without ever becoming a candidate on map B.
     const reservation = (await partyRoom.room.call(fixture.partyId, "reserveHarvestNode", {
       heroId: fixture.heroId,
+      sessionEpoch: 0,
       eventId: exhaustedA.id,
       generation: 0,
       requiredHits: 1,

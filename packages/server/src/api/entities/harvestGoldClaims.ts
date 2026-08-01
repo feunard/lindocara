@@ -14,7 +14,14 @@ export const harvestGoldClaims = $entity({
     nodeId: z.string(),
     generation: z.integer(),
     recipientHeroId: db.ref(z.uuid(), () => heroes.cols.id, { onDelete: "cascade" }),
+    /** Epoch that authorized preparation; settlement remains valid after that lease is replaced. */
+    earnedSessionEpoch: db.default(z.integer(), 0),
     amount: z.integer(),
+    /** Additive existing-economy ledger component; zero until the durable node hit commits. */
+    ledgerAmount: db.default(z.integer(), 0),
+    /** Defaults to legacy so an older Worker writing during a rolling deploy cannot be re-credited. */
+    ledgerStatus: db.default(z.enum(["legacy", "prepared", "settled"]), "legacy"),
+    settledAt: z.datetime().optional(),
   }),
   indexes: [
     {

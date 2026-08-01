@@ -184,14 +184,14 @@ describe("claimQuestReward", () => {
   });
 });
 
-describe("claimHarvestGold", () => {
+describe("harvest gold claim ledger", () => {
   const NODE_ID = "33333333-3333-4333-8333-333333333333";
 
-  test("credits existing hero gold once per party-node generation", async () => {
+  test("prepares under the epoch fence and settles one additive ledger entry", async () => {
     const { heroId, partyId } = await newHero("goldok");
     await probe.heroes.updateById(heroId, { gold: 17 });
     const hero = await probe.heroes.findById(heroId);
-    const claim = {
+    const input = {
       partyId,
       heroId,
       sessionEpoch: hero?.sessionEpoch ?? 0,
@@ -200,9 +200,36 @@ describe("claimHarvestGold", () => {
       amount: 25,
     };
 
-    expect(await service.claimHarvestGold(claim)).toBe(true);
-    expect(await service.claimHarvestGold(claim)).toBe(false);
-    expect((await probe.heroes.findById(heroId))?.gold).toBe(42);
+    const claim = await service.prepareHarvestGoldClaim(input);
+    expect(claim).toMatchObject({
+      partyId,
+      nodeId: NODE_ID,
+      generation: 0,
+      recipientHeroId: heroId,
+      earnedSessionEpoch: input.sessionEpoch,
+      amount: 25,
+      ledgerAmount: 0,
+      ledgerStatus: "prepared",
+    });
+    expect(await service.harvestGoldLedgerTotal(heroId)).toBe(0);
+    expect((await probe.heroes.findById(heroId))?.gold).toBe(17);
+    if (!claim) throw new Error("claim was not prepared");
+    const identity = {
+      claimId: claim.id,
+      partyId,
+      heroId,
+      nodeId: NODE_ID,
+      generation: 0,
+      amount: 25,
+    };
+    expect(
+      await Promise.all([
+        service.settleHarvestGoldClaim(identity),
+        service.settleHarvestGoldClaim(identity),
+      ]),
+    ).toEqual([true, true]);
+    expect(await service.harvestGoldLedgerTotal(heroId)).toBe(25);
+    expect((await probe.heroes.findById(heroId))?.gold).toBe(17);
 
     const firstGenerationClaims = await probe.harvestGoldClaims.findMany({
       where: {
@@ -213,22 +240,16 @@ describe("claimHarvestGold", () => {
     });
     expect(firstGenerationClaims).toHaveLength(1);
     expect(firstGenerationClaims[0]).toMatchObject({
-      partyId,
-      nodeId: NODE_ID,
-      generation: 0,
-      recipientHeroId: heroId,
-      amount: 25,
+      ledgerAmount: 25,
+      ledgerStatus: "settled",
     });
+    expect(firstGenerationClaims[0]?.settledAt).toBeDefined();
 
-    expect(await service.claimHarvestGold({ ...claim, generation: 1 })).toBe(true);
-    expect((await probe.heroes.findById(heroId))?.gold).toBe(67);
-    const allClaims = await probe.harvestGoldClaims.findMany({
-      where: { partyId: { eq: partyId }, nodeId: { eq: NODE_ID } },
-    });
-    expect(allClaims).toHaveLength(2);
+    const replayedPreparation = await service.prepareHarvestGoldClaim(input);
+    expect(replayedPreparation?.id).toBe(claim.id);
   });
 
-  test("a stale epoch or mismatched hero or party creates no claim and credits no gold", async () => {
+  test("a stale epoch or mismatched hero or party prepares no ledger entry", async () => {
     const { heroId, partyId } = await newHero("goldfence");
     await probe.heroes.updateById(heroId, { gold: 17 });
     const heroBefore = await probe.heroes.findById(heroId);
@@ -242,25 +263,59 @@ describe("claimHarvestGold", () => {
     };
 
     expect(
-      await service.claimHarvestGold({
+      await service.prepareHarvestGoldClaim({
         ...baseClaim,
         sessionEpoch: baseClaim.sessionEpoch + 1,
       }),
-    ).toBe(false);
+    ).toBeNull();
     expect(
-      await service.claimHarvestGold({
+      await service.prepareHarvestGoldClaim({
         ...baseClaim,
         heroId: crypto.randomUUID(),
       }),
-    ).toBe(false);
+    ).toBeNull();
     expect(
-      await service.claimHarvestGold({
+      await service.prepareHarvestGoldClaim({
         ...baseClaim,
         partyId: crypto.randomUUID(),
       }),
-    ).toBe(false);
+    ).toBeNull();
 
     expect(await probe.heroes.findById(heroId)).toEqual(heroBefore);
     expect(await probe.harvestGoldClaims.findMany()).toHaveLength(0);
+  });
+
+  test("aborts only an unsettled preparation", async () => {
+    const { heroId, partyId } = await newHero("goldabort");
+    const hero = await probe.heroes.findById(heroId);
+    const claim = await service.prepareHarvestGoldClaim({
+      partyId,
+      heroId,
+      sessionEpoch: hero?.sessionEpoch ?? 0,
+      nodeId: NODE_ID,
+      generation: 2,
+      amount: 40,
+    });
+    if (!claim) throw new Error("claim was not prepared");
+    expect(await service.loadPendingHarvestGoldClaims(partyId)).toHaveLength(1);
+    expect(await service.abortHarvestGoldClaim(claim.id)).toBe(true);
+    expect(await service.abortHarvestGoldClaim(claim.id)).toBe(false);
+    expect(await service.harvestGoldLedgerTotal(heroId)).toBe(0);
+  });
+
+  test("a legacy writer claim is never interpreted as a prepared ledger reward", async () => {
+    const { heroId, partyId } = await newHero("goldlegacy");
+    const claim = await probe.harvestGoldClaims.create({
+      id: crypto.randomUUID(),
+      partyId,
+      nodeId: NODE_ID,
+      generation: 4,
+      recipientHeroId: heroId,
+      amount: 25,
+    });
+
+    expect(claim).toMatchObject({ ledgerAmount: 0, ledgerStatus: "legacy" });
+    expect(await service.loadPendingHarvestGoldClaims(partyId)).toEqual([]);
+    expect(await service.harvestGoldLedgerTotal(heroId)).toBe(0);
   });
 });

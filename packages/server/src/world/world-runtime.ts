@@ -531,6 +531,7 @@ export function toProfile(player: PlayerRuntime): SaveableProfile {
       ...player.inventory,
       consumables: normalizeConsumables(player.inventory.consumables, player.inventory.potions),
     },
+    harvestGoldLedgerBaseline: Math.max(0, player.harvestGoldLedgerBaseline ?? 0),
     quest: { ...player.quest },
     zoneId: player.zoneId,
     instanceId: player.instanceId,
@@ -603,6 +604,7 @@ export function newPlayer(
     CLASS_SKILLS[profile.class].find((skill) => skill.effect === "guard")?.reduction ?? 0;
   return {
     ...profile,
+    harvestGoldLedgerBaseline: Math.max(0, profile.harvestGoldLedgerBaseline ?? 0),
     shopAnchor,
     appearance: { ...profile.appearance },
     equipment: { ...profile.equipment },

@@ -161,10 +161,8 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
     reserve: 0,
     hit: 0,
     cancel: 0,
-    gold: 0,
     reserveRequests: [] as ReserveRequest[],
     hitRequests: [] as HitRequest[],
-    goldClaims: [] as { heroId: string; nodeId: string; generation: number; amount: number }[],
   };
   const reservations = new Map<string, ReserveRequest>();
   const hits = new Map<string, number>();
@@ -236,11 +234,6 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
     cancelHarvestNode: async (request) => {
       calls.cancel += 1;
       return reservations.delete(request.reservationId);
-    },
-    claimHarvestGold: async (actor, nodeId, generation, amount) => {
-      calls.gold += 1;
-      calls.goldClaims.push({ heroId: actor.id, nodeId, generation, amount });
-      return true;
     },
     consumePotion: async () => null,
   };
@@ -383,24 +376,18 @@ describe("tick-driven Peasant harvest jobs", () => {
       materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
     });
     await Promise.all(value.pending);
-    expect(value.calls).toMatchObject({ hit: 0, cancel: 1, gold: 0 });
+    expect(value.calls).toMatchObject({ hit: 0, cancel: 1 });
     expect(value.w.state.harvestJobs.size).toBe(0);
   });
 
-  it("finishes an already exhausted gold claim with the captured epoch after disconnect", async () => {
+  it("finishes an already settled gold hit with the captured epoch after disconnect", async () => {
     const value = runtime(0);
     let releaseHit!: (result: Awaited<ReturnType<WorldTickDeps["hitHarvestNode"]>>) => void;
-    let creditedActor: unknown = null;
     value.w.deps.hitHarvestNode = () =>
       new Promise((resolve) => {
         value.calls.hit += 1;
         releaseHit = resolve;
       });
-    value.w.deps.claimHarvestGold = async (actor) => {
-      value.calls.gold += 1;
-      creditedActor = actor;
-      return true;
-    };
 
     resolveAxe(value.w);
     advancePeasantHarvestJobs(value.w, NOW);
@@ -428,8 +415,8 @@ describe("tick-driven Peasant harvest jobs", () => {
     });
     await Promise.all(value.pending);
 
-    expect(value.calls).toMatchObject({ reserve: 1, hit: 1, cancel: 0, gold: 1 });
-    expect(creditedActor).toBe(value.player);
+    expect(value.calls).toMatchObject({ reserve: 1, hit: 1, cancel: 0 });
+    expect(value.calls.reserveRequests[0]?.sessionEpoch).toBe(value.player.sessionEpoch);
     expect(value.player.peasantCarry).toEqual({
       kind: "gold",
       until: NOW + PEASANT_CARRY_DURATION_MS,
@@ -595,14 +582,14 @@ describe("tick-driven Peasant harvest jobs", () => {
       },
     ]);
     expect(new Set(value.calls.reserveRequests.map((request) => request.eventId)).size).toBe(3);
-    expect(value.calls.goldClaims).toEqual([
-      { heroId: HERO_ID, nodeId: EVENT_B, generation: 0, amount: 120 },
-      {
-        heroId: HERO_ID,
-        nodeId: EVENT_C,
-        generation: 0,
-        amount: HARVEST_PROFILE_LIMITS.goldValue.max,
-      },
+    expect(
+      value.calls.reserveRequests.slice(1).map(({ eventId, goldValue }) => ({
+        eventId,
+        goldValue,
+      })),
+    ).toEqual([
+      { eventId: EVENT_B, goldValue: 120 },
+      { eventId: EVENT_C, goldValue: HARVEST_PROFILE_LIMITS.goldValue.max },
     ]);
     expect(value.player.peasantCarry).toEqual({
       kind: "gold",

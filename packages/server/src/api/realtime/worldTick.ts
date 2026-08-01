@@ -463,12 +463,6 @@ export interface WorldTickDeps {
   reserveHarvestNode(request: ReserveHarvestNodeRequest): Promise<ReserveHarvestNodeResult>;
   hitHarvestNode(request: HitHarvestNodeRequest): Promise<HitHarvestNodeResult>;
   cancelHarvestNode(request: HitHarvestNodeRequest): Promise<boolean>;
-  claimHarvestGold(
-    player: PlayerRuntime,
-    nodeId: string,
-    generation: number,
-    amount: number,
-  ): Promise<boolean>;
   /**
    * Consume one health potion and return the remaining count, or `null` when none can be spent —
    * the legacy fenced save-then-decrement D1 chain (`#consumePotion`), serialized per hero through
@@ -3845,6 +3839,7 @@ async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Pr
         if (!liveTarget) continue;
         const reserved = await w.deps.reserveHarvestNode({
           heroId: job.heroId,
+          sessionEpoch: actor.sessionEpoch,
           eventId: target.nodeId,
           generation: target.generation,
           requiredHits: target.plan.hitsRequired,
@@ -3882,20 +3877,6 @@ async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Pr
           continue;
         }
         if (hit.goldValue > 0) {
-          // The actor captures the admission epoch. A disconnect after the coordinator committed
-          // depletion may stop later targets, but cannot turn this already-earned gold into an
-          // unfenced or silently-lost credit.
-          if (
-            !(await w.deps.claimHarvestGold(
-              actor,
-              target.nodeId,
-              hit.node.generation,
-              hit.goldValue,
-            ))
-          ) {
-            if (w.state.harvestJobs.get(job.heroId) !== job) break;
-            continue;
-          }
           goldValue += hit.goldValue;
         } else {
           materialReward = mergePeasantMaterialRewards(materialReward, target.plan.materialReward);

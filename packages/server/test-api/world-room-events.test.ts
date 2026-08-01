@@ -795,9 +795,11 @@ describe("world room events (FakeClock)", () => {
     await vi.waitFor(async () => {
       const held = await heldPartyState(fixture.partyId);
       expect(held.materials).toEqual({ wood: 13, stone: 3, iron: 4, meat: 5 });
-      expect((await probe.heroes.findById(fixture.heroId))?.gold).toBe(38);
+      expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(fixture.heroId)).toBe(38);
     });
-    // Gold went through the existing hero economy; PartyAdventureState has no parallel gold key.
+    // Gold remains part of the existing hero economy. Its harvest component is an additive ledger,
+    // so an absolute hero save cannot erase a reward whose acknowledgement raced a reconnect.
+    expect((await probe.heroes.findById(fixture.heroId))?.gold).toBe(0);
     expect((await heldPartyState(fixture.partyId)).materials).not.toHaveProperty("gold");
 
     const sheepNode = state.adventureState.state.harvestNodes?.[sheep.id];
