@@ -30,6 +30,7 @@
  */
 
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import {
   eventCellCentre,
   functionalEvent,
@@ -42,6 +43,7 @@ import {
 } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import type { PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
@@ -51,7 +53,11 @@ import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { heroes } from "../src/api/entities/heroes.ts";
-import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
+import {
+  type HitHarvestNodeResult,
+  PartyRoom,
+  type ReserveHarvestNodeResult,
+} from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
@@ -99,6 +105,25 @@ function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
   };
 }
 
+function channelledTree(id: string, col: number, row: number): MapEvent {
+  const preset = harvestPreset("tree");
+  const event = functionalEvent({
+    id,
+    col,
+    row,
+    ordinal: 30 + col,
+    kind: "harvestable",
+    name: "Arbre de transition",
+    harvestProfile: {
+      ...harvestProfileFromPreset("tree"),
+      yieldAmount: 17,
+      hitsRequired: 1,
+      harvestDurationMs: 5_000,
+    },
+  });
+  return { ...event, pages: [page({ graphicAssetId: preset.intactAssetId })] };
+}
+
 let alepha: ReturnType<typeof createTestApp>;
 let presenceRoom: PresenceRoom;
 let partyRoom: PartyRoom;
@@ -124,6 +149,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (savedCheatsEnabled === undefined) delete process.env.CHEATS_ENABLED;
   else process.env.CHEATS_ENABLED = savedCheatsEnabled;
   for (const socket of openSockets) {
@@ -208,7 +234,13 @@ interface TwoMapFixture {
  *  over HTTP, the `adventures.test.ts`/`world-room-events.test.ts` authoring idiom combined. */
 async function twoMapAdventure(
   prefix: string,
-  heroSettings: { mapA?: MapHeroSettings; mapB?: MapHeroSettings } = {},
+  heroSettings: {
+    mapA?: MapHeroSettings;
+    mapB?: MapHeroSettings;
+    mapAEvents?: readonly MapEvent[];
+    mapBEvents?: readonly MapEvent[];
+    heroClass?: "warrior" | "peasant";
+  } = {},
 ): Promise<TwoMapFixture> {
   const { token, userId } = await registerAndLogin(prefix);
   const api = authed(token);
@@ -228,7 +260,7 @@ async function twoMapAdventure(
       name: "A",
       ...grassTerrain(),
       elements: [],
-      events: [entryA, exitA],
+      events: [entryA, exitA, ...(heroSettings.mapAEvents ?? [])],
       spawn: { col: 0, row: 0 },
       ...(heroSettings.mapA === undefined ? {} : { heroSettings: heroSettings.mapA }),
     }),
@@ -248,7 +280,7 @@ async function twoMapAdventure(
       name: "B",
       ...grassTerrain(),
       elements: [],
-      events: [entryB],
+      events: [entryB, ...(heroSettings.mapBEvents ?? [])],
       spawn: { col: 0, row: 0 },
       ...(heroSettings.mapB === undefined ? {} : { heroSettings: heroSettings.mapB }),
     }),
@@ -276,7 +308,7 @@ async function twoMapAdventure(
   const partyId = ((await partyResponse.json()) as { id: string }).id;
   const heroResponse = await api(`/api/parties/${partyId}/heroes`, {
     method: "POST",
-    body: JSON.stringify({ name: "Mira", class: "warrior" }),
+    body: JSON.stringify({ name: "Mira", class: heroSettings.heroClass ?? "warrior" }),
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
@@ -623,6 +655,126 @@ describe("adventure exit, end-to-end over real sockets", () => {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room transitions (FakeClock)", () => {
+  test("a handoff cancels map A harvesting and a destination reconnect targets only map B", async () => {
+    const exhaustedA = channelledTree(crypto.randomUUID(), 3, 3);
+    const resourceA = channelledTree(crypto.randomUUID(), 6, 7);
+    const resourceB = channelledTree(crypto.randomUUID(), 6, 4);
+    const fixture = await twoMapAdventure("harvesthandoff", {
+      heroClass: "peasant",
+      mapAEvents: [exhaustedA, resourceA],
+      mapBEvents: [resourceB],
+    });
+    const clock = new FakeClock();
+    vi.spyOn(Date, "now").mockImplementation(() => clock.now());
+
+    // Seed one completed A node through the real coordinator before admission. It must survive the
+    // handoff as party state, without ever becoming a candidate on map B.
+    const reservation = (await partyRoom.room.call(fixture.partyId, "reserveHarvestNode", {
+      heroId: fixture.heroId,
+      eventId: exhaustedA.id,
+      generation: 0,
+      requiredHits: 1,
+      reward: { wood: 17 },
+      goldValue: 0,
+      respawnDelayMs: null,
+    })) as ReserveHarvestNodeResult;
+    if (!reservation.ok) throw new Error("map A harvest reservation was rejected");
+    const exhausted = (await partyRoom.room.call(fixture.partyId, "hitHarvestNode", {
+      heroId: fixture.heroId,
+      eventId: exhaustedA.id,
+      reservationId: reservation.reservationId,
+    })) as HitHarvestNodeResult;
+    expect(exhausted).toMatchObject({ ok: true, rewarded: true });
+
+    const engineA = createEngine(fixture.roomAId, clock);
+    const socketA = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-a");
+    await engineA.join(socketA);
+    const stateA = roomState(engineA);
+    const playerA = playerOf(stateA, fixture.heroId);
+    playerA.level = 10;
+    const resourceACentre = eventCellCentre(resourceA);
+    const previousA = { x: playerA.x, y: playerA.y };
+    playerA.x = resourceACentre.x - PLAYER_SIZE / 2 - 32;
+    playerA.y = resourceACentre.y - PLAYER_SIZE / 2;
+    playerA.facing = { x: 1, y: 0 };
+    stateA.playerGrid.update(playerA, previousA);
+
+    clock.advanceTicks(20);
+    await engineA.message(socketA.id, { t: "skill", slot: 1 });
+    clock.advance(300);
+    const jobA = stateA.harvestJobs.get(fixture.heroId);
+    expect(jobA).toMatchObject({ committing: false });
+    expect(jobA?.targets[0]).toMatchObject({
+      targetRuntimeId: resourceA.id,
+      nodeId: resourceA.id,
+    });
+
+    const exitCentre = eventCellCentre(fixture.exitA);
+    playerA.x = exitCentre.x;
+    playerA.y = exitCentre.y;
+    clock.advanceTicks(1);
+    await vi.waitFor(() => {
+      expect(socketA.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION);
+    });
+    // The handoff is now terminal: absence is read directly from the completed source cycle.
+    expect(stateA.harvestJobs.size).toBe(0);
+    expect(stateA.players.size).toBe(0);
+    const heldAfterA = (await partyRoom.room.call(fixture.partyId, "getAdventureState")) as {
+      state: { harvestNodes?: Record<string, unknown>; materials: { wood: number } };
+    };
+    expect(heldAfterA.state.harvestNodes?.[exhaustedA.id]).toBeDefined();
+    expect(heldAfterA.state.harvestNodes?.[resourceA.id]).toBeUndefined();
+    expect(heldAfterA.state.materials.wood).toBe(17);
+
+    await engineA.leave(socketA.id);
+    engineA.dispose();
+    const engineB = createEngine(fixture.roomBId, clock);
+    const socketB = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-b");
+    await engineB.join(socketB);
+    const stateB = roomState(engineB);
+    const playerB = playerOf(stateB, fixture.heroId);
+    const resourceBCentre = eventCellCentre(resourceB);
+    const previousB = { x: playerB.x, y: playerB.y };
+    playerB.x = resourceBCentre.x - PLAYER_SIZE / 2 - 32;
+    playerB.y = resourceBCentre.y - PLAYER_SIZE / 2;
+    playerB.facing = { x: 1, y: 0 };
+    stateB.playerGrid.update(playerB, previousB);
+
+    clock.advance(2_000);
+    await engineB.message(socketB.id, { t: "skill", slot: 1 });
+    clock.advance(300);
+    const jobB = stateB.harvestJobs.get(fixture.heroId);
+    expect(jobB).toMatchObject({ committing: false });
+    expect(jobB?.targets[0]).toMatchObject({
+      targetRuntimeId: resourceB.id,
+      nodeId: resourceB.id,
+    });
+    expect(stateB.activeEvents.map((event) => event.id)).toContain(resourceB.id);
+    expect(stateB.activeEvents.map((event) => event.id)).not.toContain(resourceA.id);
+    expect(stateB.activeEvents.map((event) => event.id)).not.toContain(exhaustedA.id);
+
+    await engineB.leave(socketB.id);
+    expect(stateB.harvestJobs.size).toBe(0);
+    engineB.dispose();
+    const reconnectB = createEngine(fixture.roomBId, clock);
+    const reconnectSocket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-b-reconnect");
+    await reconnectB.join(reconnectSocket);
+    const reconnectState = roomState(reconnectB);
+    expect(reconnectState.activeEvents).toHaveLength(1);
+    expect(reconnectState.activeEvents[0]).toMatchObject({
+      id: resourceB.id,
+      harvest: { state: "intact", generation: 0 },
+    });
+    expect(reconnectState.adventureState.state.harvestNodes?.[exhaustedA.id]).toMatchObject({
+      generation: 0,
+      depleted: true,
+    });
+    expect(reconnectState.adventureState.state.harvestNodes?.[resourceB.id]).toBeUndefined();
+    expect(reconnectState.adventureState.state.materials?.wood).toBe(17);
+    expect(playerOf(reconnectState, fixture.heroId).roomKey).toBe(fixture.roomBId);
+    reconnectB.dispose();
+  });
+
   test("refreshes map hero rules on transition and a direct destination reconnect", async () => {
     const mapASettings = defaultMapHeroSettings();
     mapASettings.classes.warrior.stats.movementSpeed = 100;

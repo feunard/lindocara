@@ -34,9 +34,20 @@ import {
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
 import type { HarvestProfile } from "@lindocara/engine/harvest.js";
-import { eventCellCentre, type MapEvent, type MapEventPage } from "@lindocara/engine/map-events.js";
+import {
+  type HarvestPresetId,
+  harvestPreset,
+  harvestProfileFromPreset,
+} from "@lindocara/engine/harvest-presets.js";
+import {
+  eventCellCentre,
+  functionalEvent,
+  type MapEvent,
+  type MapEventPage,
+} from "@lindocara/engine/map-events.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
 import { D1_SAVE_EVERY_TICKS } from "@lindocara/server/world/world-runtime.js";
@@ -119,7 +130,19 @@ async function advanceTickSettled(clock: FakeClock): Promise<void> {
   }
 }
 
+/** Advance one authoritative tick at an arbitrary elapsed duration, then drain every detached
+ * coordinator/save promise it started. FakeClock deliberately fires the interval once per call. */
+async function advanceElapsedSettled(clock: FakeClock, elapsedMs: number): Promise<void> {
+  clock.advance(elapsedMs);
+  for (let i = 0; i < 20; i += 1) {
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+  }
+}
+
 interface FakeSocket extends RoomSocket {
+  query: { hero: string };
   sent: string[];
   closed?: { code?: number; reason?: string };
 }
@@ -171,6 +194,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (savedCheatsEnabled === undefined) delete process.env.CHEATS_ENABLED;
   else process.env.CHEATS_ENABLED = savedCheatsEnabled;
   for (const socket of openSockets) {
@@ -341,6 +365,49 @@ function harvestableEvent(id: string, col: number, row: number): MapEvent {
   };
 }
 
+function harvestPresetEvent(
+  id: string,
+  col: number,
+  row: number,
+  presetId: HarvestPresetId,
+  overrides: Partial<HarvestProfile> = {},
+): MapEvent {
+  const preset = harvestPreset(presetId);
+  return {
+    id,
+    col,
+    row,
+    name: presetId,
+    ordinal: 30 + col,
+    kind: "harvestable",
+    species: null,
+    patrolRadius: null,
+    harvestProfile: { ...harvestProfileFromPreset(presetId), ...overrides },
+    pages: [page({ graphicAssetId: preset.intactAssetId })],
+  };
+}
+
+function warPigEvent(
+  id: string,
+  col: number,
+  row: number,
+  respawnMode: "never" | "timed",
+  respawnDelayMs: number,
+): MapEvent {
+  return functionalEvent({
+    id,
+    col,
+    row,
+    ordinal: 50 + col,
+    kind: "monster",
+    name: respawnMode === "never" ? "Sanglier permanent" : "Sanglier temporaire",
+    species: "war_pig",
+    patrolRadius: 0,
+    monsterRespawnMode: respawnMode,
+    monsterRespawnDelayMs: respawnDelayMs,
+  });
+}
+
 interface PlayableParty {
   token: string;
   userId: string;
@@ -356,6 +423,7 @@ interface PlayableParty {
 async function newPlayableParty(
   prefix: string,
   events: readonly MapEvent[],
+  heroClass: "warrior" | "peasant" = "warrior",
 ): Promise<PlayableParty> {
   const { token, userId } = await registerAndLogin(prefix);
   const api = authed(token);
@@ -395,7 +463,7 @@ async function newPlayableParty(
   const partyId = ((await partyResponse.json()) as { id: string }).id;
   const heroResponse = await api(`/api/parties/${partyId}/heroes`, {
     method: "POST",
-    body: JSON.stringify({ name: "Mira", class: "warrior" }),
+    body: JSON.stringify({ name: "Mira", class: heroClass }),
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
@@ -414,6 +482,7 @@ async function newPlayableParty(
 async function joinPartyWithHero(
   prefix: string,
   partyId: string,
+  heroClass: "ranger" | "peasant" = "ranger",
 ): Promise<{ token: string; userId: string; heroId: string }> {
   const { token, userId } = await registerAndLogin(prefix);
   const api = authed(token);
@@ -421,7 +490,7 @@ async function joinPartyWithHero(
   expect(joinResponse.status).toBe(204);
   const heroResponse = await api(`/api/parties/${partyId}/heroes`, {
     method: "POST",
-    body: JSON.stringify({ name: "Liin", class: "ranger" }),
+    body: JSON.stringify({ name: "Liin", class: heroClass }),
   });
   expect(heroResponse.status).toBe(201);
   return { token, userId, heroId: ((await heroResponse.json()) as { id: string }).id };
@@ -464,6 +533,86 @@ function playerOf(state: WorldRoomState, heroId: string): PlayerRuntime {
   const player = connectionId === undefined ? undefined : state.players.get(connectionId);
   if (!player) throw new Error(`hero ${heroId} is not in the room`);
   return player;
+}
+
+function placeHarvester(state: WorldRoomState, heroId: string, event: MapEvent): PlayerRuntime {
+  const player = playerOf(state, heroId);
+  const previous = { x: player.x, y: player.y };
+  const target = eventCellCentre(event);
+  player.x = target.x - PLAYER_SIZE / 2 - 32;
+  player.y = target.y - PLAYER_SIZE / 2;
+  player.facing = { x: 1, y: 0 };
+  player.level = 10;
+  state.playerGrid.update(player, previous);
+  return player;
+}
+
+async function completeHarvestAction(input: {
+  engine: RoomEngine<never, never, WorldRoomState>;
+  socket: FakeSocket;
+  state: WorldRoomState;
+  clock: FakeClock;
+  event: MapEvent;
+  slot: 1 | 2 | 3;
+}): Promise<void> {
+  const { engine, socket, state, clock, event, slot } = input;
+  const before = state.adventureState.state.harvestNodes?.[event.id]?.hits ?? 0;
+  placeHarvester(state, socket.query.hero ?? "", event);
+  // Clear the preceding recovery/cooldown through elapsed authoritative time, never by mutating it.
+  await advanceElapsedSettled(clock, 2_000);
+  await engine.message(socket.id, { t: "skill", slot });
+  // All three tool anticipations are <= 360ms. The following tick starts the server-owned job.
+  await advanceElapsedSettled(clock, 400);
+  // Integration profiles use an immediate channel except the dedicated disconnect case below;
+  // depending on tick order the zero-duration job may already be committed here.
+  await advanceTickSettled(clock);
+  await vi.waitFor(() => {
+    expect(state.adventureState.state.harvestNodes?.[event.id]?.hits).toBeGreaterThan(before);
+  });
+}
+
+async function completeWarPigCarcassHit(input: {
+  engine: RoomEngine<never, never, WorldRoomState>;
+  socket: FakeSocket;
+  state: WorldRoomState;
+  clock: FakeClock;
+  event: MapEvent;
+}): Promise<void> {
+  const { engine, socket, state, clock, event } = input;
+  const runtimeId = `mon-${event.id}`;
+  const monster = state.monsters.find((candidate) => candidate.id === runtimeId);
+  if (!monster || monster.hp > 0 || monster.deadUntil <= clock.now()) {
+    throw new Error(`war pig ${runtimeId} is not an active carcass`);
+  }
+  const player = playerOf(state, socket.query.hero ?? "");
+  const previous = { x: player.x, y: player.y };
+  player.x = monster.x - 32;
+  player.y = monster.y;
+  player.facing = { x: 1, y: 0 };
+  player.level = 10;
+  state.playerGrid.update(player, previous);
+  const before = state.adventureState.state.harvestNodes?.[event.id];
+
+  await advanceElapsedSettled(clock, 400);
+  await engine.message(socket.id, { t: "skill", slot: 3 });
+  await advanceElapsedSettled(clock, 300);
+  const job = state.harvestJobs.get(player.id);
+  expect(job).toMatchObject({ committing: false });
+  expect(job?.targets[0]).toMatchObject({
+    targetKind: "animal_carcass",
+    targetRuntimeId: runtimeId,
+    nodeId: event.id,
+  });
+  await advanceElapsedSettled(clock, 700);
+  await vi.waitFor(() => {
+    const after = state.adventureState.state.harvestNodes?.[event.id];
+    expect(
+      after !== undefined &&
+        (before === undefined ||
+          after.generation > before.generation ||
+          (after.generation === before.generation && after.hits > before.hits)),
+    ).toBe(true);
+  });
 }
 
 function messagesOf(socket: FakeSocket): ServerMessage[] {
@@ -528,6 +677,303 @@ describe("world room events (FakeClock)", () => {
     });
     refreshHarvestEventVisuals(state, clock.now());
     expect(state.activeEvents.find((event) => event.id === resource.id)).toBe(depleted);
+    engine.dispose();
+  });
+
+  test("two Peasants gather an authored resource map without duplicate rewards and reconnect to durable exhaustion", async () => {
+    const tree = harvestPresetEvent(crypto.randomUUID(), 3, 2, "tree", {
+      yieldAmount: 13,
+      hitsRequired: 1,
+      harvestDurationMs: 0,
+    });
+    const stone = harvestPresetEvent(crypto.randomUUID(), 5, 2, "stone_outcrop", {
+      yieldAmount: 3,
+      hitsRequired: 1,
+      harvestDurationMs: 0,
+    });
+    const iron = harvestPresetEvent(crypto.randomUUID(), 7, 2, "iron_outcrop", {
+      yieldAmount: 4,
+      hitsRequired: 1,
+      harvestDurationMs: 0,
+    });
+    const smallGold = harvestPresetEvent(crypto.randomUUID(), 9, 2, "gold_small", {
+      goldValue: 7,
+      hitsRequired: 1,
+      harvestDurationMs: 0,
+    });
+    const largeGold = harvestPresetEvent(crypto.randomUUID(), 11, 2, "gold_large", {
+      goldValue: 31,
+      hitsRequired: 1,
+      harvestDurationMs: 0,
+    });
+    const sheep = harvestPresetEvent(crypto.randomUUID(), 13, 2, "sheep", {
+      yieldAmount: 5,
+      hitsRequired: 1,
+      harvestDurationMs: 0,
+      respawnDelayMs: 1_000,
+    });
+    const resources = [tree, stone, iron, smallGold, largeGold, sheep];
+    const fixture = await newPlayableParty("harvestmap", resources, "peasant");
+    const ally = await joinPartyWithHero("harvestmapally", fixture.partyId, "peasant");
+    const clock = new FakeClock();
+    vi.spyOn(Date, "now").mockImplementation(() => clock.now());
+    const engine = createEngine(fixture.roomId, clock);
+    const hostSocket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-host");
+    const allySocket = fakeSocket(ally.userId, ally.heroId, "c-harvest-ally");
+    await engine.join(hostSocket);
+    await engine.join(allySocket);
+    const state = roomState(engine);
+    placeHarvester(state, fixture.heroId, tree);
+    placeHarvester(state, ally.heroId, tree);
+
+    // Both actions resolve on the same authoritative beat. PartyRoom's reservation is the only
+    // winner fence, so this proves the real WorldRoom path cannot double-credit the custom yield.
+    await advanceElapsedSettled(clock, 2_000);
+    await engine.message(hostSocket.id, { t: "skill", slot: 1 });
+    await engine.message(allySocket.id, { t: "skill", slot: 1 });
+    await advanceElapsedSettled(clock, 400);
+    await advanceTickSettled(clock);
+    await vi.waitFor(async () => {
+      expect((await heldPartyState(fixture.partyId)).materials?.wood ?? 0).toBe(13);
+    });
+    expect(state.adventureState.state.harvestNodes?.[tree.id]).toMatchObject({
+      hits: 1,
+      depleted: true,
+    });
+    expect(state.activeEvents.find((event) => event.id === tree.id)).toMatchObject({
+      graphicAssetId: tree.harvestProfile?.exhaustedAssetId,
+      harvest: { state: "depleted" },
+    });
+
+    await completeHarvestAction({
+      engine,
+      socket: hostSocket,
+      state,
+      clock,
+      event: stone,
+      slot: 2,
+    });
+    await completeHarvestAction({
+      engine,
+      socket: hostSocket,
+      state,
+      clock,
+      event: iron,
+      slot: 2,
+    });
+    await completeHarvestAction({
+      engine,
+      socket: hostSocket,
+      state,
+      clock,
+      event: smallGold,
+      slot: 2,
+    });
+    await completeHarvestAction({
+      engine,
+      socket: hostSocket,
+      state,
+      clock,
+      event: largeGold,
+      slot: 2,
+    });
+    await completeHarvestAction({
+      engine,
+      socket: hostSocket,
+      state,
+      clock,
+      event: sheep,
+      slot: 3,
+    });
+
+    await vi.waitFor(async () => {
+      const held = await heldPartyState(fixture.partyId);
+      expect(held.materials).toEqual({ wood: 13, stone: 3, iron: 4, meat: 5 });
+      expect((await probe.heroes.findById(fixture.heroId))?.gold).toBe(38);
+    });
+    // Gold went through the existing hero economy; PartyAdventureState has no parallel gold key.
+    expect((await heldPartyState(fixture.partyId)).materials).not.toHaveProperty("gold");
+
+    const sheepNode = state.adventureState.state.harvestNodes?.[sheep.id];
+    const sheepDepletedAt = sheepNode?.depletedAt;
+    const sheepRespawnAt = sheepNode?.respawnAt;
+    expect(sheepDepletedAt).toBeTypeOf("number");
+    if (sheepRespawnAt === null || sheepRespawnAt === undefined) {
+      throw new Error("timed sheep did not receive a respawn deadline");
+    }
+    await advanceElapsedSettled(clock, Math.max(0, sheepRespawnAt - clock.now() - 1));
+    expect(state.activeEvents.find((event) => event.id === sheep.id)?.harvest).toMatchObject({
+      state: "depleted",
+      generation: 0,
+    });
+    await advanceElapsedSettled(clock, sheepRespawnAt - clock.now());
+    expect(state.activeEvents.find((event) => event.id === sheep.id)).toMatchObject({
+      graphicAssetId: sheep.pages[0]?.graphicAssetId,
+      harvest: { state: "intact", generation: 1, hits: 0 },
+    });
+    expect(state.activeEvents.find((event) => event.id === tree.id)?.harvest).toMatchObject({
+      state: "depleted",
+      generation: 0,
+    });
+
+    await engine.leave(hostSocket.id);
+    await engine.leave(allySocket.id);
+    engine.dispose();
+    const reconnectEngine = createEngine(fixture.roomId, new FakeClock());
+    const reconnectSocket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-reconnect");
+    await reconnectEngine.join(reconnectSocket);
+    const reconnectState = roomState(reconnectEngine);
+    expect(reconnectState.activeEvents.find((event) => event.id === tree.id)).toMatchObject({
+      graphicAssetId: tree.harvestProfile?.exhaustedAssetId,
+      harvest: { state: "depleted", generation: 0 },
+    });
+    expect(reconnectState.adventureState.state.materials).toEqual({
+      wood: 13,
+      stone: 3,
+      iron: 4,
+      meat: 5,
+    });
+    expect(playerOf(reconnectState, fixture.heroId).inventory.gold).toBe(38);
+    reconnectEngine.dispose();
+  });
+
+  test("disconnecting during a real harvest channel leaves the node and reward untouched", async () => {
+    const tree = harvestPresetEvent(crypto.randomUUID(), 3, 2, "tree", {
+      yieldAmount: 99,
+      hitsRequired: 1,
+      harvestDurationMs: 750,
+    });
+    const fixture = await newPlayableParty("harvestchannel", [tree], "peasant");
+    const clock = new FakeClock();
+    vi.spyOn(Date, "now").mockImplementation(() => clock.now());
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-channel");
+    await engine.join(socket);
+    const state = roomState(engine);
+    placeHarvester(state, fixture.heroId, tree);
+    await advanceElapsedSettled(clock, 2_000);
+    await engine.message(socket.id, { t: "skill", slot: 1 });
+    await advanceElapsedSettled(clock, 300);
+    const job = state.harvestJobs.get(fixture.heroId);
+    expect(job).toMatchObject({ committing: false });
+    expect(job?.targets[0]).toMatchObject({
+      targetRuntimeId: tree.id,
+      nodeId: tree.id,
+    });
+
+    await engine.leave(socket.id);
+    expect(state.harvestJobs.has(fixture.heroId)).toBe(false);
+    await advanceElapsedSettled(clock, 1_000);
+    const held = await heldPartyState(fixture.partyId);
+    expect(held.materials?.wood ?? 0).toBe(0);
+    expect(held.harvestNodes?.[tree.id]).toBeUndefined();
+    engine.dispose();
+  });
+
+  test("authored war-pig carcasses keep UUID node identity across permanent reconnect and timed generations", async () => {
+    const permanent = warPigEvent(crypto.randomUUID(), 4, 4, "never", 1_000);
+    const timed = warPigEvent(crypto.randomUUID(), 8, 4, "timed", 10_000);
+    const fixture = await newPlayableParty("harvestanimals", [permanent, timed], "peasant");
+    const clock = new FakeClock();
+    vi.spyOn(Date, "now").mockImplementation(() => clock.now());
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-animals");
+    await engine.join(socket);
+    const state = roomState(engine);
+
+    // This is the same coordinator mutation the authoritative death path emits. Its push keeps
+    // the current animal as a corpse until that explicit UUID-keyed node is actually depleted.
+    await partyRoom.room.call(fixture.partyId, "markPermanentMonsterDefeated", permanent.id);
+    await vi.waitFor(() => {
+      expect(state.monsters.find((monster) => monster.id === `mon-${permanent.id}`)).toMatchObject({
+        hp: 0,
+        deadUntil: Number.POSITIVE_INFINITY,
+      });
+    });
+    await completeWarPigCarcassHit({ engine, socket, state, clock, event: permanent });
+    await completeWarPigCarcassHit({ engine, socket, state, clock, event: permanent });
+    expect(state.adventureState.state.harvestNodes?.[permanent.id]).toMatchObject({
+      eventId: permanent.id,
+      generation: 0,
+      hits: 2,
+      depleted: true,
+    });
+    expect(
+      Object.keys(state.adventureState.state.harvestNodes ?? {}).some((id) =>
+        id.startsWith("carcass:"),
+      ),
+    ).toBe(false);
+    expect(state.monsters.some((monster) => monster.id === `mon-${permanent.id}`)).toBe(false);
+
+    const timedMonster = state.monsters.find((monster) => monster.id === `mon-${timed.id}`);
+    if (!timedMonster) throw new Error("timed war pig is missing");
+    timedMonster.hp = 0;
+    timedMonster.deadUntil = clock.now() + 10_000;
+    timedMonster.action = null;
+    await completeWarPigCarcassHit({ engine, socket, state, clock, event: timed });
+    await completeWarPigCarcassHit({ engine, socket, state, clock, event: timed });
+    const exhaustedGeneration = state.adventureState.state.harvestNodes?.[timed.id];
+    expect(exhaustedGeneration).toMatchObject({
+      eventId: timed.id,
+      generation: 0,
+      hits: 2,
+      depleted: true,
+    });
+    if (exhaustedGeneration?.respawnAt === null || exhaustedGeneration?.respawnAt === undefined) {
+      throw new Error("timed carcass did not receive a respawn deadline");
+    }
+    await advanceElapsedSettled(clock, Math.max(0, exhaustedGeneration.respawnAt - clock.now()));
+    const respawnedTimed = state.monsters.find((monster) => monster.id === `mon-${timed.id}`);
+    if (!respawnedTimed) throw new Error("timed war pig disappeared at respawn");
+    expect(respawnedTimed.hp).toBe(respawnedTimed.maxHp);
+
+    // A second authoritative death after both timers have elapsed reads generation 1 from the
+    // same authored UUID; it never invents an asset-derived or runtime-prefixed node id.
+    respawnedTimed.hp = 0;
+    respawnedTimed.deadUntil = clock.now() + 10_000;
+    await completeWarPigCarcassHit({ engine, socket, state, clock, event: timed });
+    expect(state.adventureState.state.harvestNodes?.[timed.id]).toMatchObject({
+      eventId: timed.id,
+      generation: 1,
+      hits: 1,
+      depleted: false,
+    });
+
+    await engine.leave(socket.id);
+    engine.dispose();
+    const reconnectEngine = createEngine(fixture.roomId, new FakeClock());
+    const reconnectSocket = fakeSocket(
+      fixture.userId,
+      fixture.heroId,
+      "c-harvest-animals-reconnect",
+    );
+    await reconnectEngine.join(reconnectSocket);
+    const reconnectState = roomState(reconnectEngine);
+    expect(reconnectState.monsters.some((monster) => monster.id === `mon-${permanent.id}`)).toBe(
+      false,
+    );
+    expect(reconnectState.adventureState.state.harvestNodes?.[permanent.id]).toMatchObject({
+      generation: 0,
+      depleted: true,
+    });
+    reconnectEngine.dispose();
+  });
+
+  test("a legacy map without harvest profiles still admits normally with empty harvest state", async () => {
+    const fixture = await newPlayableParty("harvestlegacy", [], "peasant");
+    const engine = createEngine(fixture.roomId, new FakeClock());
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-legacy");
+    await engine.join(socket);
+    const state = roomState(engine);
+    expect(state.activeEvents).toEqual([]);
+    expect(state.adventureState.state.harvestNodes).toEqual({});
+    expect(state.adventureState.state.materials).toEqual({
+      wood: 0,
+      stone: 0,
+      iron: 0,
+      meat: 0,
+    });
+    expect(messagesOf(socket).some((message) => message.t === "welcome")).toBe(true);
     engine.dispose();
   });
 
