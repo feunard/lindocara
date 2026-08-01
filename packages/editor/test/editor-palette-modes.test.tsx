@@ -44,6 +44,8 @@ function eventBody() {
     npcGraphic: DEFAULT_NPC_MODEL_ASSET_ID,
     enemyGraphic: null,
     guardGraphic: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+    harvestPreset: "tree" as const,
+    harvestGraphic: "resource.terrain-resources-wood-trees.tree1" as const,
     events: [],
     selectedEventId: null,
     onSelectPreset: () => {},
@@ -53,6 +55,8 @@ function eventBody() {
     onSelectNpcGraphic: () => {},
     onSelectEnemyGraphic: () => {},
     onSelectGuardGraphic: () => {},
+    onSelectHarvestPreset: () => {},
+    onSelectHarvestGraphic: () => {},
     onHoverEvent: () => {},
     onSelectEvent: () => {},
   };

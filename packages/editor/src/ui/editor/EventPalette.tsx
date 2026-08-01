@@ -1,6 +1,7 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { EVENT_PRESETS, type EventPreset } from "@lindocara/engine/event-presets.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
+import { HARVEST_PRESETS, type HarvestPresetId } from "@lindocara/engine/harvest-presets.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
@@ -11,11 +12,11 @@ import {
   type MapEvent,
   runtimeEventCount,
 } from "@lindocara/engine/map-events.js";
-import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
-import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
+import { CatalogueAssetPicker, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
 /** The popular one-click placements. `raw` is a blank custom event; the rest pre-fill page 1 with
@@ -30,6 +31,17 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   endgame: "editor.event.preset.endgame",
 };
 
+export const HARVEST_PRESET_LABEL: Record<HarvestPresetId, MessageKey> = {
+  tree: "editor.harvest.preset.tree",
+  stone_outcrop: "editor.harvest.preset.stone",
+  iron_outcrop: "editor.harvest.preset.iron",
+  gold_small: "editor.harvest.preset.goldSmall",
+  gold_large: "editor.harvest.preset.goldLarge",
+  meat_cache: "editor.harvest.preset.meat",
+  sheep: "editor.harvest.preset.sheep",
+  happy_sheep: "editor.harvest.preset.happySheep",
+};
+
 /** The kind-tagged placements shown alongside the command PRESETS. Entry/exit are GONE from authoring
  *  (the adventure graph is no longer authored — a teleporter preset replaces an exit, and a hero
  *  spawns on a placed `spawn` event); `normal` is absent because presets are how a custom event
@@ -38,7 +50,7 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
  *  have their own visible catalogue below so every supported species is directly selectable.
  *  Existing entry/exit events on an old adventure's map still render and list — they just cannot be
  *  authored anew. */
-const FUNCTIONAL_KINDS = ["npc", "spawn", "guard"] as const;
+const FUNCTIONAL_KINDS = ["npc", "spawn", "guard", "harvestable"] as const;
 
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   normal: "editor.event.kind.normal",
@@ -72,6 +84,8 @@ interface EventPaletteProps {
   npcGraphic: EditorAssetId;
   enemyGraphic: EditorAssetId | null;
   guardGraphic: EditorAssetId;
+  harvestPreset: HarvestPresetId;
+  harvestGraphic: EditorAssetId;
   /** The open map's events, listed for overview + find (D14). */
   events: readonly MapEvent[];
   /** The selected event's id, so the list marks it. */
@@ -83,6 +97,8 @@ interface EventPaletteProps {
   onSelectNpcGraphic(assetId: EditorAssetId): void;
   onSelectEnemyGraphic(assetId: EditorAssetId | null): void;
   onSelectGuardGraphic(assetId: EditorAssetId): void;
+  onSelectHarvestPreset(preset: HarvestPresetId): void;
+  onSelectHarvestGraphic(assetId: EditorAssetId): void;
   /** Hover a list row → emphasise that event on the canvas; `null` clears it. */
   onHoverEvent(id: string | null): void;
   /** Click a list row → select that event on the canvas (like a canvas click). */
@@ -105,6 +121,8 @@ export function EventPalette({
   npcGraphic,
   enemyGraphic,
   guardGraphic,
+  harvestPreset,
+  harvestGraphic,
   events,
   selectedEventId,
   onSelectPreset,
@@ -114,10 +132,13 @@ export function EventPalette({
   onSelectNpcGraphic,
   onSelectEnemyGraphic,
   onSelectGuardGraphic,
+  onSelectHarvestPreset,
+  onSelectHarvestGraphic,
   onHoverEvent,
   onSelectEvent,
 }: EventPaletteProps) {
   useLocale();
+  const activeHarvestAsset = editorAsset(harvestGraphic);
   const activeCount = runtimeEventCount(events);
   const eventLimitReached = events.length >= MAX_EVENTS_PER_MAP;
   const runtimeLimitReached = activeCount >= MAX_RUNTIME_EVENTS_PER_MAP;
@@ -190,7 +211,11 @@ export function EventPalette({
               active={eventKind === kind}
               disabled={placementDisabled(kind)}
               preview={
-                kind === "npc" ? undefined : (
+                kind === "npc" ? undefined : kind === "harvestable" ? (
+                  activeHarvestAsset ? (
+                    <EditorAssetPreview asset={activeHarvestAsset} size={36} />
+                  ) : undefined
+                ) : (
                   <SpriteSheetPreview source={EDITOR_MARKER_PREVIEWS[kind]} frame={192} />
                 )
               }
@@ -198,6 +223,50 @@ export function EventPalette({
             />
           ))}
         </div>
+
+        {eventKind === "harvestable" && (
+          <div
+            data-testid="harvest-presets"
+            className="flex flex-col gap-2 rounded-md border border-zinc-300 bg-zinc-100 p-2"
+          >
+            <div>
+              <p className="text-[11px] font-semibold text-zinc-600">
+                {t("editor.harvest.palette.heading")}
+              </p>
+              <p className="text-[10.5px] text-zinc-500">
+                {t("editor.harvest.palette.description")}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {HARVEST_PRESETS.map((preset) => {
+                const asset = editorAsset(preset.intactAssetId);
+                return (
+                  <SwatchButton
+                    key={preset.id}
+                    label={t(HARVEST_PRESET_LABEL[preset.id])}
+                    active={harvestPreset === preset.id}
+                    disabled={placementDisabled("harvestable")}
+                    preview={asset ? <EditorAssetPreview asset={asset} size={42} /> : undefined}
+                    onClick={() => onSelectHarvestPreset(preset.id)}
+                  />
+                );
+              })}
+            </div>
+            <details className="rounded-md border border-zinc-200 bg-white">
+              <summary className="cursor-pointer px-2 py-1.5 text-[11px] font-semibold text-zinc-600">
+                {t("editor.harvest.appearance.intact")}
+              </summary>
+              <div className="border-t border-zinc-200 p-2">
+                <CatalogueAssetPicker
+                  usage="scenery"
+                  disabled={placementDisabled("harvestable")}
+                  value={harvestGraphic}
+                  onSelectAsset={onSelectHarvestGraphic}
+                />
+              </div>
+            </details>
+          </div>
+        )}
 
         <details
           data-testid="npc-catalogue"

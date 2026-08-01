@@ -20,11 +20,13 @@ import {
   selectionAt,
   selectionAtMode,
   setActiveMode,
+  setEventDraftHarvestProfile,
   setEventDraftName,
   toSaveInput,
   undoEditorHistory,
   updateEventDraftPage,
 } from "@lindocara/editor/game/editor-state.js";
+import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
 import {
@@ -892,11 +894,56 @@ describe("editor history", () => {
   });
 });
 
-describe("applyTool: functional event kinds (entry / exit / monster / guard / NPC)", () => {
+describe("applyTool: functional event kinds (entry / exit / monster / guard / NPC / resource)", () => {
   const base = blankMap("m", 20, 15);
 
-  it("refuses to mint a harvestable event without the dedicated profile editor", () => {
-    expect(place(base, { kind: "event", eventKind: "harvestable" }, 2, 2)).toBeNull();
+  it("places a harvestable with an explicit profile and an independent appearance", () => {
+    const profile = harvestProfileFromPreset("tree");
+    const next = place(
+      base,
+      {
+        kind: "event",
+        eventKind: "harvestable",
+        graphic: "decoration.terrain-decorations-bushes.bushe1",
+        harvestProfile: profile,
+      },
+      2,
+      2,
+    ) as EditorMap;
+
+    expect(next.events[0]).toMatchObject({
+      kind: "harvestable",
+      harvestProfile: profile,
+      pages: [{ graphicAssetId: "decoration.terrain-decorations-bushes.bushe1" }],
+    });
+    expect(next.events[0]?.harvestProfile).toMatchObject({ resource: "wood", tool: "axe" });
+  });
+
+  it("places the stable sheep preset as explicit meat harvested with a knife", () => {
+    const preset = harvestPreset("sheep");
+    const next = place(
+      base,
+      {
+        kind: "event",
+        eventKind: "harvestable",
+        graphic: preset.intactAssetId,
+        harvestProfile: harvestProfileFromPreset("sheep"),
+      },
+      3,
+      3,
+    ) as EditorMap;
+    expect(next.events[0]?.pages[0]?.graphicAssetId).toBe(
+      "resource.terrain-resources-meat-sheep.sheep-idle",
+    );
+    expect(next.events[0]?.harvestProfile).toMatchObject({ resource: "meat", tool: "knife" });
+  });
+
+  it("defensively refuses an incomplete harvest tool from an untyped caller", () => {
+    const incomplete = {
+      kind: "event",
+      eventKind: "harvestable",
+    } as unknown as EditorTool;
+    expect(place(base, incomplete, 2, 2)).toBeNull();
   });
 
   it("places an entry event as a functionalEvent-shaped MapEvent with a uuid", () => {
@@ -1298,6 +1345,50 @@ describe("event dialog draft", () => {
 
     const draft = updateEventDraftPage(beginEventDraft(map, id) as MapEvent, 0, { moveSpeed: 2 });
     expect(isEditorHistoryDirty(commitEventDraft(history, draft))).toBe(true);
+  });
+
+  it("detaches, edits, commits and serializes every harvest override without mutating the source", () => {
+    const preset = harvestPreset("tree");
+    const map = place(
+      blankMap("m", 20, 15),
+      {
+        kind: "event",
+        eventKind: "harvestable",
+        graphic: preset.intactAssetId,
+        harvestProfile: harvestProfileFromPreset("tree"),
+      },
+      3,
+      4,
+    ) as EditorMap;
+    const sourceProfile = map.events[0]?.harvestProfile;
+    const history = markEditorHistorySaved(createEditorHistory(map));
+    let draft = beginEventDraft(map, map.events[0]?.id ?? "") as MapEvent;
+    const override = {
+      ...harvestProfileFromPreset("iron_outcrop"),
+      yieldAmount: 17,
+      hitsRequired: 7,
+      range: 123,
+      harvestDurationMs: 2_345,
+      exhaustionBehavior: "replace" as const,
+      exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-1" as const,
+      respawn: "timed" as const,
+      respawnDelayMs: 91_000,
+      fadeDurationMs: 777,
+    };
+    draft = setEventDraftHarvestProfile(draft, override);
+    draft = updateEventDraftPage(draft, 0, {
+      graphicAssetId: "resource.resources-sheep.happysheep-idle",
+    });
+
+    expect(sourceProfile).toEqual(harvestProfileFromPreset("tree"));
+    expect(draft.harvestProfile).not.toBe(sourceProfile);
+    const committed = commitEventDraft(history, draft);
+    expect(committed.past).toHaveLength(1);
+    expect(committed.present.events[0]?.harvestProfile).toEqual(override);
+    expect(committed.present.events[0]?.pages[0]?.graphicAssetId).toBe(
+      "resource.resources-sheep.happysheep-idle",
+    );
+    expect(toSaveInput(committed.present).events[0]?.harvestProfile).toEqual(override);
   });
 });
 

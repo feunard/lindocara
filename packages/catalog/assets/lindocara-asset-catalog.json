@@ -3072,6 +3072,39 @@
       "classification": {
         "status": "catalogued",
         "role": "world-resource"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          }
+        ],
+        "renderLayer": "object",
+        "category": "farm-and-village",
+        "allowedTerrain": [
+          "grass"
+        ]
       }
     },
     {
@@ -26224,6 +26257,39 @@
       "classification": {
         "status": "catalogued",
         "role": "world-resource"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          }
+        ],
+        "renderLayer": "object",
+        "category": "farm-and-village",
+        "allowedTerrain": [
+          "grass"
+        ]
       }
     },
     {

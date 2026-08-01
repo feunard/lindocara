@@ -3,6 +3,7 @@ import { defaultEventPage } from "@lindocara/editor/game/editor-state.js";
 import { EventDialog } from "@lindocara/editor/ui/editor/EventDialog.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { MONSTER_RESPAWN_MS } from "@lindocara/engine/game.js";
+import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
@@ -575,6 +576,130 @@ describe("EventDialog", () => {
     expect(committed.kind).toBe("entry");
     expect(committed.name).toBe("North gate");
     expect(committed.pages).toHaveLength(1);
+  });
+});
+
+describe("EventDialog harvest authoring", () => {
+  beforeEach(() => setLocale("en"));
+
+  function sheepEvent(): MapEvent {
+    return seedEvent({
+      kind: "harvestable",
+      harvestProfile: harvestProfileFromPreset("sheep"),
+      pages: [
+        {
+          ...defaultEventPage(),
+          graphicAssetId: harvestPreset("sheep").intactAssetId,
+        },
+      ],
+    });
+  }
+
+  it("previews sheep as meat and round-trips every per-instance override independently", async () => {
+    const user = userEvent.setup();
+    const { onCommit } = renderDialog(sheepEvent());
+
+    expect(screen.getByTestId("harvest-intact-preview")).toBeVisible();
+    expect(screen.getByTestId("harvest-exhausted-preview")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: t("editor.harvest.resource") })).toHaveValue(
+      "meat",
+    );
+    expect(screen.getByRole("combobox", { name: t("editor.harvest.tool") })).toHaveValue("knife");
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.harvest.resource") }),
+      "gold",
+    );
+    expect(screen.getByRole("combobox", { name: t("editor.harvest.tool") })).toHaveValue("pickaxe");
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.harvest.goldValue") }), {
+      target: { value: "137" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.harvest.hits") }), {
+      target: { value: "6" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.harvest.range") }), {
+      target: { value: "111" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.harvest.duration") }), {
+      target: { value: "2222" },
+    });
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.harvest.exhaustion") }),
+      "fade",
+    );
+    const respawn = screen.getByRole("combobox", { name: t("editor.harvest.respawn") });
+    await user.selectOptions(respawn, "permanent");
+    expect(
+      screen.queryByRole("spinbutton", { name: t("editor.harvest.respawnDelay") }),
+    ).not.toBeInTheDocument();
+    await user.selectOptions(respawn, "timed");
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.harvest.respawnDelay") }), {
+      target: { value: "91000" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.harvest.fadeDuration") }), {
+      target: { value: "777" },
+    });
+
+    const intactSection = screen
+      .getByText(t("editor.harvest.appearance.intact"), { selector: "h3" })
+      .closest("div");
+    expect(intactSection).not.toBeNull();
+    if (intactSection) {
+      fireEvent.change(within(intactSection).getByRole("searchbox"), {
+        target: { value: "Tree1" },
+      });
+      const tree = within(intactSection)
+        .getAllByRole("button")
+        .find((button) => button.dataset.assetId === "resource.terrain-resources-wood-trees.tree1");
+      expect(tree).toBeDefined();
+      if (tree) await user.click(tree);
+    }
+    const exhaustedSection = screen
+      .getByText(t("editor.harvest.appearance.exhausted"), { selector: "h3" })
+      .closest("div");
+    expect(exhaustedSection).not.toBeNull();
+    if (exhaustedSection) {
+      fireEvent.change(within(exhaustedSection).getByRole("searchbox"), {
+        target: { value: "Stump 1" },
+      });
+      const stump = within(exhaustedSection)
+        .getAllByRole("button")
+        .find(
+          (button) => button.dataset.assetId === "resource.terrain-resources-wood-trees.stump-1",
+        );
+      expect(stump).toBeDefined();
+      if (stump) await user.click(stump);
+    }
+
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.harvestProfile).toEqual({
+      ...harvestProfileFromPreset("sheep"),
+      resource: "gold",
+      tool: "pickaxe",
+      yieldAmount: 0,
+      goldValue: 137,
+      hitsRequired: 6,
+      range: 111,
+      harvestDurationMs: 2222,
+      exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-1",
+      exhaustionBehavior: "fade",
+      respawnDelayMs: 91_000,
+      fadeDurationMs: 777,
+    });
+    expect(committed.pages[0]?.graphicAssetId).toBe("resource.terrain-resources-wood-trees.tree1");
+  }, 15_000);
+
+  it("refuses a replacement configuration until an exhausted appearance is selected", async () => {
+    const user = userEvent.setup();
+    const { onCommit } = renderDialog(sheepEvent());
+    const exhaustion = screen.getByRole("combobox", { name: t("editor.harvest.exhaustion") });
+    await user.selectOptions(exhaustion, "hide");
+    await user.selectOptions(exhaustion, "replace");
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(t("editor.harvest.validation.invalid"));
   });
 });
 

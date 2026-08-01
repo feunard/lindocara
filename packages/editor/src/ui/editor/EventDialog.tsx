@@ -16,6 +16,19 @@ import {
   type MonsterTuning,
   monsterSpecialTechniquesFor,
 } from "@lindocara/engine/game.js";
+import {
+  HARVEST_EXHAUSTION_BEHAVIORS,
+  HARVEST_PROFILE_LIMITS,
+  HARVEST_RESOURCE_KINDS,
+  HARVEST_RESPAWN_MODES,
+  type HarvestExhaustionBehavior,
+  type HarvestProfile,
+  type HarvestResourceKind,
+  type HarvestRespawnMode,
+  harvestToolForResource,
+  MIN_TIMED_HARVEST_RESPAWN_MS,
+  parseHarvestProfile,
+} from "@lindocara/engine/harvest.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
   EVENT_GRAPHIC_TINT_DEFAULT,
@@ -33,6 +46,7 @@ import {
   type SelfSwitch,
   validateEventName,
 } from "@lindocara/engine/map-events.js";
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import {
   Dialog,
@@ -51,6 +65,7 @@ import {
   normalizeConditionMin,
   normalizeEventDraftConditions,
   setEventDraftGuardRadius,
+  setEventDraftHarvestProfile,
   setEventDraftMonster,
   setEventDraftMonsterAttackProfile,
   setEventDraftMonsterRespawnDelay,
@@ -59,7 +74,7 @@ import {
   setEventDraftNpc,
   updateEventDraftPage,
 } from "../../game/editor-state.js";
-import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
+import { CatalogueAssetPicker, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EventCommandEditor, type TeleportMap } from "./EventCommandEditor.js";
 
 /** The wireframe's friendly `EV{ordinal}` display id, zero-padded to three digits. Display only —
@@ -753,6 +768,258 @@ function NpcEventFields({
   );
 }
 
+function HarvestNumberField({
+  id,
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange(value: number): void;
+}) {
+  return (
+    <label htmlFor={id} className="flex flex-col gap-1 text-[11px] text-zinc-500">
+      {label}
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
+      />
+    </label>
+  );
+}
+
+/** Complete per-instance resource authoring. The profile and both images stay independent: an
+ * appearance picker only writes an asset id, while semantic controls only write HarvestProfile. */
+function HarvestEventFields({
+  profile,
+  intactAssetId,
+  onProfileChange,
+  onIntactAssetChange,
+}: {
+  profile: HarvestProfile;
+  intactAssetId: EditorAssetId | null;
+  onProfileChange(profile: HarvestProfile): void;
+  onIntactAssetChange(assetId: EditorAssetId): void;
+}) {
+  const intactAsset = intactAssetId ? editorAsset(intactAssetId) : null;
+  const exhaustedAsset = profile.exhaustedAssetId ? editorAsset(profile.exhaustedAssetId) : null;
+  const patch = (next: Partial<HarvestProfile>): void => onProfileChange({ ...profile, ...next });
+  const changeResource = (resource: HarvestResourceKind): void => {
+    patch({
+      resource,
+      tool: harvestToolForResource(resource),
+      yieldAmount: resource === "gold" ? 0 : Math.max(1, profile.yieldAmount),
+      goldValue: resource === "gold" ? Math.max(1, profile.goldValue || 25) : 0,
+    });
+  };
+  const changeExhaustion = (exhaustionBehavior: HarvestExhaustionBehavior): void => {
+    patch({
+      exhaustionBehavior,
+      ...(exhaustionBehavior === "hide" ? { exhaustedAssetId: null } : {}),
+    });
+  };
+  const changeRespawn = (respawn: HarvestRespawnMode): void => {
+    patch({
+      respawn,
+      respawnDelayMs:
+        respawn === "permanent"
+          ? 0
+          : Math.max(MIN_TIMED_HARVEST_RESPAWN_MS, profile.respawnDelayMs || 60_000),
+    });
+  };
+
+  return (
+    <section className="flex flex-col gap-4 border-y border-zinc-200 py-3">
+      <div>
+        <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+          {t("editor.harvest.profile.heading")}
+        </h3>
+        <p className="text-xs text-muted-foreground">{t("editor.harvest.profile.hint")}</p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label htmlFor="harvest-resource" className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.harvest.resource")}
+          <FieldSelect
+            id="harvest-resource"
+            value={profile.resource}
+            onChange={(event) => changeResource(event.currentTarget.value as HarvestResourceKind)}
+          >
+            {HARVEST_RESOURCE_KINDS.map((resource) => (
+              <option key={resource} value={resource}>
+                {t(`editor.harvest.resource.${resource}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </label>
+        <label htmlFor="harvest-tool" className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.harvest.tool")}
+          <FieldSelect id="harvest-tool" value={profile.tool} disabled>
+            <option value={profile.tool}>{t(`editor.harvest.tool.${profile.tool}`)}</option>
+          </FieldSelect>
+        </label>
+        {profile.resource === "gold" ? (
+          <HarvestNumberField
+            id="harvest-gold-value"
+            label={t("editor.harvest.goldValue")}
+            value={profile.goldValue}
+            min={1}
+            max={HARVEST_PROFILE_LIMITS.goldValue.max}
+            onChange={(goldValue) => patch({ goldValue })}
+          />
+        ) : (
+          <HarvestNumberField
+            id="harvest-yield"
+            label={t("editor.harvest.yield")}
+            value={profile.yieldAmount}
+            min={1}
+            max={HARVEST_PROFILE_LIMITS.yieldAmount.max}
+            onChange={(yieldAmount) => patch({ yieldAmount })}
+          />
+        )}
+        <HarvestNumberField
+          id="harvest-hits"
+          label={t("editor.harvest.hits")}
+          value={profile.hitsRequired}
+          min={HARVEST_PROFILE_LIMITS.hitsRequired.min}
+          max={HARVEST_PROFILE_LIMITS.hitsRequired.max}
+          onChange={(hitsRequired) => patch({ hitsRequired })}
+        />
+        <HarvestNumberField
+          id="harvest-range"
+          label={t("editor.harvest.range")}
+          value={profile.range}
+          min={HARVEST_PROFILE_LIMITS.range.min}
+          max={HARVEST_PROFILE_LIMITS.range.max}
+          onChange={(range) => patch({ range })}
+        />
+        <HarvestNumberField
+          id="harvest-duration"
+          label={t("editor.harvest.duration")}
+          value={profile.harvestDurationMs}
+          min={HARVEST_PROFILE_LIMITS.harvestDurationMs.min}
+          max={HARVEST_PROFILE_LIMITS.harvestDurationMs.max}
+          onChange={(harvestDurationMs) => patch({ harvestDurationMs })}
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label
+          htmlFor="harvest-exhaustion"
+          className="flex flex-col gap-1 text-[11px] text-zinc-500"
+        >
+          {t("editor.harvest.exhaustion")}
+          <FieldSelect
+            id="harvest-exhaustion"
+            value={profile.exhaustionBehavior}
+            onChange={(event) =>
+              changeExhaustion(event.currentTarget.value as HarvestExhaustionBehavior)
+            }
+          >
+            {HARVEST_EXHAUSTION_BEHAVIORS.map((behavior) => (
+              <option key={behavior} value={behavior}>
+                {t(`editor.harvest.exhaustion.${behavior}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </label>
+        <label htmlFor="harvest-respawn" className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.harvest.respawn")}
+          <FieldSelect
+            id="harvest-respawn"
+            value={profile.respawn}
+            onChange={(event) => changeRespawn(event.currentTarget.value as HarvestRespawnMode)}
+          >
+            {HARVEST_RESPAWN_MODES.map((respawn) => (
+              <option key={respawn} value={respawn}>
+                {t(`editor.harvest.respawn.${respawn}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </label>
+        {profile.respawn === "timed" && (
+          <HarvestNumberField
+            id="harvest-respawn-delay"
+            label={t("editor.harvest.respawnDelay")}
+            value={profile.respawnDelayMs}
+            min={MIN_TIMED_HARVEST_RESPAWN_MS}
+            max={HARVEST_PROFILE_LIMITS.respawnDelayMs.max}
+            onChange={(respawnDelayMs) => patch({ respawnDelayMs })}
+          />
+        )}
+        <HarvestNumberField
+          id="harvest-fade-duration"
+          label={t("editor.harvest.fadeDuration")}
+          value={profile.fadeDurationMs}
+          min={HARVEST_PROFILE_LIMITS.fadeDurationMs.min}
+          max={HARVEST_PROFILE_LIMITS.fadeDurationMs.max}
+          onChange={(fadeDurationMs) => patch({ fadeDurationMs })}
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+          <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+            {t("editor.harvest.appearance.intact")}
+          </h3>
+          <div data-testid="harvest-intact-preview">
+            {intactAsset ? (
+              <EditorAssetPreview asset={intactAsset} size={96} />
+            ) : (
+              <p className="rounded bg-zinc-50 p-3 text-xs text-zinc-500">
+                {t("editor.harvest.appearance.missing")}
+              </p>
+            )}
+          </div>
+          <CatalogueAssetPicker
+            usage="scenery"
+            value={intactAssetId}
+            onSelectAsset={onIntactAssetChange}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+          <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+            {t("editor.harvest.appearance.exhausted")}
+          </h3>
+          <div data-testid="harvest-exhausted-preview">
+            {exhaustedAsset ? (
+              <EditorAssetPreview asset={exhaustedAsset} size={96} />
+            ) : (
+              <p className="flex h-24 items-center justify-center rounded border border-dashed border-zinc-200 bg-zinc-50 p-3 text-center text-xs text-zinc-500">
+                {t(`editor.harvest.preview.${profile.exhaustionBehavior}`)}
+              </p>
+            )}
+          </div>
+          {profile.exhaustionBehavior !== "hide" && (
+            <CatalogueAssetPicker
+              usage="scenery"
+              value={profile.exhaustedAssetId}
+              onSelectAsset={(exhaustedAssetId) => patch({ exhaustedAssetId })}
+              onSelectNone={
+                profile.exhaustionBehavior === "replace"
+                  ? undefined
+                  : () => patch({ exhaustedAssetId: null })
+              }
+              noneLabel={t("editor.shell.events.graphic.none")}
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 interface EventDialogProps {
   /** The draft seed: a deep copy of the event to edit, from `beginEventDraft`. */
   event: MapEvent;
@@ -803,6 +1070,8 @@ export function EventDialog({
   if (!page) return null;
   const statErrors = validateEventStats(draft);
   const visibleStatErrors = validationAttempted ? statErrors : {};
+  const harvestProfileValid =
+    draft.kind !== "harvestable" || parseHarvestProfile(draft.harvestProfile) !== null;
   const unsupportedTriggerPages = draft.pages.flatMap((candidate, candidateIndex) =>
     runtimeTrigger(candidate.trigger) ? [] : [candidateIndex + 1],
   );
@@ -827,7 +1096,7 @@ export function EventDialog({
 
   const save = (): void => {
     if (unsupportedTriggerPages.length > 0) return;
-    if (Object.values(statErrors).some(Boolean)) {
+    if (Object.values(statErrors).some(Boolean) || !harvestProfileValid) {
       setValidationAttempted(true);
       return;
     }
@@ -969,6 +1238,22 @@ export function EventDialog({
           </section>
         )}
 
+        {draft.kind === "harvestable" && draft.harvestProfile && (
+          <HarvestEventFields
+            profile={draft.harvestProfile}
+            intactAssetId={page.graphicAssetId}
+            onProfileChange={(profile) => setDraft(setEventDraftHarvestProfile(draft, profile))}
+            onIntactAssetChange={(graphicAssetId) =>
+              update({ graphicAssetId, graphicTint: EVENT_GRAPHIC_TINT_DEFAULT })
+            }
+          />
+        )}
+        {draft.kind === "harvestable" && validationAttempted && !harvestProfileValid && (
+          <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+            {t("editor.harvest.validation.invalid")}
+          </p>
+        )}
+
         {/* Entry/exit/spawn events are pure anchors: their only field is the label (the header Name
             input), so no body is shown — a hint states what the placement binds. */}
         {(draft.kind === "entry" || draft.kind === "exit" || draft.kind === "spawn") && (
@@ -983,7 +1268,10 @@ export function EventDialog({
 
         {/* Normal events and NPCs expose complete pages. Guards reuse page conditions for presence
             and the action list for dialogue while their combat appearance/movement stays server-owned. */}
-        {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
+        {(draft.kind === "normal" ||
+          draft.kind === "npc" ||
+          draft.kind === "guard" ||
+          draft.kind === "harvestable") && (
           <>
             {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
             <div

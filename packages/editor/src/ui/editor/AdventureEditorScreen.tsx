@@ -25,6 +25,11 @@ import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/advent
 import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  type HarvestPresetId,
+  harvestPreset,
+  harvestProfileFromPreset,
+} from "@lindocara/engine/harvest-presets.js";
 import { EMPTY_MARKERS, type MapData, sameElementSlot } from "@lindocara/engine/map-data.js";
 import {
   type EventKind,
@@ -91,7 +96,7 @@ import { EditorPalette } from "./EditorPalette.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { EventDialog } from "./EventDialog.js";
-import { PRESET_LABEL } from "./EventPalette.js";
+import { HARVEST_PRESET_LABEL, PRESET_LABEL } from "./EventPalette.js";
 import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapAudioDialog } from "./MapAudioDialog.js";
@@ -140,6 +145,8 @@ function eventToolFor(
   npcGraphic: EditorAssetId,
   guardGraphic: EditorAssetId,
   enemyGraphic: EditorAssetId | null,
+  harvestPresetId: HarvestPresetId,
+  harvestGraphic: EditorAssetId,
 ): EditorTool {
   if (eventKind === "monster")
     return {
@@ -160,6 +167,15 @@ function eventToolFor(
     return selfMapId === null
       ? { kind: "event", eventKind, preset, ...named }
       : { kind: "event", eventKind, preset, selfMapId, ...named };
+  }
+  if (eventKind === "harvestable") {
+    return {
+      kind: "event",
+      eventKind,
+      graphic: harvestGraphic,
+      harvestProfile: harvestProfileFromPreset(harvestPresetId),
+      presetName: t(HARVEST_PRESET_LABEL[harvestPresetId]),
+    };
   }
   return { kind: "event", eventKind };
 }
@@ -355,6 +371,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [enemyGraphic, setEnemyGraphic] = useState<EditorAssetId | null>(null);
   const [guardGraphic, setGuardGraphic] = useState<EditorAssetId>(
     DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  );
+  const [harvestPresetId, setHarvestPresetId] = useState<HarvestPresetId>("tree");
+  const [harvestGraphic, setHarvestGraphic] = useState<EditorAssetId>(
+    harvestPreset("tree").intactAssetId,
   );
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
   const [stageEpoch, setStageEpoch] = useState(0);
@@ -593,7 +613,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   useEffect(() => {
     if (
       toolKey !== "event" ||
-      (eventKind !== "monster" && eventKind !== "guard" && eventKind !== "npc")
+      (eventKind !== "monster" &&
+        eventKind !== "guard" &&
+        eventKind !== "npc" &&
+        eventKind !== "harvestable")
     )
       return;
     const tool = eventToolFor(
@@ -605,6 +628,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       npcGraphic,
       guardGraphic,
       enemyGraphic,
+      harvestPresetId,
+      harvestGraphic,
     );
     pendingToolRef.current = tool;
     handleRef.current?.setTool(tool);
@@ -618,6 +643,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     npcGraphic,
     guardGraphic,
     enemyGraphic,
+    harvestPresetId,
+    harvestGraphic,
   ]);
 
   function pushTool(tool: EditorTool): void {
@@ -682,6 +709,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         npcGraphic,
         guardGraphic,
         enemyGraphic,
+        harvestPresetId,
+        harvestGraphic,
       ),
     );
   }
@@ -727,6 +756,36 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     });
   }
 
+  function selectHarvestPreset(presetId: HarvestPresetId): void {
+    const preset = harvestPreset(presetId);
+    setHarvestPresetId(presetId);
+    setHarvestGraphic(preset.intactAssetId);
+    setEventKind("harvestable");
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool({
+      kind: "event",
+      eventKind: "harvestable",
+      graphic: preset.intactAssetId,
+      harvestProfile: harvestProfileFromPreset(presetId),
+      presetName: t(HARVEST_PRESET_LABEL[presetId]),
+    });
+  }
+
+  function selectHarvestGraphic(assetId: EditorAssetId): void {
+    setHarvestGraphic(assetId);
+    setEventKind("harvestable");
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool({
+      kind: "event",
+      eventKind: "harvestable",
+      graphic: assetId,
+      harvestProfile: harvestProfileFromPreset(harvestPresetId),
+      presetName: t(HARVEST_PRESET_LABEL[harvestPresetId]),
+    });
+  }
+
   // The preset selector (D13): pick a popular scripted-event template. Every preset places a `normal`
   // event; re-push so the next placement uses the chosen preset.
   function selectEventPreset(preset: EventPreset): void {
@@ -744,6 +803,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         npcGraphic,
         guardGraphic,
         enemyGraphic,
+        harvestPresetId,
+        harvestGraphic,
       ),
     );
   }
@@ -814,6 +875,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         npcGraphic,
         guardGraphic,
         enemyGraphic,
+        harvestPresetId,
+        harvestGraphic,
       ),
     );
   }
@@ -1425,6 +1488,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 npcGraphic,
                 enemyGraphic,
                 guardGraphic,
+                harvestPreset: harvestPresetId,
+                harvestGraphic,
                 events: currentMap?.events ?? [],
                 selectedEventId: selection?.kind === "event" ? selection.id : null,
                 onSelectPreset: selectEventPreset,
@@ -1434,6 +1499,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 onSelectNpcGraphic: selectNpcGraphic,
                 onSelectEnemyGraphic: selectEnemyGraphic,
                 onSelectGuardGraphic: selectGuardGraphic,
+                onSelectHarvestPreset: selectHarvestPreset,
+                onSelectHarvestGraphic: selectHarvestGraphic,
                 onHoverEvent: (id) => handleRef.current?.highlightEvent(id),
                 onSelectEvent: (id) => handleRef.current?.selectEvent(id),
               }}

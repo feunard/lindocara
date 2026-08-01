@@ -365,8 +365,17 @@ function buildingCollider(width: number, height: number): Rect {
   return { x: -width / 2, y: -(rows * TILE_PX), width, height: rows * TILE_PX };
 }
 
+/** Stable catalogue identities for farm animals that authors may place as scenery or resources.
+ * This is deliberately an id allow-list: moving the source PNG does not silently remove it from
+ * the editor, and no gameplay meaning is inferred from a filename or directory. */
+const FARM_ANIMAL_EDITOR_ASSET_IDS = new Set([
+  "resource.resources-sheep.happysheep-idle",
+  "resource.terrain-resources-meat-sheep.sheep-idle",
+]);
+
 function editorMetadata(
   raw: RawAsset,
+  id: string,
   domain: AssetDomain,
   frame: AssetFrameMetadata | undefined,
 ): EditorPlacementMetadata | undefined {
@@ -377,6 +386,14 @@ function editorMetadata(
     visualFootprint: visualCells(frameWidth, frameHeight),
     renderLayer: "object" as const,
   };
+
+  if (FARM_ANIMAL_EDITOR_ASSET_IDS.has(id)) {
+    return {
+      ...common,
+      category: "farm-and-village",
+      allowedTerrain: ["grass"],
+    };
+  }
 
   // Idle character/enemy sheets are valid event appearances (NPCs, quest actors and encounter
   // previews). Their detected frame metadata crops one real frame instead of exposing the sheet.
@@ -566,7 +583,7 @@ export function createCatalogSource(index: RawIndex): TinySwordsCatalogFile {
     const frame = frameOf(raw, domain);
     const role = roleOf(raw, domain);
     const ui = uiMetadata(raw, id);
-    const editor = editorMetadata(raw, domain, frame);
+    const editor = editorMetadata(raw, id, domain, frame);
     return {
       id,
       sourcePath: raw.path,

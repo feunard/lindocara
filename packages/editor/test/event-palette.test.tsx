@@ -49,6 +49,8 @@ function baseProps() {
     npcGraphic: DEFAULT_NPC_MODEL_ASSET_ID,
     enemyGraphic: null,
     guardGraphic: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+    harvestPreset: "tree" as const,
+    harvestGraphic: "resource.terrain-resources-wood-trees.tree1" as const,
     events: [] as MapEvent[],
     selectedEventId: null,
     onSelectPreset: () => {},
@@ -58,6 +60,8 @@ function baseProps() {
     onSelectNpcGraphic: () => {},
     onSelectEnemyGraphic: () => {},
     onSelectGuardGraphic: () => {},
+    onSelectHarvestPreset: () => {},
+    onSelectHarvestGraphic: () => {},
     onHoverEvent: () => {},
     onSelectEvent: () => {},
   };
@@ -107,6 +111,41 @@ describe("EventPalette (D13/D14)", () => {
     render(<EventPalette {...baseProps()} onSelectPreset={onSelectPreset} />);
     fireEvent.click(screen.getByRole("button", { name: t("editor.event.preset.sign") }));
     expect(onSelectPreset).toHaveBeenCalledWith("sign");
+  });
+
+  it("offers explicit harvest presets and keeps the appearance picker independent", () => {
+    setLocale("en");
+    const onSelectHarvestPreset = vi.fn();
+    const onSelectHarvestGraphic = vi.fn();
+    render(
+      <EventPalette
+        {...baseProps()}
+        eventKind="harvestable"
+        onSelectHarvestPreset={onSelectHarvestPreset}
+        onSelectHarvestGraphic={onSelectHarvestGraphic}
+      />,
+    );
+
+    const harvest = screen.getByTestId("harvest-presets");
+    fireEvent.click(
+      within(harvest).getByRole("button", { name: t("editor.harvest.preset.sheep") }),
+    );
+    expect(onSelectHarvestPreset).toHaveBeenCalledWith("sheep");
+
+    fireEvent.click(
+      within(harvest).getByText(t("editor.harvest.appearance.intact"), {
+        selector: "summary",
+      }),
+    );
+    fireEvent.change(within(harvest).getByRole("searchbox"), {
+      target: { value: "HappySheep Idle" },
+    });
+    const happySheep = within(harvest)
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId === "resource.resources-sheep.happysheep-idle");
+    expect(happySheep).toBeDefined();
+    if (happySheep) fireEvent.click(happySheep);
+    expect(onSelectHarvestGraphic).toHaveBeenCalledWith("resource.resources-sheep.happysheep-idle");
   });
 
   it("offers allied guards with a radius but without monster species", () => {

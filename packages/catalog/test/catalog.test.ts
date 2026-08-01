@@ -131,6 +131,21 @@ describe("Tiny Swords semantic catalogue", () => {
     }
   });
 
+  it("exposes the two placeable sheep by stable id without admitting filename lookalikes", () => {
+    const byId = new Map(catalog.entries.map((entry) => [entry.id, entry]));
+    for (const id of [
+      "resource.terrain-resources-meat-sheep.sheep-idle",
+      "resource.resources-sheep.happysheep-idle",
+    ]) {
+      expect(byId.get(id)?.editor, id).toMatchObject({
+        category: "farm-and-village",
+        allowedTerrain: ["grass"],
+      });
+    }
+    expect(byId.get("resource.terrain-resources-meat-sheep.sheep-move")?.editor).toBeUndefined();
+    expect(byId.get("resource.resources-sheep.happysheep-bouncing")?.editor).toBeUndefined();
+  });
+
   it("exposes every catalogued character and enemy animation to NPC authoring", () => {
     const expected = catalog.entries.filter(
       (entry) =>

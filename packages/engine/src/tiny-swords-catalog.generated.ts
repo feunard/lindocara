@@ -28480,6 +28480,71 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "resource.resources-sheep.happysheep-idle",
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Sheep/HappySheep_Idle.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Sheep",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "sheep",
+      "happysheep",
+      "idle",
+      "resource",
+      "update",
+      "010"
+    ],
+    "width": 128,
+    "height": 128,
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 42,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "farm-and-village",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
     "id": "resource.terrain-resources-gold-gold-resource.gold-resource",
     "sourcePath": "Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -28950,6 +29015,71 @@ export const GENERATED_EDITOR_ASSETS = [
       ],
       "renderLayer": "object",
       "category": "resources",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "resource.terrain-resources-meat-sheep.sheep-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "resource",
+    "category": "Terrain/Resources/Meat/Sheep",
+    "role": "world-resource",
+    "tags": [
+      "terrain",
+      "resources",
+      "meat",
+      "sheep",
+      "idle",
+      "resource",
+      "free"
+    ],
+    "width": 128,
+    "height": 128,
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 44,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "farm-and-village",
       "allowedTerrain": [
         "grass"
       ]

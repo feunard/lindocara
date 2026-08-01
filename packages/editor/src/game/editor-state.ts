@@ -10,6 +10,7 @@ import {
   type MonsterSpecies,
   type MonsterTuning,
 } from "@lindocara/engine/game.js";
+import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
 import {
   bakeCollision,
   ELEMENT_OFFSET_STEPS,
@@ -124,6 +125,30 @@ export type RectFillContent =
   | { kind: "block"; block: "grass" | "water" }
   | { kind: "elevation"; level: 0 | 1 | 2 };
 
+interface EditorEventToolBase {
+  kind: "event";
+  graphic?: EditorAssetId | null;
+  /** Popular scripted-event preset; ignored by functional event kinds. */
+  preset?: EventPreset;
+  /** Current map uuid used to seed a teleporter preset. */
+  selfMapId?: string;
+  /** Localized placement label persisted as the fresh event name. */
+  presetName?: string;
+  species?: MonsterSpecies;
+  patrolRadius?: number;
+}
+
+export type EditorEventTool =
+  | (EditorEventToolBase & {
+      eventKind: "harvestable";
+      graphic: EditorAssetId;
+      harvestProfile: HarvestProfile;
+    })
+  | (EditorEventToolBase & {
+      eventKind: Exclude<EventKind, "harvestable">;
+      harvestProfile?: never;
+    });
+
 export type EditorTool =
   | { kind: "block"; block: "grass" | "water" }
   | { kind: "elevation"; level: 0 | 1 | 2 }
@@ -150,25 +175,7 @@ export type EditorTool =
    * Functional kinds are load-bearing: they must land on walkable ground, and an exit may not share
    * the spawn cell — the same rules `server/maps.ts` enforces.
    */
-  | {
-      kind: "event";
-      eventKind: EventKind;
-      graphic?: EditorAssetId | null;
-      /**
-       * The popular-event PRESET a fresh `normal` event is pre-filled from (D13): `raw` is the blank
-       * scripted event, `teleporter`/`sign`/`chest` seed page 1 with one canonical command. Ignored
-       * for entry/exit/monster/guard kinds. Defaults to `raw` when absent.
-       */
-      preset?: EventPreset;
-      /** The current map's uuid, used only by the `teleporter` preset for its same-map destination
-       *  default (`teleport.mapId` is a real uuid the author retargets in the event dialog). */
-      selfMapId?: string;
-      /** The localized preset label, stored as the placed event's name. Resolved in the React layer
-       *  because `t()` lives there; this module stays locale-free and just carries it through. */
-      presetName?: string;
-      species?: MonsterSpecies;
-      patrolRadius?: number;
-    };
+  | EditorEventTool;
 
 /**
  * Which of the three authored collections the editor is working in. This is the selector the old
@@ -563,7 +570,11 @@ export function convertElementToEvent(
 export function beginEventDraft(map: EditorMap, id: string): MapEvent | null {
   const event = map.events.find((candidate) => candidate.id === id);
   if (!event) return null;
-  return { ...event, pages: event.pages.map((page) => ({ ...page })) };
+  return {
+    ...event,
+    ...(event.harvestProfile ? { harvestProfile: { ...event.harvestProfile } } : {}),
+    pages: event.pages.map((page) => ({ ...page })),
+  };
 }
 
 /** Draft mutator: set the event name. Left untrimmed — the dialog validates on commit, and an empty
@@ -660,6 +671,15 @@ export function setEventDraftNpc(
     monsterDamage: tuningPatch.damage ?? draft.monsterDamage ?? defaults.damage,
     monsterSpeed: draft.monsterSpeed ?? defaults.speed,
   };
+}
+
+/** Draft mutator for the complete explicit resource contract. Appearance remains page data and is
+ * intentionally absent from this operation, so swapping a sprite cannot rewrite gameplay. */
+export function setEventDraftHarvestProfile(
+  draft: MapEvent,
+  harvestProfile: HarvestProfile,
+): MapEvent {
+  return draft.kind === "harvestable" ? { ...draft, harvestProfile: { ...harvestProfile } } : draft;
 }
 
 /** Draft mutator: merge a patch into one page. Everything on a page is per-page (XP semantics), so
@@ -1379,9 +1399,35 @@ export function applyTool(
           ],
         };
       }
-      // Harvestable placement requires an explicit profile. The dedicated resource editor owns
-      // that authoring flow; the generic event tool must never mint an invalid half-resource.
-      if (tool.eventKind === "harvestable") return null;
+      if (tool.eventKind === "harvestable") {
+        const profile = parseHarvestProfile(tool.harvestProfile);
+        if (!profile) return null;
+        const event = functionalEvent({
+          id: crypto.randomUUID(),
+          col,
+          row,
+          ordinal,
+          kind: "harvestable",
+          name: tool.presetName ?? "",
+          harvestProfile: profile,
+        });
+        return {
+          ...map,
+          events: [
+            ...map.events,
+            {
+              ...event,
+              harvestProfile: { ...profile },
+              pages: [
+                {
+                  ...(event.pages[0] ?? defaultEventPage()),
+                  graphicAssetId: tool.graphic,
+                },
+              ],
+            },
+          ],
+        };
+      }
       const event = functionalEvent({
         id: crypto.randomUUID(),
         col,
