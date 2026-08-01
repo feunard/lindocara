@@ -1,4 +1,5 @@
 import { ATTACK_COOLDOWN_MS, type PlayerClass } from "./game.js";
+import { PEASANT_SUPPORT_SKILLS } from "./peasant-support.js";
 import { ROGUE_BALANCE } from "./rogue.js";
 
 export const SKILL_SLOTS = [1, 2, 3, 4, 5] as const;
@@ -272,8 +273,9 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       effect: "construction",
       cooldownMs: 12_000,
       range: 72,
-      radius: 96,
-      power: 0,
+      radius: PEASANT_SUPPORT_SKILLS[4].radius,
+      durationMs: PEASANT_SUPPORT_SKILLS[4].durationMs,
+      power: PEASANT_SUPPORT_SKILLS[4].power,
       icon: "⌂",
     },
     {
@@ -282,8 +284,9 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       effect: "homemade_bomb",
       cooldownMs: 10_000,
       range: 260,
-      radius: 72,
-      power: 20,
+      radius: PEASANT_SUPPORT_SKILLS[5].radius,
+      durationMs: PEASANT_SUPPORT_SKILLS[5].durationMs,
+      power: PEASANT_SUPPORT_SKILLS[5].power,
       icon: "●",
     },
   ],

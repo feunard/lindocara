@@ -1,5 +1,14 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { isMapSkillEnabled } from "@lindocara/engine/map-hero-settings.js";
+import {
+  PARTY_MATERIAL_TYPES,
+  type PartyMaterialAmounts,
+  type PartyMaterialType,
+} from "@lindocara/engine/party-harvest-state.js";
+import {
+  canAffordPeasantSupportSkill,
+  peasantSupportSkill,
+} from "@lindocara/engine/peasant-support.js";
 import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
@@ -21,6 +30,27 @@ export const SKILL_PAD_LAYOUT: Readonly<
   4: { row: 2, column: 1, numpad: 1 },
   5: { row: 1, column: 1, numpad: 4 },
 };
+
+const MATERIAL_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
+  wood: "material.wood",
+  stone: "material.stone",
+  iron: "material.iron",
+  meat: "material.meat",
+};
+
+const MATERIAL_SHORT_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
+  wood: "material.short.wood",
+  stone: "material.short.stone",
+  iron: "material.short.iron",
+  meat: "material.short.meat",
+};
+
+function materialCostText(cost: Readonly<PartyMaterialAmounts>): string {
+  return PARTY_MATERIAL_TYPES.flatMap((material) => {
+    const amount = cost[material] ?? 0;
+    return amount > 0 ? [`${t(MATERIAL_LABEL[material])} ${amount}`] : [];
+  }).join(" · ");
+}
 
 export function SkillBar() {
   const self = useUiStore((state) => state.self);
@@ -110,9 +140,35 @@ export function SkillBar() {
 
   if (!self) return null;
   const ironGuardActive = self.class === "warrior" && self.guarding === true;
+  const materials = self.class === "peasant" ? selfState?.materials : undefined;
 
   return (
     <section className="skill-bar panel" aria-label={t("hud.abilities")}>
+      {materials && (
+        <div
+          className="skill-bar__materials"
+          role="status"
+          aria-live="polite"
+          aria-label={t("hud.materials")}
+        >
+          {PARTY_MATERIAL_TYPES.map((material) => (
+            <span
+              key={material}
+              className={`skill-bar__material skill-bar__material--${material}`}
+              data-material={material}
+            >
+              <span className="sr-only">
+                {t("hud.materials.amount", {
+                  material: t(MATERIAL_LABEL[material]),
+                  amount: materials[material],
+                })}
+              </span>
+              <span aria-hidden="true">{t(MATERIAL_SHORT_LABEL[material])}</span>
+              <strong aria-hidden="true">{materials[material]}</strong>
+            </span>
+          ))}
+        </div>
+      )}
       {CLASS_SKILLS[self.class].map((skill) => {
         const cooldownUntil = skill.slot === 1 ? attackCooldownUntil : cooldowns[skill.slot];
         const remaining = Math.max(0, cooldownUntil - now);
@@ -163,6 +219,14 @@ export function SkillBar() {
         const blockedByGuard = ironGuardActive && !guardToggle;
         const unavailable = !unlocked || !enabledOnMap || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
+        const support = self.class === "peasant" ? peasantSupportSkill(skill.slot) : null;
+        const affordable = support === null || canAffordPeasantSupportSkill(materials, skill.slot);
+        const supportCost = support ? materialCostText(support.cost) : null;
+        const supportText = supportCost
+          ? `${t("skill.material_cost", { cost: supportCost })}${
+              affordable ? "" : ` · ${t("skill.materials_insufficient")}`
+            }`
+          : null;
         const icon = skillIconArt(self.class, skill.slot);
         const control = `skill${skill.slot}` as const;
         const keyBindings = inputSettings.keyboard[control];
@@ -185,13 +249,14 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady || afterimageReady || danceRepositionReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
+            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${support && !affordable ? " unaffordable" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady || afterimageReady || danceRepositionReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
             style={{ gridRow: layout.row, gridColumn: layout.column }}
             data-numpad={layout.numpad}
             data-evolution-variant={evolution?.variantId}
             data-shadow-return-ready={shadowReturnReady || undefined}
             data-afterimage-ready={afterimageReady || undefined}
             data-dance-reposition-ready={danceRepositionReady || undefined}
+            data-material-affordable={support ? String(affordable) : undefined}
             disabled={!game || self.life !== "alive" || unavailable}
             onPointerDown={
               heldSkill
@@ -210,7 +275,7 @@ export function SkillBar() {
               }
             }}
             aria-pressed={guardToggle ? ironGuardActive : undefined}
-            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}${danceRepositionReady ? `. ${t("skill.rogue.dance_master.ready")}` : ""}`}
+            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}${danceRepositionReady ? `. ${t("skill.rogue.dance_master.ready")}` : ""}${supportText ? `. ${supportText}` : ""}`}
             aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
             title={
               !enabledOnMap
@@ -238,6 +303,26 @@ export function SkillBar() {
               </span>
             )}
             {manaCost > 0 && <span className="skill-slot__cost">{manaCost}</span>}
+            {support && (
+              <span className="skill-slot__material-costs" aria-hidden="true">
+                {PARTY_MATERIAL_TYPES.flatMap((material) => {
+                  const amount = support.cost[material] ?? 0;
+                  if (amount <= 0) return [];
+                  const missing = (materials?.[material] ?? 0) < amount;
+                  return [
+                    <span
+                      key={material}
+                      className={`skill-slot__material-cost${missing ? " missing" : ""}`}
+                      data-material-cost={material}
+                      aria-hidden="true"
+                    >
+                      {t(MATERIAL_SHORT_LABEL[material])}
+                      {amount}
+                    </span>,
+                  ];
+                })}
+              </span>
+            )}
             {!unlocked && <span className="skill-slot__lock">{requiredLevel}</span>}
             {unlocked && !enabledOnMap && <span className="skill-slot__lock">×</span>}
             {shadowReturnReady && (

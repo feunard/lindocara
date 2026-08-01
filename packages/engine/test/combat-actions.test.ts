@@ -63,8 +63,22 @@ describe("directional class kit contract", () => {
       { id: "woodcutters_swing", slot: 1, effect: "harvest", range: 54, power: 0 },
       { id: "prospectors_pick", slot: 2, effect: "harvest", power: 6 },
       { id: "butchers_cut", slot: 3, effect: "harvest", power: 4 },
-      { id: "makeshift_camp", slot: 4, effect: "construction", power: 0 },
-      { id: "homemade_bomb", slot: 5, effect: "homemade_bomb", power: 20, radius: 72 },
+      {
+        id: "makeshift_camp",
+        slot: 4,
+        effect: "construction",
+        power: 14,
+        radius: 96,
+        durationMs: 12_000,
+      },
+      {
+        id: "homemade_bomb",
+        slot: 5,
+        effect: "homemade_bomb",
+        power: 20,
+        radius: 72,
+        durationMs: 650,
+      },
     ]);
     expect(PLAYER_ACTIONS.peasant.map((action) => action.shape)).toEqual([
       "arc",

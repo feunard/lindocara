@@ -338,4 +338,105 @@ describe("skill bar cooldowns", () => {
     expect(game.castSkill).toHaveBeenCalledWith(5);
     expect(game.releaseSkill).toHaveBeenCalledWith(5);
   });
+
+  it("shows authoritative shared materials and updates support affordability immediately", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      self: {
+        nick: "Fieldhand",
+        level: 10,
+        hp: 72,
+        maxHp: 72,
+        life: "alive",
+        corpseDistance: null,
+        class: "peasant",
+        appearance: { body: "wayfarer", primaryColor: "moss" },
+        equipment: { mainHand: "worn_toolkit", offHand: null },
+      },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        materials: { wood: 3, stone: 2, iron: 1, meat: 2 },
+      },
+    });
+    render(<SkillBar />);
+
+    expect(screen.getByRole("status", { name: "Shared materials" })).toBeInTheDocument();
+    expect(screen.getByText("Wood: 3")).toBeInTheDocument();
+    expect(screen.getByText("Stone: 2")).toBeInTheDocument();
+    expect(screen.getByText("Iron: 1")).toBeInTheDocument();
+    expect(screen.getByText("Meat: 2")).toBeInTheDocument();
+
+    const camp = screen.getByRole("button", { name: /^4\. Makeshift Camp/ });
+    const bomb = screen.getByRole("button", { name: /^5\. Homemade Bomb/ });
+    expect(camp).toBeEnabled();
+    expect(camp).toHaveClass("unaffordable");
+    expect(camp).toHaveAttribute("data-material-affordable", "false");
+    expect(camp).toHaveAccessibleName(/Cost: Wood 4 · Stone 2 · Meat 2/);
+    expect(camp).toHaveAccessibleName(/Insufficient shared materials/);
+    expect(camp.querySelector('[data-material-cost="wood"]')).toHaveTextContent("W4");
+    expect(bomb).toBeEnabled();
+    expect(bomb).toHaveAttribute("data-material-affordable", "false");
+    expect(bomb.querySelector('[data-material-cost="iron"]')).toHaveTextContent("I2");
+
+    fireEvent.click(camp);
+    expect(game.castSkill).toHaveBeenCalledWith(4);
+
+    act(() => {
+      useUiStore.getState().setSelfState({
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        materials: { wood: 4, stone: 2, iron: 2, meat: 2 },
+      });
+    });
+
+    expect(screen.getByText("Wood: 4")).toBeInTheDocument();
+    expect(screen.getByText("Iron: 2")).toBeInTheDocument();
+    expect(camp).not.toHaveClass("unaffordable");
+    expect(camp).toHaveAttribute("data-material-affordable", "true");
+    expect(bomb).not.toHaveClass("unaffordable");
+    expect(bomb).toHaveAttribute("data-material-affordable", "true");
+    fireEvent.click(bomb);
+    expect(game.castSkill).toHaveBeenCalledWith(5);
+  });
+
+  it("clears the shared material stock with the authoritative self state", () => {
+    useUiStore.setState({
+      game: gameHandle(),
+      self: {
+        nick: "Fieldhand",
+        level: 10,
+        hp: 72,
+        maxHp: 72,
+        life: "alive",
+        corpseDistance: null,
+        class: "peasant",
+        appearance: { body: "wayfarer", primaryColor: "moss" },
+        equipment: { mainHand: "worn_toolkit", offHand: null },
+      },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        materials: { wood: 8, stone: 6, iron: 4, meat: 3 },
+      },
+    });
+    render(<SkillBar />);
+
+    expect(screen.getByRole("status", { name: "Shared materials" })).toBeInTheDocument();
+    act(() => useUiStore.getState().clearedGameSession());
+    expect(screen.queryByRole("status", { name: "Shared materials" })).not.toBeInTheDocument();
+  });
 });

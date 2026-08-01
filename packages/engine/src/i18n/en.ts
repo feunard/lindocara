@@ -266,7 +266,7 @@ export const en = {
   "skill.peasant.butchers_cut.description":
     "Use a short blade against nearby enemies or explicit meat sources.",
   "skill.peasant.makeshift_camp.description":
-    "Build a temporary field support using collected materials.",
+    "Build a temporary camp that shares a modest ration heal with nearby allies.",
   "skill.peasant.homemade_bomb.description":
     "Throw a modest improvised bomb whose explosion is decided by the server.",
 
@@ -290,6 +290,8 @@ export const en = {
   "hud.logout": "Log out",
   "hud.return_to_title": "Back to title",
   "hud.abilities": "Abilities",
+  "hud.materials": "Shared materials",
+  "hud.materials.amount": "{material}: {amount}",
   "hud.map.title": "Verdant Reach",
   "hud.map.you": "You",
   "hud.map.corpse": "Your body",
@@ -437,7 +439,17 @@ export const en = {
   "resource.endurance": "Endurance",
   "resource.energy": "Energy",
   "resource.mana": "MP",
+  "material.wood": "Wood",
+  "material.stone": "Stone",
+  "material.iron": "Iron",
+  "material.meat": "Meat",
+  "material.short.wood": "W",
+  "material.short.stone": "S",
+  "material.short.iron": "I",
+  "material.short.meat": "M",
   "skill.mana_cost": "{cost} mana",
+  "skill.material_cost": "Cost: {cost}",
+  "skill.materials_insufficient": "Insufficient shared materials",
   "skill.disabled_on_map": "Disabled on this map",
   "help.move": "move",
   "help.strike": "strike",

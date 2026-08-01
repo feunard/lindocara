@@ -269,7 +269,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.peasant.butchers_cut.description":
     "Utilisez une lame courte contre un ennemi proche ou une source de viande explicite.",
   "skill.peasant.makeshift_camp.description":
-    "Construisez un soutien temporaire de terrain avec les matériaux récoltés.",
+    "Construisez un camp temporaire qui partage un soin de ration modeste aux alliés proches.",
   "skill.peasant.homemade_bomb.description":
     "Lancez une bombe artisanale modeste dont l'explosion est décidée par le serveur.",
 
@@ -293,6 +293,8 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.logout": "Se déconnecter",
   "hud.return_to_title": "Retour écran titre",
   "hud.abilities": "Compétences",
+  "hud.materials": "Matériaux partagés",
+  "hud.materials.amount": "{material} : {amount}",
   "hud.map.title": "Val Verdoyant",
   "hud.map.you": "Vous",
   "hud.map.corpse": "Votre corps",
@@ -441,7 +443,17 @@ export const fr: Record<keyof typeof en, string> = {
   "resource.endurance": "Endurance",
   "resource.energy": "Énergie",
   "resource.mana": "MP",
+  "material.wood": "Bois",
+  "material.stone": "Pierre",
+  "material.iron": "Fer",
+  "material.meat": "Viande",
+  "material.short.wood": "B",
+  "material.short.stone": "P",
+  "material.short.iron": "F",
+  "material.short.meat": "V",
   "skill.mana_cost": "{cost} mana",
+  "skill.material_cost": "Coût : {cost}",
+  "skill.materials_insufficient": "Matériaux partagés insuffisants",
   "skill.disabled_on_map": "Désactivée sur cette carte",
   "help.move": "se déplacer",
   "help.strike": "frapper",

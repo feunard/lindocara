@@ -1,0 +1,71 @@
+import {
+  type PartyMaterialAmounts,
+  type PartyMaterials,
+  spendPartyMaterials,
+} from "./party-harvest-state.js";
+
+export const PEASANT_SUPPORT_SKILL_SLOTS = [4, 5] as const;
+export type PeasantSupportSkillSlot = (typeof PEASANT_SUPPORT_SKILL_SLOTS)[number];
+
+export type PeasantSupportSkillId = "makeshift_camp" | "homemade_bomb";
+
+export interface PeasantSupportSkillConfig {
+  id: PeasantSupportSkillId;
+  slot: PeasantSupportSkillSlot;
+  /** Party-wide stock spent atomically by the future authoritative server implementation. */
+  cost: Readonly<PartyMaterialAmounts>;
+  /** World-space effect radius. */
+  radius: number;
+  /** Camp lifetime for slot 4; fuse duration for slot 5. */
+  durationMs: number;
+  /** Modest total group heal for the camp; modest explosion damage for the bomb. */
+  power: number;
+}
+
+/**
+ * First Peasant support-loop contract.
+ *
+ * This is shared balance data only. The client may use it to explain affordability, but only the
+ * server may spend materials, create the camp/bomb, or apply healing and damage.
+ */
+export const PEASANT_SUPPORT_SKILLS: Readonly<
+  Record<PeasantSupportSkillSlot, PeasantSupportSkillConfig>
+> = {
+  4: {
+    id: "makeshift_camp",
+    slot: 4,
+    cost: { wood: 4, stone: 2, meat: 2 },
+    radius: 96,
+    durationMs: 12_000,
+    power: 14,
+  },
+  5: {
+    id: "homemade_bomb",
+    slot: 5,
+    cost: { iron: 2, stone: 2 },
+    radius: 72,
+    durationMs: 650,
+    power: 20,
+  },
+};
+
+export function isPeasantSupportSkillSlot(value: number): value is PeasantSupportSkillSlot {
+  return (PEASANT_SUPPORT_SKILL_SLOTS as readonly number[]).includes(value);
+}
+
+export function peasantSupportSkill(slot: number): PeasantSupportSkillConfig | null {
+  return isPeasantSupportSkillSlot(slot) ? PEASANT_SUPPORT_SKILLS[slot] : null;
+}
+
+/** Presentation-safe affordability. It never mutates or reserves stock. */
+export function canAffordPeasantSupportSkill(
+  materials: PartyMaterials | undefined,
+  slot: number,
+): boolean {
+  const config = peasantSupportSkill(slot);
+  return (
+    materials !== undefined &&
+    config !== null &&
+    spendPartyMaterials(materials, config.cost) !== null
+  );
+}
