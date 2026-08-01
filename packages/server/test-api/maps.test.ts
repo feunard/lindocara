@@ -325,10 +325,22 @@ describe("list, get, update, delete", () => {
       monsterSpeed: 0,
       monsterXp: 10_000,
       monsterWeaknessPercent: 0,
+      monsterAttackProfile: "arrow",
       monsterRespawnDelayMs: 75_000,
       pages: [wirePage()],
     };
-    const authored = await putMap(id, token, mapBody({ name: "Wolves", events: [monsterEvent] }));
+    const { monsterAttackProfile: _profile, ...legacyMonsterEvent } = {
+      ...monsterEvent,
+      id: crypto.randomUUID(),
+      col: 6,
+      name: "Legacy wolf",
+      ordinal: 2,
+    };
+    const authored = await putMap(
+      id,
+      token,
+      mapBody({ name: "Wolves", events: [monsterEvent, legacyMonsterEvent] }),
+    );
     expect(authored.status).toBe(200);
 
     const fetched = await authedFetch(`/api/maps/${id}`, token);
@@ -341,6 +353,7 @@ describe("list, get, update, delete", () => {
         monsterSpeed: number | null;
         monsterXp: number | null;
         monsterWeaknessPercent: number | null;
+        monsterAttackProfile?: string;
         monsterRespawnDelayMs: number;
       }[];
     };
@@ -352,10 +365,12 @@ describe("list, get, update, delete", () => {
       monsterSpeed: 0,
       monsterXp: 10_000,
       monsterWeaknessPercent: 0,
+      monsterAttackProfile: "arrow",
       monsterRespawnDelayMs: 75_000,
     });
     // Explicit zeroes must survive persistence instead of being replaced by species defaults.
     expect(payload.events[0]?.monsterMaxHp).toBe(0);
+    expect(payload.events[1]?.monsterAttackProfile).toBeUndefined();
 
     // The editor reuses that GET payload as its next PUT body without turning it into a 400.
     const editorSave = await putMap(id, token, payload);

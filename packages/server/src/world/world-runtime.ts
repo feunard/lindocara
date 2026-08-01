@@ -4,6 +4,7 @@ import {
   type PrimaryColor,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
+import { resolveMonsterAttackProfile } from "@lindocara/engine/combat-actions.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLES,
@@ -20,6 +21,7 @@ import {
   GUARD_MAX_HP,
   type GuardDefinition,
   MONSTER_RESPAWN_MS,
+  type MonsterAttackProfile,
   type MonsterKind,
   type MonsterRank,
   type MonsterRespawnMode,
@@ -387,6 +389,7 @@ export interface MonsterRuntime extends Vec2 {
   name: string;
   kind: MonsterKind;
   species: MonsterSpecies;
+  attackProfile: MonsterAttackProfile;
   graphicAssetId: EditorAssetId | null;
   rank: MonsterRank;
   spawnX: number;
@@ -798,6 +801,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
     return {
       ...spawn,
       name: spawn.name ?? "",
+      attackProfile: resolveMonsterAttackProfile(spawn.species, spawn.attackProfile),
       graphicAssetId: spawn.graphicAssetId ?? null,
       rank: tuning.rank,
       spawnX: spawn.x,

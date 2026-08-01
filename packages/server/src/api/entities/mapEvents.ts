@@ -16,7 +16,8 @@ import { maps } from "./maps.ts";
  * legacy's "must supply id or fail" behaviour, worth knowing about.
  *
  * Only `kind` is a DB-enforced enum in the legacy column (`text("kind", { enum: EVENT_KINDS })`).
- * `species`/`monsterRank`/`monsterWeakness`/`monsterSpecialTechnique`/`monsterRespawnMode` are all
+ * `species`/`monsterRank`/`monsterWeakness`/`monsterSpecialTechnique`/`monsterAttackProfile`/
+ * `monsterRespawnMode` are all
  * legacy `.$type<T>()` — TypeScript-only typing over a plain unconstrained TEXT column, no runtime
  * enum. That laxity is preserved here as `z.string()` rather than `z.enum(...)`: `MonsterSpecies`
  * has no exported `as const` literal tuple to build a real Zod enum from (only `CURATED_MONSTER_
@@ -49,6 +50,8 @@ export const mapEvents = $entity({
     monsterWeakness: z.string().optional(),
     monsterWeaknessPercent: z.integer().optional(),
     monsterSpecialTechnique: z.string().optional(),
+    /** Explicit basic-attack override; absent rows use the species' natural profile. */
+    monsterAttackProfile: z.string().optional(),
     monsterRespawnMode: z.string().optional(),
     monsterRespawnDelayMs: z.integer().optional(),
   }),

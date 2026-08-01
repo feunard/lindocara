@@ -430,6 +430,21 @@ describe("parseMapEvents: authored monster tuning", () => {
     });
     expect(parsed?.monsterRespawnMode).toBeUndefined();
     expect(parsed?.monsterRespawnDelayMs).toBe(MONSTER_RESPAWN_MS);
+    expect(parsed?.monsterAttackProfile).toBeUndefined();
+  });
+
+  it("accepts an explicit attack profile and rejects invalid or non-monster values", () => {
+    const archer = event({
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 64,
+      monsterAttackProfile: "arrow",
+    });
+    expect(parseMapEvents([archer], COLS, ROWS)?.[0]?.monsterAttackProfile).toBe("arrow");
+    expect(
+      parseMapEvents([{ ...archer, monsterAttackProfile: "laser" as "arrow" }], COLS, ROWS),
+    ).toBeNull();
+    expect(parseMapEvents([event({ monsterAttackProfile: "arrow" })], COLS, ROWS)).toBeNull();
   });
 
   it("accepts permanent death only on monster events", () => {

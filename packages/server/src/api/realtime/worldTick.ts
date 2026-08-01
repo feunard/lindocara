@@ -1602,7 +1602,7 @@ export function startMonsterAttack(
       : null;
   const definition = specialTechnique
     ? MONSTER_SPECIAL_ACTIONS[specialTechnique]
-    : monsterActionDefinition(monster.species, monster.graphicAssetId);
+    : monsterActionDefinition(monster.species, monster.attackProfile);
   const direction = normalizeDirection(
     { x: target.x - monster.x, y: target.y - monster.y },
     monster.facing,
@@ -1652,7 +1652,7 @@ export function resolveMonsterAction(
       ? action.skillId
       : null;
   const specialDefinition = specialTechnique ? MONSTER_SPECIAL_ACTIONS[specialTechnique] : null;
-  const definition = monsterActionDefinition(monster.species, monster.graphicAssetId);
+  const definition = monsterActionDefinition(monster.species, monster.attackProfile);
   if (!specialDefinition && isMonsterRangedAction(definition)) {
     const origin = projectileOrigin(monster, action.direction, definition.projectile.radius);
     spawnProjectile(w.state.projectiles, {

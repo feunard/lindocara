@@ -3,12 +3,14 @@ import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventu
 import {
   CURATED_MONSTER_SPECIES,
   defaultMonsterTuning,
+  MONSTER_ATTACK_PROFILES,
   MONSTER_RANKS,
   MONSTER_RESPAWN_DELAY_LIMITS,
   MONSTER_RESPAWN_MODES,
   MONSTER_RESPAWN_MS,
   MONSTER_TUNING_LIMITS,
   MONSTER_WEAKNESSES,
+  type MonsterAttackProfile,
   type MonsterRespawnMode,
   type MonsterSpecies,
   type MonsterTuning,
@@ -50,6 +52,7 @@ import {
   normalizeEventDraftConditions,
   setEventDraftGuardRadius,
   setEventDraftMonster,
+  setEventDraftMonsterAttackProfile,
   setEventDraftMonsterRespawnDelay,
   setEventDraftMonsterRespawnMode,
   setEventDraftName,
@@ -434,6 +437,7 @@ function MonsterEventFields({
   draft,
   errors,
   onChange,
+  onAttackProfileChange,
 }: {
   draft: MapEvent;
   errors: EventStatErrors;
@@ -444,6 +448,7 @@ function MonsterEventFields({
     respawnMode?: MonsterRespawnMode,
     respawnDelayMs?: number,
   ): void;
+  onAttackProfileChange(profile: MonsterAttackProfile | null): void;
 }) {
   const species = draft.species ?? CURATED_MONSTER_SPECIES[0] ?? "spear_goblin";
   const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
@@ -500,6 +505,28 @@ function MonsterEventFields({
             {MONSTER_RANKS.map((rank) => (
               <option key={rank} value={rank}>
                 {t(`editor.monster.rank.${rank}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </span>
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.monster.attackProfile")}
+          <FieldSelect
+            aria-label={t("editor.monster.attackProfile")}
+            className="h-8 text-sm"
+            value={draft.monsterAttackProfile ?? "natural"}
+            onChange={(event) =>
+              onAttackProfileChange(
+                event.currentTarget.value === "natural"
+                  ? null
+                  : (event.currentTarget.value as MonsterAttackProfile),
+              )
+            }
+          >
+            <option value="natural">{t("editor.monster.attackProfile.natural")}</option>
+            {MONSTER_ATTACK_PROFILES.map((profile) => (
+              <option key={profile} value={profile}>
+                {t(`editor.monster.attackProfile.${profile}`)}
               </option>
             ))}
           </FieldSelect>
@@ -876,6 +903,9 @@ export function EventDialog({
                     : setEventDraftMonsterRespawnDelay(withMode, respawnDelayMs),
                 );
               }}
+              onAttackProfileChange={(profile) =>
+                setDraft(setEventDraftMonsterAttackProfile(draft, profile))
+              }
             />
             <div className="rounded-lg border border-zinc-200 p-3">
               <p className="mb-2 text-xs text-muted-foreground">

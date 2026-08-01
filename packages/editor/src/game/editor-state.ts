@@ -5,6 +5,7 @@ import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-ca
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
   defaultMonsterTuning,
+  type MonsterAttackProfile,
   type MonsterRespawnMode,
   type MonsterSpecies,
   type MonsterTuning,
@@ -610,6 +611,17 @@ export function setEventDraftMonster(
     monsterWeaknessPercent: tuning.weaknessPercent,
     monsterSpecialTechnique: tuning.specialTechnique,
   };
+}
+
+/** Draft mutator for an explicit basic-attack override; `null` restores the species default. */
+export function setEventDraftMonsterAttackProfile(
+  draft: MapEvent,
+  monsterAttackProfile: MonsterAttackProfile | null,
+): MapEvent {
+  if (draft.kind !== "monster") return draft;
+  if (monsterAttackProfile !== null) return { ...draft, monsterAttackProfile };
+  const { monsterAttackProfile: _discarded, ...natural } = draft;
+  return natural;
 }
 
 /** Draft mutator for the encounter's authoritative death lifecycle. */

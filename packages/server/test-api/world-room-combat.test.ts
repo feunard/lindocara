@@ -23,6 +23,7 @@ import {
   ATTACK_COOLDOWN_MS,
   MONSTER_AGGRO_RANGE,
   MONSTER_RESPAWN_MS,
+  type MonsterSpawn,
   maxHpForLevel,
   pointDistance,
 } from "@lindocara/engine/game.js";
@@ -266,7 +267,7 @@ function seedMonster(
   id: string,
   x: number,
   y: number,
-  overrides: { maxHp?: number } = {},
+  overrides: Partial<Pick<MonsterSpawn, "maxHp" | "species" | "kind" | "attackProfile">> = {},
 ) {
   const [monster] = createMonsters([
     {
@@ -498,8 +499,10 @@ describe("world room combat (FakeClock)", () => {
     const target = playerOf(state, heroId);
     const t = Date.now() + 1_000;
     const { w } = testGlue(state, () => t);
-    const monster = seedMonster(state, "shaman-ranged", target.x - 180, target.y);
-    monster.species = "hex_shaman";
+    const monster = seedMonster(state, "shaman-ranged", target.x - 180, target.y, {
+      species: "hex_shaman",
+      kind: "shaman",
+    });
 
     startMonsterAttack(w, monster, target, t);
     const action = monster.action;
@@ -513,6 +516,36 @@ describe("world room combat (FakeClock)", () => {
         kind: "hex_orb",
         targetFilter: "players_and_guards",
         power: monster.damage,
+      }),
+    ]);
+    engine.dispose();
+  });
+
+  test("an explicit arrow profile fires an arrow regardless of appearance", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("profilearrow");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const target = playerOf(state, heroId);
+    const now = Date.now() + 1_000;
+    const { w } = testGlue(state, () => now);
+    const monster = seedMonster(state, "explicit-archer", target.x - 180, target.y, {
+      species: "spear_goblin",
+      attackProfile: "arrow",
+    });
+    monster.graphicAssetId = null;
+
+    startMonsterAttack(w, monster, target, now);
+    const action = monster.action;
+    if (!action) throw new Error("archer wind-up did not start");
+    resolveMonsterAction(w, monster, action, action.impactAt);
+
+    expect(state.projectiles).toEqual([
+      expect.objectContaining({
+        ownerId: monster.id,
+        kind: "arrow",
+        targetFilter: "players_and_guards",
       }),
     ]);
     engine.dispose();

@@ -66,6 +66,19 @@ describe("authored monster projection", () => {
     if (!definition) throw new Error("monster definition missing");
     const monster = createMonsters([definition])[0];
     expect(monster?.graphicAssetId).toBe(DEFAULT_NPC_MODEL_ASSET_ID);
+    expect(monster?.attackProfile).toBe("melee");
+  });
+
+  it("keeps appearance visual while projecting an explicit attack profile", () => {
+    const visualOnly = conditionalMonster();
+    const explicitArcher = { ...visualOnly, monsterAttackProfile: "arrow" as const };
+    const natural = activeAuthoredMonsterDefinitions([visualOnly], state({ "0076": true }))[0];
+    const archer = activeAuthoredMonsterDefinitions([explicitArcher], state({ "0076": true }))[0];
+    if (!natural || !archer) throw new Error("monster definition missing");
+
+    expect(natural.graphicAssetId).toBe(archer.graphicAssetId);
+    expect(createMonsters([natural])[0]?.attackProfile).toBe("melee");
+    expect(createMonsters([archer])[0]?.attackProfile).toBe("arrow");
   });
 
   it("preserves live combat state and removes encounters whose condition is withdrawn", () => {

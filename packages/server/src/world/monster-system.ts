@@ -62,7 +62,7 @@ function monsterAttackRange(monster: MonsterRuntime, now: number): number {
   if (monster.specialTechnique !== "none" && now >= monster.nextSpecialAt) {
     return MONSTER_SPECIAL_ACTIONS[monster.specialTechnique].range;
   }
-  return monsterActionDefinition(monster.species, monster.graphicAssetId).range;
+  return monsterActionDefinition(monster.species, monster.attackProfile).range;
 }
 
 export function abandonMonsterTarget(

@@ -18,6 +18,7 @@
 import { type EventCommand, parseEventCommands } from "./event-commands.js";
 import {
   defaultMonsterTuning,
+  isMonsterAttackProfile,
   isMonsterRank,
   isMonsterRespawnMode,
   isMonsterSpecialTechnique,
@@ -27,6 +28,7 @@ import {
   MONSTER_RESPAWN_DELAY_LIMITS,
   MONSTER_RESPAWN_MS,
   MONSTER_TUNING_LIMITS,
+  type MonsterAttackProfile,
   type MonsterRank,
   type MonsterRespawnMode,
   type MonsterSpecialTechnique,
@@ -229,6 +231,8 @@ export interface MapEvent {
   monsterWeakness?: MonsterWeakness | null;
   monsterWeaknessPercent?: number | null;
   monsterSpecialTechnique?: MonsterSpecialTechnique | null;
+  /** Missing means the species' natural basic attack. Never inferred from a page graphic. */
+  monsterAttackProfile?: MonsterAttackProfile | null;
   /** Missing on legacy maps means the historical timed respawn. Non-monster events keep `null`. */
   monsterRespawnMode?: MonsterRespawnMode | null;
   /** Timed respawn delay in milliseconds. Ignored while permanent death is selected. */
@@ -544,6 +548,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     let monsterWeakness: MonsterWeakness | null = null;
     let monsterWeaknessPercent: number | null = null;
     let monsterSpecialTechnique: MonsterSpecialTechnique | null = null;
+    let monsterAttackProfile: MonsterAttackProfile | undefined;
     let monsterRespawnMode: MonsterRespawnMode | undefined;
     let monsterRespawnDelayMs: number | undefined;
     if (kind === "monster" || kind === "npc") {
@@ -562,12 +567,16 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       const rank = record.monsterRank ?? defaults.rank;
       const weakness = record.monsterWeakness ?? defaults.weakness;
       const specialTechnique = record.monsterSpecialTechnique ?? defaults.specialTechnique;
+      const attackProfile = record.monsterAttackProfile ?? null;
       const respawnMode = record.monsterRespawnMode;
       const respawnDelayMs = record.monsterRespawnDelayMs ?? MONSTER_RESPAWN_MS;
       if (
         !isMonsterRank(rank) ||
         !isMonsterWeakness(weakness) ||
         !isMonsterSpecialTechnique(specialTechnique) ||
+        (isMonster
+          ? attackProfile !== null && !isMonsterAttackProfile(attackProfile)
+          : attackProfile !== null) ||
         !isMonsterSpecialTechniqueForSpecies(species ?? "spear_goblin", specialTechnique) ||
         (isMonster
           ? respawnMode !== undefined && !isMonsterRespawnMode(respawnMode)
@@ -582,6 +591,8 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       monsterRank = rank;
       monsterWeakness = weakness;
       monsterSpecialTechnique = specialTechnique;
+      if (isMonster && attackProfile !== null)
+        monsterAttackProfile = attackProfile as MonsterAttackProfile;
       if (isMonster) {
         monsterRespawnMode = respawnMode as MonsterRespawnMode | undefined;
         monsterRespawnDelayMs = respawnDelayMs as number;
@@ -630,6 +641,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         (record.monsterWeakness !== undefined && record.monsterWeakness !== null) ||
         (record.monsterWeaknessPercent !== undefined && record.monsterWeaknessPercent !== null) ||
         (record.monsterSpecialTechnique !== undefined && record.monsterSpecialTechnique !== null) ||
+        (record.monsterAttackProfile !== undefined && record.monsterAttackProfile !== null) ||
         (record.monsterRespawnMode !== undefined && record.monsterRespawnMode !== null) ||
         (record.monsterRespawnDelayMs !== undefined && record.monsterRespawnDelayMs !== null)
       ) {
@@ -646,6 +658,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       (record.monsterWeakness !== undefined && record.monsterWeakness !== null) ||
       (record.monsterWeaknessPercent !== undefined && record.monsterWeaknessPercent !== null) ||
       (record.monsterSpecialTechnique !== undefined && record.monsterSpecialTechnique !== null) ||
+      (record.monsterAttackProfile !== undefined && record.monsterAttackProfile !== null) ||
       (record.monsterRespawnMode !== undefined && record.monsterRespawnMode !== null) ||
       (record.monsterRespawnDelayMs !== undefined && record.monsterRespawnDelayMs !== null)
     ) {
@@ -713,6 +726,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       monsterWeakness,
       monsterWeaknessPercent,
       monsterSpecialTechnique,
+      ...(monsterAttackProfile === undefined ? {} : { monsterAttackProfile }),
       ...(monsterRespawnMode === undefined ? {} : { monsterRespawnMode }),
       ...(monsterRespawnDelayMs === undefined ? {} : { monsterRespawnDelayMs }),
       pages: parsedPages,

@@ -139,20 +139,18 @@ describe("directional class kit contract", () => {
     }
   });
 
-  it("uses natural ranged attacks for shamans and authored ranged models", () => {
+  it("uses natural species attacks and only explicit authored profile overrides", () => {
     expect(monsterActionDefinition("hex_shaman", null)).toMatchObject({
       range: 280,
       projectile: { kind: "hex_orb" },
     });
-    expect(
-      monsterActionDefinition("spear_goblin", "character.units-blue-units-archer.archer-idle"),
-    ).toMatchObject({ range: 300, projectile: { kind: "arrow" } });
-    expect(
-      monsterActionDefinition(
-        "spear_goblin",
-        "enemy.enemy-pack-enemies-pirate-fish-harpoon-shark.harpoon-shark-idle",
-      ),
-    ).toMatchObject({ projectile: { kind: "enemy_harpoon" } });
+    expect(monsterActionDefinition("spear_goblin", "arrow")).toMatchObject({
+      range: 300,
+      projectile: { kind: "arrow" },
+    });
+    expect(monsterActionDefinition("spear_goblin", "harpoon")).toMatchObject({
+      projectile: { kind: "enemy_harpoon" },
+    });
     expect(monsterActionDefinition("spear_goblin", null)).toBe(MONSTER_ACTIONS.spear_goblin);
   });
 

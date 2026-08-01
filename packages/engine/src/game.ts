@@ -104,6 +104,19 @@ export type MonsterSpecies =
   | "war_pig"
   | "pig_rider";
 
+/**
+ * Authoritative basic-attack behaviour. This is deliberately independent from catalogue artwork:
+ * `graphicAssetId` may change how a monster looks, never how it fights.
+ */
+export const MONSTER_ATTACK_PROFILES = ["melee", "arrow", "hex", "harpoon", "bomb"] as const;
+export type MonsterAttackProfile = (typeof MONSTER_ATTACK_PROFILES)[number];
+
+export function isMonsterAttackProfile(value: unknown): value is MonsterAttackProfile {
+  return (
+    typeof value === "string" && (MONSTER_ATTACK_PROFILES as readonly string[]).includes(value)
+  );
+}
+
 /** One authored field (species) decides the stats row (kind). Markers store only the species. */
 export const MONSTER_SPECIES_KIND: Record<MonsterSpecies, MonsterKind> = {
   spear_goblin: "goblin",
@@ -255,6 +268,8 @@ export interface MonsterSpawn extends Vec2 {
   weakness?: MonsterWeakness;
   weaknessPercent?: number;
   specialTechnique?: MonsterSpecialTechnique;
+  /** Explicit basic-attack override. Missing means the species' natural profile. */
+  attackProfile?: MonsterAttackProfile;
   /** Authored encounters may stay defeated for this party's entire save. Catalogue spawns default
    *  to the historical timed respawn. */
   respawnMode?: MonsterRespawnMode;

@@ -6,6 +6,7 @@
  * persistence or mutable module state.
  */
 import { activePageIndex, type PartyAdventureState } from "@lindocara/engine/adventure-state.js";
+import { resolveMonsterAttackProfile } from "@lindocara/engine/combat-actions.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "@lindocara/engine/game.js";
 import { eventCellCentre, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
 import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
@@ -25,6 +26,7 @@ export function authoredMonsterDefinition(event: MapEvent, pageIndex = 0): Monst
     ...eventCellCentre(event),
     patrolRadius: event.patrolRadius,
     graphicAssetId: event.pages[pageIndex]?.graphicAssetId ?? null,
+    ...(event.monsterAttackProfile ? { attackProfile: event.monsterAttackProfile } : {}),
     ...(event.monsterRank ? { rank: event.monsterRank } : {}),
     ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
       ? {}
@@ -83,6 +85,7 @@ export function reconcileActiveMonsters(
       spawnX: definition.x,
       spawnY: definition.y,
       patrolRadius: definition.patrolRadius,
+      attackProfile: resolveMonsterAttackProfile(definition.species, definition.attackProfile),
       graphicAssetId: definition.graphicAssetId ?? null,
       respawnMode: definition.respawnMode ?? "timed",
       respawnDelayMs: definition.respawnDelayMs ?? existing.respawnDelayMs,

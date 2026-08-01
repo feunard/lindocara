@@ -299,6 +299,11 @@ describe("EventDialog", () => {
 
     // Every non-negative authored value is valid, including stationary/harmless tuning.
     expect(screen.getByRole("combobox", { name: t("editor.markers.species") })).toBeInTheDocument();
+    const attackProfile = screen.getByRole("combobox", {
+      name: t("editor.monster.attackProfile"),
+    });
+    expect(attackProfile).toHaveValue("natural");
+    await user.selectOptions(attackProfile, "arrow");
     const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
     await user.clear(radius);
     await user.type(radius, "0");
@@ -341,6 +346,7 @@ describe("EventDialog", () => {
     expect(committed.monsterSpeed).toBe(0);
     expect(committed.monsterXp).toBe(10_000);
     expect(committed.monsterWeaknessPercent).toBe(0);
+    expect(committed.monsterAttackProfile).toBe("arrow");
     expect(committed.monsterRespawnMode).toBe("never");
     expect(committed.monsterRespawnDelayMs).toBe(75_000);
     // A functional event stays single-page — the wire parser refuses extra pages.

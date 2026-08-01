@@ -1,4 +1,4 @@
-import type { MonsterSpecies, PlayerClass } from "./game.js";
+import type { MonsterAttackProfile, MonsterSpecies, PlayerClass } from "./game.js";
 import type { ProjectileKind } from "./protocol.js";
 
 export type DirectionalActionShape =
@@ -277,24 +277,45 @@ const MONSTER_RANGED_ACTIONS = {
     hitboxRadius: 0,
     projectile: { kind: "enemy_bomb", speed: 330, radius: 10, pierce: 0 },
   },
-} as const satisfies Readonly<Record<string, MonsterRangedActionDefinition>>;
+} as const satisfies Readonly<
+  Record<Exclude<MonsterAttackProfile, "melee">, MonsterRangedActionDefinition>
+>;
+
+/** Species defaults are gameplay data; artwork is intentionally absent from this table. */
+export const NATURAL_MONSTER_ATTACK_PROFILES: Readonly<
+  Record<MonsterSpecies, MonsterAttackProfile>
+> = {
+  spear_goblin: "melee",
+  torch_goblin: "melee",
+  gnoll_marauder: "melee",
+  skull_guard: "melee",
+  skull_crusader: "melee",
+  skull_warden: "melee",
+  minotaur_brute: "melee",
+  mire_troll: "melee",
+  gate_troll: "melee",
+  hex_shaman: "hex",
+  war_pig: "melee",
+  pig_rider: "melee",
+};
+
+export function resolveMonsterAttackProfile(
+  species: MonsterSpecies,
+  configured?: MonsterAttackProfile | null,
+): MonsterAttackProfile {
+  return configured ?? NATURAL_MONSTER_ATTACK_PROFILES[species];
+}
 
 /**
- * Resolves the authored model's natural attack without trusting the client or duplicating combat
- * tuning in the editor. The built-in Hex Shaman is ranged even when it uses its species artwork;
- * catalogue actors opt in through their stable model id.
+ * Resolves one species/profile pair without trusting client-authored outcomes or duplicating combat
+ * tuning in the editor. A missing profile keeps the species' natural attack.
  */
 export function monsterActionDefinition(
   species: MonsterSpecies,
-  graphicAssetId: string | null,
+  configured?: MonsterAttackProfile | null,
 ): MonsterActionDefinition | MonsterRangedActionDefinition {
-  const model = graphicAssetId?.toLowerCase() ?? "";
-  if (species === "hex_shaman" || /(?:^|[./-])(?:hex-)?shaman(?:[./-]|$)/.test(model))
-    return MONSTER_RANGED_ACTIONS.hex;
-  if (/(?:^|[./-])archer(?:[./-]|$)/.test(model)) return MONSTER_RANGED_ACTIONS.arrow;
-  if (/(?:^|[./-])harpoon(?:[./-]|$)/.test(model)) return MONSTER_RANGED_ACTIONS.harpoon;
-  if (/(?:^|[./-])bomb-fish(?:[./-]|$)/.test(model)) return MONSTER_RANGED_ACTIONS.bomb;
-  return MONSTER_ACTIONS[species];
+  const profile = resolveMonsterAttackProfile(species, configured);
+  return profile === "melee" ? MONSTER_ACTIONS[species] : MONSTER_RANGED_ACTIONS[profile];
 }
 
 export function isMonsterRangedAction(

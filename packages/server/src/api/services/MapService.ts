@@ -26,7 +26,11 @@ import {
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
-import { defaultMonsterTuning, type MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  defaultMonsterTuning,
+  type MonsterAttackProfile,
+  type MonsterSpecies,
+} from "@lindocara/engine/game.js";
 import { EMPTY_MARKERS, type MapElement } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
@@ -83,9 +87,10 @@ const D1_BOUND_PARAM_BUDGET = 90;
 export const MAP_ELEMENT_COLUMNS = 8;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
- *  monsterSpecialTechnique, monsterRespawnMode, monsterRespawnDelayMs. Exported — see
+ *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs.
+ *  Exported — see
  *  `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_COLUMNS = 20;
+export const MAP_EVENT_COLUMNS = 21;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, graphicTint, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix,
  *  optThrough, optOnTop, trigger, moveRoute, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s
@@ -464,6 +469,7 @@ export class MapService {
         monsterWeakness: event.monsterWeakness ?? undefined,
         monsterWeaknessPercent: event.monsterWeaknessPercent ?? undefined,
         monsterSpecialTechnique: event.monsterSpecialTechnique ?? undefined,
+        monsterAttackProfile: event.monsterAttackProfile ?? undefined,
         monsterRespawnMode: event.monsterRespawnMode ?? undefined,
         monsterRespawnDelayMs: event.monsterRespawnDelayMs ?? undefined,
       })),
@@ -583,6 +589,9 @@ export class MapService {
           monsterSpecialTechnique: isTuned
             ? (row.monsterSpecialTechnique ?? tuning?.specialTechnique ?? null)
             : null,
+          ...(isMonster && row.monsterAttackProfile != null
+            ? { monsterAttackProfile: row.monsterAttackProfile as MonsterAttackProfile }
+            : {}),
           ...(isMonster && row.monsterRespawnMode != null
             ? { monsterRespawnMode: row.monsterRespawnMode }
             : {}),
