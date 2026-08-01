@@ -254,6 +254,7 @@
   overflow-x: auto;
   scroll-snap-type: x mandatory;
 }
+
 .carousel-card,
 .class-card {
   scroll-snap-align: center;
@@ -315,6 +316,38 @@
 .carousel-card:focus-visible,
 .class-card:focus-visible {
   outline: none;
+}
+
+/* Five classes must remain visible on a laptop-sized viewport. The original flex row was sized
+   for four fixed-width cards, so adding the Peasant left its label beyond the initial scroll
+   position. Keep adventure/party carousels scrollable, but let the finite class roster share the
+   available row width. Very narrow screens retain the swipeable carousel below. */
+.class-track {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 12rem));
+  justify-content: center;
+  width: min(92vw, 68rem);
+  gap: clamp(0.5rem, 1.5vw, 1.5rem);
+  overflow-x: visible;
+}
+
+.class-track .class-card {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 44rem) {
+  .class-track {
+    display: flex;
+    justify-content: flex-start;
+    width: 92vw;
+    gap: 0.75rem;
+    overflow-x: auto;
+  }
+
+  .class-track .class-card {
+    width: min(11rem, 76vw);
+  }
 }
 
 .carousel-screen__back,
