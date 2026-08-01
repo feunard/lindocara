@@ -116,6 +116,7 @@ import {
   EMPTY_PARTY_MATERIALS,
   type PartyMaterialAmounts,
 } from "@lindocara/engine/party-harvest-state.js";
+import { mergePeasantMaterialRewards } from "@lindocara/engine/peasant.js";
 import type {
   ClientMessage,
   QuestDialogueEntry,
@@ -213,7 +214,9 @@ import {
   expirePeasantCarry,
   grantPeasantCarry,
   type PeasantHarvestJob,
-  selectPeasantHarvestTarget,
+  type PeasantHarvestJobTarget,
+  revalidatePeasantHarvestTarget,
+  selectPeasantHarvestTargets,
 } from "../../world/peasant-harvest-system.js";
 import {
   advancePolarityOrbs,
@@ -3266,7 +3269,7 @@ export function resolvePlayerAction(
       }
     }
     if (player.class === "peasant") {
-      const harvestTarget = selectPeasantHarvestTarget({
+      const harvestTargets = selectPeasantHarvestTargets({
         player,
         slot: slot as SkillSlot,
         direction: action.direction,
@@ -3282,13 +3285,13 @@ export function resolvePlayerAction(
         },
         now,
       });
-      if (harvestTarget) {
+      if (harvestTargets.length > 0) {
         const job = createPeasantHarvestJob({
           player,
           connectionId,
           slot: slot as SkillSlot,
           direction: action.direction,
-          target: harvestTarget,
+          targets: harvestTargets,
           now,
         });
         // One job per hero: a later accepted harvest action replaces the older channel, never
@@ -3599,19 +3602,23 @@ export function resolvePlayerAction(
 function harvestTargetForJob(
   w: WorldGlue,
   job: PeasantHarvestJob,
+  target: PeasantHarvestJobTarget,
   now: number,
-): ReturnType<typeof selectPeasantHarvestTarget> {
+): ReturnType<typeof revalidatePeasantHarvestTarget> {
   const player = playerById(w.state, job.heroId);
   if (!player || connectionOf(w.state, player.id) !== job.connectionId) return null;
   const skill = configuredSkill(w, player, job.slot);
   const definition = actionForClassSlot(player.class, job.slot);
   if (definition.shape !== "arc") return null;
-  return selectPeasantHarvestTarget({
+  return revalidatePeasantHarvestTarget({
     player,
     slot: job.slot,
     direction: job.direction,
     skillRange: skill.range,
     halfAngleRadians: definition.halfAngleRadians ?? Math.PI / 3,
+    areaCenter: job.areaCenter,
+    areaRadius: job.areaRadius,
+    target,
     view: {
       zoneId: w.state.location?.zoneId ?? zone(w.state).id,
       events: zone(w.state).events ?? [],
@@ -3621,8 +3628,11 @@ function harvestTargetForJob(
       terrain: zone(w.state).terrain,
     },
     now,
-    requiredTarget: job,
   });
+}
+
+function harvestJobHasValidTarget(w: WorldGlue, job: PeasantHarvestJob, now: number): boolean {
+  return job.targets.some((target) => harvestTargetForJob(w, job, target, now) !== null);
 }
 
 function removeHarvestJobIfCurrent(w: WorldGlue, job: PeasantHarvestJob): void {
@@ -3630,65 +3640,89 @@ function removeHarvestJobIfCurrent(w: WorldGlue, job: PeasantHarvestJob): void {
 }
 
 async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Promise<void> {
-  let reservationId: string | null = null;
+  const actor = playerById(w.state, job.heroId);
+  if (!actor || w.state.harvestJobs.get(job.heroId) !== job) return;
+  let materialReward: PartyMaterialAmounts = {};
+  let goldValue = 0;
+  let rewarded = false;
   try {
-    const target = harvestTargetForJob(w, job, w.deps.now());
-    if (!target || w.state.harvestJobs.get(job.heroId) !== job) return;
-    const materialReward: PartyMaterialAmounts =
-      target.profile.resource === "gold"
-        ? {}
-        : { [target.profile.resource]: target.profile.yieldAmount };
-    const reserved = await w.deps.reserveHarvestNode({
-      heroId: job.heroId,
-      eventId: job.nodeId,
-      generation: job.generation,
-      requiredHits: target.profile.hitsRequired,
-      reward: materialReward,
-      goldValue: target.profile.goldValue,
-      respawnDelayMs: target.profile.respawn === "timed" ? target.profile.respawnDelayMs : null,
-    });
-    if (!reserved.ok) return;
-    reservationId = reserved.reservationId;
+    for (const target of job.targets) {
+      if (w.state.harvestJobs.get(job.heroId) !== job) break;
+      let reservationId: string | null = null;
+      try {
+        const liveTarget = harvestTargetForJob(w, job, target, w.deps.now());
+        if (!liveTarget) continue;
+        const reserved = await w.deps.reserveHarvestNode({
+          heroId: job.heroId,
+          eventId: target.nodeId,
+          generation: target.generation,
+          requiredHits: target.plan.hitsRequired,
+          reward: target.plan.materialReward,
+          goldValue: target.plan.goldValue,
+          respawnDelayMs:
+            liveTarget.profile.respawn === "timed" ? liveTarget.profile.respawnDelayMs : null,
+        });
+        if (!reserved.ok) continue;
+        reservationId = reserved.reservationId;
 
-    // The coordinator round-trip can outlive a movement, disconnect, map transition or page
-    // change. Revalidate every authoritative condition immediately before spending its token.
-    const currentTarget = harvestTargetForJob(w, job, w.deps.now());
-    if (!currentTarget || w.state.harvestJobs.get(job.heroId) !== job) {
-      await w.deps.cancelHarvestNode({
-        heroId: job.heroId,
-        eventId: job.nodeId,
-        reservationId,
-      });
-      reservationId = null;
-      return;
+        // Every target owns a distinct coordinator token. Revalidate tool, range/area, LOS,
+        // generation and live state after that await; a movement or disconnect deletes the whole
+        // job and stops all targets that have not yet spent their token.
+        const currentTarget = harvestTargetForJob(w, job, target, w.deps.now());
+        if (!currentTarget || w.state.harvestJobs.get(job.heroId) !== job) {
+          await w.deps.cancelHarvestNode({
+            heroId: job.heroId,
+            eventId: target.nodeId,
+            reservationId,
+          });
+          reservationId = null;
+          if (w.state.harvestJobs.get(job.heroId) !== job) break;
+          continue;
+        }
+
+        const hit = await w.deps.hitHarvestNode({
+          heroId: job.heroId,
+          eventId: target.nodeId,
+          reservationId,
+        });
+        reservationId = null;
+        if (!hit.ok || !hit.rewarded) {
+          if (w.state.harvestJobs.get(job.heroId) !== job) break;
+          continue;
+        }
+        if (hit.goldValue > 0) {
+          // The actor captures the admission epoch. A disconnect after the coordinator committed
+          // depletion may stop later targets, but cannot turn this already-earned gold into an
+          // unfenced or silently-lost credit.
+          if (
+            !(await w.deps.claimHarvestGold(
+              actor,
+              target.nodeId,
+              hit.node.generation,
+              hit.goldValue,
+            ))
+          ) {
+            if (w.state.harvestJobs.get(job.heroId) !== job) break;
+            continue;
+          }
+          goldValue += hit.goldValue;
+        } else {
+          materialReward = mergePeasantMaterialRewards(materialReward, target.plan.materialReward);
+        }
+        rewarded = true;
+        if (w.state.harvestJobs.get(job.heroId) !== job) break;
+      } finally {
+        if (reservationId) {
+          await w.deps.cancelHarvestNode({
+            heroId: job.heroId,
+            eventId: target.nodeId,
+            reservationId,
+          });
+        }
+      }
     }
-    // Keep the epoch-bearing actor through the coordinator hit. A disconnect after the hit has
-    // exhausted the node must not silently drop its gold reward; the SQL claim still re-fences on
-    // this actor's epoch, and WorldRoom serializes it with the final absolute hero save.
-    const actor = playerById(w.state, job.heroId);
-    if (!actor) return;
-    const hit = await w.deps.hitHarvestNode({
-      heroId: job.heroId,
-      eventId: job.nodeId,
-      reservationId,
-    });
-    reservationId = null;
-    if (!hit.ok || !hit.rewarded) return;
-    if (
-      hit.goldValue > 0 &&
-      !(await w.deps.claimHarvestGold(actor, job.nodeId, hit.node.generation, hit.goldValue))
-    ) {
-      return;
-    }
-    grantPeasantCarry(actor, materialReward, hit.goldValue, w.deps.now());
+    if (rewarded) grantPeasantCarry(actor, materialReward, goldValue, w.deps.now());
   } finally {
-    if (reservationId) {
-      await w.deps.cancelHarvestNode({
-        heroId: job.heroId,
-        eventId: job.nodeId,
-        reservationId,
-      });
-    }
     removeHarvestJobIfCurrent(w, job);
   }
 }
@@ -3696,7 +3730,7 @@ async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Pr
 export function advancePeasantHarvestJobs(w: WorldGlue, now: number): void {
   for (const job of w.state.harvestJobs.values()) {
     if (job.committing || now < job.completesAt) continue;
-    if (!harvestTargetForJob(w, job, now)) {
+    if (!harvestJobHasValidTarget(w, job, now)) {
       removeHarvestJobIfCurrent(w, job);
       continue;
     }
@@ -3707,7 +3741,11 @@ export function advancePeasantHarvestJobs(w: WorldGlue, now: number): void {
 
 export function pruneInvalidPeasantHarvestJobs(w: WorldGlue, now: number): void {
   for (const job of w.state.harvestJobs.values()) {
-    if (!harvestTargetForJob(w, job, now)) removeHarvestJobIfCurrent(w, job);
+    // A hit may synchronously push its own depleted-node snapshot back into this room while the
+    // same area job still has valid targets to commit. The commit loop revalidates each remaining
+    // target itself, so pruning a committing job here would mistake its own success for a cancel.
+    if (job.committing) continue;
+    if (!harvestJobHasValidTarget(w, job, now)) removeHarvestJobIfCurrent(w, job);
   }
 }
 

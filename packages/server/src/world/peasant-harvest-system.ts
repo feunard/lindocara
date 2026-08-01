@@ -15,8 +15,10 @@ import {
   type PartyMaterialAmounts,
   refreshHarvestNode,
 } from "@lindocara/engine/party-harvest-state.js";
+import { type PeasantHarvestPlan, resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
 import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
+import { peasantTalentEffects } from "@lindocara/engine/talents.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
@@ -38,17 +40,30 @@ export interface PeasantHarvestTarget {
   profile: HarvestProfile;
 }
 
+export interface PlannedPeasantHarvestTarget extends PeasantHarvestTarget {
+  primary: boolean;
+  plan: PeasantHarvestPlan;
+}
+
+export interface PeasantHarvestJobTarget {
+  primary: boolean;
+  targetKind: HarvestTargetKind;
+  targetRuntimeId: string;
+  nodeId: string;
+  generation: number;
+  plan: PeasantHarvestPlan;
+}
+
 export interface PeasantHarvestJob {
   id: string;
   heroId: string;
   connectionId: string;
   slot: SkillSlot;
   tool: HarvestTool;
-  targetKind: HarvestTargetKind;
-  targetRuntimeId: string;
-  nodeId: string;
-  generation: number;
   direction: Vec2;
+  areaCenter: Vec2;
+  areaRadius: number;
+  targets: PeasantHarvestJobTarget[];
   startedAt: number;
   completesAt: number;
   committing: boolean;
@@ -212,10 +227,6 @@ export function selectPeasantHarvestTarget(input: {
   halfAngleRadians: number;
   view: PeasantHarvestView;
   now: number;
-  requiredTarget?: Pick<
-    PeasantHarvestJob,
-    "targetKind" | "targetRuntimeId" | "nodeId" | "generation"
-  >;
 }): PeasantHarvestTarget | null {
   const tool = peasantHarvestTool(input.player, input.slot);
   if (
@@ -227,25 +238,17 @@ export function selectPeasantHarvestTarget(input: {
     return null;
   }
   const candidates = peasantHarvestTargets(input.view, input.now)
-    .filter((target) => {
-      const required = input.requiredTarget;
-      return (
-        (!required ||
-          (target.kind === required.targetKind &&
-            target.runtimeId === required.targetRuntimeId &&
-            target.nodeId === required.nodeId &&
-            target.generation === required.generation)) &&
-        targetMatchesAction(
-          input.player,
-          input.direction,
-          tool,
-          input.skillRange,
-          input.halfAngleRadians,
-          target,
-          input.view.terrain,
-        )
-      );
-    })
+    .filter((target) =>
+      targetMatchesAction(
+        input.player,
+        input.direction,
+        tool,
+        input.skillRange,
+        input.halfAngleRadians,
+        target,
+        input.view.terrain,
+      ),
+    )
     .sort((left, right) => {
       const leftDistance = Math.hypot(
         left.position.x - input.player.x,
@@ -260,28 +263,176 @@ export function selectPeasantHarvestTarget(input: {
   return candidates[0] ?? null;
 }
 
+/**
+ * Resolve one accepted tool swing into a deterministic, bounded target list. The ordinary frontal
+ * action chooses the primary node; an explicit area talent may then add compatible nodes around
+ * that primary impact. Asset names never participate, and every candidate must remain visible
+ * from the authoritative player position.
+ */
+export function selectPeasantHarvestTargets(input: {
+  player: PlayerRuntime;
+  slot: SkillSlot;
+  direction: Vec2;
+  skillRange: number;
+  halfAngleRadians: number;
+  view: PeasantHarvestView;
+  now: number;
+}): PlannedPeasantHarvestTarget[] {
+  const primary = selectPeasantHarvestTarget(input);
+  if (!primary) return [];
+  const tool = peasantHarvestTool(input.player, input.slot);
+  if (!tool) return [];
+  const effects = peasantTalentEffects(input.player.talents, input.slot);
+  const primaryPlan = resolvePeasantHarvestPlan(primary.profile, effects);
+  const plannedPrimary: PlannedPeasantHarvestTarget = {
+    ...primary,
+    primary: true,
+    plan: primaryPlan,
+  };
+  if (primaryPlan.areaRadius <= 0 || primaryPlan.maximumTargets <= 1) return [plannedPrimary];
+
+  const playerCenter = {
+    x: input.player.x + PLAYER_SIZE / 2,
+    y: input.player.y + PLAYER_SIZE / 2,
+  };
+  const additional = peasantHarvestTargets(input.view, input.now)
+    .filter(
+      (target) =>
+        target.nodeId !== primary.nodeId &&
+        target.profile.tool === tool &&
+        Math.hypot(
+          target.position.x - primary.position.x,
+          target.position.y - primary.position.y,
+        ) <= primaryPlan.areaRadius &&
+        hasLineOfSight(playerCenter, target.position, input.view.terrain.tiles, 0),
+    )
+    .sort((left, right) => {
+      const leftDistance = Math.hypot(
+        left.position.x - primary.position.x,
+        left.position.y - primary.position.y,
+      );
+      const rightDistance = Math.hypot(
+        right.position.x - primary.position.x,
+        right.position.y - primary.position.y,
+      );
+      return leftDistance - rightDistance || left.nodeId.localeCompare(right.nodeId);
+    })
+    .slice(0, primaryPlan.maximumTargets - 1)
+    .map(
+      (target): PlannedPeasantHarvestTarget => ({
+        ...target,
+        primary: false,
+        plan: resolvePeasantHarvestPlan(target.profile, effects),
+      }),
+    );
+  return [plannedPrimary, ...additional];
+}
+
+/** Revalidate one captured job target against live state without reselecting a different node. */
+export function revalidatePeasantHarvestTarget(input: {
+  player: PlayerRuntime;
+  slot: SkillSlot;
+  direction: Vec2;
+  skillRange: number;
+  halfAngleRadians: number;
+  areaCenter: Vec2;
+  areaRadius: number;
+  target: PeasantHarvestJobTarget;
+  view: PeasantHarvestView;
+  now: number;
+}): PeasantHarvestTarget | null {
+  const tool = peasantHarvestTool(input.player, input.slot);
+  if (
+    !tool ||
+    !input.player.authorized ||
+    input.player.transitioning ||
+    input.player.life !== "alive"
+  ) {
+    return null;
+  }
+  const target = peasantHarvestTargets(input.view, input.now).find(
+    (candidate) =>
+      candidate.kind === input.target.targetKind &&
+      candidate.runtimeId === input.target.targetRuntimeId &&
+      candidate.nodeId === input.target.nodeId &&
+      candidate.generation === input.target.generation,
+  );
+  if (!target || target.profile.tool !== tool) return null;
+  if (input.target.primary) {
+    return targetMatchesAction(
+      input.player,
+      input.direction,
+      tool,
+      input.skillRange,
+      input.halfAngleRadians,
+      target,
+      input.view.terrain,
+    )
+      ? target
+      : null;
+  }
+  const playerCenter = {
+    x: input.player.x + PLAYER_SIZE / 2,
+    y: input.player.y + PLAYER_SIZE / 2,
+  };
+  return Math.hypot(
+    target.position.x - input.areaCenter.x,
+    target.position.y - input.areaCenter.y,
+  ) <= input.areaRadius &&
+    hasLineOfSight(playerCenter, target.position, input.view.terrain.tiles, 0)
+    ? target
+    : null;
+}
+
 export function createPeasantHarvestJob(input: {
   player: PlayerRuntime;
   connectionId: string;
   slot: SkillSlot;
   direction: Vec2;
-  target: PeasantHarvestTarget;
+  target?: PeasantHarvestTarget;
+  targets?: readonly PlannedPeasantHarvestTarget[];
   now: number;
 }): PeasantHarvestJob | null {
   const tool = peasantHarvestTool(input.player, input.slot);
-  const completesAt = input.now + input.target.profile.harvestDurationMs;
-  if (!tool || !Number.isSafeInteger(completesAt)) return null;
+  const effects = peasantTalentEffects(input.player.talents, input.slot);
+  const plannedTargets =
+    input.targets ??
+    (input.target
+      ? [
+          {
+            ...input.target,
+            primary: true,
+            plan: resolvePeasantHarvestPlan(input.target.profile, effects),
+          },
+        ]
+      : []);
+  const primary = plannedTargets[0];
+  if (!tool || !primary || plannedTargets.length > primary.plan.maximumTargets) return null;
+  const completesAt =
+    input.now + Math.max(...plannedTargets.map((target) => target.plan.harvestDurationMs));
+  if (!Number.isSafeInteger(completesAt)) return null;
   return {
     id: crypto.randomUUID(),
     heroId: input.player.id,
     connectionId: input.connectionId,
     slot: input.slot,
     tool,
-    targetKind: input.target.kind,
-    targetRuntimeId: input.target.runtimeId,
-    nodeId: input.target.nodeId,
-    generation: input.target.generation,
     direction: { ...input.direction },
+    areaCenter: { ...primary.position },
+    areaRadius: primary.plan.areaRadius,
+    targets: plannedTargets.map((target) => ({
+      primary: target.primary,
+      targetKind: target.kind,
+      targetRuntimeId: target.runtimeId,
+      nodeId: target.nodeId,
+      generation: target.generation,
+      plan: {
+        ...target.plan,
+        primaryMaterialReward: { ...target.plan.primaryMaterialReward },
+        bonusMaterialReward: { ...target.plan.bonusMaterialReward },
+        materialReward: { ...target.plan.materialReward },
+      },
+    })),
     startedAt: input.now,
     completesAt,
     committing: false,

@@ -1,7 +1,11 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
-import { type HarvestProfile, PEASANT_CARRY_DURATION_MS } from "@lindocara/engine/harvest.js";
+import {
+  HARVEST_PROFILE_LIMITS,
+  type HarvestProfile,
+  PEASANT_CARRY_DURATION_MS,
+} from "@lindocara/engine/harvest.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { zoneDefinition } from "@lindocara/engine/zones.js";
@@ -23,14 +27,16 @@ const PARTY_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const MAP_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const HERO_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const EVENT_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const EVENT_B = "11111111-1111-4111-8111-111111111111";
+const EVENT_C = "22222222-2222-4222-8222-222222222222";
 const NOW = 10_000;
 
-function terrain(): TerrainGeometry {
-  const tiles = tileMapFromRects(320, 192, []);
+function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
+  const tiles = tileMapFromRects(320, 192, obstacles);
   return {
     width: 320,
     height: 192,
-    obstacles: [],
+    obstacles,
     spawnPoints: [{ x: 48, y: 32 }],
     safeZone: null,
     tiles,
@@ -38,7 +44,7 @@ function terrain(): TerrainGeometry {
   };
 }
 
-function profile(duration = 750): HarvestProfile {
+function profile(overrides: Partial<HarvestProfile> = {}): HarvestProfile {
   return {
     resource: "wood",
     tool: "axe",
@@ -46,32 +52,53 @@ function profile(duration = 750): HarvestProfile {
     goldValue: 0,
     hitsRequired: 2,
     range: 54,
-    harvestDurationMs: duration,
+    harvestDurationMs: 750,
     exhaustedAssetId: null,
     exhaustionBehavior: "hide",
     respawn: "permanent",
     respawnDelayMs: 0,
     fadeDurationMs: 250,
+    ...overrides,
   };
 }
 
-function runtime(duration = 750) {
-  const event = functionalEvent({
-    id: EVENT_ID,
-    kind: "harvestable",
-    col: 1,
-    row: 0,
-    ordinal: 0,
-    harvestProfile: profile(duration),
-  });
+interface HarvestFixtureNode {
+  id: string;
+  col: number;
+  row: number;
+  profile: HarvestProfile;
+}
+
+interface RuntimeOptions {
+  talents?: readonly string[];
+  nodes?: readonly HarvestFixtureNode[];
+  obstacles?: TerrainGeometry["obstacles"];
+}
+
+function runtime(duration = 750, options: RuntimeOptions = {}) {
+  const nodes =
+    options.nodes ??
+    ([
+      { id: EVENT_ID, col: 1, row: 0, profile: profile({ harvestDurationMs: duration }) },
+    ] as const);
+  const events = nodes.map((node, ordinal) =>
+    functionalEvent({
+      id: node.id,
+      kind: "harvestable",
+      col: node.col,
+      row: node.row,
+      ordinal,
+      harvestProfile: node.profile,
+    }),
+  );
   const base = zoneDefinition("verdant-reach");
   const definition = {
     ...base,
     id: MAP_ID,
-    terrain: terrain(),
+    terrain: terrain(options.obstacles),
     monsters: [],
     guards: [],
-    events: [event],
+    events,
   };
   const state = createWorldRoomState(
     `${PARTY_ID}:${MAP_ID}`,
@@ -100,6 +127,7 @@ function runtime(duration = 750) {
       wardRunExpiresAt: null,
       life: "alive",
       corpse: null,
+      ...(options.talents ? { talents: options.talents } : {}),
     },
     "connection",
     `${PARTY_ID}:${MAP_ID}`,
@@ -116,7 +144,19 @@ function runtime(duration = 750) {
   state.playerGrid.insert(player);
 
   const pending: Promise<unknown>[] = [];
-  const calls = { reserve: 0, hit: 0, cancel: 0, gold: 0 };
+  type ReserveRequest = Parameters<WorldTickDeps["reserveHarvestNode"]>[0];
+  type HitRequest = Parameters<WorldTickDeps["hitHarvestNode"]>[0];
+  const calls = {
+    reserve: 0,
+    hit: 0,
+    cancel: 0,
+    gold: 0,
+    reserveRequests: [] as ReserveRequest[],
+    hitRequests: [] as HitRequest[],
+    goldClaims: [] as { heroId: string; nodeId: string; generation: number; amount: number }[],
+  };
+  const reservations = new Map<string, ReserveRequest>();
+  const hits = new Map<string, number>();
   const deps: WorldTickDeps = {
     now: () => NOW,
     send: () => {},
@@ -137,15 +177,18 @@ function runtime(duration = 750) {
     transitionAdventureExit: () => {},
     teleportCrossMap: () => {},
     claimQuestReward: async () => false,
-    reserveHarvestNode: async () => {
+    reserveHarvestNode: async (request) => {
       calls.reserve += 1;
+      calls.reserveRequests.push(request);
+      const reservationId = crypto.randomUUID();
+      reservations.set(reservationId, request);
       return {
         ok: true,
-        reservationId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        reservationId,
         node: {
-          eventId: EVENT_ID,
-          generation: 0,
-          hits: 0,
+          eventId: request.eventId,
+          generation: request.generation,
+          hits: hits.get(request.eventId) ?? 0,
           lastHitAt: null,
           depleted: false,
           depletedAt: null,
@@ -154,30 +197,38 @@ function runtime(duration = 750) {
         materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
       };
     },
-    hitHarvestNode: async () => {
+    hitHarvestNode: async (request) => {
       calls.hit += 1;
+      calls.hitRequests.push(request);
+      const reservation = reservations.get(request.reservationId);
+      if (!reservation) return { ok: false, reason: "reservation" };
+      reservations.delete(request.reservationId);
+      const hitCount = (hits.get(request.eventId) ?? 0) + 1;
+      hits.set(request.eventId, hitCount);
+      const rewarded = hitCount >= reservation.requiredHits;
       return {
         ok: true,
         node: {
-          eventId: EVENT_ID,
-          generation: 0,
-          hits: 1,
+          eventId: request.eventId,
+          generation: reservation.generation,
+          hits: hitCount,
           lastHitAt: NOW,
-          depleted: false,
-          depletedAt: null,
+          depleted: rewarded,
+          depletedAt: rewarded ? NOW : null,
           respawnAt: null,
         },
         materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
-        rewarded: false,
-        goldValue: 0,
+        rewarded,
+        goldValue: rewarded ? reservation.goldValue : 0,
       };
     },
-    cancelHarvestNode: async () => {
+    cancelHarvestNode: async (request) => {
       calls.cancel += 1;
-      return true;
+      return reservations.delete(request.reservationId);
     },
-    claimHarvestGold: async () => {
+    claimHarvestGold: async (actor, nodeId, generation, amount) => {
       calls.gold += 1;
+      calls.goldClaims.push({ heroId: actor.id, nodeId, generation, amount });
       return true;
     },
     consumePotion: async () => null,
@@ -185,18 +236,22 @@ function runtime(duration = 750) {
   return { w: { state, deps } satisfies WorldGlue, player, pending, calls };
 }
 
-function resolveAxe(w: WorldGlue, now = NOW): void {
-  const player = [...w.state.players.values()][0];
-  const skill = CLASS_SKILLS.peasant[0];
-  if (!player || !skill) throw new Error("Peasant axe fixture is incomplete");
+function resolveTool(
+  w: WorldGlue,
+  slot: 1 | 2 | 3,
+  now = NOW,
+  player = [...w.state.players.values()][0],
+): void {
+  const skill = CLASS_SKILLS.peasant[slot - 1];
+  if (!player || !skill) throw new Error("Peasant tool fixture is incomplete");
   resolvePlayerAction(
     w,
     player,
     {
       id: crypto.randomUUID(),
-      kind: "basic",
+      kind: slot === 1 ? "basic" : "skill",
       skillId: skill.id,
-      slot: 1,
+      slot,
       direction: { x: 1, y: 0 },
       startedAt: now,
       impactAt: now,
@@ -205,6 +260,31 @@ function resolveAxe(w: WorldGlue, now = NOW): void {
     },
     now,
   );
+}
+
+function resolveAxe(w: WorldGlue, now = NOW): void {
+  resolveTool(w, 1, now);
+}
+
+function installDepletedNode(w: WorldGlue, eventId: string, generation = 0): void {
+  w.state.adventureState = {
+    ...w.state.adventureState,
+    state: {
+      ...w.state.adventureState.state,
+      harvestNodes: {
+        ...(w.state.adventureState.state.harvestNodes ?? {}),
+        [eventId]: {
+          eventId,
+          generation,
+          hits: 1,
+          lastHitAt: NOW,
+          depleted: true,
+          depletedAt: NOW,
+          respawnAt: null,
+        },
+      },
+    },
+  };
 }
 
 describe("tick-driven Peasant harvest jobs", () => {
@@ -324,6 +404,328 @@ describe("tick-driven Peasant harvest jobs", () => {
       kind: "gold",
       until: NOW + PEASANT_CARRY_DURATION_MS,
     });
+    expect(value.w.state.harvestJobs.size).toBe(0);
+  });
+
+  it("applies axe yield, hit and duration talents to the coordinator request", async () => {
+    const talents = [
+      "peasant.woodcutters_swing.bounty",
+      "peasant.woodcutters_swing.readiness",
+      "peasant.woodcutters_swing.reach",
+      "peasant.woodcutters_swing.clean_cut",
+      "peasant.woodcutters_swing.great_felling",
+    ];
+    const value = runtime(750, { talents });
+
+    resolveAxe(value.w);
+    const job = value.w.state.harvestJobs.get(HERO_ID);
+    expect(job).toMatchObject({
+      completesAt: NOW + 638,
+      areaRadius: 128,
+      targets: [
+        {
+          plan: {
+            yieldAmount: 8,
+            materialReward: { wood: 8 },
+            hitsRequired: 1,
+            harvestDurationMs: 638,
+            maximumTargets: 6,
+          },
+        },
+      ],
+    });
+    advancePeasantHarvestJobs(value.w, NOW + 637);
+    expect(value.calls.reserve).toBe(0);
+    advancePeasantHarvestJobs(value.w, NOW + 638);
+    await Promise.all(value.pending);
+
+    expect(value.calls.reserveRequests).toMatchObject([
+      {
+        eventId: EVENT_ID,
+        requiredHits: 1,
+        reward: { wood: 8 },
+        goldValue: 0,
+      },
+    ]);
+    expect(value.player.peasantCarry?.kind).toBe("wood");
+  });
+
+  it("commits rich-vein area targets separately, keeps its own committing job and aggregates carry", async () => {
+    const talents = [
+      "peasant.prospectors_pick.ore_share",
+      "peasant.prospectors_pick.readiness",
+      "peasant.prospectors_pick.force",
+      "peasant.prospectors_pick.rich_vein",
+      "peasant.prospectors_pick.mother_lode",
+    ];
+    const nodes = [
+      {
+        id: EVENT_ID,
+        col: 1,
+        row: 0,
+        profile: profile({
+          resource: "stone",
+          tool: "pickaxe",
+          yieldAmount: 4,
+          hitsRequired: 1,
+          harvestDurationMs: 0,
+        }),
+      },
+      {
+        id: EVENT_B,
+        col: 2,
+        row: 0,
+        profile: profile({
+          resource: "gold",
+          tool: "pickaxe",
+          yieldAmount: 0,
+          goldValue: 50,
+          hitsRequired: 1,
+          harvestDurationMs: 0,
+        }),
+      },
+      {
+        id: EVENT_C,
+        col: 1,
+        row: 1,
+        profile: profile({
+          resource: "gold",
+          tool: "pickaxe",
+          yieldAmount: 0,
+          goldValue: HARVEST_PROFILE_LIMITS.goldValue.max,
+          hitsRequired: 1,
+          harvestDurationMs: 0,
+        }),
+      },
+    ];
+    const value = runtime(0, { talents, nodes });
+    const originalHit = value.w.deps.hitHarvestNode;
+    let committingPushesKeptJob = true;
+    value.w.deps.hitHarvestNode = async (request) => {
+      const result = await originalHit(request);
+      if (result.ok && result.rewarded) {
+        installDepletedNode(value.w, request.eventId, result.node.generation);
+        pruneInvalidPeasantHarvestJobs(value.w, NOW);
+        committingPushesKeptJob &&= value.w.state.harvestJobs.has(HERO_ID);
+      }
+      return result;
+    };
+
+    resolveTool(value.w, 2);
+    expect(value.w.state.harvestJobs.get(HERO_ID)?.targets.map((target) => target.nodeId)).toEqual([
+      EVENT_ID,
+      EVENT_B,
+      EVENT_C,
+    ]);
+    advancePeasantHarvestJobs(value.w, NOW);
+    await Promise.all(value.pending);
+
+    expect(committingPushesKeptJob).toBe(true);
+    expect(value.calls.reserveRequests).toMatchObject([
+      {
+        eventId: EVENT_ID,
+        requiredHits: 1,
+        reward: { stone: 8, iron: 3 },
+        goldValue: 0,
+      },
+      { eventId: EVENT_B, reward: {}, goldValue: 120 },
+      {
+        eventId: EVENT_C,
+        reward: {},
+        goldValue: HARVEST_PROFILE_LIMITS.goldValue.max,
+      },
+    ]);
+    expect(new Set(value.calls.reserveRequests.map((request) => request.eventId)).size).toBe(3);
+    expect(value.calls.goldClaims).toEqual([
+      { heroId: HERO_ID, nodeId: EVENT_B, generation: 0, amount: 120 },
+      {
+        heroId: HERO_ID,
+        nodeId: EVENT_C,
+        generation: 0,
+        amount: HARVEST_PROFILE_LIMITS.goldValue.max,
+      },
+    ]);
+    expect(value.player.peasantCarry).toEqual({
+      kind: "gold",
+      until: NOW + PEASANT_CARRY_DURATION_MS,
+    });
+    expect(value.w.state.harvestJobs.size).toBe(0);
+  });
+
+  it.each([
+    "movement",
+    "disconnect",
+  ] as const)("stops remaining area targets after %s", async (interruption) => {
+    const talents = [
+      "peasant.woodcutters_swing.bounty",
+      "peasant.woodcutters_swing.readiness",
+      "peasant.woodcutters_swing.reach",
+      "peasant.woodcutters_swing.sweeping_fell",
+    ];
+    const nodes = [
+      {
+        id: EVENT_ID,
+        col: 1,
+        row: 0,
+        profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
+      },
+      {
+        id: EVENT_B,
+        col: 2,
+        row: 0,
+        profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
+      },
+    ];
+    const value = runtime(0, { talents, nodes });
+    const originalHit = value.w.deps.hitHarvestNode;
+    let interrupted = false;
+    value.w.deps.hitHarvestNode = async (request) => {
+      const result = await originalHit(request);
+      if (!interrupted) {
+        interrupted = true;
+        if (interruption === "movement") value.player.x += 1;
+        else {
+          value.w.state.players.delete("connection");
+          value.w.state.connectionIdByHeroId.delete(HERO_ID);
+        }
+        cancelPeasantHarvestJob(value.w.state.harvestJobs, HERO_ID);
+      }
+      return result;
+    };
+
+    resolveAxe(value.w);
+    expect(value.w.state.harvestJobs.get(HERO_ID)?.targets).toHaveLength(2);
+    advancePeasantHarvestJobs(value.w, NOW);
+    await Promise.all(value.pending);
+
+    expect(value.calls.reserveRequests.map((request) => request.eventId)).toEqual([EVENT_ID]);
+    expect(value.calls.hitRequests.map((request) => request.eventId)).toEqual([EVENT_ID]);
+    expect(value.w.state.harvestJobs.size).toBe(0);
+  });
+
+  it("serializes two Peasants across separate target reservations without double credit", async () => {
+    const talents = [
+      "peasant.woodcutters_swing.bounty",
+      "peasant.woodcutters_swing.readiness",
+      "peasant.woodcutters_swing.reach",
+      "peasant.woodcutters_swing.sweeping_fell",
+    ];
+    const value = runtime(0, {
+      talents,
+      nodes: [
+        {
+          id: EVENT_ID,
+          col: 1,
+          row: 0,
+          profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
+        },
+        {
+          id: EVENT_B,
+          col: 2,
+          row: 0,
+          profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
+        },
+      ],
+    });
+    const secondHeroId = "33333333-3333-4333-8333-333333333333";
+    const secondConnection = "connection-2";
+    const second = newPlayer(
+      {
+        ...value.player,
+        id: secondHeroId,
+        nick: "Robin",
+        talents,
+        sessionEpoch: 2,
+      },
+      secondConnection,
+      `${PARTY_ID}:${MAP_ID}`,
+      0,
+      0,
+      undefined,
+      undefined,
+      NOW,
+    );
+    second.identityKind = "hero";
+    second.partyId = PARTY_ID;
+    value.w.state.players.set(secondConnection, second);
+    value.w.state.connectionIdByHeroId.set(secondHeroId, secondConnection);
+    value.w.state.playerGrid.insert(second);
+
+    type ReserveRequest = Parameters<WorldTickDeps["reserveHarvestNode"]>[0];
+    const locks = new Map<string, { id: string; request: ReserveRequest }>();
+    const depleted = new Set<string>();
+    const creditedByNode = new Map<string, string>();
+    value.w.deps.reserveHarvestNode = async (request) => {
+      value.calls.reserve += 1;
+      value.calls.reserveRequests.push(request);
+      if (depleted.has(request.eventId)) return { ok: false, reason: "depleted" };
+      if (locks.has(request.eventId)) return { ok: false, reason: "busy" };
+      const id = crypto.randomUUID();
+      locks.set(request.eventId, { id, request });
+      return {
+        ok: true,
+        reservationId: id,
+        node: {
+          eventId: request.eventId,
+          generation: request.generation,
+          hits: 0,
+          lastHitAt: null,
+          depleted: false,
+          depletedAt: null,
+          respawnAt: null,
+        },
+        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      };
+    };
+    value.w.deps.hitHarvestNode = async (request) => {
+      value.calls.hit += 1;
+      value.calls.hitRequests.push(request);
+      const lock = locks.get(request.eventId);
+      if (!lock || lock.id !== request.reservationId) {
+        return { ok: false, reason: "reservation" };
+      }
+      locks.delete(request.eventId);
+      if (depleted.has(request.eventId)) return { ok: false, reason: "depleted" };
+      depleted.add(request.eventId);
+      creditedByNode.set(request.eventId, lock.request.heroId);
+      installDepletedNode(value.w, request.eventId, lock.request.generation);
+      pruneInvalidPeasantHarvestJobs(value.w, NOW);
+      return {
+        ok: true,
+        node: {
+          eventId: request.eventId,
+          generation: lock.request.generation,
+          hits: 1,
+          lastHitAt: NOW,
+          depleted: true,
+          depletedAt: NOW,
+          respawnAt: null,
+        },
+        materials: { wood: 7, stone: 0, iron: 0, meat: 0 },
+        rewarded: true,
+        goldValue: 0,
+      };
+    };
+    value.w.deps.cancelHarvestNode = async (request) => {
+      value.calls.cancel += 1;
+      const lock = locks.get(request.eventId);
+      if (!lock || lock.id !== request.reservationId) return false;
+      locks.delete(request.eventId);
+      return true;
+    };
+
+    resolveTool(value.w, 1, NOW, value.player);
+    resolveTool(value.w, 1, NOW, second);
+    expect(value.w.state.harvestJobs.size).toBe(2);
+    advancePeasantHarvestJobs(value.w, NOW);
+    await Promise.all(value.pending);
+
+    expect(creditedByNode.size).toBe(2);
+    expect([...creditedByNode.keys()].sort()).toEqual([EVENT_ID, EVENT_B].sort());
+    expect(new Set(creditedByNode.values())).toEqual(new Set([HERO_ID, secondHeroId]));
+    expect(value.calls.hitRequests).toHaveLength(2);
+    expect(value.player.peasantCarry?.kind).toBe("wood");
+    expect(second.peasantCarry?.kind).toBe("wood");
     expect(value.w.state.harvestJobs.size).toBe(0);
   });
 });
