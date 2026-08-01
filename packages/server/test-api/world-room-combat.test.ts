@@ -33,8 +33,10 @@ import {
   type ServerMessage,
 } from "@lindocara/engine/protocol.js";
 import { PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
+import { projectileOrigin, spawnProjectile } from "@lindocara/server/world/projectile-system.js";
 import {
   CHAT_MAX_LENGTH,
+  type CombatActionRuntime,
   createGuards,
   createMonsters,
   type PlayerRuntime,
@@ -548,6 +550,65 @@ describe("world room combat (FakeClock)", () => {
         targetFilter: "players_and_guards",
       }),
     ]);
+    engine.dispose();
+  });
+
+  test("enemy projectiles use the shared guard damage rule exactly once", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("guardproj");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const player = playerOf(state, heroId);
+    const combatOrigin = { x: player.x, y: player.y };
+    player.x += 600;
+    const monster = seedMonster(state, "guard-projectile-owner", combatOrigin.x, combatOrigin.y);
+    const guard = seedGuard(state, "projectile-target-guard", combatOrigin.x + 40, combatOrigin.y);
+    let now = Date.now() + 1_000;
+    const { w } = testGlue(state, () => now);
+
+    const launchAtGuard = (power: number) => {
+      const projectile = spawnProjectile(state.projectiles, {
+        actionId: crypto.randomUUID(),
+        owner: monster,
+        roomKey: state.roomKey,
+        origin: projectileOrigin(monster, { x: 1, y: 0 }, 5),
+        direction: { x: 1, y: 0 },
+        definition: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
+        range: 300,
+        power,
+        targetFilter: "players_and_guards",
+        sourceSkillId: "monster_ranged_attack",
+        basic: true,
+        now,
+      });
+      if (!projectile) throw new Error("enemy projectile fixture rejected");
+      monster.deadUntil = Number.POSITIVE_INFINITY;
+      now += TICK_MS;
+      advanceWorldTick(w);
+    };
+
+    guard.hp = 30;
+    launchAtGuard(17);
+    expect(guard.hp).toBe(13);
+    now += TICK_MS;
+    advanceWorldTick(w);
+    expect(guard.hp).toBe(13);
+
+    launchAtGuard(99);
+    expect(guard.hp).toBe(1);
+    expect(state.guards).toContain(guard);
+
+    guard.hp = 5;
+    monster.deadUntil = 0;
+    monster.action = null;
+    monster.attackProfile = "melee";
+    startMonsterAttack(w, monster, guard, now);
+    const action = monster.action as CombatActionRuntime | null;
+    if (!action) throw new Error("melee guard attack did not start");
+    resolveMonsterAction(w, monster, action, action.impactAt);
+    expect(guard.hp).toBe(1);
+    expect(state.guards).toContain(guard);
     engine.dispose();
   });
 

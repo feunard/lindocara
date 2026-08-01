@@ -13,7 +13,9 @@ import {
 } from "@lindocara/server/world/projectile-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import {
+  createGuards,
   createMonsters,
+  type GuardRuntime,
   type MonsterRuntime,
   newPlayer,
   type PlayerRuntime,
@@ -81,6 +83,12 @@ function monster(id: string, x: number): MonsterRuntime {
   return result;
 }
 
+function guard(id: string, x: number): GuardRuntime {
+  const result = createGuards([{ id, x, y: 0, patrolRadius: 64 }])[0];
+  if (!result) throw new Error("guard fixture missing");
+  return result;
+}
+
 function definition(kind: ProjectileKind, pierce = 0) {
   return { kind, speed: 2_000, radius: 5, pierce };
 }
@@ -90,6 +98,7 @@ function context(options: {
   projectiles: ProjectileRuntime[];
   monsters?: MonsterRuntime[];
   allies?: PlayerRuntime[];
+  guards?: GuardRuntime[];
   world?: TerrainGeometry;
   hostile?: boolean;
 }) {
@@ -114,7 +123,7 @@ function context(options: {
     terrain: options.world ?? terrain(),
     monsters,
     players: new Map(sockets),
-    guards: [],
+    guards: options.guards ?? [],
     monsterGrid,
     playerGrid,
     canHeal: (owner, target) => owner.partyId !== null && owner.partyId === target.partyId,
@@ -228,6 +237,76 @@ describe("authoritative projectile system", () => {
     advanceProjectiles(blocked.value, 1_050);
     expect(blocked.damagePlayer).not.toHaveBeenCalled();
     expect(blocked.blocked).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks an enemy projectile before a guard behind terrain", () => {
+    const caster = monster("blocked-caster", 0);
+    const target = player("observer", 300);
+    const protectedGuard = guard("behind-wall", 90);
+    const projectiles: ProjectileRuntime[] = [];
+    spawnProjectile(projectiles, {
+      actionId: "99999999-9999-4999-8999-999999999999",
+      owner: caster,
+      roomKey: target.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("arrow"),
+      range: 300,
+      power: 17,
+      targetFilter: "players_and_guards",
+      sourceSkillId: "monster_ranged_attack",
+      basic: true,
+      now: 1_000,
+    });
+    const wall = [{ x: 55, y: 0, width: 20, height: 64 }];
+    const harness = context({
+      owner: target,
+      projectiles,
+      guards: [protectedGuard],
+      hostile: true,
+      world: terrain(wall),
+    });
+
+    advanceProjectiles(harness.value, 1_050);
+
+    expect(harness.damageGuard).not.toHaveBeenCalled();
+    expect(harness.blocked).toHaveBeenCalledTimes(1);
+  });
+
+  it("pierces guards in order without damaging either one twice", () => {
+    const caster = monster("piercing-caster", 0);
+    const target = player("observer", 300);
+    const first = guard("first-guard", 50);
+    const second = guard("second-guard", 100);
+    const projectiles: ProjectileRuntime[] = [];
+    spawnProjectile(projectiles, {
+      actionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      owner: caster,
+      roomKey: target.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("enemy_harpoon", 1),
+      range: 300,
+      power: 17,
+      targetFilter: "players_and_guards",
+      sourceSkillId: "monster_ranged_attack",
+      basic: true,
+      now: 1_000,
+    });
+    const harness = context({
+      owner: target,
+      projectiles,
+      guards: [first, second],
+      hostile: true,
+    });
+
+    advanceProjectiles(harness.value, 1_050);
+    advanceProjectiles(harness.value, 1_100);
+
+    expect(harness.damageGuard.mock.calls.map((call) => call[1].id)).toEqual([
+      "first-guard",
+      "second-guard",
+    ]);
   });
 
   it("pierces several monsters without hitting either one twice", () => {

@@ -1,6 +1,20 @@
 import { applyDamage } from "@lindocara/engine/game.js";
 import { talentEffect } from "@lindocara/engine/talents.js";
-import type { PlayerRuntime } from "./world-runtime.js";
+import type { GuardRuntime, PlayerRuntime } from "./world-runtime.js";
+
+/**
+ * Guards are durable service NPCs, not defeat objectives: every hostile damage source may wound
+ * them but bottoms out at one HP. Keeping this rule here prevents melee, techniques and projectiles
+ * from silently inventing different guard-death semantics.
+ */
+export function applyGuardDamage(
+  guard: GuardRuntime,
+  damage: number,
+): { hp: number; killed: false } {
+  const result = applyDamage(guard.hp, damage);
+  guard.hp = Math.max(1, result.hp);
+  return { hp: guard.hp, killed: false };
+}
 
 /** The cloud is intangible only after fade-out and before authoritative rematerialization. */
 export function isLumenCloudInvulnerable(player: PlayerRuntime, now: number): boolean {

@@ -167,7 +167,11 @@ import {
   finishHeldCombatAction,
   startCombatAction,
 } from "../../world/combat-action-system.js";
-import { guardedDamage, isPlayerInvulnerable } from "../../world/combat-system.js";
+import {
+  applyGuardDamage,
+  guardedDamage,
+  isPlayerInvulnerable,
+} from "../../world/combat-system.js";
 import { beginRewardAttribution, clearMonsterCombat } from "../../world/contribution-system.js";
 import {
   advanceDamageOverTime,
@@ -1734,8 +1738,7 @@ export function resolveMonsterAction(
   }
   for (const guard of w.state.guards) {
     if (!hits(guard, PLAYER_SIZE / 2)) continue;
-    // Guards remain service NPCs in V1, so combat may wound but never kill them.
-    guard.hp = Math.max(1, guard.hp - damage);
+    applyGuardDamage(guard, damage);
     drainedDamage += damage;
   }
   const healRatio =
@@ -5616,7 +5619,7 @@ export function advanceWorldTick(w: WorldGlue): void {
           );
       },
       damageGuard: (projectile, guard) => {
-        guard.hp = Math.max(1, guard.hp - projectile.power);
+        applyGuardDamage(guard, projectile.power);
       },
       blocked: (projectile, point) => projectileBlocked(w, projectile, point),
     },

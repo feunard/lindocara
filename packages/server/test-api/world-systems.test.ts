@@ -8,14 +8,22 @@ import {
   finishHeldCombatAction,
   startCombatAction,
 } from "@lindocara/server/world/combat-action-system.js";
-import { guardedDamage, isLumenCloudInvulnerable } from "@lindocara/server/world/combat-system.js";
+import {
+  applyGuardDamage,
+  guardedDamage,
+  isLumenCloudInvulnerable,
+} from "@lindocara/server/world/combat-system.js";
 import {
   heldMovementDirection,
   movePlayerInDirection,
   nearestChargeTarget,
 } from "@lindocara/server/world/skill-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
-import { newPlayer, type PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
+import {
+  createGuards,
+  newPlayer,
+  type PlayerRuntime,
+} from "@lindocara/server/world/world-runtime.js";
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -264,6 +272,15 @@ describe("isolated directional combat systems", () => {
     expect(guardedDamage(actor, 25)).toMatchObject({ amount: 13 });
     actor.guarding = false;
     expect(guardedDamage(actor, 25)).toMatchObject({ amount: 25 });
+  });
+
+  it("centralizes the service-guard one-HP floor", () => {
+    const guard = createGuards([{ id: "service-guard", x: 0, y: 0, patrolRadius: 64 }])[0];
+    if (!guard) throw new Error("guard fixture missing");
+    guard.hp = 10;
+
+    expect(applyGuardDamage(guard, 4)).toEqual({ hp: 6, killed: false });
+    expect(applyGuardDamage(guard, 99)).toEqual({ hp: 1, killed: false });
   });
 
   it("makes a talented Iron Guard activation a frame-perfect zero-damage parry", () => {

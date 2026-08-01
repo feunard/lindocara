@@ -696,6 +696,10 @@ inside the safe zone, cannot leave their home patrol radius, and never attack pl
 kill sets the monster respawn state directly: it must never call the player reward path, create
 loot, grant XP, or advance a kill quest.
 
+Guards themselves are durable service NPCs rather than defeat objectives. Hostile melee,
+techniques and projectiles all pass through `world/combat-system.ts`'s `applyGuardDamage`, which
+may wound them down to one HP but never removes them from the room.
+
 Direction signs use the bundled Tiny Swords banner texture and localized text. They have no
 collider by design so junctions cannot be grief-blocked. Puzzle rendering must never receive the
 expected rune order; `questSiteFeedback()` exposes proximity labels but always returns a zero
