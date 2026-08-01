@@ -1,5 +1,5 @@
 import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
-import { CLASS_SKILLS, type SkillSlot } from "@lindocara/engine/skills.js";
+import { CLASS_SKILLS, type SkillDefinition, type SkillSlot } from "@lindocara/engine/skills.js";
 import {
   activeEvolutionVariant,
   CLASS_TALENTS,
@@ -309,7 +309,9 @@ describe("class talents", () => {
     expect(axe.range).toBe(60.5);
     expect(axe).not.toBe(CLASS_SKILLS.peasant[0]);
 
-    const authoredBase = { ...CLASS_SKILLS.peasant[0], range: 80 };
+    const peasantBase = CLASS_SKILLS.peasant[0];
+    if (!peasantBase) throw new Error("Peasant basic skill missing");
+    const authoredBase: SkillDefinition = { ...peasantBase, range: 80 };
     expect(
       skillWithTalents("peasant", ["peasant.woodcutters_swing.reach"], 1, authoredBase).range,
     ).toBe(89.6);
