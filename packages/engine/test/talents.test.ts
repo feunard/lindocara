@@ -20,6 +20,11 @@ describe("class talents", () => {
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
       const typedClass = playerClass as keyof typeof CLASS_TALENTS;
       const slots = talentBranchSlots(typedClass);
+      if (nodes.length === 0) {
+        expect(playerClass).toBe("peasant");
+        expect(slots).toEqual([]);
+        continue;
+      }
       expect(slots).toEqual([2, 3, 4, 5]);
       for (const slot of slots) {
         branchCount += 1;
@@ -88,6 +93,10 @@ describe("class talents", () => {
 
   it("marks every existing capstone as the compatible A variant of a stable exclusive group", () => {
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
+      if (nodes.length === 0) {
+        expect(playerClass).toBe("peasant");
+        continue;
+      }
       if (playerClass === "rogue") continue;
       for (const slot of [2, 3, 4, 5] as const) {
         const capstone = nodes.find((node) => node.slot === slot && node.tier === 3);

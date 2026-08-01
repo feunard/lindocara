@@ -57,6 +57,7 @@ export function defaultMapHeroSettings(): MapHeroSettings {
       ranger: defaultClassSettings("ranger"),
       priest: defaultClassSettings("priest"),
       rogue: defaultClassSettings("rogue"),
+      peasant: defaultClassSettings("peasant"),
     },
   };
 }

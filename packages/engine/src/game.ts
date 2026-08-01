@@ -1223,9 +1223,15 @@ export function maxHpForLevel(level: number): number {
 
 // Class system: character types with distinct balance profiles.
 
-export type PlayerClass = "warrior" | "ranger" | "priest" | "rogue";
+export type PlayerClass = "warrior" | "ranger" | "priest" | "rogue" | "peasant";
 
-export const PLAYER_CLASSES: readonly PlayerClass[] = ["warrior", "ranger", "priest", "rogue"];
+export const PLAYER_CLASSES: readonly PlayerClass[] = [
+  "warrior",
+  "ranger",
+  "priest",
+  "rogue",
+  "peasant",
+];
 
 export interface ClassStats {
   attackBase: number;
@@ -1256,6 +1262,12 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
     attackPerLevel: ROGUE_BALANCE.attack.perLevel,
     attackRange: ROGUE_BALANCE.attack.range,
     movementSpeed: 312, // +20% versus Warrior.
+  },
+  peasant: {
+    attackBase: 8,
+    attackPerLevel: 1,
+    attackRange: 54,
+    movementSpeed: 247, // -5% versus Warrior: deliberate utility-over-combat tradeoff.
   },
 };
 

@@ -92,6 +92,11 @@ const SKILL_CAST_KEY: Partial<Record<string, CombatSampleKey>> = {
   blink: "priest.blink",
   prayer: "priest.prayer",
   divine_nova: "priest.divine_nova",
+  woodcutters_swing: "warrior.cleave",
+  prospectors_pick: "warrior.cleave",
+  butchers_cut: "warrior.cleave",
+  makeshift_camp: "warrior.battle_cry",
+  homemade_bomb: "warrior.whirlwind",
 };
 
 const IMPACT_KEY: Record<PlayerClass, CombatSampleKey> = {
@@ -100,6 +105,8 @@ const IMPACT_KEY: Record<PlayerClass, CombatSampleKey> = {
   priest: "priest.impact",
   // The bundled pack has no Rogue audio; reuse the short melee impact without adding an asset.
   rogue: "warrior.impact",
+  // The starter contract deliberately reuses bundled impacts; specialized tool audio lands later.
+  peasant: "warrior.impact",
 };
 
 export function castSampleForSkill(skillId: string): CombatSampleKey | undefined {

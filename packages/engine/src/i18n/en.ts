@@ -155,23 +155,29 @@ export const en = {
   "class.ranger": "Ranger",
   "class.priest": "Priest",
   "class.rogue": "Rogue",
+  "class.peasant": "Peasant",
   "class.warrior.blurb": "Hits hard, up close.",
   "class.ranger.blurb": "Hits light, from afar.",
   "class.priest.blurb": "Hits light, mends allies [F].",
   "class.rogue.blurb": "Opens from shadow, bursts, then escapes.",
+  "class.peasant.blurb": "Gathers, builds, and makes do.",
   "class.warrior.role": "Front-line guardian",
   "class.ranger.role": "Long-range scout",
   "class.priest.role": "Protective healer",
   "class.rogue.role": "Mobile assassin",
+  "class.peasant.role": "Resourceful field support",
   "class.warrior.difficulty": "Difficulty · Accessible",
   "class.ranger.difficulty": "Difficulty · Tactical",
   "class.priest.difficulty": "Difficulty · Support",
   "class.rogue.difficulty": "Difficulty · Advanced",
+  "class.peasant.difficulty": "Difficulty · Tactical",
   "class.warrior.description": "Stand close, absorb pressure, and keep danger away from allies.",
   "class.ranger.description": "Control distance and strike threats before they close in.",
   "class.priest.description": "Balance steady ranged attacks with timely aid for wounded allies.",
   "class.rogue.description":
     "Prepare a brief opening, deliver a decisive close-range burst, then reposition.",
+  "class.peasant.description":
+    "Trade raw combat power for harvesting, practical tools, and support for the whole party.",
   "class.warrior.skill.1": "Reliable melee strike",
   "class.warrior.skill.2": "Defensive guard",
   "class.warrior.skill.3": "Enemy disruption",
@@ -192,6 +198,11 @@ export const en = {
   "class.rogue.skill.3": "Complete disappearance",
   "class.rogue.skill.4": "Persistent poison",
   "class.rogue.skill.5": "Rapid multi-target finisher",
+  "class.peasant.skill.1": "Axe strike and woodcutting",
+  "class.peasant.skill.2": "Pick strike and prospecting",
+  "class.peasant.skill.3": "Knife strike and butchery",
+  "class.peasant.skill.4": "Useful field construction",
+  "class.peasant.skill.5": "Modest improvised explosive",
   "skill.warrior.cleave.name": "Cleave",
   "skill.warrior.iron_guard.name": "Iron Guard",
   "skill.warrior.shield_bash.name": "Shield Bash",
@@ -243,6 +254,21 @@ export const en = {
   "skill.rogue.shadow_dance.description":
     "Leap rapidly through five reachable enemies and strike each as you pass.",
   "skill.rogue.shadow_return.ready": "Return ready",
+  "skill.peasant.woodcutters_swing.name": "Woodcutter's Swing",
+  "skill.peasant.prospectors_pick.name": "Prospector's Pick",
+  "skill.peasant.butchers_cut.name": "Butcher's Cut",
+  "skill.peasant.makeshift_camp.name": "Makeshift Camp",
+  "skill.peasant.homemade_bomb.name": "Homemade Bomb",
+  "skill.peasant.woodcutters_swing.description":
+    "Swing a worn axe at nearby enemies or harvestable trees.",
+  "skill.peasant.prospectors_pick.description":
+    "Strike weakly with a pick or work a compatible mineral deposit.",
+  "skill.peasant.butchers_cut.description":
+    "Use a short blade against nearby enemies or explicit meat sources.",
+  "skill.peasant.makeshift_camp.description":
+    "Build a temporary field support using collected materials.",
+  "skill.peasant.homemade_bomb.description":
+    "Throw a modest improvised bomb whose explosion is decided by the server.",
 
   // HUD
   "death.fallen_title": "You have fallen",
@@ -279,6 +305,7 @@ export const en = {
   "item.hunter_bow": "Hunter's bow",
   "item.heartwood_staff": "Heartwood staff",
   "item.shadow_daggers": "Shadow daggers",
+  "item.worn_toolkit": "Worn toolkit",
   "item.oak_shield": "Oak shield",
   "item.none": "None",
 

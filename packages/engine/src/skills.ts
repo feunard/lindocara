@@ -18,7 +18,10 @@ export type SkillEffect =
   | "teleport"
   | "shadow_step"
   | "stealth"
-  | "shadow_dance";
+  | "shadow_dance"
+  | "harvest"
+  | "construction"
+  | "homemade_bomb";
 
 export interface SkillDefinition {
   id: string;
@@ -233,6 +236,55 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       range: ROGUE_BALANCE.shadowDance.selectionRange,
       power: ROGUE_BALANCE.shadowDance.powerPerHit,
       icon: "✦",
+    },
+  ],
+  peasant: [
+    {
+      id: "woodcutters_swing",
+      slot: 1,
+      effect: "harvest",
+      cooldownMs: 850,
+      range: 54,
+      power: 0,
+      icon: "🪓",
+    },
+    {
+      id: "prospectors_pick",
+      slot: 2,
+      effect: "harvest",
+      cooldownMs: 1_600,
+      range: 54,
+      power: 6,
+      icon: "⛏",
+    },
+    {
+      id: "butchers_cut",
+      slot: 3,
+      effect: "harvest",
+      cooldownMs: 1_350,
+      range: 50,
+      power: 4,
+      icon: "🔪",
+    },
+    {
+      id: "makeshift_camp",
+      slot: 4,
+      effect: "construction",
+      cooldownMs: 12_000,
+      range: 72,
+      radius: 96,
+      power: 0,
+      icon: "⌂",
+    },
+    {
+      id: "homemade_bomb",
+      slot: 5,
+      effect: "homemade_bomb",
+      cooldownMs: 10_000,
+      range: 260,
+      radius: 72,
+      power: 20,
+      icon: "●",
     },
   ],
 };

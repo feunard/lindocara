@@ -1,5 +1,6 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
+import { HERO_CLASSES, isHeroClass } from "@lindocara/engine/hero.js";
 import type { AuthoredQuestDefinition, QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { Alert, AlertDescription, AlertTitle } from "@lindocara/ui/components/alert.js";
 import { Button } from "@lindocara/ui/components/button.js";
@@ -123,16 +124,14 @@ export function AdventureTestDialog({
               value={heroClass}
               disabled={busy}
               onValueChange={(value) => {
-                if (value === "warrior" || value === "ranger" || value === "priest") {
-                  setHeroClass(value);
-                }
+                if (isHeroClass(value)) setHeroClass(value);
               }}
             >
               <SelectTrigger id={classId} className="w-full">
                 <SelectValue>{classLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {(["warrior", "ranger", "priest"] as const).map((candidate) => (
+                {HERO_CLASSES.map((candidate) => (
                   <SelectItem key={candidate} value={candidate}>
                     {t(`class.${candidate}`)}
                   </SelectItem>

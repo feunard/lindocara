@@ -17,6 +17,10 @@ const MAX_HEAL_COOLDOWN_MS = Math.max(
   0,
   ...Object.values(CLASS_STATS).map((stats) => stats.heal?.cooldownMs ?? 0),
 );
+const MAX_ATTACK_COOLDOWN_MS = Math.max(
+  ATTACK_COOLDOWN_MS,
+  ...Object.values(CLASS_SKILLS).map((skills) => skills[0]?.cooldownMs ?? 0),
+);
 const MAX_GUARD_DURATION_MS = Math.max(
   0,
   ...Object.values(CLASS_SKILLS)
@@ -57,7 +61,7 @@ export function normalizeCombatCooldowns(value: unknown, now: number): CombatCoo
   if (!Number.isFinite(now) || !isRecord(value)) return empty;
   const skills = Array.isArray(value.skillCooldowns) ? value.skillCooldowns : [];
   return {
-    attackUntil: boundedDeadline(value.attackUntil, now, ATTACK_COOLDOWN_MS),
+    attackUntil: boundedDeadline(value.attackUntil, now, MAX_ATTACK_COOLDOWN_MS),
     healUntil: boundedDeadline(value.healUntil, now, MAX_HEAL_COOLDOWN_MS),
     skillCooldowns: SKILL_SLOTS.map((slot) =>
       boundedDeadline(skills[slot - 1], now, MAX_SKILL_COOLDOWN_MS[slot - 1] ?? 0),

@@ -42,7 +42,7 @@ describe("authoritative combat cooldown state", () => {
         {
           attackUntil: NOW - 1,
           healUntil: Number.POSITIVE_INFINITY,
-          skillCooldowns: [NOW + 326, -1, Number.NaN, NOW + 60_000, NOW + 60_000],
+          skillCooldowns: [NOW + 851, -1, Number.NaN, NOW + 60_000, NOW + 60_000],
           guardUntil: NOW + 3_501,
           resurrectUntil: NOW + 20_001,
         },
@@ -111,5 +111,38 @@ describe("authoritative combat cooldown state", () => {
     );
     expect(restored.skillCooldowns[4]).toBe(NOW + 10_000);
     expect(combatCooldownsFromPlayer(restored, NOW + 250).skillCooldowns[4]).toBe(NOW + 10_000);
+  });
+
+  it("round-trips the Peasant's slower basic attack deadline", () => {
+    const peasantProfile = {
+      ...profile(),
+      class: "peasant" as const,
+      equipment: starterEquipmentFor("peasant"),
+    };
+    const peasant = newPlayer(
+      peasantProfile,
+      "peasant-connection",
+      "verdant-reach:main",
+      0,
+      0,
+      undefined,
+      undefined,
+      NOW,
+    );
+    peasant.lastAttackAt = NOW;
+    const durable = combatCooldownsFromPlayer(peasant, NOW);
+    expect(durable.attackUntil).toBe(NOW + 850);
+
+    const restored = newPlayer(
+      peasantProfile,
+      "restored-peasant-connection",
+      "verdant-reach:main",
+      0,
+      0,
+      undefined,
+      durable,
+      NOW + 100,
+    );
+    expect(restored.lastAttackAt).toBe(NOW);
   });
 });

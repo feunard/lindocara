@@ -152,18 +152,22 @@ export const fr: Record<keyof typeof en, string> = {
   "class.ranger": "Rôdeur",
   "class.priest": "Prêtre",
   "class.rogue": "Rogue",
+  "class.peasant": "Paysan",
   "class.warrior.blurb": "Frappe fort, au corps à corps.",
   "class.ranger.blurb": "Frappe léger, de loin.",
   "class.priest.blurb": "Frappe léger, soigne les alliés [F].",
   "class.rogue.blurb": "Surgit de l'ombre, frappe, puis s'échappe.",
+  "class.peasant.blurb": "Récolte, construit et se débrouille.",
   "class.warrior.role": "Gardien de première ligne",
   "class.ranger.role": "Éclaireur à distance",
   "class.priest.role": "Soigneur protecteur",
   "class.rogue.role": "Assassin mobile",
+  "class.peasant.role": "Soutien utilitaire de terrain",
   "class.warrior.difficulty": "Difficulté · Accessible",
   "class.ranger.difficulty": "Difficulté · Tactique",
   "class.priest.difficulty": "Difficulté · Soutien",
   "class.rogue.difficulty": "Difficulté · Avancée",
+  "class.peasant.difficulty": "Difficulté · Tactique",
   "class.warrior.description":
     "Restez au contact, absorbez la pression et éloignez le danger de vos alliés.",
   "class.ranger.description": "Contrôlez la distance et frappez les menaces avant leur arrivée.",
@@ -171,6 +175,8 @@ export const fr: Record<keyof typeof en, string> = {
     "Alternez attaques à distance et secours opportuns aux alliés blessés.",
   "class.rogue.description":
     "Préparez une brève ouverture, frappez très fort au corps à corps, puis repositionnez-vous.",
+  "class.peasant.description":
+    "Échangez la puissance brute contre la récolte, des outils pratiques et du soutien pour tout le groupe.",
   "class.warrior.skill.1": "Frappe de mêlée fiable",
   "class.warrior.skill.2": "Garde défensive",
   "class.warrior.skill.3": "Perturbation ennemie",
@@ -191,6 +197,11 @@ export const fr: Record<keyof typeof en, string> = {
   "class.rogue.skill.3": "Disparition totale",
   "class.rogue.skill.4": "Poison persistant",
   "class.rogue.skill.5": "Finisseur rapide multi-cibles",
+  "class.peasant.skill.1": "Coup de hache et bûcheronnage",
+  "class.peasant.skill.2": "Coup de pioche et prospection",
+  "class.peasant.skill.3": "Coup de couteau et dépeçage",
+  "class.peasant.skill.4": "Construction utile de terrain",
+  "class.peasant.skill.5": "Explosif artisanal modeste",
   "skill.warrior.cleave.name": "Fendoir",
   "skill.warrior.iron_guard.name": "Garde de fer",
   "skill.warrior.shield_bash.name": "Charge",
@@ -246,6 +257,21 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.rogue.shadow_dance.description":
     "Bondissez rapidement entre cinq ennemis accessibles et frappez chacun à votre passage.",
   "skill.rogue.shadow_return.ready": "Retour prêt",
+  "skill.peasant.woodcutters_swing.name": "Coup du bûcheron",
+  "skill.peasant.prospectors_pick.name": "Pioche du prospecteur",
+  "skill.peasant.butchers_cut.name": "Découpe du boucher",
+  "skill.peasant.makeshift_camp.name": "Camp de fortune",
+  "skill.peasant.homemade_bomb.name": "Bombe artisanale",
+  "skill.peasant.woodcutters_swing.description":
+    "Frappez avec une hache usée les ennemis proches ou les arbres récoltables.",
+  "skill.peasant.prospectors_pick.description":
+    "Donnez un faible coup de pioche ou exploitez un gisement compatible.",
+  "skill.peasant.butchers_cut.description":
+    "Utilisez une lame courte contre un ennemi proche ou une source de viande explicite.",
+  "skill.peasant.makeshift_camp.description":
+    "Construisez un soutien temporaire de terrain avec les matériaux récoltés.",
+  "skill.peasant.homemade_bomb.description":
+    "Lancez une bombe artisanale modeste dont l'explosion est décidée par le serveur.",
 
   // ATH
   "death.fallen_title": "Vous êtes tombé",
@@ -282,6 +308,7 @@ export const fr: Record<keyof typeof en, string> = {
   "item.hunter_bow": "Arc de chasse",
   "item.heartwood_staff": "Bâton du Cœur-Racine",
   "item.shadow_daggers": "Dagues d'ombre",
+  "item.worn_toolkit": "Trousse à outils usée",
   "item.oak_shield": "Bouclier de chêne",
   "item.none": "Aucun",
 

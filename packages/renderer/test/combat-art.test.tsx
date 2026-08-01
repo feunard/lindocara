@@ -24,7 +24,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("Tiny Swords directional combat art", () => {
-  it("uses dedicated caster sheets for all four playable classes", () => {
+  it("uses dedicated caster sheets for all five playable classes", () => {
     expect(combatArt("warrior", "cleave", "azure").caster).toMatchObject({
       source: expect.stringContaining("units/blue/warrior/Warrior_Attack1.png"),
       frameWidth: 192,
@@ -39,6 +39,13 @@ describe("Tiny Swords directional combat art", () => {
     );
     expect(combatArt("rogue", "dual_slash", "violet").caster).toMatchObject({
       source: expect.stringContaining("Thief_Attack"),
+      frameWidth: 192,
+      frameHeight: 192,
+      frames: 6,
+      activeFrame: 3,
+    });
+    expect(combatArt("peasant", "woodcutters_swing", "ember").caster).toMatchObject({
+      source: expect.stringContaining("Pawn_Interact"),
       frameWidth: 192,
       frameHeight: 192,
       frames: 6,
@@ -92,6 +99,28 @@ describe("Tiny Swords directional combat art", () => {
       expect(sheet.frameHeight).toBe(192);
     }
     expect(allUnitSheets().filter((sheet) => sheet.source.includes("Thief"))).toHaveLength(3);
+  });
+
+  it("preloads Peasant Pawn idle, run and axe interaction strips in all four colours", () => {
+    const sheets = allUnitSheets().filter((sheet) => sheet.source.includes("Pawn_"));
+    expect(sheets).toHaveLength(12);
+    for (const color of ["azure", "ember", "moss", "violet"] as const) {
+      const motions = ["idle", "run", "attack"] as const;
+      expect(
+        motions.map((motion) =>
+          unitSheet("peasant", { body: "wayfarer", primaryColor: color }, motion),
+        ),
+      ).toEqual([
+        expect.objectContaining({ frames: 8, frameWidth: 192, frameHeight: 192 }),
+        expect.objectContaining({ frames: 6, frameWidth: 192, frameHeight: 192 }),
+        expect.objectContaining({
+          source: expect.stringContaining("Pawn_Interact"),
+          frames: 6,
+          frameWidth: 192,
+          frameHeight: 192,
+        }),
+      ]);
+    }
   });
 
   it("keeps the basic arrow plain and gives every ranger special shot a distinct treatment", () => {
@@ -257,6 +286,13 @@ describe("Tiny Swords directional combat art", () => {
       frame: 2,
       variant: "shadow-dance",
     });
+    expect(skillIconArt("peasant", 1)).toMatchObject({
+      source: expect.stringContaining("Pawn_Interact"),
+      frames: 6,
+      variant: "woodcutters-swing",
+    });
+    expect(skillIconArt("peasant", 4)).toMatchObject({ variant: "makeshift-camp" });
+    expect(skillIconArt("peasant", 5)).toMatchObject({ variant: "homemade-bomb" });
   });
 
   it("uses the exact Hex Shaman magic projectile for Radiant Bolt", () => {

@@ -27,6 +27,8 @@ export const MAIN_HAND_ART: Readonly<
   },
   // The Rogue unit sheet contains both daggers. Inventory chrome reuses a bundled atlas glyph.
   shadow_daggers: { source: "atlas", frame: "weapon.sword", width: 9, height: 16 },
+  // The Peasant Pawn sheet carries its axe; inventory chrome reuses the bundled tool-like glyph.
+  worn_toolkit: { source: "atlas", frame: "weapon.sword", width: 9, height: 16 },
 };
 
 export const OFF_HAND_ART: Readonly<

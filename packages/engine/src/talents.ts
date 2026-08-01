@@ -946,6 +946,9 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       },
     ),
   ],
+  // The class contract lands before the dedicated talent tranche. Keeping the empty branch typed
+  // prevents unrelated consumers from falling back to another class in the meantime.
+  peasant: [],
 };
 
 /** The skill slots that actually own a talent branch for this class, in display order. */

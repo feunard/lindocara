@@ -52,6 +52,7 @@ const CLASS_EMBLEM: Record<PlayerClass, string> = {
   ranger: "🏹",
   priest: "✚",
   rogue: "‡",
+  peasant: "⚒",
 };
 
 const CLASS_PREVIEW_COLOR = {
@@ -59,6 +60,7 @@ const CLASS_PREVIEW_COLOR = {
   ranger: "moss",
   priest: "azure",
   rogue: "violet",
+  peasant: "moss",
 } as const;
 
 /** Player-facing comparison; the editable numeric authority remains `CLASS_STATS`. */

@@ -11,6 +11,7 @@ export const HERO_CLASSES = [
   "ranger",
   "priest",
   "rogue",
+  "peasant",
 ] as const satisfies readonly PlayerClass[];
 
 export const MAX_HEROES_PER_PARTY = 3;

@@ -594,6 +594,10 @@ describe("class rules", () => {
       mainHand: "shadow_daggers",
       offHand: null,
     });
+    expect(starterEquipmentFor("peasant")).toEqual({
+      mainHand: "worn_toolkit",
+      offHand: null,
+    });
     for (const playerClass of PLAYER_CLASSES) {
       expect(isEquipmentForClass(STARTER_EQUIPMENT[playerClass], playerClass)).toBe(true);
     }
@@ -607,7 +611,7 @@ describe("class rules", () => {
   });
 
   it("keeps the balance table in the spec's shape", () => {
-    expect(PLAYER_CLASSES).toEqual(["warrior", "ranger", "priest", "rogue"]);
+    expect(PLAYER_CLASSES).toEqual(["warrior", "ranger", "priest", "rogue", "peasant"]);
     expect(CLASS_STATS.warrior).toMatchObject({
       attackBase: 27,
       attackPerLevel: 4,
@@ -632,6 +636,12 @@ describe("class rules", () => {
       attackRange: 58,
       movementSpeed: 312,
     });
+    expect(CLASS_STATS.peasant).toEqual({
+      attackBase: 8,
+      attackPerLevel: 1,
+      attackRange: 54,
+      movementSpeed: 247,
+    });
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
       perLevel: 3,
@@ -642,6 +652,7 @@ describe("class rules", () => {
     expect(CLASS_STATS.ranger.movementSpeed / CLASS_STATS.warrior.movementSpeed).toBeCloseTo(1.1);
     expect(CLASS_STATS.priest.movementSpeed / CLASS_STATS.warrior.movementSpeed).toBeCloseTo(0.9);
     expect(CLASS_STATS.rogue.movementSpeed / CLASS_STATS.warrior.movementSpeed).toBeCloseTo(1.2);
+    expect(CLASS_STATS.peasant.movementSpeed / CLASS_STATS.warrior.movementSpeed).toBeCloseTo(0.95);
   });
 
   it("scales damage and healing by level", () => {
@@ -651,6 +662,8 @@ describe("class rules", () => {
     expect(attackDamageFor("priest", 5)).toBe(22);
     expect(attackDamageFor("rogue", 1)).toBe(22);
     expect(attackDamageFor("rogue", 5)).toBe(34);
+    expect(attackDamageFor("peasant", 1)).toBe(8);
+    expect(attackDamageFor("peasant", 5)).toBe(12);
     expect(healAmountFor(1)).toBe(35);
     expect(healAmountFor(4)).toBe(44);
   });
@@ -658,6 +671,7 @@ describe("class rules", () => {
   it("validates class names", () => {
     expect(isValidClass("priest")).toBe(true);
     expect(isValidClass("rogue")).toBe(true);
+    expect(isValidClass("peasant")).toBe(true);
     expect(isValidClass("necromancer")).toBe(false);
     expect(isValidClass(3)).toBe(false);
   });
@@ -698,6 +712,7 @@ describe("the death state machine", () => {
     expect(speedForLife("alive", "ranger")).toBe(CLASS_STATS.ranger.movementSpeed);
     expect(speedForLife("alive", "priest")).toBe(CLASS_STATS.priest.movementSpeed);
     expect(speedForLife("alive", "rogue")).toBe(CLASS_STATS.rogue.movementSpeed);
+    expect(speedForLife("alive", "peasant")).toBe(CLASS_STATS.peasant.movementSpeed);
     expect(speedForLife("corpse")).toBe(0);
     expect(speedForLife("ghost")).toBeGreaterThan(PLAYER_SPEED);
   });

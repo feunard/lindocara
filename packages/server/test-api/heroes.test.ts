@@ -331,6 +331,52 @@ describe("createHero", () => {
     });
   });
 
+  test("creates, persists and reloads a Peasant with its typed starter contract", async () => {
+    const { token } = await registerAndLogin("heropeasant");
+    const adventureId = await newPlayableAdventure(token);
+    const partyId = await newParty(token, adventureId);
+
+    const response = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
+      method: "POST",
+      body: JSON.stringify({ name: "Till", class: "peasant" }),
+    });
+    expect(response.status).toBe(201);
+    const hero = (await response.json()) as { id: string; class: string; name: string };
+    expect(hero).toMatchObject({ name: "Till", class: "peasant" });
+
+    const listedResponse = await authedFetch(`/api/parties/${partyId}/heroes`, token);
+    expect(listedResponse.status).toBe(200);
+    expect(await listedResponse.json()).toMatchObject([
+      { id: hero.id, name: "Till", class: "peasant" },
+    ]);
+
+    const items = await probe.heroItems.findMany({ where: { heroId: { eq: hero.id } } });
+    expect(items.map((item) => item.itemDefinitionId).sort()).toEqual(
+      ["health_potion", "worn_toolkit"].sort(),
+    );
+    expect(await probe.itemDefinitions.findById("worn_toolkit")).toMatchObject({
+      type: "weapon",
+      equipmentSlot: "main_hand",
+      allowedClass: "peasant",
+    });
+    expect(
+      await probe.heroEquipment.findMany({ where: { heroId: { eq: hero.id } } }),
+    ).toMatchObject([{ slot: "main_hand" }]);
+    expect(
+      (await probe.heroSkills.findMany({ where: { heroId: { eq: hero.id } } }))
+        .map((skill) => skill.skillId)
+        .sort(),
+    ).toEqual(
+      [
+        "woodcutters_swing",
+        "prospectors_pick",
+        "butchers_cut",
+        "makeshift_camp",
+        "homemade_bomb",
+      ].sort(),
+    );
+  });
+
   test("refuses a non-member with hero_not_member", async () => {
     const { token: hostToken } = await registerAndLogin("heronomh");
     const adventureId = await newPlayableAdventure(hostToken);

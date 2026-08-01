@@ -16,7 +16,9 @@ export type DirectionalActionShape =
   | "nova"
   | "shadow_step"
   | "stealth"
-  | "shadow_dance";
+  | "shadow_dance"
+  | "construction"
+  | "homemade_bomb";
 
 export interface ProjectileActionDefinition {
   kind: ProjectileKind;
@@ -186,6 +188,44 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       shape: "shadow_dance",
       anticipationMs: 180,
       recoveryMs: 420,
+    },
+  ],
+  peasant: [
+    {
+      skillId: "woodcutters_swing",
+      shape: "arc",
+      anticipationMs: 260,
+      recoveryMs: 590,
+      halfAngleRadians: (55 * Math.PI) / 180,
+      hitboxRadius: 14,
+    },
+    {
+      skillId: "prospectors_pick",
+      shape: "arc",
+      anticipationMs: 360,
+      recoveryMs: 720,
+      halfAngleRadians: (48 * Math.PI) / 180,
+      hitboxRadius: 13,
+    },
+    {
+      skillId: "butchers_cut",
+      shape: "arc",
+      anticipationMs: 300,
+      recoveryMs: 610,
+      halfAngleRadians: (48 * Math.PI) / 180,
+      hitboxRadius: 12,
+    },
+    {
+      skillId: "makeshift_camp",
+      shape: "construction",
+      anticipationMs: 700,
+      recoveryMs: 650,
+    },
+    {
+      skillId: "homemade_bomb",
+      shape: "homemade_bomb",
+      anticipationMs: 520,
+      recoveryMs: 700,
     },
   ],
 };

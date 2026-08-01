@@ -267,6 +267,20 @@ describe("server protocol", () => {
     ).toBeNull();
   });
 
+  it("round-trips the Peasant class and starter toolkit in authoritative snapshots", () => {
+    const peasant = {
+      ...player,
+      class: "peasant",
+      equipment: { mainHand: "worn_toolkit", offHand: null },
+    };
+    expect(
+      parseServerMessage(JSON.stringify({ ...welcomeBase, world, players: [peasant] })),
+    ).toMatchObject({
+      t: "welcome",
+      players: [{ class: "peasant", equipment: { mainHand: "worn_toolkit", offHand: null } }],
+    });
+  });
+
   it("accepts only a finite Ranger afterimage swap deadline", () => {
     const rangerState = { ...self, ranger: { afterimageUntil: 2_000 } };
     expect(

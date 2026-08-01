@@ -6,13 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 describe("hero creation class cards", () => {
   beforeEach(() => setLocale("en"));
 
-  it("exposes the Rogue with the catalogued hooded Thief portrait", () => {
+  it("exposes all classes with their dedicated catalogued portraits", () => {
     render(<HeroCreate adventureId="adventure" onBack={vi.fn()} />);
 
     const classCards = screen
       .getAllByRole("button")
       .filter((button) => button.classList.contains("class-card"));
-    expect(classCards).toHaveLength(4);
+    expect(classCards).toHaveLength(5);
 
     const rogue = screen.getByRole("button", {
       name: /Rogue\s*Opens from shadow, bursts, then escapes\./,
@@ -23,6 +23,15 @@ describe("hero creation class cards", () => {
     expect(portrait).not.toBeNull();
     expect(portrait?.style.backgroundImage).toContain("Thief_Idle");
     expect(rogue).toBeEnabled();
+
+    const peasant = screen.getByRole("button", {
+      name: /Peasant\s*Gathers, builds, and makes do\./,
+    });
+    const peasantPortrait = peasant.querySelector<HTMLElement>(
+      '[data-hero-class="peasant"] .class-card__portrait-sprite',
+    );
+    expect(peasantPortrait?.style.backgroundImage).toContain("Pawn_Idle");
+    expect(peasant).toBeEnabled();
   });
 
   it("re-rolls the suggested name to a different one on every dice click", () => {
@@ -46,7 +55,8 @@ describe("hero creation class cards", () => {
     expect(classMovementPercent("ranger")).toBe(110);
     expect(classMovementPercent("priest")).toBe(90);
     expect(classMovementPercent("rogue")).toBe(120);
-    for (const percent of [100, 110, 90, 120]) {
+    expect(classMovementPercent("peasant")).toBe(95);
+    for (const percent of [100, 110, 90, 120, 95]) {
       expect(screen.getByText(`Speed · ${percent}%`)).toBeVisible();
     }
   });

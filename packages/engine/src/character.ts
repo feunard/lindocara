@@ -28,6 +28,7 @@ export const MAIN_HAND_ITEMS = [
   "hunter_bow",
   "heartwood_staff",
   "shadow_daggers",
+  "worn_toolkit",
 ] as const;
 export type MainHandItem = (typeof MAIN_HAND_ITEMS)[number];
 
@@ -45,6 +46,7 @@ export const STARTER_EQUIPMENT: Readonly<Record<PlayerClass, Equipment>> = {
   ranger: { mainHand: "hunter_bow", offHand: null },
   priest: { mainHand: "heartwood_staff", offHand: null },
   rogue: { mainHand: "shadow_daggers", offHand: null },
+  peasant: { mainHand: "worn_toolkit", offHand: null },
 };
 
 export function starterEquipmentFor(playerClass: PlayerClass): Equipment {

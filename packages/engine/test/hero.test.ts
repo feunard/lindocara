@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 
 describe("hero classes", () => {
   it("exposes every complete playable class", () => {
-    expect([...HERO_CLASSES]).toEqual(["warrior", "ranger", "priest", "rogue"]);
+    expect([...HERO_CLASSES]).toEqual(["warrior", "ranger", "priest", "rogue", "peasant"]);
     expect(isHeroClass("priest")).toBe(true);
     expect(isHeroClass("rogue")).toBe(true);
+    expect(isHeroClass("peasant")).toBe(true);
     expect(isHeroClass("necromancer")).toBe(false);
     expect(isHeroClass(3)).toBe(false);
     expect(isHeroClass(null)).toBe(false);
@@ -24,6 +25,13 @@ describe("parseCreateHeroInput", () => {
     expect(parseCreateHeroInput({ name: "Shade", class: "rogue" })).toEqual({
       name: "Shade",
       class: "rogue",
+    });
+  });
+
+  it("accepts direct Peasant creation through the shared class validator", () => {
+    expect(parseCreateHeroInput({ name: "Till", class: "peasant" })).toEqual({
+      name: "Till",
+      class: "peasant",
     });
   });
 

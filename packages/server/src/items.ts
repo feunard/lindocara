@@ -109,6 +109,14 @@ export const ITEM_DEFINITIONS: readonly ItemDefinitionRecord[] = [
     allowedClass: "rogue",
   },
   {
+    id: "worn_toolkit",
+    type: "weapon",
+    stackable: false,
+    maxStack: 1,
+    equipmentSlot: "main_hand",
+    allowedClass: "peasant",
+  },
+  {
     id: "oak_shield",
     type: "shield",
     stackable: false,
@@ -133,7 +141,8 @@ export function isMainHandItem(value: string): value is MainHandItem {
     value === "weathered_sword" ||
     value === "hunter_bow" ||
     value === "heartwood_staff" ||
-    value === "shadow_daggers"
+    value === "shadow_daggers" ||
+    value === "worn_toolkit"
   );
 }
 

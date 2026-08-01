@@ -63,6 +63,10 @@ import { SpatialGrid } from "./spatial-grid.js";
  */
 const PRESENCE_HEARTBEAT_MS = 10_000;
 
+function attackCooldownMs(playerClass: PlayerProfile["class"]): number {
+  return CLASS_SKILLS[playerClass][0]?.cooldownMs ?? ATTACK_COOLDOWN_MS;
+}
+
 /**
  * The appearance-only projection of an authored event whose active page currently holds — the
  * third member of the `elements`/`layers` family, carrying the same rule: never a source of
@@ -617,7 +621,8 @@ export function newPlayer(
     lastSeq,
     starvedTicks: 0,
     dirty: false,
-    lastAttackAt: cooldowns.attackUntil === 0 ? 0 : cooldowns.attackUntil - ATTACK_COOLDOWN_MS,
+    lastAttackAt:
+      cooldowns.attackUntil === 0 ? 0 : cooldowns.attackUntil - attackCooldownMs(profile.class),
     lastHealAt: cooldowns.healUntil === 0 ? 0 : cooldowns.healUntil - healCooldownMs,
     skillCooldowns: [...cooldowns.skillCooldowns],
     // Iron Guard is now a session-local toggle. A reconnect always returns in neutral posture.
@@ -715,7 +720,7 @@ export function combatCooldownsFromPlayer(
   const healCooldownMs = CLASS_STATS[player.class].heal?.cooldownMs ?? 0;
   return normalizeCombatCooldowns(
     {
-      attackUntil: player.lastAttackAt + ATTACK_COOLDOWN_MS,
+      attackUntil: player.lastAttackAt + attackCooldownMs(player.class),
       healUntil: player.lastHealAt + healCooldownMs,
       skillCooldowns: player.skillCooldowns,
       guardUntil: 0,

@@ -4,6 +4,7 @@ import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { Rectangle, Texture } from "pixi.js";
+import { tinySwordsSourceUrl } from "./tiny-swords-assets.js";
 
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
 export const TINY_SWORDS_UNIT_FRAME = 192;
@@ -379,6 +380,7 @@ const SKILL_ICON_INDEX: Readonly<Record<PlayerClass, readonly number[]>> = {
   ranger: [7, 7, 7, 6, 7],
   priest: [7, 7, 6, 7, 3],
   rogue: [5, 6, 8, 12, 5],
+  peasant: [5, 5, 5, 11, 11],
 };
 
 export function skillIconSource(playerClass: PlayerClass, slot: SkillSlot): string {
@@ -394,6 +396,31 @@ export interface SkillIconArt {
 
 /** Mirrors the actual combat asset/effect used by each skill instead of generic inventory icons. */
 export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIconArt {
+  if (playerClass === "peasant") {
+    if (slot <= 3) {
+      const tool = peasantUnitSheet("azure", "attack");
+      const variants = ["woodcutters-swing", "prospectors-pick", "butchers-cut"];
+      return {
+        source: tool.source,
+        frames: tool.frames,
+        frame: 3,
+        variant: variants[slot - 1] ?? "woodcutters-swing",
+      };
+    }
+    if (slot === 4)
+      return {
+        source: TINY_SWORDS_EFFECTS.dustStrong,
+        frames: 10,
+        frame: 3,
+        variant: "makeshift-camp",
+      };
+    return {
+      source: TINY_SWORDS_EFFECTS.explosion,
+      frames: 8,
+      frame: 2,
+      variant: "homemade-bomb",
+    };
+  }
   if (playerClass === "rogue") {
     if (slot === 1 || slot === 5)
       return {
@@ -463,7 +490,7 @@ const FACTION: Readonly<Record<PrimaryColor, string>> = {
   violet: "purple",
 };
 
-const UNIT_FOLDER: Readonly<Record<Exclude<PlayerClass, "rogue">, string>> = {
+const UNIT_FOLDER: Readonly<Record<Exclude<PlayerClass, "rogue" | "peasant">, string>> = {
   warrior: "warrior",
   ranger: "archer",
   priest: "monk",
@@ -495,10 +522,37 @@ export interface UnitSheet {
   footOffset: number;
 }
 
+const PEASANT_FACTION_FOLDER: Readonly<Record<PrimaryColor, string>> = {
+  azure: "Blue Units",
+  ember: "Red Units",
+  moss: "Yellow Units",
+  violet: "Purple Units",
+};
+
+const PEASANT_FILES = {
+  idle: ["Pawn_Idle.png", 8, 57],
+  run: ["Pawn_Run.png", 6, 57],
+  attack: ["Pawn_Interact Axe.png", 6, 56],
+} as const satisfies Readonly<Record<UnitMotion, readonly [string, number, number]>>;
+
+function peasantUnitSheet(color: PrimaryColor, motion: UnitMotion): UnitSheet {
+  const [file, frames, footOffset] = PEASANT_FILES[motion];
+  return {
+    source: tinySwordsSourceUrl(
+      `Tiny Swords (Free Pack)/Units/${PEASANT_FACTION_FOLDER[color]}/Pawn/${file}`,
+    ),
+    frames,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset,
+  };
+}
+
 export function classForEquipment(equipment: Equipment): PlayerClass {
   if (equipment.mainHand === "hunter_bow") return "ranger";
   if (equipment.mainHand === "heartwood_staff") return "priest";
   if (equipment.mainHand === "shadow_daggers") return "rogue";
+  if (equipment.mainHand === "worn_toolkit") return "peasant";
   return "warrior";
 }
 
@@ -508,6 +562,7 @@ export function unitSheet(
   motion: UnitMotion,
 ): UnitSheet {
   if (playerClass === "rogue") return TINY_SWORDS_ROGUE_SHEETS[motion];
+  if (playerClass === "peasant") return peasantUnitSheet(appearance.primaryColor, motion);
   const [file, frames] = FILES[playerClass][motion];
   return {
     source: `${TINY_SWORDS_ROOT}/units/${FACTION[appearance.primaryColor]}/${UNIT_FOLDER[playerClass]}/${file}`,

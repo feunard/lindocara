@@ -10,7 +10,11 @@ import type { MonsterSpecialImpact, ProjectileKind } from "@lindocara/engine/pro
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import type { ServerCombatTimeline } from "./server-clock.js";
-import { TINY_SWORDS_ROGUE_SHEETS, TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
+import {
+  unitSheet as characterUnitSheet,
+  TINY_SWORDS_ROGUE_SHEETS,
+  TINY_SWORDS_ROOT,
+} from "./tiny-swords-art.js";
 
 const HEX_SHAMAN_PROJECTILE_SOURCE = new URL(
   "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
@@ -370,6 +374,21 @@ function casterArt(playerClass: PlayerClass, skillId: string, color: PrimaryColo
       duration,
       3,
     );
+  if (playerClass === "peasant") {
+    const peasant = characterUnitSheet(
+      "peasant",
+      { body: "wayfarer", primaryColor: color },
+      "attack",
+    );
+    return sheet(
+      peasant.source,
+      peasant.frameWidth,
+      peasant.frameHeight,
+      peasant.frames,
+      duration,
+      3,
+    );
+  }
   return unitSheet(unitSource(color, "monk", "Heal.png"), 11, duration, 3);
 }
 
@@ -530,6 +549,15 @@ export function combatArt(
       accent: styled(DUST, 0xc58cff, 1.58),
       fallback,
     };
+  }
+  if (playerClass === "peasant") {
+    const fallback =
+      "Le Pawn_Interact Axe fournit le geste générique du kit usé en attendant les outils spécialisés.";
+    if (skillId === "makeshift_camp")
+      return { caster, zone: styled(DUST, 0xc6a66a, 1.35), fallback };
+    if (skillId === "homemade_bomb")
+      return { caster, impact: styled(EXPLOSION, 0xe89b52, 0.8), fallback };
+    return { caster, impact: styled(DUST, 0xc6a66a, 0.78), fallback };
   }
   if (skillId === "radiant_bolt")
     return {
