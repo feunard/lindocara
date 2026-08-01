@@ -219,6 +219,30 @@ describe("events on the wire", () => {
     ).toBeNull();
   });
 
+  it("accepts an explicit post-fade asset while still validating its catalogue identity", () => {
+    const faded = {
+      state: "depleted",
+      generation: 0,
+      hits: 1,
+      lastHitAt: 12_000,
+      depletedAt: 12_000,
+      respawnAt: null,
+      exhaustionBehavior: "fade",
+      exhaustedAssetId: STUMP,
+      fadeDurationMs: 250,
+    };
+    expect(parseServerMessage(JSON.stringify(welcome([event({ harvest: faded })])))).not.toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([
+            event({ harvest: { ...faded, exhaustedAssetId: "resource.looks-like-a-stump" } }),
+          ]),
+        ),
+      ),
+    ).toBeNull();
+  });
+
   it("drops a welcome whose event cell is malformed", () => {
     expect(parseServerMessage(JSON.stringify(welcome([event({ col: -1 })])))).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ row: 1.5 })])))).toBeNull();

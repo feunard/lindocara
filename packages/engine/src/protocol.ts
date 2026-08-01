@@ -1586,7 +1586,9 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
           harvest.exhaustionBehavior === "hide") &&
         (harvest.exhaustionBehavior === "replace"
           ? isEditorAssetId(harvest.exhaustedAssetId)
-          : harvest.exhaustedAssetId === null) &&
+          : harvest.exhaustionBehavior === "hide"
+            ? harvest.exhaustedAssetId === null
+            : harvest.exhaustedAssetId === null || isEditorAssetId(harvest.exhaustedAssetId)) &&
         Number.isSafeInteger(harvest.fadeDurationMs) &&
         (harvest.fadeDurationMs as number) >= 0 &&
         (harvest.fadeDurationMs as number) <= HARVEST_PROFILE_LIMITS.fadeDurationMs.max))
