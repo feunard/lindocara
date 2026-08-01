@@ -9,6 +9,7 @@ class FakeAudio {
   volume = 1;
   currentTime = 0;
   paused = true;
+  playCalls = 0;
 
   constructor(src: string) {
     this.src = src;
@@ -16,12 +17,21 @@ class FakeAudio {
   }
 
   play(): Promise<void> {
+    this.playCalls += 1;
     this.paused = false;
     return Promise.resolve();
   }
 
   pause(): void {
     this.paused = true;
+  }
+}
+
+class FakeAudioContext {
+  state: AudioContextState = "running";
+
+  resume(): Promise<void> {
+    return Promise.resolve();
   }
 }
 
@@ -72,6 +82,80 @@ describe("GameSound authored scene audio", () => {
     expect(exploration.volume).toBeCloseTo(0.144);
     expect(combat?.volume).toBe(0);
     expect(combat?.currentTime).toBe(0);
+
+    sound.setCombatThreatened(true);
+    now += 650;
+    sound.update(now);
+
+    expect(FakeAudio.created.at(-1)).toBe(combat);
+    expect(combat?.currentTime).toBe(0);
+    expect(combat?.volume).toBeCloseTo(0.144);
+  });
+
+  it("preserves one active combat playback across movement and direction changes", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("sample loading disabled"))),
+    );
+    let now = 2_000;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const sound = new GameSound();
+    sound.configureScene({
+      music: "town-theme",
+      ambience: null,
+      combatMusic: "battle-theme",
+    });
+    sound.unlock();
+    sound.setCombatThreatened(true);
+    now += 650;
+    sound.update(now);
+
+    const combat = FakeAudio.created.find((audio) => audio.src.endsWith("battle-theme.mp3"));
+    if (!combat) throw new Error("missing combat channel");
+    combat.currentTime = 19;
+    const starts = combat.playCalls;
+
+    // `session.ts` routes every movement keydown through `unlock()`, including key repeat and
+    // direction changes. Repeated gestures must only confirm that playback is available.
+    sound.unlock();
+    sound.unlock();
+    sound.unlock();
+
+    expect(FakeAudio.created.filter((audio) => audio.src.endsWith("battle-theme.mp3"))).toEqual([
+      combat,
+    ]);
+    expect(combat.currentTime).toBe(19);
+    expect(combat.playCalls).toBe(starts);
+  });
+
+  it("treats an identical scene configuration as an idempotent confirmation", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    let now = 2_500;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const sound = new GameSound();
+    const scene = {
+      music: "town-theme",
+      ambience: null,
+      combatMusic: "battle-theme",
+    } as const;
+    sound.configureScene(scene);
+    sound.setCombatThreatened(true);
+    now += 650;
+    sound.update(now);
+
+    const combat = FakeAudio.created.at(-1);
+    if (!combat) throw new Error("missing combat channel");
+    combat.currentTime = 23;
+
+    sound.configureScene({ ...scene });
+    now += 1_000;
+    sound.update(now);
+
+    expect(FakeAudio.created.at(-1)).toBe(combat);
+    expect(combat.currentTime).toBe(23);
+    expect(combat.volume).toBeCloseTo(0.144);
   });
 
   it("ignores a transient missing threat snapshot while combat is still active", () => {

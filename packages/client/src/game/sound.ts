@@ -32,6 +32,14 @@ interface MusicFade {
   combatTo: number;
 }
 
+function sameSceneAudio(left: AdventureAudioConfig, right: AdventureAudioConfig): boolean {
+  return (
+    left.music === right.music &&
+    left.ambience === right.ambience &&
+    left.combatMusic === right.combatMusic
+  );
+}
+
 export class GameSound {
   #context: AudioContext | null = null;
   #explorationMusic: HTMLAudioElement | null = null;
@@ -66,7 +74,9 @@ export class GameSound {
   }
 
   configureScene(audio: AdventureAudioConfig = DEFAULT_ADVENTURE_AUDIO): void {
-    this.#scene = { ...audio };
+    const nextScene = { ...audio };
+    if (sameSceneAudio(this.#scene, nextScene)) return;
+    this.#scene = nextScene;
     this.#combatUntil = 0;
     this.#combatThreatened = false;
     this.#combatThreatReleaseAt = 0;
@@ -74,6 +84,8 @@ export class GameSound {
     this.#explorationWeight = 1;
     this.#combatWeight = 0;
     this.#musicFade = null;
+    this.#stopElement(this.#combatMusic);
+    this.#combatMusic = null;
     this.#syncSceneAudio();
   }
 
@@ -193,9 +205,6 @@ export class GameSound {
       this.#stopElement(this.#combatMusic);
       this.#combatMusic = null;
       this.#combatMusicSrc = combatSrc;
-    } else if (this.#combatMusic) {
-      this.#combatMusic.pause();
-      this.#combatMusic.currentTime = 0;
     }
     this.#syncVolumes();
     this.#syncPlayback();
@@ -283,18 +292,20 @@ export class GameSound {
       this.#explorationWeight > 0 || (this.#musicFade?.explorationTo ?? 0) > 0;
     const combatNeeded = this.#combatWeight > 0 || (this.#musicFade?.combatTo ?? 0) > 0;
     if (this.#explorationMusic) {
-      if (canPlay && musicEnabled && explorationNeeded)
-        void this.#explorationMusic.play().catch(() => undefined);
-      else this.#explorationMusic.pause();
+      if (canPlay && musicEnabled && explorationNeeded) {
+        if (this.#explorationMusic.paused)
+          void this.#explorationMusic.play().catch(() => undefined);
+      } else this.#explorationMusic.pause();
     }
     if (this.#combatMusic) {
-      if (canPlay && musicEnabled && combatNeeded)
-        void this.#combatMusic.play().catch(() => undefined);
-      else this.#combatMusic.pause();
+      if (canPlay && musicEnabled && combatNeeded) {
+        if (this.#combatMusic.paused) void this.#combatMusic.play().catch(() => undefined);
+      } else this.#combatMusic.pause();
     }
     if (this.#ambience) {
-      if (canPlay) void this.#ambience.play().catch(() => undefined);
-      else this.#ambience.pause();
+      if (canPlay) {
+        if (this.#ambience.paused) void this.#ambience.play().catch(() => undefined);
+      } else this.#ambience.pause();
     }
   }
 

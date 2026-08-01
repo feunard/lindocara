@@ -73,7 +73,18 @@ describe("session combat audio", () => {
 
     session.setServerThreat([{ dead: false, threatening: true }]);
 
-    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
+    const combat = FakeAudio.created.at(-1);
+    if (!combat) throw new Error("missing combat channel");
+    combat.currentTime = 7;
+    session.setServerThreat([{ dead: false, threatening: true }]);
+    session.setServerThreat([
+      { dead: true, threatening: true },
+      { dead: false, threatening: true },
+    ]);
+
+    expect(combat.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
+    expect(FakeAudio.created.at(-1)).toBe(combat);
+    expect(combat.currentTime).toBe(7);
   });
 
   it.each([
