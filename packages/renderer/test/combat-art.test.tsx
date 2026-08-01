@@ -3,6 +3,7 @@ import {
   MONSTER_SPECIES_KIND,
   type MonsterSpecies,
 } from "@lindocara/engine/game.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import {
   allCombatSheets,
   combatActionFrameIndex,
@@ -17,7 +18,14 @@ import {
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import {
   allUnitSheets,
+  PEASANT_CARRY_PRIORITY,
+  PEASANT_SKILL_IDS,
+  PEASANT_TOOL_SPECS,
+  peasantCarrySheet,
+  peasantToolSheet,
+  prioritizedPeasantCarry,
   skillIconArt,
+  TINY_SWORDS_PEASANT_BOMB_SHEETS,
   TINY_SWORDS_ROGUE_SHEETS,
   unitSheet,
 } from "@lindocara/renderer/tiny-swords-art.js";
@@ -101,9 +109,39 @@ describe("Tiny Swords directional combat art", () => {
     expect(allUnitSheets().filter((sheet) => sheet.source.includes("Thief"))).toHaveLength(3);
   });
 
-  it("preloads Peasant Pawn idle, run and axe interaction strips in all four colours", () => {
+  it("maps every Peasant skill to an explicit visual source", () => {
+    expect(PEASANT_SKILL_IDS).toEqual(CLASS_SKILLS.peasant.map((skill) => skill.id));
+    const expectedTools = {
+      woodcutters_swing: ["Pawn_Interact Axe.png", 6, 3],
+      prospectors_pick: ["Pawn_Interact Pickaxe.png", 6, 3],
+      butchers_cut: ["Pawn_Interact Knife.png", 4, 2],
+      makeshift_camp: ["Pawn_Interact Hammer.png", 3, 1],
+    } as const;
+
+    for (const color of ["azure", "ember", "moss", "violet"] as const) {
+      const visualSources = new Set<string>();
+      for (const [skillId, [file, frames, activeFrame]] of Object.entries(expectedTools)) {
+        const art = combatArt("peasant", skillId, color);
+        expect(decodeURI(art.caster.source)).toContain(file);
+        expect(art.caster).toMatchObject({ frames, activeFrame });
+        expect(art.fallback ?? "").not.toContain("Axe fournit le geste générique");
+        visualSources.add(art.caster.source);
+      }
+      const bomb = combatArt("peasant", "homemade_bomb", color);
+      expect(decodeURI(bomb.caster.source)).toContain("Pawn_Idle.png");
+      expect(decodeURI(bomb.projectile?.source ?? "")).toContain("Bomb_Spinning.png");
+      visualSources.add(bomb.projectile?.source ?? "");
+      expect(visualSources.size).toBe(5);
+    }
+    expect(() => combatArt("peasant", "unknown_skill", "azure")).toThrow(
+      "Unknown Peasant skill art",
+    );
+  });
+
+  it("preloads every Peasant base, tool and carried-resource strip in all four colours", () => {
     const sheets = allUnitSheets().filter((sheet) => sheet.source.includes("Pawn_"));
-    expect(sheets).toHaveLength(12);
+    expect(sheets).toHaveLength(48);
+    const preloaded = new Set(sheets.map((sheet) => sheet.source));
     for (const color of ["azure", "ember", "moss", "violet"] as const) {
       const motions = ["idle", "run", "attack"] as const;
       expect(
@@ -118,9 +156,25 @@ describe("Tiny Swords directional combat art", () => {
           frames: 6,
           frameWidth: 192,
           frameHeight: 192,
+          footOffset: 57,
         }),
       ]);
+      for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as Array<
+        keyof typeof PEASANT_TOOL_SPECS
+      >) {
+        expect(preloaded.has(peasantToolSheet(color, skillId).source)).toBe(true);
+      }
+      for (const kind of PEASANT_CARRY_PRIORITY) {
+        for (const motion of ["idle", "run"] as const) {
+          const carry = peasantCarrySheet(color, kind, motion);
+          expect(preloaded.has(carry.source)).toBe(true);
+          expect(carry.frames).toBe(motion === "idle" ? 8 : 6);
+        }
+      }
     }
+    expect(prioritizedPeasantCarry(["wood", "meat", "gold"])).toBe("gold");
+    expect(prioritizedPeasantCarry(["wood", "meat"])).toBe("meat");
+    expect(prioritizedPeasantCarry([])).toBeUndefined();
   });
 
   it("keeps the basic arrow plain and gives every ranger special shot a distinct treatment", () => {
@@ -144,6 +198,40 @@ describe("Tiny Swords directional combat art", () => {
       const art = projectileArt(kind, "ember");
       expect(sheets.has(art.source)).toBe(true);
       expect(art.source).not.toBe("");
+    }
+  });
+
+  it("keeps the Peasant bomb distinct from enemy bombs and preloads its complete art", () => {
+    const peasantBomb = combatArt("peasant", "homemade_bomb", "azure");
+    const enemyBomb = projectileArt("enemy_bomb", "ember");
+
+    expect(peasantBomb.projectile).toMatchObject({
+      source: TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.source,
+      frameWidth: 128,
+      frameHeight: 128,
+      frames: 4,
+      activeFrame: 0,
+    });
+    expect(peasantBomb.impact).toMatchObject({
+      source: TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.source,
+      frames: 8,
+      activeFrame: 2,
+    });
+    expect(enemyBomb).toMatchObject({
+      frameWidth: 192,
+      frameHeight: 192,
+      frames: 8,
+      durationMs: 650,
+      activeFrame: 3,
+      scale: 0.46,
+      trail: { color: 0xff8d4a, length: 18, width: 3, glowRadius: 6 },
+    });
+    expect(decodeURI(enemyBomb.source)).toContain("Bomb_Idle.png");
+    expect(enemyBomb.source).not.toBe(peasantBomb.projectile?.source);
+
+    const preloaded = new Set(allCombatSheets().map((entry) => entry.source));
+    for (const sheet of Object.values(TINY_SWORDS_PEASANT_BOMB_SHEETS)) {
+      expect(preloaded.has(sheet.source)).toBe(true);
     }
   });
 
@@ -286,13 +374,28 @@ describe("Tiny Swords directional combat art", () => {
       frame: 2,
       variant: "shadow-dance",
     });
-    expect(skillIconArt("peasant", 1)).toMatchObject({
-      source: expect.stringContaining("Pawn_Interact"),
-      frames: 6,
-      variant: "woodcutters-swing",
-    });
-    expect(skillIconArt("peasant", 4)).toMatchObject({ variant: "makeshift-camp" });
-    expect(skillIconArt("peasant", 5)).toMatchObject({ variant: "homemade-bomb" });
+    const peasantIcons = [1, 2, 3, 4, 5].map((slot) =>
+      skillIconArt("peasant", slot as 1 | 2 | 3 | 4 | 5),
+    );
+    for (const [index, file] of [
+      "Pawn_Interact Axe.png",
+      "Pawn_Interact Pickaxe.png",
+      "Pawn_Interact Knife.png",
+      "Pawn_Interact Hammer.png",
+      "Bomb_FuseLit.png",
+    ].entries()) {
+      expect(decodeURI(peasantIcons[index]?.source ?? "")).toContain(file);
+    }
+    expect(peasantIcons.map((icon) => icon.frames)).toEqual([6, 6, 4, 3, 4]);
+    expect(peasantIcons.map((icon) => icon.frame)).toEqual([3, 3, 2, 1, 0]);
+    expect(new Set(peasantIcons.map((icon) => icon.source)).size).toBe(5);
+    expect(peasantIcons.map((icon) => icon.variant)).toEqual([
+      "woodcutters-swing",
+      "prospectors-pick",
+      "butchers-cut",
+      "makeshift-camp",
+      "homemade-bomb",
+    ]);
   });
 
   it("uses the exact Hex Shaman magic projectile for Radiant Bolt", () => {

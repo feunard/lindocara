@@ -397,28 +397,20 @@ export interface SkillIconArt {
 /** Mirrors the actual combat asset/effect used by each skill instead of generic inventory icons. */
 export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIconArt {
   if (playerClass === "peasant") {
-    if (slot <= 3) {
-      const tool = peasantUnitSheet("azure", "attack");
-      const variants = ["woodcutters-swing", "prospectors-pick", "butchers-cut"];
+    const skillId = peasantSkillIdForSlot(slot);
+    if (skillId === "homemade_bomb")
       return {
-        source: tool.source,
-        frames: tool.frames,
-        frame: 3,
-        variant: variants[slot - 1] ?? "woodcutters-swing",
+        source: TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.source,
+        frames: TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frames,
+        frame: TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.activeFrame,
+        variant: "homemade-bomb",
       };
-    }
-    if (slot === 4)
-      return {
-        source: TINY_SWORDS_EFFECTS.dustStrong,
-        frames: 10,
-        frame: 3,
-        variant: "makeshift-camp",
-      };
+    const tool = peasantToolSheet("azure", skillId);
     return {
-      source: TINY_SWORDS_EFFECTS.explosion,
-      frames: 8,
-      frame: 2,
-      variant: "homemade-bomb",
+      source: tool.source,
+      frames: tool.frames,
+      frame: peasantSkillActiveFrame(skillId),
+      variant: skillId.replaceAll("_", "-"),
     };
   }
   if (playerClass === "rogue") {
@@ -529,23 +521,170 @@ const PEASANT_FACTION_FOLDER: Readonly<Record<PrimaryColor, string>> = {
   violet: "Purple Units",
 };
 
-const PEASANT_FILES = {
+export const PEASANT_SKILL_IDS = [
+  "woodcutters_swing",
+  "prospectors_pick",
+  "butchers_cut",
+  "makeshift_camp",
+  "homemade_bomb",
+] as const;
+export type PeasantSkillId = (typeof PEASANT_SKILL_IDS)[number];
+export type PeasantToolSkillId = Exclude<PeasantSkillId, "homemade_bomb">;
+
+const PEASANT_SKILL_BY_SLOT: Readonly<Record<SkillSlot, PeasantSkillId>> = {
+  1: "woodcutters_swing",
+  2: "prospectors_pick",
+  3: "butchers_cut",
+  4: "makeshift_camp",
+  5: "homemade_bomb",
+};
+
+interface PeasantToolSpec {
+  readonly file: string;
+  readonly frames: number;
+  readonly footOffset: number;
+  readonly activeFrame: number;
+}
+
+/**
+ * Explicit presentation contract for every Peasant tool action. Asset names never select the
+ * technique: the engine skill id does. Tiny Swords has no Pawn shovel interaction, so the authored
+ * hammer strip is deliberately used for construction rather than silently falling back to Axe.
+ */
+export const PEASANT_TOOL_SPECS = {
+  woodcutters_swing: {
+    file: "Pawn_Interact Axe.png",
+    frames: 6,
+    footOffset: 57,
+    activeFrame: 3,
+  },
+  prospectors_pick: {
+    file: "Pawn_Interact Pickaxe.png",
+    frames: 6,
+    footOffset: 57,
+    activeFrame: 3,
+  },
+  butchers_cut: {
+    file: "Pawn_Interact Knife.png",
+    frames: 4,
+    footOffset: 51,
+    activeFrame: 2,
+  },
+  makeshift_camp: {
+    file: "Pawn_Interact Hammer.png",
+    frames: 3,
+    footOffset: 54,
+    activeFrame: 1,
+  },
+} as const satisfies Readonly<Record<PeasantToolSkillId, PeasantToolSpec>>;
+
+const PEASANT_BASE_FILES = {
   idle: ["Pawn_Idle.png", 8, 57],
   run: ["Pawn_Run.png", 6, 57],
-  attack: ["Pawn_Interact Axe.png", 6, 56],
-} as const satisfies Readonly<Record<UnitMotion, readonly [string, number, number]>>;
+} as const satisfies Readonly<
+  Record<Exclude<UnitMotion, "attack">, readonly [string, number, number]>
+>;
 
-function peasantUnitSheet(color: PrimaryColor, motion: UnitMotion): UnitSheet {
-  const [file, frames, footOffset] = PEASANT_FILES[motion];
-  return {
+export const PEASANT_CARRY_PRIORITY = ["gold", "meat", "wood"] as const;
+export type PeasantCarryKind = (typeof PEASANT_CARRY_PRIORITY)[number];
+export type PeasantCarryMotion = Exclude<UnitMotion, "attack">;
+
+const PEASANT_CARRY_FILES = {
+  gold: { idle: "Pawn_Idle Gold.png", run: "Pawn_Run Gold.png" },
+  meat: { idle: "Pawn_Idle Meat.png", run: "Pawn_Run Meat.png" },
+  wood: { idle: "Pawn_Idle Wood.png", run: "Pawn_Run Wood.png" },
+} as const satisfies Readonly<Record<PeasantCarryKind, Record<PeasantCarryMotion, string>>>;
+
+export const TINY_SWORDS_PEASANT_BOMB_SHEETS = {
+  icon: {
     source: tinySwordsSourceUrl(
-      `Tiny Swords (Free Pack)/Units/${PEASANT_FACTION_FOLDER[color]}/Pawn/${file}`,
+      "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_FuseLit.png",
     ),
+    frames: 4,
+    frameWidth: 128,
+    frameHeight: 128,
+    activeFrame: 0,
+  },
+  projectile: {
+    source: tinySwordsSourceUrl(
+      "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_Spinning.png",
+    ),
+    frames: 4,
+    frameWidth: 128,
+    frameHeight: 128,
+    activeFrame: 0,
+  },
+  impact: {
+    source: TINY_SWORDS_EFFECTS.explosion,
+    frames: 8,
+    frameWidth: 192,
+    frameHeight: 192,
+    activeFrame: 2,
+  },
+} as const;
+
+function peasantSource(color: PrimaryColor, file: string): string {
+  return tinySwordsSourceUrl(
+    `Tiny Swords (Free Pack)/Units/${PEASANT_FACTION_FOLDER[color]}/Pawn/${file}`,
+  );
+}
+
+function peasantSheet(
+  color: PrimaryColor,
+  file: string,
+  frames: number,
+  footOffset: number,
+): UnitSheet {
+  return {
+    source: peasantSource(color, file),
     frames,
     frameWidth: TINY_SWORDS_UNIT_FRAME,
     frameHeight: TINY_SWORDS_UNIT_FRAME,
     footOffset,
   };
+}
+
+export function isPeasantSkillId(value: string): value is PeasantSkillId {
+  return (PEASANT_SKILL_IDS as readonly string[]).includes(value);
+}
+
+export function peasantSkillIdForSlot(slot: SkillSlot): PeasantSkillId {
+  return PEASANT_SKILL_BY_SLOT[slot];
+}
+
+export function peasantSkillActiveFrame(skillId: PeasantSkillId): number {
+  return skillId === "homemade_bomb" ? 0 : PEASANT_TOOL_SPECS[skillId].activeFrame;
+}
+
+export function peasantToolSheet(color: PrimaryColor, skillId: PeasantToolSkillId): UnitSheet {
+  const spec = PEASANT_TOOL_SPECS[skillId];
+  return peasantSheet(color, spec.file, spec.frames, spec.footOffset);
+}
+
+export function peasantCasterSheet(color: PrimaryColor, skillId: PeasantSkillId): UnitSheet {
+  if (skillId === "homemade_bomb") return peasantUnitSheet(color, "idle");
+  return peasantToolSheet(color, skillId);
+}
+
+/** Selects at most one carried-resource strip without making asset availability a gameplay rule. */
+export function prioritizedPeasantCarry(
+  carried: readonly PeasantCarryKind[],
+): PeasantCarryKind | undefined {
+  return PEASANT_CARRY_PRIORITY.find((kind) => carried.includes(kind));
+}
+
+export function peasantCarrySheet(
+  color: PrimaryColor,
+  kind: PeasantCarryKind,
+  motion: PeasantCarryMotion,
+): UnitSheet {
+  return peasantSheet(color, PEASANT_CARRY_FILES[kind][motion], motion === "idle" ? 8 : 6, 57);
+}
+
+function peasantUnitSheet(color: PrimaryColor, motion: UnitMotion): UnitSheet {
+  if (motion === "attack") return peasantToolSheet(color, "woodcutters_swing");
+  const [file, frames, footOffset] = PEASANT_BASE_FILES[motion];
+  return peasantSheet(color, file, frames, footOffset);
 }
 
 export function classForEquipment(equipment: Equipment): PlayerClass {
@@ -587,6 +726,18 @@ export function allUnitSheets(): UnitSheet[] {
           motion,
         );
         result.set(sheet.source, sheet);
+      }
+    }
+  }
+  for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
+    for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
+      const tool = peasantToolSheet(primaryColor, skillId);
+      result.set(tool.source, tool);
+    }
+    for (const kind of PEASANT_CARRY_PRIORITY) {
+      for (const motion of ["idle", "run"] as const) {
+        const carry = peasantCarrySheet(primaryColor, kind, motion);
+        result.set(carry.source, carry);
       }
     }
   }

@@ -11,7 +11,10 @@ import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import type { ServerCombatTimeline } from "./server-clock.js";
 import {
-  unitSheet as characterUnitSheet,
+  isPeasantSkillId,
+  peasantCasterSheet,
+  peasantSkillActiveFrame,
+  TINY_SWORDS_PEASANT_BOMB_SHEETS,
   TINY_SWORDS_ROGUE_SHEETS,
   TINY_SWORDS_ROOT,
 } from "./tiny-swords-art.js";
@@ -207,6 +210,40 @@ function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {
   return { ...art, tint, scale };
 }
 
+const PEASANT_BOMB_ICON = sheet(
+  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.source,
+  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frameWidth,
+  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frameHeight,
+  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frames,
+  520,
+  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.activeFrame,
+);
+const PEASANT_BOMB_PROJECTILE: CombatProjectileArt = {
+  ...sheet(
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.source,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.frameWidth,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.frameHeight,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.frames,
+    650,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.activeFrame,
+  ),
+  rotationOffset: 0,
+  scale: 0.58,
+  trail: { color: 0xff8d4a, length: 18, width: 3, glowRadius: 6 },
+};
+const PEASANT_BOMB_IMPACT = styled(
+  sheet(
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.source,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.frameWidth,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.frameHeight,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.frames,
+    620,
+    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.activeFrame,
+  ),
+  0xe89b52,
+  0.8,
+);
+
 /** Visual-only impact vocabulary. Every special technique is named explicitly: no asset name,
  * path or species heuristic selects gameplay or presentation. */
 export const MONSTER_SPECIAL_IMPACT_ART = {
@@ -375,18 +412,15 @@ function casterArt(playerClass: PlayerClass, skillId: string, color: PrimaryColo
       3,
     );
   if (playerClass === "peasant") {
-    const peasant = characterUnitSheet(
-      "peasant",
-      { body: "wayfarer", primaryColor: color },
-      "attack",
-    );
+    if (!isPeasantSkillId(skillId)) throw new Error(`Unknown Peasant skill art: ${skillId}`);
+    const peasant = peasantCasterSheet(color, skillId);
     return sheet(
       peasant.source,
       peasant.frameWidth,
       peasant.frameHeight,
       peasant.frames,
       duration,
-      3,
+      peasantSkillActiveFrame(skillId),
     );
   }
   return unitSheet(unitSource(color, "monk", "Heal.png"), 11, duration, 3);
@@ -551,13 +585,22 @@ export function combatArt(
     };
   }
   if (playerClass === "peasant") {
-    const fallback =
-      "Le Pawn_Interact Axe fournit le geste générique du kit usé en attendant les outils spécialisés.";
     if (skillId === "makeshift_camp")
-      return { caster, zone: styled(DUST, 0xc6a66a, 1.35), fallback };
+      return {
+        caster,
+        zone: styled(DUST, 0xc6a66a, 1.35),
+        fallback:
+          "Tiny Swords ne fournit pas de pelle Pawn : le marteau d'interaction est l'outil de chantier explicite.",
+      };
     if (skillId === "homemade_bomb")
-      return { caster, impact: styled(EXPLOSION, 0xe89b52, 0.8), fallback };
-    return { caster, impact: styled(DUST, 0xc6a66a, 0.78), fallback };
+      return {
+        caster,
+        projectile: PEASANT_BOMB_PROJECTILE,
+        impact: PEASANT_BOMB_IMPACT,
+        fallback:
+          "Tiny Swords ne fournit pas de lancer Pawn : le projectile Bomb_Spinning porte l'action explicite.",
+      };
+    return { caster, impact: styled(DUST, 0xc6a66a, 0.78) };
   }
   if (skillId === "radiant_bolt")
     return {
@@ -631,6 +674,7 @@ export function allCombatSheets(): CombatSheetArt[] {
     const projectile = projectileArt(kind, "ember");
     unique.set(projectile.source, projectile);
   }
+  unique.set(PEASANT_BOMB_ICON.source, PEASANT_BOMB_ICON);
   for (const profile of Object.values(MONSTER_SPECIAL_IMPACT_ART)) {
     const definition: MonsterSpecialImpactArtDefinition = profile;
     unique.set(definition.effect.source, definition.effect);
