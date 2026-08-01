@@ -229,6 +229,8 @@ test("partyAdventureStates is keyed by partyId", async ({ expect }) => {
   const state = await probe.partyAdventureStates.getById(party.id);
   expect(state.partyId).toBe(party.id);
   expect(state.quests).toBe("{}");
+  expect(state.materials).toBe("{}");
+  expect(state.harvestNodes).toBe("{}");
 
   // FK cascade: deleting the party deletes its adventure state.
   await probe.parties.deleteById(party.id);

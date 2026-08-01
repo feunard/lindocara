@@ -67,6 +67,7 @@ import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
 import { parseMapHeroSettings } from "./map-hero-settings.js";
 import type { MerchantDefinition } from "./merchant.js";
+import { isPartyMaterials, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
@@ -222,6 +223,8 @@ export interface SelfState {
   authoredQuests?: readonly AuthoredQuestTracker[];
   /** Per-player quest punctuation for active authored events on the current map. */
   authoredQuestMarkers?: readonly AuthoredQuestMarker[];
+  /** Authoritative party-wide crafting stock; optional across rolling server/client upgrades. */
+  materials?: PartyMaterials;
   life: LifeState;
   /** Where your body lies, so the HUD can point you at it. Null unless you are dead. */
   corpse: { x: number; y: number } | null;
@@ -1225,6 +1228,7 @@ function isSelfState(value: unknown): value is SelfState {
   ) {
     return false;
   }
+  if (value.materials !== undefined && !isPartyMaterials(value.materials)) return false;
   if (
     value.resource !== undefined &&
     (!isRecord(value.resource) ||

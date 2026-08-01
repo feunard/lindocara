@@ -3,6 +3,7 @@ import type {
   AuthoredQuestTracker,
 } from "@lindocara/engine/adventure-state.js";
 import { type QuestChapter, xpForNextLevel } from "@lindocara/engine/game.js";
+import type { PartyMaterials } from "@lindocara/engine/party-harvest-state.js";
 import type {
   SelfState,
   ServerMessage,
@@ -32,6 +33,7 @@ export function selfState(
   questTarget?: number,
   authoredQuests: readonly AuthoredQuestTracker[] = [],
   authoredQuestMarkers: readonly AuthoredQuestMarker[] = [],
+  materials?: PartyMaterials,
 ): SelfState {
   const serverNow = Date.now();
   const chapter = player.quest.chapter ?? "three_offerings";
@@ -54,6 +56,7 @@ export function selfState(
     },
     authoredQuests,
     authoredQuestMarkers,
+    ...(materials ? { materials: { ...materials } } : {}),
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
     serverNow,
@@ -95,10 +98,11 @@ export function sendState<TSocket>(
   send: SendMessage<TSocket>,
   authoredQuests: readonly AuthoredQuestTracker[] = [],
   authoredQuestMarkers: readonly AuthoredQuestMarker[] = [],
+  materials?: PartyMaterials,
 ): void {
   send(socket, {
     t: "state",
-    self: selfState(player, questTarget, authoredQuests, authoredQuestMarkers),
+    self: selfState(player, questTarget, authoredQuests, authoredQuestMarkers, materials),
   });
 }
 

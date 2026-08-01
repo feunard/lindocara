@@ -19,6 +19,7 @@ import {
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
+import { WebSocketServerProvider } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { authoredQuestRewardClaims } from "../src/api/entities/authoredQuestRewardClaims.ts";
@@ -26,7 +27,13 @@ import { heroes } from "../src/api/entities/heroes.ts";
 import { heroItems } from "../src/api/entities/heroItems.ts";
 import { heroQuests } from "../src/api/entities/heroQuests.ts";
 import { partyAdventureStates } from "../src/api/entities/partyAdventureStates.ts";
-import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
+import {
+  type ConsumePartyMaterialsResult,
+  type HitHarvestNodeResult,
+  PartyRoom,
+  type ReserveHarvestNodeRequest,
+  type ReserveHarvestNodeResult,
+} from "../src/api/realtime/PartyRoom.ts";
 import { createTestApp } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -188,6 +195,35 @@ async function seedCompletedPersonalProgress(
   });
 }
 
+async function reserveHarvestNode(
+  partyId: string,
+  request: ReserveHarvestNodeRequest,
+): Promise<ReserveHarvestNodeResult> {
+  return (await partyRoom.room.call(
+    partyId,
+    "reserveHarvestNode",
+    request,
+  )) as ReserveHarvestNodeResult;
+}
+
+async function hitHarvestNode(
+  partyId: string,
+  request: { heroId: string; eventId: string; reservationId: string },
+): Promise<HitHarvestNodeResult> {
+  return (await partyRoom.room.call(partyId, "hitHarvestNode", request)) as HitHarvestNodeResult;
+}
+
+function evictPartyRoom(partyId: string): void {
+  const provider = alepha.inject(WebSocketServerProvider) as unknown as {
+    roomEngines: Map<string, { dispose(): void }>;
+    roomEngineTouched: Map<string, number>;
+  };
+  const key = `/ws/party:${partyId}`;
+  provider.roomEngines.get(key)?.dispose();
+  provider.roomEngines.delete(key);
+  provider.roomEngineTouched.delete(key);
+}
+
 describe("applyStateChanges", () => {
   test("bumps the version and lands in D1 immediately, no clock advance", async () => {
     const { partyId } = await newPartyOnly("applybump");
@@ -254,6 +290,241 @@ describe("applyStateChanges", () => {
     const row = await probe.partyAdventureStates.findById(partyId);
     expect(row?.version).toBe(1);
     expect(JSON.parse(row?.switches ?? "{}")).toEqual({ "0001": true });
+  });
+});
+
+describe("shared party materials and harvest nodes", () => {
+  const EVENT_A = "11111111-1111-4111-8111-111111111111";
+  const EVENT_B = "22222222-2222-4222-8222-222222222222";
+  const OTHER_HERO = "33333333-3333-4333-8333-333333333333";
+
+  test("old parties load empty stock and node state without creating a row", async () => {
+    const { partyId } = await newPartyOnly("harvestdefault");
+
+    const loaded = (await partyRoom.room.call(partyId, "getAdventureState")) as {
+      state: { materials: unknown; harvestNodes: unknown };
+      version: number;
+    };
+
+    expect(loaded).toMatchObject({
+      version: 0,
+      state: {
+        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+        harvestNodes: {},
+      },
+    });
+    expect(await probe.partyAdventureStates.findById(partyId)).toBeUndefined();
+  });
+
+  test("racing reservations and replayed hits credit one durable reward", async () => {
+    const { partyId, heroId } = await newPartyWithHero("harvestrace");
+    partyRoom.now = () => 1_000;
+    const base = {
+      eventId: EVENT_A,
+      generation: 0,
+      requiredHits: 1,
+      reward: { wood: 5 },
+      respawnDelayMs: null,
+    } as const;
+
+    const reservations = await Promise.all([
+      reserveHarvestNode(partyId, { ...base, heroId }),
+      reserveHarvestNode(partyId, { ...base, heroId: OTHER_HERO }),
+    ]);
+    expect(reservations.filter((result) => result.ok)).toHaveLength(1);
+    expect(reservations.filter((result) => !result.ok)).toEqual([{ ok: false, reason: "busy" }]);
+    const accepted = reservations.find((result) => result.ok);
+    if (!accepted?.ok) throw new Error("no accepted reservation");
+    const acceptedHero = reservations[0]?.ok ? heroId : OTHER_HERO;
+
+    const hits = await Promise.all([
+      hitHarvestNode(partyId, {
+        heroId: acceptedHero,
+        eventId: EVENT_A,
+        reservationId: accepted.reservationId,
+      }),
+      hitHarvestNode(partyId, {
+        heroId: acceptedHero,
+        eventId: EVENT_A,
+        reservationId: accepted.reservationId,
+      }),
+    ]);
+    expect(hits.filter((result) => result.ok)).toHaveLength(1);
+    expect(hits.filter((result) => !result.ok)).toEqual([{ ok: false, reason: "reservation" }]);
+
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(row?.version).toBe(1);
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 5, stone: 0, iron: 0, meat: 0 });
+    expect(JSON.parse(row?.harvestNodes ?? "{}")).toEqual({
+      [EVENT_A]: {
+        eventId: EVENT_A,
+        generation: 0,
+        hits: 1,
+        depleted: true,
+        respawnAt: null,
+      },
+    });
+
+    // A fresh room engine (the reconnect/eviction case) must rebuild from D1, not from the old
+    // in-memory cache.
+    evictPartyRoom(partyId);
+    const reloaded = (await partyRoom.room.call(partyId, "getAdventureState")) as {
+      state: { materials: unknown; harvestNodes: unknown };
+      version: number;
+    };
+    expect(reloaded).toMatchObject({
+      version: 1,
+      state: {
+        materials: { wood: 5, stone: 0, iron: 0, meat: 0 },
+        harvestNodes: { [EVENT_A]: { generation: 0, depleted: true } },
+      },
+    });
+  });
+
+  test("a disconnected harvester loses only its volatile reservation", async () => {
+    const { partyId, heroId } = await newPartyWithHero("harvdisc");
+    partyRoom.now = () => 2_000;
+    const first = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 2,
+      reward: { stone: 3 },
+      respawnDelayMs: null,
+    });
+    expect(first.ok).toBe(true);
+
+    evictPartyRoom(partyId);
+    const replacement = await reserveHarvestNode(partyId, {
+      heroId: OTHER_HERO,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 2,
+      reward: { stone: 3 },
+      respawnDelayMs: null,
+    });
+    expect(replacement).toMatchObject({ ok: true, node: { generation: 0, hits: 0 } });
+  });
+
+  test("concurrent consumption cannot overspend the shared stock", async () => {
+    const { partyId, heroId } = await newPartyWithHero("harvestspend");
+    partyRoom.now = () => 3_000;
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_A,
+      generation: 0,
+      requiredHits: 1,
+      reward: { iron: 2 },
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("reservation rejected");
+    expect(
+      await hitHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_A,
+        reservationId: reservation.reservationId,
+      }),
+    ).toMatchObject({ ok: true, rewarded: true });
+
+    const spent = (await Promise.all([
+      partyRoom.room.call(partyId, "consumePartyMaterials", { iron: 2 }),
+      partyRoom.room.call(partyId, "consumePartyMaterials", { iron: 2 }),
+    ])) as ConsumePartyMaterialsResult[];
+    expect(spent.filter((result) => result.ok)).toEqual([
+      { ok: true, materials: { wood: 0, stone: 0, iron: 0, meat: 0 } },
+    ]);
+    expect(spent.filter((result) => !result.ok)).toEqual([{ ok: false, reason: "insufficient" }]);
+
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(row?.version).toBe(2);
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, iron: 0, meat: 0 });
+  });
+
+  test("timed respawn advances generation before accepting another hit", async () => {
+    const { partyId, heroId } = await newPartyWithHero("harvestrespawn");
+    let now = 10_000;
+    partyRoom.now = () => now;
+    const first = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_A,
+      generation: 0,
+      requiredHits: 1,
+      reward: { meat: 2 },
+      respawnDelayMs: 100,
+    });
+    if (!first.ok) throw new Error("reservation rejected");
+    await hitHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_A,
+      reservationId: first.reservationId,
+    });
+
+    now = 10_099;
+    expect(
+      await reserveHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_A,
+        generation: 0,
+        requiredHits: 1,
+        reward: { meat: 2 },
+        respawnDelayMs: 100,
+      }),
+    ).toEqual({ ok: false, reason: "depleted" });
+
+    now = 10_100;
+    expect(
+      await reserveHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_A,
+        generation: 0,
+        requiredHits: 1,
+        reward: { meat: 2 },
+        respawnDelayMs: 100,
+      }),
+    ).toEqual({ ok: false, reason: "generation" });
+    const second = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_A,
+      generation: 1,
+      requiredHits: 1,
+      reward: { meat: 2 },
+      respawnDelayMs: 100,
+    });
+    expect(second).toMatchObject({ ok: true, node: { generation: 1, hits: 0, depleted: false } });
+  });
+
+  test("invalid material and node inputs mutate nothing", async () => {
+    const { partyId, heroId } = await newPartyWithHero("harvestinvalid");
+
+    expect(
+      await partyRoom.room.call(partyId, "reserveHarvestNode", {
+        heroId,
+        eventId: EVENT_A,
+        generation: 0,
+        requiredHits: 1,
+        reward: { gold: 100 },
+        respawnDelayMs: null,
+      }),
+    ).toEqual({ ok: false, reason: "invalid" });
+    expect(
+      await partyRoom.room.call(partyId, "reserveHarvestNode", {
+        heroId,
+        eventId: EVENT_A,
+        generation: -1,
+        requiredHits: 1,
+        reward: { wood: 1 },
+        respawnDelayMs: null,
+      }),
+    ).toEqual({ ok: false, reason: "invalid" });
+    expect(await partyRoom.room.call(partyId, "consumePartyMaterials", { wood: -1 })).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(await partyRoom.room.call(partyId, "consumePartyMaterials", { gold: 1 })).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(await probe.partyAdventureStates.findById(partyId)).toBeUndefined();
   });
 });
 

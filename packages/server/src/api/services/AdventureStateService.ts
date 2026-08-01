@@ -1,7 +1,8 @@
 /**
  * D1 boundary for `PartyRoom` (Task 3, realtime tranche) — the party's live adventure state
- * (switches/variables/self-switches/quests/defeatedMonsters + the monotone push version) and the
- * fenced, epoch-gated writes a quest reward touches on a hero: core stats (gold/level/xp/hp),
+ * (switches/variables/self-switches/quests/defeatedMonsters/materials/harvestNodes plus the
+ * monotone push version) and the fenced, epoch-gated writes a quest reward touches on a hero:
+ * core stats (gold/level/xp/hp),
  * items, personal quest progress and the reward-claim idempotency row.
  *
  * Every write below is scoped to exactly the row(s) it needs to touch and, wherever it mutates a
@@ -142,6 +143,8 @@ export class AdventureStateService {
         selfSwitches: JSON.parse(row.selfSwitches),
         quests: JSON.parse(row.quests),
         defeatedMonsters: JSON.parse(row.defeatedMonsters),
+        materials: JSON.parse(row.materials),
+        harvestNodes: JSON.parse(row.harvestNodes),
       };
     } catch {
       warnCorruptPartyState(partyId, "invalid_json");
@@ -169,6 +172,8 @@ export class AdventureStateService {
       selfSwitches: JSON.stringify(state.selfSwitches),
       quests: JSON.stringify(state.quests ?? {}),
       defeatedMonsters: JSON.stringify(state.defeatedMonsters ?? {}),
+      materials: JSON.stringify(state.materials ?? {}),
+      harvestNodes: JSON.stringify(state.harvestNodes ?? {}),
       version,
     });
   }

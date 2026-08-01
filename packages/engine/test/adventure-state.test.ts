@@ -256,6 +256,16 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       variables: { "0001": 5, "0002": -3 },
       selfSwitches: { [`${EVENT_A}:A`]: true, [`${EVENT_B}:A`]: false },
       defeatedMonsters: { [EVENT_A]: true },
+      materials: { wood: 2, stone: 1, iron: 0, meat: 3 },
+      harvestNodes: {
+        [EVENT_A]: {
+          eventId: EVENT_A,
+          generation: 0,
+          hits: 1,
+          depleted: false,
+          respawnAt: null,
+        },
+      },
     };
     expect(parsePartyAdventureState(value)).toEqual(value);
   });
@@ -284,6 +294,8 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       switches: {},
       variables: { "0001": Number.MAX_SAFE_INTEGER, "0002": -Number.MAX_SAFE_INTEGER },
       selfSwitches: {},
+      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      harvestNodes: {},
     };
     expect(parsePartyAdventureState(value)).toEqual(value);
   });
@@ -294,7 +306,13 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       const uuid = `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
       selfSwitches[`${uuid}:A`] = true;
     }
-    const value: PartyAdventureState = { switches: {}, variables: {}, selfSwitches };
+    const value: PartyAdventureState = {
+      switches: {},
+      variables: {},
+      selfSwitches,
+      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      harvestNodes: {},
+    };
     expect(parsePartyAdventureState(value)).toEqual(value);
   });
 });
@@ -338,6 +356,26 @@ describe("parsePartyAdventureState: totality — every malformed field lands on 
       switches: {},
       variables: {},
       selfSwitches: { [`${EVENT_A}:A`]: "on" },
+    },
+    "materials with an unknown type": {
+      switches: {},
+      variables: {},
+      selfSwitches: {},
+      materials: { gold: 2 },
+    },
+    "harvest node with mismatched identity": {
+      switches: {},
+      variables: {},
+      selfSwitches: {},
+      harvestNodes: {
+        [EVENT_A]: {
+          eventId: EVENT_B,
+          generation: 0,
+          hits: 0,
+          depleted: false,
+          respawnAt: null,
+        },
+      },
     },
   };
 

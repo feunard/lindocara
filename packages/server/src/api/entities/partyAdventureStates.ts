@@ -50,6 +50,8 @@ export const partyAdventureStates = $entity({
     selfSwitches: z.string(),
     quests: db.default(z.string(), "{}"),
     defeatedMonsters: db.default(z.string(), "{}"),
+    materials: db.default(z.string(), "{}"),
+    harvestNodes: db.default(z.string(), "{}"),
     version: db.default(z.integer(), 0),
     updatedAt: db.updatedAt(),
   }),

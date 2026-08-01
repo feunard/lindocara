@@ -9,6 +9,19 @@ import { CONSUMABLE_IDS, CONSUMABLE_MAX_STACK } from "@lindocara/engine/consumab
 import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
 import { applyExperience, maxHpForLevel } from "@lindocara/engine/game.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
+import {
+  applyHarvestHit,
+  EMPTY_PARTY_MATERIALS,
+  type HarvestNodeState,
+  hasPartyMaterialAmount,
+  MAX_HARVEST_HITS,
+  MAX_HARVEST_RESPAWN_DELAY_MS,
+  type PartyMaterialAmounts,
+  type PartyMaterials,
+  parsePartyMaterialAmounts,
+  refreshHarvestNode,
+  spendPartyMaterials,
+} from "@lindocara/engine/party-harvest-state.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import {
   authoredQuestRuntimeState,
@@ -74,6 +87,118 @@ export type QuestTurnInResult =
         | "fence";
     };
 
+export interface ReserveHarvestNodeRequest {
+  heroId: string;
+  eventId: string;
+  generation: number;
+  requiredHits: number;
+  reward: PartyMaterialAmounts;
+  respawnDelayMs: number | null;
+}
+
+export type ReserveHarvestNodeResult =
+  | {
+      readonly ok: true;
+      readonly reservationId: string;
+      readonly node: HarvestNodeState;
+      readonly materials: PartyMaterials;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "invalid" | "party" | "generation" | "depleted" | "busy";
+    };
+
+export interface HitHarvestNodeRequest {
+  heroId: string;
+  eventId: string;
+  reservationId: string;
+}
+
+export type HitHarvestNodeResult =
+  | {
+      readonly ok: true;
+      readonly node: HarvestNodeState;
+      readonly materials: PartyMaterials;
+      readonly rewarded: boolean;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "invalid" | "party" | "reservation" | "generation" | "depleted" | "overflow";
+    };
+
+export type ConsumePartyMaterialsResult =
+  | { readonly ok: true; readonly materials: PartyMaterials }
+  | { readonly ok: false; readonly reason: "invalid" | "party" | "insufficient" };
+
+const HARVEST_RESERVATION_TTL_MS = 10_000;
+
+interface HarvestReservation {
+  id: string;
+  heroId: string;
+  eventId: string;
+  generation: number;
+  requiredHits: number;
+  reward: PartyMaterialAmounts;
+  respawnDelayMs: number | null;
+  expiresAt: number;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseReserveHarvestNodeRequest(value: unknown): ReserveHarvestNodeRequest | null {
+  if (!isPlainObject(value) || !isUuid(value.heroId) || !isUuid(value.eventId)) return null;
+  if (
+    !Number.isSafeInteger(value.generation) ||
+    (value.generation as number) < 0 ||
+    !Number.isSafeInteger(value.requiredHits) ||
+    (value.requiredHits as number) < 1 ||
+    (value.requiredHits as number) > MAX_HARVEST_HITS
+  ) {
+    return null;
+  }
+  if (
+    value.respawnDelayMs !== null &&
+    (!Number.isSafeInteger(value.respawnDelayMs) ||
+      (value.respawnDelayMs as number) < 0 ||
+      (value.respawnDelayMs as number) > MAX_HARVEST_RESPAWN_DELAY_MS)
+  ) {
+    return null;
+  }
+  const reward = parsePartyMaterialAmounts(value.reward);
+  if (!reward || !hasPartyMaterialAmount(reward)) return null;
+  return {
+    heroId: value.heroId,
+    eventId: value.eventId,
+    generation: value.generation as number,
+    requiredHits: value.requiredHits as number,
+    reward,
+    respawnDelayMs: value.respawnDelayMs as number | null,
+  };
+}
+
+function parseHitHarvestNodeRequest(value: unknown): HitHarvestNodeRequest | null {
+  if (
+    !isPlainObject(value) ||
+    !isUuid(value.heroId) ||
+    !isUuid(value.eventId) ||
+    !isUuid(value.reservationId)
+  ) {
+    return null;
+  }
+  return { heroId: value.heroId, eventId: value.eventId, reservationId: value.reservationId };
+}
+
+function sameMaterialAmounts(left: PartyMaterialAmounts, right: PartyMaterialAmounts): boolean {
+  return (
+    (left.wood ?? 0) === (right.wood ?? 0) &&
+    (left.stone ?? 0) === (right.stone ?? 0) &&
+    (left.iron ?? 0) === (right.iron ?? 0) &&
+    (left.meat ?? 0) === (right.meat ?? 0)
+  );
+}
+
 function sameEventReference(left: QuestEventReference | null, right: QuestEventReference): boolean {
   return left?.mapId === right.mapId && left.eventId === right.eventId;
 }
@@ -120,14 +245,16 @@ interface PartyRoomState {
    *  `GameSession`'s `#stateWriteQueue`, now per-room-instance (there is one `PartyRoomState` per
    *  `partyId`) rather than a single Durable-Object-wide field. */
   writeQueue: Promise<void>;
+  /** Volatile one-hit locks. Durable node generation/depletion remains the double-reward fence. */
+  harvestReservations: Map<string, HarvestReservation>;
 }
 
 /**
  * Headless per-party coordinator, successor to legacy `GameSession` (`packages/server/src/game-
  * session.ts`). `roomId` is the party id. It owns the party's live adventure state — switches,
- * variables, self-switches, authored quest progress — the single writer four heroes spread across
- * different `WorldRoom`s share, and the epoch-fenced quest-reward RPCs a `WorldRoom`'s event
- * interpreter (Task 7) calls up into.
+ * variables, self-switches, authored quest progress, materials and harvest-node progress — the
+ * single writer four heroes spread across different `WorldRoom`s share, and the epoch-fenced
+ * quest-reward RPCs a `WorldRoom`'s event interpreter (Task 7) calls up into.
  *
  * ## Write-through, not the legacy 5s debounce
  *
@@ -162,6 +289,9 @@ interface PartyRoomState {
 export class PartyRoom {
   adventureStateService = $inject(AdventureStateService);
   realtimeChannels = $inject(RealtimeChannels);
+
+  /** Reassignable deterministic clock seam, matching `PresenceRoom.now`. */
+  now: () => number = () => Date.now();
 
   /**
    * Pushes a freshly committed `(state, version)` to one `WorldRoom`, by room key
@@ -221,6 +351,7 @@ export class PartyRoom {
       partyCompleted: false,
       rooms: new Set(),
       writeQueue: Promise.resolve(),
+      harvestReservations: new Map(),
     }),
     methods: {
       getAdventureState: (room) => this.getAdventureState(room.roomId, room.state),
@@ -228,6 +359,12 @@ export class PartyRoom {
         this.applyStateChanges(room.roomId, room.state, mutations),
       markPermanentMonsterDefeated: (room, eventId: string) =>
         this.markPermanentMonsterDefeated(room.roomId, room.state, eventId),
+      reserveHarvestNode: (room, request: unknown) =>
+        this.reserveHarvestNode(room.roomId, room.state, request),
+      hitHarvestNode: (room, request: unknown) =>
+        this.hitHarvestNode(room.roomId, room.state, request),
+      consumePartyMaterials: (room, costs: unknown) =>
+        this.consumePartyMaterials(room.roomId, room.state, costs),
       recordQuestEvent: (room, event: QuestBusinessEvent) =>
         this.recordQuestEvent(room.roomId, room.state, event),
       acceptAuthoredQuest: (
@@ -389,6 +526,154 @@ export class PartyRoom {
         ...current.state,
         defeatedMonsters: { ...(current.state.defeatedMonsters ?? {}), [eventId]: true },
       });
+    });
+  }
+
+  /**
+   * Mint a short-lived, one-hit reservation for a server-validated harvest action. The caller is a
+   * `WorldRoom`, never a browser; class/tool/range/line-of-sight checks stay at that gameplay
+   * boundary. This coordinator owns only cross-room exclusion and durable party state.
+   */
+  protected async reserveHarvestNode(
+    partyId: string,
+    state: PartyRoomState,
+    rawRequest: unknown,
+  ): Promise<ReserveHarvestNodeResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const request = parseReserveHarvestNodeRequest(rawRequest);
+      if (!request) return { ok: false, reason: "invalid" };
+      const now = this.now();
+      if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      let current = await this.ensureState(partyId, state);
+      if (state.partyCompleted) return { ok: false, reason: "party" };
+
+      const refreshed = refreshHarvestNode(current.state.harvestNodes ?? {}, request.eventId, now);
+      if (!refreshed) return { ok: false, reason: "invalid" };
+      if (refreshed.changed) {
+        current = await this.commitState(partyId, state, {
+          ...current.state,
+          harvestNodes: refreshed.nodes,
+        });
+      }
+      if (refreshed.node.generation !== request.generation) {
+        return { ok: false, reason: "generation" };
+      }
+      if (refreshed.node.depleted) return { ok: false, reason: "depleted" };
+
+      const existing = state.harvestReservations.get(request.eventId);
+      if (existing && existing.expiresAt > now) {
+        if (
+          existing.heroId === request.heroId &&
+          existing.generation === request.generation &&
+          existing.requiredHits === request.requiredHits &&
+          existing.respawnDelayMs === request.respawnDelayMs &&
+          sameMaterialAmounts(existing.reward, request.reward)
+        ) {
+          return {
+            ok: true,
+            reservationId: existing.id,
+            node: { ...refreshed.node },
+            materials: { ...(current.state.materials ?? EMPTY_PARTY_MATERIALS) },
+          };
+        }
+        return { ok: false, reason: "busy" };
+      }
+      if (existing) state.harvestReservations.delete(request.eventId);
+
+      const expiresAt = now + HARVEST_RESERVATION_TTL_MS;
+      if (!Number.isSafeInteger(expiresAt)) return { ok: false, reason: "invalid" };
+      const reservation: HarvestReservation = {
+        id: crypto.randomUUID(),
+        ...request,
+        expiresAt,
+      };
+      state.harvestReservations.set(request.eventId, reservation);
+      return {
+        ok: true,
+        reservationId: reservation.id,
+        node: { ...refreshed.node },
+        materials: { ...(current.state.materials ?? EMPTY_PARTY_MATERIALS) },
+      };
+    });
+  }
+
+  /**
+   * Consume one reservation and commit the hit. A reservation is one-shot, so concurrent/replayed
+   * calls cannot count the same hit twice; depletion and reward land in the same state version.
+   */
+  protected async hitHarvestNode(
+    partyId: string,
+    state: PartyRoomState,
+    rawRequest: unknown,
+  ): Promise<HitHarvestNodeResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const request = parseHitHarvestNodeRequest(rawRequest);
+      if (!request) return { ok: false, reason: "invalid" };
+      const now = this.now();
+      if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      const current = await this.ensureState(partyId, state);
+      if (state.partyCompleted) return { ok: false, reason: "party" };
+      const reservation = state.harvestReservations.get(request.eventId);
+      if (
+        !reservation ||
+        reservation.id !== request.reservationId ||
+        reservation.heroId !== request.heroId ||
+        reservation.expiresAt <= now
+      ) {
+        if (reservation?.expiresAt !== undefined && reservation.expiresAt <= now) {
+          state.harvestReservations.delete(request.eventId);
+        }
+        return { ok: false, reason: "reservation" };
+      }
+      // Delete before the awaited write: every subsequent call queues behind this transition and
+      // sees the token as spent even while D1 is being written.
+      state.harvestReservations.delete(request.eventId);
+
+      const result = applyHarvestHit(
+        current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        current.state.harvestNodes ?? {},
+        {
+          eventId: reservation.eventId,
+          generation: reservation.generation,
+          requiredHits: reservation.requiredHits,
+          reward: reservation.reward,
+          respawnDelayMs: reservation.respawnDelayMs,
+          now,
+        },
+      );
+      if (!result.ok) return result;
+      await this.commitState(partyId, state, {
+        ...current.state,
+        materials: result.materials,
+        harvestNodes: result.nodes,
+      });
+      return {
+        ok: true,
+        node: { ...result.node },
+        materials: { ...result.materials },
+        rewarded: result.rewarded,
+      };
+    });
+  }
+
+  /** All-or-nothing material spending for future party support actions/constructions. */
+  protected async consumePartyMaterials(
+    partyId: string,
+    state: PartyRoomState,
+    rawCosts: unknown,
+  ): Promise<ConsumePartyMaterialsResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const costs = parsePartyMaterialAmounts(rawCosts);
+      if (!costs || !hasPartyMaterialAmount(costs)) return { ok: false, reason: "invalid" };
+      const current = await this.ensureState(partyId, state);
+      if (state.partyCompleted) return { ok: false, reason: "party" };
+      const materials = spendPartyMaterials(
+        current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        costs,
+      );
+      if (!materials) return { ok: false, reason: "insufficient" };
+      await this.commitState(partyId, state, { ...current.state, materials });
+      return { ok: true, materials: { ...materials } };
     });
   }
 

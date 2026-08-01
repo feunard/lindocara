@@ -27,6 +27,13 @@ import {
   type SelfSwitch,
 } from "./map-events.js";
 import {
+  EMPTY_PARTY_MATERIALS,
+  type HarvestNodeStates,
+  type PartyMaterials,
+  parseHarvestNodeStates,
+  parsePartyMaterials,
+} from "./party-harvest-state.js";
+import {
   type AuthoredQuestDefinition,
   type AuthoredQuestObjective,
   MAX_AUTHORED_QUESTS,
@@ -47,6 +54,7 @@ import {
   requiredQuestObjectivesComplete,
 } from "./quests.js";
 
+export * from "./party-harvest-state.js";
 export * from "./quests.js";
 
 /**
@@ -166,6 +174,10 @@ export interface PartyAdventureState {
   quests?: Record<string, AuthoredQuestProgress>;
   /** Stable event ids of authored `never`-respawn monsters defeated by this party. */
   defeatedMonsters?: Record<string, true>;
+  /** Shared non-gold crafting stock. Optional only for source compatibility with old saves. */
+  materials?: PartyMaterials;
+  /** Durable per-event harvest progress. Optional only for source compatibility with old saves. */
+  harvestNodes?: HarvestNodeStates;
 }
 
 export interface AuthoredQuestProgress {
@@ -223,6 +235,8 @@ export const EMPTY_ADVENTURE_STATE: PartyAdventureState = {
   switches: {},
   variables: {},
   selfSwitches: {},
+  materials: { ...EMPTY_PARTY_MATERIALS },
+  harvestNodes: {},
 };
 
 function parseSwitches(value: unknown): Record<string, boolean> | null {
@@ -382,10 +396,16 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
   if (!quests) return null;
   const defeatedMonsters = parseDefeatedMonsters(value.defeatedMonsters);
   if (!defeatedMonsters) return null;
+  const materials = parsePartyMaterials(value.materials);
+  if (!materials) return null;
+  const harvestNodes = parseHarvestNodeStates(value.harvestNodes);
+  if (!harvestNodes) return null;
   return {
     switches,
     variables,
     selfSwitches,
+    materials,
+    harvestNodes,
     ...(Object.keys(quests).length > 0 ? { quests } : {}),
     ...(Object.keys(defeatedMonsters).length > 0 ? { defeatedMonsters } : {}),
   };

@@ -300,6 +300,36 @@ describe("server protocol", () => {
     ).toBeNull();
   });
 
+  it("accepts authoritative party materials and rejects invalid shared stock", () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          self: { ...self, materials: { wood: 3, stone: 2, iron: 1, meat: 4 } },
+        }),
+      ),
+    ).toMatchObject({
+      t: "welcome",
+      self: { materials: { wood: 3, stone: 2, iron: 1, meat: 4 } },
+    });
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, self: { ...self, materials: { gold: 10 } } }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, self: { ...self, materials: { wood: -1 } } }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, self: { ...self, materials: { wood: 1 } } }),
+      ),
+    ).toBeNull();
+  });
+
   it("accepts a monster special action inside authoritative snapshots", () => {
     const quake = {
       id: "boss-quake-1",

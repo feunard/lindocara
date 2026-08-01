@@ -112,6 +112,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { isMapSkillEnabled, mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
+import { EMPTY_PARTY_MATERIALS } from "@lindocara/engine/party-harvest-state.js";
 import type {
   ClientMessage,
   QuestDialogueEntry,
@@ -492,6 +493,7 @@ export function selfStateFor(w: WorldGlue, player: PlayerRuntime): ReturnType<ty
     questDefinition(zone(w.state), chapter)?.target,
     playerQuestTrackers(w.state, player),
     playerQuestMarkers(w.state, player),
+    w.state.adventureState.state.materials ?? EMPTY_PARTY_MATERIALS,
   );
 }
 
@@ -516,6 +518,7 @@ export function sendStateTo(w: WorldGlue, connectionId: string, player: PlayerRu
     (recipient, message) => w.deps.send(recipient, message),
     playerQuestTrackers(w.state, player),
     playerQuestMarkers(w.state, player),
+    w.state.adventureState.state.materials ?? EMPTY_PARTY_MATERIALS,
   );
 }
 
