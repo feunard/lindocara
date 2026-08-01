@@ -8,13 +8,15 @@ hit, damage roll, poison tick and cooldown change.
 
 ## Talent tree contract
 
-Every class has one branch for each skill in slots 2 through 5. Slot 1 remains outside the talent
-tree. All sixteen branches have the same six-node topology:
+The four original classes have one branch for each skill in slots 2 through 5. The Peasant's five
+techniques, including its slot-1 axe action, each own a branch. All twenty-one branches have the
+same seven-node topology:
 
 1. a free tier-0 skill root;
 2. two tier-1 upgrades, offensive on the left and utility or specialization on the right;
 3. one tier-2 synergy unlocked by either tier-1 node;
-4. two tier-3 evolutions unlocked by all three paid intermediate nodes.
+4. two tier-3 evolutions unlocked by all three paid intermediate nodes;
+5. one tier-4 ultimate unlocked after all intermediates and either tier-3 evolution.
 
 Both tier-3 nodes share a stable `exclusiveGroup` and use `variantId` values `a` and `b`. The server
 rejects an unlock when its group already has a selected member. `normalizeTalentSelection` applies
@@ -43,6 +45,11 @@ The final choices are:
 | Rogue | Vanish | Predator | Smoke Screen |
 | Rogue | Poisoned Shiv | Concentrated Venom | Rupture |
 | Rogue | Shadow Dance | Dark Harvest | Thousand Cuts |
+| Peasant | Woodcutter's Swing | Clean Cut | Sweeping Fell |
+| Peasant | Prospector's Pick | Rich Vein | Rock Fragmentation |
+| Peasant | Butcher's Cut | Preservation | Field Feast |
+| Peasant | Makeshift Camp | Stockade | Campfire |
+| Peasant | Homemade Bomb | Shrapnel Charge | Concussion Bomb |
 
 The talent tree presents the pair as one choice, marks A/B explicitly and disables the other node
 after selection. The SkillBar resolves the exact selected node rather than a generic evolved flag,
@@ -122,8 +129,8 @@ exists.
 
 ## Verification seams
 
-Pure tests pin the sixteen branch topologies, legacy identifiers, normalization, point limits and
-all centralized Rogue values. Real room tests cover server-only targeting, line of sight,
+Pure tests pin the twenty-one branch topologies, legacy identifiers, normalization, point limits and
+all centralized Rogue and Peasant values. Real room tests cover server-only targeting, line of sight,
 collision fallbacks, stealth/AI/peer visibility, incoming projectiles, poison ownership and
 cleanup, all eight Rogue evolutions, Shadow Dance ordering and talent reset into the exclusive
 alternative. Client and renderer tests pin the A/B disabled state, exact SkillBar evolution,

@@ -1,4 +1,17 @@
 import type { PlayerClass } from "./game.js";
+import type { HarvestProfile } from "./harvest.js";
+import {
+  isPeasantTalentEffect,
+  PEASANT_TALENT_BALANCE,
+  type PeasantBombPlan,
+  type PeasantConstructionPlan,
+  type PeasantHarvestPlan,
+  type PeasantTalentEffect,
+  resolvePeasantBombPlan,
+  resolvePeasantConstructionPlan,
+  resolvePeasantHarvestPlan,
+} from "./peasant.js";
+import { PEASANT_SUPPORT_SKILLS } from "./peasant-support.js";
 import { ROGUE_BALANCE } from "./rogue.js";
 import { isSkillUnlocked, type SkillDefinition, type SkillSlot, skillFor } from "./skills.js";
 
@@ -145,7 +158,8 @@ export type TalentEffect =
   | { kind: "rogue_contagion"; maximumTargets: number; range: number }
   | { kind: "rogue_dark_harvest"; cooldownReductionPerKillMs: number }
   | { kind: "rogue_thousand_cuts"; repeatPowerRatio: number }
-  | { kind: "rogue_dance_master"; markDurationMs: number };
+  | { kind: "rogue_dance_master"; markDurationMs: number }
+  | PeasantTalentEffect;
 
 export type TalentLabel =
   | "root"
@@ -946,9 +960,312 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       },
     ),
   ],
-  // The class contract lands before the dedicated talent tranche. Keeping the empty branch typed
-  // prevents unrelated consumers from falling back to another class in the meantime.
-  peasant: [],
+  peasant: [
+    ...branch(
+      "peasant",
+      1,
+      [
+        {
+          key: "bounty",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_harvest_yield",
+              tool: "axe",
+              bonusRatio: PEASANT_TALENT_BALANCE.woodcuttersSwing.earlyYieldBonusRatio,
+            },
+          ],
+        },
+        {
+          key: "readiness",
+          label: "cooldown",
+          effects: [cooldown(PEASANT_TALENT_BALANCE.woodcuttersSwing.cooldownReductionRatio)],
+        },
+        {
+          key: "reach",
+          label: "range",
+          effects: [range(PEASANT_TALENT_BALANCE.woodcuttersSwing.reachBonusRatio)],
+        },
+        {
+          key: "clean_cut",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_harvest_yield",
+              tool: "axe",
+              bonusRatio: PEASANT_TALENT_BALANCE.woodcuttersSwing.cleanCut.yieldBonusRatio,
+            },
+            {
+              kind: "peasant_harvest_efficiency",
+              tool: "axe",
+              hitsReduction: PEASANT_TALENT_BALANCE.woodcuttersSwing.cleanCut.hitsReduction,
+              durationReductionRatio:
+                PEASANT_TALENT_BALANCE.woodcuttersSwing.cleanCut.durationReductionRatio,
+            },
+          ],
+        },
+        {
+          key: "sweeping_fell",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_harvest_area",
+              tool: "axe",
+              radius: PEASANT_TALENT_BALANCE.woodcuttersSwing.sweepingFell.radius,
+              maximumTargets: PEASANT_TALENT_BALANCE.woodcuttersSwing.sweepingFell.maximumTargets,
+            },
+          ],
+        },
+      ],
+      {
+        ultimate: {
+          key: "great_felling",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "peasant_harvest_yield",
+              tool: "axe",
+              bonusRatio: PEASANT_TALENT_BALANCE.woodcuttersSwing.greatFelling.yieldBonusRatio,
+            },
+            {
+              kind: "peasant_harvest_area",
+              tool: "axe",
+              radius: PEASANT_TALENT_BALANCE.woodcuttersSwing.greatFelling.radius,
+              maximumTargets: PEASANT_TALENT_BALANCE.woodcuttersSwing.greatFelling.maximumTargets,
+            },
+          ],
+        },
+      },
+    ),
+    ...branch(
+      "peasant",
+      2,
+      [
+        {
+          key: "ore_share",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_harvest_yield",
+              tool: "pickaxe",
+              bonusRatio: PEASANT_TALENT_BALANCE.prospectorsPick.earlyYieldBonusRatio,
+            },
+          ],
+        },
+        {
+          key: "readiness",
+          label: "cooldown",
+          effects: [cooldown(PEASANT_TALENT_BALANCE.prospectorsPick.cooldownReductionRatio)],
+        },
+        {
+          key: "force",
+          label: "power",
+          effects: [power(PEASANT_TALENT_BALANCE.prospectorsPick.powerBonusRatio)],
+        },
+        {
+          key: "rich_vein",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_harvest_yield",
+              tool: "pickaxe",
+              bonusRatio: PEASANT_TALENT_BALANCE.prospectorsPick.richVein.yieldBonusRatio,
+            },
+            {
+              kind: "peasant_rich_vein",
+              ironFromStone: PEASANT_TALENT_BALANCE.prospectorsPick.richVein.ironFromStone,
+              goldValueBonusRatio:
+                PEASANT_TALENT_BALANCE.prospectorsPick.richVein.goldValueBonusRatio,
+            },
+          ],
+        },
+        {
+          key: "fragmentation",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_harvest_efficiency",
+              tool: "pickaxe",
+              hitsReduction: PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.hitsReduction,
+              durationReductionRatio:
+                PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.durationReductionRatio,
+            },
+            {
+              kind: "peasant_harvest_area",
+              tool: "pickaxe",
+              radius: PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.radius,
+              maximumTargets: PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.maximumTargets,
+            },
+          ],
+        },
+      ],
+      {
+        ultimate: {
+          key: "mother_lode",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "peasant_harvest_yield",
+              tool: "pickaxe",
+              bonusRatio: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.yieldBonusRatio,
+            },
+            {
+              kind: "peasant_rich_vein",
+              ironFromStone: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.ironFromStone,
+              goldValueBonusRatio:
+                PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.goldValueBonusRatio,
+            },
+            {
+              kind: "peasant_harvest_area",
+              tool: "pickaxe",
+              radius: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.radius,
+              maximumTargets: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.maximumTargets,
+            },
+          ],
+        },
+      },
+    ),
+    ...branch(
+      "peasant",
+      3,
+      [
+        {
+          key: "meat_share",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_harvest_yield",
+              tool: "knife",
+              bonusRatio: PEASANT_TALENT_BALANCE.butchersCut.earlyYieldBonusRatio,
+            },
+          ],
+        },
+        {
+          key: "readiness",
+          label: "cooldown",
+          effects: [cooldown(PEASANT_TALENT_BALANCE.butchersCut.cooldownReductionRatio)],
+        },
+        {
+          key: "force",
+          label: "power",
+          effects: [power(PEASANT_TALENT_BALANCE.butchersCut.powerBonusRatio)],
+        },
+        {
+          key: "preservation",
+          label: "mastery",
+          effects: [{ kind: "peasant_ration", ...PEASANT_TALENT_BALANCE.butchersCut.preservation }],
+        },
+        {
+          key: "field_feast",
+          label: "mastery",
+          effects: [{ kind: "peasant_ration", ...PEASANT_TALENT_BALANCE.butchersCut.fieldFeast }],
+        },
+      ],
+      {
+        ultimate: {
+          key: "grand_feast",
+          label: "ultimate",
+          effects: [{ kind: "peasant_ration", ...PEASANT_TALENT_BALANCE.butchersCut.grandFeast }],
+        },
+      },
+    ),
+    ...branch(
+      "peasant",
+      4,
+      [
+        {
+          key: "reach",
+          label: "range",
+          effects: [range(PEASANT_TALENT_BALANCE.makeshiftCamp.reachBonusRatio)],
+        },
+        {
+          key: "readiness",
+          label: "cooldown",
+          effects: [cooldown(PEASANT_TALENT_BALANCE.makeshiftCamp.cooldownReductionRatio)],
+        },
+        {
+          key: "reinforcement",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_construction",
+              ...PEASANT_TALENT_BALANCE.makeshiftCamp.reinforcement,
+            },
+          ],
+        },
+        {
+          key: "stockade",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_construction",
+              ...PEASANT_TALENT_BALANCE.makeshiftCamp.stockade,
+            },
+          ],
+        },
+        {
+          key: "campfire",
+          label: "mastery",
+          effects: [
+            {
+              kind: "peasant_construction",
+              ...PEASANT_TALENT_BALANCE.makeshiftCamp.campfire,
+            },
+          ],
+        },
+      ],
+      {
+        ultimate: {
+          key: "complete_encampment",
+          label: "ultimate",
+          effects: [
+            {
+              kind: "peasant_construction",
+              ...PEASANT_TALENT_BALANCE.makeshiftCamp.completeEncampment,
+            },
+          ],
+        },
+      },
+    ),
+    ...branch(
+      "peasant",
+      5,
+      [
+        {
+          key: "force",
+          label: "power",
+          effects: [power(PEASANT_TALENT_BALANCE.homemadeBomb.powerBonusRatio)],
+        },
+        {
+          key: "reach",
+          label: "range",
+          effects: [range(PEASANT_TALENT_BALANCE.homemadeBomb.reachBonusRatio)],
+        },
+        {
+          key: "readiness",
+          label: "cooldown",
+          effects: [cooldown(PEASANT_TALENT_BALANCE.homemadeBomb.cooldownReductionRatio)],
+        },
+        {
+          key: "shrapnel",
+          label: "mastery",
+          effects: [{ kind: "peasant_bomb", ...PEASANT_TALENT_BALANCE.homemadeBomb.shrapnel }],
+        },
+        {
+          key: "concussion",
+          label: "mastery",
+          effects: [{ kind: "peasant_bomb", ...PEASANT_TALENT_BALANCE.homemadeBomb.concussion }],
+        },
+      ],
+      {
+        ultimate: {
+          key: "powder_keg",
+          label: "ultimate",
+          effects: [{ kind: "peasant_bomb", ...PEASANT_TALENT_BALANCE.homemadeBomb.powderKeg }],
+        },
+      },
+    ),
+  ],
 };
 
 /** The skill slots that actually own a talent branch for this class, in display order. */
@@ -1103,6 +1420,14 @@ export function talentEffects(
     .flatMap((node) => [...node.effects]);
 }
 
+/** Typed Peasant-only projection for the pure harvest/support plan resolvers. */
+export function peasantTalentEffects(
+  selected: readonly string[],
+  slot?: SkillSlot,
+): PeasantTalentEffect[] {
+  return talentEffects("peasant", selected, slot).filter(isPeasantTalentEffect);
+}
+
 export function talentEffect<K extends TalentEffect["kind"]>(
   playerClass: PlayerClass,
   selected: readonly string[],
@@ -1120,7 +1445,9 @@ export function skillWithTalents(
   slot: SkillSlot,
 ): SkillDefinition {
   const skill = skillFor(playerClass, slot);
-  if (slot === 1) return skill;
+  // The four historical basic attacks intentionally have no talent branch. The Peasant's first
+  // technique is both its basic tool swing and a full utility branch, so its modifiers must flow.
+  if (slot === 1 && playerClass !== "peasant") return skill;
   const effects = talentEffects(playerClass, selected, slot);
   const sum = (
     kind:
@@ -1151,5 +1478,62 @@ export function skillWithTalents(
     ...(skill.allyPower === undefined
       ? {}
       : { allyPower: Math.round(skill.allyPower * powerMultiplier) }),
+  };
+}
+
+export interface PeasantHarvestTalentPlan {
+  skill: SkillDefinition;
+  harvest: PeasantHarvestPlan;
+}
+
+/** Complete tool plan: generic range/cooldown plus typed harvest outcomes from one selection. */
+export function peasantHarvestTalentPlan(
+  selected: readonly string[],
+  slot: 1 | 2 | 3,
+  profile: HarvestProfile,
+): PeasantHarvestTalentPlan {
+  return {
+    skill: skillWithTalents("peasant", selected, slot),
+    harvest: resolvePeasantHarvestPlan(profile, peasantTalentEffects(selected, slot)),
+  };
+}
+
+export interface PeasantConstructionTalentPlan {
+  skill: SkillDefinition;
+  support: PeasantConstructionPlan;
+}
+
+export function peasantConstructionTalentPlan(
+  selected: readonly string[],
+): PeasantConstructionTalentPlan {
+  const skill = skillWithTalents("peasant", selected, 4);
+  const base = PEASANT_SUPPORT_SKILLS[4];
+  return {
+    skill,
+    support: resolvePeasantConstructionPlan(peasantTalentEffects(selected, 4), {
+      ...base,
+      power: skill.power,
+      radius: skill.radius ?? base.radius,
+      durationMs: skill.durationMs ?? base.durationMs,
+    }),
+  };
+}
+
+export interface PeasantBombTalentPlan {
+  skill: SkillDefinition;
+  support: PeasantBombPlan;
+}
+
+export function peasantBombTalentPlan(selected: readonly string[]): PeasantBombTalentPlan {
+  const skill = skillWithTalents("peasant", selected, 5);
+  const base = PEASANT_SUPPORT_SKILLS[5];
+  return {
+    skill,
+    support: resolvePeasantBombPlan(peasantTalentEffects(selected, 5), {
+      ...base,
+      power: skill.power,
+      radius: skill.radius ?? base.radius,
+      durationMs: skill.durationMs ?? base.durationMs,
+    }),
   };
 }

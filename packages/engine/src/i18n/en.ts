@@ -807,6 +807,51 @@ export const en = {
   "talent.ultimate.rogue.shadow_dance.description":
     "Mark struck targets for 2 seconds; reactivate to freely reach the one closest to your facing.",
   "skill.rogue.dance_master.ready": "Reposition ready",
+  "talent.evolution.peasant.woodcutters_swing.a.name": "Clean Cut",
+  "talent.evolution.peasant.woodcutters_swing.a.description":
+    "Fell trees faster and recover more wood from every compatible resource.",
+  "talent.evolution.peasant.woodcutters_swing.b.name": "Sweeping Fell",
+  "talent.evolution.peasant.woodcutters_swing.b.description":
+    "Apply the axe action to as many as three compatible resources in a small area.",
+  "talent.ultimate.peasant.woodcutters_swing.name": "Great Felling",
+  "talent.ultimate.peasant.woodcutters_swing.description":
+    "Greatly increase wood yield and extend the axe action to six compatible resources.",
+  "talent.evolution.peasant.prospectors_pick.a.name": "Rich Vein",
+  "talent.evolution.peasant.prospectors_pick.a.description":
+    "Extract more ore, find guaranteed iron in stone and increase authored gold value.",
+  "talent.evolution.peasant.prospectors_pick.b.name": "Rock Fragmentation",
+  "talent.evolution.peasant.prospectors_pick.b.description":
+    "Break several nearby compatible deposits with fewer and faster pick strikes.",
+  "talent.ultimate.peasant.prospectors_pick.name": "Mother Lode",
+  "talent.ultimate.peasant.prospectors_pick.description":
+    "Work five nearby deposits at once and substantially improve ore and gold rewards.",
+  "talent.evolution.peasant.butchers_cut.a.name": "Preservation",
+  "talent.evolution.peasant.butchers_cut.a.description":
+    "Prepare more rations from compatible meat and improve their immediate healing.",
+  "talent.evolution.peasant.butchers_cut.b.name": "Field Feast",
+  "talent.evolution.peasant.butchers_cut.b.description":
+    "Turn rations into a short group meal that modestly empowers nearby allies.",
+  "talent.ultimate.peasant.butchers_cut.name": "Grand Feast",
+  "talent.ultimate.peasant.butchers_cut.description":
+    "Prepare a large group feast with additional portions, healing and a longer team buff.",
+  "talent.evolution.peasant.makeshift_camp.a.name": "Stockade",
+  "talent.evolution.peasant.makeshift_camp.a.description":
+    "Build a tougher, cheaper camp that protects allies and slows nearby enemies.",
+  "talent.evolution.peasant.makeshift_camp.b.name": "Campfire",
+  "talent.evolution.peasant.makeshift_camp.b.description":
+    "Trade some fortification for a wider camp with substantially stronger group recovery.",
+  "talent.ultimate.peasant.makeshift_camp.name": "Complete Encampment",
+  "talent.ultimate.peasant.makeshift_camp.description":
+    "Extend the chosen camp into a durable, efficient position combining recovery and protection.",
+  "talent.evolution.peasant.homemade_bomb.a.name": "Shrapnel Charge",
+  "talent.evolution.peasant.homemade_bomb.a.description":
+    "Scatter four modest fragments around the authoritative explosion.",
+  "talent.evolution.peasant.homemade_bomb.b.name": "Concussion Bomb",
+  "talent.evolution.peasant.homemade_bomb.b.description":
+    "Trade a little damage for a wider blast that pushes and slows enemies.",
+  "talent.ultimate.peasant.homemade_bomb.name": "Powder Keg",
+  "talent.ultimate.peasant.homemade_bomb.description":
+    "Build a larger, cheaper bomb with bounded damage, fragments and crowd control.",
   "talent.node.mastery.name": "Mastery",
   "talent.node.mastery.description": "Greatly improve {skill}'s defining strengths.",
   "status.connecting": "connecting as {name}...",

@@ -15,17 +15,12 @@ import {
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("class talents", () => {
-  it("ships all sixteen branches with the exact reusable A/B evolution topology", () => {
+  it("ships all twenty-one branches with the exact reusable A/B evolution topology", () => {
     let branchCount = 0;
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
       const typedClass = playerClass as keyof typeof CLASS_TALENTS;
       const slots = talentBranchSlots(typedClass);
-      if (nodes.length === 0) {
-        expect(playerClass).toBe("peasant");
-        expect(slots).toEqual([]);
-        continue;
-      }
-      expect(slots).toEqual([2, 3, 4, 5]);
+      expect(slots).toEqual(playerClass === "peasant" ? [1, 2, 3, 4, 5] : [2, 3, 4, 5]);
       for (const slot of slots) {
         branchCount += 1;
         const branch = nodes.filter((node) => node.slot === slot);
@@ -36,13 +31,7 @@ describe("class talents", () => {
         const finals = branch.filter((node) => node.tier === 3);
         const ultimates = branch.filter((node) => node.tier === 4);
         const group = `${playerClass}.${skill?.id}.evolution`;
-        const hasUltimate =
-          playerClass === "warrior" ||
-          playerClass === "ranger" ||
-          playerClass === "priest" ||
-          playerClass === "rogue";
-
-        expect(branch).toHaveLength(hasUltimate ? 7 : 6);
+        expect(branch).toHaveLength(7);
         expect(root).toMatchObject({
           id: `${playerClass}.${skill?.id}.root`,
           tier: 0,
@@ -69,20 +58,18 @@ describe("class talents", () => {
         expect(finals.map((node) => node.requires)).toEqual(
           Array.from({ length: 2 }, () => [...tierOne.map((node) => node.id), synergy[0]?.id]),
         );
-        expect(ultimates).toHaveLength(hasUltimate ? 1 : 0);
-        if (hasUltimate) {
-          expect(ultimates[0]).toMatchObject({
-            tier: 4,
-            column: 0,
-            label: "ultimate",
-            requires: [...tierOne.map((node) => node.id), synergy[0]?.id],
-            requiresAll: true,
-            requiresOneOf: finals.map((node) => node.id),
-          });
-        }
+        expect(ultimates).toHaveLength(1);
+        expect(ultimates[0]).toMatchObject({
+          tier: 4,
+          column: 0,
+          label: "ultimate",
+          requires: [...tierOne.map((node) => node.id), synergy[0]?.id],
+          requiresAll: true,
+          requiresOneOf: finals.map((node) => node.id),
+        });
       }
     }
-    expect(branchCount).toBe(16);
+    expect(branchCount).toBe(21);
   });
 
   it("allows every skill slot in the talent contract", () => {
@@ -93,24 +80,15 @@ describe("class talents", () => {
 
   it("marks every existing capstone as the compatible A variant of a stable exclusive group", () => {
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
-      if (nodes.length === 0) {
-        expect(playerClass).toBe("peasant");
-        continue;
-      }
       if (playerClass === "rogue") continue;
-      for (const slot of [2, 3, 4, 5] as const) {
+      const typedClass = playerClass as keyof typeof CLASS_TALENTS;
+      for (const slot of talentBranchSlots(typedClass)) {
         const capstone = nodes.find((node) => node.slot === slot && node.tier === 3);
         expect(capstone).toMatchObject({
           exclusiveGroup: expect.stringContaining(`${playerClass}.`),
           variantId: "a",
         });
-        expect(
-          activeEvolutionVariant(
-            playerClass as keyof typeof CLASS_TALENTS,
-            [capstone?.id ?? ""],
-            slot,
-          ),
-        ).toBe(capstone);
+        expect(activeEvolutionVariant(typedClass, [capstone?.id ?? ""], slot)).toBe(capstone);
       }
     }
   });
@@ -309,6 +287,27 @@ describe("class talents", () => {
     expect(improved.power).toBeGreaterThan(base?.power ?? 0);
     expect(improved.range).toBeGreaterThan(base?.range ?? 0);
     expect(skillWithTalents("ranger", selected, 1)).toEqual(CLASS_SKILLS.ranger[0]);
+  });
+
+  it("keeps historical basic attacks untouched while allowing Peasant slot-one modifiers", () => {
+    for (const playerClass of ["warrior", "ranger", "priest", "rogue"] as const) {
+      expect(
+        skillWithTalents(
+          playerClass,
+          ["peasant.woodcutters_swing.readiness", "peasant.woodcutters_swing.reach"],
+          1,
+        ),
+      ).toBe(CLASS_SKILLS[playerClass][0]);
+    }
+
+    const axe = skillWithTalents(
+      "peasant",
+      ["peasant.woodcutters_swing.readiness", "peasant.woodcutters_swing.reach"],
+      1,
+    );
+    expect(axe.cooldownMs).toBe(748);
+    expect(axe.range).toBe(60.5);
+    expect(axe).not.toBe(CLASS_SKILLS.peasant[0]);
   });
 
   it("exposes the ranger ricochet and warrior perfect-parry capstones", () => {

@@ -816,6 +816,51 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.ultimate.rogue.shadow_dance.description":
     "Marque les cibles touchées pendant 2 secondes ; réactivez pour rejoindre gratuitement celle qui fait face à votre direction.",
   "skill.rogue.dance_master.ready": "Repositionnement disponible",
+  "talent.evolution.peasant.woodcutters_swing.a.name": "Coupe nette",
+  "talent.evolution.peasant.woodcutters_swing.a.description":
+    "Abat les arbres plus vite et récupère davantage de bois sur chaque ressource compatible.",
+  "talent.evolution.peasant.woodcutters_swing.b.name": "Abattage circulaire",
+  "talent.evolution.peasant.woodcutters_swing.b.description":
+    "Applique l'action de hache à trois ressources compatibles au maximum dans une petite zone.",
+  "talent.ultimate.peasant.woodcutters_swing.name": "Grand abattage",
+  "talent.ultimate.peasant.woodcutters_swing.description":
+    "Augmente fortement le bois produit et étend l'action de hache à six ressources compatibles.",
+  "talent.evolution.peasant.prospectors_pick.a.name": "Filon riche",
+  "talent.evolution.peasant.prospectors_pick.a.description":
+    "Extrait davantage de minerai, trouve du fer garanti dans la pierre et augmente la valeur d'or configurée.",
+  "talent.evolution.peasant.prospectors_pick.b.name": "Fragmentation rocheuse",
+  "talent.evolution.peasant.prospectors_pick.b.description":
+    "Brise plusieurs gisements compatibles proches avec des coups de pioche moins nombreux et plus rapides.",
+  "talent.ultimate.peasant.prospectors_pick.name": "Filon-mère",
+  "talent.ultimate.peasant.prospectors_pick.description":
+    "Travaille cinq gisements proches à la fois et améliore fortement les récompenses de minerai et d'or.",
+  "talent.evolution.peasant.butchers_cut.a.name": "Conservation",
+  "talent.evolution.peasant.butchers_cut.a.description":
+    "Prépare davantage de rations avec la viande compatible et améliore leur soin immédiat.",
+  "talent.evolution.peasant.butchers_cut.b.name": "Festin de campagne",
+  "talent.evolution.peasant.butchers_cut.b.description":
+    "Transforme les rations en repas de groupe qui renforce modestement les alliés proches.",
+  "talent.ultimate.peasant.butchers_cut.name": "Grand festin",
+  "talent.ultimate.peasant.butchers_cut.description":
+    "Prépare un vaste festin avec davantage de portions, de soins et un bonus d'équipe prolongé.",
+  "talent.evolution.peasant.makeshift_camp.a.name": "Palissade",
+  "talent.evolution.peasant.makeshift_camp.a.description":
+    "Construit un camp plus solide et moins coûteux qui protège les alliés et ralentit les ennemis proches.",
+  "talent.evolution.peasant.makeshift_camp.b.name": "Feu de camp",
+  "talent.evolution.peasant.makeshift_camp.b.description":
+    "Échange une part de fortification contre un camp plus large et un soutien de groupe renforcé.",
+  "talent.ultimate.peasant.makeshift_camp.name": "Campement complet",
+  "talent.ultimate.peasant.makeshift_camp.description":
+    "Étend le camp choisi en position durable et économique qui combine récupération et protection.",
+  "talent.evolution.peasant.homemade_bomb.a.name": "Charge à mitraille",
+  "talent.evolution.peasant.homemade_bomb.a.description":
+    "Disperse quatre fragments modestes autour de l'explosion autoritaire.",
+  "talent.evolution.peasant.homemade_bomb.b.name": "Bombe à concussion",
+  "talent.evolution.peasant.homemade_bomb.b.description":
+    "Sacrifie un peu de dégâts pour une explosion plus large qui repousse et ralentit les ennemis.",
+  "talent.ultimate.peasant.homemade_bomb.name": "Tonneau de poudre",
+  "talent.ultimate.peasant.homemade_bomb.description":
+    "Fabrique une bombe plus large et moins coûteuse aux dégâts, fragments et contrôles plafonnés.",
   "talent.node.mastery.name": "Maîtrise",
   "talent.node.mastery.description": "Améliore fortement les atouts principaux de {skill}.",
   "status.connecting": "connexion en tant que {name}...",
