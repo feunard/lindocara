@@ -1,6 +1,51 @@
+import { randomInt } from "node:crypto";
 import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
 import { Alepha } from "alepha";
+import { NodeHttpServerProvider, ServerProvider } from "alepha/server";
+
+// Fetch follows the WHATWG blocked-port list, whose highest reserved port is 10080. Windows may
+// allocate port 0 from a dynamic range beginning at 1024, so an otherwise healthy test server can
+// sporadically receive (for example) port 6000 and every action then fails with `fetch: bad port`.
+// Select from the safe range and retry collisions across Vitest workers without patching the
+// vendored framework.
+const FIRST_FETCH_SAFE_EPHEMERAL_PORT = 10_081;
+const MAX_EPHEMERAL_PORT_ATTEMPTS = 64;
+
+class FetchSafeTestHttpServerProvider extends NodeHttpServerProvider {
+  protected override async listen(): Promise<void> {
+    if (this.alepha.store.get("alepha.node.server")) return;
+    if (this.env.SERVER_PORT !== 3000) {
+      await super.listen();
+      return;
+    }
+
+    for (let attempt = 0; attempt < MAX_EPHEMERAL_PORT_ATTEMPTS; attempt += 1) {
+      const candidate = randomInt(FIRST_FETCH_SAFE_EPHEMERAL_PORT, 65_536);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const onError = (error: Error) => {
+            this.server.removeListener("listening", onListening);
+            reject(error);
+          };
+          const onListening = () => {
+            this.server.removeListener("error", onError);
+            resolve();
+          };
+          this.server.once("error", onError);
+          this.server.once("listening", onListening);
+          this.server.listen(candidate, this.env.SERVER_HOST);
+        });
+        this.alepha.store.set("alepha.node.server", this.server);
+        return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
+      }
+    }
+
+    throw new Error("Unable to allocate a fetch-safe ephemeral test port");
+  }
+}
 
 /**
  * Starts a fresh Alepha instance wired to the new server API module, against an in-memory
@@ -33,5 +78,7 @@ import { Alepha } from "alepha";
  */
 export function createTestApp() {
   process.env.DATABASE_URL = ":memory:";
-  return Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi);
+  return Alepha.create({ ...BODY_PARSER_OPTIONS_SEED })
+    .with({ provide: ServerProvider, use: FetchSafeTestHttpServerProvider })
+    .with(LindocaraApi);
 }
