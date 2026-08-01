@@ -2,7 +2,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  COMBINED_TROOP_SHEET_IDS,
   editorDefinitions,
+  isCombinedTroopSheetId,
   PROJECT_ROOT,
   type RawIndex,
   readCatalogSource,
@@ -199,12 +201,9 @@ describe("Tiny Swords semantic catalogue", () => {
   });
 
   it("crops the coloured Update 010 troop grids to one visible 192px pose", () => {
-    const troops = editorDefinitions(catalog).filter((entry) =>
-      /\/Factions\/Knights\/Troops\/(?:Archer|Pawn|Warrior)\/(?:Blue|Purple|Red|Yellow)\/[^/]+\.png$/i.test(
-        entry.sourcePath,
-      ),
-    );
+    const troops = editorDefinitions(catalog).filter((entry) => isCombinedTroopSheetId(entry.id));
     expect(troops).toHaveLength(12);
+    expect(troops.map((troop) => troop.id).sort()).toEqual([...COMBINED_TROOP_SHEET_IDS].sort());
     for (const troop of troops) {
       expect(troop.editor.sourceRect, troop.sourcePath).toEqual({
         x: 0,
@@ -213,6 +212,40 @@ describe("Tiny Swords semantic catalogue", () => {
         height: 192,
       });
     }
+  });
+
+  it("identifies combined troop sheets independently of physical paths or similar names", () => {
+    const combinedId = COMBINED_TROOP_SHEET_IDS[0];
+    const combined = catalog.entries.find((entry) => entry.id === combinedId);
+    if (!combined) throw new Error("combined troop fixture missing");
+
+    const relocatedPath = "Tiny Swords (Update 010)/Relocated/Archer_Blue.png";
+    const relocatedCatalog = {
+      ...catalog,
+      entries: catalog.entries.map((entry) =>
+        entry.id === combinedId ? { ...entry, sourcePath: relocatedPath } : entry,
+      ),
+    };
+    const relocated = editorDefinitions(relocatedCatalog).find((entry) => entry.id === combinedId);
+    expect(relocated?.sourcePath).toBe(relocatedPath);
+    expect(relocated?.editor.sourceRect).toEqual({ x: 0, y: 0, width: 192, height: 192 });
+
+    const lookalikeId = `${combinedId}.lookalike`;
+    const lookalikeCatalog = {
+      ...catalog,
+      entries: [
+        ...catalog.entries,
+        {
+          ...combined,
+          id: lookalikeId,
+          sourcePath:
+            "Tiny Swords (Update 010)/Factions/Knights/Troops/Archer/Blue/Archer_Lookalike.png",
+        },
+      ],
+    };
+    const lookalike = editorDefinitions(lookalikeCatalog).find((entry) => entry.id === lookalikeId);
+    expect(isCombinedTroopSheetId(lookalikeId)).toBe(false);
+    expect(lookalike?.editor.sourceRect).toBeUndefined();
   });
 
   it("exposes only official atmosphere and offshore effects with their native geometry", () => {

@@ -70,6 +70,31 @@ const PACKS = new Set<TinySwordsPack>([
   "Tiny Swords (Enemy Pack)",
 ]);
 
+/**
+ * Update 010's twelve combined troop atlases. Catalogue IDs are the stable authoring contract;
+ * source paths are deliberately absent so moving the raw packs cannot silently change previews.
+ */
+export const COMBINED_TROOP_SHEET_IDS = [
+  "character.factions-knights-troops-archer-blue.archer-blue",
+  "character.factions-knights-troops-archer-purple.archer-purlple",
+  "character.factions-knights-troops-archer-red.archer-red",
+  "character.factions-knights-troops-archer-yellow.archer-yellow",
+  "character.factions-knights-troops-pawn-blue.pawn-blue",
+  "character.factions-knights-troops-pawn-purple.pawn-purple",
+  "character.factions-knights-troops-pawn-red.pawn-red",
+  "character.factions-knights-troops-pawn-yellow.pawn-yellow",
+  "character.factions-knights-troops-warrior-blue.warrior-blue",
+  "character.factions-knights-troops-warrior-purple.warrior-purple",
+  "character.factions-knights-troops-warrior-red.warrior-red",
+  "character.factions-knights-troops-warrior-yellow.warrior-yellow",
+] as const;
+
+const COMBINED_TROOP_SHEET_ID_SET = new Set<string>(COMBINED_TROOP_SHEET_IDS);
+
+export function isCombinedTroopSheetId(id: string): boolean {
+  return COMBINED_TROOP_SHEET_ID_SET.has(id);
+}
+
 const UI_PREFIXES = ["UI/", "UI Elements/"];
 
 function isUi(raw: RawAsset): boolean {
@@ -833,11 +858,9 @@ function inferredActorPlacement(
   // flattens e.g. an 8x7 Archer grid into 56 slices of 27x1344 transparent slivers. For editor/NPC
   // appearances we need one representative pose, not the whole action atlas: derive its square cell
   // from total area / frame count and crop the top-left pose. This stays scoped to the twelve known
-  // troop atlases; other action sheets retain their existing animation metadata.
-  const combinedTroop =
-    /\/Factions\/Knights\/Troops\/(?:Archer|Pawn|Warrior)\/(?:Blue|Purple|Red|Yellow)\/[^/]+\.png$/i.test(
-      entry.sourcePath,
-    );
+  // troop atlases; other action sheets retain their existing animation metadata. Membership uses
+  // the stable catalogue id, never the raw pack's physical path.
+  const combinedTroop = isCombinedTroopSheetId(entry.id);
   const cellSize = entry.frame
     ? Math.sqrt((entry.width * entry.height) / entry.frame.count)
     : Number.NaN;
