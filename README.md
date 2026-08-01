@@ -142,12 +142,14 @@ quest, interaction, presence and transition messages stay in the event log. Orde
 longer pulse the expected answer: their distinct glyphs and the quest clue communicate the rule,
 while success/error feedback appears only after interaction.
 
-Each party hero is one of three classes, picked inside its saved party: the warrior strikes frontal
-arcs and nearby zones, the ranger fires physical projectiles, and the priest combines a directional
-magic bolt with self, projectile and area healing. Attacking empty space is valid; enemies can move
-out before the active frame and projectiles can miss or hit terrain. A member's persistent colour
-slot selects the matching Tiny Swords unit variant. Tab is intentionally unbound and reserved for a
-future mechanic; it no longer cycles combat targets.
+Each party hero is one of five classes, picked inside its saved party: warrior, ranger, priest,
+rogue, or Peasant. The first four cover the direct combat roles; the Peasant trades raw damage for
+authoritative harvesting, shared crafting materials, camps, rations, and homemade bombs. Attacking
+empty space is valid; enemies can move out before the active frame and projectiles can miss or hit
+terrain. A member's persistent colour slot selects the matching Tiny Swords unit variant. See
+[`docs/peasant-runtime.md`](docs/peasant-runtime.md) for the Peasant's persistence, authoring, and
+support contracts. Tab is intentionally unbound and reserved for a future mechanic; it no longer
+cycles combat targets.
 
 ## Database
 

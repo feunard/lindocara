@@ -227,8 +227,8 @@ Modules under `packages/server/src/world/` are concrete domain systems, not an E
   a socket, a clock or the coordinator.
 - the class-variant systems (`warrior/ranger/priest/rogue-*-system.ts`), the authored-content
   systems (`authored-monster/guard-system.ts` and the root `authored-quest-system.ts`),
-  `damage-over-time-system.ts`, `npc-movement-system.ts` and `cheat-command-system.ts` follow the
-  same explicit-dependency shape.
+  `peasant-harvest-system.ts`, `peasant-support-system.ts`, `damage-over-time-system.ts`,
+  `npc-movement-system.ts` and `cheat-command-system.ts` follow the same explicit-dependency shape.
 - `spatial-grid.ts` is the world-system import boundary for the existing non-authoritative grid.
 
 Fenced hero persistence is not a world system: it lives in `api/services/HeroSaveService.ts` and
