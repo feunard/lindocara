@@ -1,6 +1,6 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { actionForClassSlot } from "@lindocara/engine/combat-actions.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
+import { maxHpForLevel, type TerrainGeometry } from "@lindocara/engine/game.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import {
   advancePeasantCamps,
@@ -331,6 +331,91 @@ describe("authoritative Peasant support", () => {
     advance(3_000);
     expect(served).toHaveLength(4);
     expect(slowedIds).toEqual(["slowed", "slowed"]);
+  });
+
+  it("conserves owner-only rations until they provide healing inside the camp", () => {
+    const runtime = createPeasantSupportRuntime();
+    const owner = player("owner");
+    owner.hp = maxHpForLevel(owner.level);
+    const camp = placePeasantCamp(
+      runtime,
+      owner,
+      "camp-ration",
+      { x: 48, y: 48 },
+      supportPlans().camp,
+      1_000,
+    )?.camp;
+    if (!camp) throw new Error("camp fixture missing");
+    const served: string[] = [];
+    const advance = (now: number) =>
+      advancePeasantCamps({
+        runtime,
+        players: [owner],
+        monsters: [],
+        terrain: terrain(),
+        now,
+        isOwnerActive: () => true,
+        areAllies: () => true,
+        heal: vi.fn(),
+        serveRation: (_camp, _owner, target) => served.push(target.id),
+        slowMonster: vi.fn(),
+      });
+
+    advance(1_000);
+    expect(served).toEqual([]);
+    expect(camp.rationPortionsRemaining).toBe(1);
+    expect(camp.rationServedIds).not.toContain(owner.id);
+
+    owner.hp -= 20;
+    owner.x = 300;
+    advance(3_000);
+    expect(served).toEqual([]);
+    expect(camp.rationPortionsRemaining).toBe(1);
+
+    owner.x = 0;
+    advance(5_000);
+    expect(served).toEqual([owner.id]);
+    expect(camp.rationPortionsRemaining).toBe(0);
+    expect(camp.rationServedIds).toContain(owner.id);
+  });
+
+  it("serves a full-health feast only when its power buff improves the target", () => {
+    const runtime = createPeasantSupportRuntime();
+    const owner = player("owner");
+    owner.hp = maxHpForLevel(owner.level);
+    owner.rallyPowerMultiplier = 0.1;
+    owner.rallyPowerUntil = 5_000;
+    const camp = placePeasantCamp(
+      runtime,
+      owner,
+      "camp-feast",
+      { x: 48, y: 48 },
+      supportPlans(["peasant.butchers_cut.field_feast"]).camp,
+      1_000,
+    )?.camp;
+    if (!camp) throw new Error("camp fixture missing");
+    const served = vi.fn();
+    const advance = (now: number) =>
+      advancePeasantCamps({
+        runtime,
+        players: [owner],
+        monsters: [],
+        terrain: terrain(),
+        now,
+        isOwnerActive: () => true,
+        areAllies: () => true,
+        heal: vi.fn(),
+        serveRation: served,
+        slowMonster: vi.fn(),
+      });
+
+    advance(1_000);
+    expect(served).not.toHaveBeenCalled();
+    expect(camp.rationPortionsRemaining).toBe(1);
+
+    advance(5_001);
+    expect(served).toHaveBeenCalledOnce();
+    expect(camp.rationPortionsRemaining).toBe(0);
   });
 
   it("replays only active camps deterministically for admission and AOI catch-up", () => {

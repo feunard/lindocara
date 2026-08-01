@@ -497,6 +497,7 @@ function rationTargets(
   players: readonly PlayerRuntime[],
   terrain: TerrainGeometry,
   areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean,
+  now: number,
 ): PlayerRuntime[] {
   if (camp.rationPortionsRemaining <= 0) return [];
   const candidates = players.filter((target) => {
@@ -507,10 +508,19 @@ function rationTargets(
       !areAllies(owner, target)
     )
       return false;
-    if (camp.rationRadius <= 0) return target.id === owner.id;
+    const healingUseful = camp.rationHealing > 0 && target.hp < maxHpForLevel(target.level);
+    const currentPowerBonus =
+      target.rallyPowerUntil > now ? Math.max(0, target.rallyPowerMultiplier) : 0;
+    const buffUseful =
+      camp.rationBuffDurationMs > 0 && camp.rationPowerBonusRatio > currentPowerBonus;
+    if (!healingUseful && !buffUseful) return false;
+
+    // A radius of zero means an owner-only ration, not an infinite-range delivery. The owner must
+    // still be standing inside and visible from the camp when the portion is actually served.
+    if (camp.rationRadius <= 0 && target.id !== owner.id) return false;
+    const effectiveRadius = camp.rationRadius > 0 ? camp.rationRadius : camp.radius;
     return (
-      playerCenterDistance(camp, target) <= camp.rationRadius &&
-      campSeesPlayer(camp, target, terrain)
+      playerCenterDistance(camp, target) <= effectiveRadius && campSeesPlayer(camp, target, terrain)
     );
   });
   return candidates
@@ -567,7 +577,14 @@ export function advancePeasantCamps(options: {
         continue;
       options.heal(camp, owner, target);
     }
-    for (const target of rationTargets(camp, owner, players, options.terrain, options.areAllies)) {
+    for (const target of rationTargets(
+      camp,
+      owner,
+      players,
+      options.terrain,
+      options.areAllies,
+      options.now,
+    )) {
       camp.rationServedIds.add(target.id);
       camp.rationPortionsRemaining -= 1;
       options.serveRation(camp, owner, target);
