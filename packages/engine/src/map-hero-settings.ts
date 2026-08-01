@@ -130,6 +130,13 @@ export function parseMapHeroSettings(value: unknown): MapHeroSettings | null {
   const record = classes as Record<string, unknown>;
   const parsed = {} as Record<PlayerClass, MapHeroClassSettings>;
   for (const playerClass of PLAYER_CLASSES) {
+    // `peasant` was added after per-map hero rules had already shipped. A valid four-class row is
+    // therefore legacy data, not corruption: preserve every authored profile and inject only the
+    // new class default. Explicit null/malformed Peasant data still fails closed.
+    if (playerClass === "peasant" && record.peasant === undefined) {
+      parsed.peasant = defaultClassSettings("peasant");
+      continue;
+    }
     const settings = parseClassSettings(record[playerClass], playerClass);
     if (!settings) return null;
     parsed[playerClass] = settings;

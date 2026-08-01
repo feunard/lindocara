@@ -696,6 +696,41 @@ describe("list, get, update, delete", () => {
     });
   });
 
+  test("upgrades a persisted four-class hero profile without dropping its overrides", async () => {
+    const { userId, token } = await registerAndLogin("maphlegacy");
+    const id = await newMapId(await newAdventure(userId), token);
+    const legacy = defaultMapHeroSettings() as unknown as {
+      classes: Record<string, unknown>;
+    };
+    const rogue = legacy.classes.rogue as ReturnType<
+      typeof defaultMapHeroSettings
+    >["classes"]["rogue"];
+    rogue.stats.movementSpeed = 341;
+    rogue.disabledSkills = [2, 5];
+    delete legacy.classes.peasant;
+    await probe.maps.updateById(id, { heroSettings: JSON.stringify(legacy) });
+
+    const loaded = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
+      heroSettings: ReturnType<typeof defaultMapHeroSettings>;
+    };
+    expect(loaded.heroSettings.classes.rogue).toMatchObject({
+      stats: { movementSpeed: 341 },
+      disabledSkills: [2, 5],
+    });
+    expect(loaded.heroSettings.classes.peasant).toEqual(defaultMapHeroSettings().classes.peasant);
+
+    const resaved = await putMap(id, token, mapBody({ heroSettings: loaded.heroSettings }));
+    expect(resaved.status).toBe(200);
+    expect(await resaved.json()).toMatchObject({
+      heroSettings: {
+        classes: {
+          rogue: { stats: { movementSpeed: 341 }, disabledSkills: [2, 5] },
+          peasant: { stats: { movementSpeed: 247 }, disabledSkills: [] },
+        },
+      },
+    });
+  });
+
   test("refuses a save based on a stale editor revision", async () => {
     const { userId, token } = await registerAndLogin("mapstale");
     const adventureId = await newAdventure(userId);

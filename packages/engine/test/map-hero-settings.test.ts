@@ -62,4 +62,24 @@ describe("map hero settings", () => {
       disabledSkills: [4, 5],
     });
   });
+
+  test("preserves four-class authored maps and adds only the default Peasant profile", () => {
+    const legacy = defaultMapHeroSettings() as unknown as {
+      classes: Record<string, unknown>;
+    };
+    const rogue = legacy.classes.rogue as ReturnType<
+      typeof defaultMapHeroSettings
+    >["classes"]["rogue"];
+    rogue.stats.movementSpeed = 341;
+    rogue.disabledSkills = [2, 5];
+    delete legacy.classes.peasant;
+
+    const parsed = parseMapHeroSettings(legacy);
+
+    expect(parsed?.classes.rogue).toMatchObject({
+      stats: { movementSpeed: 341 },
+      disabledSkills: [2, 5],
+    });
+    expect(parsed?.classes.peasant).toEqual(defaultMapHeroSettings().classes.peasant);
+  });
 });
