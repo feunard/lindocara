@@ -11,8 +11,10 @@
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
+import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
+import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import { createTestApp } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -21,6 +23,54 @@ let alepha: ReturnType<typeof createTestApp>;
 let hostname: string;
 let userCount = 0;
 let openSockets: WebSocket[];
+
+class FakeClock implements RoomClock {
+  setInterval(): unknown {
+    return 1;
+  }
+
+  clearInterval(): void {}
+
+  now(): number {
+    return 0;
+  }
+}
+
+interface FakeSocket extends RoomSocket {
+  sent: string[];
+  closed?: { code?: number; reason?: string };
+}
+
+function fakeSocket(userId: string, heroId: string): FakeSocket {
+  const sent: string[] = [];
+  const socket: FakeSocket = {
+    id: `c-${heroId}`,
+    userId,
+    query: { hero: heroId },
+    data: {},
+    sent,
+    closed: undefined,
+    sendRaw: (data: string) => sent.push(data),
+    close: (code?: number, reason?: string) => {
+      socket.closed = { code, reason };
+    },
+  };
+  return socket;
+}
+
+function messagesOf(socket: FakeSocket): ServerMessage[] {
+  return socket.sent.map((raw) => JSON.parse(raw) as ServerMessage);
+}
+
+function createEngine(roomId: string) {
+  const worldRoom = alepha.inject(WorldRoom);
+  return new RoomEngine({
+    roomId,
+    clock: new FakeClock(),
+    options: worldRoom.roomOptions,
+    validate: () => {},
+  });
+}
 
 beforeEach(async () => {
   alepha = createTestApp();
@@ -40,7 +90,9 @@ afterEach(async () => {
   await alepha.stop();
 });
 
-async function registerAndLogin(prefix: string): Promise<{ token: string; cookie: string }> {
+async function registerAndLogin(
+  prefix: string,
+): Promise<{ token: string; cookie: string; userId: string }> {
   userCount += 1;
   const username = `${prefix}${userCount}`;
   const users = alepha.inject(UserController);
@@ -60,7 +112,11 @@ async function registerAndLogin(prefix: string): Promise<{ token: string; cookie
     .map((header) => header.split(";", 1)[0])
     .join("; ");
   const tokens = (await login.json()) as { access_token: string };
-  return { token: tokens.access_token, cookie };
+  const whoami = await fetch(`${hostname}/api/whoami`, {
+    headers: { authorization: `Bearer ${tokens.access_token}` },
+  });
+  const user = (await whoami.json()) as { id: string };
+  return { token: tokens.access_token, cookie, userId: user.id };
 }
 
 function authedFetch(path: string, token: string, init: RequestInit = {}): Promise<Response> {
@@ -77,6 +133,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
 interface Playable {
   token: string;
   cookie: string;
+  userId: string;
   adventureId: string;
   mapId: string;
   partyId: string;
@@ -85,7 +142,7 @@ interface Playable {
 
 /** One fresh account with an adventure, a party on it and one hero, end-to-end over HTTP. */
 async function newPlayableHero(prefix: string): Promise<Playable> {
-  const { token, cookie } = await registerAndLogin(prefix);
+  const { token, cookie, userId } = await registerAndLogin(prefix);
   const adventureResponse = await authedFetch("/api/adventures", token, {
     method: "POST",
     body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
@@ -107,6 +164,7 @@ async function newPlayableHero(prefix: string): Promise<Playable> {
   return {
     token,
     cookie,
+    userId,
     adventureId: adventure.id,
     mapId: adventure.defaultMap.id,
     partyId,
@@ -213,7 +271,7 @@ describe("GET /api/join", () => {
 });
 
 describe("world room admission", () => {
-  test("a valid join receives welcome without an unsolicited arrival event", async () => {
+  test("a valid WebSocket join receives the authoritative welcome", async () => {
     const { token, partyId, mapId, heroId } = await newPlayableHero("admit");
     const probe = openWorldSocket(`${partyId}:${mapId}`, heroId, token);
 
@@ -226,9 +284,21 @@ describe("world room admission", () => {
     expect(welcome.world.layers.length).toBe(3);
     expect(welcome.players.some((player) => player.id === heroId)).toBe(true);
     expect(welcome.self.cooldowns).toBeDefined();
+  });
 
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    expect(probe.messages.some((message) => message.t === "event")).toBe(false);
+  test("a completed admission emits exactly welcome and no narrative event", async () => {
+    const { userId, partyId, mapId, heroId } = await newPlayableHero("adcycle");
+    const engine = createEngine(`${partyId}:${mapId}`);
+    const socket = fakeSocket(userId, heroId);
+
+    await engine.join(socket);
+    const messages = messagesOf(socket);
+    const welcome = messages.find((message) => message.t === "welcome");
+    if (welcome?.t !== "welcome") throw new Error("missing welcome");
+
+    expect(welcome.selfId).toBe(heroId);
+    expect(messages.map((message) => message.t)).toEqual(["welcome"]);
+    engine.dispose();
   });
 
   test("a roomId naming a map the hero is not on closes 4007", async () => {
