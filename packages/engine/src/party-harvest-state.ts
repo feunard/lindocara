@@ -34,7 +34,11 @@ export interface HarvestNodeState {
   generation: number;
   /** Authoritative successful hits in this generation. */
   hits: number;
+  /** Authoritative completion time of the latest hit, for one-shot local impact presentation. */
+  lastHitAt: number | null;
   depleted: boolean;
+  /** Exact final-hit time; the client may anchor its authored fade without inventing a clock. */
+  depletedAt: number | null;
   /** Unix milliseconds, or null for a permanently depleted node. */
   respawnAt: number | null;
 }
@@ -44,6 +48,23 @@ export type HarvestNodeStates = Record<string, HarvestNodeState>;
 export const MAX_HARVEST_NODE_ENTRIES = 2_048;
 export const MAX_HARVEST_HITS = 10_000;
 export const MAX_HARVEST_RESPAWN_DELAY_MS = 365 * 24 * 60 * 60 * 1_000;
+
+/**
+ * Authored nodes keep their UUID. Compile-time monster spawns have stable human-readable ids, so
+ * carcasses use one tightly bounded namespace instead of weakening this persistence boundary to
+ * arbitrary strings. Both components intentionally share the wire-id alphabet.
+ */
+const CARCASS_HARVEST_NODE_ID = /^carcass:[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$/;
+export const MAX_HARVEST_NODE_ID_LENGTH = 137;
+
+export function isHarvestNodeId(value: unknown): value is string {
+  return (
+    isUuid(value) ||
+    (typeof value === "string" &&
+      value.length <= MAX_HARVEST_NODE_ID_LENGTH &&
+      CARCASS_HARVEST_NODE_ID.test(value))
+  );
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -138,19 +159,21 @@ function parseHarvestNodeState(eventId: string, value: unknown): HarvestNodeStat
   if (!isPlainObject(value)) return null;
   const keys = Object.keys(value);
   if (
-    keys.length !== 5 ||
+    (keys.length !== 5 && keys.length !== 7) ||
     keys.some(
       (key) =>
         key !== "eventId" &&
         key !== "generation" &&
         key !== "hits" &&
+        key !== "lastHitAt" &&
         key !== "depleted" &&
+        key !== "depletedAt" &&
         key !== "respawnAt",
     )
   ) {
     return null;
   }
-  if (value.eventId !== eventId || !isUuid(eventId)) return null;
+  if (value.eventId !== eventId || !isHarvestNodeId(eventId)) return null;
   if (
     !Number.isSafeInteger(value.generation) ||
     (value.generation as number) < 0 ||
@@ -158,6 +181,16 @@ function parseHarvestNodeState(eventId: string, value: unknown): HarvestNodeStat
     (value.hits as number) < 0 ||
     (value.hits as number) > MAX_HARVEST_HITS ||
     typeof value.depleted !== "boolean"
+  ) {
+    return null;
+  }
+  const lastHitAt = value.lastHitAt === undefined ? null : value.lastHitAt;
+  const depletedAt = value.depletedAt === undefined ? null : value.depletedAt;
+  if (
+    (lastHitAt !== null && (!Number.isSafeInteger(lastHitAt) || (lastHitAt as number) < 0)) ||
+    (depletedAt !== null && (!Number.isSafeInteger(depletedAt) || (depletedAt as number) < 0)) ||
+    (!value.depleted && depletedAt !== null) ||
+    (depletedAt !== null && lastHitAt !== depletedAt)
   ) {
     return null;
   }
@@ -173,7 +206,9 @@ function parseHarvestNodeState(eventId: string, value: unknown): HarvestNodeStat
     eventId,
     generation: value.generation as number,
     hits: value.hits as number,
+    lastHitAt: lastHitAt as number | null,
     depleted: value.depleted,
+    depletedAt: depletedAt as number | null,
     respawnAt: value.respawnAt as number | null,
   };
 }
@@ -194,7 +229,15 @@ export function parseHarvestNodeStates(value: unknown): HarvestNodeStates | null
 }
 
 export function initialHarvestNodeState(eventId: string): HarvestNodeState {
-  return { eventId, generation: 0, hits: 0, depleted: false, respawnAt: null };
+  return {
+    eventId,
+    generation: 0,
+    hits: 0,
+    lastHitAt: null,
+    depleted: false,
+    depletedAt: null,
+    respawnAt: null,
+  };
 }
 
 export interface RefreshedHarvestNode {
@@ -212,7 +255,7 @@ export function refreshHarvestNode(
   eventId: string,
   now: number,
 ): RefreshedHarvestNode | null {
-  if (!isUuid(eventId) || !Number.isSafeInteger(now) || now < 0) return null;
+  if (!isHarvestNodeId(eventId) || !Number.isSafeInteger(now) || now < 0) return null;
   const current = nodes[eventId] ?? initialHarvestNodeState(eventId);
   if (!current.depleted || current.respawnAt === null || current.respawnAt > now) {
     return { nodes, node: current, changed: false };
@@ -222,7 +265,9 @@ export function refreshHarvestNode(
     eventId,
     generation: current.generation + 1,
     hits: 0,
+    lastHitAt: null,
     depleted: false,
+    depletedAt: null,
     respawnAt: null,
   };
   return { nodes: { ...nodes, [eventId]: node }, node, changed: true };
@@ -257,7 +302,7 @@ export function applyHarvestHit(
   input: ApplyHarvestHitInput,
 ): ApplyHarvestHitResult {
   if (
-    !isUuid(input.eventId) ||
+    !isHarvestNodeId(input.eventId) ||
     !Number.isSafeInteger(input.generation) ||
     input.generation < 0 ||
     !Number.isSafeInteger(input.requiredHits) ||
@@ -273,7 +318,9 @@ export function applyHarvestHit(
     return { ok: false, reason: "invalid" };
   }
   const parsedReward = parsePartyMaterialAmounts(input.reward);
-  if (!parsedReward || !hasPartyMaterialAmount(parsedReward)) {
+  // Gold profiles intentionally carry an empty material reward. The trusted PartyRoom request
+  // parser enforces that exactly one of material reward or existing-economy gold is positive.
+  if (!parsedReward) {
     return { ok: false, reason: "invalid" };
   }
   const current = nodes[input.eventId] ?? initialHarvestNodeState(input.eventId);
@@ -290,7 +337,9 @@ export function applyHarvestHit(
   const node: HarvestNodeState = {
     ...current,
     hits: Math.min(hits, input.requiredHits),
+    lastHitAt: input.now,
     depleted: rewarded,
+    depletedAt: rewarded ? input.now : null,
     respawnAt,
   };
   const nextMaterials = rewarded ? addPartyMaterials(materials, parsedReward) : materials;

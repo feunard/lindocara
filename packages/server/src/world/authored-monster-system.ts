@@ -8,6 +8,7 @@
 import { activePageIndex, type PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import { resolveMonsterAttackProfile } from "@lindocara/engine/combat-actions.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "@lindocara/engine/game.js";
+import { animalCarcassHarvestProfile } from "@lindocara/engine/harvest.js";
 import { eventCellCentre, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
 import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
 
@@ -60,8 +61,10 @@ export function activeAuthoredMonsterDefinitions(
     if (
       (event.monsterRespawnMode ?? "timed") === "never" &&
       state.defeatedMonsters?.[event.id] === true
-    )
-      return [];
+    ) {
+      const profile = event.species ? animalCarcassHarvestProfile(event.species, "never", 0) : null;
+      if (!profile || state.harvestNodes?.[event.id]?.depleted === true) return [];
+    }
     const definition = authoredMonsterDefinition(event, pageIndex);
     return definition ? [definition] : [];
   });

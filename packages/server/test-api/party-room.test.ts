@@ -197,13 +197,12 @@ async function seedCompletedPersonalProgress(
 
 async function reserveHarvestNode(
   partyId: string,
-  request: ReserveHarvestNodeRequest,
+  request: Omit<ReserveHarvestNodeRequest, "goldValue"> & { goldValue?: number },
 ): Promise<ReserveHarvestNodeResult> {
-  return (await partyRoom.room.call(
-    partyId,
-    "reserveHarvestNode",
-    request,
-  )) as ReserveHarvestNodeResult;
+  return (await partyRoom.room.call(partyId, "reserveHarvestNode", {
+    goldValue: 0,
+    ...request,
+  })) as ReserveHarvestNodeResult;
 }
 
 async function hitHarvestNode(
@@ -360,7 +359,9 @@ describe("shared party materials and harvest nodes", () => {
         eventId: EVENT_A,
         generation: 0,
         hits: 1,
+        lastHitAt: 1_000,
         depleted: true,
+        depletedAt: 1_000,
         respawnAt: null,
       },
     });
@@ -378,6 +379,85 @@ describe("shared party materials and harvest nodes", () => {
         materials: { wood: 5, stone: 0, iron: 0, meat: 0 },
         harvestNodes: { [EVENT_A]: { generation: 0, depleted: true } },
       },
+    });
+  });
+
+  test("an explicitly namespaced animal carcass yields meat once", async () => {
+    const { partyId, heroId } = await newPartyWithHero("harvestcarcass");
+    partyRoom.now = () => 1_500;
+    const eventId = "carcass:verdant-reach:farm-war-pig";
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId,
+      generation: 0,
+      requiredHits: 1,
+      reward: { meat: 3 },
+      goldValue: 0,
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("carcass reservation rejected");
+    const first = await hitHarvestNode(partyId, {
+      heroId,
+      eventId,
+      reservationId: reservation.reservationId,
+    });
+    expect(first).toMatchObject({
+      ok: true,
+      rewarded: true,
+      goldValue: 0,
+      materials: { wood: 0, stone: 0, iron: 0, meat: 3 },
+    });
+    expect(
+      await hitHarvestNode(partyId, {
+        heroId,
+        eventId,
+        reservationId: reservation.reservationId,
+      }),
+    ).toEqual({ ok: false, reason: "reservation" });
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, iron: 0, meat: 3 });
+    expect(JSON.parse(row?.harvestNodes ?? "{}")[eventId]).toMatchObject({
+      generation: 0,
+      depleted: true,
+    });
+  });
+
+  test("an authored gold resource depletes once without creating parallel material currency", async () => {
+    const { partyId, heroId } = await newPartyWithHero("harvestgold");
+    partyRoom.now = () => 1_600;
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      generation: 0,
+      requiredHits: 1,
+      reward: {},
+      goldValue: 25,
+      respawnDelayMs: null,
+    });
+    if (!reservation.ok) throw new Error("gold reservation rejected");
+    const first = await hitHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_B,
+      reservationId: reservation.reservationId,
+    });
+    expect(first).toMatchObject({
+      ok: true,
+      rewarded: true,
+      goldValue: 25,
+      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+    });
+    expect(
+      await hitHarvestNode(partyId, {
+        heroId,
+        eventId: EVENT_B,
+        reservationId: reservation.reservationId,
+      }),
+    ).toEqual({ ok: false, reason: "reservation" });
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, iron: 0, meat: 0 });
+    expect(JSON.parse(row?.harvestNodes ?? "{}")[EVENT_B]).toMatchObject({
+      generation: 0,
+      depleted: true,
     });
   });
 

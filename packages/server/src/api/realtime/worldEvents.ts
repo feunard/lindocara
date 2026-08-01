@@ -13,6 +13,7 @@
 import { activePageIndex } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { isWalkable } from "@lindocara/engine/game.js";
+import { animalCarcassHarvestProfile } from "@lindocara/engine/harvest.js";
 import {
   type EventTrigger,
   eventCellCentre,
@@ -21,6 +22,7 @@ import {
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
 import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js";
+import { refreshHarvestNode } from "@lindocara/engine/party-harvest-state.js";
 import { PLAYER_SIZE, TICK_MS, type Vec2 } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
@@ -44,7 +46,7 @@ import type { WorldRoomState } from "./worldState.ts";
  * reconciling authored monsters/guards/NPC movement along the way. Called on state install, state
  * creation and hero join — NEVER from the tick loop — so an event carries zero per-tick cost.
  */
-export function evaluateActiveEvents(state: WorldRoomState): void {
+export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): void {
   const definition = state.location?.definition;
   if (!definition) return;
   const events = definition.events ?? [];
@@ -55,6 +57,19 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
     ...activeAuthoredMonsterDefinitions(events, adventureState),
   ];
   state.monsters = reconcileActiveMonsters(state.monsters, monsterDefinitions);
+  // A permanent authored animal remains as a corpse until its explicit carcass node is depleted.
+  // Reconnecting reconstructs that corpse from party state instead of silently reviving it.
+  for (const monster of state.monsters) {
+    if (!monster.id.startsWith("mon-")) continue;
+    const eventId = monster.id.slice(4);
+    if (adventureState.defeatedMonsters?.[eventId] !== true) continue;
+    if (!animalCarcassHarvestProfile(monster.species, "never", 0)) continue;
+    monster.hp = 0;
+    monster.deadUntil = Number.POSITIVE_INFINITY;
+    monster.action = null;
+    monster.vx = 0;
+    monster.vy = 0;
+  }
   state.monsterGrid.clear();
   for (const monster of state.monsters) state.monsterGrid.insert(monster);
 
@@ -76,17 +91,43 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
     const page = event.pages[index];
     if (page === undefined) continue;
     const current = currentEvents.get(event.id);
+    const harvestNode =
+      event.kind === "harvestable"
+        ? refreshHarvestNode(adventureState.harvestNodes ?? {}, event.id, now)?.node
+        : undefined;
+    const depleted = harvestNode?.depleted === true;
+    const profile = event.kind === "harvestable" ? event.harvestProfile : undefined;
+    const graphicAssetId =
+      depleted && profile
+        ? profile.exhaustionBehavior === "replace"
+          ? profile.exhaustedAssetId
+          : null
+        : page.graphicAssetId;
     active.push({
       id: event.id,
       col: current?.col ?? event.col,
       row: current?.row ?? event.row,
-      graphicAssetId: page.graphicAssetId,
+      graphicAssetId,
       graphicTint: page.graphicTint ?? 0xffffff,
       onTop: page.optOnTop,
       moveSpeed: page.moveSpeed,
       moveFrequency: page.moveFreq,
       moveAnimation: page.optMoveAnim,
       directionFixed: page.optDirFix,
+      ...(profile && harvestNode
+        ? {
+            harvest: {
+              state: depleted ? ("depleted" as const) : ("intact" as const),
+              generation: harvestNode.generation,
+              hits: harvestNode.hits,
+              lastHitAt: harvestNode.lastHitAt,
+              depletedAt: harvestNode.depletedAt,
+              respawnAt: harvestNode.respawnAt,
+              exhaustionBehavior: profile.exhaustionBehavior,
+              fadeDurationMs: profile.fadeDurationMs,
+            },
+          }
+        : {}),
     });
     // A harvestable page controls visibility and appearance only. It never becomes an NPC merely
     // because the shared active-event projection also carries moving authored characters.
@@ -106,6 +147,58 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
   }
   state.activeEvents = active;
   state.npcMovement = reconcileNpcMovement(state.npcMovement, movement, state.tick);
+}
+
+/** Tick-cheap visual refresh for timed harvest respawns; no monster/NPC reconciliation. */
+export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): void {
+  const events = state.location?.definition.events ?? [];
+  const adventureState = state.adventureState.state;
+  const eventById = new Map(events.map((event) => [event.id, event]));
+  state.activeEvents = state.activeEvents.map((active) => {
+    const event = eventById.get(active.id);
+    if (event?.kind !== "harvestable") return active;
+    const profile = event.harvestProfile;
+    if (!profile) return active;
+    const node = refreshHarvestNode(adventureState.harvestNodes ?? {}, event.id, now)?.node;
+    if (!node) return active;
+    const depleted = node.depleted;
+    const pageIndex = activePageIndex(event, adventureState);
+    const page = pageIndex === null ? undefined : event.pages[pageIndex];
+    if (!page) return active;
+    const graphicAssetId = depleted
+      ? profile.exhaustionBehavior === "replace"
+        ? profile.exhaustedAssetId
+        : null
+      : page.graphicAssetId;
+    const harvest = {
+      state: depleted ? ("depleted" as const) : ("intact" as const),
+      generation: node.generation,
+      hits: node.hits,
+      lastHitAt: node.lastHitAt,
+      depletedAt: node.depletedAt,
+      respawnAt: node.respawnAt,
+      exhaustionBehavior: profile.exhaustionBehavior,
+      fadeDurationMs: profile.fadeDurationMs,
+    };
+    if (
+      active.graphicAssetId === graphicAssetId &&
+      active.harvest?.state === harvest.state &&
+      active.harvest.generation === harvest.generation &&
+      active.harvest.hits === harvest.hits &&
+      active.harvest.lastHitAt === harvest.lastHitAt &&
+      active.harvest.depletedAt === harvest.depletedAt &&
+      active.harvest.respawnAt === harvest.respawnAt &&
+      active.harvest.exhaustionBehavior === harvest.exhaustionBehavior &&
+      active.harvest.fadeDurationMs === harvest.fadeDurationMs
+    ) {
+      return active;
+    }
+    return {
+      ...active,
+      graphicAssetId,
+      harvest,
+    };
+  });
 }
 
 /** Port of `#abortRunsForStalePages` (`world.ts:1024`): kill any run whose event's active page no

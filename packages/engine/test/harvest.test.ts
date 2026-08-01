@@ -1,4 +1,5 @@
 import {
+  animalCarcassHarvestProfile,
   HARVEST_PROFILE_LIMITS,
   HARVEST_RESOURCE_KINDS,
   type HarvestProfile,
@@ -41,6 +42,20 @@ describe("harvest profile", () => {
     expect(harvestToolMatchesResource("wood", "axe")).toBe(true);
     expect(harvestToolMatchesResource("wood", "pickaxe")).toBe(false);
     expect(parseHarvestProfile({ ...WOOD_PROFILE, tool: "knife" })).toBeNull();
+  });
+
+  it("opts only explicit animal species into carcass harvesting", () => {
+    expect(animalCarcassHarvestProfile("war_pig", "timed", 42_000)).toMatchObject({
+      resource: "meat",
+      tool: "knife",
+      respawn: "timed",
+      respawnDelayMs: 42_000,
+    });
+    expect(animalCarcassHarvestProfile("war_pig", "never", 42_000)).toMatchObject({
+      respawn: "permanent",
+      respawnDelayMs: 0,
+    });
+    expect(animalCarcassHarvestProfile("spear_goblin", "timed", 42_000)).toBeNull();
   });
 
   it("routes gold through the existing currency value instead of a material yield", () => {

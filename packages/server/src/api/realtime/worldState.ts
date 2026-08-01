@@ -24,6 +24,7 @@ import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.
 import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
 import type { NpcMovementRuntime } from "../../world/npc-movement-system.js";
+import type { PeasantHarvestJob } from "../../world/peasant-harvest-system.js";
 import type {
   LumenPortalRuntime,
   PolarityOrbRuntime,
@@ -181,6 +182,8 @@ export interface WorldRoomState {
   heroPartyBroadcasts: Map<string, string>;
   /** Authored events whose page currently holds. Always empty until Task 7 evaluates pages. */
   activeEvents: readonly ActiveWorldEvent[];
+  /** At most one server-timed harvest channel per hero. Movement/leave/transition removes it. */
+  harvestJobs: Map<string, PeasantHarvestJob>;
   /** Autonomous NPC movement runtimes keyed by event id (Task 7 populates via reconcile). */
   npcMovement: Map<string, NpcMovementRuntime>;
   /** Which authored exit each hero currently occupies (legacy `#occupiedExitByPlayerId`). */
@@ -265,6 +268,7 @@ export function createWorldRoomState(
       : null,
     heroPartyBroadcasts: new Map(),
     activeEvents: [],
+    harvestJobs: new Map(),
     npcMovement: new Map(),
     occupiedExitByPlayerId: new Map(),
     tick: 0,

@@ -62,12 +62,13 @@ import {
   type QuestSite,
   type Rect,
 } from "./game.js";
+import { HARVEST_PROFILE_LIMITS, isPeasantCarryKind, type PeasantCarryKind } from "./harvest.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
 import { parseMapHeroSettings } from "./map-hero-settings.js";
 import type { MerchantDefinition } from "./merchant.js";
-import { isPartyMaterials, type PartyMaterials } from "./party-harvest-state.js";
+import { isPartyMaterials, MAX_HARVEST_HITS, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
@@ -132,6 +133,8 @@ export interface PlayerSnapshot {
   afterimage?: { x: number; y: number; expiresAt: number };
   /** A departure decoy; its coordinates replace the hidden Rogue's real position for recipients. */
   silhouette?: boolean;
+  /** Short server-authored success flourish; shared stock remains authoritative elsewhere. */
+  peasantCarry?: { kind: PeasantCarryKind; until: number };
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -414,6 +417,17 @@ export interface WorldEventSnapshot {
   moveFrequency: number;
   moveAnimation: boolean;
   directionFixed: boolean;
+  /** Presentation state for an explicitly-authored harvest node. It never grants resources. */
+  harvest?: {
+    state: "intact" | "depleted";
+    generation: number;
+    hits: number;
+    lastHitAt: number | null;
+    depletedAt: number | null;
+    respawnAt: number | null;
+    exhaustionBehavior: "replace" | "fade" | "hide";
+    fadeDurationMs: number;
+  };
 }
 
 export interface WorldInfo {
@@ -948,6 +962,12 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
         isPosition(value.afterimage) &&
         isFiniteNumber(value.afterimage.expiresAt))) &&
     (value.silhouette === undefined || typeof value.silhouette === "boolean") &&
+    (value.peasantCarry === undefined ||
+      (value.class === "peasant" &&
+        isRecord(value.peasantCarry) &&
+        isPeasantCarryKind(value.peasantCarry.kind) &&
+        Number.isSafeInteger(value.peasantCarry.until) &&
+        (value.peasantCarry.until as number) >= 0)) &&
     (value.action === null || isActionSnapshot(value.action, "player"))
   );
 }
@@ -1439,6 +1459,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
  *  one drops the whole frame. `graphicAssetId` must be `null` or a real catalogue id — appearance
  *  only, so an unknown asset id is not something the renderer should ever be handed. */
 function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
+  const harvest = isRecord(value) ? value.harvest : undefined;
   return (
     isRecord(value) &&
     isWireId(value.id) &&
@@ -1459,7 +1480,29 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     (value.moveFrequency as number) >= 0 &&
     (value.moveFrequency as number) <= 4 &&
     typeof value.moveAnimation === "boolean" &&
-    typeof value.directionFixed === "boolean"
+    typeof value.directionFixed === "boolean" &&
+    (harvest === undefined ||
+      (isRecord(harvest) &&
+        (harvest.state === "intact" || harvest.state === "depleted") &&
+        Number.isSafeInteger(harvest.generation) &&
+        (harvest.generation as number) >= 0 &&
+        Number.isSafeInteger(harvest.hits) &&
+        (harvest.hits as number) >= 0 &&
+        (harvest.hits as number) <= MAX_HARVEST_HITS &&
+        (harvest.lastHitAt === null ||
+          (Number.isSafeInteger(harvest.lastHitAt) && (harvest.lastHitAt as number) >= 0)) &&
+        (harvest.depletedAt === null ||
+          (Number.isSafeInteger(harvest.depletedAt) && (harvest.depletedAt as number) >= 0)) &&
+        (harvest.state !== "intact" || harvest.depletedAt === null) &&
+        (harvest.depletedAt === null || harvest.lastHitAt === harvest.depletedAt) &&
+        (harvest.respawnAt === null ||
+          (Number.isSafeInteger(harvest.respawnAt) && (harvest.respawnAt as number) >= 0)) &&
+        (harvest.exhaustionBehavior === "replace" ||
+          harvest.exhaustionBehavior === "fade" ||
+          harvest.exhaustionBehavior === "hide") &&
+        Number.isSafeInteger(harvest.fadeDurationMs) &&
+        (harvest.fadeDurationMs as number) >= 0 &&
+        (harvest.fadeDurationMs as number) <= HARVEST_PROFILE_LIMITS.fadeDurationMs.max))
   );
 }
 

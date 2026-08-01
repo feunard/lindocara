@@ -24,6 +24,7 @@ import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { authoredQuestRewardClaims } from "../src/api/entities/authoredQuestRewardClaims.ts";
+import { harvestGoldClaims } from "../src/api/entities/harvestGoldClaims.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
 import { heroItems } from "../src/api/entities/heroItems.ts";
 import { AdventureStateService } from "../src/api/services/AdventureStateService.ts";
@@ -36,6 +37,7 @@ class SeedProbe {
   heroes = $repository(heroes);
   heroItems = $repository(heroItems);
   authoredQuestRewardClaims = $repository(authoredQuestRewardClaims);
+  harvestGoldClaims = $repository(harvestGoldClaims);
 }
 
 let alepha: ReturnType<typeof createTestApp>;
@@ -85,7 +87,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
 }
 
 /** Creates one fresh hero end-to-end (account, adventure, party, hero) and returns its id. */
-async function newHero(prefix: string): Promise<{ heroId: string }> {
+async function newHero(prefix: string): Promise<{ heroId: string; partyId: string }> {
   const { token } = await registerAndLogin(prefix);
   const adventureResponse = await authedFetch("/api/adventures", token, {
     method: "POST",
@@ -105,7 +107,7 @@ async function newHero(prefix: string): Promise<{ heroId: string }> {
   });
   expect(heroResponse.status).toBe(201);
   const hero = (await heroResponse.json()) as { id: string };
-  return { heroId: hero.id };
+  return { heroId: hero.id, partyId: party.id };
 }
 
 describe("claimQuestReward", () => {
@@ -179,5 +181,86 @@ describe("claimQuestReward", () => {
       where: { ownerId: { eq: heroId }, questId: { eq: "0001" } },
     });
     expect(claims).toHaveLength(1);
+  });
+});
+
+describe("claimHarvestGold", () => {
+  const NODE_ID = "33333333-3333-4333-8333-333333333333";
+
+  test("credits existing hero gold once per party-node generation", async () => {
+    const { heroId, partyId } = await newHero("goldok");
+    await probe.heroes.updateById(heroId, { gold: 17 });
+    const hero = await probe.heroes.findById(heroId);
+    const claim = {
+      partyId,
+      heroId,
+      sessionEpoch: hero?.sessionEpoch ?? 0,
+      nodeId: NODE_ID,
+      generation: 0,
+      amount: 25,
+    };
+
+    expect(await service.claimHarvestGold(claim)).toBe(true);
+    expect(await service.claimHarvestGold(claim)).toBe(false);
+    expect((await probe.heroes.findById(heroId))?.gold).toBe(42);
+
+    const firstGenerationClaims = await probe.harvestGoldClaims.findMany({
+      where: {
+        partyId: { eq: partyId },
+        nodeId: { eq: NODE_ID },
+        generation: { eq: 0 },
+      },
+    });
+    expect(firstGenerationClaims).toHaveLength(1);
+    expect(firstGenerationClaims[0]).toMatchObject({
+      partyId,
+      nodeId: NODE_ID,
+      generation: 0,
+      recipientHeroId: heroId,
+      amount: 25,
+    });
+
+    expect(await service.claimHarvestGold({ ...claim, generation: 1 })).toBe(true);
+    expect((await probe.heroes.findById(heroId))?.gold).toBe(67);
+    const allClaims = await probe.harvestGoldClaims.findMany({
+      where: { partyId: { eq: partyId }, nodeId: { eq: NODE_ID } },
+    });
+    expect(allClaims).toHaveLength(2);
+  });
+
+  test("a stale epoch or mismatched hero or party creates no claim and credits no gold", async () => {
+    const { heroId, partyId } = await newHero("goldfence");
+    await probe.heroes.updateById(heroId, { gold: 17 });
+    const heroBefore = await probe.heroes.findById(heroId);
+    const baseClaim = {
+      partyId,
+      heroId,
+      sessionEpoch: heroBefore?.sessionEpoch ?? 0,
+      nodeId: NODE_ID,
+      generation: 0,
+      amount: 25,
+    };
+
+    expect(
+      await service.claimHarvestGold({
+        ...baseClaim,
+        sessionEpoch: baseClaim.sessionEpoch + 1,
+      }),
+    ).toBe(false);
+    expect(
+      await service.claimHarvestGold({
+        ...baseClaim,
+        heroId: crypto.randomUUID(),
+      }),
+    ).toBe(false);
+    expect(
+      await service.claimHarvestGold({
+        ...baseClaim,
+        partyId: crypto.randomUUID(),
+      }),
+    ).toBe(false);
+
+    expect(await probe.heroes.findById(heroId)).toEqual(heroBefore);
+    expect(await probe.harvestGoldClaims.findMany()).toHaveLength(0);
   });
 });

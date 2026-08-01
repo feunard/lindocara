@@ -8,12 +8,14 @@ import {
 import { CONSUMABLE_IDS, CONSUMABLE_MAX_STACK } from "@lindocara/engine/consumables.js";
 import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
 import { applyExperience, maxHpForLevel } from "@lindocara/engine/game.js";
+import { HARVEST_PROFILE_LIMITS } from "@lindocara/engine/harvest.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import {
   applyHarvestHit,
   EMPTY_PARTY_MATERIALS,
   type HarvestNodeState,
   hasPartyMaterialAmount,
+  isHarvestNodeId,
   MAX_HARVEST_HITS,
   MAX_HARVEST_RESPAWN_DELAY_MS,
   type PartyMaterialAmounts,
@@ -93,6 +95,7 @@ export interface ReserveHarvestNodeRequest {
   generation: number;
   requiredHits: number;
   reward: PartyMaterialAmounts;
+  goldValue: number;
   respawnDelayMs: number | null;
 }
 
@@ -120,6 +123,7 @@ export type HitHarvestNodeResult =
       readonly node: HarvestNodeState;
       readonly materials: PartyMaterials;
       readonly rewarded: boolean;
+      readonly goldValue: number;
     }
   | {
       readonly ok: false;
@@ -139,16 +143,22 @@ interface HarvestReservation {
   generation: number;
   requiredHits: number;
   reward: PartyMaterialAmounts;
+  goldValue: number;
   respawnDelayMs: number | null;
   expiresAt: number;
 }
+
+type ParsedReserveHarvestNodeRequest = Omit<ReserveHarvestNodeRequest, "goldValue"> & {
+  goldValue: number;
+};
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseReserveHarvestNodeRequest(value: unknown): ReserveHarvestNodeRequest | null {
-  if (!isPlainObject(value) || !isUuid(value.heroId) || !isUuid(value.eventId)) return null;
+function parseReserveHarvestNodeRequest(value: unknown): ParsedReserveHarvestNodeRequest | null {
+  if (!isPlainObject(value) || !isUuid(value.heroId) || !isHarvestNodeId(value.eventId))
+    return null;
   if (
     !Number.isSafeInteger(value.generation) ||
     (value.generation as number) < 0 ||
@@ -167,13 +177,23 @@ function parseReserveHarvestNodeRequest(value: unknown): ReserveHarvestNodeReque
     return null;
   }
   const reward = parsePartyMaterialAmounts(value.reward);
-  if (!reward || !hasPartyMaterialAmount(reward)) return null;
+  const goldValue = value.goldValue === undefined ? 0 : value.goldValue;
+  if (
+    !reward ||
+    !Number.isSafeInteger(goldValue) ||
+    (goldValue as number) < 0 ||
+    (goldValue as number) > HARVEST_PROFILE_LIMITS.goldValue.max ||
+    hasPartyMaterialAmount(reward) === (goldValue as number) > 0
+  ) {
+    return null;
+  }
   return {
     heroId: value.heroId,
     eventId: value.eventId,
     generation: value.generation as number,
     requiredHits: value.requiredHits as number,
     reward,
+    goldValue: goldValue as number,
     respawnDelayMs: value.respawnDelayMs as number | null,
   };
 }
@@ -182,7 +202,7 @@ function parseHitHarvestNodeRequest(value: unknown): HitHarvestNodeRequest | nul
   if (
     !isPlainObject(value) ||
     !isUuid(value.heroId) ||
-    !isUuid(value.eventId) ||
+    !isHarvestNodeId(value.eventId) ||
     !isUuid(value.reservationId)
   ) {
     return null;
@@ -363,6 +383,8 @@ export class PartyRoom {
         this.reserveHarvestNode(room.roomId, room.state, request),
       hitHarvestNode: (room, request: unknown) =>
         this.hitHarvestNode(room.roomId, room.state, request),
+      cancelHarvestNode: (room, request: unknown) =>
+        this.cancelHarvestNode(room.roomId, room.state, request),
       consumePartyMaterials: (room, costs: unknown) =>
         this.consumePartyMaterials(room.roomId, room.state, costs),
       recordQuestEvent: (room, event: QuestBusinessEvent) =>
@@ -567,6 +589,7 @@ export class PartyRoom {
           existing.generation === request.generation &&
           existing.requiredHits === request.requiredHits &&
           existing.respawnDelayMs === request.respawnDelayMs &&
+          existing.goldValue === request.goldValue &&
           sameMaterialAmounts(existing.reward, request.reward)
         ) {
           return {
@@ -652,7 +675,30 @@ export class PartyRoom {
         node: { ...result.node },
         materials: { ...result.materials },
         rewarded: result.rewarded,
+        goldValue: result.rewarded ? reservation.goldValue : 0,
       };
+    });
+  }
+
+  /** Release an unspent one-hit token after a server-side channel is cancelled. */
+  protected async cancelHarvestNode(
+    partyId: string,
+    state: PartyRoomState,
+    rawRequest: unknown,
+  ): Promise<boolean> {
+    return this.enqueueStateWrite(state, async () => {
+      const request = parseHitHarvestNodeRequest(rawRequest);
+      if (!request || state.partyCompleted || partyId.length === 0) return false;
+      const reservation = state.harvestReservations.get(request.eventId);
+      if (
+        !reservation ||
+        reservation.id !== request.reservationId ||
+        reservation.heroId !== request.heroId
+      ) {
+        return false;
+      }
+      state.harvestReservations.delete(request.eventId);
+      return true;
     });
   }
 

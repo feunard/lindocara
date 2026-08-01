@@ -97,6 +97,9 @@ export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerS
     ...(player.rangerAfterimage && player.rangerAfterimage.expiresAt > now
       ? { afterimage: { ...player.rangerAfterimage } }
       : {}),
+    ...(player.peasantCarry && player.peasantCarry.until > now
+      ? { peasantCarry: { ...player.peasantCarry } }
+      : {}),
     action: combatActionSnapshot(player.action),
   };
 }

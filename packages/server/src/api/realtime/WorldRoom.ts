@@ -77,6 +77,7 @@ import { addPlayer, isRateLimited, removePlayer } from "../../world/connection-s
 import { abortRunsForHero } from "../../world/event-run-system.js";
 import type { InterestSystemContext } from "../../world/interest-system.js";
 import { worldView } from "../../world/interest-system.js";
+import { cancelPeasantHarvestJob } from "../../world/peasant-harvest-system.js";
 import { removeProjectilesByOwner } from "../../world/projectile-system.js";
 import { exitRogueStealth } from "../../world/rogue-state-system.js";
 import {
@@ -134,6 +135,7 @@ import {
   handleTalentReset,
   handleTalentUnlock,
   handleUseConsumable,
+  pruneInvalidPeasantHarvestJobs,
   recordMapEntered,
   selfStateFor,
   sendResyncTo,
@@ -954,10 +956,71 @@ export class WorldRoom {
         },
         claimQuestReward: (player, reward) =>
           this.heroSaveService.claimQuestReward({ heroId: player.id, ...reward }),
+        reserveHarvestNode: async (request) =>
+          (await this.partyRoom.room.call(state.partyId, "reserveHarvestNode", request)) as Awaited<
+            ReturnType<WorldGlue["deps"]["reserveHarvestNode"]>
+          >,
+        hitHarvestNode: async (request) =>
+          (await this.partyRoom.room.call(state.partyId, "hitHarvestNode", request)) as Awaited<
+            ReturnType<WorldGlue["deps"]["hitHarvestNode"]>
+          >,
+        cancelHarvestNode: async (request) =>
+          (await this.partyRoom.room.call(state.partyId, "cancelHarvestNode", request)) as boolean,
+        claimHarvestGold: (player, nodeId, generation, amount) =>
+          this.claimHarvestGold(room, state, player, nodeId, generation, amount),
         consumePotion: (player, connectionId) =>
           this.consumePotion(room, state, player, connectionId),
       },
     };
+  }
+
+  /**
+   * Serialize the claim beside absolute hero saves. Otherwise an already-running `saveHero` could
+   * land after the SQL increment and overwrite gold with its older in-memory snapshot.
+   */
+  protected claimHarvestGold(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    player: PlayerRuntime,
+    nodeId: string,
+    generation: number,
+    amount: number,
+  ): Promise<boolean> {
+    const previous = state.pendingSaves.get(player.id);
+    const start = previous
+      ? previous.then(
+          () => undefined,
+          () => undefined,
+        )
+      : Promise.resolve();
+    const claim = start.then(async () => {
+      const claimed = await this.adventureStateService.claimHarvestGold({
+        partyId: state.partyId,
+        heroId: player.id,
+        sessionEpoch: player.sessionEpoch,
+        nodeId,
+        generation,
+        amount,
+      });
+      if (!claimed) return false;
+      player.inventory.gold += amount;
+      player.dirty = true;
+      const connectionId = state.connectionIdByHeroId.get(player.id);
+      if (connectionId !== undefined && state.players.get(connectionId) === player) {
+        sendStateTo(this.glue(room), connectionId, player);
+      }
+      return true;
+    });
+    state.pendingSaves.set(player.id, claim);
+    void claim.then(
+      () => {
+        if (state.pendingSaves.get(player.id) === claim) state.pendingSaves.delete(player.id);
+      },
+      () => {
+        if (state.pendingSaves.get(player.id) === claim) state.pendingSaves.delete(player.id);
+      },
+    );
+    return claim;
   }
 
   /**
@@ -1114,6 +1177,7 @@ export class WorldRoom {
     player.lastTransitionAt = now;
     player.lastInput = NO_INPUT;
     player.queue = [];
+    cancelPeasantHarvestJob(state.harvestJobs, player.id);
     cancelCombatAction(player);
     removeProjectilesByOwner(state.projectiles, player.id);
     exitRogueStealth(player, now);
@@ -1403,6 +1467,7 @@ export class WorldRoom {
       abortRunsForStalePages(state);
       evaluateActiveEvents(state);
       const w = this.glue(room);
+      pruneInvalidPeasantHarvestJobs(w, Date.now());
       for (const [connectionId, player] of state.players) {
         if (player.identityKind === "hero" && player.authorized) {
           sendStateTo(w, connectionId, player);
@@ -1542,6 +1607,7 @@ export class WorldRoom {
     player.disconnecting = true;
     player.lastInput = NO_INPUT;
     player.queue = [];
+    cancelPeasantHarvestJob(state.harvestJobs, player.id);
     state.occupiedExitByPlayerId.delete(player.id);
     state.questConversations.delete(player.id);
     abortRunsForHero(state.eventRuns, player.id);

@@ -1,7 +1,13 @@
+import type { MonsterRespawnMode, MonsterSpecies } from "./game.js";
 import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
 
 export const HARVEST_RESOURCE_KINDS = ["wood", "stone", "iron", "gold", "meat"] as const;
 export type HarvestResourceKind = (typeof HARVEST_RESOURCE_KINDS)[number];
+
+/** Pawn carry-sheet variants that actually exist; stone and iron deliberately have no fake. */
+export const PEASANT_CARRY_KINDS = ["wood", "meat", "gold"] as const;
+export type PeasantCarryKind = (typeof PEASANT_CARRY_KINDS)[number];
+export const PEASANT_CARRY_DURATION_MS = 3_000;
 
 export const HARVEST_TOOLS = ["axe", "pickaxe", "knife"] as const;
 export type HarvestTool = (typeof HARVEST_TOOLS)[number];
@@ -57,8 +63,58 @@ export interface HarvestProfile {
   fadeDurationMs: number;
 }
 
+/**
+ * Explicit carcass gameplay catalogue. Species opt in here; artwork, display names and monster
+ * kinds are deliberately irrelevant. Sheep stay authored `harvestable` map events with their own
+ * meat profile, while a defeated war pig uses this server-owned default.
+ */
+export const HARVESTABLE_ANIMAL_SPECIES = ["war_pig"] as const satisfies readonly MonsterSpecies[];
+
+const WAR_PIG_CARCASS_PROFILE: HarvestProfile = {
+  resource: "meat",
+  tool: "knife",
+  yieldAmount: 3,
+  goldValue: 0,
+  hitsRequired: 2,
+  range: 50,
+  harvestDurationMs: 700,
+  exhaustedAssetId: null,
+  exhaustionBehavior: "hide",
+  respawn: "timed",
+  respawnDelayMs: MIN_TIMED_HARVEST_RESPAWN_MS,
+  fadeDurationMs: 300,
+};
+
+const ANIMAL_CARCASS_PROFILES: Readonly<Partial<Record<MonsterSpecies, HarvestProfile>>> = {
+  war_pig: WAR_PIG_CARCASS_PROFILE,
+};
+
+export function animalCarcassHarvestProfile(
+  species: MonsterSpecies,
+  respawnMode: MonsterRespawnMode,
+  respawnDelayMs: number,
+): HarvestProfile | null {
+  const profile = ANIMAL_CARCASS_PROFILES[species];
+  if (!profile) return null;
+  return {
+    ...profile,
+    respawn: respawnMode === "never" ? "permanent" : "timed",
+    respawnDelayMs:
+      respawnMode === "never"
+        ? 0
+        : Math.min(
+            HARVEST_PROFILE_LIMITS.respawnDelayMs.max,
+            Math.max(MIN_TIMED_HARVEST_RESPAWN_MS, Math.floor(respawnDelayMs)),
+          ),
+  };
+}
+
 export function isHarvestResourceKind(value: unknown): value is HarvestResourceKind {
   return typeof value === "string" && (HARVEST_RESOURCE_KINDS as readonly string[]).includes(value);
+}
+
+export function isPeasantCarryKind(value: unknown): value is PeasantCarryKind {
+  return typeof value === "string" && (PEASANT_CARRY_KINDS as readonly string[]).includes(value);
 }
 
 export function isHarvestTool(value: unknown): value is HarvestTool {

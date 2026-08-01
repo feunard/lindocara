@@ -49,12 +49,15 @@ import {
   EMPTY_ADVENTURE_STATE,
   parsePartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
+import { HARVEST_PROFILE_LIMITS } from "@lindocara/engine/harvest.js";
+import { isHarvestNodeId } from "@lindocara/engine/party-harvest-state.js";
 import type { QuestItemReward } from "@lindocara/engine/quests.js";
 import { z } from "alepha";
 import { $repository, sql } from "alepha/orm";
 import { decodeStoredAdventureRegistry } from "../../adventure-registry.js";
 import { adventures } from "../entities/adventures.ts";
 import { authoredQuestRewardClaims } from "../entities/authoredQuestRewardClaims.ts";
+import { harvestGoldClaims } from "../entities/harvestGoldClaims.ts";
 import { heroes } from "../entities/heroes.ts";
 import { heroItems } from "../entities/heroItems.ts";
 import { heroQuests } from "../entities/heroQuests.ts";
@@ -110,6 +113,7 @@ export class AdventureStateService {
   heroItems = $repository(heroItems);
   heroQuests = $repository(heroQuests);
   authoredQuestRewardClaims = $repository(authoredQuestRewardClaims);
+  harvestGoldClaims = $repository(harvestGoldClaims);
 
   /** The party's adventure id + completion status, or `null` for an unknown party. */
   async loadParty(partyId: string): Promise<PartyContext | null> {
@@ -333,5 +337,72 @@ export class AdventureStateService {
       );
     }
     return true;
+  }
+
+  /**
+   * Credit existing hero gold once for one exhausted node generation. D1 exposes no transaction
+   * through Alepha, so the unique claim is inserted first and the epoch-fenced increment follows.
+   * A crash between them can under-credit once; it can never double-credit a replay.
+   */
+  async claimHarvestGold(input: {
+    partyId: string;
+    heroId: string;
+    sessionEpoch: number;
+    nodeId: string;
+    generation: number;
+    amount: number;
+  }): Promise<boolean> {
+    if (
+      !isHarvestNodeId(input.nodeId) ||
+      !Number.isSafeInteger(input.generation) ||
+      input.generation < 0 ||
+      !Number.isSafeInteger(input.sessionEpoch) ||
+      input.sessionEpoch < 0 ||
+      !Number.isSafeInteger(input.amount) ||
+      input.amount < 1 ||
+      input.amount > HARVEST_PROFILE_LIMITS.goldValue.max
+    ) {
+      return false;
+    }
+    const claimId = crypto.randomUUID();
+    const claimed = await this.harvestGoldClaims.query(
+      (table) => sql`
+        INSERT INTO ${table}
+          (${sql.raw(table.id.name)}, ${sql.raw(table.partyId.name)},
+           ${sql.raw(table.nodeId.name)}, generation,
+           ${sql.raw(table.recipientHeroId.name)}, amount)
+        SELECT ${claimId}, ${input.partyId}, ${input.nodeId}, ${input.generation},
+               ${input.heroId}, ${input.amount}
+        WHERE EXISTS (
+          SELECT 1 FROM ${this.heroes.table}
+          WHERE ${this.heroes.table.id} = ${input.heroId}
+            AND ${this.heroes.table.partyId} = ${input.partyId}
+            AND ${this.heroes.table.sessionEpoch} = ${input.sessionEpoch}
+        )
+        ON CONFLICT(${sql.raw(table.partyId.name)}, ${sql.raw(table.nodeId.name)}, generation)
+          DO NOTHING
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+    if (claimed.length !== 1) return false;
+    const credited = await this.heroes.query(
+      (table) => sql`
+        UPDATE ${table}
+        SET gold = gold + ${input.amount}, ${sql.raw(table.updatedAt.name)} = ${new Date().toISOString()}
+        WHERE ${table.id} = ${input.heroId}
+          AND ${table.partyId} = ${input.partyId}
+          AND ${table.sessionEpoch} = ${input.sessionEpoch}
+          AND EXISTS (
+            SELECT 1 FROM ${this.harvestGoldClaims.table}
+            WHERE ${this.harvestGoldClaims.table.id} = ${claimId}
+              AND ${this.harvestGoldClaims.table.recipientHeroId} = ${input.heroId}
+              AND ${this.harvestGoldClaims.table.amount} = ${input.amount}
+          )
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+    return credited.length === 1;
   }
 }

@@ -255,6 +255,10 @@ function testGlue(
     transitionAdventureExit: () => {},
     teleportCrossMap: () => {},
     claimQuestReward: async () => false,
+    reserveHarvestNode: async () => ({ ok: false, reason: "party" }),
+    hitHarvestNode: async () => ({ ok: false, reason: "party" }),
+    cancelHarvestNode: async () => false,
+    claimHarvestGold: async () => false,
     consumePotion: async () => null,
   };
   return { w: { state, deps }, sent };
@@ -297,6 +301,36 @@ function seedGuard(state: WorldRoomState, id: string, x: number, y: number) {
 }
 
 describe("world room combat (FakeClock)", () => {
+  test("disconnect removes a Peasant harvest channel from the real room", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("harvleave", "peasant");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    const socket = fakeSocket(userId, heroId);
+    await engine.join(socket);
+    const state = roomState(engine);
+    state.harvestJobs.set(heroId, {
+      id: crypto.randomUUID(),
+      heroId,
+      connectionId: socket.id,
+      slot: 1,
+      tool: "axe",
+      targetKind: "map_event",
+      targetRuntimeId: "11111111-1111-4111-8111-111111111111",
+      nodeId: "11111111-1111-4111-8111-111111111111",
+      generation: 0,
+      direction: { x: 1, y: 0 },
+      startedAt: 1_000,
+      completesAt: 2_000,
+      committing: false,
+    });
+
+    await engine.leave(socket.id);
+
+    expect(state.harvestJobs.size).toBe(0);
+    expect(state.connectionIdByHeroId.has(heroId)).toBe(false);
+    engine.dispose();
+  });
+
   test("map-authored ability locks are enforced by the room authority", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("abilitylock");
     const clock = new FakeClock();

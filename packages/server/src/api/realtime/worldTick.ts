@@ -112,7 +112,10 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { isMapSkillEnabled, mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
-import { EMPTY_PARTY_MATERIALS } from "@lindocara/engine/party-harvest-state.js";
+import {
+  EMPTY_PARTY_MATERIALS,
+  type PartyMaterialAmounts,
+} from "@lindocara/engine/party-harvest-state.js";
 import type {
   ClientMessage,
   QuestDialogueEntry,
@@ -204,6 +207,14 @@ import { advancePlayers } from "../../world/movement-system.js";
 import type { NavigationRuntime } from "../../world/navigation-system.js";
 import { advanceNpcEvents } from "../../world/npc-movement-system.js";
 import { heroPartyState } from "../../world/party-system.js";
+import {
+  cancelPeasantHarvestJob,
+  createPeasantHarvestJob,
+  expirePeasantCarry,
+  grantPeasantCarry,
+  type PeasantHarvestJob,
+  selectPeasantHarvestTarget,
+} from "../../world/peasant-harvest-system.js";
 import {
   advancePolarityOrbs,
   advanceSanctuaries,
@@ -311,7 +322,15 @@ import {
   type ProjectileRuntime,
   RESYNC_COOLDOWN_MS,
 } from "../../world/world-runtime.js";
-import type { QuestAbandonResult, QuestAcceptanceResult, QuestTurnInResult } from "./PartyRoom.ts";
+import type {
+  HitHarvestNodeRequest,
+  HitHarvestNodeResult,
+  QuestAbandonResult,
+  QuestAcceptanceResult,
+  QuestTurnInResult,
+  ReserveHarvestNodeRequest,
+  ReserveHarvestNodeResult,
+} from "./PartyRoom.ts";
 import {
   activeEventCentre,
   detectMonsterTouch,
@@ -319,6 +338,7 @@ import {
   logGoldRefusedOnce,
   logItemRefusedOnce,
   logTeleportRefusedOnce,
+  refreshHarvestEventVisuals,
   runnablePage,
 } from "./worldEvents.ts";
 import type { PendingQuestConversation, WorldRoomState } from "./worldState.ts";
@@ -420,6 +440,15 @@ export interface WorldTickDeps {
   /** The idempotent, epoch-fenced D1 quest-reward claim for built-in quest chapters
    *  (`HeroSaveService.claimQuestReward`, port of legacy `claimHeroQuestReward`). */
   claimQuestReward(player: PlayerRuntime, reward: QuestRewardClaim): Promise<boolean>;
+  reserveHarvestNode(request: ReserveHarvestNodeRequest): Promise<ReserveHarvestNodeResult>;
+  hitHarvestNode(request: HitHarvestNodeRequest): Promise<HitHarvestNodeResult>;
+  cancelHarvestNode(request: HitHarvestNodeRequest): Promise<boolean>;
+  claimHarvestGold(
+    player: PlayerRuntime,
+    nodeId: string,
+    generation: number,
+    amount: number,
+  ): Promise<boolean>;
   /**
    * Consume one health potion and return the remaining count, or `null` when none can be spent —
    * the legacy fenced save-then-decrement D1 chain (`#consumePotion`), serialized per hero through
@@ -784,6 +813,8 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   player.lastInput = NO_INPUT;
   player.queue = [];
   player.starvedTicks = 0;
+  cancelPeasantHarvestJob(w.state.harvestJobs, player.id);
+  player.peasantCarry = null;
   exitRogueStealth(player, w.deps.now());
   const staleConversation = w.state.questConversations.get(player.id);
   if (staleConversation) {
@@ -2579,6 +2610,9 @@ export function startPlayerAction(
         : {}),
   });
   if (!action) return false;
+  // An accepted action interrupts any older harvest channel. This is also the one-job-per-hero
+  // fence when a profile duration is longer than the tool cooldown.
+  cancelPeasantHarvestJob(w.state.harvestJobs, player.id);
   if (chargeFollowup) {
     action.warriorChargeFollowup = { excludedTargetId: chargeFollowup.excludedTargetId };
     player.warriorChargeFollowup = null;
@@ -3231,6 +3265,37 @@ export function resolvePlayerAction(
         applyRoguePoison(w, player, monster, skill, now);
       }
     }
+    if (player.class === "peasant") {
+      const harvestTarget = selectPeasantHarvestTarget({
+        player,
+        slot: slot as SkillSlot,
+        direction: action.direction,
+        skillRange: skill.range,
+        halfAngleRadians: definition.halfAngleRadians ?? Math.PI / 3,
+        view: {
+          zoneId: w.state.location?.zoneId ?? zone(w.state).id,
+          events: zone(w.state).events ?? [],
+          activeEvents: w.state.activeEvents,
+          adventureState: w.state.adventureState.state,
+          monsters: w.state.monsters,
+          terrain,
+        },
+        now,
+      });
+      if (harvestTarget) {
+        const job = createPeasantHarvestJob({
+          player,
+          connectionId,
+          slot: slot as SkillSlot,
+          direction: action.direction,
+          target: harvestTarget,
+          now,
+        });
+        // One job per hero: a later accepted harvest action replaces the older channel, never
+        // stacks another future reward behind the same cooldown.
+        if (job) w.state.harvestJobs.set(player.id, job);
+      }
+    }
     return;
   }
   if (definition.shape === "charge") {
@@ -3528,6 +3593,121 @@ export function resolvePlayerAction(
         now,
       });
     }
+  }
+}
+
+function harvestTargetForJob(
+  w: WorldGlue,
+  job: PeasantHarvestJob,
+  now: number,
+): ReturnType<typeof selectPeasantHarvestTarget> {
+  const player = playerById(w.state, job.heroId);
+  if (!player || connectionOf(w.state, player.id) !== job.connectionId) return null;
+  const skill = configuredSkill(w, player, job.slot);
+  const definition = actionForClassSlot(player.class, job.slot);
+  if (definition.shape !== "arc") return null;
+  return selectPeasantHarvestTarget({
+    player,
+    slot: job.slot,
+    direction: job.direction,
+    skillRange: skill.range,
+    halfAngleRadians: definition.halfAngleRadians ?? Math.PI / 3,
+    view: {
+      zoneId: w.state.location?.zoneId ?? zone(w.state).id,
+      events: zone(w.state).events ?? [],
+      activeEvents: w.state.activeEvents,
+      adventureState: w.state.adventureState.state,
+      monsters: w.state.monsters,
+      terrain: zone(w.state).terrain,
+    },
+    now,
+    requiredTarget: job,
+  });
+}
+
+function removeHarvestJobIfCurrent(w: WorldGlue, job: PeasantHarvestJob): void {
+  if (w.state.harvestJobs.get(job.heroId) === job) w.state.harvestJobs.delete(job.heroId);
+}
+
+async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Promise<void> {
+  let reservationId: string | null = null;
+  try {
+    const target = harvestTargetForJob(w, job, w.deps.now());
+    if (!target || w.state.harvestJobs.get(job.heroId) !== job) return;
+    const materialReward: PartyMaterialAmounts =
+      target.profile.resource === "gold"
+        ? {}
+        : { [target.profile.resource]: target.profile.yieldAmount };
+    const reserved = await w.deps.reserveHarvestNode({
+      heroId: job.heroId,
+      eventId: job.nodeId,
+      generation: job.generation,
+      requiredHits: target.profile.hitsRequired,
+      reward: materialReward,
+      goldValue: target.profile.goldValue,
+      respawnDelayMs: target.profile.respawn === "timed" ? target.profile.respawnDelayMs : null,
+    });
+    if (!reserved.ok) return;
+    reservationId = reserved.reservationId;
+
+    // The coordinator round-trip can outlive a movement, disconnect, map transition or page
+    // change. Revalidate every authoritative condition immediately before spending its token.
+    const currentTarget = harvestTargetForJob(w, job, w.deps.now());
+    if (!currentTarget || w.state.harvestJobs.get(job.heroId) !== job) {
+      await w.deps.cancelHarvestNode({
+        heroId: job.heroId,
+        eventId: job.nodeId,
+        reservationId,
+      });
+      reservationId = null;
+      return;
+    }
+    // Keep the epoch-bearing actor through the coordinator hit. A disconnect after the hit has
+    // exhausted the node must not silently drop its gold reward; the SQL claim still re-fences on
+    // this actor's epoch, and WorldRoom serializes it with the final absolute hero save.
+    const actor = playerById(w.state, job.heroId);
+    if (!actor) return;
+    const hit = await w.deps.hitHarvestNode({
+      heroId: job.heroId,
+      eventId: job.nodeId,
+      reservationId,
+    });
+    reservationId = null;
+    if (!hit.ok || !hit.rewarded) return;
+    if (
+      hit.goldValue > 0 &&
+      !(await w.deps.claimHarvestGold(actor, job.nodeId, hit.node.generation, hit.goldValue))
+    ) {
+      return;
+    }
+    grantPeasantCarry(actor, materialReward, hit.goldValue, w.deps.now());
+  } finally {
+    if (reservationId) {
+      await w.deps.cancelHarvestNode({
+        heroId: job.heroId,
+        eventId: job.nodeId,
+        reservationId,
+      });
+    }
+    removeHarvestJobIfCurrent(w, job);
+  }
+}
+
+export function advancePeasantHarvestJobs(w: WorldGlue, now: number): void {
+  for (const job of w.state.harvestJobs.values()) {
+    if (job.committing || now < job.completesAt) continue;
+    if (!harvestTargetForJob(w, job, now)) {
+      removeHarvestJobIfCurrent(w, job);
+      continue;
+    }
+    job.committing = true;
+    w.deps.waitUntil(commitPeasantHarvestJob(w, job));
+  }
+}
+
+export function pruneInvalidPeasantHarvestJobs(w: WorldGlue, now: number): void {
+  for (const job of w.state.harvestJobs.values()) {
+    if (!harvestTargetForJob(w, job, now)) removeHarvestJobIfCurrent(w, job);
   }
 }
 
@@ -5507,6 +5687,7 @@ export function advanceWorldTick(w: WorldGlue): void {
 
   advanceConsumableEffects(w, now);
   for (const [connectionId, player] of state.players) {
+    expirePeasantCarry(player, now);
     if (player.warriorChargeFollowup && player.warriorChargeFollowup.expiresAt <= now)
       player.warriorChargeFollowup = null;
     expireRogueOpening(player, now);
@@ -5575,6 +5756,9 @@ export function advanceWorldTick(w: WorldGlue): void {
     collectLoot: (connectionId, player) => collectLootFor(w, connectionId, player),
     savePlayer: (player, connectionId) => deps.savePlayer(player, connectionId),
     onPlayerMoved: (connectionId, player, previous) => {
+      // Harvest channels require a stationary actor; the completion path also revalidates after
+      // its coordinator await, so movement cannot race a delayed credit.
+      cancelPeasantHarvestJob(state.harvestJobs, player.id);
       detectPlayerTouch(state, player, previous);
       applySacredPassage(w, connectionId, player, previous, now);
       applyLumenPortal(w, connectionId, player, now);
@@ -5607,6 +5791,8 @@ export function advanceWorldTick(w: WorldGlue): void {
   advanceCombatActions(state.players.values(), now, (player, action) =>
     resolvePlayerAction(w, player, action, now),
   );
+  advancePeasantHarvestJobs(w, now);
+  refreshHarvestEventVisuals(state, now);
   for (const player of state.players.values()) advanceRangerVolley(w, player, now);
   advanceWarriorCyclones(state.players.values(), now, (player, radius, power) =>
     resolveWarriorCycloneStrike(w, player, radius, power, now),

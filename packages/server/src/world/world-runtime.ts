@@ -33,6 +33,7 @@ import {
   spawnPosition,
   type TerrainGeometry,
 } from "@lindocara/engine/game.js";
+import type { PeasantCarryKind } from "@lindocara/engine/harvest.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import type { MonsterNavigationState } from "@lindocara/engine/navigation.js";
 import type {
@@ -41,6 +42,7 @@ import type {
   LootSnapshot,
   ProjectileKind,
   ServerMessage,
+  WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
 import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "@lindocara/engine/simulation.js";
@@ -74,17 +76,8 @@ function attackCooldownMs(playerClass: PlayerProfile["class"]): number {
  * adventure-state snapshot changes or a hero joins, never per tick. Task 4 puts exactly this shape
  * on the wire; this tranche only holds it in the room.
  */
-export interface ActiveWorldEvent {
-  id: string;
-  col: number;
-  row: number;
+export interface ActiveWorldEvent extends WorldEventSnapshot {
   graphicAssetId: EditorAssetId | null;
-  graphicTint?: number;
-  onTop: boolean;
-  moveSpeed: number;
-  moveFrequency: number;
-  moveAnimation: boolean;
-  directionFixed: boolean;
 }
 
 export const ATTACHMENT_EVERY_TICKS = TICK_HZ;
@@ -337,6 +330,8 @@ export interface PlayerRuntime extends PlayerProfile {
   warriorVortex: WarriorVortexRuntime | null;
   rangerVolleySequence: RangerVolleySequenceRuntime | null;
   rangerAfterimage: RangerAfterimageRuntime | null;
+  /** Room-local visual reward flourish. Shared materials never live on the player. */
+  peasantCarry: { kind: PeasantCarryKind; until: number } | null;
   priestLifeLinks: PriestLifeLinkRuntime[];
   priestSoulAnchor: PriestSoulAnchorRuntime | null;
   /** Server-only Rogue windows. They are reset on every runtime/session boundary. */
@@ -643,6 +638,7 @@ export function newPlayer(
     warriorVortex: null,
     rangerVolleySequence: null,
     rangerAfterimage: null,
+    peasantCarry: null,
     priestLifeLinks: [],
     priestSoulAnchor: null,
     opening: null,

@@ -135,6 +135,42 @@ describe("events on the wire", () => {
     expect(parseServerMessage(JSON.stringify(welcome([event({ id: "bad id!" })])))).toBeNull();
   });
 
+  it("validates bounded harvest timestamps and lifecycle coherence", () => {
+    const harvest = {
+      state: "depleted",
+      generation: 2,
+      hits: 3,
+      lastHitAt: 12_000,
+      depletedAt: 12_000,
+      respawnAt: 72_000,
+      exhaustionBehavior: "fade",
+      fadeDurationMs: 350,
+    };
+    expect(parseServerMessage(JSON.stringify(welcome([event({ harvest })])))).not.toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...harvest, hits: 10_001 } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...harvest, fadeDurationMs: 10_001 } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([event({ harvest: { ...harvest, state: "intact", depletedAt: 12_000 } })]),
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...harvest, lastHitAt: 11_999 } })])),
+      ),
+    ).toBeNull();
+  });
+
   it("drops a welcome whose event cell is malformed", () => {
     expect(parseServerMessage(JSON.stringify(welcome([event({ col: -1 })])))).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ row: 1.5 })])))).toBeNull();

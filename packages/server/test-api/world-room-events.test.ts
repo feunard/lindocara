@@ -54,6 +54,7 @@ import { parties } from "../src/api/entities/parties.ts";
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
+import { refreshHarvestEventVisuals } from "../src/api/realtime/worldEvents.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { createTestApp } from "./helpers.ts";
 
@@ -494,8 +495,39 @@ describe("world room events (FakeClock)", () => {
       col: 5,
       row: 5,
       graphicAssetId: PAGE2_GRAPHIC,
+      harvest: { state: "intact", generation: 0, hits: 0, respawnAt: null },
     });
     expect(state.npcMovement.has(resource.id)).toBe(false);
+
+    const stable = state.activeEvents.find((event) => event.id === resource.id);
+    refreshHarvestEventVisuals(state, clock.now());
+    expect(state.activeEvents.find((event) => event.id === resource.id)).toBe(stable);
+
+    state.adventureState = {
+      version: 1,
+      state: {
+        ...state.adventureState.state,
+        harvestNodes: {
+          [resource.id]: {
+            eventId: resource.id,
+            generation: 0,
+            hits: HARVEST_PROFILE.hitsRequired,
+            lastHitAt: clock.now(),
+            depleted: true,
+            depletedAt: clock.now(),
+            respawnAt: null,
+          },
+        },
+      },
+    };
+    refreshHarvestEventVisuals(state, clock.now());
+    const depleted = state.activeEvents.find((event) => event.id === resource.id);
+    expect(depleted).toMatchObject({
+      graphicAssetId: HARVEST_PROFILE.exhaustedAssetId,
+      harvest: { state: "depleted", hits: HARVEST_PROFILE.hitsRequired },
+    });
+    refreshHarvestEventVisuals(state, clock.now());
+    expect(state.activeEvents.find((event) => event.id === resource.id)).toBe(depleted);
     engine.dispose();
   });
 

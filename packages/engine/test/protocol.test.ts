@@ -272,13 +272,47 @@ describe("server protocol", () => {
       ...player,
       class: "peasant",
       equipment: { mainHand: "worn_toolkit", offHand: null },
+      peasantCarry: { kind: "wood", until: 5_000 },
     };
     expect(
       parseServerMessage(JSON.stringify({ ...welcomeBase, world, players: [peasant] })),
     ).toMatchObject({
       t: "welcome",
-      players: [{ class: "peasant", equipment: { mainHand: "worn_toolkit", offHand: null } }],
+      players: [
+        {
+          class: "peasant",
+          equipment: { mainHand: "worn_toolkit", offHand: null },
+          peasantCarry: { kind: "wood", until: 5_000 },
+        },
+      ],
     });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          players: [{ ...peasant, peasantCarry: { kind: "stone", until: 5_000 } }],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          players: [{ ...player, peasantCarry: peasant.peasantCarry }],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          players: [{ ...peasant, peasantCarry: { kind: "gold", until: -1 } }],
+        }),
+      ),
+    ).toBeNull();
   });
 
   it("accepts only a finite Ranger afterimage swap deadline", () => {
