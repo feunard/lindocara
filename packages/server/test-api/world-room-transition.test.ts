@@ -36,6 +36,10 @@ import {
   type MapEvent,
   type MapEventPage,
 } from "@lindocara/engine/map-events.js";
+import {
+  defaultMapHeroSettings,
+  type MapHeroSettings,
+} from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import type { PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
@@ -202,7 +206,10 @@ interface TwoMapFixture {
 /** One account, an adventure whose default map (A) carries an entry+exit pair bound by the graph
  *  to a second authored map's (B) entry, one party and one hero spawned at A's entry — end-to-end
  *  over HTTP, the `adventures.test.ts`/`world-room-events.test.ts` authoring idiom combined. */
-async function twoMapAdventure(prefix: string): Promise<TwoMapFixture> {
+async function twoMapAdventure(
+  prefix: string,
+  heroSettings: { mapA?: MapHeroSettings; mapB?: MapHeroSettings } = {},
+): Promise<TwoMapFixture> {
   const { token, userId } = await registerAndLogin(prefix);
   const api = authed(token);
   const adventureResponse = await api("/api/adventures", {
@@ -223,6 +230,7 @@ async function twoMapAdventure(prefix: string): Promise<TwoMapFixture> {
       elements: [],
       events: [entryA, exitA],
       spawn: { col: 0, row: 0 },
+      ...(heroSettings.mapA === undefined ? {} : { heroSettings: heroSettings.mapA }),
     }),
   });
   expect(putA.status).toBe(200);
@@ -242,6 +250,7 @@ async function twoMapAdventure(prefix: string): Promise<TwoMapFixture> {
       elements: [],
       events: [entryB],
       spawn: { col: 0, row: 0 },
+      ...(heroSettings.mapB === undefined ? {} : { heroSettings: heroSettings.mapB }),
     }),
   });
   expect(putB.status).toBe(200);
@@ -498,6 +507,14 @@ function welcomeSelfState(socket: FakeSocket) {
   return undefined;
 }
 
+function welcomeMessage(socket: FakeSocket): Extract<ServerMessage, { t: "welcome" }> {
+  const welcome = messagesOf(socket).find(
+    (message): message is Extract<ServerMessage, { t: "welcome" }> => message.t === "welcome",
+  );
+  if (!welcome) throw new Error("welcome missing");
+  return welcome;
+}
+
 // -------------------------------------------------------------------------------------------------
 // Real-socket harness (test 1)
 // -------------------------------------------------------------------------------------------------
@@ -606,6 +623,86 @@ describe("adventure exit, end-to-end over real sockets", () => {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room transitions (FakeClock)", () => {
+  test("refreshes map hero rules on transition and a direct destination reconnect", async () => {
+    const mapASettings = defaultMapHeroSettings();
+    mapASettings.classes.warrior.stats.movementSpeed = 100;
+    mapASettings.classes.warrior.disabledSkills = [1];
+    const fixture = await twoMapAdventure("herorules", { mapA: mapASettings });
+    const clockA = new FakeClock();
+    const engineA = createEngine(fixture.roomAId, clockA);
+    const socketA = fakeSocket(fixture.userId, fixture.heroId, "c-rules-a");
+    await engineA.join(socketA);
+
+    const welcomeA = welcomeMessage(socketA);
+    expect(welcomeA.world.heroSettings?.classes.warrior).toMatchObject({
+      stats: { movementSpeed: 100 },
+      disabledSkills: [1],
+    });
+    const stateA = roomState(engineA);
+    const playerA = playerOf(stateA, fixture.heroId);
+    const startA = { x: playerA.x, y: playerA.y };
+    await engineA.message(socketA.id, {
+      t: "input",
+      seq: 1,
+      input: { up: false, down: false, left: false, right: true },
+    });
+    clockA.advanceTicks(1);
+    expect(playerA.x - startA.x).toBeCloseTo(100 * (TICK_MS / 1_000));
+    expect(playerA.y).toBe(startA.y);
+
+    await engineA.message(socketA.id, { t: "attack" });
+    expect(playerA.lastAttackAt).toBe(0);
+    expect(messagesOf(socketA)).toContainEqual({
+      t: "event",
+      code: "skill.disabled",
+      params: { skill: "cleave" },
+      tone: "info",
+    });
+
+    const exitCentre = eventCellCentre(fixture.exitA);
+    playerA.x = exitCentre.x;
+    playerA.y = exitCentre.y;
+    clockA.advanceTicks(1);
+    await vi.waitFor(() => {
+      expect(socketA.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION);
+    });
+
+    // Map B was never customized. Its authoritative welcome and simulation must replace every
+    // rule from A with the central defaults, not retain A's speed or ability lock.
+    const defaults = defaultMapHeroSettings();
+    const clockB = new FakeClock();
+    const engineB = createEngine(fixture.roomBId, clockB);
+    const socketB = fakeSocket(fixture.userId, fixture.heroId, "c-rules-b");
+    await engineB.join(socketB);
+    const welcomeB = welcomeMessage(socketB);
+    expect(welcomeB.world.heroSettings).toEqual(defaults);
+
+    const stateB = roomState(engineB);
+    const playerB = playerOf(stateB, fixture.heroId);
+    const startB = { x: playerB.x, y: playerB.y };
+    await engineB.message(socketB.id, {
+      t: "input",
+      seq: 2,
+      input: { up: false, down: false, left: false, right: true },
+    });
+    clockB.advanceTicks(1);
+    expect(playerB.x - startB.x).toBeCloseTo(
+      defaults.classes.warrior.stats.movementSpeed * (TICK_MS / 1_000),
+    );
+    await engineB.message(socketB.id, { t: "attack" });
+    expect(playerB.lastAttackAt).toBeGreaterThan(0);
+
+    await engineB.leave(socketB.id);
+    engineB.dispose();
+    const reconnectEngine = createEngine(fixture.roomBId, new FakeClock());
+    const reconnectSocket = fakeSocket(fixture.userId, fixture.heroId, "c-rules-b-reconnect");
+    await reconnectEngine.join(reconnectSocket);
+    expect(welcomeMessage(reconnectSocket).world.heroSettings).toEqual(defaults);
+
+    engineA.dispose();
+    reconnectEngine.dispose();
+  });
+
   test("a stale handoff aborts without corrupting D1, and closes 4003 not 4008", async () => {
     const fixture = await twoMapAdventure("stalehandoff");
     const clock = new FakeClock();

@@ -1,6 +1,7 @@
 import type { GameNavigation } from "@lindocara/client/state/navigation.js";
 import { getGameNavigation, setGameNavigation } from "@lindocara/client/state/navigation.js";
 import { useUiStore } from "@lindocara/client/store.js";
+import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /** A plain, non-Alepha fake — `setGameNavigation` never requires a real Alepha instance (see the
@@ -121,6 +122,7 @@ describe("ui store", () => {
       skillCooldowns: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 },
       zoneNameKey: "zone.verdant_reach.name",
       worldSize: { width: 100, height: 200 },
+      mapHeroSettings: defaultMapHeroSettings(),
     });
 
     useUiStore.getState().clearedGameSession();
@@ -149,6 +151,7 @@ describe("ui store", () => {
     expect(state.skillCooldowns).toEqual({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
     expect(state.zoneNameKey).toBeNull();
     expect(state.worldSize).toBeNull();
+    expect(state.mapHeroSettings).toBeNull();
     // The store itself never navigates anymore — no call reached the seam.
     expect(nav.toMenu).not.toHaveBeenCalled();
     expect(nav.toGame).not.toHaveBeenCalled();

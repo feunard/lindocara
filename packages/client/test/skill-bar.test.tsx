@@ -3,7 +3,7 @@ import type { GameHandle } from "@lindocara/client/store.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { SKILL_PAD_LAYOUT, SkillBar } from "@lindocara/client/ui/hud/SkillBar.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function gameHandle(): GameHandle {
@@ -72,19 +72,31 @@ describe("skill bar cooldowns", () => {
     expect(secondary.querySelector(".skill-slot__pad")).toHaveTextContent("Num 3");
   });
 
-  it("shows a map-disabled ability but never sends its cast intent", () => {
+  it("updates disabled and re-enabled abilities immediately when map settings change", () => {
     const game = gameHandle();
-    const mapHeroSettings = defaultMapHeroSettings();
-    mapHeroSettings.classes.ranger.disabledSkills = [2];
-    useUiStore.setState({ game, mapHeroSettings });
+    const mapASettings = defaultMapHeroSettings();
+    mapASettings.classes.ranger.disabledSkills = [2];
+    useUiStore.setState({ game, mapHeroSettings: mapASettings });
     render(<SkillBar />);
 
-    const disabled = screen.getByRole("button", { name: "2. Piercing Arrow" });
-    expect(disabled).toBeDisabled();
-    expect(disabled).toHaveAttribute("title", "Piercing Arrow — Disabled on this map");
-    expect(disabled.querySelector(".skill-slot__lock")).toHaveTextContent("×");
-    fireEvent.click(disabled);
+    const piercingArrow = screen.getByRole("button", { name: "2. Piercing Arrow" });
+    const volley = screen.getByRole("button", { name: "3. Volley" });
+    expect(piercingArrow).toBeDisabled();
+    expect(piercingArrow).toHaveAttribute("title", "Piercing Arrow — Disabled on this map");
+    expect(piercingArrow.querySelector(".skill-slot__lock")).toHaveTextContent("×");
+    fireEvent.click(piercingArrow);
     expect(game.castSkill).not.toHaveBeenCalled();
+
+    const mapBSettings = defaultMapHeroSettings();
+    mapBSettings.classes.ranger.disabledSkills = [3];
+    act(() => useUiStore.getState().setMapHeroSettings(mapBSettings));
+
+    expect(piercingArrow).toBeEnabled();
+    expect(volley).toBeDisabled();
+    fireEvent.click(piercingArrow);
+    fireEvent.click(volley);
+    expect(game.castSkill).toHaveBeenCalledOnce();
+    expect(game.castSkill).toHaveBeenCalledWith(2);
   });
 
   it("mirrors the five default numpad positions as a controller-style button cluster", () => {

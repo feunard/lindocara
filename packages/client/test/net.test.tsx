@@ -1,4 +1,5 @@
 import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net.js";
+import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAX_PENDING_COMMANDS } from "@lindocara/engine/prediction.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
@@ -179,6 +180,48 @@ describe("WorldClient lifecycle", () => {
 
     const self = client.sample(1000).players.find((player) => player.id === "hero-1");
     expect(self?.facing.x).toBeLessThan(0); // faces left the frame the key is held, not after a round trip
+  });
+
+  it("uses replacement map hero settings on the first predicted tick after its welcome", async () => {
+    stubJoin();
+    const callbacks = handlers();
+    const client = new WorldClient();
+    client.connect(callbacks, "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+
+    const mapASettings = defaultMapHeroSettings();
+    mapASettings.classes.priest.stats.movementSpeed = 100;
+    socket?.message({
+      ...WELCOME,
+      world: { ...WELCOME.world, zoneId: "map-a", heroSettings: mapASettings },
+    });
+    client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
+    expect(
+      client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
+    ).toBe(32 + 100 * TICK_DT);
+
+    const mapBSettings = defaultMapHeroSettings();
+    mapBSettings.classes.priest.stats.movementSpeed = 400;
+    mapBSettings.classes.priest.disabledSkills = [2];
+    socket?.message({
+      ...WELCOME,
+      tick: 2,
+      world: { ...WELCOME.world, zoneId: "map-b", heroSettings: mapBSettings },
+    });
+    client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
+
+    expect(callbacks.onWelcome).toHaveBeenLastCalledWith(
+      "hero-1",
+      expect.objectContaining({
+        zoneId: "map-b",
+        heroSettings: mapBSettings,
+      }),
+      WELCOME.self,
+    );
+    expect(
+      client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
+    ).toBe(32 + 400 * TICK_DT);
   });
 
   it("forwards the complete authoritative Shadow Dance result without deriving targets", async () => {
