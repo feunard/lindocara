@@ -37,6 +37,7 @@ import {
   type ServerMessage,
 } from "@lindocara/engine/protocol.js";
 import { PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
+import { advanceCombatActions } from "@lindocara/server/world/combat-action-system.js";
 import { projectileOrigin, spawnProjectile } from "@lindocara/server/world/projectile-system.js";
 import {
   CHAT_MAX_LENGTH,
@@ -817,8 +818,7 @@ describe("world room combat (FakeClock)", () => {
 
     startMonsterAttack(w, monster, target, t);
     const action = monster.action;
-    if (!action) throw new Error("shaman wind-up did not start");
-    resolveMonsterAction(w, monster, action, action.impactAt);
+    if (!action) throw new Error("shaman attack did not start");
 
     expect(target.hp).toBe(maxHpForLevel(1));
     expect(state.projectiles).toEqual([
@@ -851,10 +851,6 @@ describe("world room combat (FakeClock)", () => {
     const action = monster.action;
     if (!action) throw new Error("archer attack did not start");
     expect(action.impactAt).toBe(now);
-    expect(state.projectiles).toHaveLength(0);
-
-    advanceWorldTick(w);
-
     expect(state.projectiles).toEqual([
       expect.objectContaining({
         actionId: action.id,
@@ -877,9 +873,44 @@ describe("world room combat (FakeClock)", () => {
     ]);
 
     // The action's resolved flag, not a timer-specific workaround, owns the single spawn.
-    advanceWorldTick(w);
+    advanceCombatActions([monster], now, (actor, action) =>
+      resolveMonsterAction(w, actor, action, now),
+    );
     expect(state.projectiles).toHaveLength(1);
     expect(state.projectiles[0]?.actionId).toBe(action.id);
+    engine.dispose();
+  });
+
+  test("a ranged monster accepted during guard combat launches in the same tick", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("guardarrow");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const observer = playerOf(state, heroId);
+    const now = Date.now() + 1_000;
+    const { w } = testGlue(state, () => now);
+    const guard = seedGuard(state, "ranged-target-guard", observer.x + 120, observer.y);
+    const monster = seedMonster(state, "guard-archer", guard.x - 180, guard.y, {
+      species: "spear_goblin",
+      attackProfile: "arrow",
+    });
+
+    startMonsterAttack(w, monster, guard, now);
+
+    expect(monster.action).toMatchObject({ impactAt: now, resolved: true });
+    expect(state.projectiles).toEqual([
+      expect.objectContaining({
+        actionId: monster.action?.id,
+        ownerId: monster.id,
+        kind: "arrow",
+        targetFilter: "players_and_guards",
+      }),
+    ]);
+    advanceCombatActions([monster], now, (actor, action) =>
+      resolveMonsterAction(w, actor, action, now),
+    );
+    expect(state.projectiles).toHaveLength(1);
     engine.dispose();
   });
 

@@ -1692,9 +1692,8 @@ export function startMonsterAttack(
     monster.specialTechnique !== "none" && now >= monster.nextSpecialAt
       ? monster.specialTechnique
       : null;
-  const definition = specialTechnique
-    ? MONSTER_SPECIAL_ACTIONS[specialTechnique]
-    : monsterActionDefinition(monster.species, monster.attackProfile);
+  const basicDefinition = monsterActionDefinition(monster.species, monster.attackProfile);
+  const definition = specialTechnique ? MONSTER_SPECIAL_ACTIONS[specialTechnique] : basicDefinition;
   const direction = normalizeDirection(
     { x: target.x - monster.x, y: target.y - monster.y },
     monster.facing,
@@ -1728,6 +1727,19 @@ export function startMonsterAttack(
     },
     monster,
   );
+  // Basic ranged attacks have no anticipation phase: accepting the attack and launching its
+  // projectile are one authoritative operation. This also covers attacks selected during the
+  // guard pass, which runs after the ordinary action-resolution pass for this tick. Marking the
+  // action first keeps `advanceCombatActions` as the single-spawn backstop on later ticks.
+  if (
+    !specialTechnique &&
+    action.impactAt <= now &&
+    isMonsterRangedAction(basicDefinition) &&
+    !action.resolved
+  ) {
+    action.resolved = true;
+    resolveMonsterAction(w, monster, action, now);
+  }
 }
 
 /** Port of `#resolveMonsterAction` (`world.ts:5518`): damages only actors still inside the frozen
