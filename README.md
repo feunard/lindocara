@@ -1,7 +1,7 @@
 # lindocara
 
 **LindoCara** is a modern creator for cooperative 2D RPG adventures, built on the
-[Alepha](https://alepha.dev) framework — Node in dev, Cloudflare Workers in production — and
+[Alepha](https://alepha.dev) framework — Node locally and on self-hosted Alepha Bay — and
 designed for one to four players. Builders will assemble complete adventures from connected
 maps, authored scenery and, in later milestones, events, dialogue, quests, conditions and
 cinematics. Players will be able to start alone, join a running game, save it and resume it later.
@@ -13,13 +13,12 @@ hero's last map, position and core stats later. The compiled **Verdant Reach** c
 test and reference content, not the product entry point. The whole
 UI is localized in French and English, with a live toggle.
 
-**Live:** [lindocara.alepha.dev](https://lindocara.alepha.dev)
+**Live:** [lindocara.bay.alepha.dev](https://lindocara.bay.alepha.dev)
 
 ## Stack
 
 TypeScript · Alepha (server, realtime rooms, ORM, router) · Vite · PixiJS · React 19 ·
-Tailwind v4 · Radix/PixelAct UI · Zustand · Cloudflare Workers + Durable Objects + D1 in
-production · Biome · Vitest
+Tailwind v4 · Radix/PixelAct UI · Zustand · Alepha Bay + SQLite in production · Biome · Vitest
 
 The HUD, player screens and overlays use accessible React/Radix structure with a strong Tiny Swords
 identity. Map and adventure editors deliberately use denser, sober tool surfaces: compact forms,
@@ -153,7 +152,7 @@ cycles combat targets.
 
 ## Database
 
-The database (SQLite in dev, Cloudflare D1 in production, through the alepha ORM) stores users,
+The database (SQLite locally and in production, through the Alepha ORM) stores users,
 account-owned revisioned maps, adventures, persistent parties/members and heroes. The
 `$entity` definitions in `packages/server/src/api/entities/` are the single source of truth; dev
 auto-syncs the schema, and committed migrations under `apps/main/migrations/` carry it to
@@ -168,24 +167,25 @@ npm run db:generate -w @lindocara/main        # entity change -> apps/main/migra
 npm run check:migrations -w @lindocara/main   # fail on entity/migration drift
 ```
 
-Production migrations run automatically on deploy, before the new code goes live.
+Production migrations run automatically when the Bay process boots, before it serves the new code.
 
 ## Deployment
 
-Pushing to `main` runs the full check suite and then deploys, via GitHub Actions: one
-`alepha platform up -e production` provisions D1, builds the Cloudflare artifact, applies
-migrations, deploys the Worker + Durable Object + assets and pushes the secrets.
+Pushing to `main` runs the full check suite and then deploys through GitHub Actions. One
+`alepha platform up -e production` builds the bare Node artifact, packs the service, assets and
+migrations, uploads them through bay-admin and pushes the allowlisted secrets. The Bay process
+applies migrations at boot.
 
 Required repository secrets:
 
 | Secret | Where to get it |
 | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard → My Profile → API Tokens (*Edit Cloudflare Workers*) |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers & Pages → Account ID |
+| `BAY_API_KEY` | bay-admin API key for a user with the `admin` role |
 | `APP_SECRET` | generate one: `gh secret set APP_SECRET --body "$(openssl rand -base64 48)"` |
 
-The custom domain `lindocara.alepha.dev` is declared in `apps/main/alepha.config.ts`; its zone
-must live on the same Cloudflare account as the Worker.
+The public domain `lindocara.bay.alepha.dev` and the bay-admin control endpoint are declared in
+`apps/main/alepha.config.ts`. The old `lindocara.alepha.dev` Worker is a frozen legacy deployment,
+not the live application.
 
 ## Sessions
 

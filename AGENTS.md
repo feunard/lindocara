@@ -1,9 +1,9 @@
 # lindocara — agent & contributor guide
 
 A modern cooperative RPG adventure creator built on the [Alepha](./.vendor/alepha) framework —
-Node + SQLite in dev, Cloudflare Workers + Durable Objects + D1 in production
-([lindocara.alepha.dev](https://lindocara.alepha.dev)) — targeting solo play through four-player
-sessions. The current authoritative vertical slice contains players, terrain, Warden Mira,
+Node + SQLite in dev and on the self-hosted Alepha Bay production instance
+([lindocara.bay.alepha.dev](https://lindocara.bay.alepha.dev)) — targeting solo play through
+four-player sessions. The current authoritative vertical slice contains players, terrain, Warden Mira,
 roaming monsters, combat, loot, progression, quests, local chat and a database-backed map editor.
 Those systems are foundations for authored multi-map adventures, not a commitment to MMO scale.
 
@@ -26,8 +26,8 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
 | `npm test` | Vitest — every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
-| `npm run build` | `alepha build` — bundles `apps/main`; CI adds the deploy target via `npm run build -w @lindocara/main -- --target cloudflare` |
-| `npm run deploy` | `alepha platform up -e production` — provision, build, migrate D1, deploy, push secrets; CI runs it on every push to `main` |
+| `npm run build` | `alepha build` — bundles `apps/main`; CI builds the production shape via `npm run build -w @lindocara/main -- --target bare` |
+| `npm run deploy` | `alepha platform up -e production` — build, pack and upload to Bay; CI runs it on every push to `main` and migrations run at app boot |
 | `npm run db:generate -w @lindocara/main` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration |
 | `npm run check:migrations -w @lindocara/main` | fail on entity/migration drift (also part of `npm run v`) |
 
@@ -36,8 +36,9 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 lindocara is a pure Alepha app. The original hand-rolled stack — a Cloudflare Worker entry,
 `World`/`GameSession`/`HeroPresence` Durable Objects, wrangler-managed D1 with Drizzle, a zustand
 screen machine — was migrated in four tranches (API port, realtime rooms, React shell, deploy +
-cleanup) and then fully retired: no legacy code, config or rollback path remains, and production
-ships through `alepha platform up` at [lindocara.alepha.dev](https://lindocara.alepha.dev). The
+cleanup) and then fully retired: no legacy code, config or rollback path remains. Production later
+moved from Cloudflare to Alepha Bay and now ships through `alepha platform up` at
+[lindocara.bay.alepha.dev](https://lindocara.bay.alepha.dev). The
 memory of the migration lives in git and in the
 [spec](./docs/superpowers/specs/2026-07-29-alepha-migration-design.md) + plans
 ([tranches 0-1](./docs/superpowers/plans/2026-07-29-alepha-migration-tranches-0-1.md),
@@ -96,7 +97,7 @@ typecheck:<pkg>` (or `typecheck:main`) checks one. **Tests are co-located per pa
 `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`) runs one.
 
 **The app's config lives with the app:** `apps/main/alepha.config.ts` declares the production
-platform (domain + Cloudflare adapter) and the Cloudflare assets block; `apps/main/migrations/`
+platform (Bay adapter, public domain and bay-admin endpoint); `apps/main/migrations/`
 holds the database migrations; `apps/main/src/main.ts`/`main.browser.ts` are the server and
 browser entries. The deploy is one `alepha platform up -e production` in `apps/main`. See
 [`docs/superpowers/specs/2026-07-22-monorepo-packages-design.md`](./docs/superpowers/specs/2026-07-22-monorepo-packages-design.md)
@@ -382,25 +383,20 @@ appears. Their chapels are `graveyard` landmarks with colliders, so moving one m
 that it blocks no spawn point, no monster patrol ring, and no quest site — `game.test.ts` asserts
 all three, and it will catch you.
 
-### `run_worker_first`
+### Bay production routing
 
-The Cloudflare assets block is authored in `apps/main/alepha.config.ts`
-(`build.cloudflare.config.assets`) and spread into the generated wrangler config.
-`not_found_handling: "single-page-application"` means any unmatched path returns the app shell.
-Without `run_worker_first: ["/api/*", "/ws/*", "/_auth/*", "/oauth/*"]`, that fallback would
-answer API/WebSocket/auth calls with HTML and the Worker would never see them. Both settings are
-load-bearing — and so is the merge order: the user config spreads in AHEAD of the framework's
-`assets ??= { directory, binding }` default, so the block must author all four keys
-(`directory`/`binding` included); an `assets` key carrying only the two routing fields would
-silently swallow the generated defaults and break asset serving entirely (the full explanation
-lives in the config's own comment).
+Production is a plain Node process on Alepha Bay. `apps/main/alepha.config.ts` intentionally has no
+Cloudflare assets block: Alepha serves the SPA/API/WebSocket routes and Bay proxies the public
+domain to that process. `endpoint` is the authenticated bay-admin control plane used only for
+deploys; it is not the application origin. The retired `lindocara.alepha.dev` Worker remains an
+old, frozen deployment and must never be presented as the live application.
 
 ## Database
 
 The **alepha ORM**. `packages/server/src/api/entities/*.ts` are the `$entity` definitions — one
-file per table, the single source of truth — and services access them through `$repository`. In
-dev, `alepha dev` runs SQLite and auto-syncs the schema; production is Cloudflare D1. Migrations
-live in `apps/main/migrations/sqlite/`:
+file per table, the single source of truth — and services access them through `$repository`. Both
+dev and the Bay production process use SQLite; dev auto-syncs while production uses migrations.
+Migrations live in `apps/main/migrations/sqlite/`:
 
 ```bash
 # edit packages/server/src/api/entities/*.ts
@@ -408,10 +404,11 @@ npm run db:generate -w @lindocara/main        # alepha db migrations create — 
 npm run check:migrations -w @lindocara/main   # entity/migration drift check (also inside `npm run v`)
 ```
 
-`alepha platform up` applies migrations to production D1 **before** shipping the code, so a
-column always exists before the code that reads it.
+`alepha platform up` packs the migrations with the Bay artifact; the production app applies them
+at boot before it begins serving traffic.
 
-**D1 discipline** — load-bearing and easy to violate:
+**D1 compatibility discipline** — the current production is SQLite, but the ORM code remains
+portable and these adapter constraints stay load-bearing:
 
 - `repo.transaction()` throws on D1 — use the `$transactional()` middleware instead, and know it
   degrades to a no-op there (the D1 provider reports `supportsTransactions: false`), so it never
@@ -761,7 +758,7 @@ known limits.
 
 The legacy per-room `world_metrics` observability system was retired with the workerd stack;
 observability parity on the alepha rooms is an open follow-up, and rooms currently rely on
-structured error logs plus the Cloudflare/platform dashboards. When it returns, keep the old
+structured error logs plus Bay's platform views. When it returns, keep the old
 discipline: bounded room-local counters, aggregate windows only, never individual inputs, attacks,
 chat messages or inventory operations, and no metrics in module globals — a metric window belongs
 to exactly one room.
@@ -777,11 +774,11 @@ script.
 Security limits live beside the boundary they protect: HTTP JSON is capped before parsing,
 WebSocket frames are capped at 2 KiB, identifiers are server-minted UUIDs, malformed/rate-limited
 connections are closed, command queues are bounded, resync is limited to one per second, action
-cooldowns remain authoritative, and D1 mutations use ownership/epoch/idempotency constraints.
+cooldowns remain authoritative, and database mutations use ownership/epoch/idempotency constraints.
 When adding a message, assign its cost class: cheap intents use the connection window, expensive
 rebuild-like requests also need a dedicated cooldown. Add rejection coverage as well as the happy
 path. Credential stuffing is guarded separately from room traffic: Alepha's login service keeps
-one 60-second D1-backed window per source IP (30 failures) and per account (8 failures).
+one 60-second database-backed window per source IP (30 failures) and per account (8 failures).
 `LindocaraApi` must keep the global `CacheProvider -> DatabaseCacheProvider` substitution; the
 workerd default expects an unprovisioned KV namespace and its defensive error handling would
 otherwise fail open.
@@ -794,14 +791,15 @@ for anything written 20-60x/s. The game bridge stays zustand (`store.ts`); atoms
 (`state/atoms.ts`) hold only screen-transition state.
 
 **`$action` names must not collide with alepha builtins.** Duplicate action names fail the
-framework's configure hook at boot — and the collision can surface only in the workerd graph
-(some framework providers register there and not in Node dev), so dev can look green while the
-deployed Worker is dead. `HealthController.apiHealth` is named that, not `health`, because
+framework's configure hook at boot — and a collision can surface only in the full production
+provider graph, so a narrow dev path can look green while the deployed service is dead.
+`HealthController.apiHealth` is named that, not `health`, because
 alepha's own `ServerHealthProvider` registers `health`.
 
-**A green `alepha build` is not a working deploy.** `platform up` is the pipeline — provision,
-build (`--target cloudflare`), apply D1 migrations, deploy Worker + Durable Object + assets, push
-the `$env` secrets. A build alone proves compilation. Relatedly, any `alepha db` command boots the
+**A green `alepha build` is not a working deploy.** `platform up` is the pipeline — build
+`--target bare`, pack the service, assets and migrations, upload through bay-admin and push the
+allowlisted `$env` secrets. The Bay process applies migrations at boot; a build alone proves only
+compilation. Relatedly, any `alepha db` command boots the
 real server entry (`apps/main/src/main.ts`) and needs a resolvable `DATABASE_URL` (the dev SQLite
 default suffices locally).
 
@@ -810,12 +808,12 @@ at raw framework source, so an open file can be assigned the wrong tsconfig prog
 diagnostics that no CI check reproduces. `npm run typecheck` is the truth, not the editor
 squiggles.
 
-**Empty rooms reset.** Room state is memory-only: the tick stops when a room empties, Node sweeps
-idle rooms after 5 minutes in dev, and a Cloudflare isolate eviction loses it — temporary
+**Empty rooms reset.** Room state is memory-only: the tick stops when a room empties and Node
+sweeps idle rooms after 5 minutes — temporary
 monsters/loot reset and state is recreated on the next join. Durable truth (hero saves, adventure
 state) is written through to the database, epoch-fenced; never park durable truth in room memory.
-Don't make the tick unconditional either: on Cloudflare an active Durable Object is billed for
-its duration, and an empty, silent room costs nothing.
+Don't make the tick unconditional either: empty rooms should consume neither simulation work nor
+memory indefinitely.
 
 **A running party is isolated by `partyId`.** `PartyRoom` owns party-wide coordination while each
 active `partyId:mapId` `WorldRoom` owns room-local simulation; production runs exactly one room
