@@ -592,7 +592,7 @@ export class PartyRoom {
         ),
       broadcastToParty: (room, message: ServerMessage) =>
         this.broadcastToParty(room.state, message),
-      registerRoom: (room, roomKey: string) => this.registerRoom(room.state, roomKey),
+      registerRoom: (room, roomKey: string) => this.registerRoom(room.roomId, room.state, roomKey),
       roomEmptied: (room, roomKey: string) => this.roomEmptied(room.state, roomKey),
       markPartyCompleted: (room) => this.markPartyCompleted(room.state),
     },
@@ -1842,15 +1842,30 @@ export class PartyRoom {
     await Promise.all([...state.rooms].map((roomKey) => this.sendToRoom(roomKey, message)));
   }
 
-  /** Registers one `WorldRoom` in this party's directory — called on room start/hero join and
-   *  re-called on every presence lease-renew beat, so the directory self-heals within ~10s of an
-   *  eviction (see this class's docblock). Idempotent. */
-  protected registerRoom(state: PartyRoomState, roomKey: string): void {
-    state.rooms.add(roomKey);
+  /** Registers one `WorldRoom` in this party's directory and returns the latest committed public
+   *  snapshot. Registration is serialized with state writes: a write already in flight completes
+   *  before this reply, while a later write sees the room in the directory and pushes to it. That
+   *  closes the otherwise permanent stale-state hole when a coordinator eviction or failed push
+   *  made a live room miss a harvest/material update. Called on join and every presence-renew beat;
+   *  idempotent, with the private support-spend journal deliberately kept coordinator-only. */
+  protected registerRoom(
+    partyId: string,
+    state: PartyRoomState,
+    roomKey: string,
+  ): Promise<Omit<VersionedState, "supportSpends">> {
+    return this.enqueueStateWrite(state, async () => {
+      const current = await this.ensureState(partyId, state);
+      state.rooms.add(roomKey);
+      return { state: current.state, version: current.version, registry: current.registry };
+    });
   }
 
-  /** Removes one `WorldRoom` from this party's directory once it has emptied. */
-  protected roomEmptied(state: PartyRoomState, roomKey: string): void {
-    state.rooms.delete(roomKey);
+  /** Removes one `WorldRoom` once it has emptied. It shares the write queue with registration so
+   *  an empty notification arriving while the first durable load is suspended always wins over
+   *  that earlier registration instead of leaving a dead room in the directory. */
+  protected roomEmptied(state: PartyRoomState, roomKey: string): Promise<void> {
+    return this.enqueueStateWrite(state, async () => {
+      state.rooms.delete(roomKey);
+    });
   }
 }

@@ -502,12 +502,10 @@ export class WorldRoom {
       return;
     }
 
-    // Register in the party directory (fire-and-forget; the renew beat self-heals a lost entry).
-    void this.partyRoom.room
-      .call(state.partyId, "registerRoom", state.roomKey)
-      .catch((error) =>
-        this.logError("party_room_register_failed", error, { roomId: room.roomId }),
-      );
+    // Register in the party directory and asynchronously replay its latest durable snapshot. The
+    // welcome remains the first message; the version guard drops a replay that loses a race to a
+    // newer push. The renew beat repeats this handshake after coordinator eviction/push loss.
+    this.registerPartyRoomAndReplay(room, state);
 
     // Arrival is a gameplay fact, not a client claim (legacy `world.ts:852`).
     const w = this.glue(room);
@@ -1304,9 +1302,7 @@ export class WorldRoom {
     } catch (error) {
       this.logError("support_spend_reconciliation_failed", error, { roomId: state.roomKey });
     }
-    void this.partyRoom.room
-      .call(state.partyId, "registerRoom", state.roomKey)
-      .catch((error) => this.logError("party_room_register_failed", error));
+    this.registerPartyRoomAndReplay(room, state);
     let renewed: unknown = false;
     try {
       renewed = await this.presenceRoom.room.call(
@@ -1684,6 +1680,26 @@ export class WorldRoom {
     } catch (error) {
       this.logError("adventure_state_install_failed", error, { roomId: room.roomId });
     }
+  }
+
+  /** Rebuild the coordinator's volatile room directory and use the same call as a durable-state
+   *  replay. Keeping this detached avoids delaying the presence lease renewal; install is itself
+   *  non-throwing and version-gated, so reordered replies cannot roll a room backwards. */
+  protected registerPartyRoomAndReplay(room: WorldRoomHandle, state: WorldRoomState): void {
+    void this.partyRoom.room
+      .call(state.partyId, "registerRoom", state.roomKey)
+      .then((held) => {
+        const current = held as {
+          state: PartyAdventureState;
+          version: number;
+          registry: AdventureRegistry;
+        };
+        if (current.version <= state.adventureState.version) return;
+        this.installAdventureState(room, current.state, current.version);
+      })
+      .catch((error) =>
+        this.logError("party_room_register_failed", error, { roomId: room.roomId }),
+      );
   }
 
   /**

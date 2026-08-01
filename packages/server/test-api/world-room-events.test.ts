@@ -631,6 +631,40 @@ async function heldPartyState(partyId: string): Promise<PartyAdventureState> {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room events (FakeClock)", () => {
+  test("a heartbeat re-registration installs party state missed while the room was absent", async () => {
+    const fixture = await newPlayableParty("registerreplay", []);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    await advanceTickSettled(clock);
+    const state = roomState(engine);
+    const player = playerOf(state, fixture.heroId);
+
+    await partyRoom.room.call(fixture.partyId, "roomEmptied", fixture.roomId);
+    await partyRoom.room.call(fixture.partyId, "applyStateChanges", [
+      { type: "setSwitch", switchId: "0001", value: true },
+    ]);
+    expect(state.adventureState.state.switches?.["0001"]).not.toBe(true);
+
+    player.nextPresenceHeartbeatAt = clock.now();
+    await advanceTickSettled(clock);
+    await vi.waitFor(() => {
+      expect(state.adventureState.version).toBe(1);
+      expect(state.adventureState.state.switches?.["0001"]).toBe(true);
+    });
+
+    const stateMessagesAfterReplay = messagesOf(socket).filter(
+      (message) => message.t === "state",
+    ).length;
+    player.nextPresenceHeartbeatAt = clock.now();
+    await advanceTickSettled(clock);
+    expect(messagesOf(socket).filter((message) => message.t === "state")).toHaveLength(
+      stateMessagesAfterReplay,
+    );
+    engine.dispose();
+  });
+
   test("a harvestable resource is active scenery but never NPC movement", async () => {
     const resource = harvestableEvent(crypto.randomUUID(), 5, 5);
     const fixture = await newPlayableParty("harvestproj", [resource]);

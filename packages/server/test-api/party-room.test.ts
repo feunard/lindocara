@@ -1221,6 +1221,65 @@ describe("shared party materials and harvest nodes", () => {
 });
 
 describe("registerRoom / roomEmptied / broadcastToParty", () => {
+  test("re-registration replays the latest durable state after a missed push and eviction", async () => {
+    const { partyId } = await newPartyOnly("registerreplay");
+    const roomKey = `${partyId}:${crypto.randomUUID()}`;
+
+    await partyRoom.room.call(partyId, "registerRoom", roomKey);
+    await partyRoom.room.call(partyId, "roomEmptied", roomKey);
+    await partyRoom.room.call(partyId, "applyStateChanges", [
+      { type: "setSwitch", switchId: "0001", value: true },
+    ]);
+    evictPartyRoom(partyId);
+
+    const replay = (await partyRoom.room.call(partyId, "registerRoom", roomKey)) as {
+      state: { switches: Record<string, boolean> };
+      version: number;
+    };
+    expect(replay.version).toBe(1);
+    expect(replay.state.switches).toEqual({ "0001": true });
+  });
+
+  test("an empty notification wins over an earlier registration suspended on first load", async () => {
+    const { partyId } = await newPartyOnly("regempty");
+    const roomKey = `${partyId}:${crypto.randomUUID()}`;
+    const originalLoadParty = partyRoom.adventureStateService.loadParty.bind(
+      partyRoom.adventureStateService,
+    );
+    let releaseLoad = () => {};
+    let markLoadStarted = () => {};
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve;
+    });
+    const loadStarted = new Promise<void>((resolve) => {
+      markLoadStarted = resolve;
+    });
+    vi.spyOn(partyRoom.adventureStateService, "loadParty").mockImplementationOnce(
+      async (requestedPartyId) => {
+        markLoadStarted();
+        await loadGate;
+        return originalLoadParty(requestedPartyId);
+      },
+    );
+
+    const registering = partyRoom.room.call(partyId, "registerRoom", roomKey);
+    await loadStarted;
+    const emptying = partyRoom.room.call(partyId, "roomEmptied", roomKey);
+    releaseLoad();
+    await Promise.all([registering, emptying]);
+
+    const delivered: string[] = [];
+    partyRoom.sendToRoom = async (registeredRoomKey) => {
+      delivered.push(registeredRoomKey);
+    };
+    await partyRoom.room.call(partyId, "broadcastToParty", {
+      t: "event",
+      code: "test",
+      params: {},
+    });
+    expect(delivered).toEqual([]);
+  });
+
   test("the directory tracks registered rooms; broadcast fans out only to those", async () => {
     const partyId = crypto.randomUUID();
     const roomA = `${partyId}:map-a`;
