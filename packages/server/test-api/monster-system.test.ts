@@ -1,6 +1,9 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { THREAT_EXPIRES_MS } from "@lindocara/engine/cooperation.js";
 import {
+  GUARD_ATTACK_COOLDOWN_MS,
+  GUARD_ATTACK_RANGE,
+  GUARD_DAMAGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
   pointDistance,
@@ -215,6 +218,139 @@ describe("enemy ranged attack acceptance", () => {
     expect(startAttack).not.toHaveBeenCalled();
     expect(monster.lastAttackAt).toBe(0);
     expect(monster.navigation.state).not.toBe("idle");
+  });
+});
+
+describe("guard effective attack acceptance", () => {
+  function guardHarness(
+    monsterPosition: { x: number; y: number },
+    guardPosition: { x: number; y: number },
+    combatTerrain: TerrainGeometry = { ...terrain, safeZone: null },
+  ) {
+    const combatZone: ZoneDefinition = { ...zone, terrain: combatTerrain };
+    const monster = chasingMonster();
+    monster.x = monsterPosition.x;
+    monster.y = monsterPosition.y;
+    monster.maxHp = GUARD_DAMAGE * 4;
+    monster.hp = monster.maxHp;
+    const guards = createGuards([
+      {
+        id: "effective-range-guard",
+        x: guardPosition.x,
+        y: guardPosition.y,
+        patrolRadius: 240,
+      },
+    ]);
+    const guard = guards[0];
+    if (!guard) throw new Error("missing guard");
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const startAttack = vi.fn();
+    const context: MonsterSystemContext = {
+      players: new Map(),
+      monsters: [monster],
+      guards,
+      monsterGrid,
+      zone: combatZone,
+      tick: 0,
+      navigation: createNavigationRuntime(combatTerrain, combatZone.navigation),
+      startAttack,
+    };
+    return { context, guard, monster, startAttack };
+  }
+
+  it("pursues a detected target outside effective range without attacking or spending cooldown", () => {
+    const { context, guard, monster, startAttack } = guardHarness(
+      { x: 220, y: 100 },
+      { x: 100, y: 100 },
+    );
+    const hpBefore = monster.hp;
+
+    advanceGuards(context, 1_000);
+
+    expect(guard.x).toBeGreaterThan(100);
+    expect(monster.hp).toBe(hpBefore);
+    expect(guard.lastAttackAt).toBe(0);
+    expect(guard.fightingUntil).toBe(0);
+    expect(startAttack).not.toHaveBeenCalled();
+  });
+
+  it("starts attacking as soon as the pursued target reaches the exact range boundary", () => {
+    const { context, guard, monster } = guardHarness({ x: 220, y: 100 }, { x: 100, y: 100 });
+    advanceGuards(context, 1_000);
+    monster.x = guard.x + GUARD_ATTACK_RANGE;
+    monster.y = guard.y;
+    const acceptedAt = 1_100;
+    const hpBefore = monster.hp;
+
+    advanceGuards(context, acceptedAt);
+
+    expect(monster.hp).toBe(hpBefore - GUARD_DAMAGE);
+    expect(guard.lastAttackAt).toBe(acceptedAt);
+    expect(guard.fightingUntil).toBe(acceptedAt + 420);
+  });
+
+  it("does not accept or spend cooldown when a target leaves range before the guard is ready", () => {
+    const { context, guard, monster } = guardHarness(
+      { x: 100 + GUARD_ATTACK_RANGE, y: 100 },
+      { x: 100, y: 100 },
+    );
+    const hpBefore = monster.hp;
+
+    advanceGuards(context, GUARD_ATTACK_COOLDOWN_MS - 1);
+    expect(monster.hp).toBe(hpBefore);
+    monster.x = guard.x + GUARD_ATTACK_RANGE + 1;
+    advanceGuards(context, GUARD_ATTACK_COOLDOWN_MS + 1);
+
+    expect(monster.hp).toBe(hpBefore);
+    expect(guard.lastAttackAt).toBe(0);
+    expect(guard.fightingUntil).toBe(0);
+  });
+
+  it("does not attack through an obstacle even when centre distance is within melee range", () => {
+    const blockedTerrain: TerrainGeometry = {
+      width: 320,
+      height: 192,
+      obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
+      spawnPoints: [{ x: 0, y: 128 }],
+      safeZone: null,
+      tiles: WALL_TILES,
+      colliders: noColliders(WALL_TILES),
+    };
+    // Both 32px bodies occupy passable tiles on either side of the wall corner. Their centres are
+    // close enough for melee, but the centre-to-centre segment crosses the blocked tile briefly.
+    const { context, guard, monster, startAttack } = guardHarness(
+      { x: 64, y: 128 },
+      { x: 32, y: 94 },
+      blockedTerrain,
+    );
+    const hpBefore = monster.hp;
+    expect(pointDistance(guard, monster)).toBeLessThan(GUARD_ATTACK_RANGE);
+
+    advanceGuards(context, 1_000);
+
+    expect(monster.hp).toBe(hpBefore);
+    expect(guard.lastAttackAt).toBe(0);
+    expect(guard.fightingUntil).toBe(0);
+    expect(startAttack).not.toHaveBeenCalled();
+  });
+
+  it("applies one attack and keeps the normal cooldown at the stable range boundary", () => {
+    const { context, guard, monster } = guardHarness(
+      { x: 100 + GUARD_ATTACK_RANGE, y: 100 },
+      { x: 100, y: 100 },
+    );
+    const acceptedAt = 1_000;
+    advanceGuards(context, acceptedAt);
+    const hpAfterFirst = monster.hp;
+
+    advanceGuards(context, acceptedAt + GUARD_ATTACK_COOLDOWN_MS - 1);
+    expect(monster.hp).toBe(hpAfterFirst);
+    expect(guard.lastAttackAt).toBe(acceptedAt);
+
+    advanceGuards(context, acceptedAt + GUARD_ATTACK_COOLDOWN_MS);
+    expect(monster.hp).toBe(hpAfterFirst - GUARD_DAMAGE);
+    expect(guard.lastAttackAt).toBe(acceptedAt + GUARD_ATTACK_COOLDOWN_MS);
   });
 });
 

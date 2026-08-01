@@ -412,8 +412,10 @@ export function advanceGuards<TSocket>(context: MonsterSystemContext<TSocket>, n
       moveGuardToward(context, guard, { x: guard.homeX, y: guard.homeY });
       continue;
     }
-    guard.fightingUntil = now + 420;
-    if (targetDistance > GUARD_ATTACK_RANGE) {
+    const canAttack =
+      targetDistance <= GUARD_ATTACK_RANGE &&
+      hasLineOfSight(guard, target, context.zone.terrain.tiles);
+    if (!canAttack) {
       moveGuardToward(context, guard, target);
       continue;
     }
@@ -426,6 +428,7 @@ export function advanceGuards<TSocket>(context: MonsterSystemContext<TSocket>, n
     }
     if (now - guard.lastAttackAt < GUARD_ATTACK_COOLDOWN_MS) continue;
     guard.lastAttackAt = now;
+    guard.fightingUntil = now + 420;
     target.hp = Math.max(0, target.hp - GUARD_DAMAGE);
     if (target.hp > 0) continue;
 
