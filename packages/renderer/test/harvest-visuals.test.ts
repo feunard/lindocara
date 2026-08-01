@@ -103,6 +103,7 @@ describe("authoritative harvest event presentation", () => {
         state: "depleted",
         depletedAt: 10_000,
         exhaustionBehavior: "fade",
+        exhaustedAssetId: null,
         fadeDurationMs: 500,
       },
       null,
@@ -137,6 +138,37 @@ describe("authoritative harvest event presentation", () => {
     expect(repeated).toMatchObject({ graphicAssetId: GRAPHIC, alpha: 0.6 });
     expect(repeated.state.fadeStartedAt).toBe(1_000);
     expect(finished).toMatchObject({ graphicAssetId: null, alpha: 0 });
+  });
+
+  it("reveals an explicit exhausted asset after the intact sprite finishes fading", () => {
+    const depleted = event(
+      {
+        ...intact({ hits: 3, lastHitAt: 1_000 }),
+        state: "depleted",
+        depletedAt: 1_000,
+        exhaustionBehavior: "fade",
+        exhaustedAssetId: STUMP,
+        fadeDurationMs: 300,
+      },
+      null,
+    );
+    const fading = harvestEventPresentation({
+      event: depleted,
+      previous: createHarvestEventVisualState(),
+      previousGraphicAssetId: GRAPHIC,
+      now: 1_150,
+      toLocal: identityClock,
+    });
+    const finished = harvestEventPresentation({
+      event: structuredClone(depleted),
+      previous: fading.state,
+      previousGraphicAssetId: GRAPHIC,
+      now: 1_300,
+      toLocal: identityClock,
+    });
+
+    expect(fading).toMatchObject({ graphicAssetId: GRAPHIC, alpha: 0.5 });
+    expect(finished).toMatchObject({ graphicAssetId: STUMP, alpha: 1 });
   });
 
   it("uses explicit hide and replacement presentations, then restores an intact respawn", () => {

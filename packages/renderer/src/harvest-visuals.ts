@@ -113,8 +113,8 @@ export function harvestEventPresentation(input: {
       fadeStartedAt,
       fadeGraphicAssetId,
     },
-    graphicAssetId: progress >= 1 ? null : fadeGraphicAssetId,
-    alpha: 1 - progress,
+    graphicAssetId: progress >= 1 ? harvest.exhaustedAssetId : fadeGraphicAssetId,
+    alpha: progress >= 1 ? (harvest.exhaustedAssetId === null ? 0 : 1) : 1 - progress,
     playHitEffect,
   };
 }
