@@ -3,7 +3,8 @@ import WebSocket from "ws";
 
 const SCENARIOS = new Set(["idle", "movement", "combat", "mixed", "reconnect", "zone-transition"]);
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-const PRODUCTION_HOST = "lindocara.alepha.dev";
+// Bay is current; keep the retired Cloudflare host protected while its data remains reachable.
+const PRODUCTION_HOSTS = new Set(["lindocara.bay.alepha.dev", "lindocara.alepha.dev"]);
 const PASSWORD = process.env.LINDOCARA_LOADTEST_PASSWORD ?? "LindoLoad-Local-2026";
 const PARTY_SIZE = 4;
 const LOAD_MAP_TWO = "LoadMap2";
@@ -39,7 +40,7 @@ function configuration(argv) {
   if (!LOCAL_HOSTS.has(target.hostname) && args.get("allow-remote") !== "true") {
     throw new Error("remote targets require --allow-remote=true");
   }
-  if (target.hostname === PRODUCTION_HOST && args.get("allow-production") !== "true") {
+  if (PRODUCTION_HOSTS.has(target.hostname) && args.get("allow-production") !== "true") {
     throw new Error("the production host requires --allow-production=true");
   }
   return {

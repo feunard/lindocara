@@ -5,7 +5,7 @@
  *
  * Run with: npm run seed:brumeval -- --target=http://localhost:5178
  * Dry run:  npm run seed:brumeval -- --dry-run
- * Prod:     SEED_PASSWORD=… npm run seed:brumeval -- --target=https://lindocara.alepha.dev \
+ * Prod:     SEED_PASSWORD=… npm run seed:brumeval -- --target=https://lindocara.bay.alepha.dev \
  *             --allow-remote --allow-production
  *
  * Design: docs/superpowers/specs/2026-07-24-brumeval-adventure-design.md
@@ -24,7 +24,8 @@ import { type BuiltWorld, buildWorld, type MapContent } from "./brumeval/maps.js
 import { buildRegistry, type MapIdByKey } from "./brumeval/quests.js";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-const PRODUCTION_HOST = "lindocara.alepha.dev";
+// Bay is current; keep the retired Cloudflare host protected while its data remains reachable.
+const PRODUCTION_HOSTS = new Set(["lindocara.bay.alepha.dev", "lindocara.alepha.dev"]);
 const ADVENTURE_TITLE = "Brumeval";
 const AUTHOR_USERNAME = "brumevalauthor";
 const MAX_PLAYERS = 4;
@@ -54,11 +55,11 @@ function configuration(argv: string[]): Config {
   if (!LOCAL_HOSTS.has(target.hostname) && args.get("allow-remote") !== "true") {
     throw new Error("remote targets require --allow-remote=true");
   }
-  if (target.hostname === PRODUCTION_HOST && args.get("allow-production") !== "true") {
+  if (PRODUCTION_HOSTS.has(target.hostname) && args.get("allow-production") !== "true") {
     throw new Error("the production host requires --allow-production=true");
   }
   const password = process.env.SEED_PASSWORD ?? "Brumeval-Local-2026";
-  if (target.hostname === PRODUCTION_HOST && !process.env.SEED_PASSWORD) {
+  if (PRODUCTION_HOSTS.has(target.hostname) && !process.env.SEED_PASSWORD) {
     throw new Error("production seeding requires SEED_PASSWORD");
   }
   return {

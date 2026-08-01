@@ -10,7 +10,8 @@
  */
 
 export const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-export const PRODUCTION_HOST = "lindocara.alepha.dev";
+/** Bay is current; keep the retired Cloudflare host protected while its data remains reachable. */
+export const PRODUCTION_HOSTS = new Set(["lindocara.bay.alepha.dev", "lindocara.alepha.dev"]);
 export const DEFAULT_LOCAL_TARGET = "http://localhost:5178";
 
 export interface ApiConfig {
@@ -36,7 +37,7 @@ export function resolveTarget(args: Map<string, string>): URL {
   if (!LOCAL_HOSTS.has(target.hostname) && args.get("allow-remote") !== "true") {
     throw new Error("remote targets require --allow-remote=true");
   }
-  if (target.hostname === PRODUCTION_HOST && args.get("allow-production") !== "true") {
+  if (PRODUCTION_HOSTS.has(target.hostname) && args.get("allow-production") !== "true") {
     throw new Error("the production host requires --allow-production=true");
   }
   return target;
@@ -49,7 +50,7 @@ export function resolveCredentials(
 ): { username: string; password: string } {
   const username = args.get("username") ?? defaultUsername;
   const password = process.env.SEED_PASSWORD ?? "Brumeval-Local-2026";
-  if (target.hostname === PRODUCTION_HOST && !process.env.SEED_PASSWORD) {
+  if (PRODUCTION_HOSTS.has(target.hostname) && !process.env.SEED_PASSWORD) {
     throw new Error("production access requires SEED_PASSWORD");
   }
   return { username, password };
