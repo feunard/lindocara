@@ -120,6 +120,7 @@ function channelledTree(id: string, col: number, row: number): MapEvent {
       hitsRequired: 1,
       harvestDurationMs: 5_000,
     },
+    graphicAssetId: preset.intactAssetId,
   });
   return { ...event, pages: [page({ graphicAssetId: preset.intactAssetId })] };
 }

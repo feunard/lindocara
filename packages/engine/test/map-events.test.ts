@@ -763,11 +763,20 @@ describe("harvestable map events", () => {
       name: "Tree",
       kind: "harvestable",
       harvestProfile: HARVEST_PROFILE,
+      graphicAssetId: TREE_ASSET_ID,
     });
 
     expect(resource).toMatchObject({ kind: "harvestable", harvestProfile: HARVEST_PROFILE });
     expect(harvestableEvents([event(), resource])).toEqual([resource]);
     expect(isActiveWorldEventKind("harvestable")).toBe(true);
     expect(isInteractiveWorldEventKind("harvestable")).toBe(false);
+  });
+
+  it("rejects every active resource page without an intact appearance", () => {
+    const invisible = harvestable();
+    expect(
+      parseMapEvents([{ ...invisible, pages: [page({ graphicAssetId: null })] }], COLS, ROWS),
+    ).toBeNull();
+    expect(parseMapEvents([event()], COLS, ROWS)).not.toBeNull();
   });
 });

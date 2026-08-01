@@ -20,6 +20,7 @@ import { type ActiveWorldEvent, createMonsters, newPlayer } from "../src/world/w
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
 const NOW = 10_000;
+const TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree1";
 
 const WOOD: HarvestProfile = {
   resource: "wood",
@@ -86,7 +87,7 @@ function activeEvent(id = EVENT_ID, col = 1, row = 0): ActiveWorldEvent {
     id,
     col,
     row,
-    graphicAssetId: null,
+    graphicAssetId: TREE_ASSET_ID,
     onTop: false,
     moveSpeed: 0,
     moveFrequency: 0,
@@ -103,6 +104,7 @@ function mapView(profile: HarvestProfile = WOOD, worldTerrain = terrain()) {
     row: 0,
     ordinal: 0,
     harvestProfile: profile,
+    graphicAssetId: TREE_ASSET_ID,
   });
   return {
     zoneId: "verdant-reach",
@@ -233,6 +235,7 @@ describe("Peasant harvest target selection", () => {
         row,
         ordinal,
         harvestProfile: WOOD,
+        graphicAssetId: TREE_ASSET_ID,
       }),
     );
     const activeEvents = nodes.map(([id, col, row]) => activeEvent(id, col, row));
@@ -294,6 +297,7 @@ describe("Peasant harvest target selection", () => {
           row: 0,
           ordinal: 0,
           harvestProfile: WOOD,
+          graphicAssetId: TREE_ASSET_ID,
         }),
         functionalEvent({
           id: secondaryId,
@@ -302,6 +306,7 @@ describe("Peasant harvest target selection", () => {
           row: 0,
           ordinal: 1,
           harvestProfile: secondaryProfile,
+          graphicAssetId: TREE_ASSET_ID,
         }),
       ],
       activeEvents: [activeEvent(), activeEvent(secondaryId, 2, 0)],

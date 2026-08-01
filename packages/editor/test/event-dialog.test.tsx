@@ -701,6 +701,19 @@ describe("EventDialog harvest authoring", () => {
     expect(onCommit).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent(t("editor.harvest.validation.invalid"));
   });
+
+  it("refuses an invisible intact resource", async () => {
+    const user = userEvent.setup();
+    const invisible = sheepEvent();
+    invisible.pages = invisible.pages.map((page) => ({ ...page, graphicAssetId: null }));
+    const { onCommit } = renderDialog(invisible);
+
+    expect(screen.getByText(t("editor.harvest.appearance.missing"))).toBeVisible();
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(t("editor.harvest.validation.invalid"));
+  });
 });
 
 describe("EventDialog condition pickers over the registry", () => {

@@ -30,6 +30,7 @@ const EVENT_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const EVENT_B = "11111111-1111-4111-8111-111111111111";
 const EVENT_C = "22222222-2222-4222-8222-222222222222";
 const NOW = 10_000;
+const TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree1";
 
 function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
   const tiles = tileMapFromRects(320, 192, obstacles);
@@ -89,6 +90,7 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
       row: node.row,
       ordinal,
       harvestProfile: node.profile,
+      graphicAssetId: TREE_ASSET_ID,
     }),
   );
   const base = zoneDefinition("verdant-reach");

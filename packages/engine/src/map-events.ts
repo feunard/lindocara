@@ -362,10 +362,15 @@ interface FunctionalEventBase {
 
 export type FunctionalEventParams = FunctionalEventBase &
   (
-    | { kind: "harvestable"; harvestProfile: HarvestProfile }
+    | {
+        kind: "harvestable";
+        harvestProfile: HarvestProfile;
+        graphicAssetId: EditorAssetId;
+      }
     | {
         kind: Exclude<EventKind, "normal" | "harvestable">;
         harvestProfile?: never;
+        graphicAssetId?: never;
       }
   );
 
@@ -409,7 +414,12 @@ export function functionalEvent(params: FunctionalEventParams): MapEvent {
         }
       : {}),
     ...(isHarvestable ? { harvestProfile: params.harvestProfile } : {}),
-    pages: [defaultEventPage()],
+    pages: [
+      {
+        ...defaultEventPage(),
+        ...(isHarvestable ? { graphicAssetId: params.graphicAssetId } : {}),
+      },
+    ],
   };
 }
 
@@ -765,7 +775,11 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     if (
       kind === "harvestable" &&
       parsedPages.some(
-        (page) => page.moveType !== "fixed" || (page.moveRoute?.length ?? 0) > 0 || page.optThrough,
+        (page) =>
+          page.graphicAssetId === null ||
+          page.moveType !== "fixed" ||
+          (page.moveRoute?.length ?? 0) > 0 ||
+          page.optThrough,
       )
     ) {
       return null;

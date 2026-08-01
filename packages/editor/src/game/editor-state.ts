@@ -1410,6 +1410,7 @@ export function applyTool(
           kind: "harvestable",
           name: tool.presetName ?? "",
           harvestProfile: profile,
+          graphicAssetId: tool.graphic,
         });
         return {
           ...map,

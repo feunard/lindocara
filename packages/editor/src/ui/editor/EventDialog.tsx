@@ -1072,6 +1072,9 @@ export function EventDialog({
   const visibleStatErrors = validationAttempted ? statErrors : {};
   const harvestProfileValid =
     draft.kind !== "harvestable" || parseHarvestProfile(draft.harvestProfile) !== null;
+  const harvestAppearanceValid =
+    draft.kind !== "harvestable" ||
+    draft.pages.every((candidate) => candidate.graphicAssetId !== null);
   const unsupportedTriggerPages = draft.pages.flatMap((candidate, candidateIndex) =>
     runtimeTrigger(candidate.trigger) ? [] : [candidateIndex + 1],
   );
@@ -1096,7 +1099,11 @@ export function EventDialog({
 
   const save = (): void => {
     if (unsupportedTriggerPages.length > 0) return;
-    if (Object.values(statErrors).some(Boolean) || !harvestProfileValid) {
+    if (
+      Object.values(statErrors).some(Boolean) ||
+      !harvestProfileValid ||
+      !harvestAppearanceValid
+    ) {
       setValidationAttempted(true);
       return;
     }
@@ -1248,11 +1255,13 @@ export function EventDialog({
             }
           />
         )}
-        {draft.kind === "harvestable" && validationAttempted && !harvestProfileValid && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
-            {t("editor.harvest.validation.invalid")}
-          </p>
-        )}
+        {draft.kind === "harvestable" &&
+          validationAttempted &&
+          (!harvestProfileValid || !harvestAppearanceValid) && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+              {t("editor.harvest.validation.invalid")}
+            </p>
+          )}
 
         {/* Entry/exit/spawn events are pure anchors: their only field is the label (the header Name
             input), so no body is shown — a hint states what the placement binds. */}

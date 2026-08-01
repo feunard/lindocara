@@ -473,6 +473,22 @@ describe("list, get, update, delete", () => {
     );
     expect(wrongTool.status).toBe(400);
     expect(await wrongTool.json()).toMatchObject({ error: "map_invalid" });
+
+    const invisible = await putMap(
+      id,
+      token,
+      mapBody({
+        events: [
+          {
+            ...base,
+            harvestProfile: HARVEST_PROFILE,
+            pages: [wirePage({ graphicAssetId: null })],
+          },
+        ],
+      }),
+    );
+    expect(invisible.status).toBe(400);
+    expect(await invisible.json()).toMatchObject({ error: "map_invalid" });
   });
 
   test("drops a harvestable event whose persisted profile JSON is corrupt", async () => {
