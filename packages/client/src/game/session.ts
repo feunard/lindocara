@@ -440,6 +440,9 @@ async function startGameIdentity(
       }
       renderer.setSelfId(selfId);
       sound.configureScene(world.audio);
+      // Harvest replacements are explicit appearance metadata in the welcome. Queue them before
+      // the first playable frame so the last authoritative hit never initiates their texture load.
+      renderer.preloadWorldEventAssets(world.events);
       // A known id resolves to the compiled catalogue (terrain, furniture and all); anything else
       // is a D1 map, so its baked terrain and authored props travel in the welcome and are drawn
       // from there. Same hybrid-routing rule the server used to pick this room.

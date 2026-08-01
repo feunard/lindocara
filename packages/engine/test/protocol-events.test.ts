@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 /** A real catalogue id: `graphicAssetId` must be `null` or one of these, appearance only. */
 const GRAPHIC = "building.buildings-black-buildings.archery";
+const STUMP = "resource.terrain-resources-wood-trees.stump-1";
 
 function event(overrides: Partial<Record<keyof WorldEventSnapshot, unknown>> = {}) {
   return {
@@ -144,6 +145,7 @@ describe("events on the wire", () => {
       depletedAt: 12_000,
       respawnAt: 72_000,
       exhaustionBehavior: "fade",
+      exhaustedAssetId: null,
       fadeDurationMs: 350,
     };
     expect(parseServerMessage(JSON.stringify(welcome([event({ harvest })])))).not.toBeNull();
@@ -167,6 +169,52 @@ describe("events on the wire", () => {
     expect(
       parseServerMessage(
         JSON.stringify(welcome([event({ harvest: { ...harvest, lastHitAt: 11_999 } })])),
+      ),
+    ).toBeNull();
+  });
+
+  it("validates an explicit replacement asset before depletion without inferring from its path", () => {
+    const intact = {
+      state: "intact",
+      generation: 0,
+      hits: 1,
+      lastHitAt: 12_000,
+      depletedAt: null,
+      respawnAt: null,
+      exhaustionBehavior: "replace",
+      exhaustedAssetId: STUMP,
+      fadeDurationMs: 250,
+    };
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ harvest: intact })]))),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([
+            event({ harvest: { ...intact, exhaustedAssetId: "resource.looks-like-a-stump" } }),
+          ]),
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...intact, exhaustedAssetId: null } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([
+            event({
+              harvest: {
+                ...intact,
+                exhaustionBehavior: "hide",
+                exhaustedAssetId: STUMP,
+              },
+            }),
+          ]),
+        ),
       ),
     ).toBeNull();
   });

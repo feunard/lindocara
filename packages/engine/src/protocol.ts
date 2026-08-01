@@ -77,7 +77,7 @@ import { isTalentId, type TalentState } from "./talents.js";
 import { parseTileLayer } from "./tile-layer-codec.js";
 import { parseTileMap } from "./tilemap-codec.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
-import { isEditorAssetId } from "./tiny-swords-catalog.js";
+import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
 import { isZoneId, type ZoneId } from "./zones.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
@@ -455,6 +455,12 @@ export interface WorldEventSnapshot {
     depletedAt: number | null;
     respawnAt: number | null;
     exhaustionBehavior: "replace" | "fade" | "hide";
+    /**
+     * Explicit replacement art advertised while the node is still intact so the renderer can
+     * preload it. Appearance only: resource rules continue to come from the authored profile on
+     * the server, never from this id or its catalogue path.
+     */
+    exhaustedAssetId: EditorAssetId | null;
     fadeDurationMs: number;
   };
 }
@@ -1578,6 +1584,9 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
         (harvest.exhaustionBehavior === "replace" ||
           harvest.exhaustionBehavior === "fade" ||
           harvest.exhaustionBehavior === "hide") &&
+        (harvest.exhaustionBehavior === "replace"
+          ? isEditorAssetId(harvest.exhaustedAssetId)
+          : harvest.exhaustedAssetId === null) &&
         Number.isSafeInteger(harvest.fadeDurationMs) &&
         (harvest.fadeDurationMs as number) >= 0 &&
         (harvest.fadeDurationMs as number) <= HARVEST_PROFILE_LIMITS.fadeDurationMs.max))

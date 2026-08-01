@@ -174,6 +174,7 @@ import {
   type UnitMotion,
   unitSheet,
 } from "./tiny-swords-art.js";
+import { preloadWorldEventAssetArts, worldEventPreloadAssetIds } from "./world-event-art.js";
 import {
   type DecorTheme,
   EMPTY_ZONE_VISUALS,
@@ -1047,8 +1048,9 @@ export class Renderer {
   #questMarkerKinds = new Map<string, AuthoredQuestMarker["kind"]>();
   #drawnQuestMarkerKinds = new Map<string, AuthoredQuestMarker["kind"]>();
   #questMarkerViews = new Map<string, Text>();
-  /** Loaded art for event page graphics, filled on demand — an event's asset need not be one the
-   *  authored-element preload already fetched. */
+  /** Loaded art for event page graphics. Welcome snapshots proactively preload current graphics
+   *  and explicit harvest replacements; on-demand loading remains only a resilient fallback for a
+   *  newly activated event page. */
   #eventAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #activeEffects: Effect[] = [];
   #peasantCamps = new Map<
@@ -1449,6 +1451,31 @@ export class Renderer {
     void this.#loadMapAssetArt(zoneId, revision, elements);
   }
 
+  /**
+   * Starts loading every explicit event graphic advertised by a snapshot, including an intact
+   * harvest node's future replacement. Asset identity stays presentation-only and the shared
+   * editor-art cache deduplicates this with map elements and fallback draws.
+   */
+  preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void {
+    const requested = worldEventPreloadAssetIds(events);
+    if (requested.every((assetId) => this.#eventAssetArt.has(assetId))) return;
+    void preloadWorldEventAssetArts(events)
+      .then((loaded) => {
+        if (this.#destroyed) return;
+        for (const [assetId, art] of loaded) this.#eventAssetArt.set(assetId, art);
+        // A first frame or page flip may have reached the resilient fallback while this preload was
+        // in flight. Force only those requested graphics to repaint now that their art is ready.
+        for (const view of this.#events.values()) {
+          if (isEditorAssetId(view.drawnGraphic) && loaded.has(view.drawnGraphic)) {
+            view.drawnGraphic = undefined;
+          }
+        }
+      })
+      .catch(() => {
+        // Appearance degrades to the current sprite; a failed texture request cannot affect rules.
+      });
+  }
+
   configureMerchant(merchant: MerchantDefinition | null): void {
     if (this.#merchantContainer) {
       this.#merchantContainer.destroy({ children: true });
@@ -1608,6 +1635,13 @@ export class Renderer {
     for (const event of events) {
       present.add(event.id);
       let view = this.#events.get(event.id);
+      if (
+        !view ||
+        view.data.graphicAssetId !== event.graphicAssetId ||
+        view.data.harvest?.exhaustedAssetId !== event.harvest?.exhaustedAssetId
+      ) {
+        this.preloadWorldEventAssets([event]);
+      }
       // A decor-pass container is destroyed when `#decorLayer` is cleared on a map/element reload;
       // recreate it (the sentinel forces a redraw) rather than draw into a dead container.
       if (!view || view.container.destroyed) {
@@ -1789,15 +1823,21 @@ export class Renderer {
   }
 
   /** Paint one event's active-page graphic into its container via the shared event crop. A `null`
-   *  graphic is the authored blank tile — a legitimate active page that simply draws nothing. Art is
-   *  loaded on demand; until it arrives the cell is empty and the next reconcile redraws it. */
+   *  graphic is the authored blank tile — a legitimate active page that simply draws nothing.
+   *  Snapshot art is normally preloaded; the fallback keeps the previous sprite visible while a
+   *  newly activated page finishes loading instead of flashing an empty cell. */
   #drawEventGraphic(view: EventView, event: WorldEventSnapshot, graphicId: string | null): void {
-    for (const child of view.container.removeChildren()) child.destroy({ children: true });
-    view.sprite = undefined;
-    view.animation = undefined;
-    if (graphicId === null || !isEditorAssetId(graphicId)) return;
+    if (graphicId === null || !isEditorAssetId(graphicId)) {
+      for (const child of view.container.removeChildren()) child.destroy({ children: true });
+      view.sprite = undefined;
+      view.animation = undefined;
+      return;
+    }
     const art = this.#eventAssetArt.get(graphicId);
     if (art) {
+      for (const child of view.container.removeChildren()) child.destroy({ children: true });
+      view.sprite = undefined;
+      view.animation = undefined;
       const frame = art.frames[0];
       if (frame) {
         // The definition carries the role (unit sheet vs marker) and the anchor/foot offset that

@@ -124,6 +124,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
               depletedAt: harvestNode.depletedAt,
               respawnAt: harvestNode.respawnAt,
               exhaustionBehavior: profile.exhaustionBehavior,
+              exhaustedAssetId: profile.exhaustedAssetId,
               fadeDurationMs: profile.fadeDurationMs,
             },
           }
@@ -178,6 +179,7 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
       depletedAt: node.depletedAt,
       respawnAt: node.respawnAt,
       exhaustionBehavior: profile.exhaustionBehavior,
+      exhaustedAssetId: profile.exhaustedAssetId,
       fadeDurationMs: profile.fadeDurationMs,
     };
     if (
@@ -189,6 +191,7 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
       active.harvest.depletedAt === harvest.depletedAt &&
       active.harvest.respawnAt === harvest.respawnAt &&
       active.harvest.exhaustionBehavior === harvest.exhaustionBehavior &&
+      active.harvest.exhaustedAssetId === harvest.exhaustedAssetId &&
       active.harvest.fadeDurationMs === harvest.fadeDurationMs
     ) {
       return active;

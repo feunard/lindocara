@@ -7,6 +7,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 const GRAPHIC = "tree.intact";
+const STUMP = "resource.terrain-resources-wood-trees.stump-1";
 
 function event(
   harvest: WorldEventSnapshot["harvest"],
@@ -35,6 +36,7 @@ function intact(overrides: Partial<NonNullable<WorldEventSnapshot["harvest"]>> =
     depletedAt: null,
     respawnAt: null,
     exhaustionBehavior: "replace",
+    exhaustedAssetId: STUMP,
     fadeDurationMs: 300,
     ...overrides,
   } satisfies NonNullable<WorldEventSnapshot["harvest"]>;

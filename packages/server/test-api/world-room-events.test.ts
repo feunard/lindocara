@@ -644,7 +644,13 @@ describe("world room events (FakeClock)", () => {
       col: 5,
       row: 5,
       graphicAssetId: PAGE2_GRAPHIC,
-      harvest: { state: "intact", generation: 0, hits: 0, respawnAt: null },
+      harvest: {
+        state: "intact",
+        generation: 0,
+        hits: 0,
+        respawnAt: null,
+        exhaustedAssetId: HARVEST_PROFILE.exhaustedAssetId,
+      },
     });
     expect(state.npcMovement.has(resource.id)).toBe(false);
 
