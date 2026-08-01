@@ -486,6 +486,7 @@ const EVENT_KIND_PLACEHOLDER_COLOR: Record<EventKind, number> = {
   exit: 0x9a6cf0,
   monster: 0xd9484a,
   guard: 0x3b82f6,
+  harvestable: 0xb7791f,
   spawn: 0x2563eb,
 };
 

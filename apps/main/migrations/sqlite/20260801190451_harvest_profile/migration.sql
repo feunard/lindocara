@@ -1,0 +1,1 @@
+ALTER TABLE `mapEvents` ADD `harvest_profile` text;

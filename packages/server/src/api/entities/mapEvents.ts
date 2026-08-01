@@ -35,7 +35,7 @@ export const mapEvents = $entity({
     name: z.string(),
     /** Creation order, per map. Display only. */
     ordinal: z.integer(),
-    /** `normal` is the scripted event; entry/exit/monster/guard/spawn are the reborn markers. */
+    /** Scripted, anchor, actor or explicitly configured harvestable event. */
     kind: db.default(z.enum(EVENT_KINDS), "normal"),
     /** Monster spawn, set iff `kind = 'monster'`. Typed as `MonsterSpecies` at the app layer. */
     species: z.string().optional(),
@@ -54,6 +54,8 @@ export const mapEvents = $entity({
     monsterAttackProfile: z.string().optional(),
     monsterRespawnMode: z.string().optional(),
     monsterRespawnDelayMs: z.integer().optional(),
+    /** Validated `HarvestProfile` JSON, present only for `kind = 'harvestable'`. */
+    harvestProfile: z.string().optional(),
   }),
   indexes: [
     // One event per cell — the editor moves an event rather than replacing on overlap.

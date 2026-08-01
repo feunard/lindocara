@@ -1058,6 +1058,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.exit": "Sortie",
   "editor.inspector.monster": "Apparition de monstre",
   "editor.inspector.guard": "Garde alliée",
+  "editor.inspector.harvestable": "Ressource récoltable",
   "editor.inspector.npc": "PNJ libre",
   "editor.inspector.event": "Événement",
   "editor.inspector.spawn": "Repli et test de la carte",
@@ -1740,6 +1741,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.kind.exit": "Sortie",
   "editor.event.kind.monster": "Monstre",
   "editor.event.kind.guard": "Garde alliée",
+  "editor.event.kind.harvestable": "Ressource récoltable",
   "editor.event.kind.spawn": "Départ de l’aventure",
   "editor.event.kind.anchor.hint":
     "Ancrage hérité conservé pour compatibilité avec les anciennes aventures.",

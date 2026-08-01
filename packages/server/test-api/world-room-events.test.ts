@@ -33,6 +33,7 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
+import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import { eventCellCentre, type MapEvent, type MapEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
@@ -60,6 +61,20 @@ const PASSWORD = "Sup3rSecret";
 const TICK_MS = 50;
 const PAGE1_GRAPHIC = "building.buildings-black-buildings.archery";
 const PAGE2_GRAPHIC = "resource.terrain-resources-wood-trees.tree3";
+const HARVEST_PROFILE: HarvestProfile = {
+  resource: "wood",
+  tool: "axe",
+  yieldAmount: 6,
+  goldValue: 0,
+  hitsRequired: 3,
+  range: 96,
+  harvestDurationMs: 900,
+  exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-1",
+  exhaustionBehavior: "replace",
+  respawn: "permanent",
+  respawnDelayMs: 0,
+  fadeDurationMs: 350,
+};
 
 class FakeClock implements RoomClock {
   protected ms = 0;
@@ -310,6 +325,21 @@ function gateEvent(id: string, col: number, row: number): MapEvent {
   };
 }
 
+function harvestableEvent(id: string, col: number, row: number): MapEvent {
+  return {
+    id,
+    col,
+    row,
+    name: "Oak",
+    ordinal: 21,
+    kind: "harvestable",
+    species: null,
+    patrolRadius: null,
+    harvestProfile: HARVEST_PROFILE,
+    pages: [page({ graphicAssetId: PAGE2_GRAPHIC })],
+  };
+}
+
 interface PlayableParty {
   token: string;
   userId: string;
@@ -451,6 +481,24 @@ async function heldPartyState(partyId: string): Promise<PartyAdventureState> {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room events (FakeClock)", () => {
+  test("a harvestable resource is active scenery but never NPC movement", async () => {
+    const resource = harvestableEvent(crypto.randomUUID(), 5, 5);
+    const fixture = await newPlayableParty("harvestproj", [resource]);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+
+    expect(state.activeEvents.find((event) => event.id === resource.id)).toMatchObject({
+      col: 5,
+      row: 5,
+      graphicAssetId: PAGE2_GRAPHIC,
+    });
+    expect(state.npcMovement.has(resource.id)).toBe(false);
+    engine.dispose();
+  });
+
   test("an authored guard speaks from its current patrol position", async () => {
     const guard = guardDialogueEvent(crypto.randomUUID(), 5, 5);
     const fixture = await newPlayableParty("guardtalk", [guard]);

@@ -68,8 +68,8 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
   const active: ActiveWorldEvent[] = [];
   const movement = [];
   for (const event of events) {
-    // Scripted events and free NPCs have an appearance. Anchors and monster spawns are consumed
-    // elsewhere; guards are projected above into the authoritative guard collection.
+    // Scripted events, free NPCs and harvestable resources have an appearance. Anchors and monster
+    // spawns are consumed elsewhere; guards are projected above into the authoritative collection.
     if (!isActiveWorldEventKind(event.kind)) continue;
     const index = activePageIndex(event, adventureState);
     if (index === null) continue;
@@ -88,17 +88,21 @@ export function evaluateActiveEvents(state: WorldRoomState): void {
       moveAnimation: page.optMoveAnim,
       directionFixed: page.optDirFix,
     });
-    movement.push({
-      id: event.id,
-      homeCol: event.col,
-      homeRow: event.row,
-      moveType: page.moveType,
-      moveSpeed: page.moveSpeed,
-      moveFreq: page.moveFreq,
-      through: page.optThrough,
-      patrolRadius: event.patrolRadius ?? TILE_SIZE * 2,
-      route: page.moveRoute ?? [],
-    });
+    // A harvestable page controls visibility and appearance only. It never becomes an NPC merely
+    // because the shared active-event projection also carries moving authored characters.
+    if (event.kind !== "harvestable") {
+      movement.push({
+        id: event.id,
+        homeCol: event.col,
+        homeRow: event.row,
+        moveType: page.moveType,
+        moveSpeed: page.moveSpeed,
+        moveFreq: page.moveFreq,
+        through: page.optThrough,
+        patrolRadius: event.patrolRadius ?? TILE_SIZE * 2,
+        route: page.moveRoute ?? [],
+      });
+    }
   }
   state.activeEvents = active;
   state.npcMovement = reconcileNpcMovement(state.npcMovement, movement, state.tick);

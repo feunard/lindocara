@@ -1,3 +1,4 @@
+import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { afterEach, beforeEach, test } from "vitest";
@@ -10,6 +11,20 @@ import { createTestApp } from "./helpers.ts";
 
 // Meets the realm's default password policy — mirrors `auth.test.ts`.
 const PASSWORD = "Sup3rSecret";
+const HARVEST_PROFILE: HarvestProfile = {
+  resource: "meat",
+  tool: "knife",
+  yieldAmount: 4,
+  goldValue: 0,
+  hitsRequired: 2,
+  range: 80,
+  harvestDurationMs: 750,
+  exhaustedAssetId: null,
+  exhaustionBehavior: "fade",
+  respawn: "timed",
+  respawnDelayMs: 120_000,
+  fadeDurationMs: 500,
+};
 
 /** A small test-local service, mirroring the framework's own `CharacterProbe` idiom
  *  (`apps/lore/test/campaign-relations.spec.ts`): `$repository()` fields give direct,
@@ -146,6 +161,47 @@ test("mapElements identity is (mapId, col, row, offsetX, offsetY)", async ({ exp
 
   const elements = await probe.mapElements.findMany({ where: { mapId: { eq: map.id } } });
   expect(elements).toHaveLength(2);
+});
+
+test("mapEvents round-trip optional harvest profile JSON without changing legacy rows", async ({
+  expect,
+}) => {
+  const userId = await createUser("harvestentity");
+  const adventure = await probe.adventures.create({
+    userId,
+    title: "Harvest Adventure",
+    graph: JSON.stringify({ start: null, links: [] }),
+  });
+  const map = await probe.maps.create({
+    userId,
+    adventureId: adventure.id,
+    name: "Orchard",
+    cols: 10,
+    rows: 10,
+    layers: JSON.stringify(["", "", ""]),
+    spawnCol: 1,
+    spawnRow: 1,
+  });
+  const serialized = JSON.stringify(HARVEST_PROFILE);
+  const resource = await probe.mapEvents.create({
+    mapId: map.id,
+    col: 2,
+    row: 2,
+    name: "Carcass",
+    ordinal: 1,
+    kind: "harvestable",
+    harvestProfile: serialized,
+  });
+  const legacy = await probe.mapEvents.create({
+    mapId: map.id,
+    col: 3,
+    row: 3,
+    name: "Legacy event",
+    ordinal: 2,
+  });
+
+  expect((await probe.mapEvents.findById(resource.id))?.harvestProfile).toBe(serialized);
+  expect((await probe.mapEvents.findById(legacy.id))?.harvestProfile).toBeUndefined();
 });
 
 test("mapEventPages position is unique per event", async ({ expect }) => {

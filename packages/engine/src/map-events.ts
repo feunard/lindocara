@@ -36,6 +36,7 @@ import {
   type MonsterTuning,
   type MonsterWeakness,
 } from "./game.js";
+import { type HarvestProfile, parseHarvestProfile } from "./harvest.js";
 import { isUuid } from "./identifiers.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
 import { TILE_SIZE } from "./tilemap.js";
@@ -65,7 +66,16 @@ import {
  * it without a second combat system or an autonomous event runner. A monster page runs its command
  * program on defeat; a guard page selects presence and may run dialogue on interaction.
  */
-export const EVENT_KINDS = ["normal", "npc", "entry", "exit", "monster", "guard", "spawn"] as const;
+export const EVENT_KINDS = [
+  "normal",
+  "npc",
+  "entry",
+  "exit",
+  "monster",
+  "guard",
+  "harvestable",
+  "spawn",
+] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 export function isEventKind(value: unknown): value is EventKind {
@@ -137,7 +147,13 @@ export const MAX_PAGES_PER_EVENT = 8;
 export const EVENT_NAME_MAX = 32;
 
 export function isRuntimeEventKind(kind: EventKind): boolean {
-  return kind === "normal" || kind === "npc" || kind === "monster" || kind === "guard";
+  return (
+    kind === "normal" ||
+    kind === "npc" ||
+    kind === "monster" ||
+    kind === "guard" ||
+    kind === "harvestable"
+  );
 }
 
 export function runtimeEventCount(events: readonly Pick<MapEvent, "kind">[]): number {
@@ -237,6 +253,8 @@ export interface MapEvent {
   monsterRespawnMode?: MonsterRespawnMode | null;
   /** Timed respawn delay in milliseconds. Ignored while permanent death is selected. */
   monsterRespawnDelayMs?: number | null;
+  /** Required only for `harvestable`; never derived from a page's graphic asset. */
+  harvestProfile?: HarvestProfile;
   pages: readonly MapEventPage[];
 }
 
@@ -267,14 +285,27 @@ export function npcEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "npc");
 }
 
-/** Both scripted scenery and free NPCs are projected into the active world-event collection. */
+export type HarvestableMapEvent = MapEvent & {
+  kind: "harvestable";
+  harvestProfile: HarvestProfile;
+};
+
+/** Explicitly configured resource nodes, narrowed for the future authoritative harvest system. */
+export function harvestableEvents(events: readonly MapEvent[]): HarvestableMapEvent[] {
+  return events.filter(
+    (event): event is HarvestableMapEvent =>
+      event.kind === "harvestable" && event.harvestProfile !== undefined,
+  );
+}
+
+/** Scripted scenery, free NPCs and resources are projected into the active world-event view. */
 export function isActiveWorldEventKind(kind: EventKind): boolean {
-  return kind === "normal" || kind === "npc";
+  return kind === "normal" || kind === "npc" || kind === "harvestable";
 }
 
 /** Event kinds whose action-triggered page can be run by an interacting hero. */
 export function isInteractiveWorldEventKind(kind: EventKind): boolean {
-  return isActiveWorldEventKind(kind) || kind === "guard";
+  return kind === "normal" || kind === "npc" || kind === "guard";
 }
 
 /** The adventure-start anchors on a map (D25). A map with at least one is a candidate first map. */
@@ -316,23 +347,34 @@ export function defaultEventPage(): MapEventPage {
  * place the server, the default map and migrations build these, so they cannot drift from what
  * `parseMapEvents` accepts.
  */
-export function functionalEvent(params: {
+interface FunctionalEventBase {
   id: string;
   col: number;
   row: number;
   ordinal: number;
-  kind: Exclude<EventKind, "normal">;
   name?: string | undefined;
   species?: MonsterSpecies | undefined;
   patrolRadius?: number | undefined;
   monsterTuning?: Partial<MonsterTuning> | undefined;
   monsterRespawnMode?: MonsterRespawnMode | undefined;
   monsterRespawnDelayMs?: number | undefined;
-}): MapEvent {
+}
+
+export type FunctionalEventParams = FunctionalEventBase &
+  (
+    | { kind: "harvestable"; harvestProfile: HarvestProfile }
+    | {
+        kind: Exclude<EventKind, "normal" | "harvestable">;
+        harvestProfile?: never;
+      }
+  );
+
+export function functionalEvent(params: FunctionalEventParams): MapEvent {
   const isMonster = params.kind === "monster";
   const isNpc = params.kind === "npc";
   const hasTuning = isMonster || isNpc;
   const isGuard = params.kind === "guard";
+  const isHarvestable = params.kind === "harvestable";
   const species = params.species ?? "spear_goblin";
   const tuning = {
     ...defaultMonsterTuning(species),
@@ -366,6 +408,7 @@ export function functionalEvent(params: {
           monsterRespawnDelayMs: params.monsterRespawnDelayMs ?? MONSTER_RESPAWN_MS,
         }
       : {}),
+    ...(isHarvestable ? { harvestProfile: params.harvestProfile } : {}),
     pages: [defaultEventPage()],
   };
 }
@@ -551,6 +594,14 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     let monsterAttackProfile: MonsterAttackProfile | undefined;
     let monsterRespawnMode: MonsterRespawnMode | undefined;
     let monsterRespawnDelayMs: number | undefined;
+    let harvestProfile: HarvestProfile | undefined;
+    if (kind === "harvestable") {
+      const parsedProfile = parseHarvestProfile(record.harvestProfile);
+      if (!parsedProfile) return null;
+      harvestProfile = parsedProfile;
+    } else if (record.harvestProfile !== undefined && record.harvestProfile !== null) {
+      return null;
+    }
     if (kind === "monster" || kind === "npc") {
       const isMonster = kind === "monster";
       if (isMonster) {
@@ -674,6 +725,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       kind !== "npc" &&
       kind !== "monster" &&
       kind !== "guard" &&
+      kind !== "harvestable" &&
       parsedPages.length !== 1
     )
       return null;
@@ -707,6 +759,17 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     ) {
       return null;
     }
+    // Resource pages may be conditional so their appearance can follow shared party state, but a
+    // resource is stationary and never enters the NPC movement system. Reject ignored movement
+    // authoring instead of persisting a configuration that looks meaningful in the editor.
+    if (
+      kind === "harvestable" &&
+      parsedPages.some(
+        (page) => page.moveType !== "fixed" || (page.moveRoute?.length ?? 0) > 0 || page.optThrough,
+      )
+    ) {
+      return null;
+    }
     seenCells.add(cellKey);
     seenIds.add(id);
     events.push({
@@ -729,6 +792,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       ...(monsterAttackProfile === undefined ? {} : { monsterAttackProfile }),
       ...(monsterRespawnMode === undefined ? {} : { monsterRespawnMode }),
       ...(monsterRespawnDelayMs === undefined ? {} : { monsterRespawnDelayMs }),
+      ...(harvestProfile === undefined ? {} : { harvestProfile }),
       pages: parsedPages,
     });
   }

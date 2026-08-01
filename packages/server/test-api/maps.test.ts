@@ -13,6 +13,7 @@
  * real behavior would be a regression, not a port.
  */
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
+import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
@@ -41,6 +42,23 @@ import { createTestApp } from "./helpers.ts";
 const PASSWORD = "Sup3rSecret";
 const MAP_COLS = MAP_MIN_COLS;
 const MAP_ROWS = MAP_MIN_ROWS;
+const TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree1";
+const OTHER_TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree2";
+const STUMP_ASSET_ID = "resource.terrain-resources-wood-trees.stump-1";
+const HARVEST_PROFILE: HarvestProfile = {
+  resource: "wood",
+  tool: "axe",
+  yieldAmount: 8,
+  goldValue: 0,
+  hitsRequired: 3,
+  range: 96,
+  harvestDurationMs: 900,
+  exhaustedAssetId: STUMP_ASSET_ID,
+  exhaustionBehavior: "replace",
+  respawn: "permanent",
+  respawnDelayMs: 0,
+  fadeDurationMs: 350,
+};
 
 // A one-cell-wide water strip at (1,1)/(2,1) standing in for "the sea", mirroring the legacy
 // fixture — everything else is grass.
@@ -87,6 +105,7 @@ function wirePage(overrides: Record<string, unknown> = {}): Record<string, unkno
 class SeedProbe {
   adventures = $repository(adventures);
   maps = $repository(maps);
+  mapEvents = $repository(mapEvents);
   parties = $repository(parties);
   heroes = $repository(heroes);
 }
@@ -375,6 +394,115 @@ describe("list, get, update, delete", () => {
     // The editor reuses that GET payload as its next PUT body without turning it into a 400.
     const editorSave = await putMap(id, token, payload);
     expect(editorSave.status).toBe(200);
+  });
+
+  test("round-trips an explicit harvest profile independently from its graphic", async () => {
+    const { userId, token } = await registerAndLogin("mapharvest");
+    const adventureId = await newAdventure(userId);
+    await newMapId(adventureId, token, "Keepalive");
+    const id = await newMapId(adventureId, token, "Orchard");
+    const resourceId = crypto.randomUUID();
+    const harvestable = {
+      id: resourceId,
+      col: 5,
+      row: 5,
+      name: "Oak",
+      ordinal: 1,
+      kind: "harvestable",
+      harvestProfile: HARVEST_PROFILE,
+      pages: [wirePage({ graphicAssetId: TREE_ASSET_ID })],
+    };
+
+    const authored = await putMap(id, token, mapBody({ name: "Orchard", events: [harvestable] }));
+    expect(authored.status).toBe(200);
+
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as Record<string, unknown> & {
+      events: {
+        id: string;
+        harvestProfile: HarvestProfile;
+        pages: (Record<string, unknown> & { graphicAssetId: string | null })[];
+      }[];
+    };
+    expect(payload.events[0]?.harvestProfile).toEqual(HARVEST_PROFILE);
+    expect(payload.events[0]?.pages[0]?.graphicAssetId).toBe(TREE_ASSET_ID);
+
+    const changedGraphic = {
+      ...payload,
+      events: payload.events.map((resource) => ({
+        ...resource,
+        pages: resource.pages.map((resourcePage) => ({
+          ...resourcePage,
+          graphicAssetId: OTHER_TREE_ASSET_ID,
+        })),
+      })),
+    };
+    const resaved = await putMap(id, token, changedGraphic);
+    expect(resaved.status).toBe(200);
+
+    const reloaded = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as typeof payload;
+    expect(reloaded.events[0]?.pages[0]?.graphicAssetId).toBe(OTHER_TREE_ASSET_ID);
+    expect(reloaded.events[0]?.harvestProfile).toEqual(HARVEST_PROFILE);
+    expect(reloaded.events[0]?.harvestProfile).toMatchObject({ resource: "wood", tool: "axe" });
+  });
+
+  test("rejects invalid or missing harvest profiles", async () => {
+    const { userId, token } = await registerAndLogin("mapharvestbad");
+    const id = await newMapId(await newAdventure(userId), token, "Bad Orchard");
+    const base = {
+      id: crypto.randomUUID(),
+      col: 5,
+      row: 5,
+      name: "Oak",
+      ordinal: 1,
+      kind: "harvestable",
+      pages: [wirePage({ graphicAssetId: TREE_ASSET_ID })],
+    };
+
+    const missing = await putMap(id, token, mapBody({ events: [base] }));
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toMatchObject({ error: "map_invalid" });
+
+    const wrongTool = await putMap(
+      id,
+      token,
+      mapBody({
+        events: [{ ...base, harvestProfile: { ...HARVEST_PROFILE, tool: "knife" } }],
+      }),
+    );
+    expect(wrongTool.status).toBe(400);
+    expect(await wrongTool.json()).toMatchObject({ error: "map_invalid" });
+  });
+
+  test("drops a harvestable event whose persisted profile JSON is corrupt", async () => {
+    const { userId, token } = await registerAndLogin("maphcorrupt");
+    const id = await newMapId(await newAdventure(userId), token, "Damaged Orchard");
+    const resourceId = crypto.randomUUID();
+    const authored = await putMap(
+      id,
+      token,
+      mapBody({
+        events: [
+          {
+            id: resourceId,
+            col: 5,
+            row: 5,
+            name: "Oak",
+            ordinal: 1,
+            kind: "harvestable",
+            harvestProfile: HARVEST_PROFILE,
+            pages: [wirePage({ graphicAssetId: TREE_ASSET_ID })],
+          },
+        ],
+      }),
+    );
+    expect(authored.status).toBe(200);
+
+    await probe.mapEvents.updateById(resourceId, { harvestProfile: "{not-json" });
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    expect((await fetched.json()) as { events: unknown[] }).toMatchObject({ events: [] });
   });
 
   test("round-trips a free NPC with characteristics and a walking routine", async () => {

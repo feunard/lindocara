@@ -1379,6 +1379,9 @@ export function applyTool(
           ],
         };
       }
+      // Harvestable placement requires an explicit profile. The dedicated resource editor owns
+      // that authoring flow; the generic event tool must never mint an invalid half-resource.
+      if (tool.eventKind === "harvestable") return null;
       const event = functionalEvent({
         id: crypto.randomUUID(),
         col,

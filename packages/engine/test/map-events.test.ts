@@ -10,9 +10,14 @@ import {
   MONSTER_RESPAWN_MS,
   MONSTER_TUNING_LIMITS,
 } from "@lindocara/engine/game.js";
+import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import {
   EVENT_GRAPHIC_TINT_DEFAULT,
   EVENT_NAME_MAX,
+  functionalEvent,
+  harvestableEvents,
+  isActiveWorldEventKind,
+  isInteractiveWorldEventKind,
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
   MAX_RUNTIME_EVENTS_PER_MAP,
@@ -30,6 +35,24 @@ const ROWS = 17;
 const GOOD_ASSET_ID = "building.buildings-black-buildings.archery";
 const ID_A = "11111111-1111-4111-8111-111111111111";
 const ID_B = "22222222-2222-4222-8222-222222222222";
+const TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree1";
+const OTHER_TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree2";
+const STUMP_ASSET_ID = "resource.terrain-resources-wood-trees.stump-1";
+
+const HARVEST_PROFILE: HarvestProfile = {
+  resource: "wood",
+  tool: "axe",
+  yieldAmount: 8,
+  goldValue: 0,
+  hitsRequired: 3,
+  range: 96,
+  harvestDurationMs: 900,
+  exhaustedAssetId: STUMP_ASSET_ID,
+  exhaustionBehavior: "replace",
+  respawn: "permanent",
+  respawnDelayMs: 0,
+  fadeDurationMs: 350,
+};
 
 function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
   return {
@@ -651,5 +674,97 @@ describe("mutation proofs", () => {
     // specifically about being out of bounds, not some other field.
     const inBounds = [event({ col: COLS - 1, row: ROWS - 1 })];
     expect(parseMapEvents(inBounds, COLS, ROWS)).toEqual(inBounds);
+  });
+});
+
+describe("harvestable map events", () => {
+  function harvestable(graphicAssetId = TREE_ASSET_ID): MapEvent {
+    return event({
+      kind: "harvestable",
+      name: "Oak",
+      harvestProfile: HARVEST_PROFILE,
+      pages: [page({ graphicAssetId })],
+    });
+  }
+
+  it("round-trips an explicit profile while legacy events remain unchanged", () => {
+    expect(parseMapEvents([harvestable()], COLS, ROWS)).toEqual([harvestable()]);
+    expect(parseMapEvents([event()], COLS, ROWS)?.[0]).not.toHaveProperty("harvestProfile");
+  });
+
+  it("never changes resource semantics when only the graphic asset changes", () => {
+    const first = parseMapEvents([harvestable(TREE_ASSET_ID)], COLS, ROWS)?.[0];
+    const second = parseMapEvents([harvestable(OTHER_TREE_ASSET_ID)], COLS, ROWS)?.[0];
+
+    expect(first?.pages[0]?.graphicAssetId).not.toBe(second?.pages[0]?.graphicAssetId);
+    expect(first?.harvestProfile).toEqual(HARVEST_PROFILE);
+    expect(second?.harvestProfile).toEqual(HARVEST_PROFILE);
+    expect(second?.harvestProfile).toMatchObject({ resource: "wood", tool: "axe" });
+  });
+
+  it("requires a valid profile only on harvestable events", () => {
+    expect(parseMapEvents([event({ kind: "harvestable" })], COLS, ROWS)).toBeNull();
+    const wrongTool = {
+      ...harvestable(),
+      harvestProfile: { ...HARVEST_PROFILE, tool: "knife" },
+    };
+    expect(parseMapEvents([wrongTool], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([event({ harvestProfile: HARVEST_PROFILE })], COLS, ROWS)).toBeNull();
+  });
+
+  it("rejects movement options that the stationary resource runtime would ignore", () => {
+    expect(
+      parseMapEvents(
+        [harvestable()].map((resource) => ({
+          ...resource,
+          pages: [page({ graphicAssetId: TREE_ASSET_ID, moveType: "random" })],
+        })),
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+    expect(
+      parseMapEvents(
+        [harvestable()].map((resource) => ({
+          ...resource,
+          pages: [
+            page({
+              graphicAssetId: TREE_ASSET_ID,
+              moveType: "fixed",
+              moveRoute: [{ offsetCol: 1, offsetRow: 0, waitMs: 0 }],
+            }),
+          ],
+        })),
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+    expect(
+      parseMapEvents(
+        [harvestable()].map((resource) => ({
+          ...resource,
+          pages: [page({ graphicAssetId: TREE_ASSET_ID, optThrough: true })],
+        })),
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+  });
+
+  it("supports the functional-event helper and narrows configured resources", () => {
+    const resource = functionalEvent({
+      id: ID_B,
+      col: 2,
+      row: 3,
+      ordinal: 4,
+      name: "Tree",
+      kind: "harvestable",
+      harvestProfile: HARVEST_PROFILE,
+    });
+
+    expect(resource).toMatchObject({ kind: "harvestable", harvestProfile: HARVEST_PROFILE });
+    expect(harvestableEvents([event(), resource])).toEqual([resource]);
+    expect(isActiveWorldEventKind("harvestable")).toBe(true);
+    expect(isInteractiveWorldEventKind("harvestable")).toBe(false);
   });
 });

@@ -47,6 +47,7 @@ const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   exit: "editor.event.kind.exit",
   monster: "editor.event.kind.monster",
   guard: "editor.event.kind.guard",
+  harvestable: "editor.event.kind.harvestable",
   spawn: "editor.event.kind.spawn",
 };
 

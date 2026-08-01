@@ -895,6 +895,10 @@ describe("editor history", () => {
 describe("applyTool: functional event kinds (entry / exit / monster / guard / NPC)", () => {
   const base = blankMap("m", 20, 15);
 
+  it("refuses to mint a harvestable event without the dedicated profile editor", () => {
+    expect(place(base, { kind: "event", eventKind: "harvestable" }, 2, 2)).toBeNull();
+  });
+
   it("places an entry event as a functionalEvent-shaped MapEvent with a uuid", () => {
     const next = place(base, { kind: "event", eventKind: "entry" }, 2, 2) as EditorMap;
     expect(next).not.toBeNull();

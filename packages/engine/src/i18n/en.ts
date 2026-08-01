@@ -1044,6 +1044,7 @@ export const en = {
   "editor.inspector.exit": "Exit",
   "editor.inspector.monster": "Monster spawn",
   "editor.inspector.guard": "Allied guard",
+  "editor.inspector.harvestable": "Harvestable resource",
   "editor.inspector.npc": "Free NPC",
   "editor.inspector.event": "Event",
   "editor.inspector.spawn": "Map fallback and test start",
@@ -1718,6 +1719,7 @@ export const en = {
   "editor.event.kind.exit": "Exit",
   "editor.event.kind.monster": "Monster",
   "editor.event.kind.guard": "Allied guard",
+  "editor.event.kind.harvestable": "Harvestable resource",
   "editor.event.kind.spawn": "Adventure start",
   "editor.event.kind.anchor.hint":
     "Legacy anchor retained for compatibility with older adventures.",

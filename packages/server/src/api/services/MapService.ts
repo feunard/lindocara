@@ -31,6 +31,7 @@ import {
   type MonsterAttackProfile,
   type MonsterSpecies,
 } from "@lindocara/engine/game.js";
+import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
 import { EMPTY_MARKERS, type MapElement } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
@@ -87,10 +88,11 @@ const D1_BOUND_PARAM_BUDGET = 90;
 export const MAP_ELEMENT_COLUMNS = 8;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
- *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs.
+ *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs,
+ *  harvestProfile.
  *  Exported — see
  *  `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_COLUMNS = 21;
+export const MAP_EVENT_COLUMNS = 22;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, graphicTint, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix,
  *  optThrough, optOnTop, trigger, moveRoute, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s
@@ -99,6 +101,16 @@ export const MAP_EVENT_PAGE_COLUMNS = 20;
 const MAP_ELEMENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_ELEMENT_COLUMNS);
 const MAP_EVENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_COLUMNS);
 const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_PAGE_COLUMNS);
+
+/** Corrupt or missing harvest JSON never escapes as trusted gameplay configuration. */
+function decodeHarvestProfileColumn(text: string | null | undefined): HarvestProfile | null {
+  if (!text) return null;
+  try {
+    return parseHarvestProfile(JSON.parse(text));
+  } catch {
+    return null;
+  }
+}
 
 export interface MapSummary {
   id: string;
@@ -472,6 +484,8 @@ export class MapService {
         monsterAttackProfile: event.monsterAttackProfile ?? undefined,
         monsterRespawnMode: event.monsterRespawnMode ?? undefined,
         monsterRespawnDelayMs: event.monsterRespawnDelayMs ?? undefined,
+        harvestProfile:
+          event.harvestProfile === undefined ? undefined : JSON.stringify(event.harvestProfile),
       })),
       { batchSize: MAP_EVENT_BATCH_SIZE },
     );
@@ -559,9 +573,12 @@ export class MapService {
       const isNpc = row.kind === "npc";
       const isTuned = isMonster || isNpc;
       const isGuard = row.kind === "guard";
+      const isHarvestable = row.kind === "harvestable";
+      const harvestProfile = isHarvestable ? decodeHarvestProfileColumn(row.harvestProfile) : null;
       if (
         (isMonster && (row.species == null || row.patrolRadius == null)) ||
-        ((isGuard || isNpc) && row.patrolRadius == null)
+        ((isGuard || isNpc) && row.patrolRadius == null) ||
+        (isHarvestable && harvestProfile === null)
       ) {
         return [];
       }
@@ -598,6 +615,7 @@ export class MapService {
           ...(isMonster && row.monsterRespawnDelayMs != null
             ? { monsterRespawnDelayMs: row.monsterRespawnDelayMs }
             : {}),
+          ...(harvestProfile === null ? {} : { harvestProfile }),
           pages,
         } as MapEvent,
       ];
