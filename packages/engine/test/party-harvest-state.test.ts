@@ -173,7 +173,9 @@ describe("harvest node state", () => {
         eventId: EVENT_ID,
         generation: 4,
         hits: 1,
+        lastHitAt: 1_000,
         depleted: true,
+        depletedAt: 1_000,
         respawnAt: 2_000,
       },
     };

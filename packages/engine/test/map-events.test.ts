@@ -26,7 +26,10 @@ import {
   parseMapEvents,
   validateEventName,
 } from "@lindocara/engine/map-events.js";
-import { DEFAULT_GUARD_APPEARANCE_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  type EditorAssetId,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 const COLS = 16;
@@ -678,7 +681,7 @@ describe("mutation proofs", () => {
 });
 
 describe("harvestable map events", () => {
-  function harvestable(graphicAssetId = TREE_ASSET_ID): MapEvent {
+  function harvestable(graphicAssetId: EditorAssetId = TREE_ASSET_ID): MapEvent {
     return event({
       kind: "harvestable",
       name: "Oak",
