@@ -112,6 +112,7 @@ import {
   type QuestAbandonResult,
   type QuestAcceptanceResult,
   type QuestTurnInResult,
+  type ReconcilePartyMaterialSpendsResult,
 } from "./PartyRoom.ts";
 import { PresenceRoom } from "./PresenceRoom.ts";
 import { runPeasantSupportSaga } from "./peasantSupportSaga.ts";
@@ -402,14 +403,15 @@ export class WorldRoom {
     // the party coordinator's write queue before this admission reads the additive gold ledger.
     try {
       await this.partyRoom.room.call(state.partyId, "reconcileHarvestGoldClaims");
+      await this.reconcilePartyMaterialSpends(state);
     } catch (error) {
-      this.logError("harvest_gold_reconciliation_failed", error, { heroId: join.heroId });
+      this.logError("admission_reconciliation_failed", error, { heroId: join.heroId });
       try {
         await this.presenceRoom.room.call(join.heroId, "release", conn.id, acquired.sessionEpoch);
       } catch {
-        // The short lease expires on its own; admission still fails closed on uncertain gold.
+        // The short lease expires on its own; admission still fails closed on uncertain rewards.
       }
-      room.close(conn.id, WS_CLOSE.PRESENCE_ERROR, "gold reconciliation failed");
+      room.close(conn.id, WS_CLOSE.PRESENCE_ERROR, "party reconciliation failed");
       return;
     }
 
@@ -717,14 +719,31 @@ export class WorldRoom {
     }
   }
 
-  private async startPeasantSupportSkill(
+  protected startPeasantSupportSkill(
     room: WorldRoomHandle,
     state: WorldRoomState,
     connectionId: string,
     player: PlayerRuntime,
     request: PeasantSupportRequest,
   ): Promise<void> {
-    const identity = { reservationId: request.id, heroId: player.id };
+    return this.enqueueSupportSpendWork(state, () =>
+      this.runPeasantSupportSkill(room, state, connectionId, player, request),
+    );
+  }
+
+  protected async runPeasantSupportSkill(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+    request: PeasantSupportRequest,
+  ): Promise<void> {
+    const identity = {
+      reservationId: request.id,
+      heroId: player.id,
+      roomKey: state.roomKey,
+      costs: request.plan.cost,
+    };
     const installMaterials = (result: PartyMaterialReservationResult): void => {
       if (!result.ok) return;
       state.adventureState = {
@@ -749,12 +768,14 @@ export class WorldRoom {
       );
     };
     const outcome = await runPeasantSupportSaga({
-      reserve: async () =>
-        (await this.partyRoom.room.call(state.partyId, "reservePartyMaterials", {
-          reservationId: request.id,
-          heroId: player.id,
-          costs: request.plan.cost,
-        })) as PartyMaterialReservationResult,
+      reserve: async () => {
+        await this.reconcilePartyMaterialSpendsUnlocked(state);
+        return (await this.partyRoom.room.call(
+          state.partyId,
+          "reservePartyMaterials",
+          identity,
+        )) as PartyMaterialReservationResult;
+      },
       commit: async () => {
         const result = (await this.partyRoom.room.call(
           state.partyId,
@@ -771,11 +792,21 @@ export class WorldRoom {
           identity,
         )) as PartyMaterialReservationResult;
         installMaterials(result);
+        return result;
       },
-      settle: () => this.partyRoom.room.call(state.partyId, "settlePartyMaterials", identity),
+      settle: async () =>
+        (await this.partyRoom.room.call(
+          state.partyId,
+          "settlePartyMaterials",
+          identity,
+        )) as PartyMaterialReservationResult,
       cancelLocal: () => cancelPeasantSupportRequest(state, request),
       isValid: valid,
-      activate: () => activatePeasantSupportRequest(this.glue(room), player, request),
+      activate: () => {
+        const activated = activatePeasantSupportRequest(this.glue(room), player, request);
+        if (activated) state.activatedSupportSpendIds.add(request.id);
+        return activated;
+      },
       onError: (stage, error) =>
         this.logError(`peasant_material_${stage}_failed`, error, {
           heroId: player.id,
@@ -793,8 +824,40 @@ export class WorldRoom {
       });
       return;
     }
+    if (outcome === "activated") state.activatedSupportSpendIds.delete(request.id);
     if (outcome === "activated" || outcome === "activated_unsettled")
       await this.checkpointCooldownsOrReject(room, state, connectionId, player);
+  }
+
+  protected enqueueSupportSpendWork<T>(state: WorldRoomState, work: () => Promise<T>): Promise<T> {
+    const result = state.supportSpendQueue.then(work);
+    state.supportSpendQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  protected reconcilePartyMaterialSpends(state: WorldRoomState): Promise<void> {
+    return this.enqueueSupportSpendWork(state, () =>
+      this.reconcilePartyMaterialSpendsUnlocked(state),
+    );
+  }
+
+  protected async reconcilePartyMaterialSpendsUnlocked(state: WorldRoomState): Promise<void> {
+    const activatedIds = [...state.activatedSupportSpendIds];
+    const result = (await this.partyRoom.room.call(state.partyId, "reconcilePartyMaterialSpends", {
+      roomKey: state.roomKey,
+      activatedIds,
+    })) as ReconcilePartyMaterialSpendsResult;
+    if (!result.ok) throw new Error(`support-spend reconciliation refused: ${result.reason}`);
+    state.adventureState = {
+      ...state.adventureState,
+      state: { ...state.adventureState.state, materials: result.materials },
+    };
+    for (const reservationId of result.acknowledgedIds) {
+      state.activatedSupportSpendIds.delete(reservationId);
+    }
   }
 
   /**
@@ -1236,6 +1299,11 @@ export class WorldRoom {
     player: PlayerRuntime,
   ): Promise<void> {
     if (!player.authorized) return;
+    try {
+      await this.reconcilePartyMaterialSpends(state);
+    } catch (error) {
+      this.logError("support_spend_reconciliation_failed", error, { roomId: state.roomKey });
+    }
     void this.partyRoom.room
       .call(state.partyId, "registerRoom", state.roomKey)
       .catch((error) => this.logError("party_room_register_failed", error));

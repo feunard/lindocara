@@ -17,8 +17,8 @@ export type PeasantSupportSagaResult =
 export async function runPeasantSupportSaga(options: {
   readonly reserve: () => Promise<PartyMaterialReservationResult>;
   readonly commit: () => Promise<PartyMaterialReservationResult>;
-  readonly release: () => Promise<unknown>;
-  readonly settle: () => Promise<unknown>;
+  readonly release: () => Promise<PartyMaterialReservationResult>;
+  readonly settle: () => Promise<PartyMaterialReservationResult>;
   readonly cancelLocal: () => void;
   readonly isValid: () => boolean;
   readonly activate: () => boolean;
@@ -31,7 +31,10 @@ export async function runPeasantSupportSaga(options: {
     // classify both "failed before execution" and "reply lost after execution" without a timer.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        await options.release();
+        const released = await options.release();
+        if (!released.ok || (released.status !== "released" && released.status !== "refunded")) {
+          throw new Error("support-spend release was not acknowledged");
+        }
         return;
       } catch (error) {
         lastError = error;
@@ -83,7 +86,10 @@ export async function runPeasantSupportSaga(options: {
   }
 
   try {
-    await options.settle();
+    const settled = await options.settle();
+    if (!settled.ok || settled.status !== "settled") {
+      throw new Error("support-spend settlement was not acknowledged");
+    }
     return "activated";
   } catch (error) {
     options.onError("settle", error);

@@ -1,7 +1,8 @@
 /**
  * D1 boundary for `PartyRoom` (Task 3, realtime tranche) — the party's live adventure state
- * (switches/variables/self-switches/quests/defeatedMonsters/materials/harvestNodes plus the
- * monotone push version) and the fenced, epoch-gated writes a quest reward touches on a hero:
+ * (switches/variables/self-switches/quests/defeatedMonsters/materials/harvestNodes, the private
+ * support-spend journal, plus the monotone push version) and the fenced, epoch-gated writes a quest
+ * reward touches on a hero:
  * core stats (gold/level/xp/hp),
  * items, personal quest progress and the reward-claim idempotency row.
  *
@@ -64,6 +65,7 @@ import { heroItems } from "../entities/heroItems.ts";
 import { heroQuests } from "../entities/heroQuests.ts";
 import { parties } from "../entities/parties.ts";
 import { partyAdventureStates } from "../entities/partyAdventureStates.ts";
+import { parseSupportSpendJournal, type SupportSpendJournal } from "./supportSpendJournal.ts";
 
 export interface PartyContext {
   adventureId: string;
@@ -75,9 +77,15 @@ export interface VersionedPartyAdventureState {
   version: number;
 }
 
+/** Coordinator-only state. `supportSpends` must never cross into engine or wire contracts. */
+export interface CoordinatorPartyAdventureState extends VersionedPartyAdventureState {
+  supportSpends: SupportSpendJournal;
+}
+
 export interface HarvestGoldReconciliationContext extends VersionedPartyAdventureState {
   registry: AdventureRegistry;
   partyCompleted: boolean;
+  supportSpends: SupportSpendJournal;
 }
 
 export interface ClaimQuestRewardInput {
@@ -115,6 +123,7 @@ interface StoredPartyAdventureStateFields {
   defeatedMonsters: string;
   materials: string;
   harvestNodes: string;
+  supportSpends: string;
   version: number;
 }
 
@@ -176,6 +185,18 @@ function decodePartyAdventureStateRow(
     : { ok: false, reason: "malformed_state" };
 }
 
+function decodeSupportSpendJournalRow(row: StoredPartyAdventureStateFields): SupportSpendJournal {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(row.supportSpends);
+  } catch {
+    throw new Error("cannot load invalid support-spend JSON");
+  }
+  const journal = parseSupportSpendJournal(raw);
+  if (!journal) throw new Error("cannot load malformed support-spend journal");
+  return journal;
+}
+
 export class AdventureStateService {
   parties = $repository(parties);
   adventures = $repository(adventures);
@@ -219,6 +240,22 @@ export class AdventureStateService {
   }
 
   /**
+   * Strict coordinator load for the private support-spend journal. Legacy rows decode from the
+   * column default `{}`. Invalid JSON or an invalid entry fails closed: replacing uncertainty with
+   * an empty journal could refund or charge the same action twice.
+   */
+  async loadCoordinatorState(partyId: string): Promise<CoordinatorPartyAdventureState> {
+    const row = await this.partyAdventureStates.findById(partyId);
+    if (!row) return { state: EMPTY_ADVENTURE_STATE, version: 0, supportSpends: {} };
+    const supportSpends = decodeSupportSpendJournalRow(row);
+    const decoded = decodePartyAdventureStateRow(row);
+    if (!decoded.ok) {
+      throw new Error(`cannot load coordinator from ${decoded.reason} party state`);
+    }
+    return { ...decoded.value, supportSpends };
+  }
+
+  /**
    * Strict durable read used only to decide a prepared gold claim. Unlike the ordinary gameplay
    * loader, repository errors and corrupt JSON are not allowed to masquerade as an empty party:
    * uncertainty must leave the claim pending for a later retry.
@@ -239,6 +276,7 @@ export class AdventureStateService {
         version: 0,
         registry,
         partyCompleted: party.status === "completed",
+        supportSpends: {},
       };
     }
     const decoded = decodePartyAdventureStateRow(row);
@@ -249,6 +287,7 @@ export class AdventureStateService {
       ...decoded.value,
       registry,
       partyCompleted: party.status === "completed",
+      supportSpends: decodeSupportSpendJournalRow(row),
     };
   }
 
@@ -268,6 +307,30 @@ export class AdventureStateService {
       defeatedMonsters: JSON.stringify(state.defeatedMonsters ?? {}),
       materials: JSON.stringify(state.materials ?? {}),
       harvestNodes: JSON.stringify(state.harvestNodes ?? {}),
+      version,
+    });
+  }
+
+  /**
+   * One-row atomic transition for material spending/refunding and its private idempotency journal.
+   * Ordinary state saves omit `supportSpends`, so their conflict update preserves this column.
+   */
+  async saveWithSupportSpends(
+    partyId: string,
+    state: PartyAdventureState,
+    version: number,
+    supportSpends: SupportSpendJournal,
+  ): Promise<void> {
+    await this.partyAdventureStates.upsert({
+      partyId,
+      switches: JSON.stringify(state.switches),
+      variables: JSON.stringify(state.variables),
+      selfSwitches: JSON.stringify(state.selfSwitches),
+      quests: JSON.stringify(state.quests ?? {}),
+      defeatedMonsters: JSON.stringify(state.defeatedMonsters ?? {}),
+      materials: JSON.stringify(state.materials ?? {}),
+      harvestNodes: JSON.stringify(state.harvestNodes ?? {}),
+      supportSpends: JSON.stringify(supportSpends),
       version,
     });
   }

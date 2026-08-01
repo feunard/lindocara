@@ -174,6 +174,10 @@ export interface WorldRoomState {
   projectiles: ProjectileRuntime[];
   /** Room-local camps, homemade bombs and in-flight material requests. */
   peasantSupport: PeasantSupportRuntime;
+  /** Activated support spends whose durable settlement has not yet been acknowledged. */
+  activatedSupportSpendIds: Set<string>;
+  /** Serializes support sagas with room-level durable reconciliation. */
+  supportSpendQueue: Promise<void>;
   /** Room-local priest sanctuaries (legacy `#sanctuaries`). */
   sanctuaries: SanctuaryRuntime[];
   lumenPortals: LumenPortalRuntime[];
@@ -265,6 +269,8 @@ export function createWorldRoomState(
     loot: [],
     projectiles: [],
     peasantSupport: createPeasantSupportRuntime(),
+    activatedSupportSpendIds: new Set(),
+    supportSpendQueue: Promise.resolve(),
     sanctuaries: [],
     lumenPortals: [],
     polarityOrbs: [],

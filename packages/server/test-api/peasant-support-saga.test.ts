@@ -23,16 +23,24 @@ const committed: PartyMaterialReservationResult = {
   status: "committed",
   materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
 };
+const released: PartyMaterialReservationResult = {
+  ...held,
+  status: "released",
+};
+const settled: PartyMaterialReservationResult = {
+  ...committed,
+  status: "settled",
+};
 
 function harness(
   overrides: {
     reserve?: () => Promise<PartyMaterialReservationResult>;
     commit?: () => Promise<PartyMaterialReservationResult>;
-    settle?: () => Promise<unknown>;
+    settle?: () => Promise<PartyMaterialReservationResult>;
     isValid?: () => boolean;
   } = {},
 ) {
-  const release = vi.fn(async () => undefined);
+  const release = vi.fn(async () => released);
   const cancelLocal = vi.fn();
   const activate = vi.fn(() => true);
   const onError = vi.fn();
@@ -41,7 +49,7 @@ function harness(
       reserve: overrides.reserve ?? (async () => held),
       commit: overrides.commit ?? (async () => committed),
       release,
-      settle: overrides.settle ?? (async () => undefined),
+      settle: overrides.settle ?? (async () => settled),
       cancelLocal,
       isValid: overrides.isValid ?? (() => true),
       activate,
@@ -86,9 +94,9 @@ describe("Peasant material saga", () => {
 
   it("retries an idempotent compensation when the first coordinator reply is lost", async () => {
     const release = vi
-      .fn<() => Promise<void>>()
+      .fn<() => Promise<PartyMaterialReservationResult>>()
       .mockRejectedValueOnce(new Error("reply lost"))
-      .mockResolvedValue(undefined);
+      .mockResolvedValue(released);
     const onError = vi.fn();
 
     await expect(
@@ -96,7 +104,7 @@ describe("Peasant material saga", () => {
         reserve: async () => held,
         commit: async () => committed,
         release,
-        settle: async () => undefined,
+        settle: async () => settled,
         cancelLocal: vi.fn(),
         isValid: () => false,
         activate: vi.fn(() => true),

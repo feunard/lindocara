@@ -1,0 +1,1 @@
+ALTER TABLE `partyAdventureStates` ADD `support_spends` text DEFAULT '{}' NOT NULL;

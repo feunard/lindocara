@@ -53,6 +53,17 @@ import {
   processAuthoredQuestEvent,
 } from "../../authored-quest-system.js";
 import { AdventureStateService } from "../services/AdventureStateService.ts";
+import {
+  committedSupportSpendTotals,
+  MAX_SUPPORT_SPEND_ENTRIES,
+  pruneSupportSpendOutcomes,
+  SUPPORT_SPEND_OUTCOME_TTL_MS,
+  type SupportSpendEntry,
+  type SupportSpendJournal,
+  type SupportSpendStatus,
+  sameSupportSpend,
+  supportSpendRoomBelongsToParty,
+} from "../services/supportSpendJournal.ts";
 import { RealtimeChannels } from "./channels.ts";
 
 export type QuestAcceptanceResult =
@@ -148,6 +159,7 @@ export type ConsumePartyMaterialsResult =
 export interface PartyMaterialReservationRequest {
   readonly reservationId: string;
   readonly heroId: string;
+  readonly roomKey: string;
   readonly costs: PartyMaterialAmounts;
 }
 
@@ -155,7 +167,7 @@ export type PartyMaterialReservationResult =
   | {
       readonly ok: true;
       readonly reservationId: string;
-      readonly status: "held" | "committed" | "settled" | "released" | "refunded";
+      readonly status: "held" | SupportSpendStatus;
       readonly materials: PartyMaterials;
     }
   | {
@@ -163,9 +175,21 @@ export type PartyMaterialReservationResult =
       readonly reason: "invalid" | "party" | "insufficient" | "reservation";
     };
 
+export interface ReconcilePartyMaterialSpendsRequest {
+  readonly roomKey: string;
+  readonly activatedIds: readonly string[];
+}
+
+export type ReconcilePartyMaterialSpendsResult =
+  | {
+      readonly ok: true;
+      readonly materials: PartyMaterials;
+      readonly acknowledgedIds: readonly string[];
+    }
+  | { readonly ok: false; readonly reason: "invalid" | "party" | "overflow" };
+
 const HARVEST_RESERVATION_TTL_MS = 10_000;
 const MATERIAL_RESERVATION_TTL_MS = 10_000;
-const MATERIAL_OUTCOME_TTL_MS = 60_000;
 const MAX_MATERIAL_RESERVATIONS = 128;
 
 interface HarvestReservation {
@@ -186,7 +210,7 @@ type ParsedReserveHarvestNodeRequest = Omit<ReserveHarvestNodeRequest, "goldValu
 };
 
 interface PartyMaterialReservation extends PartyMaterialReservationRequest {
-  status: "held" | "committed" | "settled" | "released" | "refunded";
+  status: "held" | SupportSpendStatus;
   expiresAt: number;
 }
 
@@ -256,15 +280,41 @@ function parsePartyMaterialReservationRequest(
 ): PartyMaterialReservationRequest | null {
   if (!isPlainObject(value) || !isUuid(value.reservationId) || !isUuid(value.heroId)) return null;
   const costs = parsePartyMaterialAmounts(value.costs);
-  if (!costs || !hasPartyMaterialAmount(costs)) return null;
-  return { reservationId: value.reservationId, heroId: value.heroId, costs };
+  if (
+    !costs ||
+    !hasPartyMaterialAmount(costs) ||
+    typeof value.roomKey !== "string" ||
+    value.roomKey.length > 73
+  )
+    return null;
+  return {
+    reservationId: value.reservationId,
+    heroId: value.heroId,
+    roomKey: value.roomKey,
+    costs,
+  };
 }
 
 function parsePartyMaterialReservationIdentity(
   value: unknown,
-): Pick<PartyMaterialReservationRequest, "reservationId" | "heroId"> | null {
-  if (!isPlainObject(value) || !isUuid(value.reservationId) || !isUuid(value.heroId)) return null;
-  return { reservationId: value.reservationId, heroId: value.heroId };
+): PartyMaterialReservationRequest | null {
+  return parsePartyMaterialReservationRequest(value);
+}
+
+function parseReconcilePartyMaterialSpendsRequest(
+  value: unknown,
+): ReconcilePartyMaterialSpendsRequest | null {
+  if (
+    !isPlainObject(value) ||
+    typeof value.roomKey !== "string" ||
+    !Array.isArray(value.activatedIds)
+  )
+    return null;
+  if (value.activatedIds.length > MAX_SUPPORT_SPEND_ENTRIES) return null;
+  const activatedIds = [...new Set(value.activatedIds)];
+  if (activatedIds.length !== value.activatedIds.length || activatedIds.some((id) => !isUuid(id)))
+    return null;
+  return { roomKey: value.roomKey, activatedIds };
 }
 
 function sameMaterialAmounts(left: PartyMaterialAmounts, right: PartyMaterialAmounts): boolean {
@@ -309,6 +359,19 @@ function reservationResult(
   };
 }
 
+function journalReservationResult(
+  reservationId: string,
+  entry: SupportSpendEntry,
+  materials: PartyMaterials,
+): PartyMaterialReservationResult {
+  return {
+    ok: true,
+    reservationId,
+    status: entry.status,
+    materials: { ...materials },
+  };
+}
+
 function sameEventReference(left: QuestEventReference | null, right: QuestEventReference): boolean {
   return left?.mapId === right.mapId && left.eventId === right.eventId;
 }
@@ -318,6 +381,7 @@ interface VersionedState {
   state: PartyAdventureState;
   version: number;
   registry: AdventureRegistry;
+  supportSpends: SupportSpendJournal;
 }
 
 /** Quest commands are authored map data, so their ids are shape-checked at the map boundary and
@@ -491,6 +555,8 @@ export class PartyRoom {
         this.releasePartyMaterials(room.roomId, room.state, request),
       settlePartyMaterials: (room, request: unknown) =>
         this.settlePartyMaterials(room.roomId, room.state, request),
+      reconcilePartyMaterialSpends: (room, request: unknown) =>
+        this.reconcilePartyMaterialSpends(room.roomId, room.state, request),
       recordQuestEvent: (room, event: QuestBusinessEvent) =>
         this.recordQuestEvent(room.roomId, room.state, event),
       acceptAuthoredQuest: (
@@ -540,8 +606,9 @@ export class PartyRoom {
   protected async getAdventureState(
     partyId: string,
     state: PartyRoomState,
-  ): Promise<VersionedState> {
-    return this.ensureState(partyId, state);
+  ): Promise<Omit<VersionedState, "supportSpends">> {
+    const current = await this.ensureState(partyId, state);
+    return { state: current.state, version: current.version, registry: current.registry };
   }
 
   /**
@@ -570,6 +637,7 @@ export class PartyRoom {
       state: normalizeAuthoredQuestProgress(durable.registry, durable.state),
       version: durable.version,
       registry: durable.registry,
+      supportSpends: durable.supportSpends,
     };
     state.partyCompleted = durable.partyCompleted;
     state.cached = recovered;
@@ -608,11 +676,12 @@ export class PartyRoom {
         ? await this.adventureStateService.loadRegistry(context.adventureId)
         : EMPTY_REGISTRY;
       state.partyCompleted = context?.status === "completed";
-      const loaded = await this.adventureStateService.load(partyId);
+      const loaded = await this.adventureStateService.loadCoordinatorState(partyId);
       state.cached = {
         state: normalizeAuthoredQuestProgress(registry, loaded.state),
         version: loaded.version,
         registry,
+        supportSpends: loaded.supportSpends,
       };
     }
     return state.cached;
@@ -645,6 +714,7 @@ export class PartyRoom {
       state: nextState,
       version: current.version + 1,
       registry: current.registry,
+      supportSpends: current.supportSpends,
     };
     try {
       await this.adventureStateService.save(partyId, next.state, next.version);
@@ -656,6 +726,36 @@ export class PartyRoom {
     }
     // Publish the cache only after the durable write. If D1 rejects, later queued work must still
     // see the last committed state rather than a phantom depletion or material spend.
+    state.cached = next;
+    await this.pushStateToRooms(partyId, state, next);
+    return next;
+  }
+
+  /** Same public fan-out as `commitState`, with the private spend journal in the D1 statement. */
+  protected async commitStateWithSupportSpends(
+    partyId: string,
+    state: PartyRoomState,
+    nextState: PartyAdventureState,
+    supportSpends: SupportSpendJournal,
+  ): Promise<VersionedState> {
+    const current = await this.ensureState(partyId, state);
+    const next: VersionedState = {
+      state: nextState,
+      version: current.version + 1,
+      registry: current.registry,
+      supportSpends,
+    };
+    try {
+      await this.adventureStateService.saveWithSupportSpends(
+        partyId,
+        next.state,
+        next.version,
+        next.supportSpends,
+      );
+    } catch (error) {
+      state.cached = null;
+      throw error;
+    }
     state.cached = next;
     await this.pushStateToRooms(partyId, state, next);
     return next;
@@ -855,10 +955,8 @@ export class PartyRoom {
       // the action. Keep that tiny compensation capacity free so a disconnect refund cannot ever
       // overflow after a concurrent harvest reward.
       if (
-        addPartyMaterials(
-          result.materials,
-          materialReservationTotals(state.materialReservations.values(), "committed"),
-        ) === null
+        addPartyMaterials(result.materials, committedSupportSpendTotals(current.supportSpends)) ===
+        null
       )
         return { ok: false, reason: "overflow" };
       const goldClaim =
@@ -934,30 +1032,50 @@ export class PartyRoom {
   }
 
   /**
-   * Release expired holds and retire old outcomes. A committed spend is deliberately never
-   * auto-refunded: the WorldRoom may already have created the action and only lost the settlement
-   * acknowledgement. Only an explicit release before action creation may compensate it.
+   * Expired volatile holds become durable `released` tombstones. Committed entries are never
+   * inferred settled/refunded from time; only an owning WorldRoom reconciliation may decide them.
    */
   protected async refreshMaterialReservations(
-    _partyId: string,
+    partyId: string,
     state: PartyRoomState,
     initial: VersionedState,
     now: number,
   ): Promise<VersionedState> {
-    const current = initial;
+    let current = initial;
+    let journal = current.supportSpends;
+    let journalChanged = false;
     for (const [id, reservation] of state.materialReservations) {
       if (reservation.expiresAt > now) continue;
       if (reservation.status === "held") {
-        reservation.status = "released";
-        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+        const existing = journal[id];
+        if (existing && !sameSupportSpend(existing, reservation)) {
+          throw new Error("support-spend reservation identity changed");
+        }
+        if (!existing) {
+          const pruned = pruneSupportSpendOutcomes(journal, now, 1);
+          if (!pruned) throw new Error("support-spend journal capacity exhausted");
+          journal = {
+            ...pruned,
+            [id]: {
+              heroId: reservation.heroId,
+              roomKey: reservation.roomKey,
+              costs: reservation.costs,
+              status: "released",
+              createdAt: now,
+              resolvedAt: now,
+            },
+          };
+          journalChanged = true;
+        }
+        reservation.status = existing?.status ?? "released";
+        reservation.expiresAt = now + SUPPORT_SPEND_OUTCOME_TTL_MS;
         continue;
       }
-      if (reservation.status === "committed") {
-        reservation.status = "settled";
-        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
-        continue;
-      }
+      // Durable committed entries remain unresolved. Volatile mirrors/outcomes may be discarded.
       state.materialReservations.delete(id);
+    }
+    if (journalChanged) {
+      current = await this.commitStateWithSupportSpends(partyId, state, current.state, journal);
     }
     return current;
   }
@@ -970,23 +1088,39 @@ export class PartyRoom {
   ): Promise<PartyMaterialReservationResult> {
     return this.enqueueStateWrite(state, async () => {
       const request = parsePartyMaterialReservationRequest(rawRequest);
-      if (!request) return { ok: false, reason: "invalid" };
+      if (!request || !supportSpendRoomBelongsToParty(request.roomKey, partyId))
+        return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
       let current = await this.ensureState(partyId, state);
       current = await this.refreshMaterialReservations(partyId, state, current, now);
       if (state.partyCompleted) return { ok: false, reason: "party" };
 
+      const durable = current.supportSpends[request.reservationId];
+      if (durable) {
+        if (!sameSupportSpend(durable, request)) return { ok: false, reason: "reservation" };
+        return journalReservationResult(
+          request.reservationId,
+          durable,
+          current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        );
+      }
       const existing = state.materialReservations.get(request.reservationId);
       if (existing) {
         if (
           existing.heroId !== request.heroId ||
+          existing.roomKey !== request.roomKey ||
           !sameMaterialAmounts(existing.costs, request.costs)
         )
           return { ok: false, reason: "reservation" };
         return reservationResult(existing, current.state.materials ?? EMPTY_PARTY_MATERIALS);
       }
       if (state.materialReservations.size >= MAX_MATERIAL_RESERVATIONS)
+        return { ok: false, reason: "reservation" };
+      const heldCount = [...state.materialReservations.values()].filter(
+        (reservation) => reservation.status === "held",
+      ).length;
+      if (!pruneSupportSpendOutcomes(current.supportSpends, now, heldCount + 1))
         return { ok: false, reason: "reservation" };
       const available = availablePartyMaterials(
         current.state.materials ?? EMPTY_PARTY_MATERIALS,
@@ -1012,14 +1146,29 @@ export class PartyRoom {
   ): Promise<PartyMaterialReservationResult> {
     return this.enqueueStateWrite(state, async () => {
       const identity = parsePartyMaterialReservationIdentity(rawIdentity);
-      if (!identity) return { ok: false, reason: "invalid" };
+      if (!identity || !supportSpendRoomBelongsToParty(identity.roomKey, partyId))
+        return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
       let current = await this.ensureState(partyId, state);
       current = await this.refreshMaterialReservations(partyId, state, current, now);
       if (state.partyCompleted) return { ok: false, reason: "party" };
+      const durable = current.supportSpends[identity.reservationId];
+      if (durable) {
+        if (!sameSupportSpend(durable, identity)) return { ok: false, reason: "reservation" };
+        return journalReservationResult(
+          identity.reservationId,
+          durable,
+          current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        );
+      }
       const reservation = state.materialReservations.get(identity.reservationId);
-      if (!reservation || reservation.heroId !== identity.heroId)
+      if (
+        !reservation ||
+        reservation.heroId !== identity.heroId ||
+        reservation.roomKey !== identity.roomKey ||
+        !sameMaterialAmounts(reservation.costs, identity.costs)
+      )
         return { ok: false, reason: "reservation" };
       if (reservation.status !== "held")
         return reservationResult(reservation, current.state.materials ?? EMPTY_PARTY_MATERIALS);
@@ -1028,9 +1177,31 @@ export class PartyRoom {
         reservation.costs,
       );
       if (!materials) return { ok: false, reason: "insufficient" };
+      const heldCount = [...state.materialReservations.values()].filter(
+        (candidate) =>
+          candidate.status === "held" && candidate.reservationId !== identity.reservationId,
+      ).length;
+      const journal = pruneSupportSpendOutcomes(current.supportSpends, now, heldCount + 1);
+      if (!journal) return { ok: false, reason: "reservation" };
+      const supportSpends: SupportSpendJournal = {
+        ...journal,
+        [identity.reservationId]: {
+          heroId: identity.heroId,
+          roomKey: identity.roomKey,
+          costs: identity.costs,
+          status: "committed",
+          createdAt: now,
+          resolvedAt: null,
+        },
+      };
+      current = await this.commitStateWithSupportSpends(
+        partyId,
+        state,
+        { ...current.state, materials },
+        supportSpends,
+      );
       reservation.status = "committed";
-      reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
-      current = await this.commitState(partyId, state, { ...current.state, materials });
+      reservation.expiresAt = now + SUPPORT_SPEND_OUTCOME_TTL_MS;
       return reservationResult(reservation, materials);
     });
   }
@@ -1043,28 +1214,76 @@ export class PartyRoom {
   ): Promise<PartyMaterialReservationResult> {
     return this.enqueueStateWrite(state, async () => {
       const identity = parsePartyMaterialReservationIdentity(rawIdentity);
-      if (!identity) return { ok: false, reason: "invalid" };
+      if (!identity || !supportSpendRoomBelongsToParty(identity.roomKey, partyId))
+        return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
       let current = await this.ensureState(partyId, state);
       current = await this.refreshMaterialReservations(partyId, state, current, now);
-      const reservation = state.materialReservations.get(identity.reservationId);
-      if (!reservation || reservation.heroId !== identity.heroId)
+      const durable = current.supportSpends[identity.reservationId];
+      if (durable && !sameSupportSpend(durable, identity))
         return { ok: false, reason: "reservation" };
-      if (reservation.status === "held") {
-        reservation.status = "released";
-        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
-      } else if (reservation.status === "committed") {
+      if (durable?.status === "committed") {
         const materials = addPartyMaterials(
           current.state.materials ?? EMPTY_PARTY_MATERIALS,
-          reservation.costs,
+          durable.costs,
         );
         if (!materials) throw new Error("committed material reservation could not be refunded");
-        reservation.status = "refunded";
-        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
-        current = await this.commitState(partyId, state, { ...current.state, materials });
+        const supportSpends: SupportSpendJournal = {
+          ...current.supportSpends,
+          [identity.reservationId]: {
+            ...durable,
+            status: "refunded",
+            resolvedAt: Math.max(now, durable.createdAt),
+          },
+        };
+        current = await this.commitStateWithSupportSpends(
+          partyId,
+          state,
+          { ...current.state, materials },
+          supportSpends,
+        );
+      } else if (durable) {
+        return journalReservationResult(
+          identity.reservationId,
+          durable,
+          current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        );
+      } else {
+        const reservation = state.materialReservations.get(identity.reservationId);
+        if (reservation && !sameSupportSpend(reservation, identity))
+          return { ok: false, reason: "reservation" };
+        const heldCount = [...state.materialReservations.values()].filter(
+          (candidate) =>
+            candidate.status === "held" && candidate.reservationId !== identity.reservationId,
+        ).length;
+        const journal = pruneSupportSpendOutcomes(current.supportSpends, now, heldCount + 1);
+        if (!journal) return { ok: false, reason: "reservation" };
+        const released: SupportSpendEntry = {
+          heroId: identity.heroId,
+          roomKey: identity.roomKey,
+          costs: identity.costs,
+          status: "released",
+          createdAt: now,
+          resolvedAt: now,
+        };
+        current = await this.commitStateWithSupportSpends(partyId, state, current.state, {
+          ...journal,
+          [identity.reservationId]: released,
+        });
       }
-      return reservationResult(reservation, current.state.materials ?? EMPTY_PARTY_MATERIALS);
+      const entry = current.supportSpends[identity.reservationId];
+      if (!entry) throw new Error("support-spend release was not persisted");
+      const volatile = state.materialReservations.get(identity.reservationId);
+      if (volatile) {
+        volatile.status = entry.status;
+        volatile.expiresAt = now + SUPPORT_SPEND_OUTCOME_TTL_MS;
+      }
+      return journalReservationResult(
+        identity.reservationId,
+        entry,
+        current.state.materials ?? EMPTY_PARTY_MATERIALS,
+      );
     });
   }
 
@@ -1076,19 +1295,108 @@ export class PartyRoom {
   ): Promise<PartyMaterialReservationResult> {
     return this.enqueueStateWrite(state, async () => {
       const identity = parsePartyMaterialReservationIdentity(rawIdentity);
-      if (!identity) return { ok: false, reason: "invalid" };
+      if (!identity || !supportSpendRoomBelongsToParty(identity.roomKey, partyId))
+        return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
       let current = await this.ensureState(partyId, state);
       current = await this.refreshMaterialReservations(partyId, state, current, now);
-      const reservation = state.materialReservations.get(identity.reservationId);
-      if (!reservation || reservation.heroId !== identity.heroId)
+      const durable = current.supportSpends[identity.reservationId];
+      if (!durable || !sameSupportSpend(durable, identity))
         return { ok: false, reason: "reservation" };
-      if (reservation.status === "committed") {
-        reservation.status = "settled";
-        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+      if (durable.status === "committed") {
+        current = await this.commitStateWithSupportSpends(partyId, state, current.state, {
+          ...current.supportSpends,
+          [identity.reservationId]: {
+            ...durable,
+            status: "settled",
+            resolvedAt: Math.max(now, durable.createdAt),
+          },
+        });
       }
-      return reservationResult(reservation, current.state.materials ?? EMPTY_PARTY_MATERIALS);
+      const entry = current.supportSpends[identity.reservationId];
+      if (!entry) throw new Error("support-spend settlement was not persisted");
+      const volatile = state.materialReservations.get(identity.reservationId);
+      if (volatile) {
+        volatile.status = entry.status;
+        volatile.expiresAt = now + SUPPORT_SPEND_OUTCOME_TTL_MS;
+      }
+      return journalReservationResult(
+        identity.reservationId,
+        entry,
+        current.state.materials ?? EMPTY_PARTY_MATERIALS,
+      );
+    });
+  }
+
+  /**
+   * Resolve only one WorldRoom's uncertain commits. Its local activated-id set is authoritative for
+   * that room's still-live actions; entries belonging to another room are deliberately untouched.
+   */
+  protected async reconcilePartyMaterialSpends(
+    partyId: string,
+    state: PartyRoomState,
+    rawRequest: unknown,
+  ): Promise<ReconcilePartyMaterialSpendsResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const request = parseReconcilePartyMaterialSpendsRequest(rawRequest);
+      if (!request || !supportSpendRoomBelongsToParty(request.roomKey, partyId))
+        return { ok: false, reason: "invalid" };
+      const now = this.now();
+      if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      let current = await this.ensureState(partyId, state);
+      current = await this.refreshMaterialReservations(partyId, state, current, now);
+      if (state.partyCompleted) return { ok: false, reason: "party" };
+      const activated = new Set(request.activatedIds);
+      let materials = current.state.materials ?? EMPTY_PARTY_MATERIALS;
+      let supportSpends = current.supportSpends;
+      let changed = false;
+      for (const [reservationId, entry] of Object.entries(current.supportSpends)) {
+        if (entry.roomKey !== request.roomKey || entry.status !== "committed") continue;
+        if (activated.has(reservationId)) {
+          supportSpends = {
+            ...supportSpends,
+            [reservationId]: {
+              ...entry,
+              status: "settled",
+              resolvedAt: Math.max(now, entry.createdAt),
+            },
+          };
+        } else {
+          const refunded = addPartyMaterials(materials, entry.costs);
+          if (!refunded) return { ok: false, reason: "overflow" };
+          materials = refunded;
+          supportSpends = {
+            ...supportSpends,
+            [reservationId]: {
+              ...entry,
+              status: "refunded",
+              resolvedAt: Math.max(now, entry.createdAt),
+            },
+          };
+        }
+        changed = true;
+      }
+      if (changed) {
+        current = await this.commitStateWithSupportSpends(
+          partyId,
+          state,
+          { ...current.state, materials },
+          supportSpends,
+        );
+      }
+      for (const [id, reservation] of state.materialReservations) {
+        const entry = current.supportSpends[id];
+        if (entry?.roomKey === request.roomKey && entry.status !== "committed") {
+          reservation.status = entry.status;
+          reservation.expiresAt = now + SUPPORT_SPEND_OUTCOME_TTL_MS;
+        }
+      }
+      return {
+        ok: true,
+        materials: { ...(current.state.materials ?? EMPTY_PARTY_MATERIALS) },
+        acknowledgedIds: request.activatedIds,
+      };
     });
   }
 

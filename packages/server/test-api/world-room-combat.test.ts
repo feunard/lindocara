@@ -49,8 +49,13 @@ import {
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
-import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import {
+  type RoomClock,
+  RoomEngine,
+  type RoomSocket,
+  WebSocketServerProvider,
+} from "alepha/websocket";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
@@ -251,6 +256,17 @@ function createEngine(roomId: string, clock: FakeClock) {
   });
 }
 
+function evictPartyCoordinator(partyId: string): void {
+  const provider = alepha.inject(WebSocketServerProvider) as unknown as {
+    roomEngines: Map<string, { dispose(): void }>;
+    roomEngineTouched: Map<string, number>;
+  };
+  const key = `/ws/party:${partyId}`;
+  provider.roomEngines.get(key)?.dispose();
+  provider.roomEngines.delete(key);
+  provider.roomEngineTouched.delete(key);
+}
+
 /** `RoomEngine.state` is protected only at compile time; the invariants below assert on the real
  *  room state (players, monsters, loot) the way the legacy workerd suite asserts on the real DO. */
 function roomState(engine: object): WorldRoomState {
@@ -449,6 +465,50 @@ describe("world room combat (FakeClock)", () => {
     expect(peasant.action).toBeNull();
     expect(peasant.skillCooldowns[4]).toBe(0);
     expect(await partyMaterials(host.partyId)).toEqual(stocked);
+    engine.dispose();
+  });
+
+  test("an activated support spend survives a lost settlement acknowledgement and coordinator eviction", async () => {
+    const host = await newPlayableHero("psupack", "peasant");
+    await seedPartyMaterials(host.partyId, host.heroId, { wood: 4, stone: 2, meat: 2 });
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const socket = fakeSocket(host.userId, host.heroId);
+    await engine.join(socket);
+    const state = roomState(engine);
+    const peasant = playerOf(state, host.heroId);
+    peasant.level = 20;
+    peasant.facing = { x: 1, y: 0 };
+
+    const partyRoom = alepha.inject(PartyRoom);
+    const service = partyRoom.adventureStateService;
+    const save = service.saveWithSupportSpends.bind(service);
+    let writes = 0;
+    const persistedThenLost = vi
+      .spyOn(service, "saveWithSupportSpends")
+      .mockImplementation(async (...args) => {
+        await save(...args);
+        writes += 1;
+        if (writes === 2) throw new Error("settlement acknowledgement lost");
+      });
+
+    await engine.message(socket.id, { t: "skill", slot: 4 });
+    persistedThenLost.mockRestore();
+    const action = peasant.action;
+    if (!action) throw new Error("camp action was not activated");
+    expect(state.activatedSupportSpendIds.size).toBe(1);
+    const [reservationId] = state.activatedSupportSpendIds;
+    if (!reservationId) throw new Error("activated support spend was not tracked");
+
+    evictPartyCoordinator(host.partyId);
+    const worldRoom = alepha.inject(WorldRoom) as unknown as {
+      reconcilePartyMaterialSpends(state: WorldRoomState): Promise<void>;
+    };
+    await worldRoom.reconcilePartyMaterialSpends(state);
+    expect(state.activatedSupportSpendIds.size).toBe(0);
+    const recovered = await service.loadCoordinatorState(host.partyId);
+    expect(recovered.supportSpends[reservationId]?.status).toBe("settled");
+    expect(recovered.state.materials).toMatchObject({ wood: 0, stone: 0, meat: 0 });
     engine.dispose();
   });
 
