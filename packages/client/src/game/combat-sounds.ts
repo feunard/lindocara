@@ -1,5 +1,6 @@
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import type { MonsterImpactSound } from "@lindocara/renderer/combat-art.js";
 
 const ROOT = "/assets/lindocara/audio/sfx";
 
@@ -48,6 +49,18 @@ export const COMBAT_SAMPLES = {
     volume: 0.12,
     playbackRate: 0.82,
   },
+  "monster.impact_weapon": { src: `${ROOT}/warrior-impact.ogg`, volume: 0.15 },
+  "monster.impact_magic": { src: `${ROOT}/priest-impact.ogg`, volume: 0.16, playbackRate: 0.9 },
+  "monster.impact_fire": {
+    src: `${ROOT}/warrior-whirlwind.ogg`,
+    volume: 0.17,
+    playbackRate: 0.82,
+  },
+  "monster.impact_heavy": {
+    src: `${ROOT}/warrior-charge-impact.ogg`,
+    volume: 0.2,
+    playbackRate: 0.74,
+  },
 } as const satisfies Record<string, SampleSpec>;
 
 export type CombatSampleKey = keyof typeof COMBAT_SAMPLES;
@@ -95,6 +108,10 @@ export function castSampleForSkill(skillId: string): CombatSampleKey | undefined
 
 export function impactSampleForClass(playerClass: PlayerClass): CombatSampleKey {
   return IMPACT_KEY[playerClass];
+}
+
+export function monsterImpactSample(kind: MonsterImpactSound): CombatSampleKey {
+  return `monster.impact_${kind}`;
 }
 
 export function basicAttackSample(playerClass: PlayerClass): CombatSampleKey {

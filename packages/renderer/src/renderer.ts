@@ -22,6 +22,7 @@ import type {
   ItemKind,
   LootSnapshot,
   MonsterSnapshot,
+  MonsterSpecialImpact,
   PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestPolarityOrbVisual,
@@ -77,6 +78,7 @@ import {
   windSway,
 } from "./ambience.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
+import { CameraShake } from "./camera-shake.js";
 import {
   advanceCatalogAnimation,
   createCatalogElementView,
@@ -90,7 +92,10 @@ import {
   type CombatSheetArt,
   combatActionFrameIndex,
   combatArt,
+  type MonsterImpactSound,
   monsterCombatArt,
+  monsterSpecialImpactArt,
+  monsterSpecialImpactPosition,
   multiImpactActionFrameIndex,
   projectileArt,
   teleportEffectArt,
@@ -106,7 +111,7 @@ import {
 import {
   CombatVisualAuthority,
   clearVisualAction,
-  hasPendingAnticipation,
+  shouldShowMonsterTelegraph,
 } from "./combat-visual-state.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import {
@@ -1107,6 +1112,7 @@ export class Renderer {
   #tuftViews: Array<{ sprite: Sprite; baseX: number; phase: number }> = [];
   #waveTexture: Texture | null = null;
   #combatVisualAuthority = new CombatVisualAuthority();
+  #cameraShake = new CameraShake();
 
   private constructor(
     app: Application,
@@ -1508,6 +1514,7 @@ export class Renderer {
    * standing over the new room.
    */
   #rebuildForZone(): void {
+    this.#cameraShake.clear();
     this.#clearTransientCombatViews();
     // Events are room-scoped: an `onTop` event lives in the persistent `#tilesAbove` container that
     // survives a zone change, so it must be torn down explicitly or it would draw over the new room.
@@ -2808,21 +2815,22 @@ export class Renderer {
       this.#cameraElevationRise += (targetElevationRise - this.#cameraElevationRise) * alpha;
     }
     this.#lastCameraAt = now;
-    this.#applyCameraTransform();
+    this.#applyCameraTransform(now);
   }
 
-  #applyCameraTransform(): void {
+  #applyCameraTransform(now = performance.now()): void {
     const scale = this.#cameraScale();
+    const shake = this.#cameraShake.offset(now);
     this.#world.scale.set(scale);
     this.#world.position.set(
-      cameraAxisOffset(this.#app.screen.width, this.#zoneWidth, scale, this.#cameraX),
+      cameraAxisOffset(this.#app.screen.width, this.#zoneWidth, scale, this.#cameraX) + shake.x,
       elevatedCameraAxisOffset(
         this.#app.screen.height,
         this.#zoneHeight,
         scale,
         this.#cameraY,
         this.#cameraElevationRise,
-      ),
+      ) + shake.y,
     );
   }
 
@@ -4276,6 +4284,34 @@ export class Renderer {
     this.#playCombatSheet(art, position.x + 16, position.y + 16);
   }
 
+  /** Plays one explicit effect for one server-resolved technique. The action-id gate prevents a
+   * reconnect/replayed socket frame from producing a second effect or camera impulse. */
+  playMonsterSpecialImpact(impact: MonsterSpecialImpact): MonsterImpactSound | undefined {
+    if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return undefined;
+    const profile = monsterSpecialImpactArt(impact.technique);
+    const position = monsterSpecialImpactPosition(impact);
+    if (this.#isVisibleWorld(position.x, position.y, profile.visualRadius)) {
+      this.#playCombatSheet(profile.effect, position.x, position.y, impact.actionId);
+      if (profile.accent) {
+        this.#playCombatSheet(profile.accent, position.x, position.y, impact.actionId);
+      }
+    }
+
+    const self = this.#selfId ? this.#players.get(this.#selfId)?.data : undefined;
+    if (!self) return undefined;
+    const selfCenter = centerOf(self);
+    const distance = Math.hypot(selfCenter.x - position.x, selfCenter.y - position.y);
+    const nearby = this.#cameraShake.trigger({
+      id: impact.actionId,
+      now: performance.now(),
+      intensity: profile.shake.intensity,
+      durationMs: profile.shake.durationMs,
+      distance,
+      maxDistance: profile.shake.maxDistance,
+    });
+    return nearby ? profile.sound : undefined;
+  }
+
   playHealingImpact(
     color: PrimaryColor,
     skillId: "mend" | "prayer" | "divine_nova" = "mend",
@@ -4489,7 +4525,7 @@ export class Renderer {
         monster.dead ||
         !view.actionId ||
         !direction ||
-        !hasPendingAnticipation(startedAt, impactAt, now)
+        !shouldShowMonsterTelegraph(view.actionSkillId, startedAt, impactAt, now)
       )
         continue;
       if (impactAt === undefined || startedAt === undefined) continue;
@@ -4983,6 +5019,7 @@ export class Renderer {
     for (const tick of this.#frameCallbacks) this.#app.ticker.remove(tick);
     this.#frameCallbacks = [];
     this.#localeUnsub();
+    this.#cameraShake.clear();
     this.#app.stage.removeChild(this.#world);
     this.#world.destroy({ children: true });
   }

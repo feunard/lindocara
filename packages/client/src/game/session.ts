@@ -2,13 +2,19 @@ import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { isSpirit } from "@lindocara/engine/death.js";
-import { INTERACTION_RANGE, isMonsterSpecies, pointDistance } from "@lindocara/engine/game.js";
+import {
+  INTERACTION_RANGE,
+  isMonsterSpecialTechnique,
+  isMonsterSpecies,
+  pointDistance,
+} from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
   CombatAnimation,
   EventCode,
   EventParams,
+  MonsterSpecialImpact,
   PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestPolarityOrbVisual,
@@ -516,6 +522,10 @@ async function startGameIdentity(
       if (animation.actorKind === "monster") sound.monsterAttack();
       else if (animation.skillId) sound.skillCast(animation.skillId);
     },
+    onMonsterSpecialImpact: (impact: MonsterSpecialImpact) => {
+      const impactSound = renderer.playMonsterSpecialImpact(impact);
+      if (impactSound) sound.monsterSpecialImpact(impactSound);
+    },
     onShadowDance: (sequence: RogueShadowDanceSequence) => {
       renderer.playShadowDance(sequence);
       sound.combatPulse();
@@ -672,7 +682,15 @@ async function startGameIdentity(
         case "combat.hurt":
           combatAudio.confirmedEvent(code);
           sound.hit();
-          if (typeof params?.species === "string" && isMonsterSpecies(params.species)) {
+          if (
+            typeof params?.species === "string" &&
+            isMonsterSpecies(params.species) &&
+            !(
+              typeof params.technique === "string" &&
+              isMonsterSpecialTechnique(params.technique) &&
+              params.technique !== "none"
+            )
+          ) {
             renderer.playMonsterImpact(params.species, x, y);
           }
           break;

@@ -89,6 +89,7 @@ import {
   LOOT_EXPIRY_MS,
   MAX_MONSTER_BODY_RADIUS,
   MONSTER_AGGRO_RANGE,
+  type MonsterSpecialTechnique,
   type MonsterSpecies,
   maxHpForLevel,
   monsterBodyRadius,
@@ -1479,6 +1480,7 @@ function damagePlayer(
   species: MonsterSpecies,
   monsterId: string,
   now: number,
+  technique?: Exclude<MonsterSpecialTechnique, "none">,
 ): void {
   if (isPlayerInvulnerable(player, now)) return;
   const hpBefore = player.hp;
@@ -1563,7 +1565,12 @@ function damagePlayer(
       w.deps.send(connectionId, {
         t: "event",
         code: "combat.hurt",
-        params: { species, damage: anchorDamage, monsterId },
+        params: {
+          species,
+          damage: anchorDamage,
+          monsterId,
+          ...(technique ? { technique } : {}),
+        },
         tone: "bad",
         x: player.x,
         y: player.y,
@@ -1579,7 +1586,7 @@ function damagePlayer(
     t: "event",
     code: "combat.hurt",
     // Keep the damage event tied to the same authoritative attacker as the spatial animation.
-    params: { species, damage: appliedDamage, monsterId },
+    params: { species, damage: appliedDamage, monsterId, ...(technique ? { technique } : {}) },
     tone: "bad",
     x: player.x,
     y: player.y,
@@ -1676,6 +1683,22 @@ export function resolveMonsterAction(
     return;
   }
   const origin = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
+  if (specialTechnique) {
+    sendSpatialEvent(
+      w,
+      {
+        t: "monster.special_impact",
+        actionId: action.id,
+        actorId: monster.id,
+        technique: specialTechnique,
+        x: origin.x,
+        y: origin.y,
+        direction: { ...action.direction },
+        impactAt: now,
+      },
+      origin,
+    );
+  }
   const hitbox = specialDefinition
     ? null
     : strikeCapsule(origin, action.direction, definition.range, definition.hitboxRadius);
@@ -1733,7 +1756,16 @@ export function resolveMonsterAction(
       !hits(player, PLAYER_SIZE / 2)
     )
       continue;
-    damagePlayer(w, connectionId, player, damage, monster.species, monster.id, now);
+    damagePlayer(
+      w,
+      connectionId,
+      player,
+      damage,
+      monster.species,
+      monster.id,
+      now,
+      specialTechnique ?? undefined,
+    );
     drainedDamage += damage;
   }
   for (const guard of w.state.guards) {

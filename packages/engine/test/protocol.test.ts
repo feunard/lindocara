@@ -736,6 +736,30 @@ describe("combat animation messages", () => {
     });
   });
 
+  it("round-trips only validated server-resolved monster special impacts", () => {
+    const impact = {
+      t: "monster.special_impact",
+      actionId: "action-monster-quake-1",
+      actorId: "boss-1",
+      technique: "troll_quake",
+      x: 320,
+      y: 192,
+      direction: { x: 1, y: 0 },
+      impactAt: 950,
+    } as const;
+
+    expect(parseServerMessage(encodeServerMessage(impact))).toEqual(impact);
+    for (const invalid of [
+      { ...impact, technique: "none" },
+      { ...impact, technique: "made_up" },
+      { ...impact, x: Number.NaN },
+      { ...impact, direction: { x: 0, y: 0 } },
+      { ...impact, clientDamage: 999 },
+    ]) {
+      expect(parseServerMessage(JSON.stringify(invalid))).toBeNull();
+    }
+  });
+
   it("accepts only bounded ordered server-owned multi-hit contacts", () => {
     const animation = {
       t: "animation",

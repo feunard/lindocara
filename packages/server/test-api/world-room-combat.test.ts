@@ -18,7 +18,7 @@
  * 7. one tick advances players before monsters before guards (composed-state probe, no mocks).
  */
 
-import { MONSTER_ACTIONS } from "@lindocara/engine/combat-actions.js";
+import { MONSTER_ACTIONS, MONSTER_SPECIAL_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import {
   ATTACK_COOLDOWN_MS,
   MONSTER_AGGRO_RANGE,
@@ -709,6 +709,79 @@ describe("world room combat (FakeClock)", () => {
         skillId: "troll_quake",
       });
     }
+    engine.dispose();
+  });
+
+  test("a heavy special emits one typed impact on its unchanged authoritative damage tick", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("quakeimpact");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const target = playerOf(state, heroId);
+    const monster = seedMonster(state, "quake-impact-1", target.x - 40, target.y, {
+      species: "gate_troll",
+      kind: "troll",
+    });
+    monster.specialTechnique = "troll_quake";
+    monster.damage = 20;
+    monster.nextSpecialAt = 0;
+    let now = Date.now() + 1_000;
+    const { w, sent } = testGlue(state, () => now);
+    const hpBefore = target.hp;
+
+    startMonsterAttack(w, monster, target, now);
+    const action = monster.action;
+    if (!action) throw new Error("troll quake did not start");
+    expect(action.skillId).toBe("troll_quake");
+    expect(action.impactAt).toBe(now + MONSTER_SPECIAL_ACTIONS.troll_quake.anticipationMs);
+    expect(
+      sentTo(sent, heroId).filter((message) => message.t === "monster.special_impact"),
+    ).toHaveLength(0);
+
+    now = action.impactAt;
+    advanceWorldTick(w);
+
+    expect(target.hp).toBe(
+      hpBefore - Math.round(monster.damage * MONSTER_SPECIAL_ACTIONS.troll_quake.damageMultiplier),
+    );
+    const impacts = sentTo(sent, heroId).filter(
+      (message) => message.t === "monster.special_impact" && message.actionId === action.id,
+    );
+    expect(impacts).toEqual([
+      {
+        t: "monster.special_impact",
+        actionId: action.id,
+        actorId: monster.id,
+        technique: "troll_quake",
+        x: monster.x + 16,
+        y: monster.y + 16,
+        direction: action.direction,
+        impactAt: now,
+      },
+    ]);
+    expect(parseServerMessage(encodeServerMessage(impacts[0] as ServerMessage))).toEqual(
+      impacts[0],
+    );
+    expect(
+      sentTo(sent, heroId).filter(
+        (message) => message.t === "event" && message.code === "combat.hurt",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        params: expect.objectContaining({ technique: "troll_quake" }),
+      }),
+    ]);
+
+    advanceWorldTick(w);
+    expect(
+      sentTo(sent, heroId).filter(
+        (message) => message.t === "monster.special_impact" && message.actionId === action.id,
+      ),
+    ).toHaveLength(1);
+    expect(target.hp).toBe(
+      hpBefore - Math.round(monster.damage * MONSTER_SPECIAL_ACTIONS.troll_quake.damageMultiplier),
+    );
     engine.dispose();
   });
 

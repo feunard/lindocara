@@ -5,12 +5,14 @@ import {
   musicTrack,
 } from "@lindocara/engine/audio-catalog.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
+import type { MonsterImpactSound } from "@lindocara/renderer/combat-art.js";
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 import {
   COMBAT_SAMPLES,
   type CombatSampleKey,
   castSampleForSkill,
   impactSampleForClass,
+  monsterImpactSample,
   type SampleSpec,
   UI_SAMPLES,
   type UiSampleKey,
@@ -169,6 +171,10 @@ export class GameSound {
 
   monsterAttack(): void {
     void this.#playKey("monster.attack");
+  }
+
+  monsterSpecialImpact(kind: MonsterImpactSound): void {
+    void this.#playKey(monsterImpactSample(kind));
   }
 
   #bindVisibility(): void {

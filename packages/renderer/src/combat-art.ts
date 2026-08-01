@@ -1,7 +1,12 @@
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { actionForClassSlot } from "@lindocara/engine/combat-actions.js";
-import { type MonsterSpecies, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
-import type { ProjectileKind } from "@lindocara/engine/protocol.js";
+import {
+  type MonsterSpecialTechnique,
+  type MonsterSpecies,
+  PLAYER_CLASSES,
+  type PlayerClass,
+} from "@lindocara/engine/game.js";
+import type { MonsterSpecialImpact, ProjectileKind } from "@lindocara/engine/protocol.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import type { ServerCombatTimeline } from "./server-clock.js";
@@ -21,6 +26,10 @@ const HARPOON_PROJECTILE_SOURCE = new URL(
 ).href;
 const BOMB_PROJECTILE_SOURCE = new URL(
   "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_Idle.png",
+  import.meta.url,
+).href;
+const EARTH_IMPACT_SOURCE = new URL(
+  "../../catalog/assets/Tiny Swords (Update 010)/Effects/Explosion/Explosions.png",
   import.meta.url,
 ).href;
 
@@ -64,6 +73,25 @@ export interface MonsterCombatArtDefinition {
   /** Zero-based contact/release frame measured from the species' attack strip. */
   activeFrame: number;
   impact: CombatSheetArt;
+}
+
+export type MonsterImpactSound = "weapon" | "magic" | "fire" | "heavy";
+
+export interface MonsterSpecialImpactArtDefinition {
+  /** Authored Tiny Swords sheet played once at the resolved impact. */
+  effect: CombatSheetArt;
+  /** Optional second authored sheet layered over the primary impact. */
+  accent?: CombatSheetArt;
+  /** Presentation footprint only; authoritative collision stays in `MONSTER_SPECIAL_ACTIONS`. */
+  visualRadius: number;
+  /** Moves cone/charge effects forward along the frozen authoritative direction. */
+  forwardOffset: number;
+  sound: MonsterImpactSound;
+  shake: {
+    intensity: number;
+    durationMs: number;
+    maxDistance: number;
+  };
 }
 
 /** Select a visual frame while pinning the declared contact frame to the server impact instant. */
@@ -162,6 +190,7 @@ function unitSheet(
 const DUST = sheet(`${TINY_SWORDS_ROOT}/effects/Dust_02.png`, 64, 64, 10, 600, 1);
 const EXPLOSION = sheet(`${TINY_SWORDS_ROOT}/effects/Explosion_01.png`, 192, 192, 8, 620, 2);
 const EXPLOSION_BURST = sheet(`${TINY_SWORDS_ROOT}/effects/Explosion_02.png`, 192, 192, 10, 760, 2);
+const EARTH_IMPACT = sheet(EARTH_IMPACT_SOURCE, 192, 192, 9, 800, 2);
 const MAGIC_PROJECTILE = {
   ...sheet(HEX_SHAMAN_PROJECTILE_SOURCE, 128, 128, 3, 520, 1),
   rotationOffset: 0,
@@ -172,6 +201,143 @@ const GREEN_MAGIC = 0x62e68f;
 
 function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {
   return { ...art, tint, scale };
+}
+
+/** Visual-only impact vocabulary. Every special technique is named explicitly: no asset name,
+ * path or species heuristic selects gameplay or presentation. */
+export const MONSTER_SPECIAL_IMPACT_ART = {
+  ground_slam: {
+    effect: styled(EARTH_IMPACT, 0xd7a25d, 1.35),
+    accent: styled(DUST, 0xc89a61, 2.1),
+    visualRadius: 112,
+    forwardOffset: 0,
+    sound: "heavy",
+    shake: { intensity: 7, durationMs: 280, maxDistance: 390 },
+  },
+  shadow_cone: {
+    effect: styled(MAGIC_IMPACT, 0x7f55bf, 1.35),
+    visualRadius: 112,
+    forwardOffset: 58,
+    sound: "magic",
+    shake: { intensity: 2.5, durationMs: 190, maxDistance: 300 },
+  },
+  soul_drain: {
+    effect: styled(MAGIC_IMPACT, 0x6f4a9f, 1.5),
+    visualRadius: 128,
+    forwardOffset: 0,
+    sound: "magic",
+    shake: { intensity: 2, durationMs: 180, maxDistance: 280 },
+  },
+  spear_fan: {
+    effect: styled(DUST, 0xd8c18a, 1.8),
+    visualRadius: 100,
+    forwardOffset: 58,
+    sound: "weapon",
+    shake: { intensity: 2.5, durationMs: 170, maxDistance: 280 },
+  },
+  fire_burst: {
+    effect: styled(EXPLOSION_BURST, 0xff8f45, 1.45),
+    accent: styled(EXPLOSION, 0xffc05b, 1.05),
+    visualRadius: 120,
+    forwardOffset: 0,
+    sound: "fire",
+    shake: { intensity: 5, durationMs: 240, maxDistance: 350 },
+  },
+  marauder_frenzy: {
+    effect: styled(DUST, 0xd7a463, 2),
+    accent: styled(EXPLOSION, 0xc97743, 0.9),
+    visualRadius: 112,
+    forwardOffset: 52,
+    sound: "weapon",
+    shake: { intensity: 3.5, durationMs: 210, maxDistance: 320 },
+  },
+  bone_cleave: {
+    effect: styled(DUST, 0xd7ded1, 1.9),
+    visualRadius: 112,
+    forwardOffset: 62,
+    sound: "weapon",
+    shake: { intensity: 3, durationMs: 190, maxDistance: 310 },
+  },
+  grave_siphon: {
+    effect: styled(MAGIC_IMPACT, 0x7fbc91, 1.55),
+    visualRadius: 140,
+    forwardOffset: 0,
+    sound: "magic",
+    shake: { intensity: 2.5, durationMs: 210, maxDistance: 320 },
+  },
+  horn_charge: {
+    effect: styled(EARTH_IMPACT, 0xb98a54, 1.3),
+    accent: styled(DUST, 0xd2a66d, 2.25),
+    visualRadius: 120,
+    forwardOffset: 82,
+    sound: "heavy",
+    shake: { intensity: 5.5, durationMs: 260, maxDistance: 380 },
+  },
+  labyrinth_stomp: {
+    effect: styled(EARTH_IMPACT, 0xc5985c, 1.75),
+    accent: styled(DUST, 0xcaa56e, 2.6),
+    visualRadius: 155,
+    forwardOffset: 0,
+    sound: "heavy",
+    shake: { intensity: 8.5, durationMs: 340, maxDistance: 460 },
+  },
+  troll_quake: {
+    effect: styled(EARTH_IMPACT, 0xb9854d, 2.05),
+    accent: styled(DUST, 0xd0a467, 3),
+    visualRadius: 180,
+    forwardOffset: 0,
+    sound: "heavy",
+    shake: { intensity: 10, durationMs: 400, maxDistance: 520 },
+  },
+  troll_sweep: {
+    effect: styled(EARTH_IMPACT, 0xb98e58, 1.45),
+    accent: styled(DUST, 0xcaa36d, 2.45),
+    visualRadius: 135,
+    forwardOffset: 72,
+    sound: "heavy",
+    shake: { intensity: 6, durationMs: 290, maxDistance: 410 },
+  },
+  hex_burst: {
+    effect: styled(MAGIC_IMPACT, 0xc65cff, 1.85),
+    accent: styled(EXPLOSION, 0x9b45df, 0.9),
+    visualRadius: 170,
+    forwardOffset: 0,
+    sound: "magic",
+    shake: { intensity: 4, durationMs: 230, maxDistance: 360 },
+  },
+  tusk_charge: {
+    effect: styled(DUST, 0xc99a62, 2.1),
+    visualRadius: 110,
+    forwardOffset: 68,
+    sound: "heavy",
+    shake: { intensity: 4.5, durationMs: 240, maxDistance: 350 },
+  },
+  mounted_trample: {
+    effect: styled(EARTH_IMPACT, 0xc39458, 1.35),
+    accent: styled(DUST, 0xd3a96c, 2.35),
+    visualRadius: 125,
+    forwardOffset: 76,
+    sound: "heavy",
+    shake: { intensity: 5, durationMs: 270, maxDistance: 380 },
+  },
+} as const satisfies Readonly<
+  Record<Exclude<MonsterSpecialTechnique, "none">, MonsterSpecialImpactArtDefinition>
+>;
+
+export function monsterSpecialImpactArt(
+  technique: Exclude<MonsterSpecialTechnique, "none">,
+): MonsterSpecialImpactArtDefinition {
+  return MONSTER_SPECIAL_IMPACT_ART[technique];
+}
+
+export function monsterSpecialImpactPosition(
+  impact: Pick<MonsterSpecialImpact, "x" | "y" | "direction" | "technique">,
+): { x: number; y: number } {
+  const profile = monsterSpecialImpactArt(impact.technique);
+  return {
+    x: impact.x + impact.direction.x * profile.forwardOffset,
+    y: impact.y + impact.direction.y * profile.forwardOffset,
+  };
 }
 
 /** Neutral authored-teleporter VFX, shared by every class and distinct from combat outcomes. */
@@ -436,6 +602,11 @@ export function allCombatSheets(): CombatSheetArt[] {
   for (const kind of ["hex_orb", "enemy_harpoon", "enemy_bomb"] as const) {
     const projectile = projectileArt(kind, "ember");
     unique.set(projectile.source, projectile);
+  }
+  for (const profile of Object.values(MONSTER_SPECIAL_IMPACT_ART)) {
+    const definition: MonsterSpecialImpactArtDefinition = profile;
+    unique.set(definition.effect.source, definition.effect);
+    if (definition.accent) unique.set(definition.accent.source, definition.accent);
   }
   const teleport = teleportEffectArt();
   unique.set(teleport.source, teleport);

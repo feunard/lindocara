@@ -326,6 +326,21 @@ export interface CombatAnimation {
   recoveryEndsAt: number;
 }
 
+/** One server-resolved monster technique impact. This is presentation truth only: damage and
+ * collision have already been resolved by the authoritative action system. */
+export interface MonsterSpecialImpact {
+  t: "monster.special_impact";
+  actionId: string;
+  actorId: string;
+  technique: Exclude<MonsterSpecialTechnique, "none">;
+  /** World-space centre of the authoritative action at resolution. */
+  x: number;
+  y: number;
+  direction: Vec2;
+  /** Actual server tick that resolved the action, not a client-estimated deadline. */
+  impactAt: number;
+}
+
 export interface RogueShadowDanceStrike {
   targetId: string;
   from: Vec2;
@@ -669,6 +684,7 @@ export type ServerMessage =
   | { t: "party.state"; party: PartyState | null }
   | { t: "merchant.open" }
   | CombatAnimation
+  | MonsterSpecialImpact
   | RogueShadowDanceSequence
   | PriestLumenPortalVisual
   | PriestPolarityOrbVisual
@@ -1744,6 +1760,29 @@ export function parseServerMessage(raw: string): ServerMessage | null {
           typeof value.skillId === "string" &&
           value.skillId.length >= 1 &&
           value.skillId.length <= 64))
+    ) {
+      return value as unknown as ServerMessage;
+    }
+    if (
+      value.t === "monster.special_impact" &&
+      hasOnlyKeys(value, [
+        "t",
+        "actionId",
+        "actorId",
+        "technique",
+        "x",
+        "y",
+        "direction",
+        "impactAt",
+      ]) &&
+      isWireId(value.actionId) &&
+      isWireId(value.actorId) &&
+      isMonsterSpecialTechnique(value.technique) &&
+      value.technique !== "none" &&
+      isFiniteNumber(value.x) &&
+      isFiniteNumber(value.y) &&
+      isDirection(value.direction) &&
+      isFiniteNumber(value.impactAt)
     ) {
       return value as unknown as ServerMessage;
     }

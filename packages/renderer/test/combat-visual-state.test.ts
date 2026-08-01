@@ -3,6 +3,7 @@ import {
   clearVisualAction,
   hasPendingAnticipation,
   type MutableVisualActionState,
+  shouldShowMonsterTelegraph,
 } from "@lindocara/renderer/combat-visual-state.js";
 import { describe, expect, it } from "vitest";
 
@@ -11,6 +12,13 @@ describe("authoritative combat visual cancellation", () => {
     expect(hasPendingAnticipation(1_000, 1_000, 1_000)).toBe(false);
     expect(hasPendingAnticipation(1_000, 1_560, 1_100)).toBe(true);
     expect(hasPendingAnticipation(1_000, 1_560, 1_560)).toBe(false);
+  });
+
+  it("keeps delayed melee guidance but suppresses every heavy-special red telegraph", () => {
+    expect(shouldShowMonsterTelegraph(undefined, 1_000, 1_560, 1_100)).toBe(true);
+    expect(shouldShowMonsterTelegraph(undefined, 1_000, 1_000, 1_000)).toBe(false);
+    expect(shouldShowMonsterTelegraph("troll_quake", 1_000, 2_100, 1_100)).toBe(false);
+    expect(shouldShowMonsterTelegraph("fire_burst", 1_000, 1_760, 1_100)).toBe(false);
   });
 
   it("clears anticipation, future impact, telegraph and persistent action state immediately", () => {
@@ -111,5 +119,19 @@ describe("authoritative combat visual cancellation", () => {
     authority.recordSnapshot("player-a", null);
     expect(authority.acceptsAnimation("player-a", "action-a")).toBe(true);
     expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
+  });
+
+  it("plays one server-resolved special impact exactly once per action id", () => {
+    const authority = new CombatVisualAuthority();
+    expect(authority.acceptsImpact("quake-a")).toBe(true);
+    expect(authority.acceptsImpact("quake-a")).toBe(false);
+    expect(authority.acceptsImpact("quake-b")).toBe(true);
+  });
+
+  it("accepts a resolved impact even when interpolation already cancelled its actor action", () => {
+    const authority = new CombatVisualAuthority();
+    authority.cancel("quake-a");
+    expect(authority.acceptsImpact("quake-a")).toBe(true);
+    expect(authority.acceptsImpact("quake-a")).toBe(false);
   });
 });

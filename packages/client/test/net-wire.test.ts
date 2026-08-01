@@ -114,6 +114,7 @@ function handlers(): ConnectionHandlers {
     onPartyState: vi.fn(),
     onMerchantOpen: vi.fn(),
     onAnimation: vi.fn(),
+    onMonsterSpecialImpact: vi.fn(),
     onShadowDance: vi.fn(),
     onLumenPortal: vi.fn(),
     onPolarityOrb: vi.fn(),

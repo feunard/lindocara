@@ -28,6 +28,7 @@ import {
   type GuardSnapshot,
   type LootSnapshot,
   type MonsterSnapshot,
+  type MonsterSpecialImpact,
   type PartyState,
   type PlayerSnapshot,
   type PriestLumenPortalVisual,
@@ -153,6 +154,7 @@ export interface ConnectionHandlers {
   onPartyState(party: PartyState | null): void;
   onMerchantOpen(): void;
   onAnimation(animation: CombatAnimation): void;
+  onMonsterSpecialImpact(impact: MonsterSpecialImpact): void;
   onShadowDance(sequence: RogueShadowDanceSequence): void;
   onLumenPortal(portal: PriestLumenPortalVisual): void;
   onPolarityOrb(orb: PriestPolarityOrbVisual): void;
@@ -549,6 +551,10 @@ export class WorldClient {
     }
     if (message.t === "animation") {
       handlers.onAnimation(message);
+      return;
+    }
+    if (message.t === "monster.special_impact") {
+      handlers.onMonsterSpecialImpact(message);
       return;
     }
     if (message.t === "rogue.shadow_dance") {

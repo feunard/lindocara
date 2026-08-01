@@ -124,6 +124,7 @@ function handlers(): ConnectionHandlers {
     onPartyState: vi.fn(),
     onMerchantOpen: vi.fn(),
     onAnimation: vi.fn(),
+    onMonsterSpecialImpact: vi.fn(),
     onShadowDance: vi.fn(),
     onLumenPortal: vi.fn(),
     onPolarityOrb: vi.fn(),
@@ -366,6 +367,31 @@ describe("WorldClient lifecycle", () => {
     const messages =
       socket?.sent.map((raw) => (JSON.parse(raw) as { message: { t: string } }).message) ?? [];
     expect(messages.filter((message) => message.t === "world.resync")).toHaveLength(0);
+  });
+
+  it("forwards one validated authoritative monster-special impact to presentation", async () => {
+    stubJoin();
+    const callbacks = handlers();
+    const client = new WorldClient();
+    client.connect(callbacks, "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME);
+    const impact = {
+      t: "monster.special_impact",
+      actionId: "boss-quake-1",
+      actorId: "boss-1",
+      technique: "troll_quake",
+      x: 96,
+      y: 64,
+      direction: { x: 1, y: 0 },
+      impactAt: 1_850,
+    } as const;
+
+    socket?.message(impact);
+
+    expect(callbacks.onMonsterSpecialImpact).toHaveBeenCalledOnce();
+    expect(callbacks.onMonsterSpecialImpact).toHaveBeenCalledWith(impact);
   });
 
   it("reports an error followed by close only once", async () => {

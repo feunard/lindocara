@@ -1,3 +1,5 @@
+import { isMonsterSpecialTechnique } from "@lindocara/engine/game.js";
+
 export interface MutableVisualActionState {
   actionId?: string;
   actionSkillId?: string;
@@ -25,6 +27,18 @@ export function hasPendingAnticipation(
   );
 }
 
+/** Heavy monster techniques keep their authored anticipation animation, but never paint the old
+ * generic red damage guide. Basic delayed melee attacks retain that guide. */
+export function shouldShowMonsterTelegraph(
+  skillId: string | undefined,
+  startedAt: number | undefined,
+  impactAt: number | undefined,
+  now: number,
+): boolean {
+  if (isMonsterSpecialTechnique(skillId) && skillId !== "none") return false;
+  return hasPendingAnticipation(startedAt, impactAt, now);
+}
+
 /** Clears every actor-owned visual that could otherwise reach a future impact frame. */
 export function clearVisualAction(state: MutableVisualActionState): string | null {
   const actionId = state.actionId ?? null;
@@ -48,6 +62,7 @@ export class CombatVisualAuthority {
   #snapshotActionIds = new Map<string, string | null>();
   #latestAnimations = new Map<string, { actionId: string; seenInSnapshot: boolean }>();
   #cancelledActionIds = new Set<string>();
+  #playedImpactActionIds = new Set<string>();
 
   /**
    * Records the newest action carried by the rendered snapshot.
@@ -82,6 +97,20 @@ export class CombatVisualAuthority {
 
   acceptsAction(actionId: string): boolean {
     return !this.#cancelledActionIds.has(actionId);
+  }
+
+  /** A resolved impact event is server truth and may arrive after its action disappeared from the
+   * interpolated snapshot. It therefore has its own bounded exactly-once gate, independent of the
+   * cancellation set used for future actor animation. */
+  acceptsImpact(actionId: string): boolean {
+    if (this.#playedImpactActionIds.has(actionId)) return false;
+    this.#playedImpactActionIds.add(actionId);
+    while (this.#playedImpactActionIds.size > 256) {
+      const oldest = this.#playedImpactActionIds.values().next().value;
+      if (typeof oldest !== "string") break;
+      this.#playedImpactActionIds.delete(oldest);
+    }
+    return true;
   }
 
   cancel(actionId: string | null): void {

@@ -1,9 +1,15 @@
-import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  MONSTER_SPECIAL_TECHNIQUES,
+  MONSTER_SPECIES_KIND,
+  type MonsterSpecies,
+} from "@lindocara/engine/game.js";
 import {
   allCombatSheets,
   combatActionFrameIndex,
   combatArt,
+  MONSTER_SPECIAL_IMPACT_ART,
   monsterCombatArt,
+  monsterSpecialImpactPosition,
   multiImpactActionFrameIndex,
   projectileArt,
   teleportEffectArt,
@@ -110,6 +116,61 @@ describe("Tiny Swords directional combat art", () => {
       expect(sheets.has(art.source)).toBe(true);
       expect(art.source).not.toBe("");
     }
+  });
+
+  it("defines and preloads an explicit impact profile for every monster special", () => {
+    const techniques = MONSTER_SPECIAL_TECHNIQUES.filter((technique) => technique !== "none");
+    expect(Object.keys(MONSTER_SPECIAL_IMPACT_ART).sort()).toEqual([...techniques].sort());
+    const preloaded = new Set(allCombatSheets().map((entry) => entry.source));
+    for (const technique of techniques) {
+      const profile = MONSTER_SPECIAL_IMPACT_ART[technique];
+      expect(profile.visualRadius).toBeGreaterThan(0);
+      expect(profile.shake).toMatchObject({
+        intensity: expect.any(Number),
+        durationMs: expect.any(Number),
+        maxDistance: expect.any(Number),
+      });
+      expect(preloaded.has(profile.effect.source)).toBe(true);
+      if ("accent" in profile) expect(preloaded.has(profile.accent.source)).toBe(true);
+    }
+  });
+
+  it("uses the measured nine-frame Tiny Swords ground-impact strip for heavy earth attacks", () => {
+    for (const technique of [
+      "ground_slam",
+      "horn_charge",
+      "labyrinth_stomp",
+      "troll_quake",
+      "troll_sweep",
+      "mounted_trample",
+    ] as const) {
+      expect(MONSTER_SPECIAL_IMPACT_ART[technique].effect).toMatchObject({
+        source: expect.stringContaining("Effects/Explosion/Explosions.png"),
+        frameWidth: 192,
+        frameHeight: 192,
+        frames: 9,
+      });
+      expect(MONSTER_SPECIAL_IMPACT_ART[technique].effect.frameWidth * 9).toBe(1_728);
+    }
+  });
+
+  it("positions directional impact art from the typed profile rather than an asset heuristic", () => {
+    expect(
+      monsterSpecialImpactPosition({
+        technique: "shadow_cone",
+        x: 100,
+        y: 200,
+        direction: { x: 0, y: -1 },
+      }),
+    ).toEqual({ x: 100, y: 142 });
+    expect(
+      monsterSpecialImpactPosition({
+        technique: "troll_quake",
+        x: 100,
+        y: 200,
+        direction: { x: 1, y: 0 },
+      }),
+    ).toEqual({ x: 100, y: 200 });
   });
 
   it("uses a green Radiant-Bolt-style projectile for ally-only Mend", () => {
