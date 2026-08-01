@@ -97,6 +97,21 @@ export function activeChallengeReduction(player: PlayerRuntime, now: number): nu
   return Math.min(0.4, Math.max(0, challenge) + Math.max(0, banner));
 }
 
+/** Applies the strongest temporary power bonus without stacking equal support auras. */
+export function applyBoundedPowerBuff(
+  target: PlayerRuntime,
+  powerMultiplier: number,
+  durationMs: number,
+  now: number,
+): void {
+  const current = target.rallyPowerUntil > now ? target.rallyPowerMultiplier : 0;
+  target.rallyPowerMultiplier = Math.min(0.75, Math.max(current, Math.max(0, powerMultiplier)));
+  target.rallyPowerUntil = Math.max(
+    target.rallyPowerUntil > now ? target.rallyPowerUntil : 0,
+    now + Math.max(0, durationMs),
+  );
+}
+
 export function chargeCounterOffensive(
   player: PlayerRuntime,
   preventedDamage: number,
@@ -253,9 +268,7 @@ export function applyRallyingCry(
       !hasVisibility(caster, target)
     )
       continue;
-    const current = target.rallyPowerUntil > now ? target.rallyPowerMultiplier : 0;
-    target.rallyPowerMultiplier = Math.max(current, Math.max(0, effect.powerMultiplier));
-    target.rallyPowerUntil = now + Math.max(0, effect.durationMs);
+    applyBoundedPowerBuff(target, effect.powerMultiplier, effect.durationMs, now);
     affected += 1;
   }
   return affected;

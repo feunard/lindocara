@@ -12,7 +12,7 @@ export type PeasantSupportSkillId = "makeshift_camp" | "homemade_bomb";
 export interface PeasantSupportSkillConfig {
   id: PeasantSupportSkillId;
   slot: PeasantSupportSkillSlot;
-  /** Party-wide stock spent atomically by the future authoritative server implementation. */
+  /** Party-wide stock reserved and spent atomically by the authoritative party/world saga. */
   cost: Readonly<PartyMaterialAmounts>;
   /** World-space effect radius. */
   radius: number;
@@ -23,7 +23,7 @@ export interface PeasantSupportSkillConfig {
 }
 
 /**
- * First Peasant support-loop contract.
+ * Shared Peasant support-loop contract.
  *
  * This is shared balance data only. The client may use it to explain affordability, but only the
  * server may spend materials, create the camp/bomb, or apply healing and damage.
@@ -57,7 +57,7 @@ export function peasantSupportSkill(slot: number): PeasantSupportSkillConfig | n
   return isPeasantSupportSkillSlot(slot) ? PEASANT_SUPPORT_SKILLS[slot] : null;
 }
 
-/** Presentation-safe affordability. It never mutates or reserves stock. */
+/** Presentation-safe base affordability. Talent-aware callers resolve their typed plan first. */
 export function canAffordPeasantSupportSkill(
   materials: PartyMaterials | undefined,
   slot: number,

@@ -4,13 +4,23 @@ import {
   hasLineOfSight,
   isWalkable,
   MAX_MONSTER_BODY_RADIUS,
+  maxHpForLevel,
   monsterBodyRadius,
   type TerrainGeometry,
 } from "@lindocara/engine/game.js";
 import type { PartyMaterialAmounts } from "@lindocara/engine/party-harvest-state.js";
+import {
+  type PeasantBombPlan as EnginePeasantBombPlan,
+  type PeasantConstructionPlan,
+  type PeasantRationPlan,
+  resolvePeasantBombPlan,
+  resolvePeasantConstructionPlan,
+  resolvePeasantRationPlan,
+} from "@lindocara/engine/peasant.js";
 import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
 import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { SkillDefinition, SkillSlot } from "@lindocara/engine/skills.js";
+import { peasantTalentEffects } from "@lindocara/engine/talents.js";
 import { startCombatAction } from "./combat-action-system.js";
 import { canSpawnProjectile, projectileOrigin, spawnProjectile } from "./projectile-system.js";
 import type { SpatialGrid } from "./spatial-grid.js";
@@ -30,61 +40,64 @@ export interface PeasantCampPlan {
   readonly kind: "camp";
   readonly cost: Readonly<PartyMaterialAmounts>;
   readonly placementDistance: number;
-  readonly radius: number;
-  readonly durationMs: number;
   readonly pulseIntervalMs: number;
-  readonly healPower: number;
-  readonly protectionRatio: number;
+  readonly construction: Readonly<PeasantConstructionPlan>;
+  readonly ration: Readonly<PeasantRationPlan>;
 }
 
-export interface PeasantBombPlan {
+export interface PeasantBombSupportPlan {
   readonly kind: "bomb";
   readonly cost: Readonly<PartyMaterialAmounts>;
   readonly range: number;
-  readonly radius: number;
-  readonly power: number;
   readonly projectileSpeed: number;
   readonly projectileRadius: number;
+  readonly bomb: Readonly<EnginePeasantBombPlan>;
 }
 
-export type PeasantSupportPlan = PeasantCampPlan | PeasantBombPlan;
+export type PeasantSupportPlan = PeasantCampPlan | PeasantBombSupportPlan;
 
 export interface PeasantSupportPlans {
   readonly camp: PeasantCampPlan;
-  readonly bomb: PeasantBombPlan;
+  readonly bomb: PeasantBombSupportPlan;
 }
 
-/**
- * Base support plans. Talent code may transform these typed values before acceptance; runtime
- * spending, collision and effect resolution remain unchanged.
- */
-export function basePeasantSupportPlans(skills: {
+/** Resolves and freezes the complete typed talent plan before material reservation begins. */
+export function peasantSupportPlans(skills: {
   readonly camp: SkillDefinition;
   readonly bomb: SkillDefinition;
+  readonly selectedTalents: readonly string[];
 }): PeasantSupportPlans {
-  const campPulses = Math.max(
-    1,
-    Math.ceil(PEASANT_SUPPORT_SKILLS[4].durationMs / PEASANT_CAMP_PULSE_INTERVAL_MS),
+  const construction = resolvePeasantConstructionPlan(
+    peasantTalentEffects(skills.selectedTalents, 4),
+    {
+      ...PEASANT_SUPPORT_SKILLS[4],
+      power: skills.camp.power,
+      radius: skills.camp.radius ?? PEASANT_SUPPORT_SKILLS[4].radius,
+      durationMs: skills.camp.durationMs ?? PEASANT_SUPPORT_SKILLS[4].durationMs,
+    },
   );
+  const bomb = resolvePeasantBombPlan(peasantTalentEffects(skills.selectedTalents, 5), {
+    ...PEASANT_SUPPORT_SKILLS[5],
+    power: skills.bomb.power,
+    radius: skills.bomb.radius ?? PEASANT_SUPPORT_SKILLS[5].radius,
+    durationMs: skills.bomb.durationMs ?? PEASANT_SUPPORT_SKILLS[5].durationMs,
+  });
   return {
     camp: {
       kind: "camp",
-      cost: PEASANT_SUPPORT_SKILLS[4].cost,
+      cost: construction.cost,
       placementDistance: Math.max(0, skills.camp.range),
-      radius: PEASANT_SUPPORT_SKILLS[4].radius,
-      durationMs: PEASANT_SUPPORT_SKILLS[4].durationMs,
       pulseIntervalMs: PEASANT_CAMP_PULSE_INTERVAL_MS,
-      healPower: Math.ceil(PEASANT_SUPPORT_SKILLS[4].power / campPulses),
-      protectionRatio: PEASANT_CAMP_PROTECTION_RATIO,
+      construction,
+      ration: resolvePeasantRationPlan(peasantTalentEffects(skills.selectedTalents, 3)),
     },
     bomb: {
       kind: "bomb",
-      cost: PEASANT_SUPPORT_SKILLS[5].cost,
+      cost: bomb.cost,
       range: Math.max(0, skills.bomb.range),
-      radius: PEASANT_SUPPORT_SKILLS[5].radius,
-      power: PEASANT_SUPPORT_SKILLS[5].power,
       projectileSpeed: PEASANT_BOMB_SPEED,
       projectileRadius: 9,
+      bomb,
     },
   };
 }
@@ -96,6 +109,13 @@ export interface PeasantCampRuntime extends Vec2 {
   readonly radius: number;
   readonly healPower: number;
   readonly protectionRatio: number;
+  readonly slowRatio: number;
+  readonly rationHealing: number;
+  readonly rationRadius: number;
+  readonly rationBuffDurationMs: number;
+  readonly rationPowerBonusRatio: number;
+  rationPortionsRemaining: number;
+  readonly rationServedIds: Set<string>;
   readonly startedAt: number;
   readonly expiresAt: number;
   nextPulseAt: number;
@@ -108,6 +128,11 @@ export interface PeasantBombRuntime {
   readonly ownerId: string;
   readonly radius: number;
   readonly power: number;
+  readonly fragments: number;
+  readonly fragmentPower: number;
+  readonly slowRatio: number;
+  readonly slowDurationMs: number;
+  readonly knockbackDistance: number;
 }
 
 export interface PeasantSupportRequest {
@@ -331,6 +356,11 @@ export function placePeasantCamp(
   now: number,
 ): PeasantCampPlacementResult | null {
   if (!owner.partyId) return null;
+  const effectiveDurationMs = Math.max(
+    1,
+    Math.round(plan.construction.durationMs * plan.construction.durabilityMultiplier),
+  );
+  const pulses = Math.max(1, Math.ceil(effectiveDurationMs / plan.pulseIntervalMs));
   const replacedIndex = runtime.camps.findIndex((camp) => camp.ownerId === owner.id);
   const replaced = replacedIndex === -1 ? null : (runtime.camps[replacedIndex] ?? null);
   if (replacedIndex !== -1) runtime.camps.splice(replacedIndex, 1);
@@ -340,11 +370,21 @@ export function placePeasantCamp(
     ownerPartyId: owner.partyId,
     x: position.x,
     y: position.y,
-    radius: Math.max(1, plan.radius),
-    healPower: Math.max(0, Math.round(plan.healPower)),
-    protectionRatio: Math.min(0.25, Math.max(0, plan.protectionRatio)),
+    radius: Math.max(1, plan.construction.radius),
+    healPower: Math.max(0, Math.ceil(plan.construction.power / pulses)),
+    protectionRatio: Math.min(
+      0.5,
+      Math.max(0, PEASANT_CAMP_PROTECTION_RATIO + plan.construction.protectionRatio),
+    ),
+    slowRatio: Math.min(0.75, Math.max(0, plan.construction.slowRatio)),
+    rationHealing: Math.max(0, Math.round(plan.ration.healing)),
+    rationRadius: Math.max(0, plan.ration.radius),
+    rationBuffDurationMs: Math.max(0, plan.ration.buffDurationMs),
+    rationPowerBonusRatio: Math.max(0, plan.ration.powerBonusRatio),
+    rationPortionsRemaining: Math.max(1, Math.floor(plan.ration.portions)),
+    rationServedIds: new Set(),
     startedAt: now,
-    expiresAt: now + Math.max(1, plan.durationMs),
+    expiresAt: now + effectiveDurationMs,
     nextPulseAt: now,
     pulseIntervalMs: Math.max(250, plan.pulseIntervalMs),
   };
@@ -357,7 +397,7 @@ export function spawnPeasantBomb(
   projectiles: ProjectileRuntime[],
   owner: PlayerRuntime,
   action: CombatActionRuntime,
-  plan: PeasantBombPlan,
+  plan: PeasantBombSupportPlan,
   roomKey: string,
   now: number,
 ): ProjectileRuntime | null {
@@ -381,12 +421,24 @@ export function spawnPeasantBomb(
     now,
   });
   if (!projectile) return null;
+  projectile.expiresAt = Math.min(
+    projectile.expiresAt,
+    now + Math.max(0, plan.bomb.fuseDurationMs),
+  );
   runtime.bombs.set(projectile.id, {
     projectileId: projectile.id,
     actionId: action.id,
     ownerId: owner.id,
-    radius: Math.max(1, plan.radius),
-    power: Math.max(0, Math.round(plan.power)),
+    radius: Math.max(1, plan.bomb.radius),
+    power: Math.max(0, Math.round(plan.bomb.power)),
+    fragments: Math.max(0, Math.floor(plan.bomb.fragments)),
+    fragmentPower: Math.max(
+      0,
+      Math.round(plan.bomb.power * Math.max(0, plan.bomb.fragmentPowerRatio)),
+    ),
+    slowRatio: Math.min(0.75, Math.max(0, plan.bomb.slowRatio)),
+    slowDurationMs: Math.max(0, plan.bomb.slowDurationMs),
+    knockbackDistance: Math.max(0, plan.bomb.knockbackDistance),
   });
   return projectile;
 }
@@ -422,7 +474,7 @@ export function resolvePeasantSupportAction(
   };
 }
 
-function playerCenterDistance(point: Vec2, player: PlayerRuntime): number {
+function playerCenterDistance(point: Vec2, player: Vec2): number {
   const center = centerOfPlayer(player);
   return Math.hypot(point.x - center.x, point.y - center.y);
 }
@@ -431,17 +483,68 @@ function campSeesPlayer(camp: PeasantCampRuntime, player: PlayerRuntime, terrain
   return hasLineOfSight(camp, centerOfPlayer(player), terrain.tiles, 0);
 }
 
+function campSeesMonster(
+  camp: PeasantCampRuntime,
+  monster: MonsterRuntime,
+  terrain: TerrainGeometry,
+) {
+  return hasLineOfSight(camp, centerOfPlayer(monster), terrain.tiles, 0);
+}
+
+function rationTargets(
+  camp: PeasantCampRuntime,
+  owner: PlayerRuntime,
+  players: readonly PlayerRuntime[],
+  terrain: TerrainGeometry,
+  areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean,
+): PlayerRuntime[] {
+  if (camp.rationPortionsRemaining <= 0) return [];
+  const candidates = players.filter((target) => {
+    if (
+      target.life !== "alive" ||
+      !target.authorized ||
+      camp.rationServedIds.has(target.id) ||
+      !areAllies(owner, target)
+    )
+      return false;
+    if (camp.rationRadius <= 0) return target.id === owner.id;
+    return (
+      playerCenterDistance(camp, target) <= camp.rationRadius &&
+      campSeesPlayer(camp, target, terrain)
+    );
+  });
+  return candidates
+    .sort((left, right) => {
+      const leftRatio = left.hp / Math.max(1, maxHpForLevel(left.level));
+      const rightRatio = right.hp / Math.max(1, maxHpForLevel(right.level));
+      return leftRatio - rightRatio || left.id.localeCompare(right.id);
+    })
+    .slice(0, camp.rationPortionsRemaining);
+}
+
 export function advancePeasantCamps(options: {
   readonly runtime: PeasantSupportRuntime;
   readonly players: Iterable<PlayerRuntime>;
+  readonly monsters: Iterable<MonsterRuntime>;
   readonly terrain: TerrainGeometry;
   readonly now: number;
   readonly isOwnerActive: (ownerId: string) => boolean;
   readonly areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean;
   readonly heal: (camp: PeasantCampRuntime, owner: PlayerRuntime, target: PlayerRuntime) => void;
+  readonly serveRation: (
+    camp: PeasantCampRuntime,
+    owner: PlayerRuntime,
+    target: PlayerRuntime,
+  ) => void;
+  readonly slowMonster: (
+    camp: PeasantCampRuntime,
+    owner: PlayerRuntime,
+    monster: MonsterRuntime,
+  ) => void;
   readonly removed?: (camp: PeasantCampRuntime) => void;
 }): void {
   const players = [...options.players];
+  const monsters = [...options.monsters];
   for (let index = options.runtime.camps.length - 1; index >= 0; index--) {
     const camp = options.runtime.camps[index];
     if (!camp) continue;
@@ -463,6 +566,22 @@ export function advancePeasantCamps(options: {
       )
         continue;
       options.heal(camp, owner, target);
+    }
+    for (const target of rationTargets(camp, owner, players, options.terrain, options.areAllies)) {
+      camp.rationServedIds.add(target.id);
+      camp.rationPortionsRemaining -= 1;
+      options.serveRation(camp, owner, target);
+    }
+    if (camp.slowRatio > 0) {
+      for (const monster of monsters) {
+        if (
+          monster.deadUntil > options.now ||
+          playerCenterDistance(camp, monster) > camp.radius + monsterBodyRadius(monster.species) ||
+          !campSeesMonster(camp, monster, options.terrain)
+        )
+          continue;
+        options.slowMonster(camp, owner, monster);
+      }
     }
   }
 }
@@ -488,7 +607,7 @@ export function damageAfterPeasantCampProtection(
       continue;
     reduction = Math.max(reduction, camp.protectionRatio);
   }
-  return Math.max(1, Math.ceil(Math.max(0, rawDamage) * (1 - Math.min(0.25, reduction))));
+  return Math.max(1, Math.ceil(Math.max(0, rawDamage) * (1 - Math.min(0.5, reduction))));
 }
 
 export interface PeasantBombExplosion {
@@ -507,7 +626,14 @@ export function resolvePeasantBombImpact(options: {
   readonly monsterGrid: SpatialGrid<MonsterRuntime>;
   readonly terrain: TerrainGeometry;
   readonly now: number;
-  readonly damage: (monster: MonsterRuntime, power: number) => void;
+  readonly damage: (
+    monster: MonsterRuntime,
+    power: number,
+  ) => { readonly killed: boolean } | undefined;
+  readonly control?: (
+    monster: MonsterRuntime,
+    effect: Pick<PeasantBombRuntime, "slowRatio" | "slowDurationMs" | "knockbackDistance">,
+  ) => void;
 }): PeasantBombExplosion | null {
   const bomb = options.runtime.bombs.get(options.projectile.id);
   if (!bomb || bomb.actionId !== options.projectile.actionId) return null;
@@ -515,16 +641,34 @@ export function resolvePeasantBombImpact(options: {
   const candidates = options.monsterGrid
     .queryRadius(options.point, bomb.radius + MAX_MONSTER_BODY_RADIUS)
     .filter((monster) => monster.deadUntil <= options.now)
-    .sort((left, right) => left.id.localeCompare(right.id));
+    .filter((monster) => {
+      const center = centerOfPlayer(monster);
+      return (
+        Math.hypot(center.x - options.point.x, center.y - options.point.y) <=
+          bomb.radius + monsterBodyRadius(monster.species) &&
+        hasLineOfSight(options.point, center, options.terrain.tiles, 0)
+      );
+    })
+    .sort((left, right) => {
+      const leftCenter = centerOfPlayer(left);
+      const rightCenter = centerOfPlayer(right);
+      const leftDistance = Math.hypot(
+        leftCenter.x - options.point.x,
+        leftCenter.y - options.point.y,
+      );
+      const rightDistance = Math.hypot(
+        rightCenter.x - options.point.x,
+        rightCenter.y - options.point.y,
+      );
+      return leftDistance - rightDistance || left.id.localeCompare(right.id);
+    });
+  const fragmentTargetIds = new Set(
+    candidates.slice(0, bomb.fragments).map((monster) => monster.id),
+  );
   for (const monster of candidates) {
-    const center = centerOfPlayer(monster);
-    if (
-      Math.hypot(center.x - options.point.x, center.y - options.point.y) >
-        bomb.radius + monsterBodyRadius(monster.species) ||
-      !hasLineOfSight(options.point, center, options.terrain.tiles, 0)
-    )
-      continue;
-    options.damage(monster, bomb.power);
+    const fragmentPower = fragmentTargetIds.has(monster.id) ? bomb.fragmentPower : 0;
+    const result = options.damage(monster, bomb.power + fragmentPower);
+    if (result !== undefined && !result.killed) options.control?.(monster, bomb);
   }
   return {
     actionId: bomb.actionId,

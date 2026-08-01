@@ -4,15 +4,17 @@ import {
   PARTY_MATERIAL_TYPES,
   type PartyMaterialAmounts,
   type PartyMaterialType,
+  spendPartyMaterials,
 } from "@lindocara/engine/party-harvest-state.js";
-import {
-  canAffordPeasantSupportSkill,
-  peasantSupportSkill,
-} from "@lindocara/engine/peasant-support.js";
 import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
-import { activeEvolutionVariant, talentEffect } from "@lindocara/engine/talents.js";
+import {
+  activeEvolutionVariant,
+  peasantBombTalentPlan,
+  peasantConstructionTalentPlan,
+  talentEffect,
+} from "@lindocara/engine/talents.js";
 import { keyboardBindingLabel } from "@lindocara/renderer/input-settings.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
@@ -141,6 +143,13 @@ export function SkillBar() {
   if (!self) return null;
   const ironGuardActive = self.class === "warrior" && self.guarding === true;
   const materials = self.class === "peasant" ? selfState?.materials : undefined;
+  const peasantPlans =
+    self.class === "peasant"
+      ? {
+          camp: peasantConstructionTalentPlan(selfState?.talents?.selected ?? []).support,
+          bomb: peasantBombTalentPlan(selfState?.talents?.selected ?? []).support,
+        }
+      : null;
 
   return (
     <section className="skill-bar panel" aria-label={t("hud.abilities")}>
@@ -219,8 +228,11 @@ export function SkillBar() {
         const blockedByGuard = ironGuardActive && !guardToggle;
         const unavailable = !unlocked || !enabledOnMap || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
-        const support = self.class === "peasant" ? peasantSupportSkill(skill.slot) : null;
-        const affordable = support === null || canAffordPeasantSupportSkill(materials, skill.slot);
+        const support =
+          skill.slot === 4 ? peasantPlans?.camp : skill.slot === 5 ? peasantPlans?.bomb : null;
+        const affordable =
+          support == null ||
+          (materials !== undefined && spendPartyMaterials(materials, support.cost) !== null);
         const supportCost = support ? materialCostText(support.cost) : null;
         const supportText = supportCost
           ? `${t("skill.material_cost", { cost: supportCost })}${

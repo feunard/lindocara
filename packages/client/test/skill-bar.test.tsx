@@ -409,6 +409,51 @@ describe("skill bar cooldowns", () => {
     expect(game.castSkill).toHaveBeenCalledWith(5);
   });
 
+  it("uses the same talented support costs for HUD affordability as the server plans", () => {
+    useUiStore.setState({
+      game: gameHandle(),
+      self: {
+        nick: "Quartermaster",
+        level: 20,
+        hp: 72,
+        maxHp: 72,
+        life: "alive",
+        corpseDistance: null,
+        class: "peasant",
+        appearance: { body: "wayfarer", primaryColor: "moss" },
+        equipment: { mainHand: "worn_toolkit", offHand: null },
+      },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        materials: { wood: 2, stone: 1, iron: 1, meat: 1 },
+        talents: {
+          selected: [
+            "peasant.makeshift_camp.complete_encampment",
+            "peasant.homemade_bomb.powder_keg",
+          ],
+          pointsSpent: 2,
+          pointsAvailable: 18,
+        },
+      },
+    });
+    render(<SkillBar />);
+
+    const camp = screen.getByRole("button", { name: /^4\./ });
+    const bomb = screen.getByRole("button", { name: /^5\./ });
+    expect(camp).toHaveAttribute("data-material-affordable", "true");
+    expect(camp.querySelector('[data-material-cost="wood"]')).toHaveTextContent("W2");
+    expect(camp.querySelector('[data-material-cost="stone"]')).toHaveTextContent("S1");
+    expect(camp.querySelector('[data-material-cost="meat"]')).toHaveTextContent("M1");
+    expect(bomb).toHaveAttribute("data-material-affordable", "true");
+    expect(bomb.querySelector('[data-material-cost="iron"]')).toHaveTextContent("I1");
+    expect(bomb.querySelector('[data-material-cost="stone"]')).toHaveTextContent("S1");
+  });
+
   it("clears the shared material stock with the authoritative self state", () => {
     useUiStore.setState({
       game: gameHandle(),

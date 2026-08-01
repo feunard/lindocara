@@ -11,6 +11,7 @@ import {
   THREAT_EXPIRES_MS,
   THREAT_LEASH_DISTANCE,
 } from "@lindocara/engine/cooperation.js";
+import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import {
   GUARD_ATTACK_COOLDOWN_MS,
   GUARD_ATTACK_RANGE,
@@ -24,6 +25,7 @@ import {
   pointDistance,
   resolveTerrain,
   safeZoneShelters,
+  type TerrainGeometry,
 } from "@lindocara/engine/game.js";
 import { PLAYER_SIZE, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import { isPathWalkable } from "@lindocara/engine/tilemap.js";
@@ -57,6 +59,46 @@ export interface MonsterSystemContext<TSocket = WebSocket> {
   defeatMonster?(monster: MonsterRuntime, now: number): void;
   /** Fired after an authoritative monster movement edge. World uses it for contact teleporters. */
   onMonsterMoved?(monster: MonsterRuntime, previousPosition: Vec2): void;
+}
+
+/** Shared bounded crowd-control seam used by class effects and monster techniques. */
+export function applyMonsterSlow(
+  monster: MonsterRuntime,
+  slowRatio: number,
+  durationMs: number,
+  now: number,
+): void {
+  monster.slowMultiplier = Math.min(
+    monster.slowMultiplier,
+    1 - Math.max(0, Math.min(0.95, slowRatio)),
+  );
+  monster.slowUntil = Math.max(monster.slowUntil, now + Math.max(0, durationMs));
+}
+
+/** Collision-resolved displacement; the spatial index is updated exactly once. */
+export function pushMonsterAwayFrom(
+  monster: MonsterRuntime,
+  center: Vec2,
+  distance: number,
+  terrain: TerrainGeometry,
+  monsterGrid: SpatialGrid<MonsterRuntime>,
+): void {
+  const direction = normalizeDirection(
+    { x: monster.x - center.x, y: monster.y - center.y },
+    monster.facing,
+  );
+  const previous = { x: monster.x, y: monster.y };
+  const moved = resolveTerrain(
+    monster,
+    {
+      x: monster.x + direction.x * Math.max(0, distance),
+      y: monster.y + direction.y * Math.max(0, distance),
+    },
+    terrain,
+  );
+  monster.x = moved.x;
+  monster.y = moved.y;
+  monsterGrid.update(monster, previous);
 }
 
 function monsterAttackRange(monster: MonsterRuntime, now: number): number {

@@ -18,7 +18,11 @@
  * 7. one tick advances players before monsters before guards (composed-state probe, no mocks).
  */
 
-import { MONSTER_ACTIONS, MONSTER_SPECIAL_ACTIONS } from "@lindocara/engine/combat-actions.js";
+import {
+  MAX_PROJECTILES_PER_PLAYER,
+  MONSTER_ACTIONS,
+  MONSTER_SPECIAL_ACTIONS,
+} from "@lindocara/engine/combat-actions.js";
 import {
   ATTACK_COOLDOWN_MS,
   MONSTER_AGGRO_RANGE,
@@ -41,6 +45,7 @@ import {
   createMonsters,
   type PlayerRuntime,
 } from "@lindocara/server/world/world-runtime.js";
+import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
@@ -225,6 +230,14 @@ async function seedPartyMaterials(
   if (!hit.ok) throw new Error("material seed hit rejected");
 }
 
+async function partyMaterials(partyId: string) {
+  const partyRoom = alepha.inject(PartyRoom);
+  const state = (await partyRoom.room.call(partyId, "getAdventureState")) as {
+    state: { materials: { wood: number; stone: number; iron: number; meat: number } };
+  };
+  return state.state.materials;
+}
+
 /** Hosts the real WorldRoom options in a bare engine driven by the fake clock. */
 function createEngine(roomId: string, clock: FakeClock) {
   const worldRoom = alepha.inject(WorldRoom);
@@ -378,7 +391,67 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
-  test("Peasant camp spends shared materials, resolves once and replays to a late joiner", async () => {
+  test("support rejection never spends materials or cooldown for stock, placement or cap", async () => {
+    const host = await newPlayableHero("psupportdeny", "peasant");
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const socket = fakeSocket(host.userId, host.heroId);
+    await engine.join(socket);
+    const state = roomState(engine);
+    const peasant = playerOf(state, host.heroId);
+    peasant.level = 20;
+
+    await engine.message(socket.id, { t: "skill", slot: 4 });
+    expect(peasant.action).toBeNull();
+    expect(peasant.skillCooldowns[3]).toBe(0);
+    expect(await partyMaterials(host.partyId)).toEqual({ wood: 0, stone: 0, iron: 0, meat: 0 });
+
+    await seedPartyMaterials(host.partyId, host.heroId, {
+      wood: 4,
+      stone: 4,
+      iron: 2,
+      meat: 2,
+    });
+    const stocked = await partyMaterials(host.partyId);
+    const previous = { x: peasant.x, y: peasant.y };
+    peasant.x = 0;
+    peasant.y = 32;
+    peasant.facing = { x: -1, y: 0 };
+    state.playerGrid.update(peasant, previous);
+
+    await engine.message(socket.id, { t: "skill", slot: 4 });
+    expect(peasant.action).toBeNull();
+    expect(peasant.skillCooldowns[3]).toBe(0);
+    expect(await partyMaterials(host.partyId)).toEqual(stocked);
+
+    peasant.x = 32;
+    peasant.facing = { x: 1, y: 0 };
+    for (let index = 0; index < MAX_PROJECTILES_PER_PLAYER; index++) {
+      const projectile = spawnProjectile(state.projectiles, {
+        actionId: crypto.randomUUID(),
+        owner: peasant,
+        roomKey: peasant.roomKey,
+        origin: projectileOrigin(peasant, peasant.facing, 2),
+        direction: peasant.facing,
+        definition: { kind: "arrow", speed: 1, radius: 2, pierce: 0 },
+        range: 100,
+        power: 1,
+        targetFilter: "monsters",
+        sourceSkillId: "test_cap",
+        basic: false,
+        now: 1_000,
+      });
+      if (!projectile) throw new Error("projectile cap fixture rejected too early");
+    }
+
+    await engine.message(socket.id, { t: "skill", slot: 5 });
+    expect(peasant.action).toBeNull();
+    expect(peasant.skillCooldowns[4]).toBe(0);
+    expect(await partyMaterials(host.partyId)).toEqual(stocked);
+    engine.dispose();
+  });
+
+  test("talented Peasant camp spends its resolved cost and replays through reconnect", async () => {
     const host = await newPlayableHero("pcamp", "peasant");
     const guest = await joinAsSecondHero(host, "pcguest");
     await seedPartyMaterials(host.partyId, host.heroId, {
@@ -394,12 +467,17 @@ describe("world room combat (FakeClock)", () => {
     const peasant = playerOf(state, host.heroId);
     peasant.level = 20;
     peasant.facing = { x: 1, y: 0 };
+    peasant.talents = [
+      "peasant.butchers_cut.grand_feast",
+      "peasant.makeshift_camp.complete_encampment",
+    ];
+    const slowed = seedMonster(state, "camp-slowed", peasant.x + 80, peasant.y);
 
     await engine.message(hostSocket.id, { t: "skill", slot: 4 });
     const action = peasant.action;
     if (!action) throw new Error("camp action was not accepted");
     expect(action.skillId).toBe("makeshift_camp");
-    expect(state.adventureState.state.materials).toMatchObject({ wood: 0, stone: 0, meat: 0 });
+    expect(state.adventureState.state.materials).toMatchObject({ wood: 2, stone: 1, meat: 1 });
 
     let now = action.impactAt;
     const { w, sent } = testGlue(state, () => now);
@@ -407,6 +485,18 @@ describe("world room combat (FakeClock)", () => {
     expect(state.peasantSupport.camps).toHaveLength(1);
     const camp = state.peasantSupport.camps[0];
     if (!camp) throw new Error("camp did not resolve");
+    expect(camp).toMatchObject({
+      radius: 144,
+      protectionRatio: 0.22,
+      slowRatio: 0.2,
+      rationHealing: 21,
+      rationPortionsRemaining: 3,
+      rationRadius: 180,
+      rationBuffDurationMs: 10_000,
+      rationPowerBonusRatio: 0.15,
+      expiresAt: camp.startedAt + 44_000,
+    });
+    expect(slowed.slowMultiplier).toBeCloseTo(0.8);
     expect(sentTo(sent, host.heroId)).toContainEqual(
       expect.objectContaining({ t: "peasant.camp", id: camp.id }),
     );
@@ -414,6 +504,23 @@ describe("world room combat (FakeClock)", () => {
     const guestSocket = fakeSocket(guest.userId, guest.heroId);
     await engine.join(guestSocket);
     expect(guestSocket.sent.some((raw) => raw.includes('"t":"peasant.camp"'))).toBe(true);
+
+    await engine.leave(guestSocket.id);
+    const reconnectedGuestSocket = fakeSocket(guest.userId, guest.heroId);
+    await engine.join(reconnectedGuestSocket);
+    expect(
+      reconnectedGuestSocket.sent.some(
+        (raw) => raw.includes('"t":"peasant.camp"') && raw.includes(camp.id),
+      ),
+    ).toBe(true);
+
+    const guestPlayer = playerOf(state, guest.heroId);
+    guestPlayer.hp = 10;
+    now += 2_000;
+    advanceWorldTick(w);
+    expect(guestPlayer.hp).toBe(32);
+    expect(guestPlayer.rallyPowerMultiplier).toBe(0.15);
+    expect(guestPlayer.rallyPowerUntil).toBe(now + 10_000);
 
     sent.clear();
     state.tick = 19;
@@ -426,14 +533,14 @@ describe("world room combat (FakeClock)", () => {
     await engine.leave(hostSocket.id);
     expect(state.peasantSupport.camps).toEqual([]);
     expect(
-      guestSocket.sent.some(
+      reconnectedGuestSocket.sent.some(
         (raw) => raw.includes('"t":"peasant.camp_removed"') && raw.includes(camp.id),
       ),
     ).toBe(true);
     engine.dispose();
   });
 
-  test("Peasant bomb spends shared materials and produces one authoritative AoE impact", async () => {
+  test("Powder Keg applies exact fragments and crowd control once while respecting LOS", async () => {
     const host = await newPlayableHero("pbomb", "peasant");
     await seedPartyMaterials(host.partyId, host.heroId, { stone: 2, iron: 2 });
     const clock = new FakeClock();
@@ -443,23 +550,54 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const peasant = playerOf(state, host.heroId);
     peasant.level = 20;
+    const previous = { x: peasant.x, y: peasant.y };
+    peasant.x = 32;
+    peasant.y = 32;
     peasant.facing = { x: 1, y: 0 };
-    const target = seedMonster(state, "bomb-target", peasant.x + 56, peasant.y, { maxHp: 500 });
+    peasant.talents = ["peasant.homemade_bomb.powder_keg"];
+    state.playerGrid.update(peasant, previous);
+    const location = state.location;
+    if (!location) throw new Error("room terrain missing");
+    const currentTerrain = location.definition.terrain;
+    const wall = { x: 128, y: 0, width: 64, height: 192 };
+    const tiles = tileMapFromRects(currentTerrain.width, currentTerrain.height, [wall]);
+    location.definition.terrain = {
+      ...currentTerrain,
+      obstacles: [wall],
+      tiles,
+      colliders: noColliders(tiles),
+    };
+    const target = seedMonster(state, "bomb-target", 96, 32, { maxHp: 500 });
+    const sideTarget = seedMonster(state, "bomb-side", 80, 96, { maxHp: 500 });
+    const hidden = seedMonster(state, "bomb-hidden", 192, 32, {
+      maxHp: 500,
+      kind: "troll",
+      species: "gate_troll",
+    });
+    for (const monster of [target, sideTarget, hidden]) monster.weakness = "warrior";
+    const sidePosition = { x: sideTarget.x, y: sideTarget.y };
 
     await engine.message(socket.id, { t: "skill", slot: 5 });
     const action = peasant.action;
     if (!action) throw new Error("bomb action was not accepted");
     expect(action.skillId).toBe("homemade_bomb");
-    expect(state.adventureState.state.materials).toMatchObject({ stone: 0, iron: 0 });
+    expect(state.adventureState.state.materials).toMatchObject({ stone: 1, iron: 1 });
 
     let now = action.impactAt;
     const { w, sent } = testGlue(state, () => now);
     const hpBefore = target.hp;
+    const sideHpBefore = sideTarget.hp;
+    const hiddenHpBefore = hidden.hp;
     for (let tick = 0; tick < 8 && target.hp === hpBefore; tick++) {
       advanceWorldTick(w);
       now += TICK_MS;
     }
-    expect(target.hp).toBe(hpBefore - 20);
+    expect(target.hp).toBe(hpBefore - 35);
+    expect(sideTarget.hp).toBe(sideHpBefore - 35);
+    expect(hidden.hp).toBe(hiddenHpBefore);
+    expect(sideTarget.slowMultiplier).toBe(0.75);
+    expect(sideTarget.slowUntil).toBe(action.impactAt + 3_000);
+    expect({ x: sideTarget.x, y: sideTarget.y }).not.toEqual(sidePosition);
     expect(state.projectiles).toEqual([]);
     expect(state.peasantSupport.bombs.size).toBe(0);
     expect(

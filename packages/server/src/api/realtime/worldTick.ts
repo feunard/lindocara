@@ -202,8 +202,10 @@ import { collectLoot, processExpiredLoot } from "../../world/loot-system.js";
 import {
   advanceGuards,
   advanceMonsters,
+  applyMonsterSlow,
   forgetPlayerFromMonsters,
   type MonsterSystemContext,
+  pushMonsterAwayFrom,
 } from "../../world/monster-system.js";
 import { advancePlayers } from "../../world/movement-system.js";
 import type { NavigationRuntime } from "../../world/navigation-system.js";
@@ -221,13 +223,12 @@ import {
 } from "../../world/peasant-harvest-system.js";
 import {
   advancePeasantCamps,
-  basePeasantSupportPlans,
   beginPeasantSupportRequest,
   commitPeasantSupportRequest,
   damageAfterPeasantCampProtection,
   isPeasantBombProjectile,
-  type PeasantSupportPlans,
   type PeasantSupportRequest,
+  peasantSupportPlans,
   releasePeasantSupportRequest,
   removePeasantSupportByOwner,
   resolvePeasantBombImpact,
@@ -315,6 +316,7 @@ import {
   activeRallyPowerMultiplier,
   advanceWarriorCyclones,
   advanceWarriorVortices,
+  applyBoundedPowerBuff,
   applyKingsChallenge,
   applyRallyingCry,
   applySeismicImpact,
@@ -2223,18 +2225,11 @@ export function finishHeldPlayerAction(
   return true;
 }
 
-/** Typed seam for the talent layer: it may transform balance values, never runtime authority. */
-export type PeasantSupportPlanResolver = (
-  base: PeasantSupportPlans,
-  player: PlayerRuntime,
-) => PeasantSupportPlans;
-
 export function preparePeasantSupportRequest(
   w: WorldGlue,
   connectionId: string,
   player: PlayerRuntime,
   slot: SkillSlot,
-  resolvePlans: PeasantSupportPlanResolver = (base) => base,
 ): PeasantSupportRequest | null {
   if (player.class !== "peasant" || (slot !== 4 && slot !== 5)) return null;
   const skill = configuredSkill(w, player, slot);
@@ -2258,13 +2253,11 @@ export function preparePeasantSupportRequest(
   }
   if (!canAct(player.life) || !player.authorized || player.transitioning || !player.partyId)
     return null;
-  const plans = resolvePlans(
-    basePeasantSupportPlans({
-      camp: configuredSkill(w, player, 4),
-      bomb: configuredSkill(w, player, 5),
-    }),
-    player,
-  );
+  const plans = peasantSupportPlans({
+    camp: configuredSkill(w, player, 4),
+    bomb: configuredSkill(w, player, 5),
+    selectedTalents: player.talents,
+  });
   const result = beginPeasantSupportRequest({
     runtime: w.state.peasantSupport,
     connectionId,
@@ -4015,30 +4008,6 @@ function advanceRangerVolley(w: WorldGlue, player: PlayerRuntime, now: number): 
   );
 }
 
-function pushMonsterAwayFrom(
-  w: WorldGlue,
-  monster: MonsterRuntime,
-  center: Vec2,
-  distance: number,
-): void {
-  const direction = normalizeDirection(
-    { x: monster.x - center.x, y: monster.y - center.y },
-    monster.facing,
-  );
-  const previous = { x: monster.x, y: monster.y };
-  const moved = resolveTerrain(
-    monster,
-    {
-      x: monster.x + direction.x * Math.max(0, distance),
-      y: monster.y + direction.y * Math.max(0, distance),
-    },
-    zone(w.state).terrain,
-  );
-  monster.x = moved.x;
-  monster.y = moved.y;
-  w.state.monsterGrid.update(monster, previous);
-}
-
 function releaseCounterOffensive(
   w: WorldGlue,
   connectionId: string,
@@ -4065,7 +4034,13 @@ function releaseCounterOffensive(
       continue;
     const result = damageMonster(w, connectionId, player, monster, skill, now, false, power);
     if (!result?.killed) {
-      pushMonsterAwayFrom(w, monster, center, effect.knockbackDistance);
+      pushMonsterAwayFrom(
+        monster,
+        center,
+        effect.knockbackDistance,
+        zone(w.state).terrain,
+        w.state.monsterGrid,
+      );
       tauntMonster(player, monster, now);
     }
   }
@@ -4121,8 +4096,7 @@ function pulseWarriorVortex(
     );
     monster.x = moved.x;
     monster.y = moved.y;
-    monster.slowMultiplier = Math.min(monster.slowMultiplier, 1 - effect.slowRatio);
-    monster.slowUntil = Math.max(monster.slowUntil, now + effect.slowDurationMs);
+    applyMonsterSlow(monster, effect.slowRatio, effect.slowDurationMs, now);
     w.state.monsterGrid.update(monster, previous);
   }
 }
@@ -6041,6 +6015,7 @@ export function advanceWorldTick(w: WorldGlue): void {
   advancePeasantCamps({
     runtime: state.peasantSupport,
     players: state.players.values(),
+    monsters: state.monsters,
     terrain: zone(state).terrain,
     now,
     isOwnerActive: (ownerId) => {
@@ -6064,6 +6039,25 @@ export function advanceWorldTick(w: WorldGlue): void {
         owner.id === target.id,
       );
     },
+    serveRation: (camp, owner, target) => {
+      const ownerConnectionId = connectionOf(state, owner.id);
+      const targetConnectionId = connectionOf(state, target.id);
+      if (ownerConnectionId === undefined || targetConnectionId === undefined) return;
+      healPlayer(
+        w,
+        ownerConnectionId,
+        owner,
+        targetConnectionId,
+        target,
+        camp.rationHealing,
+        "butchers_cut",
+        now,
+        owner.id === target.id,
+      );
+      applyBoundedPowerBuff(target, camp.rationPowerBonusRatio, camp.rationBuffDurationMs, now);
+    },
+    slowMonster: (camp, _owner, monster) =>
+      applyMonsterSlow(monster, camp.slowRatio, camp.pulseIntervalMs + 1_000 / TICK_HZ, now),
     removed: (camp) => sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp),
   });
   if (state.tick % TICK_HZ === 0) {
@@ -6121,16 +6115,32 @@ export function advanceWorldTick(w: WorldGlue): void {
           now: impactAt,
           damage: (monster, power) => {
             if (!owner || !canAct(owner.player.life)) return;
-            damageMonster(
-              w,
-              owner.connectionId,
-              owner.player,
-              monster,
-              configuredSkill(w, owner.player, 5),
-              impactAt,
-              false,
-              power,
+            return (
+              damageMonster(
+                w,
+                owner.connectionId,
+                owner.player,
+                monster,
+                configuredSkill(w, owner.player, 5),
+                impactAt,
+                false,
+                power,
+              ) ?? undefined
             );
+          },
+          control: (monster, effect) => {
+            if (effect.slowRatio > 0 && effect.slowDurationMs > 0) {
+              applyMonsterSlow(monster, effect.slowRatio, effect.slowDurationMs, impactAt);
+            }
+            if (effect.knockbackDistance > 0) {
+              pushMonsterAwayFrom(
+                monster,
+                point,
+                effect.knockbackDistance,
+                zone(state).terrain,
+                state.monsterGrid,
+              );
+            }
           },
         });
         if (!explosion) return;
