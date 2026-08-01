@@ -160,7 +160,7 @@ export function MapHeroSettingsDialog({
         </DialogHeader>
         <p className="text-sm text-muted-foreground">{t("editor.heroSettings.hint")}</p>
         <Tabs defaultValue="warrior" className="min-h-0 flex-1 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             {PLAYER_CLASSES.map((playerClass) => (
               <TabsTrigger key={playerClass} value={playerClass}>
                 {t(`class.${playerClass}` as MessageKey)}

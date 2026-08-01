@@ -23,6 +23,20 @@ function Harness({ onSave }: { onSave: Parameters<typeof MapHeroSettingsDialog>[
 }
 
 describe("MapHeroSettingsDialog", () => {
+  test("keeps all five classes on one row and exposes the Peasant rules", async () => {
+    render(<Harness onSave={async () => true} />);
+
+    expect(screen.getByRole("tablist")).toHaveClass("grid-cols-5");
+    await userEvent.click(screen.getByRole("tab", { name: t("class.peasant") }));
+
+    expect(screen.getByLabelText(t("editor.heroSettings.movementSpeed"))).toHaveValue(247);
+    expect(
+      screen.getByRole("checkbox", {
+        name: `4. ${t("skill.peasant.makeshift_camp.name")}`,
+      }),
+    ).toBeChecked();
+  });
+
   test("edits a class speed and disables an ability before saving", async () => {
     const onSave = vi.fn(async (_settings: MapHeroSettings) => true);
     render(<Harness onSave={onSave} />);
