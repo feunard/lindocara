@@ -126,6 +126,12 @@ import {
   TINY_SWORDS_ENEMIES,
 } from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
+import {
+  createHarvestEventVisualState,
+  type HarvestEventVisualState,
+  harvestEventPresentation,
+  peasantCarryPresentation,
+} from "./harvest-visuals.js";
 import { onLocaleChange, t } from "./locale.js";
 import { sameRenderedMap } from "./map-render-cache.js";
 import type { SceneSample } from "./scene-sample.js";
@@ -855,6 +861,7 @@ function placeTile(
 interface EventView {
   container: Container;
   data: WorldEventSnapshot;
+  harvestVisual: HarvestEventVisualState;
   drawnGraphic: string | null | undefined;
   sprite?: Sprite | undefined;
   animation?:
@@ -1569,6 +1576,7 @@ export class Renderer {
         view = {
           container: new Container(),
           data: event,
+          harvestVisual: createHarvestEventVisualState(),
           drawnGraphic: undefined,
           fromCol: event.col,
           fromRow: event.row,
@@ -1597,10 +1605,30 @@ export class Renderer {
           view.facingX = horizontal < 0 ? -1 : 1;
         }
       }
+      const movement = sampleNpcMovementTween(
+        { col: view.fromCol, row: view.fromRow },
+        { col: event.col, row: event.row },
+        view.moveStartedAt,
+        view.moveDurationMs,
+        now,
+      );
+      view.displayCol = movement.col;
+      view.displayRow = movement.row;
+      const previousGraphicAssetId =
+        view.drawnGraphic === undefined ? view.data.graphicAssetId : view.drawnGraphic;
+      const harvestPresentation = harvestEventPresentation({
+        event,
+        previous: view.harvestVisual,
+        previousGraphicAssetId,
+        now,
+        toLocal: (serverTimestamp) => this.serverClock.toLocal(serverTimestamp),
+      });
+      view.harvestVisual = harvestPresentation.state;
       view.data = event;
+      const presentedGraphicAssetId = harvestPresentation.graphicAssetId;
       const definition =
-        event.graphicAssetId && isEditorAssetId(event.graphicAssetId)
-          ? editorAsset(event.graphicAssetId)
+        presentedGraphicAssetId && isEditorAssetId(presentedGraphicAssetId)
+          ? editorAsset(presentedGraphicAssetId)
           : null;
       const unit = isUnitSheetRole(definition?.role);
       const parent = eventRenderLayer(
@@ -1611,19 +1639,18 @@ export class Renderer {
         this.#tilesAbove,
       );
       if (view.container.parent !== parent) parent.addChild(view.container);
-      if (view.drawnGraphic !== event.graphicAssetId) {
-        view.drawnGraphic = event.graphicAssetId;
-        this.#drawEventGraphic(view, event);
+      if (view.drawnGraphic !== presentedGraphicAssetId) {
+        view.drawnGraphic = presentedGraphicAssetId;
+        this.#drawEventGraphic(view, event, presentedGraphicAssetId);
       }
-      const movement = sampleNpcMovementTween(
-        { col: view.fromCol, row: view.fromRow },
-        { col: event.col, row: event.row },
-        view.moveStartedAt,
-        view.moveDurationMs,
-        now,
-      );
-      view.displayCol = movement.col;
-      view.displayRow = movement.row;
+      if (harvestPresentation.playHitEffect) {
+        this.#burst(
+          movement.col * TILE_SIZE + TILE_SIZE / 2,
+          movement.row * TILE_SIZE + TILE_SIZE / 2,
+          0xe5d2a4,
+          6,
+        );
+      }
       const animation = view.animation;
       const sprite = view.sprite;
       if (sprite?.destroyed) {
@@ -1632,6 +1659,7 @@ export class Renderer {
         view.drawnGraphic = undefined;
       } else if (sprite) {
         sprite.tint = event.graphicTint ?? 0xffffff;
+        sprite.alpha = harvestPresentation.alpha;
         const running =
           movement.moving &&
           event.moveAnimation &&
@@ -1725,11 +1753,10 @@ export class Renderer {
   /** Paint one event's active-page graphic into its container via the shared event crop. A `null`
    *  graphic is the authored blank tile — a legitimate active page that simply draws nothing. Art is
    *  loaded on demand; until it arrives the cell is empty and the next reconcile redraws it. */
-  #drawEventGraphic(view: EventView, event: WorldEventSnapshot): void {
+  #drawEventGraphic(view: EventView, event: WorldEventSnapshot, graphicId: string | null): void {
     for (const child of view.container.removeChildren()) child.destroy({ children: true });
     view.sprite = undefined;
     view.animation = undefined;
-    const graphicId = event.graphicAssetId;
     if (graphicId === null || !isEditorAssetId(graphicId)) return;
     const art = this.#eventAssetArt.get(graphicId);
     if (art) {
@@ -1768,7 +1795,7 @@ export class Renderer {
         this.#eventAssetArt.set(graphicId, loaded);
         // Force the next reconcile to redraw this event now that its art is in hand.
         const current = this.#events.get(event.id);
-        if (current && current.data.graphicAssetId === graphicId) current.drawnGraphic = undefined;
+        if (current?.drawnGraphic === graphicId) current.drawnGraphic = undefined;
       })
       .catch(() => {
         // An unknown asset draws nothing — appearance only, so a missing graphic is never fatal.
@@ -4694,7 +4721,12 @@ export class Renderer {
             const actionRendered = !spirit && this.#updatePlayerActionArt(view, player, now);
             if (!actionRendered) {
               const motion: UnitMotion = moving ? "run" : "idle";
-              const frames = view.unitAnimations[motion];
+              const carry = peasantCarryPresentation(player, moving, now, (serverTimestamp) =>
+                this.serverClock.toLocal(serverTimestamp),
+              );
+              const carryFrames = carry ? this.art.units[carry.sheet.source] : undefined;
+              const frames =
+                carryFrames && carryFrames.length > 0 ? carryFrames : view.unitAnimations[motion];
               const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
               if (frame) {
                 view.unitSprite.texture = frame;
