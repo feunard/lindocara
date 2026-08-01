@@ -154,6 +154,16 @@ describe("directional class kit contract", () => {
     expect(monsterActionDefinition("spear_goblin", null)).toBe(MONSTER_ACTIONS.spear_goblin);
   });
 
+  it("launches every enemy basic projectile on acceptance while retaining recovery", () => {
+    for (const profile of ["arrow", "hex", "harpoon", "bomb"] as const) {
+      const action = monsterActionDefinition("spear_goblin", profile);
+      expect(action).toMatchObject({ anticipationMs: 0 });
+      expect(action.recoveryMs).toBeGreaterThan(0);
+      expect(action).toHaveProperty("projectile");
+    }
+    expect(MONSTER_ACTIONS.spear_goblin.anticipationMs).toBeGreaterThan(0);
+  });
+
   it("defines distinct telegraphed boss techniques", () => {
     expect(Object.keys(MONSTER_SPECIAL_ACTIONS)).toHaveLength(15);
     expect(Object.keys(MONSTER_SPECIAL_ACTIONS)).toEqual(

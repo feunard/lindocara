@@ -17,6 +17,7 @@ import {
   GUARD_DAMAGE,
   GUARD_DETECTION_RANGE,
   GUARD_SPEED,
+  hasLineOfSight,
   MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_RESPAWN_MS,
@@ -208,7 +209,11 @@ export function advanceMonsters<TSocket>(
         monster.vy = 0;
         continue;
       }
-      if (targetDistance <= monsterAttackRange(monster, now)) {
+      const attackRange = monsterAttackRange(monster, now);
+      if (
+        targetDistance <= attackRange &&
+        hasLineOfSight(monster, targetPosition, context.zone.terrain.tiles)
+      ) {
         monster.navigation.state = "chase";
         monster.navigation.destination = { x: targetPosition.x, y: targetPosition.y };
         monster.vx = 0;

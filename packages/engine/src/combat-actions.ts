@@ -248,30 +248,32 @@ export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefin
   },
 };
 
+/** Basic enemy shots release on the accepted server frame. Recovery still owns the attack
+ * animation lock; `MONSTER_ATTACK_COOLDOWN_MS` independently owns the cadence between casts. */
 const MONSTER_RANGED_ACTIONS = {
   arrow: {
-    anticipationMs: 560,
+    anticipationMs: 0,
     recoveryMs: 620,
     range: 300,
     hitboxRadius: 0,
     projectile: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
   },
   hex: {
-    anticipationMs: 620,
+    anticipationMs: 0,
     recoveryMs: 640,
     range: 280,
     hitboxRadius: 0,
     projectile: { kind: "hex_orb", speed: 390, radius: 9, pierce: 0 },
   },
   harpoon: {
-    anticipationMs: 600,
+    anticipationMs: 0,
     recoveryMs: 680,
     range: 290,
     hitboxRadius: 0,
     projectile: { kind: "enemy_harpoon", speed: 470, radius: 6, pierce: 0 },
   },
   bomb: {
-    anticipationMs: 680,
+    anticipationMs: 0,
     recoveryMs: 760,
     range: 240,
     hitboxRadius: 0,

@@ -103,7 +103,11 @@ import {
   scheduleShadowDanceReplay,
   shadowDancePositionAfter,
 } from "./combat-motion.js";
-import { CombatVisualAuthority, clearVisualAction } from "./combat-visual-state.js";
+import {
+  CombatVisualAuthority,
+  clearVisualAction,
+  hasPendingAnticipation,
+} from "./combat-visual-state.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import {
   type EditorAssetArt,
@@ -4484,12 +4488,11 @@ export class Renderer {
       if (
         monster.dead ||
         !view.actionId ||
-        impactAt === undefined ||
-        startedAt === undefined ||
         !direction ||
-        impactAt <= now
+        !hasPendingAnticipation(startedAt, impactAt, now)
       )
         continue;
+      if (impactAt === undefined || startedAt === undefined) continue;
       const definition = MONSTER_ACTIONS[monster.species];
       const origin = centerOf(monster);
       const remaining = Math.max(0, impactAt - now);

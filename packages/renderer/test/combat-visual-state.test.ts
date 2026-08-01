@@ -1,11 +1,18 @@
 import {
   CombatVisualAuthority,
   clearVisualAction,
+  hasPendingAnticipation,
   type MutableVisualActionState,
 } from "@lindocara/renderer/combat-visual-state.js";
 import { describe, expect, it } from "vitest";
 
 describe("authoritative combat visual cancellation", () => {
+  it("never exposes a charge telegraph for an immediate enemy projectile", () => {
+    expect(hasPendingAnticipation(1_000, 1_000, 1_000)).toBe(false);
+    expect(hasPendingAnticipation(1_000, 1_560, 1_100)).toBe(true);
+    expect(hasPendingAnticipation(1_000, 1_560, 1_560)).toBe(false);
+  });
+
   it("clears anticipation, future impact, telegraph and persistent action state immediately", () => {
     const state: MutableVisualActionState = {
       actionId: "action-a",

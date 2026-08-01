@@ -13,6 +13,18 @@ export interface MutableVisualActionState {
   effectPlayedImpactCount?: number;
 }
 
+/** A charge indicator exists only for a genuinely future active frame. An action released on its
+ * accepted frame has no warning interval to render, even if its recovery animation is still live. */
+export function hasPendingAnticipation(
+  startedAt: number | undefined,
+  impactAt: number | undefined,
+  now: number,
+): boolean {
+  return (
+    startedAt !== undefined && impactAt !== undefined && impactAt > startedAt && impactAt > now
+  );
+}
+
 /** Clears every actor-owned visual that could otherwise reach a future impact frame. */
 export function clearVisualAction(state: MutableVisualActionState): string | null {
   const actionId = state.actionId ?? null;

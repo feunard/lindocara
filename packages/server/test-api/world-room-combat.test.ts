@@ -523,7 +523,7 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
-  test("an explicit arrow profile fires an arrow regardless of appearance", async () => {
+  test("an explicit arrow profile fires once on acceptance regardless of appearance", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("profilearrow");
     const clock = new FakeClock();
     const engine = createEngine(roomId, clock);
@@ -531,7 +531,7 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const target = playerOf(state, heroId);
     const now = Date.now() + 1_000;
-    const { w } = testGlue(state, () => now);
+    const { w, sent } = testGlue(state, () => now);
     const monster = seedMonster(state, "explicit-archer", target.x - 180, target.y, {
       species: "spear_goblin",
       attackProfile: "arrow",
@@ -540,16 +540,37 @@ describe("world room combat (FakeClock)", () => {
 
     startMonsterAttack(w, monster, target, now);
     const action = monster.action;
-    if (!action) throw new Error("archer wind-up did not start");
-    resolveMonsterAction(w, monster, action, action.impactAt);
+    if (!action) throw new Error("archer attack did not start");
+    expect(action.impactAt).toBe(now);
+    expect(state.projectiles).toHaveLength(0);
+
+    advanceWorldTick(w);
 
     expect(state.projectiles).toEqual([
       expect.objectContaining({
+        actionId: action.id,
         ownerId: monster.id,
         kind: "arrow",
         targetFilter: "players_and_guards",
       }),
     ]);
+    expect(
+      sentTo(sent, heroId).filter(
+        (message) => message.t === "animation" && message.actionId === action.id,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        t: "animation",
+        startedAt: now,
+        impactAt: now,
+        recoveryEndsAt: now + 620,
+      }),
+    ]);
+
+    // The action's resolved flag, not a timer-specific workaround, owns the single spawn.
+    advanceWorldTick(w);
+    expect(state.projectiles).toHaveLength(1);
+    expect(state.projectiles[0]?.actionId).toBe(action.id);
     engine.dispose();
   });
 

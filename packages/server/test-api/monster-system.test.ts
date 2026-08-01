@@ -150,6 +150,74 @@ describe("authored monster tuning", () => {
   });
 });
 
+describe("enemy ranged attack acceptance", () => {
+  function rangedHarness(monsterX: number, playerX: number, combatZone = zone) {
+    const monster = chasingMonster();
+    monster.x = monsterX;
+    monster.y = 32;
+    monster.attackProfile = "arrow";
+    const player = targetPlayer(playerX, 32);
+    monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 1_000 });
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const startAttack = vi.fn();
+    const context: MonsterSystemContext = {
+      players: new Map([[{ id: "ranged-socket" } as unknown as WebSocket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone: combatZone,
+      tick: 0,
+      navigation: createNavigationRuntime(combatZone.terrain, combatZone.navigation),
+      startAttack,
+    };
+    return { context, monster, player, startAttack };
+  }
+
+  it("accepts a visible target in range immediately and keeps the normal cooldown", () => {
+    const { context, monster, startAttack } = rangedHarness(100, 280);
+    const firstAttackAt = 1_000;
+
+    advanceMonsters(context, firstAttackAt);
+    expect(startAttack).toHaveBeenCalledTimes(1);
+    expect(monster.lastAttackAt).toBe(firstAttackAt);
+
+    advanceMonsters(context, firstAttackAt + MONSTER_ATTACK_COOLDOWN_MS - 1);
+    expect(startAttack).toHaveBeenCalledTimes(1);
+    advanceMonsters(context, firstAttackAt + MONSTER_ATTACK_COOLDOWN_MS);
+    expect(startAttack).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not accept a target outside the authored projectile range", () => {
+    const { context, monster, startAttack } = rangedHarness(100, 401);
+
+    advanceMonsters(context, 1_000);
+
+    expect(startAttack).not.toHaveBeenCalled();
+    expect(monster.lastAttackAt).toBe(0);
+  });
+
+  it("repositions instead of firing through an obstacle or consuming its cooldown", () => {
+    const wallTerrain: TerrainGeometry = {
+      width: 320,
+      height: 192,
+      obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
+      spawnPoints: [{ x: 0, y: 128 }],
+      safeZone: null,
+      tiles: WALL_TILES,
+      colliders: noColliders(WALL_TILES),
+    };
+    const wallZone: ZoneDefinition = { ...zone, terrain: wallTerrain };
+    const { context, monster, startAttack } = rangedHarness(0, 160, wallZone);
+
+    advanceMonsters(context, 1_000);
+
+    expect(startAttack).not.toHaveBeenCalled();
+    expect(monster.lastAttackAt).toBe(0);
+    expect(monster.navigation.state).not.toBe("idle");
+  });
+});
+
 describe("monster navigation on the tile grid", () => {
   it("keeps threat alive while the monster is still pursuing its valid target", () => {
     const monster = chasingMonster();
