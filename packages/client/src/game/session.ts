@@ -45,6 +45,7 @@ import {
 } from "./cooldown-sync.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
+import { SessionCombatAudio } from "./session-combat-audio.js";
 import { GameSound } from "./sound.js";
 
 function required<T extends Element>(selector: string): T {
@@ -356,6 +357,7 @@ async function startGameIdentity(
   });
   let client = new WorldClient();
   let connection: Connection | null = null;
+  const combatAudio = new SessionCombatAudio(sound, () => connection);
   let reconnectTimer: number | null = null;
   let loadingTimer: number | null = null;
   let loadingCompletionScheduled = false;
@@ -651,7 +653,7 @@ async function startGameIdentity(
           sound.healReceived();
           break;
         case "combat.hit":
-          sound.combatPulse();
+          combatAudio.confirmedEvent(code);
           if (typeof params?.skill === "string" && typeof x === "number" && typeof y === "number") {
             const actorId = typeof params.actorId === "string" ? params.actorId : client.selfId;
             const poisonOutcome = params.poisonTick === 1 || params.poisonRupture === 1;
@@ -668,7 +670,7 @@ async function startGameIdentity(
             if (client.selfId) renderer.playCombatImpact(client.selfId, params.skill, x, y);
           break;
         case "combat.hurt":
-          sound.combatPulse();
+          combatAudio.confirmedEvent(code);
           sound.hit();
           if (typeof params?.species === "string" && isMonsterSpecies(params.species)) {
             renderer.playMonsterImpact(params.species, x, y);
@@ -799,7 +801,7 @@ async function startGameIdentity(
     sound.unlock();
     // The intent itself does not start combat music: an attack into empty space has no threat.
     // Authoritative aggro snapshots and confirmed hit/hurt events own that transition.
-    connection?.attack();
+    combatAudio.attack();
     return true;
   };
   const interact = () => {
@@ -1089,9 +1091,7 @@ async function startGameIdentity(
     sound.update(now);
     client.update(isGameplayInputPaused() ? NO_INPUT : input.current(), dt);
     const sample = client.sample(now);
-    sound.setCombatThreatened(
-      sample.monsters.some((monster) => monster.threatening === true && !monster.dead),
-    );
+    combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
     if (welcomed && self && !loadingCompletionScheduled) {
