@@ -79,6 +79,12 @@ export interface ProjectileSystemContext<TSocket = WebSocket> {
   ): void;
   damageGuard(projectile: ProjectileRuntime, guard: GuardRuntime, now: number): void;
   blocked(projectile: ProjectileRuntime, point: Vec2): void;
+  removed?(
+    projectile: ProjectileRuntime,
+    point: Vec2,
+    reason: "expired" | "terrain" | "entity" | "range",
+    now: number,
+  ): void;
 }
 
 export function projectileOrigin(owner: Vec2, direction: Vec2, radius: number): Vec2 {
@@ -139,6 +145,17 @@ export function spawnProjectile(
   };
   projectiles.push(projectile);
   return projectile;
+}
+
+export function canSpawnProjectile(
+  projectiles: readonly ProjectileRuntime[],
+  ownerId: string,
+): boolean {
+  return (
+    projectiles.length < MAX_PROJECTILES_PER_ROOM &&
+    projectiles.filter((projectile) => projectile.ownerId === ownerId).length <
+      MAX_PROJECTILES_PER_PLAYER
+  );
 }
 
 function playerById<TSocket>(
@@ -318,7 +335,14 @@ export function advanceProjectiles<TSocket>(
 ): void {
   const survivors: ProjectileRuntime[] = [];
   for (const projectile of context.projectiles) {
-    if (now >= projectile.expiresAt || projectile.rangeRemaining <= 0) continue;
+    if (now >= projectile.expiresAt) {
+      context.removed?.(projectile, projectile, "expired", now);
+      continue;
+    }
+    if (projectile.rangeRemaining <= 0) {
+      context.removed?.(projectile, projectile, "range", now);
+      continue;
+    }
     const owner = playerById(context.players, projectile.ownerId);
     if (projectile.returningToOwner) {
       if (!owner?.authorized || owner.transitioning || owner.life !== "alive") continue;
@@ -372,6 +396,7 @@ export function advanceProjectiles<TSocket>(
         continue;
       }
       context.blocked(projectile, first.point);
+      context.removed?.(projectile, first.point, "terrain", now);
       continue;
     }
 
@@ -403,6 +428,7 @@ export function advanceProjectiles<TSocket>(
       projectile.x = blockingContact.point.x;
       projectile.y = blockingContact.point.y;
       if (beginReturn(projectile, context, now)) survivors.push(projectile);
+      else context.removed?.(projectile, blockingContact.point, "entity", now);
       continue;
     }
     if (terrain) {
@@ -413,13 +439,17 @@ export function advanceProjectiles<TSocket>(
         continue;
       }
       context.blocked(projectile, terrain.point);
+      context.removed?.(projectile, terrain.point, "terrain", now);
       continue;
     }
     projectile.x = to.x;
     projectile.y = to.y;
     projectile.rangeRemaining -= fullDistance;
-    if (projectile.rangeRemaining > 0 || beginReturn(projectile, context, now))
+    if (projectile.rangeRemaining > 0 || beginReturn(projectile, context, now)) {
       survivors.push(projectile);
+    } else {
+      context.removed?.(projectile, projectile, "range", now);
+    }
   }
   context.projectiles.splice(0, context.projectiles.length, ...survivors);
 }

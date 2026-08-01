@@ -1012,6 +1012,8 @@ export const fr: Record<keyof typeof en, string> = {
   "event.skill.locked": "{skill} se débloque au niveau {level}.",
   "event.skill.disabled": "{skill} est désactivée sur cette carte.",
   "event.resource.insufficient": "Mana insuffisant.",
+  "event.peasant.materials_insufficient": "Le groupe n’a pas assez de matériaux.",
+  "event.peasant.support_unavailable": "Cette action de soutien n’est plus disponible.",
   "event.talent.unlocked": "Talent activé.",
   "event.talent.reset": "Tous les points de talent ont été récupérés.",
   "event.talent.invalid": "Ce talent ne peut pas encore être activé.",

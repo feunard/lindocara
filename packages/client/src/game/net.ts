@@ -30,6 +30,9 @@ import {
   type MonsterSnapshot,
   type MonsterSpecialImpact,
   type PartyState,
+  type PeasantBombImpactVisual,
+  type PeasantCampRemovedVisual,
+  type PeasantCampVisual,
   type PlayerSnapshot,
   type PriestLumenPortalVisual,
   type PriestPolarityOrbVisual,
@@ -158,6 +161,9 @@ export interface ConnectionHandlers {
   onShadowDance(sequence: RogueShadowDanceSequence): void;
   onLumenPortal(portal: PriestLumenPortalVisual): void;
   onPolarityOrb(orb: PriestPolarityOrbVisual): void;
+  onPeasantCamp(camp: PeasantCampVisual): void;
+  onPeasantCampRemoved(camp: PeasantCampRemovedVisual): void;
+  onPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
    *  close that ends the run. `text`/`name`/`prompt`/`options` are authored prose, not i18n codes. */
   onEventSay(runId: string, text: string, name?: string): void;
@@ -573,6 +579,18 @@ export class WorldClient {
     }
     if (message.t === "priest.polarity_orb") {
       handlers.onPolarityOrb(message);
+      return;
+    }
+    if (message.t === "peasant.camp") {
+      handlers.onPeasantCamp(message);
+      return;
+    }
+    if (message.t === "peasant.camp_removed") {
+      handlers.onPeasantCampRemoved(message);
+      return;
+    }
+    if (message.t === "peasant.bomb_impact") {
+      handlers.onPeasantBombImpact(message);
       return;
     }
     if (message.t === "event.say") {

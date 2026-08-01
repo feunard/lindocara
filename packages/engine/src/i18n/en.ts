@@ -1001,6 +1001,8 @@ export const en = {
   "event.skill.locked": "{skill} unlocks at level {level}.",
   "event.skill.disabled": "{skill} is disabled on this map.",
   "event.resource.insufficient": "Not enough mana.",
+  "event.peasant.materials_insufficient": "The party does not have enough materials.",
+  "event.peasant.support_unavailable": "That support action is no longer available.",
   "event.talent.unlocked": "Talent activated.",
   "event.talent.reset": "All talent points were refunded.",
   "event.talent.invalid": "That talent cannot be activated yet.",

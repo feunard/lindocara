@@ -118,6 +118,9 @@ function handlers(): ConnectionHandlers {
     onShadowDance: vi.fn(),
     onLumenPortal: vi.fn(),
     onPolarityOrb: vi.fn(),
+    onPeasantCamp: vi.fn(),
+    onPeasantCampRemoved: vi.fn(),
+    onPeasantBombImpact: vi.fn(),
     onEvent: vi.fn(),
     onEventSay: vi.fn(),
     onEventChoices: vi.fn(),
@@ -215,6 +218,46 @@ describe("WorldClient on the alepha wire", () => {
 
     expect(callbacks.onWelcome).toHaveBeenCalledOnce();
     expect(callbacks.onWelcome).toHaveBeenCalledWith("hero-1", WELCOME.world, WELCOME.self);
+  });
+
+  it("dispatches authoritative Peasant camp replay, cleanup and bomb impact frames", async () => {
+    stubJoin([{ roomId: "party-1:verdant-reach", channelPath: "/ws/world" }]);
+    const callbacks = handlers();
+    new WorldClient().connect(callbacks, "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    const camp = {
+      t: "peasant.camp" as const,
+      id: "camp-1",
+      actorId: "hero-1",
+      x: 64,
+      y: 96,
+      radius: 96,
+      startedAt: 1_000,
+      expiresAt: 13_000,
+    };
+    socket?.message(camp);
+    socket?.message(camp); // admission + heartbeat replay is intentionally idempotent downstream
+    socket?.message({ t: "peasant.camp_removed", id: camp.id });
+    const impact = {
+      t: "peasant.bomb_impact" as const,
+      actionId: "bomb-1",
+      actorId: "hero-1",
+      x: 80,
+      y: 96,
+      radius: 72,
+      impactAt: 2_000,
+    };
+    socket?.message(impact);
+
+    expect(callbacks.onPeasantCamp).toHaveBeenCalledTimes(2);
+    expect(callbacks.onPeasantCamp).toHaveBeenLastCalledWith(camp);
+    expect(callbacks.onPeasantCampRemoved).toHaveBeenCalledWith({
+      t: "peasant.camp_removed",
+      id: camp.id,
+    });
+    expect(callbacks.onPeasantBombImpact).toHaveBeenCalledOnce();
+    expect(callbacks.onPeasantBombImpact).toHaveBeenCalledWith(impact);
   });
 
   it("re-resolves the join on every connect() — a 4008 reconnect reads the destination room fresh", async () => {

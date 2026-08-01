@@ -45,6 +45,7 @@ import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
@@ -198,6 +199,32 @@ async function joinAsSecondHero(
   return { userId, heroId };
 }
 
+async function seedPartyMaterials(
+  partyId: string,
+  heroId: string,
+  reward: { wood?: number; stone?: number; iron?: number; meat?: number },
+): Promise<void> {
+  const partyRoom = alepha.inject(PartyRoom);
+  partyRoom.now = () => Date.now();
+  const eventId = crypto.randomUUID();
+  const reservation = (await partyRoom.room.call(partyId, "reserveHarvestNode", {
+    heroId,
+    eventId,
+    generation: 0,
+    requiredHits: 1,
+    reward,
+    respawnDelayMs: null,
+  })) as { ok: boolean; reservationId?: string };
+  if (!reservation.ok || !reservation.reservationId)
+    throw new Error("material seed reservation rejected");
+  const hit = (await partyRoom.room.call(partyId, "hitHarvestNode", {
+    heroId,
+    eventId,
+    reservationId: reservation.reservationId,
+  })) as { ok: boolean };
+  if (!hit.ok) throw new Error("material seed hit rejected");
+}
+
 /** Hosts the real WorldRoom options in a bare engine driven by the fake clock. */
 function createEngine(roomId: string, clock: FakeClock) {
   const worldRoom = alepha.inject(WorldRoom);
@@ -348,6 +375,96 @@ describe("world room combat (FakeClock)", () => {
 
     expect(state.harvestJobs.size).toBe(0);
     expect(state.connectionIdByHeroId.has(heroId)).toBe(false);
+    engine.dispose();
+  });
+
+  test("Peasant camp spends shared materials, resolves once and replays to a late joiner", async () => {
+    const host = await newPlayableHero("pcamp", "peasant");
+    const guest = await joinAsSecondHero(host, "pcguest");
+    await seedPartyMaterials(host.partyId, host.heroId, {
+      wood: 4,
+      stone: 2,
+      meat: 2,
+    });
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const hostSocket = fakeSocket(host.userId, host.heroId);
+    await engine.join(hostSocket);
+    const state = roomState(engine);
+    const peasant = playerOf(state, host.heroId);
+    peasant.level = 20;
+    peasant.facing = { x: 1, y: 0 };
+
+    await engine.message(hostSocket.id, { t: "skill", slot: 4 });
+    const action = peasant.action;
+    if (!action) throw new Error("camp action was not accepted");
+    expect(action.skillId).toBe("makeshift_camp");
+    expect(state.adventureState.state.materials).toMatchObject({ wood: 0, stone: 0, meat: 0 });
+
+    let now = action.impactAt;
+    const { w, sent } = testGlue(state, () => now);
+    advanceWorldTick(w);
+    expect(state.peasantSupport.camps).toHaveLength(1);
+    const camp = state.peasantSupport.camps[0];
+    if (!camp) throw new Error("camp did not resolve");
+    expect(sentTo(sent, host.heroId)).toContainEqual(
+      expect.objectContaining({ t: "peasant.camp", id: camp.id }),
+    );
+
+    const guestSocket = fakeSocket(guest.userId, guest.heroId);
+    await engine.join(guestSocket);
+    expect(guestSocket.sent.some((raw) => raw.includes('"t":"peasant.camp"'))).toBe(true);
+
+    sent.clear();
+    state.tick = 19;
+    now += TICK_MS;
+    advanceWorldTick(w);
+    expect(sentTo(sent, guest.heroId)).toContainEqual(
+      expect.objectContaining({ t: "peasant.camp", id: camp.id }),
+    );
+
+    await engine.leave(hostSocket.id);
+    expect(state.peasantSupport.camps).toEqual([]);
+    expect(
+      guestSocket.sent.some(
+        (raw) => raw.includes('"t":"peasant.camp_removed"') && raw.includes(camp.id),
+      ),
+    ).toBe(true);
+    engine.dispose();
+  });
+
+  test("Peasant bomb spends shared materials and produces one authoritative AoE impact", async () => {
+    const host = await newPlayableHero("pbomb", "peasant");
+    await seedPartyMaterials(host.partyId, host.heroId, { stone: 2, iron: 2 });
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const socket = fakeSocket(host.userId, host.heroId);
+    await engine.join(socket);
+    const state = roomState(engine);
+    const peasant = playerOf(state, host.heroId);
+    peasant.level = 20;
+    peasant.facing = { x: 1, y: 0 };
+    const target = seedMonster(state, "bomb-target", peasant.x + 56, peasant.y, { maxHp: 500 });
+
+    await engine.message(socket.id, { t: "skill", slot: 5 });
+    const action = peasant.action;
+    if (!action) throw new Error("bomb action was not accepted");
+    expect(action.skillId).toBe("homemade_bomb");
+    expect(state.adventureState.state.materials).toMatchObject({ stone: 0, iron: 0 });
+
+    let now = action.impactAt;
+    const { w, sent } = testGlue(state, () => now);
+    const hpBefore = target.hp;
+    for (let tick = 0; tick < 8 && target.hp === hpBefore; tick++) {
+      advanceWorldTick(w);
+      now += TICK_MS;
+    }
+    expect(target.hp).toBe(hpBefore - 20);
+    expect(state.projectiles).toEqual([]);
+    expect(state.peasantSupport.bombs.size).toBe(0);
+    expect(
+      sentTo(sent, host.heroId).filter((message) => message.t === "peasant.bomb_impact"),
+    ).toHaveLength(1);
     engine.dispose();
   });
 

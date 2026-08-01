@@ -15,6 +15,9 @@ import type {
   EventCode,
   EventParams,
   MonsterSpecialImpact,
+  PeasantBombImpactVisual,
+  PeasantCampRemovedVisual,
+  PeasantCampVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestPolarityOrbVisual,
@@ -532,6 +535,10 @@ async function startGameIdentity(
     },
     onLumenPortal: (portal: PriestLumenPortalVisual) => renderer.playLumenPortal(portal),
     onPolarityOrb: (orb: PriestPolarityOrbVisual) => renderer.playPolarityOrb(orb),
+    onPeasantCamp: (camp: PeasantCampVisual) => renderer.showPeasantCamp(camp),
+    onPeasantCampRemoved: (camp: PeasantCampRemovedVisual) => renderer.removePeasantCamp(camp.id),
+    onPeasantBombImpact: (impact: PeasantBombImpactVisual) =>
+      renderer.playPeasantBombImpact(impact),
     // The dialogue panel (spec Decision 4): the server pushes beats to THIS player, the store holds
     // the open panel, EventDialoguePanel renders it. Prose is authored data rendered verbatim; the
     // panel's own chrome stays i18n. `event.close` only clears if it names the run currently shown —

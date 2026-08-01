@@ -188,6 +188,25 @@ describe("authoritative projectile system", () => {
     expect(projectiles).toHaveLength(0);
   });
 
+  it("reports one terminal terrain point for a homemade bomb without piercing the obstacle", () => {
+    const owner = player("bomb-owner", 0);
+    const projectiles: ProjectileRuntime[] = [];
+    launch(projectiles, owner, "homemade_bomb", { range: 240 });
+    const world = terrain([{ x: 60, y: 0, width: 24, height: 96 }]);
+    const target = monster("behind-bomb-wall", 100);
+    const harness = context({ owner, projectiles, monsters: [target], world });
+    const removed = vi.fn();
+    harness.value.removed = removed;
+
+    advanceProjectiles(harness.value, 1_050);
+
+    expect(harness.damageMonster).not.toHaveBeenCalled();
+    expect(harness.blocked).toHaveBeenCalledOnce();
+    expect(removed).toHaveBeenCalledOnce();
+    expect(removed.mock.calls[0]?.[2]).toBe("terrain");
+    expect(projectiles).toEqual([]);
+  });
+
   it("lets an enemy projectile hit a living hero and never pass through terrain", () => {
     const caster = monster("archer", 0);
     const target = player("target", 90);

@@ -11,6 +11,7 @@ import { applyExperience, maxHpForLevel } from "@lindocara/engine/game.js";
 import { HARVEST_PROFILE_LIMITS } from "@lindocara/engine/harvest.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import {
+  addPartyMaterials,
   applyHarvestHit,
   EMPTY_PARTY_MATERIALS,
   type HarvestNodeState,
@@ -18,6 +19,7 @@ import {
   isHarvestNodeId,
   MAX_HARVEST_HITS,
   MAX_HARVEST_RESPAWN_DELAY_MS,
+  PARTY_MATERIAL_TYPES,
   type PartyMaterialAmounts,
   type PartyMaterials,
   parsePartyMaterialAmounts,
@@ -134,7 +136,28 @@ export type ConsumePartyMaterialsResult =
   | { readonly ok: true; readonly materials: PartyMaterials }
   | { readonly ok: false; readonly reason: "invalid" | "party" | "insufficient" };
 
+export interface PartyMaterialReservationRequest {
+  readonly reservationId: string;
+  readonly heroId: string;
+  readonly costs: PartyMaterialAmounts;
+}
+
+export type PartyMaterialReservationResult =
+  | {
+      readonly ok: true;
+      readonly reservationId: string;
+      readonly status: "held" | "committed" | "settled" | "released" | "refunded";
+      readonly materials: PartyMaterials;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "invalid" | "party" | "insufficient" | "reservation";
+    };
+
 const HARVEST_RESERVATION_TTL_MS = 10_000;
+const MATERIAL_RESERVATION_TTL_MS = 10_000;
+const MATERIAL_OUTCOME_TTL_MS = 60_000;
+const MAX_MATERIAL_RESERVATIONS = 128;
 
 interface HarvestReservation {
   id: string;
@@ -151,6 +174,11 @@ interface HarvestReservation {
 type ParsedReserveHarvestNodeRequest = Omit<ReserveHarvestNodeRequest, "goldValue"> & {
   goldValue: number;
 };
+
+interface PartyMaterialReservation extends PartyMaterialReservationRequest {
+  status: "held" | "committed" | "settled" | "released" | "refunded";
+  expiresAt: number;
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -210,6 +238,22 @@ function parseHitHarvestNodeRequest(value: unknown): HitHarvestNodeRequest | nul
   return { heroId: value.heroId, eventId: value.eventId, reservationId: value.reservationId };
 }
 
+function parsePartyMaterialReservationRequest(
+  value: unknown,
+): PartyMaterialReservationRequest | null {
+  if (!isPlainObject(value) || !isUuid(value.reservationId) || !isUuid(value.heroId)) return null;
+  const costs = parsePartyMaterialAmounts(value.costs);
+  if (!costs || !hasPartyMaterialAmount(costs)) return null;
+  return { reservationId: value.reservationId, heroId: value.heroId, costs };
+}
+
+function parsePartyMaterialReservationIdentity(
+  value: unknown,
+): Pick<PartyMaterialReservationRequest, "reservationId" | "heroId"> | null {
+  if (!isPlainObject(value) || !isUuid(value.reservationId) || !isUuid(value.heroId)) return null;
+  return { reservationId: value.reservationId, heroId: value.heroId };
+}
+
 function sameMaterialAmounts(left: PartyMaterialAmounts, right: PartyMaterialAmounts): boolean {
   return (
     (left.wood ?? 0) === (right.wood ?? 0) &&
@@ -217,6 +261,39 @@ function sameMaterialAmounts(left: PartyMaterialAmounts, right: PartyMaterialAmo
     (left.iron ?? 0) === (right.iron ?? 0) &&
     (left.meat ?? 0) === (right.meat ?? 0)
   );
+}
+
+function materialReservationTotals(
+  reservations: Iterable<PartyMaterialReservation>,
+  status: PartyMaterialReservation["status"],
+): PartyMaterialAmounts {
+  const totals: PartyMaterialAmounts = {};
+  for (const reservation of reservations) {
+    if (reservation.status !== status) continue;
+    for (const type of PARTY_MATERIAL_TYPES) {
+      totals[type] = (totals[type] ?? 0) + (reservation.costs[type] ?? 0);
+    }
+  }
+  return totals;
+}
+
+function availablePartyMaterials(
+  materials: PartyMaterials,
+  reservations: Iterable<PartyMaterialReservation>,
+): PartyMaterials | null {
+  return spendPartyMaterials(materials, materialReservationTotals(reservations, "held"));
+}
+
+function reservationResult(
+  reservation: PartyMaterialReservation,
+  materials: PartyMaterials,
+): PartyMaterialReservationResult {
+  return {
+    ok: true,
+    reservationId: reservation.reservationId,
+    status: reservation.status,
+    materials: { ...materials },
+  };
 }
 
 function sameEventReference(left: QuestEventReference | null, right: QuestEventReference): boolean {
@@ -267,6 +344,9 @@ interface PartyRoomState {
   writeQueue: Promise<void>;
   /** Volatile one-hit locks. Durable node generation/depletion remains the double-reward fence. */
   harvestReservations: Map<string, HarvestReservation>;
+  /** Short-lived support-action sagas. Held stock is excluded from every competing spend; a
+   *  committed but unconfirmed action remains idempotently refundable. */
+  materialReservations: Map<string, PartyMaterialReservation>;
 }
 
 /**
@@ -372,6 +452,7 @@ export class PartyRoom {
       rooms: new Set(),
       writeQueue: Promise.resolve(),
       harvestReservations: new Map(),
+      materialReservations: new Map(),
     }),
     methods: {
       getAdventureState: (room) => this.getAdventureState(room.roomId, room.state),
@@ -387,6 +468,14 @@ export class PartyRoom {
         this.cancelHarvestNode(room.roomId, room.state, request),
       consumePartyMaterials: (room, costs: unknown) =>
         this.consumePartyMaterials(room.roomId, room.state, costs),
+      reservePartyMaterials: (room, request: unknown) =>
+        this.reservePartyMaterials(room.roomId, room.state, request),
+      commitPartyMaterials: (room, request: unknown) =>
+        this.commitPartyMaterials(room.roomId, room.state, request),
+      releasePartyMaterials: (room, request: unknown) =>
+        this.releasePartyMaterials(room.roomId, room.state, request),
+      settlePartyMaterials: (room, request: unknown) =>
+        this.settlePartyMaterials(room.roomId, room.state, request),
       recordQuestEvent: (room, event: QuestBusinessEvent) =>
         this.recordQuestEvent(room.roomId, room.state, event),
       acceptAuthoredQuest: (
@@ -634,7 +723,8 @@ export class PartyRoom {
       if (!request) return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
-      const current = await this.ensureState(partyId, state);
+      let current = await this.ensureState(partyId, state);
+      current = await this.refreshMaterialReservations(partyId, state, current, now);
       if (state.partyCompleted) return { ok: false, reason: "party" };
       const reservation = state.harvestReservations.get(request.eventId);
       if (
@@ -665,6 +755,16 @@ export class PartyRoom {
         },
       );
       if (!result.ok) return result;
+      // A committed support saga remains refundable until its WorldRoom has synchronously created
+      // the action. Keep that tiny compensation capacity free so a disconnect refund cannot ever
+      // overflow after a concurrent harvest reward.
+      if (
+        addPartyMaterials(
+          result.materials,
+          materialReservationTotals(state.materialReservations.values(), "committed"),
+        ) === null
+      )
+        return { ok: false, reason: "overflow" };
       await this.commitState(partyId, state, {
         ...current.state,
         materials: result.materials,
@@ -702,6 +802,165 @@ export class PartyRoom {
     });
   }
 
+  /**
+   * Release expired holds and retire old outcomes. A committed spend is deliberately never
+   * auto-refunded: the WorldRoom may already have created the action and only lost the settlement
+   * acknowledgement. Only an explicit release before action creation may compensate it.
+   */
+  protected async refreshMaterialReservations(
+    _partyId: string,
+    state: PartyRoomState,
+    initial: VersionedState,
+    now: number,
+  ): Promise<VersionedState> {
+    const current = initial;
+    for (const [id, reservation] of state.materialReservations) {
+      if (reservation.expiresAt > now) continue;
+      if (reservation.status === "held") {
+        reservation.status = "released";
+        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+        continue;
+      }
+      if (reservation.status === "committed") {
+        reservation.status = "settled";
+        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+        continue;
+      }
+      state.materialReservations.delete(id);
+    }
+    return current;
+  }
+
+  /** Volatile hold: excludes stock from every competing spend without writing D1 yet. */
+  protected async reservePartyMaterials(
+    partyId: string,
+    state: PartyRoomState,
+    rawRequest: unknown,
+  ): Promise<PartyMaterialReservationResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const request = parsePartyMaterialReservationRequest(rawRequest);
+      if (!request) return { ok: false, reason: "invalid" };
+      const now = this.now();
+      if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      let current = await this.ensureState(partyId, state);
+      current = await this.refreshMaterialReservations(partyId, state, current, now);
+      if (state.partyCompleted) return { ok: false, reason: "party" };
+
+      const existing = state.materialReservations.get(request.reservationId);
+      if (existing) {
+        if (
+          existing.heroId !== request.heroId ||
+          !sameMaterialAmounts(existing.costs, request.costs)
+        )
+          return { ok: false, reason: "reservation" };
+        return reservationResult(existing, current.state.materials ?? EMPTY_PARTY_MATERIALS);
+      }
+      if (state.materialReservations.size >= MAX_MATERIAL_RESERVATIONS)
+        return { ok: false, reason: "reservation" };
+      const available = availablePartyMaterials(
+        current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        state.materialReservations.values(),
+      );
+      if (!available || !spendPartyMaterials(available, request.costs))
+        return { ok: false, reason: "insufficient" };
+      const reservation: PartyMaterialReservation = {
+        ...request,
+        status: "held",
+        expiresAt: now + MATERIAL_RESERVATION_TTL_MS,
+      };
+      state.materialReservations.set(request.reservationId, reservation);
+      return reservationResult(reservation, current.state.materials ?? EMPTY_PARTY_MATERIALS);
+    });
+  }
+
+  /** Persist the held spend. The record remains refundable until the WorldRoom settles it. */
+  protected async commitPartyMaterials(
+    partyId: string,
+    state: PartyRoomState,
+    rawIdentity: unknown,
+  ): Promise<PartyMaterialReservationResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const identity = parsePartyMaterialReservationIdentity(rawIdentity);
+      if (!identity) return { ok: false, reason: "invalid" };
+      const now = this.now();
+      if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      let current = await this.ensureState(partyId, state);
+      current = await this.refreshMaterialReservations(partyId, state, current, now);
+      if (state.partyCompleted) return { ok: false, reason: "party" };
+      const reservation = state.materialReservations.get(identity.reservationId);
+      if (!reservation || reservation.heroId !== identity.heroId)
+        return { ok: false, reason: "reservation" };
+      if (reservation.status !== "held")
+        return reservationResult(reservation, current.state.materials ?? EMPTY_PARTY_MATERIALS);
+      const materials = spendPartyMaterials(
+        current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        reservation.costs,
+      );
+      if (!materials) return { ok: false, reason: "insufficient" };
+      reservation.status = "committed";
+      reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+      current = await this.commitState(partyId, state, { ...current.state, materials });
+      return reservationResult(reservation, materials);
+    });
+  }
+
+  /** Idempotent abort: releases a hold or refunds a committed spend through the same write queue. */
+  protected async releasePartyMaterials(
+    partyId: string,
+    state: PartyRoomState,
+    rawIdentity: unknown,
+  ): Promise<PartyMaterialReservationResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const identity = parsePartyMaterialReservationIdentity(rawIdentity);
+      if (!identity) return { ok: false, reason: "invalid" };
+      const now = this.now();
+      if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      let current = await this.ensureState(partyId, state);
+      current = await this.refreshMaterialReservations(partyId, state, current, now);
+      const reservation = state.materialReservations.get(identity.reservationId);
+      if (!reservation || reservation.heroId !== identity.heroId)
+        return { ok: false, reason: "reservation" };
+      if (reservation.status === "held") {
+        reservation.status = "released";
+        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+      } else if (reservation.status === "committed") {
+        const materials = addPartyMaterials(
+          current.state.materials ?? EMPTY_PARTY_MATERIALS,
+          reservation.costs,
+        );
+        if (!materials) throw new Error("committed material reservation could not be refunded");
+        reservation.status = "refunded";
+        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+        current = await this.commitState(partyId, state, { ...current.state, materials });
+      }
+      return reservationResult(reservation, current.state.materials ?? EMPTY_PARTY_MATERIALS);
+    });
+  }
+
+  /** Once the action exists synchronously in its WorldRoom, the spend is no longer compensable. */
+  protected async settlePartyMaterials(
+    partyId: string,
+    state: PartyRoomState,
+    rawIdentity: unknown,
+  ): Promise<PartyMaterialReservationResult> {
+    return this.enqueueStateWrite(state, async () => {
+      const identity = parsePartyMaterialReservationIdentity(rawIdentity);
+      if (!identity) return { ok: false, reason: "invalid" };
+      const now = this.now();
+      if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      let current = await this.ensureState(partyId, state);
+      current = await this.refreshMaterialReservations(partyId, state, current, now);
+      const reservation = state.materialReservations.get(identity.reservationId);
+      if (!reservation || reservation.heroId !== identity.heroId)
+        return { ok: false, reason: "reservation" };
+      if (reservation.status === "committed") {
+        reservation.status = "settled";
+        reservation.expiresAt = now + MATERIAL_OUTCOME_TTL_MS;
+      }
+      return reservationResult(reservation, current.state.materials ?? EMPTY_PARTY_MATERIALS);
+    });
+  }
+
   /** All-or-nothing material spending for future party support actions/constructions. */
   protected async consumePartyMaterials(
     partyId: string,
@@ -711,8 +970,16 @@ export class PartyRoom {
     return this.enqueueStateWrite(state, async () => {
       const costs = parsePartyMaterialAmounts(rawCosts);
       if (!costs || !hasPartyMaterialAmount(costs)) return { ok: false, reason: "invalid" };
-      const current = await this.ensureState(partyId, state);
+      const now = this.now();
+      let current = await this.ensureState(partyId, state);
+      current = await this.refreshMaterialReservations(partyId, state, current, now);
       if (state.partyCompleted) return { ok: false, reason: "party" };
+      const available = availablePartyMaterials(
+        current.state.materials ?? EMPTY_PARTY_MATERIALS,
+        state.materialReservations.values(),
+      );
+      if (!available || !spendPartyMaterials(available, costs))
+        return { ok: false, reason: "insufficient" };
       const materials = spendPartyMaterials(
         current.state.materials ?? EMPTY_PARTY_MATERIALS,
         costs,

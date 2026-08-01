@@ -25,6 +25,10 @@ import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-r
 import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
 import type { NpcMovementRuntime } from "../../world/npc-movement-system.js";
 import type { PeasantHarvestJob } from "../../world/peasant-harvest-system.js";
+import {
+  createPeasantSupportRuntime,
+  type PeasantSupportRuntime,
+} from "../../world/peasant-support-system.js";
 import type {
   LumenPortalRuntime,
   PolarityOrbRuntime,
@@ -168,6 +172,8 @@ export interface WorldRoomState {
   guards: GuardRuntime[];
   loot: GroundLoot[];
   projectiles: ProjectileRuntime[];
+  /** Room-local camps, homemade bombs and in-flight material requests. */
+  peasantSupport: PeasantSupportRuntime;
   /** Room-local priest sanctuaries (legacy `#sanctuaries`). */
   sanctuaries: SanctuaryRuntime[];
   lumenPortals: LumenPortalRuntime[];
@@ -258,6 +264,7 @@ export function createWorldRoomState(
     guards,
     loot: [],
     projectiles: [],
+    peasantSupport: createPeasantSupportRuntime(),
     sanctuaries: [],
     lumenPortals: [],
     polarityOrbs: [],

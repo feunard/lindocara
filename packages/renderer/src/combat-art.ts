@@ -498,6 +498,7 @@ export function projectileArt(kind: ProjectileKind, color: PrimaryColor): Combat
       scale: 0.46,
       trail: { color: 0xff8d4a, length: 18, width: 3, glowRadius: 6 },
     };
+  if (kind === "homemade_bomb") return PEASANT_BOMB_PROJECTILE;
   return magicProjectile(kind);
 }
 

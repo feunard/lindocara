@@ -1061,3 +1061,45 @@ describe("Priest ultimate visual messages", () => {
     ).toBeNull();
   });
 });
+
+describe("Peasant support visual messages", () => {
+  const camp = {
+    t: "peasant.camp" as const,
+    id: "camp-1",
+    actorId: "peasant-1",
+    x: 64,
+    y: 96,
+    radius: 96,
+    startedAt: 1_000,
+    expiresAt: 13_000,
+  };
+
+  it("round-trips bounded camps, removals and exactly identified bomb impacts", () => {
+    expect(parseServerMessage(JSON.stringify(camp))).toEqual(camp);
+    expect(parseServerMessage(JSON.stringify({ t: "peasant.camp_removed", id: camp.id }))).toEqual({
+      t: "peasant.camp_removed",
+      id: camp.id,
+    });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "peasant.bomb_impact",
+          actionId: "bomb-1",
+          actorId: "peasant-1",
+          x: 80,
+          y: 96,
+          radius: 72,
+          impactAt: 2_000,
+        }),
+      ),
+    ).toMatchObject({ t: "peasant.bomb_impact", actionId: "bomb-1" });
+  });
+
+  it("rejects forged ranges, lifetimes and extra gameplay fields", () => {
+    expect(parseServerMessage(JSON.stringify({ ...camp, radius: 0 }))).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify({ ...camp, expiresAt: camp.startedAt + 120_001 })),
+    ).toBeNull();
+    expect(parseServerMessage(JSON.stringify({ ...camp, healing: 999 }))).toBeNull();
+  });
+});

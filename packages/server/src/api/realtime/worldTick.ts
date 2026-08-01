@@ -145,6 +145,7 @@ import {
   NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
   PLAYER_SIZE,
+  TICK_HZ,
   type Vec2,
 } from "@lindocara/engine/simulation.js";
 import {
@@ -218,6 +219,20 @@ import {
   revalidatePeasantHarvestTarget,
   selectPeasantHarvestTargets,
 } from "../../world/peasant-harvest-system.js";
+import {
+  advancePeasantCamps,
+  basePeasantSupportPlans,
+  beginPeasantSupportRequest,
+  commitPeasantSupportRequest,
+  damageAfterPeasantCampProtection,
+  isPeasantBombProjectile,
+  type PeasantSupportPlans,
+  type PeasantSupportRequest,
+  releasePeasantSupportRequest,
+  removePeasantSupportByOwner,
+  resolvePeasantBombImpact,
+  resolvePeasantSupportAction,
+} from "../../world/peasant-support-system.js";
 import {
   advancePolarityOrbs,
   advanceSanctuaries,
@@ -554,6 +569,23 @@ export function sendStateTo(w: WorldGlue, connectionId: string, player: PlayerRu
   );
 }
 
+/** Idempotent camp replay for admission and the slow AOI catch-up heartbeat. */
+export function sendPeasantCampsTo(w: WorldGlue, connectionId: string, now: number): void {
+  for (const camp of w.state.peasantSupport.camps) {
+    if (camp.expiresAt <= now) continue;
+    w.deps.send(connectionId, {
+      t: "peasant.camp",
+      id: camp.id,
+      actorId: camp.ownerId,
+      x: camp.x,
+      y: camp.y,
+      radius: camp.radius,
+      startedAt: camp.startedAt,
+      expiresAt: camp.expiresAt,
+    });
+  }
+}
+
 /** Port of `#authoredQuestTrackers` (`world.ts:5842`). */
 function playerQuestTrackers(
   state: WorldRoomState,
@@ -853,6 +885,9 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
   removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   removeProjectilesByOwner(w.state.projectiles, player.id);
+  for (const camp of removePeasantSupportByOwner(w.state.peasantSupport, player.id)) {
+    sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp);
+  }
   player.dirty = true;
 }
 
@@ -1537,13 +1572,20 @@ function damagePlayer(
         "ally",
       ),
   );
+  const campProtectedDamage = damageAfterPeasantCampProtection(
+    player,
+    protectedDamage,
+    w.state.peasantSupport.camps,
+    zone(w.state).terrain,
+    now,
+  );
   const {
     amount: appliedDamage,
     result,
     parried,
     prevented,
     retaliationRatio,
-  } = guardedDamage(player, protectedDamage, now);
+  } = guardedDamage(player, campProtectedDamage, now);
   chargeCounterOffensive(
     player,
     prevented,
@@ -2179,6 +2221,124 @@ export function finishHeldPlayerAction(
   }
   sendStateTo(w, connectionId, player);
   return true;
+}
+
+/** Typed seam for the talent layer: it may transform balance values, never runtime authority. */
+export type PeasantSupportPlanResolver = (
+  base: PeasantSupportPlans,
+  player: PlayerRuntime,
+) => PeasantSupportPlans;
+
+export function preparePeasantSupportRequest(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  slot: SkillSlot,
+  resolvePlans: PeasantSupportPlanResolver = (base) => base,
+): PeasantSupportRequest | null {
+  if (player.class !== "peasant" || (slot !== 4 && slot !== 5)) return null;
+  const skill = configuredSkill(w, player, slot);
+  if (!isSkillUnlocked(player.level, slot)) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "skill.locked",
+      params: { level: SKILL_UNLOCK_LEVEL[slot], skill: skill.id },
+      tone: "info",
+    });
+    return null;
+  }
+  if (!isMapSkillEnabled(zone(w.state).heroSettings, player.class, slot)) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "skill.disabled",
+      params: { skill: skill.id },
+      tone: "info",
+    });
+    return null;
+  }
+  if (!canAct(player.life) || !player.authorized || player.transitioning || !player.partyId)
+    return null;
+  const plans = resolvePlans(
+    basePeasantSupportPlans({
+      camp: configuredSkill(w, player, 4),
+      bomb: configuredSkill(w, player, 5),
+    }),
+    player,
+  );
+  const result = beginPeasantSupportRequest({
+    runtime: w.state.peasantSupport,
+    connectionId,
+    player,
+    slot,
+    skill,
+    definition: actionForClassSlot(player.class, slot),
+    plan: slot === 4 ? plans.camp : plans.bomb,
+    terrain: zone(w.state).terrain,
+    projectiles: w.state.projectiles,
+    now: w.deps.now(),
+  });
+  if (result.ok) return result.request;
+  if (result.reason === "blocked" || result.reason === "projectile_limit") {
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "skill.blocked",
+      params: { skill: skill.id },
+      tone: "info",
+      x: player.x,
+      y: player.y,
+    });
+  }
+  return null;
+}
+
+/** Material commit has completed; this synchronous boundary is the point of no refund. */
+export function activatePeasantSupportRequest(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  request: PeasantSupportRequest,
+): boolean {
+  const now = w.deps.now();
+  const action = commitPeasantSupportRequest(w.state.peasantSupport, request, player, now);
+  if (!action) return false;
+  sendStateTo(w, request.connectionId, player);
+  w.deps.send(request.connectionId, {
+    t: "event",
+    code: "skill.cast",
+    params: { skill: request.skill.id, slot: request.slot },
+    tone: "good",
+    x: player.x,
+    y: player.y,
+  });
+  sendSpatialEvent(
+    w,
+    {
+      t: "animation",
+      actionId: action.id,
+      actorKind: "player",
+      actorId: player.id,
+      action: "skill",
+      skillId: request.skill.id,
+      ...(talentEffects(player.class, player.talents, request.slot).length > 0
+        ? { talented: true as const }
+        : {}),
+      ...(evolvedTalent(player.class, player.talents, request.slot)
+        ? { evolved: true as const }
+        : {}),
+      direction: { ...action.direction },
+      startedAt: action.startedAt,
+      impactAt: action.impactAt,
+      recoveryEndsAt: action.recoveryEndsAt,
+    },
+    player,
+  );
+  return true;
+}
+
+export function cancelPeasantSupportRequest(
+  state: WorldRoomState,
+  request: PeasantSupportRequest,
+): void {
+  releasePeasantSupportRequest(state.peasantSupport, request);
 }
 
 /** Port of `#startPlayerAction` (`world.ts:2012`). Returns whether an action actually started —
@@ -3126,6 +3286,37 @@ export function resolvePlayerAction(
   const connectionId = connectionOf(w.state, player.id);
   const slot = action.slot;
   if (connectionId === undefined || slot === undefined || slot < 1 || slot > 5) return;
+  const peasantSupport = resolvePeasantSupportAction(
+    w.state.peasantSupport,
+    w.state.projectiles,
+    player,
+    action,
+    player.roomKey,
+    now,
+  );
+  if (peasantSupport) {
+    if (peasantSupport.kind === "camp" && peasantSupport.placement) {
+      const { camp, replaced } = peasantSupport.placement;
+      if (replaced) {
+        sendSpatialEvent(w, { t: "peasant.camp_removed", id: replaced.id }, replaced);
+      }
+      sendSpatialEvent(
+        w,
+        {
+          t: "peasant.camp",
+          id: camp.id,
+          actorId: camp.ownerId,
+          x: camp.x,
+          y: camp.y,
+          radius: camp.radius,
+          startedAt: camp.startedAt,
+          expiresAt: camp.expiresAt,
+        },
+        camp,
+      );
+    }
+    return;
+  }
   const skill = configuredSkill(w, player, slot as SkillSlot);
   const definition = actionForClassSlot(player.class, slot);
   const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
@@ -5847,6 +6038,39 @@ export function advanceWorldTick(w: WorldGlue): void {
     },
     (sanctuary) => resolveSanctuaryTick(w, sanctuary, now),
   );
+  advancePeasantCamps({
+    runtime: state.peasantSupport,
+    players: state.players.values(),
+    terrain: zone(state).terrain,
+    now,
+    isOwnerActive: (ownerId) => {
+      const owner = playerById(state, ownerId);
+      return Boolean(owner?.authorized && !owner.transitioning && owner.life === "alive");
+    },
+    areAllies: (owner, target) => areCombatAllies(owner, target),
+    heal: (camp, owner, target) => {
+      const ownerConnectionId = connectionOf(state, owner.id);
+      const targetConnectionId = connectionOf(state, target.id);
+      if (ownerConnectionId === undefined || targetConnectionId === undefined) return;
+      healPlayer(
+        w,
+        ownerConnectionId,
+        owner,
+        targetConnectionId,
+        target,
+        camp.healPower,
+        "makeshift_camp",
+        now,
+        owner.id === target.id,
+      );
+    },
+    removed: (camp) => sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp),
+  });
+  if (state.tick % TICK_HZ === 0) {
+    for (const [connectionId, player] of state.players) {
+      if (player.authorized) sendPeasantCampsTo(w, connectionId, now);
+    }
+  }
   advancePolarityOrbs(state.polarityOrbs, now, (orb, fromRadius, toRadius, returning) =>
     resolvePolarityOrbStep(w, orb, fromRadius, toRadius, returning, now),
   );
@@ -5860,8 +6084,10 @@ export function advanceWorldTick(w: WorldGlue): void {
       monsterGrid: state.monsterGrid,
       playerGrid: state.playerGrid,
       canHeal: (owner, target) => areCombatAllies(owner, target),
-      damageMonster: (projectile, monster, impactAt) =>
-        projectileDamage(w, projectile, monster, impactAt),
+      damageMonster: (projectile, monster, impactAt) => {
+        if (!isPeasantBombProjectile(state.peasantSupport, projectile))
+          projectileDamage(w, projectile, monster, impactAt);
+      },
       healPlayer: (projectile, connectionId, target, impactAt) =>
         projectileHeal(w, projectile, connectionId, target, impactAt),
       damagePlayer: (projectile, connectionId, target, impactAt) => {
@@ -5880,7 +6106,48 @@ export function advanceWorldTick(w: WorldGlue): void {
       damageGuard: (projectile, guard) => {
         applyGuardDamage(guard, projectile.power);
       },
-      blocked: (projectile, point) => projectileBlocked(w, projectile, point),
+      blocked: (projectile, point) => {
+        if (!isPeasantBombProjectile(state.peasantSupport, projectile))
+          projectileBlocked(w, projectile, point);
+      },
+      removed: (projectile, point, _reason, impactAt) => {
+        const owner = projectileOwner(w, projectile);
+        const explosion = resolvePeasantBombImpact({
+          runtime: state.peasantSupport,
+          projectile,
+          point,
+          monsterGrid: state.monsterGrid,
+          terrain: zone(state).terrain,
+          now: impactAt,
+          damage: (monster, power) => {
+            if (!owner || !canAct(owner.player.life)) return;
+            damageMonster(
+              w,
+              owner.connectionId,
+              owner.player,
+              monster,
+              configuredSkill(w, owner.player, 5),
+              impactAt,
+              false,
+              power,
+            );
+          },
+        });
+        if (!explosion) return;
+        sendSpatialEvent(
+          w,
+          {
+            t: "peasant.bomb_impact",
+            actionId: explosion.actionId,
+            actorId: explosion.ownerId,
+            x: explosion.x,
+            y: explosion.y,
+            radius: explosion.radius,
+            impactAt,
+          },
+          explosion,
+        );
+      },
     },
     now,
   );

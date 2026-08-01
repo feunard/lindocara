@@ -78,6 +78,12 @@ import { abortRunsForHero } from "../../world/event-run-system.js";
 import type { InterestSystemContext } from "../../world/interest-system.js";
 import { worldView } from "../../world/interest-system.js";
 import { cancelPeasantHarvestJob } from "../../world/peasant-harvest-system.js";
+import {
+  canActivatePeasantSupportRequest,
+  isCurrentPeasantSupportRequest,
+  type PeasantSupportRequest,
+  removePeasantSupportByOwner,
+} from "../../world/peasant-support-system.js";
 import { removeProjectilesByOwner } from "../../world/projectile-system.js";
 import { exitRogueStealth } from "../../world/rogue-state-system.js";
 import {
@@ -101,12 +107,14 @@ import { MapService } from "../services/MapService.ts";
 import { AdmissionService } from "./AdmissionService.ts";
 import { RealtimeChannels } from "./channels.ts";
 import {
+  type PartyMaterialReservationResult,
   PartyRoom,
   type QuestAbandonResult,
   type QuestAcceptanceResult,
   type QuestTurnInResult,
 } from "./PartyRoom.ts";
 import { PresenceRoom } from "./PresenceRoom.ts";
+import { runPeasantSupportSaga } from "./peasantSupportSaga.ts";
 import { frameByteLength } from "./wire.ts";
 import {
   abortRunsForStalePages,
@@ -121,7 +129,9 @@ import {
   zoneFromMapPayload,
 } from "./worldState.ts";
 import {
+  activatePeasantSupportRequest,
   advanceWorldTick,
+  cancelPeasantSupportRequest,
   finishHeldPlayerAction,
   handleBuyConsumable,
   handleChat,
@@ -135,9 +145,11 @@ import {
   handleTalentReset,
   handleTalentUnlock,
   handleUseConsumable,
+  preparePeasantSupportRequest,
   pruneInvalidPeasantHarvestJobs,
   recordMapEntered,
   selfStateFor,
+  sendPeasantCampsTo,
   sendResyncTo,
   sendStateTo,
   startPlayerAction,
@@ -367,7 +379,7 @@ export class WorldRoom {
     if (previousConnectionId !== undefined && previousConnectionId !== conn.id) {
       const previous = state.players.get(previousConnectionId);
       if (previous) {
-        this.removeRuntimePlayer(state, previousConnectionId, previous);
+        this.removeRuntimePlayer(room, state, previousConnectionId, previous);
         room.close(previousConnectionId, WS_CLOSE.CHARACTER_REPLACED, "character replaced");
       }
     }
@@ -468,7 +480,7 @@ export class WorldRoom {
       stillAuthorized = false;
     }
     if (stillAuthorized !== true) {
-      this.removeRuntimePlayer(state, conn.id, player);
+      this.removeRuntimePlayer(room, state, conn.id, player);
       room.close(conn.id, WS_CLOSE.PRESENCE_LOST, "presence lost during admission");
       return;
     }
@@ -501,6 +513,7 @@ export class WorldRoom {
       ...view,
       self: selfStateFor(w, player),
     });
+    sendPeasantCampsTo(w, conn.id, Date.now());
   }
 
   /** Legacy `#closedSocket`: one machine-code event so the client can print why, then the close. */
@@ -637,6 +650,7 @@ export class WorldRoom {
     // spirit keeps in the room.
     if (message.t !== "chat" && !canAct(player.life)) return;
     if (message.t === "attack") {
+      if (state.peasantSupport.pendingByOwner.has(player.id)) return;
       if (startPlayerAction(w, connectionId, player, 1)) {
         return this.checkpointCooldownsOrReject(room, state, connectionId, player);
       }
@@ -671,6 +685,13 @@ export class WorldRoom {
       return;
     }
     if (message.t === "skill") {
+      if (state.peasantSupport.pendingByOwner.has(player.id)) return;
+      if (player.class === "peasant" && (message.slot === 4 || message.slot === 5)) {
+        const request = preparePeasantSupportRequest(w, connectionId, player, message.slot);
+        return request
+          ? this.startPeasantSupportSkill(room, state, connectionId, player, request)
+          : undefined;
+      }
       if (startPlayerAction(w, connectionId, player, message.slot)) {
         return this.checkpointCooldownsOrReject(room, state, connectionId, player);
       }
@@ -679,6 +700,86 @@ export class WorldRoom {
     if (message.t === "chat") {
       handleChat(w, connectionId, player, message.channel, message.text);
     }
+  }
+
+  private async startPeasantSupportSkill(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+    request: PeasantSupportRequest,
+  ): Promise<void> {
+    const identity = { reservationId: request.id, heroId: player.id };
+    const installMaterials = (result: PartyMaterialReservationResult): void => {
+      if (!result.ok) return;
+      state.adventureState = {
+        ...state.adventureState,
+        state: { ...state.adventureState.state, materials: result.materials },
+      };
+    };
+    const valid = (): boolean => {
+      if (!state.location) return false;
+      return (
+        state.players.get(connectionId) === player &&
+        state.connectionIdByHeroId.get(player.id) === connectionId &&
+        isCurrentPeasantSupportRequest(state.peasantSupport, request) &&
+        canActivatePeasantSupportRequest({
+          runtime: state.peasantSupport,
+          request,
+          connectionId,
+          player,
+          terrain: state.location.definition.terrain,
+          projectiles: state.projectiles,
+        })
+      );
+    };
+    const outcome = await runPeasantSupportSaga({
+      reserve: async () =>
+        (await this.partyRoom.room.call(state.partyId, "reservePartyMaterials", {
+          reservationId: request.id,
+          heroId: player.id,
+          costs: request.plan.cost,
+        })) as PartyMaterialReservationResult,
+      commit: async () => {
+        const result = (await this.partyRoom.room.call(
+          state.partyId,
+          "commitPartyMaterials",
+          identity,
+        )) as PartyMaterialReservationResult;
+        installMaterials(result);
+        return result;
+      },
+      release: async () => {
+        const result = (await this.partyRoom.room.call(
+          state.partyId,
+          "releasePartyMaterials",
+          identity,
+        )) as PartyMaterialReservationResult;
+        installMaterials(result);
+      },
+      settle: () => this.partyRoom.room.call(state.partyId, "settlePartyMaterials", identity),
+      cancelLocal: () => cancelPeasantSupportRequest(state, request),
+      isValid: valid,
+      activate: () => activatePeasantSupportRequest(this.glue(room), player, request),
+      onError: (stage, error) =>
+        this.logError(`peasant_material_${stage}_failed`, error, {
+          heroId: player.id,
+          reservationId: request.id,
+        }),
+    });
+    if (outcome === "insufficient" || outcome === "unavailable") {
+      this.send(room, connectionId, {
+        t: "event",
+        code:
+          outcome === "insufficient"
+            ? "peasant.materials_insufficient"
+            : "peasant.support_unavailable",
+        tone: "info",
+      });
+      return;
+    }
+    if (outcome === "activated" || outcome === "activated_unsettled")
+      await this.checkpointCooldownsOrReject(room, state, connectionId, player);
   }
 
   /**
@@ -740,7 +841,7 @@ export class WorldRoom {
     connectionId: string,
     player: PlayerRuntime,
   ): void {
-    this.removeRuntimePlayer(state, connectionId, player);
+    this.removeRuntimePlayer(room, state, connectionId, player);
     console.warn(
       JSON.stringify({
         event: "stale_character_save_rejected",
@@ -1113,7 +1214,7 @@ export class WorldRoom {
     if (renewed === true || !player.authorized) return;
     const connectionId = state.connectionIdByHeroId.get(player.id);
     if (connectionId === undefined || state.players.get(connectionId) !== player) return;
-    this.removeRuntimePlayer(state, connectionId, player);
+    this.removeRuntimePlayer(room, state, connectionId, player);
     this.send(room, connectionId, { t: "event", code: "presence.lost", tone: "bad" });
     room.close(connectionId, WS_CLOSE.PRESENCE_LOST, "presence expired");
   }
@@ -1385,7 +1486,7 @@ export class WorldRoom {
       return;
     }
     player.disconnecting = true;
-    this.removeRuntimePlayer(state, connectionId, player);
+    this.removeRuntimePlayer(room, state, connectionId, player);
     this.send(room, connectionId, successMessage);
     room.close(connectionId, WS_CLOSE.ZONE_TRANSITION, closeReason);
   }
@@ -1409,7 +1510,7 @@ export class WorldRoom {
     const state = room.state;
     const player = state.players.get(conn.id);
     if (!player) return;
-    this.removeRuntimePlayer(state, conn.id, player);
+    this.removeRuntimePlayer(room, state, conn.id, player);
     let saved = false;
     try {
       const result = await this.queueHeroSave(state, player);
@@ -1590,7 +1691,7 @@ export class WorldRoom {
     code: number,
     reason: string,
   ): void {
-    this.removeRuntimePlayer(state, connectionId, player);
+    this.removeRuntimePlayer(room, state, connectionId, player);
     room.close(connectionId, code, reason);
   }
 
@@ -1599,6 +1700,7 @@ export class WorldRoom {
    *  leaving also aborts every event run they triggered and closes their quest conversation
    *  (legacy `#removePlayer`, `world.ts:6019-6023`). */
   protected removeRuntimePlayer(
+    room: WorldRoomHandle,
     state: WorldRoomState,
     connectionId: string,
     player: PlayerRuntime,
@@ -1611,6 +1713,12 @@ export class WorldRoom {
     state.occupiedExitByPlayerId.delete(player.id);
     state.questConversations.delete(player.id);
     abortRunsForHero(state.eventRuns, player.id);
+    removeProjectilesByOwner(state.projectiles, player.id);
+    for (const camp of removePeasantSupportByOwner(state.peasantSupport, player.id)) {
+      for (const recipientConnectionId of state.players.keys()) {
+        this.send(room, recipientConnectionId, { t: "peasant.camp_removed", id: camp.id });
+      }
+    }
     removePlayer(state.players, state.connectionIdByHeroId, state.playerGrid, connectionId, player);
   }
 

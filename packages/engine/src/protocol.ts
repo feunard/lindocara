@@ -291,6 +291,7 @@ export const PROJECTILE_KINDS = [
   "hex_orb",
   "enemy_harpoon",
   "enemy_bomb",
+  "homemade_bomb",
 ] as const;
 export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
 
@@ -393,6 +394,34 @@ export interface PriestPolarityOrbVisual {
   startedAt: number;
   returnsAt: number;
   endsAt: number;
+}
+
+/** Authoritative lifetime and position of a Peasant camp. */
+export interface PeasantCampVisual {
+  t: "peasant.camp";
+  id: string;
+  actorId: string;
+  x: number;
+  y: number;
+  radius: number;
+  startedAt: number;
+  expiresAt: number;
+}
+
+export interface PeasantCampRemovedVisual {
+  t: "peasant.camp_removed";
+  id: string;
+}
+
+/** One server-confirmed homemade-bomb explosion. */
+export interface PeasantBombImpactVisual {
+  t: "peasant.bomb_impact";
+  actionId: string;
+  actorId: string;
+  x: number;
+  y: number;
+  radius: number;
+  impactAt: number;
 }
 
 /**
@@ -602,6 +631,8 @@ export const EVENT_CODES = [
   "skill.locked",
   "skill.disabled",
   "resource.insufficient",
+  "peasant.materials_insufficient",
+  "peasant.support_unavailable",
   "talent.unlocked",
   "talent.reset",
   "talent.invalid",
@@ -705,6 +736,9 @@ export type ServerMessage =
   | RogueShadowDanceSequence
   | PriestLumenPortalVisual
   | PriestPolarityOrbVisual
+  | PeasantCampVisual
+  | PeasantCampRemovedVisual
+  | PeasantBombImpactVisual
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
   // The three dialogue beats pushed to the run's TRIGGERER only (spec Decision 4: dialogue is a
   // per-player panel). `text`/`name`/`prompt`/`options` are AUTHORED PROSE — see `isAuthoredText`:
@@ -865,6 +899,50 @@ function isPriestPolarityOrbVisual(value: unknown): value is PriestPolarityOrbVi
     value.startedAt <= value.returnsAt &&
     value.returnsAt <= value.endsAt &&
     value.endsAt - value.startedAt <= 10_000
+  );
+}
+
+function isPeasantCampVisual(value: unknown): value is PeasantCampVisual {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["t", "id", "actorId", "x", "y", "radius", "startedAt", "expiresAt"]) &&
+    value.t === "peasant.camp" &&
+    isWireId(value.id) &&
+    isWireId(value.actorId) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.radius) &&
+    value.radius > 0 &&
+    value.radius <= 512 &&
+    isFiniteNumber(value.startedAt) &&
+    isFiniteNumber(value.expiresAt) &&
+    value.expiresAt >= value.startedAt &&
+    value.expiresAt - value.startedAt <= 120_000
+  );
+}
+
+function isPeasantCampRemovedVisual(value: unknown): value is PeasantCampRemovedVisual {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["t", "id"]) &&
+    value.t === "peasant.camp_removed" &&
+    isWireId(value.id)
+  );
+}
+
+function isPeasantBombImpactVisual(value: unknown): value is PeasantBombImpactVisual {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["t", "actionId", "actorId", "x", "y", "radius", "impactAt"]) &&
+    value.t === "peasant.bomb_impact" &&
+    isWireId(value.actionId) &&
+    isWireId(value.actorId) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.radius) &&
+    value.radius > 0 &&
+    value.radius <= 512 &&
+    isFiniteNumber(value.impactAt)
   );
 }
 
@@ -1835,6 +1913,12 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     }
     if (isRogueShadowDanceSequence(value)) return value;
     if (isPriestLumenPortalVisual(value) || isPriestPolarityOrbVisual(value)) return value;
+    if (
+      isPeasantCampVisual(value) ||
+      isPeasantCampRemovedVisual(value) ||
+      isPeasantBombImpactVisual(value)
+    )
+      return value;
     if (
       value.t === "event" &&
       typeof value.code === "string" &&

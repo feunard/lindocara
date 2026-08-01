@@ -23,6 +23,8 @@ import type {
   LootSnapshot,
   MonsterSnapshot,
   MonsterSpecialImpact,
+  PeasantBombImpactVisual,
+  PeasantCampVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestPolarityOrbVisual,
@@ -135,7 +137,7 @@ import {
 import { onLocaleChange, t } from "./locale.js";
 import { sameRenderedMap } from "./map-render-cache.js";
 import type { SceneSample } from "./scene-sample.js";
-import { ServerClock } from "./server-clock.js";
+import { ServerClock, type ServerClockSample, serverTimestampToLocal } from "./server-clock.js";
 import { acquireStageApp } from "./stage-application.js";
 import {
   elevationCameraRise,
@@ -916,6 +918,31 @@ export function tileRenderLayer(
   return priority === "above" ? above : below;
 }
 
+/** Admission and the slow server heartbeat may replay the same camp; presentation stays stable. */
+export function isSamePeasantCampLifetime(
+  current: Pick<PeasantCampVisual, "id" | "startedAt" | "expiresAt">,
+  incoming: Pick<PeasantCampVisual, "id" | "startedAt" | "expiresAt">,
+): boolean {
+  return (
+    current.id === incoming.id &&
+    current.startedAt === incoming.startedAt &&
+    current.expiresAt === incoming.expiresAt
+  );
+}
+
+export function peasantCampLocalLifetime(
+  camp: Pick<PeasantCampVisual, "startedAt" | "expiresAt">,
+  sample: ServerClockSample | null,
+  receivedAt: number,
+): { startedAt: number; expiresAt: number } {
+  const duration = Math.min(120_000, Math.max(0, camp.expiresAt - camp.startedAt));
+  if (!sample) return { startedAt: receivedAt, expiresAt: receivedAt + duration };
+  return {
+    startedAt: serverTimestampToLocal(camp.startedAt, sample),
+    expiresAt: serverTimestampToLocal(camp.expiresAt, sample),
+  };
+}
+
 /**
  * Which container an authored prop draws into — the ONE routing decision, extracted pure so it can
  * be pinned without a renderer (this suite gets no WebGL context). A `ground` prop is a flat decal
@@ -1024,6 +1051,17 @@ export class Renderer {
    *  authored-element preload already fetched. */
   #eventAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #activeEffects: Effect[] = [];
+  #peasantCamps = new Map<
+    string,
+    {
+      container: Container;
+      startedAt: number;
+      expiresAt: number;
+      localExpiresAt: number;
+      clockProjected: boolean;
+      radius: number;
+    }
+  >();
   #shadowDanceSequences: ShadowDanceVisualRuntime[] = [];
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
@@ -1821,6 +1859,8 @@ export class Renderer {
     this.#rangerAfterimages.clear();
     for (const effect of this.#activeEffects) effect.container.destroy({ children: true });
     this.#activeEffects = [];
+    for (const camp of this.#peasantCamps.values()) camp.container.destroy({ children: true });
+    this.#peasantCamps.clear();
     this.#shadowDanceSequences = [];
     for (const view of this.#players.values()) this.#resetVisualAction(view);
     for (const view of this.#monsters.values()) this.#resetVisualAction(view);
@@ -3902,6 +3942,91 @@ export class Renderer {
     this.#addPulse(centerX, centerY, 0xffe6a6, Math.max(12, orb.maximumRadius * 0.18), duration);
   }
 
+  showPeasantCamp(camp: PeasantCampVisual): void {
+    const current = this.#peasantCamps.get(camp.id);
+    if (
+      current &&
+      isSamePeasantCampLifetime(
+        { id: camp.id, startedAt: current.startedAt, expiresAt: current.expiresAt },
+        camp,
+      )
+    ) {
+      const sample = this.serverClock.currentSample();
+      if (sample && !current.clockProjected) {
+        current.localExpiresAt = peasantCampLocalLifetime(
+          camp,
+          sample,
+          performance.now(),
+        ).expiresAt;
+        current.clockProjected = true;
+      }
+      return;
+    }
+    this.removePeasantCamp(camp.id);
+    const container = new Container();
+    container.position.set(camp.x, camp.y);
+    container.zIndex = Math.round(camp.y);
+    const ground = new Graphics()
+      .circle(0, 0, 13)
+      .fill({ color: 0x5d432c, alpha: 0.42 })
+      .rect(-11, -3, 22, 5)
+      .fill({ color: 0x7b4d2a })
+      .rect(-3, -11, 5, 22)
+      .fill({ color: 0x8b5c32 });
+    ground.rotation = Math.PI / 4;
+    const fire = new Graphics()
+      .circle(0, -2, 6)
+      .fill({ color: 0xf08b32, alpha: 0.95 })
+      .circle(0, 0, 3)
+      .fill({ color: 0xffdc73, alpha: 0.95 });
+    container.addChild(ground, fire);
+    this.#effects.addChild(container);
+    const clockSample = this.serverClock.currentSample();
+    this.#peasantCamps.set(camp.id, {
+      container,
+      startedAt: camp.startedAt,
+      expiresAt: camp.expiresAt,
+      localExpiresAt: peasantCampLocalLifetime(camp, clockSample, performance.now()).expiresAt,
+      clockProjected: clockSample !== null,
+      radius: camp.radius,
+    });
+    const art = combatArt("peasant", "makeshift_camp", "moss").zone;
+    if (art) this.#playCombatSheet(art, camp.x, camp.y, camp.id);
+    this.#addPulse(camp.x, camp.y, 0xd8bd75, camp.radius, 420);
+  }
+
+  removePeasantCamp(id: string): void {
+    const camp = this.#peasantCamps.get(id);
+    if (!camp) return;
+    camp.container.destroy({ children: true });
+    this.#peasantCamps.delete(id);
+  }
+
+  playPeasantBombImpact(impact: PeasantBombImpactVisual): void {
+    if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return;
+    const art = combatArt("peasant", "homemade_bomb", "ember").impact;
+    if (art && this.#isVisibleWorld(impact.x, impact.y, impact.radius)) {
+      this.#playCombatSheet(art, impact.x, impact.y, impact.actionId);
+    }
+    this.#addPulse(impact.x, impact.y, 0xf0a34a, impact.radius, 360);
+    this.#burst(impact.x, impact.y, 0xd9b66b, 10);
+  }
+
+  #updatePeasantCamps(now: number): void {
+    for (const [id, camp] of this.#peasantCamps) {
+      if (camp.localExpiresAt <= now) {
+        this.removePeasantCamp(id);
+        continue;
+      }
+      camp.container.visible = this.#isVisibleWorld(
+        camp.container.x,
+        camp.container.y,
+        camp.radius,
+      );
+      camp.container.alpha = 0.88 + Math.sin(now / 210) * 0.12;
+    }
+  }
+
   #actionFrame(
     frames: readonly Texture[],
     activeFrame: number,
@@ -5000,6 +5125,7 @@ export class Renderer {
     this.#drawOverlay(context);
     this.#updateAmbient(now);
     this.#updateShadowDanceSequences(now);
+    this.#updatePeasantCamps(now);
     this.#updateEffects(now);
   }
 
