@@ -1443,8 +1443,9 @@ export function skillWithTalents(
   playerClass: PlayerClass,
   selected: readonly string[],
   slot: SkillSlot,
+  baseSkill: SkillDefinition = skillFor(playerClass, slot),
 ): SkillDefinition {
-  const skill = skillFor(playerClass, slot);
+  const skill = baseSkill;
   // The four historical basic attacks intentionally have no talent branch. The Peasant's first
   // technique is both its basic tool swing and a full utility branch, so its modifiers must flow.
   if (slot === 1 && playerClass !== "peasant") return skill;

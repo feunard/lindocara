@@ -500,9 +500,15 @@ function zone(state: WorldRoomState): ZoneDefinition {
 }
 
 function configuredSkill(w: WorldGlue, player: PlayerRuntime, slot: SkillSlot): SkillDefinition {
-  const skill = skillWithTalents(player.class, player.talents, slot);
   const stats = mapHeroClassSettings(zone(w.state).heroSettings, player.class).stats;
-  if (slot === 1) return { ...skill, range: stats.attackRange };
+  const baseSkill = CLASS_SKILLS[player.class][slot - 1];
+  if (!baseSkill) throw new Error(`Missing ${player.class} skill in slot ${slot}`);
+  const skill = skillWithTalents(
+    player.class,
+    player.talents,
+    slot,
+    slot === 1 ? { ...baseSkill, range: stats.attackRange } : baseSkill,
+  );
   if (player.class === "priest" && skill.id === "mend" && stats.heal) {
     return {
       ...skill,

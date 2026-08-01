@@ -308,6 +308,11 @@ describe("class talents", () => {
     expect(axe.cooldownMs).toBe(748);
     expect(axe.range).toBe(60.5);
     expect(axe).not.toBe(CLASS_SKILLS.peasant[0]);
+
+    const authoredBase = { ...CLASS_SKILLS.peasant[0], range: 80 };
+    expect(
+      skillWithTalents("peasant", ["peasant.woodcutters_swing.reach"], 1, authoredBase).range,
+    ).toBe(89.6);
   });
 
   it("exposes the ranger ricochet and warrior perfect-parry capstones", () => {

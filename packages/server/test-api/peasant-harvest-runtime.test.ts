@@ -7,6 +7,7 @@ import {
   PEASANT_CARRY_DURATION_MS,
 } from "@lindocara/engine/harvest.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
+import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { zoneDefinition } from "@lindocara/engine/zones.js";
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
@@ -75,6 +76,8 @@ interface RuntimeOptions {
   talents?: readonly string[];
   nodes?: readonly HarvestFixtureNode[];
   obstacles?: TerrainGeometry["obstacles"];
+  playerX?: number;
+  peasantAttackRange?: number;
 }
 
 function runtime(duration = 750, options: RuntimeOptions = {}) {
@@ -95,6 +98,10 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
     }),
   );
   const base = zoneDefinition("verdant-reach");
+  const heroSettings = defaultMapHeroSettings();
+  if (options.peasantAttackRange !== undefined) {
+    heroSettings.classes.peasant.stats.attackRange = options.peasantAttackRange;
+  }
   const definition = {
     ...base,
     id: MAP_ID,
@@ -102,6 +109,7 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
     monsters: [],
     guards: [],
     events,
+    heroSettings,
   };
   const state = createWorldRoomState(
     `${PARTY_ID}:${MAP_ID}`,
@@ -114,7 +122,7 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
     {
       id: HERO_ID,
       nick: "Mira",
-      x: 48,
+      x: options.playerX ?? 48,
       y: 32,
       level: 10,
       xp: 0,
@@ -470,6 +478,35 @@ describe("tick-driven Peasant harvest jobs", () => {
       },
     ]);
     expect(value.player.peasantCarry?.kind).toBe("wood");
+  });
+
+  it("applies axe reach talents on top of the map-authored basic range", () => {
+    const node = {
+      id: EVENT_ID,
+      col: 2,
+      row: 0,
+      profile: profile({ range: 120 }),
+    } as const;
+    const withoutReach = runtime(750, {
+      nodes: [node],
+      playerX: 32,
+      peasantAttackRange: 80,
+    });
+    resolveAxe(withoutReach.w);
+    expect(withoutReach.w.state.harvestJobs.size).toBe(0);
+
+    const withReach = runtime(750, {
+      talents: [
+        "peasant.woodcutters_swing.bounty",
+        "peasant.woodcutters_swing.readiness",
+        "peasant.woodcutters_swing.reach",
+      ],
+      nodes: [node],
+      playerX: 32,
+      peasantAttackRange: 80,
+    });
+    resolveAxe(withReach.w);
+    expect(withReach.w.state.harvestJobs.get(HERO_ID)?.targets).toHaveLength(1);
   });
 
   it("commits rich-vein area targets separately, keeps its own committing job and aggregates carry", async () => {
