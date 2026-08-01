@@ -3488,7 +3488,8 @@ kbd {
 
 .talent-branches {
   display: grid;
-  grid-template-columns: repeat(4, minmax(12rem, 1fr));
+  grid-auto-columns: minmax(12rem, 1fr);
+  grid-auto-flow: column;
   gap: 0.65rem;
   overflow-x: auto;
   padding-bottom: 0.4rem;
@@ -3771,7 +3772,7 @@ kbd {
   }
 
   .talent-branches {
-    grid-template-columns: repeat(4, 11rem);
+    grid-auto-columns: 11rem;
   }
 
   .talent-footer,

@@ -184,7 +184,7 @@ export type TalentLabel =
 export interface TalentNode {
   id: string;
   class: PlayerClass;
-  slot: Exclude<SkillSlot, 1>;
+  slot: SkillSlot;
   tier: 0 | 1 | 2 | 3 | 4;
   column: -1 | 0 | 1;
   label: TalentLabel;
@@ -213,7 +213,7 @@ interface BranchOptions {
 
 function branch(
   playerClass: PlayerClass,
-  slot: Exclude<SkillSlot, 1>,
+  slot: SkillSlot,
   upgrades: readonly [UpgradeSeed, UpgradeSeed, UpgradeSeed, UpgradeSeed, UpgradeSeed?],
   options: BranchOptions = {},
 ): TalentNode[] {
@@ -947,6 +947,13 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
     ),
   ],
 };
+
+/** The skill slots that actually own a talent branch for this class, in display order. */
+export function talentBranchSlots(playerClass: PlayerClass): readonly SkillSlot[] {
+  return [...new Set(CLASS_TALENTS[playerClass].map((node) => node.slot))].sort(
+    (left, right) => left - right,
+  );
+}
 
 export interface TalentState {
   selected: string[];

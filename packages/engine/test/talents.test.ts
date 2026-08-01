@@ -1,26 +1,30 @@
 import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
-import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { CLASS_SKILLS, type SkillSlot } from "@lindocara/engine/skills.js";
 import {
   activeEvolutionVariant,
   CLASS_TALENTS,
   conflictingExclusiveTalent,
   normalizeTalentSelection,
   skillWithTalents,
+  type TalentNode,
+  talentBranchSlots,
   talentEffect,
   talentState,
   unlockTalent,
 } from "@lindocara/engine/talents.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("class talents", () => {
   it("ships all sixteen branches with the exact reusable A/B evolution topology", () => {
     let branchCount = 0;
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
-      expect(nodes.every((node) => Number(node.slot) !== 1)).toBe(true);
-      for (const slot of [2, 3, 4, 5] as const) {
+      const typedClass = playerClass as keyof typeof CLASS_TALENTS;
+      const slots = talentBranchSlots(typedClass);
+      expect(slots).toEqual([2, 3, 4, 5]);
+      for (const slot of slots) {
         branchCount += 1;
         const branch = nodes.filter((node) => node.slot === slot);
-        const skill = CLASS_SKILLS[playerClass as keyof typeof CLASS_SKILLS][slot - 1];
+        const skill = CLASS_SKILLS[typedClass][slot - 1];
         const root = branch.find((node) => node.root);
         const tierOne = branch.filter((node) => node.tier === 1);
         const synergy = branch.filter((node) => node.tier === 2);
@@ -74,6 +78,12 @@ describe("class talents", () => {
       }
     }
     expect(branchCount).toBe(16);
+  });
+
+  it("allows every skill slot in the talent contract", () => {
+    expectTypeOf<TalentNode["slot"]>().toEqualTypeOf<SkillSlot>();
+    const basicAttackBranch: TalentNode["slot"] = 1;
+    expect(basicAttackBranch).toBe(1);
   });
 
   it("marks every existing capstone as the compatible A variant of a stable exclusive group", () => {

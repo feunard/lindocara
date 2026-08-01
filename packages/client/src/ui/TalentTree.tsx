@@ -5,6 +5,7 @@ import {
   conflictingExclusiveTalent,
   type TalentEffect,
   type TalentLabel,
+  talentBranchSlots,
   unlockTalent,
 } from "@lindocara/engine/talents.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
@@ -86,7 +87,7 @@ export function TalentTree() {
 
   if (!open || !self || !talentState) return null;
   const selected = new Set(talentState.selected);
-  const branches = [2, 3, 4, 5] as const;
+  const branches = talentBranchSlots(self.class);
   const classNodes = CLASS_TALENTS[self.class];
   const inspectedNode =
     classNodes.find((node) => node.id === inspectedNodeId) ?? classNodes.find((node) => node.root);

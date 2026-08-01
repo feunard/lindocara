@@ -64,6 +64,11 @@ describe("TalentTree", () => {
       "aria-pressed",
       "true",
     );
+    expect(
+      [...view.container.querySelectorAll(".talent-branch > h3")].map((heading) =>
+        heading.textContent?.trim(),
+      ),
+    ).toEqual(["Iron Guard", "Shield Bash", "Battle Cry", "Whirlwind"]);
     expect(view.container.querySelectorAll(".talent-node__icon")).toHaveLength(28);
     await userEvent.click(screen.getByRole("button", { name: /Fortified guard\./ }));
     expect(game.unlockTalent).toHaveBeenCalledWith("warrior.iron_guard.fortified");
