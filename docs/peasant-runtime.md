@@ -21,6 +21,12 @@ Shared stock was chosen because the class is a cooperative economic role and par
 already provides the correct cross-map ownership boundary. Personal materials would duplicate that
 storage and make one Peasant's contribution unavailable to teammates.
 
+Harvest progression remains personal: the Peasant who authoritatively exhausts a node earns a
+resource-specific share of the XP required for their current level (wood 3%, stone 4%, meat 5%,
+iron 6%, gold 8%). Intermediate hits, cancelled channels, stale generations, and losing a concurrent
+reservation grant no XP. This percentage-based curve keeps gathering useful at later levels without
+letting the support class level faster than specialized combat heroes.
+
 ## Explicit harvest profiles
 
 An authored harvestable event stores a validated `HarvestProfile`; gameplay is never inferred from

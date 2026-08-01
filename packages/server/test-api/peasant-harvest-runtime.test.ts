@@ -547,8 +547,8 @@ describe("tick-driven Peasant harvest jobs", () => {
     const value = runtime(0, { talents, nodes });
     const originalHit = value.w.deps.hitHarvestNode;
     let committingPushesKeptJob = true;
-    value.w.deps.hitHarvestNode = async (request) => {
-      const result = await originalHit(request);
+    value.w.deps.hitHarvestNode = async (request, resource) => {
+      const result = await originalHit(request, resource);
       if (result.ok && result.rewarded) {
         installDepletedNode(value.w, request.eventId, result.node.generation);
         pruneInvalidPeasantHarvestJobs(value.w, NOW);
@@ -625,8 +625,8 @@ describe("tick-driven Peasant harvest jobs", () => {
     const value = runtime(0, { talents, nodes });
     const originalHit = value.w.deps.hitHarvestNode;
     let interrupted = false;
-    value.w.deps.hitHarvestNode = async (request) => {
-      const result = await originalHit(request);
+    value.w.deps.hitHarvestNode = async (request, resource) => {
+      const result = await originalHit(request, resource);
       if (!interrupted) {
         interrupted = true;
         if (interruption === "movement") value.player.x += 1;

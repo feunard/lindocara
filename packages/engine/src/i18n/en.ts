@@ -1002,6 +1002,7 @@ export const en = {
   "event.skill.disabled": "{skill} is disabled on this map.",
   "event.resource.insufficient": "Not enough mana.",
   "event.peasant.materials_insufficient": "The party does not have enough materials.",
+  "event.peasant.harvested": "Harvest complete: +{xp} XP.",
   "event.peasant.support_unavailable": "That support action is no longer available.",
   "event.talent.unlocked": "Talent activated.",
   "event.talent.reset": "All talent points were refunded.",

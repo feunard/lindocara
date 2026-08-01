@@ -33,6 +33,7 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
+import { maxHpForLevel, xpForNextLevel } from "@lindocara/engine/game.js";
 import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import {
   type HarvestPresetId,
@@ -46,6 +47,7 @@ import {
   type MapEventPage,
 } from "@lindocara/engine/map-events.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
+import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
@@ -784,6 +786,10 @@ describe("world room events (FakeClock)", () => {
       graphicAssetId: tree.harvestProfile?.exhaustedAssetId,
       harvest: { state: "depleted" },
     });
+    const treeExperience = peasantHarvestExperience("wood", 10);
+    expect(playerOf(state, fixture.heroId).xp + playerOf(state, ally.heroId).xp).toBe(
+      treeExperience,
+    );
 
     await completeHarvestAction({
       engine,
@@ -831,6 +837,25 @@ describe("world room events (FakeClock)", () => {
       expect(held.materials).toEqual({ wood: 13, stone: 3, iron: 4, meat: 5 });
       expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(fixture.heroId)).toBe(38);
     });
+    const expectedExperience =
+      treeExperience +
+      peasantHarvestExperience("stone", 10) +
+      peasantHarvestExperience("iron", 10) +
+      peasantHarvestExperience("gold", 10) * 2 +
+      peasantHarvestExperience("meat", 10);
+    expect(playerOf(state, fixture.heroId).xp + playerOf(state, ally.heroId).xp).toBe(
+      expectedExperience,
+    );
+    const harvestExperienceEvents = [...messagesOf(hostSocket), ...messagesOf(allySocket)].filter(
+      (message) => message.t === "event" && message.code === "peasant.harvested",
+    );
+    expect(harvestExperienceEvents).toHaveLength(resources.length);
+    expect(
+      harvestExperienceEvents.reduce(
+        (total, message) => total + Number(message.t === "event" ? (message.params?.xp ?? 0) : 0),
+        0,
+      ),
+    ).toBe(expectedExperience);
     // Gold remains part of the existing hero economy. Its harvest component is an additive ledger,
     // so an absolute hero save cannot erase a reward whose acknowledgement raced a reconnect.
     expect((await probe.heroes.findById(fixture.heroId))?.gold).toBe(0);
@@ -858,6 +883,10 @@ describe("world room events (FakeClock)", () => {
       generation: 0,
     });
 
+    const hostProgress = {
+      level: playerOf(state, fixture.heroId).level,
+      xp: playerOf(state, fixture.heroId).xp,
+    };
     await engine.leave(hostSocket.id);
     await engine.leave(allySocket.id);
     engine.dispose();
@@ -876,7 +905,52 @@ describe("world room events (FakeClock)", () => {
       meat: 5,
     });
     expect(playerOf(reconnectState, fixture.heroId).inventory.gold).toBe(38);
+    expect(playerOf(reconnectState, fixture.heroId)).toMatchObject(hostProgress);
     reconnectEngine.dispose();
+  });
+
+  test("an exhausted resource levels its Peasant once and restores level-up health", async () => {
+    const tree = harvestPresetEvent(crypto.randomUUID(), 3, 2, "tree", {
+      hitsRequired: 1,
+      harvestDurationMs: 0,
+    });
+    const fixture = await newPlayableParty("harvestlevel", [tree], "peasant");
+    const clock = new FakeClock();
+    vi.spyOn(Date, "now").mockImplementation(() => clock.now());
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-level");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const player = placeHarvester(state, fixture.heroId, tree);
+    const experience = peasantHarvestExperience("wood", player.level);
+    player.xp = xpForNextLevel(player.level) - experience + 1;
+    player.hp = 1;
+
+    await completeHarvestAction({ engine, socket, state, clock, event: tree, slot: 1 });
+
+    expect(player).toMatchObject({
+      level: 11,
+      xp: 1,
+      hp: maxHpForLevel(11),
+      dirty: true,
+    });
+    expect(
+      messagesOf(socket).filter(
+        (message) => message.t === "event" && message.code === "peasant.harvested",
+      ),
+    ).toEqual([
+      {
+        t: "event",
+        code: "peasant.harvested",
+        params: { xp: experience },
+        tone: "good",
+      },
+    ]);
+    expect(
+      messagesOf(socket).filter((message) => message.t === "event" && message.code === "level_up"),
+    ).toEqual([{ t: "event", code: "level_up", params: { level: 11 }, tone: "good" }]);
+    await engine.leave(socket.id);
+    engine.dispose();
   });
 
   test("disconnecting during a real harvest channel leaves the node and reward untouched", async () => {

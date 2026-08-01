@@ -1,4 +1,10 @@
-import { HARVEST_PROFILE_LIMITS, type HarvestProfile, type HarvestTool } from "./harvest.js";
+import { xpForNextLevel } from "./game.js";
+import {
+  HARVEST_PROFILE_LIMITS,
+  type HarvestProfile,
+  type HarvestResourceKind,
+  type HarvestTool,
+} from "./harvest.js";
 import { PARTY_MATERIAL_TYPES, type PartyMaterialAmounts } from "./party-harvest-state.js";
 import { PEASANT_SUPPORT_SKILLS, type PeasantSupportSkillConfig } from "./peasant-support.js";
 
@@ -60,6 +66,31 @@ export const PEASANT_TALENT_EFFECT_KINDS = [
   "peasant_construction",
   "peasant_bomb",
 ] as const satisfies readonly PeasantTalentEffect["kind"][];
+
+/**
+ * Experience earned when one authoritative harvest node is exhausted. Basis points keep the
+ * resource ordering explicit while scaling each reward with the hero's current level threshold.
+ */
+export const PEASANT_HARVEST_EXPERIENCE_BASIS_POINTS = {
+  wood: 300,
+  stone: 400,
+  iron: 600,
+  gold: 800,
+  meat: 500,
+} as const satisfies Readonly<Record<HarvestResourceKind, number>>;
+
+export function peasantHarvestExperience(resource: HarvestResourceKind, level: number): number {
+  const safeLevel = Number.isSafeInteger(level) && level > 0 ? level : 1;
+  return Math.max(
+    1,
+    Math.min(
+      Number.MAX_SAFE_INTEGER,
+      Math.round(
+        (xpForNextLevel(safeLevel) * PEASANT_HARVEST_EXPERIENCE_BASIS_POINTS[resource]) / 10_000,
+      ),
+    ),
+  );
+}
 
 /**
  * All Peasant tuning used by the talent data and its pure resolution helpers. Runtime systems may

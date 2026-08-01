@@ -103,6 +103,7 @@ import {
   resolveTerrain,
   withinRange,
 } from "@lindocara/engine/game.js";
+import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/interest.js";
 import {
   eventCellCentre,
@@ -461,7 +462,10 @@ export interface WorldTickDeps {
    *  (`HeroSaveService.claimQuestReward`, port of legacy `claimHeroQuestReward`). */
   claimQuestReward(player: PlayerRuntime, reward: QuestRewardClaim): Promise<boolean>;
   reserveHarvestNode(request: ReserveHarvestNodeRequest): Promise<ReserveHarvestNodeResult>;
-  hitHarvestNode(request: HitHarvestNodeRequest): Promise<HitHarvestNodeResult>;
+  hitHarvestNode(
+    request: HitHarvestNodeRequest,
+    resource: HarvestResourceKind,
+  ): Promise<HitHarvestNodeResult>;
   cancelHarvestNode(request: HitHarvestNodeRequest): Promise<boolean>;
   /**
    * Consume one health potion and return the remaining count, or `null` when none can be spent —
@@ -3878,11 +3882,14 @@ async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Pr
           continue;
         }
 
-        const hit = await w.deps.hitHarvestNode({
-          heroId: job.heroId,
-          eventId: target.nodeId,
-          reservationId,
-        });
+        const hit = await w.deps.hitHarvestNode(
+          {
+            heroId: job.heroId,
+            eventId: target.nodeId,
+            reservationId,
+          },
+          target.plan.resource,
+        );
         reservationId = null;
         if (!hit.ok || !hit.rewarded) {
           if (w.state.harvestJobs.get(job.heroId) !== job) break;

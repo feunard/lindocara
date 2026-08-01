@@ -637,6 +637,7 @@ export const EVENT_CODES = [
   "skill.locked",
   "skill.disabled",
   "resource.insufficient",
+  "peasant.harvested",
   "peasant.materials_insufficient",
   "peasant.support_unavailable",
   "talent.unlocked",

@@ -47,9 +47,17 @@ import { flattenColliderIndex } from "@lindocara/engine/collider.js";
 import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
 import { canAct } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { CEMETERIES, clampRestoredPosition, isWalkable } from "@lindocara/engine/game.js";
+import {
+  applyExperience,
+  CEMETERIES,
+  clampRestoredPosition,
+  isWalkable,
+  maxHpForLevel,
+} from "@lindocara/engine/game.js";
+import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
+import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
 import {
   type ClientMessage,
   parseClientMessage,
@@ -1159,7 +1167,7 @@ export class WorldRoom {
           (await this.partyRoom.room.call(state.partyId, "reserveHarvestNode", request)) as Awaited<
             ReturnType<WorldGlue["deps"]["reserveHarvestNode"]>
           >,
-        hitHarvestNode: (request) => this.hitHarvestNode(room, state, request),
+        hitHarvestNode: (request, resource) => this.hitHarvestNode(room, state, request, resource),
         cancelHarvestNode: async (request) =>
           (await this.partyRoom.room.call(state.partyId, "cancelHarvestNode", request)) as boolean,
         consumePotion: (player, connectionId) =>
@@ -1173,6 +1181,7 @@ export class WorldRoom {
     room: WorldRoomHandle,
     state: WorldRoomState,
     request: import("./PartyRoom.ts").HitHarvestNodeRequest,
+    resource: HarvestResourceKind,
   ): Promise<import("./PartyRoom.ts").HitHarvestNodeResult> {
     const connectionId = state.connectionIdByHeroId.get(request.heroId);
     const player = connectionId === undefined ? undefined : state.players.get(connectionId);
@@ -1191,20 +1200,46 @@ export class WorldRoom {
           "hitHarvestNode",
           request,
         )) as import("./PartyRoom.ts").HitHarvestNodeResult;
+        let harvestExperience = 0;
+        let levelsGained = 0;
+        if (result.ok && result.rewarded && player.class === "peasant") {
+          harvestExperience = peasantHarvestExperience(resource, player.level);
+          const progression = applyExperience(player.level, player.xp, harvestExperience);
+          player.level = progression.level;
+          player.xp = progression.xp;
+          levelsGained = progression.levelsGained;
+          if (levelsGained > 0) player.hp = maxHpForLevel(player.level);
+          player.dirty = true;
+        }
         if (result.ok && result.goldValue > 0) {
           player.inventory.gold += result.goldValue;
           player.harvestGoldLedgerBaseline =
             Math.max(0, player.harvestGoldLedgerBaseline ?? 0) + result.goldValue;
           player.dirty = true;
-          const activeConnectionId = state.connectionIdByHeroId.get(player.id);
-          if (
-            activeConnectionId !== undefined &&
-            state.players.get(activeConnectionId) === player
-          ) {
-            sendStateTo(this.glue(room), activeConnectionId, player);
-          }
         } else if (result.ok && result.goldPending) {
           player.dirty = true;
+        }
+        const activeConnectionId = state.connectionIdByHeroId.get(player.id);
+        if (activeConnectionId !== undefined && state.players.get(activeConnectionId) === player) {
+          if (harvestExperience > 0) {
+            this.send(room, activeConnectionId, {
+              t: "event",
+              code: "peasant.harvested",
+              params: { xp: harvestExperience },
+              tone: "good",
+            });
+          }
+          if (levelsGained > 0) {
+            this.send(room, activeConnectionId, {
+              t: "event",
+              code: "level_up",
+              params: { level: player.level },
+              tone: "good",
+            });
+          }
+          if (harvestExperience > 0 || (result.ok && result.goldValue > 0)) {
+            sendStateTo(this.glue(room), activeConnectionId, player);
+          }
         }
         return result;
       } catch (error) {
