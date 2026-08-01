@@ -14,7 +14,6 @@ import { type CombatCooldownState, normalizeCombatCooldowns } from "@lindocara/e
 import type { CombatContribution, ThreatEntry } from "@lindocara/engine/cooperation.js";
 import { type LifeState, RESURRECT_COOLDOWN_MS } from "@lindocara/engine/death.js";
 import {
-  ATTACK_COOLDOWN_MS,
   CLASS_STATS,
   clampRestoredPosition,
   defaultMonsterTuning,
@@ -47,7 +46,7 @@ import type {
 import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
 import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
-import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
+import { normalizeTalentSelection, skillWithTalents } from "@lindocara/engine/talents.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { createWorldCache, type WorldCache } from "@lindocara/engine/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
@@ -65,8 +64,11 @@ import { SpatialGrid } from "./spatial-grid.js";
  */
 const PRESENCE_HEARTBEAT_MS = 10_000;
 
-function attackCooldownMs(playerClass: PlayerProfile["class"]): number {
-  return CLASS_SKILLS[playerClass][0]?.cooldownMs ?? ATTACK_COOLDOWN_MS;
+function attackCooldownMs(
+  playerClass: PlayerProfile["class"],
+  talents: PlayerProfile["talents"] = [],
+): number {
+  return skillWithTalents(playerClass, talents, 1).cooldownMs;
 }
 
 /**
@@ -617,7 +619,9 @@ export function newPlayer(
     starvedTicks: 0,
     dirty: false,
     lastAttackAt:
-      cooldowns.attackUntil === 0 ? 0 : cooldowns.attackUntil - attackCooldownMs(profile.class),
+      cooldowns.attackUntil === 0
+        ? 0
+        : cooldowns.attackUntil - attackCooldownMs(profile.class, profile.talents),
     lastHealAt: cooldowns.healUntil === 0 ? 0 : cooldowns.healUntil - healCooldownMs,
     skillCooldowns: [...cooldowns.skillCooldowns],
     // Iron Guard is now a session-local toggle. A reconnect always returns in neutral posture.
@@ -716,7 +720,7 @@ export function combatCooldownsFromPlayer(
   const healCooldownMs = CLASS_STATS[player.class].heal?.cooldownMs ?? 0;
   return normalizeCombatCooldowns(
     {
-      attackUntil: player.lastAttackAt + attackCooldownMs(player.class),
+      attackUntil: player.lastAttackAt + attackCooldownMs(player.class, player.talents),
       healUntil: player.lastHealAt + healCooldownMs,
       skillCooldowns: player.skillCooldowns,
       guardUntil: 0,
