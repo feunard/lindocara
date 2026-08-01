@@ -2364,6 +2364,10 @@ export function startPlayerAction(
   }
   const now = deps.now();
   if (!canAct(player.life)) return false;
+  // Harvest duration is an authoritative channel, not part of the animation cooldown. Reusing a
+  // ready-looking tool (or another skill) must not replace the pending reward; movement remains
+  // the explicit way to cancel a channel.
+  if (w.state.harvestJobs.has(player.id)) return false;
   if (expireRogueStealth(player, now)) sendStateTo(w, connectionId, player);
   if (expireRogueShadowReturn(player, now)) sendStateTo(w, connectionId, player);
   const shadowReturn =
@@ -2766,9 +2770,6 @@ export function startPlayerAction(
         : {}),
   });
   if (!action) return false;
-  // An accepted action interrupts any older harvest channel. This is also the one-job-per-hero
-  // fence when a profile duration is longer than the tool cooldown.
-  cancelPeasantHarvestJob(w.state.harvestJobs, player.id);
   if (chargeFollowup) {
     action.warriorChargeFollowup = { excludedTargetId: chargeFollowup.excludedTargetId };
     player.warriorChargeFollowup = null;
@@ -3478,9 +3479,9 @@ export function resolvePlayerAction(
           targets: harvestTargets,
           now,
         });
-        // One job per hero: a later accepted harvest action replaces the older channel, never
-        // stacks another future reward behind the same cooldown.
-        if (job) w.state.harvestJobs.set(player.id, job);
+        // One job per hero. The acceptance boundary rejects new actions during a live channel;
+        // keep the existing job if a duplicate resolution is ever replayed defensively.
+        if (job && !w.state.harvestJobs.has(player.id)) w.state.harvestJobs.set(player.id, job);
       }
     }
     return;

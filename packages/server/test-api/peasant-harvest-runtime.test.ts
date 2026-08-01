@@ -17,6 +17,7 @@ import {
   advancePeasantHarvestJobs,
   pruneInvalidPeasantHarvestJobs,
   resolvePlayerAction,
+  startPlayerAction,
   type WorldGlue,
   type WorldTickDeps,
 } from "../src/api/realtime/worldTick.ts";
@@ -290,18 +291,18 @@ function installDepletedNode(w: WorldGlue, eventId: string, generation = 0): voi
 }
 
 describe("tick-driven Peasant harvest jobs", () => {
-  it("keeps one job per hero and commits only at harvestDurationMs (including zero)", async () => {
+  it("keeps the first job per hero and commits only at harvestDurationMs (including zero)", async () => {
     const delayed = runtime();
     resolveAxe(delayed.w);
     const first = delayed.w.state.harvestJobs.get(HERO_ID);
     expect(first).toMatchObject({ completesAt: NOW + 750, committing: false });
     resolveAxe(delayed.w, NOW + 100);
-    const replacement = delayed.w.state.harvestJobs.get(HERO_ID);
+    const retained = delayed.w.state.harvestJobs.get(HERO_ID);
     expect(delayed.w.state.harvestJobs.size).toBe(1);
-    expect(replacement?.id).not.toBe(first?.id);
-    advancePeasantHarvestJobs(delayed.w, NOW + 849);
+    expect(retained?.id).toBe(first?.id);
+    advancePeasantHarvestJobs(delayed.w, NOW + 749);
     expect(delayed.calls.reserve).toBe(0);
-    advancePeasantHarvestJobs(delayed.w, NOW + 850);
+    advancePeasantHarvestJobs(delayed.w, NOW + 750);
     await Promise.all(delayed.pending);
     expect(delayed.calls).toMatchObject({ reserve: 1, hit: 1 });
     expect(delayed.player.peasantCarry).toBeNull();
@@ -311,6 +312,25 @@ describe("tick-driven Peasant harvest jobs", () => {
     advancePeasantHarvestJobs(instant.w, NOW);
     await Promise.all(instant.pending);
     expect(instant.calls).toMatchObject({ reserve: 1, hit: 1 });
+  });
+
+  it("rejects a newly ready tool without cancelling its longer harvest channel", async () => {
+    const delayed = runtime(900);
+    resolveAxe(delayed.w);
+    const channel = delayed.w.state.harvestJobs.get(HERO_ID);
+    expect(channel).toMatchObject({ completesAt: NOW + 900, committing: false });
+
+    delayed.player.action = null;
+    delayed.player.lastAttackAt = NOW - 850;
+    expect(startPlayerAction(delayed.w, "connection", delayed.player, 1)).toBe(false);
+    expect(delayed.w.state.harvestJobs.get(HERO_ID)?.id).toBe(channel?.id);
+    expect(delayed.player.lastAttackAt).toBe(NOW - 850);
+    expect(delayed.player.action).toBeNull();
+
+    advancePeasantHarvestJobs(delayed.w, NOW + 900);
+    await Promise.all(delayed.pending);
+    expect(delayed.calls).toMatchObject({ reserve: 1, hit: 1 });
+    expect(delayed.w.state.harvestJobs.size).toBe(0);
   });
 
   it("revalidates range and page state at completion and leaves no residual job", () => {
