@@ -1,0 +1,81 @@
+import type * as THREE from "three";
+import { DEFAULT_CONFIG, type Hd2dConfig } from "./config.js";
+
+export interface LitBillboard {
+  mesh: THREE.Mesh;
+  material: THREE.MeshLambertMaterial;
+  /** Mi-hauteur du corps : c'est de là qu'on mesure la distance à une source, et pas des pieds,
+   *  sinon un arbre de 3,6 m est réputé collé au foyer. */
+  mid: number;
+}
+
+export interface Hd2dContextOptions {
+  /** Surcharge partielle : chaque bloc absent garde ses valeurs par défaut. */
+  config?: Partial<Hd2dConfig>;
+}
+
+export interface Hd2dContext {
+  readonly config: Hd2dConfig;
+  yaw(): number;
+  setYaw(yaw: number): void;
+  registerBillboard(mesh: THREE.Mesh, opts: { lit: boolean; mid: number }): void;
+  billboards(): readonly THREE.Mesh[];
+  litBillboards(): readonly LitBillboard[];
+  dispose(): void;
+}
+
+/**
+ * Le porteur de tout ce que le PoC gardait en variables de module : le yaw courant, le registre
+ * des billboards et celui des billboards éclairés.
+ *
+ * Un état de module marche tant qu'il n'y a qu'une scène dans la page. Le jeu et l'éditeur en
+ * ouvriront deux : elles partageraient alors un seul yaw, et chaque rotation de caméra de l'une
+ * tordrait les sprites de l'autre. C'est la même règle que ce dépôt applique déjà à ses systèmes
+ * de room — les dépendances se passent en argument, rien ne se cache dans un singleton.
+ */
+export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext {
+  const config: Hd2dConfig = {
+    ...DEFAULT_CONFIG,
+    ...options.config,
+    render: { ...DEFAULT_CONFIG.render, ...options.config?.render },
+    postfx: { ...DEFAULT_CONFIG.postfx, ...options.config?.postfx },
+    cloudShadow: { ...DEFAULT_CONFIG.cloudShadow, ...options.config?.cloudShadow },
+  };
+
+  // Tous les sprites regardent la même direction : celle de la caméra. Dès qu'elle pivote, ils
+  // doivent pivoter avec, sinon on les voit par la tranche.
+  const tous: THREE.Mesh[] = [];
+  const eclaires: LitBillboard[] = [];
+  let courant = 0;
+
+  return {
+    config,
+    yaw: () => courant,
+    setYaw(yaw) {
+      if (yaw === courant) return;
+      courant = yaw;
+      for (const m of tous) m.rotation.y = yaw;
+    },
+    registerBillboard(mesh, opts) {
+      // Un sprite né pendant une rotation doit adopter le yaw courant, pas zéro.
+      mesh.rotation.y = courant;
+      tous.push(mesh);
+      if (opts.lit) {
+        eclaires.push({
+          mesh,
+          // Seul `makeBillboard` (task suivante) inscrit des billboards, et c'est lui qui
+          // construit le matériau : cette assertion tient parce que l'appelant contrôle les deux
+          // bouts de l'invariant.
+          material: mesh.material as THREE.MeshLambertMaterial,
+          mid: opts.mid,
+        });
+      }
+    },
+    billboards: () => tous,
+    litBillboards: () => eclaires,
+    dispose() {
+      tous.length = 0;
+      eclaires.length = 0;
+    },
+  };
+}
