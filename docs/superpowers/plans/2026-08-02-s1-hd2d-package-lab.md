@@ -1324,8 +1324,9 @@ git commit -m "feat(hd2d): mélangeur d'ambiances et voûte céleste"
   - `autotileAxis(a: boolean, b: boolean): 0 | 1 | 2 | 3`
   - `cornerOcclusion(field: HeightField, i: number, j: number, di: number, dj: number): number`
   - `wallDrop(field: HeightField, i: number, j: number, di: number, dj: number): number`
-  - `AO_CORNER: number`
-  - `interface TerrainAtlas { texture: THREE.Texture; cols: number; rows: number; block: "water-edge" | "cliff-edge" | "flat"; wallRow: number }`
+  - `AO_CORNER: number`, `AO_WALL: number`, `AO_WALL_HEIGHT: number`
+  - `tintAt(x, z): [number, number, number]` — teinte procédurale très basse fréquence, un **triplet RGB** multiplié par l'occlusion dans la couleur de sommet. Sans elle, une grande étendue d'herbe devient un aplat parfaitement uniforme là où l'autotiling ne s'occupe que des bordures. Reste **locale à `mesh.ts`** : c'est un détail de fabrication de la géométrie, pas une propriété du champ.
+  - `interface TerrainAtlas { texture: THREE.Texture; cols: number; rows: number; tilePx: number; block: "water-edge" | "cliff-edge" | "flat"; wallRow: number }` — `tilePx` est déclaré par l'appelant, qui seul connaît son atlas. Le déduire de `texture.image` n'est pas fiable avant décodage et vaut `null` en test ; le coder en dur est une bombe à retardement au premier tileset d'une autre taille.
   - `tileUV(atlas: TerrainAtlas, col: number, row: number): { u0: number; v0: number; u1: number; v1: number }`
   - `meshTerrain(ctx: Hd2dContext, field: HeightField, opts: { atlases: Record<string, TerrainAtlas>; levelHeight: number }): { group: THREE.Group; dispose(): void }`
 
@@ -1485,15 +1486,44 @@ describe("meshTerrain", () => {
     expect(positions).toBe(12 * 4);
   });
 
+  /** Un plateau SANS BORD : `levelAt` répond partout, donc aucune paroi n'est émise et la
+   *  géométrie ne contient que des dessus. C'est ce qui rend l'assertion sur Y lisible — un champ
+   *  borné entouré de vide porte forcément des parois, dont les sommets descendent. */
+  function endlessPlateau(cols: number, rows: number, level: number): HeightField {
+    return { cols, rows, levelAt: () => level, materialAt: () => "herbe" };
+  }
+
+  /** Tous les Y de tous les meshes du groupe, quel que soit le découpage en accumulateurs. */
+  function allY(group: THREE.Group): number[] {
+    const ys: number[] = [];
+    for (const child of group.children) {
+      if (!(child instanceof THREE.Mesh)) continue;
+      const pos = child.geometry.getAttribute("position");
+      for (let k = 0; k < pos.count; k++) ys.push(pos.getY(k));
+    }
+    return ys;
+  }
+
   it("place le dessus à la hauteur de son palier", () => {
+    const ctx = createHd2dContext();
+    const { group } = meshTerrain(ctx, endlessPlateau(2, 2, 2), {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    for (const y of allY(group)) expect(y).toBeCloseTo(1.8);
+  });
+
+  it("descend la paroi de tous ses paliers sur un côté exposé au vide", () => {
     const ctx = createHd2dContext();
     const { group } = meshTerrain(ctx, flat(1, 1, 2), {
       atlases: { herbe: atlas() },
       levelHeight: 0.9,
     });
-    const mesh = group.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh);
-    const pos = mesh?.geometry.getAttribute("position") as THREE.BufferAttribute;
-    for (let k = 0; k < pos.count; k++) expect(pos.getY(k)).toBeCloseTo(1.8);
+    const ys = allY(group);
+    // Le dessus au palier 2, et le pied des parois au ras de l'eau : sans ça il resterait une
+    // bande apparemment vide mais inaccessible le long du rivage.
+    expect(Math.max(...ys)).toBeCloseTo(1.8);
+    expect(Math.min(...ys)).toBeCloseTo(0);
   });
 
   it("porte une couleur de sommet pour l'occlusion de contact", () => {
@@ -1537,8 +1567,15 @@ export interface HeightField {
   materialAt(i: number, j: number): string | null;
 }
 
-/** Assombrissement apporté par UN voisin plus haut touchant un coin. */
-export const AO_CORNER = 0.11;
+/** Assombrissement apporté par UN voisin plus haut touchant un coin. Valeur du PoC, mesurée à
+ *  l'oeil : plus bas le pied des falaises cesse de se détacher, plus haut les coins se salissent. */
+export const AO_CORNER = 0.13;
+
+/** Noirceur au pied d'une paroi, et hauteur sur laquelle elle se dissipe. C'est l'autre moitié de
+ *  l'occlusion de contact : sans elle, une falaise se pose sur l'herbe sans y peser, et le relief
+ *  se lit comme un décor découpé. */
+export const AO_WALL = 0.45;
+export const AO_WALL_HEIGHT = 1.1;
 
 /**
  * Une arête est « ouverte » — donc bordée — face au vide, face à un voisin plus bas, ou face à une
