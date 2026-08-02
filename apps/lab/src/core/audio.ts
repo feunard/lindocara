@@ -1,13 +1,19 @@
-// Échantillons du pack Free Fantasy SFX (TomMusic), joués par WebAudio.
+// Échantillons du pack Free Fantasy SFX (TomMusic), joués par WebAudio — plus les pas de neige et
+// de glace de l'île du nord (Task 6), générés par le studio local (`~/git/pixel-art-model`, voie
+// `sfx`) : le pack n'a pas de banquise.
 //
 // Les variantes "Chain" des pas sont choisies exprès : le héros porte une
 // armure, et le cliquetis fait la moitié du travail. Chaque déclenchement tire
 // une variante au hasard ET une hauteur légèrement différente — sans ça, cinq
 // échantillons en boucle s'entendent au bout de dix secondes.
 
+import type { TerrainMaterial } from "../world/terrain-query.js";
+
 type BankKey =
   | "pasHerbe"
   | "pasSable"
+  | "pasNeige"
+  | "pasGlace"
   | "brasse"
   | "pop"
   | "coffre"
@@ -20,11 +26,18 @@ type BankKey =
   | "reception"
   | "entreeEau"
   | "sortieEau"
-  | "suivant";
+  | "suivant"
+  | "rafale";
 
 const BANQUE: Record<BankKey, readonly string[]> = {
   pasHerbe: [1, 2, 3, 4, 5].map((i) => `/sfx/step-grass-${i}.ogg`),
   pasSable: [1, 2, 3, 4, 5].map((i) => `/sfx/step-sand-${i}.ogg`),
+  // Trois variantes seulement, contre cinq pour herbe/sable : générées une par une (le studio
+  // local n'a pas de banque toute faite), et trois suffisent déjà à casser la répétition avec le
+  // tirage aléatoire de `jouer()`. Les trois crêtes sont alignées au montage — voir le rapport de
+  // la task, un pas sur trois traînait avant ce travail.
+  pasNeige: [1, 2, 3].map((i) => `/sfx/pas-neige-${i}.ogg`),
+  pasGlace: [1, 2, 3].map((i) => `/sfx/pas-glace-${i}.ogg`),
   brasse: [1, 2, 3, 4].map((i) => `/sfx/swim-${i}.ogg`),
   pop: [1, 2, 3].map((i) => `/sfx/pop-${i}.ogg`),
   coffre: [1, 2].map((i) => `/sfx/chest-${i}.ogg`),
@@ -45,9 +58,21 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // bois frappé — le son de validation des jeux à dialogues, et il va bien à un
   // panda en chapeau de paille. Trois variantes, comme partout ailleurs.
   suivant: [1, 2, 3].map((i) => `/sfx/next-${i}.ogg`),
+  // Une rafale de vent isolée, générée ici avec le reste des sons du lieu pour éviter un
+  // aller-retour au studio pour un seul fichier — mais NON déclenchée par ce travail : Task 9 la
+  // reliera au pulse visuel du brouillard polaire. Déclarée au catalogue (donc pesée et décodée
+  // à l'écran de chargement) sans fonction d'export : décider QUAND elle joue est le travail de
+  // Task 9, pas de celui-ci.
+  rafale: ["/sfx/rafale.ogg"],
 };
 
 type Ambiance = "jour" | "nuit";
+
+// Toutes les boucles WebAudio du module — nappes d'ambiance, foyer, ET depuis Task 6 la nappe
+// polaire et la glisse — partagent la même infrastructure (`demarrerBoucles`, `boucles`, plus
+// bas) : un seul type nommé plutôt que répéter l'union à quatre endroits, ce qui aurait fini par
+// en oublier un le jour où une cinquième boucle s'ajoute.
+type BoucleKey = Ambiance | "mer" | "feu" | "polaire" | "glisse";
 
 // Une piste par clef. La clef n'est plus l'heure du jour : depuis l'île de neige (Task 5), c'est
 // une ZONE (`Zone.musique`, `world/zones.ts`) qui la choisit, via `setZoneMusic` — le cycle
@@ -69,11 +94,35 @@ const MUSIQUE: Record<string, string> = {
 // exactement ce qu'il ne faut pas faire à une voix.
 const VOIX = [1, 2, 3, 4].map((i) => `/voice/grota-${i}.ogg`);
 
-const BOUCLES: Record<Ambiance | "mer" | "feu", string> = {
+const BOUCLES: Record<BoucleKey, string> = {
   jour: "/sfx/amb-day.ogg",
   nuit: "/sfx/amb-night.ogg",
   mer: "/sfx/amb-sea.ogg",
   feu: "/sfx/fire.ogg",
+  // Le souffle polaire (Task 6) : `ZONE_POLAIRE` (`settings.ts`) porte `nappe: "polaire"` depuis
+  // la Task 4, mais `setAmbience` n'avait encore aucune clef "polaire" à jouer et éteignait
+  // silencieusement jour/nuit à l'arrivée sur la banquise, faute de mieux — voir sa docstring,
+  // mise à jour plus bas, pour le câblage réel.
+  polaire: "/sfx/amb-polaire.ogg",
+  // La glisse (Task 6) : PAS une ambiance de zone — un son TENU dont le gain suit l'intensité du
+  // dérapage, piloté image par image par `setSkid` depuis `hero.ts`. Elle emprunte quand même
+  // cette infrastructure de boucle plutôt que d'en inventer une seconde : `demarrerBoucles`
+  // (plus bas) la crée une fois, silencieuse par défaut puisque `ambiance` ne vaut jamais
+  // "glisse" — exactement comme le foyer avant que `setFireDistance` ne lui donne un gain.
+  glisse: "/sfx/glisse.ogg",
+};
+
+// `glisse`/`polaire` sont exportées avec une marge de queue au-delà du point de bouclage réel
+// (voir le rapport de la task 6) : Opus déforme perceptiblement les tout derniers échantillons
+// d'un flux encodé — sa fenêtre de transform n'a aucun contexte au-delà de la fin du fichier — ce
+// qui créait un clic mesurable au raccord (jusqu'à 36× le saut échantillon-à-échantillon normal
+// du signal, contre ~1× une fois cette marge en place). `loopEnd` fait boucler la lecture AVANT
+// cette zone abîmée ; la marge elle-même n'est jamais entendue. Les boucles du pack (jour/nuit/
+// mer/feu) n'ont pas cette marge — elles n'ont pas été réencodées par ce travail, seulement
+// recopiées telles quelles depuis le pack.
+const LOOP_END_S: Partial<Record<BoucleKey, number>> = {
+  glisse: 1.0,
+  polaire: 17.5,
 };
 
 /** Tout ce que le son a besoin de charger — l'écran de chargement le pèse. */
@@ -84,11 +133,15 @@ export const AUDIO_URLS: readonly string[] = [
   ...Object.values(MUSIQUE),
 ];
 
-const NIVEAUX: Record<Ambiance | "mer" | "feu", number> = {
+const NIVEAUX: Record<BoucleKey, number> = {
   jour: 0.5,
   nuit: 0.5,
   mer: 0.22,
   feu: 0.5,
+  polaire: 0.42,
+  // Le plafond de la glisse à pleine intensité — `setSkid` le multiplie par le dérapage (0..1),
+  // jamais utilisé directement comme les autres nappes.
+  glisse: 0.6,
 };
 // La musique se fait attendre : elle entre en fondu long, et laisse un vrai
 // silence entre deux passages. Une boucle sans respiration s'entend au bout de
@@ -118,7 +171,7 @@ interface Arrangement {
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 const tampons = new Map<string, AudioBuffer>(); // url -> AudioBuffer
-const boucles: Partial<Record<Ambiance | "mer" | "feu", Boucle>> = {};
+const boucles: Partial<Record<BoucleKey, Boucle>> = {};
 let debloque = false;
 // `string` pour la même raison que `Arrangement.clef` : une zone (Task 4) peut demander une nappe
 // que `Ambiance` ne connaît pas encore.
@@ -207,7 +260,7 @@ function demarrerBoucles(): void {
   if (!debloque || !ctx || !master) return;
   const context = ctx;
   const m = master;
-  for (const clef of Object.keys(BOUCLES) as (Ambiance | "mer" | "feu")[]) {
+  for (const clef of Object.keys(BOUCLES) as BoucleKey[]) {
     const url = BOUCLES[clef];
     if (boucles[clef] || !tampons.has(url)) continue;
     const buf = tampons.get(url);
@@ -215,8 +268,14 @@ function demarrerBoucles(): void {
     const src = context.createBufferSource();
     src.buffer = buf;
     src.loop = true;
+    // Voir `LOOP_END_S` : `glisse`/`polaire` portent une marge de queue au-delà du point de
+    // bouclage réel, pour boucler avant la zone que l'encodage Opus abîme. Les boucles du pack
+    // n'ont pas cette entrée : `loopEnd` reste à son défaut (la durée entière du buffer).
+    const loopEnd = LOOP_END_S[clef];
+    if (loopEnd !== undefined) src.loopEnd = loopEnd;
     const g = context.createGain();
-    // Le feu et la nappe de nuit démarrent muets : c'est la scène qui les ouvre.
+    // Le feu, la nappe polaire et la glisse démarrent muets : c'est la scène (`setAmbience`) ou
+    // le dérapage (`setSkid`) qui les ouvre.
     g.gain.value = clef === "mer" ? NIVEAUX.mer : clef === ambiance ? NIVEAUX[clef] : 0;
     src.connect(g).connect(m);
     src.start();
@@ -405,9 +464,33 @@ function jouer(
   src.start();
 }
 
-/** Un pas. `sol` vaut 'herbe' ou 'sable'. */
-export const step = (sol: "herbe" | "sable" = "herbe"): void =>
-  jouer(sol === "sable" ? "pasSable" : "pasHerbe", { gain: sol === "sable" ? 0.75 : 0.9 });
+/** Choisit l'échantillon et son niveau pour chaque matière. `glace-fine` partage le son de
+ *  `glace` — comme elle partage déjà sa friction (`locomotion.ts`) : ce n'est pas encore une
+ *  matière de RENDU distincte (Task 7 lui donnera son propre visuel de craquelure), donc pas
+ *  encore un son distinct non plus. */
+function pasDe(sol: TerrainMaterial): { clef: BankKey; gain: number } {
+  switch (sol) {
+    case "sable":
+      return { clef: "pasSable", gain: 0.75 };
+    case "neige":
+      // Étouffé : un pas de neige n'a pas le mordant sec d'un pas de glace.
+      return { clef: "pasNeige", gain: 0.85 };
+    case "glace":
+    case "glace-fine":
+      return { clef: "pasGlace", gain: 0.95 };
+    case "herbe":
+      return { clef: "pasHerbe", gain: 0.9 };
+  }
+}
+
+/** Un pas. Chaque matière tire sa propre variante ET sa propre hauteur au hasard, comme le reste
+ *  du module (voir `jouer`) — cinq matières pour trois échantillons chacun au minimum (herbe et
+ *  sable en ont cinq, neige et glace trois) : sans ce tirage la répétition s'entendrait en
+ *  quelques pas, pas en dix secondes. */
+export const step = (sol: TerrainMaterial = "herbe"): void => {
+  const { clef, gain } = pasDe(sol);
+  jouer(clef, { gain });
+};
 
 export const jump = (): void => jouer("saut", { gain: 0.8 });
 /** Réception : le poids suit la vitesse de chute. */
@@ -424,13 +507,13 @@ export const openDoor = (): void => jouer("porte", { gain: 0.85 });
 export const closeDoor = (): void => jouer("porteFerme", { gain: 0.85 });
 
 /**
- * Bascule la NAPPE d'ambiance ; les deux boucles du sud se croisent en fondu. `nom` était borné à
+ * Bascule la NAPPE d'ambiance ; les boucles concernées se croisent en fondu. `nom` était borné à
  * `Ambiance` ("jour"/"nuit") tant que seul le cycle jour/nuit l'appelait ; depuis Task 4 de l'île
  * de neige, une zone (`Zone.nappe`, `world/zones.ts`) l'appelle aussi avec son propre nom —
- * "polaire" pour l'instant, qui ne correspond à aucune nappe encore chargée. Le corps ci-dessous
- * gère déjà n'importe quelle valeur avec grâce : ni "jour" ni "nuit" éteint les DEUX boucles du
- * sud, ce qui est déjà un silence audible à l'entrée de la zone polaire, en attendant que Task 6
- * lui donne sa propre nappe (`amb-polaire.ogg`) et sa propre entrée dans `BOUCLES`.
+ * "polaire" pour `ZONE_POLAIRE`. Task 6 lui donne enfin sa propre nappe (`amb-polaire.ogg`,
+ * `BOUCLES.polaire`) : avant ce travail, "polaire" ne correspondait à aucune clef connue et le
+ * corps ci-dessous se contentait d'éteindre jour/nuit avec grâce, un silence déjà audible en
+ * l'attendant.
  *
  * Ne pilote QUE la nappe, depuis Task 5 : la musique obéit séparément à `setZoneMusic`, plus bas.
  * Une zone porte une nappe et une musique qui ne partagent pas forcément le même nom (la polaire :
@@ -446,6 +529,12 @@ export function setAmbience(nom: string): void {
   if (!jourB || !nuitB) return;
   jourB.gain.gain.setTargetAtTime(nom === "jour" ? NIVEAUX.jour : 0, t, 1.2);
   nuitB.gain.gain.setTargetAtTime(nom === "nuit" ? NIVEAUX.nuit : 0, t, 1.2);
+  // Garde défensive, comme pour `jourB`/`nuitB` plus haut : si `amb-polaire.ogg` n'a pas pu être
+  // décodé (`initAudio` avale silencieusement un échantillon manquant), `boucles.polaire` reste
+  // `undefined` et cet appel n'a rien à piloter, plutôt que de planter la scène. `setSkid` a la
+  // même garde, pour la même raison.
+  const polaireB = boucles.polaire;
+  if (polaireB) polaireB.gain.gain.setTargetAtTime(nom === "polaire" ? NIVEAUX.polaire : 0, t, 1.2);
 }
 
 /**
@@ -514,6 +603,26 @@ export function setFireDistance(d: number): void {
   if (!feu || !ctx) return;
   const v = Math.max(0, 1 - d / PORTEE_FEU) ** 2;
   feu.gain.gain.setTargetAtTime(NIVEAUX.feu * v, ctx.currentTime, 0.15);
+}
+
+/**
+ * La glisse : un son TENU, pas un déclenchement — jamais `jouer()`. `intensite` va de 0 (la
+ * vitesse suit l'entrée, aucun dérapage) à 1 (elles divergent complètement) ; `hero.ts` la
+ * recalcule à chaque image à partir de `vx`/`vz` et de l'entrée, SANS jamais regarder la matière
+ * du sol — c'est le même calcul qui fait que la glace glisse (`locomotion.ts` : l'entrée
+ * accélère, la matière freine) qui fait aussi que ce son ne s'entend presque jamais ailleurs :
+ * sur l'herbe/le sable/la neige la vitesse rattrape l'entrée en une ou deux images, largement
+ * sous la constante de lissage ci-dessous, donc l'intensité y reste proche de zéro.
+ *
+ * `setTargetAtTime` lisse l'image par image en un vrai fondu continu — sans lui, chaque appel
+ * (60 fois par seconde) redéfinirait le gain instantanément et on entendrait un crépitement
+ * haché plutôt qu'un son qui monte et qui descend.
+ */
+export function setSkid(intensite: number): void {
+  const glisse = boucles.glisse;
+  if (!glisse || !ctx) return;
+  const v = NIVEAUX.glisse * Math.max(0, Math.min(1, intensite));
+  glisse.gain.gain.setTargetAtTime(v, ctx.currentTime, 0.12);
 }
 
 /**

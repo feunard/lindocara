@@ -49,10 +49,9 @@ export const ZONE_POLAIRE: Zone = {
   // Le thème généré par Task 5 (`public/music/neige.ogg`, déclaré sous cette même clef dans
   // `MUSIQUE`, `core/audio.ts`). `applyZone` (`main.ts`) le fait obéir à `setZoneMusic`.
   musique: "neige",
-  // Pas encore de nappe polaire dédiée non plus (`amb-polaire.ogg` arrive en Task 6) : `nom` ne
-  // correspond aujourd'hui à aucune clef connue de `setAmbience` ("jour"/"nuit"), qui éteint donc
-  // les deux nappes du sud plutôt que d'en jouer une troisième — un silence qui s'installe à
-  // l'arrivée sur la banquise, déjà un changement audible, en attendant le vrai vent polaire.
+  // Le souffle polaire généré par Task 6 (`public/sfx/amb-polaire.ogg`, déclaré sous cette même
+  // clef dans `BOUCLES`, `core/audio.ts`). `applyZone` (`main.ts`) le fait obéir à `setAmbience`,
+  // qui éteint désormais les deux nappes du sud ET joue celle-ci à l'arrivée sur la banquise.
   nappe: "polaire",
   // L'eau glacée consomme le souffle deux fois plus vite (Task 7, la glace fine).
   souffle: 2,

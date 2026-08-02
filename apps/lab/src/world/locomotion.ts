@@ -86,3 +86,31 @@ export function vitesseMaxPour(m: TerrainMaterial | null): number {
       return HERO.speed * HERO.vitesseSol.herbe;
   }
 }
+
+/**
+ * Intensité du dérapage (Task 6, le son de la glisse) : 0 quand la vitesse suit l'entrée, 1
+ * quand elles s'opposent — pondérée par la vitesse, pour qu'un résidu de dérive à vitesse
+ * quasi nulle (la toute fin d'un arrêt) ne sonne pas à pleine intensité. Entrée nulle mais
+ * vitesse non nulle vaut le désaccord MAXIMAL : glisser sur son élan sans direction demandée est
+ * exactement l'arrêt sur la glace, pas une absence de dérapage.
+ *
+ * SANS jamais regarder la matière du sol, par construction — c'est le même calcul qui fait que
+ * la glace glisse (l'entrée accélère, la matière freine, voir plus haut) qui fait que cette
+ * intensité retombe proche de zéro ailleurs : sur l'herbe/le sable/la neige la vitesse rattrape
+ * l'entrée en une ou deux images, bien avant que `setSkid` (`core/audio.ts`) n'ait le temps de le
+ * rendre audible. Pure et déterministe comme le reste du module : c'est un effet SONORE, pas une
+ * règle de jeu qui remontera dans `engine`, mais autant la garder testable au même titre.
+ */
+export function derapage(
+  vx: number,
+  vz: number,
+  ix: number,
+  iz: number,
+  vitesseRef: number,
+): number {
+  const vitesse = Math.hypot(vx, vz);
+  if (vitesse < 1e-3) return 0;
+  const entree = Math.hypot(ix, iz);
+  const desaccord = entree > 1e-3 ? (1 - (vx * ix + vz * iz) / (vitesse * entree)) / 2 : 1;
+  return desaccord * Math.min(1, vitesse / vitesseRef);
+}

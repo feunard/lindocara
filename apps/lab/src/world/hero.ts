@@ -10,6 +10,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
   land,
+  setSkid,
   attack as sonAttaque,
   enterWater as sonEntreeEau,
   jump as sonSaut,
@@ -19,8 +20,8 @@ import {
 } from "../core/audio.js";
 import { CAMERA, HERO, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
-import { frictionPour, pasAmorti, vitesseMaxPour } from "./locomotion.js";
-import type { TerrainQuery } from "./terrain-query.js";
+import { derapage, frictionPour, pasAmorti, vitesseMaxPour } from "./locomotion.js";
+import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.
 const SPLASH = { cols: 9, frames: 9, fps: 20, height: 1.7, foot: 0.32 };
@@ -174,9 +175,10 @@ export function createHero(
   /** Centre de l'empreinte de collision, décalé sous le corps du sprite. */
   const empreinte = (z: number) => z - HERO.offset;
 
-  /** Matière du sol sous les pieds, pour le son du pas. */
-  const solSous = (): "sable" | "herbe" =>
-    query.kindAt(pos.x, empreinte(pos.z)) === "sable" ? "sable" : "herbe";
+  /** Matière du sol sous les pieds, pour le son du pas — les cinq matières (Task 6), plus
+   *  réduites à deux. `null` (hors carte / eau) retombe sur "herbe" : `step()` n'est de toute
+   *  façon jamais appelée en nageant (voir plus bas, la cadence des pas et brasses). */
+  const solSous = (): TerrainMaterial => query.kindAt(pos.x, empreinte(pos.z)) ?? "herbe";
 
   function splash(x: number, y: number, z: number): void {
     const s = makeBillboard(ctx, {
@@ -327,6 +329,11 @@ export function createHero(
 
       vx = pasAmorti(vx, input.x, accel, friction, dt);
       vz = pasAmorti(vz, input.z, accel, friction, dt);
+
+      // --- glisse (son tenu) ----------------------------------------------------------------
+      // `derapage` (`world/locomotion.ts`) ne regarde jamais la matière — coupée ici seulement
+      // en l'air et à la nage, où le dérapage au sol n'a pas de sens.
+      setSkid(airborne || swimming ? 0 : derapage(vx, vz, input.x, input.z, HERO.speed));
 
       // Un axe à la fois : buter sur un obstacle en diagonale fait glisser le long — inchangé,
       // seule la façon de calculer `nx`/`nz` change. Sur l'axe refusé, la vitesse retombe à zéro :
