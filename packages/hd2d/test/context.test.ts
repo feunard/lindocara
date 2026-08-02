@@ -62,6 +62,45 @@ describe("createHd2dContext", () => {
     expect(ctx.litBillboards()).toHaveLength(0);
   });
 
+  it("désinscrit un mesh des deux registres, sans toucher aux autres", () => {
+    const ctx = createHd2dContext();
+    const a = fakeSprite();
+    const b = fakeSprite();
+    ctx.registerBillboard(a.mesh, { lit: true, material: a.material, mid: 1 });
+    ctx.registerBillboard(b.mesh, { lit: true, material: b.material, mid: 2 });
+
+    ctx.unregisterBillboard(a.mesh);
+
+    expect(ctx.billboards()).toEqual([b.mesh]);
+    expect(ctx.litBillboards()).toHaveLength(1);
+    expect(ctx.litBillboards()[0]?.mesh).toBe(b.mesh);
+  });
+
+  it("désinscrire un mesh jamais inscrit ne casse rien et ne retire rien", () => {
+    const ctx = createHd2dContext();
+    const registered = fakeSprite();
+    const stranger = fakeSprite();
+    ctx.registerBillboard(registered.mesh, { lit: true, material: registered.material, mid: 1 });
+
+    expect(() => ctx.unregisterBillboard(stranger.mesh)).not.toThrow();
+    expect(ctx.billboards()).toEqual([registered.mesh]);
+    expect(ctx.litBillboards()).toHaveLength(1);
+  });
+
+  it("un mesh désinscrit n'est plus tourné par setYaw", () => {
+    const ctx = createHd2dContext();
+    const gone = fakeSprite();
+    ctx.registerBillboard(gone.mesh, { lit: true, material: gone.material, mid: 1 });
+    ctx.unregisterBillboard(gone.mesh);
+
+    ctx.setYaw(1.1);
+
+    // Un billboard disposé qui resterait tourné par une rotation de caméra ultérieure serait la
+    // fuite mémoire/CPU exacte que le retrait doit empêcher : le mesh mort ne doit plus jamais
+    // bouger, quel que soit le nombre de rotations qui suivent.
+    expect(gone.mesh.rotation.y).toBe(0);
+  });
+
   it("ne partage aucun sous-objet de config entre contextes, même non surchargé", () => {
     const a = createHd2dContext();
     a.config.postfx.bloom.strength = 999;

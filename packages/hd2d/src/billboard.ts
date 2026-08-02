@@ -46,11 +46,11 @@ export interface Animator {
 }
 
 /**
- * `east`/`west` n'existent dans le PoC : son unique personnage ne se retourne jamais. Ici
+ * `east`/`west` n'existent pas dans le PoC : son unique personnage ne se retourne jamais. Ici
  * l'orientation est une donnée dès S1 — les unités Tiny Swords restent de PROFIL seul (aucune
- * frame de face, aucune de dos), donc `north`/`south` laissent le profil courant inchangé : le
- * jouer aplomb serait un saut visible, et il n'y a de toute façon rien d'autre à jouer. Le jour où
- * des feuilles 4-directions arrivent, seul ce corps de fonction change.
+ * frame de face, aucune de dos), donc `north`/`south` laissent le profil courant inchangé :
+ * remettre le sprite d'aplomb serait un saut visible, et il n'y a de toute façon rien d'autre à
+ * jouer. Le jour où des feuilles 4-directions arrivent, seul ce corps de fonction change.
  */
 export function facingToFlip(facing: Facing, current: boolean): boolean {
   if (facing === "east") return false;
@@ -179,6 +179,7 @@ function makeUnlitMaterial(map: THREE.Texture): THREE.MeshBasicMaterial {
 }
 
 function finishBillboard(
+  ctx: Hd2dContext,
   mesh: THREE.Mesh,
   material: THREE.Material,
   map: THREE.Texture,
@@ -201,6 +202,10 @@ function finishBillboard(
     },
     footOffset,
     dispose() {
+      // Sans ce retrait, un billboard disposé reste dans les registres du contexte pour toujours :
+      // `setYaw` continuerait de tourner un mesh détruit à chaque rotation de caméra, et un futur
+      // lecteur de `litBillboards()` toucherait le `.emissive` d'un matériau déjà libéré.
+      ctx.unregisterBillboard(mesh);
       mesh.geometry.dispose();
       material.dispose();
       map.dispose();
@@ -265,13 +270,13 @@ export function makeBillboard(ctx: Hd2dContext, opts: BillboardOptions): Billboa
     mesh.receiveShadow = true;
     mesh.layers.enable(RIM_LAYER);
     ctx.registerBillboard(mesh, { lit: true, material, mid });
-    return finishBillboard(mesh, material, map, cols, rows, footOffset);
+    return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset);
   }
 
   const material = makeUnlitMaterial(map);
   const mesh = new THREE.Mesh(geo, material);
   ctx.registerBillboard(mesh, { lit: false });
-  return finishBillboard(mesh, material, map, cols, rows, footOffset);
+  return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset);
 }
 
 export interface FlatSpriteOptions {

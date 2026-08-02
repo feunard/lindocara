@@ -22,6 +22,12 @@ export interface Hd2dContext {
     mesh: THREE.Mesh,
     opts: { lit: false } | { lit: true; material: THREE.MeshLambertMaterial; mid: number },
   ): void;
+  /** Retire un mesh des DEUX registres (tous, éclairés). Sans ça, un billboard disposé reste dans
+   *  `tous` pour toujours : `setYaw` continue de tourner un mesh détruit à chaque rotation de
+   *  caméra, et un futur lecteur de `litBillboards()` toucherait le `.emissive` d'un matériau
+   *  libéré. Désinscrire un mesh jamais inscrit ne fait rien — ce n'est pas une erreur, une
+   *  disparition peut survenir avant tout enregistrement (ex. échec de chargement de texture). */
+  unregisterBillboard(mesh: THREE.Mesh): void;
   billboards(): readonly THREE.Mesh[];
   litBillboards(): readonly LitBillboard[];
   dispose(): void;
@@ -75,6 +81,12 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
       if (opts.lit) {
         eclaires.push({ mesh, material: opts.material, mid: opts.mid });
       }
+    },
+    unregisterBillboard(mesh) {
+      const i = tous.indexOf(mesh);
+      if (i !== -1) tous.splice(i, 1);
+      const j = eclaires.findIndex((b) => b.mesh === mesh);
+      if (j !== -1) eclaires.splice(j, 1);
     },
     billboards: () => tous,
     litBillboards: () => eclaires,
