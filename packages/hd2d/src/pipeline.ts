@@ -184,10 +184,21 @@ export function createPipeline(
     for (const p of [blurH, blurV]) tiltShiftUniforms(p).uFocusY.value = focusYCourant;
   }
 
+  // `EffectComposer.dispose()` ne libère QUE `renderTarget1`/`renderTarget2`/`copyPass` — il ne
+  // cascade pas vers les passes ajoutées par `addPass`. Or `bloom` possède sa propre chaîne de
+  // mips (N niveaux × 2 cibles), et chaque `ShaderPass`/`TexturePass` possède son matériau et son
+  // `FullScreenQuad`. Sans ce disposal explicite, chaque démontage/reconstruction du pipeline
+  // (l'éditeur qui change de carte) fuit toute la chaîne de mips du bloom et les matériaux de
+  // shaders — silencieusement, rien ne le signale à l'écran avant que la mémoire GPU s'épuise.
   function dispose() {
-    renderer.dispose();
+    source.dispose();
+    bloom.dispose();
+    blurH.dispose();
+    blurV.dispose();
+    grade.dispose();
     composer.dispose();
     sceneTarget.dispose();
+    renderer.dispose();
   }
 
   return { renderer, composer, bloom, grade, render, resize, setTiltShiftZoom, setFocusY, dispose };
