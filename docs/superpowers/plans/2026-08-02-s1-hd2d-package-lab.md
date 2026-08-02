@@ -1038,6 +1038,8 @@ git commit -m "feat(hd2d): billboards, feuilles de sprites et animateur"
   - `applyFillFromPointLight(ctx: Hd2dContext, position: THREE.Vector3, color: THREE.Color, intensity: number, gain?: number): void`
   - `createCloudCover(ctx: Hd2dContext): CloudCover` avec `interface CloudCover { setStrength(v: number): void; update(dt: number): void; offset(): THREE.Vector2; dispose(): void }`
   - `applyCloudShadow(ctx: Hd2dContext, material: THREE.Material, opts?: { atOrigin?: boolean }): void`
+  - `ctx.cloudUniforms` — les uniformes de nuages sont de l'**état de scène** et vivent donc dans le contexte, pas en objet de module comme dans le PoC. Deux contextes ont des uniformes distincts, et un test le prouve, comme pour le yaw.
+  - **`createHd2dContext` initialise `uCloudMap` avec une `THREE.DataTexture` 1×1 NOIRE.** Sans elle, un matériau greffé avant qu'une couverture existe échantillonne un `sampler2D` nul — indéfini, et en pratique la scène peut virer au noir. Le noir est le neutre : `smoothstep(0.5 - s, 0.5 + s, 0.0)` vaut 0, le multiplicateur d'albédo vaut 1, l'effet est nul. Une texture blanche assombrirait tout, et l'inversion ne se voit dans aucun test. Une `DataTexture` ne demande aucun canvas, donc le projet vitest `node` la supporte. **`CloudCover.dispose()` doit remettre cet uniforme sur la neutre** : il est partagé par référence avec tous les matériaux greffés, et le laisser pointer sur une texture libérée casse l'invariant que la neutre existe pour garantir.
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
