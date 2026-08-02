@@ -45,14 +45,23 @@ function landDistance(field: HeightField): Float64Array {
   return dist;
 }
 
+// Ce que le PoC dit vraiment : `WORLD.size` (72, la grille de tuiles) donne `waterTex.repeat.set(size
+// * 0.5, ...)` = 36 répétitions, mais le plan lui-même mesure `WIDE = size * 3` = 216 unités — trois
+// lignes plus loin, sur une variable DIFFÉRENTE. 216 unités / 36 répétitions = UNE TUILE DE TEXTURE
+// COUVRE 6 UNITÉS MONDE. C'est cet invariant-là qu'il faut préserver, pas la formule `size * 0.5` :
+// elle mélangeait par accident deux grandeurs qui ne coïncident que si le plan mesure exactement 3x
+// la grille. Ici `opts.size` EST déjà la largeur réelle du plan (il va tel quel dans
+// `PlaneGeometry`) : dériver la répétition en unités-monde-par-tuile plutôt qu'en fraction de `size`
+// reste correct quelle que soit la taille de plan choisie par l'appelant.
+const DEFAULT_TEXTURE_WORLD_SIZE = 6;
+
 export interface WaterOptions {
   /** Texture de surface — modulée par le dégradé de profondeur (voir plus bas), pas affichée
-   *  telle quelle : elle casse l'aplat du dégradé et donne son grain à la mer. Répétée `size * 0.5`
-   *  fois sur chaque axe, ce qui exige un wrap `RepeatWrapping` — `createWater` le pose lui-même
-   *  (voir plus bas) plutôt que d'en faire une exigence documentée mais non vérifiée côté appelant :
-   *  une texture répétée sans ce wrap donne un unique carreau étiré sur toute la mer, et ça ne lève
-   *  aucune erreur. Possédée par le registre de textures de l'appelant, PAS par `Water` : `dispose()`
-   *  ne la libère jamais, une autre surface pourrait la partager. */
+   *  telle quelle : elle casse l'aplat du dégradé et donne son grain à la mer. `createWater` en
+   *  CLONE une copie propre à cette mer (voir plus bas, même motif que `cloneSheetMap` dans
+   *  `billboard.ts`) : l'objet passé ici reste inchangé et reste la propriété du registre de
+   *  textures de l'appelant — `dispose()` ne le libère jamais, une autre surface peut le partager
+   *  sans qu'aucune mer n'en modifie le wrap, le repeat ou l'offset dans le dos d'une autre. */
   texture: THREE.Texture;
   /** Hauteur monde du plan d'eau. */
   level: number;
@@ -68,6 +77,11 @@ export interface WaterOptions {
    *  franchement rugueuse pour que la lumière se casse en éclats au lieu de s'étaler ; le PoC
    *  utilise 0.46. */
   roughness: number;
+  /** Largeur monde, en unités, qu'UNE TUILE de la texture doit couvrir — indépendant de `size` et
+   *  de `segment`. Par défaut 6 (voir `DEFAULT_TEXTURE_WORLD_SIZE` ci-dessus, l'invariant mesuré
+   *  dans le PoC). La répétition posée sur la texture vaut `size / textureWorldSize` : exprimé
+   *  ainsi, un appelant qui ignore tout du PoC ne peut pas se tromper en changeant `size`. */
+  textureWorldSize?: number;
 }
 
 export interface Water {
@@ -117,15 +131,23 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
   }
   geo.setAttribute("aShallow", new THREE.Float32BufferAttribute(shallow, 1));
 
+  // Clonée, jamais mutée en place : `opts.texture` est documentée partageable (voir
+  // `WaterOptions.texture`), et cette mer pose son propre wrap/repeat et fait défiler son propre
+  // offset à chaque frame (`update`, plus bas). Muter l'original ferait de deux mers sur la même
+  // texture un bug à distance — la seconde construite écraserait le `repeat` de la première, et
+  // les deux `update()` cumuleraient leur défilement sur le même `.offset`. Le clone PARTAGE la
+  // Source (pas de second upload GPU, voir `cloneSheetMap` dans `billboard.ts`) ; seuls
+  // wrap/repeat/offset lui sont propres.
+  const texture = opts.texture.clone();
   // `RepeatWrapping` posé ICI plutôt que documenté comme un pré-requis côté appelant : une texture
   // dont le wrap resterait au défaut (`ClampToEdge`) répéterait son bord, pas son motif, et rien ne
   // le signale — un seul carreau étiré sur toute la mer, sans erreur ni avertissement. `needsUpdate`
-  // est nécessaire si cette texture a déjà été uploadée par le registre (voir `textures.ts`) :
+  // est nécessaire si la texture d'origine a déjà été uploadée par le registre (voir `textures.ts`) :
   // changer `wrapS`/`wrapT` après upload ne prend effet qu'à la prochaine synchronisation GPU.
-  const texture = opts.texture;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(opts.size * 0.5, opts.size * 0.5);
+  const textureWorldSize = opts.textureWorldSize ?? DEFAULT_TEXTURE_WORLD_SIZE;
+  texture.repeat.set(opts.size / textureWorldSize, opts.size / textureWorldSize);
   texture.needsUpdate = true;
 
   const material = new THREE.MeshStandardMaterial({
@@ -212,11 +234,12 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
       texture.offset.y += dt * 0.008;
     },
     dispose() {
-      // La texture n'est PAS libérée ici : elle appartient au registre de textures de l'appelant
-      // (voir la doc de `WaterOptions.texture`), pas à cette mer — une autre surface pourrait la
-      // partager, et la libérer romprait ce partage.
       geo.dispose();
       material.dispose();
+      // Le CLONE (voir plus haut) appartient à cette mer, donc à elle de le libérer. `opts.texture`
+      // — l'original — n'est en revanche jamais touché : il appartient au registre de textures de
+      // l'appelant (voir la doc de `WaterOptions.texture`), une autre surface pourrait le partager.
+      texture.dispose();
     },
   };
 }

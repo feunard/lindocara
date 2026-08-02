@@ -21,12 +21,15 @@ const FOAM_OPAQUE = 75 / 192;
  *  seul le bout d'un coin ressort) ; 1.42 donne un liseré continu. */
 export const FOAM_SPREAD = 1.42;
 
-// Glissée sous le sol du palier 0 (y = 0, voir `mesh.ts`) : le sol la masque partout où il la
-// recouvre, seul le débord dépasse — le liseré épouse donc exactement le découpage des cases. Posée
-// SUR l'eau, elle formerait au contraire des pavés flottant au large. La marge est petite et
-// arbitraire : assez pour rester visuellement sous le sol, pas assez pour risquer un z-fighting
-// avec le plan d'eau qui passe juste en dessous.
-const FOAM_Y = -0.03;
+// Glissée sous le sol du palier 0 (y = 0, voir `mesh.ts`), mais au-dessus du plan d'eau : le sol
+// masque la pastille partout où il la recouvre, seul le débord dépasse — le liseré épouse donc
+// exactement le découpage des cases. Posée SUR l'eau, elle formerait au contraire des pavés
+// flottant au large. La marge est petite et arbitraire : assez pour rester visuellement sous le
+// sol, pas assez pour risquer un z-fighting avec le plan d'eau — mais elle reste une marge AU-DESSUS
+// du niveau d'eau réel (`FoamOptions.waterLevel`), jamais un Y absolu : figée en dur, une mer
+// configurée à un niveau supérieur (`WaterOptions.level`, décision « la mer est opaque ») masquerait
+// silencieusement TOUTE l'écume, vue du dessus, sans qu'aucun test ne puisse l'attraper.
+const FOAM_MARGIN_ABOVE_WATER = 0.02;
 
 export interface FoamOptions {
   /** La bande de frames de l'écume — DÉCLARÉE `atlas: true` au registre de textures (voir
@@ -37,6 +40,11 @@ export interface FoamOptions {
   fps: number;
   /** Débord de la pastille — voir `FOAM_SPREAD`. */
   spread: number;
+  /** Niveau monde du plan d'eau — le même que `WaterOptions.level` passé à `createWater` pour LA
+   *  MÊME mer. L'écume se pose `FOAM_MARGIN_ABOVE_WATER` au-dessus de lui, jamais à un Y figé : la
+   *  mer est opaque (voir `water.ts`), donc tout niveau d'eau qui remonterait au-dessus de cette
+   *  marge occulterait l'écume plutôt que de rester en dessous. */
+  waterLevel: number;
 }
 
 export interface Foam {
@@ -65,13 +73,14 @@ export function foamPlacements(field: HeightField): readonly { i: number; j: num
 
 /**
  * Une tache par case de rivage, chacune un `makeFlatSprite` indépendant posé et glissé sous le sol
- * (voir `foamPlacements`/`FOAM_Y`). L'atlas de plusieurs frames avance TOUTES en phase : une marée
- * qui respire lentement, pas un clapot désordonné où chaque tache serait décalée.
+ * (voir `foamPlacements`/`FOAM_MARGIN_ABOVE_WATER`). L'atlas de plusieurs frames avance TOUTES en
+ * phase : une marée qui respire lentement, pas un clapot désordonné où chaque tache serait décalée.
  */
 export function createFoam(ctx: Hd2dContext, field: HeightField, opts: FoamOptions): Foam {
   const cx = field.cols / 2;
   const cz = field.rows / 2;
   const size = opts.spread / FOAM_OPAQUE;
+  const y = opts.waterLevel + FOAM_MARGIN_ABOVE_WATER;
 
   const sprites = foamPlacements(field).map(({ i, j }) => {
     const sprite = makeFlatSprite(ctx, {
@@ -81,7 +90,7 @@ export function createFoam(ctx: Hd2dContext, field: HeightField, opts: FoamOptio
       size,
       alphaTest: 0.5,
     });
-    sprite.mesh.position.set(i + 0.5 - cx, FOAM_Y, j + 0.5 - cz);
+    sprite.mesh.position.set(i + 0.5 - cx, y, j + 0.5 - cz);
     return sprite;
   });
 
