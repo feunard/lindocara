@@ -45,6 +45,7 @@ import {
   TEXTURE_URLS,
   WATER,
   WORLD,
+  ZONE_LARGE,
   ZONES,
 } from "./settings.js";
 import { createChest } from "./world/chest.js";
@@ -463,7 +464,12 @@ function applyZone(zone: Zone): void {
   zoneActuelle = zone;
   // La musique de zone (`zone.musique`) reste INERTE ici — `MUSIQUE` est vide (Task 5 la
   // remplira) — mais la nappe, elle, doit déjà s'entendre (voir `core/audio.ts`, `setAmbience`).
-  setAmbience(zone.nappe);
+  //
+  // `ZONE_LARGE` est la zone qui DÉLÈGUE au cycle jour/nuit (voir `applyMood` plus bas) : sa
+  // `nappe` figée à "jour" dans `settings.ts` ne serait correcte qu'en plein jour. En y revenant,
+  // on lit donc l'ambiance courante du mood plutôt que ce champ statique — sinon rentrer du pôle
+  // de nuit écraserait silencieusement une nuit choisie à la main par un "jour" en dur.
+  setAmbience(zone === ZONE_LARGE ? (mood.name === "day" ? "jour" : "nuit") : zone.nappe);
 }
 
 const moodLabel = document.getElementById("mood");
@@ -513,7 +519,12 @@ function scheduleBenchMeasure(): void {
 
 function applyMood(name: "day" | "night"): void {
   mood.goTo(name);
-  setAmbience(name === "day" ? "jour" : "nuit");
+  // La nappe jour/nuit n'appartient au mood que dans `ZONE_LARGE` — une zone (la polaire, par
+  // exemple) qui a pris la main sur `setAmbience` doit la garder tant qu'on y reste, sinon "N"
+  // pressé au pôle écraserait la nappe polaire par la boucle de nuit. `applyZone` (plus haut)
+  // rattrape l'ambiance correcte tout seul dès qu'on REVIENT dans `ZONE_LARGE`, en relisant
+  // `mood.name` à ce moment-là — ce n'est donc pas un choix perdu, seulement différé.
+  if (zoneActuelle === ZONE_LARGE) setAmbience(name === "day" ? "jour" : "nuit");
   if (moodLabel) moodLabel.textContent = name === "day" ? "☀︎ jour" : "☾ nuit";
   scheduleBenchMeasure();
 }
