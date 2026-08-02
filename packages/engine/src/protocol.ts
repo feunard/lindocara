@@ -384,6 +384,17 @@ export interface PriestLumenPortalVisual {
   endsAt: number;
 }
 
+export interface PriestLumenTrailVisual {
+  t: "priest.lumen_trail";
+  id: string;
+  actorId: string;
+  /** World-space centre points following every turn of the authoritative held movement. */
+  points: Vec2[];
+  width: number;
+  startedAt: number;
+  endsAt: number;
+}
+
 export interface PriestPolarityOrbVisual {
   t: "priest.polarity_orb";
   id: string;
@@ -769,6 +780,7 @@ export type ServerMessage =
   | MonsterSpecialImpact
   | RogueShadowDanceSequence
   | PriestLumenPortalVisual
+  | PriestLumenTrailVisual
   | PriestPolarityOrbVisual
   | PeasantCampVisual
   | PeasantCampRemovedVisual
@@ -911,6 +923,26 @@ function isPriestLumenPortalVisual(value: unknown): value is PriestLumenPortalVi
     isWireId(value.actorId) &&
     isPosition(value.from) &&
     isPosition(value.to) &&
+    isFiniteNumber(value.startedAt) &&
+    isFiniteNumber(value.endsAt) &&
+    value.endsAt >= value.startedAt &&
+    value.endsAt - value.startedAt <= 10_000
+  );
+}
+
+function isPriestLumenTrailVisual(value: unknown): value is PriestLumenTrailVisual {
+  return (
+    isRecord(value) &&
+    value.t === "priest.lumen_trail" &&
+    isWireId(value.id) &&
+    isWireId(value.actorId) &&
+    Array.isArray(value.points) &&
+    value.points.length >= 2 &&
+    value.points.length <= 96 &&
+    value.points.every(isPosition) &&
+    isFiniteNumber(value.width) &&
+    value.width >= 1 &&
+    value.width <= 64 &&
     isFiniteNumber(value.startedAt) &&
     isFiniteNumber(value.endsAt) &&
     value.endsAt >= value.startedAt &&
@@ -2031,7 +2063,12 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     }
     if (isRogueShadowDanceSequence(value)) return value;
-    if (isPriestLumenPortalVisual(value) || isPriestPolarityOrbVisual(value)) return value;
+    if (
+      isPriestLumenPortalVisual(value) ||
+      isPriestLumenTrailVisual(value) ||
+      isPriestPolarityOrbVisual(value)
+    )
+      return value;
     if (
       isPeasantCampVisual(value) ||
       isPeasantCampRemovedVisual(value) ||

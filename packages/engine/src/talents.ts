@@ -113,7 +113,13 @@ export type TalentEffect =
     }
   | { kind: "blink_heal"; value: number }
   | { kind: "luminous_transfiguration"; radius: number; power: number; powerPerLevel: number }
-  | { kind: "sacred_passage"; width: number; power: number; powerPerLevel: number }
+  | {
+      kind: "sacred_passage";
+      width: number;
+      power: number;
+      powerPerLevel: number;
+      durationMs: number;
+    }
   | {
       kind: "lumen_gate";
       durationMs: number;
@@ -693,7 +699,9 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         {
           key: "sacred_passage",
           label: "sacred_passage",
-          effects: [{ kind: "sacred_passage", width: 22, power: 18, powerPerLevel: 1 }],
+          effects: [
+            { kind: "sacred_passage", width: 22, power: 18, powerPerLevel: 1, durationMs: 6_000 },
+          ],
         },
       ],
       {
@@ -703,7 +711,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
           effects: [
             {
               kind: "lumen_gate",
-              durationMs: 4_000,
+              durationMs: 6_000,
               transfigurationDurationMs: 6_000,
               triggerRadius: 28,
             },

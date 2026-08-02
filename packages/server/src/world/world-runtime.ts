@@ -162,8 +162,10 @@ export interface CombatActionRuntime {
   warriorChargeFollowup?: { excludedTargetId: string };
   /** Frozen server-selected target for Proie jurée. */
   rangerSwornPreyTargetId?: string;
-  /** Frozen departure point for Porte de Lumen. */
+  /** Frozen departure point for safe rematerialisation and Porte de Lumen. */
   priestLumenOrigin?: Vec2;
+  /** Server-owned persistent Sacred Passage trail extended by each authoritative movement step. */
+  priestLumenTrailId?: string;
 }
 
 export interface WarriorCycloneRuntime {

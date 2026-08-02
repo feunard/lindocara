@@ -47,7 +47,7 @@ export function nearestChargeTarget<T extends ChargeCandidate>(
   return nearest;
 }
 
-/** Resolves mobility skills in short segments so they cannot phase through colliders. */
+/** Resolves mobility skills in short segments; Pas de Lumen deliberately phases when allowed. */
 export function movePlayerInDirection(
   player: PlayerRuntime,
   direction: Vec2,

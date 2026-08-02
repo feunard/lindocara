@@ -305,7 +305,7 @@ describe("class talents", () => {
       ["peasant.woodcutters_swing.readiness", "peasant.woodcutters_swing.reach"],
       1,
     );
-    expect(axe.cooldownMs).toBe(748);
+    expect(axe.cooldownMs).toBe(370);
     expect(axe.range).toBe(60.5);
     expect(axe).not.toBe(CLASS_SKILLS.peasant[0]);
 

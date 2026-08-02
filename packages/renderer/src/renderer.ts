@@ -28,6 +28,7 @@ import type {
   PeasantCampVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
+  PriestLumenTrailVisual,
   PriestPolarityOrbVisual,
   ProjectileSnapshot,
   QuestState,
@@ -403,6 +404,8 @@ interface Effect {
   scaleGrowth: number;
   baseScale: number;
   actionId?: string;
+  /** Keep persistent zones fully legible, then dissolve only near the end of their lifetime. */
+  fadeStartRatio: number;
 }
 
 interface ShadowDanceVisualRuntime {
@@ -3845,6 +3848,7 @@ export class Renderer {
     frames?: readonly Texture[],
     scaleGrowth = 0.55,
     actionId?: string,
+    fadeStartRatio = 0,
   ): void {
     while (this.#activeEffects.length >= MAX_ACTIVE_WORLD_EFFECTS) {
       const oldest = this.#activeEffects.shift();
@@ -3860,6 +3864,7 @@ export class Renderer {
       baseY: container.y,
       scaleGrowth,
       baseScale: container.scale.x,
+      fadeStartRatio: Math.max(0, Math.min(0.98, fadeStartRatio)),
     };
     if (sprite) effect.sprite = sprite;
     if (frames) effect.frames = frames;
@@ -4005,26 +4010,99 @@ export class Renderer {
 
   playLumenPortal(portal: PriestLumenPortalVisual): void {
     const color = this.#players.get(portal.actorId)?.data.appearance.primaryColor ?? "azure";
-    const art = combatArt("priest", "blink", color).impact;
-    if (art) {
-      this.#playCombatSheet(art, portal.from.x + PLAYER_SIZE / 2, portal.from.y + PLAYER_SIZE / 2);
-      this.#playCombatSheet(art, portal.to.x + PLAYER_SIZE / 2, portal.to.y + PLAYER_SIZE / 2);
-    }
-    const duration = Math.max(250, portal.endsAt - portal.startedAt);
-    this.#addPulse(
+    const duration = this.#lumenEffectRemaining(portal.startedAt, portal.endsAt);
+    if (duration <= 0) return;
+    this.#playPersistentLumenCloud(
       portal.from.x + PLAYER_SIZE / 2,
       portal.from.y + PLAYER_SIZE / 2,
-      0xaeeeff,
-      22,
+      color,
       duration,
     );
-    this.#addPulse(
+    this.#playPersistentLumenCloud(
       portal.to.x + PLAYER_SIZE / 2,
       portal.to.y + PLAYER_SIZE / 2,
-      0xaeeeff,
-      22,
+      color,
       duration,
     );
+  }
+
+  playLumenTrail(trail: PriestLumenTrailVisual): void {
+    const duration = this.#lumenEffectRemaining(trail.startedAt, trail.endsAt);
+    if (duration <= 0 || trail.points.length < 2) return;
+    const color = this.#players.get(trail.actorId)?.data.appearance.primaryColor ?? "azure";
+    const tint = color === "ember" ? 0xffb1e4 : color === "moss" ? 0xbef5cf : 0xc9bcff;
+    const container = new Container();
+    const glow = new Graphics();
+    const first = trail.points[0];
+    if (!first) return;
+    glow.moveTo(first.x, first.y);
+    for (const point of trail.points.slice(1)) glow.lineTo(point.x, point.y);
+    glow.stroke({ width: trail.width * 2.8, color: tint, alpha: 0.1 });
+    glow.moveTo(first.x, first.y);
+    for (const point of trail.points.slice(1)) glow.lineTo(point.x, point.y);
+    glow.stroke({ width: trail.width * 1.25, color: tint, alpha: 0.3 });
+    container.addChild(glow);
+
+    const art = combatArt("priest", "blink", color).impact;
+    const frames = art ? this.art.combatFrames.get(art.source) : undefined;
+    if (art && frames?.length) {
+      let cloudIndex = 0;
+      for (let index = 1; index < trail.points.length; index++) {
+        const from = trail.points[index - 1];
+        const to = trail.points[index];
+        if (!from || !to) continue;
+        const distance = Math.hypot(to.x - from.x, to.y - from.y);
+        const count = Math.max(1, Math.ceil(distance / 22));
+        for (let stepIndex = 0; stepIndex <= count; stepIndex++) {
+          const progress = stepIndex / count;
+          const frame = frames[(cloudIndex * 3 + 2) % frames.length];
+          if (!frame) continue;
+          const cloud = new Sprite(frame);
+          cloud.anchor.set(art.anchor.x, art.anchor.y);
+          cloud.position.set(
+            from.x + (to.x - from.x) * progress,
+            from.y + (to.y - from.y) * progress,
+          );
+          cloud.tint = art.tint ?? tint;
+          cloud.alpha = 0.48 + (cloudIndex % 3) * 0.09;
+          cloud.rotation = ((cloudIndex % 5) - 2) * 0.07;
+          cloud.scale.set((art.scale ?? 1) * (0.58 + (cloudIndex % 4) * 0.08));
+          container.addChild(cloud);
+          cloudIndex += 1;
+        }
+      }
+    }
+    this.#trackEffect(container, duration, 0, undefined, 0.035, trail.id, 0.84);
+  }
+
+  #lumenEffectRemaining(startedAt: number, endsAt: number): number {
+    const localEndsAt = this.serverClock.toLocal(endsAt);
+    return localEndsAt === null
+      ? Math.max(0, endsAt - startedAt)
+      : Math.max(0, localEndsAt - performance.now());
+  }
+
+  #playPersistentLumenCloud(x: number, y: number, color: PrimaryColor, duration: number): void {
+    const art = combatArt("priest", "blink", color).impact;
+    const frames = art ? this.art.combatFrames.get(art.source) : undefined;
+    if (!art || !frames?.length) return;
+    const container = new Container();
+    const glow = new Graphics().ellipse(0, 5, 27, 14).fill({ color: 0xd7c8ff, alpha: 0.16 });
+    container.addChild(glow);
+    for (let index = 0; index < 3; index++) {
+      const frame = frames[(index * 2 + 2) % frames.length];
+      if (!frame) continue;
+      const cloud = new Sprite(frame);
+      cloud.anchor.set(art.anchor.x, art.anchor.y);
+      cloud.tint = art.tint ?? 0xffffff;
+      cloud.alpha = 0.76 - index * 0.12;
+      cloud.rotation = (index - 1) * 0.11;
+      cloud.position.set((index - 1) * 5, index % 2 === 0 ? -2 : 3);
+      cloud.scale.set((art.scale ?? 1) * (1.02 - index * 0.13));
+      container.addChild(cloud);
+    }
+    container.position.set(x, y);
+    this.#trackEffect(container, duration, 0, undefined, 0.045, undefined, 0.84);
   }
 
   playPolarityOrb(orb: PriestPolarityOrbVisual): void {
@@ -4616,7 +4694,11 @@ export class Renderer {
         const frame = effect.frames[frameIndex];
         if (frame) effect.sprite.texture = frame;
       }
-      effect.container.alpha = 1 - progress;
+      const fadeProgress =
+        progress <= effect.fadeStartRatio
+          ? 0
+          : (progress - effect.fadeStartRatio) / Math.max(0.02, 1 - effect.fadeStartRatio);
+      effect.container.alpha = 1 - fadeProgress;
       effect.container.y = effect.baseY - effect.rise * progress;
       effect.container.scale.set(effect.baseScale * (1 + progress * effect.scaleGrowth));
       if (progress < 1) continue;

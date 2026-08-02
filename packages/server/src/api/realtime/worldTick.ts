@@ -85,7 +85,6 @@ import {
   INTERACTION_RANGE,
   isMonsterSpecialTechnique,
   isWalkable,
-  isWalkableForLumen,
   LOOT_EXPIRY_MS,
   MAX_MONSTER_BODY_RADIUS,
   MONSTER_AGGRO_RANGE,
@@ -94,7 +93,7 @@ import {
   maxHpForLevel,
   monsterBodyRadius,
   nearestCemetery,
-  nearestShore,
+  nearestLumenLanding,
   pointDistance,
   QUEST_RUN_LIMIT_MS,
   QUEST_SITE_RESPAWN_MS,
@@ -242,10 +241,14 @@ import {
 import {
   advancePolarityOrbs,
   advanceSanctuaries,
+  appendLumenTrailPoint,
   armLifeLink,
   cleanseNegativeEffect,
   emergencyMendPower,
   expireLumenPortals,
+  expireLumenTrails,
+  finishLumenTrail,
+  lumenTrailTouches,
   luminousTransfigurationPower,
   mirroredLifeLinkPower,
   nearestMercyCorpse,
@@ -253,11 +256,12 @@ import {
   novaSpecializationMultipliers,
   type PolarityOrbRuntime,
   removeLumenPortalsByOwner,
+  removeLumenTrailsByOwner,
   removePolarityOrbsByOwner,
   removeSanctuariesByOwner,
   type SanctuaryRuntime,
-  sacredPassageTargets,
   startLumenPortal,
+  startLumenTrail,
   startPolarityOrb,
   startSanctuary,
 } from "../../world/priest-variant-system.js";
@@ -596,6 +600,34 @@ export function sendPeasantCampsTo(w: WorldGlue, connectionId: string, now: numb
   }
 }
 
+/** Admission replay for the two persistent Pas de Lumen visuals. */
+export function sendPriestLumenEffectsTo(w: WorldGlue, connectionId: string, now: number): void {
+  for (const trail of w.state.lumenTrails) {
+    if (trail.expiresAt <= now || trail.points.length < 2) continue;
+    w.deps.send(connectionId, {
+      t: "priest.lumen_trail",
+      id: trail.id,
+      actorId: trail.ownerId,
+      points: trail.points.map((point) => ({ ...point })),
+      width: trail.width,
+      startedAt: trail.startedAt,
+      endsAt: trail.expiresAt,
+    });
+  }
+  for (const portal of w.state.lumenPortals) {
+    if (portal.expiresAt <= now) continue;
+    w.deps.send(connectionId, {
+      t: "priest.lumen_portal",
+      id: portal.id,
+      actorId: portal.ownerId,
+      from: portal.from,
+      to: portal.to,
+      startedAt: portal.startedAt,
+      endsAt: portal.expiresAt,
+    });
+  }
+}
+
 function sendCampBankToParty(
   w: WorldGlue,
   camp: PeasantCampRuntime,
@@ -909,6 +941,7 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   removeDamageOverTimeBySource(w.state.damageOverTime, player.id);
   removeSanctuariesByOwner(w.state.sanctuaries, player.id);
   removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
+  removeLumenTrailsByOwner(w.state.lumenTrails, player.id);
   removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   removeProjectilesByOwner(w.state.projectiles, player.id);
   for (const camp of removePeasantSupportByOwner(w.state.peasantSupport, player.id)) {
@@ -2134,6 +2167,55 @@ function movePlayer(
   );
 }
 
+/** Live bodies are deliberately checked only when Lumen rematerialises, never while it phases. */
+function lumenLandingClear(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  candidate: Vec2,
+  now: number,
+): boolean {
+  const center = { x: candidate.x + PLAYER_SIZE / 2, y: candidate.y + PLAYER_SIZE / 2 };
+  for (const other of w.state.players.values()) {
+    if (
+      other !== player &&
+      other.authorized &&
+      other.life !== "ghost" &&
+      pointDistance(candidate, other) < PLAYER_SIZE
+    )
+      return false;
+  }
+  for (const monster of w.state.monsters) {
+    if (
+      monster.deadUntil <= now &&
+      pointDistance(candidate, monster) < PLAYER_SIZE / 2 + monsterBodyRadius(monster.species)
+    )
+      return false;
+  }
+  for (const guard of w.state.guards) {
+    if (guard.hp > 0 && pointDistance(candidate, guard) < PLAYER_SIZE) return false;
+  }
+  for (const event of w.state.activeEvents) {
+    const movement = w.state.npcMovement.get(event.id);
+    if (!movement || movement.through || event.graphicAssetId === null) continue;
+    if (pointDistance(center, eventCellCentre(event)) < PLAYER_SIZE) return false;
+  }
+  return true;
+}
+
+function safeLumenLanding(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  desired: Vec2,
+  now: number,
+): Vec2 | null {
+  const terrain = zone(w.state).terrain;
+  if (isWalkable(desired, PLAYER_SIZE, terrain) && lumenLandingClear(w, player, desired, now))
+    return { ...desired };
+  return nearestLumenLanding(desired, PLAYER_SIZE, terrain, (candidate) =>
+    lumenLandingClear(w, player, candidate, now),
+  );
+}
+
 /** Port of `#finishHeldPlayerAction` (`world.ts:1982`) — the `skill.release` intent. */
 export function finishHeldPlayerAction(
   w: WorldGlue,
@@ -2146,13 +2228,13 @@ export function finishHeldPlayerAction(
   if (!finishHeldCombatAction(player, now, slot)) return false;
   if (action?.skillId === "blink") {
     const terrain = zone(w.state).terrain;
-    if (!isWalkable(player, PLAYER_SIZE, terrain)) {
-      const shoreline = nearestShore(player, PLAYER_SIZE, terrain);
-      if (shoreline && isWalkableForLumen(player, PLAYER_SIZE, terrain)) {
-        player.x = shoreline.x;
-        player.y = shoreline.y;
-        player.dirty = true;
-      }
+    const landing = safeLumenLanding(w, player, player, now);
+    if (landing && (landing.x !== player.x || landing.y !== player.y)) {
+      const previous = { x: player.x, y: player.y };
+      player.x = landing.x;
+      player.y = landing.y;
+      w.state.playerGrid.update(player, previous);
+      player.dirty = true;
     }
     const renewal = talentEffect(player.class, player.talents, "blink_heal", 3);
     if (renewal) {
@@ -2200,6 +2282,31 @@ export function finishHeldPlayerAction(
     }
     const lumenGate = talentEffect(player.class, player.talents, "lumen_gate", 3);
     const lumenOrigin = action.priestLumenOrigin;
+    const lumenTrail = action.priestLumenTrailId
+      ? w.state.lumenTrails.find((trail) => trail.id === action.priestLumenTrailId)
+      : undefined;
+    if (lumenTrail) {
+      appendLumenTrailPoint(lumenTrail, {
+        x: player.x + PLAYER_SIZE / 2,
+        y: player.y + PLAYER_SIZE / 2,
+      });
+      const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", 3);
+      finishLumenTrail(lumenTrail, now, sacredPassage?.durationMs ?? 6_000);
+      if (lumenTrail.points.length >= 2) {
+        const message: ServerMessage = {
+          t: "priest.lumen_trail",
+          id: lumenTrail.id,
+          actorId: player.id,
+          points: lumenTrail.points.map((point) => ({ ...point })),
+          width: lumenTrail.width,
+          startedAt: lumenTrail.startedAt,
+          endsAt: lumenTrail.expiresAt,
+        };
+        for (const [recipientConnectionId, recipient] of w.state.players) {
+          if (recipient.authorized) w.deps.send(recipientConnectionId, message);
+        }
+      }
+    }
     if (
       lumenGate &&
       lumenOrigin &&
@@ -2219,19 +2326,18 @@ export function finishHeldPlayerAction(
           ? sacredPassage.power + Math.max(0, player.level - 1) * sacredPassage.powerPerLevel
           : 0,
       });
-      sendSpatialEventAcross(
-        w,
-        {
-          t: "priest.lumen_portal",
-          id: portal.id,
-          actorId: player.id,
-          from: portal.from,
-          to: portal.to,
-          startedAt: now,
-          endsAt: portal.expiresAt,
-        },
-        [portal.from, portal.to],
-      );
+      const message: ServerMessage = {
+        t: "priest.lumen_portal",
+        id: portal.id,
+        actorId: player.id,
+        from: portal.from,
+        to: portal.to,
+        startedAt: portal.startedAt,
+        endsAt: portal.expiresAt,
+      };
+      for (const [recipientConnectionId, recipient] of w.state.players) {
+        if (recipient.authorized) w.deps.send(recipientConnectionId, message);
+      }
     }
   }
   if (action?.skillId === "heartseeker") {
@@ -2822,10 +2928,19 @@ export function startPlayerAction(
       phaseThroughObstacles: shadowStepPhase,
     };
   }
-  if (talentEffect(player.class, player.talents, "sacred_passage", slot))
-    action.sacredPassageHealedIds = new Set();
-  if (skill.id === "blink" && talentEffect(player.class, player.talents, "lumen_gate", slot))
-    action.priestLumenOrigin = { x: player.x, y: player.y };
+  const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", slot);
+  if (skill.id === "blink" && sacredPassage) {
+    const trail = startLumenTrail(w.state.lumenTrails, {
+      id: action.id,
+      ownerId: player.id,
+      origin: { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+      effect: sacredPassage,
+      power: sacredPassage.power + Math.max(0, player.level - 1) * sacredPassage.powerPerLevel,
+      now,
+    });
+    action.priestLumenTrailId = trail.id;
+  }
+  if (skill.id === "blink") action.priestLumenOrigin = { x: player.x, y: player.y };
 
   if (skill.id !== "vanish") {
     const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
@@ -4148,52 +4263,48 @@ function pulseWarriorVortex(
   }
 }
 
-/** Port of `#applySacredPassage` (`world.ts:2990`). */
-function applySacredPassage(
-  w: WorldGlue,
-  casterConnectionId: string,
-  caster: PlayerRuntime,
-  previous: Vec2,
-  now: number,
-): void {
+function extendSacredPassage(w: WorldGlue, caster: PlayerRuntime): void {
   const action = caster.action;
-  const healedIds = action?.sacredPassageHealedIds;
-  if (action?.skillId !== "blink" || !healedIds) return;
-  const effect = talentEffect(caster.class, caster.talents, "sacred_passage", 3);
-  if (!effect) return;
-  const from = { x: previous.x + PLAYER_SIZE / 2, y: previous.y + PLAYER_SIZE / 2 };
-  const to = { x: caster.x + PLAYER_SIZE / 2, y: caster.y + PLAYER_SIZE / 2 };
-  if (from.x === to.x && from.y === to.y) return;
-  const candidates = [...w.state.players.values()].filter(
-    (target) => target !== caster && target.life === "alive" && areCombatAllies(caster, target),
-  );
-  for (const target of sacredPassageTargets(candidates, healedIds, (candidate) => {
-    return (
-      sweptProjectileEntityImpact(
-        from,
-        to,
-        effect.width,
-        {
-          center: { x: candidate.x + PLAYER_SIZE / 2, y: candidate.y + PLAYER_SIZE / 2 },
-          radius: PLAYER_SIZE / 2,
-        },
-        candidate.id,
-      ) !== null
-    );
-  })) {
-    const targetConnectionId = connectionOf(w.state, target.id);
-    if (targetConnectionId === undefined) continue;
-    healPlayer(
-      w,
-      casterConnectionId,
-      caster,
-      targetConnectionId,
-      target,
-      effect.power + Math.max(0, caster.level - 1) * effect.powerPerLevel,
-      "blink",
-      now,
-      false,
-    );
+  if (action?.skillId !== "blink" || !action.priestLumenTrailId) return;
+  const trail = w.state.lumenTrails.find((candidate) => candidate.id === action.priestLumenTrailId);
+  if (trail) {
+    appendLumenTrailPoint(trail, {
+      x: caster.x + PLAYER_SIZE / 2,
+      y: caster.y + PLAYER_SIZE / 2,
+    });
+  }
+}
+
+function healSacredPassageCrossings(w: WorldGlue, now: number): void {
+  for (const trail of w.state.lumenTrails) {
+    if (trail.expiresAt <= now || trail.points.length < 2) continue;
+    const ownerConnectionId = connectionOf(w.state, trail.ownerId);
+    if (ownerConnectionId === undefined) continue;
+    const owner = w.state.players.get(ownerConnectionId);
+    if (!owner?.authorized || owner.life !== "alive") continue;
+    for (const [targetConnectionId, target] of w.state.players) {
+      if (
+        target === owner ||
+        target.life !== "alive" ||
+        !areCombatAllies(owner, target) ||
+        trail.healedPlayerIds.has(target.id) ||
+        target.hp >= maxHpForLevel(target.level) ||
+        !lumenTrailTouches(trail, target)
+      )
+        continue;
+      trail.healedPlayerIds.add(target.id);
+      healPlayer(
+        w,
+        ownerConnectionId,
+        owner,
+        targetConnectionId,
+        target,
+        trail.power,
+        "blink",
+        now,
+        false,
+      );
+    }
   }
 }
 
@@ -4203,23 +4314,21 @@ function applyLumenPortal(
   player: PlayerRuntime,
   now: number,
 ): void {
-  const terrain = zone(w.state).terrain;
   for (const portal of [...w.state.lumenPortals].sort((a, b) => a.id.localeCompare(b.id))) {
-    if (
-      portal.expiresAt <= now ||
-      portal.ownerId === player.id ||
-      portal.usedPlayerIds.has(player.id)
-    )
-      continue;
+    if (portal.expiresAt <= now || portal.usedPlayerIds.has(player.id)) continue;
     const ownerConnectionId = connectionOf(w.state, portal.ownerId);
     if (ownerConnectionId === undefined) continue;
     const owner = w.state.players.get(ownerConnectionId);
     if (!owner?.authorized || owner.life !== "alive" || !areCombatAllies(owner, player)) continue;
     const atFrom = pointDistance(player, portal.from) <= portal.triggerRadius;
     const atTo = pointDistance(player, portal.to) <= portal.triggerRadius;
+    if (portal.waitingForExitIds.has(player.id)) {
+      if (!atFrom && !atTo) portal.waitingForExitIds.delete(player.id);
+      continue;
+    }
     if (!atFrom && !atTo) continue;
-    const destination = atFrom ? portal.to : portal.from;
-    if (!isWalkable(destination, PLAYER_SIZE, terrain)) continue;
+    const destination = safeLumenLanding(w, player, atFrom ? portal.to : portal.from, now);
+    if (!destination) continue;
     portal.usedPlayerIds.add(player.id);
     const previous = { x: player.x, y: player.y };
     player.x = destination.x;
@@ -4952,6 +5061,7 @@ export function handleTalentReset(w: WorldGlue, connectionId: string, player: Pl
   player.priestLifeLinks = [];
   player.priestSoulAnchor = null;
   removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
+  removeLumenTrailsByOwner(w.state.lumenTrails, player.id);
   removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   if (player.guarding) {
     player.guardReduction = configuredSkill(w, player, 2).reduction ?? 0;
@@ -6058,10 +6168,12 @@ export function advanceWorldTick(w: WorldGlue): void {
       // its coordinator await, so movement cannot race a delayed credit.
       cancelPeasantHarvestJob(state.harvestJobs, player.id);
       detectPlayerTouch(state, player, previous);
-      applySacredPassage(w, connectionId, player, previous, now);
+      extendSacredPassage(w, player);
       applyLumenPortal(w, connectionId, player, now);
     },
   });
+  healSacredPassageCrossings(w, now);
+  expireLumenTrails(state.lumenTrails, now);
   expireLumenPortals(state.lumenPortals, now);
   // NPCs held by a live event run or an open quest conversation stand still for the exchange.
   const pausedNpcIds = new Set([

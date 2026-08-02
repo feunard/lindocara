@@ -41,6 +41,7 @@ import {
   type PeasantCampVisual,
   type PlayerSnapshot,
   type PriestLumenPortalVisual,
+  type PriestLumenTrailVisual,
   type PriestPolarityOrbVisual,
   type ProjectileSnapshot,
   parseServerMessage,
@@ -167,6 +168,7 @@ export interface ConnectionHandlers {
   onMonsterSpecialImpact(impact: MonsterSpecialImpact): void;
   onShadowDance(sequence: RogueShadowDanceSequence): void;
   onLumenPortal(portal: PriestLumenPortalVisual): void;
+  onLumenTrail(trail: PriestLumenTrailVisual): void;
   onPolarityOrb(orb: PriestPolarityOrbVisual): void;
   onPeasantCamp(camp: PeasantCampVisual): void;
   onPeasantCampBank(bank: PeasantCampBankVisual): void;
@@ -424,7 +426,14 @@ export class WorldClient {
       const command = { seq, input };
       this.#pending.push(command);
       if (performance.now() >= this.#shadowDanceMovementBlockedUntil)
-        this.#predicted = predictStep(this.#predicted, command, this.#geometry, speed);
+        this.#predicted = predictStep(
+          this.#predicted,
+          command,
+          this.#geometry,
+          speed,
+          this.#selfSnapshot?.action?.skillId === "blink" &&
+            this.#selfSnapshot.action.channelEndsAt === undefined,
+        );
       this.#send({ t: "input", seq, input });
     }
   }
@@ -626,6 +635,10 @@ export class WorldClient {
       handlers.onLumenPortal(message);
       return;
     }
+    if (message.t === "priest.lumen_trail") {
+      handlers.onLumenTrail(message);
+      return;
+    }
     if (message.t === "priest.polarity_orb") {
       handlers.onPolarityOrb(message);
       return;
@@ -731,6 +744,7 @@ export class WorldClient {
       authoritative.life,
       authoritative.class,
       mapHeroClassSettings(this.#heroSettings, authoritative.class).stats.movementSpeed,
+      authoritative.action?.skillId === "blink" && authoritative.action.channelEndsAt === undefined,
     );
 
     const drawnAfter = this.#samplePredictedPosition();

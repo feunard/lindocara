@@ -508,12 +508,13 @@ describe("authoritative world geometry", () => {
     expect(resolveTerrainForLumen(from, to, lumenTerrain)).toEqual({ x: 64, y: 0 });
   });
 
-  it("keeps Lumen Step blocked by non-water obstacles", () => {
+  it("lets Lumen Step phase through non-water obstacles", () => {
     const from = { x: 0, y: 0 };
     const to = { x: 64, y: 0 };
     expect(isWalkable(from, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
     expect(isWalkableForLumen(from, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
-    expect(resolveTerrainForLumen(from, to, buildingLumenTerrain)).toEqual({ x: 0, y: 0 });
+    expect(isWalkableForLumen(to, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
+    expect(resolveTerrainForLumen(from, to, buildingLumenTerrain)).toEqual(to);
   });
 
   it("snaps rematerialization from water to the nearest shore", () => {

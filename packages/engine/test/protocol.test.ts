@@ -1056,6 +1056,39 @@ describe("Priest ultimate visual messages", () => {
     ).toMatchObject({ t: "priest.polarity_orb", maximumRadius: 160 });
   });
 
+  it("accepts only bounded persistent Lumen trails", () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.lumen_trail",
+          id: "trail-1",
+          actorId: "priest-1",
+          points: [
+            { x: 16, y: 16 },
+            { x: 80, y: 16 },
+            { x: 80, y: 80 },
+          ],
+          width: 22,
+          startedAt: 1_000,
+          endsAt: 7_000,
+        }),
+      ),
+    ).toMatchObject({ t: "priest.lumen_trail", id: "trail-1" });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.lumen_trail",
+          id: "trail-1",
+          actorId: "priest-1",
+          points: [{ x: 16, y: 16 }],
+          width: 22,
+          startedAt: 1_000,
+          endsAt: 7_000,
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("rejects invalid timelines and unbounded portal lifetimes", () => {
     expect(
       parseServerMessage(

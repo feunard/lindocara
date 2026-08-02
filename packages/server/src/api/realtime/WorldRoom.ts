@@ -160,6 +160,7 @@ import {
   recordMapEntered,
   selfStateFor,
   sendPeasantCampsTo,
+  sendPriestLumenEffectsTo,
   sendResyncTo,
   sendStateTo,
   startPlayerAction,
@@ -546,6 +547,7 @@ export class WorldRoom {
       self: selfStateFor(w, player),
     });
     sendPeasantCampsTo(w, conn.id, Date.now());
+    sendPriestLumenEffectsTo(w, conn.id, Date.now());
   }
 
   /** Legacy `#closedSocket`: one machine-code event so the client can print why, then the close. */

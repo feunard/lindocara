@@ -25,10 +25,12 @@ import {
 } from "@lindocara/engine/combat-actions.js";
 import {
   ATTACK_COOLDOWN_MS,
+  isWalkable,
   MONSTER_AGGRO_RANGE,
   MONSTER_RESPAWN_MS,
   type MonsterSpawn,
   maxHpForLevel,
+  monsterBodyRadius,
   pointDistance,
 } from "@lindocara/engine/game.js";
 import {
@@ -36,7 +38,7 @@ import {
   parseServerMessage,
   type ServerMessage,
 } from "@lindocara/engine/protocol.js";
-import { PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
+import { PLAYER_SIZE, PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
 import { advanceCombatActions } from "@lindocara/server/world/combat-action-system.js";
 import { projectileOrigin, spawnProjectile } from "@lindocara/server/world/projectile-system.js";
 import {
@@ -61,6 +63,7 @@ import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
   advanceWorldTick,
+  finishHeldPlayerAction,
   resolveMonsterAction,
   resolvePlayerAction,
   startMonsterAttack,
@@ -796,8 +799,8 @@ describe("world room combat (FakeClock)", () => {
     await engine.join(fakeSocket(ally.userId, ally.heroId));
     const state = roomState(engine);
     const priest = playerOf(state, host.heroId);
-    const corpse = playerOf(state, ally.heroId);
     priest.level = 10;
+    const corpse = playerOf(state, ally.heroId);
     priest.talents = ["priest.divine_nova.mercy", "priest.divine_nova.polarity_orb"];
     corpse.life = "corpse";
     corpse.hp = 0;
@@ -817,6 +820,45 @@ describe("world room combat (FakeClock)", () => {
     expect(corpse.life).toBe("alive");
     expect(corpse.corpse).toBeNull();
     expect(corpse.hp).toBeGreaterThan(0);
+    engine.dispose();
+  });
+
+  test("Lumen Step phases through bodies and rematerialises beside an occupied destination", async () => {
+    const host = await newPlayableHero("lumenphase", "priest");
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    await engine.join(fakeSocket(host.userId, host.heroId));
+    const state = roomState(engine);
+    const priest = playerOf(state, host.heroId);
+    priest.level = 10;
+    const terrain = state.location?.definition.terrain;
+    if (!terrain) throw new Error("missing test terrain");
+    const connectionId = `c-${host.heroId}`;
+    const origin = { x: priest.x, y: priest.y };
+    const destination = [64, 128, 192, 256]
+      .map((offset) => ({ x: origin.x + offset, y: origin.y }))
+      .find((candidate) => isWalkable(candidate, PLAYER_SIZE, terrain));
+    if (!destination) throw new Error("missing open Lumen destination");
+    const blocker = seedMonster(state, "lumen-blocker", destination.x, destination.y, {
+      species: "mire_troll",
+      kind: "troll",
+    });
+
+    let now = Date.now() + 1_000;
+    const { w } = testGlue(state, () => now);
+    expect(startPlayerAction(w, connectionId, priest, 3)).toBe(true);
+    const beforePhase = { x: priest.x, y: priest.y };
+    priest.x = destination.x;
+    priest.y = destination.y;
+    state.playerGrid.update(priest, beforePhase);
+    now += 250;
+    expect(finishHeldPlayerAction(w, connectionId, priest, now, 3)).toBe(true);
+
+    expect(isWalkable(priest, PLAYER_SIZE, terrain)).toBe(true);
+    expect(pointDistance(priest, blocker)).toBeGreaterThanOrEqual(
+      PLAYER_SIZE / 2 + monsterBodyRadius(blocker.species),
+    );
+    expect(priest).not.toMatchObject(destination);
     engine.dispose();
   });
 

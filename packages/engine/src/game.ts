@@ -13,7 +13,6 @@ import {
   addAxisCrossings,
   isSolidKind,
   isWalkableBox,
-  kindAt,
   kindAtPoint,
   TILE_SIZE,
   type TileMap,
@@ -1093,70 +1092,54 @@ export function isWalkable(
   return !overlapsCollider(geometry.colliders, position, size);
 }
 
-function isWalkableBoxForLumen(map: TileMap, position: Vec2, size: number): boolean {
-  if (size <= 0) return false;
-  const left = Math.floor(position.x / TILE_SIZE);
-  const top = Math.floor(position.y / TILE_SIZE);
-  const right = Math.floor((position.x + size - 1) / TILE_SIZE);
-  const bottom = Math.floor((position.y + size - 1) / TILE_SIZE);
-  if (left < 0 || top < 0 || right >= map.cols || bottom >= map.rows) return false;
-  for (let row = top; row <= bottom; row++) {
-    for (let col = left; col <= right; col++) {
-      const kind = kindAt(map, col, row);
-      if (kind === "forest" || kind === "building") return false;
-    }
-  }
-  return true;
-}
-
 /**
- * Pas de Lumen traversal: water is passable for this effect, obstacles are not.
- *
- * The ordinary movement walkability rejects water completely. This variant reuses the same collider
- * checks but treats water like land so the teleport effect can glide across lakes.
+ * Pas de Lumen traversal is a bounded phase: every in-world point is traversable while the hero is
+ * clouded. Terrain, authored rectangles and water are deliberately ignored here; the server checks
+ * a normal, collision-free landing only when the priest rematerialises.
  */
 export function isWalkableForLumen(
   position: Vec2,
   size: number = PLAYER_SIZE,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): boolean {
-  if (!isWalkableBoxForLumen(geometry.tiles, position, size)) return false;
-  return !overlapsCollider(geometry.colliders, position, size);
+  return (
+    size > 0 &&
+    position.x >= 0 &&
+    position.y >= 0 &&
+    position.x + size <= geometry.width &&
+    position.y + size <= geometry.height
+  );
 }
 
 /**
- * Lumen movement resolves axis-sliding against the same obstacle set as normal movement, but with
- * water passability enabled for the held traversal phase.
+ * Lumen movement ignores collision during the held traversal phase and only preserves world bounds.
  */
 export function resolveTerrainForLumen(
   from: Vec2,
   desired: Vec2,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): Vec2 {
-  const clamped = clampToWorld(desired, geometry);
-  let x = from.x;
-  let y = from.y;
-  if (isWalkableForLumen({ x: clamped.x, y: from.y }, PLAYER_SIZE, geometry)) x = clamped.x;
-  if (isWalkableForLumen({ x, y: clamped.y }, PLAYER_SIZE, geometry)) y = clamped.y;
-  return { x, y };
+  void from;
+  return clampToWorld(desired, geometry);
 }
 
 /**
- * Find the nearest land tile the hero can occupy when a Lumen rematerialisation happens in water.
+ * Find the nearest ordinary walkable tile for a Lumen rematerialisation. The optional predicate is
+ * the server's seam for live bodies (players, monsters, guards and NPCs), which pure terrain cannot
+ * know about.
  */
-export function nearestShore(
+export function nearestLumenLanding(
   position: Vec2,
   size: number = PLAYER_SIZE,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+  accepts: (candidate: Vec2) => boolean = () => true,
 ): Vec2 | null {
   let nearest: Vec2 | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (let row = 0; row < geometry.tiles.rows; row++) {
     for (let col = 0; col < geometry.tiles.cols; col++) {
-      const terrainKind = kindAt(geometry.tiles, col, row);
-      if (terrainKind === "water") continue;
       const candidate = { x: col * TILE_SIZE, y: row * TILE_SIZE };
-      if (!isWalkable(candidate, size, geometry)) continue;
+      if (!isWalkable(candidate, size, geometry) || !accepts(candidate)) continue;
       const distance = pointDistance(position, candidate);
       if (distance >= bestDistance) continue;
       nearest = candidate;
@@ -1165,6 +1148,9 @@ export function nearestShore(
   }
   return nearest;
 }
+
+/** Backward-compatible name for callers that only need the terrain-only water fallback. */
+export const nearestShore = nearestLumenLanding;
 
 /** Axis-separated collision resolution preserves wall sliding and never trusts the client. */
 export function resolveTerrain(

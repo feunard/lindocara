@@ -22,6 +22,7 @@ import type {
   PeasantCampVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
+  PriestLumenTrailVisual,
   PriestPolarityOrbVisual,
   QuestState,
   RogueShadowDanceSequence,
@@ -582,6 +583,7 @@ async function startGameIdentity(
       sound.combatPulse();
     },
     onLumenPortal: (portal: PriestLumenPortalVisual) => renderer.playLumenPortal(portal),
+    onLumenTrail: (trail: PriestLumenTrailVisual) => renderer.playLumenTrail(trail),
     onPolarityOrb: (orb: PriestPolarityOrbVisual) => renderer.playPolarityOrb(orb),
     onPeasantCamp: (camp: PeasantCampVisual) => renderer.showPeasantCamp(camp),
     onPeasantCampBank: (bank: PeasantCampBankVisual) => {

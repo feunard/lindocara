@@ -127,6 +127,7 @@ function handlers(): ConnectionHandlers {
     onMonsterSpecialImpact: vi.fn(),
     onShadowDance: vi.fn(),
     onLumenPortal: vi.fn(),
+    onLumenTrail: vi.fn(),
     onPolarityOrb: vi.fn(),
     onPeasantCamp: vi.fn(),
     onPeasantCampBank: vi.fn(),
