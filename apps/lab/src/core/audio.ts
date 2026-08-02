@@ -456,15 +456,21 @@ export function setAmbience(nom: string): void {
  * géographie. Idempotent sur la clef courante : `main.ts` n'appelle ceci qu'au changement de zone
  * (`applyZone`), mais un appel répété avec la même clef ne doit rien redéclencher.
  *
- * Reprend au même endroit du morceau qu'on l'ait quitté — que le retour en zone survienne pendant
- * qu'une autre piste jouait encore (fondu croisé direct, `actif` non nul, plus bas) OU après un
- * vrai silence entretemps (redémarrage à froid par `lancerPiste`) : les deux chemins lisent la
- * position RÉELLEMENT jouée au moment de la coupure (`pisteOffsetPause`, gelée par
- * `arreterMusique`), jamais une horloge murale qui aurait continué de courir pendant l'absence —
- * sinon une longue balade hors zone ferait reprendre tout près de la fin du morceau (voir la revue
- * de la task 5, Important 1). Seule exception, déjà vraie avant cette task : on ne reprend jamais
- * à moins de deux secondes de la fin (`jouerArrangement`), pour ne pas lancer un fondu d'entrée
- * sur un morceau déjà terminé.
+ * Reprend au même endroit du morceau qu'on l'ait quitté, mais par DEUX mécanismes distincts — pas
+ * un seul —, chacun correct pour sa propre raison :
+ * - Fondu croisé direct (`actif` encore non nul, plus bas) : l'offset se calcule EN DIRECT,
+ *   `ctx.currentTime - debutMusique`. Valable ici parce que la lecture n'a jamais été interrompue
+ *   depuis que `debutMusique` a été posée — aucun silence à soustraire, l'horloge murale et le
+ *   temps réellement joué avancent ensemble.
+ * - Redémarrage à froid (rien ne joue, via `lancerPiste`) : l'offset relit `pisteOffsetPause`,
+ *   figée par `arreterMusique` sur la position RÉELLEMENT jouée au moment de la coupure. La même
+ *   formule en direct serait fausse ici : le temps d'horloge murale écoulé depuis la coupure
+ *   inclut le silence de l'absence, que le morceau, lui, n'a pas joué (voir la revue de la task 5,
+ *   Important 1) — c'est précisément pour ce chemin que `pisteOffsetPause` existe.
+ *
+ * Seule exception commune aux deux, déjà vraie avant cette task : on ne reprend jamais à moins de
+ * deux secondes de la fin (`jouerArrangement`), pour ne pas lancer un fondu d'entrée sur un
+ * morceau déjà terminé.
  */
 export function setZoneMusic(clef: string | null): void {
   if (clef === pisteZone) return;
