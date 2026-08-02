@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { applyCloudShadow } from "./clouds.js";
 import type { Hd2dContext } from "./context.js";
 import { sheetUv } from "./sheet.js";
 
@@ -8,15 +9,14 @@ import { sheetUv } from "./sheet.js";
 export const RIM_LAYER = 1;
 
 /**
- * Greffe la couverture nuageuse sur un matériau (Task 6, `applyCloudShadow`). Ce module ne connaît
- * pas encore cette implémentation — `makeBillboard`/`makeFlatSprite` reçoivent donc la greffe en
- * paramètre, avec un no-op par défaut, plutôt que d'importer un module qui n'existe pas encore.
+ * Greffe la couverture nuageuse sur un matériau (Task 6, `applyCloudShadow`). Par défaut,
+ * `makeBillboard`/`makeFlatSprite` branchent la vraie greffe, liée au contexte reçu en paramètre —
+ * exposée ici comme paramètre plutôt que câblée en dur pour rester substituable (un test qui veut
+ * vérifier la géométrie ou le matériau sans patcher de shader peut passer un no-op).
  * `opts.atOrigin` distingue un sprite vertical (échantillonné à l'origine du monde, pas à sa
  * position) d'un décalque posé à plat (échantillonné dans le plan du sol, sans étirement).
  */
 export type CloudShadowGraft = (material: THREE.Material, opts: { atOrigin: boolean }) => void;
-
-function noopGraft(_material: THREE.Material, _opts: { atOrigin: boolean }): void {}
 
 export type Facing = "east" | "west" | "north" | "south";
 
@@ -247,7 +247,7 @@ export function makeBillboard(ctx: Hd2dContext, opts: BillboardOptions): Billboa
     lit = true,
     stretch = ctx.config.spriteStretch,
     pitch = 0,
-    graftCloudShadow = noopGraft,
+    graftCloudShadow = (material, graftOpts) => applyCloudShadow(ctx, material, graftOpts),
   } = opts;
 
   const w = height * aspect;
@@ -293,11 +293,10 @@ export interface FlatSpriteOptions {
 /**
  * Quad horizontal posé à plat, pour ce qui se dessine SUR une surface plutôt que debout dedans :
  * l'écume du rivage, et tout décalque de sol à venir. Ni pieds ni orientation : il n'entre donc pas
- * dans le registre de billboards du contexte (`_ctx`, gardé pour la symétrie de signature avec
- * `makeBillboard` — un appelant traite les deux fabriques de façon interchangeable), qui ne
- * concerne que ce qui pivote avec la caméra.
+ * dans le registre de billboards du contexte, qui ne concerne que ce qui pivote avec la caméra —
+ * `ctx` sert uniquement à lier la greffe de nuages par défaut à SES uniformes.
  */
-export function makeFlatSprite(_ctx: Hd2dContext, opts: FlatSpriteOptions): Sprite {
+export function makeFlatSprite(ctx: Hd2dContext, opts: FlatSpriteOptions): Sprite {
   const {
     texture,
     cols = 1,
@@ -306,7 +305,7 @@ export function makeFlatSprite(_ctx: Hd2dContext, opts: FlatSpriteOptions): Spri
     aspect = 1,
     opacity = 1,
     alphaTest = 0,
-    graftCloudShadow = noopGraft,
+    graftCloudShadow = (material, graftOpts) => applyCloudShadow(ctx, material, graftOpts),
   } = opts;
 
   const geo = new THREE.PlaneGeometry(size, size * aspect);

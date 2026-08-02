@@ -101,6 +101,33 @@ describe("createHd2dContext", () => {
     expect(gone.mesh.rotation.y).toBe(0);
   });
 
+  it("garde des uniformes de nuages distincts par contexte", () => {
+    const a = createHd2dContext();
+    const b = createHd2dContext();
+
+    a.cloudUniforms.uCloudOffset.value.set(0.5, 0.7);
+    a.cloudUniforms.uCloudStrength.value = 0.9;
+
+    // Si les deux contextes partageaient le même objet uniforms (comme le faisait le PoC, en
+    // variable de module), faire dériver les nuages de l'un ferait dériver ceux de l'autre — un
+    // héros dans l'éditeur verrait passer les nuages du jeu en cours.
+    expect(b.cloudUniforms.uCloudOffset.value.x).toBe(0);
+    expect(b.cloudUniforms.uCloudOffset.value.y).toBe(0);
+    expect(b.cloudUniforms.uCloudStrength.value).toBe(0.34);
+    expect(a.cloudUniforms.uCloudMap).not.toBe(b.cloudUniforms.uCloudMap);
+  });
+
+  it("initialise la carte de nuages à un texel noir neutre, pas à null", () => {
+    // Un sampler2D nul est indéfini en GLSL et peut faire virer la scène au noir. Le noir est le
+    // neutre pour `smoothstep(0.5-s, 0.5+s, 0.0)` : il vaut 0, donc l'ombre ne multiplie rien tant
+    // que `createCloudCover` n'a pas posé la vraie carte.
+    const ctx = createHd2dContext();
+    const texture = ctx.cloudUniforms.uCloudMap.value;
+    expect(texture).not.toBeNull();
+    expect(texture).toBeInstanceOf(THREE.DataTexture);
+    expect((texture as THREE.DataTexture).image.data).toEqual(new Uint8Array([0, 0, 0, 255]));
+  });
+
   it("ne partage aucun sous-objet de config entre contextes, même non surchargé", () => {
     const a = createHd2dContext();
     a.config.postfx.bloom.strength = 999;

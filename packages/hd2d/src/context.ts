@@ -1,5 +1,34 @@
-import type * as THREE from "three";
+import * as THREE from "three";
 import { DEFAULT_CONFIG, type Hd2dConfig } from "./config.js";
+
+/**
+ * Uniformes de l'ombre des nuages (Task 6, `clouds.ts`). Le PoC les gardait en objet de MODULE,
+ * partagé par tous les matériaux patchés de la page — une seule scène possible. Ici ils vivent sur
+ * le contexte comme le yaw et les registres de billboards : le jeu et l'éditeur ouvrent chacun le
+ * leur, et faire dériver les nuages de l'un ne doit pas faire dériver ceux de l'autre.
+ */
+export interface CloudUniforms {
+  uCloudMap: { value: THREE.Texture | null };
+  uCloudOffset: { value: THREE.Vector2 };
+  uCloudScale: { value: number };
+  uCloudStrength: { value: number };
+  uCloudSoftness: { value: number };
+}
+
+/**
+ * Texel neutre 1x1, noir. `applyCloudShadow` échantillonne `uCloudMap` dans TOUT matériau greffé,
+ * y compris avant qu'un `createCloudCover` existe : un sampler2D nul est indéfini en GLSL et peut
+ * faire virer la scène au noir. Le noir est le neutre pour
+ * `smoothstep(0.5-s, 0.5+s, 0.0)` — il vaut 0, donc le multiplicateur d'albédo vaut 1 et l'ombre ne
+ * change rien tant que personne n'a posé la vraie carte. Une `DataTexture` ne demande aucun canvas,
+ * donc reste compatible avec le projet vitest `node` — contrairement à la carte réelle, qui en
+ * dessine une.
+ */
+function neutralCloudTexture(): THREE.DataTexture {
+  const texture = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+  texture.needsUpdate = true;
+  return texture;
+}
 
 export interface LitBillboard {
   mesh: THREE.Mesh;
@@ -16,6 +45,9 @@ export interface Hd2dContextOptions {
 
 export interface Hd2dContext {
   readonly config: Hd2dConfig;
+  /** Uniformes de l'ombre des nuages de CE contexte (Task 6, `clouds.ts`) — jamais partagés entre
+   *  deux contextes. */
+  readonly cloudUniforms: CloudUniforms;
   yaw(): number;
   setYaw(yaw: number): void;
   registerBillboard(
@@ -62,8 +94,20 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
   const eclaires: LitBillboard[] = [];
   let courant = 0;
 
+  // Un objet FRAIS par contexte : le PoC en faisait une constante de module, partagée par toute la
+  // page. `uCloudStrength` (0.34) n'est pas configurable ailleurs — c'est déjà ainsi dans le PoC —
+  // `uCloudScale`/`uCloudSoftness` partent en revanche de la config de CE contexte.
+  const cloudUniforms: CloudUniforms = {
+    uCloudMap: { value: neutralCloudTexture() },
+    uCloudOffset: { value: new THREE.Vector2(0, 0) },
+    uCloudScale: { value: config.cloudShadow.scale },
+    uCloudStrength: { value: 0.34 },
+    uCloudSoftness: { value: config.cloudShadow.softness },
+  };
+
   return {
     config,
+    cloudUniforms,
     yaw: () => courant,
     setYaw(yaw) {
       if (yaw === courant) return;
