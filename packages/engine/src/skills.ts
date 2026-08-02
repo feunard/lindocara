@@ -283,7 +283,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 5,
       effect: "homemade_bomb",
       cooldownMs: 10_000,
-      range: 260,
+      range: 300,
       radius: PEASANT_SUPPORT_SKILLS[5].radius,
       durationMs: PEASANT_SUPPORT_SKILLS[5].durationMs,
       power: PEASANT_SUPPORT_SKILLS[5].power,

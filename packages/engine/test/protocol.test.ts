@@ -119,6 +119,12 @@ describe("client protocol", () => {
       t: "skill",
       slot: 3,
     });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } })),
+    ).toEqual({ t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 2, y: 0 } })),
+    ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId }))).toBeNull();
     expect(
       parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId: "nearest target" })),

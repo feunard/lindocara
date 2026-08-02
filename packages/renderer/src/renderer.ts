@@ -2,6 +2,7 @@ import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "@lindocara/engine/character.js";
 import { MONSTER_ACTIONS, PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import { isSpirit } from "@lindocara/engine/death.js";
+import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import { npcMovementDurationMs, sampleNpcMovementTween } from "@lindocara/engine/event-movement.js";
 import {
   entityBox,
@@ -33,7 +34,7 @@ import type {
   RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { emptyLayer, parseTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
@@ -1071,6 +1072,7 @@ export class Renderer {
       radius: number;
     }
   >();
+  #peasantBombAim: Graphics | null = null;
   #shadowDanceSequences: ShadowDanceVisualRuntime[] = [];
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
@@ -2910,6 +2912,50 @@ export class Renderer {
     return this.#cameraZoom;
   }
 
+  screenToWorld(clientX: number, clientY: number): Vec2 {
+    const canvas = this.#app.canvas as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const screenX = ((clientX - rect.left) / Math.max(1, rect.width)) * this.#app.screen.width;
+    const screenY = ((clientY - rect.top) / Math.max(1, rect.height)) * this.#app.screen.height;
+    const scale = this.#world.scale.x || 1;
+    return {
+      x: (screenX - this.#world.x) / scale,
+      y: (screenY - this.#world.y) / scale,
+    };
+  }
+
+  showPeasantBombAim(origin: Vec2, direction: Vec2, range: number): void {
+    const facing = normalizeDirection(direction);
+    const length = Math.max(32, range);
+    const aim = this.#peasantBombAim ?? new Graphics();
+    aim.clear();
+    aim.position.set(origin.x, origin.y);
+    aim.zIndex = Math.round(origin.y) + 1;
+    aim
+      .moveTo(0, 0)
+      .lineTo(facing.x * length, facing.y * length)
+      .stroke({ color: 0x32180c, alpha: 0.82, width: 5 });
+    aim
+      .moveTo(0, 0)
+      .lineTo(facing.x * length, facing.y * length)
+      .stroke({ color: 0xffcb58, alpha: 0.92, width: 2 });
+    for (let index = 1; index <= 7; index++) {
+      const distance = (length * index) / 8;
+      aim
+        .circle(facing.x * distance, facing.y * distance, index === 7 ? 6 : 2.6)
+        .fill({ color: index === 7 ? 0xff7747 : 0xffdda0, alpha: 0.88 });
+    }
+    if (!this.#peasantBombAim) {
+      this.#peasantBombAim = aim;
+      this.#effects.addChild(aim);
+    }
+  }
+
+  hidePeasantBombAim(): void {
+    this.#peasantBombAim?.destroy();
+    this.#peasantBombAim = null;
+  }
+
   #followSelf(players: readonly PlayerSnapshot[], now: number): void {
     const self = players.find((player) => player.id === this.#selfId);
     const selfCenter = self ? centerOf(self) : null;
@@ -4049,10 +4095,32 @@ export class Renderer {
     if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return;
     const art = combatArt("peasant", "homemade_bomb", "ember").impact;
     if (art && this.#isVisibleWorld(impact.x, impact.y, impact.radius)) {
-      this.#playCombatSheet(art, impact.x, impact.y, impact.actionId);
+      this.#playCombatSheet(
+        {
+          ...art,
+          scale: (art.scale ?? 1) * 1.65,
+          durationMs: art.durationMs * 1.2,
+        },
+        impact.x,
+        impact.y,
+        impact.actionId,
+      );
     }
-    this.#addPulse(impact.x, impact.y, 0xf0a34a, impact.radius, 360);
-    this.#burst(impact.x, impact.y, 0xd9b66b, 10);
+    this.#addPulse(impact.x, impact.y, 0xffc454, impact.radius * 0.72, 280);
+    this.#addPulse(impact.x, impact.y, 0xf05d32, impact.radius, 460);
+    this.#burst(impact.x, impact.y, 0xffd06f, 28);
+    const self = this.#selfId ? this.#players.get(this.#selfId)?.data : undefined;
+    if (self) {
+      const selfCenter = centerOf(self);
+      this.#cameraShake.trigger({
+        id: `peasant-bomb-${impact.actionId}`,
+        now: performance.now(),
+        intensity: 5.5,
+        durationMs: 260,
+        distance: Math.hypot(selfCenter.x - impact.x, selfCenter.y - impact.y),
+        maxDistance: Math.max(260, impact.radius * 4),
+      });
+    }
   }
 
   #updatePeasantCamps(now: number): void {

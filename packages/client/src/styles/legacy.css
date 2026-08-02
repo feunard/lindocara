@@ -46,6 +46,10 @@ body::after {
   touch-action: none;
 }
 
+#stage[data-bomb-aiming="true"] {
+  cursor: crosshair;
+}
+
 /* Editor shell ⇄ #stage pointer contract.
    #stage is a `position: fixed`, full-viewport SIBLING of #root, so it establishes its own stacking
    context and both paints and hit-tests ABOVE the editor's normal-flow chrome — meaning a painted-

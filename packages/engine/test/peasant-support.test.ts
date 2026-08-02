@@ -21,9 +21,9 @@ describe("Peasant support contract", () => {
         id: "homemade_bomb",
         slot: 5,
         cost: { iron: 2, stone: 2 },
-        radius: 72,
+        radius: 110,
         durationMs: 650,
-        power: 20,
+        power: 85,
       },
     });
   });

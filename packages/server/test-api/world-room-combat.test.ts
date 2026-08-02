@@ -655,8 +655,8 @@ describe("world room combat (FakeClock)", () => {
       advanceWorldTick(w);
       now += TICK_MS;
     }
-    expect(target.hp).toBe(hpBefore - 35);
-    expect(sideTarget.hp).toBe(sideHpBefore - 35);
+    expect(target.hp).toBe(hpBefore - 150);
+    expect(sideTarget.hp).toBe(sideHpBefore - 150);
     expect(hidden.hp).toBe(hiddenHpBefore);
     expect(sideTarget.slowMultiplier).toBe(0.75);
     expect(sideTarget.slowUntil).toBe(action.impactAt + 3_000);

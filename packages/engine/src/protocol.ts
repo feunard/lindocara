@@ -578,7 +578,7 @@ export type ClientMessage =
       amount: number;
     }
   | { t: "release" }
-  | { t: "skill"; slot: SkillSlot }
+  | { t: "skill"; slot: SkillSlot; direction?: Vec2 }
   | { t: "skill.release"; slot: SkillSlot }
   | { t: "talent.unlock"; nodeId: string }
   | { t: "talent.reset" }
@@ -1755,8 +1755,17 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       amount: value.amount,
     };
   }
-  if (value.t === "skill" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
-    return { t: "skill", slot: value.slot };
+  if (
+    value.t === "skill" &&
+    isSkillSlot(value.slot) &&
+    (value.direction === undefined || isDirection(value.direction)) &&
+    hasOnlyKeys(value, ["t", "slot", "direction"])
+  ) {
+    return {
+      t: "skill",
+      slot: value.slot,
+      ...(value.direction === undefined ? {} : { direction: value.direction }),
+    };
   }
   if (value.t === "skill.release" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
     return { t: "skill.release", slot: value.slot };

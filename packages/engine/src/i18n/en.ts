@@ -202,7 +202,7 @@ export const en = {
   "class.peasant.skill.2": "Pick strike and prospecting",
   "class.peasant.skill.3": "Knife strike and butchery",
   "class.peasant.skill.4": "Useful field construction",
-  "class.peasant.skill.5": "Modest improvised explosive",
+  "class.peasant.skill.5": "Devastating freely aimed explosive",
   "skill.warrior.cleave.name": "Cleave",
   "skill.warrior.iron_guard.name": "Iron Guard",
   "skill.warrior.shield_bash.name": "Shield Bash",
@@ -268,7 +268,7 @@ export const en = {
   "skill.peasant.makeshift_camp.description":
     "Build a camp that restores allied health and mana, with a shared gold chest.",
   "skill.peasant.homemade_bomb.description":
-    "Throw a modest improvised bomb whose explosion is decided by the server.",
+    "Arm the aim, freely direct the throw, then unleash a devastating explosion.",
 
   // HUD
   "death.fallen_title": "You have fallen",

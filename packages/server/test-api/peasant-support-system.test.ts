@@ -541,10 +541,10 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.homemade_bomb.shrapnel",
         expected: {
           cost: { iron: 2, stone: 2 },
-          power: 20,
-          radius: 79.2,
+          power: 85,
+          radius: 121,
           fragments: 4,
-          fragmentPower: 5,
+          fragmentPower: 21,
           slowRatio: 0,
           slowDurationMs: 0,
           knockbackDistance: 0,
@@ -554,8 +554,8 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.homemade_bomb.concussion",
         expected: {
           cost: { iron: 2, stone: 2 },
-          power: 18,
-          radius: 86.4,
+          power: 77,
+          radius: 132,
           fragments: 0,
           fragmentPower: 0,
           slowRatio: 0.35,
@@ -567,10 +567,10 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.homemade_bomb.powder_keg",
         expected: {
           cost: { iron: 1, stone: 1 },
-          power: 27,
-          radius: 97.2,
+          power: 115,
+          radius: 148.5,
           fragments: 6,
-          fragmentPower: 8,
+          fragmentPower: 35,
           slowRatio: 0.25,
           slowDurationMs: 3_000,
           knockbackDistance: 36,
@@ -664,11 +664,11 @@ describe("authoritative Peasant support", () => {
 
     expect(explode()).not.toBeNull();
     expect(damage).toEqual([
-      ["target-a", 25],
-      ["target-b", 25],
-      ["target-c", 25],
-      ["target-d", 25],
-      ["target-e", 20],
+      ["target-a", 106],
+      ["target-b", 106],
+      ["target-c", 106],
+      ["target-d", 106],
+      ["target-e", 85],
     ]);
     expect(explode()).toBeNull();
     expect(damage).toHaveLength(5);
@@ -678,6 +678,7 @@ describe("authoritative Peasant support", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");
     const target = monster("target", 48);
+    target.y = 64;
     const world = terrain();
     const { camp, bomb } = supportSkills();
     const plans = peasantSupportPlans({ camp, bomb, selectedTalents: [] });
@@ -692,6 +693,7 @@ describe("authoritative Peasant support", () => {
       terrain: world,
       projectiles: [],
       now: 2_000,
+      direction: { x: 0.6, y: 0.8 },
     });
     if (!requested.ok) throw new Error(`request rejected: ${requested.reason}`);
     const action = commitPeasantSupportRequest(runtime, requested.request, owner, 2_000);
@@ -707,7 +709,12 @@ describe("authoritative Peasant support", () => {
     );
     expect(resolved?.kind).toBe("bomb");
     expect(projectiles).toHaveLength(1);
-    expect(projectiles[0]).toMatchObject({ kind: "homemade_bomb", pierceRemaining: 0, power: 0 });
+    expect(projectiles[0]).toMatchObject({
+      kind: "homemade_bomb",
+      pierceRemaining: 0,
+      power: 0,
+      direction: { x: 0.6, y: 0.8 },
+    });
 
     const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
     monsterGrid.insert(target);

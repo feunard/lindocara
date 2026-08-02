@@ -131,7 +131,7 @@ export interface Connection {
   useItem(item: ConsumableId): void;
   buyItem(item: ConsumableId): void;
   release(): void;
-  skill(slot: SkillSlot): void;
+  skill(slot: SkillSlot, direction?: Vec2): void;
   releaseSkill(slot: SkillSlot): void;
   unlockTalent(nodeId: string): void;
   resetTalents(): void;
@@ -365,7 +365,8 @@ export class WorldClient {
       useItem: (item) => this.#send({ t: "item.use", item }),
       buyItem: (item) => this.#send({ t: "merchant.buy", item }),
       release: () => this.#send({ t: "release" }),
-      skill: (slot) => this.#send({ t: "skill", slot }),
+      skill: (slot, direction) =>
+        this.#send({ t: "skill", slot, ...(direction === undefined ? {} : { direction }) }),
       releaseSkill: (slot) => this.#send({ t: "skill.release", slot }),
       unlockTalent: (nodeId) => this.#send({ t: "talent.unlock", nodeId }),
       resetTalents: () => this.#send({ t: "talent.reset" }),

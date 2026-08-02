@@ -167,7 +167,7 @@ describe("Peasant talents", () => {
       1,
       profile,
     );
-    expect(plan.skill).toMatchObject({ cooldownMs: 748, range: 60.5 });
+    expect(plan.skill).toMatchObject({ cooldownMs: 370, range: 60.5 });
     expect(plan.harvest).toEqual({
       resource: "wood",
       tool: "axe",
@@ -287,9 +287,9 @@ describe("Peasant talents", () => {
     ).toEqual({
       id: "makeshift_camp",
       cost: { wood: 4, stone: 2, meat: 2 },
-      power: 21,
+      power: 90,
       durabilityMultiplier: 1.25,
-      durationMs: 17_000,
+      durationMs: 35_000,
       radius: 120,
       protectionRatio: 0.08,
       slowRatio: 0,
@@ -301,8 +301,8 @@ describe("Peasant talents", () => {
     ).toEqual({
       id: "homemade_bomb",
       cost: { iron: 2, stone: 2 },
-      power: 20,
-      radius: 79.2,
+      power: 85,
+      radius: 121,
       fragments: 4,
       fragmentPowerRatio: 0.25,
       slowRatio: 0,
@@ -332,9 +332,9 @@ describe("Peasant talents", () => {
     expect(camp.support).toEqual({
       id: "makeshift_camp",
       cost: { wood: 2, stone: 1, meat: 1 },
-      power: 21,
+      power: 90,
       durabilityMultiplier: 3,
-      durationMs: 30_000,
+      durationMs: 48_000,
       radius: 144,
       protectionRatio: 0.25,
       slowRatio: 0.4,
@@ -355,12 +355,12 @@ describe("Peasant talents", () => {
       "peasant.homemade_bomb.concussion",
       "peasant.homemade_bomb.powder_keg",
     ]);
-    expect(bomb.skill).toMatchObject({ cooldownMs: 8_800, range: 291.2, power: 22, radius: 80.6 });
+    expect(bomb.skill).toMatchObject({ cooldownMs: 8_800, range: 336, power: 95, radius: 123.2 });
     expect(bomb.support).toEqual({
       id: "homemade_bomb",
       cost: { iron: 1, stone: 1 },
-      power: 28,
-      radius: 124.9,
+      power: 119,
+      radius: 191,
       fragments: 6,
       fragmentPowerRatio: 0.3,
       slowRatio: 0.6,

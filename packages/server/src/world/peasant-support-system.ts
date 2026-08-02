@@ -37,7 +37,7 @@ export const PEASANT_CAMP_PULSE_INTERVAL_MS = 2_000;
 export const PEASANT_CAMP_PROTECTION_RATIO = 0.12;
 export const PEASANT_CAMP_MANA_RATIO = 0.6;
 export const PEASANT_CAMP_GOLD_LIMIT = 999_999_999;
-export const PEASANT_BOMB_SPEED = 400;
+export const PEASANT_BOMB_SPEED = 520;
 
 export interface PeasantCampPlan {
   readonly kind: "camp";
@@ -148,6 +148,7 @@ export interface PeasantSupportRequest {
   readonly roomKey: string;
   readonly partyId: string;
   readonly actorPosition: Vec2;
+  readonly actorFacing: Vec2;
   readonly slot: 4 | 5;
   readonly skill: SkillDefinition;
   readonly definition: PlayerActionDefinition;
@@ -222,6 +223,7 @@ export function beginPeasantSupportRequest(options: {
   readonly terrain: TerrainGeometry;
   readonly projectiles: readonly ProjectileRuntime[];
   readonly now: number;
+  readonly direction?: Vec2;
 }): BeginPeasantSupportResult {
   const { runtime, player, slot, skill, definition, plan, now } = options;
   if (
@@ -238,7 +240,10 @@ export function beginPeasantSupportRequest(options: {
   if (plan.kind === "bomb" && !canSpawnProjectile(options.projectiles, player.id))
     return { ok: false, reason: "projectile_limit" };
 
-  const direction = normalizeDirection(player.facing);
+  const direction =
+    plan.kind === "bomb" && options.direction
+      ? normalizeDirection(options.direction, player.facing)
+      : normalizeDirection(player.facing);
   const campPosition =
     plan.kind === "camp"
       ? peasantCampPosition(player, direction, plan, options.terrain)
@@ -253,6 +258,7 @@ export function beginPeasantSupportRequest(options: {
     roomKey: player.roomKey,
     partyId: player.partyId ?? "",
     actorPosition: { x: player.x, y: player.y },
+    actorFacing: { ...player.facing },
     slot,
     skill,
     definition,
@@ -294,8 +300,8 @@ export function canActivatePeasantSupportRequest(options: {
     player.life !== "alive" ||
     player.x !== request.actorPosition.x ||
     player.y !== request.actorPosition.y ||
-    player.facing.x !== request.direction.x ||
-    player.facing.y !== request.direction.y ||
+    player.facing.x !== request.actorFacing.x ||
+    player.facing.y !== request.actorFacing.y ||
     player.action !== null
   )
     return false;

@@ -2267,6 +2267,7 @@ export function preparePeasantSupportRequest(
   connectionId: string,
   player: PlayerRuntime,
   slot: SkillSlot,
+  direction?: Vec2,
 ): PeasantSupportRequest | null {
   if (player.class !== "peasant" || (slot !== 4 && slot !== 5)) return null;
   const skill = configuredSkill(w, player, slot);
@@ -2306,6 +2307,7 @@ export function preparePeasantSupportRequest(
     terrain: zone(w.state).terrain,
     projectiles: w.state.projectiles,
     now: w.deps.now(),
+    ...(slot === 5 && direction !== undefined ? { direction } : {}),
   });
   if (result.ok) return result.request;
   if (result.reason === "blocked" || result.reason === "projectile_limit") {

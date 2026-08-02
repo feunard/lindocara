@@ -201,7 +201,7 @@ export const fr: Record<keyof typeof en, string> = {
   "class.peasant.skill.2": "Coup de pioche et prospection",
   "class.peasant.skill.3": "Coup de couteau et dépeçage",
   "class.peasant.skill.4": "Construction utile de terrain",
-  "class.peasant.skill.5": "Explosif artisanal modeste",
+  "class.peasant.skill.5": "Explosif artisanal dévastateur à visée libre",
   "skill.warrior.cleave.name": "Fendoir",
   "skill.warrior.iron_guard.name": "Garde de fer",
   "skill.warrior.shield_bash.name": "Charge",
@@ -271,7 +271,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.peasant.makeshift_camp.description":
     "Construisez un camp qui régénère la vie et le mana des alliés, avec un coffre d’or partagé.",
   "skill.peasant.homemade_bomb.description":
-    "Lancez une bombe artisanale modeste dont l'explosion est décidée par le serveur.",
+    "Armez la visée, orientez librement le lancer, puis déclenchez une explosion dévastatrice.",
 
   // ATH
   "death.fallen_title": "Vous êtes tombé",

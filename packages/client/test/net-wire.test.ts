@@ -205,6 +205,12 @@ describe("WorldClient on the alepha wire", () => {
       roomId: "party-1:verdant-reach",
       message: { t: "attack" },
     });
+
+    connection.skill(5, { x: 0.6, y: 0.8 });
+    expect(JSON.parse(socket?.sent[1] ?? "")).toEqual({
+      roomId: "party-1:verdant-reach",
+      message: { t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } },
+    });
   });
 
   it("strips the __alephaRoom transport key before parsing an incoming frame", async () => {
@@ -248,7 +254,7 @@ describe("WorldClient on the alepha wire", () => {
       actorId: "hero-1",
       x: 80,
       y: 96,
-      radius: 72,
+      radius: 110,
       impactAt: 2_000,
     };
     socket?.message(impact);
