@@ -2,6 +2,7 @@ import { setLocale } from "@lindocara/client/i18n.js";
 import type { GameHandle } from "@lindocara/client/store.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { SKILL_PAD_LAYOUT, SkillBar } from "@lindocara/client/ui/hud/SkillBar.js";
+import { PeasantResourcesPanel } from "@lindocara/client/ui/hud/PeasantResourcesPanel.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -364,13 +365,18 @@ describe("skill bar cooldowns", () => {
         materials: { wood: 3, stone: 2, iron: 1, meat: 2 },
       },
     });
-    render(<SkillBar />);
+    render(
+      <>
+        <PeasantResourcesPanel />
+        <SkillBar />
+      </>,
+    );
 
-    expect(screen.getByRole("status", { name: "Shared materials" })).toBeInTheDocument();
-    expect(screen.getByText("Wood: 3")).toBeInTheDocument();
-    expect(screen.getByText("Stone: 2")).toBeInTheDocument();
-    expect(screen.getByText("Iron: 1")).toBeInTheDocument();
-    expect(screen.getByText("Meat: 2")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Peasant resources" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Wood: 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("Stone: 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Iron: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Meat: 2")).toBeInTheDocument();
 
     const camp = screen.getByRole("button", { name: /^4\. Makeshift Camp/ });
     const bomb = screen.getByRole("button", { name: /^5\. Homemade Bomb/ });
@@ -399,8 +405,8 @@ describe("skill bar cooldowns", () => {
       });
     });
 
-    expect(screen.getByText("Wood: 4")).toBeInTheDocument();
-    expect(screen.getByText("Iron: 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Wood: 4")).toBeInTheDocument();
+    expect(screen.getByLabelText("Iron: 2")).toBeInTheDocument();
     expect(camp).not.toHaveClass("unaffordable");
     expect(camp).toHaveAttribute("data-material-affordable", "true");
     expect(bomb).not.toHaveClass("unaffordable");
@@ -478,10 +484,15 @@ describe("skill bar cooldowns", () => {
         materials: { wood: 8, stone: 6, iron: 4, meat: 3 },
       },
     });
-    render(<SkillBar />);
+    render(
+      <>
+        <PeasantResourcesPanel />
+        <SkillBar />
+      </>,
+    );
 
-    expect(screen.getByRole("status", { name: "Shared materials" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Peasant resources" })).toBeInTheDocument();
     act(() => useUiStore.getState().clearedGameSession());
-    expect(screen.queryByRole("status", { name: "Shared materials" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Peasant resources" })).not.toBeInTheDocument();
   });
 });

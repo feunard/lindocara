@@ -1608,12 +1608,53 @@ kbd {
   }
 }
 
-.skill-bar.panel {
+.action-dock {
   position: fixed;
-  z-index: 5;
-  right: calc(5rem + var(--safe-right));
-  bottom: var(--skill-bar-bottom);
-  left: auto;
+  z-index: 34;
+  right: calc(1rem + var(--safe-right));
+  bottom: calc(0.8rem + var(--safe-bottom));
+  display: grid;
+  width: min(39rem, calc(100vw - 2rem - var(--safe-left) - var(--safe-right)));
+  gap: 0.55rem;
+  pointer-events: none;
+}
+
+.action-dock__controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.action-dock__group {
+  position: relative;
+  padding-top: 0.9rem;
+  pointer-events: auto;
+}
+
+.action-dock__title {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 50%;
+  min-width: 7rem;
+  padding: 0.16rem 0.8rem 0.22rem;
+  transform: translateX(-50%);
+  border: 1px solid #84602f;
+  border-radius: 999px;
+  background: linear-gradient(#76542d, #3b2818);
+  color: #fff0bd;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-shadow: 0 1px #1f130c;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.skill-bar.panel {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, 5rem);
   grid-template-rows: repeat(2, 5rem);
@@ -1629,44 +1670,103 @@ kbd {
   backdrop-filter: blur(5px);
 }
 
-.skill-bar__materials {
-  position: absolute;
-  right: 0.75rem;
-  bottom: calc(100% + 0.42rem);
-  display: flex;
-  gap: 0.28rem;
-  padding: 0.28rem 0.42rem;
-  border: 1px solid rgb(220 194 111 / 42%);
-  border-radius: 999px;
-  background: rgb(5 20 17 / 94%);
-  box-shadow: 0 3px 9px rgb(0 0 0 / 38%);
-}
-
-.skill-bar__material {
-  display: flex;
-  align-items: baseline;
-  gap: 0.16rem;
-  min-width: 1.65rem;
-  color: #d8c789;
-  font:
-    700 0.58rem ui-monospace,
-    monospace;
-}
-
-.skill-bar__material strong {
-  color: #fff0bb;
-  font-size: 0.68rem;
-}
-
 .quick-item-bar.panel {
-  position: fixed;
-  z-index: 34;
-  right: 1.1rem;
-  bottom: calc(var(--skill-bar-bottom) + var(--skill-bar-height) + 0.7rem);
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: 0.35rem;
-  padding: 0.45rem;
+  padding: 0.65rem 0.55rem 0.55rem;
   pointer-events: auto;
+}
+
+.peasant-resources.panel {
+  position: relative;
+  justify-self: end;
+  width: min(34rem, 100%);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.48rem 0.7rem;
+  border-width: 10px;
+  border-image-width: 10px;
+  background-color: rgb(5 20 17 / 97%);
+  box-shadow: 0 0.55rem 1.2rem rgb(0 0 0 / 44%);
+  pointer-events: auto;
+}
+
+.peasant-resources__heading {
+  display: grid;
+  min-width: 8rem;
+  line-height: 1.05;
+}
+
+.peasant-resources__heading strong {
+  color: #ffe7a0;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.peasant-resources__heading span {
+  color: #adbea9;
+  font-size: 0.57rem;
+}
+
+.peasant-resources__list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(4rem, 1fr));
+  gap: 0.3rem;
+}
+
+.peasant-resource {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.24rem 0.35rem;
+  border: 1px solid rgb(220 194 111 / 26%);
+  border-radius: 0.35rem;
+  background: linear-gradient(rgb(48 57 43 / 92%), rgb(20 31 25 / 96%));
+  color: #d9d4bf;
+  font-size: 0.59rem;
+}
+
+.peasant-resource strong {
+  color: #fff0bb;
+  font-size: 0.75rem;
+}
+
+.peasant-resource__glyph {
+  display: grid;
+  width: 1.2rem;
+  height: 1.2rem;
+  place-items: center;
+  border: 1px solid rgb(255 235 172 / 32%);
+  border-radius: 50%;
+  color: #fff4cb;
+  font: 800 0.58rem ui-monospace, monospace;
+}
+
+.peasant-resource--wood .peasant-resource__glyph {
+  background: #76502d;
+}
+
+.peasant-resource--stone .peasant-resource__glyph {
+  background: #6b7472;
+}
+
+.peasant-resource--iron .peasant-resource__glyph {
+  background: #4c6676;
+}
+
+.peasant-resource--meat .peasant-resource__glyph {
+  background: #944e46;
+}
+
+.peasant-resource--gold .peasant-resource__glyph {
+  background: #a97920;
 }
 
 /* biome-ignore lint/style/noDescendingSpecificity: game HUD is intentionally scoped below global legacy button rules. */
@@ -2333,10 +2433,7 @@ kbd {
     flex-wrap: wrap;
   }
   .quick-item-bar.panel {
-    right: 0.45rem;
-    bottom: 6.4rem;
-    transform: scale(0.88);
-    transform-origin: right bottom;
+    padding: 0.35rem;
   }
 }
 
@@ -2750,9 +2847,7 @@ kbd {
   }
 
   .skill-bar.panel {
-    right: calc(1.25rem + var(--safe-right));
-    bottom: calc(0.55rem + var(--safe-bottom));
-    left: auto;
+    position: relative;
     width: auto;
     padding: 0;
     grid-template-columns: repeat(3, 3.4rem);
@@ -2765,20 +2860,51 @@ kbd {
     translate: none;
   }
 
-  .skill-bar__materials {
-    right: 0;
-    bottom: calc(100% + 0.25rem);
+  .action-dock {
+    right: calc(0.45rem + var(--safe-right));
+    bottom: calc(0.45rem + var(--safe-bottom));
+    width: min(27rem, calc(100vw - 0.9rem - var(--safe-left) - var(--safe-right)));
+    gap: 0.3rem;
+  }
+
+  .action-dock__controls {
+    gap: 0.35rem;
+  }
+
+  .action-dock__title {
+    min-width: 5.5rem;
+    padding-inline: 0.45rem;
+    font-size: 0.5rem;
+  }
+
+  .peasant-resources.panel {
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    padding: 0.32rem 0.42rem;
+    border-width: 7px;
+    border-image-width: 7px;
+  }
+
+  .peasant-resources__heading {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .peasant-resources__list {
+    grid-template-columns: repeat(5, 1fr);
     gap: 0.18rem;
-    padding: 0.2rem 0.3rem;
   }
 
-  .skill-bar__material {
-    min-width: 1.35rem;
-    font-size: 0.48rem;
+  .peasant-resource {
+    grid-template-columns: 1fr auto;
+    padding: 0.18rem 0.25rem;
   }
 
-  .skill-bar__material strong {
-    font-size: 0.56rem;
+  .peasant-resource > span:not(.peasant-resource__glyph) {
+    display: none;
   }
 
   .skill-slot {

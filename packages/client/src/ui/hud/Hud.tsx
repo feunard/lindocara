@@ -13,8 +13,7 @@ import { CooldownBar } from "./CooldownBar.js";
 import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
 import { InventoryChip } from "./InventoryChip.js";
-import { QuickItemBar } from "./QuickItemBar.js";
-import { SkillBar } from "./SkillBar.js";
+import { ActionDock } from "./ActionDock.js";
 import { UnitPortrait } from "./UnitPortrait.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
@@ -285,8 +284,7 @@ export function Hud() {
           </div>
         </section>
       </aside>
-      <SkillBar />
-      <QuickItemBar />
+      <ActionDock />
     </>
   );
 }
