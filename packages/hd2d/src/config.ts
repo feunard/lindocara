@@ -18,7 +18,7 @@ export interface PostFxConfig {
     /** Dézoomer doit renforcer l'effet maquette, pas l'aplatir. */
     zoomBoost: number;
   };
-  grade: { vignette: number; saturation: number; contrast: number };
+  grade: { vignette: number; saturation: number; contrast: number; lift: number };
 }
 
 export interface CloudShadowConfig {
@@ -45,7 +45,7 @@ export const DEFAULT_CONFIG: Hd2dConfig = {
   postfx: {
     bloom: { strength: 0.42, radius: 0.75, threshold: 0.72 },
     tiltShift: { radius: 5.5, focusY: 0.56, focusRange: 0.13, falloff: 0.34, zoomBoost: 0.7 },
-    grade: { vignette: 0.85, saturation: 1.14, contrast: 1.06 },
+    grade: { vignette: 0.85, saturation: 1.14, contrast: 1.06, lift: 0.0 },
   },
   cloudShadow: { scale: 0.011, drift: [0.0022, 0.0009], softness: 0.42 },
   spriteStretch: 0.85,

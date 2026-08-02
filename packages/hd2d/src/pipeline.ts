@@ -24,6 +24,7 @@ interface GradeUniforms {
   uResolution: { value: THREE.Vector2 };
   uSaturation: { value: number };
   uContrast: { value: number };
+  uLift: { value: number };
   uVignette: { value: number };
 }
 
@@ -35,15 +36,31 @@ function gradeUniforms(pass: ShaderPass): GradeUniforms {
   return pass.uniforms as unknown as GradeUniforms;
 }
 
+/** Réglages de l'étalonnage final (`GradeShader`, `shaders.ts`), poussés par `setGrade`. */
+export interface GradeSettings {
+  saturation: number;
+  contrast: number;
+  lift: number;
+  vignette: number;
+}
+
 export interface Pipeline {
   renderer: THREE.WebGLRenderer;
   composer: EffectComposer;
   bloom: UnrealBloomPass;
-  grade: ShaderPass;
   render(): void;
   resize(): void;
   setTiltShiftZoom(k: number): void;
   setFocusY(y: number): void;
+  /**
+   * Pousse une ambiance dans la passe d'étalonnage. Sort `grade: ShaderPass` du package évitait
+   * d'exposer un accesseur typé pour SES uniformes — `noUncheckedIndexedAccess` marque
+   * `ShaderPass.uniforms` (un index signature côté three) comme possiblement `undefined`, donc
+   * chaque appelant devait reproduire son propre cast local. `apps/lab/src/main.ts` en portait un
+   * exemplaire ; S3 et S5 en auraient chacun ajouté un troisième. Ce setter est le seul point
+   * d'entrée typé désormais.
+   */
+  setGrade(settings: GradeSettings): void;
   dispose(): void;
 }
 
@@ -125,7 +142,8 @@ export function createPipeline(
 
   // OutputPass applique ACES et l'encodage sRGB : tant qu'on est avant lui, on
   // manipule des valeurs LINÉAIRES et non bornées.
-  composer.addPass(new OutputPass());
+  const outputPass = new OutputPass();
+  composer.addPass(outputPass);
 
   // ...donc l'étalonnage vient APRÈS. Il pivotait son contraste autour de 0.5,
   // ce qui en linéaire correspond à 0.73 à l'écran : le « contraste 1.06 »
@@ -137,6 +155,7 @@ export function createPipeline(
   gradeU.uVignette.value = POSTFX.grade.vignette;
   gradeU.uSaturation.value = POSTFX.grade.saturation;
   gradeU.uContrast.value = POSTFX.grade.contrast;
+  gradeU.uLift.value = POSTFX.grade.lift;
   composer.addPass(grade);
 
   // Amorti vers la cible : évite le saut visible d'un focus qui changerait d'un coup
@@ -184,22 +203,42 @@ export function createPipeline(
     for (const p of [blurH, blurV]) tiltShiftUniforms(p).uFocusY.value = focusYCourant;
   }
 
+  function setGrade(settings: GradeSettings) {
+    gradeU.uSaturation.value = settings.saturation;
+    gradeU.uContrast.value = settings.contrast;
+    gradeU.uLift.value = settings.lift;
+    gradeU.uVignette.value = settings.vignette;
+  }
+
   // `EffectComposer.dispose()` ne libère QUE `renderTarget1`/`renderTarget2`/`copyPass` — il ne
   // cascade pas vers les passes ajoutées par `addPass`. Or `bloom` possède sa propre chaîne de
   // mips (N niveaux × 2 cibles), et chaque `ShaderPass`/`TexturePass` possède son matériau et son
   // `FullScreenQuad`. Sans ce disposal explicite, chaque démontage/reconstruction du pipeline
   // (l'éditeur qui change de carte) fuit toute la chaîne de mips du bloom et les matériaux de
   // shaders — silencieusement, rien ne le signale à l'écran avant que la mémoire GPU s'épuise.
+  // `outputPass` suivait ce même sort avant la revue finale : ajouté en ligne, sans variable
+  // locale, il restait le seul des six à ne jamais être disposé.
   function dispose() {
     source.dispose();
     bloom.dispose();
     blurH.dispose();
     blurV.dispose();
+    outputPass.dispose();
     grade.dispose();
     composer.dispose();
     sceneTarget.dispose();
     renderer.dispose();
   }
 
-  return { renderer, composer, bloom, grade, render, resize, setTiltShiftZoom, setFocusY, dispose };
+  return {
+    renderer,
+    composer,
+    bloom,
+    render,
+    resize,
+    setTiltShiftZoom,
+    setFocusY,
+    setGrade,
+    dispose,
+  };
 }
