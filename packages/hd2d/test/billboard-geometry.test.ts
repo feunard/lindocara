@@ -1,5 +1,8 @@
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { billboardHeight, facingToFlip } from "../src/billboard.js";
+import type { Billboard } from "../src/billboard.js";
+import { billboardHeight, createAnimator, facingToFlip, makeBillboard } from "../src/billboard.js";
+import { createHd2dContext } from "../src/context.js";
 
 const PITCH = (38 * Math.PI) / 180;
 
@@ -37,5 +40,68 @@ describe("facingToFlip", () => {
     // retourner n'a donc rien à jouer, et remettre le sprite d'aplomb serait un saut visible.
     expect(facingToFlip("north", true)).toBe(true);
     expect(facingToFlip("south", false)).toBe(false);
+  });
+});
+
+// Revue finale (point G1) : `makeLitMaterial` écrasait la clé que `graftCloudShadow` venait de
+// poser avec une constante — deux sprites éclairés construits avec des greffes DIFFÉRENTES
+// (`BillboardOptions.graftCloudShadow`, un point d'injection documenté) partageaient donc la même
+// clé, et three réutilisait le programme du premier pour le second : sa greffe s'évaporait.
+describe("makeBillboard — customProgramCacheKey", () => {
+  it("compose la clé de la greffe de nuages au lieu de l'écraser", () => {
+    const ctx = createHd2dContext();
+    const texture = new THREE.Texture();
+
+    const a = makeBillboard(ctx, {
+      texture,
+      height: 1,
+      graftCloudShadow: (material) => {
+        material.customProgramCacheKey = () => "greffe-a";
+      },
+    });
+    const b = makeBillboard(ctx, {
+      texture,
+      height: 1,
+      graftCloudShadow: (material) => {
+        material.customProgramCacheKey = () => "greffe-b";
+      },
+    });
+
+    const matA = a.mesh.material as THREE.Material;
+    const matB = b.mesh.material as THREE.Material;
+    expect(matA.customProgramCacheKey()).toContain("greffe-a");
+    expect(matB.customProgramCacheKey()).toContain("greffe-b");
+    expect(matA.customProgramCacheKey()).not.toBe(matB.customProgramCacheKey());
+
+    a.dispose();
+    b.dispose();
+  });
+});
+
+// Revue finale (point G2) : `play()` ne comparait que `row`/`frames`, jamais `fps` — deux clips de
+// même ligne et même longueur mais de vitesses différentes ne changeaient donc jamais de cadence,
+// le second `play()` étant pris pour une redemande du même clip.
+describe("createAnimator — fps change", () => {
+  it("prend en compte un fps différent même à row/frames identiques", () => {
+    const frames: number[] = [];
+    const fakeSprite: Billboard = {
+      mesh: {} as THREE.Mesh,
+      setFrame: (i) => frames.push(i),
+      setFlip: () => {},
+      setFacing: () => {},
+      placeAt: () => {},
+      footOffset: 0,
+      dispose: () => {},
+    };
+
+    const animator = createAnimator(fakeSprite, { row: 0, frames: 4, fps: 4 }, 4);
+    animator.setPhase(0); // élimine la phase de départ aléatoire pour un test déterministe
+    animator.play({ row: 0, frames: 4, fps: 12 }); // même row/frames, fps différent
+    frames.length = 0;
+    animator.update(0.25);
+
+    // À l'ancien fps (4, bogué : `play()` ignoré) : t = 0.25*4 = 1 -> frame 1.
+    // Au nouveau fps (12, corrigé) : t = 0.25*12 = 3 -> frame 3.
+    expect(frames).toEqual([3]);
   });
 });

@@ -165,7 +165,17 @@ function makeLitMaterial(
        totalEmissiveRadiance *= diffuseColor.rgb;`,
     );
   };
-  material.customProgramCacheKey = () => "sprite-eclaire";
+  // Revue finale (point G1) : ÉCRASER `customProgramCacheKey` ici effaçait la clé que
+  // `graftCloudShadow(material, { atOrigin: true })` venait de poser juste au-dessus
+  // (`applyCloudShadow`, `clouds.ts`) — puisque `graftCloudShadow` est un point d'injection
+  // DOCUMENTÉ (`BillboardOptions.graftCloudShadow`), deux sprites éclairés construits avec des
+  // greffes différentes se retrouvaient avec la MÊME clé constante : three réutilisait le
+  // programme du premier pour le second, et sa greffe s'évaporait — la panne exacte que
+  // `clouds.ts` (`applyCloudShadow`) documente déjà pour le cas général. On COMPOSE les deux clés
+  // au lieu d'écraser : `cloudKey` capture ce que la greffe a posé (le neutre par défaut de three
+  // si `graftCloudShadow` n'en a posé aucune, par ex. un no-op de test).
+  const cloudKey = material.customProgramCacheKey.bind(material);
+  material.customProgramCacheKey = () => `sprite-eclaire:${cloudKey()}`;
   return material;
 }
 
@@ -523,7 +533,13 @@ export function createAnimator(sprite: Billboard, clip: Clip, cols: number): Ani
 
   return {
     play(next) {
-      if (next.row === current.row && next.frames === current.frames) return;
+      // Revue finale (point G2) : `fps` manquait à cette comparaison — deux clips de même ligne et
+      // même longueur mais de vitesses différentes ne changeaient jamais de cadence, le second
+      // `play()` étant pris pour une redemande du même clip. Inatteignable avec le contenu actuel
+      // (aucun couple de clips du labo ne partage `row`/`frames` avec un `fps` différent), mais
+      // systématique dès que S3/S5 ajoutent des variantes de vitesse sur un même feuillet.
+      if (next.row === current.row && next.frames === current.frames && next.fps === current.fps)
+        return;
       current = next;
       t = 0;
     },
