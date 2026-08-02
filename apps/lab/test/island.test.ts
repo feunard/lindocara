@@ -186,9 +186,27 @@ describe("l'île du nord", () => {
     expect(field.levelAt(toCell(NORD.x), toCell(NORD.z))).not.toBeNull();
     // ...et de la neige ou de la glace, jamais de l'herbe.
     expect(["neige", "glace", "glace-fine"]).toContain(query.kindAt(NORD.x, NORD.z));
-    // Le couloir entre les deux îles est de l'eau sur toute sa longueur : on n'y va qu'à la nage.
-    for (let z = NORD.z + NORD.r + 1; z < -17; z++) {
-      expect(field.levelAt(toCell(0), toCell(z))).toBeNull();
+
+    // Le couloir entre les deux îles est de l'eau sur TOUTE sa longueur ET sa largeur : on n'y va
+    // qu'à la nage. Les bornes ne sont PAS codées en dur (une valeur du genre `z < -17` redevient
+    // fausse au premier ajustement de `ILES`/`NORD`) : pour chaque colonne `x`, on repère le bord
+    // nord RÉEL de la grande île en descendant depuis un point de sa terre déjà connu (son centre,
+    // `(0, 0)`, forcément de la terre), et le bord sud RÉEL de l'île du nord en remontant depuis un
+    // point de SA terre déjà connu (son centre, `NORD`, la première assertion ci-dessus le
+    // garantit) — puis on vérifie qu'aucune terre ne réapparaît entre les deux. Balayer plusieurs
+    // `x` (et non le seul axe `x = 0`) trahirait un pont en biais qu'un test à colonne unique
+    // manquerait.
+    for (let x = -7; x <= 7; x++) {
+      let zBordNord = 0; // terre certaine : le centre de la grande île
+      while (query.levelAt(x, zBordNord) !== null) zBordNord--;
+      let zBordSud = NORD.z; // terre certaine : le centre de l'île du nord
+      while (query.levelAt(x, zBordSud) !== null) zBordSud++;
+      // `zBordSud` (au nord, donc numériquement le plus petit) jusqu'à `zBordNord` (au sud) : les
+      // deux bornes sont déjà de l'eau (on vient de s'y arrêter), et tout ce qui les sépare doit
+      // l'être aussi.
+      for (let z = zBordSud; z <= zBordNord; z++) {
+        expect(query.levelAt(x, z)).toBeNull();
+      }
     }
   });
 
