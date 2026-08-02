@@ -345,6 +345,40 @@ function segmentAabbEntry(
 }
 
 /**
+ * Direct swept-segment test for a small provenance-aware rectangle set. Callers that must exclude
+ * one authored collider by identity can test the remaining rectangles without rebuilding a full
+ * map-sized ColliderIndex for every candidate.
+ */
+export function segmentIntersectsRect(
+  start: Vec2,
+  end: Vec2,
+  rect: { x: number; y: number; width: number; height: number },
+  radius = 0,
+): boolean {
+  if (
+    !finiteVec(start) ||
+    !finiteVec(end) ||
+    !finiteNonNegative(radius) ||
+    !Number.isFinite(rect.x) ||
+    !Number.isFinite(rect.y) ||
+    !finiteNonNegative(rect.width) ||
+    !finiteNonNegative(rect.height)
+  ) {
+    return false;
+  }
+  return (
+    segmentAabbEntry(
+      start,
+      end,
+      rect.x - radius,
+      rect.y - radius,
+      rect.x + rect.width + radius,
+      rect.y + rect.height + radius,
+    ) !== null
+  );
+}
+
+/**
  * Sweeps a projectile circle against the collision tiles and the sub-cell colliders, returning
  * whichever it meets first. Both use the same `segmentAabbEntry`: two intersection routines that
  * "should" agree is how an arrow passes through a trunk on one side and not the other.

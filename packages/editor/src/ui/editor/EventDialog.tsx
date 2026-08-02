@@ -826,6 +826,9 @@ function HarvestEventFields({
     patch({
       exhaustionBehavior,
       ...(exhaustionBehavior === "hide" ? { exhaustedAssetId: null } : {}),
+      ...(exhaustionBehavior !== "replace" && profile.collision
+        ? { collision: { ...profile.collision, depleted: null } }
+        : {}),
     });
   };
   const changeRespawn = (respawn: HarvestRespawnMode): void => {

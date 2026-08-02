@@ -80,6 +80,17 @@ describe("event graphic placement", () => {
     expect(sprite.position.y).toBe(4 * TILE_SIZE + TILE_SIZE);
   });
 
+  it("draws a server-declared harvest resource at native scale without inspecting its asset", () => {
+    const sprite = createEventGraphicSprite(3, 4, unitFrame(), BARREL, "native");
+    expect(sprite.width).toBe(192);
+    expect(sprite.height).toBe(192);
+    expect(sprite.position.y).toBe((4 + 1) * TILE_SIZE + BARREL.footOffset);
+
+    positionEventGraphicSprite(sprite, 3.5, 4.25, BARREL, "native");
+    expect(sprite.position.x).toBe(3.5 * TILE_SIZE + TILE_SIZE / 2);
+    expect(sprite.position.y).toBe((4.25 + 1) * TILE_SIZE + BARREL.footOffset);
+  });
+
   it("falls back to the marker rule when no catalogue definition is supplied", () => {
     // The editor's hero-spawn marker draws a bare texture with no catalogue entry behind it.
     const frame = new Texture({

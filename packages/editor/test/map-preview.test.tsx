@@ -64,7 +64,11 @@ vi.mock("@lindocara/renderer/input.js", () => ({
 }));
 
 import { startMapPreview } from "@lindocara/editor/game/map-preview.js";
-import { TICK_DT } from "@lindocara/engine/simulation.js";
+import { harvestColliderAt } from "@lindocara/engine/harvest.js";
+import { harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
+import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
+import { defaultEventPage, type MapEvent } from "@lindocara/engine/map-events.js";
+import { PLAYER_SIZE, TICK_DT } from "@lindocara/engine/simulation.js";
 import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
 
 // A large open room: the fixture only needs to exist, no wall is anywhere near the spawn.
@@ -73,6 +77,19 @@ const OPEN_ROOM = mapDataFromBlocks({
   elements: [],
   spawn: { col: 5, row: 5 },
 });
+
+const TREE_EVENT: MapEvent = {
+  id: "preview-harvest-tree",
+  col: 7,
+  row: 5,
+  name: "Tree",
+  ordinal: 1,
+  kind: "harvestable",
+  species: null,
+  patrolRadius: null,
+  harvestProfile: harvestProfileFromPreset("tree"),
+  pages: [defaultEventPage()],
+};
 
 describe("map preview", () => {
   beforeEach(() => {
@@ -134,5 +151,49 @@ describe("map preview", () => {
     expect(state.maxFPS).toBe(60);
     preview.stop();
     expect(state.maxFPS).toBe(0);
+  });
+
+  it("blocks movement on an intact harvest event's explicit collider", async () => {
+    const expected = harvestColliderAt(
+      TREE_EVENT.harvestProfile as NonNullable<MapEvent["harvestProfile"]>,
+      TREE_EVENT.col,
+      TREE_EVENT.row,
+      "intact",
+    );
+    if (!expected) throw new Error("tree preset is missing its intact collider");
+
+    const preview = await startMapPreview(OPEN_ROOM, [TREE_EVENT]);
+    if (!state.frame) throw new Error("Renderer.onFrame never captured a callback");
+
+    state.input = { up: false, down: false, left: false, right: true };
+    for (let tick = 0; tick < 30; tick++) state.frame(performance.now(), TICK_DT);
+
+    const blocked = state.renders.at(-1)?.players[0];
+    expect(blocked?.x).toBeGreaterThan(mapSpawnPoint(OPEN_ROOM).x);
+    expect((blocked?.x ?? Number.POSITIVE_INFINITY) + PLAYER_SIZE).toBeLessThanOrEqual(expected.x);
+    preview.stop();
+  });
+
+  it("lets a hero leave an overlapping spawn resource, then activates its collider", async () => {
+    const spawnResource = { ...TREE_EVENT, col: OPEN_ROOM.spawn.col, row: OPEN_ROOM.spawn.row };
+    const collider = harvestColliderAt(
+      spawnResource.harvestProfile as NonNullable<MapEvent["harvestProfile"]>,
+      spawnResource.col,
+      spawnResource.row,
+      "intact",
+    );
+    if (!collider) throw new Error("spawn resource collider is missing");
+
+    const preview = await startMapPreview(OPEN_ROOM, [spawnResource]);
+    if (!state.frame) throw new Error("Renderer.onFrame never captured a callback");
+
+    state.input = { up: false, down: false, left: false, right: true };
+    for (let tick = 0; tick < 20; tick++) state.frame(performance.now(), TICK_DT);
+    expect(state.renders.at(-1)?.players[0]?.x).toBeGreaterThan(collider.x + collider.width);
+
+    state.input = { up: false, down: false, left: true, right: false };
+    for (let tick = 0; tick < 40; tick++) state.frame(performance.now(), TICK_DT);
+    expect(state.renders.at(-1)?.players[0]?.x).toBeGreaterThanOrEqual(collider.x + collider.width);
+    preview.stop();
   });
 });

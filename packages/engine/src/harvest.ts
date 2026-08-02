@@ -1,4 +1,5 @@
-import type { MonsterRespawnMode, MonsterSpecies } from "./game.js";
+import type { MonsterRespawnMode, MonsterSpecies, Rect } from "./game.js";
+import { TILE_SIZE } from "./tilemap.js";
 import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
 
 export const HARVEST_RESOURCE_KINDS = ["wood", "stone", "iron", "gold", "meat"] as const;
@@ -27,6 +28,8 @@ export const HARVEST_PROFILE_LIMITS = {
   harvestDurationMs: { min: 0, max: 60_000 },
   respawnDelayMs: { min: 0, max: 7 * 24 * 60 * 60 * 1_000 },
   fadeDurationMs: { min: 0, max: 10_000 },
+  collisionOffset: { min: -512, max: 512 },
+  collisionSize: { min: 1, max: 512 },
 } as const;
 
 /** A timed resource may not respawn on the same simulation beat that exhausts it. */
@@ -42,6 +45,55 @@ export const HARVEST_TOOL_BY_RESOURCE: Readonly<Record<HarvestResourceKind, Harv
   iron: "pickaxe",
   gold: "pickaxe",
   meat: "knife",
+};
+
+/**
+ * One collision box authored in event-foot space. `offsetX`/`offsetY` locate the rectangle's
+ * top-left corner relative to the event's bottom-centre ground point. This is gameplay data: it
+ * never comes from an asset crop, filename or catalogue path.
+ */
+export interface HarvestCollisionBox {
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
+}
+
+export interface HarvestCollisionProfile {
+  /** Solid footprint while the resource can be harvested. */
+  intact: HarvestCollisionBox;
+  /** Optional footprint of an explicit replacement (for example a stump). */
+  depleted: HarvestCollisionBox | null;
+}
+
+/**
+ * Compatibility defaults for maps authored before harvest collision became configurable. They
+ * are keyed only by the explicit resource kind. New profiles should persist their own collision
+ * geometry so tree/rock sizes can vary independently from their artwork.
+ */
+export const DEFAULT_HARVEST_COLLISIONS: Readonly<
+  Record<HarvestResourceKind, HarvestCollisionProfile>
+> = {
+  wood: {
+    intact: { offsetX: -22, offsetY: -30, width: 44, height: 30 },
+    depleted: { offsetX: -18, offsetY: -14, width: 36, height: 14 },
+  },
+  stone: {
+    intact: { offsetX: -24, offsetY: -22, width: 48, height: 22 },
+    depleted: { offsetX: -20, offsetY: -12, width: 40, height: 12 },
+  },
+  iron: {
+    intact: { offsetX: -24, offsetY: -22, width: 48, height: 22 },
+    depleted: { offsetX: -20, offsetY: -12, width: 40, height: 12 },
+  },
+  gold: {
+    intact: { offsetX: -24, offsetY: -22, width: 48, height: 22 },
+    depleted: { offsetX: -20, offsetY: -12, width: 40, height: 12 },
+  },
+  meat: {
+    intact: { offsetX: -20, offsetY: -16, width: 40, height: 16 },
+    depleted: null,
+  },
 };
 
 export interface HarvestProfile {
@@ -61,6 +113,11 @@ export interface HarvestProfile {
   respawn: HarvestRespawnMode;
   respawnDelayMs: number;
   fadeDurationMs: number;
+  /**
+   * Explicit gameplay footprint. Optional only at the type boundary so legacy in-memory fixtures
+   * and persisted maps remain readable; `parseHarvestProfile` always fills it before runtime use.
+   */
+  collision?: HarvestCollisionProfile;
 }
 
 /**
@@ -77,12 +134,13 @@ const WAR_PIG_CARCASS_PROFILE: HarvestProfile = {
   goldValue: 0,
   hitsRequired: 2,
   range: 50,
-  harvestDurationMs: 700,
+  harvestDurationMs: 0,
   exhaustedAssetId: null,
   exhaustionBehavior: "hide",
   respawn: "timed",
   respawnDelayMs: MIN_TIMED_HARVEST_RESPAWN_MS,
   fadeDurationMs: 300,
+  collision: DEFAULT_HARVEST_COLLISIONS.meat,
 };
 
 const ANIMAL_CARCASS_PROFILES: Readonly<Partial<Record<MonsterSpecies, HarvestProfile>>> = {
@@ -92,7 +150,7 @@ const ANIMAL_CARCASS_PROFILES: Readonly<Partial<Record<MonsterSpecies, HarvestPr
 export function animalCarcassHarvestProfile(
   species: MonsterSpecies,
   respawnMode: MonsterRespawnMode,
-  respawnDelayMs: number,
+  remainingRespawnMs: number,
 ): HarvestProfile | null {
   const profile = ANIMAL_CARCASS_PROFILES[species];
   if (!profile) return null;
@@ -104,7 +162,7 @@ export function animalCarcassHarvestProfile(
         ? 0
         : Math.min(
             HARVEST_PROFILE_LIMITS.respawnDelayMs.max,
-            Math.max(MIN_TIMED_HARVEST_RESPAWN_MS, Math.floor(respawnDelayMs)),
+            Math.max(MIN_TIMED_HARVEST_RESPAWN_MS, Math.floor(remainingRespawnMs)),
           ),
   };
 }
@@ -151,6 +209,238 @@ function boundedInteger(
   return amount >= limits.min && amount <= limits.max ? amount : null;
 }
 
+type LegacyHarvestTimingSignature = Pick<
+  HarvestProfile,
+  "resource" | "tool" | "harvestDurationMs" | "exhaustionBehavior" | "respawn"
+>;
+
+/**
+ * Exact gameplay signatures shipped by the original eight editor presets. Those presets added a
+ * hidden post-animation channel; their replacement hits on the authoritative active frame. A
+ * profile without collision is the old schema. Resource quantities, hit counts and respawn delays
+ * were per-instance overrides, so they do not prevent the inherited timing from migrating. A
+ * genuinely custom non-historical duration remains intact. Visual asset ids are deliberately absent.
+ */
+const LEGACY_DEFERRED_HARVEST_PRESETS: readonly LegacyHarvestTimingSignature[] = [
+  {
+    resource: "wood",
+    tool: "axe",
+    harvestDurationMs: 900,
+    exhaustionBehavior: "replace",
+    respawn: "permanent",
+  },
+  {
+    resource: "stone",
+    tool: "pickaxe",
+    harvestDurationMs: 1_100,
+    exhaustionBehavior: "fade",
+    respawn: "permanent",
+  },
+  {
+    resource: "iron",
+    tool: "pickaxe",
+    harvestDurationMs: 1_200,
+    exhaustionBehavior: "fade",
+    respawn: "permanent",
+  },
+  {
+    resource: "gold",
+    tool: "pickaxe",
+    harvestDurationMs: 1_000,
+    exhaustionBehavior: "fade",
+    respawn: "permanent",
+  },
+  {
+    resource: "gold",
+    tool: "pickaxe",
+    harvestDurationMs: 1_200,
+    exhaustionBehavior: "fade",
+    respawn: "permanent",
+  },
+  {
+    resource: "meat",
+    tool: "knife",
+    harvestDurationMs: 700,
+    exhaustionBehavior: "hide",
+    respawn: "permanent",
+  },
+  {
+    resource: "meat",
+    tool: "knife",
+    harvestDurationMs: 900,
+    exhaustionBehavior: "replace",
+    respawn: "timed",
+  },
+  {
+    resource: "meat",
+    tool: "knife",
+    harvestDurationMs: 1_000,
+    exhaustionBehavior: "replace",
+    respawn: "timed",
+  },
+];
+
+function migrateLegacyHarvestDuration(
+  profile: LegacyHarvestTimingSignature,
+  collision: unknown,
+): number {
+  if (collision !== undefined) return profile.harvestDurationMs;
+  const historical = LEGACY_DEFERRED_HARVEST_PRESETS.some((signature) =>
+    (Object.keys(signature) as (keyof LegacyHarvestTimingSignature)[]).every(
+      (key) => signature[key] === profile[key],
+    ),
+  );
+  return historical ? 0 : profile.harvestDurationMs;
+}
+
+function parseHarvestCollisionBox(value: unknown): HarvestCollisionBox | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const offsetX = boundedInteger(record.offsetX, HARVEST_PROFILE_LIMITS.collisionOffset);
+  const offsetY = boundedInteger(record.offsetY, HARVEST_PROFILE_LIMITS.collisionOffset);
+  const width = boundedInteger(record.width, HARVEST_PROFILE_LIMITS.collisionSize);
+  const height = boundedInteger(record.height, HARVEST_PROFILE_LIMITS.collisionSize);
+  if (offsetX === null || offsetY === null || width === null || height === null) return null;
+  return { offsetX, offsetY, width, height };
+}
+
+function parseHarvestCollisionProfile(
+  value: unknown,
+  resource: HarvestResourceKind,
+  exhaustionBehavior: HarvestExhaustionBehavior,
+): HarvestCollisionProfile | null {
+  // Compatibility read: old persisted maps did not carry collision. Resolve them from explicit
+  // gameplay semantics once, then return the same normalized shape as newly-authored profiles.
+  if (value === undefined) {
+    const defaults = DEFAULT_HARVEST_COLLISIONS[resource];
+    return {
+      intact: { ...defaults.intact },
+      depleted:
+        exhaustionBehavior === "replace" && defaults.depleted ? { ...defaults.depleted } : null,
+    };
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const intact = parseHarvestCollisionBox(record.intact);
+  if (!intact) return null;
+  const depleted = record.depleted === null ? null : parseHarvestCollisionBox(record.depleted);
+  if (depleted === null && record.depleted !== null) return null;
+  // Fade/hide remove collision at depletion. Keeping a hidden collider would be an invisible wall.
+  if (exhaustionBehavior !== "replace" && depleted !== null) return null;
+  // A replacement may retain or shrink the already-solid footprint, but must never materialize
+  // new solid ground around the actor that delivered the exhausting hit.
+  if (
+    depleted &&
+    (depleted.offsetX < intact.offsetX ||
+      depleted.offsetY < intact.offsetY ||
+      depleted.offsetX + depleted.width > intact.offsetX + intact.width ||
+      depleted.offsetY + depleted.height > intact.offsetY + intact.height)
+  ) {
+    return null;
+  }
+  return { intact, depleted };
+}
+
+/** Resolve legacy in-memory profiles without ever consulting their visual asset. */
+export function harvestCollisionProfile(profile: HarvestProfile): HarvestCollisionProfile {
+  const collision = profile.collision;
+  if (collision) return collision;
+  const defaults = DEFAULT_HARVEST_COLLISIONS[profile.resource];
+  return {
+    intact: { ...defaults.intact },
+    depleted:
+      profile.exhaustionBehavior === "replace" && defaults.depleted
+        ? { ...defaults.depleted }
+        : null,
+  };
+}
+
+/** Detached profile for editor drafts and placed instances, including nested collision boxes. */
+export function cloneHarvestProfile(profile: HarvestProfile): HarvestProfile {
+  const collision = harvestCollisionProfile(profile);
+  return {
+    ...profile,
+    collision: {
+      intact: { ...collision.intact },
+      depleted: collision.depleted ? { ...collision.depleted } : null,
+    },
+  };
+}
+
+/** Authoritative world-space rectangle for one node lifecycle state. */
+export function harvestColliderAt(
+  profile: HarvestProfile,
+  col: number,
+  row: number,
+  state: "intact" | "depleted",
+): Rect | null {
+  const collision = harvestCollisionProfile(profile);
+  const box =
+    state === "intact"
+      ? collision.intact
+      : profile.exhaustionBehavior === "replace"
+        ? collision.depleted
+        : null;
+  if (!box) return null;
+  const footX = col * TILE_SIZE + TILE_SIZE / 2;
+  const footY = (row + 1) * TILE_SIZE;
+  return {
+    x: footX + box.offsetX,
+    y: footY + box.offsetY,
+    width: box.width,
+    height: box.height,
+  };
+}
+
+/**
+ * Whether every footprint this authored node can expose stays inside its map. Both the intact
+ * resource and an explicit depleted replacement are checked: accepting a tree whose stump would
+ * become an out-of-bounds invisible wall is no safer than accepting an out-of-bounds tree.
+ */
+export function harvestFootprintFitsMap(
+  profile: HarvestProfile,
+  col: number,
+  row: number,
+  cols: number,
+  rows: number,
+): boolean {
+  if (
+    !Number.isSafeInteger(col) ||
+    !Number.isSafeInteger(row) ||
+    !Number.isSafeInteger(cols) ||
+    !Number.isSafeInteger(rows) ||
+    col < 0 ||
+    row < 0 ||
+    cols <= 0 ||
+    rows <= 0 ||
+    col >= cols ||
+    row >= rows
+  ) {
+    return false;
+  }
+  const mapWidth = cols * TILE_SIZE;
+  const mapHeight = rows * TILE_SIZE;
+  if (!Number.isSafeInteger(mapWidth) || !Number.isSafeInteger(mapHeight)) return false;
+
+  const fits = (rect: Rect | null): boolean =>
+    rect === null ||
+    (Number.isSafeInteger(rect.x) &&
+      Number.isSafeInteger(rect.y) &&
+      Number.isSafeInteger(rect.width) &&
+      Number.isSafeInteger(rect.height) &&
+      rect.x >= 0 &&
+      rect.y >= 0 &&
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.x <= mapWidth - rect.width &&
+      rect.y <= mapHeight - rect.height);
+
+  return (
+    fits(harvestColliderAt(profile, col, row, "intact")) &&
+    fits(harvestColliderAt(profile, col, row, "depleted"))
+  );
+}
+
 /** Total parser for untrusted authored or persisted harvest configuration. */
 export function parseHarvestProfile(value: unknown): HarvestProfile | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
@@ -168,6 +458,7 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     respawn,
     respawnDelayMs,
     fadeDurationMs,
+    collision,
   } = record;
 
   if (!isHarvestResourceKind(resource) || !isHarvestTool(tool)) return null;
@@ -215,6 +506,19 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     return null;
   }
 
+  const parsedCollision = parseHarvestCollisionProfile(collision, resource, exhaustionBehavior);
+  if (!parsedCollision) return null;
+  const normalizedDuration = migrateLegacyHarvestDuration(
+    {
+      resource,
+      tool,
+      harvestDurationMs: parsedDuration,
+      exhaustionBehavior,
+      respawn,
+    },
+    collision,
+  );
+
   return {
     resource,
     tool,
@@ -222,11 +526,12 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     goldValue: parsedGold,
     hitsRequired: parsedHits,
     range: parsedRange,
-    harvestDurationMs: parsedDuration,
+    harvestDurationMs: normalizedDuration,
     exhaustedAssetId: exhaustedAssetId as EditorAssetId | null,
     exhaustionBehavior,
     respawn,
     respawnDelayMs: parsedRespawnDelay,
     fadeDurationMs: parsedFadeDuration,
+    collision: parsedCollision,
   };
 }

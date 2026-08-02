@@ -10,7 +10,7 @@ import {
   MONSTER_RESPAWN_MS,
   MONSTER_TUNING_LIMITS,
 } from "@lindocara/engine/game.js";
-import type { HarvestProfile } from "@lindocara/engine/harvest.js";
+import { DEFAULT_HARVEST_COLLISIONS, type HarvestProfile } from "@lindocara/engine/harvest.js";
 import {
   EVENT_GRAPHIC_TINT_DEFAULT,
   EVENT_NAME_MAX,
@@ -55,6 +55,7 @@ const HARVEST_PROFILE: HarvestProfile = {
   respawn: "permanent",
   respawnDelayMs: 0,
   fadeDurationMs: 350,
+  collision: DEFAULT_HARVEST_COLLISIONS.wood,
 };
 
 function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
@@ -705,6 +706,120 @@ describe("harvestable map events", () => {
     expect(second?.harvestProfile).toMatchObject({ resource: "wood", tool: "axe" });
   });
 
+  it.each([
+    {
+      label: "small",
+      goldValue: 25,
+      hitsRequired: 2,
+      oldDuration: 1_000,
+      fadeDurationMs: 500,
+      wrongAsset: "resource.terrain-resources-gold-gold-stones.gold-stone-6" as const,
+      correctedAsset: "resource.terrain-resources-gold-gold-resource.gold-resource" as const,
+    },
+    {
+      label: "large",
+      goldValue: 100,
+      hitsRequired: 5,
+      oldDuration: 1_200,
+      fadeDurationMs: 650,
+      wrongAsset: "resource.terrain-resources-gold-gold-resource.gold-resource" as const,
+      correctedAsset: "resource.terrain-resources-gold-gold-stones.gold-stone-6" as const,
+    },
+    {
+      label: "small with a custom value",
+      goldValue: 777,
+      hitsRequired: 7,
+      oldDuration: 1_000,
+      fadeDurationMs: 500,
+      wrongAsset: "resource.terrain-resources-gold-gold-stones.gold-stone-6" as const,
+      correctedAsset: "resource.terrain-resources-gold-gold-resource.gold-resource" as const,
+    },
+  ])("normalizes the legacy $label gold preset timing and swapped appearance on read", ({
+    goldValue,
+    hitsRequired,
+    oldDuration,
+    fadeDurationMs,
+    wrongAsset,
+    correctedAsset,
+  }) => {
+    const legacyGold: HarvestProfile = {
+      resource: "gold",
+      tool: "pickaxe",
+      yieldAmount: 0,
+      goldValue,
+      hitsRequired,
+      range: 88,
+      harvestDurationMs: oldDuration,
+      exhaustedAssetId: null,
+      exhaustionBehavior: "fade",
+      respawn: "permanent",
+      respawnDelayMs: 0,
+      fadeDurationMs,
+    };
+    const resource = event({
+      kind: "harvestable",
+      name: "Legacy gold",
+      harvestProfile: legacyGold,
+      pages: [page({ graphicAssetId: wrongAsset })],
+    });
+    const parsed = parseMapEvents([resource], COLS, ROWS)?.[0];
+
+    expect(parsed?.harvestProfile).toMatchObject({
+      goldValue,
+      hitsRequired,
+      harvestDurationMs: 0,
+      collision: {
+        intact: DEFAULT_HARVEST_COLLISIONS.gold.intact,
+        depleted: null,
+      },
+    });
+    expect(parsed?.pages[0]?.graphicAssetId).toBe(correctedAsset);
+
+    const alreadyCorrect = parseMapEvents(
+      [
+        {
+          ...resource,
+          pages: [page({ graphicAssetId: correctedAsset })],
+        },
+      ],
+      COLS,
+      ROWS,
+    )?.[0];
+    expect(alreadyCorrect?.pages[0]?.graphicAssetId).toBe(correctedAsset);
+  });
+
+  it("preserves a custom legacy gold appearance outside the exact swapped pair", () => {
+    const legacyGold: HarvestProfile = {
+      resource: "gold",
+      tool: "pickaxe",
+      yieldAmount: 0,
+      goldValue: 25,
+      hitsRequired: 2,
+      range: 88,
+      harvestDurationMs: 1_000,
+      exhaustedAssetId: null,
+      exhaustionBehavior: "fade",
+      respawn: "permanent",
+      respawnDelayMs: 0,
+      fadeDurationMs: 500,
+    };
+    const customAsset = "resource.terrain-resources-wood-trees.tree4";
+    const parsed = parseMapEvents(
+      [
+        event({
+          kind: "harvestable",
+          name: "Custom gold",
+          harvestProfile: legacyGold,
+          pages: [page({ graphicAssetId: customAsset })],
+        }),
+      ],
+      COLS,
+      ROWS,
+    )?.[0];
+
+    expect(parsed?.pages[0]?.graphicAssetId).toBe(customAsset);
+  });
+
   it("requires a valid profile only on harvestable events", () => {
     expect(parseMapEvents([event({ kind: "harvestable" })], COLS, ROWS)).toBeNull();
     const wrongTool = {
@@ -713,6 +828,22 @@ describe("harvestable map events", () => {
     };
     expect(parseMapEvents([wrongTool], COLS, ROWS)).toBeNull();
     expect(parseMapEvents([event({ harvestProfile: HARVEST_PROFILE })], COLS, ROWS)).toBeNull();
+  });
+
+  it("rejects a valid profile whose explicit footprint crosses the map boundary", () => {
+    const crossing = {
+      ...harvestable(),
+      col: 0,
+      harvestProfile: {
+        ...HARVEST_PROFILE,
+        collision: {
+          ...DEFAULT_HARVEST_COLLISIONS.wood,
+          intact: { offsetX: -40, offsetY: -30, width: 64, height: 30 },
+        },
+      },
+    };
+    expect(parseMapEvents([crossing], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([{ ...crossing, col: 1 }], COLS, ROWS)).not.toBeNull();
   });
 
   it("rejects movement options that the stationary resource runtime would ignore", () => {

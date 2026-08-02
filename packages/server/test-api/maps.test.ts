@@ -13,7 +13,7 @@
  * real behavior would be a regression, not a port.
  */
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
-import type { HarvestProfile } from "@lindocara/engine/harvest.js";
+import { DEFAULT_HARVEST_COLLISIONS, type HarvestProfile } from "@lindocara/engine/harvest.js";
 import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
@@ -58,6 +58,7 @@ const HARVEST_PROFILE: HarvestProfile = {
   respawn: "permanent",
   respawnDelayMs: 0,
   fadeDurationMs: 350,
+  collision: DEFAULT_HARVEST_COLLISIONS.wood,
 };
 
 // A one-cell-wide water strip at (1,1)/(2,1) standing in for "the sea", mirroring the legacy
@@ -489,6 +490,34 @@ describe("list, get, update, delete", () => {
     );
     expect(invisible.status).toBe(400);
     expect(await invisible.json()).toMatchObject({ error: "map_invalid" });
+  });
+
+  test("rejects a harvest footprint crossing map bounds before persistence", async () => {
+    const { userId, token } = await registerAndLogin("maphbounds");
+    const id = await newMapId(await newAdventure(userId), token, "Bounded Orchard");
+    const crossing = {
+      id: crypto.randomUUID(),
+      col: 0,
+      row: 5,
+      name: "Boundary oak",
+      ordinal: 1,
+      kind: "harvestable",
+      harvestProfile: {
+        ...HARVEST_PROFILE,
+        collision: {
+          ...DEFAULT_HARVEST_COLLISIONS.wood,
+          intact: { offsetX: -40, offsetY: -30, width: 64, height: 30 },
+        },
+      },
+      pages: [wirePage({ graphicAssetId: TREE_ASSET_ID })],
+    };
+
+    const refused = await putMap(id, token, mapBody({ events: [crossing] }));
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ error: "map_invalid" });
+
+    const accepted = await putMap(id, token, mapBody({ events: [{ ...crossing, col: 1 }] }));
+    expect(accepted.status).toBe(200);
   });
 
   test("drops a harvestable event whose persisted profile JSON is corrupt", async () => {

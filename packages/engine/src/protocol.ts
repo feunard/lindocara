@@ -425,11 +425,10 @@ export interface PeasantBombImpactVisual {
 }
 
 /**
- * The active page of an authored map event, projected to its appearance for the wire — the third
- * member of the `elements`/`layers` family. **Appearance only:** collision is already baked into
- * `tiles` and `colliders`, exactly the rule `elements` and `layers` follow, so nothing here is ever
- * read for walkability, movement, interaction or command execution. A client must never derive
- * collision from this list either — that would be a third, disagreeing bake. `graphicAssetId` is
+ * The active page of an authored map event, projected onto the wire. Appearance fields remain
+ * presentation-only. The sole gameplay projection is an authored harvest node's explicit
+ * `harvest.collider`, which travels in deltas because it can disappear and respawn; a client
+ * consumes that rectangle directly and must never derive one from an asset. `graphicAssetId` is
  * the active page's catalogue graphic (`null` is the authored blank tile); `onTop` chooses whether
  * it draws above the actors (a treetop) or in the ground decor pass. `col`/`row` remain the
  * authoritative target cell; movement metadata only tells the renderer how to present the trip
@@ -446,11 +445,14 @@ export interface WorldEventSnapshot {
   moveFrequency: number;
   moveAnimation: boolean;
   directionFixed: boolean;
+  /** Server-selected rendering semantics; legacy omission means the one-cell marker treatment. */
+  presentation?: "marker" | "native";
   /** Presentation state for an explicitly-authored harvest node. It never grants resources. */
   harvest?: {
     state: "intact" | "depleted";
     generation: number;
     hits: number;
+    hitsRequired: number;
     lastHitAt: number | null;
     depletedAt: number | null;
     respawnAt: number | null;
@@ -462,6 +464,14 @@ export interface WorldEventSnapshot {
      */
     exhaustedAssetId: EditorAssetId | null;
     fadeDurationMs: number;
+    /**
+     * Present only while an intact node is waiting for its footprint to become unoccupied. The
+     * server keeps collision disabled until then so a timed respawn or reconnect cannot trap an
+     * actor already standing in the footprint.
+     */
+    collisionPending?: true;
+    /** Current authoritative world-space footprint `[x, y, width, height]`. */
+    collider: readonly [number, number, number, number] | null;
   };
 }
 
@@ -482,12 +492,11 @@ export interface WorldInfo {
    */
   tiles: string[];
   /**
-   * The second half of baked collision truth: sub-cell rectangles in world pixels, `[x, y, w, h]`.
+   * Static sub-cell collision truth: rectangles in world pixels, `[x, y, w, h]`.
    *
-   * This does NOT weaken the appearance-only rule below. Collision is still baked server-side and
-   * shipped as collision; it simply needs two structures now, because a tile grid cannot express a
-   * tree trunk. `elements` remains appearance. A client that derived colliders from `elements`
-   * would be a second, disagreeing bake — exactly the desync the baked contract exists to prevent.
+   * Dynamic harvest footprints are carried by `events[].harvest.collider`, allowing their
+   * lifecycle to ride ordinary event deltas. Both structures are server-authored collision;
+   * `elements`, graphic ids and asset paths remain appearance only.
    */
   colliders: readonly (readonly [number, number, number, number])[];
   /**
@@ -507,9 +516,9 @@ export interface WorldInfo {
    */
   layers: readonly string[];
   /**
-   * The authored events whose active page currently holds, appearance only — the same rule
-   * `elements`/`layers` above follow, never a source of collision. Page selection is server-side
-   * (spec Decision 3/4); the client only draws what it is told is active.
+   * The authored events whose active page currently holds. Graphic fields remain appearance only;
+   * explicit harvest lifecycle/collision state is server-authored gameplay data. Page selection is
+   * server-side (spec Decision 3/4); the client only draws/collides with what it is told is active.
    */
   events: readonly WorldEventSnapshot[];
   /** Fully resolved room audio: map overrides have already been applied by the server. */
@@ -1487,6 +1496,24 @@ export function parseWorldColliders(value: unknown): Rect[] | null {
   return parsed;
 }
 
+function isHarvestWorldCollider(value: unknown): boolean {
+  if (value === null) return true;
+  if (!Array.isArray(value) || value.length !== 4) return false;
+  const [x, y, width, height] = value;
+  return (
+    Number.isSafeInteger(x) &&
+    Number.isSafeInteger(y) &&
+    (x as number) >= 0 &&
+    (y as number) >= 0 &&
+    Number.isSafeInteger(width) &&
+    Number.isSafeInteger(height) &&
+    (width as number) > 0 &&
+    (height as number) > 0 &&
+    (width as number) <= HARVEST_PROFILE_LIMITS.collisionSize.max &&
+    (height as number) <= HARVEST_PROFILE_LIMITS.collisionSize.max
+  );
+}
+
 function isWorldInfo(value: unknown): value is WorldInfo {
   if (!isRecord(value) || !isZoneId(value.zoneId) || !isNonNegativeInteger(value.revision)) {
     return false;
@@ -1566,6 +1593,9 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     (value.moveFrequency as number) <= 4 &&
     typeof value.moveAnimation === "boolean" &&
     typeof value.directionFixed === "boolean" &&
+    (value.presentation === undefined ||
+      value.presentation === "marker" ||
+      value.presentation === "native") &&
     (harvest === undefined ||
       (isRecord(harvest) &&
         (harvest.state === "intact" || harvest.state === "depleted") &&
@@ -1574,6 +1604,14 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
         Number.isSafeInteger(harvest.hits) &&
         (harvest.hits as number) >= 0 &&
         (harvest.hits as number) <= MAX_HARVEST_HITS &&
+        Number.isSafeInteger(harvest.hitsRequired) &&
+        (harvest.hitsRequired as number) >= 1 &&
+        (harvest.hitsRequired as number) <= MAX_HARVEST_HITS &&
+        (harvest.hits as number) <= (harvest.hitsRequired as number) &&
+        (harvest.state !== "intact" ||
+          (harvest.hits as number) < (harvest.hitsRequired as number)) &&
+        (harvest.state !== "depleted" ||
+          (harvest.hits as number) === (harvest.hitsRequired as number)) &&
         (harvest.lastHitAt === null ||
           (Number.isSafeInteger(harvest.lastHitAt) && (harvest.lastHitAt as number) >= 0)) &&
         (harvest.depletedAt === null ||
@@ -1592,7 +1630,17 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
             : harvest.exhaustedAssetId === null || isEditorAssetId(harvest.exhaustedAssetId)) &&
         Number.isSafeInteger(harvest.fadeDurationMs) &&
         (harvest.fadeDurationMs as number) >= 0 &&
-        (harvest.fadeDurationMs as number) <= HARVEST_PROFILE_LIMITS.fadeDurationMs.max))
+        (harvest.fadeDurationMs as number) <= HARVEST_PROFILE_LIMITS.fadeDurationMs.max &&
+        (harvest.collisionPending === undefined || harvest.collisionPending === true) &&
+        isHarvestWorldCollider(harvest.collider) &&
+        (harvest.state !== "intact" ||
+          harvest.collider !== null ||
+          harvest.collisionPending === true) &&
+        (harvest.collisionPending !== true ||
+          (harvest.state === "intact" && harvest.collider === null)) &&
+        (harvest.state !== "depleted" ||
+          harvest.exhaustionBehavior === "replace" ||
+          harvest.collider === null)))
   );
 }
 

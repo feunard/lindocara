@@ -2,7 +2,12 @@ import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { canMove, type LifeState, speedForLife } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { movementSpeedAt, resolveTerrain, type TerrainGeometry } from "@lindocara/engine/game.js";
+import {
+  movementSpeedAt,
+  type Rect,
+  resolveTerrain,
+  type TerrainGeometry,
+} from "@lindocara/engine/game.js";
 import {
   defaultMapHeroSettings,
   type MapHeroSettings,
@@ -206,6 +211,31 @@ function predictPartial(
   );
 }
 
+/** Dynamic collision received as gameplay data; visual ids are deliberately never inspected. */
+export function harvestEventColliderRects(events: readonly WorldEventSnapshot[]): Rect[] {
+  return events.flatMap((event) => {
+    const collider = event.harvest?.collider;
+    return collider
+      ? [{ x: collider[0], y: collider[1], width: collider[2], height: collider[3] }]
+      : [];
+  });
+}
+
+export function terrainWithHarvestEventColliders(
+  terrain: TerrainGeometry,
+  staticColliders: readonly Rect[],
+  events: readonly WorldEventSnapshot[],
+): TerrainGeometry {
+  return {
+    ...terrain,
+    colliders: colliderIndexFrom(
+      [...staticColliders, ...harvestEventColliderRects(events)],
+      terrain.tiles.cols,
+      terrain.tiles.rows,
+    ),
+  };
+}
+
 export class WorldClient {
   #socket: WebSocket | null = null;
   /** Set once `connect()`'s `resolveJoin` lands; `null` only before that resolves. `#send` reads
@@ -226,6 +256,7 @@ export class WorldClient {
    * as every other collection. Kept off the interpolation buffer: the renderer presents each
    * authoritative NPC step locally. */
   #events: readonly WorldEventSnapshot[] = [];
+  #staticColliders: readonly Rect[] = [];
   #predicted: Vec2 | null = null;
   #pending: Command[] = [];
   #seq = 0;
@@ -430,19 +461,28 @@ export class WorldClient {
    */
   static geometryFrom(world: WorldInfo): TerrainGeometry {
     const tiles = decodeTileMap(world.tiles);
-    return {
-      width: world.width,
-      height: world.height,
-      obstacles: world.obstacles,
-      spawnPoints: [],
-      safeZone: world.safeZone,
-      tiles,
-      colliders: colliderIndexFrom(
-        parseWorldColliders(world.colliders) ?? [],
-        tiles.cols,
-        tiles.rows,
-      ),
-    };
+    const staticColliders = parseWorldColliders(world.colliders) ?? [];
+    return terrainWithHarvestEventColliders(
+      {
+        width: world.width,
+        height: world.height,
+        obstacles: world.obstacles,
+        spawnPoints: [],
+        safeZone: world.safeZone,
+        tiles,
+        colliders: colliderIndexFrom(staticColliders, tiles.cols, tiles.rows),
+      },
+      staticColliders,
+      world.events,
+    );
+  }
+
+  #installEventColliders(events: readonly WorldEventSnapshot[]): void {
+    this.#geometry = terrainWithHarvestEventColliders(
+      this.#geometry,
+      this.#staticColliders,
+      events,
+    );
   }
 
   #handle(message: ServerMessage, handlers: ConnectionHandlers): void {
@@ -452,6 +492,7 @@ export class WorldClient {
       // Collide against the terrain the server sent, not a copy this build happens to have
       // compiled in. `parseServerMessage` has already checked it decodes, so these are the exact
       // bytes the authority baked — the client cannot disagree with a map it did not compute.
+      this.#staticColliders = parseWorldColliders(message.world.colliders) ?? [];
       this.#geometry = WorldClient.geometryFrom(message.world);
       this.#heroSettings = message.world.heroSettings ?? defaultMapHeroSettings();
       replaceWorldCache(this.#worldCache, message);
@@ -498,6 +539,7 @@ export class WorldClient {
         return;
       }
       this.#events = events;
+      this.#installEventColliders(events);
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = true;
       this.#corpses = view.corpses;
@@ -515,6 +557,7 @@ export class WorldClient {
       replaceWorldCache(this.#worldCache, message);
       seedEventCache(this.#worldCache, message.events);
       this.#events = message.events;
+      this.#installEventColliders(message.events);
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;

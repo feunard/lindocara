@@ -7,9 +7,9 @@
  *
  *   position = resolveTerrain(position, step(position, input, TICK_DT, classSpeed, geometry), geometry);
  *
- * Because the preview calls the exact shared `step()` + `resolveTerrain()` on the exact `terrainFromMap`
- * bake the server would build, parity is not a promise kept by hand — it is the same functions on the
- * same geometry. What a builder walks here is what a player will walk, collisions included.
+ * Because the preview calls the exact shared `step()` + `resolveTerrain()` on the server's
+ * `terrainFromMap` bake augmented with the same explicit intact harvest colliders, parity is not a
+ * promise kept by hand. What a builder walks here is what a player will walk, collisions included.
  *
  * There is no React in here (game code never imports React). `MapEditor` disposes the painting stage,
  * calls `startMapPreview`, and on Esc calls the returned `stop()`, which tears the preview renderer
@@ -23,11 +23,14 @@ import {
   PRIMARY_COLORS,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
+import { colliderIndexFrom, flattenColliderIndex } from "@lindocara/engine/collider.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import {
   defaultMonsterTuning,
   MONSTER_SPECIES_KIND,
   movementSpeedAt,
+  type Rect,
+  rectsOverlap,
   resolveTerrain,
 } from "@lindocara/engine/game.js";
 import { type MapData, mapSpawnPoint, terrainFromMap } from "@lindocara/engine/map-data.js";
@@ -46,12 +49,13 @@ import type {
   QuestState,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import { step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
+import { PLAYER_SIZE, step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { AMBIENCE_NONE, type AmbienceConfig } from "@lindocara/renderer/ambience.js";
 import { trackInput } from "@lindocara/renderer/input.js";
 import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
 import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
+import { intactHarvestCollider } from "./harvest-collision.js";
 
 /** The synthetic hero's id, echoed to `setSelfId` so the renderer follows it with the camera and
  *  draws its self ring — the same wiring a real session uses for the local player. */
@@ -137,9 +141,39 @@ export async function startMapPreview(
   const canvas = document.querySelector<HTMLCanvasElement>("#stage");
   if (!canvas) throw new Error("index.html is missing #stage");
 
-  // The exact geometry the server would build a room from — collision and bounds both come from here.
-  const geometry = terrainFromMap(data);
   const spawn = mapSpawnPoint(data);
+  const harvestColliderByEvent = new Map<string, Rect>();
+  for (const event of events) {
+    const collider = intactHarvestCollider(event);
+    if (collider) harvestColliderByEvent.set(event.id, collider);
+  }
+  const collisionPending = new Set<string>();
+  const spawnBody = { x: spawn.x, y: spawn.y, width: PLAYER_SIZE, height: PLAYER_SIZE };
+  for (const [eventId, collider] of harvestColliderByEvent) {
+    if (rectsOverlap(collider, spawnBody)) collisionPending.add(eventId);
+  }
+
+  // The server's static geometry plus intact resource footprints that do not overlap the entering
+  // hero. A pending footprint activates on the first authoritative preview tick after the hero has
+  // fully left it, matching WorldRoom's admission/respawn guard.
+  const baseGeometry = terrainFromMap(data);
+  const staticColliders = flattenColliderIndex(baseGeometry.colliders).map(
+    ([x, y, width, height]) => ({ x, y, width, height }),
+  );
+  const buildGeometry = () => ({
+    ...baseGeometry,
+    colliders: colliderIndexFrom(
+      [
+        ...staticColliders,
+        ...[...harvestColliderByEvent].flatMap(([eventId, collider]) =>
+          collisionPending.has(eventId) ? [] : [collider],
+        ),
+      ],
+      baseGeometry.tiles.cols,
+      baseGeometry.tiles.rows,
+    ),
+  });
+  let geometry = buildGeometry();
 
   const renderer = await Renderer.create(canvas);
   // A newer start already superseded this one while textures loaded: undo the world this build added
@@ -242,25 +276,51 @@ export async function startMapPreview(
 
   // Page 1 is what the preview shows: the editor has no party state to select an active page against,
   // and page 1 is the page an author is looking at while composing.
-  const previewEvents: WorldEventSnapshot[] = events.flatMap((event: MapEvent) => {
-    if (!isActiveWorldEventKind(event.kind)) return [];
-    const page = event.pages[0];
-    if (!page?.graphicAssetId) return [];
-    return [
-      {
-        id: event.id,
-        col: event.col,
-        row: event.row,
-        graphicAssetId: page.graphicAssetId,
-        graphicTint: page.graphicTint ?? 0xffffff,
-        onTop: page.optOnTop,
-        moveSpeed: page.moveSpeed,
-        moveFrequency: page.moveFreq,
-        moveAnimation: page.optMoveAnim,
-        directionFixed: page.optDirFix,
-      },
-    ];
-  });
+  const previewEvents = (): WorldEventSnapshot[] =>
+    events.flatMap((event: MapEvent) => {
+      if (!isActiveWorldEventKind(event.kind)) return [];
+      const page = event.pages[0];
+      if (!page?.graphicAssetId) return [];
+      const profile = event.kind === "harvestable" ? event.harvestProfile : undefined;
+      const collider = profile ? (harvestColliderByEvent.get(event.id) ?? null) : null;
+      const pending = collisionPending.has(event.id);
+      return [
+        {
+          id: event.id,
+          col: event.col,
+          row: event.row,
+          graphicAssetId: page.graphicAssetId,
+          graphicTint: page.graphicTint ?? 0xffffff,
+          onTop: page.optOnTop,
+          moveSpeed: page.moveSpeed,
+          moveFrequency: page.moveFreq,
+          moveAnimation: page.optMoveAnim,
+          directionFixed: page.optDirFix,
+          presentation: event.kind === "harvestable" ? "native" : "marker",
+          ...(profile
+            ? {
+                harvest: {
+                  state: "intact" as const,
+                  generation: 0,
+                  hits: 0,
+                  hitsRequired: profile.hitsRequired,
+                  lastHitAt: null,
+                  depletedAt: null,
+                  respawnAt: null,
+                  exhaustionBehavior: profile.exhaustionBehavior,
+                  exhaustedAssetId: profile.exhaustedAssetId,
+                  fadeDurationMs: profile.fadeDurationMs,
+                  ...(pending ? { collisionPending: true as const } : {}),
+                  collider:
+                    collider && !pending
+                      ? ([collider.x, collider.y, collider.width, collider.height] as const)
+                      : null,
+                },
+              }
+            : {}),
+        },
+      ];
+    });
 
   const self: PlayerSnapshot = {
     id: SELF_ID,
@@ -308,6 +368,16 @@ export async function startMapPreview(
         ),
         geometry,
       );
+      let collisionActivated = false;
+      const body = { x: position.x, y: position.y, width: PLAYER_SIZE, height: PLAYER_SIZE };
+      for (const eventId of collisionPending) {
+        const collider = harvestColliderByEvent.get(eventId);
+        if (collider && !rectsOverlap(collider, body)) {
+          collisionPending.delete(eventId);
+          collisionActivated = true;
+        }
+      }
+      if (collisionActivated) geometry = buildGeometry();
       // Same conversion `movement-system.ts` applies to a dequeued command every tick: the last
       // non-zero movement becomes facing, standing still preserves it. Without this the preview
       // hero never turns, since nothing else in this local loop ever touches `facing`.
@@ -350,7 +420,7 @@ export async function startMapPreview(
         loot: [],
         corpses: [],
         projectiles: [],
-        events: previewEvents,
+        events: previewEvents(),
       },
       context,
     );

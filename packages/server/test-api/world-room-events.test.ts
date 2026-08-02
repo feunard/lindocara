@@ -33,8 +33,8 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
-import { maxHpForLevel, xpForNextLevel } from "@lindocara/engine/game.js";
-import type { HarvestProfile } from "@lindocara/engine/harvest.js";
+import { isWalkable, maxHpForLevel, rectsOverlap, xpForNextLevel } from "@lindocara/engine/game.js";
+import { type HarvestProfile, harvestColliderAt } from "@lindocara/engine/harvest.js";
 import {
   type HarvestPresetId,
   harvestPreset,
@@ -51,8 +51,12 @@ import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import type { PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
-import { D1_SAVE_EVERY_TICKS } from "@lindocara/server/world/world-runtime.js";
+import { requestMonsterPath } from "@lindocara/server/world/navigation-system.js";
+import {
+  createMonsters,
+  D1_SAVE_EVERY_TICKS,
+  type PlayerRuntime,
+} from "@lindocara/server/world/world-runtime.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
@@ -69,6 +73,10 @@ import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import { refreshHarvestEventVisuals } from "../src/api/realtime/worldEvents.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
+import {
+  hasPeasantHarvestLineOfSight,
+  peasantHarvestTargets,
+} from "../src/world/peasant-harvest-system.ts";
 import { createTestApp } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -540,9 +548,14 @@ function playerOf(state: WorldRoomState, heroId: string): PlayerRuntime {
 function placeHarvester(state: WorldRoomState, heroId: string, event: MapEvent): PlayerRuntime {
   const player = playerOf(state, heroId);
   const previous = { x: player.x, y: player.y };
-  const target = eventCellCentre(event);
-  player.x = target.x - PLAYER_SIZE / 2 - 32;
-  player.y = target.y - PLAYER_SIZE / 2;
+  const profile = event.harvestProfile;
+  const target = profile ? harvestColliderAt(profile, event.col, event.row, "intact") : null;
+  if (!target) throw new Error(`harvest event ${event.id} has no intact collider`);
+  // Stand one pixel outside the explicit footprint, vertically aligned with its gameplay centre.
+  // This works for every authored tree/ore/cache size and never places the fixture inside the
+  // collider it is trying to hit.
+  player.x = target.x - PLAYER_SIZE - 1;
+  player.y = target.y + target.height / 2 - PLAYER_SIZE / 2;
   player.facing = { x: 1, y: 0 };
   player.level = 10;
   state.playerGrid.update(player, previous);
@@ -587,6 +600,8 @@ async function completeWarPigCarcassHit(input: {
     throw new Error(`war pig ${runtimeId} is not an active carcass`);
   }
   const player = playerOf(state, socket.query.hero ?? "");
+  const location = state.location;
+  if (!location) throw new Error("world location missing");
   const previous = { x: player.x, y: player.y };
   player.x = monster.x - 32;
   player.y = monster.y;
@@ -594,18 +609,41 @@ async function completeWarPigCarcassHit(input: {
   player.level = 10;
   state.playerGrid.update(player, previous);
   const before = state.adventureState.state.harvestNodes?.[event.id];
+  const harvestView = {
+    zoneId: state.location?.zoneId ?? "",
+    events: state.location?.definition.events ?? [],
+    activeEvents: state.activeEvents,
+    adventureState: state.adventureState.state,
+    monsters: state.monsters,
+    terrain: location.definition.terrain,
+    staticColliderIndex: state.staticColliderIndex,
+  };
+  const carcassTarget = peasantHarvestTargets(harvestView, clock.now()).find(
+    (target) => target.runtimeId === runtimeId,
+  );
+  expect(carcassTarget).toMatchObject({ kind: "animal_carcass", nodeId: event.id });
+  if (!carcassTarget) throw new Error("war pig carcass target missing");
+  expect(
+    hasPeasantHarvestLineOfSight(
+      { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+      carcassTarget,
+      harvestView,
+    ),
+  ).toBe(true);
 
-  await advanceElapsedSettled(clock, 400);
+  // Respect the real knife cooldown between hits; a helper must never make a refused action look
+  // like a harvesting failure or mutate the authoritative deadline to bypass it.
+  const cooldownRemaining = Math.max(0, (player.skillCooldowns[2] ?? 0) - clock.now());
+  await advanceElapsedSettled(clock, Math.max(400, cooldownRemaining));
   await engine.message(socket.id, { t: "skill", slot: 3 });
+  expect(player.action).toMatchObject({ skillId: "butchers_cut" });
   await advanceElapsedSettled(clock, 300);
-  const job = state.harvestJobs.get(player.id);
-  expect(job).toMatchObject({ committing: false });
-  expect(job?.targets[0]).toMatchObject({
-    targetKind: "animal_carcass",
-    targetRuntimeId: runtimeId,
-    nodeId: event.id,
-  });
-  await advanceElapsedSettled(clock, 700);
+  // The zero-duration job may commit on this exact impact tick. Advance one deterministic
+  // simulation beat so its detached coordinator settlement is fully observed.
+  await advanceTickSettled(clock);
+  // Default tool profiles settle on the authoritative active frame. Multiple hits still require
+  // multiple separate actions, but there is no hidden post-animation channel to cancel by moving.
+  expect(state.harvestJobs.has(player.id)).toBe(false);
   await vi.waitFor(() => {
     const after = state.adventureState.state.harvestNodes?.[event.id];
     expect(
@@ -669,12 +707,26 @@ describe("world room events (FakeClock)", () => {
 
   test("a harvestable resource is active scenery but never NPC movement", async () => {
     const resource = harvestableEvent(crypto.randomUUID(), 5, 5);
-    const fixture = await newPlayableParty("harvestproj", [resource]);
+    const hidden = harvestPresetEvent(crypto.randomUUID(), 7, 5, "meat_cache", {
+      respawn: "timed",
+      respawnDelayMs: 1_000,
+      collision: {
+        intact: { offsetX: -20, offsetY: -32, width: 40, height: 32 },
+        depleted: null,
+      },
+    });
+    const npc = {
+      ...scriptEvent(crypto.randomUUID(), 10, 5, "action", []),
+      pages: [page({ graphicAssetId: PAGE1_GRAPHIC })],
+    };
+    const fixture = await newPlayableParty("harvestproj", [resource, hidden, npc]);
     const clock = new FakeClock();
     const engine = createEngine(fixture.roomId, clock);
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engine.join(socket);
     const state = roomState(engine);
+    const location = state.location;
+    if (!location) throw new Error("world location missing");
 
     expect(state.activeEvents.find((event) => event.id === resource.id)).toMatchObject({
       col: 5,
@@ -684,11 +736,67 @@ describe("world room events (FakeClock)", () => {
         state: "intact",
         generation: 0,
         hits: 0,
+        hitsRequired: HARVEST_PROFILE.hitsRequired,
         respawnAt: null,
         exhaustedAssetId: HARVEST_PROFILE.exhaustedAssetId,
+        collider: expect.any(Array),
       },
     });
+    const intactCollider = state.activeEvents.find((event) => event.id === resource.id)?.harvest
+      ?.collider;
+    if (!intactCollider) throw new Error("intact harvest collider missing");
+    expect(
+      isWalkable(
+        { x: intactCollider[0] + 1, y: intactCollider[1] + 1 },
+        1,
+        location.definition.terrain,
+      ),
+    ).toBe(false);
     expect(state.npcMovement.has(resource.id)).toBe(false);
+
+    const previousNavigation = state.navigation;
+    if (!previousNavigation) throw new Error("navigation runtime missing");
+    const [pendingMonster, pathMonster] = createMonsters([
+      {
+        id: "pending-harvest-navigation",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 64,
+        y: 64,
+        patrolRadius: 64,
+      },
+      {
+        id: "stale-harvest-navigation",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 64,
+        y: 128,
+        patrolRadius: 64,
+      },
+    ]);
+    if (!pendingMonster || !pathMonster) throw new Error("navigation monsters missing");
+    state.monsters.push(pendingMonster, pathMonster);
+    state.monsterGrid.insert(pendingMonster);
+    state.monsterGrid.insert(pathMonster);
+    const destination = { x: 256, y: 64 };
+    expect(
+      requestMonsterPath(
+        previousNavigation,
+        pendingMonster,
+        destination,
+        "target-hero",
+        "chase",
+        clock.now(),
+      ),
+    ).toBe("queued");
+    pathMonster.navigation.state = "chase";
+    pathMonster.navigation.path = [{ x: 192, y: 128 }];
+    pathMonster.navigation.destination = { x: 256, y: 128 };
+    pathMonster.navigation.requestedDestination = { x: 256, y: 128 };
+    pathMonster.navigation.targetId = "target-hero";
+    pathMonster.navigation.directBlockedDestination = { x: 256, y: 128 };
 
     const stable = state.activeEvents.find((event) => event.id === resource.id);
     refreshHarvestEventVisuals(state, clock.now());
@@ -708,6 +816,15 @@ describe("world room events (FakeClock)", () => {
             depletedAt: clock.now(),
             respawnAt: null,
           },
+          [hidden.id]: {
+            eventId: hidden.id,
+            generation: 0,
+            hits: hidden.harvestProfile?.hitsRequired ?? 1,
+            lastHitAt: clock.now(),
+            depleted: true,
+            depletedAt: clock.now(),
+            respawnAt: clock.now() + 1_000,
+          },
         },
       },
     };
@@ -715,10 +832,229 @@ describe("world room events (FakeClock)", () => {
     const depleted = state.activeEvents.find((event) => event.id === resource.id);
     expect(depleted).toMatchObject({
       graphicAssetId: HARVEST_PROFILE.exhaustedAssetId,
-      harvest: { state: "depleted", hits: HARVEST_PROFILE.hitsRequired },
+      harvest: {
+        state: "depleted",
+        hits: HARVEST_PROFILE.hitsRequired,
+        collider: expect.any(Array),
+      },
     });
+    const hiddenDepleted = state.activeEvents.find((event) => event.id === hidden.id);
+    expect(hiddenDepleted).toMatchObject({ harvest: { state: "depleted", collider: null } });
+    expect(state.navigation).not.toBe(previousNavigation);
+    expect(state.navigation?.queue).toHaveLength(0);
+    expect(pendingMonster.navigation).toMatchObject({
+      state: "idle",
+      path: [],
+      requestPending: false,
+      requestedDestination: null,
+      targetId: null,
+    });
+    expect(pathMonster.navigation).toMatchObject({
+      state: "idle",
+      path: [],
+      destination: null,
+      requestedDestination: null,
+      directBlockedDestination: null,
+    });
+    if (!state.navigation) throw new Error("rebuilt navigation runtime missing");
+    expect(
+      requestMonsterPath(
+        state.navigation,
+        pendingMonster,
+        destination,
+        "target-hero",
+        "chase",
+        clock.now(),
+      ),
+    ).toBe("queued");
+    const hiddenProfile = hidden.harvestProfile;
+    if (!hiddenProfile) throw new Error("hidden resource profile missing");
+    const hiddenIntactCollider = harvestColliderAt(hiddenProfile, hidden.col, hidden.row, "intact");
+    if (!hiddenIntactCollider) throw new Error("hidden resource collider missing");
+    expect(
+      isWalkable(
+        { x: hiddenIntactCollider.x + 1, y: hiddenIntactCollider.y + 1 },
+        1,
+        location.definition.terrain,
+      ),
+    ).toBe(true);
+
+    const activeNpc = state.activeEvents.find((event) => event.id === npc.id);
+    if (!activeNpc || !state.npcMovement.has(npc.id)) throw new Error("fixture NPC missing");
+    activeNpc.col = hidden.col;
+    activeNpc.row = hidden.row;
+    refreshHarvestEventVisuals(state, clock.now() + 1_000);
+    expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
+      harvest: { state: "intact", collisionPending: true, collider: null },
+    });
+    activeNpc.col = 10;
+    activeNpc.row = 5;
+    refreshHarvestEventVisuals(state, clock.now() + 1_000);
+    expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
+      harvest: { state: "intact", collider: expect.any(Array) },
+    });
+
+    pendingMonster.x = 64;
+    pendingMonster.y = 64;
+    pendingMonster.spawnX = hiddenIntactCollider.x + 1;
+    pendingMonster.spawnY = hiddenIntactCollider.y + 1;
+    pendingMonster.hp = 0;
+    pendingMonster.deadUntil = clock.now() + 1_000;
+    refreshHarvestEventVisuals(state, clock.now() + 1_000);
+    expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
+      harvest: { state: "intact", collisionPending: true, collider: null },
+    });
+
+    pendingMonster.hp = pendingMonster.maxHp;
+    pendingMonster.deadUntil = 0;
+    pendingMonster.x = 64;
+    pendingMonster.y = 64;
+    pendingMonster.spawnX = 64;
+    pendingMonster.spawnY = 64;
+    refreshHarvestEventVisuals(state, clock.now() + 1_000);
+    expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
+      harvest: { state: "intact", collider: expect.any(Array) },
+    });
+
+    const occupyingPlayer = playerOf(state, fixture.heroId);
+    const beforeOccupying = { x: occupyingPlayer.x, y: occupyingPlayer.y };
+    occupyingPlayer.x = hiddenIntactCollider.x + 1;
+    occupyingPlayer.y = hiddenIntactCollider.y + 1;
+    state.playerGrid.update(occupyingPlayer, beforeOccupying);
+    refreshHarvestEventVisuals(state, clock.now() + 1_000);
+    expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
+      harvest: {
+        state: "intact",
+        generation: 1,
+        hits: 0,
+        collisionPending: true,
+        collider: null,
+      },
+    });
+    expect(
+      isWalkable(
+        { x: hiddenIntactCollider.x + 1, y: hiddenIntactCollider.y + 1 },
+        1,
+        location.definition.terrain,
+      ),
+    ).toBe(true);
+
+    const beforeClearing = { x: occupyingPlayer.x, y: occupyingPlayer.y };
+    occupyingPlayer.x = 64;
+    occupyingPlayer.y = 64;
+    state.playerGrid.update(occupyingPlayer, beforeClearing);
+    refreshHarvestEventVisuals(state, clock.now() + 1_000);
+    expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
+      harvest: {
+        state: "intact",
+        generation: 1,
+        hits: 0,
+        collider: expect.any(Array),
+      },
+    });
+    expect(
+      isWalkable(
+        { x: hiddenIntactCollider.x + 1, y: hiddenIntactCollider.y + 1 },
+        1,
+        location.definition.terrain,
+      ),
+    ).toBe(false);
     refreshHarvestEventVisuals(state, clock.now());
     expect(state.activeEvents.find((event) => event.id === resource.id)).toBe(depleted);
+    engine.dispose();
+  });
+
+  test("event evaluation defers a resource collider under a newly reconciled NPC", async () => {
+    const resource = harvestPresetEvent(crypto.randomUUID(), 6, 6, "meat_cache", {
+      collision: {
+        intact: { offsetX: -20, offsetY: -96, width: 40, height: 96 },
+        depleted: null,
+      },
+    });
+    const npc = {
+      ...scriptEvent(crypto.randomUUID(), 6, 5, "action", []),
+      pages: [page({ graphicAssetId: PAGE1_GRAPHIC, optThrough: false })],
+    };
+    const fixture = await newPlayableParty("harvestnpc", [resource, npc]);
+    const engine = createEngine(fixture.roomId, new FakeClock());
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-npc");
+    await engine.join(socket);
+    const state = roomState(engine);
+
+    expect(state.npcMovement.get(npc.id)).toMatchObject({ through: false });
+    expect(state.activeEvents.find((event) => event.id === resource.id)).toMatchObject({
+      harvest: {
+        state: "intact",
+        collisionPending: true,
+        collider: null,
+      },
+    });
+    engine.dispose();
+  });
+
+  test("admission preserves a restored hero and defers an overlapping intact collider", async () => {
+    const restoredTree = harvestPresetEvent(crypto.randomUUID(), 3, 2, "tree_small", {
+      collision: {
+        intact: { offsetX: -32, offsetY: -64, width: 64, height: 64 },
+        depleted: { offsetX: -16, offsetY: -20, width: 32, height: 20 },
+      },
+    });
+    const fixture = await newPlayableParty("harvestspawn", [restoredTree], "peasant");
+    const profile = restoredTree.harvestProfile;
+    if (!profile) throw new Error("restored tree profile is missing");
+    const authoredCollider = harvestColliderAt(
+      profile,
+      restoredTree.col,
+      restoredTree.row,
+      "intact",
+    );
+    if (!authoredCollider) throw new Error("restored tree collider missing");
+    const savedPosition = { x: authoredCollider.x + 8, y: authoredCollider.y + 8 };
+    await probe.heroes.updateById(fixture.heroId, { ...savedPosition });
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-spawn");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const player = playerOf(state, fixture.heroId);
+    const location = state.location;
+    if (!location) throw new Error("restored tree fixture is incomplete");
+    expect({ x: player.x, y: player.y }).toEqual(savedPosition);
+    expect(
+      rectsOverlap(authoredCollider, {
+        x: player.x,
+        y: player.y,
+        width: PLAYER_SIZE,
+        height: PLAYER_SIZE,
+      }),
+    ).toBe(true);
+    expect(state.activeEvents.find((event) => event.id === restoredTree.id)?.harvest).toMatchObject(
+      {
+        state: "intact",
+        collisionPending: true,
+        collider: null,
+      },
+    );
+    expect(isWalkable(player, PLAYER_SIZE, location.definition.terrain)).toBe(true);
+
+    const previous = { x: player.x, y: player.y };
+    player.x = 3 * TILE_SIZE;
+    player.y = TILE_SIZE;
+    state.playerGrid.update(player, previous);
+    refreshHarvestEventVisuals(state, clock.now());
+    expect(state.activeEvents.find((event) => event.id === restoredTree.id)?.harvest).toMatchObject(
+      {
+        state: "intact",
+        collider: expect.any(Array),
+      },
+    );
+    expect(
+      isWalkable(
+        { x: authoredCollider.x + 1, y: authoredCollider.y + 1 },
+        1,
+        location.definition.terrain,
+      ),
+    ).toBe(false);
     engine.dispose();
   });
 
@@ -1024,8 +1360,12 @@ describe("world room events (FakeClock)", () => {
     const timedMonster = state.monsters.find((monster) => monster.id === `mon-${timed.id}`);
     if (!timedMonster) throw new Error("timed war pig is missing");
     timedMonster.hp = 0;
-    timedMonster.deadUntil = clock.now() + 10_000;
+    const timedRespawnAt = clock.now() + 20_000;
+    timedMonster.deadUntil = timedRespawnAt;
     timedMonster.action = null;
+    // Skin the animal late in its corpse window. The harvest generation must follow the monster's
+    // remaining respawn time, not restart the full delay from the knife hit.
+    await advanceElapsedSettled(clock, 12_000);
     await completeWarPigCarcassHit({ engine, socket, state, clock, event: timed });
     await completeWarPigCarcassHit({ engine, socket, state, clock, event: timed });
     const exhaustedGeneration = state.adventureState.state.harvestNodes?.[timed.id];
@@ -1038,6 +1378,7 @@ describe("world room events (FakeClock)", () => {
     if (exhaustedGeneration?.respawnAt === null || exhaustedGeneration?.respawnAt === undefined) {
       throw new Error("timed carcass did not receive a respawn deadline");
     }
+    expect(exhaustedGeneration.respawnAt).toBe(timedRespawnAt);
     await advanceElapsedSettled(clock, Math.max(0, exhaustedGeneration.respawnAt - clock.now()));
     const respawnedTimed = state.monsters.find((monster) => monster.id === `mon-${timed.id}`);
     if (!respawnedTimed) throw new Error("timed war pig disappeared at respawn");

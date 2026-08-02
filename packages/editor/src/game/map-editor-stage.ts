@@ -84,6 +84,7 @@ import {
   updateSelectedElementAsset,
   updateSelectedElementOffset,
 } from "./editor-state.js";
+import { intactHarvestColliders } from "./harvest-collision.js";
 
 /**
  * The one seam between React's toolbar and the Pixi stage. `current()` is a live snapshot the Save
@@ -105,8 +106,8 @@ export interface MapEditorStageHandle {
    *  owns the displayed value and pushes it down here. */
   setGrid(show: boolean): void;
   /** D18: toggle the collision-visualisation overlay — shades every solid baked tile and outlines
-   *  every element's sub-cell collider (`elementWorldCollider`), so sub-cell collision (a tree's
-   *  trunk, not its canopy) is finally visible to the author. Off by default; React owns the
+   *  element colliders plus explicit intact harvest colliders, so sub-cell collision (a tree's
+   *  trunk, not its canopy) is visible to the author. Off by default; React owns the
    *  displayed value and pushes it down here, exactly like `setGrid`/`setDim`. Never touches the game
    *  renderer — it is an editor-only debug layer. */
   setCollisions(show: boolean): void;
@@ -542,6 +543,7 @@ export function paintEventCell(
       event.row,
       frame,
       graphicId === null ? undefined : art?.definition,
+      event.kind === "harvestable" ? "native" : "marker",
     );
     sprite.tint = event.pages[0]?.graphicTint ?? 0xffffff;
     container.addChild(sprite);
@@ -627,7 +629,7 @@ export function paintElementSelectionOutline(
 }
 
 /** D18: the shading colour for a solid baked tile (water/forest/building — `isSolidKind`) when the
- *  collision overlay is on. A separate, brighter colour marks an element's own sub-cell collider
+ *  collision overlay is on. A separate, brighter colour marks an object's own sub-cell collider
  *  rect, so "the whole cell blocks" and "only this rect of the cell blocks" read apart at a glance —
  *  the exact distinction a tree's trunk-only collider needs to communicate. */
 const COLLISION_TILE_COLOR = 0xef4444;
@@ -636,8 +638,7 @@ const COLLISION_ELEMENT_COLOR = 0xf59e0b;
 const COLLISION_ELEMENT_FILL_ALPHA = 0.45;
 const COLLISION_ELEMENT_STROKE_ALPHA = 0.9;
 
-/** What `paintCollisionOverlay` drew: how many solid tiles were shaded and how many element
- *  colliders were outlined — the two counts the stage test pins instead of pixels. */
+/** What `paintCollisionOverlay` drew: solid tiles and element/harvest-event collider rectangles. */
 export interface CollisionOverlayDraw {
   solidCells: number;
   colliderRects: number;
@@ -646,9 +647,8 @@ export interface CollisionOverlayDraw {
 /**
  * D18: draws the collision-visualisation overlay into `container` — a translucent shade over every
  * solid baked tile (read through `isSolidKind`, the same authority `isWalkableBox` collides against),
- * plus an outlined rect over every element's world-pixel collider (`elementWorldCollider`, shared with
- * `terrainFromMap`). Reuses both rather than re-deriving solidity, so the overlay can never disagree
- * with what actually blocks movement.
+ * plus an outlined rect over every element collider and explicit intact harvest-event collider.
+ * Both paths reuse shared geometry rules, so the overlay never derives gameplay from artwork.
  *
  * Exported and Pixi-object-only like `paintLandCell`/`paintEventCell` — `Graphics` constructs without
  * a live renderer — so the shade/outline counts can be pinned without the WebGL context the rest of
@@ -658,6 +658,7 @@ export function paintCollisionOverlay(
   tiles: TileMap,
   elements: readonly MapElement[],
   container: Container,
+  events: readonly MapEvent[] = [],
 ): CollisionOverlayDraw {
   let solidCells = 0;
   for (let row = 0; row < tiles.rows; row++) {
@@ -676,6 +677,15 @@ export function paintCollisionOverlay(
   for (const element of elements) {
     const rect = elementWorldCollider(element);
     if (!rect) continue;
+    const box = new Graphics();
+    box
+      .rect(rect.x, rect.y, rect.width, rect.height)
+      .fill({ color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_FILL_ALPHA })
+      .stroke({ width: 1, color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_STROKE_ALPHA });
+    container.addChild(box);
+    colliderRects += 1;
+  }
+  for (const rect of intactHarvestColliders(events)) {
     const box = new Graphics();
     box
       .rect(rect.x, rect.y, rect.width, rect.height)
@@ -1255,11 +1265,9 @@ async function buildSession(
     drawCollisions(tiles);
   }
 
-  /** D18: rebuilds the collision overlay from the just-baked tiles and the current element list, then
-   *  applies the toggle's current `.visible` — content always tracks the map, visibility is the only
-   *  thing the toolbar button controls. */
+  /** D18: rebuild from baked tiles, elements and the initial intact harvest-event state. */
   function drawCollisions(tiles: TileMap): void {
-    paintCollisionOverlay(tiles, map.elements, collisionLayer);
+    paintCollisionOverlay(tiles, map.elements, collisionLayer, map.events);
     collisionLayer.visible = collisionsVisible;
   }
 

@@ -2,6 +2,7 @@ import type { PlayerSnapshot, WorldEventSnapshot } from "@lindocara/engine/proto
 import {
   createHarvestEventVisualState,
   harvestEventPresentation,
+  harvestImpactPoint,
   peasantCarryPresentation,
 } from "@lindocara/renderer/harvest-visuals.js";
 import { describe, expect, it } from "vitest";
@@ -32,12 +33,14 @@ function intact(overrides: Partial<NonNullable<WorldEventSnapshot["harvest"]>> =
     state: "intact",
     generation: 0,
     hits: 0,
+    hitsRequired: 3,
     lastHitAt: null,
     depletedAt: null,
     respawnAt: null,
     exhaustionBehavior: "replace",
     exhaustedAssetId: STUMP,
     fadeDurationMs: 300,
+    collider: [138, 226, 44, 30],
     ...overrides,
   } satisfies NonNullable<WorldEventSnapshot["harvest"]>;
 }
@@ -45,6 +48,21 @@ function intact(overrides: Partial<NonNullable<WorldEventSnapshot["harvest"]>> =
 const identityClock = (timestamp: number) => timestamp;
 
 describe("authoritative harvest event presentation", () => {
+  it("anchors hit effects to the explicit footprint and lethal fallbacks to the ground foot", () => {
+    expect(harvestImpactPoint(event(intact()), 2, 3)).toEqual({ x: 160, y: 241 });
+    expect(
+      harvestImpactPoint(
+        event({
+          ...intact({ hits: 3 }),
+          state: "depleted",
+          collider: null,
+        }),
+        2,
+        3,
+      ),
+    ).toEqual({ x: 160, y: 256 });
+  });
+
   it("plays each fresh authoritative hit exactly once across repeated snapshots and resyncs", () => {
     let state = createHarvestEventVisualState();
     const present = (snapshot: WorldEventSnapshot, now: number) => {
@@ -105,6 +123,7 @@ describe("authoritative harvest event presentation", () => {
         exhaustionBehavior: "fade",
         exhaustedAssetId: null,
         fadeDurationMs: 500,
+        collider: null,
       },
       null,
     );
@@ -149,6 +168,7 @@ describe("authoritative harvest event presentation", () => {
         exhaustionBehavior: "fade",
         exhaustedAssetId: STUMP,
         fadeDurationMs: 300,
+        collider: null,
       },
       null,
     );
@@ -179,6 +199,7 @@ describe("authoritative harvest event presentation", () => {
         state: "depleted",
         depletedAt: 1_000,
         exhaustionBehavior: "hide",
+        collider: null,
       }),
       previous: initial,
       previousGraphicAssetId: GRAPHIC,

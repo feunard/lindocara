@@ -141,12 +141,14 @@ describe("events on the wire", () => {
       state: "depleted",
       generation: 2,
       hits: 3,
+      hitsRequired: 3,
       lastHitAt: 12_000,
       depletedAt: 12_000,
       respawnAt: 72_000,
       exhaustionBehavior: "fade",
       exhaustedAssetId: null,
       fadeDurationMs: 350,
+      collider: null,
     };
     expect(parseServerMessage(JSON.stringify(welcome([event({ harvest })])))).not.toBeNull();
     expect(
@@ -178,12 +180,14 @@ describe("events on the wire", () => {
       state: "intact",
       generation: 0,
       hits: 1,
+      hitsRequired: 3,
       lastHitAt: 12_000,
       depletedAt: null,
       respawnAt: null,
       exhaustionBehavior: "replace",
       exhaustedAssetId: STUMP,
       fadeDurationMs: 250,
+      collider: [72, 96, 48, 24],
     };
     expect(
       parseServerMessage(JSON.stringify(welcome([event({ harvest: intact })]))),
@@ -223,13 +227,15 @@ describe("events on the wire", () => {
     const faded = {
       state: "depleted",
       generation: 0,
-      hits: 1,
+      hits: 3,
+      hitsRequired: 3,
       lastHitAt: 12_000,
       depletedAt: 12_000,
       respawnAt: null,
       exhaustionBehavior: "fade",
       exhaustedAssetId: STUMP,
       fadeDurationMs: 250,
+      collider: null,
     };
     expect(parseServerMessage(JSON.stringify(welcome([event({ harvest: faded })])))).not.toBeNull();
     expect(
@@ -247,6 +253,97 @@ describe("events on the wire", () => {
     expect(parseServerMessage(JSON.stringify(welcome([event({ col: -1 })])))).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ row: 1.5 })])))).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ col: "5" })])))).toBeNull();
+  });
+
+  it("validates authoritative harvest progress, collision and native presentation", () => {
+    const intact = {
+      state: "intact",
+      generation: 0,
+      hits: 1,
+      hitsRequired: 3,
+      lastHitAt: 12_000,
+      depletedAt: null,
+      respawnAt: null,
+      exhaustionBehavior: "replace",
+      exhaustedAssetId: STUMP,
+      fadeDurationMs: 250,
+      collider: [72, 96, 48, 24],
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ presentation: "native", harvest: intact })])),
+      ),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...intact, collider: null } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([event({ harvest: { ...intact, collider: null, collisionPending: true } })]),
+        ),
+      ),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...intact, collisionPending: true } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([
+            event({
+              harvest: {
+                ...intact,
+                state: "depleted",
+                hits: intact.hitsRequired,
+                depletedAt: intact.lastHitAt,
+                collider: null,
+                collisionPending: true,
+              },
+            }),
+          ]),
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ harvest: { ...intact, hits: 3 } })]))),
+    ).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ presentation: "from-asset" })]))),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...intact, collider: [72.5, 96, 48, 24] } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...intact, collider: [72, 96, 48.5, 24] } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...intact, collider: [-1, 96, 48, 24] } })])),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([
+            event({
+              harvest: {
+                ...intact,
+                collider: [Number.MAX_SAFE_INTEGER + 1, 96, 48, 24],
+              },
+            }),
+          ]),
+        ),
+      ),
+    ).toBeNull();
   });
 
   // Mutation proof (a): this is the branch that fails if the `isEditorAssetId` guard is dropped and

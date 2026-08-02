@@ -1185,6 +1185,45 @@ describe("shared party materials and harvest nodes", () => {
     expect(second).toMatchObject({ ok: true, node: { generation: 1, hits: 0, depleted: false } });
   });
 
+  test("an absolute carcass deadline does not drift across reservation latency", async () => {
+    const { partyId, heroId } = await newPartyWithHero("cddl");
+    let now = 20_000;
+    partyRoom.now = () => now;
+    const reservation = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_A,
+      generation: 0,
+      requiredHits: 1,
+      reward: { meat: 2 },
+      respawnDelayMs: null,
+      respawnAt: 25_000,
+    });
+    if (!reservation.ok) throw new Error("carcass reservation rejected");
+
+    now = 23_750;
+    const hit = await hitHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_A,
+      reservationId: reservation.reservationId,
+    });
+    expect(hit).toMatchObject({
+      ok: true,
+      rewarded: true,
+      node: { depleted: true, respawnAt: 25_000 },
+    });
+
+    now = 25_000;
+    const next = await reserveHarvestNode(partyId, {
+      heroId,
+      eventId: EVENT_A,
+      generation: 1,
+      requiredHits: 1,
+      reward: { meat: 2 },
+      respawnDelayMs: null,
+    });
+    expect(next).toMatchObject({ ok: true, node: { generation: 1, depleted: false } });
+  });
+
   test("invalid material and node inputs mutate nothing", async () => {
     const { partyId, heroId } = await newPartyWithHero("harvestinvalid");
 

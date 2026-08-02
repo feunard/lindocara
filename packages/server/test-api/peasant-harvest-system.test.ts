@@ -1,7 +1,12 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
-import { type HarvestProfile, PEASANT_CARRY_DURATION_MS } from "@lindocara/engine/harvest.js";
+import {
+  type HarvestProfile,
+  harvestColliderAt,
+  PEASANT_CARRY_DURATION_MS,
+} from "@lindocara/engine/harvest.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it } from "vitest";
@@ -11,6 +16,7 @@ import {
   createPeasantHarvestJob,
   expirePeasantCarry,
   grantPeasantCarry,
+  hasPeasantHarvestLineOfSight,
   peasantCarryKindForReward,
   revalidatePeasantHarvestTarget,
   selectPeasantHarvestTarget,
@@ -82,7 +88,14 @@ function player(playerClass: "peasant" | "ranger" = "peasant") {
   );
 }
 
-function activeEvent(id = EVENT_ID, col = 1, row = 0): ActiveWorldEvent {
+function activeEvent(
+  id = EVENT_ID,
+  col = 1,
+  row = 0,
+  profile: HarvestProfile = WOOD,
+): ActiveWorldEvent {
+  const collider = harvestColliderAt(profile, col, row, "intact");
+  if (!collider) throw new Error("intact harvest collider missing");
   return {
     id,
     col,
@@ -93,6 +106,19 @@ function activeEvent(id = EVENT_ID, col = 1, row = 0): ActiveWorldEvent {
     moveFrequency: 0,
     moveAnimation: false,
     directionFixed: true,
+    harvest: {
+      state: "intact",
+      generation: 0,
+      hits: 0,
+      hitsRequired: profile.hitsRequired,
+      lastHitAt: null,
+      depletedAt: null,
+      respawnAt: null,
+      exhaustionBehavior: profile.exhaustionBehavior,
+      exhaustedAssetId: profile.exhaustedAssetId,
+      fadeDurationMs: profile.fadeDurationMs,
+      collider: [collider.x, collider.y, collider.width, collider.height],
+    },
   };
 }
 
@@ -109,14 +135,54 @@ function mapView(profile: HarvestProfile = WOOD, worldTerrain = terrain()) {
   return {
     zoneId: "verdant-reach",
     events: [event],
-    activeEvents: [activeEvent()],
+    activeEvents: [activeEvent(EVENT_ID, 1, 0, profile)],
     adventureState: EMPTY_ADVENTURE_STATE,
     monsters: [],
     terrain: worldTerrain,
+    staticColliderIndex: worldTerrain.colliders,
   };
 }
 
 describe("Peasant harvest target selection", () => {
+  it("ignores only the target footprint while keeping third-party sub-cell obstacles opaque", () => {
+    const open = mapView();
+    const target = selectPeasantHarvestTarget({
+      player: player(),
+      slot: 1,
+      direction: { x: 1, y: 0 },
+      skillRange: 54,
+      halfAngleRadians: Math.PI / 3,
+      view: open,
+      now: NOW,
+    });
+    if (!target?.collider) throw new Error("authored target collider missing");
+    const origin = { x: 64, y: 48 };
+    expect(hasPeasantHarvestLineOfSight(origin, target, open)).toBe(true);
+
+    const exactDuplicate = {
+      ...open,
+      activeEvents: [
+        ...open.activeEvents,
+        {
+          ...activeEvent("22222222-2222-4222-8222-222222222222"),
+          harvest: open.activeEvents[0]?.harvest,
+        },
+      ],
+    };
+    expect(hasPeasantHarvestLineOfSight(origin, target, exactDuplicate)).toBe(false);
+
+    const blocker = { x: 69, y: 42, width: 4, height: 12 };
+    const withThirdParty = {
+      ...open,
+      staticColliderIndex: colliderIndexFrom(
+        [blocker],
+        open.terrain.tiles.cols,
+        open.terrain.tiles.rows,
+      ),
+    };
+    expect(hasPeasantHarvestLineOfSight(origin, target, withThirdParty)).toBe(false);
+  });
+
   it("requires the Peasant, matching tool, effective range, facing arc and line of sight", () => {
     const peasant = player();
     const input = {
@@ -207,6 +273,7 @@ describe("Peasant harvest target selection", () => {
         adventureState: EMPTY_ADVENTURE_STATE,
         monsters,
         terrain: terrain(),
+        staticColliderIndex: terrain().colliders,
       },
       now: NOW,
     });
@@ -217,15 +284,15 @@ describe("Peasant harvest target selection", () => {
 
   it("selects area harvest targets deterministically within the talent cap and line of sight", () => {
     const nodes = [
-      ["11111111-1111-4111-8111-111111111111", 1, 0],
+      ["11111111-1111-4111-8111-111111111111", 2, 1],
       ["22222222-2222-4222-8222-222222222222", 2, 0],
-      ["33333333-3333-4333-8333-333333333333", 2, 0],
+      ["33333333-3333-4333-8333-333333333333", 2, 2],
       ["44444444-4444-4444-8444-444444444444", 1, 1],
-      ["55555555-5555-4555-8555-555555555555", 1, 1],
-      ["66666666-6666-4666-8666-666666666666", 2, 1],
-      ["77777777-7777-4777-8777-777777777777", 3, 0],
-      ["88888888-8888-4888-8888-888888888888", 3, 0],
-      ["99999999-9999-4999-8999-999999999999", 3, 1],
+      ["55555555-5555-4555-8555-555555555555", 1, 0],
+      ["66666666-6666-4666-8666-666666666666", 1, 2],
+      ["77777777-7777-4777-8777-777777777777", 0, 1],
+      ["88888888-8888-4888-8888-888888888888", 3, 1],
+      ["99999999-9999-4999-8999-999999999999", 3, 0],
     ] as const;
     const events = nodes.map(([id, col, row], ordinal) =>
       functionalEvent({
@@ -240,6 +307,8 @@ describe("Peasant harvest target selection", () => {
     );
     const activeEvents = nodes.map(([id, col, row]) => activeEvent(id, col, row));
     const peasant = player();
+    peasant.x = 112;
+    peasant.y = 96;
     peasant.talents = [
       "peasant.woodcutters_swing.bounty",
       "peasant.woodcutters_swing.readiness",
@@ -260,14 +329,12 @@ describe("Peasant harvest target selection", () => {
           activeEvents: reverse ? activeEvents.toReversed() : activeEvents,
           adventureState: EMPTY_ADVENTURE_STATE,
           monsters: [],
-          terrain: terrain([{ x: 128, y: 64, width: 64, height: 64 }]),
+          terrain: terrain(),
+          staticColliderIndex: terrain().colliders,
         },
         now: NOW,
       });
-    const expected = nodes
-      .slice(0, 5)
-      .map(([id]) => id)
-      .concat(nodes[6][0]);
+    const expected = nodes.slice(0, 6).map(([id]) => id);
 
     expect(select(false).map((target) => target.nodeId)).toEqual(expected);
     expect(select(true).map((target) => target.nodeId)).toEqual(expected);
@@ -276,9 +343,9 @@ describe("Peasant harvest target selection", () => {
       primary: true,
       plan: { areaRadius: 128, maximumTargets: 6 },
     });
-    expect(select(false).some((target) => target.nodeId === nodes[5][0])).toBe(false);
-    expect(select(false).some((target) => target.nodeId === nodes[8][0])).toBe(false);
+    expect(select(false).some((target) => target.nodeId === nodes[6][0])).toBe(false);
     expect(select(false).some((target) => target.nodeId === nodes[7][0])).toBe(false);
+    expect(select(false).some((target) => target.nodeId === nodes[8][0])).toBe(false);
   });
 
   it("revalidates every captured area target against tool, generation, state and line of sight", () => {
@@ -293,8 +360,8 @@ describe("Peasant harvest target selection", () => {
         functionalEvent({
           id: EVENT_ID,
           kind: "harvestable",
-          col: 1,
-          row: 0,
+          col: 2,
+          row: 1,
           ordinal: 0,
           harvestProfile: WOOD,
           graphicAssetId: TREE_ASSET_ID,
@@ -309,12 +376,15 @@ describe("Peasant harvest target selection", () => {
           graphicAssetId: TREE_ASSET_ID,
         }),
       ],
-      activeEvents: [activeEvent(), activeEvent(secondaryId, 2, 0)],
+      activeEvents: [activeEvent(EVENT_ID, 2, 1), activeEvent(secondaryId, 2, 0, secondaryProfile)],
       adventureState,
       monsters: [],
       terrain: worldTerrain,
+      staticColliderIndex: worldTerrain.colliders,
     });
     const peasant = player();
+    peasant.x = 112;
+    peasant.y = 96;
     peasant.talents = ["peasant.woodcutters_swing.sweeping_fell"];
     const selected = selectPeasantHarvestTargets({
       player: peasant,

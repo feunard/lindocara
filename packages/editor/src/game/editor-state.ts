@@ -10,7 +10,12 @@ import {
   type MonsterSpecies,
   type MonsterTuning,
 } from "@lindocara/engine/game.js";
-import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
+import {
+  cloneHarvestProfile,
+  type HarvestProfile,
+  harvestFootprintFitsMap,
+  parseHarvestProfile,
+} from "@lindocara/engine/harvest.js";
 import {
   bakeCollision,
   ELEMENT_OFFSET_STEPS,
@@ -428,6 +433,7 @@ export function moveSelection(
       // load-bearing: it must stay on walkable ground, and an exit may not slide onto the spawn — the
       // same rules the server enforces, applied to a drag as well as a fresh placement.
       if (!functionalEventPlacementOk(map, event.kind, col, row)) return null;
+      if (!harvestEventFootprintFitsMap(map, event, col, row)) return null;
       const events = map.events.map((candidate) =>
         candidate.id === selection.id ? { ...candidate, col, row } : candidate,
       );
@@ -572,7 +578,7 @@ export function beginEventDraft(map: EditorMap, id: string): MapEvent | null {
   if (!event) return null;
   return {
     ...event,
-    ...(event.harvestProfile ? { harvestProfile: { ...event.harvestProfile } } : {}),
+    ...(event.harvestProfile ? { harvestProfile: cloneHarvestProfile(event.harvestProfile) } : {}),
     pages: event.pages.map((page) => ({ ...page })),
   };
 }
@@ -679,7 +685,9 @@ export function setEventDraftHarvestProfile(
   draft: MapEvent,
   harvestProfile: HarvestProfile,
 ): MapEvent {
-  return draft.kind === "harvestable" ? { ...draft, harvestProfile: { ...harvestProfile } } : draft;
+  return draft.kind === "harvestable"
+    ? { ...draft, harvestProfile: cloneHarvestProfile(harvestProfile) }
+    : draft;
 }
 
 /** Draft mutator: merge a patch into one page. Everything on a page is per-page (XP semantics), so
@@ -750,6 +758,8 @@ export function normalizeEventDraftConditions(draft: MapEvent): MapEvent {
  *  on the dialog's Save. A draft whose id no longer names a live event writes nothing. */
 export function commitEventDraft(history: EditorHistory, draft: MapEvent): EditorHistory {
   const present = history.present;
+  if (!present.events.some((event) => event.id === draft.id)) return history;
+  if (!harvestEventFootprintFitsMap(present, draft, draft.col, draft.row)) return history;
   const events = present.events.map((event) => (event.id === draft.id ? draft : event));
   return commitEditorHistory(history, { ...present, events });
 }
@@ -931,6 +941,20 @@ function functionalEventPlacementOk(
   if (!isWalkableCell(map, col, row)) return false;
   if (kind === "exit" && col === map.spawn.col && row === map.spawn.row) return false;
   return true;
+}
+
+/** The editor-side use of the shared authoring rule; non-harvest events have no such footprint. */
+function harvestEventFootprintFitsMap(
+  map: EditorMap,
+  event: Pick<MapEvent, "kind" | "harvestProfile">,
+  col: number,
+  row: number,
+): boolean {
+  if (event.kind !== "harvestable") return true;
+  const profile = parseHarvestProfile(event.harvestProfile);
+  if (!profile) return false;
+  const { cols, rows } = editorMapSize(map);
+  return harvestFootprintFitsMap(profile, col, row, cols, rows);
 }
 
 function placementFitsMap(map: EditorMap, element: MapElement): boolean {
@@ -1402,6 +1426,8 @@ export function applyTool(
       if (tool.eventKind === "harvestable") {
         const profile = parseHarvestProfile(tool.harvestProfile);
         if (!profile) return null;
+        const { cols, rows } = editorMapSize(map);
+        if (!harvestFootprintFitsMap(profile, col, row, cols, rows)) return null;
         const event = functionalEvent({
           id: crypto.randomUUID(),
           col,
@@ -1418,7 +1444,7 @@ export function applyTool(
             ...map.events,
             {
               ...event,
-              harvestProfile: { ...profile },
+              harvestProfile: cloneHarvestProfile(profile),
               pages: [
                 {
                   ...(event.pages[0] ?? defaultEventPage()),

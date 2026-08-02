@@ -1805,7 +1805,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.harvest.palette.heading": "Profils de récolte",
   "editor.harvest.palette.description":
     "Choisissez des règles explicites, puis sélectionnez l’apparence indépendamment.",
-  "editor.harvest.preset.tree": "Arbre",
+  "editor.harvest.palette.gameplayHint":
+    "Ici, vous placez de vraies ressources de gameplay. Le même décor placé en mode Décors ne sera pas récoltable.",
+  "editor.harvest.preset.requirement": "{tool} · niveau {level}",
+  "editor.harvest.preset.treeTall": "Très grand arbre",
+  "editor.harvest.preset.treeLarge": "Grand arbre",
+  "editor.harvest.preset.treeMedium": "Arbre moyen",
+  "editor.harvest.preset.treeSmall": "Petit arbre",
   "editor.harvest.preset.stone": "Gisement de pierre",
   "editor.harvest.preset.iron": "Gisement de fer",
   "editor.harvest.preset.goldSmall": "Petit gisement d’or",
@@ -1848,6 +1854,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.harvest.preview.hide": "La ressource disparaît immédiatement.",
   "editor.harvest.validation.invalid":
     "La configuration de récolte est invalide. Vérifiez les assets requis, les quantités et les durées.",
+  "editor.element.decorativeOnly.heading": "Un décor n’est pas une ressource récoltable",
+  "editor.element.decorativeOnly.body":
+    "Placer ici un arbre, un minerai ou de la viande ne fait que décorer la carte. Utilisez Événements → Ressource récoltable pour le gameplay du Paysan.",
   "editor.event.kind.spawn": "Départ de l’aventure",
   "editor.event.kind.anchor.hint":
     "Ancrage hérité conservé pour compatibilité avec les anciennes aventures.",

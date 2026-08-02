@@ -25,12 +25,14 @@ function intactTree(): WorldEventSnapshot {
       state: "intact",
       generation: 0,
       hits: 2,
+      hitsRequired: 3,
       lastHitAt: 1_000,
       depletedAt: null,
       respawnAt: null,
       exhaustionBehavior: "replace",
       exhaustedAssetId: STUMP,
       fadeDurationMs: 250,
+      collider: [138, 226, 44, 30],
     },
   };
 }

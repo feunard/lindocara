@@ -228,6 +228,97 @@ describe("WorldClient lifecycle", () => {
     ).toBe(32 + 400 * TICK_DT);
   });
 
+  it("updates predicted harvest collision on welcome, depletion delta and intact resync", async () => {
+    stubJoin();
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    const welcomePlayer = WELCOME.players[0];
+    if (!welcomePlayer) throw new Error("welcome player fixture missing");
+    const intact = {
+      id: "tree-a",
+      col: 1,
+      row: 0,
+      graphicAssetId: "resource.terrain-resources-wood-trees.tree1",
+      onTop: false,
+      moveSpeed: 0,
+      moveFrequency: 0,
+      moveAnimation: false,
+      directionFixed: true,
+      presentation: "native" as const,
+      harvest: {
+        state: "intact" as const,
+        generation: 0,
+        hits: 0,
+        hitsRequired: 1,
+        lastHitAt: null,
+        depletedAt: null,
+        respawnAt: null,
+        exhaustionBehavior: "hide" as const,
+        exhaustedAssetId: null,
+        fadeDurationMs: 250,
+        collider: [72, 32, 24, 32] as const,
+      },
+    };
+    socket?.message({
+      ...WELCOME,
+      world: { ...WELCOME.world, events: [intact] },
+    });
+
+    const right = { up: false, down: false, left: false, right: true };
+    client.update(right, TICK_DT);
+    expect(client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x).toBe(
+      32,
+    );
+
+    const authoritative = { ...welcomePlayer, ack: 1 };
+    const emptyDelta = { upsert: [], remove: [] };
+    const depleted = {
+      ...intact,
+      graphicAssetId: null,
+      harvest: {
+        ...intact.harvest,
+        state: "depleted" as const,
+        hits: 1,
+        lastHitAt: 1_000,
+        depletedAt: 1_000,
+        collider: null,
+      },
+    };
+    socket?.message({
+      t: "world.delta",
+      tick: 3,
+      players: { upsert: [authoritative], remove: [] },
+      monsters: emptyDelta,
+      guards: emptyDelta,
+      loot: emptyDelta,
+      corpses: emptyDelta,
+      projectiles: emptyDelta,
+      events: { upsert: [depleted], remove: [] },
+    });
+    client.update(right, TICK_DT);
+    expect(
+      client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x,
+    ).toBeGreaterThan(32);
+
+    socket?.message({
+      t: "world.resync",
+      tick: 5,
+      players: [{ ...welcomePlayer, ack: 2 }],
+      monsters: [],
+      guards: [],
+      loot: [],
+      corpses: [],
+      projectiles: [],
+      events: [{ ...intact, harvest: { ...intact.harvest, generation: 1 } }],
+    });
+    client.update(right, TICK_DT);
+    expect(client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x).toBe(
+      32,
+    );
+  });
+
   it("forwards the complete authoritative Shadow Dance result without deriving targets", async () => {
     stubJoin();
     const callbacks = handlers();

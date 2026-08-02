@@ -4,6 +4,7 @@ import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   HARVEST_PROFILE_LIMITS,
   type HarvestProfile,
+  harvestColliderAt,
   PEASANT_CARRY_DURATION_MS,
 } from "@lindocara/engine/harvest.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
@@ -33,6 +34,14 @@ const EVENT_B = "11111111-1111-4111-8111-111111111111";
 const EVENT_C = "22222222-2222-4222-8222-222222222222";
 const NOW = 10_000;
 const TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree1";
+const AREA_SECONDARY_COLLISION = {
+  intact: { offsetX: 0, offsetY: -44, width: 32, height: 32 },
+  depleted: null,
+} as const;
+const AREA_TERTIARY_COLLISION = {
+  intact: { offsetX: -32, offsetY: -32, width: 32, height: 32 },
+  depleted: null,
+} as const;
 
 function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
   const tiles = tileMapFromRects(320, 192, obstacles);
@@ -292,6 +301,48 @@ function installDepletedNode(w: WorldGlue, eventId: string, generation = 0): voi
 }
 
 describe("tick-driven Peasant harvest jobs", () => {
+  it.each([
+    ["wood", "axe", 1, 4, 0],
+    ["stone", "pickaxe", 2, 4, 0],
+    ["iron", "pickaxe", 2, 4, 0],
+    ["gold", "pickaxe", 2, 0, 25],
+    ["meat", "knife", 3, 4, 0],
+  ] as const)("maps %s only to the %s tool and anchors its target at the visible foot", (resource, tool, expectedSlot, yieldAmount, goldValue) => {
+    const authoredProfile = profile({
+      resource,
+      tool,
+      yieldAmount,
+      goldValue,
+      harvestDurationMs: 0,
+    });
+    const value = runtime(0, {
+      nodes: [
+        {
+          id: EVENT_ID,
+          col: 1,
+          row: 0,
+          profile: authoredProfile,
+        },
+      ],
+    });
+    const wrongSlot = expectedSlot === 1 ? 2 : 1;
+    resolveTool(value.w, wrongSlot);
+    expect(value.w.state.harvestJobs.has(HERO_ID)).toBe(false);
+
+    value.player.action = null;
+    resolveTool(value.w, expectedSlot);
+    const collider = harvestColliderAt(authoredProfile, 1, 0, "intact");
+    if (!collider) throw new Error("tool fixture collider missing");
+    expect(value.w.state.harvestJobs.get(HERO_ID)).toMatchObject({
+      slot: expectedSlot,
+      tool,
+      areaCenter: {
+        x: collider.x + collider.width / 2,
+        y: collider.y + collider.height / 2,
+      },
+    });
+  });
+
   it("keeps the first job per hero and commits only at harvestDurationMs (including zero)", async () => {
     const delayed = runtime();
     resolveAxe(delayed.w);
@@ -519,8 +570,8 @@ describe("tick-driven Peasant harvest jobs", () => {
       },
       {
         id: EVENT_B,
-        col: 2,
-        row: 0,
+        col: 0,
+        row: 1,
         profile: profile({
           resource: "gold",
           tool: "pickaxe",
@@ -528,6 +579,7 @@ describe("tick-driven Peasant harvest jobs", () => {
           goldValue: 50,
           hitsRequired: 1,
           harvestDurationMs: 0,
+          collision: AREA_SECONDARY_COLLISION,
         }),
       },
       {
@@ -541,6 +593,7 @@ describe("tick-driven Peasant harvest jobs", () => {
           goldValue: HARVEST_PROFILE_LIMITS.goldValue.max,
           hitsRequired: 1,
           harvestDurationMs: 0,
+          collision: AREA_TERTIARY_COLLISION,
         }),
       },
     ];
@@ -560,8 +613,8 @@ describe("tick-driven Peasant harvest jobs", () => {
     resolveTool(value.w, 2);
     expect(value.w.state.harvestJobs.get(HERO_ID)?.targets.map((target) => target.nodeId)).toEqual([
       EVENT_ID,
-      EVENT_B,
       EVENT_C,
+      EVENT_B,
     ]);
     advancePeasantHarvestJobs(value.w, NOW);
     await Promise.all(value.pending);
@@ -574,12 +627,12 @@ describe("tick-driven Peasant harvest jobs", () => {
         reward: { stone: 8, iron: 3 },
         goldValue: 0,
       },
-      { eventId: EVENT_B, reward: {}, goldValue: 120 },
       {
         eventId: EVENT_C,
         reward: {},
         goldValue: HARVEST_PROFILE_LIMITS.goldValue.max,
       },
+      { eventId: EVENT_B, reward: {}, goldValue: 120 },
     ]);
     expect(new Set(value.calls.reserveRequests.map((request) => request.eventId)).size).toBe(3);
     expect(
@@ -588,8 +641,8 @@ describe("tick-driven Peasant harvest jobs", () => {
         goldValue,
       })),
     ).toEqual([
-      { eventId: EVENT_B, goldValue: 120 },
       { eventId: EVENT_C, goldValue: HARVEST_PROFILE_LIMITS.goldValue.max },
+      { eventId: EVENT_B, goldValue: 120 },
     ]);
     expect(value.player.peasantCarry).toEqual({
       kind: "gold",
@@ -617,9 +670,13 @@ describe("tick-driven Peasant harvest jobs", () => {
       },
       {
         id: EVENT_B,
-        col: 2,
-        row: 0,
-        profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
+        col: 0,
+        row: 1,
+        profile: profile({
+          hitsRequired: 1,
+          harvestDurationMs: 0,
+          collision: AREA_SECONDARY_COLLISION,
+        }),
       },
     ];
     const value = runtime(0, { talents, nodes });
@@ -667,9 +724,13 @@ describe("tick-driven Peasant harvest jobs", () => {
         },
         {
           id: EVENT_B,
-          col: 2,
-          row: 0,
-          profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
+          col: 0,
+          row: 1,
+          profile: profile({
+            hitsRequired: 1,
+            harvestDurationMs: 0,
+            collision: AREA_SECONDARY_COLLISION,
+          }),
         },
       ],
     });

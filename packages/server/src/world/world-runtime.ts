@@ -72,11 +72,10 @@ function attackCooldownMs(
 }
 
 /**
- * The appearance-only projection of an authored event whose active page currently holds — the
- * third member of the `elements`/`layers` family, carrying the same rule: never a source of
- * collision, movement or command execution. The room re-derives this list only when the party's
- * adventure-state snapshot changes or a hero joins, never per tick. Task 4 puts exactly this shape
- * on the wire; this tranche only holds it in the room.
+ * The server-selected projection of an authored event whose active page currently holds. Graphic
+ * fields remain appearance-only; an explicit harvest lifecycle may additionally carry its current
+ * authoritative collider. Ordinary page evaluation runs on state changes and joins, while the
+ * narrow harvest lifecycle projection refreshes timed respawns from the tick.
  */
 export interface ActiveWorldEvent extends WorldEventSnapshot {
   graphicAssetId: EditorAssetId | null;

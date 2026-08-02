@@ -18,9 +18,10 @@ describe("eventRenderLayer", () => {
   const actors = new Container();
   const above = new Container();
 
-  it("routes onTop pages above actors, NPCs with actors, and markers into decor", () => {
+  it("routes onTop pages above actors, NPCs and native resources with actors, and markers into decor", () => {
     expect(eventRenderLayer(true, true, decor, actors, above)).toBe(above);
     expect(eventRenderLayer(false, true, decor, actors, above)).toBe(actors);
+    expect(eventRenderLayer(false, false, decor, actors, above, "native")).toBe(actors);
     expect(eventRenderLayer(false, false, decor, actors, above)).toBe(decor);
   });
 });

@@ -97,6 +97,17 @@ const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
 const SMALL_DECOR = "decoration.deco.01" as const;
 const SMALL_DECOR_ALT = "decoration.deco.02" as const;
 
+function boundaryCrossingTreeProfile() {
+  const profile = harvestProfileFromPreset("tree");
+  return {
+    ...profile,
+    collision: {
+      intact: { offsetX: -40, offsetY: -30, width: 64, height: 30 },
+      depleted: profile.collision?.depleted ?? null,
+    },
+  };
+}
+
 describe("blankMap", () => {
   it("starts all grass, spawn centred", () => {
     const map = blankMap("m", 20, 15);
@@ -946,6 +957,24 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     expect(place(base, incomplete, 2, 2)).toBeNull();
   });
 
+  it("refuses placement and movement when the explicit harvest footprint leaves the map", () => {
+    const preset = harvestPreset("tree");
+    const tool: EditorTool = {
+      kind: "event",
+      eventKind: "harvestable",
+      graphic: preset.intactAssetId,
+      harvestProfile: boundaryCrossingTreeProfile(),
+    };
+
+    expect(place(base, tool, 0, 2)).toBeNull();
+    expect(placementLegalAt(tool, base, 0, 2, "event")).toBe(false);
+
+    const placed = place(base, tool, 1, 2) as EditorMap;
+    const id = placed.events[0]?.id ?? "";
+    expect(placed.events).toHaveLength(1);
+    expect(moveSelection(placed, { kind: "event", id }, 0, 2)).toBeNull();
+  });
+
   it("places an entry event as a functionalEvent-shaped MapEvent with a uuid", () => {
     const next = place(base, { kind: "event", eventKind: "entry" }, 2, 2) as EditorMap;
     expect(next).not.toBeNull();
@@ -1389,6 +1418,36 @@ describe("event dialog draft", () => {
       "resource.resources-sheep.happysheep-idle",
     );
     expect(toSaveInput(committed.present).events[0]?.harvestProfile).toEqual(override);
+  });
+
+  it("refuses a draft whose changed harvest footprint crosses the map boundary", () => {
+    const preset = harvestPreset("tree");
+    const map = place(
+      blankMap("m", 20, 15),
+      {
+        kind: "event",
+        eventKind: "harvestable",
+        graphic: preset.intactAssetId,
+        harvestProfile: harvestProfileFromPreset("tree"),
+      },
+      1,
+      4,
+    ) as EditorMap;
+    const history = markEditorHistorySaved(createEditorHistory(map));
+    const initialDraft = beginEventDraft(map, map.events[0]?.id ?? "");
+    if (!initialDraft) throw new Error("placed harvest event must have a draft");
+    const draft = setEventDraftHarvestProfile(initialDraft, {
+      ...harvestProfileFromPreset("tree"),
+      collision: {
+        intact: { offsetX: -100, offsetY: -30, width: 64, height: 30 },
+        depleted: harvestProfileFromPreset("tree").collision?.depleted ?? null,
+      },
+    });
+
+    const refused = commitEventDraft(history, draft);
+    expect(refused).toBe(history);
+    expect(refused.past).toHaveLength(0);
+    expect(refused.present.events[0]?.harvestProfile).toEqual(harvestProfileFromPreset("tree"));
   });
 });
 

@@ -111,6 +111,8 @@ export interface ReserveHarvestNodeRequest {
   reward: PartyMaterialAmounts;
   goldValue: number;
   respawnDelayMs: number | null;
+  /** Absolute server deadline for transient animal carcasses; omitted by older internal callers. */
+  respawnAt?: number | null;
 }
 
 export type ReserveHarvestNodeResult =
@@ -202,11 +204,16 @@ interface HarvestReservation {
   reward: PartyMaterialAmounts;
   goldValue: number;
   respawnDelayMs: number | null;
+  respawnAt: number | null;
   expiresAt: number;
 }
 
-type ParsedReserveHarvestNodeRequest = Omit<ReserveHarvestNodeRequest, "goldValue"> & {
+type ParsedReserveHarvestNodeRequest = Omit<
+  ReserveHarvestNodeRequest,
+  "goldValue" | "respawnAt"
+> & {
   goldValue: number;
+  respawnAt: number | null;
 };
 
 interface PartyMaterialReservation extends PartyMaterialReservationRequest {
@@ -240,6 +247,11 @@ function parseReserveHarvestNodeRequest(value: unknown): ParsedReserveHarvestNod
   ) {
     return null;
   }
+  const respawnAt = value.respawnAt === undefined ? null : value.respawnAt;
+  if (respawnAt !== null && (!Number.isSafeInteger(respawnAt) || (respawnAt as number) < 0)) {
+    return null;
+  }
+  if (value.respawnDelayMs !== null && respawnAt !== null) return null;
   const reward = parsePartyMaterialAmounts(value.reward);
   const goldValue = value.goldValue === undefined ? 0 : value.goldValue;
   if (
@@ -260,6 +272,7 @@ function parseReserveHarvestNodeRequest(value: unknown): ParsedReserveHarvestNod
     reward,
     goldValue: goldValue as number,
     respawnDelayMs: value.respawnDelayMs as number | null,
+    respawnAt: respawnAt as number | null,
   };
 }
 
@@ -843,6 +856,12 @@ export class PartyRoom {
       if (!request) return { ok: false, reason: "invalid" };
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) return { ok: false, reason: "invalid" };
+      if (
+        request.respawnAt !== null &&
+        (request.respawnAt <= now || request.respawnAt - now > MAX_HARVEST_RESPAWN_DELAY_MS)
+      ) {
+        return { ok: false, reason: "invalid" };
+      }
       await this.reconcileHarvestGoldClaimsFromDurableState(partyId, state);
       let current = await this.ensureState(partyId, state);
       if (state.partyCompleted) return { ok: false, reason: "party" };
@@ -868,6 +887,7 @@ export class PartyRoom {
           existing.generation === request.generation &&
           existing.requiredHits === request.requiredHits &&
           existing.respawnDelayMs === request.respawnDelayMs &&
+          existing.respawnAt === request.respawnAt &&
           existing.goldValue === request.goldValue &&
           sameMaterialAmounts(existing.reward, request.reward)
         ) {
@@ -938,6 +958,12 @@ export class PartyRoom {
       // sees the token as spent even while D1 is being written.
       state.harvestReservations.delete(request.eventId);
 
+      if (reservation.respawnAt !== null && reservation.respawnAt <= now) {
+        return { ok: false, reason: "reservation" };
+      }
+      const respawnDelayMs =
+        reservation.respawnAt === null ? reservation.respawnDelayMs : reservation.respawnAt - now;
+
       const result = applyHarvestHit(
         current.state.materials ?? EMPTY_PARTY_MATERIALS,
         current.state.harvestNodes ?? {},
@@ -946,7 +972,7 @@ export class PartyRoom {
           generation: reservation.generation,
           requiredHits: reservation.requiredHits,
           reward: reservation.reward,
-          respawnDelayMs: reservation.respawnDelayMs,
+          respawnDelayMs,
           now,
         },
       );

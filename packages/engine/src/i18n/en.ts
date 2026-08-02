@@ -1783,7 +1783,13 @@ export const en = {
   "editor.harvest.palette.heading": "Harvest profiles",
   "editor.harvest.palette.description":
     "Pick explicit gameplay defaults, then choose the appearance independently.",
-  "editor.harvest.preset.tree": "Tree",
+  "editor.harvest.palette.gameplayHint":
+    "These are gameplay resources. A matching scenery asset placed in Scenery mode is not harvestable.",
+  "editor.harvest.preset.requirement": "{tool} · level {level}",
+  "editor.harvest.preset.treeTall": "Very tall tree",
+  "editor.harvest.preset.treeLarge": "Large tree",
+  "editor.harvest.preset.treeMedium": "Medium tree",
+  "editor.harvest.preset.treeSmall": "Small tree",
   "editor.harvest.preset.stone": "Stone outcrop",
   "editor.harvest.preset.iron": "Iron outcrop",
   "editor.harvest.preset.goldSmall": "Small gold deposit",
@@ -1826,6 +1832,9 @@ export const en = {
   "editor.harvest.preview.hide": "The resource disappears immediately.",
   "editor.harvest.validation.invalid":
     "The harvest configuration is invalid. Check required assets, amounts and timing bounds.",
+  "editor.element.decorativeOnly.heading": "Scenery is not a harvestable resource",
+  "editor.element.decorativeOnly.body":
+    "Placing a tree, ore or meat asset here only decorates the map. Use Events → Harvestable resource for Peasant gameplay.",
   "editor.event.kind.spawn": "Adventure start",
   "editor.event.kind.anchor.hint":
     "Legacy anchor retained for compatibility with older adventures.",

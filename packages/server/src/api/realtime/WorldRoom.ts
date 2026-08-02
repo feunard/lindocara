@@ -43,7 +43,6 @@ import {
   DEFAULT_ADVENTURE_AUDIO,
 } from "@lindocara/engine/audio-catalog.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
-import { flattenColliderIndex } from "@lindocara/engine/collider.js";
 import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
 import { canAct } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
@@ -425,10 +424,18 @@ export class WorldRoom {
 
     // Reload under the acquired epoch: a profile that moved on (a racing second acquire, a
     // handoff) refuses admission rather than admitting a stale copy.
-    const profile = await this.admissionService.loadHeroProfile(
-      join.heroId,
-      state.location.definition.terrain,
-    );
+    const roomTerrain = state.location.definition.terrain;
+    // A room evaluates events before the first admission, so its live terrain may already contain
+    // intact harvest footprints. Clamp persisted coordinates only against the authored static
+    // geometry: after the hero is installed, `evaluateActiveEvents` sees the body and advertises
+    // that overlapping resource as `collisionPending` until the hero leaves. Otherwise a newly
+    // introduced tree could silently relocate an existing save to the map spawn before that guard
+    // gets a chance to run.
+    const admissionTerrain = {
+      ...roomTerrain,
+      colliders: state.staticColliderIndex,
+    };
+    const profile = await this.admissionService.loadHeroProfile(join.heroId, admissionTerrain);
     if (profile) {
       // Personal authored-quest progress rides the hero, loaded beside the profile (legacy
       // `world.ts:614`); a failed read degrades to an empty journal, never a refused join.
@@ -1809,10 +1816,12 @@ export class WorldRoom {
       zoneId: location.zoneId,
       revision: definition.revision ?? 0,
       zoneNameKey: definition.nameKey,
-      // Baked collision truth: the tile grid and the sub-cell colliders. The client collides
-      // against exactly these bytes; `layers`/`elements`/`events` below stay appearance-only.
+      // Static baked collision truth. Harvest footprints travel explicitly on their event state so
+      // deltas can remove/restore them without ever deriving gameplay from an appearance asset.
       tiles: encodeTileMap(definition.terrain.tiles),
-      colliders: flattenColliderIndex(definition.terrain.colliders),
+      colliders: state.staticColliders.map(
+        ({ x, y, width, height }) => [x, y, width, height] as const,
+      ),
       elements: definition.elements ?? [],
       tilesetId: definition.tilesetId ?? TINY_SWORDS_TILESET_ID,
       layers: definition.layers ?? [],

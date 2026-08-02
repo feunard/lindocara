@@ -36,7 +36,8 @@ import {
   type MonsterTuning,
   type MonsterWeakness,
 } from "./game.js";
-import { type HarvestProfile, parseHarvestProfile } from "./harvest.js";
+import { type HarvestProfile, harvestFootprintFitsMap, parseHarvestProfile } from "./harvest.js";
+import { migrateLegacyHarvestGraphicAsset } from "./harvest-presets.js";
 import { isUuid } from "./identifiers.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
 import { TILE_SIZE } from "./tilemap.js";
@@ -261,6 +262,15 @@ export interface MapEvent {
 /** The pixel centre of an event's one cell — where an entry/exit puts a hero, a monster spawns. */
 export function eventCellCentre(event: { col: number; row: number }): { x: number; y: number } {
   return { x: event.col * TILE_SIZE + TILE_SIZE / 2, y: event.row * TILE_SIZE + TILE_SIZE / 2 };
+}
+
+/**
+ * The visual foot of an event graphic. Resource tools hit this point rather than the cell centre:
+ * catalogue sprites are bottom-anchored, so the centre sits half a tile above the visible trunk,
+ * ore or cache the player is actually facing.
+ */
+export function eventCellFoot(event: { col: number; row: number }): { x: number; y: number } {
+  return { x: event.col * TILE_SIZE + TILE_SIZE / 2, y: (event.row + 1) * TILE_SIZE };
 }
 
 export function entryEvents(events: readonly MapEvent[]): MapEvent[] {
@@ -605,10 +615,23 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     let monsterRespawnMode: MonsterRespawnMode | undefined;
     let monsterRespawnDelayMs: number | undefined;
     let harvestProfile: HarvestProfile | undefined;
+    let legacyHarvestProfile = false;
+    let legacyHarvestDurationMs: number | null = null;
     if (kind === "harvestable") {
+      legacyHarvestProfile =
+        typeof record.harvestProfile === "object" &&
+        record.harvestProfile !== null &&
+        !Array.isArray(record.harvestProfile) &&
+        !Object.hasOwn(record.harvestProfile, "collision");
       const parsedProfile = parseHarvestProfile(record.harvestProfile);
-      if (!parsedProfile) return null;
+      if (!parsedProfile || !harvestFootprintFitsMap(parsedProfile, c, r, cols, rows)) return null;
       harvestProfile = parsedProfile;
+      if (legacyHarvestProfile) {
+        const rawDuration = (record.harvestProfile as Record<string, unknown>).harvestDurationMs;
+        legacyHarvestDurationMs = Number.isSafeInteger(rawDuration)
+          ? (rawDuration as number)
+          : null;
+      }
     } else if (record.harvestProfile !== undefined && record.harvestProfile !== null) {
       return null;
     }
@@ -728,6 +751,18 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
 
     const parsedPages = parseEventPages(pages);
     if (!parsedPages) return null;
+    const normalizedPages =
+      kind === "harvestable" && harvestProfile
+        ? parsedPages.map((page) => ({
+            ...page,
+            graphicAssetId: migrateLegacyHarvestGraphicAsset(
+              harvestProfile,
+              page.graphicAssetId,
+              legacyHarvestProfile,
+              legacyHarvestDurationMs,
+            ),
+          }))
+        : parsedPages;
     // Anchors have exactly one page. NPCs, monsters and guards keep multiple conditional pages so
     // party-state decisions can select their presence or routine.
     if (
@@ -736,13 +771,13 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       kind !== "monster" &&
       kind !== "guard" &&
       kind !== "harvestable" &&
-      parsedPages.length !== 1
+      normalizedPages.length !== 1
     )
       return null;
     // Nothing over the wire may smuggle scripted behaviour onto an entry/exit/spawn anchor.
     if (
       (kind === "entry" || kind === "exit" || kind === "spawn") &&
-      parsedPages.some((page) => page.commands.length > 0)
+      normalizedPages.some((page) => page.commands.length > 0)
     ) {
       return null;
     }
@@ -751,7 +786,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     // simulation, so reject other ignored fields instead of persisting misleading authoring.
     if (
       kind === "guard" &&
-      parsedPages.some(
+      normalizedPages.some(
         (page) =>
           page.condSelfSwitch !== null ||
           (page.graphicAssetId !== null && !isGuardAppearanceAssetId(page.graphicAssetId)) ||
@@ -774,7 +809,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     // authoring instead of persisting a configuration that looks meaningful in the editor.
     if (
       kind === "harvestable" &&
-      parsedPages.some(
+      normalizedPages.some(
         (page) =>
           page.graphicAssetId === null ||
           page.moveType !== "fixed" ||
@@ -807,7 +842,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       ...(monsterRespawnMode === undefined ? {} : { monsterRespawnMode }),
       ...(monsterRespawnDelayMs === undefined ? {} : { monsterRespawnDelayMs }),
       ...(harvestProfile === undefined ? {} : { harvestProfile }),
-      pages: parsedPages,
+      pages: normalizedPages,
     });
   }
   return events;

@@ -687,6 +687,10 @@ describe("EventDialog harvest authoring", () => {
       exhaustionBehavior: "fade",
       respawnDelayMs: 91_000,
       fadeDurationMs: 777,
+      collision: {
+        ...harvestProfileFromPreset("sheep").collision,
+        depleted: null,
+      },
     });
     expect(committed.pages[0]?.graphicAssetId).toBe("resource.terrain-resources-wood-trees.tree1");
   }, 15_000);

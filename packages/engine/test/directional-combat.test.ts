@@ -9,6 +9,7 @@ import {
   frontalArc,
   normalizeDirection,
   orientationFromMovement,
+  segmentIntersectsRect,
   strikeCapsule,
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
@@ -94,6 +95,14 @@ describe("directional combat geometry", () => {
     const impact = sweptProjectileTerrainImpact({ x: 20, y: 32 }, { x: 170, y: 32 }, 2, map);
     expect(impact).toMatchObject({ kind: "terrain", col: 1, row: 0 });
     expect(impact?.point.x).toBeCloseTo(62);
+  });
+
+  it("tests a swept segment against one explicit rectangle without an index", () => {
+    const rect = { x: 40, y: 20, width: 12, height: 16 };
+    expect(segmentIntersectsRect({ x: 0, y: 28 }, { x: 80, y: 28 }, rect)).toBe(true);
+    expect(segmentIntersectsRect({ x: 0, y: 4 }, { x: 80, y: 4 }, rect)).toBe(false);
+    expect(segmentIntersectsRect({ x: 0, y: 14 }, { x: 80, y: 14 }, rect, 6)).toBe(true);
+    expect(segmentIntersectsRect({ x: Number.NaN, y: 0 }, { x: 80, y: 0 }, rect)).toBe(false);
   });
 
   it("chooses the first impact deterministically and lets terrain win exact ties", () => {

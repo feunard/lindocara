@@ -19,6 +19,7 @@ import {
   shouldShowHoverPreview,
   stampFootprintCells,
 } from "@lindocara/editor/game/map-editor-stage.js";
+import { harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -380,6 +381,29 @@ describe("paintCollisionOverlay", () => {
     const result = paintCollisionOverlay(tiles, elements, container);
     expect(result).toEqual({ solidCells: 0, colliderRects: 1 });
     expect(container.children).toHaveLength(1);
+  });
+
+  it("outlines an intact harvest event through its explicit gameplay collider", () => {
+    const tiles: TileMap = { cols: 4, rows: 3, kinds: new Array(12).fill("grass") };
+    const event: MapEvent = {
+      id: "harvest-tree",
+      col: 2,
+      row: 1,
+      name: "Tree",
+      ordinal: 1,
+      kind: "harvestable",
+      species: null,
+      patrolRadius: null,
+      harvestProfile: harvestProfileFromPreset("tree"),
+      pages: [defaultEventPage()],
+    };
+    const container = new Container();
+
+    const result = paintCollisionOverlay(tiles, [], container, [event]);
+
+    expect(result).toEqual({ solidCells: 0, colliderRects: 1 });
+    expect(container.children).toHaveLength(1);
+    expect(container.children[0]).toBeInstanceOf(Graphics);
   });
 });
 

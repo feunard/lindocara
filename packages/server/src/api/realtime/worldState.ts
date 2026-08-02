@@ -13,6 +13,12 @@ import {
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
 import { type AdventureAudioConfig, resolveMapAudio } from "@lindocara/engine/audio-catalog.js";
+import {
+  type ColliderIndex,
+  emptyColliderIndex,
+  flattenColliderIndex,
+} from "@lindocara/engine/collider.js";
+import type { Rect } from "@lindocara/engine/game.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import { MAP_LAYERS, terrainFromMap } from "@lindocara/engine/map-data.js";
@@ -192,6 +198,12 @@ export interface WorldRoomState {
   heroPartyBroadcasts: Map<string, string>;
   /** Authored events whose page currently holds. Always empty until Task 7 evaluates pages. */
   activeEvents: readonly ActiveWorldEvent[];
+  /** Static map/element collision, kept separate so dynamic harvest footprints can be rebuilt. */
+  staticColliders: readonly Rect[];
+  /** Immutable map/element index reused by provenance-aware line-of-sight checks. */
+  staticColliderIndex: ColliderIndex;
+  /** Current harvest-only collision projected from `activeEvents`. */
+  harvestColliders: readonly Rect[];
   /** At most one server-timed harvest channel per hero. Movement/leave/transition removes it. */
   harvestJobs: Map<string, PeasantHarvestJob>;
   /** Autonomous NPC movement runtimes keyed by event id (Task 7 populates via reconcile). */
@@ -254,6 +266,15 @@ export function createWorldRoomState(
   const guards = definition ? createGuards(definition.guards) : [];
   const monsterGrid = new SpatialGrid<MonsterRuntime>(SPATIAL_CELL_SIZE);
   for (const monster of monsters) monsterGrid.insert(monster);
+  const staticColliders = definition
+    ? flattenColliderIndex(definition.terrain.colliders).map(([x, y, width, height]) => ({
+        x,
+        y,
+        width,
+        height,
+      }))
+    : [];
+  const staticColliderIndex = definition?.terrain.colliders ?? emptyColliderIndex(1, 1);
   return {
     partyId: parsed?.partyId ?? "",
     mapId: parsed?.mapId ?? "",
@@ -281,6 +302,9 @@ export function createWorldRoomState(
       : null,
     heroPartyBroadcasts: new Map(),
     activeEvents: [],
+    staticColliders,
+    staticColliderIndex,
+    harvestColliders: [],
     harvestJobs: new Map(),
     npcMovement: new Map(),
     occupiedExitByPlayerId: new Map(),

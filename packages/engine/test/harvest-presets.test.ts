@@ -33,11 +33,75 @@ describe("semantic harvest presets", () => {
     });
   });
 
+  it("offers four semantic tree sizes with their matching stump and balanced yield", () => {
+    expect(
+      (["tree_tall", "tree", "tree_medium", "tree_small"] as const).map((id) => {
+        const preset = harvestPreset(id);
+        return {
+          id,
+          intact: preset.intactAssetId,
+          exhausted: preset.profile.exhaustedAssetId,
+          yieldAmount: preset.profile.yieldAmount,
+          hitsRequired: preset.profile.hitsRequired,
+        };
+      }),
+    ).toEqual([
+      {
+        id: "tree_tall",
+        intact: "resource.terrain-resources-wood-trees.tree2",
+        exhausted: "resource.terrain-resources-wood-trees.stump-2",
+        yieldAmount: 10,
+        hitsRequired: 4,
+      },
+      {
+        id: "tree",
+        intact: "resource.terrain-resources-wood-trees.tree1",
+        exhausted: "resource.terrain-resources-wood-trees.stump-1",
+        yieldAmount: 8,
+        hitsRequired: 3,
+      },
+      {
+        id: "tree_medium",
+        intact: "resource.terrain-resources-wood-trees.tree3",
+        exhausted: "resource.terrain-resources-wood-trees.stump-3",
+        yieldAmount: 6,
+        hitsRequired: 3,
+      },
+      {
+        id: "tree_small",
+        intact: "resource.terrain-resources-wood-trees.tree4",
+        exhausted: "resource.terrain-resources-wood-trees.stump-4",
+        yieldAmount: 4,
+        hitsRequired: 2,
+      },
+    ]);
+  });
+
+  it("maps the small and large gold presets to the correctly-sized appearances", () => {
+    expect(harvestPreset("gold_small")).toMatchObject({
+      intactAssetId: "resource.terrain-resources-gold-gold-resource.gold-resource",
+      profile: { goldValue: 25, hitsRequired: 2 },
+    });
+    expect(harvestPreset("gold_large")).toMatchObject({
+      intactAssetId: "resource.terrain-resources-gold-gold-stones.gold-stone-6",
+      profile: { goldValue: 100, hitsRequired: 5 },
+    });
+  });
+
+  it("registers default tool hits at the authoritative action impact", () => {
+    for (const preset of HARVEST_PRESETS) {
+      expect(preset.profile.harvestDurationMs).toBe(0);
+    }
+  });
+
   it("returns detached per-instance profiles and never derives semantics from an appearance", () => {
     const first = harvestProfileFromPreset("tree");
     const second = harvestProfileFromPreset("tree");
     expect(first).toEqual(second);
     expect(first).not.toBe(second);
+    expect(first.collision).not.toBe(second.collision);
+    expect(first.collision?.intact).not.toBe(second.collision?.intact);
+    expect(first.collision?.depleted).not.toBe(second.collision?.depleted);
 
     const customAppearance = harvestPreset("happy_sheep").intactAssetId;
     expect(customAppearance).not.toBe(harvestPreset("tree").intactAssetId);

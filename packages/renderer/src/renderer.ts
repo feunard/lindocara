@@ -132,6 +132,7 @@ import {
   createHarvestEventVisualState,
   type HarvestEventVisualState,
   harvestEventPresentation,
+  harvestImpactPoint,
   peasantCarryPresentation,
 } from "./harvest-visuals.js";
 import { onLocaleChange, t } from "./locale.js";
@@ -895,8 +896,8 @@ interface EventView {
 /**
  * Which container an event draws into — the ONE routing decision, extracted pure so it can be pinned
  * without a renderer: an `onTop` page (a treetop the hero passes behind) goes above the actors, in
- * `#tilesAbove`; a character joins the actor pass for Y-sorting; every other graphic draws in the
- * ground decor pass. Appearance only.
+ * `#tilesAbove`; a character or explicit native-size resource joins the actor pass for Y-sorting;
+ * every marker-sized graphic draws in the ground decor pass. Appearance only.
  */
 export function eventRenderLayer(
   onTop: boolean,
@@ -904,9 +905,10 @@ export function eventRenderLayer(
   decor: Container,
   actors: Container,
   above: Container,
+  presentation?: WorldEventSnapshot["presentation"],
 ): Container {
   if (onTop) return above;
-  return unit ? actors : decor;
+  return unit || presentation === "native" ? actors : decor;
 }
 
 /** The world renderer's single tileset-priority routing rule, exported so the editor/runtime parity
@@ -1626,9 +1628,10 @@ export class Renderer {
   /**
    * Draw the room's active authored events. Appearance only — nothing here is read for collision,
    * movement, interaction or monster awareness; the server already picked which page is active and
-   * baked its collision into the tilemap. An `onTop` page draws above the actors (`#tilesAbove`),
-   * everything else in the ground decor pass — the one `eventRenderLayer` routing decision. Events
-   * change only on a party state flip, so this is cheap: a same-set frame touches nothing.
+   * sent its collision independently. An `onTop` page draws above the actors (`#tilesAbove`),
+   * NPCs and explicit native-size resources join the Y-sorted actor pass through the one
+   * `eventRenderLayer` routing decision. Events change only on a party state flip, so this is cheap:
+   * a same-set frame touches nothing.
    */
   #reconcileEvents(events: readonly WorldEventSnapshot[], now: number): void {
     const present = new Set<string>();
@@ -1709,6 +1712,7 @@ export class Renderer {
         this.#decorLayer,
         this.#actors,
         this.#tilesAbove,
+        event.presentation,
       );
       if (view.container.parent !== parent) parent.addChild(view.container);
       if (view.drawnGraphic !== presentedGraphicAssetId) {
@@ -1716,12 +1720,8 @@ export class Renderer {
         this.#drawEventGraphic(view, event, presentedGraphicAssetId);
       }
       if (harvestPresentation.playHitEffect) {
-        this.#burst(
-          movement.col * TILE_SIZE + TILE_SIZE / 2,
-          movement.row * TILE_SIZE + TILE_SIZE / 2,
-          0xe5d2a4,
-          6,
-        );
+        const impact = harvestImpactPoint(event, movement.col, movement.row);
+        this.#burst(impact.x, impact.y, 0xe5d2a4, 6);
       }
       const animation = view.animation;
       const sprite = view.sprite;
@@ -1742,6 +1742,7 @@ export class Renderer {
           movement.col,
           movement.row,
           running ? animation.runPlacement : (definition ?? undefined),
+          event.presentation,
         );
         if (animation) {
           const frames = running ? animation.runFrames : animation.idleFrames;
@@ -1847,6 +1848,7 @@ export class Renderer {
           view.displayRow,
           frame,
           art.definition,
+          event.presentation,
         );
         sprite.tint = event.graphicTint ?? 0xffffff;
         view.container.addChild(sprite);

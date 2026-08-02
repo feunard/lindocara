@@ -1,6 +1,12 @@
 import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
-import { circleIntersectsArc, frontalArc } from "@lindocara/engine/directional-combat.js";
-import { hasLineOfSight, monsterBodyRadius, type TerrainGeometry } from "@lindocara/engine/game.js";
+import type { ColliderIndex } from "@lindocara/engine/collider.js";
+import {
+  circleIntersectsArc,
+  frontalArc,
+  segmentIntersectsRect,
+  sweptProjectileTerrainImpact,
+} from "@lindocara/engine/directional-combat.js";
+import { monsterBodyRadius, type Rect, type TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   animalCarcassHarvestProfile,
   type HarvestProfile,
@@ -9,7 +15,7 @@ import {
   type PeasantCarryKind,
 } from "@lindocara/engine/harvest.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
-import { eventCellCentre, harvestableEvents, type MapEvent } from "@lindocara/engine/map-events.js";
+import { eventCellFoot, harvestableEvents, type MapEvent } from "@lindocara/engine/map-events.js";
 import {
   isHarvestNodeId,
   type PartyMaterialAmounts,
@@ -37,6 +43,10 @@ export interface PeasantHarvestTarget {
   generation: number;
   position: Vec2;
   radius: number;
+  /** Explicit gameplay footprint for authored nodes; animal bodies use their combat radius. */
+  collider: Rect | null;
+  /** Absolute corpse deadline; map resources keep their authored relative respawn delay. */
+  respawnAt: number | null;
   profile: HarvestProfile;
 }
 
@@ -76,6 +86,8 @@ export interface PeasantHarvestView {
   adventureState: PartyAdventureState;
   monsters: readonly MonsterRuntime[];
   terrain: TerrainGeometry;
+  /** Prebuilt immutable map/element index; never rebuilt per harvest candidate. */
+  staticColliderIndex: ColliderIndex;
 }
 
 export function cancelPeasantHarvestJob(
@@ -151,14 +163,35 @@ function mapTargets(view: PeasantHarvestView, now: number): PeasantHarvestTarget
     if (!active) return [];
     const node = effectiveGeneration(view.adventureState, event.id, now);
     if (!node || node.depleted) return [];
+    const activeCollider = active.harvest?.collider;
+    // An intact node can temporarily advertise no collider while a timed respawn waits for an
+    // overlapping actor to leave. It must not be harvestable during that authoritative gap.
+    if (
+      active.harvest?.state !== "intact" ||
+      active.harvest.generation !== node.generation ||
+      !activeCollider
+    ) {
+      return [];
+    }
+    const collider: Rect = {
+      x: activeCollider[0],
+      y: activeCollider[1],
+      width: activeCollider[2],
+      height: activeCollider[3],
+    };
+    const foot = eventCellFoot(active);
     return [
       {
         kind: "map_event" as const,
         runtimeId: event.id,
         nodeId: event.id,
         generation: node.generation,
-        position: eventCellCentre(active),
-        radius: TILE_SIZE / 2,
+        position: collider
+          ? { x: collider.x + collider.width / 2, y: collider.y + collider.height / 2 }
+          : foot,
+        radius: collider ? Math.hypot(collider.width, collider.height) / 2 : TILE_SIZE / 2,
+        collider,
+        respawnAt: null,
         profile: event.harvestProfile,
       },
     ];
@@ -171,7 +204,7 @@ function carcassTargets(view: PeasantHarvestView, now: number): PeasantHarvestTa
     const profile = animalCarcassHarvestProfile(
       monster.species,
       monster.respawnMode,
-      monster.respawnDelayMs,
+      Math.max(0, monster.deadUntil - now),
     );
     if (!profile) return [];
     const nodeId = carcassNodeId(view.zoneId, monster);
@@ -186,9 +219,45 @@ function carcassTargets(view: PeasantHarvestView, now: number): PeasantHarvestTa
         generation: node.generation,
         position: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
         radius: monsterBodyRadius(monster.species),
+        collider: null,
+        respawnAt: monster.respawnMode === "never" ? null : monster.deadUntil,
         profile,
       },
     ];
+  });
+}
+
+/**
+ * Collision-aware sight rebuilt from collider provenance. The target event id removes exactly one
+ * dynamic footprint; a static or second event collider with identical geometry remains opaque.
+ */
+export function hasPeasantHarvestLineOfSight(
+  from: Vec2,
+  target: PeasantHarvestTarget,
+  view: PeasantHarvestView,
+): boolean {
+  if (
+    sweptProjectileTerrainImpact(
+      from,
+      target.position,
+      0,
+      view.terrain.tiles,
+      view.staticColliderIndex,
+    ) !== null
+  ) {
+    return false;
+  }
+  return !view.activeEvents.some((event) => {
+    if (target.kind === "map_event" && event.id === target.runtimeId) return false;
+    const tuple = event.harvest?.collider;
+    return tuple
+      ? segmentIntersectsRect(from, target.position, {
+          x: tuple[0],
+          y: tuple[1],
+          width: tuple[2],
+          height: tuple[3],
+        })
+      : false;
   });
 }
 
@@ -206,7 +275,7 @@ function targetMatchesAction(
   skillRange: number,
   halfAngleRadians: number,
   target: PeasantHarvestTarget,
-  terrain: TerrainGeometry,
+  view: PeasantHarvestView,
 ): boolean {
   if (target.profile.tool !== tool) return false;
   const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
@@ -215,7 +284,7 @@ function targetMatchesAction(
     circleIntersectsArc(
       { center: target.position, radius: target.radius },
       frontalArc(center, direction, range, halfAngleRadians),
-    ) && hasLineOfSight(center, target.position, terrain.tiles, 0)
+    ) && hasPeasantHarvestLineOfSight(center, target, view)
   );
 }
 
@@ -246,7 +315,7 @@ export function selectPeasantHarvestTarget(input: {
         input.skillRange,
         input.halfAngleRadians,
         target,
-        input.view.terrain,
+        input.view,
       ),
     )
     .sort((left, right) => {
@@ -304,7 +373,7 @@ export function selectPeasantHarvestTargets(input: {
           target.position.x - primary.position.x,
           target.position.y - primary.position.y,
         ) <= primaryPlan.areaRadius &&
-        hasLineOfSight(playerCenter, target.position, input.view.terrain.tiles, 0),
+        hasPeasantHarvestLineOfSight(playerCenter, target, input.view),
     )
     .sort((left, right) => {
       const leftDistance = Math.hypot(
@@ -366,7 +435,7 @@ export function revalidatePeasantHarvestTarget(input: {
       input.skillRange,
       input.halfAngleRadians,
       target,
-      input.view.terrain,
+      input.view,
     )
       ? target
       : null;
@@ -378,8 +447,7 @@ export function revalidatePeasantHarvestTarget(input: {
   return Math.hypot(
     target.position.x - input.areaCenter.x,
     target.position.y - input.areaCenter.y,
-  ) <= input.areaRadius &&
-    hasLineOfSight(playerCenter, target.position, input.view.terrain.tiles, 0)
+  ) <= input.areaRadius && hasPeasantHarvestLineOfSight(playerCenter, target, input.view)
     ? target
     : null;
 }

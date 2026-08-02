@@ -11,9 +11,14 @@
  */
 
 import { activePageIndex } from "@lindocara/engine/adventure-state.js";
+import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
-import { isWalkable } from "@lindocara/engine/game.js";
-import { animalCarcassHarvestProfile } from "@lindocara/engine/harvest.js";
+import { isWalkable, type Rect, rectsOverlap } from "@lindocara/engine/game.js";
+import {
+  animalCarcassHarvestProfile,
+  type HarvestProfile,
+  harvestColliderAt,
+} from "@lindocara/engine/harvest.js";
 import {
   type EventTrigger,
   eventCellCentre,
@@ -36,9 +41,123 @@ import {
 } from "../../world/authored-monster-system.js";
 import { abortRunForEvent, startRun } from "../../world/event-run-system.js";
 import { resetMonsterNavigation } from "../../world/monster-system.js";
+import { createNavigationRuntime } from "../../world/navigation-system.js";
 import { reconcileNpcMovement } from "../../world/npc-movement-system.js";
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "../../world/world-runtime.js";
 import type { WorldRoomState } from "./worldState.ts";
+
+function colliderTuple(rect: Rect | null): readonly [number, number, number, number] | null {
+  return rect ? [rect.x, rect.y, rect.width, rect.height] : null;
+}
+
+function sameCollider(a: Rect | undefined, b: Rect | undefined): boolean {
+  return (
+    a !== undefined &&
+    b !== undefined &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.width === b.width &&
+    a.height === b.height
+  );
+}
+
+function actorBody(x: number, y: number): Rect {
+  return { x, y, width: PLAYER_SIZE, height: PLAYER_SIZE };
+}
+
+/**
+ * A collider must never materialize around a body that was allowed to enter while the node was
+ * depleted. The intact visual may return immediately, but its collision and harvest eligibility
+ * stay pending until every authoritative combat actor has cleared the footprint.
+ */
+function harvestColliderOccupied(state: WorldRoomState, collider: Rect, now: number): boolean {
+  for (const player of state.players.values()) {
+    if (rectsOverlap(collider, actorBody(player.x, player.y))) return true;
+  }
+  for (const monster of state.monsters) {
+    // A living monster occupies its current body. A corpse due this tick will first teleport to
+    // its authored spawn, so guard that destination rather than the unrelated corpse position.
+    const position =
+      monster.hp > 0
+        ? { x: monster.x, y: monster.y }
+        : monster.deadUntil <= now
+          ? { x: monster.spawnX, y: monster.spawnY }
+          : null;
+    if (position && rectsOverlap(collider, actorBody(position.x, position.y))) {
+      return true;
+    }
+  }
+  for (const guard of state.guards) {
+    if (guard.hp > 0 && rectsOverlap(collider, actorBody(guard.x, guard.y))) return true;
+  }
+  const inset = (TILE_SIZE - PLAYER_SIZE) / 2;
+  for (const event of state.activeEvents) {
+    const movement = state.npcMovement.get(event.id);
+    if (!movement || movement.through) continue;
+    if (
+      rectsOverlap(
+        collider,
+        actorBody(event.col * TILE_SIZE + inset, event.row * TILE_SIZE + inset),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function projectHarvestCollider(
+  state: WorldRoomState,
+  profile: HarvestProfile,
+  col: number,
+  row: number,
+  harvestState: "intact" | "depleted",
+  now: number,
+): {
+  collider: readonly [number, number, number, number] | null;
+  collisionPending?: true;
+} {
+  const collider = harvestColliderAt(profile, col, row, harvestState);
+  if (harvestState === "intact" && collider && harvestColliderOccupied(state, collider, now)) {
+    return { collider: null, collisionPending: true };
+  }
+  return { collider: colliderTuple(collider) };
+}
+
+/**
+ * Rebuild the room's one collision truth only when a node changes between intact/depleted states.
+ * Static map colliders stay separate for the wire; clients merge these explicit event tuples in
+ * exactly the same way and never inspect asset ids.
+ */
+function syncHarvestColliders(state: WorldRoomState): void {
+  const next = state.activeEvents.flatMap((event) => {
+    const tuple = event.harvest?.collider;
+    return tuple ? [{ x: tuple[0], y: tuple[1], width: tuple[2], height: tuple[3] }] : [];
+  });
+  if (
+    next.length === state.harvestColliders.length &&
+    next.every((collider, index) => sameCollider(collider, state.harvestColliders[index]))
+  ) {
+    return;
+  }
+  state.harvestColliders = next;
+  const definition = state.location?.definition;
+  if (!definition) return;
+  const terrain = {
+    ...definition.terrain,
+    colliders: colliderIndexFrom(
+      [...state.staticColliders, ...next],
+      definition.terrain.tiles.cols,
+      definition.terrain.tiles.rows,
+    ),
+  };
+  definition.terrain = terrain;
+  state.navigation = createNavigationRuntime(terrain, definition.navigation);
+  // Replacing the runtime abandons its queue and active search. Reset every actor that could
+  // still point at either of them, as well as completed paths baked against the previous grid.
+  // Threat remains intact, so the next monster tick immediately selects and replans its target.
+  for (const monster of state.monsters) resetMonsterNavigation(monster);
+}
 
 /**
  * Port of `#evaluateActiveEvents` (`world.ts:1493`): select each authored event's active page
@@ -103,10 +222,16 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
           ? profile.exhaustedAssetId
           : null
         : page.graphicAssetId;
+    const eventCol = current?.col ?? event.col;
+    const eventRow = current?.row ?? event.row;
+    const harvestState = depleted ? ("depleted" as const) : ("intact" as const);
+    const projectedHits = depleted
+      ? profile?.hitsRequired
+      : Math.min(harvestNode?.hits ?? 0, Math.max(0, (profile?.hitsRequired ?? 1) - 1));
     active.push({
       id: event.id,
-      col: current?.col ?? event.col,
-      row: current?.row ?? event.row,
+      col: eventCol,
+      row: eventRow,
       graphicAssetId,
       graphicTint: page.graphicTint ?? 0xffffff,
       onTop: page.optOnTop,
@@ -114,18 +239,21 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       moveFrequency: page.moveFreq,
       moveAnimation: page.optMoveAnim,
       directionFixed: page.optDirFix,
+      presentation: event.kind === "harvestable" ? "native" : "marker",
       ...(profile && harvestNode
         ? {
             harvest: {
-              state: depleted ? ("depleted" as const) : ("intact" as const),
+              state: harvestState,
               generation: harvestNode.generation,
-              hits: harvestNode.hits,
+              hits: projectedHits ?? 0,
+              hitsRequired: profile.hitsRequired,
               lastHitAt: harvestNode.lastHitAt,
               depletedAt: harvestNode.depletedAt,
               respawnAt: harvestNode.respawnAt,
               exhaustionBehavior: profile.exhaustionBehavior,
               exhaustedAssetId: profile.exhaustedAssetId,
               fadeDurationMs: profile.fadeDurationMs,
+              ...projectHarvestCollider(state, profile, eventCol, eventRow, harvestState, now),
             },
           }
         : {}),
@@ -148,6 +276,9 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
   }
   state.activeEvents = active;
   state.npcMovement = reconcileNpcMovement(state.npcMovement, movement, state.tick);
+  // Re-project once movement identities and the new event positions are installed, so a resource
+  // cannot materialize under a non-through NPC that occupied its depleted footprint.
+  refreshHarvestEventVisuals(state, now);
 }
 
 /** Tick-cheap visual refresh for timed harvest respawns; no monster/NPC reconciliation. */
@@ -174,25 +305,42 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
     const harvest = {
       state: depleted ? ("depleted" as const) : ("intact" as const),
       generation: node.generation,
-      hits: node.hits,
+      hits: depleted
+        ? profile.hitsRequired
+        : Math.min(node.hits, Math.max(0, profile.hitsRequired - 1)),
+      hitsRequired: profile.hitsRequired,
       lastHitAt: node.lastHitAt,
       depletedAt: node.depletedAt,
       respawnAt: node.respawnAt,
       exhaustionBehavior: profile.exhaustionBehavior,
       exhaustedAssetId: profile.exhaustedAssetId,
       fadeDurationMs: profile.fadeDurationMs,
+      ...projectHarvestCollider(
+        state,
+        profile,
+        active.col,
+        active.row,
+        depleted ? "depleted" : "intact",
+        now,
+      ),
     };
     if (
       active.graphicAssetId === graphicAssetId &&
       active.harvest?.state === harvest.state &&
       active.harvest.generation === harvest.generation &&
       active.harvest.hits === harvest.hits &&
+      active.harvest.hitsRequired === harvest.hitsRequired &&
       active.harvest.lastHitAt === harvest.lastHitAt &&
       active.harvest.depletedAt === harvest.depletedAt &&
       active.harvest.respawnAt === harvest.respawnAt &&
       active.harvest.exhaustionBehavior === harvest.exhaustionBehavior &&
       active.harvest.exhaustedAssetId === harvest.exhaustedAssetId &&
-      active.harvest.fadeDurationMs === harvest.fadeDurationMs
+      active.harvest.fadeDurationMs === harvest.fadeDurationMs &&
+      active.harvest.collisionPending === harvest.collisionPending &&
+      active.harvest.collider?.[0] === harvest.collider?.[0] &&
+      active.harvest.collider?.[1] === harvest.collider?.[1] &&
+      active.harvest.collider?.[2] === harvest.collider?.[2] &&
+      active.harvest.collider?.[3] === harvest.collider?.[3]
     ) {
       return active;
     }
@@ -202,6 +350,7 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
       harvest,
     };
   });
+  syncHarvestColliders(state);
 }
 
 /** Port of `#abortRunsForStalePages` (`world.ts:1024`): kill any run whose event's active page no

@@ -1,5 +1,6 @@
 import { isPeasantCarryKind, type PeasantCarryKind } from "@lindocara/engine/harvest.js";
 import type { PlayerSnapshot, WorldEventSnapshot } from "@lindocara/engine/protocol.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { type PeasantCarryMotion, peasantCarrySheet, type UnitSheet } from "./tiny-swords-art.js";
 
 /** A late resync observes history but must not replay an old impact. */
@@ -27,6 +28,29 @@ export function createHarvestEventVisualState(): HarvestEventVisualState {
     fadeKey: null,
     fadeStartedAt: null,
     fadeGraphicAssetId: null,
+  };
+}
+
+/**
+ * Place the local hit burst on the authoritative gameplay footprint when it is present. A lethal
+ * fade/hide snapshot deliberately has no collider, so its fallback is the event's ground foot,
+ * never the visual cell centre halfway up a tall tree.
+ */
+export function harvestImpactPoint(
+  event: Pick<WorldEventSnapshot, "harvest">,
+  displayCol: number,
+  displayRow: number,
+): { x: number; y: number } {
+  const collider = event.harvest?.collider;
+  if (collider) {
+    return {
+      x: collider[0] + collider[2] / 2,
+      y: collider[1] + collider[3] / 2,
+    };
+  }
+  return {
+    x: displayCol * TILE_SIZE + TILE_SIZE / 2,
+    y: (displayRow + 1) * TILE_SIZE,
   };
 }
 

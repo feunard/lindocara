@@ -35,8 +35,8 @@ value, hit count, range, channel duration, exhaustion behavior, optional exhaust
 fade duration, and permanent or timed respawn policy. Presets provide editable defaults only. Each
 placed instance persists its detached overrides.
 
-The initial semantic presets are tree, stone outcrop, iron outcrop, small gold, large gold, meat
-cache, sheep, and happy sheep. Both sheep appearances are explicitly mapped to meat profiles. Dead
+The initial semantic presets are four tree sizes, stone outcrop, iron outcrop, small gold, large
+gold, meat cache, sheep, and happy sheep. Both sheep appearances are explicitly mapped to meat profiles. Dead
 monster harvesting is also explicit: only species in the typed animal allowlist create carcass
 nodes; the current monster roster contributes `war_pig`. Ordinary monsters never become meat just
 because their art looks animal-like.
@@ -45,6 +45,32 @@ The server validates class, selected skill/tool, range, facing area, line of sig
 depletion state, and the current hero lease after every coordinator await. One-hit reservations and
 durable generations serialize competing Peasants and prevent double reward. Permanent depletion and
 timed respawn live in party state, so disconnects and map transitions do not reset a node.
+
+Harvest collision is explicit gameplay data stored beside the profile, in event-foot coordinates;
+it is never reconstructed from an asset id or path. The server sends the current rectangle to the
+client: intact nodes block movement, fade/hide exhaustion removes the rectangle, replacement stumps
+use their smaller authored rectangle, and timed respawn restores it. If admission or respawn finds
+an actor inside a newly active footprint, that collider stays explicitly pending until the actor
+has fully left; it then activates and prevents re-entry without teleporting or trapping anyone.
+This occupancy check includes saved heroes, guards, ordinary NPCs and a monster's actual respawn
+destination. A replacement collider must stay contained inside the already-solid intact footprint,
+so depletion cannot create new solid ground around the harvesting actor.
+
+Profiles saved before collision existed receive a resource-kind compatibility default on read and
+persist the normalized form the next time their map is saved. Historical built-in profiles also
+migrate their inherited post-animation duration to the active frame, even when an author overrode
+quantity or hit count; a genuinely custom duration is preserved. The exact legacy small/large gold
+asset pair is corrected while reading old gold presets. These compatibility reads are deliberately
+limited to the old schema and known semantic profile family; runtime gameplay never inspects an
+asset name or path.
+
+Default tool swings register their harvest hit on the authoritative active frame. Trees and deposits
+still require several distinct swings, but there is no hidden post-animation channel that movement
+can silently cancel. Custom maps may author a non-zero channel duration explicitly.
+
+Animal carcass generations use the monster's absolute `deadUntil` deadline. The party coordinator
+preserves that deadline across reservation latency and rejects an already-expired carcass, so a
+late knife hit cannot leave the next death stuck behind a delayed harvest generation.
 
 ## Skill kit
 
@@ -55,6 +81,12 @@ timed respawn live in party state, so disconnects and map transitions do not res
 | 3 | Butcher's Cut | Knife | Very weak arc attack; harvests explicit meat sources and animal carcasses. |
 | 4 | Makeshift Camp | Hammer | Spends shared stock to heal/protect allies, serve finite rations, and optionally slow enemies. |
 | 5 | Homemade Bomb | Bomb | Spends iron/stone; server launches and resolves a modest delayed area explosion. |
+
+The editor exposes four semantic tree presets without coupling their rules to artwork: very tall
+(Tree 2/Stump 2), large legacy `tree` (Tree 1/Stump 1), medium (Tree 3/Stump 3), and small
+(Tree 4/Stump 4). Their yields, required hits, collision boxes, and replacement stumps are explicit.
+Changing only the selected appearance changes none of those rules. Decorative catalogue trees and
+rocks remain scenery; the editor points authors to **Events → Harvestable resource** for gameplay.
 
 Tiny Swords has no Pawn shovel interaction strip. Construction deliberately uses
 `Pawn_Interact Hammer.png`; this is an explicit skill-to-art mapping, not a name-based fallback.

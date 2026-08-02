@@ -220,6 +220,7 @@ export function TerrainPalette({
 
 export function SwatchButton({
   label,
+  description,
   active,
   preview,
   disabled,
@@ -227,6 +228,9 @@ export function SwatchButton({
   onClick,
 }: {
   label: string;
+  /** Optional secondary presentation text. Kept aria-hidden so the button's stable accessible name
+   * remains `label`, which is also what keyboard users and palette tests target. */
+  description?: ReactNode;
   active: boolean;
   preview?: ReactNode;
   disabled?: boolean | undefined;
@@ -245,7 +249,17 @@ export function SwatchButton({
       }`}
     >
       {preview}
-      {label}
+      <span className="min-w-0">
+        <span className="block truncate">{label}</span>
+        {description === undefined ? null : (
+          <span
+            aria-hidden="true"
+            className={`block text-[10px] font-normal ${active ? "text-zinc-300" : "text-zinc-400"}`}
+          >
+            {description}
+          </span>
+        )}
+      </span>
     </button>
   );
 }

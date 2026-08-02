@@ -89,10 +89,11 @@ export function createEventGraphicSprite(
   row: number,
   frame: Texture,
   definition?: Pick<EditorAssetDefinition, "role" | "anchor" | "footOffset">,
+  presentation?: "marker" | "native",
 ): Sprite {
   const sprite = new Sprite(frame);
-  if (definition && isUnitSheetRole(definition.role)) {
-    positionEventGraphicSprite(sprite, col, row, definition);
+  if (definition && (presentation === "native" || isUnitSheetRole(definition.role))) {
+    positionEventGraphicSprite(sprite, col, row, definition, "native");
     return sprite;
   }
   const fit = Math.min(
@@ -112,8 +113,9 @@ export function positionEventGraphicSprite(
   col: number,
   row: number,
   definition?: Pick<EditorAssetDefinition, "role" | "anchor" | "footOffset">,
+  presentation?: "marker" | "native",
 ): void {
-  if (definition && isUnitSheetRole(definition.role)) {
+  if (definition && (presentation === "native" || isUnitSheetRole(definition.role))) {
     sprite.anchor.set(definition.anchor.x, definition.anchor.y);
     // `footOffset` is `frameHeight - alphaBboxBottom`, so placing the anchor that far below the
     // cell's bottom edge lands the visible feet exactly on it. Same cancellation as an element.

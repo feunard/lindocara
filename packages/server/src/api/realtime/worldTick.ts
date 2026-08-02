@@ -3483,6 +3483,7 @@ export function resolvePlayerAction(
           adventureState: w.state.adventureState.state,
           monsters: w.state.monsters,
           terrain,
+          staticColliderIndex: w.state.staticColliderIndex,
         },
         now,
       });
@@ -3827,6 +3828,7 @@ function harvestTargetForJob(
       adventureState: w.state.adventureState.state,
       monsters: w.state.monsters,
       terrain: zone(w.state).terrain,
+      staticColliderIndex: w.state.staticColliderIndex,
     },
     now,
   });
@@ -3862,7 +3864,10 @@ async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Pr
           reward: target.plan.materialReward,
           goldValue: target.plan.goldValue,
           respawnDelayMs:
-            liveTarget.profile.respawn === "timed" ? liveTarget.profile.respawnDelayMs : null,
+            liveTarget.profile.respawn === "timed" && liveTarget.respawnAt === null
+              ? liveTarget.profile.respawnDelayMs
+              : null,
+          respawnAt: liveTarget.profile.respawn === "timed" ? liveTarget.respawnAt : null,
         });
         if (!reserved.ok) continue;
         reservationId = reserved.reservationId;

@@ -1,8 +1,11 @@
 import {
   animalCarcassHarvestProfile,
+  DEFAULT_HARVEST_COLLISIONS,
   HARVEST_PROFILE_LIMITS,
   HARVEST_RESOURCE_KINDS,
   type HarvestProfile,
+  harvestColliderAt,
+  harvestFootprintFitsMap,
   harvestToolForResource,
   harvestToolMatchesResource,
   parseHarvestProfile,
@@ -24,11 +27,85 @@ const WOOD_PROFILE: HarvestProfile = {
   respawn: "permanent",
   respawnDelayMs: 0,
   fadeDurationMs: 350,
+  collision: {
+    intact: { offsetX: -26, offsetY: -36, width: 52, height: 36 },
+    depleted: { offsetX: -20, offsetY: -15, width: 40, height: 15 },
+  },
 };
 
 describe("harvest profile", () => {
   it("round-trips a fully authored material profile", () => {
     expect(parseHarvestProfile(WOOD_PROFILE)).toEqual(WOOD_PROFILE);
+  });
+
+  it("normalizes legacy maps without collision from resource semantics, never appearance", () => {
+    const { collision: _legacyMissing, ...legacy } = WOOD_PROFILE;
+    expect(parseHarvestProfile(legacy)).toEqual({
+      ...legacy,
+      harvestDurationMs: 0,
+      collision: DEFAULT_HARVEST_COLLISIONS.wood,
+    });
+    expect(
+      parseHarvestProfile({
+        ...legacy,
+        exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-4",
+      }),
+    ).toMatchObject({ collision: DEFAULT_HARVEST_COLLISIONS.wood });
+  });
+
+  it("preserves an explicitly customized legacy duration outside the shipped preset signature", () => {
+    const { collision: _legacyMissing, ...legacy } = WOOD_PROFILE;
+    expect(parseHarvestProfile({ ...legacy, harvestDurationMs: 901 })).toMatchObject({
+      harvestDurationMs: 901,
+      collision: DEFAULT_HARVEST_COLLISIONS.wood,
+    });
+  });
+
+  it("migrates inherited legacy timing when an instance overrides its resource quantity", () => {
+    const { collision: _legacyMissing, ...legacy } = WOOD_PROFILE;
+    expect(parseHarvestProfile({ ...legacy, yieldAmount: 12 })).toMatchObject({
+      yieldAmount: 12,
+      harvestDurationMs: 0,
+      collision: DEFAULT_HARVEST_COLLISIONS.wood,
+    });
+  });
+
+  it("projects different explicit tree sizes from the event foot", () => {
+    expect(harvestColliderAt(WOOD_PROFILE, 2, 3, "intact")).toEqual({
+      x: 134,
+      y: 220,
+      width: 52,
+      height: 36,
+    });
+    expect(harvestColliderAt(WOOD_PROFILE, 2, 3, "depleted")).toEqual({
+      x: 140,
+      y: 241,
+      width: 40,
+      height: 15,
+    });
+  });
+
+  it("rejects any intact or replacement footprint that crosses the map boundary", () => {
+    const leftOverflow: HarvestProfile = {
+      ...WOOD_PROFILE,
+      collision: {
+        intact: { offsetX: -40, offsetY: -30, width: 64, height: 30 },
+        depleted: WOOD_PROFILE.collision?.depleted ?? null,
+      },
+    };
+    expect(harvestFootprintFitsMap(leftOverflow, 0, 2, 8, 8)).toBe(false);
+    expect(harvestFootprintFitsMap(leftOverflow, 1, 2, 8, 8)).toBe(true);
+
+    const replacementOverflow: HarvestProfile = {
+      ...WOOD_PROFILE,
+      collision: {
+        intact: { offsetX: -20, offsetY: -30, width: 40, height: 30 },
+        depleted: { offsetX: 0, offsetY: -14, width: 64, height: 14 },
+      },
+    };
+    expect(harvestFootprintFitsMap(replacementOverflow, 7, 2, 8, 8)).toBe(false);
+    expect(harvestFootprintFitsMap(replacementOverflow, 6, 2, 8, 8)).toBe(true);
+    expect(harvestFootprintFitsMap(WOOD_PROFILE, 1.5, 2, 8, 8)).toBe(false);
   });
 
   it("centralizes the required tool for every resource kind", () => {
@@ -69,6 +146,10 @@ describe("harvest profile", () => {
       exhaustionBehavior: "fade",
       respawn: "timed",
       respawnDelayMs: 60_000,
+      collision: {
+        intact: { ...DEFAULT_HARVEST_COLLISIONS.gold.intact },
+        depleted: null,
+      },
     };
     expect(parseHarvestProfile(gold)).toEqual(gold);
     expect(parseHarvestProfile({ ...gold, yieldAmount: 1 })).toBeNull();
@@ -90,8 +171,14 @@ describe("harvest profile", () => {
         ...WOOD_PROFILE,
         exhaustionBehavior: "hide",
         exhaustedAssetId: null,
+        collision: { ...WOOD_PROFILE.collision, depleted: null },
       }),
-    ).toEqual({ ...WOOD_PROFILE, exhaustionBehavior: "hide", exhaustedAssetId: null });
+    ).toEqual({
+      ...WOOD_PROFILE,
+      exhaustionBehavior: "hide",
+      exhaustedAssetId: null,
+      collision: { ...WOOD_PROFILE.collision, depleted: null },
+    });
     expect(parseHarvestProfile({ ...WOOD_PROFILE, respawnDelayMs: 1_000 })).toBeNull();
     expect(
       parseHarvestProfile({ ...WOOD_PROFILE, respawn: "timed", respawnDelayMs: 999 }),
@@ -115,6 +202,20 @@ describe("harvest profile", () => {
       { ...WOOD_PROFILE, exhaustionBehavior: "explode" },
       { ...WOOD_PROFILE, respawn: "instant" },
       { ...WOOD_PROFILE, fadeDurationMs: HARVEST_PROFILE_LIMITS.fadeDurationMs.max + 1 },
+      {
+        ...WOOD_PROFILE,
+        collision: {
+          ...WOOD_PROFILE.collision,
+          intact: { offsetX: 0, offsetY: 0, width: 0, height: 1 },
+        },
+      },
+      {
+        ...WOOD_PROFILE,
+        collision: {
+          intact: { offsetX: -20, offsetY: -20, width: 40, height: 20 },
+          depleted: { offsetX: -24, offsetY: -20, width: 48, height: 20 },
+        },
+      },
     ];
 
     for (const profile of invalidProfiles) {

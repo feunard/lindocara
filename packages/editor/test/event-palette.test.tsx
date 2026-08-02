@@ -7,6 +7,7 @@ import {
   MAX_RUNTIME_EVENTS_PER_MAP,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
+import { SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   DEFAULT_NPC_MODEL_ASSET_ID,
@@ -127,9 +128,27 @@ describe("EventPalette (D13/D14)", () => {
     );
 
     const harvest = screen.getByTestId("harvest-presets");
-    fireEvent.click(
-      within(harvest).getByRole("button", { name: t("editor.harvest.preset.sheep") }),
+    expect(within(harvest).getByTestId("harvest-gameplay-hint")).toHaveTextContent(
+      t("editor.harvest.palette.gameplayHint"),
     );
+    const sheepPreset = within(harvest).getByRole("button", {
+      name: t("editor.harvest.preset.sheep"),
+    });
+    expect(sheepPreset).toHaveTextContent(
+      t("editor.harvest.preset.requirement", {
+        tool: t("editor.harvest.tool.knife"),
+        level: SKILL_UNLOCK_LEVEL[3],
+      }),
+    );
+    expect(
+      within(harvest).getByRole("button", { name: t("editor.harvest.preset.stone") }),
+    ).toHaveTextContent(
+      t("editor.harvest.preset.requirement", {
+        tool: t("editor.harvest.tool.pickaxe"),
+        level: SKILL_UNLOCK_LEVEL[2],
+      }),
+    );
+    fireEvent.click(sheepPreset);
     expect(onSelectHarvestPreset).toHaveBeenCalledWith("sheep");
 
     fireEvent.click(

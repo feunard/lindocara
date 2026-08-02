@@ -1,6 +1,7 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { EVENT_PRESETS, type EventPreset } from "@lindocara/engine/event-presets.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
+import type { HarvestTool } from "@lindocara/engine/harvest.js";
 import { HARVEST_PRESETS, type HarvestPresetId } from "@lindocara/engine/harvest-presets.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
@@ -12,6 +13,7 @@ import {
   type MapEvent,
   runtimeEventCount,
 } from "@lindocara/engine/map-events.js";
+import { SKILL_UNLOCK_LEVEL, type SkillSlot } from "@lindocara/engine/skills.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { Input } from "@lindocara/ui/components/input.js";
@@ -32,7 +34,10 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
 };
 
 export const HARVEST_PRESET_LABEL: Record<HarvestPresetId, MessageKey> = {
-  tree: "editor.harvest.preset.tree",
+  tree_tall: "editor.harvest.preset.treeTall",
+  tree: "editor.harvest.preset.treeLarge",
+  tree_medium: "editor.harvest.preset.treeMedium",
+  tree_small: "editor.harvest.preset.treeSmall",
   stone_outcrop: "editor.harvest.preset.stone",
   iron_outcrop: "editor.harvest.preset.iron",
   gold_small: "editor.harvest.preset.goldSmall",
@@ -61,6 +66,14 @@ const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   guard: "editor.event.kind.guard",
   harvestable: "editor.event.kind.harvestable",
   spawn: "editor.event.kind.spawn",
+};
+
+/** Presentation-only bridge from the explicit harvest contract to the Peasant's matching skill.
+ * Gameplay still validates the actual slot/tool pair on the authoritative server. */
+const HARVEST_SKILL_SLOT_BY_TOOL: Readonly<Record<HarvestTool, SkillSlot>> = {
+  axe: 1,
+  pickaxe: 2,
+  knife: 3,
 };
 
 /** The wireframe's `EV{ordinal}` chip text, zero-padded to three digits — display only, identity is
@@ -236,6 +249,12 @@ export function EventPalette({
               <p className="text-[10.5px] text-zinc-500">
                 {t("editor.harvest.palette.description")}
               </p>
+              <p
+                data-testid="harvest-gameplay-hint"
+                className="mt-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-1 text-[10.5px] leading-snug text-amber-900"
+              >
+                {t("editor.harvest.palette.gameplayHint")}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-1">
               {HARVEST_PRESETS.map((preset) => {
@@ -244,6 +263,10 @@ export function EventPalette({
                   <SwatchButton
                     key={preset.id}
                     label={t(HARVEST_PRESET_LABEL[preset.id])}
+                    description={t("editor.harvest.preset.requirement", {
+                      tool: t(`editor.harvest.tool.${preset.profile.tool}`),
+                      level: SKILL_UNLOCK_LEVEL[HARVEST_SKILL_SLOT_BY_TOOL[preset.profile.tool]],
+                    })}
                     active={harvestPreset === preset.id}
                     disabled={placementDisabled("harvestable")}
                     preview={asset ? <EditorAssetPreview asset={asset} size={42} /> : undefined}
