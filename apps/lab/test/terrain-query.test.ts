@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createTerrainQuery, type TerrainQuery } from "../src/world/terrain-query.js";
+import {
+  createTerrainQuery,
+  type TerrainMaterial,
+  type TerrainQuery,
+} from "../src/world/terrain-query.js";
 
 /**
  * Construit une `TerrainQuery` à partir d'une grille de paliers écrite à la main
@@ -20,7 +24,8 @@ function makeQuery(
   };
   // Non exercé par les tests ci-dessous (`heightAt`/`levelAt`/`maxHeightAround` ne le lisent
   // jamais) : requis uniquement pour satisfaire `TerrainQuerySource`.
-  const kindAt = (i: number, j: number): string | null => (at(i, j) === null ? null : "herbe");
+  const kindAt = (i: number, j: number): TerrainMaterial | null =>
+    at(i, j) === null ? null : "herbe";
   return createTerrainQuery({
     size,
     levelHeight: opts.levelHeight ?? 1,
@@ -156,5 +161,53 @@ describe("maxHeightAround", () => {
     // maximum entre 0 (terre) et -1 (eau/hors-carte) est 0 — la terre l'emporte, sans qu'aucune
     // case hors-limite ne fasse planter ni ne domine artificiellement.
     expect(q.maxHeightAround(-0.9, -0.9, 0.3)).toBe(0);
+  });
+
+  it("r = 0 rend la hauteur de la case sous le point, jamais -Infinity", () => {
+    // Revue finale (point C1) : `r * r` vaut 0 avec `r = 0`, et le point interrogé est à distance
+    // 0 de sa propre case — l'ancienne exclusion `>= r*r` (0 >= 0) l'écartait à tort, et la
+    // fonction rendait `-Infinity` malgré le JSDoc qui promet le contraire. Latent tant que seul
+    // `HERO.radius = 0.3` appelait cette fonction ; atteignable dès qu'un rayon d'entité vaut 0.
+    const levels = [
+      [0, 0, 0, 0],
+      [0, 0, 3, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ];
+    const q = makeQuery(levels, { levelHeight: 1 });
+    // Cellule (2,1) : palier 3, centre à x=0.5, z=-0.5.
+    expect(q.maxHeightAround(0.5, -0.5, 0)).toBe(3);
+  });
+
+  it("r = 0 sur l'eau rend le niveau d'eau, jamais -Infinity", () => {
+    const levels = [
+      [null, null],
+      [null, null],
+    ];
+    const q = makeQuery(levels, { levelHeight: 1, waterLevel: -0.5 });
+    expect(q.maxHeightAround(0, 0, 0)).toBe(-0.5);
+  });
+});
+
+// Le point C3 de la revue finale demandait une union typée plutôt qu'un `string` : ce test
+// s'assure surtout que `TerrainMaterial` reste assignable là où `kindAt` le renvoie, sans quoi il
+// n'aurait aucune utilité de compilation.
+describe("TerrainMaterial", () => {
+  it("kindAt renvoie une des deux matières typées, jamais un string arbitraire", () => {
+    const levels = [
+      [0, 0],
+      [0, 0],
+    ];
+    const kindAt = (i: number, j: number): TerrainMaterial | null =>
+      levels[j]?.[i] === undefined ? null : "sable";
+    const q = createTerrainQuery({
+      size: 2,
+      levelHeight: 1,
+      waterLevel: -1,
+      at: (i, j) => levels[j]?.[i] ?? null,
+      kindAt,
+    });
+    const material: TerrainMaterial | null = q.kindAt(-0.5, -0.5);
+    expect(material).toBe("sable");
   });
 });

@@ -20,6 +20,14 @@ export interface Colliders {
   blocked(x: number, z: number, r: number): boolean;
 }
 
+/** `true` si un disque de rayon `r` centré en `(x, z)` chevauche le collider `c`. */
+function overlaps(c: Collider, x: number, z: number, r: number): boolean {
+  const sum = c.r + r;
+  const dx = c.x - x;
+  const dz = c.z - z;
+  return dx * dx + dz * dz < sum * sum;
+}
+
 export function createColliders(): Colliders {
   const grid = new Map<number, Collider[]>();
   const all: Collider[] = [];
@@ -41,15 +49,26 @@ export function createColliders(): Colliders {
       }
     },
     blocked(x, z, r) {
-      if (r > QUERY_PAD) throw new Error(`Rayon de requête trop grand : ${r} > ${QUERY_PAD}`);
-      const bucket = grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL)));
-      if (!bucket) return false;
-      for (const c of bucket) {
-        const sum = c.r + r;
-        const dx = c.x - x;
-        const dz = c.z - z;
-        if (dx * dx + dz * dz < sum * sum) return true;
+      if (r <= QUERY_PAD) {
+        const bucket = grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL)));
+        if (!bucket) return false;
+        return bucket.some((c) => overlaps(c, x, z, r));
       }
+      // Revue finale (point C2) : cette fonction promue en collision AUTORITATIVE serveur en S2
+      // recevra des rayons décidés par la DONNÉE d'entité, pas seulement `HERO.radius = 0.3`
+      // câblé ici — un rayon mal réglé ne doit jamais abattre un tick de simulation. On élargit
+      // donc la fenêtre de cellules interrogées à la taille réelle de la requête (même formule que
+      // `add`, côté requête plutôt que côté insertion) au lieu de lever : plus large que le rapide
+      // cas `r <= QUERY_PAD` ci-dessus, jamais plus étroit, donc jamais moins de colliders trouvés.
+      const seen = new Set<Collider>();
+      for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
+        for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {
+          const bucket = grid.get(key(i, j));
+          if (!bucket) continue;
+          for (const c of bucket) seen.add(c);
+        }
+      }
+      for (const c of seen) if (overlaps(c, x, z, r)) return true;
       return false;
     },
   };

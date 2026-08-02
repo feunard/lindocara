@@ -3,6 +3,11 @@
 // gardées pures et sans dépendance à `three` pour que ce jour-là le déplacement ne change pas de
 // fichier, seulement d'adresse.
 
+/** Les deux matières de sol du labo. Une union exportée plutôt que `string` : `engine` en fera la
+ *  future autorité serveur, et une matière "stringly typed" y serait un passif dès la première
+ *  faute de frappe silencieuse — le compilateur doit pouvoir rejeter `"herb"` à la place. */
+export type TerrainMaterial = "sable" | "herbe";
+
 export interface TerrainQuery {
   /** Hauteur monde du sol sous un point, ou `null` si c'est de l'eau / hors carte. */
   heightAt(wx: number, wz: number): number | null;
@@ -11,13 +16,14 @@ export interface TerrainQuery {
    * personnage s'enfoncer de sa demi-largeur dans les falaises — c'est un volume qui se déplace,
    * pas un point. L'eau compte pour son propre niveau : c'est une surface où l'on nage, pas un
    * mur. Le hors-carte non plus n'est pas un mur — on nage jusqu'au large, c'est le souffle qui
-   * ramène.
+   * ramène. Jamais `-Infinity`, y compris pour `r = 0` (un disque dégénéré en un point reste un
+   * point à tester).
    */
   maxHeightAround(wx: number, wz: number, r: number): number;
   /** Palier (0, 1, 2, ...) sous un point, ou `null` si c'est de l'eau / hors carte. */
   levelAt(wx: number, wz: number): number | null;
-  /** Matière du sol sous un point ("sable" | "herbe"), ou `null` si c'est de l'eau / hors carte. */
-  kindAt(wx: number, wz: number): string | null;
+  /** Matière du sol sous un point, ou `null` si c'est de l'eau / hors carte. */
+  kindAt(wx: number, wz: number): TerrainMaterial | null;
   /** Centre monde d'une cellule. */
   cellCenter(i: number, j: number): [number, number];
 }
@@ -35,7 +41,7 @@ export interface TerrainQuerySource {
   /** Palier de la case (i, j), ou `null` hors grille / eau. */
   at(i: number, j: number): number | null;
   /** Matière de la case (i, j), ou `null` hors grille / eau. */
-  kindAt(i: number, j: number): string | null;
+  kindAt(i: number, j: number): TerrainMaterial | null;
 }
 
 /**
@@ -62,7 +68,12 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
           // la boîte englobante ne compte pas.
           const nx = Math.min(Math.max(wx, i - c), i + 1 - c);
           const nz = Math.min(Math.max(wz, j - c), j + 1 - c);
-          if ((nx - wx) ** 2 + (nz - wz) ** 2 >= r * r) continue;
+          // Strictement PLUS LOIN que `r` est exclu — pas "à `r` ou plus" : avec `r = 0`, le point
+          // interrogé est lui-même à distance 0 de la case qui le contient (`nx === wx`,
+          // `nz === wz`), donc `>= r*r` (0 >= 0) l'excluait à tort et la boucle ne trouvait plus
+          // JAMAIS de case, renvoyant `-Infinity` — la promesse du JSDoc ci-dessus rompue dès que
+          // `r = 0`, latent tant que seul `HERO.radius = 0.3` appelait cette fonction.
+          if ((nx - wx) ** 2 + (nz - wz) ** 2 > r * r) continue;
           const h = at(i, j);
           max = Math.max(max, h === null ? waterLevel : h * levelHeight);
         }

@@ -1,6 +1,6 @@
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { WORLD } from "../settings.js";
-import { createTerrainQuery, type TerrainQuery } from "./terrain-query.js";
+import { createTerrainQuery, type TerrainMaterial, type TerrainQuery } from "./terrain-query.js";
 
 /**
  * PRNG déterministe, port verbatim de `~/git/poc-hd-2d/src/world/terrain.js`. La forme de l'île
@@ -190,14 +190,14 @@ export function generateIsland(opts: GenerateIslandOptions): {
   // --- plage : bande de sable sur l'arc sud du littoral -----------------------------------------
   const distEau = waterDistance(size, at);
 
-  const kinds = new Array<string | null>(size * size).fill(null);
+  const kinds = new Array<TerrainMaterial | null>(size * size).fill(null);
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
       if (at(i, j) === null) continue;
       kinds[j * size + i] = isBeach(i, j, size, at, distEau) ? "sable" : "herbe";
     }
   }
-  const kindAt = (i: number, j: number): string | null =>
+  const kindAt = (i: number, j: number): TerrainMaterial | null =>
     i < 0 || j < 0 || i >= size || j >= size ? null : (kinds[j * size + i] ?? null);
 
   const field: HeightField = {
