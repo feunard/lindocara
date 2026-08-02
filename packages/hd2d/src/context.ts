@@ -24,7 +24,11 @@ export interface CloudUniforms {
  * donc reste compatible avec le projet vitest `node` — contrairement à la carte réelle, qui en
  * dessine une.
  */
-function neutralCloudTexture(): THREE.DataTexture {
+// Exportée (pas seulement interne) : `clouds.ts` la réutilise pour reposer `uCloudMap` sur ce même
+// neutre quand `CloudCover.dispose()` libère la carte qu'il avait construite. Une seconde
+// définition du « neutre » ailleurs finirait par diverger — et la polarité (noir, pas blanc) est
+// justement ce qui est facile à inverser sans que rien ne le signale.
+export function neutralCloudTexture(): THREE.DataTexture {
   const texture = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
   texture.needsUpdate = true;
   return texture;

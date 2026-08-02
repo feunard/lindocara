@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Hd2dContext } from "./context.js";
+import { type Hd2dContext, neutralCloudTexture } from "./context.js";
 
 /**
  * Couverture nuageuse, version 2. Avant, c'étaient cinq quads invisibles qui écrivaient dans la
@@ -141,9 +141,16 @@ export function createCloudCover(ctx: Hd2dContext): CloudCover {
     },
     offset: () => uniforms.uCloudOffset.value,
     dispose() {
-      // Cette couverture est seule propriétaire de la texture qu'elle a construite : le texel noir
-      // neutre initial appartient au contexte, pas à elle, et n'a jamais besoin d'être disposé ici.
+      // Cette couverture est seule propriétaire de la texture qu'elle a construite : `uCloudMap` est
+      // en revanche PARTAGÉ par référence avec tous les matériaux greffés (`applyCloudShadow` fait
+      // `Object.assign(shader.uniforms, uniforms)`) — s'ils sont encore rendus après ce `dispose()`,
+      // ils échantillonneraient une texture dont la ressource GPU vient d'être libérée. On repose
+      // donc INCONDITIONNELLEMENT `uCloudMap` sur un neutre frais — le même que celui posé par
+      // `createHd2dContext` — pour que le contexte reste dans un état valide et rendable après
+      // `dispose()`, y compris quand aucune vraie carte n'a été construite (`built` indéfini, projet
+      // vitest `node`) : la garantie ne doit pas dépendre de la plate-forme.
       built?.dispose();
+      uniforms.uCloudMap.value = neutralCloudTexture();
     },
   };
 }
