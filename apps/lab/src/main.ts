@@ -391,7 +391,7 @@ const prompt = createPrompt();
 
 const GROTA_DIT = [
   "Hm. Un chevalier. Et qui a fait la traversée à la nage, en plus.",
-  "Personne ne vient jamais ici. Ce caillou n'a rien : un mamelon, trois brins d'herbe, et moi.",
+  "Personne ne vient jamais ici. Ce caillou n’a rien : un mamelon, trois brins d’herbe, et moi.",
   "De là-haut on voit tout le reste — les paliers, le troupeau, ton feu de camp qui fume.",
   "Repars avant la nuit. Elle tombe pour de bon, ici. Au large, on ne voit plus sa propre main.",
 ];
