@@ -23,6 +23,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
 | `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` (each sync = its own commit, pinned in `.vendor/vendor.json`) |
 | `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
+| `npm run lab` | `vite dev` on `apps/lab` — the HD-2D render witness (`@lindocara/hd2d` + `three`), see below |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
 | `npm test` | Vitest — every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
@@ -72,13 +73,20 @@ prefixes in the file map further down map straight onto these homes:
 | [`@lindocara/editor`](./packages/editor/AGENTS.md) | `src/client/ui/editor/` + editor game files | engine, renderer, client, ui | browser + React |
 | [`@lindocara/catalog`](./packages/catalog/AGENTS.md) | `assets/` (raw Tiny Swords art) + the catalogue codegen (was `scripts/tiny-swords-catalog-*`) | engine | node (dev) |
 | [`@lindocara/testing`](./packages/testing/AGENTS.md) | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup) | engine | node/jsdom (dev) |
+| [`@lindocara/hd2d`](./packages/hd2d/AGENTS.md) | ported from `~/git/poc-hd-2d` — the HD-2D render engine (billboards, terrain mesh, lighting, post-fx) | three only | browser, framework-free (Three.js) |
 | [`@lindocara/main`](./apps/main/AGENTS.md) | **the deployable app** — `alepha.config.ts`, the server/browser entries, `migrations/`, build/deploy | client, server | build → Worker + assets |
+| [`apps/lab`](./apps/lab/AGENTS.md) | the HD-2D render **witness** — reproduces the PoC on `hd2d`, not a game; see its own `AGENTS.md` | hd2d, three | browser (Vite dev app) |
 
 `.vendor/alepha` is the vendored framework — a real workspace member, pinned by
 `.vendor/vendor.json` to a commit of the sibling `../alepha` repo. **The dogfood loop for
 framework work:** a framework fix is implemented in `../alepha` (its tests live there), verified
 with `yarn v` upstream, committed and pushed, then pulled here with `npx alepha vendor sync` — the
 sync is its own commit. `npx alepha vendor diff` shows any local patches; keep it clean.
+
+`hd2d`/`apps/lab` sit outside that graph entirely, and deliberately so: **the game's render path
+stays PixiJS through S3.** `hd2d` is consumed only by `apps/lab` today — see
+[`docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md`](./docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)
+for the staged plan that eventually retires `@lindocara/renderer`'s PixiJS path in its favor.
 
 The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client, editor}`, `{client, ui} ←
 editor`; `apps/main` composes `client` + `server` into one deploy. The client's `ui/AppRouter.tsx`
@@ -90,11 +98,15 @@ the client source root everywhere.
 `main.ts`/`main.browser.ts` bootstrap entries, previously typechecked by no program at all — it
 extends alepha's own base config, the same fix `packages/client/tsconfig.api.json` already needed,
 because both entries import the alepha-flavored `AppRouter`) and the Node tooling program; `npm run
-typecheck:<pkg>` (or `typecheck:main`) checks one. **Tests are co-located per package** in
-`packages/<pkg>/test/` (the server's live in `packages/server/test-api/`), each with its own
-`vitest.config.ts` (engine/catalog/server = node, renderer/client/editor = jsdom). The root
-`vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything and
-`npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`) runs one.
+typecheck:<pkg>` (or `typecheck:main`) checks one — `typecheck:hd2d`/`typecheck:lab` follow the same
+pattern for the two newest members. **Tests are co-located per package** in `packages/<pkg>/test/`
+(the server's live in `packages/server/test-api/`; `apps/lab`'s in `apps/lab/test/`), each with its
+own `vitest.config.ts` (engine/catalog/server/hd2d/lab = node, renderer/client/editor = jsdom — hd2d
+and lab need no DOM because three itself builds geometry/material/color data identically outside a
+browser, and the two packages' own pure logic — `tiltShiftRadius`/`fillAmount`/`sheetUv` in hd2d,
+`island.ts`/`terrain-query.ts` in lab — is exactly what's left once anything canvas/WebGL is
+excluded). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything
+and `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`, e.g. `test:hd2d`/`test:lab`) runs one.
 
 **The app's config lives with the app:** `apps/main/alepha.config.ts` declares the production
 platform (Bay adapter, public domain and bay-admin endpoint); `apps/main/migrations/`
@@ -835,6 +847,12 @@ an `EventCode` and two dictionary entries instead (the i18n test enforces parity
 
 **The canvas is not React's.** `#stage` is a sibling of `#root`, created by the client bootstrap
 (`bootClient()` in `main.tsx`), not by the served HTML; nothing in `ui/` may touch it.
+
+**`@lindocara/hd2d` has no module-level mutable state.** Camera yaw, the billboard registry, the
+cloud-shadow uniforms all live on `Hd2dContext` (`createHd2dContext()`), never a module variable.
+The PoC used module state because it only ever opened one scene; the game and a future editor
+preview will each open their own `hd2d` context, and a module singleton would mean rotating one
+scene's camera also rotates the other's sprites. See `packages/hd2d/AGENTS.md`.
 
 ## Secrets
 

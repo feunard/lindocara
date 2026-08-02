@@ -14,6 +14,7 @@ import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import type { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { type BenchLevel, createBench } from "./bench.js";
 import {
   AUDIO_URLS,
   closeDoor,
@@ -280,6 +281,18 @@ scene.add(chest.group);
 const debugView = createDebugView(field, query, colliders);
 scene.add(debugView.group);
 
+// --- harnais de charge (Task 13) -------------------------------------------------------------
+// `?bench=game` / `?bench=heavy` peuplent la scène au niveau du JEU (quatre joueurs, monstres,
+// gardes, butin, corps, projectiles, effets de combat, sources ponctuelles projetant — voir
+// `bench.ts`) pour mesurer le coût de rendu réel avant de réécrire tout le renderer en S3. `off`,
+// ou l'absence du paramètre, laisse la scène du PoC inchangée : c'est le comportement par défaut.
+const benchLevel: BenchLevel = ((): BenchLevel => {
+  const v = new URLSearchParams(location.search).get("bench");
+  return v === "game" || v === "heavy" ? v : "off";
+})();
+const bench = createBench(ctx, scene, textures, query, { level: benchLevel });
+bench.populate();
+
 // --- lumières -----------------------------------------------------------------------------------
 const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
 scene.add(hemi);
@@ -377,10 +390,40 @@ function pushMood(): void {
 }
 
 const moodLabel = document.getElementById("mood");
+const benchEl = document.getElementById("bench");
+let benchTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Reprend la méthode du CLAUDE.md du PoC (voir `bench.ts`, `measure`) : un `readPixels` force la
+ * synchro GPU, donc l'appel BLOQUE quelques dizaines de ms — acceptable ici puisqu'il ne tourne
+ * qu'au chargement et à chaque bascule jour/nuit, jamais à chaque frame.
+ */
+async function runBenchMeasure(): Promise<void> {
+  if (benchLevel === "off" || !benchEl) return;
+  // Trois.js n'accepte plus que WebGL2 depuis longtemps (three ^0.185) : le cast est sûr.
+  const gl = pipeline.renderer.getContext() as WebGL2RenderingContext;
+  const ms = await bench.measure(pipeline.render, gl);
+  benchEl.textContent = `⚙ ${benchLevel} ${ms.toFixed(2)} ms/frame`;
+}
+
+/** Ne mesure qu'une fois l'ambiance stabilisée : mesurer en pleine transition jour/nuit lirait un
+ *  état intermédiaire, ni jour ni nuit, qui ne raconte rien du budget GPU réel de l'un ou l'autre. */
+function scheduleBenchMeasure(): void {
+  if (benchLevel === "off") return;
+  if (benchTimer !== undefined) clearTimeout(benchTimer);
+  benchTimer = setTimeout(
+    () => {
+      void runBenchMeasure();
+    },
+    MOOD_FADE * 1000 + 200,
+  );
+}
+
 function applyMood(name: "day" | "night"): void {
   mood.goTo(name);
   setAmbience(name === "day" ? "jour" : "nuit");
   if (moodLabel) moodLabel.textContent = name === "day" ? "☀︎ jour" : "☾ nuit";
+  scheduleBenchMeasure();
 }
 
 // --- dialogue ---------------------------------------------------------------------------------
@@ -758,4 +801,6 @@ bouton?.addEventListener("click", () => {
   particles,
   mood,
   applyMood,
+  bench,
+  benchLevel,
 };
