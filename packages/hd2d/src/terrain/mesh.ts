@@ -23,7 +23,14 @@ const CLIFF_EDGE_COL = 5;
 // Teinte par vertex, très basse fréquence : casse l'aplat de couleur des grandes étendues, là où
 // l'autotiling ne s'occupe que des bordures. Portée telle quelle depuis le PoC (`tintAt`).
 const TINT_DARK: readonly [number, number, number] = [0.84, 0.89, 0.82];
-function tintAt(x: number, z: number): readonly [number, number, number] {
+/**
+ * Reste un détail d'implémentation de `mesh.ts` — exportée uniquement pour que
+ * `terrain-mesh.test.ts` puisse recalculer la couleur ATTENDUE d'un sommet connu et la comparer à
+ * celle produite, plutôt que de recopier cette formule dans le test (une seconde source de vérité
+ * qui dériverait sans qu'aucun test ne le remarque — exactement le mode de panne qu'`AO_CORNER`
+ * a démontré : personne ne l'assertait contre le PoC, seulement contre lui-même).
+ */
+export function tintAt(x: number, z: number): readonly [number, number, number] {
   const n =
     0.5 + 0.5 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 1.9) * Math.cos(z * 0.11 + x * 0.05);
   return [
