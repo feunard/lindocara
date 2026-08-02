@@ -4,7 +4,14 @@ import type { Hd2dContext } from "../context.js";
 import type { TerrainAtlas } from "./atlas.js";
 import { tileUV } from "./atlas.js";
 import type { HeightField } from "./field.js";
-import { autotileAxis, cornerOcclusion, openEdge, wallDrop } from "./field.js";
+import {
+  AO_WALL,
+  AO_WALL_HEIGHT,
+  autotileAxis,
+  cornerOcclusion,
+  openEdge,
+  wallDrop,
+} from "./field.js";
 
 // Colonne d'origine du bloc 4x4 dans le tileset, selon ce que la bordure regarde (voir
 // `atlas.ts`, `TerrainAtlas.block`) : 0 pour le bloc bordé d'EAU (le liseré d'écume y est déjà
@@ -13,18 +20,37 @@ import { autotileAxis, cornerOcclusion, openEdge, wallDrop } from "./field.js";
 const WATER_EDGE_COL = 0;
 const CLIFF_EDGE_COL = 5;
 
+// Teinte par vertex, très basse fréquence : casse l'aplat de couleur des grandes étendues, là où
+// l'autotiling ne s'occupe que des bordures. Portée telle quelle depuis le PoC (`tintAt`).
+const TINT_DARK: readonly [number, number, number] = [0.84, 0.89, 0.82];
+function tintAt(x: number, z: number): readonly [number, number, number] {
+  const n =
+    0.5 + 0.5 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 1.9) * Math.cos(z * 0.11 + x * 0.05);
+  return [
+    TINT_DARK[0] + (1 - TINT_DARK[0]) * n,
+    TINT_DARK[1] + (1 - TINT_DARK[1]) * n,
+    TINT_DARK[2] + (1 - TINT_DARK[2]) * n,
+  ];
+}
+
 type Vec2 = readonly [number, number];
 type Vec3 = readonly [number, number, number];
 
 /**
  * Accumulateur de quads : on fabrique la géométrie à la main pour contrôler les UV face par face
- * et empaqueter plusieurs cases dans un seul `BufferGeometry`, comme le PoC.
+ * et empaqueter TOUT un atlas — dessus et parois confondus — dans un seul `BufferGeometry`, comme
+ * le PoC, pour ne pas exploser le nombre d'appels de dessin.
+ *
+ * La couleur finale d'un sommet n'est connue qu'au `build()` : elle mélange la teinte procédurale
+ * (fonction de sa position monde) et le facteur d'occlusion propre à ce sommet (`cornerOcclusion`
+ * pour un dessus, l'assombrissement de pied de paroi pour une falaise) — les deux s'accumulent
+ * donc séparément et ne se combinent qu'une fois, à la fin.
  */
 function quadBuilder() {
   const pos: number[] = [];
   const nor: number[] = [];
   const uv: number[] = [];
-  const col: number[] = [];
+  const occ: number[] = []; // facteur d'occlusion, un par sommet
   const idx: number[] = [];
   return {
     quad(
@@ -34,7 +60,7 @@ function quadBuilder() {
       d: Vec3,
       normal: Vec3,
       uvs: readonly [Vec2, Vec2, Vec2, Vec2],
-      grey: readonly [number, number, number, number],
+      ao: readonly [number, number, number, number],
     ): void {
       const o = pos.length / 3;
       for (const v of [a, b, c, d]) {
@@ -42,10 +68,18 @@ function quadBuilder() {
         nor.push(normal[0], normal[1], normal[2]);
       }
       for (const t of uvs) uv.push(t[0], t[1]);
-      for (const k of grey) col.push(k, k, k);
+      for (const k of ao) occ.push(k);
       idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
     },
     build(): THREE.BufferGeometry {
+      const col: number[] = [];
+      for (let v = 0; v < occ.length; v++) {
+        const x = pos[v * 3] ?? 0;
+        const z = pos[v * 3 + 2] ?? 0;
+        const t = tintAt(x, z);
+        const k = occ[v] ?? 1;
+        col.push(t[0] * k, t[1] * k, t[2] * k);
+      }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
       geo.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
@@ -107,13 +141,14 @@ export interface MeshTerrainOptions {
 /**
  * Maille un `HeightField` : un quad de dessus par case (tuile d'autotile choisie par les arêtes
  * ouvertes, quatre couleurs de coin pour l'occlusion de contact) et, sur chaque côté qui domine un
- * voisin plus bas ou le vide, une paroi découpée en un quad par palier franchi.
+ * voisin plus bas ou le vide, une paroi découpée en un quad par palier franchi, assombrie à son
+ * pied et teintée par la même fonction procédurale que le dessus.
  *
- * Le dessus et les parois de CHAQUE atlas sont accumulés dans deux `BufferGeometry` séparées
- * (plutôt que fondues comme dans le PoC) : un consommateur — l'aperçu de l'éditeur, ce test —
- * doit pouvoir lire le plateau sans avoir à trier un buffer où dessus et falaise sont mélangés.
- * Le nombre de meshes reste borné par le nombre d'atlas × 2 (dessus, parois), jamais par case :
- * c'est ce qui tient les 60 fps, comme dans le PoC.
+ * Dessus et parois d'un même atlas partagent UN SEUL accumulateur, comme le PoC : le nombre de
+ * meshes reste borné par le nombre d'atlas distincts, jamais par case — ce qui tient les 60 fps.
+ * Un `HeightField` borné et entouré de vide porte forcément des parois sur son pourtour (voir
+ * `wallDrop`) ; un test qui veut n'observer QUE le dessus doit utiliser un champ sans bord (voir
+ * `terrain-mesh.test.ts`), pas s'appuyer sur un découpage en meshes séparés.
  */
 export function meshTerrain(
   ctx: Hd2dContext,
@@ -122,8 +157,7 @@ export function meshTerrain(
 ): { group: THREE.Group; dispose(): void } {
   const cx = field.cols / 2;
   const cz = field.rows / 2;
-  const tops = new Map<string, QuadBuilder>();
-  const walls = new Map<string, QuadBuilder>();
+  const geo = new Map<string, QuadBuilder>();
 
   for (let j = 0; j < field.rows; j++) {
     for (let i = 0; i < field.cols; i++) {
@@ -150,7 +184,7 @@ export function meshTerrain(
         base === null ? 0 : autotileAxis(openEdge(field, i, j, 0, -1), openEdge(field, i, j, 0, 1));
       const uvTop = tileUV(atlas, col, row);
 
-      into(tops, material).quad(
+      into(geo, material).quad(
         [x0, y, z0],
         [x0, y, z1],
         [x1, y, z1],
@@ -207,12 +241,19 @@ export function meshTerrain(
             !wallContinues(field, i + dj, j - di, di, dj, h),
           );
 
+        // Noirceur du pied de paroi : maximale au ras du sol d'en bas (`bottomY`), dissipée une
+        // hauteur `AO_WALL_HEIGHT` plus haut. C'est ce qui « pose » la falaise au lieu de la
+        // laisser flotter sur une arête franche.
+        const pied = (elevation: number): number =>
+          1 - AO_WALL * (1 - Math.min(1, (elevation - bottomY) / AO_WALL_HEIGHT));
+
         let top = y;
         let band = 0;
         while (top > bottomY + 1e-4) {
           const bottom = Math.max(bottomY, top - opts.levelHeight);
           const w = tileUV(atlas, wallCol, band === 0 ? atlas.wallRow : atlas.wallRow + 1);
-          into(walls, material).quad(
+          const [ab, ah] = [pied(bottom), pied(top)];
+          into(geo, material).quad(
             [p0[0], bottom, p0[1]],
             [p1[0], bottom, p1[1]],
             [p1[0], top, p1[1]],
@@ -224,7 +265,7 @@ export function meshTerrain(
               [w.u1, w.v1],
               [w.u0, w.v1],
             ],
-            [1, 1, 1, 1],
+            [ab, ab, ah, ah],
           );
           top = bottom;
           band++;
@@ -234,32 +275,26 @@ export function meshTerrain(
   }
 
   const group = new THREE.Group();
-  const addMeshes = (map: Map<string, QuadBuilder>) => {
-    for (const [key, builder] of map) {
-      if (builder.empty) continue;
-      const atlas = opts.atlases[key];
-      if (!atlas) throw new Error(`Atlas de terrain "${key}" disparu entre les deux passes`);
-      const material = new THREE.MeshLambertMaterial({
-        map: atlas.texture,
-        // Sans ça, le sol et les falaises — des quads simples, sans face arrière — ne
-        // projettent rien dans la shadow map.
-        shadowSide: THREE.DoubleSide,
-        vertexColors: true,
-        alphaTest: 0.5, // les tuiles de bordure ont des découpes transparentes
-      });
-      // Posé à plat : la carte de nuages doit s'échantillonner dans le plan du sol, jamais à
-      // l'origine de l'objet (`atOrigin` sert aux billboards verticaux, voir `applyCloudShadow`).
-      applyCloudShadow(ctx, material);
-      const mesh = new THREE.Mesh(builder.build(), material);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
-    }
-  };
-  // Le dessus d'abord : un consommateur qui ne veut que le plateau (aperçu, ce test) prend le
-  // premier mesh du groupe et s'arrête là, sans avoir à filtrer les parois.
-  addMeshes(tops);
-  addMeshes(walls);
+  for (const [key, builder] of geo) {
+    if (builder.empty) continue;
+    const atlas = opts.atlases[key];
+    if (!atlas) throw new Error(`Atlas de terrain "${key}" disparu entre les deux passes`);
+    const material = new THREE.MeshLambertMaterial({
+      map: atlas.texture,
+      // Sans ça, le sol et les falaises — des quads simples, sans face arrière — ne projettent
+      // rien dans la shadow map.
+      shadowSide: THREE.DoubleSide,
+      vertexColors: true,
+      alphaTest: 0.5, // les tuiles de bordure ont des découpes transparentes
+    });
+    // Posé à plat : la carte de nuages doit s'échantillonner dans le plan du sol, jamais à
+    // l'origine de l'objet (`atOrigin` sert aux billboards verticaux, voir `applyCloudShadow`).
+    applyCloudShadow(ctx, material);
+    const mesh = new THREE.Mesh(builder.build(), material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
 
   return {
     group,

@@ -10,7 +10,13 @@ export interface HeightField {
 }
 
 /** Assombrissement apporté par UN voisin plus haut touchant un coin. */
-export const AO_CORNER = 0.11;
+export const AO_CORNER = 0.13;
+
+/** Noirceur maximale au pied d'une paroi — au ras du sol d'en bas, là où elle se pose. */
+export const AO_WALL = 0.45;
+
+/** Hauteur, en unités monde, sur laquelle `AO_WALL` se dissipe en remontant la paroi. */
+export const AO_WALL_HEIGHT = 1.1;
 
 /**
  * Une arête est « ouverte » — donc bordée — face au vide, face à un voisin plus bas, ou face à une

@@ -6,7 +6,10 @@ import type * as THREE from "three";
  * d'écume est déjà peint) ou celui bordé de vide (bordure touffue, faite pour coiffer une paroi) —
  * ou `"flat"` pour une image sans bordure d'autotile du tout, une seule tuile. `wallRow` est la
  * ligne de la paroi qui se raccorde SOUS le bloc bordé de vide ; la bande répétable qui la
- * prolonge est la ligne suivante.
+ * prolonge est la ligne suivante. `tilePx` est la taille en pixels d'UNE tuile — c'est l'appelant
+ * qui la connaît (il déclare l'atlas), pas ce module : la déduire de `texture.image` serait fragile
+ * avant décodage (`null` en test, pas forcément prêt en usage réel), et la coder en dur romprait le
+ * jour où un tileset a une autre taille de tuile que les 64 px de ce pack.
  */
 export interface TerrainAtlas {
   texture: THREE.Texture;
@@ -14,15 +17,8 @@ export interface TerrainAtlas {
   rows: number;
   block: "water-edge" | "cliff-edge" | "flat";
   wallRow: number;
+  tilePx: number;
 }
-
-/**
- * Taille en pixels d'une tuile dans ce pack — mesurée une fois pour toutes (576/9 = 640/10 = 64) et
- * constante sur tous les atlas de terrain, tuiles ou parois. `TerrainAtlas` ne porte pas de
- * dimension pixel : contrairement au PoC (`ts.px`), le demi-texel se cale donc sur cette
- * connaissance du pack plutôt que sur `texture.image`, qui n'est pas fiable avant décodage.
- */
-const TILE_PX = 64;
 
 /**
  * Rectangle UV d'une tuile, rentré d'un demi-texel pour ne pas mordre la voisine : un atlas sans
@@ -34,8 +30,8 @@ export function tileUV(
   col: number,
   row: number,
 ): { u0: number; v0: number; u1: number; v1: number } {
-  const iu = 0.5 / (atlas.cols * TILE_PX);
-  const iv = 0.5 / (atlas.rows * TILE_PX);
+  const iu = 0.5 / (atlas.cols * atlas.tilePx);
+  const iv = 0.5 / (atlas.rows * atlas.tilePx);
   return {
     u0: col / atlas.cols + iu,
     u1: (col + 1) / atlas.cols - iu,
