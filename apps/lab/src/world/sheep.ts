@@ -14,8 +14,11 @@ import type { TerrainQuery } from "./terrain-query.js";
 // HappySheep_All : 8 colonnes x 2 lignes de 128px. Ligne 0 au repos, ligne 1 le
 // sautillement (6 frames utiles seulement).
 // Bas du sprite (ombre peinte comprise) mesuré à 85 px sur 128.
-const SHEET = { cols: 8, rows: 2, height: 1.5, foot: 0.34 };
-const IDLE = { row: 0, frames: 8, fps: 6 };
+// Exportées : `bench.ts` (Task 13) réutilise le mouton comme silhouette générique de monstre et
+// l'explosion comme effet de combat générique — recopier ces mesures à la main les aurait laissées
+// diverger sans qu'aucun test ne le voie.
+export const SHEET = { cols: 8, rows: 2, height: 1.5, foot: 0.34 };
+export const IDLE = { row: 0, frames: 8, fps: 6 };
 const HOP = { row: 1, frames: 6, fps: 9 };
 
 const SPEED = 0.85;
@@ -23,7 +26,7 @@ const WANDER = { idle: [1.2, 4.0] as const, walk: [0.8, 2.2] as const }; // dur�
 const CLICKS_TO_POP = 4; // comme les critters de Warcraft 3
 
 // Explosions.png : 9 frames de 192px.
-const BLAST = { cols: 9, frames: 9, fps: 12, height: 2.6, foot: 0.3 };
+export const BLAST = { cols: 9, frames: 9, fps: 12, height: 2.6, foot: 0.3 };
 
 interface SheepState {
   billboard: Billboard;

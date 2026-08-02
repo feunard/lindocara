@@ -31,7 +31,10 @@ interface PropKind {
   lit?: boolean;
 }
 
-const KINDS: Record<"tree" | "rock" | "fire", PropKind> = {
+// Exportée : `bench.ts` (Task 13) réutilise `rocks.png` comme projectile générique et doit poser
+// le même cadrage que le prop rocher — recopier ces mesures à la main les aurait laissées diverger
+// sans qu'aucun test ne le voie.
+export const KINDS: Record<"tree" | "rock" | "fire", PropKind> = {
   // L'arbre : seule la ligne 0 est le balancement. Les frames 4 et 5 sont plus
   // étroites — c'est l'arbre qu'on abat — et la 8 est la souche.
   tree: {
@@ -76,6 +79,10 @@ const WIND_DIR = [0.86, 0.51] as const;
 const WIND_WAVELENGTH = 13; // unités monde entre deux crêtes de la bourrasque
 const windPhase = (x: number, z: number, frames: number): number =>
   ((x * WIND_DIR[0] + z * WIND_DIR[1]) / WIND_WAVELENGTH) * frames;
+
+// Cadrage des `deco-0N.png` : une seule frame, posées au sol. Exportée pour la même raison que
+// `KINDS` ci-dessus — `bench.ts` (Task 13) réutilise ces sprites comme butin au sol générique.
+export const DECO_SHEET = { height: 0.85, foot: 0.12 };
 
 export interface Props {
   group: THREE.Group;
@@ -190,8 +197,8 @@ export function populate(
     const url = `/tex/deco-0${n}.png`;
     const billboard = makeBillboard(ctx, {
       texture: textures.get(url),
-      height: 0.85,
-      foot: 0.12,
+      height: DECO_SHEET.height,
+      foot: DECO_SHEET.foot,
       pitch: CAMERA.pitch,
     });
     billboard.placeAt(x, query.heightAt(x, z) ?? 0, z);

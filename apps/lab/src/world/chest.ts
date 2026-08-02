@@ -10,8 +10,10 @@ import type { TerrainQuery } from "./terrain-query.js";
 
 // Les deux sprites partagent un canevas de 80x80, coffre calé en bas : ouvrir
 // ne le fait donc pas sauter, seul le couvercle dépasse plus haut.
-const TAILLE = 1.15; // hauteur monde d'une frame
-const FOOT = 0.02; // le coffre touche le bas de son canevas
+// TAILLE/FOOT exportées : `bench.ts` (Task 13) réutilise `chest-closed.png` comme butin au sol et
+// doit poser le même cadrage, pas une valeur recopiée à la main qui pourrait diverger sans test.
+export const TAILLE = 1.15; // hauteur monde d'une frame
+export const FOOT = 0.02; // le coffre touche le bas de son canevas
 const RAYON = 0.42; // empreinte au sol
 const PORTEE = 1.9; // distance à laquelle on peut l'ouvrir
 

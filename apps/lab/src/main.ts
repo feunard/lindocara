@@ -286,11 +286,20 @@ scene.add(debugView.group);
 // gardes, butin, corps, projectiles, effets de combat, sources ponctuelles projetant — voir
 // `bench.ts`) pour mesurer le coût de rendu réel avant de réécrire tout le renderer en S3. `off`,
 // ou l'absence du paramètre, laisse la scène du PoC inchangée : c'est le comportement par défaut.
+//
+// Round 1 de revue : peupler n'importe où sur la carte mesurait une scène partiellement CULLÉE —
+// hors du tronc de vue caméra et hors de la passe d'ombre du soleil, une part de la population
+// coûtait zéro, et le chiffre annoncé était rassurant et FAUX. `bench.ts` circonscrit désormais le
+// peuplement à `BENCH_RADIUS` autour d'un CENTRE explicite : la position du héros au moment du
+// peuplement, c'est-à-dire son point d'apparition (`SPAWN`), puisque le peuplement a lieu avant
+// toute image et donc avant tout déplacement.
 const benchLevel: BenchLevel = ((): BenchLevel => {
   const v = new URLSearchParams(location.search).get("bench");
   return v === "game" || v === "heavy" ? v : "off";
 })();
-const bench = createBench(ctx, scene, textures, query, { level: benchLevel });
+const bench = createBench(ctx, scene, textures, query, [hero.position.x, hero.position.z], {
+  level: benchLevel,
+});
 bench.populate();
 
 // --- lumières -----------------------------------------------------------------------------------

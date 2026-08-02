@@ -55,6 +55,21 @@ times (the PoC `CLAUDE.md` method: one warm-up render, a `readPixels` to drain t
 renders, a second `readPixels` that blocks until the GPU is actually done) — animating between
 those renders would defeat the point of measuring one consistent frame.
 
+**Every entity is scattered inside a disk, never across the whole map.** `scatterOnLand` takes a
+`center` (the hero's position when `populate()` runs — its spawn point, since populate happens
+before any input) and `BENCH_RADIUS` (14 world units — 1 unit = 1 tile). Round 1 of this task's
+review caught the harness scattering entities over the *entire* island chain instead: with the
+camera framing only ~20-30 units around the hero and the sun's shadow map fixed at a 26-unit
+extent, a real fraction of the population landed outside both the view frustum and the shadow
+pass — free to render, at zero measured cost, for entities the game would actually have to draw.
+The reported number was reassuring and wrong, which is exactly the failure mode this harness exists
+to prevent. `BENCH_RADIUS` is derived from the game's own interest radii (`TILE_SIZE = 64` px):
+players 900 px ≈ 14 units, monsters 850 px ≈ 13, loot 650 px ≈ 10 — 14, the widest of the three,
+still fits entirely inside the main island (radius 16) around the spawn. `scatterOnLand` draws
+**inside** the disk by construction (polar sampling, `r = radius * sqrt(rng())`), not by drawing in
+a bounding square and rejecting the corners — `apps/lab/test/bench.test.ts` asserts the invariant
+holds for every point returned, not just on average.
+
 Select a level with `?bench=game` or `?bench=heavy` in the URL; `?bench=off` or no parameter leaves
 the scene exactly as Task 12 left it. The measured ms/frame appears in the HUD next to the fps
 counter, re-measured automatically after the mood fade settles whenever you press `N` — so reading
