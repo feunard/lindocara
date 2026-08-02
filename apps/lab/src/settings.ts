@@ -84,9 +84,8 @@ export interface HeroSettings {
    *  de l'ancien modèle instantané (voir `world/locomotion.ts`) ; la neige freine plus ET plafonne
    *  plus bas — on y peine des deux façons à la fois ; la glace freine à peine — on garde son élan
    *  et un virage dérape au lieu de pivoter sec. Indexé par `TerrainMaterial`, mais seules ces
-   *  trois matières changent le déplacement : `sable`/`glace-fine` n'y figurent pas et retombent
-   *  sur `herbe` via `frictionPour`/`vitesseMaxPour` (locomotion.ts) — au sable comme à la glace
-   *  fine, ce qui change n'est pas encore la façon de marcher. */
+   *  trois matières changent le déplacement : `sable` retombe sur `herbe`, `glace-fine` retombe
+   *  sur `glace` via `frictionPour`/`vitesseMaxPour` (locomotion.ts). */
   friction: { herbe: number; neige: number; glace: number };
   /** Multiplicateur de `speed` par matière, au-dessus de la friction — c'est lui qui fait
    *  PLAFONNER plus bas dans la neige, pas seulement freiner plus fort pour l'atteindre. */
