@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { type Hd2dContext, neutralCloudTexture } from "./context.js";
+import type { Hd2dContext } from "./context.js";
 
 /**
  * Couverture nuageuse, version 2. Avant, c'étaient cinq quads invisibles qui écrivaient dans la
@@ -124,6 +124,11 @@ export function applyCloudShadow(
  */
 export function createCloudCover(ctx: Hd2dContext): CloudCover {
   const uniforms = ctx.cloudUniforms;
+  // Le neutre posé par LE CONTEXTE avant que cette couverture ne prenne `uCloudMap` — capturé ICI,
+  // avant toute écrasement, pour être restauré tel quel au `dispose()` plutôt que d'en refabriquer
+  // un. Revue finale (point E4) : `dispose()` fabriquait auparavant un second neutre à chaque
+  // appel, orphelinant celui du contexte (jamais disposé, sans jamais être réutilisé non plus).
+  const neutre = uniforms.uCloudMap.value;
   let built: THREE.CanvasTexture | undefined;
 
   if (typeof document !== "undefined") {
@@ -145,12 +150,13 @@ export function createCloudCover(ctx: Hd2dContext): CloudCover {
       // en revanche PARTAGÉ par référence avec tous les matériaux greffés (`applyCloudShadow` fait
       // `Object.assign(shader.uniforms, uniforms)`) — s'ils sont encore rendus après ce `dispose()`,
       // ils échantillonneraient une texture dont la ressource GPU vient d'être libérée. On repose
-      // donc INCONDITIONNELLEMENT `uCloudMap` sur un neutre frais — le même que celui posé par
-      // `createHd2dContext` — pour que le contexte reste dans un état valide et rendable après
-      // `dispose()`, y compris quand aucune vraie carte n'a été construite (`built` indéfini, projet
-      // vitest `node`) : la garantie ne doit pas dépendre de la plate-forme.
+      // donc INCONDITIONNELLEMENT `uCloudMap` sur le neutre du CONTEXTE — capturé plus haut, jamais
+      // refabriqué — pour que le contexte reste dans un état valide et rendable après `dispose()`,
+      // y compris quand aucune vraie carte n'a été construite (`built` indéfini, projet vitest
+      // `node`) : la garantie ne doit pas dépendre de la plate-forme. Ce neutre reste la propriété du
+      // contexte : c'est lui qui le libère, dans SON propre `dispose()` (`context.ts`).
       built?.dispose();
-      uniforms.uCloudMap.value = neutralCloudTexture();
+      uniforms.uCloudMap.value = neutre;
     },
   };
 }

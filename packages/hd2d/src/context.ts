@@ -101,8 +101,16 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
   // Un objet FRAIS par contexte : le PoC en faisait une constante de module, partagée par toute la
   // page. `uCloudStrength` (0.34) n'est pas configurable ailleurs — c'est déjà ainsi dans le PoC —
   // `uCloudScale`/`uCloudSoftness` partent en revanche de la config de CE contexte.
+  //
+  // `neutre` reste à part de `cloudUniforms.uCloudMap.value` : `createCloudCover` (`clouds.ts`)
+  // remplace ce dernier par sa propre carte construite, et le repose sur CE MÊME texel neutre à son
+  // `dispose()` plutôt que d'en fabriquer un nouveau. `dispose()` ci-dessous doit donc libérer la
+  // ressource GPU que LE CONTEXTE a allouée — `neutre` — jamais ce qui se trouve accidentellement
+  // dans `uCloudMap.value` au moment de l'appel (une carte de nuages encore vivante, si aucun
+  // `CloudCover` n'a été disposé avant le contexte).
+  const neutre = neutralCloudTexture();
   const cloudUniforms: CloudUniforms = {
-    uCloudMap: { value: neutralCloudTexture() },
+    uCloudMap: { value: neutre },
     uCloudOffset: { value: new THREE.Vector2(0, 0) },
     uCloudScale: { value: config.cloudShadow.scale },
     uCloudStrength: { value: 0.34 },
@@ -141,6 +149,9 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
     dispose() {
       tous.length = 0;
       eclaires.length = 0;
+      // Revue finale (point E3) : c'était le seul `dispose()` du package à ne pas rendre ce qu'il
+      // avait pris — le texel neutre alloué ci-dessus restait en mémoire GPU indéfiniment.
+      neutre.dispose();
     },
   };
 }

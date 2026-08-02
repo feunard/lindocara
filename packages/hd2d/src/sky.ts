@@ -25,6 +25,7 @@ export interface Sky {
   readonly horizon: THREE.Color;
   apply(mood: ResolvedMood, sunDirection: THREE.Vector3): void;
   update(dt: number, camera: THREE.Camera): void;
+  dispose(): void;
 }
 
 /**
@@ -75,6 +76,13 @@ export function createSky(_ctx: Hd2dContext): Sky {
       u.uTime.value += dt;
       // La voûte suit la caméra : on ne peut ni en sortir ni l'approcher.
       mesh.position.copy(camera.position);
+    },
+    // Revue finale (point E2) : `Sky` était la seule fabrique du package sans `dispose()`, alors
+    // qu'elle alloue sa propre `SphereGeometry`/`ShaderMaterial` — non partagées, sans risque de
+    // les libérer sous les pieds d'un autre consommateur.
+    dispose() {
+      mesh.geometry.dispose();
+      material.dispose();
     },
   };
 }
