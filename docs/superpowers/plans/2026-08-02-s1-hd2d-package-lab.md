@@ -811,6 +811,8 @@ Port de `~/git/poc-hd-2d/src/render/pipeline.js`, avec quatre changements :
 3. `setFocusY(y)` remplace la boucle que `main.js` faisait à la main sur `composer.passes` en cherchant `uniforms.uFocusY` — le pipeline tient ses deux passes de flou, il n'y a aucune raison que l'appelant les redécouvre par introspection à chaque frame. Il applique le même amorti (`+= (cible - courant) * 0.08`) ;
 4. `resize()` ne s'abonne plus lui-même à `addEventListener("resize")` : c'est `dispose()` qui deviendrait impossible à écrire proprement. L'appelant s'abonne et appelle `resize()`.
 
+`dispose()` doit libérer **les cinq passes** (`source`, `bloom`, `blurH`, `blurV`, `grade`) avant le composer, la cible MSAA et le renderer. `EffectComposer.dispose()` ne libère que ses deux cibles de ping-pong et sa passe de copie — il **ne cascade pas** vers les passes ajoutées par `addPass`, et `UnrealBloomPass` détient à lui seul une chaîne de mips complète. Un `dispose()` qui s'arrête au composer fuit donc tout le post-traitement à chaque démontage, en silence : c'est exactement la contrepartie du retrait de l'auto-abonnement qui serait perdue.
+
 Les trois décisions qui **ne** doivent pas bouger, chacune documentée dans le fichier source et coûteuse à redécouvrir :
 
 - **la scène va dans sa propre cible MSAA**, la chaîne d'après travaille sur des cibles simples. Donner une cible MSAA au composer lui fait la cloner pour son ping-pong, et chaque passe plein écran écrit alors 4 échantillons par pixel pour rien : mesuré à **+5 ms la frame** ;
