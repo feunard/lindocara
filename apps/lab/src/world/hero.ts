@@ -19,6 +19,7 @@ import {
 } from "../core/audio.js";
 import { CAMERA, HERO, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
+import { frictionPour, pasAmorti, vitesseMaxPour } from "./locomotion.js";
 import type { TerrainQuery } from "./terrain-query.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.
@@ -140,6 +141,12 @@ export function createHero(
 
   const pos = new THREE.Vector3(sx, query.heightAt(sx, sz) ?? 0, sz);
   let groundY = pos.y;
+  // Vitesse HORIZONTALE persistante (Task 3 : le modèle à friction) — distincte de `vy`, qui reste
+  // la chute/le saut, inchangés. Remise à zéro à chaque transition d'état (eau, pièce, noyade) :
+  // sans ça on entrerait dans l'eau, ou dans une pièce, avec l'élan de la glace qu'on vient de
+  // quitter.
+  let vx = 0;
+  let vz = 0;
   let vy = 0;
   let airborne = false;
   let swimming = false;
@@ -230,6 +237,8 @@ export function createHero(
     swimming = true;
     airborne = false;
     vy = 0;
+    vx = 0;
+    vz = 0;
     breath = HERO.swim.breath;
     pos.y = WORLD.waterLevel;
     groundY = WORLD.waterLevel;
@@ -239,6 +248,8 @@ export function createHero(
 
   function leaveWater(y: number): void {
     swimming = false;
+    vx = 0;
+    vz = 0;
     breath = HERO.swim.breath;
     pos.y = y;
     groundY = y;
@@ -252,6 +263,8 @@ export function createHero(
     swimming = false;
     airborne = false;
     vy = 0;
+    vx = 0;
+    vz = 0;
     breath = HERO.swim.breath;
     pos.set(spawn[0], query.heightAt(spawn[0], spawn[1]) ?? 0, spawn[1]);
     groundY = pos.y;
@@ -286,17 +299,40 @@ export function createHero(
       airborne = false;
       swimming = false;
       vy = 0;
+      // Entrée ET sortie de pièce sont des téléportations logiques, à l'instar des transitions
+      // d'eau : l'élan qu'on avait avant ne veut rien dire de l'autre côté.
+      vx = 0;
+      vz = 0;
     },
     update(dt, input) {
-      const pas = HERO.speed * (swimming ? HERO.swim.speed : 1) * dt;
       const avantX = pos.x;
       const avantZ = pos.z;
 
-      // Un axe à la fois : buter sur un obstacle en diagonale fait glisser le long.
-      const nx = pos.x + input.x * pas;
-      if (input.x !== 0 && canEnter(nx, pos.z)) pos.x = nx;
-      const nz = pos.z + input.z * pas;
-      if (input.z !== 0 && canEnter(pos.x, nz)) pos.z = nz;
+      // La matière SOUS LES PIEDS, avant de bouger (même principe que `centreOk`), choisit la
+      // friction et le plafond de vitesse de cette image. En pièce ou à la nage, la matière réelle
+      // du terrain sous les coordonnées virtuelles/le fond marin n'a aucun sens physique : on
+      // retombe sur `null` (= herbe) pour la friction — ce qui redonne le ressenti quasi
+      // instantané qu'avait l'ancien modèle en intérieur et à la nage, amorti sur seulement
+      // 2 images (imperceptible, voir `world/locomotion.ts`). La nage garde son propre plafond de
+      // vitesse (`HERO.swim.speed`) : ce n'est pas une matière de sol, juste un milieu plus lent.
+      const matiere = swimming || piece ? null : query.kindAt(pos.x, empreinte(pos.z));
+      const friction = frictionPour(matiere);
+      const vmax = swimming ? HERO.speed * HERO.swim.speed : vitesseMaxPour(matiere);
+      const accel = vmax * friction;
+
+      vx = pasAmorti(vx, input.x, accel, friction, dt);
+      vz = pasAmorti(vz, input.z, accel, friction, dt);
+
+      // Un axe à la fois : buter sur un obstacle en diagonale fait glisser le long — inchangé,
+      // seule la façon de calculer `nx`/`nz` change. Sur l'axe refusé, la vitesse retombe à zéro :
+      // sinon on resterait collé au mur à pleine vitesse et on repartirait d'un coup dès qu'on
+      // s'en écarte (voir le rapport de la Task 3 pour ce choix).
+      const nx = pos.x + vx * dt;
+      if (canEnter(nx, pos.z)) pos.x = nx;
+      else vx = 0;
+      const nz = pos.z + vz * dt;
+      if (canEnter(pos.x, nz)) pos.z = nz;
+      else vz = 0;
 
       if (piece) {
         // Plancher plat : ni gravité, ni nage, ni saut. On garde les pas.

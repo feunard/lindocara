@@ -78,6 +78,19 @@ export const CAMERA: CameraSettings = {
 
 export interface HeroSettings {
   speed: number;
+  /** Une friction et un plafond de vitesse par matière (Task 3 de l'île de neige) — l'entrée
+   *  ACCÉLÈRE, la matière FREINE, et c'est la même équation pour l'herbe, la neige et la glace.
+   *  Ordre qui fait le jeu : `glace ≪ herbe < neige`. L'herbe est réglée pour rester indiscernable
+   *  de l'ancien modèle instantané (voir `world/locomotion.ts`) ; la neige freine plus ET plafonne
+   *  plus bas — on y peine des deux façons à la fois ; la glace freine à peine — on garde son élan
+   *  et un virage dérape au lieu de pivoter sec. Indexé par `TerrainMaterial`, mais seules ces
+   *  trois matières changent le déplacement : `sable`/`glace-fine` n'y figurent pas et retombent
+   *  sur `herbe` via `frictionPour`/`vitesseMaxPour` (locomotion.ts) — au sable comme à la glace
+   *  fine, ce qui change n'est pas encore la façon de marcher. */
+  friction: { herbe: number; neige: number; glace: number };
+  /** Multiplicateur de `speed` par matière, au-dessus de la friction — c'est lui qui fait
+   *  PLAFONNER plus bas dans la neige, pas seulement freiner plus fort pour l'atteindre. */
+  vitesseSol: { herbe: number; neige: number; glace: number };
   /** Empreinte au sol, la même pour le relief et pour les props. */
   radius: number;
   /** Décalage du centre vers le FOND (-Z). Le sprite est un plan vertical : son corps se dessine
@@ -119,6 +132,22 @@ export interface HeroSettings {
 
 export const HERO: HeroSettings = {
   speed: 4.2,
+  // Réglés et vérifiés dans `test/hero-friction.test.ts` — voir `world/locomotion.ts` pour la
+  // formule et le rapport de la Task 3 pour le détail des calculs.
+  //  - herbe (80) : assez haute pour que 2 images d'entrée suffisent à dépasser 90 % de la
+  //    vitesse de pointe, et 2 images de relâchement à retomber sous 10 % — c'est la définition
+  //    opérationnelle d'« indiscernable de l'ancien modèle instantané ».
+  //  - neige (130) : encore plus haute que l'herbe — on peine à ACCÉLÉRER — et son `vitesseSol`
+  //    plafonne aussi plus bas — on peine aussi à ATTEINDRE sa vitesse de pointe. Les deux jouent
+  //    ensemble, pas l'un à la place de l'autre.
+  //  - glace (0.35) : quasi nulle. `exp(-0.35 · 1) ≈ 0.70` : une seconde après avoir relâché les
+  //    touches, on glisse encore aux deux tiers de sa vitesse — largement de quoi déraper en
+  //    tournant et ne jamais s'arrêter net.
+  friction: { herbe: 80, neige: 130, glace: 0.35 },
+  // Multiplicateur de `speed`, PAR-DESSUS la friction : sur l'herbe on atteint `speed` pile, mais
+  // sur la neige l'équilibre plafonne à 55 % de `speed` — pas seulement plus lentement à
+  // l'atteindre. La glace ne réduit pas le plafond : seule sa friction quasi nulle la distingue.
+  vitesseSol: { herbe: 1, neige: 0.55, glace: 1 },
   radius: 0.3,
   offset: 0.15,
   frame: { cols: 6, rows: 8 },
