@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PoC HD-2D</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; overflow: hidden; background: #0b1020; }
+      /* Le pointeur du pack, doublé au plus proche voisin et annoncé en 2x :
+         un curseur CSS est rendu à sa taille intrinsèque en pixels CSS, donc
+         livré en 64 il baverait sur un écran Retina. Le point chaud est la
+         pointe de la flèche, mesurée dans l'image d'origine (22, 17).
+         La main garde son doigt pour point chaud (23, 17). */
+      #view {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        cursor: image-set(url('/ui/cursor.png') 2x) 22 17, default;
+      }
+      /* Sur un mouton : il est cliquable, le curseur doit le dire. */
+      #view.pointe {
+        cursor: image-set(url('/ui/cursor-hand.png') 2x) 23 17, pointer;
+      }
+
+      #hud {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: rgba(8, 12, 26, 0.62);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(8px);
+        color: #dfe7ff;
+        font-size: 12px;
+        line-height: 1.65;
+        letter-spacing: 0.01em;
+        user-select: none;
+        pointer-events: none;
+      }
+      #hud.hidden { opacity: 0; }
+      /* Le bloc d'aide et le bandeau de dialogue occupent le même bas d'écran.
+         Pendant qu'on parle, l'aide s'efface — et c'est une classe à part de
+         `hidden`, sinon la conversation annulerait le choix fait avec H. */
+      #hud.parle { opacity: 0; }
+      #hud kbd {
+        display: inline-block;
+        min-width: 18px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-bottom-width: 2px;
+        text-align: center;
+        font: inherit;
+      }
+      #hud .meta {
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        color: #8fa0cc;
+        display: flex;
+        gap: 12px;
+      }
+
+      #breath {
+        position: fixed;
+        left: 50%;
+        bottom: 44px;
+        width: 190px;
+        margin-left: -95px;
+        height: 9px;
+        display: none;
+        border-radius: 5px;
+        background: rgba(8, 12, 26, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        overflow: hidden;
+      }
+      #breath-bar {
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, #4fd6e8, #9beaf5);
+        transition: width 0.1s linear;
+      }
+
+      /* --- dialogue ------------------------------------------------------
+         Pas de cadre : un bandeau noir dont les DEUX bords se fondent dans la
+         scène. Un rectangle franc poserait une boîte par-dessus le jeu ; le
+         dégradé le fait affleurer. */
+      #dialog {
+        position: fixed;
+        /* Centré horizontalement, et centré dans la MOITIÉ BASSE de l'écran :
+           son axe tombe donc aux trois quarts de la hauteur. Collé en bas, il
+           écrasait le bord du cadre ; là, il flotte dans le vide sous l'action. */
+        left: 50%;
+        top: 75%;
+        width: min(760px, 92vw);
+        padding: 18px 64px;
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        background: linear-gradient(
+          90deg,
+          rgba(6, 9, 18, 0) 0%,
+          rgba(6, 9, 18, 0.9) 13%,
+          rgba(6, 9, 18, 0.9) 87%,
+          rgba(6, 9, 18, 0) 100%
+        );
+        color: #dfe7ff;
+        font-size: 14px;
+        user-select: none;
+        pointer-events: none;
+        opacity: 0;
+        transform: translate(-50%, calc(-50% + 10px));
+        transition: opacity 0.18s ease, transform 0.18s ease;
+      }
+      #dialog.on { opacity: 1; transform: translate(-50%, -50%); }
+
+      #dialog-avatar {
+        width: 88px;
+        height: 84px;
+        flex: none;
+        /* La vignette est du pixel art : c'est le seul filtrage acceptable. */
+        image-rendering: pixelated;
+        filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
+      }
+      #dialog-name {
+        color: #fff;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-size: 12px;
+        margin-bottom: 7px;
+      }
+      #dialog-line {
+        line-height: 1.65;
+        /* DEUX lignes réservées d'avance (2 × 1.65). Le bloc est centré
+           verticalement : si sa hauteur change quand le texte passe à la ligne,
+           c'est le nom au-dessus qui remonte. Réserver 2.2em n'en couvrait
+           qu'une et un tiers — d'où le sursaut de « Grota » en cours de frappe. */
+        min-height: 3.3em;
+        color: #c9d4f0;
+      }
+      /* Le chevron n'apparaît qu'une fois la réplique entièrement écrite : il
+         dit « à toi », pas « attends ». */
+      #dialog-next {
+        position: absolute;
+        right: 64px;
+        bottom: 14px;
+        color: #8fa0cc;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        animation: bob 1.1s ease-in-out infinite;
+      }
+      #dialog.ready #dialog-next { opacity: 1; }
+      @keyframes bob {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(3px); }
+      }
+
+      /* Invite d'action, PARTAGÉE : sans elle, personne ne devine qu'il y a
+         quelqu'un à qui parler ni un coffre à ouvrir. Un seul élément, un seul
+         mécanisme d'affichage — deux propriétaires (une classe ici, un
+         `style.display` là) se seraient annulés l'un l'autre. */
+      #fade {
+        position: fixed;
+        inset: 0;
+        background: #05070f;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.28s ease;
+        z-index: 40;
+      }
+      #fade.on { opacity: 1; }
+
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #0b1020;
+        color: #6f80ad;
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        transition: opacity 0.45s ease;
+      }
+      #loading.hidden { opacity: 0; pointer-events: none; }
+
+      #load-bar {
+        width: 260px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.09);
+        overflow: hidden;
+      }
+      #load-fill {
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, #4fd6e8, #9beaf5);
+        /* Pas de transition : la barre est pilotée en continu par les octets
+           reçus, une interpolation CSS ne ferait que la faire traîner. */
+      }
+      #load-text { font-variant-numeric: tabular-nums; }
+
+      #play {
+        display: none;
+        padding: 11px 30px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-bottom-width: 3px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #dfe7ff;
+        font: inherit;
+        letter-spacing: 0.2em;
+        cursor: inherit;
+        transition: background 0.15s ease, transform 0.08s ease;
+      }
+      #play.on { display: block; }
+      #play:hover { background: rgba(255, 255, 255, 0.15); }
+      #play:active { transform: translateY(1px); border-bottom-width: 2px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <div id="hud">
+      <div><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>WASD</kbd> / flèches — se déplacer</div>
+      <div><kbd>espace</kbd> — sauter &nbsp;·&nbsp; <kbd>1</kbd> — attaquer &nbsp;·&nbsp; <kbd>N</kbd> — jour / nuit &nbsp;·&nbsp; molette — zoom<br />clic droit + glisser — pivoter la caméra</div>
+      <div><kbd>F</kbd> — parler &nbsp;·&nbsp; clic sur un mouton — il bêle. Insistez.</div>
+      <div><kbd>B</kbd> — volumes de collision &nbsp;·&nbsp; <kbd>M</kbd> — musique &nbsp;·&nbsp; <kbd>H</kbd> — masquer cette aide</div>
+      <div>entrer dans l'eau — on nage, on ne saute plus, le souffle est compté</div>
+      <div class="meta"><span id="mood">☀︎ jour</span><span id="fps">— fps</span><span id="debug"></span><span id="sound"></span></div>
+    </div>
+
+    <div id="breath"><div id="breath-bar"></div></div>
+
+    <div id="prompt"><kbd>F</kbd>parler</div>
+
+    <div id="dialog">
+      <img id="dialog-avatar" src="/ui/grota.png" alt="" />
+      <div>
+        <div id="dialog-name">Grota</div>
+        <div id="dialog-line"></div>
+      </div>
+      <span id="dialog-next">▾</span>
+    </div>
+
+    <div id="fade"></div>
+
+    <div id="loading">
+      <div id="load-text">CHARGEMENT 0 %</div>
+      <div id="load-bar"><div id="load-fill"></div></div>
+      <button id="play" type="button">JOUER</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

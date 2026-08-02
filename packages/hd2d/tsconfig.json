@@ -1,0 +1,11 @@
+{
+  // Le moteur de rendu HD-2D. Navigateur (DOM), mais sans React et sans rien du dépôt : sa seule
+  // dépendance est three. C'est cette ignorance qui laisse le jeu, l'éditeur et le labo partager
+  // le même code de rendu.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"]
+  },
+  "include": ["src", "test"]
+}
