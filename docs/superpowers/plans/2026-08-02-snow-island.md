@@ -343,10 +343,21 @@ export function pasAmorti(
   friction: number,
   dt: number,
 ): number {
-  // L'amorti est exponentiel et non linéaire : c'est ce qui le rend indépendant du pas de temps.
-  // Un `v *= 0.9` par image donnerait une glisse différente à 30 et à 60 fps — et donc une
-  // désynchronisation entre le serveur et la prédiction le jour où ça remonte dans `engine`.
-  return (v + entree * accel * dt) * Math.exp(-friction * dt);
+  // L'intégrateur EXACT de `dv/dt = friction · (cible − v)`, et pas une approximation.
+  //
+  // La forme naïve — `(v + entree · accel · dt) · exp(−friction · dt)` — a l'air d'un amorti
+  // exponentiel mais son point fixe vaut `accel·dt·k / (1 − k)` avec `k = exp(−friction·dt)`, qui
+  // ne tend vers `accel / friction` qu'à la limite `dt → 0`. Mesuré : à 60 images par seconde et
+  // friction 80, elle plafonne à 2,0 au lieu de 4,2 — **52 % d'erreur**, qu'aucun réglage de
+  // friction ne rattrape.
+  //
+  // La forme ci-dessous a le bon point fixe à N'IMPORTE QUEL `dt`, et compose : deux pas de `dt1`
+  // puis `dt2` donnent exactement un pas de `dt1 + dt2`. C'est cette propriété-là — pas l'élégance
+  // — qui compte, parce que le serveur et la prédiction n'intègrent pas au même rythme, et que ce
+  // module remonte dans `engine` en S2.
+  if (friction <= 0) return v + entree * accel * dt;
+  const cible = (entree * accel) / friction;
+  return cible + (v - cible) * Math.exp(-friction * dt);
 }
 
 /** `null` = hors carte ou dans l'eau : on y nage, la friction du sol ne s'applique pas, mais la
