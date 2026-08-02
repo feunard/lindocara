@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { NORD, WORLD } from "../src/settings.js";
 import { generateIsland, isBeach, mulberry32, waterDistance } from "../src/world/island.js";
+
+/** Même formule que le `toCell` privé de `createTerrainQuery` (`terrain-query.ts`) : convertit une
+ *  coordonnée MONDE en indice de cellule. Dupliquée plutôt qu'importée — l'original ferme sur la
+ *  taille de grille qu'on lui passe, et ce test n'a besoin que de la taille réelle du monde. */
+const toCell = (w: number) => Math.floor(w + WORLD.size / 2);
 
 describe("mulberry32", () => {
   it("est déterministe : même graine, même suite", () => {
@@ -140,7 +146,7 @@ describe("generateIsland", () => {
     expect(terre).toBeGreaterThan(0);
   });
 
-  it("matériaux de terrain cohérents avec le palier, île réelle (lvl0/lvl1/lvl2/sable)", () => {
+  it("matériaux de terrain cohérents avec le palier, île réelle (lvl0/lvl1/lvl2/sable/neige/glace)", () => {
     const { field } = generateIsland({ size: WORLD_SIZE, seed: WORLD_SEED });
     let sable = 0;
     for (let j = 0; j < WORLD_SIZE; j++) {
@@ -151,7 +157,9 @@ describe("generateIsland", () => {
           expect(m).toBeNull();
           continue;
         }
-        expect(["lvl0", "lvl1", "lvl2", "sable"]).toContain(m);
+        // "glace" couvre aussi bien la glace que la glace fine : `materialAt` rend une clé
+        // d'ATLAS, pas la matière de collision — voir `island.ts`.
+        expect(["lvl0", "lvl1", "lvl2", "sable", "neige", "glace"]).toContain(m);
         // Le sable n'existe qu'au palier 0.
         if (m === "sable") {
           expect(h).toBe(0);
@@ -169,3 +177,37 @@ describe("generateIsland", () => {
 // dépendre de `settings.ts` pour SA PROPRE définition de ce qu'est "la vraie carte".
 const WORLD_SIZE = 72;
 const WORLD_SEED = 20260801;
+
+describe("l'île du nord", () => {
+  const { field, query } = generateIsland({ size: WORLD.size, seed: WORLD.seed });
+
+  it("existe, gelée, et n'est pas accessible à pied depuis la grande", () => {
+    // Son centre porte de la terre...
+    expect(field.levelAt(toCell(NORD.x), toCell(NORD.z))).not.toBeNull();
+    // ...et de la neige ou de la glace, jamais de l'herbe.
+    expect(["neige", "glace", "glace-fine"]).toContain(query.kindAt(NORD.x, NORD.z));
+    // Le couloir entre les deux îles est de l'eau sur toute sa longueur : on n'y va qu'à la nage.
+    for (let z = NORD.z + NORD.r + 1; z < -17; z++) {
+      expect(field.levelAt(toCell(0), toCell(z))).toBeNull();
+    }
+  });
+
+  it("porte les trois matières froides, et aucune matière chaude", () => {
+    const vues = new Set<string>();
+    for (let dz = -NORD.r; dz <= NORD.r; dz += 0.5)
+      for (let dx = -NORD.r; dx <= NORD.r; dx += 0.5) {
+        const k = query.kindAt(NORD.x + dx, NORD.z + dz);
+        if (k) vues.add(k);
+      }
+    expect(vues).toContain("neige");
+    expect(vues).toContain("glace");
+    expect(vues).toContain("glace-fine");
+    expect(vues).not.toContain("herbe");
+    expect(vues).not.toContain("sable");
+  });
+
+  it("laisse les trois autres îles inchangées", () => {
+    // La grande reste de l'herbe : ajouter un biome ne doit rien reteindre ailleurs.
+    expect(query.kindAt(0, 0)).toBe("herbe");
+  });
+});

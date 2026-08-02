@@ -3,10 +3,13 @@
 // gardées pures et sans dépendance à `three` pour que ce jour-là le déplacement ne change pas de
 // fichier, seulement d'adresse.
 
-/** Les deux matières de sol du labo. Une union exportée plutôt que `string` : `engine` en fera la
- *  future autorité serveur, et une matière "stringly typed" y serait un passif dès la première
- *  faute de frappe silencieuse — le compilateur doit pouvoir rejeter `"herb"` à la place. */
-export type TerrainMaterial = "sable" | "herbe";
+/** Les cinq matières de sol du labo — deux chaudes (l'île tropicale), trois froides (l'île du
+ *  nord). Une union exportée plutôt que `string` : `engine` en fera la future autorité serveur, et
+ *  une matière "stringly typed" y serait un passif dès la première faute de frappe silencieuse —
+ *  le compilateur doit pouvoir rejeter `"herb"` à la place. `"glace-fine"` est une matière de
+ *  RÈGLE (elle cède sous le poids) : elle partage l'apparence de `"glace"` tant que la Task 7 ne
+ *  lui a pas donné son propre visuel de craquelure — voir `main.ts`, `atlases`. */
+export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace" | "glace-fine";
 
 export interface TerrainQuery {
   /** Hauteur monde du sol sous un point, ou `null` si c'est de l'eau / hors carte. */

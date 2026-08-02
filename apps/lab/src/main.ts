@@ -151,6 +151,27 @@ const atlases: Record<string, TerrainAtlas> = {
     wallRow: 4,
     tilePx: 64,
   },
+  // Provisoire (Task 1) : la géométrie et le chemin de code se prouvent avant que la Task 2 ne
+  // parie sur ce que le modèle sait générer. Ces deux entrées basculeront sur `tileset-neige.png`
+  // et `tileset-glace.png` sans qu'une ligne d'ici ne change. `"glace-fine"` (voir `island.ts`,
+  // `materialAt`) se dessine avec CET atlas `glace` : c'est une matière de règle, pas encore
+  // d'apparence.
+  neige: {
+    texture: textures.get("/tex/tileset-lvl0.png"),
+    cols: 9,
+    rows: 6,
+    block: "water-edge",
+    wallRow: 4,
+    tilePx: 64,
+  },
+  glace: {
+    texture: textures.get("/tex/tileset-lvl1.png"),
+    cols: 9,
+    rows: 6,
+    block: "cliff-edge",
+    wallRow: 4,
+    tilePx: 64,
+  },
 };
 
 const terrainMesh = meshTerrain(ctx, field, { atlases, levelHeight: WORLD.levelHeight });

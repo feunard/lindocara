@@ -1,5 +1,5 @@
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
-import { WORLD } from "../settings.js";
+import { NORD, WORLD } from "../settings.js";
 import { createTerrainQuery, type TerrainMaterial, type TerrainQuery } from "./terrain-query.js";
 
 /**
@@ -67,6 +67,19 @@ const ILES: readonly IslandShape[] = [
     r: 4.6,
     onde: (a) => 0.11 * Math.sin(a * 4 - 0.6),
     reliefs: [{ x: 2.2, z: 24.5, r: 1.9, h: 1 }],
+  },
+  // La quatrième, au nord (voir `NORD`, `settings.ts`) : gelée, et hors de portée à pied — le
+  // couloir qui la sépare de la grande île reste de l'eau sur toute sa largeur (`island.test.ts`
+  // le vérifie), donc son amplitude d'onde n'a pas besoin d'être petite comme celle d'un
+  // littoral qu'on ne veut pas voir toucher son voisin : les deux masses sont déjà à des
+  // dizaines d'unités l'une de l'autre. Un seul relief, un monticule de glace, tient le même
+  // rôle qu'une butte d'herbe ailleurs : donner un prétexte de saut.
+  {
+    x: NORD.x,
+    z: NORD.z,
+    r: NORD.r,
+    onde: (a) => 0.12 * Math.sin(a * 3 - 1.1) + 0.05 * Math.sin(a * 5 + 0.7),
+    reliefs: [{ x: NORD.x + 4.5, z: NORD.z - 3.5, r: 2, h: 1 }],
   },
 ];
 
@@ -190,10 +203,30 @@ export function generateIsland(opts: GenerateIslandOptions): {
   // --- plage : bande de sable sur l'arc sud du littoral -----------------------------------------
   const distEau = waterDistance(size, at);
 
+  // --- île du nord : lac gelé au centre, glace fine à son bord, neige partout ailleurs ----------
+  // Rayon du lac et largeur de la couronne de glace fine, en unités monde. La glace fine reste une
+  // COURONNE ÉTROITE collée au bord du lac — jamais au milieu — pour qu'on la voie venir en
+  // traversant plutôt que d'y tomber par surprise (contrainte du brief). Le seuil d'appartenance
+  // (`NORD_EMPRISE`) n'a besoin que d'être plus large que le rayon effectif du littoral gelé
+  // (`NORD.r` majoré de l'amplitude de son onde, ~8.3 unités ici) : il sert seulement à écarter les
+  // trois autres îles, qui sont à des dizaines d'unités de distance.
+  const LAC_R = 2.5;
+  const GLACE_FINE_LARGEUR = 0.9;
+  const NORD_EMPRISE = NORD.r + 2;
+  const c = size / 2;
+
   const kinds = new Array<TerrainMaterial | null>(size * size).fill(null);
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
       if (at(i, j) === null) continue;
+      const x = i + 0.5 - c;
+      const z = j + 0.5 - c;
+      const dNord = Math.hypot(x - NORD.x, z - NORD.z);
+      if (dNord < NORD_EMPRISE) {
+        kinds[j * size + i] =
+          dNord < LAC_R ? "glace" : dNord < LAC_R + GLACE_FINE_LARGEUR ? "glace-fine" : "neige";
+        continue;
+      }
       kinds[j * size + i] = isBeach(i, j, size, at, distEau) ? "sable" : "herbe";
     }
   }
@@ -207,7 +240,13 @@ export function generateIsland(opts: GenerateIslandOptions): {
     materialAt(i, j) {
       const h = at(i, j);
       if (h === null) return null;
-      return kindAt(i, j) === "sable" ? "sable" : levelSet(h);
+      const k = kindAt(i, j);
+      if (k === "sable" || k === "neige") return k;
+      // La glace fine partage l'atlas de la glace : c'est une matière de RÈGLE (elle cède sous le
+      // poids), pas encore d'apparence — la Task 7 lui donnera son propre visuel de craquelure
+      // (voir `main.ts`, `atlases`).
+      if (k === "glace" || k === "glace-fine") return "glace";
+      return levelSet(h);
     },
   };
 

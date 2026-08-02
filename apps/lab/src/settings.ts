@@ -26,12 +26,16 @@ export interface WorldSettings {
 }
 
 export const WORLD: WorldSettings = {
-  size: 72, // côté de la grille de tuiles — assez large pour trois îles
+  size: 72, // côté de la grille de tuiles — assez large pour quatre îles
   seed: 20260801,
   levelHeight: 0.9,
   waterLevel: -0.05,
   maxStep: 0,
 };
+
+/** L'île gelée. Au nord, hors de portée à pied : le couloir qui l'en sépare est de l'eau, et
+ *  c'est voulu — on arrive sur la banquise essoufflé, et la musique change à ce moment-là. */
+export const NORD = { x: 0, z: -26, r: 7.5 } as const;
 
 export interface CameraSettings {
   fov: number;
