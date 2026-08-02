@@ -415,7 +415,9 @@ git commit -m "feat(hd2d): amorce le package et le labo, avec le loader pesé en
 - Consumes: rien
 - Produces:
   - `createHd2dContext(options?: Hd2dContextOptions): Hd2dContext`
-  - `interface Hd2dContext { yaw(): number; setYaw(y: number): void; registerBillboard(mesh: THREE.Mesh, opts: { lit: boolean; mid: number }): void; billboards(): readonly THREE.Mesh[]; litBillboards(): readonly LitBillboard[]; dispose(): void; readonly config: Hd2dConfig }`
+  - `interface Hd2dContext { yaw(): number; setYaw(y: number): void; registerBillboard(mesh: THREE.Mesh, opts: RegisterOpts): void; unregisterBillboard(mesh: THREE.Mesh): void; billboards(): readonly THREE.Mesh[]; litBillboards(): readonly LitBillboard[]; dispose(): void; readonly config: Hd2dConfig }`
+  - `type RegisterOpts = { lit: false } | { lit: true; material: THREE.MeshLambertMaterial; mid: number }` — le matériau est passé **explicitement**, jamais lu par assertion depuis `mesh.material` : l'invariant appartient au compilateur, pas à un commentaire. Un billboard non éclairé n'a alors plus à inventer un `mid: 0` factice.
+  - `unregisterBillboard` est ce qui rend le `dispose()` d'un billboard (Task 5) honnête. Sans lui, un mesh détruit reste dans les deux registres : `setYaw` continue de le faire tourner à chaque rotation de caméra et l'appoint de lumière (Task 6) écrit indéfiniment dans un matériau libéré. Sur les cycles d'apparition/disparition de monstres du jeu, les registres grossissent sans borne — une fuite mémoire ET CPU, pas un simple reliquat GPU.
   - `interface LitBillboard { mesh: THREE.Mesh; material: THREE.MeshLambertMaterial; mid: number }`
   - `interface Hd2dConfig { render: RenderConfig; postfx: PostFxConfig; cloudShadow: CloudShadowConfig; spriteStretch: number }`
   - `DEFAULT_CONFIG: Hd2dConfig`
