@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_CONFIG } from "../src/config.js";
 import { createHd2dContext } from "../src/context.js";
 
 function fakeSprite(): { mesh: THREE.Mesh; material: THREE.MeshLambertMaterial } {
@@ -58,5 +59,24 @@ describe("createHd2dContext", () => {
     ctx.dispose();
     expect(ctx.billboards()).toHaveLength(0);
     expect(ctx.litBillboards()).toHaveLength(0);
+  });
+
+  it("ne partage aucun sous-objet de config entre contextes, même non surchargé", () => {
+    const a = createHd2dContext();
+    a.config.postfx.bloom.strength = 999;
+    // `drift` est `readonly` au niveau du TYPE (interdit à un appelant ordinaire), mais reste un
+    // vrai tableau à l'exécution — le cast ne sert qu'à simuler ici la mutation en place que fait
+    // réellement le pipeline de la Task 4.
+    (a.config.cloudShadow.drift as [number, number])[0] = 999;
+
+    // Un contexte créé APRÈS la mutation doit toujours voir les valeurs par défaut : si les
+    // sous-objets étaient partagés par référence, il verrait 999 ici.
+    const b = createHd2dContext();
+    expect(b.config.postfx.bloom.strength).toBe(0.42);
+    expect(b.config.cloudShadow.drift[0]).toBe(0.0022);
+
+    // DEFAULT_CONFIG lui-même ne doit jamais être corrompu par une mutation vécue via un contexte.
+    expect(DEFAULT_CONFIG.postfx.bloom.strength).toBe(0.42);
+    expect(DEFAULT_CONFIG.cloudShadow.drift[0]).toBe(0.0022);
   });
 });

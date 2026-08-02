@@ -34,12 +34,17 @@ export interface Hd2dContext {
  * de room — les dépendances se passent en argument, rien ne se cache dans un singleton.
  */
 export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext {
+  // Un merge superficiel sur DEFAULT_CONFIG partagerait ses sous-objets (postfx.bloom,
+  // cloudShadow.drift, ...) par référence entre TOUS les contextes qui ne les surchargent pas —
+  // muter l'un corromprait l'autre, et DEFAULT_CONFIG lui-même, pour la durée du process. Cloner
+  // avant de fusionner donne à chaque contexte ses propres sous-objets, même non surchargés.
+  const defaults = structuredClone(DEFAULT_CONFIG);
   const config: Hd2dConfig = {
-    ...DEFAULT_CONFIG,
+    ...defaults,
     ...options.config,
-    render: { ...DEFAULT_CONFIG.render, ...options.config?.render },
-    postfx: { ...DEFAULT_CONFIG.postfx, ...options.config?.postfx },
-    cloudShadow: { ...DEFAULT_CONFIG.cloudShadow, ...options.config?.cloudShadow },
+    render: { ...defaults.render, ...options.config?.render },
+    postfx: { ...defaults.postfx, ...options.config?.postfx },
+    cloudShadow: { ...defaults.cloudShadow, ...options.config?.cloudShadow },
   };
 
   // Tous les sprites regardent la même direction : celle de la caméra. Dès qu'elle pivote, ils
