@@ -86,11 +86,12 @@ import {
   isMonsterSpecialTechnique,
   isWalkable,
   LOOT_EXPIRY_MS,
-  MAX_MONSTER_BODY_RADIUS,
+  MAX_MONSTER_BODY_REACH,
   MONSTER_AGGRO_RANGE,
   type MonsterSpecialTechnique,
   type MonsterSpecies,
   maxHpForLevel,
+  monsterBodyHitbox,
   monsterBodyRadius,
   nearestCemetery,
   nearestLumenLanding,
@@ -1999,16 +2000,17 @@ function projectileDamage(
     power = Math.round(power * (1 + execute.multiplier));
   damageMonster(w, owner.connectionId, owner.player, monster, skill, now, projectile.basic, power);
   if (cometArrow) {
+    const cometCenter = monsterBodyHitbox(monster.species, monster).center;
     applyCometExplosion(
       w.state.monsterGrid.queryRadius(
-        monster,
-        cometArrow.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+        cometCenter,
+        cometArrow.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
       ),
       monster.id,
       cometArrow,
       (candidate, radius) =>
         candidate.deadUntil <= now &&
-        withinRange(monster, candidate, radius + monsterBodyRadius(candidate.species)) &&
+        monsterHitboxWithin(cometCenter, candidate, radius) &&
         hasLineOfSight(monster, candidate, zone(w.state).terrain.tiles),
       (candidate, powerRatio) =>
         damageMonster(
@@ -2167,6 +2169,15 @@ function movePlayer(
   );
 }
 
+function bodyCenter(position: Vec2): Vec2 {
+  return { x: position.x + PLAYER_SIZE / 2, y: position.y + PLAYER_SIZE / 2 };
+}
+
+function monsterHitboxWithin(center: Vec2, monster: MonsterRuntime, range: number): boolean {
+  const hitbox = monsterBodyHitbox(monster.species, monster);
+  return pointDistance(center, hitbox.center) <= range + hitbox.radius;
+}
+
 /** Live bodies are deliberately checked only when Lumen rematerialises, never while it phases. */
 function lumenLandingClear(
   w: WorldGlue,
@@ -2185,10 +2196,7 @@ function lumenLandingClear(
       return false;
   }
   for (const monster of w.state.monsters) {
-    if (
-      monster.deadUntil <= now &&
-      pointDistance(candidate, monster) < PLAYER_SIZE / 2 + monsterBodyRadius(monster.species)
-    )
+    if (monster.deadUntil <= now && monsterHitboxWithin(center, monster, PLAYER_SIZE / 2))
       return false;
   }
   for (const guard of w.state.guards) {
@@ -2594,7 +2602,7 @@ export function startPlayerAction(
     ? nearestChargeTarget(
         player,
         w.state.monsterGrid
-          .queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+          .queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
           .filter((monster) => monster.id !== chargeFollowup.excludedTargetId),
         skill.range,
         now,
@@ -2783,7 +2791,7 @@ export function startPlayerAction(
           player,
           w.state.monsterGrid.queryRadius(
             player,
-            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
           ),
           skill.range,
           now,
@@ -2838,7 +2846,7 @@ export function startPlayerAction(
           player,
           w.state.monsterGrid.queryRadius(
             player,
-            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
           ),
           skill.range,
           now,
@@ -2852,10 +2860,7 @@ export function startPlayerAction(
   const swornTarget = swornPrey
     ? swornPreyTarget(
         player,
-        w.state.monsterGrid.queryRadius(
-          player,
-          skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
-        ),
+        w.state.monsterGrid.queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH),
         skill.range,
         now,
         (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
@@ -3182,7 +3187,7 @@ function resolveShieldBash(
   );
   const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
   const monsterImpacts = w.state.monsterGrid
-    .queryRadius(midpoint, distance / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(midpoint, distance / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .filter(
       (monster) =>
         monster.deadUntil <= now && monster.id !== action.warriorChargeFollowup?.excludedTargetId,
@@ -3193,10 +3198,7 @@ function resolveShieldBash(
         start,
         end,
         PLAYER_SIZE / 2,
-        {
-          center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-          radius: monsterBodyRadius(monster.species),
-        },
+        monsterBodyHitbox(monster.species, monster),
         monster.id,
       ),
     }))
@@ -3289,12 +3291,12 @@ function resolveShieldBash(
   const seismic = talentEffect(player.class, player.talents, "seismic_impact", skill.slot);
   if (!seismic) return;
   applySeismicImpact(
-    w.state.monsterGrid.queryRadius(player, seismic.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS),
+    w.state.monsterGrid.queryRadius(player, seismic.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH),
     directTargetId,
     seismic,
     (target, radius) =>
       target.deadUntil <= now &&
-      withinRange(player, target, radius + monsterBodyRadius(target.species)) &&
+      monsterHitboxWithin(bodyCenter(player), target, radius) &&
       hasLineOfSight(player, target, terrain.tiles),
     (target, powerRatio) =>
       damageMonster(
@@ -3568,17 +3570,11 @@ export function resolvePlayerAction(
       definition.halfAngleRadians ?? Math.PI / 3,
     );
     const targets = w.state.monsterGrid
-      .queryRadius(center, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+      .queryRadius(center, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
       .filter(
         (monster) =>
           monster.deadUntil <= now &&
-          circleIntersectsArc(
-            {
-              center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-              radius: monsterBodyRadius(monster.species),
-            },
-            arc,
-          ) &&
+          circleIntersectsArc(monsterBodyHitbox(monster.species, monster), arc) &&
           (player.class === "rogue"
             ? hasRogueLineOfSight(player, monster, terrain)
             : hasLineOfSight(player, monster, terrain.tiles)),
@@ -3756,13 +3752,13 @@ export function resolvePlayerAction(
     let taunted = 0;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
-      radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+      radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
     )) {
       if (
         monster.deadUntil <= now &&
         // Reach the monster's BODY, not its centre: a troll standing with its bulk inside the ring
         // and its centre just outside is visibly in the area, so it must answer for being there.
-        withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
+        monsterHitboxWithin(center, monster, radius) &&
         hasLineOfSight(player, monster, terrain.tiles)
       ) {
         tauntMonster(player, monster, now);
@@ -3879,11 +3875,11 @@ export function resolvePlayerAction(
     const radius = skill.radius ?? skill.range;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
-      radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+      radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
     )) {
       if (
         monster.deadUntil <= now &&
-        withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
+        monsterHitboxWithin(center, monster, radius) &&
         hasLineOfSight(player, monster, terrain.tiles)
       ) {
         const result = damageMonster(
@@ -4107,11 +4103,11 @@ function resolveWarriorCycloneStrike(
   if (connectionId === undefined) return;
   const skill = configuredSkill(w, player, 5);
   for (const monster of w.state.monsterGrid
-    .queryRadius(player, radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(player, radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      !withinRange(player, monster, radius + monsterBodyRadius(monster.species)) ||
+      !monsterHitboxWithin(bodyCenter(player), monster, radius) ||
       !hasLineOfSight(player, monster, zone(w.state).terrain.tiles)
     )
       continue;
@@ -4186,11 +4182,11 @@ function releaseCounterOffensive(
   if (power <= 0) return;
   const center = { x: player.x, y: player.y };
   for (const monster of w.state.monsterGrid
-    .queryRadius(center, effect.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(center, effect.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      !withinRange(player, monster, effect.radius + monsterBodyRadius(monster.species)) ||
+      !monsterHitboxWithin(bodyCenter(player), monster, effect.radius) ||
       !hasLineOfSight(player, monster, zone(w.state).terrain.tiles)
     )
       continue;
@@ -4235,11 +4231,11 @@ function pulseWarriorVortex(
 ): void {
   const radius = player.warriorVortex?.radius ?? 0;
   for (const monster of w.state.monsterGrid
-    .queryRadius(center, radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(center, radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      pointDistance(center, monster) > radius + monsterBodyRadius(monster.species) ||
+      !monsterHitboxWithin(center, monster, radius) ||
       !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
     )
       continue;
@@ -4387,10 +4383,10 @@ function resolvePolarityOrbStep(
       monster.deadUntil > now ||
       hitIds.has(hitId) ||
       !crossedRing(
-        pointDistance(center, monster),
+        pointDistance(center, monsterBodyHitbox(monster.species, monster).center),
         fromRadius,
         toRadius,
-        monsterBodyRadius(monster.species),
+        monsterBodyHitbox(monster.species, monster).radius,
       ) ||
       !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
     )

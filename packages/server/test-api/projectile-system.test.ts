@@ -175,6 +175,36 @@ describe("authoritative projectile system", () => {
     expect(projectiles).toHaveLength(0);
   });
 
+  it("hits the visible upper body of a tall monster above its navigation square", () => {
+    const owner = player("owner", 0);
+    const target = monster("tall-target", 100);
+    target.species = "mire_troll";
+    target.kind = "troll";
+    target.y = 180;
+    const projectiles: ProjectileRuntime[] = [];
+    const projectile = spawnProjectile(projectiles, {
+      actionId: "77777777-7777-4777-8777-777777777777",
+      owner,
+      roomKey: owner.roomKey,
+      origin: { x: 20, y: 100 },
+      direction: { x: 1, y: 0 },
+      definition: definition("arrow"),
+      range: 300,
+      power: 10,
+      targetFilter: "monsters",
+      sourceSkillId: "quick_shot",
+      basic: true,
+      now: 1_000,
+    });
+    expect(projectile).not.toBeNull();
+
+    const harness = context({ owner, projectiles, monsters: [target] });
+    advanceProjectiles(harness.value, 1_050);
+
+    expect(harness.damageMonster).toHaveBeenCalledOnce();
+    expect(harness.damageMonster.mock.calls[0]?.[1].id).toBe(target.id);
+  });
+
   it("stops at terrain before an entity and reports the authoritative block", () => {
     const owner = player("owner", 0);
     const target = monster("behind-wall", 130);

@@ -6,7 +6,7 @@ import {
   segmentIntersectsRect,
   sweptProjectileTerrainImpact,
 } from "@lindocara/engine/directional-combat.js";
-import { monsterBodyRadius, type Rect, type TerrainGeometry } from "@lindocara/engine/game.js";
+import { monsterBodyHitbox, type Rect, type TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   animalCarcassHarvestProfile,
   type HarvestProfile,
@@ -211,14 +211,15 @@ function carcassTargets(view: PeasantHarvestView, now: number): PeasantHarvestTa
     if (!nodeId) return [];
     const node = effectiveGeneration(view.adventureState, nodeId, now);
     if (!node || node.depleted) return [];
+    const hitbox = monsterBodyHitbox(monster.species, monster);
     return [
       {
         kind: "animal_carcass" as const,
         runtimeId: monster.id,
         nodeId,
         generation: node.generation,
-        position: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-        radius: monsterBodyRadius(monster.species),
+        position: hitbox.center,
+        radius: hitbox.radius,
         collider: null,
         respawnAt: monster.respawnMode === "never" ? null : monster.deadUntil,
         profile,

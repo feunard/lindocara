@@ -14,9 +14,9 @@ import {
   sweptProjectileTerrainImpact,
 } from "@lindocara/engine/directional-combat.js";
 import {
-  MAX_MONSTER_BODY_RADIUS,
+  MAX_MONSTER_BODY_REACH,
   maxHpForLevel,
-  monsterBodyRadius,
+  monsterBodyHitbox,
   type TerrainGeometry,
 } from "@lindocara/engine/game.js";
 import { PLAYER_SIZE, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
@@ -219,7 +219,7 @@ function entityImpacts<TSocket>(
   // Widened by the largest body any monster presents: a troll's edge can lie inside the sweep while
   // its centre sits outside a search circle sized for a 32px body.
   const searchRadius =
-    Math.hypot(to.x - from.x, to.y - from.y) / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS;
+    Math.hypot(to.x - from.x, to.y - from.y) / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_REACH;
   if (projectile.targetFilter === "monsters") {
     return context.monsterGrid
       .queryRadius(midpoint, searchRadius)
@@ -234,7 +234,7 @@ function entityImpacts<TSocket>(
           from,
           to,
           projectile.radius,
-          { center: entityCenter(monster), radius: monsterBodyRadius(monster.species) },
+          monsterBodyHitbox(monster.species, monster),
           monster.id,
         ),
         monster,

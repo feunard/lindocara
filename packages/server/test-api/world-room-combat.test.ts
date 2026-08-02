@@ -30,7 +30,7 @@ import {
   MONSTER_RESPAWN_MS,
   type MonsterSpawn,
   maxHpForLevel,
-  monsterBodyRadius,
+  monsterBodyHitbox,
   pointDistance,
 } from "@lindocara/engine/game.js";
 import {
@@ -855,9 +855,13 @@ describe("world room combat (FakeClock)", () => {
     expect(finishHeldPlayerAction(w, connectionId, priest, now, 3)).toBe(true);
 
     expect(isWalkable(priest, PLAYER_SIZE, terrain)).toBe(true);
-    expect(pointDistance(priest, blocker)).toBeGreaterThanOrEqual(
-      PLAYER_SIZE / 2 + monsterBodyRadius(blocker.species),
-    );
+    const blockerHitbox = monsterBodyHitbox(blocker.species, blocker);
+    expect(
+      pointDistance(
+        { x: priest.x + PLAYER_SIZE / 2, y: priest.y + PLAYER_SIZE / 2 },
+        blockerHitbox.center,
+      ),
+    ).toBeGreaterThanOrEqual(PLAYER_SIZE / 2 + blockerHitbox.radius);
     expect(priest).not.toMatchObject(destination);
     engine.dispose();
   });

@@ -9,6 +9,7 @@ import {
   hashSeed,
   INTERACTION_RANGE,
   type MonsterSpecies,
+  monsterBodyHitbox,
   type PlayerClass,
   pointDistance,
 } from "@lindocara/engine/game.js";
@@ -3282,22 +3283,20 @@ export class Renderer {
     }
   }
 
-  /**
-   * Every body the simulation collides as a box, drawn where it actually is.
-   *
-   * Redrawn per frame rather than with the grid: bodies move and the terrain does not. The boxes
-   * come from `entityBox`, the same helper the rules use, so a sprite that looks off-centre from
-   * its box is telling the truth about the art, not about a bug in this overlay.
-   */
+  /** Draws authoritative navigation boxes and the measured monster combat silhouettes. */
   #drawHitboxes(sample: SceneSample): void {
     this.#hitboxOverlay.clear();
     if (!import.meta.env.DEV || !this.#showGrid) return;
-    const bodies = [...sample.players, ...sample.monsters, ...sample.guards];
+    const bodies = [...sample.players, ...sample.guards];
     for (const body of bodies) {
       const box = entityBox({ x: body.x, y: body.y });
       this.#hitboxOverlay.rect(box.x, box.y, box.width, box.height);
     }
-    if (bodies.length > 0) {
+    for (const monster of sample.monsters) {
+      const hitbox = monsterBodyHitbox(monster.species, monster);
+      this.#hitboxOverlay.circle(hitbox.center.x, hitbox.center.y, hitbox.radius);
+    }
+    if (bodies.length > 0 || sample.monsters.length > 0) {
       this.#hitboxOverlay.stroke({ width: 1, color: HITBOX_COLOR, alpha: 0.85 });
     }
     const localNow = performance.now();

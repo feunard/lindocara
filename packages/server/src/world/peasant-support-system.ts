@@ -4,9 +4,9 @@ import {
   hasLineOfSight,
   INTERACTION_RANGE,
   isWalkable,
-  MAX_MONSTER_BODY_RADIUS,
+  MAX_MONSTER_BODY_REACH,
   maxHpForLevel,
-  monsterBodyRadius,
+  monsterBodyHitbox,
   type TerrainGeometry,
 } from "@lindocara/engine/game.js";
 import type { PartyMaterialAmounts } from "@lindocara/engine/party-harvest-state.js";
@@ -694,9 +694,11 @@ export function advancePeasantCamps(options: {
     }
     if (camp.slowRatio > 0) {
       for (const monster of monsters) {
+        const hitbox = monsterBodyHitbox(monster.species, monster);
         if (
           monster.deadUntil > options.now ||
-          playerCenterDistance(camp, monster) > camp.radius + monsterBodyRadius(monster.species) ||
+          Math.hypot(hitbox.center.x - camp.x, hitbox.center.y - camp.y) >
+            camp.radius + hitbox.radius ||
           !campSeesMonster(camp, monster, options.terrain)
         )
           continue;
@@ -759,19 +761,19 @@ export function resolvePeasantBombImpact(options: {
   if (!bomb || bomb.actionId !== options.projectile.actionId) return null;
   options.runtime.bombs.delete(options.projectile.id);
   const candidates = options.monsterGrid
-    .queryRadius(options.point, bomb.radius + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(options.point, bomb.radius + MAX_MONSTER_BODY_REACH)
     .filter((monster) => monster.deadUntil <= options.now)
     .filter((monster) => {
-      const center = centerOfPlayer(monster);
+      const hitbox = monsterBodyHitbox(monster.species, monster);
       return (
-        Math.hypot(center.x - options.point.x, center.y - options.point.y) <=
-          bomb.radius + monsterBodyRadius(monster.species) &&
-        hasLineOfSight(options.point, center, options.terrain.tiles, 0)
+        Math.hypot(hitbox.center.x - options.point.x, hitbox.center.y - options.point.y) <=
+          bomb.radius + hitbox.radius &&
+        hasLineOfSight(options.point, centerOfPlayer(monster), options.terrain.tiles, 0)
       );
     })
     .sort((left, right) => {
-      const leftCenter = centerOfPlayer(left);
-      const rightCenter = centerOfPlayer(right);
+      const leftCenter = monsterBodyHitbox(left.species, left).center;
+      const rightCenter = monsterBodyHitbox(right.species, right).center;
       const leftDistance = Math.hypot(
         leftCenter.x - options.point.x,
         leftCenter.y - options.point.y,
