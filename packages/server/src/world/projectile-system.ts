@@ -20,6 +20,7 @@ import {
   type TerrainGeometry,
 } from "@lindocara/engine/game.js";
 import { PLAYER_SIZE, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
+import { isRogueStealthed } from "./rogue-state-system.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type {
   GuardRuntime,
@@ -77,6 +78,7 @@ export interface ProjectileSystemContext<TSocket = WebSocket> {
     player: PlayerRuntime,
     now: number,
   ): void;
+  damageRogueSilhouette?(projectile: ProjectileRuntime, owner: PlayerRuntime, now: number): void;
   damageGuard(projectile: ProjectileRuntime, guard: GuardRuntime, now: number): void;
   blocked(projectile: ProjectileRuntime, point: Vec2): void;
   removed?(
@@ -209,6 +211,7 @@ function entityImpacts<TSocket>(
   impact: SegmentImpact;
   monster?: MonsterRuntime;
   player?: PlayerRuntime;
+  silhouetteOwner?: PlayerRuntime;
   guard?: GuardRuntime;
   socket?: TSocket;
 }[] {
@@ -250,6 +253,8 @@ function entityImpacts<TSocket>(
           player.authorized &&
           player.life === "alive" &&
           !player.transitioning &&
+          player.invisibleUntil <= now &&
+          !isRogueStealthed(player, now) &&
           !projectile.hitEntityIds.has(player.id) &&
           !projectile.activationHitEntityIds?.has(player.id),
       )
@@ -273,6 +278,37 @@ function entityImpacts<TSocket>(
         (entry): entry is { impact: SegmentImpact; player: PlayerRuntime; socket: TSocket } =>
           entry.impact !== null && entry.socket !== undefined,
       );
+    const silhouetteContacts = [...context.players.values()]
+      .filter(
+        (player) =>
+          player.authorized &&
+          player.life === "alive" &&
+          !player.transitioning &&
+          isRogueStealthed(player, now) &&
+          player.rogueSilhouette !== null &&
+          player.rogueSilhouette.expiresAt > now &&
+          !projectile.hitEntityIds.has(`rogue-silhouette-${player.id}`),
+      )
+      .map((player) => ({
+        impact: sweptProjectileEntityImpact(
+          from,
+          to,
+          projectile.radius,
+          {
+            center: {
+              x: (player.rogueSilhouette?.x ?? player.x) + PLAYER_SIZE / 2,
+              y: (player.rogueSilhouette?.y ?? player.y) + PLAYER_SIZE / 2,
+            },
+            radius: PLAYER_SIZE / 2,
+          },
+          `rogue-silhouette-${player.id}`,
+        ),
+        silhouetteOwner: player,
+      }))
+      .filter(
+        (entry): entry is { impact: SegmentImpact; silhouetteOwner: PlayerRuntime } =>
+          entry.impact !== null,
+      );
     const guardContacts = context.guards
       .filter((guard) => !projectile.hitEntityIds.has(guard.id))
       .map((guard) => ({
@@ -288,7 +324,7 @@ function entityImpacts<TSocket>(
       .filter(
         (entry): entry is { impact: SegmentImpact; guard: GuardRuntime } => entry.impact !== null,
       );
-    return [...playerContacts, ...guardContacts];
+    return [...playerContacts, ...silhouetteContacts, ...guardContacts];
   }
 
   const ownerSocket = [...context.players].find(([, player]) => player.id === projectile.ownerId);
@@ -413,6 +449,8 @@ export function advanceProjectiles<TSocket>(
       }
       if (contact.monster) context.damageMonster(projectile, contact.monster, now);
       else if (contact.guard) context.damageGuard(projectile, contact.guard, now);
+      else if (contact.silhouetteOwner)
+        context.damageRogueSilhouette?.(projectile, contact.silhouetteOwner, now);
       else if (contact.player && contact.socket) {
         if (projectile.targetFilter === "players_and_guards")
           context.damagePlayer(projectile, contact.socket, contact.player, now);

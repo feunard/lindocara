@@ -96,7 +96,7 @@ describe("directional class kit contract", () => {
   it("declares the Rogue kit without any client-authored target contract", () => {
     expect(CLASS_SKILLS.rogue).toMatchObject([
       { id: "dual_slash", slot: 1, range: 58, power: 0 },
-      { id: "shadow_step", slot: 2, effect: "shadow_step", range: 260 },
+      { id: "shadow_step", slot: 2, effect: "shadow_step", range: 312 },
       { id: "vanish", slot: 3, effect: "stealth", durationMs: 8_000 },
       { id: "poisoned_shiv", slot: 4, range: 58, power: 14 },
       { id: "shadow_dance", slot: 5, effect: "shadow_dance", range: 360, power: 32 },

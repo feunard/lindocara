@@ -258,6 +258,42 @@ describe("authoritative projectile system", () => {
     expect(blocked.blocked).toHaveBeenCalledTimes(1);
   });
 
+  it("hits a vanished Rogue's decoy without exposing or damaging the hidden hero", () => {
+    const caster = monster("decoy-archer", 0);
+    const rogue = player("hidden-rogue", 90);
+    rogue.class = "rogue";
+    rogue.rogueStealthUntil = 9_000;
+    rogue.rogueSilhouette = { x: 90, y: 0, hp: 45, expiresAt: 6_000 };
+    const projectiles: ProjectileRuntime[] = [];
+    spawnProjectile(projectiles, {
+      actionId: "66666666-6666-4666-8666-666666666666",
+      owner: caster,
+      roomKey: rogue.roomKey,
+      origin: { x: 20, y: 16 },
+      direction: { x: 1, y: 0 },
+      definition: definition("arrow"),
+      range: 300,
+      power: 17,
+      targetFilter: "players_and_guards",
+      sourceSkillId: "monster_ranged_attack",
+      basic: true,
+      now: 1_000,
+    });
+    const harness = context({ owner: rogue, projectiles, allies: [rogue], hostile: true });
+    const damageRogueSilhouette = vi.fn();
+    harness.value.damageRogueSilhouette = damageRogueSilhouette;
+
+    advanceProjectiles(harness.value, 1_050);
+
+    expect(harness.damagePlayer).not.toHaveBeenCalled();
+    expect(damageRogueSilhouette).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerId: caster.id }),
+      rogue,
+      1_050,
+    );
+    expect(projectiles).toEqual([]);
+  });
+
   it("blocks an enemy projectile before a guard behind terrain", () => {
     const caster = monster("blocked-caster", 0);
     const target = player("observer", 300);

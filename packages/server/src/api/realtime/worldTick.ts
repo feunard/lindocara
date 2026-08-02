@@ -1860,7 +1860,7 @@ export function resolveMonsterAction(
     monster.revealedUntil = Math.max(monster.revealedUntil, now + 900);
     if (silhouette.hp <= 0) {
       player.rogueSilhouette = null;
-      monster.threat.delete(player.id);
+      forgetPlayer(w, player);
     }
     sendStateTo(w, connectionId, player);
   }
@@ -1870,6 +1870,7 @@ export function resolveMonsterAction(
       player.life !== "alive" ||
       player.forgottenUntil > now ||
       player.invisibleUntil > now ||
+      isRogueStealthed(player, now) ||
       player.transitioning ||
       !hits(player, PLAYER_SIZE / 2)
     )
@@ -3365,6 +3366,17 @@ export function resolvePlayerAction(
           hp: Math.max(1, silhouette.health),
           expiresAt: now + Math.max(0, silhouette.durationMs),
         };
+        // The decoy is a real priority target, including for monsters that had not aggroed the
+        // Rogue before Vanish. Threat remains attributed to the hero only as an AI routing key;
+        // attacks resolve against the decoy position and health while stealth is active.
+        for (const monster of w.state.monsters) {
+          if (
+            monster.deadUntil <= now &&
+            pointDistance(monster, player.rogueSilhouette) <= MONSTER_AGGRO_RANGE
+          ) {
+            tauntThreat(monster.threat, player.id, now);
+          }
+        }
       }
       const smokeScreen = talentEffect(player.class, player.talents, "rogue_smoke_screen", 3);
       if (smokeScreen) applyRogueSmokeProtection(player, now, smokeScreen);
@@ -6200,6 +6212,19 @@ export function advanceWorldTick(w: WorldGlue): void {
             attacker.id,
             impactAt,
           );
+      },
+      damageRogueSilhouette: (projectile, target, impactAt) => {
+        const silhouette = target.rogueSilhouette;
+        if (!silhouette || silhouette.expiresAt <= impactAt || !isRogueStealthed(target, impactAt))
+          return;
+        silhouette.hp = Math.max(0, silhouette.hp - Math.max(0, projectile.power));
+        if (silhouette.hp <= 0) {
+          target.rogueSilhouette = null;
+          forgetPlayer(w, target);
+        }
+        target.dirty = true;
+        const targetConnectionId = connectionOf(state, target.id);
+        if (targetConnectionId !== undefined) sendStateTo(w, targetConnectionId, target);
       },
       damageGuard: (projectile, guard) => {
         applyGuardDamage(guard, projectile.power);

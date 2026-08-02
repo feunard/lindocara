@@ -4995,7 +4995,7 @@ export class Renderer {
           view.container.alpha = ghost
             ? 0.5
             : player.silhouette
-              ? 0.58
+              ? 0.9
               : player.invisible
                 ? player.id === this.#selfId
                   ? 0.28
