@@ -186,6 +186,64 @@ Chaque chantier a son spec et son plan.
   `~/git/pixel-art-model` — ne touche qu'une sélection de texture.
 - **La taille du bundle.** Three.js pèse plus que PixiJS. Mesuré en S1, arbitré si le chiffre surprend.
 
+## S1 : livré (2026-08-02)
+
+`@lindocara/hd2d` (18 fichiers, ~2 950 lignes) et `apps/lab` (17 fichiers, ~4 440 lignes) sont en place,
+avec 16 fichiers de tests. Le jeu n'est pas touché : il tourne encore sur PixiJS, et `hd2d` n'est
+consommé que par le labo.
+
+**Le budget GPU est tranché.** Au peuplement du vrai jeu (4 joueurs, 40 monstres, 8 gardes, 30
+butins, 4 corps, 12 projectiles, 6 effets, une source projetante), de nuit avec l'ombre du foyer :
+**2,11 ms/frame, soit 12,6 % des 16,7 ms**. Le niveau `heavy` — le double de tout, quatre sources
+projetantes — tient à 4,72 ms (28,3 %). Bundle du labo : 215 ko gzip. **Il n'y a pas de mur de
+performance devant S3.**
+
+Le chiffre a coûté trois rounds de correction : le harnais mesurait d'abord une scène partiellement
+cullée (il éparpillait sa population sur toute la carte, dont deux îles que la caméra ne voit
+jamais), puis un disque symétrique là où l'empreinte visible est asymétrique. C'est la panne que ce
+document désignait comme la plus coûteuse possible, et elle s'est produite deux fois avant d'être
+attrapée. Le harnais refuse désormais de publier une mesure si le héros a marché ou zoomé depuis le
+peuplement.
+
+## Ce que S1 a appris sur S2
+
+La revue finale a établi que **les requêtes de terrain sont prêtes à déménager, mais pas les
+règles** — et le plan de S2 doit en tenir compte avant d'être écrit.
+
+- **`terrain-query.ts` et `colliders.ts` sont sains** : ils n'importent rien (ni `three`, ni DOM, ni
+  réglages), tout y est déterministe au bit près (`Math.floor`, `min`/`max`, aucun `Math.random`,
+  aucune trigonométrie) — exactement ce que la prédiction en lockstep exige. Leurs paramètres
+  arrivent par une source injectée, pas par un import de constantes.
+- **Mais les règles que S2 doit rendre autoritatives ne sont pas là.** Le test sur le disque, la
+  « règle qui sauve », le glissement axe par axe, saut/gravité/coyote, nage/noyade vivent dans
+  `apps/lab/src/world/hero.ts`, entrelacés avec `THREE.Vector3`, l'animateur de billboard, les pools
+  d'éclaboussures et des appels directs à l'audio — et sans aucun test. **S2 doit commencer par en
+  extraire un pas de simulation pur `stepHero(state, input, dt, query, colliders)` et le couvrir**,
+  pendant que la parité au PoC est encore fraîche. Le faire après le déménagement, c'est le faire
+  sans filet.
+- **`packages/engine/src/collider.ts` existe déjà et est incompatible** : rectangles en **pixels**,
+  buckets denses, AABB semi-ouvertes, plus la sérialisation sur le fil. Le labo fait des **cercles**
+  en **unités-tuile** dans une `Map` creuse. « Remonter `colliders.ts` dans `engine` » n'est pas un
+  déplacement, c'est une fusion de deux conceptions divergentes — ou la décision assumée de garder
+  les cercles comme seconde primitive. C'est le plus gros risque tacite de S2.
+- **Le peuplement des colliders vit dans le code de rendu** (`props.ts`, `chest.ts`, `npc.ts`). Un
+  serveur n'a pas de `props.ts` : les colliders devront devenir de la donnée.
+- **Question de convention à trancher au moment du déménagement** : ces fichiers portent des
+  commentaires en français et partent dans `engine`, dont la convention est l'anglais.
+
+## Dettes connues, à ne pas redécouvrir
+
+- **S5 (éditeur)** : `pipeline.ts` lit `innerWidth`/`innerHeight` et `devicePixelRatio` alors qu'il
+  *reçoit* un canvas. Port verbatim du PoC, correct pour une app plein écran — un panneau d'aperçu
+  d'éditeur n'est pas le viewport. Consigné dans `packages/hd2d/AGENTS.md`.
+- **Ordre de destruction** : `Hd2dContext.dispose()` libère la texture neutre de nuages, et
+  `CloudCover.dispose()` la restaure. Détruire le contexte **avant** sa couverture nuageuse
+  réinstallerait donc une texture déjà libérée dans un uniforme vivant. Inatteignable aujourd'hui
+  (aucun chemin de démontage n'existe), à documenter ou à compter par références quand S3 ou S5
+  câblera le premier.
+- **Les sprites restent de profil**, miroités. `setFacing`/`facingToFlip` existent déjà comme donnée
+  dans `hd2d` : passer à des feuilles 4-directions ne touchera qu'une sélection de texture.
+
 ## Hors périmètre
 
 - Le combat en 3D (capsules et projectiles à extension verticale). Décision (C) : possible plus tard,
