@@ -499,7 +499,9 @@ python3 studio.py music --prompt "sparse frozen wilderness, distant wind, slow i
 
 Trois critères : **elle boucle sans couture audible** ? elle **tient sous le vent** de la nappe polaire sans se battre avec ? elle **ne fatigue pas** au troisième passage ? Générer plusieurs variantes et choisir.
 
-Ré-encoder en Opus, comme les nappes du PoC — elles pesaient 10,8 Mo avant.
+Ré-encoder en Opus, comme les nappes du PoC — elles pesaient 10,8 Mo avant. **Mais pas forcément au même débit :** le 96 kbit/s du PoC vaut pour du souffle large bande, très tolérant à la compression. Une piste de musique est du contenu **tonal soutenu**, bien moins pardonnant, et l'auteur a entendu l'encodage sur la première version. 600 ko de plus ne pèsent rien sur un labo de 7 Mo.
+
+**Et le centroïde spectral et le RMS ne prouvent PAS la transparence d'un encodage.** Ils ne bougent quasiment pas sous compression perceptuelle, alors que ce qu'elle abîme, ce sont les transitoires et la finesse du haut du spectre. Conclure à la transparence avec ces deux mesures-là, c'est se rassurer avec des grandeurs aveugles au défaut qu'on cherchait à écarter. La seule preuve reste l'oreille — c'est pourquoi le spec en exige une par artefact.
 
 - [ ] **Step 3: Brancher**
 
