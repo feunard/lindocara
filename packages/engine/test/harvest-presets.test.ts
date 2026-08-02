@@ -22,20 +22,45 @@ describe("semantic harvest presets", () => {
     }
   });
 
-  it("models both catalogue sheep explicitly as knife-harvested meat", () => {
+  it("models both catalogue sheep as wandering knife-harvested actors that disappear", () => {
     expect(harvestPreset("sheep")).toMatchObject({
       intactAssetId: "resource.terrain-resources-meat-sheep.sheep-idle",
-      profile: { resource: "meat", tool: "knife" },
+      profile: {
+        resource: "meat",
+        tool: "knife",
+        actorBehavior: "wander",
+        exhaustionBehavior: "hide",
+        exhaustedAssetId: null,
+      },
     });
     expect(harvestPreset("happy_sheep")).toMatchObject({
       intactAssetId: "resource.resources-sheep.happysheep-idle",
-      profile: { resource: "meat", tool: "knife" },
+      profile: {
+        resource: "meat",
+        tool: "knife",
+        actorBehavior: "wander",
+        exhaustionBehavior: "hide",
+        exhaustedAssetId: null,
+      },
     });
   });
 
-  it("offers four semantic tree sizes with their matching stump and balanced yield", () => {
+  it("offers every catalogue tree as a semantic harvest preset", () => {
     expect(
-      (["tree_tall", "tree", "tree_medium", "tree_small"] as const).map((id) => {
+      (
+        [
+          "tree_tall",
+          "tree",
+          "tree_medium",
+          "tree_small",
+          "tree_update_1",
+          "tree_update_2",
+          "tree_update_3",
+          "tree_update_4",
+          "tree_update_5",
+          "tree_update_6",
+        ] as const
+      ).map((id) => {
         const preset = harvestPreset(id);
         return {
           id,
@@ -74,6 +99,13 @@ describe("semantic harvest presets", () => {
         yieldAmount: 4,
         hitsRequired: 2,
       },
+      ...([1, 2, 3, 4, 5, 6] as const).map((variant) => ({
+        id: `tree_update_${variant}`,
+        intact: `resource.resources-trees.tree-${variant}`,
+        exhausted: "resource.resources-trees.stump",
+        yieldAmount: 7,
+        hitsRequired: 3,
+      })),
     ]);
   });
 

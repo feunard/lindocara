@@ -762,7 +762,9 @@ export function validateCatalog(
             (entry.editor !== undefined ||
               entry.domain === "character" ||
               entry.domain === "enemy"),
-        ).length + 2,
+        ).length +
+        bridgeDefinitions(catalog).length +
+        updateTreeDefinitions(catalog).length,
       ui: catalog.entries.filter((entry) => entry.domain === "ui").length,
       ignored: catalog.entries.filter((entry) => entry.classification.status === "ignored").length,
       unclassified,
@@ -821,6 +823,67 @@ function bridgeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinitio
         ],
         terrainOverride: "walkable",
         sourceRect: { x: 0, y: 64, width: 64, height: 192 },
+      },
+    },
+  ];
+}
+
+/** Update 010 packs six distinct 192px tree models and one stump into a sparse 4x3 sheet. Expose
+ * each painted model as its own stable authoring asset so a map never animates through unrelated
+ * silhouettes or draws the complete technical sheet. */
+function updateTreeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinition[] {
+  const source = catalog.entries.find((entry) => entry.id === "resource.resources-trees.tree");
+  if (!source) throw new Error("Update 010 tree sheet is missing from the catalogue");
+  const treeFootprint = [-2, -1, 0].flatMap((row) =>
+    [-1, 0, 1].map((col) => ({ col, row })),
+  );
+  const common = {
+    sourcePath: source.sourcePath,
+    pack: source.pack,
+    domain: source.domain,
+    category: source.category,
+    role: "world-resource",
+    tags: [...source.tags, "harvestable"],
+    width: 192,
+    height: 192,
+    nature: "static" as const,
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 16,
+  };
+  const treeCells = [
+    { x: 0, y: 0 },
+    { x: 192, y: 0 },
+    { x: 384, y: 0 },
+    { x: 576, y: 0 },
+    { x: 0, y: 192 },
+    { x: 192, y: 192 },
+  ];
+  const trees = treeCells.map(
+    (cell, index): EditorAssetDefinition => ({
+      ...common,
+      id: `resource.resources-trees.tree-${index + 1}`,
+      editor: {
+        category: "trees",
+        allowedTerrain: ["grass"],
+        renderLayer: "canopy",
+        visualFootprint: treeFootprint,
+        collider: { x: -12, y: -20, width: 24, height: 20 },
+        sourceRect: { ...cell, width: 192, height: 192 },
+      },
+    }),
+  );
+  return [
+    ...trees,
+    {
+      ...common,
+      id: "resource.resources-trees.stump",
+      editor: {
+        category: "trees",
+        allowedTerrain: ["grass"],
+        renderLayer: "object",
+        visualFootprint: [{ col: 0, row: 0 }],
+        collider: { x: -12, y: -12, width: 24, height: 12 },
+        sourceRect: { x: 0, y: 384, width: 192, height: 192 },
       },
     },
   ];
@@ -924,7 +987,9 @@ export function editorDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDe
       },
     ];
   });
-  return [...definitions, ...bridgeDefinitions(catalog)].sort((a, b) => a.id.localeCompare(b.id));
+  return [...definitions, ...bridgeDefinitions(catalog), ...updateTreeDefinitions(catalog)].sort(
+    (a, b) => a.id.localeCompare(b.id),
+  );
 }
 
 function idForPath(catalog: TinySwordsCatalogFile, suffix: string): string {

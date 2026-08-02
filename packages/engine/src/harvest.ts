@@ -19,6 +19,9 @@ export type HarvestExhaustionBehavior = (typeof HARVEST_EXHAUSTION_BEHAVIORS)[nu
 export const HARVEST_RESPAWN_MODES = ["permanent", "timed"] as const;
 export type HarvestRespawnMode = (typeof HARVEST_RESPAWN_MODES)[number];
 
+export const HARVEST_ACTOR_BEHAVIORS = ["static", "wander"] as const;
+export type HarvestActorBehavior = (typeof HARVEST_ACTOR_BEHAVIORS)[number];
+
 /** Shared authoring/runtime bounds. Every persisted quantity is an integer. */
 export const HARVEST_PROFILE_LIMITS = {
   yieldAmount: { min: 0, max: 10_000 },
@@ -113,6 +116,8 @@ export interface HarvestProfile {
   respawn: HarvestRespawnMode;
   respawnDelayMs: number;
   fadeDurationMs: number;
+  /** Optional harmless-actor motion. Missing legacy data remains a static resource. */
+  actorBehavior?: HarvestActorBehavior;
   /**
    * Explicit gameplay footprint. Optional only at the type boundary so legacy in-memory fixtures
    * and persisted maps remain readable; `parseHarvestProfile` always fills it before runtime use.
@@ -187,6 +192,16 @@ export function isHarvestExhaustionBehavior(value: unknown): value is HarvestExh
 
 export function isHarvestRespawnMode(value: unknown): value is HarvestRespawnMode {
   return typeof value === "string" && (HARVEST_RESPAWN_MODES as readonly string[]).includes(value);
+}
+
+export function isHarvestActorBehavior(value: unknown): value is HarvestActorBehavior {
+  return (
+    typeof value === "string" && (HARVEST_ACTOR_BEHAVIORS as readonly string[]).includes(value)
+  );
+}
+
+export function harvestActorBehavior(profile: HarvestProfile): HarvestActorBehavior {
+  return profile.actorBehavior ?? "static";
 }
 
 export function harvestToolForResource(resource: HarvestResourceKind): HarvestTool {
@@ -459,6 +474,7 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     respawnDelayMs,
     fadeDurationMs,
     collision,
+    actorBehavior,
   } = record;
 
   if (!isHarvestResourceKind(resource) || !isHarvestTool(tool)) return null;
@@ -466,6 +482,7 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
   if (!isHarvestExhaustionBehavior(exhaustionBehavior) || !isHarvestRespawnMode(respawn)) {
     return null;
   }
+  if (actorBehavior !== undefined && !isHarvestActorBehavior(actorBehavior)) return null;
   if (exhaustedAssetId !== null && !isEditorAssetId(exhaustedAssetId)) return null;
   if (exhaustionBehavior === "replace" && exhaustedAssetId === null) return null;
   if (exhaustionBehavior === "hide" && exhaustedAssetId !== null) return null;
@@ -506,6 +523,20 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     return null;
   }
 
+  // The two originally shipped sheep profiles left a meat sprite behind and had no movement
+  // field. Their exact gameplay signature is sufficient for a compatibility repair; visual ids
+  // remain presentation-only and never participate in this decision.
+  const legacySheep =
+    actorBehavior === undefined &&
+    resource === "meat" &&
+    tool === "knife" &&
+    parsedGold === 0 &&
+    parsedRange === 80 &&
+    parsedRespawnDelay === 300_000 &&
+    parsedFadeDuration === 450 &&
+    exhaustionBehavior === "replace" &&
+    respawn === "timed" &&
+    ((parsedYield === 6 && parsedHits === 3) || (parsedYield === 8 && parsedHits === 4));
   const parsedCollision = parseHarvestCollisionProfile(collision, resource, exhaustionBehavior);
   if (!parsedCollision) return null;
   const normalizedDuration = migrateLegacyHarvestDuration(
@@ -527,11 +558,16 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     hitsRequired: parsedHits,
     range: parsedRange,
     harvestDurationMs: normalizedDuration,
-    exhaustedAssetId: exhaustedAssetId as EditorAssetId | null,
-    exhaustionBehavior,
+    exhaustedAssetId: legacySheep ? null : (exhaustedAssetId as EditorAssetId | null),
+    exhaustionBehavior: legacySheep ? "hide" : exhaustionBehavior,
     respawn,
     respawnDelayMs: parsedRespawnDelay,
     fadeDurationMs: parsedFadeDuration,
-    collision: parsedCollision,
+    collision: legacySheep ? { intact: parsedCollision.intact, depleted: null } : parsedCollision,
+    ...(legacySheep
+      ? { actorBehavior: "wander" as const }
+      : actorBehavior === undefined
+        ? {}
+        : { actorBehavior }),
   };
 }

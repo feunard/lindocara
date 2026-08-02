@@ -28545,6 +28545,548 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Trees/Tree.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Trees",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "trees",
+      "tree",
+      "resource",
+      "update",
+      "010",
+      "harvestable"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 16,
+    "id": "resource.resources-trees.stump",
+    "editor": {
+      "category": "trees",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "object",
+      "visualFootprint": [
+        {
+          "col": 0,
+          "row": 0
+        }
+      ],
+      "collider": {
+        "x": -12,
+        "y": -12,
+        "width": 24,
+        "height": 12
+      },
+      "sourceRect": {
+        "x": 0,
+        "y": 384,
+        "width": 192,
+        "height": 192
+      }
+    }
+  },
+  {
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Trees/Tree.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Trees",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "trees",
+      "tree",
+      "resource",
+      "update",
+      "010",
+      "harvestable"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 16,
+    "id": "resource.resources-trees.tree-1",
+    "editor": {
+      "category": "trees",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "canopy",
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      },
+      "sourceRect": {
+        "x": 0,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
+    }
+  },
+  {
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Trees/Tree.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Trees",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "trees",
+      "tree",
+      "resource",
+      "update",
+      "010",
+      "harvestable"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 16,
+    "id": "resource.resources-trees.tree-2",
+    "editor": {
+      "category": "trees",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "canopy",
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      },
+      "sourceRect": {
+        "x": 192,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
+    }
+  },
+  {
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Trees/Tree.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Trees",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "trees",
+      "tree",
+      "resource",
+      "update",
+      "010",
+      "harvestable"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 16,
+    "id": "resource.resources-trees.tree-3",
+    "editor": {
+      "category": "trees",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "canopy",
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      },
+      "sourceRect": {
+        "x": 384,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
+    }
+  },
+  {
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Trees/Tree.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Trees",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "trees",
+      "tree",
+      "resource",
+      "update",
+      "010",
+      "harvestable"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 16,
+    "id": "resource.resources-trees.tree-4",
+    "editor": {
+      "category": "trees",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "canopy",
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      },
+      "sourceRect": {
+        "x": 576,
+        "y": 0,
+        "width": 192,
+        "height": 192
+      }
+    }
+  },
+  {
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Trees/Tree.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Trees",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "trees",
+      "tree",
+      "resource",
+      "update",
+      "010",
+      "harvestable"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 16,
+    "id": "resource.resources-trees.tree-5",
+    "editor": {
+      "category": "trees",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "canopy",
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      },
+      "sourceRect": {
+        "x": 0,
+        "y": 192,
+        "width": 192,
+        "height": 192
+      }
+    }
+  },
+  {
+    "sourcePath": "Tiny Swords (Update 010)/Resources/Trees/Tree.png",
+    "pack": "Tiny Swords (Update 010)",
+    "domain": "resource",
+    "category": "Resources/Trees",
+    "role": "world-resource",
+    "tags": [
+      "resources",
+      "trees",
+      "tree",
+      "resource",
+      "update",
+      "010",
+      "harvestable"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 16,
+    "id": "resource.resources-trees.tree-6",
+    "editor": {
+      "category": "trees",
+      "allowedTerrain": [
+        "grass"
+      ],
+      "renderLayer": "canopy",
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      },
+      "sourceRect": {
+        "x": 192,
+        "y": 192,
+        "width": 192,
+        "height": 192
+      }
+    }
+  },
+  {
     "id": "resource.terrain-resources-gold-gold-resource.gold-resource",
     "sourcePath": "Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Resource/Gold_Resource.png",
     "pack": "Tiny Swords (Free Pack)",

@@ -113,7 +113,7 @@ describe("authoritative combat cooldown state", () => {
     expect(combatCooldownsFromPlayer(restored, NOW + 250).skillCooldowns[4]).toBe(NOW + 10_000);
   });
 
-  it("round-trips the Peasant's slower basic attack deadline", () => {
+  it("round-trips the Peasant's rapid basic attack deadline", () => {
     const peasantProfile = {
       ...profile(),
       class: "peasant" as const,
@@ -131,7 +131,7 @@ describe("authoritative combat cooldown state", () => {
     );
     peasant.lastAttackAt = NOW;
     const durable = combatCooldownsFromPlayer(peasant, NOW);
-    expect(durable.attackUntil).toBe(NOW + 850);
+    expect(durable.attackUntil).toBe(NOW + 420);
 
     const restored = newPlayer(
       peasantProfile,

@@ -572,17 +572,28 @@ async function completeHarvestAction(input: {
 }): Promise<void> {
   const { engine, socket, state, clock, event, slot } = input;
   const before = state.adventureState.state.harvestNodes?.[event.id]?.hits ?? 0;
-  placeHarvester(state, socket.query.hero ?? "", event);
   // Clear the preceding recovery/cooldown through elapsed authoritative time, never by mutating it.
   await advanceElapsedSettled(clock, 2_000);
+  // A sheep may wander during that elapsed time, so place the actor only once the next action is
+  // ready and use the active event's authoritative cell below.
+  const active = state.activeEvents.find((candidate) => candidate.id === event.id);
+  placeHarvester(
+    state,
+    socket.query.hero ?? "",
+    active ? { ...event, col: active.col, row: active.row } : event,
+  );
+  const movement = state.npcMovement.get(event.id);
+  if (movement) movement.nextMoveTick = state.tick + 20;
   await engine.message(socket.id, { t: "skill", slot });
-  // All three tool anticipations are <= 360ms. The following tick starts the server-owned job.
+  // All three rapid tool anticipations are <= 160ms. The following tick starts the server-owned job.
   await advanceElapsedSettled(clock, 400);
   // Integration profiles use an immediate channel except the dedicated disconnect case below;
   // depending on tick order the zero-duration job may already be committed here.
   await advanceTickSettled(clock);
   await vi.waitFor(() => {
-    expect(state.adventureState.state.harvestNodes?.[event.id]?.hits).toBeGreaterThan(before);
+    const hits = state.adventureState.state.harvestNodes?.[event.id]?.hits;
+    expect(hits, `expected ${event.name} (${event.id}) to receive a harvest hit`).toBeDefined();
+    expect(hits ?? -1).toBeGreaterThan(before);
   });
 }
 
@@ -705,8 +716,9 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
-  test("a harvestable resource is active scenery but never NPC movement", async () => {
+  test("a static harvest resource stays scenery while sheep opt into harmless NPC movement", async () => {
     const resource = harvestableEvent(crypto.randomUUID(), 5, 5);
+    const sheep = harvestPresetEvent(crypto.randomUUID(), 8, 8, "sheep");
     const hidden = harvestPresetEvent(crypto.randomUUID(), 7, 5, "meat_cache", {
       respawn: "timed",
       respawnDelayMs: 1_000,
@@ -719,7 +731,7 @@ describe("world room events (FakeClock)", () => {
       ...scriptEvent(crypto.randomUUID(), 10, 5, "action", []),
       pages: [page({ graphicAssetId: PAGE1_GRAPHIC })],
     };
-    const fixture = await newPlayableParty("harvestproj", [resource, hidden, npc]);
+    const fixture = await newPlayableParty("harvestproj", [resource, hidden, sheep, npc]);
     const clock = new FakeClock();
     const engine = createEngine(fixture.roomId, clock);
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
@@ -753,6 +765,16 @@ describe("world room events (FakeClock)", () => {
       ),
     ).toBe(false);
     expect(state.npcMovement.has(resource.id)).toBe(false);
+    expect(state.npcMovement.get(sheep.id)).toMatchObject({
+      moveType: "random",
+      moveSpeed: 2,
+      moveFreq: 2,
+      through: false,
+    });
+    expect(state.activeEvents.find((event) => event.id === sheep.id)).toMatchObject({
+      presentation: "native",
+      harvest: { collider: expect.any(Array) },
+    });
 
     const previousNavigation = state.navigation;
     if (!previousNavigation) throw new Error("navigation runtime missing");
