@@ -43,6 +43,19 @@ and `three`-free on purpose, so S2 can promote them by moving the file, not rewr
 - `world/debug.ts` — the `B` collision-volume overlay: walkable-cell edges, impassable-step edges,
   prop/hero footprints. When a move looks wrong, this is where you see why.
 
+## Scripts
+
+- `scripts/sync-assets.sh` — the only way anything reaches `public/`. Reads the Tiny Swords packs
+  from `packages/catalog/assets/` and the SFX pack from `$LAB_SFX_PACK` (371 MB, out of tree),
+  extracts just the files actually used, renames them space-free for Vite, and applies the
+  re-encodes/crops. Adding an asset means adding a line here and re-running it — never a manual copy.
+- `scripts/sprite.py` — turns a *generated* image (a smooth illustration on flat background) into a
+  playable sprite: background removal by edge propagation (a flat colour test would punch holes
+  through a sprite's own shadows), tight crop, downscale to the game's pixel density, colour
+  quantisation. The downscale is the real work — a model outputs smooth 768², the rest of the game is
+  64-192 px pixel art, and without it a generated chest is ten times more detailed than the trees
+  around it. `assets/generated/PROVENANCE.md` records which assets went through it.
+
 ## The load-testing harness
 
 `bench.ts` answers S1's one open question: does a game-scale population (four players, dozens of
