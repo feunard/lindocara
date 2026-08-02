@@ -22,9 +22,14 @@ uniforms. The game and a future editor preview will each open their own context;
 state between them would mean rotating the editor's camera also rotates the game's sprites. Every
 function that touches per-scene state (`makeBillboard`, `applyCloudShadow`, `applyFillFromPointLight`,
 `meshTerrain`, …) takes a `Hd2dContext` as an explicit argument — never reaches for a singleton.
-The one exception is the lazily-built canvas textures in `billboard.ts` (contact shadow, glow,
-ripple): those are immutable images with no scene state, correctly module-scoped, and built lazily
-specifically so importing the module doesn't touch `document` (see the vitest note below).
+The one exception is four lazily-built canvas textures, module-scoped rather than context-scoped
+on purpose: the contact shadow (`radialDisc`), the diffuse glow (`diffuseGlow`, cached per seed)
+and the ripple ring (`ringTexture`) in `billboard.ts`, plus the point sprite (`pointTexture`) in
+`particles.ts`. All four are immutable images with no scene state, correctly PROCESS-lifetime by
+design — the game and a future editor preview open separate `Hd2dContext`s but must share these,
+because duplicating an immutable image per context would waste GPU memory for nothing. They stay
+lazy — built at first call, never at import — specifically so importing the module doesn't touch
+`document` (see the vitest note below).
 
 ## Files
 
@@ -125,6 +130,21 @@ cost the most to re-discover:
 See also this file's own "Comments are in French" section above — the PoC README is where a
 pitfall gets its full write-up; the comment next to the code is the short version that points back
 here.
+
+## Known S5 debt: `pipeline.ts` assumes a full-screen canvas
+
+`createPipeline` receives a `canvas` explicitly, but `resize()` (`pipeline.ts`, `resize`) reads
+`innerWidth`/`innerHeight` rather than the canvas's own box, and the initial pixel ratio (the
+`renderer.setPixelRatio` call near the top of `createPipeline`) reads `devicePixelRatio`
+unconditionally. Correct today because `apps/lab` — and the game,
+which still renders through PixiJS — only ever mounts `hd2d` full-screen. Verbatim port from the
+PoC, which only ever had one full-screen canvas too.
+
+This becomes wrong the moment a consumer is NOT full-screen — the design intent for S5 is "the
+editor scene IS hd2d," and a map-preview pane inside the editor shell is not the viewport. Left
+here so S5 doesn't have to re-discover it by debugging a preview pane that renders at the wrong
+size: `resize()` should measure `canvas.clientWidth`/`clientHeight` (or take them as parameters)
+instead of the window.
 
 ## Graph
 
