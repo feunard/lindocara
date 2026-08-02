@@ -1688,10 +1688,13 @@ git commit -m "feat(hd2d): mailleur de terrain — autotiling, parois, occlusion
 **Interfaces:**
 - Consumes: `HeightField`, `Hd2dContext`, `makeFlatSprite`
 - Produces:
-  - `createWater(ctx, field, opts: { texture: THREE.Texture; level: number; size: number; segment: number; depthRange: number; roughness: number }): Water` avec `interface Water { mesh: THREE.Mesh; readonly colors: { shallow: THREE.Color; deep: THREE.Color }; setSparkle(v: number): void; update(dt: number): void; dispose(): void }`
+  - `createWater(ctx, field, opts: { texture: THREE.Texture; level: number; size: number; textureWorldSize?: number; segment: number; depthRange: number; roughness: number }): Water` avec `interface Water { mesh: THREE.Mesh; readonly colors: { shallow: THREE.Color; deep: THREE.Color }; setSparkle(v: number): void; update(dt: number): void; dispose(): void }`
+  - **`textureWorldSize` (défaut 6) est l'invariant, pas la répétition.** Le PoC calcule `waterTex.repeat.set(size * 0.5, …)` où `size` est le côté de la GRILLE (72 → 36 répétitions), puis, trois lignes plus loin, fabrique le plan à `WIDE = size * 3` (216 unités). Une tuile de texture couvre donc **6 unités monde**, et non « la moitié du côté du plan ». Confondre les deux donne une mer trois fois trop dense sans lever la moindre erreur. `repeat = size / textureWorldSize`.
+  - **`createWater` clone sa texture** (le clone partage la `Source`, donc pas de second envoi GPU — même motif que `cloneSheetMap` pour les sprites). Il écrase `wrapS`/`wrapT`/`repeat` et incrémente `.offset` à chaque frame : le faire sur la texture du registre casserait toute autre surface qui la partage, et deux mers vivantes doubleraient la vitesse de défilement. `dispose()` libère le clone, jamais la source.
   - La `texture` est **load-bearing, pas décorative** : le PoC en fait la `map` d'un `MeshStandardMaterial` répétée `size * 0.5` fois, et son patch de shader module le dégradé de profondeur par sa **luminance** (`mix(uDeep, uShallow, vShallow) * (0.72 + 0.56 * lum)`). Elle défile lentement (`offset.x += dt * 0.012`, `offset.y += dt * 0.008`). Sans elle, la mer est un dégradé parfaitement lisse — une autre image.
   - `foamPlacements(field: HeightField): readonly { i: number; j: number }[]`
-  - `createFoam(ctx, field, opts: { texture: THREE.Texture; frames: number; fps: number; spread: number }): Foam` avec `interface Foam { group: THREE.Group; update(dt: number): void; dispose(): void }`
+  - `createFoam(ctx, field, opts: { texture: THREE.Texture; waterLevel: number; frames: number; fps: number; spread: number }): Foam` avec `interface Foam { group: THREE.Group; update(dt: number): void; dispose(): void }`
+  - **`waterLevel` doit valoir celui passé à `createWater`.** Le Y de l'écume est `waterLevel + 0.02` : assez pour rester sous le sol qui la masque, pas assez pour risquer un z-fighting avec le plan d'eau juste dessous. Figer ce Y en constante le découple du niveau réel — et comme la mer est opaque, un niveau plus haut occulte alors *toutes* les pastilles, en silence et sans qu'aucun test puisse le voir.
   - `FOAM_SPREAD: number`
 
 - [ ] **Step 1: Écrire le test qui échoue**
