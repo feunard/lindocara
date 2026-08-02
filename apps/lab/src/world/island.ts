@@ -103,6 +103,67 @@ const NEIGHBORS_4 = [
   [0, -1],
 ] as const;
 
+/**
+ * Distance en cases à l'eau la plus proche, propagée par plus-court-chemin en largeur (BFS) depuis
+ * chaque case d'eau. Exportée — et prenant `at` en paramètre plutôt que de fermer sur l'état de
+ * `generateIsland` — pour rester testable sur une petite grille construite à la main, sans avoir à
+ * régénérer une île entière : c'est elle qui décide où la plage peut apparaître (`isBeach`,
+ * ci-dessous), et une régression ici (un ordre de voisins différent, un off-by-one) se
+ * propagerait silencieusement au tracé du rivage sans qu'aucun écran ne le montre.
+ */
+export function waterDistance(
+  size: number,
+  at: (i: number, j: number) => number | null,
+): Int16Array {
+  const dist = new Int16Array(size * size).fill(9999);
+  const file: number[] = [];
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      if (at(i, j) !== null) continue;
+      dist[j * size + i] = 0;
+      file.push(i, j);
+    }
+  }
+  for (let k = 0; k < file.length; k += 2) {
+    const i = file[k] ?? 0;
+    const j = file[k + 1] ?? 0;
+    const d = dist[j * size + i] ?? 0;
+    for (const [di, dj] of NEIGHBORS_4) {
+      const ni = i + di;
+      const nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= size || nj >= size) continue;
+      const idx = nj * size + ni;
+      if ((dist[idx] ?? 9999) <= d + 1) continue;
+      dist[idx] = d + 1;
+      file.push(ni, nj);
+    }
+  }
+  return dist;
+}
+
+/**
+ * Une case de palier 0 est du sable si elle tombe dans l'arc sud du littoral (angle mesuré depuis
+ * le plein sud, +Z) et assez près de l'eau — l'arc se resserre à ses extrémités (rayon 2 plutôt
+ * que 3 au-delà de 0.75 radian) pour que la plage s'amenuise au lieu de s'arrêter net. Exportée et
+ * prenant `waterDist` déjà calculé (plutôt que de le recalculer) pour rester testable isolément de
+ * `waterDistance` et de `generateIsland`.
+ */
+export function isBeach(
+  i: number,
+  j: number,
+  size: number,
+  at: (i: number, j: number) => number | null,
+  waterDist: Int16Array,
+): boolean {
+  if (at(i, j) !== 0) return false;
+  const c = size / 2;
+  const x = i + 0.5 - c;
+  const z = j + 0.5 - c;
+  const arc = Math.abs(Math.atan2(x, z));
+  if (arc > 1.2) return false;
+  return (waterDist[j * size + i] ?? 9999) <= (arc < 0.75 ? 3 : 2);
+}
+
 export interface GenerateIslandOptions {
   size: number;
   /** Réservé aux futures variations procédurales (props, Task 12) : la forme de l'île, `ILES`
@@ -127,48 +188,13 @@ export function generateIsland(opts: GenerateIslandOptions): {
     i < 0 || j < 0 || i >= size || j >= size ? null : (cells[j * size + i] ?? null);
 
   // --- plage : bande de sable sur l'arc sud du littoral -----------------------------------------
-  // Distance au premier carreau d'eau, en propagation depuis la mer.
-  const distEau = new Int16Array(size * size).fill(9999);
-  const file: number[] = [];
-  for (let j = 0; j < size; j++) {
-    for (let i = 0; i < size; i++) {
-      if (at(i, j) !== null) continue;
-      distEau[j * size + i] = 0;
-      file.push(i, j);
-    }
-  }
-  for (let k = 0; k < file.length; k += 2) {
-    const i = file[k] ?? 0;
-    const j = file[k + 1] ?? 0;
-    const d = distEau[j * size + i] ?? 0;
-    for (const [di, dj] of NEIGHBORS_4) {
-      const ni = i + di;
-      const nj = j + dj;
-      if (ni < 0 || nj < 0 || ni >= size || nj >= size) continue;
-      const idx = nj * size + ni;
-      if ((distEau[idx] ?? 9999) <= d + 1) continue;
-      distEau[idx] = d + 1;
-      file.push(ni, nj);
-    }
-  }
-
-  const c = size / 2;
-  const estSable = (i: number, j: number): boolean => {
-    if (at(i, j) !== 0) return false;
-    const x = i + 0.5 - c;
-    const z = j + 0.5 - c;
-    // Angle mesuré depuis le plein sud (+Z) : la plage s'étend sur cet arc et se resserre à ses
-    // extrémités plutôt que de s'arrêter net.
-    const arc = Math.abs(Math.atan2(x, z));
-    if (arc > 1.2) return false;
-    return (distEau[j * size + i] ?? 9999) <= (arc < 0.75 ? 3 : 2);
-  };
+  const distEau = waterDistance(size, at);
 
   const kinds = new Array<string | null>(size * size).fill(null);
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
       if (at(i, j) === null) continue;
-      kinds[j * size + i] = estSable(i, j) ? "sable" : "herbe";
+      kinds[j * size + i] = isBeach(i, j, size, at, distEau) ? "sable" : "herbe";
     }
   }
   const kindAt = (i: number, j: number): string | null =>

@@ -29,6 +29,7 @@
     "test:ui:runtime": "vitest run --project renderer --project client",
     "test:catalog": "vitest run --project catalog",
     "test:hd2d": "vitest run --project hd2d",
+    "test:lab": "vitest run --project lab",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "loadtest": "node scripts/loadtest.mjs",
