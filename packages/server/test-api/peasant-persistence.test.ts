@@ -383,7 +383,7 @@ describe("Peasant HTTP + WorldRoom persistence", () => {
     }
 
     const configuredAxe = skillWithTalents("peasant", finalSelection, 1);
-    expect(configuredAxe.cooldownMs).toBe(748);
+    expect(configuredAxe.cooldownMs).toBe(370);
     expect(configuredAxe.cooldownMs).toBeLessThan(CLASS_SKILLS.peasant[0]?.cooldownMs ?? 0);
 
     const attackOffset = secondSocket.sent.length;

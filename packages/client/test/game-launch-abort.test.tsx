@@ -32,7 +32,7 @@ function fakeRenderer() {
   // `destroy` is what the abort path calls; `onFrame` is registered unconditionally once a launch
   // reaches the end of `startGameIdentity` (the "normal launch" test below) — nothing else on
   // `Renderer` is reached synchronously before either of those two points.
-  return { destroy: vi.fn(), onFrame: vi.fn() };
+  return { destroy: vi.fn(), hidePeasantBombAim: vi.fn(), onFrame: vi.fn() };
 }
 
 const HERO: StoredHero = {

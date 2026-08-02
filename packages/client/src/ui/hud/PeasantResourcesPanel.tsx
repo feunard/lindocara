@@ -40,25 +40,29 @@ export function PeasantResourcesPanel() {
       </div>
       <div className="peasant-resources__list">
         {PARTY_MATERIAL_TYPES.map((material) => (
-          <span
+          <output
             key={material}
             className={`peasant-resource peasant-resource--${material}`}
             data-material={material}
+            aria-label={`${t(MATERIAL_LABEL[material])}: ${materials[material]}`}
           >
             <span className="peasant-resource__glyph" aria-hidden="true">
               {MATERIAL_GLYPH[material]}
             </span>
             <span>{t(MATERIAL_LABEL[material])}</span>
             <strong>{materials[material]}</strong>
-          </span>
+          </output>
         ))}
-        <span className="peasant-resource peasant-resource--gold">
+        <output
+          className="peasant-resource peasant-resource--gold"
+          aria-label={`${t("item.gold")}: ${gold}`}
+        >
           <span className="peasant-resource__glyph" aria-hidden="true">
             G
           </span>
           <span>{t("item.gold")}</span>
           <strong>{gold}</strong>
-        </span>
+        </output>
       </div>
     </section>
   );
