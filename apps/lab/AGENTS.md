@@ -56,19 +56,30 @@ renders, a second `readPixels` that blocks until the GPU is actually done) — a
 those renders would defeat the point of measuring one consistent frame.
 
 **Every entity is scattered inside a disk, never across the whole map.** `scatterOnLand` takes a
-`center` (the hero's position when `populate()` runs — its spawn point, since populate happens
-before any input) and `BENCH_RADIUS` (14 world units — 1 unit = 1 tile). Round 1 of this task's
-review caught the harness scattering entities over the *entire* island chain instead: with the
-camera framing only ~20-30 units around the hero and the sun's shadow map fixed at a 26-unit
-extent, a real fraction of the population landed outside both the view frustum and the shadow
-pass — free to render, at zero measured cost, for entities the game would actually have to draw.
-The reported number was reassuring and wrong, which is exactly the failure mode this harness exists
-to prevent. `BENCH_RADIUS` is derived from the game's own interest radii (`TILE_SIZE = 64` px):
-players 900 px ≈ 14 units, monsters 850 px ≈ 13, loot 650 px ≈ 10 — 14, the widest of the three,
-still fits entirely inside the main island (radius 16) around the spawn. `scatterOnLand` draws
-**inside** the disk by construction (polar sampling, `r = radius * sqrt(rng())`), not by drawing in
-a bounding square and rejecting the corners — `apps/lab/test/bench.test.ts` asserts the invariant
-holds for every point returned, not just on average.
+`center` and `BENCH_RADIUS` (14 world units — 1 unit = 1 tile) and draws **inside** that disk by
+construction (polar sampling, `r = radius * sqrt(rng())`), never by drawing in a bounding square and
+rejecting the corners — `apps/lab/test/bench.test.ts` asserts the invariant holds for every point
+returned, not just on average. Round 1 of this task's review caught the harness scattering entities
+over the *entire* island chain instead: with the camera framing only ~20-30 units around the hero
+and the sun's shadow map fixed at a 26-unit extent, a real fraction of the population landed outside
+both the view frustum and the shadow pass — free to render, at zero measured cost, for entities the
+game would actually have to draw. The reported number was reassuring and wrong, which is exactly the
+failure mode this harness exists to prevent. `BENCH_RADIUS` is derived from the game's own interest
+radii (`TILE_SIZE = 64` px): players 900 px ≈ 14 units, monsters 850 px ≈ 13, loot 650 px ≈ 10 — 14,
+the widest of the three, still fits entirely inside the main island (radius 16) around the spawn.
+
+**The disk is centered on the visible ground footprint, not on the hero.** Round 2 of review found
+that a *disk* centered on the hero still overshoots the frame on the camera's side, because that
+footprint is asymmetric — a diving camera sees farther than it sees near. `cameraGroundFootprint`
+(`bench.ts`) computes it by intersecting the vertical frustum's top/bottom rays with the ground
+plane: with the current `CAMERA` settings (22° FOV, distance 40, 38° pitch, height 1.2), the near
+edge sits ≈9.07 units toward the camera and the far edge ≈19.17 units away from it — not symmetric
+around the hero at all. `BENCH_CENTER_OFFSET` is that footprint's midpoint (≈5.05), and `main.ts`
+shifts the population center by that amount along the viewing axis, away from the camera, before
+passing it to `createBench`. Don't claim the disk covers "100% of what the camera sees": a circle
+can't exactly cover a trapezoid (the true footprint is wider far away than it is near), only be
+centered so it stays entirely within the visible depth range along the central viewing axis — which
+is the actual, checkable guarantee `apps/lab/test/bench.test.ts` pins.
 
 Select a level with `?bench=game` or `?bench=heavy` in the URL; `?bench=off` or no parameter leaves
 the scene exactly as Task 12 left it. The measured ms/frame appears in the HUD next to the fps

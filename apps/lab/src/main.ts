@@ -14,7 +14,7 @@ import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import type { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-import { type BenchLevel, createBench } from "./bench.js";
+import { BENCH_CENTER_OFFSET, type BenchLevel, createBench } from "./bench.js";
 import {
   AUDIO_URLS,
   closeDoor,
@@ -290,14 +290,27 @@ scene.add(debugView.group);
 // Round 1 de revue : peupler n'importe où sur la carte mesurait une scène partiellement CULLÉE —
 // hors du tronc de vue caméra et hors de la passe d'ombre du soleil, une part de la population
 // coûtait zéro, et le chiffre annoncé était rassurant et FAUX. `bench.ts` circonscrit désormais le
-// peuplement à `BENCH_RADIUS` autour d'un CENTRE explicite : la position du héros au moment du
-// peuplement, c'est-à-dire son point d'apparition (`SPAWN`), puisque le peuplement a lieu avant
-// toute image et donc avant tout déplacement.
+// peuplement à `BENCH_RADIUS` autour d'un centre explicite.
+//
+// Round 2 de revue : ce centre n'est PAS le héros. L'empreinte au sol réellement visible n'est pas
+// symétrique autour de lui — une caméra qui plonge voit plus loin qu'elle ne voit près — donc un
+// disque centré sur le héros débordait encore du cadre côté caméra (`cameraGroundFootprint` dans
+// `bench.ts` : proche ≈9.07, lointain ≈19.17). Le centre est donc décalé de `BENCH_CENTER_OFFSET`
+// (le milieu de cette empreinte) le long de l'axe de visée, dans le sens OPPOSÉ à la caméra.
+//
+// yaw=0 est le SEUL yaw possible ici — le peuplement a lieu avant la première image, donc avant
+// toute rotation de caméra (`yaw` n'est même pas encore déclaré à ce point du fichier) — et à
+// yaw=0, `updateCamera` place la caméra à `camTarget.z + horizontal` : la caméra est du côté +Z,
+// donc l'opposé de la caméra est -Z.
 const benchLevel: BenchLevel = ((): BenchLevel => {
   const v = new URLSearchParams(location.search).get("bench");
   return v === "game" || v === "heavy" ? v : "off";
 })();
-const bench = createBench(ctx, scene, textures, query, [hero.position.x, hero.position.z], {
+const benchCenter: readonly [number, number] = [
+  hero.position.x,
+  hero.position.z - BENCH_CENTER_OFFSET,
+];
+const bench = createBench(ctx, scene, textures, query, benchCenter, {
   level: benchLevel,
 });
 bench.populate();

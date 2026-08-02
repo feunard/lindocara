@@ -32,9 +32,55 @@ export interface Bench {
 // la passe d'ombre, une part réelle de la population coûte alors zéro, et le chiffre annoncé est
 // rassurant et FAUX. Dérivé des rayons d'intérêt réels du jeu (`TILE_SIZE = 64` px) : joueurs
 // 900 px ≈ 14 unités, monstres 850 px ≈ 13, butin 650 px ≈ 10. 14, le plus large des trois, tient
-// entièrement dans l'île principale (rayon 16) autour du spawn et couvre ce que la caméra voit
-// réellement (FOV 22°, distance 40, plongée 38°).
+// entièrement dans l'île principale (rayon 16) autour du spawn — et, une fois le disque RECENTRÉ
+// (voir `cameraGroundFootprint`/`BENCH_CENTER_OFFSET` ci-dessous), sa demi-longueur (≈14.12) couvre
+// la profondeur réellement visible le long de l'axe de visée. Le disque reste un CERCLE, la vraie
+// empreinte au sol un trapèze plus large au loin qu'au près — un cercle ne peut pas épouser un
+// trapèze exactement, mais recentré il reste entièrement DANS la profondeur visible, ce qui élimine
+// le débordement dominant que le round 2 de revue a trouvé (le disque centré sur le héros, lui,
+// débordait d'environ 5 unités côté caméra).
 export const BENCH_RADIUS = 14;
+
+/**
+ * Empreinte au sol réellement visible à l'écran, le long de l'axe de visée : intersection des deux
+ * rayons haut/bas du frustum vertical (± FOV/2 de part et d'autre du pitch) avec le plan y=0. `near`
+ * est la distance du bord PROCHE (côté caméra) au point visé, `far` celle du bord LOINTAIN (côté
+ * opposé) — voir `updateCamera` (`main.ts`) pour la géométrie caméra dont ceci n'est qu'une lecture.
+ *
+ * Round 2 de revue : `BENCH_RADIUS` est correct, mais un disque centré sur le héros déborde quand
+ * même du cadre côté caméra, parce que cette empreinte n'est PAS symétrique autour du héros — une
+ * caméra qui plonge voit plus loin qu'elle ne voit près. Avec les réglages actuels de `CAMERA`
+ * (fov 22°, distance 40, pitch 38°, height 1.2) : `near ≈ 9.07`, `far ≈ 19.17`. `apps/lab/test/
+ * bench.test.ts` pin ces deux chiffres pour qu'un futur réglage de caméra fausse le test avant de
+ * fausser silencieusement le harnais.
+ */
+export function cameraGroundFootprint(camera: {
+  fov: number;
+  distance: number;
+  pitch: number;
+  height: number;
+}): { near: number; far: number } {
+  const halfFov = (camera.fov * Math.PI) / 360; // FOV/2 en radians (`camera.fov` est en degrés)
+  // Élévation de la caméra au-dessus du plan y=0, et son décalage horizontal par rapport au point
+  // visé — exactement les deux termes qu'`updateCamera` ajoute à `camTarget` pour yaw=0.
+  const elevation = camera.height + Math.sin(camera.pitch) * camera.distance;
+  const offset = Math.cos(camera.pitch) * camera.distance;
+  // Bord proche : la caméra plonge plus fort (pitch + FOV/2) ; bord lointain : plus rasant
+  // (pitch - FOV/2), donc plus loin avant de toucher le sol.
+  return {
+    near: offset - elevation / Math.tan(camera.pitch + halfFov),
+    far: elevation / Math.tan(camera.pitch - halfFov) - offset,
+  };
+}
+
+const FOOTPRINT = cameraGroundFootprint(CAMERA);
+
+/**
+ * Décalage du centre de peuplement, en unités monde, le long de l'axe de visée et dans le sens
+ * OPPOSÉ à la caméra (voir `main.ts`, qui l'applique au bon axe selon sa propre convention de yaw).
+ * C'est le milieu de `cameraGroundFootprint` : `(far - near) / 2`, ≈5.05 avec les réglages actuels.
+ */
+export const BENCH_CENTER_OFFSET = (FOOTPRINT.far - FOOTPRINT.near) / 2;
 
 interface Population {
   players: number;
@@ -84,11 +130,16 @@ export const POPULATION: Record<"game" | "heavy", Population> = {
  * ne fausse pas une mesure de coût GPU, et s'en soucier ferait de ce fichier un second `props.ts`.
  *
  * Tirage POLAIRE, jamais un carré englobant suivi d'un rejet hors-disque : ça garantit PAR
- * CONSTRUCTION qu'aucun point ne dépasse `radius` (`apps/lab/test/bench.test.ts` vérifie
- * l'invariant sur tous les points renvoyés, pas seulement en moyenne), et ça ne gâche aucun tirage
- * sur les quatre coins hors disque d'un carré. `sqrt(rng())` donne une densité UNIFORME dans le
- * disque — un rayon tiré linéairement entasserait les points près du centre, où les anneaux sont
+ * CONSTRUCTION qu'aucun point ne dépasse `radius` DE `center` (`apps/lab/test/bench.test.ts`
+ * vérifie l'invariant sur tous les points renvoyés, pas seulement en moyenne), et ça ne gâche aucun
+ * tirage sur les quatre coins hors disque d'un carré. `sqrt(rng())` donne une densité UNIFORME dans
+ * le disque — un rayon tiré linéairement entasserait les points près du centre, où les anneaux sont
  * plus étroits.
+ *
+ * Cette garantie porte sur le DISQUE, pas sur le champ de la caméra : un disque n'est pas un
+ * trapèze, et `center`/`radius` doivent être choisis pour que le disque tienne dans ce que la
+ * caméra voit — c'est le rôle de `BENCH_CENTER_OFFSET`/`BENCH_RADIUS` et de `main.ts`, pas de
+ * cette fonction, qui reste une primitive géométrique aveugle à la caméra.
  */
 export function scatterOnLand(
   query: TerrainQuery,
@@ -168,11 +219,12 @@ function frozenSprite(
  * `textures`/`query`/`center` s'ajoutent à la signature du brief (`createBench(ctx, scene, opts)`),
  * pour la même raison que `createHero` en Task 11 : `makeBillboard` a besoin d'une texture déjà
  * décodée, un peuplement qui a l'air d'un jeu a besoin de terre ferme sous les pieds, et — depuis le
- * round 1 de revue — la scène ne peut plus être peuplée n'importe où sur la carte : `center` est la
- * position du héros au moment du peuplement (`main.ts` passe `[hero.position.x, hero.position.z]`),
- * le point autour duquel `BENCH_RADIUS` circonscrit tout ce qui est planté. Peupler hors du champ de
- * la caméra/de la shadow map mesurerait une scène partiellement cullée — un chiffre rassurant et
- * faux, précisément le piège que ce harnais existe pour éviter.
+ * round 1 de revue — la scène ne peut plus être peuplée n'importe où sur la carte : `center` est le
+ * MILIEU de l'empreinte au sol réellement visible (round 2 : PAS la position du héros elle-même,
+ * qui n'en est pas le centre — voir `cameraGroundFootprint`), que `main.ts` calcule en décalant la
+ * position du héros de `BENCH_CENTER_OFFSET` le long de l'axe de visée. Peupler hors du champ de la
+ * caméra/de la shadow map mesurerait une scène partiellement cullée — un chiffre rassurant et faux,
+ * précisément le piège que ce harnais existe pour éviter.
  */
 export function createBench(
   ctx: Hd2dContext,

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { POPULATION, scatterOnLand } from "../src/bench.js";
+import {
+  BENCH_CENTER_OFFSET,
+  BENCH_RADIUS,
+  cameraGroundFootprint,
+  POPULATION,
+  scatterOnLand,
+} from "../src/bench.js";
+import { CAMERA } from "../src/settings.js";
 import { mulberry32 } from "../src/world/island.js";
 import type { TerrainQuery } from "../src/world/terrain-query.js";
 
@@ -97,5 +104,55 @@ describe("POPULATION", () => {
       effects: 20,
       castingLights: 4,
     });
+  });
+});
+
+// Round 2 de revue : un disque de rayon `BENCH_RADIUS` centré sur le HÉROS déborde encore du cadre
+// côté caméra, parce que l'empreinte au sol réellement visible n'est pas symétrique autour de lui
+// (une caméra qui plonge voit plus loin qu'elle ne voit près). Ces deux chiffres pinnent la
+// géométrie qui a servi à corriger ça — une dérive future des réglages de `CAMERA` doit casser CE
+// test, pas fausser silencieusement le harnais une troisième fois.
+describe("cameraGroundFootprint", () => {
+  it("matches the geometry verified against updateCamera during round 2 review", () => {
+    const footprint = cameraGroundFootprint(CAMERA);
+    expect(footprint.near).toBeCloseTo(9.0698, 3);
+    expect(footprint.far).toBeCloseTo(19.1668, 3);
+  });
+
+  it("BENCH_CENTER_OFFSET is the midpoint of that footprint", () => {
+    const footprint = cameraGroundFootprint(CAMERA);
+    expect(BENCH_CENTER_OFFSET).toBeCloseTo((footprint.far - footprint.near) / 2, 9);
+    expect(BENCH_CENTER_OFFSET).toBeCloseTo(5.0485, 3);
+  });
+});
+
+describe("scatterOnLand, centered the way main.ts actually centers it", () => {
+  it("keeps every point within the visible ground footprint along the viewing axis, not just within BENCH_RADIUS of the hero", () => {
+    const heroX = -2;
+    const heroZ = 4;
+    // Même calcul que `main.ts` : décalé de `BENCH_CENTER_OFFSET` dans le sens opposé à la caméra
+    // (yaw=0, donc -Z — voir le commentaire de `main.ts` pour la convention).
+    const center = [heroX, heroZ - BENCH_CENTER_OFFSET] as const;
+    const rng = mulberry32(11);
+    const query: TerrainQuery = {
+      heightAt: () => 0,
+      maxHeightAround: () => 0,
+      levelAt: () => 0, // toute la carte est de la terre : isole la géométrie du disque
+      kindAt: () => "herbe",
+      cellCenter: (i, j) => [i, j],
+    };
+    const footprint = cameraGroundFootprint(CAMERA);
+
+    const points = scatterOnLand(query, rng, 500, center, BENCH_RADIUS);
+
+    expect(points).toHaveLength(500);
+    for (const [, z] of points) {
+      // `s` = distance signée depuis le héros le long de l'axe de visée, positive à l'opposé de la
+      // caméra (même convention que `BENCH_CENTER_OFFSET`) : s = heroZ - z, puisque "à l'opposé de
+      // la caméra" est -Z à yaw=0.
+      const s = heroZ - z;
+      expect(s).toBeGreaterThanOrEqual(-footprint.near - 1e-9);
+      expect(s).toBeLessThanOrEqual(footprint.far + 1e-9);
+    }
   });
 });
