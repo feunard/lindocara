@@ -30,6 +30,7 @@
  */
 
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { harvestColliderAt } from "@lindocara/engine/harvest.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import {
   eventCellCentre,
@@ -123,6 +124,17 @@ function channelledTree(id: string, col: number, row: number): MapEvent {
     graphicAssetId: preset.intactAssetId,
   });
   return { ...event, pages: [page({ graphicAssetId: preset.intactAssetId })] };
+}
+
+function placeHarvester(state: WorldRoomState, player: PlayerRuntime, event: MapEvent): void {
+  const profile = event.harvestProfile;
+  const collider = profile ? harvestColliderAt(profile, event.col, event.row, "intact") : null;
+  if (!collider) throw new Error("transition harvest collider missing");
+  const previous = { x: player.x, y: player.y };
+  player.x = collider.x - PLAYER_SIZE - 1;
+  player.y = collider.y + collider.height / 2 - PLAYER_SIZE / 2;
+  player.facing = { x: 1, y: 0 };
+  state.playerGrid.update(player, previous);
 }
 
 let alepha: ReturnType<typeof createTestApp>;
@@ -694,12 +706,7 @@ describe("world room transitions (FakeClock)", () => {
     const stateA = roomState(engineA);
     const playerA = playerOf(stateA, fixture.heroId);
     playerA.level = 10;
-    const resourceACentre = eventCellCentre(resourceA);
-    const previousA = { x: playerA.x, y: playerA.y };
-    playerA.x = resourceACentre.x - PLAYER_SIZE / 2 - 32;
-    playerA.y = resourceACentre.y - PLAYER_SIZE / 2;
-    playerA.facing = { x: 1, y: 0 };
-    stateA.playerGrid.update(playerA, previousA);
+    placeHarvester(stateA, playerA, resourceA);
 
     clock.advanceTicks(20);
     await engineA.message(socketA.id, { t: "skill", slot: 1 });
@@ -735,12 +742,7 @@ describe("world room transitions (FakeClock)", () => {
     await engineB.join(socketB);
     const stateB = roomState(engineB);
     const playerB = playerOf(stateB, fixture.heroId);
-    const resourceBCentre = eventCellCentre(resourceB);
-    const previousB = { x: playerB.x, y: playerB.y };
-    playerB.x = resourceBCentre.x - PLAYER_SIZE / 2 - 32;
-    playerB.y = resourceBCentre.y - PLAYER_SIZE / 2;
-    playerB.facing = { x: 1, y: 0 };
-    stateB.playerGrid.update(playerB, previousB);
+    placeHarvester(stateB, playerB, resourceB);
 
     clock.advance(2_000);
     await engineB.message(socketB.id, { t: "skill", slot: 1 });
