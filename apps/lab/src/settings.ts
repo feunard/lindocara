@@ -1,0 +1,265 @@
+import type { Clip } from "@lindocara/hd2d/billboard.js";
+import type { MoodConfig } from "@lindocara/hd2d/mood.js";
+import type { TextureSpec } from "@lindocara/hd2d/textures.js";
+
+// Tous les réglages du labo au même endroit : c'est ce fichier qu'on triture pour faire bouger
+// le monde sans aller fouiller dans le reste. `hd2d/config.ts` a déjà pris RENDER/POSTFX/
+// CLOUD_SHADOW/SPRITE_STRETCH — ce qui reste ici est proche du CONTENU (l'île, le héros, les
+// ambiances), pas du moteur de rendu.
+
+// Rendu plafonné : au-delà, on brûle du GPU pour rien et la vitesse de jeu ne change pas (tout
+// est en delta-time). Mettre 0 pour laisser filer.
+export const TARGET_FPS = 60;
+
+export interface WorldSettings {
+  size: number;
+  seed: number;
+  /** Hauteur d'un palier d'élévation, en unités monde (1 tuile = 1 unité). */
+  levelHeight: number;
+  /** L'eau affleure l'herbe du palier 0 : juste assez dessous pour que le sol se dessine
+   *  par-dessus, pas assez pour créer une marche. Une case est de l'herbe de palier 0 ou de
+   *  palier 1, jamais un entre-deux. */
+  waterLevel: number;
+  /** 0 = aucune marche ne se gravit à pied : toute falaise se saute. C'est ce qui donne son rôle
+   *  au saut. Mettre 1 pour remonter un palier en marchant. */
+  maxStep: number;
+}
+
+export const WORLD: WorldSettings = {
+  size: 72, // côté de la grille de tuiles — assez large pour trois îles
+  seed: 20260801,
+  levelHeight: 0.9,
+  waterLevel: -0.05,
+  maxStep: 0,
+};
+
+export interface CameraSettings {
+  fov: number;
+  distance: number;
+  pitch: number;
+  height: number;
+  follow: number;
+  zoom: { min: number; max: number };
+  yawRange: number;
+  yawReturn: number;
+  fogFar: number;
+  lookAhead: number;
+  lookAheadLag: number;
+  shake: { land: number; decay: number; frequency: number };
+}
+
+export const CAMERA: CameraSettings = {
+  fov: 22, // FOV court = quasi-orthographique = look maquette
+  distance: 40,
+  pitch: 38 * (Math.PI / 180), // angle au-dessus de l'horizon
+  height: 1.2, // point visé au-dessus des pieds du héros
+  follow: 6, // vitesse de rattrapage de la caméra
+  zoom: { min: 16, max: 78 },
+  yawRange: 20 * (Math.PI / 180), // débattement de la rotation, de part et d'autre
+  yawReturn: 6, // vitesse de retour à 0 quand on relâche
+  // Le brouillard suit le zoom, sinon il noierait toute l'île dès qu'on recule. Mais le suivre
+  // À L'IDENTIQUE (exposant 1 des deux côtés) rend le dézoom parfaitement neutre : on verrait la
+  // même image, en plus petit. Le plan PROCHE reste donc proportionnel — le héros garde
+  // exactement sa netteté à tous les zooms — pendant que le plan LOINTAIN grandit moins vite. La
+  // bande de brouillard se resserre à mesure qu'on recule : l'île se dissout par les bords, et la
+  // maquette gagne son lointain.
+  fogFar: 0.38, // 1 = brouillard neutre au zoom, 0 = brouillard figé en absolu
+  // La caméra devance légèrement le héros dans sa direction de course : elle respire au lieu de
+  // le coller.
+  lookAhead: 1.4, // unités monde à pleine vitesse
+  lookAheadLag: 2.5, // vitesse à laquelle ce décalage se met en place
+  // Secousse à la réception d'un saut et aux explosions.
+  shake: { land: 0.09, decay: 9, frequency: 34 },
+};
+
+export interface HeroSettings {
+  speed: number;
+  /** Empreinte au sol, la même pour le relief et pour les props. */
+  radius: number;
+  /** Décalage du centre vers le FOND (-Z). Le sprite est un plan vertical : son corps se dessine
+   *  vers le haut de l'écran, donc vers le fond. Une empreinte centrée sur ses pieds paraissait
+   *  posée devant lui, et le laissait chevaucher les murs situés derrière. Portée totale : 0.45
+   *  vers le nord, 0.15 vers le sud, 0.30 sur les côtés (0.15 + 0.30 doit rester sous la
+   *  demi-case, sinon on mord les voisines). */
+  offset: number;
+  frame: { cols: number; rows: number };
+  anims: {
+    idle: Clip;
+    run: Clip;
+    /** La feuille ne contient pas de saut : on fige une pose de course. */
+    air: { row: number; frame: number };
+    /** La feuille porte quatre attaques (lignes 2 à 5), une par diagonale, plus deux de dos.
+     *  Seule celle-ci est de profil comme `idle` et `run` : le `setFlip` du billboard couvre donc
+     *  l'autre sens, comme pour la course. Les trois premières frames arment le coup, la lame ne
+     *  part qu'à `strike`. */
+    attack: Clip & { strike: number };
+  };
+  /** Apex = speed² / (2·gravity) = 1.35 unité : un palier (0.9) avec de la marge, jamais deux.
+   *  Gravité forte pour garder le saut nerveux (~0.6 s en l'air). */
+  jump: { speed: number; gravity: number; coyote: number };
+  /** Nage : on avance moins vite, on ne saute pas, et le souffle est compté. */
+  swim: {
+    speed: number;
+    breath: number;
+    /** Enfoncement sous la surface — le plan d'eau masque le sprite. */
+    depth: number;
+    /** Fraction de palier qu'on peut escalader depuis l'eau. */
+    climb: number;
+  };
+  /** Hauteur monde d'une frame de 192px. */
+  size: number;
+  /** Bas du sprite (ombre peinte comprise) mesuré à 135 px sur 192 : position des pieds dans la
+   *  frame, en partant du bas (0..1). */
+  foot: number;
+}
+
+export const HERO: HeroSettings = {
+  speed: 4.2,
+  radius: 0.3,
+  offset: 0.15,
+  frame: { cols: 6, rows: 8 },
+  anims: {
+    idle: { row: 0, frames: 6, fps: 7 },
+    run: { row: 1, frames: 6, fps: 12 },
+    air: { row: 1, frame: 1 },
+    attack: { row: 2, frames: 6, fps: 15, strike: 3 },
+  },
+  jump: { speed: 9, gravity: 30, coyote: 0.12 },
+  swim: { speed: 0.45, breath: 11, depth: 0.5, climb: 0.5 },
+  size: 2.6,
+  foot: 0.3,
+};
+
+export interface GrotaSettings {
+  at: readonly [number, number];
+  frame: { cols: number; rows: number; frames: number; fps: number };
+  size: number;
+  foot: number;
+  radius: number;
+  reach: number;
+}
+
+// Grota, le panda, arrive à la Task 12 — mais c'est du réglage, il vit avec les autres dès
+// maintenant. Il vit sur le mamelon de la PETITE ÎLE du sud (`ILES[2]` dans `island.ts`) — celle
+// qu'on n'atteint qu'à la nage. Un ermite qu'il faut aller chercher vaut mieux qu'un ermite sur
+// le chemin.
+export const GROTA: GrotaSettings = {
+  // Au centre du mamelon, pas sur son bord : un sprite au ras de l'arête déborderait dans le vide.
+  at: [2.2, 24.5],
+  // Feuille Panda_Idle : 10 frames de 256 px. Mesuré frame par frame, le corps occupe 94 px de
+  // haut et son bas est TOUJOURS à 172 — c'est le ballant du repos, il ne décolle pas. Les pieds
+  // sont donc à (256 - 172) / 256.
+  frame: { cols: 10, rows: 1, frames: 10, fps: 8 },
+  size: 3.4, // hauteur monde d'une frame : donne un panda de 1,25 unité
+  foot: (256 - 172) / 256,
+  radius: 0.34, // on ne lui marche pas dessus
+  reach: 2.6, // distance à laquelle on peut lui parler
+};
+
+export interface WaterSettings {
+  /** 0.12 fait de la mer un miroir : à cette échelle le lobe spéculaire du soleil couvre le
+   *  cadre entier et l'écran vire au blanc laiteux — une nappe, pas des reflets. Il faut une
+   *  surface franchement rugueuse pour que la lumière se casse en éclats au lieu de s'étaler. */
+  roughness: number;
+  /** Un sommet toutes les deux unités : le dégradé de profondeur s'étale sur sept cases, il n'a
+   *  pas besoin de plus. */
+  segment: number;
+  /** Distance en cases sur laquelle l'eau passe de la teinte de haut-fond à celle du large. */
+  depthRange: number;
+}
+
+export const WATER: WaterSettings = {
+  roughness: 0.46,
+  segment: 2,
+  depthRange: 7,
+};
+
+export const MOOD_FADE = 2.2; // secondes de transition
+
+export const MOODS: Record<"day" | "night", MoodConfig> = {
+  day: {
+    exposure: 1.0,
+    sky: { top: "#3d8fd0", horizon: "#a8dced", glow: "#fff4d2", glowStrength: 0.5, stars: 0 },
+    // Pas de couleur ici : le brouillard prend celle de l'horizon du ciel. Deux teintes voisines
+    // mais distinctes dessinaient une ligne franche là où la mer lointaine rencontre la voûte.
+    fog: { near: 34, far: 86 },
+    sun: { color: "#fff2d0", intensity: 2.6, position: [-18, 22, 12] },
+    // Contre-jour rasant, pris du côté OPPOSÉ au soleil. Les normales des sprites sont bombées à
+    // gauche et à droite : une lumière latérale n'allume donc qu'une de leurs deux arêtes, et
+    // c'est exactement le liseré cherché.
+    rim: { color: "#cfe6ff", intensity: 0.85, position: [17, 12, -8] },
+    hemi: { sky: "#bfe6ff", ground: "#6b7a4a", intensity: 1.15 },
+    fire: 1.1,
+    clouds: 0.34, // profondeur de l'ombre des nuages
+    // Volontairement SOMBRES et saturées. En clair, la mer part au blanc : c'est un plan
+    // horizontal, il prend le soleil de plein fouet, et ACES désature tout ce qui monte vers les
+    // hautes lumières. Un turquoise pâle finissait en nappe grise ; le même turquoise deux tons
+    // plus bas garde sa teinte une fois éclairé.
+    water: { shallow: "#1eab99", deep: "#08365c", sparkle: 1.0 },
+    motes: 0.5, // pollen en suspension
+    fireflies: 0,
+    bloom: { strength: 0.38, threshold: 0.78 },
+    grade: { saturation: 1.14, lift: 0.0 },
+  },
+  // Nuit « à la Minecraft » : la lumière globale est crevée, et ce qui éclaire vraiment, c'est le
+  // foyer. Loin de lui, c'est presque noir.
+  //
+  // C'est exactement le modèle de Minecraft, sans avoir à le simuler : la clarté d'un bloc y vaut
+  // le max entre la lumière du ciel — au plus bas la nuit — et celle des sources posées, qui
+  // décroît avec la distance. Ici la somme des deux fait la même chose : une lune juste assez
+  // forte pour que les silhouettes et les ombres portées existent encore, et un feu dont la
+  // décroissance en 1/d² creuse le noir dès qu'on s'en écarte de quelques pas.
+  night: {
+    // Sous-exposer est plus juste que de baisser chaque lumière une par une : c'est le levier qui
+    // fait vraiment « nuit », le reste ne fait que la teinter.
+    exposure: 0.72,
+    sky: { top: "#02040c", horizon: "#080e1e", glow: "#8ea6ff", glowStrength: 0.22, stars: 1 },
+    // Resserré : au-delà, il n'y a de toute façon plus rien à voir. Le lointain se referme sur le
+    // noir au lieu de garder un halo bleu qui trahirait un brouillard éclairé par personne.
+    fog: { near: 24, far: 62 },
+    // Clair de lune réduit à ce qu'il doit être : de quoi lire une silhouette et porter une
+    // ombre, pas de quoi éclairer une clairière. Même quadrant que le soleil : une lune venue du
+    // nord jetterait les ombres vers la caméra, et toute la scène partirait de travers. Trop bas
+    // (0.34), l'île disparaissait purement et simplement. 0.62 laisse deviner les silhouettes
+    // sans jamais éclairer quoi que ce soit — c'est le minimum pour que le noir raconte encore un
+    // paysage.
+    sun: { color: "#8aa6f5", intensity: 0.62, position: [-15, 21, 10] },
+    // Le contre-jour aussi : à 0.5 il détourait chaque sprite d'un liseré bleu, partout, y
+    // compris au fond du noir — plus rien n'était sombre.
+    rim: { color: "#6c88ee", intensity: 0.12, position: [16, 11, -9] },
+    hemi: { sky: "#0e1730", ground: "#04060d", intensity: 0.55 },
+    // Compense la chute de l'ambiance : la flaque du foyer doit rester au même niveau qu'avant,
+    // c'est tout le reste qui descend autour d'elle.
+    fire: 13,
+    clouds: 0.1,
+    water: { shallow: "#062430", deep: "#01060f", sparkle: 0.5 },
+    motes: 0,
+    fireflies: 1,
+    bloom: { strength: 0.78, threshold: 0.38 },
+    // Aucun lift : relever les noirs, c'est précisément ce qu'il ne faut pas faire ici — c'est ce
+    // qui empêchait la nuit d'être noire.
+    grade: { saturation: 1.0, lift: 0.0 },
+  },
+};
+
+// L'azimut du soleil oscille lentement : les ombres balaient l'île, et c'est la démonstration la
+// plus directe que l'éclairage est calculé, pas peint. Le débattement reste dans le quadrant
+// d'origine — de l'autre côté, les ombres partiraient vers la caméra et la scène entière
+// basculerait.
+export const SUN_DRIFT = { amplitude: 22 * (Math.PI / 180), period: 96 };
+
+// --- textures ---------------------------------------------------------------------------------
+// `hd2d` ne connaît aucune URL de contenu, seulement la politique de filtrage (voir
+// `textures.ts`, `textureFiltering`) : c'est ici, au labo, que vit le catalogue. Les quatre
+// tilesets et l'écume sont des atlas — échantillonnés par sous-rectangles, sans mipmaps (voir
+// `TextureSpec.atlas`) ; le reste sont des feuilles de sprites, filtrées normalement.
+export const TEXTURE_URLS: readonly TextureSpec[] = [
+  { url: "/tex/tileset-lvl0.png", atlas: true },
+  { url: "/tex/tileset-lvl1.png", atlas: true },
+  { url: "/tex/tileset-lvl2.png", atlas: true },
+  { url: "/tex/tileset-sand.png", atlas: true },
+  { url: "/tex/water.png" },
+  { url: "/tex/foam.png", atlas: true },
+  { url: "/tex/warrior.png" },
+  { url: "/tex/splash.png" },
+];
