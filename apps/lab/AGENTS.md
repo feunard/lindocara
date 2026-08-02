@@ -1,6 +1,6 @@
 # @lindocara/lab
 
-A **witness, not a frozen copy**. `apps/lab` reproduces the `~/git/poc-hd-2d` PoC — a hero, a
+A **witness, not a frozen copy**. `apps/lab` reproduces the retired `poc-hd-2d` PoC — a hero, a
 troop, an island, day/night, dialogue, a house — on top of the real `@lindocara/hd2d` package
 rather than the PoC's own copy of the render code. That single fact is the whole point of this
 app: it consumes the **same** package the game will eventually consume, so an experiment that works
@@ -51,9 +51,26 @@ lights — see the file's own `POPULATION` table) still fit the frame budget onc
 grow into a real game? It shares the textures `main.ts` already decoded — it loads nothing new, so
 the measurement is GPU render cost, not decode time — and freezes every sprite on a random sheet
 frame rather than animating it, because `Bench.measure()` re-renders the *same* frozen state 40
-times (the PoC `CLAUDE.md` method: one warm-up render, a `readPixels` to drain the pipe, 40 timed
-renders, a second `readPixels` that blocks until the GPU is actually done) — animating between
-those renders would defeat the point of measuring one consistent frame.
+times — animating between those renders would defeat the point of measuring one consistent frame.
+
+**Why `readPixels`, and why twice.** `performance.now()` around `render()` measures only the time
+spent *queuing* GPU commands, which is nearly free and tells you nothing. `readPixels` forces the
+CPU to block until the GPU has actually finished, so a read on each side of the loop turns the
+wall-clock delta into real frame cost. This is the method the PoC used, and it is the only one whose
+numbers are worth citing:
+
+```js
+// depuis la console du navigateur, sur `window.lab`
+const gl = lab.renderer.getContext(), px = new Uint8Array(4);
+lab.render(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); // vide le pipe
+const t0 = performance.now();
+for (let i = 0; i < 40; i++) lab.render();
+gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); // bloque jusqu'au GPU
+console.log((performance.now() - t0) / 40, "ms/frame");
+```
+
+The 60 fps target is a hard constraint, not a goal: **any change to the rendering path is verified
+against the page's own counter**, and against this measurement when the number matters.
 
 **Every entity is scattered inside a disk, never across the whole map.** `scatterOnLand` takes a
 `center` and `BENCH_RADIUS` (14 world units — 1 unit = 1 tile) and draws **inside** that disk by

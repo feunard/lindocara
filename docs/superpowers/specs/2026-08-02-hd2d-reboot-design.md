@@ -11,9 +11,10 @@ de carte, la collision, les verbes de déplacement et le langage visuel de toute
 repris. Ce qui a de la valeur aujourd'hui — les classes, les talents, l'interpréteur d'événements, la
 persistance, l'admission, les rooms, le multijoueur en ligne — survit intact.
 
-La preuve de faisabilité existe : `~/git/poc-hd-2d`, ~4 800 lignes de JS sur Three.js, tenu à 60 fps,
-documenté en détail dans son `README.md` (qui recense aussi une quinzaine de pièges déjà rencontrés
-— le lire avant de toucher au rendu).
+La preuve de faisabilité existait avant ce chantier : le PoC `poc-hd-2d`, ~4 800 lignes de JS sur
+Three.js, tenu à 60 fps. S1 l'a porté puis le dépôt d'origine a été retiré ; son carnet de bord —
+ce qui fait le style, et une quinzaine de pièges de rendu déjà rencontrés — vit désormais dans
+[`docs/hd2d-rendering.md`](../../hd2d-rendering.md). **À lire avant de toucher au rendu.**
 
 ## Décisions de cadrage
 

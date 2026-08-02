@@ -3,7 +3,7 @@ import { WORLD } from "../settings.js";
 import { createTerrainQuery, type TerrainMaterial, type TerrainQuery } from "./terrain-query.js";
 
 /**
- * PRNG déterministe, port verbatim de `~/git/poc-hd-2d/src/world/terrain.js`. La forme de l'île
+ * PRNG déterministe, port verbatim de `terrain.js` du PoC. La forme de l'île
  * elle-même est une donnée AUTEUR (`ILES`, ci-dessous), pas procédurale — ce générateur n'est donc
  * pas encore consommé ICI. Il est porté quand même, exporté, parce que Task 12 en aura besoin pour
  * placer les props (`mulberry32(WORLD.seed + 7)` dans `props.js`), et qu'il vit à côté du reste du
@@ -172,7 +172,7 @@ export interface GenerateIslandOptions {
 }
 
 /**
- * Port de `buildTerrain()` (`~/git/poc-hd-2d/src/world/terrain.js`), réduit à la génération pure :
+ * Port de `buildTerrain()` (`terrain.js` du PoC), réduit à la génération pure :
  * heightmap, plage de sable, et les deux formes que consomment respectivement le rendu
  * (`HeightField`, que `meshTerrain` maille) et la collision (`TerrainQuery`, que le héros
  * interroge). La construction des meshes elle-même — atlas, eau, écume — reste à `main.ts`, qui

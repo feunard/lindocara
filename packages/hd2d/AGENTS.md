@@ -2,7 +2,7 @@
 
 The HD-2D **render engine**: pixel art sprites billboarded into a lit, post-processed Three.js
 scene — the technique behind Octopath Traveler and The Adventures of Elliot, applied to Tiny
-Swords. Ported verbatim from `~/git/poc-hd-2d` (Task 1-10 of the
+Swords. Ported verbatim from the `poc-hd-2d` PoC, now retired (Task 1-10 of the
 [S1 spec](../../docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)).
 
 ## The boundary
@@ -100,7 +100,7 @@ untestable function that happens to also compute something pure.
 
 ## The pitfall registry
 
-`~/git/poc-hd-2d/README.md` is the full registry of pitfalls this technique ran into — read it
+`docs/hd2d-rendering.md` is the full registry of pitfalls this technique ran into — read it
 before touching rendering, it will save you from re-discovering things the hard way. The ones that
 cost the most to re-discover:
 

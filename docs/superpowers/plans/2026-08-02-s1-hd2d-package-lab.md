@@ -1,5 +1,15 @@
 # S1 — `@lindocara/hd2d` + `apps/lab` — Implementation Plan
 
+> **EXÉCUTÉ ET CLOS le 2026-08-02.** Ce document est une archive. Les 13 tasks sont livrées et
+> déployées ; le budget GPU est mesuré (2,11 ms/frame au peuplement du jeu, 12,6 % des 16,7 ms).
+>
+> **Ses références au dépôt `~/git/poc-hd-2d` sont périmées :** ce dépôt a été retiré une fois le
+> port terminé. Son carnet de bord — ce qui fait le style, les pièges de rendu, la méthode de mesure
+> GPU — vit désormais dans [`docs/hd2d-rendering.md`](../../hd2d-rendering.md) et
+> [`apps/lab/AGENTS.md`](../../../apps/lab/AGENTS.md). Les pointeurs vers ses `src/*.js` ci-dessous
+> ne sont plus résolvables et n'ont pas été réécrits : ils ne servent qu'à lire l'historique du port.
+> Pour l'état courant, voir [le spec du reboot](../specs/2026-08-02-hd2d-reboot-design.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extraire le PoC HD-2D (`~/git/poc-hd-2d`) en un package `@lindocara/hd2d` pur Three.js, en TypeScript, sans état de module, et le prouver dans `apps/lab` qui reproduit le PoC à l'identique — plus un harnais de charge qui mesure les fps au niveau de peuplement du vrai jeu.

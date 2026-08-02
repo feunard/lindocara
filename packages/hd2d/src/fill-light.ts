@@ -38,7 +38,7 @@ export function fillAmount({
 
 /**
  * Applique l'appoint de la Task 6 à tous les billboards éclairés du contexte — port de
- * `fillFromPointLight` (`~/git/poc-hd-2d/src/core/billboard.js`), qui itérait sur un tableau de
+ * `fillFromPointLight` (`billboard.js` du PoC), qui itérait sur un tableau de
  * module au lieu de `ctx.litBillboards()`.
  *
  * Tourne à chaque frame sur tous les sprites éclairés : `nSprite`/`versSource` sont alloués une

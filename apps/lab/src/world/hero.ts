@@ -88,7 +88,7 @@ export interface Hero {
 }
 
 /**
- * Port de `~/git/poc-hd-2d/src/world/hero.js` : marcher, sauter, tomber, nager, se noyer, entrer
+ * Port de `hero.js` du PoC : marcher, sauter, tomber, nager, se noyer, entrer
  * dans une pièce (`setRoom`, la maison de Task 12) et le son qui accompagne chaque geste
  * (`core/audio.ts`).
  *

@@ -73,7 +73,7 @@ prefixes in the file map further down map straight onto these homes:
 | [`@lindocara/editor`](./packages/editor/AGENTS.md) | `src/client/ui/editor/` + editor game files | engine, renderer, client, ui | browser + React |
 | [`@lindocara/catalog`](./packages/catalog/AGENTS.md) | `assets/` (raw Tiny Swords art) + the catalogue codegen (was `scripts/tiny-swords-catalog-*`) | engine | node (dev) |
 | [`@lindocara/testing`](./packages/testing/AGENTS.md) | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup) | engine | node/jsdom (dev) |
-| [`@lindocara/hd2d`](./packages/hd2d/AGENTS.md) | ported from `~/git/poc-hd-2d` — the HD-2D render engine (billboards, terrain mesh, lighting, post-fx) | three only | browser, framework-free (Three.js) |
+| [`@lindocara/hd2d`](./packages/hd2d/AGENTS.md) | the HD-2D render engine (billboards, terrain mesh, lighting, post-fx) | three only | browser, framework-free (Three.js) |
 | [`@lindocara/main`](./apps/main/AGENTS.md) | **the deployable app** — `alepha.config.ts`, the server/browser entries, `migrations/`, build/deploy | client, server | build → Worker + assets |
 | [`apps/lab`](./apps/lab/AGENTS.md) | the HD-2D render **witness** — reproduces the PoC on `hd2d`, not a game; see its own `AGENTS.md` | hd2d, three | browser (Vite dev app) |
 
@@ -84,7 +84,9 @@ with `yarn v` upstream, committed and pushed, then pulled here with `npx alepha 
 sync is its own commit. `npx alepha vendor diff` shows any local patches; keep it clean.
 
 `hd2d`/`apps/lab` sit outside that graph entirely, and deliberately so: **the game's render path
-stays PixiJS through S3.** `hd2d` is consumed only by `apps/lab` today — see
+stays PixiJS through S3.** `hd2d` is consumed only by `apps/lab` today. Before touching anything in
+the render path, read [`docs/hd2d-rendering.md`](./docs/hd2d-rendering.md) — what makes the HD-2D
+style, and the fifteen-odd rendering pitfalls already paid for once. See also
 [`docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md`](./docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)
 for the staged plan that eventually retires `@lindocara/renderer`'s PixiJS path in its favor.
 

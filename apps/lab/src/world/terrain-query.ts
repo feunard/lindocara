@@ -45,7 +45,7 @@ export interface TerrainQuerySource {
 }
 
 /**
- * Port des méthodes de requête de `~/git/poc-hd-2d/src/world/terrain.js` (`heightAt`,
+ * Port des méthodes de requête de `terrain.js` du PoC (`heightAt`,
  * `maxHeightAround`, `levelAt`, `kindAt`, `cellCenter`), détachées de la construction du
  * heightmap : `island.ts` fournit les accesseurs indexés par cellule, cette fonction ne fait que
  * les convertir en requêtes en coordonnées MONDE.
