@@ -262,6 +262,12 @@ export const TEXTURE_URLS: readonly TextureSpec[] = [
   { url: "/tex/tileset-lvl1.png", atlas: true },
   { url: "/tex/tileset-lvl2.png", atlas: true },
   { url: "/tex/tileset-sand.png", atlas: true },
+  // Surfaces générées (Task 2 de l'île de neige) sur la géométrie Tiny Swords d'origine — voir
+  // `scripts/compose-tileset.py`. `atlas: true` est impératif comme pour les autres tilesets :
+  // avec des mipmaps, les niveaux inférieurs mélangent les tuiles voisines et font baver les
+  // bordures (voir `docs/hd2d-rendering.md`).
+  { url: "/tex/tileset-neige.png", atlas: true },
+  { url: "/tex/tileset-glace.png", atlas: true },
   { url: "/tex/water.png" },
   { url: "/tex/foam.png", atlas: true },
   { url: "/tex/warrior.png" },

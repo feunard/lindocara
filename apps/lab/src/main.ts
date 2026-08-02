@@ -151,13 +151,12 @@ const atlases: Record<string, TerrainAtlas> = {
     wallRow: 4,
     tilePx: 64,
   },
-  // Provisoire (Task 1) : la géométrie et le chemin de code se prouvent avant que la Task 2 ne
-  // parie sur ce que le modèle sait générer. Ces deux entrées basculeront sur `tileset-neige.png`
-  // et `tileset-glace.png` sans qu'une ligne d'ici ne change. `"glace-fine"` (voir `island.ts`,
-  // `materialAt`) se dessine avec CET atlas `glace` : c'est une matière de règle, pas encore
-  // d'apparence.
+  // Task 2 : surfaces générées sur la géométrie d'origine (voir `scripts/compose-tileset.py`).
+  // Même bloc/mêmes colonnes que `lvl0`/`lvl1` : seul le remplissage a changé, la découpe et les
+  // raccords viennent toujours du même bloc 4x4. `"glace-fine"` (voir `island.ts`, `materialAt`)
+  // se dessine avec CET atlas `glace` : c'est une matière de règle, pas encore d'apparence.
   neige: {
-    texture: textures.get("/tex/tileset-lvl0.png"),
+    texture: textures.get("/tex/tileset-neige.png"),
     cols: 9,
     rows: 6,
     block: "water-edge",
@@ -165,7 +164,7 @@ const atlases: Record<string, TerrainAtlas> = {
     tilePx: 64,
   },
   glace: {
-    texture: textures.get("/tex/tileset-lvl1.png"),
+    texture: textures.get("/tex/tileset-glace.png"),
     cols: 9,
     rows: 6,
     block: "cliff-edge",
