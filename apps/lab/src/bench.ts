@@ -42,10 +42,23 @@ export interface Bench {
 export const BENCH_RADIUS = 14;
 
 /**
- * Empreinte au sol réellement visible à l'écran, le long de l'axe de visée : intersection des deux
- * rayons haut/bas du frustum vertical (± FOV/2 de part et d'autre du pitch) avec le plan y=0. `near`
- * est la distance du bord PROCHE (côté caméra) au point visé, `far` celle du bord LOINTAIN (côté
- * opposé) — voir `updateCamera` (`main.ts`) pour la géométrie caméra dont ceci n'est qu'une lecture.
+ * Aspect de référence (largeur/hauteur) sous lequel le harnais garantit que le disque tient dans
+ * le tronc de vue, latéralement comme en profondeur — round 3 de revue : `camera.fov` de three est
+ * VERTICAL, et la demi-largeur horizontale réelle vaut `atan(tan(fov/2) * aspect)`. En dessous
+ * d'un aspect ≈ 1.66, les flancs du disque commencent à sortir du cadre avec les réglages actuels
+ * de `CAMERA` (voir `cameraGroundFootprint.halfWidthAt` ci-dessous) — 16:9 (1.778) tient avec
+ * environ 7 % de marge, un MacBook en plein écran ou une fenêtre avec les devtools ancrés à droite
+ * (souvent ≈1.6) commence à culler les flancs. `apps/lab/AGENTS.md` documente cette hypothèse pour
+ * l'appelant.
+ */
+export const BENCH_REFERENCE_ASPECT = 16 / 9;
+
+/**
+ * Empreinte au sol réellement visible à l'écran, le long de l'axe de visée ET latéralement :
+ * intersection des deux rayons haut/bas du frustum vertical (± FOV/2 de part et d'autre du pitch)
+ * avec le plan y=0. `near` est la distance du bord PROCHE (côté caméra) au point visé, `far` celle
+ * du bord LOINTAIN (côté opposé) — voir `updateCamera` (`main.ts`) pour la géométrie caméra dont
+ * ceci n'est qu'une lecture.
  *
  * Round 2 de revue : `BENCH_RADIUS` est correct, mais un disque centré sur le héros déborde quand
  * même du cadre côté caméra, parce que cette empreinte n'est PAS symétrique autour du héros — une
@@ -53,27 +66,51 @@ export const BENCH_RADIUS = 14;
  * (fov 22°, distance 40, pitch 38°, height 1.2) : `near ≈ 9.07`, `far ≈ 19.17`. `apps/lab/test/
  * bench.test.ts` pin ces deux chiffres pour qu'un futur réglage de caméra fausse le test avant de
  * fausser silencieusement le harnais.
+ *
+ * Round 3 de revue : `near`/`far` ne modélisent que l'axe VERTICAL du FOV ; l'axe latéral n'était
+ * couvert par aucun calcul ni aucun test. `halfWidthAt(depth)` comble ce trou : demi-largeur du
+ * tronc de vue au sol, à une profondeur `depth` donnée le long de l'axe de visée (même convention
+ * signée que `near`/`far` : positif = à l'opposé de la caméra). Dérivation : un point du sol à la
+ * profondeur `depth` est à distance oblique `slant = hypot(elevation, offset + depth)` de la
+ * caméra, sur un rayon qui plonge de l'angle `theta = atan2(elevation, offset + depth)` sous
+ * l'horizontale — la profondeur de CE point le long de l'axe de visée central (celui à l'angle
+ * `pitch`) est `slant * cos(theta - pitch)`, et c'est SEULEMENT à cette profondeur-là (pas à
+ * `slant` lui-même) que le FOV horizontal s'applique linéairement, exactement comme `near`/`far`
+ * appliquent le FOV vertical à une profondeur le long de l'axe de visée plutôt qu'à une distance
+ * oblique.
  */
-export function cameraGroundFootprint(camera: {
-  fov: number;
-  distance: number;
-  pitch: number;
-  height: number;
-}): { near: number; far: number } {
+export function cameraGroundFootprint(
+  camera: {
+    fov: number;
+    distance: number;
+    pitch: number;
+    height: number;
+  },
+  aspect: number,
+): { near: number; far: number; halfWidthAt(depth: number): number } {
   const halfFov = (camera.fov * Math.PI) / 360; // FOV/2 en radians (`camera.fov` est en degrés)
   // Élévation de la caméra au-dessus du plan y=0, et son décalage horizontal par rapport au point
   // visé — exactement les deux termes qu'`updateCamera` ajoute à `camTarget` pour yaw=0.
   const elevation = camera.height + Math.sin(camera.pitch) * camera.distance;
   const offset = Math.cos(camera.pitch) * camera.distance;
-  // Bord proche : la caméra plonge plus fort (pitch + FOV/2) ; bord lointain : plus rasant
-  // (pitch - FOV/2), donc plus loin avant de toucher le sol.
+  // `camera.fov` (vertical, three) -> demi-FOV horizontal réel, via l'aspect de l'image.
+  const halfFovH = Math.atan(Math.tan(halfFov) * aspect);
   return {
+    // Bord proche : la caméra plonge plus fort (pitch + FOV/2) ; bord lointain : plus rasant
+    // (pitch - FOV/2), donc plus loin avant de toucher le sol.
     near: offset - elevation / Math.tan(camera.pitch + halfFov),
     far: elevation / Math.tan(camera.pitch - halfFov) - offset,
+    halfWidthAt(depth) {
+      const groundDistFromCamera = offset + depth;
+      const slant = Math.hypot(elevation, groundDistFromCamera);
+      const theta = Math.atan2(elevation, groundDistFromCamera);
+      const forwardDepth = slant * Math.cos(theta - camera.pitch);
+      return forwardDepth * Math.tan(halfFovH);
+    },
   };
 }
 
-const FOOTPRINT = cameraGroundFootprint(CAMERA);
+const FOOTPRINT = cameraGroundFootprint(CAMERA, BENCH_REFERENCE_ASPECT);
 
 /**
  * Décalage du centre de peuplement, en unités monde, le long de l'axe de visée et dans le sens
@@ -81,6 +118,39 @@ const FOOTPRINT = cameraGroundFootprint(CAMERA);
  * C'est le milieu de `cameraGroundFootprint` : `(far - near) / 2`, ≈5.05 avec les réglages actuels.
  */
 export const BENCH_CENTER_OFFSET = (FOOTPRINT.far - FOOTPRINT.near) / 2;
+
+/**
+ * Tolérance de dérive, en unités monde pour la position et en unités de distance caméra pour le
+ * zoom, avant qu'une mesure ne soit jugée invalide (round 3 de revue). Volontairement PETITE :
+ * au-delà de la gigue flottante d'un `updateCamera` d'amorçage, tout déplacement ou zoom réel doit
+ * invalider la mesure plutôt que de la laisser paraître bonne — `scheduleBenchMeasure` (`main.ts`)
+ * se redéclenche à CHAQUE bascule jour/nuit (`N`), longtemps après `Bench.populate()`, et le héros
+ * a pu marcher (la caméra le suit) ou le joueur zoomer entre-temps.
+ */
+export const BENCH_DRIFT_TOLERANCE = 0.05;
+
+/** L'état de la scène qui décide si un peuplement est encore ce que `measure()` s'apprête à
+ *  rendre : la position du héros (la caméra le suit) et la distance de caméra courante (bornée à
+ *  `CAMERA.zoom`). */
+export interface BenchSnapshot {
+  readonly heroX: number;
+  readonly heroZ: number;
+  readonly cameraDistance: number;
+}
+
+/**
+ * `true` si la scène est toujours dans l'état où `Bench.populate()` l'a peuplée. Round 3 de
+ * revue : un peuplement circonscrit à `BENCH_RADIUS` autour d'un centre (rounds 1-2) ne veut plus
+ * rien dire une fois que le héros a marché ou que la caméra a zoomé — une part croissante de la
+ * population sort du cadre, exactement le piège que `scatterOnLand`/`cameraGroundFootprint`
+ * existent déjà pour éviter sur l'axe de l'ESPACE, réintroduit ici sur l'axe du TEMPS. Le HUD ne
+ * doit jamais afficher un chiffre pris dans cet état comme s'il était une mesure valide.
+ */
+export function benchStillValid(current: BenchSnapshot, populatedAt: BenchSnapshot): boolean {
+  const moved = Math.hypot(current.heroX - populatedAt.heroX, current.heroZ - populatedAt.heroZ);
+  const zoomed = Math.abs(current.cameraDistance - populatedAt.cameraDistance);
+  return moved <= BENCH_DRIFT_TOLERANCE && zoomed <= BENCH_DRIFT_TOLERANCE;
+}
 
 interface Population {
   players: number;

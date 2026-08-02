@@ -68,6 +68,17 @@ failure mode this harness exists to prevent. `BENCH_RADIUS` is derived from the 
 radii (`TILE_SIZE = 64` px): players 900 px ≈ 14 units, monsters 850 px ≈ 13, loot 650 px ≈ 10 — 14,
 the widest of the three, still fits entirely inside the main island (radius 16) around the spawn.
 
+**The measurement assumes a frame at least 16:9.** Round 3 of review found that `cameraGroundFootprint`
+only modeled the VERTICAL half of the frustum — three's `camera.fov` is vertical, and the real
+horizontal half-width is `atan(tan(fov/2) * aspect)`. `BENCH_REFERENCE_ASPECT` (16/9, `bench.ts`) is
+the narrowest aspect the harness guarantees the disk stays inside the frustum laterally: at 1280×720
+(1.778) it fits with ~7% margin, but below an aspect of ~1.66 the disk's flanks start getting culled
+— a MacBook window at full screen, or a browser with devtools docked to the side, can land under that
+threshold. `cameraGroundFootprint(camera, aspect).halfWidthAt(depth)` exposes this bound (pinned by
+`apps/lab/test/bench.test.ts`); the harness itself does not check the *actual* window aspect at
+runtime, so running the lab narrower than 16:9 silently reintroduces a small lateral undercount rather
+than failing loudly.
+
 **The disk is centered on the visible ground footprint, not on the hero.** Round 2 of review found
 that a *disk* centered on the hero still overshoots the frame on the camera's side, because that
 footprint is asymmetric — a diving camera sees farther than it sees near. `cameraGroundFootprint`
@@ -85,7 +96,18 @@ Select a level with `?bench=game` or `?bench=heavy` in the URL; `?bench=off` or 
 the scene exactly as Task 12 left it. The measured ms/frame appears in the HUD next to the fps
 counter, re-measured automatically after the mood fade settles whenever you press `N` — so reading
 the day number, then night, is just two waits and two glances at the HUD, per the measurement
-method in `task-13-report.md`. `renderer.info.render.calls` resets on every `WebGLRenderer.render()`
+method in `task-13-report.md`.
+
+**A measurement can go stale between populate and read.** Round 3 of review found the two rounds
+above only guard the SPACE axis: `scheduleBenchMeasure` re-fires on every `N` press, arbitrarily
+long after `Bench.populate()` froze the population around one hero position and one camera zoom. If
+you've walked (the camera follows) or zoomed (`CAMERA.zoom` is `[16, 78]`) by then, the population
+that got measured no longer matches what's on screen — `benchStillValid` (`bench.ts`) compares the
+hero position and camera distance at read time against the snapshot taken at populate time
+(`BENCH_DRIFT_TOLERANCE`, deliberately tiny — only float jitter, not real movement, should pass) and
+the HUD prints `mesure invalide : déplacé/zoomé depuis le peuplement` instead of a number rather than
+show a measurement that no longer describes what's rendered. Stay put (or re-populate, i.e. reload
+with the same `?bench=`) between toggling day/night if you want a comparable reading. `renderer.info.render.calls` resets on every `WebGLRenderer.render()`
 call, including each of the composer's own full-screen passes — reading it right after
 `pipeline.render()` therefore reports only the last post-fx pass, not the scene. To read the real
 scene draw-call count, issue a throwaway `renderer.render(scene, camera)` first (see how

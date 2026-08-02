@@ -13,8 +13,13 @@ import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
-import type { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-import { BENCH_CENTER_OFFSET, type BenchLevel, createBench } from "./bench.js";
+import {
+  BENCH_CENTER_OFFSET,
+  type BenchLevel,
+  type BenchSnapshot,
+  benchStillValid,
+  createBench,
+} from "./bench.js";
 import {
   AUDIO_URLS,
   closeDoor,
@@ -314,6 +319,14 @@ const bench = createBench(ctx, scene, textures, query, benchCenter, {
   level: benchLevel,
 });
 bench.populate();
+// Round 3 de revue : `scheduleBenchMeasure` se redéclenche à CHAQUE bascule jour/nuit, longtemps
+// après ce peuplement — instantané de l'état qui a servi à peupler, comparé plus tard dans
+// `runBenchMeasure` (`benchStillValid`, `bench.ts`) avant d'afficher un chiffre au HUD.
+const benchPopulatedAt: BenchSnapshot = {
+  heroX: hero.position.x,
+  heroZ: hero.position.z,
+  cameraDistance: CAMERA.distance,
+};
 
 // --- lumières -----------------------------------------------------------------------------------
 const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
@@ -355,19 +368,6 @@ const pipeline = createPipeline(canvas, scene, camera, ctx);
 // puisse se désabonner proprement.
 addEventListener("resize", pipeline.resize);
 
-// `ShaderPass.uniforms` est typé côté three comme un index signature, donc `noUncheckedIndexedAccess`
-// marque chaque accès comme possiblement `undefined` — le même problème que `pipeline.ts` documente
-// pour ses propres passes internes, mais sans exposer d'aide typée pour CELLES-CI : `pipeline.grade`
-// sort du package en `ShaderPass` nu, donc l'appelant doit reproduire le même cast local pour
-// pousser l'ambiance dedans (voir `pushMood`).
-interface GradeUniforms {
-  uSaturation: { value: number };
-  uLift: { value: number };
-}
-function gradeUniforms(pass: ShaderPass): GradeUniforms {
-  return pass.uniforms as unknown as GradeUniforms;
-}
-
 // --- ambiances ------------------------------------------------------------------------------
 // Le basculement n'est pas sec : tout se fond, couleurs comprises (voir `mood.ts`).
 const mood = createMoodMixer(MOODS, "day", MOOD_FADE);
@@ -385,9 +385,15 @@ function pushMood(): void {
   rim.intensity = m.rim.intensity;
   pipeline.bloom.strength = m.bloom.strength;
   pipeline.bloom.threshold = m.bloom.threshold;
-  const grade = gradeUniforms(pipeline.grade);
-  grade.uSaturation.value = m.grade.saturation;
-  grade.uLift.value = m.grade.lift;
+  // Contraste/vignette restent aux valeurs statiques de la config : seuls saturation/lift varient
+  // par ambiance (`MoodConfig.grade`, `mood.ts`) — `setGrade` (`pipeline.ts`) est le seul point
+  // d'entrée typé désormais, plus besoin du cast local que `pipeline.grade` imposait auparavant.
+  pipeline.setGrade({
+    saturation: m.grade.saturation,
+    contrast: ctx.config.postfx.grade.contrast,
+    lift: m.grade.lift,
+    vignette: ctx.config.postfx.grade.vignette,
+  });
   // Sous-exposer fait « nuit » bien plus franchement que de baisser chaque lumière une à une —
   // celles-ci ne font que la teinter.
   pipeline.renderer.toneMappingExposure = m.exposure;
@@ -419,9 +425,24 @@ let benchTimer: ReturnType<typeof setTimeout> | undefined;
  * Reprend la méthode du CLAUDE.md du PoC (voir `bench.ts`, `measure`) : un `readPixels` force la
  * synchro GPU, donc l'appel BLOQUE quelques dizaines de ms — acceptable ici puisqu'il ne tourne
  * qu'au chargement et à chaque bascule jour/nuit, jamais à chaque frame.
+ *
+ * Round 3 de revue : avant de mesurer, on vérifie que le héros n'a pas marché et que la caméra n'a
+ * pas zoomé depuis `Bench.populate()` (`benchStillValid`, `bench.ts`) — sans ce garde-fou, une
+ * mesure prise après une bascule jour/nuit tardive (le héros a eu le temps de marcher entre-temps)
+ * porte sur une scène dont le peuplement est en grande partie hors cadre, et le HUD l'affichait
+ * jusqu'ici exactement comme une mesure valide.
  */
 async function runBenchMeasure(): Promise<void> {
   if (benchLevel === "off" || !benchEl) return;
+  if (
+    !benchStillValid(
+      { heroX: hero.position.x, heroZ: hero.position.z, cameraDistance: distance },
+      benchPopulatedAt,
+    )
+  ) {
+    benchEl.textContent = `⚙ ${benchLevel} mesure invalide : déplacé/zoomé depuis le peuplement`;
+    return;
+  }
   // Trois.js n'accepte plus que WebGL2 depuis longtemps (three ^0.185) : le cast est sûr.
   const gl = pipeline.renderer.getContext() as WebGL2RenderingContext;
   const ms = await bench.measure(pipeline.render, gl);
