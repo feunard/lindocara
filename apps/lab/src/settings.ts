@@ -1,6 +1,7 @@
 import type { Clip } from "@lindocara/hd2d/billboard.js";
 import type { MoodConfig } from "@lindocara/hd2d/mood.js";
 import type { TextureSpec } from "@lindocara/hd2d/textures.js";
+import type { Zone } from "./world/zones.js";
 
 // Tous les réglages du labo au même endroit : c'est ce fichier qu'on triture pour faire bouger
 // le monde sans aller fouiller dans le reste. `hd2d/config.ts` a déjà pris RENDER/POSTFX/
@@ -36,6 +37,42 @@ export const WORLD: WorldSettings = {
 /** L'île gelée. Au nord, hors de portée à pied : le couloir qui l'en sépare est de l'eau, et
  *  c'est voulu — on arrive sur la banquise essoufflé, et la musique change à ce moment-là. */
 export const NORD = { x: 0, z: -26, r: 7.5 } as const;
+
+/** La zone polaire, autour de `NORD` — voir `world/zones.ts` (Task 4 de l'île de neige). Rayon
+ *  élargi de 3 unités au-delà du littoral gelé (`NORD.r`) : l'ambiance doit s'installer PENDANT la
+ *  traversée à la nage, avant que le héros ne pose le pied sur la banquise, sinon le changement de
+ *  nappe et le premier pas dans la neige arriveraient à la même image et l'un masquerait l'autre. */
+export const ZONE_POLAIRE: Zone = {
+  nom: "polaire",
+  centre: [NORD.x, NORD.z],
+  rayon: NORD.r + 3,
+  // Pas encore de piste : Task 5 génère `neige.ogg` et le déclare dans `MUSIQUE` sous cette même
+  // clef (voir `core/audio.ts`). Le champ est renseigné dès maintenant pour que Task 5 n'ait qu'à
+  // ajouter la piste, pas à revenir toucher `ZONES`.
+  musique: "neige",
+  // Pas encore de nappe polaire dédiée non plus (`amb-polaire.ogg` arrive en Task 6) : `nom` ne
+  // correspond aujourd'hui à aucune clef connue de `setAmbience` ("jour"/"nuit"), qui éteint donc
+  // les deux nappes du sud plutôt que d'en jouer une troisième — un silence qui s'installe à
+  // l'arrivée sur la banquise, déjà un changement audible, en attendant le vrai vent polaire.
+  nappe: "polaire",
+  // L'eau glacée consomme le souffle deux fois plus vite (Task 7, la glace fine).
+  souffle: 2,
+};
+
+/** La zone par défaut : tout le reste du monde. Rayon infini et EN DERNIER dans `ZONES` — c'est le
+ *  filet qui capte tout point qu'aucune zone plus spécifique n'a pris (voir `zoneAt`,
+ *  `world/zones.ts`). */
+export const ZONE_LARGE: Zone = {
+  nom: "large",
+  centre: [0, 0],
+  rayon: Number.POSITIVE_INFINITY,
+  musique: null,
+  nappe: "jour",
+  souffle: 1,
+};
+
+/** L'ordre EST la priorité (voir `zoneAt`) : la polaire d'abord, la zone par défaut en dernier. */
+export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_LARGE];
 
 export interface CameraSettings {
   fov: number;

@@ -58,6 +58,11 @@ export interface HeroInput {
   z: number;
   jump: boolean;
   attack: boolean;
+  /** Multiplicateur de consommation du souffle en nage — la zone le fournit à chaque image (Task 4
+   *  de l'île de neige, `world/zones.ts`, `Zone.souffle`) : 1 en temps normal, 2 dans l'eau
+   *  polaire (Task 7, la glace fine). Un TAUX lu chaque image plutôt qu'une constante figée ici :
+   *  c'est ce qui permettra à Task 7 de le faire varier sans revenir toucher le héros. */
+  souffleTaux: number;
 }
 
 /** Rectangle où le héros peut marcher, quand il est en intérieur — plancher plat, ni gravité ni
@@ -349,7 +354,9 @@ export function createHero(
           leaveWater(sol);
         } else {
           pos.y = WORLD.waterLevel;
-          breath -= dt;
+          // Le taux vient de la zone (voir `HeroInput.souffleTaux`) : le héros n'a plus à savoir
+          // QUELLE eau consomme plus vite, seulement lire ce qu'on lui donne.
+          breath -= dt * input.souffleTaux;
           if (breath <= 0) drown();
         }
       } else {

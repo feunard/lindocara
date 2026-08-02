@@ -110,7 +110,11 @@ interface Boucle {
 interface Arrangement {
   src: AudioBufferSourceNode;
   gain: GainNode;
-  clef: Ambiance;
+  // `string`, pas `Ambiance` : depuis Task 4 de l'île de neige, `setAmbience` reçoit aussi le nom
+  // de nappe d'une zone (`Zone.nappe`, `world/zones.ts`), qui n'est pas borné à "jour"/"nuit".
+  // `BOUCLES`/`NIVEAUX` restent typés `Ambiance` : ce sont les clefs RÉELLEMENT chargées, seule la
+  // valeur qu'on peut DEMANDER s'est élargie.
+  clef: string;
 }
 
 let ctx: AudioContext | null = null;
@@ -118,7 +122,9 @@ let master: GainNode | null = null;
 const tampons = new Map<string, AudioBuffer>(); // url -> AudioBuffer
 const boucles: Partial<Record<Ambiance | "mer" | "feu", Boucle>> = {};
 let debloque = false;
-let ambiance: Ambiance = "jour";
+// `string` pour la même raison que `Arrangement.clef` : une zone (Task 4) peut demander une nappe
+// que `Ambiance` ne connaît pas encore.
+let ambiance: string = "jour";
 let musiqueGain: GainNode | null = null; // niveau d'ensemble : allumage, extinction, fondu
 let actif: Arrangement | null = null; // l'arrangement qui joue
 let debutMusique = 0; // instant du contexte correspondant à l'offset 0 du morceau
@@ -259,7 +265,7 @@ function lancerPiste(): void {
  * Lance un arrangement à un endroit donné du morceau. Si un autre joue, il
  * s'efface en même temps que celui-ci monte — les deux se croisent.
  */
-function jouerArrangement(clef: Ambiance, offset: number, fondu: number): void {
+function jouerArrangement(clef: string, offset: number, fondu: number): void {
   const url = MUSIQUE[clef];
   if (!url || !ctx || !musiqueGain) return;
   const buf = tampons.get(url);
@@ -338,8 +344,16 @@ export const closeChest = (): void => jouer("coffreFerme", { gain: 0.9 });
 export const openDoor = (): void => jouer("porte", { gain: 0.85 });
 export const closeDoor = (): void => jouer("porteFerme", { gain: 0.85 });
 
-/** Bascule l'ambiance ; les deux nappes se croisent en fondu. */
-export function setAmbience(nom: Ambiance): void {
+/**
+ * Bascule l'ambiance ; les deux nappes se croisent en fondu. `nom` était borné à `Ambiance`
+ * ("jour"/"nuit") tant que seul le cycle jour/nuit l'appelait ; depuis Task 4 de l'île de neige,
+ * une zone (`Zone.nappe`, `world/zones.ts`) l'appelle aussi avec son propre nom — "polaire" pour
+ * l'instant, qui ne correspond à aucune nappe encore chargée. Le corps ci-dessous gère déjà
+ * n'importe quelle valeur avec grâce : ni "jour" ni "nuit" éteint les DEUX boucles du sud, ce qui
+ * est déjà un silence audible à l'entrée de la zone polaire, en attendant que Task 6 lui donne sa
+ * propre nappe (`amb-polaire.ogg`) et sa propre entrée dans `BOUCLES`.
+ */
+export function setAmbience(nom: string): void {
   ambiance = nom;
   if (!ctx) return;
   const t = ctx.currentTime;

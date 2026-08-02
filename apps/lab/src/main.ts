@@ -45,6 +45,7 @@ import {
   TEXTURE_URLS,
   WATER,
   WORLD,
+  ZONES,
 } from "./settings.js";
 import { createChest } from "./world/chest.js";
 import { createColliders } from "./world/colliders.js";
@@ -55,6 +56,7 @@ import { createInterior } from "./world/interior.js";
 import { generateIsland } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
 import { populate } from "./world/props.js";
+import { type Zone, zoneAt } from "./world/zones.js";
 
 // --- chargement -------------------------------------------------------------------------------
 // Tout est chargé AVANT de construire quoi que ce soit : la scène naît complète, et aucun sprite
@@ -446,6 +448,24 @@ function pushMood(): void {
   fog.color.copy(sky.horizon);
 }
 
+// --- zones ------------------------------------------------------------------------------------
+// La zone du héros porte son ambiance — nappe, musique et taux de souffle (voir `world/zones.ts`,
+// `settings.ts`). `zoneActuelle` retient la zone en cours pour détecter le CHANGEMENT plutôt que
+// de le redéclencher à chaque image : comparée par IDENTITÉ (`!==`), pas par nom, exactement comme
+// `Zone` le documente — un fondu qui repart de zéro soixante fois par seconde ne monte jamais (voir
+// `core/audio.ts`, `MUSIQUE_BASCULE`). `null` au départ pour que la toute première image déclenche
+// bien `setAmbience` une fois, même si le héros démarre déjà dans la zone par défaut.
+let zoneActuelle: Zone | null = null;
+
+/** À appeler chaque image avec la zone déterminée pour cette image. N'agit qu'au changement. */
+function applyZone(zone: Zone): void {
+  if (zone === zoneActuelle) return;
+  zoneActuelle = zone;
+  // La musique de zone (`zone.musique`) reste INERTE ici — `MUSIQUE` est vide (Task 5 la
+  // remplira) — mais la nappe, elle, doit déjà s'entendre (voir `core/audio.ts`, `setAmbience`).
+  setAmbience(zone.nappe);
+}
+
 const moodLabel = document.getElementById("mood");
 const benchEl = document.getElementById("bench");
 let benchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -769,11 +789,18 @@ function frame(now = performance.now()): void {
   // neutralisées ICI et non dans `hero.ts` — c'est la scène qui sait qu'une conversation est en
   // cours, pas le personnage. Le zoom et la rotation de caméra, eux, restent libres.
   const fige = dialog.open;
+  // La zone se lit sur la position d'ENTRÉE de l'image, avant que `hero.update` ne la déplace —
+  // même principe que tout le reste de la boucle, qui lit `hero.position` avant de la faire
+  // avancer. `applyZone` ne fait rien si la zone n'a pas changé (voir plus haut) ; `zone.souffle`,
+  // lui, est lu à CHAQUE image, changée ou non, pour que le héros n'ait jamais une constante figée.
+  const zone = zoneAt(ZONES, hero.position.x, hero.position.z);
+  applyZone(zone);
   hero.update(dt, {
     x: fige ? 0 : move.x,
     z: fige ? 0 : move.z,
     jump: !fige && cmd.jump,
     attack: !fige && cmd.attack,
+    souffleTaux: zone.souffle,
   });
   const choc = hero.takeImpact();
   if (choc) shake(CAMERA.shake.land * choc);
@@ -878,4 +905,7 @@ bouton?.addEventListener("click", () => {
   applyMood,
   bench,
   benchLevel,
+  // La zone en cours (voir `world/zones.ts`) : pratique pour vérifier depuis la console qu'entrer
+  // dans la zone polaire change bien la nappe, sans avoir à nager jusque là à chaque fois.
+  zone: () => zoneActuelle,
 };
