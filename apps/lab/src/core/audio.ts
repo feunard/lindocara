@@ -136,10 +136,25 @@ let pisteZone: string | null = null;
 // reprendre où on en était plutôt que de rejouer le début à chaque entrée dans la zone (voir la
 // task 5 : sortir dix secondes puis revenir ne doit pas relancer les dix premières secondes).
 let pisteEnCours: string | null = null;
+// Position RÉELLEMENT jouée dans `pisteEnCours` au moment de la dernière coupure
+// (`arreterMusique`, plus bas) — PAS une horloge murale qu'on recalculerait à la reprise. Entre
+// deux séjours dans une zone à thème il peut s'écouler une minute comme une heure sans qu'une
+// seule seconde de musique ait joué ; si `lancerPiste` recalculait `ctx.currentTime - debutMusique`
+// à la reprise, il compterait tout ce temps d'absence comme du temps joué et retomberait sur la
+// toute fin du morceau après une longue balade ailleurs (voir la revue de la task 5, Important 1).
+let pisteOffsetPause = 0;
 // Allumée d'entrée : elle démarrera au premier geste, en même temps que le
 // reste du son — un navigateur n'autorise rien avant.
 let musiqueActive = true;
 let minuterie: ReturnType<typeof setTimeout> | null = null;
+// Le nœud qu'`arreterMusique` a mis en fondu de sortie, en attente de son arrêt différé de
+// `MUSIQUE_SORTIE` secondes. Retenu dans l'état du MODULE, pas seulement dans la fermeture locale
+// du `setTimeout` qui l'arrête : si la musique redémarre avant l'expiration de ce délai (sortie
+// puis rentrée rapide en zone), `jouerArrangement` doit pouvoir le stopper tout de suite, sinon il
+// continue de jouer EN MÊME TEMPS que la nouvelle instance du même morceau (voir la revue de la
+// task 5, Important 2).
+let sortant: Arrangement | null = null;
+let sortantMinuterie: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Crée le contexte (suspendu tant qu'aucun geste n'a eu lieu) et lance le
@@ -219,20 +234,13 @@ export function toggleMusic(): boolean | null {
   // Sans piste déclarée, la touche n'a rien à commuter : `null` fait afficher
   // « aucune piste » plutôt qu'un état allumé qui ne produirait aucun son.
   if (!ctx || !musiqueGain || !Object.keys(MUSIQUE).length) return null;
-  const context = ctx;
-  const mg = musiqueGain;
   musiqueActive = !musiqueActive;
   if (musiqueActive) {
     // Rallumée à la main : on ne refait pas attendre dix secondes.
     demarrerMusique(0);
   } else {
-    if (minuterie) clearTimeout(minuterie);
-    minuterie = null;
-    mg.gain.cancelScheduledValues(context.currentTime);
-    mg.gain.setTargetAtTime(0, context.currentTime, MUSIQUE_SORTIE / 3);
-    const sortant = actif;
-    actif = null; // avant le stop : l'`ended` qui suit ne doit rien replanifier
-    setTimeout(() => sortant?.src.stop(), MUSIQUE_SORTIE * 1000);
+    // Même coupure que `setZoneMusic(null)` — voir `arreterMusique`.
+    arreterMusique();
   }
   return musiqueActive;
 }
@@ -262,8 +270,10 @@ function lancerPiste(): void {
   if (!pisteZone || !ctx || !musiqueGain) return;
   // Reprend où on en était si c'est la piste qu'on vient de quitter avant qu'elle ait fini son
   // tour (voir `pisteEnCours`) ; sinon — première fois, ou fin naturelle déjà passée par
-  // `onended` — repart de zéro.
-  const offset = pisteEnCours === pisteZone ? ctx.currentTime - debutMusique : 0;
+  // `onended` — repart de zéro. `pisteOffsetPause` est la position gelée au moment de la coupure,
+  // PAS `ctx.currentTime - debutMusique` recalculé ici : cette dernière formule compterait le
+  // temps d'horloge murale écoulé depuis le tout premier démarrage, silence de la zone inclus.
+  const offset = pisteEnCours === pisteZone ? pisteOffsetPause : 0;
   jouerArrangement(pisteZone, offset, 0);
   if (!actif) return;
   // Fondu d'entrée long : la musique s'installe au lieu de tomber d'un bloc.
@@ -285,6 +295,19 @@ function jouerArrangement(clef: string, offset: number, fondu: number): void {
   const context = ctx;
   const t = context.currentTime;
 
+  // Un nœud sortant peut encore attendre son arrêt différé de `arreterMusique` (jusqu'à
+  // `MUSIQUE_SORTIE` secondes) : le stopper tout de suite avant d'en lancer un nouveau évite qu'il
+  // continue de jouer EN MÊME TEMPS que cette nouvelle instance du même morceau si la zone est
+  // quittée puis retrouvée avant l'expiration du délai (voir la revue de la task 5, Important 2).
+  if (sortantMinuterie) {
+    clearTimeout(sortantMinuterie);
+    sortantMinuterie = null;
+  }
+  if (sortant) {
+    sortant.src.stop();
+    sortant = null;
+  }
+
   const gain = context.createGain();
   gain.gain.setValueAtTime(fondu > 0 ? 0.0001 : 1, t);
   if (fondu > 0) gain.gain.linearRampToValueAtTime(1, t + fondu);
@@ -296,7 +319,8 @@ function jouerArrangement(clef: string, offset: number, fondu: number): void {
   src.connect(gain);
   // On ne reprend jamais à moins de deux secondes de la fin : ce serait un
   // fondu d'entrée sur un morceau déjà terminé.
-  src.start(t, Math.max(0, Math.min(offset, buf.duration - 2)));
+  const offsetDepart = Math.max(0, Math.min(offset, buf.duration - 2));
+  src.start(t, offsetDepart);
   src.onended = () => {
     // Ne replanifie que si c'est bien la fin du morceau : ni une extinction,
     // ni l'arrangement qu'on vient de remplacer.
@@ -306,18 +330,56 @@ function jouerArrangement(clef: string, offset: number, fondu: number): void {
     // pas d'ici. Sans ça, `lancerPiste` la confondrait avec une interruption par sortie de zone
     // et essaierait de reprendre à la toute fin du morceau (voir `pisteEnCours`).
     pisteEnCours = null;
+    pisteOffsetPause = 0;
     demarrerMusique(MUSIQUE_PAUSE);
   };
 
   if (actif) {
-    const sortant = actif;
-    sortant.gain.gain.cancelScheduledValues(t);
-    sortant.gain.gain.setTargetAtTime(0, t, fondu / 3);
-    setTimeout(() => sortant.src.stop(), fondu * 1000 + 300);
+    const precedent = actif;
+    precedent.gain.gain.cancelScheduledValues(t);
+    precedent.gain.gain.setTargetAtTime(0, t, fondu / 3);
+    setTimeout(() => precedent.src.stop(), fondu * 1000 + 300);
   }
   actif = { src, gain, clef };
   pisteEnCours = clef;
-  debutMusique = t - offset;
+  // Ancre calée sur l'offset RÉELLEMENT joué (après bornage à `buf.duration - 2`), pas sur
+  // l'offset demandé : sinon l'ancre et la lecture divergent, et c'est exactement cet écart qui
+  // s'accumulait sur les reprises successives (voir la revue de la task 5, Important 1).
+  debutMusique = t - offsetDepart;
+}
+
+/**
+ * Coupe la musique en cours dans un fondu de sortie de `MUSIQUE_SORTIE` secondes, sans toucher à
+ * `musiqueActive` ni à `pisteZone`/`pisteEnCours` — appelée par `toggleMusic` (l'auditeur coupe
+ * avec "M") et `setZoneMusic(null)` (la zone n'a rien à offrir) : les deux gestes coupent
+ * exactement de la même façon, seul le déclencheur diffère.
+ *
+ * Fige `pisteOffsetPause` sur la position RÉELLEMENT jouée à l'instant de la coupure — c'est elle,
+ * pas une horloge murale qui continuerait de courir pendant l'absence, que `lancerPiste` relira à
+ * la prochaine reprise (voir la revue de la task 5, Important 1).
+ *
+ * Retient le nœud sortant dans l'état du MODULE (`sortant`/`sortantMinuterie`), pas seulement dans
+ * la fermeture locale d'un `setTimeout` : si la musique redémarre avant l'expiration du délai,
+ * `jouerArrangement` le stoppe immédiatement plutôt que de le laisser jouer en même temps que la
+ * nouvelle instance du même morceau (voir la revue de la task 5, Important 2).
+ */
+function arreterMusique(): void {
+  if (minuterie) {
+    clearTimeout(minuterie);
+    minuterie = null;
+  }
+  if (!ctx || !musiqueGain || !actif) return;
+  const t = ctx.currentTime;
+  musiqueGain.gain.cancelScheduledValues(t);
+  musiqueGain.gain.setTargetAtTime(0, t, MUSIQUE_SORTIE / 3);
+  pisteOffsetPause = Math.max(0, t - debutMusique);
+  sortant = actif;
+  actif = null; // avant le stop : l'`ended` qui suit ne doit rien replanifier
+  sortantMinuterie = setTimeout(() => {
+    sortant?.src.stop();
+    sortant = null;
+    sortantMinuterie = null;
+  }, MUSIQUE_SORTIE * 1000);
 }
 
 // --- sons ponctuels ---------------------------------------------------------
@@ -389,10 +451,20 @@ export function setAmbience(nom: string): void {
 /**
  * Bascule la MUSIQUE sur celle que réclame la zone courante (`Zone.musique`, `world/zones.ts`).
  * `null` veut dire silence : une zone sans thème (`ZONE_LARGE`) doit éteindre la musique en
- * fondu, pas la couper net — la même sortie que `toggleMusic`, mais SANS toucher `musiqueActive`,
- * qui appartient à l'auditeur (la touche "M"), pas à la géographie. Idempotent sur la clef
- * courante : `main.ts` n'appelle ceci qu'au changement de zone (`applyZone`), mais un appel
- * répété avec la même clef ne doit rien redéclencher.
+ * fondu, pas la couper net — la même sortie que `toggleMusic` (elles partagent `arreterMusique`),
+ * mais SANS toucher `musiqueActive`, qui appartient à l'auditeur (la touche "M"), pas à la
+ * géographie. Idempotent sur la clef courante : `main.ts` n'appelle ceci qu'au changement de zone
+ * (`applyZone`), mais un appel répété avec la même clef ne doit rien redéclencher.
+ *
+ * Reprend au même endroit du morceau qu'on l'ait quitté — que le retour en zone survienne pendant
+ * qu'une autre piste jouait encore (fondu croisé direct, `actif` non nul, plus bas) OU après un
+ * vrai silence entretemps (redémarrage à froid par `lancerPiste`) : les deux chemins lisent la
+ * position RÉELLEMENT jouée au moment de la coupure (`pisteOffsetPause`, gelée par
+ * `arreterMusique`), jamais une horloge murale qui aurait continué de courir pendant l'absence —
+ * sinon une longue balade hors zone ferait reprendre tout près de la fin du morceau (voir la revue
+ * de la task 5, Important 1). Seule exception, déjà vraie avant cette task : on ne reprend jamais
+ * à moins de deux secondes de la fin (`jouerArrangement`), pour ne pas lancer un fondu d'entrée
+ * sur un morceau déjà terminé.
  */
 export function setZoneMusic(clef: string | null): void {
   if (clef === pisteZone) return;
@@ -401,20 +473,10 @@ export function setZoneMusic(clef: string | null): void {
   if (!ctx || !musiqueGain) return;
 
   if (clef === null) {
-    // Sortie d'une zone à thème : on éteint comme `toggleMusic`, mais on laisse
-    // `pisteEnCours`/`debutMusique` intacts — c'est la mémoire du point de reprise si on revient
-    // avant que la piste ait fini son tour (voir `lancerPiste`).
-    if (minuterie) {
-      clearTimeout(minuterie);
-      minuterie = null;
-    }
-    if (!actif) return;
-    const t = ctx.currentTime;
-    musiqueGain.gain.cancelScheduledValues(t);
-    musiqueGain.gain.setTargetAtTime(0, t, MUSIQUE_SORTIE / 3);
-    const sortant = actif;
-    actif = null; // avant le stop : l'`ended` qui suit ne doit rien replanifier
-    setTimeout(() => sortant.src.stop(), MUSIQUE_SORTIE * 1000);
+    // Sortie d'une zone à thème : `arreterMusique` laisse `pisteEnCours`/`debutMusique` intacts et
+    // fige `pisteOffsetPause` — c'est la mémoire du point de reprise si on revient avant que la
+    // piste ait fini son tour (voir `lancerPiste`).
+    arreterMusique();
     return;
   }
 
