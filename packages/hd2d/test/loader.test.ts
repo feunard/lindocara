@@ -47,4 +47,14 @@ describe("fetchAll", () => {
     expect(blobs.get("/z")?.size).toBe(64);
     expect(seen).toEqual([1]);
   });
+
+  // Revue finale (point F) : un 404/500 ne lève pas côté `fetch` — sans contrôle de `r.ok`, la
+  // réponse d'erreur (souvent une page HTML) devenait un `Blob` comme un autre et ne ressortait
+  // que bien plus tard, en `img.onerror` opaque, sans l'URL ni le statut dans le message.
+  it("lève avec l'URL et le statut sur un 404, plutôt que de livrer la page d'erreur comme un blob", async () => {
+    const fetch404 = async (): Promise<Response> => new Response("not found", { status: 404 });
+    await expect(fetchAll(["/manquant.png"], () => {}, { fetch: fetch404 })).rejects.toThrow(
+      /\/manquant\.png.*404/,
+    );
+  });
 });

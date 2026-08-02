@@ -20,7 +20,16 @@ export async function fetchAll(
   options: FetchAllOptions = {},
 ): Promise<Map<string, Blob>> {
   const doFetch = options.fetch ?? globalThis.fetch;
-  const reponses = await Promise.all(urls.map((u) => doFetch(u)));
+  // Un 404/500 ne lève pas côté `fetch` — sans ce contrôle, la réponse d'erreur (souvent une page
+  // HTML) devenait un `Blob` comme un autre, ressortait bien plus tard en `img.onerror` opaque, et
+  // rien dans le message ne disait quelle URL ni quel statut avaient échoué.
+  const reponses = await Promise.all(
+    urls.map(async (u) => {
+      const r = await doFetch(u);
+      if (!r.ok) throw new Error(`Échec du téléchargement de ${u} : HTTP ${r.status}`);
+      return r;
+    }),
+  );
   const total = reponses.reduce((n, r) => n + (Number(r.headers.get("content-length")) || 0), 0);
   let recus = 0;
 
