@@ -53,6 +53,15 @@ export function ElementPalette({
             {t("editor.mapBudget.sceneryReached", { max: MAX_MAP_ELEMENTS })}
           </p>
         )}
+        <div
+          data-testid="decorative-only-hint"
+          className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-blue-950"
+        >
+          <p className="text-[11px] font-semibold">{t("editor.element.decorativeOnly.heading")}</p>
+          <p className="mt-0.5 text-[10.5px] leading-snug text-blue-800">
+            {t("editor.element.decorativeOnly.body")}
+          </p>
+        </div>
         <div data-testid="catalogue-picker" className="contents">
           <CatalogueAssetPicker value={selectedAsset} onSelectAsset={onSelectAsset} />
         </div>
