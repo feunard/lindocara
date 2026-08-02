@@ -35,6 +35,7 @@
     "test/game-route-back.test.tsx",
     "src/state/atoms.ts",
     "src/ui/hud/Hud.tsx",
+    "src/ui/hud/ActionDock.tsx",
     "src/ui/hud/QuickItemBar.tsx",
     "src/ui/InventoryOverlay.tsx",
     "src/ui/QuestJournalOverlay.tsx",

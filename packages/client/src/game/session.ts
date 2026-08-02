@@ -2,6 +2,7 @@ import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { isSpirit } from "@lindocara/engine/death.js";
+import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import {
   INTERACTION_RANGE,
   isMonsterSpecialTechnique,
@@ -16,17 +17,19 @@ import type {
   EventParams,
   MonsterSpecialImpact,
   PeasantBombImpactVisual,
+  PeasantCampBankVisual,
   PeasantCampRemovedVisual,
   PeasantCampVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
+  PriestLumenTrailVisual,
   PriestPolarityOrbVisual,
   QuestState,
   RogueShadowDanceSequence,
   SelfState,
 } from "@lindocara/engine/protocol.js";
 import { NO_INPUT, PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
-import type { SkillSlot } from "@lindocara/engine/skills.js";
+import { type SkillSlot, skillFor } from "@lindocara/engine/skills.js";
 import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import {
   DEFAULT_ZONE_ID,
@@ -417,6 +420,49 @@ async function startGameIdentity(
   };
   const playerClass = () => currentSelf?.class ?? identity.class;
 
+  let bombAiming = false;
+  let bombDirection: Vec2 = { x: 1, y: 0 };
+  const bombRange = skillFor("peasant", 5).range;
+  const cancelBombAim = () => {
+    bombAiming = false;
+    canvas.removeAttribute("data-bomb-aiming");
+    renderer.hidePeasantBombAim();
+  };
+  const drawBombAim = () => {
+    if (!bombAiming || !currentSelf) return;
+    renderer.showPeasantBombAim(
+      { x: currentSelf.x + PLAYER_SIZE / 2, y: currentSelf.y + PLAYER_SIZE / 2 },
+      bombDirection,
+      bombRange,
+    );
+  };
+  const aimBombAt = (clientX: number, clientY: number) => {
+    if (!bombAiming || !currentSelf) return;
+    const target = renderer.screenToWorld(clientX, clientY);
+    bombDirection = normalizeDirection(
+      {
+        x: target.x - (currentSelf.x + PLAYER_SIZE / 2),
+        y: target.y - (currentSelf.y + PLAYER_SIZE / 2),
+      },
+      currentSelf.facing,
+    );
+    drawBombAim();
+  };
+  const confirmBombAim = () => {
+    if (!bombAiming) return;
+    connection?.skill(5, bombDirection);
+    cancelBombAim();
+  };
+  const onBombPointerMove = (event: PointerEvent) => aimBombAt(event.clientX, event.clientY);
+  const onBombPointerDown = (event: PointerEvent) => {
+    if (!bombAiming || event.button !== 0 || isGameplayInputPaused()) return;
+    event.preventDefault();
+    aimBombAt(event.clientX, event.clientY);
+    confirmBombAim();
+  };
+  canvas.addEventListener("pointermove", onBombPointerMove);
+  canvas.addEventListener("pointerdown", onBombPointerDown);
+
   const unlockAudio = () => sound.unlock();
   window.addEventListener("pointerdown", unlockAudio);
   window.addEventListener("keydown", unlockAudio);
@@ -537,9 +583,21 @@ async function startGameIdentity(
       sound.combatPulse();
     },
     onLumenPortal: (portal: PriestLumenPortalVisual) => renderer.playLumenPortal(portal),
+    onLumenTrail: (trail: PriestLumenTrailVisual) => renderer.playLumenTrail(trail),
     onPolarityOrb: (orb: PriestPolarityOrbVisual) => renderer.playPolarityOrb(orb),
     onPeasantCamp: (camp: PeasantCampVisual) => renderer.showPeasantCamp(camp),
-    onPeasantCampRemoved: (camp: PeasantCampRemovedVisual) => renderer.removePeasantCamp(camp.id),
+    onPeasantCampBank: (bank: PeasantCampBankVisual) => {
+      const store = useUiStore.getState();
+      if (bank.opened || store.campBank?.id === bank.id) {
+        store.setCampBank({ id: bank.id, gold: bank.gold });
+        if (bank.opened) input.reset();
+      }
+    },
+    onPeasantCampRemoved: (camp: PeasantCampRemovedVisual) => {
+      renderer.removePeasantCamp(camp.id);
+      const store = useUiStore.getState();
+      if (store.campBank?.id === camp.id) store.setCampBank(null);
+    },
     onPeasantBombImpact: (impact: PeasantBombImpactVisual) =>
       renderer.playPeasantBombImpact(impact),
     // The dialogue panel (spec Decision 4): the server pushes beats to THIS player, the store holds
@@ -727,6 +785,9 @@ async function startGameIdentity(
     window.removeEventListener("pointerdown", unlockAudio);
     window.removeEventListener("keydown", unlockAudio);
     window.removeEventListener("beforeunload", beforeUnload);
+    canvas.removeEventListener("pointermove", onBombPointerMove);
+    canvas.removeEventListener("pointerdown", onBombPointerDown);
+    cancelBombAim();
     sound.stopAmbient();
     renderer.destroy();
     if (stopActiveSession === stopSession) stopActiveSession = null;
@@ -890,6 +951,7 @@ async function startGameIdentity(
   };
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
+    if (bombAiming && slot !== 5) cancelBombAim();
     const store = useUiStore.getState();
     const now = performance.now();
     const cooldownUntil =
@@ -928,6 +990,18 @@ async function startGameIdentity(
       return;
     if (slot === 1) {
       attack();
+      return;
+    }
+    if (store.self?.class === "peasant" && slot === 5) {
+      sound.unlock();
+      if (bombAiming) {
+        confirmBombAim();
+      } else {
+        bombAiming = true;
+        bombDirection = normalizeDirection(currentSelf?.facing ?? { x: 1, y: 0 });
+        canvas.setAttribute("data-bomb-aiming", "true");
+        drawBombAim();
+      }
       return;
     }
     sound.unlock();
@@ -1058,6 +1132,7 @@ async function startGameIdentity(
   useUiStore.getState().setGame({
     attack,
     interact,
+    campGold: (id, operation, amount) => connection?.campGold(id, operation, amount),
     usePotion,
     useItem,
     buyItem: (item) => connection?.buyItem(item),
@@ -1122,6 +1197,7 @@ async function startGameIdentity(
     combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
+    if (bombAiming) drawBombAim();
     if (welcomed && self && !loadingCompletionScheduled) {
       loadingCompletionScheduled = true;
       useUiStore.getState().setHeroLoading({

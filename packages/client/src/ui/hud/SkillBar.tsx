@@ -33,18 +33,18 @@ export const SKILL_PAD_LAYOUT: Readonly<
   5: { row: 1, column: 1, numpad: 4 },
 };
 
-const MATERIAL_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
-  wood: "material.wood",
-  stone: "material.stone",
-  iron: "material.iron",
-  meat: "material.meat",
-};
-
 const MATERIAL_SHORT_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
   wood: "material.short.wood",
   stone: "material.short.stone",
   iron: "material.short.iron",
   meat: "material.short.meat",
+};
+
+const MATERIAL_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
+  wood: "material.wood",
+  stone: "material.stone",
+  iron: "material.iron",
+  meat: "material.meat",
 };
 
 function materialCostText(cost: Readonly<PartyMaterialAmounts>): string {
@@ -153,31 +153,6 @@ export function SkillBar() {
 
   return (
     <section className="skill-bar panel" aria-label={t("hud.abilities")}>
-      {materials && (
-        <div
-          className="skill-bar__materials"
-          role="status"
-          aria-live="polite"
-          aria-label={t("hud.materials")}
-        >
-          {PARTY_MATERIAL_TYPES.map((material) => (
-            <span
-              key={material}
-              className={`skill-bar__material skill-bar__material--${material}`}
-              data-material={material}
-            >
-              <span className="sr-only">
-                {t("hud.materials.amount", {
-                  material: t(MATERIAL_LABEL[material]),
-                  amount: materials[material],
-                })}
-              </span>
-              <span aria-hidden="true">{t(MATERIAL_SHORT_LABEL[material])}</span>
-              <strong aria-hidden="true">{materials[material]}</strong>
-            </span>
-          ))}
-        </div>
-      )}
       {CLASS_SKILLS[self.class].map((skill) => {
         const cooldownUntil = skill.slot === 1 ? attackCooldownUntil : cooldowns[skill.slot];
         const remaining = Math.max(0, cooldownUntil - now);

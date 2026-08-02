@@ -2,12 +2,14 @@ import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "@lindocara/engine/character.js";
 import { MONSTER_ACTIONS, PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import { isSpirit } from "@lindocara/engine/death.js";
+import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import { npcMovementDurationMs, sampleNpcMovementTween } from "@lindocara/engine/event-movement.js";
 import {
   entityBox,
   hashSeed,
   INTERACTION_RANGE,
   type MonsterSpecies,
+  monsterBodyHitbox,
   type PlayerClass,
   pointDistance,
 } from "@lindocara/engine/game.js";
@@ -27,13 +29,14 @@ import type {
   PeasantCampVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
+  PriestLumenTrailVisual,
   PriestPolarityOrbVisual,
   ProjectileSnapshot,
   QuestState,
   RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { emptyLayer, parseTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
@@ -339,6 +342,7 @@ interface ArtTextures {
   signBoard: Texture;
   combatFrames: Map<string, readonly Texture[]>;
   questResources: Record<keyof typeof TINY_SWORDS_QUEST_ART, Texture>;
+  peasantCamp: Texture;
 }
 
 export interface RenderContext {
@@ -401,6 +405,8 @@ interface Effect {
   scaleGrowth: number;
   baseScale: number;
   actionId?: string;
+  /** Keep persistent zones fully legible, then dissolve only near the end of their lifetime. */
+  fadeStartRatio: number;
 }
 
 interface ShadowDanceVisualRuntime {
@@ -514,6 +520,7 @@ const MERCHANT_IDLE_SHEET = new URL(
   "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Idle.png",
   import.meta.url,
 ).href;
+const PEASANT_CAMP_ART = new URL("./assets/peasant/makeshift-camp.png", import.meta.url).href;
 
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
   return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
@@ -682,6 +689,8 @@ async function loadArt(): Promise<ArtTextures> {
   for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
   const merchantSheet = await Assets.load<Texture>(MERCHANT_IDLE_SHEET);
   merchantSheet.source.style.scaleMode = "nearest";
+  const peasantCamp = await Assets.load<Texture>(PEASANT_CAMP_ART);
+  peasantCamp.source.style.scaleMode = "nearest";
 
   return {
     players: {
@@ -761,6 +770,7 @@ async function loadArt(): Promise<ArtTextures> {
     signBoard,
     combatFrames,
     questResources,
+    peasantCamp,
   };
 }
 
@@ -1066,6 +1076,7 @@ export class Renderer {
       radius: number;
     }
   >();
+  #peasantBombAim: Graphics | null = null;
   #shadowDanceSequences: ShadowDanceVisualRuntime[] = [];
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
@@ -2905,6 +2916,50 @@ export class Renderer {
     return this.#cameraZoom;
   }
 
+  screenToWorld(clientX: number, clientY: number): Vec2 {
+    const canvas = this.#app.canvas as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const screenX = ((clientX - rect.left) / Math.max(1, rect.width)) * this.#app.screen.width;
+    const screenY = ((clientY - rect.top) / Math.max(1, rect.height)) * this.#app.screen.height;
+    const scale = this.#world.scale.x || 1;
+    return {
+      x: (screenX - this.#world.x) / scale,
+      y: (screenY - this.#world.y) / scale,
+    };
+  }
+
+  showPeasantBombAim(origin: Vec2, direction: Vec2, range: number): void {
+    const facing = normalizeDirection(direction);
+    const length = Math.max(32, range);
+    const aim = this.#peasantBombAim ?? new Graphics();
+    aim.clear();
+    aim.position.set(origin.x, origin.y);
+    aim.zIndex = Math.round(origin.y) + 1;
+    aim
+      .moveTo(0, 0)
+      .lineTo(facing.x * length, facing.y * length)
+      .stroke({ color: 0x32180c, alpha: 0.82, width: 5 });
+    aim
+      .moveTo(0, 0)
+      .lineTo(facing.x * length, facing.y * length)
+      .stroke({ color: 0xffcb58, alpha: 0.92, width: 2 });
+    for (let index = 1; index <= 7; index++) {
+      const distance = (length * index) / 8;
+      aim
+        .circle(facing.x * distance, facing.y * distance, index === 7 ? 6 : 2.6)
+        .fill({ color: index === 7 ? 0xff7747 : 0xffdda0, alpha: 0.88 });
+    }
+    if (!this.#peasantBombAim) {
+      this.#peasantBombAim = aim;
+      this.#effects.addChild(aim);
+    }
+  }
+
+  hidePeasantBombAim(): void {
+    this.#peasantBombAim?.destroy();
+    this.#peasantBombAim = null;
+  }
+
   #followSelf(players: readonly PlayerSnapshot[], now: number): void {
     const self = players.find((player) => player.id === this.#selfId);
     const selfCenter = self ? centerOf(self) : null;
@@ -3228,22 +3283,20 @@ export class Renderer {
     }
   }
 
-  /**
-   * Every body the simulation collides as a box, drawn where it actually is.
-   *
-   * Redrawn per frame rather than with the grid: bodies move and the terrain does not. The boxes
-   * come from `entityBox`, the same helper the rules use, so a sprite that looks off-centre from
-   * its box is telling the truth about the art, not about a bug in this overlay.
-   */
+  /** Draws authoritative navigation boxes and the measured monster combat silhouettes. */
   #drawHitboxes(sample: SceneSample): void {
     this.#hitboxOverlay.clear();
     if (!import.meta.env.DEV || !this.#showGrid) return;
-    const bodies = [...sample.players, ...sample.monsters, ...sample.guards];
+    const bodies = [...sample.players, ...sample.guards];
     for (const body of bodies) {
       const box = entityBox({ x: body.x, y: body.y });
       this.#hitboxOverlay.rect(box.x, box.y, box.width, box.height);
     }
-    if (bodies.length > 0) {
+    for (const monster of sample.monsters) {
+      const hitbox = monsterBodyHitbox(monster.species, monster);
+      this.#hitboxOverlay.circle(hitbox.center.x, hitbox.center.y, hitbox.radius);
+    }
+    if (bodies.length > 0 || sample.monsters.length > 0) {
       this.#hitboxOverlay.stroke({ width: 1, color: HITBOX_COLOR, alpha: 0.85 });
     }
     const localNow = performance.now();
@@ -3794,6 +3847,7 @@ export class Renderer {
     frames?: readonly Texture[],
     scaleGrowth = 0.55,
     actionId?: string,
+    fadeStartRatio = 0,
   ): void {
     while (this.#activeEffects.length >= MAX_ACTIVE_WORLD_EFFECTS) {
       const oldest = this.#activeEffects.shift();
@@ -3809,6 +3863,7 @@ export class Renderer {
       baseY: container.y,
       scaleGrowth,
       baseScale: container.scale.x,
+      fadeStartRatio: Math.max(0, Math.min(0.98, fadeStartRatio)),
     };
     if (sprite) effect.sprite = sprite;
     if (frames) effect.frames = frames;
@@ -3954,26 +4009,99 @@ export class Renderer {
 
   playLumenPortal(portal: PriestLumenPortalVisual): void {
     const color = this.#players.get(portal.actorId)?.data.appearance.primaryColor ?? "azure";
-    const art = combatArt("priest", "blink", color).impact;
-    if (art) {
-      this.#playCombatSheet(art, portal.from.x + PLAYER_SIZE / 2, portal.from.y + PLAYER_SIZE / 2);
-      this.#playCombatSheet(art, portal.to.x + PLAYER_SIZE / 2, portal.to.y + PLAYER_SIZE / 2);
-    }
-    const duration = Math.max(250, portal.endsAt - portal.startedAt);
-    this.#addPulse(
+    const duration = this.#lumenEffectRemaining(portal.startedAt, portal.endsAt);
+    if (duration <= 0) return;
+    this.#playPersistentLumenCloud(
       portal.from.x + PLAYER_SIZE / 2,
       portal.from.y + PLAYER_SIZE / 2,
-      0xaeeeff,
-      22,
+      color,
       duration,
     );
-    this.#addPulse(
+    this.#playPersistentLumenCloud(
       portal.to.x + PLAYER_SIZE / 2,
       portal.to.y + PLAYER_SIZE / 2,
-      0xaeeeff,
-      22,
+      color,
       duration,
     );
+  }
+
+  playLumenTrail(trail: PriestLumenTrailVisual): void {
+    const duration = this.#lumenEffectRemaining(trail.startedAt, trail.endsAt);
+    if (duration <= 0 || trail.points.length < 2) return;
+    const color = this.#players.get(trail.actorId)?.data.appearance.primaryColor ?? "azure";
+    const tint = color === "ember" ? 0xffb1e4 : color === "moss" ? 0xbef5cf : 0xc9bcff;
+    const container = new Container();
+    const glow = new Graphics();
+    const first = trail.points[0];
+    if (!first) return;
+    glow.moveTo(first.x, first.y);
+    for (const point of trail.points.slice(1)) glow.lineTo(point.x, point.y);
+    glow.stroke({ width: trail.width * 2.8, color: tint, alpha: 0.1 });
+    glow.moveTo(first.x, first.y);
+    for (const point of trail.points.slice(1)) glow.lineTo(point.x, point.y);
+    glow.stroke({ width: trail.width * 1.25, color: tint, alpha: 0.3 });
+    container.addChild(glow);
+
+    const art = combatArt("priest", "blink", color).impact;
+    const frames = art ? this.art.combatFrames.get(art.source) : undefined;
+    if (art && frames?.length) {
+      let cloudIndex = 0;
+      for (let index = 1; index < trail.points.length; index++) {
+        const from = trail.points[index - 1];
+        const to = trail.points[index];
+        if (!from || !to) continue;
+        const distance = Math.hypot(to.x - from.x, to.y - from.y);
+        const count = Math.max(1, Math.ceil(distance / 22));
+        for (let stepIndex = 0; stepIndex <= count; stepIndex++) {
+          const progress = stepIndex / count;
+          const frame = frames[(cloudIndex * 3 + 2) % frames.length];
+          if (!frame) continue;
+          const cloud = new Sprite(frame);
+          cloud.anchor.set(art.anchor.x, art.anchor.y);
+          cloud.position.set(
+            from.x + (to.x - from.x) * progress,
+            from.y + (to.y - from.y) * progress,
+          );
+          cloud.tint = art.tint ?? tint;
+          cloud.alpha = 0.48 + (cloudIndex % 3) * 0.09;
+          cloud.rotation = ((cloudIndex % 5) - 2) * 0.07;
+          cloud.scale.set((art.scale ?? 1) * (0.58 + (cloudIndex % 4) * 0.08));
+          container.addChild(cloud);
+          cloudIndex += 1;
+        }
+      }
+    }
+    this.#trackEffect(container, duration, 0, undefined, 0.035, trail.id, 0.84);
+  }
+
+  #lumenEffectRemaining(startedAt: number, endsAt: number): number {
+    const localEndsAt = this.serverClock.toLocal(endsAt);
+    return localEndsAt === null
+      ? Math.max(0, endsAt - startedAt)
+      : Math.max(0, localEndsAt - performance.now());
+  }
+
+  #playPersistentLumenCloud(x: number, y: number, color: PrimaryColor, duration: number): void {
+    const art = combatArt("priest", "blink", color).impact;
+    const frames = art ? this.art.combatFrames.get(art.source) : undefined;
+    if (!art || !frames?.length) return;
+    const container = new Container();
+    const glow = new Graphics().ellipse(0, 5, 27, 14).fill({ color: 0xd7c8ff, alpha: 0.16 });
+    container.addChild(glow);
+    for (let index = 0; index < 3; index++) {
+      const frame = frames[(index * 2 + 2) % frames.length];
+      if (!frame) continue;
+      const cloud = new Sprite(frame);
+      cloud.anchor.set(art.anchor.x, art.anchor.y);
+      cloud.tint = art.tint ?? 0xffffff;
+      cloud.alpha = 0.76 - index * 0.12;
+      cloud.rotation = (index - 1) * 0.11;
+      cloud.position.set((index - 1) * 5, index % 2 === 0 ? -2 : 3);
+      cloud.scale.set((art.scale ?? 1) * (1.02 - index * 0.13));
+      container.addChild(cloud);
+    }
+    container.position.set(x, y);
+    this.#trackEffect(container, duration, 0, undefined, 0.045, undefined, 0.84);
   }
 
   playPolarityOrb(orb: PriestPolarityOrbVisual): void {
@@ -4008,20 +4136,16 @@ export class Renderer {
     const container = new Container();
     container.position.set(camp.x, camp.y);
     container.zIndex = Math.round(camp.y);
-    const ground = new Graphics()
-      .circle(0, 0, 13)
-      .fill({ color: 0x5d432c, alpha: 0.42 })
-      .rect(-11, -3, 22, 5)
-      .fill({ color: 0x7b4d2a })
-      .rect(-3, -11, 5, 22)
-      .fill({ color: 0x8b5c32 });
-    ground.rotation = Math.PI / 4;
-    const fire = new Graphics()
-      .circle(0, -2, 6)
-      .fill({ color: 0xf08b32, alpha: 0.95 })
-      .circle(0, 0, 3)
-      .fill({ color: 0xffdc73, alpha: 0.95 });
-    container.addChild(ground, fire);
+    const aura = new Graphics()
+      .circle(0, 8, Math.max(26, camp.radius))
+      .fill({ color: 0x8bcf83, alpha: 0.075 })
+      .stroke({ color: 0xf3d68e, alpha: 0.28, width: 2 });
+    const sprite = new Sprite(this.art.peasantCamp);
+    sprite.anchor.set(0.5, 0.72);
+    sprite.position.set(0, 24);
+    sprite.width = 136;
+    sprite.height = 136;
+    container.addChild(aura, sprite);
     this.#effects.addChild(container);
     const clockSample = this.serverClock.currentSample();
     this.#peasantCamps.set(camp.id, {
@@ -4048,10 +4172,32 @@ export class Renderer {
     if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return;
     const art = combatArt("peasant", "homemade_bomb", "ember").impact;
     if (art && this.#isVisibleWorld(impact.x, impact.y, impact.radius)) {
-      this.#playCombatSheet(art, impact.x, impact.y, impact.actionId);
+      this.#playCombatSheet(
+        {
+          ...art,
+          scale: (art.scale ?? 1) * 1.65,
+          durationMs: art.durationMs * 1.2,
+        },
+        impact.x,
+        impact.y,
+        impact.actionId,
+      );
     }
-    this.#addPulse(impact.x, impact.y, 0xf0a34a, impact.radius, 360);
-    this.#burst(impact.x, impact.y, 0xd9b66b, 10);
+    this.#addPulse(impact.x, impact.y, 0xffc454, impact.radius * 0.72, 280);
+    this.#addPulse(impact.x, impact.y, 0xf05d32, impact.radius, 460);
+    this.#burst(impact.x, impact.y, 0xffd06f, 28);
+    const self = this.#selfId ? this.#players.get(this.#selfId)?.data : undefined;
+    if (self) {
+      const selfCenter = centerOf(self);
+      this.#cameraShake.trigger({
+        id: `peasant-bomb-${impact.actionId}`,
+        now: performance.now(),
+        intensity: 5.5,
+        durationMs: 260,
+        distance: Math.hypot(selfCenter.x - impact.x, selfCenter.y - impact.y),
+        maxDistance: Math.max(260, impact.radius * 4),
+      });
+    }
   }
 
   #updatePeasantCamps(now: number): void {
@@ -4547,7 +4693,11 @@ export class Renderer {
         const frame = effect.frames[frameIndex];
         if (frame) effect.sprite.texture = frame;
       }
-      effect.container.alpha = 1 - progress;
+      const fadeProgress =
+        progress <= effect.fadeStartRatio
+          ? 0
+          : (progress - effect.fadeStartRatio) / Math.max(0.02, 1 - effect.fadeStartRatio);
+      effect.container.alpha = 1 - fadeProgress;
       effect.container.y = effect.baseY - effect.rise * progress;
       effect.container.scale.set(effect.baseScale * (1 + progress * effect.scaleGrowth));
       if (progress < 1) continue;
@@ -4926,7 +5076,7 @@ export class Renderer {
           view.container.alpha = ghost
             ? 0.5
             : player.silhouette
-              ? 0.58
+              ? 0.9
               : player.invisible
                 ? player.id === this.#selfId
                   ? 0.28

@@ -1,3 +1,5 @@
+import { sweptProjectileEntityImpact } from "@lindocara/engine/directional-combat.js";
+import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { TalentEffect } from "@lindocara/engine/talents.js";
 import type {
   CleanseableNegativeEffect,
@@ -13,6 +15,7 @@ type NovaMercyEffect = Extract<TalentEffect, { kind: "nova_mercy" }>;
 type LifeLinkEffect = Extract<TalentEffect, { kind: "life_link" }>;
 type LumenGateEffect = Extract<TalentEffect, { kind: "lumen_gate" }>;
 type PolarityOrbEffect = Extract<TalentEffect, { kind: "polarity_orb" }>;
+type SacredPassageEffect = Extract<TalentEffect, { kind: "sacred_passage" }>;
 
 export interface SanctuaryRuntime {
   id: string;
@@ -31,10 +34,24 @@ export interface LumenPortalRuntime {
   ownerId: string;
   from: { x: number; y: number };
   to: { x: number; y: number };
+  startedAt: number;
   expiresAt: number;
   triggerRadius: number;
   usedPlayerIds: Set<string>;
+  /** Prevents a hero already standing inside a freshly-created endpoint from bouncing instantly. */
+  waitingForExitIds: Set<string>;
   healingPower: number;
+}
+
+export interface LumenTrailRuntime {
+  id: string;
+  ownerId: string;
+  points: Vec2[];
+  width: number;
+  power: number;
+  startedAt: number;
+  expiresAt: number;
+  healedPlayerIds: Set<string>;
 }
 
 export interface PolarityOrbRuntime {
@@ -108,13 +125,88 @@ export function startLumenPortal(
     ownerId: options.ownerId,
     from: { ...options.from },
     to: { ...options.to },
+    startedAt: options.now,
     expiresAt: options.now + Math.max(0, duration),
     triggerRadius: Math.max(1, options.effect.triggerRadius),
     usedPlayerIds: new Set(),
+    waitingForExitIds: new Set([options.ownerId]),
     healingPower: Math.max(0, Math.round(options.healingPower)),
   };
   portals.push(portal);
   return portal;
+}
+
+export function startLumenTrail(
+  trails: LumenTrailRuntime[],
+  options: {
+    id: string;
+    ownerId: string;
+    origin: Vec2;
+    effect: SacredPassageEffect;
+    power: number;
+    now: number;
+  },
+): LumenTrailRuntime {
+  removeLumenTrailsByOwner(trails, options.ownerId);
+  const trail: LumenTrailRuntime = {
+    id: options.id,
+    ownerId: options.ownerId,
+    points: [{ ...options.origin }],
+    width: Math.max(1, options.effect.width),
+    power: Math.max(0, Math.round(options.power)),
+    startedAt: options.now,
+    expiresAt: options.now + Math.max(0, options.effect.durationMs),
+    healedPlayerIds: new Set(),
+  };
+  trails.push(trail);
+  return trail;
+}
+
+export function appendLumenTrailPoint(trail: LumenTrailRuntime, point: Vec2): void {
+  const last = trail.points.at(-1);
+  if (last && Math.hypot(point.x - last.x, point.y - last.y) < 1) return;
+  trail.points.push({ ...point });
+  // A held step is capped at 2.5 s / 20 Hz. This defensive bound also protects protocol replay if
+  // the simulation rate ever changes without changing the visual contract.
+  if (trail.points.length > 96) trail.points.splice(1, trail.points.length - 96);
+}
+
+export function finishLumenTrail(trail: LumenTrailRuntime, now: number, durationMs: number): void {
+  trail.startedAt = now;
+  trail.expiresAt = now + Math.max(0, durationMs);
+}
+
+export function lumenTrailTouches(trail: LumenTrailRuntime, target: Vec2): boolean {
+  const center = { x: target.x + PLAYER_SIZE / 2, y: target.y + PLAYER_SIZE / 2 };
+  for (let index = 1; index < trail.points.length; index++) {
+    const from = trail.points[index - 1];
+    const to = trail.points[index];
+    if (
+      from &&
+      to &&
+      sweptProjectileEntityImpact(
+        from,
+        to,
+        trail.width,
+        { center, radius: PLAYER_SIZE / 2 },
+        "lumen-trail-target",
+      ) !== null
+    )
+      return true;
+  }
+  return false;
+}
+
+export function expireLumenTrails(trails: LumenTrailRuntime[], now: number): void {
+  for (let index = trails.length - 1; index >= 0; index--) {
+    if ((trails[index]?.expiresAt ?? 0) <= now) trails.splice(index, 1);
+  }
+}
+
+export function removeLumenTrailsByOwner(trails: LumenTrailRuntime[], ownerId: string): void {
+  for (let index = trails.length - 1; index >= 0; index--) {
+    if (trails[index]?.ownerId === ownerId) trails.splice(index, 1);
+  }
 }
 
 export function expireLumenPortals(portals: LumenPortalRuntime[], now: number): void {

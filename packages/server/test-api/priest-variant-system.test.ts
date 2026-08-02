@@ -3,11 +3,15 @@ import { talentEffect } from "@lindocara/engine/talents.js";
 import {
   advancePolarityOrbs,
   advanceSanctuaries,
+  appendLumenTrailPoint,
   applyCleanseableNegativeEffect,
   armLifeLink,
   cleanseNegativeEffect,
   emergencyMendPower,
+  finishLumenTrail,
   type LumenPortalRuntime,
+  type LumenTrailRuntime,
+  lumenTrailTouches,
   luminousTransfigurationPower,
   mirroredLifeLinkPower,
   nearestMercyCorpse,
@@ -18,6 +22,7 @@ import {
   type SanctuaryRuntime,
   sacredPassageTargets,
   startLumenPortal,
+  startLumenTrail,
   startPolarityOrb,
   startSanctuary,
 } from "@lindocara/server/world/priest-variant-system.js";
@@ -83,9 +88,32 @@ describe("authoritative priest evolution systems", () => {
       transfiguration: true,
       healingPower: 24,
     });
-    expect(portal).toMatchObject({ expiresAt: 7_000, healingPower: 24 });
+    expect(portal).toMatchObject({ startedAt: 1_000, expiresAt: 7_000, healingPower: 24 });
+    expect(portal.waitingForExitIds.has("priest")).toBe(true);
     portal.usedPlayerIds.add("ally");
     expect(portal.usedPlayerIds.has("ally")).toBe(true);
+  });
+
+  it("keeps a curved Sacred Passage trail active for six seconds after release", () => {
+    const effect = talentEffect("priest", ["priest.blink.sacred_passage"], "sacred_passage", 3);
+    if (!effect) throw new Error("missing Sacred Passage effect");
+    const trails: LumenTrailRuntime[] = [];
+    const trail = startLumenTrail(trails, {
+      id: "trail-1",
+      ownerId: "priest",
+      origin: { x: 16, y: 16 },
+      effect,
+      power: 27,
+      now: 1_000,
+    });
+    appendLumenTrailPoint(trail, { x: 96, y: 16 });
+    appendLumenTrailPoint(trail, { x: 96, y: 96 });
+    finishLumenTrail(trail, 2_000, effect.durationMs);
+
+    expect(trail).toMatchObject({ startedAt: 2_000, expiresAt: 8_000, power: 27 });
+    expect(lumenTrailTouches(trail, { x: 72, y: 0 })).toBe(true);
+    expect(lumenTrailTouches(trail, { x: 80, y: 72 })).toBe(true);
+    expect(lumenTrailTouches(trail, { x: 180, y: 180 })).toBe(false);
   });
 
   it("advances Polarity Orb outward and back exactly once per phase", () => {

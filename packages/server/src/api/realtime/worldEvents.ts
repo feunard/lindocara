@@ -17,6 +17,7 @@ import { isWalkable, type Rect, rectsOverlap } from "@lindocara/engine/game.js";
 import {
   animalCarcassHarvestProfile,
   type HarvestProfile,
+  harvestActorBehavior,
   harvestColliderAt,
 } from "@lindocara/engine/harvest.js";
 import {
@@ -118,6 +119,9 @@ function projectHarvestCollider(
   collisionPending?: true;
 } {
   const collider = harvestColliderAt(profile, col, row, harvestState);
+  // Wandering harvest actors still advertise their moving body for directional tool selection,
+  // but `syncHarvestColliders` keeps that body out of terrain so it cannot block its own next cell.
+  if (harvestActorBehavior(profile) === "wander") return { collider: colliderTuple(collider) };
   if (harvestState === "intact" && collider && harvestColliderOccupied(state, collider, now)) {
     return { collider: null, collisionPending: true };
   }
@@ -130,7 +134,18 @@ function projectHarvestCollider(
  * exactly the same way and never inspect asset ids.
  */
 function syncHarvestColliders(state: WorldRoomState): void {
+  const eventById = new Map(
+    (state.location?.definition.events ?? []).map((event) => [event.id, event]),
+  );
   const next = state.activeEvents.flatMap((event) => {
+    const authored = eventById.get(event.id);
+    if (
+      authored?.kind === "harvestable" &&
+      authored.harvestProfile &&
+      harvestActorBehavior(authored.harvestProfile) === "wander"
+    ) {
+      return [];
+    }
     const tuple = event.harvest?.collider;
     return tuple ? [{ x: tuple[0], y: tuple[1], width: tuple[2], height: tuple[3] }] : [];
   });
@@ -258,16 +273,17 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
           }
         : {}),
     });
-    // A harvestable page controls visibility and appearance only. It never becomes an NPC merely
-    // because the shared active-event projection also carries moving authored characters.
-    if (event.kind !== "harvestable") {
+    const wanderingHarvest = profile && harvestActorBehavior(profile) === "wander";
+    // Static resources remain scenery. Explicit wandering resources join the same harmless,
+    // deterministic NPC motion model as authored characters.
+    if (event.kind !== "harvestable" || wanderingHarvest) {
       movement.push({
         id: event.id,
         homeCol: event.col,
         homeRow: event.row,
-        moveType: page.moveType,
-        moveSpeed: page.moveSpeed,
-        moveFreq: page.moveFreq,
+        moveType: wanderingHarvest ? "random" : page.moveType,
+        moveSpeed: wanderingHarvest ? 2 : page.moveSpeed,
+        moveFreq: wanderingHarvest ? 2 : page.moveFreq,
         through: page.optThrough,
         patrolRadius: event.patrolRadius ?? TILE_SIZE * 2,
         route: page.moveRoute ?? [],

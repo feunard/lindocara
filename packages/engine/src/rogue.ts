@@ -18,7 +18,7 @@ export const ROGUE_BALANCE = {
   },
   shadowStep: {
     cooldownMs: 4_500,
-    selectionRange: 260,
+    selectionRange: 312,
     returnWindowMs: 2_000,
   },
   vanish: {

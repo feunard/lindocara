@@ -188,6 +188,34 @@ describe("harvest profile", () => {
     ).not.toBeNull();
   });
 
+  it("migrates the shipped sheep signature to harmless wandering with no meat left behind", () => {
+    expect(
+      parseHarvestProfile({
+        resource: "meat",
+        tool: "knife",
+        yieldAmount: 6,
+        goldValue: 0,
+        hitsRequired: 3,
+        range: 80,
+        harvestDurationMs: 0,
+        exhaustedAssetId: "resource.terrain-resources-meat-meat-resource.meat-resource",
+        exhaustionBehavior: "replace",
+        respawn: "timed",
+        respawnDelayMs: 300_000,
+        fadeDurationMs: 450,
+        collision: {
+          intact: { offsetX: -24, offsetY: -28, width: 48, height: 28 },
+          depleted: { offsetX: -18, offsetY: -12, width: 36, height: 12 },
+        },
+      }),
+    ).toMatchObject({
+      actorBehavior: "wander",
+      exhaustionBehavior: "hide",
+      exhaustedAssetId: null,
+      collision: { depleted: null },
+    });
+  });
+
   it("rejects malformed, unknown and out-of-range fields without throwing", () => {
     const invalidProfiles: unknown[] = [
       null,
@@ -201,6 +229,7 @@ describe("harvest profile", () => {
       { ...WOOD_PROFILE, exhaustedAssetId: "not.a.catalog-asset" },
       { ...WOOD_PROFILE, exhaustionBehavior: "explode" },
       { ...WOOD_PROFILE, respawn: "instant" },
+      { ...WOOD_PROFILE, actorBehavior: "hostile" },
       { ...WOOD_PROFILE, fadeDurationMs: HARVEST_PROFILE_LIMITS.fadeDurationMs.max + 1 },
       {
         ...WOOD_PROFILE,

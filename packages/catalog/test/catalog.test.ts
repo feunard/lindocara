@@ -131,6 +131,21 @@ describe("Tiny Swords semantic catalogue", () => {
     }
   });
 
+  it("crops every Update 010 tree model and its stump into stable editor assets", () => {
+    const byId = new Map(editorDefinitions(catalog).map((entry) => [entry.id, entry]));
+    for (let index = 1; index <= 6; index += 1) {
+      const tree = byId.get(`resource.resources-trees.tree-${index}`);
+      expect(tree?.editor.sourceRect, `tree ${index}`).toMatchObject({ width: 192, height: 192 });
+      expect(tree?.editor.category, `tree ${index}`).toBe("trees");
+    }
+    expect(byId.get("resource.resources-trees.stump")?.editor.sourceRect).toEqual({
+      x: 0,
+      y: 384,
+      width: 192,
+      height: 192,
+    });
+  });
+
   it("exposes the two placeable sheep by stable id without admitting filename lookalikes", () => {
     const byId = new Map(catalog.entries.map((entry) => [entry.id, entry]));
     for (const id of [

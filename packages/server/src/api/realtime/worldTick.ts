@@ -85,16 +85,16 @@ import {
   INTERACTION_RANGE,
   isMonsterSpecialTechnique,
   isWalkable,
-  isWalkableForLumen,
   LOOT_EXPIRY_MS,
-  MAX_MONSTER_BODY_RADIUS,
+  MAX_MONSTER_BODY_REACH,
   MONSTER_AGGRO_RANGE,
   type MonsterSpecialTechnique,
   type MonsterSpecies,
   maxHpForLevel,
+  monsterBodyHitbox,
   monsterBodyRadius,
   nearestCemetery,
-  nearestShore,
+  nearestLumenLanding,
   pointDistance,
   QUEST_RUN_LIMIT_MS,
   QUEST_SITE_RESPAWN_MS,
@@ -228,20 +228,28 @@ import {
   commitPeasantSupportRequest,
   damageAfterPeasantCampProtection,
   isPeasantBombProjectile,
+  nearbyAlliedPeasantCamp,
+  type PeasantCampRuntime,
   type PeasantSupportRequest,
   peasantSupportPlans,
+  refundPeasantCampGold,
   releasePeasantSupportRequest,
   removePeasantSupportByOwner,
   resolvePeasantBombImpact,
   resolvePeasantSupportAction,
+  transferPeasantCampGold,
 } from "../../world/peasant-support-system.js";
 import {
   advancePolarityOrbs,
   advanceSanctuaries,
+  appendLumenTrailPoint,
   armLifeLink,
   cleanseNegativeEffect,
   emergencyMendPower,
   expireLumenPortals,
+  expireLumenTrails,
+  finishLumenTrail,
+  lumenTrailTouches,
   luminousTransfigurationPower,
   mirroredLifeLinkPower,
   nearestMercyCorpse,
@@ -249,11 +257,12 @@ import {
   novaSpecializationMultipliers,
   type PolarityOrbRuntime,
   removeLumenPortalsByOwner,
+  removeLumenTrailsByOwner,
   removePolarityOrbsByOwner,
   removeSanctuariesByOwner,
   type SanctuaryRuntime,
-  sacredPassageTargets,
   startLumenPortal,
+  startLumenTrail,
   startPolarityOrb,
   startSanctuary,
 } from "../../world/priest-variant-system.js";
@@ -592,6 +601,50 @@ export function sendPeasantCampsTo(w: WorldGlue, connectionId: string, now: numb
   }
 }
 
+/** Admission replay for the two persistent Pas de Lumen visuals. */
+export function sendPriestLumenEffectsTo(w: WorldGlue, connectionId: string, now: number): void {
+  for (const trail of w.state.lumenTrails) {
+    if (trail.expiresAt <= now || trail.points.length < 2) continue;
+    w.deps.send(connectionId, {
+      t: "priest.lumen_trail",
+      id: trail.id,
+      actorId: trail.ownerId,
+      points: trail.points.map((point) => ({ ...point })),
+      width: trail.width,
+      startedAt: trail.startedAt,
+      endsAt: trail.expiresAt,
+    });
+  }
+  for (const portal of w.state.lumenPortals) {
+    if (portal.expiresAt <= now) continue;
+    w.deps.send(connectionId, {
+      t: "priest.lumen_portal",
+      id: portal.id,
+      actorId: portal.ownerId,
+      from: portal.from,
+      to: portal.to,
+      startedAt: portal.startedAt,
+      endsAt: portal.expiresAt,
+    });
+  }
+}
+
+function sendCampBankToParty(
+  w: WorldGlue,
+  camp: PeasantCampRuntime,
+  openedConnectionId?: string,
+): void {
+  for (const [connectionId, candidate] of w.state.players) {
+    if (!candidate.authorized || candidate.partyId !== camp.ownerPartyId) continue;
+    w.deps.send(connectionId, {
+      t: "peasant.camp_bank",
+      id: camp.id,
+      gold: camp.storedGold,
+      opened: connectionId === openedConnectionId,
+    });
+  }
+}
+
 /** Port of `#authoredQuestTrackers` (`world.ts:5842`). */
 function playerQuestTrackers(
   state: WorldRoomState,
@@ -889,9 +942,11 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   removeDamageOverTimeBySource(w.state.damageOverTime, player.id);
   removeSanctuariesByOwner(w.state.sanctuaries, player.id);
   removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
+  removeLumenTrailsByOwner(w.state.lumenTrails, player.id);
   removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   removeProjectilesByOwner(w.state.projectiles, player.id);
   for (const camp of removePeasantSupportByOwner(w.state.peasantSupport, player.id)) {
+    refundPeasantCampGold(camp, player);
     sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp);
   }
   player.dirty = true;
@@ -1839,7 +1894,7 @@ export function resolveMonsterAction(
     monster.revealedUntil = Math.max(monster.revealedUntil, now + 900);
     if (silhouette.hp <= 0) {
       player.rogueSilhouette = null;
-      monster.threat.delete(player.id);
+      forgetPlayer(w, player);
     }
     sendStateTo(w, connectionId, player);
   }
@@ -1849,6 +1904,7 @@ export function resolveMonsterAction(
       player.life !== "alive" ||
       player.forgottenUntil > now ||
       player.invisibleUntil > now ||
+      isRogueStealthed(player, now) ||
       player.transitioning ||
       !hits(player, PLAYER_SIZE / 2)
     )
@@ -1944,16 +2000,17 @@ function projectileDamage(
     power = Math.round(power * (1 + execute.multiplier));
   damageMonster(w, owner.connectionId, owner.player, monster, skill, now, projectile.basic, power);
   if (cometArrow) {
+    const cometCenter = monsterBodyHitbox(monster.species, monster).center;
     applyCometExplosion(
       w.state.monsterGrid.queryRadius(
-        monster,
-        cometArrow.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+        cometCenter,
+        cometArrow.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
       ),
       monster.id,
       cometArrow,
       (candidate, radius) =>
         candidate.deadUntil <= now &&
-        withinRange(monster, candidate, radius + monsterBodyRadius(candidate.species)) &&
+        monsterHitboxWithin(cometCenter, candidate, radius) &&
         hasLineOfSight(monster, candidate, zone(w.state).terrain.tiles),
       (candidate, powerRatio) =>
         damageMonster(
@@ -2112,6 +2169,61 @@ function movePlayer(
   );
 }
 
+function bodyCenter(position: Vec2): Vec2 {
+  return { x: position.x + PLAYER_SIZE / 2, y: position.y + PLAYER_SIZE / 2 };
+}
+
+function monsterHitboxWithin(center: Vec2, monster: MonsterRuntime, range: number): boolean {
+  const hitbox = monsterBodyHitbox(monster.species, monster);
+  return pointDistance(center, hitbox.center) <= range + hitbox.radius;
+}
+
+/** Live bodies are deliberately checked only when Lumen rematerialises, never while it phases. */
+function lumenLandingClear(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  candidate: Vec2,
+  now: number,
+): boolean {
+  const center = { x: candidate.x + PLAYER_SIZE / 2, y: candidate.y + PLAYER_SIZE / 2 };
+  for (const other of w.state.players.values()) {
+    if (
+      other !== player &&
+      other.authorized &&
+      other.life !== "ghost" &&
+      pointDistance(candidate, other) < PLAYER_SIZE
+    )
+      return false;
+  }
+  for (const monster of w.state.monsters) {
+    if (monster.deadUntil <= now && monsterHitboxWithin(center, monster, PLAYER_SIZE / 2))
+      return false;
+  }
+  for (const guard of w.state.guards) {
+    if (guard.hp > 0 && pointDistance(candidate, guard) < PLAYER_SIZE) return false;
+  }
+  for (const event of w.state.activeEvents) {
+    const movement = w.state.npcMovement.get(event.id);
+    if (!movement || movement.through || event.graphicAssetId === null) continue;
+    if (pointDistance(center, eventCellCentre(event)) < PLAYER_SIZE) return false;
+  }
+  return true;
+}
+
+function safeLumenLanding(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  desired: Vec2,
+  now: number,
+): Vec2 | null {
+  const terrain = zone(w.state).terrain;
+  if (isWalkable(desired, PLAYER_SIZE, terrain) && lumenLandingClear(w, player, desired, now))
+    return { ...desired };
+  return nearestLumenLanding(desired, PLAYER_SIZE, terrain, (candidate) =>
+    lumenLandingClear(w, player, candidate, now),
+  );
+}
+
 /** Port of `#finishHeldPlayerAction` (`world.ts:1982`) — the `skill.release` intent. */
 export function finishHeldPlayerAction(
   w: WorldGlue,
@@ -2124,13 +2236,13 @@ export function finishHeldPlayerAction(
   if (!finishHeldCombatAction(player, now, slot)) return false;
   if (action?.skillId === "blink") {
     const terrain = zone(w.state).terrain;
-    if (!isWalkable(player, PLAYER_SIZE, terrain)) {
-      const shoreline = nearestShore(player, PLAYER_SIZE, terrain);
-      if (shoreline && isWalkableForLumen(player, PLAYER_SIZE, terrain)) {
-        player.x = shoreline.x;
-        player.y = shoreline.y;
-        player.dirty = true;
-      }
+    const landing = safeLumenLanding(w, player, player, now);
+    if (landing && (landing.x !== player.x || landing.y !== player.y)) {
+      const previous = { x: player.x, y: player.y };
+      player.x = landing.x;
+      player.y = landing.y;
+      w.state.playerGrid.update(player, previous);
+      player.dirty = true;
     }
     const renewal = talentEffect(player.class, player.talents, "blink_heal", 3);
     if (renewal) {
@@ -2178,6 +2290,31 @@ export function finishHeldPlayerAction(
     }
     const lumenGate = talentEffect(player.class, player.talents, "lumen_gate", 3);
     const lumenOrigin = action.priestLumenOrigin;
+    const lumenTrail = action.priestLumenTrailId
+      ? w.state.lumenTrails.find((trail) => trail.id === action.priestLumenTrailId)
+      : undefined;
+    if (lumenTrail) {
+      appendLumenTrailPoint(lumenTrail, {
+        x: player.x + PLAYER_SIZE / 2,
+        y: player.y + PLAYER_SIZE / 2,
+      });
+      const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", 3);
+      finishLumenTrail(lumenTrail, now, sacredPassage?.durationMs ?? 6_000);
+      if (lumenTrail.points.length >= 2) {
+        const message: ServerMessage = {
+          t: "priest.lumen_trail",
+          id: lumenTrail.id,
+          actorId: player.id,
+          points: lumenTrail.points.map((point) => ({ ...point })),
+          width: lumenTrail.width,
+          startedAt: lumenTrail.startedAt,
+          endsAt: lumenTrail.expiresAt,
+        };
+        for (const [recipientConnectionId, recipient] of w.state.players) {
+          if (recipient.authorized) w.deps.send(recipientConnectionId, message);
+        }
+      }
+    }
     if (
       lumenGate &&
       lumenOrigin &&
@@ -2197,19 +2334,18 @@ export function finishHeldPlayerAction(
           ? sacredPassage.power + Math.max(0, player.level - 1) * sacredPassage.powerPerLevel
           : 0,
       });
-      sendSpatialEventAcross(
-        w,
-        {
-          t: "priest.lumen_portal",
-          id: portal.id,
-          actorId: player.id,
-          from: portal.from,
-          to: portal.to,
-          startedAt: now,
-          endsAt: portal.expiresAt,
-        },
-        [portal.from, portal.to],
-      );
+      const message: ServerMessage = {
+        t: "priest.lumen_portal",
+        id: portal.id,
+        actorId: player.id,
+        from: portal.from,
+        to: portal.to,
+        startedAt: portal.startedAt,
+        endsAt: portal.expiresAt,
+      };
+      for (const [recipientConnectionId, recipient] of w.state.players) {
+        if (recipient.authorized) w.deps.send(recipientConnectionId, message);
+      }
     }
   }
   if (action?.skillId === "heartseeker") {
@@ -2246,6 +2382,7 @@ export function preparePeasantSupportRequest(
   connectionId: string,
   player: PlayerRuntime,
   slot: SkillSlot,
+  direction?: Vec2,
 ): PeasantSupportRequest | null {
   if (player.class !== "peasant" || (slot !== 4 && slot !== 5)) return null;
   const skill = configuredSkill(w, player, slot);
@@ -2285,6 +2422,7 @@ export function preparePeasantSupportRequest(
     terrain: zone(w.state).terrain,
     projectiles: w.state.projectiles,
     now: w.deps.now(),
+    ...(slot === 5 && direction !== undefined ? { direction } : {}),
   });
   if (result.ok) return result.request;
   if (result.reason === "blocked" || result.reason === "projectile_limit") {
@@ -2464,7 +2602,7 @@ export function startPlayerAction(
     ? nearestChargeTarget(
         player,
         w.state.monsterGrid
-          .queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+          .queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
           .filter((monster) => monster.id !== chargeFollowup.excludedTargetId),
         skill.range,
         now,
@@ -2653,7 +2791,7 @@ export function startPlayerAction(
           player,
           w.state.monsterGrid.queryRadius(
             player,
-            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
           ),
           skill.range,
           now,
@@ -2708,7 +2846,7 @@ export function startPlayerAction(
           player,
           w.state.monsterGrid.queryRadius(
             player,
-            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
           ),
           skill.range,
           now,
@@ -2722,10 +2860,7 @@ export function startPlayerAction(
   const swornTarget = swornPrey
     ? swornPreyTarget(
         player,
-        w.state.monsterGrid.queryRadius(
-          player,
-          skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
-        ),
+        w.state.monsterGrid.queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH),
         skill.range,
         now,
         (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
@@ -2798,10 +2933,19 @@ export function startPlayerAction(
       phaseThroughObstacles: shadowStepPhase,
     };
   }
-  if (talentEffect(player.class, player.talents, "sacred_passage", slot))
-    action.sacredPassageHealedIds = new Set();
-  if (skill.id === "blink" && talentEffect(player.class, player.talents, "lumen_gate", slot))
-    action.priestLumenOrigin = { x: player.x, y: player.y };
+  const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", slot);
+  if (skill.id === "blink" && sacredPassage) {
+    const trail = startLumenTrail(w.state.lumenTrails, {
+      id: action.id,
+      ownerId: player.id,
+      origin: { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+      effect: sacredPassage,
+      power: sacredPassage.power + Math.max(0, player.level - 1) * sacredPassage.powerPerLevel,
+      now,
+    });
+    action.priestLumenTrailId = trail.id;
+  }
+  if (skill.id === "blink") action.priestLumenOrigin = { x: player.x, y: player.y };
 
   if (skill.id !== "vanish") {
     const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
@@ -3043,7 +3187,7 @@ function resolveShieldBash(
   );
   const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
   const monsterImpacts = w.state.monsterGrid
-    .queryRadius(midpoint, distance / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(midpoint, distance / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .filter(
       (monster) =>
         monster.deadUntil <= now && monster.id !== action.warriorChargeFollowup?.excludedTargetId,
@@ -3054,10 +3198,7 @@ function resolveShieldBash(
         start,
         end,
         PLAYER_SIZE / 2,
-        {
-          center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-          radius: monsterBodyRadius(monster.species),
-        },
+        monsterBodyHitbox(monster.species, monster),
         monster.id,
       ),
     }))
@@ -3150,12 +3291,12 @@ function resolveShieldBash(
   const seismic = talentEffect(player.class, player.talents, "seismic_impact", skill.slot);
   if (!seismic) return;
   applySeismicImpact(
-    w.state.monsterGrid.queryRadius(player, seismic.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS),
+    w.state.monsterGrid.queryRadius(player, seismic.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH),
     directTargetId,
     seismic,
     (target, radius) =>
       target.deadUntil <= now &&
-      withinRange(player, target, radius + monsterBodyRadius(target.species)) &&
+      monsterHitboxWithin(bodyCenter(player), target, radius) &&
       hasLineOfSight(player, target, terrain.tiles),
     (target, powerRatio) =>
       damageMonster(
@@ -3342,6 +3483,17 @@ export function resolvePlayerAction(
           hp: Math.max(1, silhouette.health),
           expiresAt: now + Math.max(0, silhouette.durationMs),
         };
+        // The decoy is a real priority target, including for monsters that had not aggroed the
+        // Rogue before Vanish. Threat remains attributed to the hero only as an AI routing key;
+        // attacks resolve against the decoy position and health while stealth is active.
+        for (const monster of w.state.monsters) {
+          if (
+            monster.deadUntil <= now &&
+            pointDistance(monster, player.rogueSilhouette) <= MONSTER_AGGRO_RANGE
+          ) {
+            tauntThreat(monster.threat, player.id, now);
+          }
+        }
       }
       const smokeScreen = talentEffect(player.class, player.talents, "rogue_smoke_screen", 3);
       if (smokeScreen) applyRogueSmokeProtection(player, now, smokeScreen);
@@ -3418,17 +3570,11 @@ export function resolvePlayerAction(
       definition.halfAngleRadians ?? Math.PI / 3,
     );
     const targets = w.state.monsterGrid
-      .queryRadius(center, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+      .queryRadius(center, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
       .filter(
         (monster) =>
           monster.deadUntil <= now &&
-          circleIntersectsArc(
-            {
-              center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-              radius: monsterBodyRadius(monster.species),
-            },
-            arc,
-          ) &&
+          circleIntersectsArc(monsterBodyHitbox(monster.species, monster), arc) &&
           (player.class === "rogue"
             ? hasRogueLineOfSight(player, monster, terrain)
             : hasLineOfSight(player, monster, terrain.tiles)),
@@ -3606,13 +3752,13 @@ export function resolvePlayerAction(
     let taunted = 0;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
-      radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+      radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
     )) {
       if (
         monster.deadUntil <= now &&
         // Reach the monster's BODY, not its centre: a troll standing with its bulk inside the ring
         // and its centre just outside is visibly in the area, so it must answer for being there.
-        withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
+        monsterHitboxWithin(center, monster, radius) &&
         hasLineOfSight(player, monster, terrain.tiles)
       ) {
         tauntMonster(player, monster, now);
@@ -3729,11 +3875,11 @@ export function resolvePlayerAction(
     const radius = skill.radius ?? skill.range;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
-      radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+      radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
     )) {
       if (
         monster.deadUntil <= now &&
-        withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
+        monsterHitboxWithin(center, monster, radius) &&
         hasLineOfSight(player, monster, terrain.tiles)
       ) {
         const result = damageMonster(
@@ -3957,11 +4103,11 @@ function resolveWarriorCycloneStrike(
   if (connectionId === undefined) return;
   const skill = configuredSkill(w, player, 5);
   for (const monster of w.state.monsterGrid
-    .queryRadius(player, radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(player, radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      !withinRange(player, monster, radius + monsterBodyRadius(monster.species)) ||
+      !monsterHitboxWithin(bodyCenter(player), monster, radius) ||
       !hasLineOfSight(player, monster, zone(w.state).terrain.tiles)
     )
       continue;
@@ -4036,11 +4182,11 @@ function releaseCounterOffensive(
   if (power <= 0) return;
   const center = { x: player.x, y: player.y };
   for (const monster of w.state.monsterGrid
-    .queryRadius(center, effect.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(center, effect.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      !withinRange(player, monster, effect.radius + monsterBodyRadius(monster.species)) ||
+      !monsterHitboxWithin(bodyCenter(player), monster, effect.radius) ||
       !hasLineOfSight(player, monster, zone(w.state).terrain.tiles)
     )
       continue;
@@ -4085,11 +4231,11 @@ function pulseWarriorVortex(
 ): void {
   const radius = player.warriorVortex?.radius ?? 0;
   for (const monster of w.state.monsterGrid
-    .queryRadius(center, radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+    .queryRadius(center, radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      pointDistance(center, monster) > radius + monsterBodyRadius(monster.species) ||
+      !monsterHitboxWithin(center, monster, radius) ||
       !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
     )
       continue;
@@ -4113,52 +4259,48 @@ function pulseWarriorVortex(
   }
 }
 
-/** Port of `#applySacredPassage` (`world.ts:2990`). */
-function applySacredPassage(
-  w: WorldGlue,
-  casterConnectionId: string,
-  caster: PlayerRuntime,
-  previous: Vec2,
-  now: number,
-): void {
+function extendSacredPassage(w: WorldGlue, caster: PlayerRuntime): void {
   const action = caster.action;
-  const healedIds = action?.sacredPassageHealedIds;
-  if (action?.skillId !== "blink" || !healedIds) return;
-  const effect = talentEffect(caster.class, caster.talents, "sacred_passage", 3);
-  if (!effect) return;
-  const from = { x: previous.x + PLAYER_SIZE / 2, y: previous.y + PLAYER_SIZE / 2 };
-  const to = { x: caster.x + PLAYER_SIZE / 2, y: caster.y + PLAYER_SIZE / 2 };
-  if (from.x === to.x && from.y === to.y) return;
-  const candidates = [...w.state.players.values()].filter(
-    (target) => target !== caster && target.life === "alive" && areCombatAllies(caster, target),
-  );
-  for (const target of sacredPassageTargets(candidates, healedIds, (candidate) => {
-    return (
-      sweptProjectileEntityImpact(
-        from,
-        to,
-        effect.width,
-        {
-          center: { x: candidate.x + PLAYER_SIZE / 2, y: candidate.y + PLAYER_SIZE / 2 },
-          radius: PLAYER_SIZE / 2,
-        },
-        candidate.id,
-      ) !== null
-    );
-  })) {
-    const targetConnectionId = connectionOf(w.state, target.id);
-    if (targetConnectionId === undefined) continue;
-    healPlayer(
-      w,
-      casterConnectionId,
-      caster,
-      targetConnectionId,
-      target,
-      effect.power + Math.max(0, caster.level - 1) * effect.powerPerLevel,
-      "blink",
-      now,
-      false,
-    );
+  if (action?.skillId !== "blink" || !action.priestLumenTrailId) return;
+  const trail = w.state.lumenTrails.find((candidate) => candidate.id === action.priestLumenTrailId);
+  if (trail) {
+    appendLumenTrailPoint(trail, {
+      x: caster.x + PLAYER_SIZE / 2,
+      y: caster.y + PLAYER_SIZE / 2,
+    });
+  }
+}
+
+function healSacredPassageCrossings(w: WorldGlue, now: number): void {
+  for (const trail of w.state.lumenTrails) {
+    if (trail.expiresAt <= now || trail.points.length < 2) continue;
+    const ownerConnectionId = connectionOf(w.state, trail.ownerId);
+    if (ownerConnectionId === undefined) continue;
+    const owner = w.state.players.get(ownerConnectionId);
+    if (!owner?.authorized || owner.life !== "alive") continue;
+    for (const [targetConnectionId, target] of w.state.players) {
+      if (
+        target === owner ||
+        target.life !== "alive" ||
+        !areCombatAllies(owner, target) ||
+        trail.healedPlayerIds.has(target.id) ||
+        target.hp >= maxHpForLevel(target.level) ||
+        !lumenTrailTouches(trail, target)
+      )
+        continue;
+      trail.healedPlayerIds.add(target.id);
+      healPlayer(
+        w,
+        ownerConnectionId,
+        owner,
+        targetConnectionId,
+        target,
+        trail.power,
+        "blink",
+        now,
+        false,
+      );
+    }
   }
 }
 
@@ -4168,23 +4310,21 @@ function applyLumenPortal(
   player: PlayerRuntime,
   now: number,
 ): void {
-  const terrain = zone(w.state).terrain;
   for (const portal of [...w.state.lumenPortals].sort((a, b) => a.id.localeCompare(b.id))) {
-    if (
-      portal.expiresAt <= now ||
-      portal.ownerId === player.id ||
-      portal.usedPlayerIds.has(player.id)
-    )
-      continue;
+    if (portal.expiresAt <= now || portal.usedPlayerIds.has(player.id)) continue;
     const ownerConnectionId = connectionOf(w.state, portal.ownerId);
     if (ownerConnectionId === undefined) continue;
     const owner = w.state.players.get(ownerConnectionId);
     if (!owner?.authorized || owner.life !== "alive" || !areCombatAllies(owner, player)) continue;
     const atFrom = pointDistance(player, portal.from) <= portal.triggerRadius;
     const atTo = pointDistance(player, portal.to) <= portal.triggerRadius;
+    if (portal.waitingForExitIds.has(player.id)) {
+      if (!atFrom && !atTo) portal.waitingForExitIds.delete(player.id);
+      continue;
+    }
     if (!atFrom && !atTo) continue;
-    const destination = atFrom ? portal.to : portal.from;
-    if (!isWalkable(destination, PLAYER_SIZE, terrain)) continue;
+    const destination = safeLumenLanding(w, player, atFrom ? portal.to : portal.from, now);
+    if (!destination) continue;
     portal.usedPlayerIds.add(player.id);
     const previous = { x: player.x, y: player.y };
     player.x = destination.x;
@@ -4243,10 +4383,10 @@ function resolvePolarityOrbStep(
       monster.deadUntil > now ||
       hitIds.has(hitId) ||
       !crossedRing(
-        pointDistance(center, monster),
+        pointDistance(center, monsterBodyHitbox(monster.species, monster).center),
         fromRadius,
         toRadius,
-        monsterBodyRadius(monster.species),
+        monsterBodyHitbox(monster.species, monster).radius,
       ) ||
       !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
     )
@@ -4614,6 +4754,16 @@ export async function handleInteract(
   // codebase resolves every action as "the nearest valid thing in range"; so does this.
   const resurrection = resurrectNearbyCorpse(w, connectionId, player, now);
   if (resurrection.handled) return { cooldownStarted: resurrection.cooldownStarted };
+  const camp = nearbyAlliedPeasantCamp(w.state.peasantSupport, player, zone(w.state).terrain, now);
+  if (camp) {
+    w.deps.send(connectionId, {
+      t: "peasant.camp_bank",
+      id: camp.id,
+      gold: camp.storedGold,
+      opened: true,
+    });
+    return { cooldownStarted: false };
+  }
   // Standard authored quest bindings win before the same event's advanced command program. If no
   // quest has anything relevant to show, the event program remains the full-control fallback.
   if (triggerQuestTargetNearby(w, connectionId, player)) return { cooldownStarted: false };
@@ -4672,6 +4822,44 @@ export async function handleInteract(
   player.dirty = true;
   sendStateTo(w, connectionId, player);
   return { cooldownStarted: false };
+}
+
+export function handlePeasantCampGold(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  campId: string,
+  operation: "deposit" | "withdraw",
+  amount: number,
+): void {
+  const result = transferPeasantCampGold({
+    runtime: w.state.peasantSupport,
+    player,
+    terrain: zone(w.state).terrain,
+    campId,
+    operation,
+    amount,
+    now: w.deps.now(),
+  });
+  if (!result.ok) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code:
+        result.reason === "insufficient"
+          ? "peasant.camp_gold_insufficient"
+          : "peasant.camp_gold_unavailable",
+      tone: "bad",
+    });
+    return;
+  }
+  sendStateTo(w, connectionId, player);
+  sendCampBankToParty(w, result.camp, connectionId);
+  w.deps.send(connectionId, {
+    t: "event",
+    code: operation === "deposit" ? "peasant.camp_gold_deposited" : "peasant.camp_gold_withdrawn",
+    params: { amount },
+    tone: "good",
+  });
 }
 
 /** Port of `#useConsumable` (`world.ts:3930`). */
@@ -4869,6 +5057,7 @@ export function handleTalentReset(w: WorldGlue, connectionId: string, player: Pl
   player.priestLifeLinks = [];
   player.priestSoulAnchor = null;
   removeLumenPortalsByOwner(w.state.lumenPortals, player.id);
+  removeLumenTrailsByOwner(w.state.lumenTrails, player.id);
   removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   if (player.guarding) {
     player.guardReduction = configuredSkill(w, player, 2).reduction ?? 0;
@@ -5975,10 +6164,12 @@ export function advanceWorldTick(w: WorldGlue): void {
       // its coordinator await, so movement cannot race a delayed credit.
       cancelPeasantHarvestJob(state.harvestJobs, player.id);
       detectPlayerTouch(state, player, previous);
-      applySacredPassage(w, connectionId, player, previous, now);
+      extendSacredPassage(w, player);
       applyLumenPortal(w, connectionId, player, now);
     },
   });
+  healSacredPassageCrossings(w, now);
+  expireLumenTrails(state.lumenTrails, now);
   expireLumenPortals(state.lumenPortals, now);
   // NPCs held by a live event run or an open quest conversation stand still for the exchange.
   const pausedNpcIds = new Set([
@@ -6051,6 +6242,19 @@ export function advanceWorldTick(w: WorldGlue): void {
         owner.id === target.id,
       );
     },
+    restoreResource: (camp, _owner, target) => {
+      if (target.resource?.kind !== "mana" || target.resource.current >= target.resource.max)
+        return;
+      const restored = Math.min(
+        target.resource.max - target.resource.current,
+        Math.max(0, camp.manaPower),
+      );
+      if (restored <= 0) return;
+      target.resource.current += restored;
+      target.dirty = true;
+      const targetConnectionId = connectionOf(state, target.id);
+      if (targetConnectionId !== undefined) sendStateTo(w, targetConnectionId, target);
+    },
     serveRation: (camp, owner, target) => {
       const ownerConnectionId = connectionOf(state, owner.id);
       const targetConnectionId = connectionOf(state, target.id);
@@ -6070,7 +6274,15 @@ export function advanceWorldTick(w: WorldGlue): void {
     },
     slowMonster: (camp, _owner, monster) =>
       applyMonsterSlow(monster, camp.slowRatio, camp.pulseIntervalMs + 1_000 / TICK_HZ, now),
-    removed: (camp) => sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp),
+    removed: (camp) => {
+      const owner = playerById(state, camp.ownerId);
+      if (owner) {
+        refundPeasantCampGold(camp, owner);
+        const ownerConnectionId = connectionOf(state, owner.id);
+        if (ownerConnectionId !== undefined) sendStateTo(w, ownerConnectionId, owner);
+      }
+      sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp);
+    },
   });
   if (state.tick % TICK_HZ === 0) {
     for (const [connectionId, player] of state.players) {
@@ -6108,6 +6320,19 @@ export function advanceWorldTick(w: WorldGlue): void {
             attacker.id,
             impactAt,
           );
+      },
+      damageRogueSilhouette: (projectile, target, impactAt) => {
+        const silhouette = target.rogueSilhouette;
+        if (!silhouette || silhouette.expiresAt <= impactAt || !isRogueStealthed(target, impactAt))
+          return;
+        silhouette.hp = Math.max(0, silhouette.hp - Math.max(0, projectile.power));
+        if (silhouette.hp <= 0) {
+          target.rogueSilhouette = null;
+          forgetPlayer(w, target);
+        }
+        target.dirty = true;
+        const targetConnectionId = connectionOf(state, target.id);
+        if (targetConnectionId !== undefined) sendStateTo(w, targetConnectionId, target);
       },
       damageGuard: (projectile, guard) => {
         applyGuardDamage(guard, projectile.power);

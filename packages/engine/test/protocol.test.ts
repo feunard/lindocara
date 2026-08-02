@@ -30,6 +30,26 @@ describe("client protocol", () => {
     expect(parseClientMessage(JSON.stringify({ t: "interact", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "interact" }))).toEqual({ t: "interact" });
+    expect(
+      parseClientMessage(
+        JSON.stringify({
+          t: "peasant.camp_gold",
+          id: "camp-1",
+          operation: "deposit",
+          amount: 25,
+        }),
+      ),
+    ).toEqual({ t: "peasant.camp_gold", id: "camp-1", operation: "deposit", amount: 25 });
+    expect(
+      parseClientMessage(
+        JSON.stringify({
+          t: "peasant.camp_gold",
+          id: "camp-1",
+          operation: "withdraw",
+          amount: 0,
+        }),
+      ),
+    ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion" }))).toEqual({
       t: "use",
       item: "potion",
@@ -99,6 +119,12 @@ describe("client protocol", () => {
       t: "skill",
       slot: 3,
     });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } })),
+    ).toEqual({ t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 2, y: 0 } })),
+    ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId }))).toBeNull();
     expect(
       parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId: "nearest target" })),
@@ -1030,6 +1056,39 @@ describe("Priest ultimate visual messages", () => {
     ).toMatchObject({ t: "priest.polarity_orb", maximumRadius: 160 });
   });
 
+  it("accepts only bounded persistent Lumen trails", () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.lumen_trail",
+          id: "trail-1",
+          actorId: "priest-1",
+          points: [
+            { x: 16, y: 16 },
+            { x: 80, y: 16 },
+            { x: 80, y: 80 },
+          ],
+          width: 22,
+          startedAt: 1_000,
+          endsAt: 7_000,
+        }),
+      ),
+    ).toMatchObject({ t: "priest.lumen_trail", id: "trail-1" });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "priest.lumen_trail",
+          id: "trail-1",
+          actorId: "priest-1",
+          points: [{ x: 16, y: 16 }],
+          width: 22,
+          startedAt: 1_000,
+          endsAt: 7_000,
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("rejects invalid timelines and unbounded portal lifetimes", () => {
     expect(
       parseServerMessage(
@@ -1082,6 +1141,11 @@ describe("Peasant support visual messages", () => {
     });
     expect(
       parseServerMessage(
+        JSON.stringify({ t: "peasant.camp_bank", id: camp.id, gold: 120, opened: true }),
+      ),
+    ).toEqual({ t: "peasant.camp_bank", id: camp.id, gold: 120, opened: true });
+    expect(
+      parseServerMessage(
         JSON.stringify({
           t: "peasant.bomb_impact",
           actionId: "bomb-1",
@@ -1101,5 +1165,10 @@ describe("Peasant support visual messages", () => {
       parseServerMessage(JSON.stringify({ ...camp, expiresAt: camp.startedAt + 120_001 })),
     ).toBeNull();
     expect(parseServerMessage(JSON.stringify({ ...camp, healing: 999 }))).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ t: "peasant.camp_bank", id: camp.id, gold: -1, opened: true }),
+      ),
+    ).toBeNull();
   });
 });

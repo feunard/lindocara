@@ -384,6 +384,17 @@ export interface PriestLumenPortalVisual {
   endsAt: number;
 }
 
+export interface PriestLumenTrailVisual {
+  t: "priest.lumen_trail";
+  id: string;
+  actorId: string;
+  /** World-space centre points following every turn of the authoritative held movement. */
+  points: Vec2[];
+  width: number;
+  startedAt: number;
+  endsAt: number;
+}
+
 export interface PriestPolarityOrbVisual {
   t: "priest.polarity_orb";
   id: string;
@@ -411,6 +422,14 @@ export interface PeasantCampVisual {
 export interface PeasantCampRemovedVisual {
   t: "peasant.camp_removed";
   id: string;
+}
+
+/** Private/team camp-chest state. `opened` is true only for the hero who just interacted. */
+export interface PeasantCampBankVisual {
+  t: "peasant.camp_bank";
+  id: string;
+  gold: number;
+  opened: boolean;
 }
 
 /** One server-confirmed homemade-bomb explosion. */
@@ -563,8 +582,14 @@ export type ClientMessage =
   | { t: "input"; seq: number; input: Input }
   | { t: "attack" }
   | { t: "interact" }
+  | {
+      t: "peasant.camp_gold";
+      id: string;
+      operation: "deposit" | "withdraw";
+      amount: number;
+    }
   | { t: "release" }
-  | { t: "skill"; slot: SkillSlot }
+  | { t: "skill"; slot: SkillSlot; direction?: Vec2 }
   | { t: "skill.release"; slot: SkillSlot }
   | { t: "talent.unlock"; nodeId: string }
   | { t: "talent.reset" }
@@ -649,6 +674,10 @@ export const EVENT_CODES = [
   "peasant.harvested",
   "peasant.materials_insufficient",
   "peasant.support_unavailable",
+  "peasant.camp_gold_unavailable",
+  "peasant.camp_gold_insufficient",
+  "peasant.camp_gold_deposited",
+  "peasant.camp_gold_withdrawn",
   "talent.unlocked",
   "talent.reset",
   "talent.invalid",
@@ -751,9 +780,11 @@ export type ServerMessage =
   | MonsterSpecialImpact
   | RogueShadowDanceSequence
   | PriestLumenPortalVisual
+  | PriestLumenTrailVisual
   | PriestPolarityOrbVisual
   | PeasantCampVisual
   | PeasantCampRemovedVisual
+  | PeasantCampBankVisual
   | PeasantBombImpactVisual
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
   // The three dialogue beats pushed to the run's TRIGGERER only (spec Decision 4: dialogue is a
@@ -899,6 +930,26 @@ function isPriestLumenPortalVisual(value: unknown): value is PriestLumenPortalVi
   );
 }
 
+function isPriestLumenTrailVisual(value: unknown): value is PriestLumenTrailVisual {
+  return (
+    isRecord(value) &&
+    value.t === "priest.lumen_trail" &&
+    isWireId(value.id) &&
+    isWireId(value.actorId) &&
+    Array.isArray(value.points) &&
+    value.points.length >= 2 &&
+    value.points.length <= 96 &&
+    value.points.every(isPosition) &&
+    isFiniteNumber(value.width) &&
+    value.width >= 1 &&
+    value.width <= 64 &&
+    isFiniteNumber(value.startedAt) &&
+    isFiniteNumber(value.endsAt) &&
+    value.endsAt >= value.startedAt &&
+    value.endsAt - value.startedAt <= 10_000
+  );
+}
+
 function isPriestPolarityOrbVisual(value: unknown): value is PriestPolarityOrbVisual {
   return (
     isRecord(value) &&
@@ -943,6 +994,20 @@ function isPeasantCampRemovedVisual(value: unknown): value is PeasantCampRemoved
     hasOnlyKeys(value, ["t", "id"]) &&
     value.t === "peasant.camp_removed" &&
     isWireId(value.id)
+  );
+}
+
+function isPeasantCampBankVisual(value: unknown): value is PeasantCampBankVisual {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["t", "id", "gold", "opened"]) &&
+    value.t === "peasant.camp_bank" &&
+    isWireId(value.id) &&
+    typeof value.gold === "number" &&
+    Number.isSafeInteger(value.gold) &&
+    value.gold >= 0 &&
+    value.gold <= 999_999_999 &&
+    typeof value.opened === "boolean"
   );
 }
 
@@ -1705,8 +1770,34 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (value.t === "attack" && hasOnlyKeys(value, ["t"])) return { t: "attack" };
   if ((value.t === "interact" || value.t === "release") && hasOnlyKeys(value, ["t"]))
     return { t: value.t };
-  if (value.t === "skill" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
-    return { t: "skill", slot: value.slot };
+  if (
+    value.t === "peasant.camp_gold" &&
+    isWireId(value.id) &&
+    (value.operation === "deposit" || value.operation === "withdraw") &&
+    typeof value.amount === "number" &&
+    Number.isSafeInteger(value.amount) &&
+    value.amount >= 1 &&
+    value.amount <= 1_000_000 &&
+    hasOnlyKeys(value, ["t", "id", "operation", "amount"])
+  ) {
+    return {
+      t: "peasant.camp_gold",
+      id: value.id,
+      operation: value.operation,
+      amount: value.amount,
+    };
+  }
+  if (
+    value.t === "skill" &&
+    isSkillSlot(value.slot) &&
+    (value.direction === undefined || isDirection(value.direction)) &&
+    hasOnlyKeys(value, ["t", "slot", "direction"])
+  ) {
+    return {
+      t: "skill",
+      slot: value.slot,
+      ...(value.direction === undefined ? {} : { direction: value.direction }),
+    };
   }
   if (value.t === "skill.release" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
     return { t: "skill.release", slot: value.slot };
@@ -1972,10 +2063,16 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     }
     if (isRogueShadowDanceSequence(value)) return value;
-    if (isPriestLumenPortalVisual(value) || isPriestPolarityOrbVisual(value)) return value;
+    if (
+      isPriestLumenPortalVisual(value) ||
+      isPriestLumenTrailVisual(value) ||
+      isPriestPolarityOrbVisual(value)
+    )
+      return value;
     if (
       isPeasantCampVisual(value) ||
       isPeasantCampRemovedVisual(value) ||
+      isPeasantCampBankVisual(value) ||
       isPeasantBombImpactVisual(value)
     )
       return value;

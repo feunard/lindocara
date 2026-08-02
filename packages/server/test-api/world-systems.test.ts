@@ -1,7 +1,6 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceCombatActions,
   cancelCombatAction,
@@ -327,7 +326,7 @@ describe("lumen mobility terrain rules", () => {
     expect(actor.x).toBeLessThan(64);
   });
 
-  it("still blocks building obstacles during Lumen movement", () => {
+  it("phases through building obstacles during Lumen movement", () => {
     const blockedWithLumen = player();
     blockedWithLumen.x = 0;
     blockedWithLumen.y = 0;
@@ -355,8 +354,7 @@ describe("lumen mobility terrain rules", () => {
       normalGrid,
       false,
     );
-    expect(blockedWithLumen.x).toBeGreaterThanOrEqual(TILE_SIZE * 1.5);
+    expect(blockedWithLumen.x).toBe(128);
     expect(blockedWithLumen.x).toBeGreaterThan(blockedNormally.x);
-    expect(blockedWithLumen.x).toBeLessThan(TILE_SIZE * 2);
   });
 });

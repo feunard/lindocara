@@ -16,9 +16,9 @@
  * it was pinned to 96, and the same one the guard had at 102: shrinking one class of sprite is what
  * breaks a pack that was already in proportion. A goblin looked knee-high; a troll was not a giant.
  *
- * Note this is APPEARANCE only. Every monster's collision and attack reach come from `PLAYER_SIZE`
- * server-side regardless of species, so drawing a troll at its true size does not give it a bigger
- * body — see `MONSTER_ATTACK_RANGE` in `engine/game.ts`.
+ * Navigation stays on the 32px ground body. Combat targeting is separate: `MONSTER_BODY_HITBOX`
+ * measures each idle/run silhouette so the complete visible creature can be struck without making
+ * a troll's large sprite block paths or terrain gaps.
  */
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";

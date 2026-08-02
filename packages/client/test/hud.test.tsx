@@ -1,17 +1,18 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import { activePartyAtom } from "@lindocara/client/state/atoms.js";
-import { useUiStore } from "@lindocara/client/store.js";
+import { type GameHandle, useUiStore } from "@lindocara/client/store.js";
 import { Hud } from "@lindocara/client/ui/hud/Hud.js";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithAlepha } from "alepha/react/testing";
 import { act } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("Hud", () => {
   let alephaInstances: Array<{ stop(): Promise<void> }> = [];
 
   beforeEach(() => {
     setLocale("en");
+    useUiStore.setState({ campBank: null });
   });
 
   afterEach(async () => {
@@ -286,5 +287,42 @@ describe("Hud", () => {
     expect(screen.getByText("45/100")).toBeInTheDocument();
     expect(screen.getByText("Ally")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Disband party" })).toBeInTheDocument();
+  });
+
+  it("renders the shared camp chest and sends amount-only transfer intent", async () => {
+    const campGold = vi.fn();
+    useUiStore.setState({
+      self: {
+        nick: "Camper",
+        level: 4,
+        hp: 100,
+        maxHp: 124,
+        life: "alive",
+        corpseDistance: null,
+        class: "warrior",
+        appearance: { body: "wayfarer", primaryColor: "moss" },
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      },
+      selfState: {
+        xp: 0,
+        xpToNext: 220,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 90, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+      },
+      campBank: { id: "camp-1", gold: 40 },
+      game: { campGold } as unknown as GameHandle,
+    });
+    await renderHud();
+    expect(screen.getByRole("dialog", { name: "Camp chest" })).toBeInTheDocument();
+    expect(screen.getByText("Available to every hero in the party")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Gold amount" }), {
+      target: { value: "25" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Deposit" }));
+    expect(campGold).toHaveBeenCalledWith("camp-1", "deposit", 25);
+    fireEvent.click(screen.getByRole("button", { name: "Close chest" }));
+    expect(useUiStore.getState().campBank).toBeNull();
   });
 });

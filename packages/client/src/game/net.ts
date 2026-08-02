@@ -36,10 +36,12 @@ import {
   type MonsterSpecialImpact,
   type PartyState,
   type PeasantBombImpactVisual,
+  type PeasantCampBankVisual,
   type PeasantCampRemovedVisual,
   type PeasantCampVisual,
   type PlayerSnapshot,
   type PriestLumenPortalVisual,
+  type PriestLumenTrailVisual,
   type PriestPolarityOrbVisual,
   type ProjectileSnapshot,
   parseServerMessage,
@@ -125,11 +127,12 @@ export type { SceneSample };
 export interface Connection {
   attack(): void;
   interact(): void;
+  campGold(id: string, operation: "deposit" | "withdraw", amount: number): void;
   usePotion(): void;
   useItem(item: ConsumableId): void;
   buyItem(item: ConsumableId): void;
   release(): void;
-  skill(slot: SkillSlot): void;
+  skill(slot: SkillSlot, direction?: Vec2): void;
   releaseSkill(slot: SkillSlot): void;
   unlockTalent(nodeId: string): void;
   resetTalents(): void;
@@ -165,8 +168,10 @@ export interface ConnectionHandlers {
   onMonsterSpecialImpact(impact: MonsterSpecialImpact): void;
   onShadowDance(sequence: RogueShadowDanceSequence): void;
   onLumenPortal(portal: PriestLumenPortalVisual): void;
+  onLumenTrail(trail: PriestLumenTrailVisual): void;
   onPolarityOrb(orb: PriestPolarityOrbVisual): void;
   onPeasantCamp(camp: PeasantCampVisual): void;
+  onPeasantCampBank(bank: PeasantCampBankVisual): void;
   onPeasantCampRemoved(camp: PeasantCampRemovedVisual): void;
   onPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
@@ -356,11 +361,14 @@ export class WorldClient {
     return {
       attack: () => this.#send({ t: "attack" }),
       interact: () => this.#send({ t: "interact" }),
+      campGold: (id, operation, amount) =>
+        this.#send({ t: "peasant.camp_gold", id, operation, amount }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
       useItem: (item) => this.#send({ t: "item.use", item }),
       buyItem: (item) => this.#send({ t: "merchant.buy", item }),
       release: () => this.#send({ t: "release" }),
-      skill: (slot) => this.#send({ t: "skill", slot }),
+      skill: (slot, direction) =>
+        this.#send({ t: "skill", slot, ...(direction === undefined ? {} : { direction }) }),
       releaseSkill: (slot) => this.#send({ t: "skill.release", slot }),
       unlockTalent: (nodeId) => this.#send({ t: "talent.unlock", nodeId }),
       resetTalents: () => this.#send({ t: "talent.reset" }),
@@ -418,7 +426,14 @@ export class WorldClient {
       const command = { seq, input };
       this.#pending.push(command);
       if (performance.now() >= this.#shadowDanceMovementBlockedUntil)
-        this.#predicted = predictStep(this.#predicted, command, this.#geometry, speed);
+        this.#predicted = predictStep(
+          this.#predicted,
+          command,
+          this.#geometry,
+          speed,
+          this.#selfSnapshot?.action?.skillId === "blink" &&
+            this.#selfSnapshot.action.channelEndsAt === undefined,
+        );
       this.#send({ t: "input", seq, input });
     }
   }
@@ -620,12 +635,20 @@ export class WorldClient {
       handlers.onLumenPortal(message);
       return;
     }
+    if (message.t === "priest.lumen_trail") {
+      handlers.onLumenTrail(message);
+      return;
+    }
     if (message.t === "priest.polarity_orb") {
       handlers.onPolarityOrb(message);
       return;
     }
     if (message.t === "peasant.camp") {
       handlers.onPeasantCamp(message);
+      return;
+    }
+    if (message.t === "peasant.camp_bank") {
+      handlers.onPeasantCampBank(message);
       return;
     }
     if (message.t === "peasant.camp_removed") {
@@ -721,6 +744,7 @@ export class WorldClient {
       authoritative.life,
       authoritative.class,
       mapHeroClassSettings(this.#heroSettings, authoritative.class).stats.movementSpeed,
+      authoritative.action?.skillId === "blink" && authoritative.action.channelEndsAt === undefined,
     );
 
     const drawnAfter = this.#samplePredictedPosition();

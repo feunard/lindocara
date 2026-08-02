@@ -117,8 +117,10 @@ function handlers(): ConnectionHandlers {
     onMonsterSpecialImpact: vi.fn(),
     onShadowDance: vi.fn(),
     onLumenPortal: vi.fn(),
+    onLumenTrail: vi.fn(),
     onPolarityOrb: vi.fn(),
     onPeasantCamp: vi.fn(),
+    onPeasantCampBank: vi.fn(),
     onPeasantCampRemoved: vi.fn(),
     onPeasantBombImpact: vi.fn(),
     onEvent: vi.fn(),
@@ -204,6 +206,12 @@ describe("WorldClient on the alepha wire", () => {
       roomId: "party-1:verdant-reach",
       message: { t: "attack" },
     });
+
+    connection.skill(5, { x: 0.6, y: 0.8 });
+    expect(JSON.parse(socket?.sent[1] ?? "")).toEqual({
+      roomId: "party-1:verdant-reach",
+      message: { t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } },
+    });
   });
 
   it("strips the __alephaRoom transport key before parsing an incoming frame", async () => {
@@ -238,6 +246,8 @@ describe("WorldClient on the alepha wire", () => {
     };
     socket?.message(camp);
     socket?.message(camp); // admission + heartbeat replay is intentionally idempotent downstream
+    const bank = { t: "peasant.camp_bank" as const, id: camp.id, gold: 75, opened: true };
+    socket?.message(bank);
     socket?.message({ t: "peasant.camp_removed", id: camp.id });
     const impact = {
       t: "peasant.bomb_impact" as const,
@@ -245,13 +255,14 @@ describe("WorldClient on the alepha wire", () => {
       actorId: "hero-1",
       x: 80,
       y: 96,
-      radius: 72,
+      radius: 110,
       impactAt: 2_000,
     };
     socket?.message(impact);
 
     expect(callbacks.onPeasantCamp).toHaveBeenCalledTimes(2);
     expect(callbacks.onPeasantCamp).toHaveBeenLastCalledWith(camp);
+    expect(callbacks.onPeasantCampBank).toHaveBeenCalledWith(bank);
     expect(callbacks.onPeasantCampRemoved).toHaveBeenCalledWith({
       t: "peasant.camp_removed",
       id: camp.id,

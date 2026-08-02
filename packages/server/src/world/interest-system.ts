@@ -121,13 +121,32 @@ function visiblePlayerSnapshots<TSocket>(
     selection.entities.push(viewer);
   }
   const now = context.now();
-  return selection.entities
+  // A vanished Rogue may travel far from the decoy. AOI must follow the decoy's public position,
+  // never the hidden player's grid position, or observers would see it disappear early (and could
+  // infer where the real Rogue moved from that disappearance).
+  const entitiesById = new Map(selection.entities.map((player) => [player.id, player]));
+  for (const player of context.players.values()) {
+    const silhouette = player.rogueSilhouette;
+    if (
+      player.id !== viewer.id &&
+      isRogueStealthed(player, now) &&
+      silhouette &&
+      silhouette.expiresAt > now &&
+      pointDistance(viewer, silhouette) <= PLAYER_VISIBILITY_RADIUS + INTEREST_HYSTERESIS
+    ) {
+      entitiesById.set(player.id, player);
+      viewer.interest.players.add(player.id);
+    }
+  }
+  return [...entitiesById.values()]
     .filter(
       (player) =>
         player.authorized &&
         (player.id === viewer.id ||
           !isRogueStealthed(player, now) ||
-          (player.rogueSilhouette?.expiresAt ?? 0) > now),
+          ((player.rogueSilhouette?.expiresAt ?? 0) > now &&
+            pointDistance(viewer, player.rogueSilhouette ?? player) <=
+              PLAYER_VISIBILITY_RADIUS + INTEREST_HYSTERESIS)),
     )
     .map((player) => {
       const snapshot = playerSnapshot(player, now);

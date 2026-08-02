@@ -12,7 +12,13 @@
  */
 
 import { type LifeState, speedForLife } from "./death.js";
-import { movementSpeedAt, type PlayerClass, resolveTerrain, type TerrainGeometry } from "./game.js";
+import {
+  movementSpeedAt,
+  type PlayerClass,
+  resolveTerrain,
+  resolveTerrainForLumen,
+  type TerrainGeometry,
+} from "./game.js";
 import type { Command } from "./protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "./simulation.js";
 
@@ -54,8 +60,10 @@ export function predictStep(
   command: Command,
   geometry: TerrainGeometry,
   speed: number = PLAYER_SPEED,
+  lumenPhase = false,
 ): Vec2 {
-  return resolveTerrain(
+  const resolve = lumenPhase ? resolveTerrainForLumen : resolveTerrain;
+  return resolve(
     position,
     step(position, command.input, TICK_DT, movementSpeedAt(position, speed, geometry), geometry),
     geometry,
@@ -78,11 +86,12 @@ export function reconcile(
   life: LifeState = "alive",
   playerClass: PlayerClass = "warrior",
   movementSpeed?: number,
+  lumenPhase = false,
 ): Vec2 {
   const speed = speedForLife(life, playerClass, movementSpeed);
   let position: Vec2 = authoritative;
   for (const command of pending) {
-    position = predictStep(position, command, geometry, speed);
+    position = predictStep(position, command, geometry, speed, lumenPhase);
   }
   return position;
 }

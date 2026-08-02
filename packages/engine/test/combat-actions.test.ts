@@ -29,7 +29,7 @@ describe("directional class kit contract", () => {
       325, 4_500, 14_000, 6_000, 11_000,
     ]);
     expect(CLASS_SKILLS.peasant.map((skill) => skill.cooldownMs)).toEqual([
-      850, 1_600, 1_350, 12_000, 10_000,
+      420, 520, 460, 12_000, 10_000,
     ]);
   });
 
@@ -50,7 +50,7 @@ describe("directional class kit contract", () => {
         if (!action) throw new Error(`missing slot one action for ${playerClass}`);
         return action.anticipationMs + action.recoveryMs;
       }),
-    ).toEqual([325, 325, 325, 325, 850]);
+    ).toEqual([325, 325, 325, 325, 420]);
     expect(PLAYER_ACTIONS.priest[0]).toMatchObject({
       skillId: "radiant_bolt",
       anticipationMs: 140,
@@ -58,7 +58,7 @@ describe("directional class kit contract", () => {
     });
   });
 
-  it("declares five typed Peasant tools with slow, weak action contracts", () => {
+  it("declares five typed Peasant tools with rapid harvesting action contracts", () => {
     expect(CLASS_SKILLS.peasant).toMatchObject([
       { id: "woodcutters_swing", slot: 1, effect: "harvest", range: 54, power: 0 },
       { id: "prospectors_pick", slot: 2, effect: "harvest", power: 6 },
@@ -67,16 +67,17 @@ describe("directional class kit contract", () => {
         id: "makeshift_camp",
         slot: 4,
         effect: "construction",
-        power: 14,
+        power: 60,
         radius: 96,
-        durationMs: 12_000,
+        durationMs: 30_000,
       },
       {
         id: "homemade_bomb",
         slot: 5,
         effect: "homemade_bomb",
-        power: 20,
-        radius: 72,
+        power: 85,
+        radius: 110,
+        range: 300,
         durationMs: 650,
       },
     ]);
@@ -88,14 +89,14 @@ describe("directional class kit contract", () => {
       "homemade_bomb",
     ]);
     expect(
-      PLAYER_ACTIONS.peasant.every((action) => action.anticipationMs + action.recoveryMs >= 850),
-    ).toBe(true);
+      PLAYER_ACTIONS.peasant.slice(0, 3).map((action) => action.anticipationMs + action.recoveryMs),
+    ).toEqual([420, 460, 400]);
   });
 
   it("declares the Rogue kit without any client-authored target contract", () => {
     expect(CLASS_SKILLS.rogue).toMatchObject([
       { id: "dual_slash", slot: 1, range: 58, power: 0 },
-      { id: "shadow_step", slot: 2, effect: "shadow_step", range: 260 },
+      { id: "shadow_step", slot: 2, effect: "shadow_step", range: 312 },
       { id: "vanish", slot: 3, effect: "stealth", durationMs: 8_000 },
       { id: "poisoned_shiv", slot: 4, range: 58, power: 14 },
       { id: "shadow_dance", slot: 5, effect: "shadow_dance", range: 360, power: 32 },

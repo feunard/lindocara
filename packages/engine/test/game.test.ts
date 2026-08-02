@@ -31,13 +31,16 @@ import {
   isWalkable,
   isWalkableForLumen,
   MAX_MONSTER_BODY_RADIUS,
+  MAX_MONSTER_BODY_REACH,
   MONSTER_AGGRO_RANGE,
+  MONSTER_BODY_HITBOX,
   MONSTER_BODY_RADIUS,
   MONSTER_SPAWNS,
   MONSTER_SPECIES_KIND,
   MONSTER_STATS,
   type MonsterSpecies,
   maxHpForLevel,
+  monsterBodyHitbox,
   monsterBodyRadius,
   nearestCemetery,
   nearestShore,
@@ -508,12 +511,13 @@ describe("authoritative world geometry", () => {
     expect(resolveTerrainForLumen(from, to, lumenTerrain)).toEqual({ x: 64, y: 0 });
   });
 
-  it("keeps Lumen Step blocked by non-water obstacles", () => {
+  it("lets Lumen Step phase through non-water obstacles", () => {
     const from = { x: 0, y: 0 };
     const to = { x: 64, y: 0 };
     expect(isWalkable(from, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
     expect(isWalkableForLumen(from, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
-    expect(resolveTerrainForLumen(from, to, buildingLumenTerrain)).toEqual({ x: 0, y: 0 });
+    expect(isWalkableForLumen(to, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
+    expect(resolveTerrainForLumen(from, to, buildingLumenTerrain)).toEqual(to);
   });
 
   it("snaps rematerialization from water to the nearest shore", () => {
@@ -805,13 +809,17 @@ describe("monster species table", () => {
   });
 });
 
-describe("monster body radius", () => {
-  it("gives every species a target radius via its kind", () => {
+describe("monster body hitboxes", () => {
+  it("gives every species a measured target body", () => {
     for (const species of Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]) {
       const radius = monsterBodyRadius(species);
       expect(Number.isFinite(radius)).toBe(true);
       expect(radius).toBeGreaterThan(0);
-      expect(radius).toBe(MONSTER_BODY_RADIUS[MONSTER_SPECIES_KIND[species]]);
+      expect(radius).toBe(MONSTER_BODY_RADIUS[species]);
+      const hitbox = monsterBodyHitbox(species, { x: 100, y: 100 });
+      expect(hitbox.center.x).toBe(118);
+      expect(hitbox.center.y).toBeLessThanOrEqual(101);
+      expect(hitbox.radius).toBe(radius);
     }
   });
 
@@ -828,17 +836,21 @@ describe("monster body radius", () => {
     expect(monsterBodyRadius("skull_guard")).toBe(monsterBodyRadius("skull_warden"));
   });
 
-  it("stays a bounded combat number, never a collision size", () => {
-    // Movement still uses PLAYER_SIZE everywhere — `isWalkable`, the terrain clamp and the
-    // navigation grid are all baked for 32px, and a troll with a 66px COLLISION body would jam in
-    // every gap the pathfinder happily routes it through. That is why this is a hit radius.
-    // What it must stay is bounded: never below the hero's own 16 (a monster is at least as
-    // hittable as a player) and never past a tile, which keeps hit detection local to a cell or two
-    // and the broad-phase widening cheap.
+  it("covers the complete visible troll while preserving a separate navigation body", () => {
+    // The combat body follows the art, while movement remains the same 32px ground square.
     expect(MAX_MONSTER_BODY_RADIUS).toBe(Math.max(...Object.values(MONSTER_BODY_RADIUS)));
-    for (const radius of Object.values(MONSTER_BODY_RADIUS)) {
-      expect(radius).toBeLessThanOrEqual(TILE_SIZE);
+    expect(MAX_MONSTER_BODY_REACH).toBeGreaterThan(MAX_MONSTER_BODY_RADIUS);
+    expect(monsterBodyRadius("mire_troll")).toBeGreaterThan(PLAYER_SIZE * 4);
+
+    const hitbox = monsterBodyHitbox("mire_troll", { x: 0, y: 0 });
+    for (const point of [
+      { x: -85, y: -189 },
+      { x: 121, y: -189 },
+      { x: -85, y: 28 },
+      { x: 121, y: 28 },
+    ]) {
+      expect(pointDistance(point, hitbox.center)).toBeLessThanOrEqual(hitbox.radius);
     }
-    expect(Math.max(...Object.values(MONSTER_BODY_RADIUS))).toBeGreaterThanOrEqual(PLAYER_SIZE / 2);
+    expect(MONSTER_BODY_HITBOX.mire_troll).toEqual({ offsetX: 18, offsetY: -80.5, radius: 150 });
   });
 });

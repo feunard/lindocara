@@ -37,6 +37,7 @@ import {
 } from "../../world/peasant-support-system.js";
 import type {
   LumenPortalRuntime,
+  LumenTrailRuntime,
   PolarityOrbRuntime,
   SanctuaryRuntime,
 } from "../../world/priest-variant-system.js";
@@ -187,6 +188,7 @@ export interface WorldRoomState {
   /** Room-local priest sanctuaries (legacy `#sanctuaries`). */
   sanctuaries: SanctuaryRuntime[];
   lumenPortals: LumenPortalRuntime[];
+  lumenTrails: LumenTrailRuntime[];
   polarityOrbs: PolarityOrbRuntime[];
   /** Room-local damage-over-time stacks (legacy `#damageOverTime`). */
   damageOverTime: DamageOverTimeRuntime[];
@@ -294,6 +296,7 @@ export function createWorldRoomState(
     supportSpendQueue: Promise.resolve(),
     sanctuaries: [],
     lumenPortals: [],
+    lumenTrails: [],
     polarityOrbs: [],
     damageOverTime: [],
     siteRespawnAt: new Map(),

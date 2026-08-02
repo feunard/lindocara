@@ -14,16 +14,16 @@ describe("Peasant support contract", () => {
         slot: 4,
         cost: { wood: 4, stone: 2, meat: 2 },
         radius: 96,
-        durationMs: 12_000,
-        power: 14,
+        durationMs: 30_000,
+        power: 60,
       },
       5: {
         id: "homemade_bomb",
         slot: 5,
         cost: { iron: 2, stone: 2 },
-        radius: 72,
+        radius: 110,
         durationMs: 650,
-        power: 20,
+        power: 85,
       },
     });
   });

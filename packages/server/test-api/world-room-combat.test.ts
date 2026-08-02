@@ -25,10 +25,12 @@ import {
 } from "@lindocara/engine/combat-actions.js";
 import {
   ATTACK_COOLDOWN_MS,
+  isWalkable,
   MONSTER_AGGRO_RANGE,
   MONSTER_RESPAWN_MS,
   type MonsterSpawn,
   maxHpForLevel,
+  monsterBodyHitbox,
   pointDistance,
 } from "@lindocara/engine/game.js";
 import {
@@ -36,7 +38,7 @@ import {
   parseServerMessage,
   type ServerMessage,
 } from "@lindocara/engine/protocol.js";
-import { PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
+import { PLAYER_SIZE, PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
 import { advanceCombatActions } from "@lindocara/server/world/combat-action-system.js";
 import { projectileOrigin, spawnProjectile } from "@lindocara/server/world/projectile-system.js";
 import {
@@ -61,7 +63,9 @@ import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
   advanceWorldTick,
+  finishHeldPlayerAction,
   resolveMonsterAction,
+  resolvePlayerAction,
   startMonsterAttack,
   startPlayerAction,
   type WorldGlue,
@@ -555,7 +559,7 @@ describe("world room combat (FakeClock)", () => {
       rationRadius: 180,
       rationBuffDurationMs: 10_000,
       rationPowerBonusRatio: 0.15,
-      expiresAt: camp.startedAt + 44_000,
+      expiresAt: camp.startedAt + 80_000,
     });
     expect(slowed.slowMultiplier).toBeCloseTo(0.8);
     expect(sentTo(sent, host.heroId)).toContainEqual(
@@ -577,9 +581,11 @@ describe("world room combat (FakeClock)", () => {
 
     const guestPlayer = playerOf(state, guest.heroId);
     guestPlayer.hp = 10;
+    guestPlayer.resource = { kind: "mana", current: 10, max: 100 };
     now += 2_000;
     advanceWorldTick(w);
-    expect(guestPlayer.hp).toBe(32);
+    expect(guestPlayer.hp).toBe(34);
+    expect(guestPlayer.resource.current).toBeGreaterThan(10);
     expect(guestPlayer.rallyPowerMultiplier).toBe(0.15);
     expect(guestPlayer.rallyPowerUntil).toBe(now + 10_000);
 
@@ -653,8 +659,8 @@ describe("world room combat (FakeClock)", () => {
       advanceWorldTick(w);
       now += TICK_MS;
     }
-    expect(target.hp).toBe(hpBefore - 35);
-    expect(sideTarget.hp).toBe(sideHpBefore - 35);
+    expect(target.hp).toBe(hpBefore - 150);
+    expect(sideTarget.hp).toBe(sideHpBefore - 150);
     expect(hidden.hp).toBe(hiddenHpBefore);
     expect(sideTarget.slowMultiplier).toBe(0.75);
     expect(sideTarget.slowUntil).toBe(action.impactAt + 3_000);
@@ -664,6 +670,53 @@ describe("world room combat (FakeClock)", () => {
     expect(
       sentTo(sent, host.heroId).filter((message) => message.t === "peasant.bomb_impact"),
     ).toHaveLength(1);
+    engine.dispose();
+  });
+
+  test("Vanish creates a Rogue-shaped priority decoy that absorbs attacks", async () => {
+    const host = await newPlayableHero("rdecoy", "rogue");
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const socket = fakeSocket(host.userId, host.heroId);
+    await engine.join(socket);
+    const state = roomState(engine);
+    const rogue = playerOf(state, host.heroId);
+    rogue.level = 20;
+    rogue.talents = ["rogue.vanish.left_silhouette"];
+    const monster = seedMonster(state, "decoy-hunter", rogue.x + 60, rogue.y);
+    monster.threat.set("another-hero", {
+      playerId: "another-hero",
+      amount: 500,
+      updatedAt: 900,
+    });
+    let now = 1_000;
+    const { w } = testGlue(state, () => now);
+
+    expect(startPlayerAction(w, rogue.connectionId, rogue, 3)).toBe(true);
+    const vanish = rogue.action;
+    if (!vanish) throw new Error("Vanish action missing");
+    now = vanish.impactAt;
+    resolvePlayerAction(w, rogue, vanish, now);
+    const decoy = rogue.rogueSilhouette;
+    if (!decoy) throw new Error("Vanish decoy missing");
+    expect(monster.threat.get(rogue.id)?.amount).toBeGreaterThan(500);
+
+    const beforeHp = rogue.hp;
+    decoy.hp = 1;
+    const previousMonsterPosition = { x: monster.x, y: monster.y };
+    monster.x = decoy.x - 18;
+    monster.y = decoy.y;
+    state.monsterGrid.update(monster, previousMonsterPosition);
+    rogue.x += 180;
+    startMonsterAttack(w, monster, { ...rogue, x: decoy.x, y: decoy.y }, now);
+    const strike = monster.action;
+    if (!strike) throw new Error("decoy strike missing");
+    resolveMonsterAction(w, monster, strike, strike.impactAt);
+
+    expect(rogue.rogueSilhouette).toBeNull();
+    expect(rogue.hp).toBe(beforeHp);
+    expect(rogue.rogueStealthUntil).toBeGreaterThan(strike.impactAt);
+    expect(monster.threat.has(rogue.id)).toBe(false);
     engine.dispose();
   });
 
@@ -746,8 +799,8 @@ describe("world room combat (FakeClock)", () => {
     await engine.join(fakeSocket(ally.userId, ally.heroId));
     const state = roomState(engine);
     const priest = playerOf(state, host.heroId);
-    const corpse = playerOf(state, ally.heroId);
     priest.level = 10;
+    const corpse = playerOf(state, ally.heroId);
     priest.talents = ["priest.divine_nova.mercy", "priest.divine_nova.polarity_orb"];
     corpse.life = "corpse";
     corpse.hp = 0;
@@ -767,6 +820,49 @@ describe("world room combat (FakeClock)", () => {
     expect(corpse.life).toBe("alive");
     expect(corpse.corpse).toBeNull();
     expect(corpse.hp).toBeGreaterThan(0);
+    engine.dispose();
+  });
+
+  test("Lumen Step phases through bodies and rematerialises beside an occupied destination", async () => {
+    const host = await newPlayableHero("lumenphase", "priest");
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    await engine.join(fakeSocket(host.userId, host.heroId));
+    const state = roomState(engine);
+    const priest = playerOf(state, host.heroId);
+    priest.level = 10;
+    const terrain = state.location?.definition.terrain;
+    if (!terrain) throw new Error("missing test terrain");
+    const connectionId = `c-${host.heroId}`;
+    const origin = { x: priest.x, y: priest.y };
+    const destination = [64, 128, 192, 256]
+      .map((offset) => ({ x: origin.x + offset, y: origin.y }))
+      .find((candidate) => isWalkable(candidate, PLAYER_SIZE, terrain));
+    if (!destination) throw new Error("missing open Lumen destination");
+    const blocker = seedMonster(state, "lumen-blocker", destination.x, destination.y, {
+      species: "mire_troll",
+      kind: "troll",
+    });
+
+    let now = Date.now() + 1_000;
+    const { w } = testGlue(state, () => now);
+    expect(startPlayerAction(w, connectionId, priest, 3)).toBe(true);
+    const beforePhase = { x: priest.x, y: priest.y };
+    priest.x = destination.x;
+    priest.y = destination.y;
+    state.playerGrid.update(priest, beforePhase);
+    now += 250;
+    expect(finishHeldPlayerAction(w, connectionId, priest, now, 3)).toBe(true);
+
+    expect(isWalkable(priest, PLAYER_SIZE, terrain)).toBe(true);
+    const blockerHitbox = monsterBodyHitbox(blocker.species, blocker);
+    expect(
+      pointDistance(
+        { x: priest.x + PLAYER_SIZE / 2, y: priest.y + PLAYER_SIZE / 2 },
+        blockerHitbox.center,
+      ),
+    ).toBeGreaterThanOrEqual(PLAYER_SIZE / 2 + blockerHitbox.radius);
+    expect(priest).not.toMatchObject(destination);
     engine.dispose();
   });
 

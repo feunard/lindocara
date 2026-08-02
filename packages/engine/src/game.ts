@@ -13,7 +13,6 @@ import {
   addAxisCrossings,
   isSolidKind,
   isWalkableBox,
-  kindAt,
   kindAtPoint,
   TILE_SIZE,
   type TileMap,
@@ -930,41 +929,62 @@ export function defaultMonsterTuning(species: MonsterSpecies): MonsterTuning {
   };
 }
 
+export interface MonsterBodyHitbox {
+  /** Offset from the monster's authoritative 32px navigation position. */
+  offsetX: number;
+  offsetY: number;
+  radius: number;
+}
+
 /**
- * How wide a monster is **as a target**, in pixels of radius.
- *
- * This is a combat number, not a movement one. Every monster still MOVES as a `PLAYER_SIZE` body:
- * `isWalkable`, the terrain clamp and the navigation grid are all baked for 32px, and a troll with a
- * 66px collision body would jam in every gap the pathfinder happily routes it through. Only hit
- * DETECTION reads this — where a monster is the thing being swung at.
- *
- * Uniform 16 was the bug: once the renderer stopped shrinking the art (see `enemy-art.ts`), a troll
- * drawn 163px wide still answered blows on a 32px circle, so a sword swung squarely into its belly
- * missed. These radii keep each kind's visible-bulk-to-hitbox ratio equal to the hero's own — the
- * hero's 79px-wide sprite answers on a radius of 16, so a radius is (visible width / 4.94).
- *
- * A monster's OFFENSE is already per-species and untouched: `MONSTER_ACTIONS[species]` carries its
- * own `range` and `hitboxRadius`, so a troll's reach was never uniform in the first place.
+ * Combat target bodies measured from every Tiny Swords species' opaque idle/run silhouette.
+ * Transparent atlas padding and attack-only weapon sweeps are deliberately excluded. Navigation,
+ * terrain collision and monster separation still use the authoritative 32px ground body; only
+ * attacks and area effects use these circles, so a tall creature remains fully hittable without
+ * becoming capable of blocking an entire street.
  */
-export const MONSTER_BODY_RADIUS: Record<MonsterKind, number> = {
-  goblin: 16,
-  gnoll: 19,
-  skull: 14,
-  minotaur: 30,
-  troll: 33,
-  // Measured the same way: visible idle width / 4.94, the hero's own bulk-to-hitbox ratio.
-  shaman: 19,
-  boar: 12,
-  pig_rider: 17,
+export const MONSTER_BODY_HITBOX: Record<MonsterSpecies, MonsterBodyHitbox> = {
+  spear_goblin: { offsetX: 18, offsetY: -35.5, radius: 87 },
+  torch_goblin: { offsetX: 18, offsetY: -5.5, radius: 72 },
+  gnoll_marauder: { offsetX: 18, offsetY: -11, radius: 68 },
+  skull_guard: { offsetX: 18, offsetY: -10.5, radius: 55 },
+  skull_crusader: { offsetX: 18, offsetY: -10.5, radius: 55 },
+  skull_warden: { offsetX: 18, offsetY: -10.5, radius: 55 },
+  minotaur_brute: { offsetX: 18, offsetY: -37.5, radius: 126 },
+  mire_troll: { offsetX: 18, offsetY: -80.5, radius: 150 },
+  gate_troll: { offsetX: 18, offsetY: -80.5, radius: 150 },
+  hex_shaman: { offsetX: 18, offsetY: -17, radius: 73 },
+  war_pig: { offsetX: 18, offsetY: 1, radius: 45 },
+  pig_rider: { offsetX: 18, offsetY: -46, radius: 89 },
 };
 
-/** The widest body any monster presents. Broad-phase radius queries must be widened by this or a
- *  troll's edge falls outside the search circle its centre was never inside. */
+/** Compatibility radius table for consumers that only need the body's extent. */
+export const MONSTER_BODY_RADIUS: Record<MonsterSpecies, number> = Object.fromEntries(
+  Object.entries(MONSTER_BODY_HITBOX).map(([species, hitbox]) => [species, hitbox.radius]),
+) as Record<MonsterSpecies, number>;
+
 export const MAX_MONSTER_BODY_RADIUS = Math.max(...Object.values(MONSTER_BODY_RADIUS));
 
-/** The target radius for one species, via its stats kind. */
+/** Largest distance from the navigation point to a visible body edge, used by broad-phase grids. */
+export const MAX_MONSTER_BODY_REACH = Math.max(
+  ...Object.values(MONSTER_BODY_HITBOX).map(
+    (hitbox) => Math.hypot(hitbox.offsetX, hitbox.offsetY) + hitbox.radius,
+  ),
+);
+
 export function monsterBodyRadius(species: MonsterSpecies): number {
-  return MONSTER_BODY_RADIUS[MONSTER_SPECIES_KIND[species]];
+  return MONSTER_BODY_RADIUS[species];
+}
+
+export function monsterBodyHitbox(
+  species: MonsterSpecies,
+  position: { x: number; y: number },
+): { center: { x: number; y: number }; radius: number } {
+  const hitbox = MONSTER_BODY_HITBOX[species];
+  return {
+    center: { x: position.x + hitbox.offsetX, y: position.y + hitbox.offsetY },
+    radius: hitbox.radius,
+  };
 }
 
 export const PLAYER_MAX_HP_BASE = 100;
@@ -1093,70 +1113,54 @@ export function isWalkable(
   return !overlapsCollider(geometry.colliders, position, size);
 }
 
-function isWalkableBoxForLumen(map: TileMap, position: Vec2, size: number): boolean {
-  if (size <= 0) return false;
-  const left = Math.floor(position.x / TILE_SIZE);
-  const top = Math.floor(position.y / TILE_SIZE);
-  const right = Math.floor((position.x + size - 1) / TILE_SIZE);
-  const bottom = Math.floor((position.y + size - 1) / TILE_SIZE);
-  if (left < 0 || top < 0 || right >= map.cols || bottom >= map.rows) return false;
-  for (let row = top; row <= bottom; row++) {
-    for (let col = left; col <= right; col++) {
-      const kind = kindAt(map, col, row);
-      if (kind === "forest" || kind === "building") return false;
-    }
-  }
-  return true;
-}
-
 /**
- * Pas de Lumen traversal: water is passable for this effect, obstacles are not.
- *
- * The ordinary movement walkability rejects water completely. This variant reuses the same collider
- * checks but treats water like land so the teleport effect can glide across lakes.
+ * Pas de Lumen traversal is a bounded phase: every in-world point is traversable while the hero is
+ * clouded. Terrain, authored rectangles and water are deliberately ignored here; the server checks
+ * a normal, collision-free landing only when the priest rematerialises.
  */
 export function isWalkableForLumen(
   position: Vec2,
   size: number = PLAYER_SIZE,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): boolean {
-  if (!isWalkableBoxForLumen(geometry.tiles, position, size)) return false;
-  return !overlapsCollider(geometry.colliders, position, size);
+  return (
+    size > 0 &&
+    position.x >= 0 &&
+    position.y >= 0 &&
+    position.x + size <= geometry.width &&
+    position.y + size <= geometry.height
+  );
 }
 
 /**
- * Lumen movement resolves axis-sliding against the same obstacle set as normal movement, but with
- * water passability enabled for the held traversal phase.
+ * Lumen movement ignores collision during the held traversal phase and only preserves world bounds.
  */
 export function resolveTerrainForLumen(
   from: Vec2,
   desired: Vec2,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): Vec2 {
-  const clamped = clampToWorld(desired, geometry);
-  let x = from.x;
-  let y = from.y;
-  if (isWalkableForLumen({ x: clamped.x, y: from.y }, PLAYER_SIZE, geometry)) x = clamped.x;
-  if (isWalkableForLumen({ x, y: clamped.y }, PLAYER_SIZE, geometry)) y = clamped.y;
-  return { x, y };
+  void from;
+  return clampToWorld(desired, geometry);
 }
 
 /**
- * Find the nearest land tile the hero can occupy when a Lumen rematerialisation happens in water.
+ * Find the nearest ordinary walkable tile for a Lumen rematerialisation. The optional predicate is
+ * the server's seam for live bodies (players, monsters, guards and NPCs), which pure terrain cannot
+ * know about.
  */
-export function nearestShore(
+export function nearestLumenLanding(
   position: Vec2,
   size: number = PLAYER_SIZE,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+  accepts: (candidate: Vec2) => boolean = () => true,
 ): Vec2 | null {
   let nearest: Vec2 | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (let row = 0; row < geometry.tiles.rows; row++) {
     for (let col = 0; col < geometry.tiles.cols; col++) {
-      const terrainKind = kindAt(geometry.tiles, col, row);
-      if (terrainKind === "water") continue;
       const candidate = { x: col * TILE_SIZE, y: row * TILE_SIZE };
-      if (!isWalkable(candidate, size, geometry)) continue;
+      if (!isWalkable(candidate, size, geometry) || !accepts(candidate)) continue;
       const distance = pointDistance(position, candidate);
       if (distance >= bestDistance) continue;
       nearest = candidate;
@@ -1165,6 +1169,9 @@ export function nearestShore(
   }
   return nearest;
 }
+
+/** Backward-compatible name for callers that only need the terrain-only water fallback. */
+export const nearestShore = nearestLumenLanding;
 
 /** Axis-separated collision resolution preserves wall sliding and never trusts the client. */
 export function resolveTerrain(

@@ -89,6 +89,7 @@ import {
   canActivatePeasantSupportRequest,
   isCurrentPeasantSupportRequest,
   type PeasantSupportRequest,
+  refundPeasantCampGold,
   removePeasantSupportByOwner,
 } from "../../world/peasant-support-system.js";
 import { removeProjectilesByOwner } from "../../world/projectile-system.js";
@@ -146,6 +147,7 @@ import {
   handleEventAdvance,
   handleEventChoose,
   handleInteract,
+  handlePeasantCampGold,
   handleQuestAbandon,
   handleQuestAction,
   handleQuestChanges,
@@ -158,6 +160,7 @@ import {
   recordMapEntered,
   selfStateFor,
   sendPeasantCampsTo,
+  sendPriestLumenEffectsTo,
   sendResyncTo,
   sendStateTo,
   startPlayerAction,
@@ -544,6 +547,7 @@ export class WorldRoom {
       self: selfStateFor(w, player),
     });
     sendPeasantCampsTo(w, conn.id, Date.now());
+    sendPriestLumenEffectsTo(w, conn.id, Date.now());
   }
 
   /** Legacy `#closedSocket`: one machine-code event so the client can print why, then the close. */
@@ -693,6 +697,10 @@ export class WorldRoom {
         }
       });
     }
+    if (message.t === "peasant.camp_gold") {
+      handlePeasantCampGold(w, connectionId, player, message.id, message.operation, message.amount);
+      return;
+    }
     if (message.t === "quest.action") {
       return handleQuestAction(w, connectionId, player, message);
     }
@@ -717,7 +725,13 @@ export class WorldRoom {
     if (message.t === "skill") {
       if (state.peasantSupport.pendingByOwner.has(player.id)) return;
       if (player.class === "peasant" && (message.slot === 4 || message.slot === 5)) {
-        const request = preparePeasantSupportRequest(w, connectionId, player, message.slot);
+        const request = preparePeasantSupportRequest(
+          w,
+          connectionId,
+          player,
+          message.slot,
+          message.direction,
+        );
         return request
           ? this.startPeasantSupportSkill(room, state, connectionId, player, request)
           : undefined;
@@ -1613,6 +1627,14 @@ export class WorldRoom {
     closeReason: string,
   ): Promise<void> {
     if (!(await this.checkpointCooldownsForTransition(room, state, connectionId, player))) return;
+    // Camps cannot cross rooms. Empty their transient chest into the travelling owner before the
+    // forced save, otherwise removeRuntimePlayer would refund only after the persisted handoff.
+    for (const camp of removePeasantSupportByOwner(state.peasantSupport, player.id)) {
+      refundPeasantCampGold(camp, player);
+      for (const recipientConnectionId of state.players.keys()) {
+        this.send(room, recipientConnectionId, { t: "peasant.camp_removed", id: camp.id });
+      }
+    }
     if (!(await this.savePlayer(room, state, player, connectionId))) return;
     let next: { sessionEpoch: number } | null = null;
     try {
@@ -1882,6 +1904,7 @@ export class WorldRoom {
     abortRunsForHero(state.eventRuns, player.id);
     removeProjectilesByOwner(state.projectiles, player.id);
     for (const camp of removePeasantSupportByOwner(state.peasantSupport, player.id)) {
+      refundPeasantCampGold(camp, player);
       for (const recipientConnectionId of state.players.keys()) {
         this.send(room, recipientConnectionId, { t: "peasant.camp_removed", id: camp.id });
       }
