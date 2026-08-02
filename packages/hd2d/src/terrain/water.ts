@@ -46,6 +46,14 @@ function landDistance(field: HeightField): Float64Array {
 }
 
 export interface WaterOptions {
+  /** Texture de surface — modulée par le dégradé de profondeur (voir plus bas), pas affichée
+   *  telle quelle : elle casse l'aplat du dégradé et donne son grain à la mer. Répétée `size * 0.5`
+   *  fois sur chaque axe, ce qui exige un wrap `RepeatWrapping` — `createWater` le pose lui-même
+   *  (voir plus bas) plutôt que d'en faire une exigence documentée mais non vérifiée côté appelant :
+   *  une texture répétée sans ce wrap donne un unique carreau étiré sur toute la mer, et ça ne lève
+   *  aucune erreur. Possédée par le registre de textures de l'appelant, PAS par `Water` : `dispose()`
+   *  ne la libère jamais, une autre surface pourrait la partager. */
+  texture: THREE.Texture;
   /** Hauteur monde du plan d'eau. */
   level: number;
   /** Côté du plan, en unités monde. */
@@ -109,7 +117,19 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
   }
   geo.setAttribute("aShallow", new THREE.Float32BufferAttribute(shallow, 1));
 
+  // `RepeatWrapping` posé ICI plutôt que documenté comme un pré-requis côté appelant : une texture
+  // dont le wrap resterait au défaut (`ClampToEdge`) répéterait son bord, pas son motif, et rien ne
+  // le signale — un seul carreau étiré sur toute la mer, sans erreur ni avertissement. `needsUpdate`
+  // est nécessaire si cette texture a déjà été uploadée par le registre (voir `textures.ts`) :
+  // changer `wrapS`/`wrapT` après upload ne prend effet qu'à la prochaine synchronisation GPU.
+  const texture = opts.texture;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(opts.size * 0.5, opts.size * 0.5);
+  texture.needsUpdate = true;
+
   const material = new THREE.MeshStandardMaterial({
+    map: texture,
     roughness: opts.roughness,
     metalness: 0,
   });
@@ -136,8 +156,11 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
      varying vec2 vSea;\n${shader.fragmentShader
        .replace(
          "#include <map_fragment>",
+         // La texture ne sert plus qu'à MODULER : la couleur vient du dégradé de profondeur, que la
+         // luminance de la texture casse en grain plutôt que d'écraser en aplat.
          `#include <map_fragment>
-          diffuseColor.rgb = mix(uDeep, uShallow, vShallow);`,
+          float lum = dot(diffuseColor.rgb, vec3(0.3333));
+          diffuseColor.rgb = mix(uDeep, uShallow, vShallow) * (0.72 + 0.56 * lum);`,
        )
        // Quatre houles analytiques croisées, dérivées à la main : sans elles la normale du plan est
        // parfaitement plate, et le soleil n'accroche nulle part malgré une roughness basse — la mer
@@ -183,8 +206,15 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
     update(dt) {
       temps += dt;
       uniforms.uTime.value = temps;
+      // Léger défilement de la texture, en plus de l'ondulation des normales — deux mouvements de
+      // fréquences différentes qui ne se resynchronisent jamais à l'oeil.
+      texture.offset.x += dt * 0.012;
+      texture.offset.y += dt * 0.008;
     },
     dispose() {
+      // La texture n'est PAS libérée ici : elle appartient au registre de textures de l'appelant
+      // (voir la doc de `WaterOptions.texture`), pas à cette mer — une autre surface pourrait la
+      // partager, et la libérer romprait ce partage.
       geo.dispose();
       material.dispose();
     },

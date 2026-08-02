@@ -1688,7 +1688,8 @@ git commit -m "feat(hd2d): mailleur de terrain — autotiling, parois, occlusion
 **Interfaces:**
 - Consumes: `HeightField`, `Hd2dContext`, `makeFlatSprite`
 - Produces:
-  - `createWater(ctx, field, opts: { level: number; size: number; segment: number; depthRange: number; roughness: number }): Water` avec `interface Water { mesh: THREE.Mesh; readonly colors: { shallow: THREE.Color; deep: THREE.Color }; setSparkle(v: number): void; update(dt: number): void; dispose(): void }`
+  - `createWater(ctx, field, opts: { texture: THREE.Texture; level: number; size: number; segment: number; depthRange: number; roughness: number }): Water` avec `interface Water { mesh: THREE.Mesh; readonly colors: { shallow: THREE.Color; deep: THREE.Color }; setSparkle(v: number): void; update(dt: number): void; dispose(): void }`
+  - La `texture` est **load-bearing, pas décorative** : le PoC en fait la `map` d'un `MeshStandardMaterial` répétée `size * 0.5` fois, et son patch de shader module le dégradé de profondeur par sa **luminance** (`mix(uDeep, uShallow, vShallow) * (0.72 + 0.56 * lum)`). Elle défile lentement (`offset.x += dt * 0.012`, `offset.y += dt * 0.008`). Sans elle, la mer est un dégradé parfaitement lisse — une autre image.
   - `foamPlacements(field: HeightField): readonly { i: number; j: number }[]`
   - `createFoam(ctx, field, opts: { texture: THREE.Texture; frames: number; fps: number; spread: number }): Foam` avec `interface Foam { group: THREE.Group; update(dt: number): void; dispose(): void }`
   - `FOAM_SPREAD: number`
