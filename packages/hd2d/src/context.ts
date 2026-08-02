@@ -18,7 +18,10 @@ export interface Hd2dContext {
   readonly config: Hd2dConfig;
   yaw(): number;
   setYaw(yaw: number): void;
-  registerBillboard(mesh: THREE.Mesh, opts: { lit: boolean; mid: number }): void;
+  registerBillboard(
+    mesh: THREE.Mesh,
+    opts: { lit: false } | { lit: true; material: THREE.MeshLambertMaterial; mid: number },
+  ): void;
   billboards(): readonly THREE.Mesh[];
   litBillboards(): readonly LitBillboard[];
   dispose(): void;
@@ -65,15 +68,12 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
       // Un sprite né pendant une rotation doit adopter le yaw courant, pas zéro.
       mesh.rotation.y = courant;
       tous.push(mesh);
+      // Le matériau vient de l'appelant plutôt que d'un cast de `mesh.material` : rien ici ne
+      // garantit qu'un mesh enregistré porte un `MeshLambertMaterial` (le type de `mesh.material`
+      // est une union three), donc c'est à `makeBillboard`, qui construit lui-même le matériau
+      // éclairé, de le passer explicitement.
       if (opts.lit) {
-        eclaires.push({
-          mesh,
-          // Seul `makeBillboard` (task suivante) inscrit des billboards, et c'est lui qui
-          // construit le matériau : cette assertion tient parce que l'appelant contrôle les deux
-          // bouts de l'invariant.
-          material: mesh.material as THREE.MeshLambertMaterial,
-          mid: opts.mid,
-        });
+        eclaires.push({ mesh, material: opts.material, mid: opts.mid });
       }
     },
     billboards: () => tous,

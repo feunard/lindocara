@@ -14,8 +14,8 @@ describe("createHd2dContext", () => {
     const b = createHd2dContext();
     const sa = fakeSprite();
     const sb = fakeSprite();
-    a.registerBillboard(sa.mesh, { lit: true, mid: 1 });
-    b.registerBillboard(sb.mesh, { lit: true, mid: 1 });
+    a.registerBillboard(sa.mesh, { lit: true, material: sa.material, mid: 1 });
+    b.registerBillboard(sb.mesh, { lit: true, material: sb.material, mid: 1 });
 
     a.setYaw(0.4);
 
@@ -28,8 +28,8 @@ describe("createHd2dContext", () => {
     const ctx = createHd2dContext();
     const lit = fakeSprite();
     const flat = fakeSprite();
-    ctx.registerBillboard(lit.mesh, { lit: true, mid: 1.3 });
-    ctx.registerBillboard(flat.mesh, { lit: false, mid: 0 });
+    ctx.registerBillboard(lit.mesh, { lit: true, material: lit.material, mid: 1.3 });
+    ctx.registerBillboard(flat.mesh, { lit: false });
 
     expect(ctx.billboards()).toHaveLength(2);
     expect(ctx.litBillboards()).toHaveLength(1);
@@ -40,7 +40,7 @@ describe("createHd2dContext", () => {
     const ctx = createHd2dContext();
     ctx.setYaw(-0.25);
     const late = fakeSprite();
-    ctx.registerBillboard(late.mesh, { lit: true, mid: 1 });
+    ctx.registerBillboard(late.mesh, { lit: true, material: late.material, mid: 1 });
     expect(late.mesh.rotation.y).toBeCloseTo(-0.25);
   });
 
@@ -55,7 +55,8 @@ describe("createHd2dContext", () => {
 
   it("vide ses registres au dispose", () => {
     const ctx = createHd2dContext();
-    ctx.registerBillboard(fakeSprite().mesh, { lit: true, mid: 1 });
+    const s = fakeSprite();
+    ctx.registerBillboard(s.mesh, { lit: true, material: s.material, mid: 1 });
     ctx.dispose();
     expect(ctx.billboards()).toHaveLength(0);
     expect(ctx.litBillboards()).toHaveLength(0);
