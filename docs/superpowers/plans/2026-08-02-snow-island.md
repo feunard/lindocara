@@ -195,7 +195,9 @@ Générer **plusieurs variantes** (`--variants 4`) et choisir à l'œil : c'est 
 
 - [ ] **Step 2: Reporter la surface sur la géométrie**
 
-La planche générée n'a pas la découpe du tileset. Écrire un petit script de composition (Python + PIL, à côté de `sprite.py` dans le studio ou dans `apps/lab/scripts/`) qui prend le tileset Tiny Swords existant **comme masque de structure** — bordures, parois, découpe 4×4 — et y substitue les surfaces générées, en gardant les alphas et les liserés d'origine.
+La planche générée n'a pas la découpe du tileset. Écrire un petit script de composition (Python + PIL, dans `apps/lab/scripts/`) qui prend le tileset Tiny Swords existant **comme masque de structure** — bordures, parois, découpe 4×4 — et y substitue les surfaces générées, en gardant de l'original son **alpha** et la **forme** de ses liserés.
+
+**Sa forme, pas sa couleur.** Les liserés conservés tels quels sortent verts — c'est de l'herbe — et ils enveloppent *chaque arête exposée*, donc le littoral entier de l'île. Un liseré vert autour d'une île de neige est plus dur à défendre qu'une falaise de roche brune ici ou là. Les pièces d'angle des lignes de paroi sont dans le même cas : ce sont des sprites de buisson. **Teinte-les vers le blanc-bleuté** — une transformation colorimétrique sur les pixels existants, jamais une substitution de remplissage : c'est le liseré qui fait tenir les raccords, et le redessiner les casserait.
 
 **C'est la moitié du travail de cette task.** Les raccords viennent de la géométrie d'origine et restent donc exacts ; seul le remplissage change.
 
