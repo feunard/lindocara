@@ -36,8 +36,8 @@ export const PEASANT_SUPPORT_SKILLS: Readonly<
     slot: 4,
     cost: { wood: 4, stone: 2, meat: 2 },
     radius: 96,
-    durationMs: 12_000,
-    power: 14,
+    durationMs: 30_000,
+    power: 60,
   },
   5: {
     id: "homemade_bomb",

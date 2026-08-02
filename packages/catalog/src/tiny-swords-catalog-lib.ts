@@ -834,9 +834,7 @@ function bridgeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinitio
 function updateTreeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinition[] {
   const source = catalog.entries.find((entry) => entry.id === "resource.resources-trees.tree");
   if (!source) throw new Error("Update 010 tree sheet is missing from the catalogue");
-  const treeFootprint = [-2, -1, 0].flatMap((row) =>
-    [-1, 0, 1].map((col) => ({ col, row })),
-  );
+  const treeFootprint = [-2, -1, 0].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row })));
   const common = {
     sourcePath: source.sourcePath,
     pack: source.pack,

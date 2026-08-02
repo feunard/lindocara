@@ -100,6 +100,7 @@ export interface SelfHud {
 export interface GameHandle {
   attack(): void;
   interact(): void;
+  campGold?(id: string, operation: "deposit" | "withdraw", amount: number): void;
   usePotion(): void;
   useItem?(item: ConsumableId): void;
   buyItem?(item: ConsumableId): void;
@@ -190,6 +191,7 @@ interface UiState {
   /** The open dialogue panel, or null. Owned entirely by session.ts's event handlers. */
   eventDialogue: EventDialogue | null;
   questDialogue: QuestDialogue | null;
+  campBank: { id: string; gold: number } | null;
   game: GameHandle | null;
   /** Which `game/session.ts` launch (its module-local `launchId`) currently owns `heroLoading`/
    *  `game` and everything else `clearedGameSessionFields()` clears. Stamped once, synchronously,
@@ -231,6 +233,7 @@ interface UiState {
   setAdventureVictory(visible: boolean): void;
   setEventDialogue(dialogue: EventDialogue | null): void;
   setQuestDialogue(dialogue: QuestDialogue | null): void;
+  setCampBank(campBank: { id: string; gold: number } | null): void;
   setGame(game: GameHandle | null): void;
   setLaunchOwner(launchOwner: number | null): void;
   /** Everything a terminal disconnect must clear before a launch screen is usable again: the
@@ -329,6 +332,7 @@ function clearedGameSessionFields() {
     adventureVictory: false,
     eventDialogue: null,
     questDialogue: null,
+    campBank: null,
     game: null,
     launchOwner: null,
   };
@@ -363,6 +367,7 @@ export const useUiStore = create<UiState>((set) => ({
   adventureVictory: false,
   eventDialogue: null,
   questDialogue: null,
+  campBank: null,
   game: null,
   launchOwner: null,
 
@@ -449,6 +454,7 @@ export const useUiStore = create<UiState>((set) => ({
   setAdventureVictory: (adventureVictory) => set({ adventureVictory }),
   setEventDialogue: (eventDialogue) => set({ eventDialogue }),
   setQuestDialogue: (questDialogue) => set({ questDialogue }),
+  setCampBank: (campBank) => set({ campBank }),
   setGame: (game) => set({ game }),
   setLaunchOwner: (launchOwner) => set({ launchOwner }),
   clearedGameSession: () => set(clearedGameSessionFields()),

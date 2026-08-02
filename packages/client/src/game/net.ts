@@ -36,6 +36,7 @@ import {
   type MonsterSpecialImpact,
   type PartyState,
   type PeasantBombImpactVisual,
+  type PeasantCampBankVisual,
   type PeasantCampRemovedVisual,
   type PeasantCampVisual,
   type PlayerSnapshot,
@@ -125,6 +126,7 @@ export type { SceneSample };
 export interface Connection {
   attack(): void;
   interact(): void;
+  campGold(id: string, operation: "deposit" | "withdraw", amount: number): void;
   usePotion(): void;
   useItem(item: ConsumableId): void;
   buyItem(item: ConsumableId): void;
@@ -167,6 +169,7 @@ export interface ConnectionHandlers {
   onLumenPortal(portal: PriestLumenPortalVisual): void;
   onPolarityOrb(orb: PriestPolarityOrbVisual): void;
   onPeasantCamp(camp: PeasantCampVisual): void;
+  onPeasantCampBank(bank: PeasantCampBankVisual): void;
   onPeasantCampRemoved(camp: PeasantCampRemovedVisual): void;
   onPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
@@ -356,6 +359,8 @@ export class WorldClient {
     return {
       attack: () => this.#send({ t: "attack" }),
       interact: () => this.#send({ t: "interact" }),
+      campGold: (id, operation, amount) =>
+        this.#send({ t: "peasant.camp_gold", id, operation, amount }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
       useItem: (item) => this.#send({ t: "item.use", item }),
       buyItem: (item) => this.#send({ t: "merchant.buy", item }),
@@ -626,6 +631,10 @@ export class WorldClient {
     }
     if (message.t === "peasant.camp") {
       handlers.onPeasantCamp(message);
+      return;
+    }
+    if (message.t === "peasant.camp_bank") {
+      handlers.onPeasantCampBank(message);
       return;
     }
     if (message.t === "peasant.camp_removed") {

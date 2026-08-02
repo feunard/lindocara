@@ -8,12 +8,13 @@ import { questObjectiveProgressText } from "../../quest-presentation.js";
 import { activePartyAtom, adventureTestSessionAtom, questTrackingAtom } from "../../state/atoms.js";
 import { useUiStore } from "../../store.js";
 import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
+import { ActionDock } from "./ActionDock.js";
 import { Bar } from "./Bar.js";
+import { CampBankPanel } from "./CampBankPanel.js";
 import { CooldownBar } from "./CooldownBar.js";
 import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
 import { InventoryChip } from "./InventoryChip.js";
-import { ActionDock } from "./ActionDock.js";
 import { UnitPortrait } from "./UnitPortrait.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
@@ -104,6 +105,7 @@ export function Hud() {
   return (
     <>
       <DeathOverlay />
+      <CampBankPanel />
       <aside id="hud">
         <section className="panel identity">
           <UnitPortrait portrait={playerPortrait(self.class, self.appearance)} />

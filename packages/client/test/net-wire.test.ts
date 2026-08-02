@@ -119,6 +119,7 @@ function handlers(): ConnectionHandlers {
     onLumenPortal: vi.fn(),
     onPolarityOrb: vi.fn(),
     onPeasantCamp: vi.fn(),
+    onPeasantCampBank: vi.fn(),
     onPeasantCampRemoved: vi.fn(),
     onPeasantBombImpact: vi.fn(),
     onEvent: vi.fn(),
@@ -238,6 +239,8 @@ describe("WorldClient on the alepha wire", () => {
     };
     socket?.message(camp);
     socket?.message(camp); // admission + heartbeat replay is intentionally idempotent downstream
+    const bank = { t: "peasant.camp_bank" as const, id: camp.id, gold: 75, opened: true };
+    socket?.message(bank);
     socket?.message({ t: "peasant.camp_removed", id: camp.id });
     const impact = {
       t: "peasant.bomb_impact" as const,
@@ -252,6 +255,7 @@ describe("WorldClient on the alepha wire", () => {
 
     expect(callbacks.onPeasantCamp).toHaveBeenCalledTimes(2);
     expect(callbacks.onPeasantCamp).toHaveBeenLastCalledWith(camp);
+    expect(callbacks.onPeasantCampBank).toHaveBeenCalledWith(bank);
     expect(callbacks.onPeasantCampRemoved).toHaveBeenCalledWith({
       t: "peasant.camp_removed",
       id: camp.id,

@@ -1695,6 +1695,75 @@ kbd {
   pointer-events: auto;
 }
 
+.camp-bank.tiny-panel {
+  position: fixed;
+  z-index: 58;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(25rem, calc(100vw - 2rem - var(--safe-left) - var(--safe-right)));
+  gap: 0.8rem;
+  padding: 1.2rem 1.35rem;
+  transform: translate(-50%, -50%);
+  background-color: #071813;
+  background-image:
+    linear-gradient(rgb(7 24 19 / 96%), rgb(3 14 12 / 98%)), var(--tiny-panel-carved);
+  color: #f3e4b2;
+  pointer-events: auto;
+  filter: drop-shadow(0 1rem 1.6rem rgb(0 0 0 / 60%));
+}
+
+.camp-bank__heading,
+.camp-bank__balances,
+.camp-bank__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.camp-bank__heading > div,
+.camp-bank__amount {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.camp-bank__heading strong {
+  color: #ffe5a0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+
+.camp-bank__heading span,
+.camp-bank__amount > span {
+  color: #b9c7b4;
+  font-size: 0.72rem;
+}
+
+.camp-bank__balances span {
+  flex: 1;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgb(228 196 111 / 34%);
+  border-radius: 0.35rem;
+  background: rgb(24 43 32 / 90%);
+  color: #cbd2bf;
+  font-size: 0.78rem;
+}
+
+.camp-bank__balances strong {
+  float: right;
+  color: #ffd972;
+  font-size: 0.95rem;
+}
+
+.camp-bank__input {
+  width: 100%;
+}
+
+.camp-bank__action {
+  flex: 1;
+}
+
 .peasant-resources__heading {
   display: grid;
   min-width: 8rem;
@@ -1746,7 +1815,9 @@ kbd {
   border: 1px solid rgb(255 235 172 / 32%);
   border-radius: 50%;
   color: #fff4cb;
-  font: 800 0.58rem ui-monospace, monospace;
+  font:
+    800 0.58rem ui-monospace,
+    monospace;
 }
 
 .peasant-resource--wood .peasant-resource__glyph {

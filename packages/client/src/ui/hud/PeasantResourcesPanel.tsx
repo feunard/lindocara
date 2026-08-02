@@ -44,10 +44,6 @@ export function PeasantResourcesPanel() {
             key={material}
             className={`peasant-resource peasant-resource--${material}`}
             data-material={material}
-            aria-label={t("hud.materials.amount", {
-              material: t(MATERIAL_LABEL[material]),
-              amount: materials[material],
-            })}
           >
             <span className="peasant-resource__glyph" aria-hidden="true">
               {MATERIAL_GLYPH[material]}
@@ -56,10 +52,7 @@ export function PeasantResourcesPanel() {
             <strong>{materials[material]}</strong>
           </span>
         ))}
-        <span
-          className="peasant-resource peasant-resource--gold"
-          aria-label={t("hud.gold.amount", { amount: gold })}
-        >
+        <span className="peasant-resource peasant-resource--gold">
           <span className="peasant-resource__glyph" aria-hidden="true">
             G
           </span>

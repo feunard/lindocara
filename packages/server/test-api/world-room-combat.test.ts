@@ -555,7 +555,7 @@ describe("world room combat (FakeClock)", () => {
       rationRadius: 180,
       rationBuffDurationMs: 10_000,
       rationPowerBonusRatio: 0.15,
-      expiresAt: camp.startedAt + 44_000,
+      expiresAt: camp.startedAt + 80_000,
     });
     expect(slowed.slowMultiplier).toBeCloseTo(0.8);
     expect(sentTo(sent, host.heroId)).toContainEqual(
@@ -577,9 +577,11 @@ describe("world room combat (FakeClock)", () => {
 
     const guestPlayer = playerOf(state, guest.heroId);
     guestPlayer.hp = 10;
+    guestPlayer.resource = { kind: "mana", current: 10, max: 100 };
     now += 2_000;
     advanceWorldTick(w);
-    expect(guestPlayer.hp).toBe(32);
+    expect(guestPlayer.hp).toBe(34);
+    expect(guestPlayer.resource.current).toBeGreaterThan(10);
     expect(guestPlayer.rallyPowerMultiplier).toBe(0.15);
     expect(guestPlayer.rallyPowerUntil).toBe(now + 10_000);
 

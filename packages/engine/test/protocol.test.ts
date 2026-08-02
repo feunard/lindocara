@@ -30,6 +30,26 @@ describe("client protocol", () => {
     expect(parseClientMessage(JSON.stringify({ t: "interact", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "interact" }))).toEqual({ t: "interact" });
+    expect(
+      parseClientMessage(
+        JSON.stringify({
+          t: "peasant.camp_gold",
+          id: "camp-1",
+          operation: "deposit",
+          amount: 25,
+        }),
+      ),
+    ).toEqual({ t: "peasant.camp_gold", id: "camp-1", operation: "deposit", amount: 25 });
+    expect(
+      parseClientMessage(
+        JSON.stringify({
+          t: "peasant.camp_gold",
+          id: "camp-1",
+          operation: "withdraw",
+          amount: 0,
+        }),
+      ),
+    ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion" }))).toEqual({
       t: "use",
       item: "potion",
@@ -1082,6 +1102,11 @@ describe("Peasant support visual messages", () => {
     });
     expect(
       parseServerMessage(
+        JSON.stringify({ t: "peasant.camp_bank", id: camp.id, gold: 120, opened: true }),
+      ),
+    ).toEqual({ t: "peasant.camp_bank", id: camp.id, gold: 120, opened: true });
+    expect(
+      parseServerMessage(
         JSON.stringify({
           t: "peasant.bomb_impact",
           actionId: "bomb-1",
@@ -1101,5 +1126,10 @@ describe("Peasant support visual messages", () => {
       parseServerMessage(JSON.stringify({ ...camp, expiresAt: camp.startedAt + 120_001 })),
     ).toBeNull();
     expect(parseServerMessage(JSON.stringify({ ...camp, healing: 999 }))).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ t: "peasant.camp_bank", id: camp.id, gold: -1, opened: true }),
+      ),
+    ).toBeNull();
   });
 });

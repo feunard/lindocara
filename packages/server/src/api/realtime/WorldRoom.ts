@@ -89,6 +89,7 @@ import {
   canActivatePeasantSupportRequest,
   isCurrentPeasantSupportRequest,
   type PeasantSupportRequest,
+  refundPeasantCampGold,
   removePeasantSupportByOwner,
 } from "../../world/peasant-support-system.js";
 import { removeProjectilesByOwner } from "../../world/projectile-system.js";
@@ -146,6 +147,7 @@ import {
   handleEventAdvance,
   handleEventChoose,
   handleInteract,
+  handlePeasantCampGold,
   handleQuestAbandon,
   handleQuestAction,
   handleQuestChanges,
@@ -692,6 +694,10 @@ export class WorldRoom {
           return this.checkpointCooldownsOrReject(room, state, connectionId, player);
         }
       });
+    }
+    if (message.t === "peasant.camp_gold") {
+      handlePeasantCampGold(w, connectionId, player, message.id, message.operation, message.amount);
+      return;
     }
     if (message.t === "quest.action") {
       return handleQuestAction(w, connectionId, player, message);
@@ -1613,6 +1619,14 @@ export class WorldRoom {
     closeReason: string,
   ): Promise<void> {
     if (!(await this.checkpointCooldownsForTransition(room, state, connectionId, player))) return;
+    // Camps cannot cross rooms. Empty their transient chest into the travelling owner before the
+    // forced save, otherwise removeRuntimePlayer would refund only after the persisted handoff.
+    for (const camp of removePeasantSupportByOwner(state.peasantSupport, player.id)) {
+      refundPeasantCampGold(camp, player);
+      for (const recipientConnectionId of state.players.keys()) {
+        this.send(room, recipientConnectionId, { t: "peasant.camp_removed", id: camp.id });
+      }
+    }
     if (!(await this.savePlayer(room, state, player, connectionId))) return;
     let next: { sessionEpoch: number } | null = null;
     try {
@@ -1882,6 +1896,7 @@ export class WorldRoom {
     abortRunsForHero(state.eventRuns, player.id);
     removeProjectilesByOwner(state.projectiles, player.id);
     for (const camp of removePeasantSupportByOwner(state.peasantSupport, player.id)) {
+      refundPeasantCampGold(camp, player);
       for (const recipientConnectionId of state.players.keys()) {
         this.send(room, recipientConnectionId, { t: "peasant.camp_removed", id: camp.id });
       }

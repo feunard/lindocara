@@ -413,6 +413,14 @@ export interface PeasantCampRemovedVisual {
   id: string;
 }
 
+/** Private/team camp-chest state. `opened` is true only for the hero who just interacted. */
+export interface PeasantCampBankVisual {
+  t: "peasant.camp_bank";
+  id: string;
+  gold: number;
+  opened: boolean;
+}
+
 /** One server-confirmed homemade-bomb explosion. */
 export interface PeasantBombImpactVisual {
   t: "peasant.bomb_impact";
@@ -563,6 +571,12 @@ export type ClientMessage =
   | { t: "input"; seq: number; input: Input }
   | { t: "attack" }
   | { t: "interact" }
+  | {
+      t: "peasant.camp_gold";
+      id: string;
+      operation: "deposit" | "withdraw";
+      amount: number;
+    }
   | { t: "release" }
   | { t: "skill"; slot: SkillSlot }
   | { t: "skill.release"; slot: SkillSlot }
@@ -649,6 +663,10 @@ export const EVENT_CODES = [
   "peasant.harvested",
   "peasant.materials_insufficient",
   "peasant.support_unavailable",
+  "peasant.camp_gold_unavailable",
+  "peasant.camp_gold_insufficient",
+  "peasant.camp_gold_deposited",
+  "peasant.camp_gold_withdrawn",
   "talent.unlocked",
   "talent.reset",
   "talent.invalid",
@@ -754,6 +772,7 @@ export type ServerMessage =
   | PriestPolarityOrbVisual
   | PeasantCampVisual
   | PeasantCampRemovedVisual
+  | PeasantCampBankVisual
   | PeasantBombImpactVisual
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
   // The three dialogue beats pushed to the run's TRIGGERER only (spec Decision 4: dialogue is a
@@ -943,6 +962,20 @@ function isPeasantCampRemovedVisual(value: unknown): value is PeasantCampRemoved
     hasOnlyKeys(value, ["t", "id"]) &&
     value.t === "peasant.camp_removed" &&
     isWireId(value.id)
+  );
+}
+
+function isPeasantCampBankVisual(value: unknown): value is PeasantCampBankVisual {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["t", "id", "gold", "opened"]) &&
+    value.t === "peasant.camp_bank" &&
+    isWireId(value.id) &&
+    typeof value.gold === "number" &&
+    Number.isSafeInteger(value.gold) &&
+    value.gold >= 0 &&
+    value.gold <= 999_999_999 &&
+    typeof value.opened === "boolean"
   );
 }
 
@@ -1705,6 +1738,23 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (value.t === "attack" && hasOnlyKeys(value, ["t"])) return { t: "attack" };
   if ((value.t === "interact" || value.t === "release") && hasOnlyKeys(value, ["t"]))
     return { t: value.t };
+  if (
+    value.t === "peasant.camp_gold" &&
+    isWireId(value.id) &&
+    (value.operation === "deposit" || value.operation === "withdraw") &&
+    typeof value.amount === "number" &&
+    Number.isSafeInteger(value.amount) &&
+    value.amount >= 1 &&
+    value.amount <= 1_000_000 &&
+    hasOnlyKeys(value, ["t", "id", "operation", "amount"])
+  ) {
+    return {
+      t: "peasant.camp_gold",
+      id: value.id,
+      operation: value.operation,
+      amount: value.amount,
+    };
+  }
   if (value.t === "skill" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
     return { t: "skill", slot: value.slot };
   }
@@ -1976,6 +2026,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (
       isPeasantCampVisual(value) ||
       isPeasantCampRemovedVisual(value) ||
+      isPeasantCampBankVisual(value) ||
       isPeasantBombImpactVisual(value)
     )
       return value;

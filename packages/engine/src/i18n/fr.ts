@@ -269,7 +269,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.peasant.butchers_cut.description":
     "Utilisez une lame courte contre un ennemi proche ou une source de viande explicite.",
   "skill.peasant.makeshift_camp.description":
-    "Construisez un camp temporaire qui partage un soin de ration modeste aux alliés proches.",
+    "Construisez un camp qui régénère la vie et le mana des alliés, avec un coffre d’or partagé.",
   "skill.peasant.homemade_bomb.description":
     "Lancez une bombe artisanale modeste dont l'explosion est décidée par le serveur.",
 
@@ -299,6 +299,14 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.materials.shared": "Partagées avec le groupe",
   "hud.materials.amount": "{material} : {amount}",
   "hud.gold.amount": "Or personnel : {amount}",
+  "camp.bank.title": "Coffre du camp",
+  "camp.bank.shared": "Accessible à tous les héros du groupe",
+  "camp.bank.personal": "Sur vous",
+  "camp.bank.chest": "Dans le coffre",
+  "camp.bank.amount": "Quantité d’or",
+  "camp.bank.deposit": "Déposer",
+  "camp.bank.withdraw": "Récupérer",
+  "camp.bank.close": "Fermer le coffre",
   "hud.map.title": "Val Verdoyant",
   "hud.map.you": "Vous",
   "hud.map.corpse": "Votre corps",
@@ -1019,6 +1027,11 @@ export const fr: Record<keyof typeof en, string> = {
   "event.peasant.materials_insufficient": "Le groupe n’a pas assez de matériaux.",
   "event.peasant.harvested": "Récolte terminée : +{xp} XP.",
   "event.peasant.support_unavailable": "Cette action de soutien n’est plus disponible.",
+  "event.peasant.camp_gold_unavailable":
+    "Approchez-vous du coffre d’un camp allié pour échanger de l’or.",
+  "event.peasant.camp_gold_insufficient": "Il n’y a pas assez d’or de ce côté du coffre.",
+  "event.peasant.camp_gold_deposited": "{amount} or déposé dans le coffre du camp.",
+  "event.peasant.camp_gold_withdrawn": "{amount} or récupéré dans le coffre du camp.",
   "event.talent.unlocked": "Talent activé.",
   "event.talent.reset": "Tous les points de talent ont été récupérés.",
   "event.talent.invalid": "Ce talent ne peut pas encore être activé.",

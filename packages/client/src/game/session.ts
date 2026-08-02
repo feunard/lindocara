@@ -16,6 +16,7 @@ import type {
   EventParams,
   MonsterSpecialImpact,
   PeasantBombImpactVisual,
+  PeasantCampBankVisual,
   PeasantCampRemovedVisual,
   PeasantCampVisual,
   PlayerSnapshot,
@@ -539,7 +540,18 @@ async function startGameIdentity(
     onLumenPortal: (portal: PriestLumenPortalVisual) => renderer.playLumenPortal(portal),
     onPolarityOrb: (orb: PriestPolarityOrbVisual) => renderer.playPolarityOrb(orb),
     onPeasantCamp: (camp: PeasantCampVisual) => renderer.showPeasantCamp(camp),
-    onPeasantCampRemoved: (camp: PeasantCampRemovedVisual) => renderer.removePeasantCamp(camp.id),
+    onPeasantCampBank: (bank: PeasantCampBankVisual) => {
+      const store = useUiStore.getState();
+      if (bank.opened || store.campBank?.id === bank.id) {
+        store.setCampBank({ id: bank.id, gold: bank.gold });
+        if (bank.opened) input.reset();
+      }
+    },
+    onPeasantCampRemoved: (camp: PeasantCampRemovedVisual) => {
+      renderer.removePeasantCamp(camp.id);
+      const store = useUiStore.getState();
+      if (store.campBank?.id === camp.id) store.setCampBank(null);
+    },
     onPeasantBombImpact: (impact: PeasantBombImpactVisual) =>
       renderer.playPeasantBombImpact(impact),
     // The dialogue panel (spec Decision 4): the server pushes beats to THIS player, the store holds
@@ -1058,6 +1070,7 @@ async function startGameIdentity(
   useUiStore.getState().setGame({
     attack,
     interact,
+    campGold: (id, operation, amount) => connection?.campGold(id, operation, amount),
     usePotion,
     useItem,
     buyItem: (item) => connection?.buyItem(item),

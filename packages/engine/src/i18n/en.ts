@@ -266,7 +266,7 @@ export const en = {
   "skill.peasant.butchers_cut.description":
     "Use a short blade against nearby enemies or explicit meat sources.",
   "skill.peasant.makeshift_camp.description":
-    "Build a temporary camp that shares a modest ration heal with nearby allies.",
+    "Build a camp that restores allied health and mana, with a shared gold chest.",
   "skill.peasant.homemade_bomb.description":
     "Throw a modest improvised bomb whose explosion is decided by the server.",
 
@@ -296,6 +296,14 @@ export const en = {
   "hud.materials.shared": "Shared with the party",
   "hud.materials.amount": "{material}: {amount}",
   "hud.gold.amount": "Personal gold: {amount}",
+  "camp.bank.title": "Camp chest",
+  "camp.bank.shared": "Available to every hero in the party",
+  "camp.bank.personal": "Carried",
+  "camp.bank.chest": "In the chest",
+  "camp.bank.amount": "Gold amount",
+  "camp.bank.deposit": "Deposit",
+  "camp.bank.withdraw": "Withdraw",
+  "camp.bank.close": "Close chest",
   "hud.map.title": "Verdant Reach",
   "hud.map.you": "You",
   "hud.map.corpse": "Your body",
@@ -1008,6 +1016,10 @@ export const en = {
   "event.peasant.materials_insufficient": "The party does not have enough materials.",
   "event.peasant.harvested": "Harvest complete: +{xp} XP.",
   "event.peasant.support_unavailable": "That support action is no longer available.",
+  "event.peasant.camp_gold_unavailable": "Move closer to an allied camp chest to transfer gold.",
+  "event.peasant.camp_gold_insufficient": "There is not enough gold on that side of the chest.",
+  "event.peasant.camp_gold_deposited": "Deposited {amount} gold in the camp chest.",
+  "event.peasant.camp_gold_withdrawn": "Withdrew {amount} gold from the camp chest.",
   "event.talent.unlocked": "Talent activated.",
   "event.talent.reset": "All talent points were refunded.",
   "event.talent.invalid": "That talent cannot be activated yet.",

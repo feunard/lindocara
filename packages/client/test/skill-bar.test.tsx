@@ -1,8 +1,8 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import type { GameHandle } from "@lindocara/client/store.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { SKILL_PAD_LAYOUT, SkillBar } from "@lindocara/client/ui/hud/SkillBar.js";
 import { PeasantResourcesPanel } from "@lindocara/client/ui/hud/PeasantResourcesPanel.js";
+import { SKILL_PAD_LAYOUT, SkillBar } from "@lindocara/client/ui/hud/SkillBar.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

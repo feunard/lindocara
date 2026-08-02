@@ -2,6 +2,7 @@ import type { PlayerActionDefinition } from "@lindocara/engine/combat-actions.js
 import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import {
   hasLineOfSight,
+  INTERACTION_RANGE,
   isWalkable,
   MAX_MONSTER_BODY_RADIUS,
   maxHpForLevel,
@@ -34,6 +35,8 @@ import type {
 export const PEASANT_CAMP_SIZE = 24;
 export const PEASANT_CAMP_PULSE_INTERVAL_MS = 2_000;
 export const PEASANT_CAMP_PROTECTION_RATIO = 0.12;
+export const PEASANT_CAMP_MANA_RATIO = 0.6;
+export const PEASANT_CAMP_GOLD_LIMIT = 999_999_999;
 export const PEASANT_BOMB_SPEED = 400;
 
 export interface PeasantCampPlan {
@@ -108,6 +111,7 @@ export interface PeasantCampRuntime extends Vec2 {
   readonly ownerPartyId: string;
   readonly radius: number;
   readonly healPower: number;
+  readonly manaPower: number;
   readonly protectionRatio: number;
   readonly slowRatio: number;
   readonly rationHealing: number;
@@ -115,6 +119,7 @@ export interface PeasantCampRuntime extends Vec2 {
   readonly rationBuffDurationMs: number;
   readonly rationPowerBonusRatio: number;
   rationPortionsRemaining: number;
+  storedGold: number;
   readonly rationServedIds: Set<string>;
   readonly startedAt: number;
   readonly expiresAt: number;
@@ -372,6 +377,7 @@ export function placePeasantCamp(
     y: position.y,
     radius: Math.max(1, plan.construction.radius),
     healPower: Math.max(0, Math.ceil(plan.construction.power / pulses)),
+    manaPower: Math.max(0, Math.ceil((plan.construction.power * PEASANT_CAMP_MANA_RATIO) / pulses)),
     protectionRatio: Math.min(
       0.5,
       Math.max(0, PEASANT_CAMP_PROTECTION_RATIO + plan.construction.protectionRatio),
@@ -382,6 +388,9 @@ export function placePeasantCamp(
     rationBuffDurationMs: Math.max(0, plan.ration.buffDurationMs),
     rationPowerBonusRatio: Math.max(0, plan.ration.powerBonusRatio),
     rationPortionsRemaining: Math.max(1, Math.floor(plan.ration.portions)),
+    // Rebuilding an owner's unique camp moves its chest atomically instead of dropping currency
+    // on the floor or requiring a refund race between the old removal and the new placement.
+    storedGold: replaced?.storedGold ?? 0,
     rationServedIds: new Set(),
     startedAt: now,
     expiresAt: now + effectiveDurationMs,
@@ -483,6 +492,88 @@ function campSeesPlayer(camp: PeasantCampRuntime, player: PlayerRuntime, terrain
   return hasLineOfSight(camp, centerOfPlayer(player), terrain.tiles, 0);
 }
 
+export function nearbyAlliedPeasantCamp(
+  runtime: PeasantSupportRuntime,
+  player: PlayerRuntime,
+  terrain: TerrainGeometry,
+  now: number,
+): PeasantCampRuntime | null {
+  if (!player.partyId || player.life !== "alive" || !player.authorized) return null;
+  return (
+    runtime.camps
+      .filter(
+        (camp) =>
+          camp.expiresAt > now &&
+          camp.ownerPartyId === player.partyId &&
+          playerCenterDistance(camp, player) <= INTERACTION_RANGE &&
+          campSeesPlayer(camp, player, terrain),
+      )
+      .sort(
+        (left, right) =>
+          playerCenterDistance(left, player) - playerCenterDistance(right, player) ||
+          left.id.localeCompare(right.id),
+      )[0] ?? null
+  );
+}
+
+export type PeasantCampGoldOperation = "deposit" | "withdraw";
+export type PeasantCampGoldResult =
+  | { readonly ok: true; readonly camp: PeasantCampRuntime }
+  | {
+      readonly ok: false;
+      readonly reason: "invalid" | "unavailable" | "insufficient" | "capacity";
+    };
+
+/** Authoritative chest transfer. The client supplies intent and an amount, never a resulting sum. */
+export function transferPeasantCampGold(options: {
+  readonly runtime: PeasantSupportRuntime;
+  readonly player: PlayerRuntime;
+  readonly terrain: TerrainGeometry;
+  readonly campId: string;
+  readonly operation: PeasantCampGoldOperation;
+  readonly amount: number;
+  readonly now: number;
+}): PeasantCampGoldResult {
+  if (!Number.isSafeInteger(options.amount) || options.amount < 1 || options.amount > 1_000_000)
+    return { ok: false, reason: "invalid" };
+  const camp = nearbyAlliedPeasantCamp(
+    options.runtime,
+    options.player,
+    options.terrain,
+    options.now,
+  );
+  if (!camp || camp.id !== options.campId) return { ok: false, reason: "unavailable" };
+
+  if (options.operation === "deposit") {
+    if (options.player.inventory.gold < options.amount)
+      return { ok: false, reason: "insufficient" };
+    if (camp.storedGold + options.amount > PEASANT_CAMP_GOLD_LIMIT)
+      return { ok: false, reason: "capacity" };
+    options.player.inventory.gold -= options.amount;
+    camp.storedGold += options.amount;
+  } else {
+    if (camp.storedGold < options.amount) return { ok: false, reason: "insufficient" };
+    if (options.player.inventory.gold + options.amount > Number.MAX_SAFE_INTEGER)
+      return { ok: false, reason: "capacity" };
+    camp.storedGold -= options.amount;
+    options.player.inventory.gold += options.amount;
+  }
+  options.player.dirty = true;
+  return { ok: true, camp };
+}
+
+/** Camps are room-local; every removal returns their balance to the owner before persistence. */
+export function refundPeasantCampGold(camp: PeasantCampRuntime, owner: PlayerRuntime): number {
+  const refunded = Math.min(
+    camp.storedGold,
+    Math.max(0, Number.MAX_SAFE_INTEGER - owner.inventory.gold),
+  );
+  owner.inventory.gold += refunded;
+  camp.storedGold -= refunded;
+  if (refunded > 0) owner.dirty = true;
+  return refunded;
+}
+
 function campSeesMonster(
   camp: PeasantCampRuntime,
   monster: MonsterRuntime,
@@ -541,6 +632,11 @@ export function advancePeasantCamps(options: {
   readonly isOwnerActive: (ownerId: string) => boolean;
   readonly areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean;
   readonly heal: (camp: PeasantCampRuntime, owner: PlayerRuntime, target: PlayerRuntime) => void;
+  readonly restoreResource: (
+    camp: PeasantCampRuntime,
+    owner: PlayerRuntime,
+    target: PlayerRuntime,
+  ) => void;
   readonly serveRation: (
     camp: PeasantCampRuntime,
     owner: PlayerRuntime,
@@ -576,6 +672,7 @@ export function advancePeasantCamps(options: {
       )
         continue;
       options.heal(camp, owner, target);
+      options.restoreResource(camp, owner, target);
     }
     for (const target of rationTargets(
       camp,

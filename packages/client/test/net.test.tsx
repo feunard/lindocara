@@ -129,6 +129,7 @@ function handlers(): ConnectionHandlers {
     onLumenPortal: vi.fn(),
     onPolarityOrb: vi.fn(),
     onPeasantCamp: vi.fn(),
+    onPeasantCampBank: vi.fn(),
     onPeasantCampRemoved: vi.fn(),
     onPeasantBombImpact: vi.fn(),
     onEvent: vi.fn(),

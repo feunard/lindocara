@@ -228,12 +228,16 @@ import {
   commitPeasantSupportRequest,
   damageAfterPeasantCampProtection,
   isPeasantBombProjectile,
+  nearbyAlliedPeasantCamp,
+  type PeasantCampRuntime,
   type PeasantSupportRequest,
   peasantSupportPlans,
+  refundPeasantCampGold,
   releasePeasantSupportRequest,
   removePeasantSupportByOwner,
   resolvePeasantBombImpact,
   resolvePeasantSupportAction,
+  transferPeasantCampGold,
 } from "../../world/peasant-support-system.js";
 import {
   advancePolarityOrbs,
@@ -592,6 +596,22 @@ export function sendPeasantCampsTo(w: WorldGlue, connectionId: string, now: numb
   }
 }
 
+function sendCampBankToParty(
+  w: WorldGlue,
+  camp: PeasantCampRuntime,
+  openedConnectionId?: string,
+): void {
+  for (const [connectionId, candidate] of w.state.players) {
+    if (!candidate.authorized || candidate.partyId !== camp.ownerPartyId) continue;
+    w.deps.send(connectionId, {
+      t: "peasant.camp_bank",
+      id: camp.id,
+      gold: camp.storedGold,
+      opened: connectionId === openedConnectionId,
+    });
+  }
+}
+
 /** Port of `#authoredQuestTrackers` (`world.ts:5842`). */
 function playerQuestTrackers(
   state: WorldRoomState,
@@ -892,6 +912,7 @@ function freeze(w: WorldGlue, player: PlayerRuntime): void {
   removePolarityOrbsByOwner(w.state.polarityOrbs, player.id);
   removeProjectilesByOwner(w.state.projectiles, player.id);
   for (const camp of removePeasantSupportByOwner(w.state.peasantSupport, player.id)) {
+    refundPeasantCampGold(camp, player);
     sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp);
   }
   player.dirty = true;
@@ -4614,6 +4635,16 @@ export async function handleInteract(
   // codebase resolves every action as "the nearest valid thing in range"; so does this.
   const resurrection = resurrectNearbyCorpse(w, connectionId, player, now);
   if (resurrection.handled) return { cooldownStarted: resurrection.cooldownStarted };
+  const camp = nearbyAlliedPeasantCamp(w.state.peasantSupport, player, zone(w.state).terrain, now);
+  if (camp) {
+    w.deps.send(connectionId, {
+      t: "peasant.camp_bank",
+      id: camp.id,
+      gold: camp.storedGold,
+      opened: true,
+    });
+    return { cooldownStarted: false };
+  }
   // Standard authored quest bindings win before the same event's advanced command program. If no
   // quest has anything relevant to show, the event program remains the full-control fallback.
   if (triggerQuestTargetNearby(w, connectionId, player)) return { cooldownStarted: false };
@@ -4672,6 +4703,44 @@ export async function handleInteract(
   player.dirty = true;
   sendStateTo(w, connectionId, player);
   return { cooldownStarted: false };
+}
+
+export function handlePeasantCampGold(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  campId: string,
+  operation: "deposit" | "withdraw",
+  amount: number,
+): void {
+  const result = transferPeasantCampGold({
+    runtime: w.state.peasantSupport,
+    player,
+    terrain: zone(w.state).terrain,
+    campId,
+    operation,
+    amount,
+    now: w.deps.now(),
+  });
+  if (!result.ok) {
+    w.deps.send(connectionId, {
+      t: "event",
+      code:
+        result.reason === "insufficient"
+          ? "peasant.camp_gold_insufficient"
+          : "peasant.camp_gold_unavailable",
+      tone: "bad",
+    });
+    return;
+  }
+  sendStateTo(w, connectionId, player);
+  sendCampBankToParty(w, result.camp, connectionId);
+  w.deps.send(connectionId, {
+    t: "event",
+    code: operation === "deposit" ? "peasant.camp_gold_deposited" : "peasant.camp_gold_withdrawn",
+    params: { amount },
+    tone: "good",
+  });
 }
 
 /** Port of `#useConsumable` (`world.ts:3930`). */
@@ -6051,6 +6120,19 @@ export function advanceWorldTick(w: WorldGlue): void {
         owner.id === target.id,
       );
     },
+    restoreResource: (camp, _owner, target) => {
+      if (target.resource?.kind !== "mana" || target.resource.current >= target.resource.max)
+        return;
+      const restored = Math.min(
+        target.resource.max - target.resource.current,
+        Math.max(0, camp.manaPower),
+      );
+      if (restored <= 0) return;
+      target.resource.current += restored;
+      target.dirty = true;
+      const targetConnectionId = connectionOf(state, target.id);
+      if (targetConnectionId !== undefined) sendStateTo(w, targetConnectionId, target);
+    },
     serveRation: (camp, owner, target) => {
       const ownerConnectionId = connectionOf(state, owner.id);
       const targetConnectionId = connectionOf(state, target.id);
@@ -6070,7 +6152,15 @@ export function advanceWorldTick(w: WorldGlue): void {
     },
     slowMonster: (camp, _owner, monster) =>
       applyMonsterSlow(monster, camp.slowRatio, camp.pulseIntervalMs + 1_000 / TICK_HZ, now),
-    removed: (camp) => sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp),
+    removed: (camp) => {
+      const owner = playerById(state, camp.ownerId);
+      if (owner) {
+        refundPeasantCampGold(camp, owner);
+        const ownerConnectionId = connectionOf(state, owner.id);
+        if (ownerConnectionId !== undefined) sendStateTo(w, ownerConnectionId, owner);
+      }
+      sendSpatialEvent(w, { t: "peasant.camp_removed", id: camp.id }, camp);
+    },
   });
   if (state.tick % TICK_HZ === 0) {
     for (const [connectionId, player] of state.players) {

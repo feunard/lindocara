@@ -88,9 +88,7 @@ describe("directional class kit contract", () => {
       "homemade_bomb",
     ]);
     expect(
-      PLAYER_ACTIONS.peasant.slice(0, 3).map((action) =>
-        action.anticipationMs + action.recoveryMs,
-      ),
+      PLAYER_ACTIONS.peasant.slice(0, 3).map((action) => action.anticipationMs + action.recoveryMs),
     ).toEqual([420, 460, 400]);
   });
 

@@ -339,6 +339,7 @@ interface ArtTextures {
   signBoard: Texture;
   combatFrames: Map<string, readonly Texture[]>;
   questResources: Record<keyof typeof TINY_SWORDS_QUEST_ART, Texture>;
+  peasantCamp: Texture;
 }
 
 export interface RenderContext {
@@ -514,6 +515,7 @@ const MERCHANT_IDLE_SHEET = new URL(
   "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Idle.png",
   import.meta.url,
 ).href;
+const PEASANT_CAMP_ART = new URL("./assets/peasant/makeshift-camp.png", import.meta.url).href;
 
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
   return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
@@ -682,6 +684,8 @@ async function loadArt(): Promise<ArtTextures> {
   for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
   const merchantSheet = await Assets.load<Texture>(MERCHANT_IDLE_SHEET);
   merchantSheet.source.style.scaleMode = "nearest";
+  const peasantCamp = await Assets.load<Texture>(PEASANT_CAMP_ART);
+  peasantCamp.source.style.scaleMode = "nearest";
 
   return {
     players: {
@@ -761,6 +765,7 @@ async function loadArt(): Promise<ArtTextures> {
     signBoard,
     combatFrames,
     questResources,
+    peasantCamp,
   };
 }
 
@@ -4008,20 +4013,16 @@ export class Renderer {
     const container = new Container();
     container.position.set(camp.x, camp.y);
     container.zIndex = Math.round(camp.y);
-    const ground = new Graphics()
-      .circle(0, 0, 13)
-      .fill({ color: 0x5d432c, alpha: 0.42 })
-      .rect(-11, -3, 22, 5)
-      .fill({ color: 0x7b4d2a })
-      .rect(-3, -11, 5, 22)
-      .fill({ color: 0x8b5c32 });
-    ground.rotation = Math.PI / 4;
-    const fire = new Graphics()
-      .circle(0, -2, 6)
-      .fill({ color: 0xf08b32, alpha: 0.95 })
-      .circle(0, 0, 3)
-      .fill({ color: 0xffdc73, alpha: 0.95 });
-    container.addChild(ground, fire);
+    const aura = new Graphics()
+      .circle(0, 8, Math.max(26, camp.radius))
+      .fill({ color: 0x8bcf83, alpha: 0.075 })
+      .stroke({ color: 0xf3d68e, alpha: 0.28, width: 2 });
+    const sprite = new Sprite(this.art.peasantCamp);
+    sprite.anchor.set(0.5, 0.72);
+    sprite.position.set(0, 24);
+    sprite.width = 136;
+    sprite.height = 136;
+    container.addChild(aura, sprite);
     this.#effects.addChild(container);
     const clockSample = this.serverClock.currentSample();
     this.#peasantCamps.set(camp.id, {
