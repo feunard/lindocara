@@ -8,6 +8,15 @@ import {
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+import {
+  land,
+  attack as sonAttaque,
+  enterWater as sonEntreeEau,
+  jump as sonSaut,
+  leaveWater as sonSortieEau,
+  step,
+  swimStroke,
+} from "../core/audio.js";
 import { CAMERA, HERO, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
 import type { TerrainQuery } from "./terrain-query.js";
@@ -15,10 +24,23 @@ import type { TerrainQuery } from "./terrain-query.js";
 // Water Splash : 9 frames de 192px, jouées une fois.
 const SPLASH = { cols: 9, frames: 9, fps: 20, height: 1.7, foot: 0.32 };
 
+// Un pas tous les 1.2 unité parcourue : la cadence suit donc la vitesse, elle
+// ne se dérègle pas si on ralentit.
+const PAS_TOUS_LES = 1.2;
+const BRASSE_TOUTES_LES = 0.85; // secondes, à la nage
+
 // L'attaque se joue une fois, image par image, hors de l'animateur en boucle : elle a un début et
 // une fin, pas un cycle.
 const ATTAQUE = HERO.anims.attack;
 const ATTAQUE_DUREE = ATTAQUE.frames / ATTAQUE.fps;
+const ATTAQUE_FRAPPE = ATTAQUE.strike / ATTAQUE.fps; // instant où la lame part
+// Les sifflements du pack n'ont pas d'attaque : ils ENFLENT pendant 170 ms jusqu'à une crête, et
+// c'est cette crête que l'oreille prend pour le coup. Le son doit donc partir AVANT la frappe, pas
+// dessus : sa montée couvre alors l'armement et culmine sur l'image où la lame sort. Calé dessus,
+// il culminait 170 ms après la fin du geste — audible, et c'est bien ce qu'on entendait. Les
+// 170 ms sont mesurées, et `scripts/sync-assets.sh` aligne les trois échantillons dessus.
+const SIFFLEMENT_MONTEE = 0.17;
+const ATTAQUE_SON = Math.max(0, ATTAQUE_FRAPPE - SIFFLEMENT_MONTEE);
 
 interface Splash {
   billboard: Billboard;
@@ -37,24 +59,38 @@ export interface HeroInput {
   attack: boolean;
 }
 
+/** Rectangle où le héros peut marcher, quand il est en intérieur — plancher plat, ni gravité ni
+ *  nage ni saut, meubles à contourner. */
+export interface Room {
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+  y: number;
+  obstacles: readonly { x: number; z: number; r: number }[];
+}
+
 export interface Hero {
   readonly object: THREE.Mesh;
   readonly effects: THREE.Group;
   readonly position: THREE.Vector3;
   readonly airborne: boolean;
   readonly swimming: boolean;
+  /** `true` une fois entré dans une pièce (voir `setRoom`). */
+  readonly indoors: boolean;
   /** Souffle restant, de 1 à 0. */
   readonly breath: number;
   /** Force de la dernière réception, remise à zéro dès qu'on la lit. */
   takeImpact(): number;
+  /** Entre dans une pièce (rectangle + hauteur de plancher), ou en ressort (`null`). */
+  setRoom(room: Room | null, position?: THREE.Vector3): void;
   update(dt: number, input: HeroInput): void;
 }
 
 /**
- * Port de `~/git/poc-hd-2d/src/world/hero.js`, réduit à ce que la Task 11 couvre : marcher,
- * sauter, tomber, nager, se noyer. Ni le son (`audio.ts`, Task 12) ni les pièces d'intérieur
- * (`piece`/`setRoom`, la maison de Task 12) ne sont portés — la branche « intérieur » de
- * `canEnter`/`update` n'a pas de sens tant qu'aucune pièce n'existe.
+ * Port de `~/git/poc-hd-2d/src/world/hero.js` : marcher, sauter, tomber, nager, se noyer, entrer
+ * dans une pièce (`setRoom`, la maison de Task 12) et le son qui accompagne chaque geste
+ * (`core/audio.ts`).
  *
  * `ctx`/`textures` s'ajoutent à la signature du brief (`createHero(query, colliders, spawn)`) :
  * `makeBillboard` du package a besoin du contexte hd2d (yaw, registre de billboards) et d'une
@@ -110,6 +146,9 @@ export function createHero(
   let breath = HERO.swim.breath;
   let coyote = 0;
   let facing = 1;
+  let piece: Room | null = null; // rectangle de la pièce quand on est à l'intérieur
+  let distanceDepuisLePas = 0;
+  let brasse = 0;
   let impact = 0;
   let attaque = -1; // temps écoulé dans le coup en cours ; négatif = pas d'attaque
 
@@ -122,6 +161,10 @@ export function createHero(
 
   /** Centre de l'empreinte de collision, décalé sous le corps du sprite. */
   const empreinte = (z: number) => z - HERO.offset;
+
+  /** Matière du sol sous les pieds, pour le son du pas. */
+  const solSous = (): "sable" | "herbe" =>
+    query.kindAt(pos.x, empreinte(pos.z)) === "sable" ? "sable" : "herbe";
 
   function splash(x: number, y: number, z: number): void {
     const s = makeBillboard(ctx, {
@@ -148,6 +191,17 @@ export function createHero(
   };
 
   const canEnter = (x: number, z: number): boolean => {
+    // En intérieur, le relief et les props ne s'appliquent plus : la pièce est un simple
+    // rectangle, posée hors de la grille de terrain.
+    if (piece) {
+      const p = piece;
+      if (!(x > p.x0 && x < p.x1 && z > p.z0 && z < p.z1)) return false;
+      // Les meubles s'évitent, avec la même échappatoire qu'au dehors : si on en chevauche déjà
+      // un, on doit pouvoir en sortir.
+      const dans = (px: number, pz: number) =>
+        p.obstacles.some((o) => (o.x - px) ** 2 + (o.z - pz) ** 2 < (o.r + HERO.radius) ** 2);
+      return !dans(x, z) || dans(pos.x, pos.z);
+    }
     if (!centreOk(x, z)) return false;
 
     // Le relief est testé sur le disque du héros, pas sur son centre : sinon il enfonce la
@@ -180,6 +234,7 @@ export function createHero(
     pos.y = WORLD.waterLevel;
     groundY = WORLD.waterLevel;
     splash(pos.x, WORLD.waterLevel, pos.z);
+    sonEntreeEau();
   }
 
   function leaveWater(y: number): void {
@@ -188,10 +243,12 @@ export function createHero(
     pos.y = y;
     groundY = y;
     splash(pos.x, WORLD.waterLevel, pos.z);
+    sonSortieEau();
   }
 
   function drown(): void {
     splash(pos.x, WORLD.waterLevel, pos.z);
+    sonEntreeEau();
     swimming = false;
     airborne = false;
     vy = 0;
@@ -210,6 +267,9 @@ export function createHero(
     get swimming() {
       return swimming;
     },
+    get indoors() {
+      return piece !== null;
+    },
     get breath() {
       return breath / HERO.swim.breath;
     },
@@ -218,19 +278,38 @@ export function createHero(
       impact = 0;
       return v;
     },
+    setRoom(room, position) {
+      piece = room;
+      if (position) pos.copy(position);
+      groundY = room ? room.y : (query.heightAt(pos.x, pos.z) ?? 0);
+      pos.y = groundY;
+      airborne = false;
+      swimming = false;
+      vy = 0;
+    },
     update(dt, input) {
       const pas = HERO.speed * (swimming ? HERO.swim.speed : 1) * dt;
+      const avantX = pos.x;
+      const avantZ = pos.z;
+
       // Un axe à la fois : buter sur un obstacle en diagonale fait glisser le long.
       const nx = pos.x + input.x * pas;
       if (input.x !== 0 && canEnter(nx, pos.z)) pos.x = nx;
       const nz = pos.z + input.z * pas;
       if (input.z !== 0 && canEnter(pos.x, nz)) pos.z = nz;
 
-      const sol = query.heightAt(pos.x, empreinte(pos.z));
-      const eau = sol === null;
+      if (piece) {
+        // Plancher plat : ni gravité, ni nage, ni saut. On garde les pas.
+        pos.y = piece.y;
+        airborne = false;
+        swimming = false;
+        vy = 0;
+      }
+      const sol = piece ? piece.y : query.heightAt(pos.x, empreinte(pos.z));
+      const eau = !piece && sol === null;
 
       if (swimming) {
-        if (!eau) {
+        if (sol !== null) {
           leaveWater(sol);
         } else {
           pos.y = WORLD.waterLevel;
@@ -256,6 +335,7 @@ export function createHero(
           vy = HERO.jump.speed;
           airborne = true;
           coyote = 0;
+          sonSaut();
         }
 
         if (airborne) {
@@ -264,10 +344,13 @@ export function createHero(
           if (vy <= 0 && pos.y <= ground) {
             pos.y = ground;
             groundY = ground;
-            // Le poids de la réception suit la vitesse de chute — pour la secousse de caméra.
+            // Le poids de la réception suit la vitesse de chute — pour le son comme pour la
+            // secousse de caméra.
             impact = THREE.MathUtils.clamp(-vy / HERO.jump.speed, 0.35, 1.4);
+            land(impact);
             vy = 0;
             airborne = false;
+            distanceDepuisLePas = 0;
           }
         }
 
@@ -275,11 +358,31 @@ export function createHero(
         if (eau && !airborne) enterWater();
       }
 
+      // --- pas et brasses -------------------------------------------------------------------
+      // Cadencés à la DISTANCE parcourue, pas au temps : la cadence suit ainsi la vitesse et ne
+      // se dérègle jamais, qu'on marche ou qu'on coure.
+      const avance = Math.hypot(pos.x - avantX, pos.z - avantZ);
+      if (swimming) {
+        brasse -= dt;
+        if (avance > 1e-4 && brasse <= 0) {
+          swimStroke();
+          brasse = BRASSE_TOUTES_LES;
+        }
+      } else if (!airborne) {
+        distanceDepuisLePas += avance;
+        if (distanceDepuisLePas >= PAS_TOUS_LES) {
+          distanceDepuisLePas = 0;
+          step(solSous());
+        }
+      }
+
       // --- attaque ------------------------------------------------------------------------------
       // On ne frappe pas en nageant, et un coup va jusqu'au bout : réappuyer pendant qu'il se joue
       // ne le relance pas, sinon la lame repart en arrière à chaque martèlement de la touche.
       if (attaque >= 0) {
+        const avantAttaque = attaque;
         attaque += dt;
+        if (avantAttaque < ATTAQUE_SON && attaque >= ATTAQUE_SON) sonAttaque();
         if (attaque >= ATTAQUE_DUREE) attaque = -1;
       } else if (input.attack && !swimming) {
         attaque = 0;

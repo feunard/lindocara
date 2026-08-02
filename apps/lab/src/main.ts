@@ -1,8 +1,10 @@
-import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
+import { makeBillboard, RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import { createCloudCover } from "@lindocara/hd2d/clouds.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
+import { applyFillFromPointLight } from "@lindocara/hd2d/fill-light.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import { createMoodMixer } from "@lindocara/hd2d/mood.js";
+import { createParticleField, createPetalFall } from "@lindocara/hd2d/particles.js";
 import { createPipeline } from "@lindocara/hd2d/pipeline.js";
 import { createSky } from "@lindocara/hd2d/sky.js";
 import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
@@ -12,6 +14,21 @@ import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import type { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import {
+  AUDIO_URLS,
+  closeDoor,
+  ding,
+  initAudio,
+  musicEnabled,
+  openDoor,
+  sayLine,
+  setAmbience,
+  setFireDistance,
+  stopLine,
+  toggleMusic,
+  unlockAudio,
+} from "./core/audio.js";
+import { createDialog, createPrompt } from "./core/dialog.js";
 import { createInput, type InputSample } from "./core/input.js";
 import {
   CAMERA,
@@ -23,17 +40,24 @@ import {
   WATER,
   WORLD,
 } from "./settings.js";
+import { createChest } from "./world/chest.js";
 import { createColliders } from "./world/colliders.js";
+import { createDebugView } from "./world/debug.js";
 import { createHero } from "./world/hero.js";
+import { createHouse } from "./world/house.js";
+import { createInterior } from "./world/interior.js";
 import { generateIsland } from "./world/island.js";
+import { createGrota } from "./world/npc.js";
+import { populate } from "./world/props.js";
 
 // --- chargement -------------------------------------------------------------------------------
 // Tout est chargé AVANT de construire quoi que ce soit : la scène naît complète, et aucun sprite
 // ne se clone sur une image encore vide.
 //
 // Le pourcentage se répartit sur deux temps. Le téléchargement pèse 85 % : il est suivi en
-// octets, seule mesure honnête quand un fichier pèse bien plus que les autres réunis. Le
-// décodage — images vers textures — prend les 15 derniers (l'audio, Task 12, s'y ajoutera).
+// octets, seule mesure honnête quand deux fichiers de musique pèsent plus que les soixante
+// autres réunis. Le décodage — images vers textures, OGG vers tampons audio — prend les 15
+// derniers, et les deux décodages tournent de front (chacun compte pour sa moitié).
 const texteChargement = document.getElementById("load-text");
 const barreChargement = document.getElementById("load-fill");
 let partTelechargee = 0;
@@ -45,19 +69,28 @@ function avancement(): void {
   if (barreChargement) barreChargement.style.width = `${p}%`;
 }
 
-const blobs = await fetchAll(
-  TEXTURE_URLS.map((t) => t.url),
-  (p) => {
-    partTelechargee = p;
-    avancement();
-  },
-);
-
-const textures = createTextureRegistry(TEXTURE_URLS);
-await textures.decode(blobs, (p) => {
-  partDecodee = p;
+const blobs = await fetchAll([...TEXTURE_URLS.map((t) => t.url), ...AUDIO_URLS], (p) => {
+  partTelechargee = p;
   avancement();
 });
+
+const textures = createTextureRegistry(TEXTURE_URLS);
+let imagesFaites = 0;
+let sonsFaits = 0;
+const decode = (): void => {
+  partDecodee = (imagesFaites + sonsFaits) / 2;
+  avancement();
+};
+await Promise.all([
+  textures.decode(blobs, (p) => {
+    imagesFaites = p;
+    decode();
+  }),
+  initAudio(blobs, (p) => {
+    sonsFaits = p;
+    decode();
+  }),
+]);
 
 const canvas = document.getElementById("view") as HTMLCanvasElement;
 const scene = new THREE.Scene();
@@ -138,10 +171,21 @@ const foam = createFoam(ctx, field, {
 });
 scene.add(foam.group);
 
-// Aucun prop n'existe encore (Task 12) : le héros n'a rien à heurter que le relief.
+// Les props d'abord : ce sont eux qui déclarent les colliders (arbres, rochers, feu) que le héros
+// et Grota testent. `colliders` est créé ICI, dans le composition root, parce que le héros — créé
+// juste après Grota — doit voir la MÊME instance que celle que `populate`/`createGrota` peuplent :
+// contrairement au PoC, où `props.js` fabrique et possède ses colliders, l'architecture du labo
+// (Task 11) fait déjà de `main.ts` le propriétaire de `colliders`.
 const colliders = createColliders();
 
 const SPAWN = [-2, 4] as const;
+const props = populate(ctx, textures, field, query, colliders, SPAWN);
+scene.add(props.group);
+
+// Grota AVANT le héros : il déclare son collider, que le héros doit connaître.
+const grota = createGrota(ctx, textures, query, colliders);
+scene.add(grota.object);
+
 const hero = createHero(ctx, textures, query, colliders, SPAWN);
 scene.add(hero.object);
 scene.add(hero.effects);
@@ -150,8 +194,91 @@ scene.add(hero.effects);
 // supplémentaire.
 const clouds = createCloudCover(ctx);
 
+// Braises du foyer, lucioles de nuit, pollen de jour : rien n'éclaire, c'est du mouvement dans le
+// vide entre les sprites — la Task 11 avait laissé ce câblage en attente du foyer, posé ici par
+// `populate`.
+const particles = createParticleField(ctx, { firePosition: props.firePosition, worldRadius: 22 });
+scene.add(particles.group);
+
 const sky = createSky(ctx);
 scene.add(sky.mesh);
+
+// La maison sur l'île de l'est : posée au centre d'une zone plate cherchée par anneaux, et son
+// empreinte entre dans la grille de collision comme n'importe quel prop.
+const placeMaison = ((): readonly [number, number] | null => {
+  for (let r = 0; r < 6; r++) {
+    for (const [ox, oz] of [
+      [0, 0],
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, 1],
+      [-1, -1],
+    ] as const) {
+      const x = 25 + ox * r;
+      const z = -2 + oz * r;
+      if (query.levelAt(x, z) !== 0) continue;
+      let plat = true;
+      for (let dx = -2; dx <= 2 && plat; dx++)
+        for (let dz = -2; dz <= 2 && plat; dz++)
+          if (query.levelAt(x + dx, z + dz) !== 0) plat = false;
+      if (plat) return [x, z];
+    }
+  }
+  return null;
+})();
+
+const house = placeMaison
+  ? createHouse(
+      textures,
+      placeMaison[0],
+      query.heightAt(placeMaison[0], placeMaison[1]) ?? 0,
+      placeMaison[1],
+    )
+  : null;
+if (house) {
+  scene.add(house.group);
+  colliders.add(house.footprint.x, house.footprint.z, house.footprint.r);
+}
+
+// L'intérieur vit très loin de la carte, caché tant qu'on n'y est pas entré.
+const interior = createInterior(ctx, textures);
+scene.add(interior.group);
+
+// Le cerisier devant la maison. 7.5 unités : à l'échelle du héros, qui fait 1.3 unité pour
+// environ 1m75, ça vaut la dizaine de mètres demandée.
+const sakura = ((): { petales: ReturnType<typeof createPetalFall> } | null => {
+  if (!house) return null;
+  const x = house.footprint.x;
+  const z = house.footprint.z + 7.5;
+  if (query.levelAt(x, z) !== 0) return null;
+  const y = query.heightAt(x, z) ?? 0;
+  const billboard = makeBillboard(ctx, {
+    texture: textures.get("/tex/sakura.png"),
+    height: 3.4,
+    aspect: 150 / 152,
+    foot: 0.03,
+    pitch: CAMERA.pitch,
+  });
+  billboard.placeAt(x, y, z);
+  scene.add(billboard.mesh);
+  colliders.add(x, z, 0.42);
+  // La ramure culmine vers 2.9 : les pétales tombent de là.
+  const petales = createPetalFall(ctx, {
+    centre: new THREE.Vector3(x, y, z),
+    radius: 1.5,
+    height: 2.9,
+  });
+  scene.add(petales.group);
+  return { petales };
+})();
+
+const chest = createChest(ctx, textures, field, query, colliders);
+scene.add(chest.group);
+
+const debugView = createDebugView(field, query, colliders);
+scene.add(debugView.group);
 
 // --- lumières -----------------------------------------------------------------------------------
 const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
@@ -233,6 +360,16 @@ function pushMood(): void {
   water.colors.shallow.copy(m.water.shallow);
   water.colors.deep.copy(m.water.deep);
   water.setSparkle(m.water.sparkle);
+  // Le halo du foyer suit l'ambiance : en plein jour, un feu de camp ne fait pas de flaque de
+  // lumière, il n'a que sa flamme. Les deux couches pèsent le même poids : donner le dessus à la
+  // petite lui rendait aussitôt son statut de tache principale, et le rond revenait.
+  const feuOpacite = THREE.MathUtils.clamp(m.fire / 13, 0.16, 1);
+  (props.fireGlow.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
+  (props.fireHalo.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
+  // Six rendus de la scène pour une ombre qu'on ne distingue pas en plein jour : le foyer ne
+  // projette qu'une fois la nuit tombée.
+  props.fireLight.castShadow = m.fire > 2.2;
+  particles.apply(m);
   sky.apply(m, sun.position.clone().sub(sun.target.position));
   // Le brouillard prend la couleur d'horizon du ciel : deux teintes voisines mais distinctes
   // dessinaient une ligne franche là où la mer lointaine rencontre la voûte.
@@ -242,7 +379,81 @@ function pushMood(): void {
 const moodLabel = document.getElementById("mood");
 function applyMood(name: "day" | "night"): void {
   mood.goTo(name);
+  setAmbience(name === "day" ? "jour" : "nuit");
   if (moodLabel) moodLabel.textContent = name === "day" ? "☀︎ jour" : "☾ nuit";
+}
+
+// --- dialogue ---------------------------------------------------------------------------------
+// Le son est passé en paramètre : le bandeau ne connaît ni les fichiers ni le contexte audio, il
+// sait seulement qu'une réplique se dit, se coupe, et qu'un passage se ponctue.
+const dialog = createDialog({ say: sayLine, stop: stopLine, next: ding });
+const prompt = createPrompt();
+
+const GROTA_DIT = [
+  "Hm. Un chevalier. Et qui a fait la traversée à la nage, en plus.",
+  "Personne ne vient jamais ici. Ce caillou n'a rien : un mamelon, trois brins d'herbe, et moi.",
+  "De là-haut on voit tout le reste — les paliers, le troupeau, ton feu de camp qui fume.",
+  "Repars avant la nuit. Elle tombe pour de bon, ici. Au large, on ne voit plus sa propre main.",
+];
+
+const fondu = document.getElementById("fade");
+let enTransition = false;
+
+/** Coupe l'image le temps de déplacer le héros : sans ça on verrait la carte défiler d'un bout à
+ *  l'autre du monde. */
+function transition(action: () => void): void {
+  if (enTransition) return;
+  enTransition = true;
+  fondu?.classList.add("on");
+  setTimeout(() => {
+    action();
+    fondu?.classList.remove("on");
+    setTimeout(() => {
+      enTransition = false;
+    }, 280);
+  }, 280);
+}
+
+function entrerMaison(): void {
+  transition(() => {
+    interior.group.visible = true;
+    hero.setRoom(interior.bounds, interior.spawn);
+    openDoor();
+  });
+}
+
+function sortirMaison(): void {
+  transition(() => {
+    interior.group.visible = false;
+    if (!house) return;
+    const s = house.seuil;
+    hero.setRoom(null, new THREE.Vector3(s.x, s.y, s.z + 0.9));
+    closeDoor();
+  });
+}
+
+const hudEl = document.getElementById("hud");
+let hudMasque = false;
+
+function parler(action: boolean, cancel: boolean): void {
+  const portee = grota.inReach(hero.position) && !hero.swimming;
+  // S'éloigner referme la conversation : rester à l'écoute d'un panda qu'on ne voit plus n'aurait
+  // aucun sens, et ça évite un bandeau orphelin à l'écran.
+  if (dialog.open && (!portee || cancel)) dialog.close();
+  else if (action) {
+    if (dialog.open) dialog.advance();
+    else if (portee) dialog.start("Grota", GROTA_DIT, "/ui/grota.png");
+  }
+  // Une seule invite pour toute la scène : le panda et le coffre s'y partagent la même pastille.
+  const surSeuil = hero.indoors
+    ? interior.nearExit(hero.position)
+    : !!house && house.atDoor(hero.position);
+  prompt.shown = (portee || chest.canInteract || surSeuil) && !dialog.open;
+  // Les deux occupent le même bas d'écran : l'aide s'efface le temps de parler.
+  if (dialog.open !== hudMasque) {
+    hudMasque = dialog.open;
+    hudEl?.classList.toggle("parle", hudMasque);
+  }
 }
 
 const input = createInput(canvas, {
@@ -250,6 +461,54 @@ const input = createInput(canvas, {
   onToggleHud: () => {
     document.getElementById("hud")?.classList.toggle("hidden");
   },
+  onInteract: () => {
+    // Une seule touche pour tout : ce qui est sous la main l'emporte.
+    if (hero.indoors) {
+      if (interior.nearExit(hero.position)) sortirMaison();
+    } else if (house?.atDoor(hero.position)) {
+      entrerMaison();
+    } else {
+      chest.toggle();
+    }
+  },
+  onToggleMusic: () => {
+    const actif = toggleMusic();
+    const soundLabel = document.getElementById("sound");
+    if (soundLabel)
+      soundLabel.textContent = actif === null ? "♪ aucune piste" : actif ? "♪ musique" : "";
+  },
+  onToggleDebug: () => {
+    const debugLabel = document.getElementById("debug");
+    if (debugLabel) debugLabel.textContent = debugView.toggle() ? "▣ collisions" : "";
+  },
+});
+
+// --- clic sur un mouton -----------------------------------------------------------------------
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const soundLabel = document.getElementById("sound");
+if (soundLabel) soundLabel.textContent = musicEnabled() ? "♪ musique" : "";
+
+/** Coordonnées normalisées du pointeur, pour le raycast. */
+function viserAvec(e: PointerEvent): void {
+  const r = canvas.getBoundingClientRect();
+  pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+}
+
+// Le curseur passe à la main au survol d'un mouton : c'est la seule chose cliquable de la scène,
+// autant que ça se voie.
+canvas.addEventListener("pointermove", (e) => {
+  viserAvec(e);
+  const survol = raycaster.intersectObjects([...props.flock.meshes], false).length > 0;
+  canvas.classList.toggle("pointe", survol);
+});
+
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return; // le bouton droit fait tourner la caméra
+  viserAvec(e);
+  const hit = raycaster.intersectObjects([...props.flock.meshes], false)[0];
+  if (hit) props.flock.hit(hit.object);
 });
 
 // --- caméra -----------------------------------------------------------------------------------
@@ -266,11 +525,12 @@ const avance = new THREE.Vector3();
 const wanted = new THREE.Vector3();
 const astre = new THREE.Vector3();
 
-// Secousse : une réception sans à-coup n'a aucun poids.
+// Secousse : une réception sans à-coup, ou une détonation, n'ont aucun poids.
 let secousse = 0;
 const shake = (a: number) => {
   secousse = Math.max(secousse, a);
 };
+props.flock.onExplode = () => shake(0.26);
 
 function updateCamera(
   dt: number,
@@ -346,7 +606,17 @@ function updateCamera(
 // soleil, que c'est la caméra qui place.
 updateCamera(
   0.016,
-  { x: 0, z: 0, zoom: 0, jump: false, attack: false, yaw: 0, orbiting: false },
+  {
+    x: 0,
+    z: 0,
+    zoom: 0,
+    jump: false,
+    attack: false,
+    action: false,
+    cancel: false,
+    yaw: 0,
+    orbiting: false,
+  },
   { x: 0, z: 0 },
   0,
 );
@@ -380,13 +650,31 @@ function frame(now = performance.now()): void {
   const cy = Math.cos(yaw);
   const sy = Math.sin(yaw);
   const move = { x: cmd.x * cy + cmd.z * sy, z: cmd.z * cy - cmd.x * sy };
-  hero.update(dt, { x: move.x, z: move.z, jump: cmd.jump, attack: cmd.attack });
+  // Pendant qu'on parle, le héros est spectateur : ni pas, ni saut, ni coup. Les commandes sont
+  // neutralisées ICI et non dans `hero.ts` — c'est la scène qui sait qu'une conversation est en
+  // cours, pas le personnage. Le zoom et la rotation de caméra, eux, restent libres.
+  const fige = dialog.open;
+  hero.update(dt, {
+    x: fige ? 0 : move.x,
+    z: fige ? 0 : move.z,
+    jump: !fige && cmd.jump,
+    attack: !fige && cmd.attack,
+  });
   const choc = hero.takeImpact();
   if (choc) shake(CAMERA.shake.land * choc);
 
+  props.update(dt, elapsed);
+  grota.update(dt, hero.position);
+  parler(cmd.action, cmd.cancel);
+  dialog.update(dt);
   water.update(dt);
   foam.update(dt);
   clouds.update(dt);
+  particles.update(dt);
+  debugView.update(hero);
+  chest.update(hero.position);
+  interior.update(dt, elapsed);
+  sakura?.petales.update(dt);
   sky.update(dt, camera);
   updateCamera(dt, cmd, move, elapsed);
   // L'ambiance se fond : tant qu'elle bouge, il faut la repousser partout.
@@ -395,6 +683,21 @@ function frame(now = performance.now()): void {
   // Jauge de souffle : visible seulement quand le héros est dans l'eau.
   if (breathEl) breathEl.style.display = hero.swimming ? "block" : "none";
   if (hero.swimming && breathBarEl) breathBarEl.style.width = `${Math.max(0, hero.breath) * 100}%`;
+
+  // Le foyer s'entend d'autant plus qu'on en est près.
+  setFireDistance(hero.position.distanceTo(props.firePosition));
+
+  props.fireLight.intensity = mood.value.fire * ((props.fireLight.userData.flicker as number) ?? 1);
+  // Appoint sur les sprites : un plan face caméra ne peut rien recevoir d'une source placée
+  // derrière lui, alors qu'on s'attend à voir le héros éclairé dès qu'il est près du feu. On
+  // complète donc exactement ce que la vraie lumière rate, en fonction de la distance et de
+  // l'orientation.
+  applyFillFromPointLight(
+    ctx,
+    props.fireLight.position,
+    props.fireLight.color,
+    props.fireLight.intensity,
+  );
 
   // La bande nette suit le héros à l'écran : il reste toujours net.
   const p = hero.position.clone().project(camera);
@@ -416,12 +719,14 @@ function frame(now = performance.now()): void {
 frame();
 
 // --- lancement --------------------------------------------------------------------------------
-// L'audio arrive à la Task 12 : pour l'instant, JOUER ne fait que lever l'écran de chargement et
-// donner le focus au canvas.
+// Un navigateur n'autorise le son qu'après un geste, et il n'y en a aucun au chargement d'une
+// page. Sans bouton, la scène démarrait donc muette jusqu'à ce qu'on touche une touche par hasard
+// — et souvent on ne remarquait même pas qu'il manquait quelque chose.
 const ecran = document.getElementById("loading");
 const bouton = document.getElementById("play");
 bouton?.classList.add("on");
 bouton?.addEventListener("click", () => {
+  unlockAudio();
   ecran?.classList.add("hidden");
   canvas.focus();
 });
@@ -439,11 +744,18 @@ bouton?.addEventListener("click", () => {
   field,
   query,
   hero,
+  chest,
+  house,
+  sakura,
+  grota,
+  dialog,
+  props,
   sun,
   hemi,
   rim,
   sky,
   clouds,
+  particles,
   mood,
   applyMood,
 };

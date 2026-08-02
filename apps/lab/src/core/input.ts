@@ -18,6 +18,14 @@ export interface InputHandlers {
   onToggleMood?(): void;
   /** `H` : masque/affiche le bandeau d'aide. */
   onToggleHud?(): void;
+  /** `B` : bascule la vue de collisions. */
+  onToggleDebug?(): void;
+  /** `M` : bascule la musique. */
+  onToggleMusic?(): void;
+  /** `F` : une seule touche pour tout ce qui se déclenche au contact — coffre, porte. Parler à
+   *  Grota, lui, passe par le champ `action` de `sample()`, pas par ce callback : c'est la scène
+   *  qui décide, selon ce qui est sous la main. */
+  onInteract?(): void;
 }
 
 export interface InputSample {
@@ -28,6 +36,10 @@ export interface InputSample {
   zoom: number;
   jump: boolean;
   attack: boolean;
+  /** `F` : parler / faire avancer le dialogue. */
+  action: boolean;
+  /** `échap` : couper court à ce qui est ouvert. */
+  cancel: boolean;
   yaw: number;
   orbiting: boolean;
 }
@@ -42,17 +54,26 @@ export function createInput(canvas: HTMLCanvasElement, handlers: InputHandlers =
   const held = (dir: Direction) => MOVE[dir].some((code) => down.has(code));
   let jumpQueued = false;
   let attackQueued = false;
+  let actionQueued = false;
+  let cancelQueued = false;
 
   addEventListener("keydown", (e) => {
     if (e.code === "Space") e.preventDefault(); // sinon la page défile
     if (e.repeat) return;
     down.add(e.code);
     if (e.code === "KeyN") handlers.onToggleMood?.();
+    if (e.code === "KeyB") handlers.onToggleDebug?.();
     if (e.code === "KeyH") handlers.onToggleHud?.();
+    if (e.code === "KeyM") handlers.onToggleMusic?.();
+    if (e.code === "KeyF") handlers.onInteract?.();
     if (e.code === "Space") jumpQueued = true;
     // `Digit1` est le code de la touche PHYSIQUE : la même sous l'index gauche en AZERTY comme
     // en QWERTY, sans avoir à traiter le `&` de l'un.
     if (e.code === "Digit1") attackQueued = true;
+    // L'action : parler, et plus tard tout ce qui se déclenche au contact.
+    if (e.code === "KeyF") actionQueued = true;
+    // Et son contraire : couper court à ce qui est ouvert.
+    if (e.code === "Escape") cancelQueued = true;
   });
   addEventListener("keyup", (e) => down.delete(e.code));
   addEventListener("blur", () => down.clear());
@@ -112,9 +133,13 @@ export function createInput(canvas: HTMLCanvasElement, handlers: InputHandlers =
       jumpQueued = false;
       const attack = attackQueued;
       attackQueued = false;
+      const action = actionQueued;
+      actionQueued = false;
+      const cancel = cancelQueued;
+      cancelQueued = false;
       const yaw = yawPixels * YAW_PER_PIXEL;
       yawPixels = 0;
-      return { x, z, zoom, jump, attack, yaw, orbiting: state.orbiting };
+      return { x, z, zoom, jump, attack, action, cancel, yaw, orbiting: state.orbiting };
     },
   };
 }
