@@ -480,6 +480,22 @@ describe("createHd2dContext", () => {
     expect(ctx.config.postfx.bloom.strength).toBe(0.42);
   });
 
+  it("ne partage aucun sous-objet de config entre contextes, même non surchargé", () => {
+    // Un merge superficiel laisserait `postfx.bloom` être LE MÊME objet partout. Le pipeline
+    // écrit `bloom.strength` à chaque changement d'ambiance : la première nuit corromprait
+    // l'autre scène et tous les contextes créés ensuite, définitivement.
+    const a = createHd2dContext();
+    a.config.postfx.bloom.strength = 999;
+
+    const neuf = createHd2dContext();
+    expect(neuf.config.postfx.bloom.strength).toBe(0.42);
+    expect(DEFAULT_CONFIG.postfx.bloom.strength).toBe(0.42);
+    // `drift` est un tuple readonly : on ne peut pas l'écrire pour le prouver, mais partager sa
+    // référence serait le même défaut. On compare donc les identités.
+    expect(neuf.config.cloudShadow.drift).not.toBe(a.config.cloudShadow.drift);
+    expect(neuf.config.postfx.bloom).not.toBe(DEFAULT_CONFIG.postfx.bloom);
+  });
+
   it("vide ses registres au dispose", () => {
     const ctx = createHd2dContext();
     ctx.registerBillboard(fakeSprite().mesh, { lit: true, mid: 1 });
@@ -595,12 +611,20 @@ export interface Hd2dContext {
  * de room — les dépendances se passent en argument, rien ne se cache dans un singleton.
  */
 export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext {
+  // Cloné en PROFONDEUR, et pas fusionné à plat. Un merge superficiel laisse `postfx.bloom`,
+  // `postfx.grade` et `cloudShadow.drift` partagés par référence entre tous les contextes ET avec
+  // DEFAULT_CONFIG : le pipeline écrit `bloom.strength` à chaque changement d'ambiance, et cette
+  // écriture corromprait alors l'autre scène et tous les contextes à venir, définitivement. C'est
+  // exactement la contamination que ce fichier existe pour supprimer, un cran plus bas.
   const config: Hd2dConfig = {
-    ...DEFAULT_CONFIG,
+    ...structuredClone(DEFAULT_CONFIG),
     ...options.config,
     render: { ...DEFAULT_CONFIG.render, ...options.config?.render },
-    postfx: { ...DEFAULT_CONFIG.postfx, ...options.config?.postfx },
-    cloudShadow: { ...DEFAULT_CONFIG.cloudShadow, ...options.config?.cloudShadow },
+    postfx: structuredClone({ ...DEFAULT_CONFIG.postfx, ...options.config?.postfx }),
+    cloudShadow: structuredClone({
+      ...DEFAULT_CONFIG.cloudShadow,
+      ...options.config?.cloudShadow,
+    }),
   };
 
   // Tous les sprites regardent la même direction : celle de la caméra. Dès qu'elle pivote, ils
