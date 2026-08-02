@@ -73,9 +73,23 @@ describe("l'île du nord", () => {
     expect(field.levelAt(toCell(NORD.x), toCell(NORD.z))).not.toBeNull();
     // ...et de la neige ou de la glace, jamais de l'herbe.
     expect(["neige", "glace", "glace-fine"]).toContain(query.kindAt(NORD.x, NORD.z));
-    // Le couloir entre les deux îles est de l'eau sur toute sa longueur : on n'y va qu'à la nage.
-    for (let z = NORD.z + NORD.r + 1; z < -17; z++) {
-      expect(field.levelAt(toCell(0), toCell(z))).toBeNull();
+    // Le couloir entre les deux îles est de l'eau sur toute sa longueur ET sur toute sa largeur :
+    // on n'y va qu'à la nage, et un pont d'une seule case en biais suffirait à tout casser.
+    //
+    // Les bornes se DÉRIVENT des données. Codées en dur, elles redeviennent fausses au premier
+    // ajustement de géométrie — et une boucle dont les bornes se croisent ne tourne pas du tout
+    // sans que rien ne le signale. C'est arrivé : la première version de ce test s'exécutait
+    // exactement une fois, et prétendait parcourir tout le couloir.
+    //
+    // **Prouve-le par sabotage** : pose une case de terre au milieu du couloir, vérifie que ce
+    // test rougit, puis retire-la. Un test de géométrie qu'on n'a jamais vu échouer ne prouve rien.
+    const zSud = NORD.z + NORD.r; // bord nord de l'île gelée
+    const zNord = -(ILES[0]?.r ?? 16); // bord sud du couloir, au nord de la grande île
+    expect(zSud).toBeLessThan(zNord); // la boucle a bien un intérieur
+    for (let z = zSud; z <= zNord; z += 0.5) {
+      for (let x = -12; x <= 12; x += 0.5) {
+        expect(field.levelAt(toCell(x), toCell(z))).toBeNull();
+      }
     }
   });
 
