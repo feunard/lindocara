@@ -16,13 +16,20 @@ Deux modes, choisis par capture (voir le rapport de la Task 2) :
              sécurité si le rendu généré ne convainc pas — une décision prévue, pas un
              échec (voir le spec de l'île de neige).
 
-Ce que le script préserve TOUJOURS de l'original, dans les deux modes :
-  - l'alpha (la découpe exacte des tuiles) ;
-  - les lignes de PAROI (`--wall-row` et au-delà) : la roche des falaises est déjà
-    grise-bleutée dans le Free Pack, elle passe pour de la roche gelée sans y toucher ;
-  - en mode `generated`, un LISERÉ de quelques pixels autour de chaque bord exposé (le
-    contour sombre + le halo qui font le raccord visuel entre variantes d'autotile) —
-    seul l'INTÉRIEUR de chaque tuile (le remplissage) devient la texture générée.
+Ce que le script préserve TOUJOURS de l'original, dans les deux modes — sa FORME, jamais sa
+COULEUR :
+  - l'alpha (la découpe exacte des tuiles) est copié tel quel ;
+  - la forme du contour des lignes de PAROI (`--wall-row` et au-delà) et, en mode `generated`,
+    du LISERÉ de quelques pixels autour de chaque bord exposé (le contour sombre + le halo qui
+    font le raccord visuel entre variantes d'autotile) — mais teintée vers le blanc-bleuté, pas
+    laissée telle quelle. Une relecture (Task 2, round 1) a montré que ce liseré et les pièces
+    d'angle en bas des lignes de paroi (le rebord touffu du bloc "cliff-edge", la découpe en
+    coin du bloc "water-edge") sont VERT olive dans le Free Pack — de l'herbe, pas de la roche —
+    et que les laisser intacts peignait un liseré végétal tout autour d'une île de neige. Seul
+    l'INTÉRIEUR profond de chaque tuile (le remplissage, en mode `generated`) devient la texture
+    générée ; tout le reste garde son alpha et sa LUMINANCE d'origine (donc sa forme, son
+    ombrage, le raccord entre variantes) mais sa teinte devient blanc-bleutée — `teindre_rgb` est
+    le point commun aux deux modes.
 
 Aucune dépendance à numpy/scipy : le studio ne les installe pas, et une image de
 tileset (576x384) est assez petite pour des boucles Python pures, comme `sprite.py`
@@ -110,6 +117,35 @@ def carte_distance(alpha: Image.Image, iterations: int) -> Image.Image:
     return ImageChops.lighter(acc, survivants)
 
 
+# --- teinte partagée : garder la luminance (donc la forme), remplacer la couleur ---------------
+
+
+def teindre_rgb(base: Image.Image, teinte: float, saturation: float, gamma: float) -> Image.Image:
+    """Reteint une image vers une teinte fixe en ne gardant de l'original que sa LUMINANCE — donc
+    sa forme, son ombrage, ses bordures, jamais sa couleur d'origine. Une table à 256 entrées
+    (une par niveau de luminance possible) appliquée via `Image.point()` : rapide (calcul en C
+    dans PIL), pas de boucle Python par pixel malgré le passage par `colorsys` (256 appels,
+    pas 576*384).
+
+    Point commun aux deux modes du script : c'est LA MÊME fonction qui fabrique le repli complet
+    (`composer_reteinte`) et qui reteint le liseré/les parois conservés en mode `generated`
+    (`composer_genere`) — la seule différence entre les deux usages est la région à laquelle le
+    résultat s'applique, pas la transformation elle-même.
+    """
+    l_canal = base.convert("L")
+    table_r, table_g, table_b = [], [], []
+    for v in range(256):
+        l = (v / 255) ** gamma
+        r, g, b = colorsys.hls_to_rgb(teinte / 360, l, saturation)
+        table_r.append(round(r * 255))
+        table_g.append(round(g * 255))
+        table_b.append(round(b * 255))
+    r = l_canal.point(table_r)
+    g = l_canal.point(table_g)
+    b = l_canal.point(table_b)
+    return Image.merge("RGB", (r, g, b))
+
+
 # --- mode "generated" -------------------------------------------------------------------------
 
 
@@ -120,11 +156,17 @@ def composer_genere(
     liseré: int,
     plume: int,
     ligne_paroi: int,
+    teinte: float,
+    saturation: float,
+    gamma: float,
 ) -> Image.Image:
     """`base` = tileset d'origine (masque de structure). `surface_brute` = image générée par
-    le studio. Le remplissage (l'intérieur de chaque tuile, hors liseré et hors parois)
-    devient la texture générée ; tout le reste — alpha, liseré, parois — reste EXACTEMENT
-    celui de l'original, pixel pour pixel, ce qui est ce qui garantit les raccords."""
+    le studio. Le remplissage (l'intérieur profond de chaque tuile, hors liseré et hors parois)
+    devient la texture générée ; le liseré et les parois gardent l'alpha et la LUMINANCE — donc
+    la forme et le raccord — de l'original, mais teints vers `teinte`/`saturation` (voir
+    `teindre_rgb`) plutôt que laissés dans leur couleur d'origine (round 1 de revue : ce liseré
+    est vert olive dans le Free Pack, pas gris-bleuté — le laisser intact peignait une bordure
+    végétale tout autour d'une île de neige)."""
     base = base.convert("RGBA")
     largeur, hauteur = base.size
     alpha = base.split()[3]
@@ -132,22 +174,23 @@ def composer_genere(
     swatch = rendre_tuilable(surface_brute, tile)
     genere_plein = tuile_plein_cadre(swatch, largeur, hauteur)
 
-    # Poids de substitution : 0 sur le liseré (garde l'original), 255 en plein intérieur,
-    # avec une plume de transition entre les deux pour qu'aucune limite nette ne se voie.
+    # Poids de substitution : 0 sur le liseré (garde la base TEINTÉE, pas l'original brut), 255
+    # en plein intérieur, avec une plume de transition entre les deux pour qu'aucune limite nette
+    # ne se voie.
     dist = carte_distance(alpha, liseré + plume)
     poids = dist.point(lambda v: max(0, min(255, round((v - liseré) / plume * 255))))
 
-    # Les lignes de paroi restent 100% originales ("parois... viennent de lui") : la roche du
-    # Free Pack est déjà grise-bleutée, elle passe pour de la roche gelée sans y toucher, et
-    # ne pas la reconstruire évite un risque de raccord supplémentaire sur la bande la plus
-    # visible (les falaises).
+    # Les lignes de paroi restent à poids 0 ("parois... viennent de lui" pour la FORME) : la
+    # reconstruction en texture générée y ajouterait un risque de raccord supplémentaire sur la
+    # bande la plus visible (les falaises). Mais "viennent de lui" ne veut dire que la forme —
+    # voir `teindre_rgb` juste en dessous, qui les reteint comme le reste.
     y_paroi = ligne_paroi * tile
     if y_paroi < hauteur:
         noir = Image.new("L", (largeur, hauteur - y_paroi), 0)
         poids.paste(noir, (0, y_paroi))
 
-    rgb_original = base.convert("RGB")
-    rgb_final = Image.composite(genere_plein, rgb_original, poids)
+    rgb_teinte = teindre_rgb(base, teinte, saturation, gamma)
+    rgb_final = Image.composite(genere_plein, rgb_teinte, poids)
 
     sortie = Image.new("RGBA", (largeur, hauteur))
     sortie.paste(rgb_final, (0, 0))
@@ -162,24 +205,11 @@ def composer_reteinte(
     base: Image.Image, teinte: float, saturation: float, gamma: float
 ) -> Image.Image:
     """Repli procédural : re-teinte l'image ENTIÈRE (remplissage ET parois) vers une teinte
-    fixe blanc-bleuté, en ne gardant de l'original que sa LUMINANCE — donc sa forme, son
-    ombrage, ses bordures. Aucune génération : c'est le filet de sécurité si le rendu généré
-    ne convainc pas (voir le spec de l'île de neige, "Repli tileset")."""
+    fixe blanc-bleuté — `teindre_rgb` appliquée à toute l'image, sans aucune génération. C'est
+    le filet de sécurité si le rendu généré ne convainc pas (voir le spec de l'île de neige,
+    "Repli tileset")."""
     base = base.convert("RGBA")
-    l_canal = base.convert("L")
-
-    table_r, table_g, table_b = [], [], []
-    for v in range(256):
-        l = (v / 255) ** gamma
-        r, g, b = colorsys.hls_to_rgb(teinte / 360, l, saturation)
-        table_r.append(round(r * 255))
-        table_g.append(round(g * 255))
-        table_b.append(round(b * 255))
-
-    r = l_canal.point(table_r)
-    g = l_canal.point(table_g)
-    b = l_canal.point(table_b)
-    sortie = Image.merge("RGB", (r, g, b)).convert("RGBA")
+    sortie = teindre_rgb(base, teinte, saturation, gamma).convert("RGBA")
     sortie.putalpha(base.split()[3])
     return sortie
 
@@ -195,7 +225,7 @@ if __name__ == "__main__":
     ap.add_argument("--surface", help="image générée par le studio (mode generated)")
     ap.add_argument("--border", type=int, default=3, help="liseré gardé de l'original, en px")
     ap.add_argument("--feather", type=int, default=3, help="largeur de la plume de transition")
-    # mode retint
+    # teinte : le repli ENTIER en mode retint, le liseré + les parois conservés en mode generated
     ap.add_argument("--hue", type=float, default=205, help="teinte cible, en degrés (0-360)")
     ap.add_argument("--sat", type=float, default=0.18, help="saturation cible (0-1)")
     ap.add_argument("--gamma", type=float, default=0.85, help="exposant appliqué à la luminance")
@@ -207,7 +237,15 @@ if __name__ == "__main__":
             ap.error("--surface est requis en mode generated")
         surface_im = Image.open(args.surface)
         resultat = composer_genere(
-            base_im, surface_im, args.tile, args.border, args.feather, args.wall_row
+            base_im,
+            surface_im,
+            args.tile,
+            args.border,
+            args.feather,
+            args.wall_row,
+            args.hue,
+            args.sat,
+            args.gamma,
         )
     else:
         resultat = composer_reteinte(base_im, args.hue, args.sat, args.gamma)
