@@ -254,9 +254,18 @@ scene.add(interior.group);
 
 // Le cerisier devant la maison. 7.5 unités : à l'échelle du héros, qui fait 1.3 unité pour
 // environ 1m75, ça vaut la dizaine de mètres demandée.
-const sakura = ((): { petales: ReturnType<typeof createPetalFall> } | null => {
+//
+// Décalé de 2.5 unités vers l'est : au point pile devant la maison, le tronc se plantait dans un
+// buisson. Les buissons et les décors au sol ne posent PAS de collider (voir `props.ts`) — ils sont
+// traversables à dessein — donc aucune recherche de place ne peut les éviter, et le seul recours
+// est de choisir le décalage à l'oeil.
+const SAKURA_DECALAGE_X = 2.5;
+const sakura = ((): {
+  petales: ReturnType<typeof createPetalFall>;
+  position: THREE.Vector3;
+} | null => {
   if (!house) return null;
-  const x = house.footprint.x;
+  const x = house.footprint.x + SAKURA_DECALAGE_X;
   const z = house.footprint.z + 7.5;
   if (query.levelAt(x, z) !== 0) return null;
   const y = query.heightAt(x, z) ?? 0;
@@ -277,7 +286,7 @@ const sakura = ((): { petales: ReturnType<typeof createPetalFall> } | null => {
     height: 2.9,
   });
   scene.add(petales.group);
-  return { petales };
+  return { petales, position: new THREE.Vector3(x, y, z) };
 })();
 
 const chest = createChest(ctx, textures, field, query, colliders);
@@ -829,6 +838,9 @@ bouton?.addEventListener("click", () => {
   render: pipeline.render,
   field,
   query,
+  // La grille de colliders : sans elle, impossible de répondre depuis la console à « pourquoi ce
+  // prop est-il posé là », qui est exactement le genre de question que ce labo existe pour trancher.
+  colliders,
   hero,
   chest,
   house,
