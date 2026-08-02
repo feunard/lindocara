@@ -49,22 +49,20 @@ const BANQUE: Record<BankKey, readonly string[]> = {
 
 type Ambiance = "jour" | "nuit";
 
-// Deux arrangements du même morceau, un par heure du jour. Ils ne font PAS la
-// même durée : les faire tourner en phase laisserait la version nuit jouer une
-// minute après la fin de l'autre, puis se superposer à la relance. Un seul
-// joue donc à la fois, et changer d'heure reprend l'autre au même endroit du
-// morceau, en fondu croisé.
-// Aucune piste pour l'instant : les arrangements essayés étaient sous droits, et
-// les avoir en local pour bricoler n'est pas la même chose que les servir depuis
-// une URL publique. Toute la mécanique reste en place — il suffit de déposer des
-// fichiers dans `public/music/` et de les déclarer ici :
-//
-//   const MUSIQUE: Record<string, string> = { jour: "/music/jour.ogg", nuit: "/music/nuit.ogg" }
-//
-// Les deux clés sont attendues : le morceau se croise en fondu au basculement
-// jour/nuit, et les deux arrangements avancent au même endroit du morceau. Une
-// piste unique se déclare donc deux fois, avec la même URL.
-const MUSIQUE: Record<string, string> = {};
+// Une piste par clef. La clef n'est plus l'heure du jour : depuis l'île de neige (Task 5), c'est
+// une ZONE (`Zone.musique`, `world/zones.ts`) qui la choisit, via `setZoneMusic` — le cycle
+// jour/nuit ne pilote plus jamais la musique, seulement la nappe (`setAmbience`, plus bas). Une
+// seule piste joue à la fois, et changer de clef reprend l'autre au même endroit du morceau, en
+// fondu croisé (voir `setZoneMusic`) : deux pistes qui tourneraient en phase, sans ça, finiraient
+// déphasées puis superposées à la relance.
+const MUSIQUE: Record<string, string> = {
+  // Le thème de la banquise (Task 5) : nappe éparse, cloches lointaines, pensé pour tenir SOUS le
+  // souffle du vent polaire (Task 6) sans s'y battre. Généré par le studio local
+  // (`~/git/pixel-art-model`, voie `music`), trois variantes jugées, celle-ci retenue pour son
+  // entrée douce et sa fin qui s'éteint TOUTE SEULE — voir le rapport de la task : c'est ce qui
+  // rend la pause de trente secondes qui suit indiscernable de la fin naturelle du morceau.
+  neige: "/music/neige.ogg",
+};
 
 // Les répliques de Grota, une prise par ligne. Elles ne passent pas par
 // `jouer()` : celui-ci tire une variante et une hauteur au hasard, ce qui est
@@ -110,10 +108,10 @@ interface Boucle {
 interface Arrangement {
   src: AudioBufferSourceNode;
   gain: GainNode;
-  // `string`, pas `Ambiance` : depuis Task 4 de l'île de neige, `setAmbience` reçoit aussi le nom
-  // de nappe d'une zone (`Zone.nappe`, `world/zones.ts`), qui n'est pas borné à "jour"/"nuit".
-  // `BOUCLES`/`NIVEAUX` restent typés `Ambiance` : ce sont les clefs RÉELLEMENT chargées, seule la
-  // valeur qu'on peut DEMANDER s'est élargie.
+  // `string`, pas `Ambiance` : une clef de `MUSIQUE` vient d'une zone (`Zone.musique`,
+  // `world/zones.ts`), qui n'est pas bornée à "jour"/"nuit" — `Ambiance` reste le type des
+  // NAPPES (`BOUCLES`/`NIVEAUX`), une notion distincte depuis que Task 5 a séparé musique et
+  // nappe (voir `setZoneMusic` vs `setAmbience`).
   clef: string;
 }
 
@@ -128,6 +126,16 @@ let ambiance: string = "jour";
 let musiqueGain: GainNode | null = null; // niveau d'ensemble : allumage, extinction, fondu
 let actif: Arrangement | null = null; // l'arrangement qui joue
 let debutMusique = 0; // instant du contexte correspondant à l'offset 0 du morceau
+// La clef que la zone courante réclame (`Zone.musique`, `world/zones.ts`), `null` pour silence —
+// voir `setZoneMusic`. Distincte d'`ambiance` : une zone peut porter une nappe ("polaire") et une
+// musique ("neige") qui ne portent pas le même nom.
+let pisteZone: string | null = null;
+// La clef de la DERNIÈRE piste réellement lancée par `jouerArrangement`, qu'elle joue encore ou
+// qu'on l'ait coupée en sortant de zone — jamais remise à `null` par une sortie, seulement par la
+// FIN naturelle d'un passage (`onended`, plus bas). C'est la mémoire qui permet à `lancerPiste` de
+// reprendre où on en était plutôt que de rejouer le début à chaque entrée dans la zone (voir la
+// task 5 : sortir dix secondes puis revenir ne doit pas relancer les dix premières secondes).
+let pisteEnCours: string | null = null;
 // Allumée d'entrée : elle démarrera au premier geste, en même temps que le
 // reste du son — un navigateur n'autorise rien avant.
 let musiqueActive = true;
@@ -236,15 +244,14 @@ export function toggleMusic(): boolean | null {
  */
 export const musicEnabled = (): boolean => musiqueActive && Object.keys(MUSIQUE).length > 0;
 
-// Programme un départ si tout est réuni : le son est débloqué, la musique est
-// voulue, la piste est décodée, et rien ne joue ni n'est déjà programmé. Appelé
-// au déblocage ET à la fin du décodage, sans savoir lequel arrivera en premier.
+// Programme un départ si tout est réuni : le son est débloqué, la musique est voulue, la ZONE
+// COURANTE porte une piste et elle est décodée, et rien ne joue ni n'est déjà programmé. Appelé
+// au déblocage, à la fin d'un passage (la pause) et par `setZoneMusic` à l'arrivée dans une zone
+// à thème — sans savoir dans quel ordre ces événements arriveront.
 function demarrerMusique(attente: number): void {
-  if (!debloque || !musiqueActive || actif || minuterie) return;
-  const pistes = Object.values(MUSIQUE);
-  // Aucune piste : `every` sur une liste vide répond vrai, et on programmerait
-  // un départ toutes les trente secondes pour ne rien jouer.
-  if (!pistes.length || !pistes.every((u) => tampons.has(u))) return;
+  if (!debloque || !musiqueActive || actif || minuterie || !pisteZone) return;
+  const url = MUSIQUE[pisteZone];
+  if (!url || !tampons.has(url)) return;
   minuterie = setTimeout(() => {
     minuterie = null;
     lancerPiste();
@@ -252,8 +259,13 @@ function demarrerMusique(attente: number): void {
 }
 
 function lancerPiste(): void {
-  jouerArrangement(ambiance, 0, 0);
-  if (!actif || !ctx || !musiqueGain) return;
+  if (!pisteZone || !ctx || !musiqueGain) return;
+  // Reprend où on en était si c'est la piste qu'on vient de quitter avant qu'elle ait fini son
+  // tour (voir `pisteEnCours`) ; sinon — première fois, ou fin naturelle déjà passée par
+  // `onended` — repart de zéro.
+  const offset = pisteEnCours === pisteZone ? ctx.currentTime - debutMusique : 0;
+  jouerArrangement(pisteZone, offset, 0);
+  if (!actif) return;
   // Fondu d'entrée long : la musique s'installe au lieu de tomber d'un bloc.
   const t = ctx.currentTime;
   musiqueGain.gain.cancelScheduledValues(t);
@@ -290,6 +302,10 @@ function jouerArrangement(clef: string, offset: number, fondu: number): void {
     // ni l'arrangement qu'on vient de remplacer.
     if (!musiqueActive || actif?.src !== src) return;
     actif = null;
+    // Le passage est allé à son terme : la prochaine reprise (après la pause) repart de zéro,
+    // pas d'ici. Sans ça, `lancerPiste` la confondrait avec une interruption par sortie de zone
+    // et essaierait de reprendre à la toute fin du morceau (voir `pisteEnCours`).
+    pisteEnCours = null;
     demarrerMusique(MUSIQUE_PAUSE);
   };
 
@@ -300,6 +316,7 @@ function jouerArrangement(clef: string, offset: number, fondu: number): void {
     setTimeout(() => sortant.src.stop(), fondu * 1000 + 300);
   }
   actif = { src, gain, clef };
+  pisteEnCours = clef;
   debutMusique = t - offset;
 }
 
@@ -345,27 +362,79 @@ export const openDoor = (): void => jouer("porte", { gain: 0.85 });
 export const closeDoor = (): void => jouer("porteFerme", { gain: 0.85 });
 
 /**
- * Bascule l'ambiance ; les deux nappes se croisent en fondu. `nom` était borné à `Ambiance`
- * ("jour"/"nuit") tant que seul le cycle jour/nuit l'appelait ; depuis Task 4 de l'île de neige,
- * une zone (`Zone.nappe`, `world/zones.ts`) l'appelle aussi avec son propre nom — "polaire" pour
- * l'instant, qui ne correspond à aucune nappe encore chargée. Le corps ci-dessous gère déjà
- * n'importe quelle valeur avec grâce : ni "jour" ni "nuit" éteint les DEUX boucles du sud, ce qui
- * est déjà un silence audible à l'entrée de la zone polaire, en attendant que Task 6 lui donne sa
- * propre nappe (`amb-polaire.ogg`) et sa propre entrée dans `BOUCLES`.
+ * Bascule la NAPPE d'ambiance ; les deux boucles du sud se croisent en fondu. `nom` était borné à
+ * `Ambiance` ("jour"/"nuit") tant que seul le cycle jour/nuit l'appelait ; depuis Task 4 de l'île
+ * de neige, une zone (`Zone.nappe`, `world/zones.ts`) l'appelle aussi avec son propre nom —
+ * "polaire" pour l'instant, qui ne correspond à aucune nappe encore chargée. Le corps ci-dessous
+ * gère déjà n'importe quelle valeur avec grâce : ni "jour" ni "nuit" éteint les DEUX boucles du
+ * sud, ce qui est déjà un silence audible à l'entrée de la zone polaire, en attendant que Task 6
+ * lui donne sa propre nappe (`amb-polaire.ogg`) et sa propre entrée dans `BOUCLES`.
+ *
+ * Ne pilote QUE la nappe, depuis Task 5 : la musique obéit séparément à `setZoneMusic`, plus bas.
+ * Une zone porte une nappe et une musique qui ne partagent pas forcément le même nom (la polaire :
+ * "polaire" contre "neige"), donc les confondre ferait chercher dans `MUSIQUE` une clef qui n'a
+ * jamais existé.
  */
 export function setAmbience(nom: string): void {
   ambiance = nom;
   if (!ctx) return;
   const t = ctx.currentTime;
-
-  // On reprend l'autre arrangement au même endroit du morceau, en fondu croisé.
-  if (actif && actif.clef !== nom) jouerArrangement(nom, t - debutMusique, MUSIQUE_BASCULE);
-
   const jourB = boucles.jour;
   const nuitB = boucles.nuit;
   if (!jourB || !nuitB) return;
   jourB.gain.gain.setTargetAtTime(nom === "jour" ? NIVEAUX.jour : 0, t, 1.2);
   nuitB.gain.gain.setTargetAtTime(nom === "nuit" ? NIVEAUX.nuit : 0, t, 1.2);
+}
+
+/**
+ * Bascule la MUSIQUE sur celle que réclame la zone courante (`Zone.musique`, `world/zones.ts`).
+ * `null` veut dire silence : une zone sans thème (`ZONE_LARGE`) doit éteindre la musique en
+ * fondu, pas la couper net — la même sortie que `toggleMusic`, mais SANS toucher `musiqueActive`,
+ * qui appartient à l'auditeur (la touche "M"), pas à la géographie. Idempotent sur la clef
+ * courante : `main.ts` n'appelle ceci qu'au changement de zone (`applyZone`), mais un appel
+ * répété avec la même clef ne doit rien redéclencher.
+ */
+export function setZoneMusic(clef: string | null): void {
+  if (clef === pisteZone) return;
+  pisteZone = clef;
+  // Pas encore débloqué : rien à faire ici, `unlockAudio` lira `pisteZone` lui-même au geste.
+  if (!ctx || !musiqueGain) return;
+
+  if (clef === null) {
+    // Sortie d'une zone à thème : on éteint comme `toggleMusic`, mais on laisse
+    // `pisteEnCours`/`debutMusique` intacts — c'est la mémoire du point de reprise si on revient
+    // avant que la piste ait fini son tour (voir `lancerPiste`).
+    if (minuterie) {
+      clearTimeout(minuterie);
+      minuterie = null;
+    }
+    if (!actif) return;
+    const t = ctx.currentTime;
+    musiqueGain.gain.cancelScheduledValues(t);
+    musiqueGain.gain.setTargetAtTime(0, t, MUSIQUE_SORTIE / 3);
+    const sortant = actif;
+    actif = null; // avant le stop : l'`ended` qui suit ne doit rien replanifier
+    setTimeout(() => sortant.src.stop(), MUSIQUE_SORTIE * 1000);
+    return;
+  }
+
+  if (!musiqueActive) return; // coupée à la main : la zone attendra que "M" la rallume
+
+  if (minuterie) {
+    clearTimeout(minuterie);
+    minuterie = null;
+  }
+  if (actif) {
+    // Rare tant qu'une seule zone porte un thème, mais on respecte la même règle que jour/nuit :
+    // deux pistes ne jouent jamais en même temps, elles se croisent — reprise au même endroit du
+    // morceau.
+    jouerArrangement(clef, ctx.currentTime - debutMusique, MUSIQUE_BASCULE);
+    return;
+  }
+  // Rien ne joue : on part tout de suite. L'attente de dix secondes (`MUSIQUE_ATTENTE`) n'a de
+  // sens qu'au tout premier geste de la partie, pas à chaque arrivée en terrain balisé — sinon la
+  // musique entrerait dix secondes APRÈS l'arrivée plutôt qu'à l'arrivée.
+  demarrerMusique(0);
 }
 
 /**

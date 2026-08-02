@@ -46,9 +46,8 @@ export const ZONE_POLAIRE: Zone = {
   nom: "polaire",
   centre: [NORD.x, NORD.z],
   rayon: NORD.r + 3,
-  // Pas encore de piste : Task 5 génère `neige.ogg` et le déclare dans `MUSIQUE` sous cette même
-  // clef (voir `core/audio.ts`). Le champ est renseigné dès maintenant pour que Task 5 n'ait qu'à
-  // ajouter la piste, pas à revenir toucher `ZONES`.
+  // Le thème généré par Task 5 (`public/music/neige.ogg`, déclaré sous cette même clef dans
+  // `MUSIQUE`, `core/audio.ts`). `applyZone` (`main.ts`) le fait obéir à `setZoneMusic`.
   musique: "neige",
   // Pas encore de nappe polaire dédiée non plus (`amb-polaire.ogg` arrive en Task 6) : `nom` ne
   // correspond aujourd'hui à aucune clef connue de `setAmbience` ("jour"/"nuit"), qui éteint donc

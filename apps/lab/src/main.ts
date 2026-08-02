@@ -30,6 +30,7 @@ import {
   sayLine,
   setAmbience,
   setFireDistance,
+  setZoneMusic,
   stopLine,
   toggleMusic,
   unlockAudio,
@@ -462,9 +463,11 @@ let zoneActuelle: Zone | null = null;
 function applyZone(zone: Zone): void {
   if (zone === zoneActuelle) return;
   zoneActuelle = zone;
-  // La musique de zone (`zone.musique`) reste INERTE ici — `MUSIQUE` est vide (Task 5 la
-  // remplira) — mais la nappe, elle, doit déjà s'entendre (voir `core/audio.ts`, `setAmbience`).
-  //
+  // La musique obéit à la zone (`zone.musique`, `null` = silence) et la nappe lui obéit aussi
+  // séparément (`zone.nappe`) — les deux noms diffèrent pour la polaire ("neige" contre
+  // "polaire"), d'où deux appels distincts plutôt qu'un seul nom partagé (voir `core/audio.ts`,
+  // `setZoneMusic` vs `setAmbience`).
+  setZoneMusic(zone.musique);
   // `ZONE_LARGE` est la zone qui DÉLÈGUE au cycle jour/nuit (voir `applyMood` plus bas) : sa
   // `nappe` figée à "jour" dans `settings.ts` ne serait correcte qu'en plein jour. En y revenant,
   // on lit donc l'ambiance courante du mood plutôt que ce champ statique — sinon rentrer du pôle

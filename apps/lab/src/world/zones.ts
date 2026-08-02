@@ -11,9 +11,9 @@ export interface Zone {
   centre: readonly [number, number];
   /** `Infinity` pour la zone par défaut : elle couvre alors tout point qu'aucune autre n'a pris. */
   rayon: number;
-  /** Clef de piste dans `MUSIQUE` (`core/audio.ts`), ou `null` tant qu'aucune n'est déclarée —
-   *  cette task câble la NAPPE, pas la musique (Task 5 générera la piste et fera obéir le choix à
-   *  la zone). */
+  /** Clef de piste dans `MUSIQUE` (`core/audio.ts`), pilotée par `setZoneMusic` — ou `null`, qui
+   *  signifie silence et non « pas encore câblé » : `ZONE_LARGE` n'a pas de thème, et sortir
+   *  d'une zone à musique doit faire SORTIR la musique en fondu, pas la couper net. */
   musique: string | null;
   /** Clef de nappe d'ambiance passée telle quelle à `setAmbience` (`core/audio.ts`). */
   nappe: string;
