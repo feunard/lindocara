@@ -286,18 +286,27 @@ export interface PetalFallOptions {
   centre: THREE.Vector3;
   radius: number;
   height: number;
+  /** Couleur des particules — le rose du cerisier par défaut. Un appelant qui a besoin d'une autre
+   *  teinte pour la même mécanique de chute (cendres, confettis, une autre matière tombante...)
+   *  n'a pas à dupliquer `swarm()` pour ça. */
+  color?: THREE.ColorRepresentation;
+  /** Taille du lot — 170 par défaut, la densité du cerisier. */
+  count?: number;
+  /** Taille d'une particule — 0.3 par défaut (à 0.13 les pétales ne faisaient que quelques pixels
+   *  et passaient inaperçus). */
+  size?: number;
 }
 
 // `_ctx` n'est lu par aucun calcul ici, même raison que `createParticleField` ci-dessus.
 export function createPetalFall(_ctx: Hd2dContext, opts: PetalFallOptions): PetalFall {
-  const { centre, radius, height } = opts;
+  const { centre, radius, height, color = 0xff8fbe, count = 170, size = 0.3 } = opts;
   const group = new THREE.Group();
   const sol = centre.y;
 
   const nuee = swarm(
-    170,
-    0.3, // à 0.13 ils ne faisaient que quelques pixels et passaient inaperçus
-    0xff8fbe,
+    count,
+    size,
+    color,
     (p) => {
       const a = Math.random() * Math.PI * 2;
       const d = Math.sqrt(Math.random()) * radius; // racine : répartition uniforme sur le disque

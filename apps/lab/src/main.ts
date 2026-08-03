@@ -41,12 +41,14 @@ import {
   CAMERA,
   MOOD_FADE,
   MOODS,
+  NEIGE_CHUTE,
   SUN_DRIFT,
   TARGET_FPS,
   TEXTURE_URLS,
   WATER,
   WORLD,
   ZONE_LARGE,
+  ZONE_POLAIRE,
   ZONES,
 } from "./settings.js";
 import { createChest } from "./world/chest.js";
@@ -229,6 +231,30 @@ const clouds = createCloudCover(ctx);
 // `populate`.
 const particles = createParticleField(ctx, { firePosition: props.firePosition, worldRadius: 22 });
 scene.add(particles.group);
+
+// Chutes de neige (Task 8 de l'île de neige) : la même mécanique de chute que le cerisier
+// (`createPetalFall`), recolorée/redensifiée pour lire comme des flocons plutôt que des pétales —
+// `PetalFallOptions.color`/`count`/`size` (voir `packages/hd2d/src/particles.ts`, dont le rapport
+// de cette task explique le touché). `neigeCentre` est un `THREE.Vector3` MUTÉ chaque image dans
+// la boucle (voir plus bas) pour suivre le héros — `createPetalFall` relit `centre.x`/`centre.z` à
+// chaque respawn de grain, donc rien d'autre n'est nécessaire pour que le champ suive sans jamais
+// réallouer. Sa hauteur, elle, n'est capturée qu'UNE fois à la construction (`createPetalFall` :
+// `const sol = centre.y`) : le +1 ci-dessous n'a donc besoin d'être qu'une approximation généreuse
+// du sol de la banquise, jamais relue ensuite. Ambiguïté 5 du brief : un rayon autour du héros, pas
+// toute la zone — en couvrir toute l'île serait invisible (hors cadre la plupart du temps) et cher.
+const neigeCentre = new THREE.Vector3(hero.position.x, hero.position.y + 1, hero.position.z);
+const neige = createPetalFall(ctx, {
+  centre: neigeCentre,
+  radius: NEIGE_CHUTE.radius,
+  height: NEIGE_CHUTE.height,
+  color: NEIGE_CHUTE.color,
+  count: NEIGE_CHUTE.count,
+  size: NEIGE_CHUTE.size,
+});
+scene.add(neige.group);
+// N'apparaît qu'en entrant dans la zone polaire — la boucle plus bas bascule cette visibilité et
+// ne relance `neige.update()` que là, exactement comme pour le souffle du héros (`haleineVisible`).
+neige.group.visible = false;
 
 const sky = createSky(ctx);
 scene.add(sky.mesh);
@@ -809,12 +835,19 @@ function frame(now = performance.now()): void {
   // lui, est lu à CHAQUE image, changée ou non, pour que le héros n'ait jamais une constante figée.
   const zone = zoneAt(ZONES, hero.position.x, hero.position.z);
   applyZone(zone);
+  // Île de neige (Task 8) : aucun des trois effets d'ambiance (flocons, souffle, traces) ne doit
+  // tourner hors de la zone polaire — comparaison d'IDENTITÉ, comme le reste du câblage de zone
+  // (`applyZone`, `applyMood`) plutôt qu'un nom. Les traces se gèrent d'elles-mêmes (elles ne se
+  // posent que sur la matière "neige", géographiquement confinée à cette même île — voir
+  // `world/island.ts`) ; le souffle et les flocons ont besoin de ce drapeau explicite.
+  const enPolaire = zone === ZONE_POLAIRE;
   hero.update(dt, {
     x: fige ? 0 : move.x,
     z: fige ? 0 : move.z,
     jump: !fige && cmd.jump,
     attack: !fige && cmd.attack,
     souffleTaux: zone.souffle,
+    haleineVisible: enPolaire,
   });
   const choc = hero.takeImpact();
   if (choc) shake(CAMERA.shake.land * choc);
@@ -827,6 +860,13 @@ function frame(now = performance.now()): void {
   foam.update(dt);
   clouds.update(dt);
   particles.update(dt);
+  // Ne coûte et ne tourne que dans la zone polaire (voir `enPolaire` ci-dessus) : ni mise à jour
+  // ni visibilité en dehors.
+  neige.group.visible = enPolaire;
+  if (enPolaire) {
+    neigeCentre.set(hero.position.x, hero.position.y + 1, hero.position.z);
+    neige.update(dt);
+  }
   debugView.update(hero);
   chest.update(hero.position);
   interior.update(dt, elapsed);
@@ -915,6 +955,7 @@ bouton?.addEventListener("click", () => {
   sky,
   clouds,
   particles,
+  neige,
   mood,
   applyMood,
   bench,

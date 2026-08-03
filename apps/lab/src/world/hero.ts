@@ -2,8 +2,10 @@ import {
   type Billboard,
   createAnimator,
   makeBillboard,
+  makeFlatSprite,
   makeRipple,
   makeSurfaceDisc,
+  type Sprite,
 } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
@@ -21,7 +23,7 @@ import {
   step,
   swimStroke,
 } from "../core/audio.js";
-import { CAMERA, GLACE_FINE, HERO, WORLD } from "../settings.js";
+import { CAMERA, GLACE_FINE, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
 import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
@@ -48,6 +50,48 @@ const ATTAQUE_FRAPPE = ATTAQUE.strike / ATTAQUE.fps; // instant où la lame part
 const SIFFLEMENT_MONTEE = 0.17;
 const ATTAQUE_SON = Math.max(0, ATTAQUE_FRAPPE - SIFFLEMENT_MONTEE);
 
+// --- textures procédurales : bouffée de souffle et empreinte de pas (Task 8, île de neige) --------
+// Ni l'une ni l'autre n'a d'artefact généré au plan (voir le spec, section « Les assets générés » :
+// la liste ne prévoit que les tilesets, le sapin, la stalagmite et le PNJ) — construites ici en
+// canvas, même motif que les caches de MODULE paresseux de `billboard.ts`
+// (`radialDisc`/`ringTexture`/`diffuseGlow`) : une image immuable, calculée une seule fois, jamais
+// reconstruite d'un héros à l'autre.
+let haleineTex: THREE.CanvasTexture | undefined;
+function textureHaleine(): THREE.CanvasTexture {
+  if (haleineTex) return haleineTex;
+  const S = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = S;
+  const cx = canvas.getContext("2d");
+  if (!cx) throw new Error("Contexte 2D indisponible");
+  const g = cx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.45, "rgba(240,248,255,0.55)");
+  g.addColorStop(1, "rgba(240,248,255,0)");
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, S, S);
+  haleineTex = new THREE.CanvasTexture(canvas);
+  return haleineTex;
+}
+
+let traceTex: THREE.CanvasTexture | undefined;
+function textureTrace(): THREE.CanvasTexture {
+  if (traceTex) return traceTex;
+  const S = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = S;
+  const cx = canvas.getContext("2d");
+  if (!cx) throw new Error("Contexte 2D indisponible");
+  const g = cx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, (S / 2) * 0.92);
+  g.addColorStop(0, "rgba(28,58,74,0.55)");
+  g.addColorStop(0.65, "rgba(28,58,74,0.3)");
+  g.addColorStop(1, "rgba(28,58,74,0)");
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, S, S);
+  traceTex = new THREE.CanvasTexture(canvas);
+  return traceTex;
+}
+
 interface Splash {
   billboard: Billboard;
   t: number;
@@ -55,6 +99,21 @@ interface Splash {
 
 interface Ripple {
   mesh: THREE.Mesh;
+  t: number;
+}
+
+/** Une bouffée de souffle visible (Task 8) : un billboard non éclairé (voir plus bas pourquoi),
+ *  recyclé en rond. */
+interface Bouffee {
+  billboard: Billboard;
+  material: THREE.MeshBasicMaterial;
+  t: number;
+}
+
+/** Une empreinte de pas (Task 8) : un décalque plat, recyclé en rond. */
+interface Trace {
+  sprite: Sprite;
+  material: THREE.MeshLambertMaterial;
   t: number;
 }
 
@@ -68,6 +127,13 @@ export interface HeroInput {
    *  polaire (Task 7, la glace fine). Un TAUX lu chaque image plutôt qu'une constante figée ici :
    *  c'est ce qui permettra à Task 7 de le faire varier sans revenir toucher le héros. */
   souffleTaux: number;
+  /** `true` quand le héros est dans une zone assez froide pour qu'on voie son haleine (Task 8 :
+   *  la zone polaire, `main.ts` compare `zone === ZONE_POLAIRE` par identité, comme le reste du
+   *  câblage de zone). Ne coupe QUE l'émission de nouvelles bouffées — une bouffée déjà en vol
+   *  finit de s'estomper normalement, sinon sortir de la zone en ferait disparaître une en plein
+   *  vol. Nommé "haleine" et non "souffle" pour ne pas se confondre avec `souffleTaux` ci-dessus
+   *  (Task 7, la réserve d'air en apnée) : même mot français, deux notions sans rapport. */
+  haleineVisible: boolean;
 }
 
 /** Rectangle où le héros peut marcher, quand il est en intérieur — plancher plat, ni gravité ni
@@ -164,6 +230,51 @@ export function createHero(
   let prochaineOnde = 0;
   let ondeSuivante = 0;
 
+  // Souffle visible (Task 8) : même motif que les ondes ci-dessus, un lot recyclé en rond. Non
+  // éclairé (`lit: false`) délibérément : à l'ambiance nocturne (`MOODS.night`, `settings.ts`),
+  // l'hémisphère et le contre-jour sont quasi noirs — une bouffée ÉCLAIRÉE y serait invisible pile
+  // au moment où on a le plus besoin de la voir (le spec demande explicitement qu'elle se lise de
+  // jour ET de nuit).
+  const haleines: Bouffee[] = Array.from({ length: HALEINE.count }, () => {
+    const billboard = makeBillboard(ctx, {
+      texture: textureHaleine(),
+      height: HALEINE.taille,
+      aspect: 1,
+      foot: 0.5, // pivot au centre : une bouffée ne "pose" rien au sol, elle flotte à hauteur de tête
+      lit: false,
+    });
+    billboard.mesh.visible = false;
+    effects.add(billboard.mesh);
+    return {
+      billboard,
+      material: billboard.mesh.material as THREE.MeshBasicMaterial,
+      t: Number.POSITIVE_INFINITY,
+    };
+  });
+  let haleineSuivante = 0;
+  // Décompte du souffle AU REPOS (arrêt, l'air, glisse) — jamais réarmé à moins de ce délai : tant
+  // qu'on enchaîne des pas, chaque pas le réarme (voir la cadence des pas plus bas) et ce minuteur
+  // n'a donc jamais l'occasion d'atteindre zéro tout seul.
+  let reposHaleine = HALEINE.reposInterval;
+
+  // Traces de pas (Task 8) : même motif, un lot recyclé en rond de décalques posés à plat.
+  const traces: Trace[] = Array.from({ length: TRACES.count }, () => {
+    const sprite = makeFlatSprite(ctx, {
+      texture: textureTrace(),
+      size: TRACES.taille,
+      aspect: 1.6, // ovale : plus proche d'une empreinte de botte qu'un rond
+    });
+    sprite.mesh.visible = false;
+    effects.add(sprite.mesh);
+    return {
+      sprite,
+      material: sprite.mesh.material as THREE.MeshLambertMaterial,
+      t: Number.POSITIVE_INFINITY,
+    };
+  });
+  let traceSuivante = 0;
+  let coteTrace = 1; // alterne pied gauche/pied droit d'un pas à l'autre
+
   const pos = new THREE.Vector3(sx, query.heightAt(sx, sz) ?? 0, sz);
   let groundY = pos.y;
   // Vitesse HORIZONTALE persistante (Task 3 : le modèle à friction) — distincte de `vy`, qui reste
@@ -230,6 +341,43 @@ export function createHero(
     s.placeAt(x, y, z);
     effects.add(s.mesh);
     splashes.push({ billboard: s, t: 0 });
+  }
+
+  /** Émet une bouffée de souffle à hauteur de tête, devant le visage — dans le sens `facing`
+   *  courant, pas dans celui du déplacement (au repos il n'y a pas de déplacement à lire). */
+  function emitHaleine(): void {
+    const b = haleines[haleineSuivante];
+    if (!b) return;
+    haleineSuivante = (haleineSuivante + 1) % HALEINE.count;
+    b.t = 0;
+    b.billboard.mesh.position.set(
+      pos.x + facing * HALEINE.avant,
+      pos.y + HALEINE.hauteurTete,
+      pos.z,
+    );
+    b.billboard.mesh.scale.setScalar(1);
+    b.material.opacity = HALEINE.opaciteInitiale;
+    b.billboard.mesh.visible = true;
+  }
+
+  /** Pose une empreinte de pas sous les pieds, décalée perpendiculairement à la vitesse pour
+   *  alterner pied gauche/pied droit — sans ce décalage, deux pas consécutifs se superposent et
+   *  se lisent comme une seule tache plutôt qu'une trace. */
+  function poserTrace(): void {
+    const tr = traces[traceSuivante];
+    if (!tr) return;
+    traceSuivante = (traceSuivante + 1) % TRACES.count;
+    coteTrace = -coteTrace;
+    const norme = Math.hypot(vx, vz) || 1;
+    const px = (-vz / norme) * TRACES.ecart * coteTrace;
+    const pz = (vx / norme) * TRACES.ecart * coteTrace;
+    tr.t = 0;
+    tr.sprite.mesh.position.set(pos.x + px, pos.y + 0.015, pos.z + pz);
+    // Orientée dans le sens du pas : une empreinte alignée sur le déplacement se lit comme un pas,
+    // une empreinte à plat toujours dans le même sens se lit comme un tampon.
+    tr.sprite.mesh.rotation.y = Math.atan2(vx, vz);
+    tr.material.opacity = TRACES.opaciteInitiale;
+    tr.sprite.mesh.visible = true;
   }
 
   // Le sol sous le CENTRE décide où l'on peut poser le pied. Règle dure : elle n'est jamais
@@ -542,7 +690,30 @@ export function createHero(
         distanceDepuisLePas += avance;
         if (distanceDepuisLePas >= PAS_TOUS_LES) {
           distanceDepuisLePas = 0;
-          step(solSous());
+          const materiau = solSous();
+          step(materiau);
+          // Le souffle est CADENCÉ COMME LES PAS (Task 8, le spec) : chaque pas réarme aussi le
+          // minuteur de repos, pour que reprendre sa marche juste après une pause ne fasse pas
+          // sonner deux bouffées coup sur coup (celle du repos et celle du premier pas).
+          if (input.haleineVisible) emitHaleine();
+          reposHaleine = HALEINE.reposInterval;
+          // Les traces ne se posent que sur la neige (Ambiguïté 4 du brief) : sur la glace on
+          // glisse plutôt qu'on marche (exclu plus haut par `propulsion`), mais on peut aussi s'y
+          // avancer prudemment en se propulsant — et une trace sur la glace n'aurait de toute
+          // façon aucun sens.
+          if (materiau === "neige") poserTrace();
+        }
+      }
+
+      // Souffle au repos (Task 8) : hors du branchement ci-dessus (arrêt, en l'air, en train de
+      // glisser sur la glace) — quelqu'un qui respire ne s'arrête pas de respirer. `!swimming`
+      // seul : on continue de respirer en sautant ou en dérapant, seule la nage (souffle retenu,
+      // Task 7) le coupe.
+      if (input.haleineVisible && !swimming) {
+        reposHaleine -= dt;
+        if (reposHaleine <= 0) {
+          emitHaleine();
+          reposHaleine = HALEINE.reposInterval;
         }
       }
 
@@ -620,6 +791,33 @@ export function createHero(
         } else {
           s.billboard.setFrame(Math.floor(s.t));
         }
+      }
+
+      // --- souffle visible ------------------------------------------------------------------
+      // Toujours animées, MÊME quand `input.haleineVisible` est retombé à faux (en quittant la
+      // zone polaire) : le drapeau ne coupe QUE l'ÉMISSION plus haut, jamais l'animation d'une
+      // bouffée déjà en vol — sinon quitter la zone la ferait disparaître d'un coup en plein vol.
+      for (const b of haleines) {
+        if (b.t > HALEINE.vie) {
+          b.billboard.mesh.visible = false;
+          continue;
+        }
+        b.t += dt;
+        const k = Math.min(1, b.t / HALEINE.vie);
+        b.billboard.mesh.visible = true;
+        b.billboard.mesh.position.y += HALEINE.montee * dt;
+        b.billboard.mesh.scale.setScalar(1 + k * HALEINE.expansion);
+        b.material.opacity = (1 - k) * HALEINE.opaciteInitiale;
+      }
+
+      // --- traces de pas ----------------------------------------------------------------------
+      for (const tr of traces) {
+        if (tr.t > TRACES.vie) {
+          tr.sprite.mesh.visible = false;
+          continue;
+        }
+        tr.t += dt;
+        tr.material.opacity = (1 - tr.t / TRACES.vie) * TRACES.opaciteInitiale;
       }
     },
   };

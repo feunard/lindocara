@@ -89,6 +89,97 @@ export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_LARGE];
  */
 export const GLACE_FINE = { seuilCraquement: 0.5, seuilRupture: 1.4, regel: 6 } as const;
 
+/** Chute de neige (Task 8 de l'île de neige, `main.ts`) — un `createPetalFall` recoloré/redensifié
+ *  (voir `packages/hd2d/src/particles.ts`, `PetalFallOptions.color`/`count`/`size`). */
+export interface ChuteNeigeSettings {
+  /** Rayon autour du héros que couvrent les flocons — pas toute la zone : un champ centré sur la
+   *  caméra coûte ce qu'il doit, en couvrir toute l'île serait invisible (hors du cadre la
+   *  plupart du temps) et cher pour rien. */
+  radius: number;
+  /** Hauteur de la colonne de chute, en unités monde au-dessus du point suivi. */
+  height: number;
+  count: number;
+  size: number;
+  color: number;
+}
+export const NEIGE_CHUTE: ChuteNeigeSettings = {
+  radius: 15,
+  height: 9,
+  // Vérifié à l'écran (voir le rapport de la task) : à 320/0.11 les flocons se distinguaient à
+  // peine de jour, blancs sur la neige elle-même — relevés à 480/0.16 pour rester lisibles sans
+  // désigner tout le ciel comme neigeux (`color` reste un blanc à peine teinté de bleu, pas un
+  // blanc pur, pour garder un soupçon de contraste sur le sol clair).
+  count: 480,
+  size: 0.16,
+  color: 0xdceeff,
+};
+
+/** Souffle visible du héros (Task 8) — de petites bouffées à hauteur de tête, un lot recyclé en
+ *  rond dans `world/hero.ts` (même motif que les ondes de nage). Nommé "haleine" et non "souffle"
+ *  pour ne pas se confondre avec `HeroInput.souffleTaux`/`Hero.breath`, qui désignent la RÉSERVE
+ *  d'air en apnée (Task 7) — un concept sans rapport, malgré le mot français partagé. */
+export interface HaleineSettings {
+  /** Secondes entre deux bouffées quand on ne marche pas (à l'arrêt, en l'air, en glissant sur la
+   *  glace) : quelqu'un qui respire ne s'arrête pas de respirer. En marchant/courant, c'est la
+   *  cadence des PAS elle-même qui déclenche chaque bouffée (`hero.ts`, `PAS_TOUS_LES`) — ce
+   *  minuteur-ci ne tourne alors jamais assez longtemps pour se déclencher lui-même. */
+  reposInterval: number;
+  /** Durée de vie d'une bouffée, secondes. */
+  vie: number;
+  /** Taille du lot recyclé — jamais d'allocation en cours de partie. */
+  count: number;
+  /** Hauteur monde d'une bouffée. */
+  taille: number;
+  /** Décalage vertical au-dessus des pieds, approximant la hauteur de tête. */
+  hauteurTete: number;
+  /** Décalage horizontal dans le sens où le héros regarde — la bouffée sort devant le visage. */
+  avant: number;
+  /** Vitesse d'ascension, unités par seconde. */
+  montee: number;
+  /** Facteur d'expansion en fin de vie (0 = taille d'origine à la fin, 1 = taille doublée). */
+  expansion: number;
+  /** Opacité au moment de l'émission ; décroît ensuite linéairement jusqu'à 0. */
+  opaciteInitiale: number;
+}
+export const HALEINE: HaleineSettings = {
+  reposInterval: 2.2,
+  vie: 0.9,
+  count: 5,
+  // Vérifié à l'écran (voir le rapport de la task) : à 0.4/1.55/0.75 la bouffée se distinguait à
+  // peine du sprite du héros — relevée en taille et en opacité, et rehaussée pour sortir de la
+  // hauteur du HAUT de la tête (`HERO.size · (1 − HERO.foot)` ≈ 1.82), pas de la poitrine.
+  taille: 0.55,
+  hauteurTete: 1.8,
+  avant: 0.22,
+  montee: 0.5,
+  expansion: 1.4,
+  opaciteInitiale: 0.88,
+};
+
+/** Traces de pas dans la neige (Task 8) — des décalques posés à plat, un lot recyclé en rond dans
+ *  `world/hero.ts` (même motif que les ondes de nage). Ne se posent que sur la matière "neige"
+ *  (`hero.ts` teste `TerrainMaterial` au moment du pas) : sur la glace, glisser n'est pas marcher,
+ *  et une trace sur la glace n'aurait de toute façon aucun sens. */
+export interface TracesSettings {
+  /** Taille du lot recyclé — jamais d'allocation en cours de partie. */
+  count: number;
+  /** Durée de vie d'une trace, secondes, avant de s'effacer. */
+  vie: number;
+  /** Taille monde d'une trace. */
+  taille: number;
+  /** Décalage latéral, en unités monde, qui alterne pied gauche/pied droit d'un pas à l'autre. */
+  ecart: number;
+  /** Opacité au moment de la pose ; décroît ensuite linéairement jusqu'à 0. */
+  opaciteInitiale: number;
+}
+export const TRACES: TracesSettings = {
+  count: 24,
+  vie: 4.5,
+  taille: 0.4,
+  ecart: 0.14,
+  opaciteInitiale: 0.7,
+};
+
 export interface CameraSettings {
   fov: number;
   distance: number;
