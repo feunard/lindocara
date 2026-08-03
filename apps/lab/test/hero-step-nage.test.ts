@@ -64,4 +64,35 @@ describe("stepHero — la nage", () => {
     expect(s.swimming).toBe(true);
     expect(evts.some((e) => e.t === "sortie-eau")).toBe(false);
   });
+
+  // La dette de cadence que cette task ferme (voir son rapport) : la porte des pas est évaluée
+  // À L'INTÉRIEUR de `stepHero`, APRÈS la résolution de nage — jamais avant. Avant cette task, la
+  // porte lisait encore `swimming === false` (la valeur de DÉBUT de tick) pile sur l'image où l'eau
+  // vient d'être atteinte, et un bruit de pas pouvait partir sur cette même image. Rien ne pinnait
+  // cette fermeture : ce test le fait, dans les deux sens (entrée ET sortie — « idem à la sortie »,
+  // voir le brief de fix).
+  it("n'annonce jamais un pas sur l'image exacte d'une entrée ou d'une sortie d'eau", () => {
+    // Entrée : terre à gauche (hauteur 0), eau à droite (hauteur nulle) — un bord ordinaire.
+    const entreeDeps = depsPlates({ hauteur: (x) => (x < 0 ? 0 : null) });
+    const s1 = createHeroState(-0.05, 0, 0, 10, 2.2);
+    let vuEntree = false;
+    for (let i = 0; i < 120; i++) {
+      const evts = stepHero(s1, { ...immobile, x: 1 }, 1 / 60, entreeDeps);
+      if (evts.some((e) => e.t === "entree-eau")) {
+        vuEntree = true;
+        expect(evts.some((e) => e.t === "pas")).toBe(false);
+      }
+    }
+    expect(vuEntree).toBe(true);
+
+    // Sortie : rive de plain-pied des deux côtés (hauteur 0 partout, jamais nulle) — `sortie-eau`
+    // part dès la première image ; `input.x` propulse le héros pour que la cadence ait bien quelque
+    // chose à compter si elle se trompait de branche (pas plutôt que brasse).
+    const sortieDeps = depsPlates({ hauteur: () => 0 });
+    const s2 = createHeroState(0, 0, 0, 10, 2.2);
+    s2.swimming = true;
+    const evts2 = stepHero(s2, { ...immobile, x: 1 }, 1 / 60, sortieDeps);
+    expect(evts2.some((e) => e.t === "sortie-eau")).toBe(true);
+    expect(evts2.some((e) => e.t === "pas")).toBe(false);
+  });
 });

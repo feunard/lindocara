@@ -441,6 +441,20 @@ export function createHero(
       // inconditionnellement, une fois par image, avant tout le reste.
       thinIce.update(dt);
 
+      // Glace fine (Task 7) : instantané de `swimming` pris AVANT `stepHero`, à dessein. Depuis
+      // cette task, `stepHero` peut faire basculer `state.swimming` à `true` EN COURS de tick — un
+      // pas ordinaire (pas une rupture) posé sur de l'eau libre. Avant cette task, le suivi de la
+      // glace fine et la résolution de nage vivaient dans les deux branches d'un même
+      // `if (state.swimming) … else …`, évalué UNE SEULE FOIS par tick sur la valeur de DÉBUT de
+      // tick — se garder maintenant sur `state.swimming` (la valeur post-mutation, lue après le
+      // retour de `stepHero`) sauterait tout le bloc pile sur l'image où un héros debout sur une
+      // case suivie (`state.glaceCase` renseigné) entre dans l'eau adjacente : `thinIce.relache()`
+      // ne serait jamais appelé (le regel de cette case ne démarrerait jamais), `state.glaceCase`
+      // resterait périmé, et le décalque de craquelure garderait la visibilité de l'image
+      // précédente pendant toute la traversée à la nage. NE PAS « simplifier » en relisant
+      // `state.swimming` plus bas — c'est exactement le bug que cet instantané évite.
+      const nageaitDejaCeTick = state.swimming;
+
       // --- déplacement, verticale ET nage comprises (Tasks 2-4 : extraites en règle pure,
       // `hero-step.ts`) - `stepHero` mute `state` en place (position et vitesse horizontales ET
       // verticales, plancher de pièce, saut/gravité/coyote/réception, entrée/sortie d'eau
@@ -494,9 +508,10 @@ export function createHero(
 
       // Glace fine (Task 7) : uniquement à pied, sous le poids — la nage (entrée/sortie/noyade,
       // Task 4) est entièrement résolue par `stepHero` ci-dessus, et `tombeEnArrivant`/`tomber`
-      // n'ont de sens que hors de l'eau. `!state.swimming` remplace l'ancien `else` qui séparait
-      // implicitement les deux : la nage n'a plus de branche ici pour l'exclure.
-      if (!state.swimming) {
+      // n'ont de sens que hors de l'eau. Gardé sur `nageaitDejaCeTick` (l'instantané pris AVANT
+      // `stepHero`, voir plus haut), PAS sur `state.swimming` : ce dernier peut déjà valoir `true`
+      // ici si `stepHero` vient de faire entrer le héros dans l'eau ce même tick.
+      if (!nageaitDejaCeTick) {
         // Sous le POIDS seulement : sauter par-dessus ne charge rien, c'est tout le point du
         // mécanisme (« sous le poids », voir le spec). `!state.room` est nécessaire même si
         // `swimming` est déjà exclu ci-dessus : en pièce, `state.x`/`state.z` sont les coordonnées
