@@ -485,12 +485,13 @@ export function createHero(
       const avantX = state.x;
       const avantZ = state.z;
 
-      // --- déplacement horizontal (Task 2 : extrait en règle pure, `hero-step.ts`) ------------
-      // `stepHero` mute `state` en place (position et vitesse horizontales, cadence des pas) et
-      // RACONTE ce qu'il s'est produit ; on joue ces événements ici, sur l'unique frontière encore
-      // en fermeture sur `settings.ts`/`core/audio.ts`. Le bundle joué sur "pas" (réarmer le repos
-      // d'haleine, poser une trace) reproduit exactement l'ancien bloc `distanceDepuisLePas >=
-      // PAS_TOUS_LES` — seul son DÉCLENCHEUR a bougé, pas ce qu'il fait.
+      // --- déplacement, verticale comprise (Tasks 2-3 : extraits en règle pure, `hero-step.ts`) -
+      // `stepHero` mute `state` en place (position et vitesse horizontales ET verticales, plancher
+      // de pièce, saut/gravité/coyote/réception, cadence des pas) et RACONTE ce qu'il s'est produit
+      // ; on joue ces événements ici, sur l'unique frontière encore en fermeture sur
+      // `settings.ts`/`core/audio.ts`. Le bundle joué sur "pas" (réarmer le repos d'haleine, poser
+      // une trace) reproduit exactement l'ancien bloc `distanceDepuisLePas >= PAS_TOUS_LES` — seul
+      // son DÉCLENCHEUR a bougé, pas ce qu'il fait.
       const evts = stepHero(state, input, dt, deps);
       for (const e of evts) {
         if (e.t === "glisse") {
@@ -500,16 +501,21 @@ export function createHero(
           if (input.haleineVisible) emitHaleine();
           state.reposHaleine = HALEINE.reposInterval;
           if (e.matiere === "neige") poserTrace();
+        } else if (e.t === "saut") {
+          sonSaut();
+        } else if (e.t === "reception") {
+          // Le poids de la réception suit la vitesse de chute — calculé par `stepHero` (Task 3),
+          // ici seulement joué (son + secousse de caméra lue par `takeImpact()`).
+          impact = e.force;
+          land(impact);
         }
       }
 
-      if (state.room) {
-        // Plancher plat : ni gravité, ni nage, ni saut. On garde les pas.
-        state.y = state.room.y;
-        state.airborne = false;
-        state.swimming = false;
-        state.vy = 0;
-      }
+      // Le plancher de pièce et toute la verticale (saut, gravité, coyote, réception) sont
+      // maintenant résolus SUR `state` par `stepHero` lui-même (Task 3) — cette relecture de
+      // `sol`/`eau` ne fait que redériver les mêmes valeurs pures pour ce qui reste ici en
+      // fermeture sur l'audio et les billboards (nage, glace fine, entrée dans l'eau) ; elle ne
+      // rejoue rien.
       const sol = state.room ? state.room.y : query.heightAt(state.x, empreinte(state.z));
       const eau = !state.room && sol === null;
 
@@ -529,42 +535,10 @@ export function createHero(
           if (state.breath <= 0) drown();
         }
       } else {
-        const ground = sol ?? WORLD.waterLevel;
-        if (state.airborne) {
-          state.coyote -= dt;
-        } else if (ground < state.y - 1e-3) {
-          state.airborne = true; // le sol s'est dérobé : on tombe, on ne glisse pas
-          state.vy = 0;
-        } else {
-          state.y = ground;
-          state.groundY = ground;
-          state.coyote = HERO.jump.coyote;
-        }
-
-        // Pas de saut depuis l'eau, et coyote time : on pardonne quelques frames après avoir
-        // quitté le bord.
-        if (input.jump && state.coyote > 0) {
-          state.vy = HERO.jump.speed;
-          state.airborne = true;
-          state.coyote = 0;
-          sonSaut();
-        }
-
-        if (state.airborne) {
-          state.vy -= HERO.jump.gravity * dt;
-          state.y += state.vy * dt;
-          if (state.vy <= 0 && state.y <= ground) {
-            state.y = ground;
-            state.groundY = ground;
-            // Le poids de la réception suit la vitesse de chute — pour le son comme pour la
-            // secousse de caméra.
-            impact = THREE.MathUtils.clamp(-state.vy / HERO.jump.speed, 0.35, 1.4);
-            land(impact);
-            state.vy = 0;
-            state.airborne = false;
-            state.distanceDepuisLePas = 0;
-          }
-        }
+        // Saut, gravité, coyote et réception vivent maintenant dans `stepHero` (Task 3, la règle
+        // pure, exécutée juste au-dessus) : `state.y`/`airborne`/`groundY`/`coyote` sont déjà à
+        // jour ici, et une éventuelle réception a déjà été jouée par le `for` d'événements plus
+        // haut.
 
         // --- glace fine (Task 7) ----------------------------------------------------------------
         // Sous le POIDS seulement : sauter par-dessus ne charge rien, c'est tout le point du

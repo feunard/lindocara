@@ -1,16 +1,18 @@
-// La règle de déplacement horizontal du héros, pure. Ni `three`, ni audio, ni billboard : elle
-// lit un état, le fait avancer d'un pas, et RACONTE ce qui s'est produit (voir `HeroEvent`).
-// L'adaptateur (`hero.ts`) joue ces événements — un appel audio qui se glisserait ici casserait
-// silencieusement cette pureté, rien dans le typecheck ni les tests ne le verrait.
+// La règle de déplacement du héros — horizontal ET vertical —, pure. Ni `three`, ni audio, ni
+// billboard : elle lit un état, le fait avancer d'un pas, et RACONTE ce qui s'est produit (voir
+// `HeroEvent`). L'adaptateur (`hero.ts`) joue ces événements — un appel audio qui se glisserait
+// ici casserait silencieusement cette pureté, rien dans le typecheck ni les tests ne le verrait.
 //
 // Elle mute `state` en place : ce pas tourne à 60 Hz et rien ne conserve l'état d'avant, donc une
 // copie par image serait une allocation pour rien — même raison que les lots de billboards
 // recyclés en rond du labo.
 //
-// DÉPLACÉE depuis `hero.ts` (l'ancienne section horizontale de `update()`, lignes ~504-538) et
-// `canEnter`/`centreOk` (lignes ~359-399 de ce même fichier avant cette task) : les règles ne
-// changent pas de forme, seulement de fichier — voir le rapport de la task pour la seule
-// divergence assumée (la mise à jour de `facing`, restée dans `hero.ts` — voir plus bas).
+// DÉPLACÉE depuis `hero.ts` (l'ancienne section horizontale de `update()`, lignes ~504-538, et
+// `canEnter`/`centreOk`, lignes ~359-399, avant Task 2 ; le saut/la gravité/le coyote/la
+// réception, lignes ~591-627, avant Task 3) : les règles ne changent pas de forme, seulement de
+// fichier — voir le rapport de chaque task pour les divergences assumées (la mise à jour de
+// `facing`, restée dans `hero.ts` — voir plus bas — et le clamp de l'impact de réception, écrit à
+// la main faute de pouvoir importer `three` ici).
 
 import type { HeroEvent, HeroInput, HeroSettings, HeroState, StepDeps } from "./hero-state.js";
 import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
@@ -85,7 +87,7 @@ export function stepHero(
   deps: StepDeps,
 ): HeroEvent[] {
   const events: HeroEvent[] = [];
-  const { query, hero } = deps;
+  const { query, hero, world } = deps;
 
   const empreinteZ = (z: number) => empreinte(z, hero);
   const avantX = state.x;
@@ -126,12 +128,76 @@ export function stepHero(
   if (canEnter(state, state.x, nz, deps)) state.z = nz;
   else state.vz = 0;
 
+  // --- verticale : plancher de pièce, sol, saut, gravité, coyote, réception (Task 3) -----------
+  // Transposée telle quelle de `hero.ts:591-627` (avant cette task) — plus le plancher de pièce et
+  // le calcul de `sol` qui la précédaient (lignes ~566-574) : ce dernier n'était pas dans la plage
+  // citée par le brief, mais `sol` doit être lu APRÈS la résolution horizontale ci-dessus (la
+  // case sous les pieds a pu changer ce pas-ci — sinon sauter pile au bord d'une falaise
+  // détecterait le vide une image en retard), donc la règle doit le recalculer elle-même plutôt
+  // que le recevoir en paramètre. `hero.ts` recalcule `sol`/`eau` une seconde fois, pour ce qui y
+  // reste en fermeture sur l'audio et les billboards (nage, glace fine, entrée dans l'eau) — un
+  // second appel pur, pas une résolution rejouée.
+  if (state.room) {
+    // Plancher plat : ni gravité, ni nage, ni saut. On garde les pas.
+    state.y = state.room.y;
+    state.airborne = false;
+    state.swimming = false;
+    state.vy = 0;
+  }
+  const sol = state.room ? state.room.y : query.heightAt(state.x, empreinteZ(state.z));
+
+  // Pas de saut ni de gravité à la nage : ce branchement reste résolu par `hero.ts` (entrée/sortie
+  // d'eau, noyade — tout à effets de bord, audio et splash, hors de portée d'une règle pure).
+  if (!state.swimming) {
+    const ground = sol ?? world.waterLevel;
+    if (state.airborne) {
+      state.coyote -= dt;
+    } else if (ground < state.y - 1e-3) {
+      state.airborne = true; // le sol s'est dérobé : on tombe, on ne glisse pas
+      state.vy = 0;
+    } else {
+      state.y = ground;
+      state.groundY = ground;
+      state.coyote = hero.jump.coyote;
+    }
+
+    // Pas de saut depuis l'eau, et coyote time : on pardonne quelques frames après avoir quitté
+    // le bord.
+    if (input.jump && state.coyote > 0) {
+      state.vy = hero.jump.speed;
+      state.airborne = true;
+      state.coyote = 0;
+      events.push({ t: "saut" });
+    }
+
+    if (state.airborne) {
+      state.vy -= hero.jump.gravity * dt;
+      state.y += state.vy * dt;
+      if (state.vy <= 0 && state.y <= ground) {
+        state.y = ground;
+        state.groundY = ground;
+        // Le poids de la réception suit la vitesse de chute — pour le son comme pour la secousse
+        // de caméra. `Math.min(Math.max(...))` plutôt que `THREE.MathUtils.clamp` : cette règle
+        // n'importe pas `three` (voir l'en-tête du fichier).
+        const impact = Math.min(1.4, Math.max(0.35, -state.vy / hero.jump.speed));
+        events.push({ t: "reception", force: impact });
+        state.vy = 0;
+        state.airborne = false;
+        state.distanceDepuisLePas = 0;
+      }
+    }
+  }
+
   // La cadence des pas est à la DISTANCE parcourue, et ne compte que si l'on se propulse
-  // réellement — glisser fait avancer sans qu'aucun pied ne quitte le sol. `facing` (l'orientation
-  // du sprite) N'EST PAS mise à jour ici, à dessein : `hero.ts` la pilote depuis `input.x` telle
-  // quelle, pas depuis `state.vx` — voir le rapport de la task pour la divergence avec le brief
-  // (piloter depuis `vx` retarderait le flip sur la glace, où la vitesse met du temps à changer de
-  // signe après un demi-tour, ce que le jeu d'avant cette task ne faisait jamais).
+  // réellement — glisser fait avancer sans qu'aucun pied ne quitte le sol. Évaluée ICI, après la
+  // résolution verticale ci-dessus : `airborne`/`swimming` sont donc à jour pour l'image COURANTE,
+  // pas celle d'avant — ce qui ferme l'écart de parité borné laissé par la Task 2 (voir son
+  // rapport) aux images d'atterrissage et de transition d'eau, l'ancien code évaluant la condition
+  // équivalente après cette même résolution sol/eau. `facing` (l'orientation du sprite) N'EST PAS
+  // mise à jour ici, à dessein : `hero.ts` la pilote depuis `input.x` telle quelle, pas depuis
+  // `state.vx` — voir le rapport de la task pour la divergence avec le brief (piloter depuis `vx`
+  // retarderait le flip sur la glace, où la vitesse met du temps à changer de signe après un
+  // demi-tour, ce que le jeu d'avant cette task ne faisait jamais).
   if (!state.airborne && !state.swimming && propulsion) {
     state.distanceDepuisLePas += Math.hypot(state.x - avantX, state.z - avantZ);
     if (state.distanceDepuisLePas >= hero.pasTousLes) {
