@@ -59,7 +59,20 @@ export interface HeroState {
   coyote: number;
   /** Hauteur du dernier sol foulé — la référence de `maxStep`, pas `y`. */
   groundY: number;
-  /** -1 ou 1. Décidé par le déplacement, stable à l'arrêt. */
+  /** Orientation du personnage : -1 ou 1. EXCEPTION DOCUMENTÉE : écrit par l'adaptateur
+   *  (`hero.ts`, ligne 658), pas par la règle pure `stepHero`. C'est voulu, pour deux raisons :
+   *
+   *  1. Il suit l'ENTRÉE utilisateur (`input.x`), pas la vitesse (`state.vx`). Cela évite un
+   *     retard de retournement sur glace : la vitesse y persiste longuement après que l'entrée
+   *     ait changé, et dériver `facing` de la vitesse rendrait le changement d'orientation trop
+   *     lent.
+   *
+   *  2. `emitHaleine()` (appelée lignes 500 et 637 de `hero.ts`) lit `state.facing` dans la
+   *     boucle d'événements juste après le retour de `stepHero`. Dans le code d'origine, cette
+   *     lecture voyait toujours le `facing` de l'image PRÉCÉDENTE. L'écrire à l'intérieur de
+   *     `stepHero` basculerait cette lecture sur l'image COURANTE, ce qui serait un écart de
+   *     comportement : la bouffée d'haleine pointerait dans la nouvelle direction avant même
+   *     que le sprite ait été affiché tourné. */
   facing: number;
   room: Room | null;
   /** Distance parcourue depuis le dernier pas — la cadence est à la DISTANCE, pas au temps. */
