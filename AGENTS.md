@@ -888,14 +888,66 @@ Rules that matter:
 Rough costs on the M4 Pro it was built on: a 768×768 sprite ~25 s, 2 s of SFX ~4 s, a short voice
 line ~5 s, 20 s of music ~55 s. A 12 GB NVIDIA card is in the same range.
 
-`studio/AGENTS.md` documents the install for both platforms and the per-lane details; read it
-before a first run — the `mlx-audio` install line and the Windows sysmem-fallback setting are both
-load-bearing. Weights are ~30 GB and download on first use; the repo itself only carries the 64 MB
-LoRA.
+### First run on a machine that has never generated anything
+
+Weights are ~30 GB and download on first use; the repo itself only carries the 64 MB LoRA. Start
+with the diagnostic — it names what is missing *and* the command that fixes it, so work from its
+output rather than guessing:
+
+```bash
+python3 studio/studio.py doctor --no-gen
+```
+
+**On Windows that first word is `python`, not `python3`**, in this and every command below.
+`python3` is not a real command there: what answers to it is a Microsoft Store stub that opens the
+Store instead of running anything. `py -3 studio/studio.py …` works too.
+
+**Windows / Linux with an NVIDIA GPU.** Prerequisites are a recent driver,
+[uv](https://docs.astral.sh/uv/), ffmpeg on PATH, and **espeak-ng** (Kokoro's phonemiser — the
+voice lane fails without it; Windows installer on the
+[espeak-ng releases page](https://github.com/espeak-ng/espeak-ng/releases), `apt install espeak-ng`
+on Linux). Nothing else is installed by hand: each lane builds its own virtualenv on first use from
+its `pyproject.toml`. Then fetch ACE-Step, which is the one model not pulled automatically:
+
+```bash
+git clone https://github.com/ace-step/ACE-Step-1.5.git studio/musics/ACE-Step-1.5 && uv sync --project studio/musics/ACE-Step-1.5 && uv run --project studio/musics/ACE-Step-1.5 acestep-download
+```
+
+Then `python3 studio/studio.py doctor --fast` (sfx and voice only, ~30 s) before the full run.
+
+Two Windows traps worth naming up front:
+
+- In the NVIDIA control panel, set **CUDA – Sysmem Fallback Policy** to *Prefer No Sysmem Fallback*.
+  Left on, a VRAM overflow does not fail — it silently spills to system RAM over PCIe and runs
+  10–100× slower, which reads as "the model is slow" rather than "the model does not fit".
+- **The CUDA path has not been executed by its author.** It is written from each model's upstream
+  docs; `doctor` is its acceptance test. If a package name has drifted upstream, the runner's error
+  message carries the exact command to fix it — apply that rather than rewriting the runner.
+
+**macOS (Apple Silicon)** needs `mflux`, `mlx-speech` and `mlx-audio` as uv tools. The `mlx-audio`
+install line in `studio/AGENTS.md` is load-bearing: without its version pins, Kokoro dies on a numpy
+ABI mismatch at import time.
+
+### Where the details live
+
+`studio/AGENTS.md` is the studio's own guide — install for both platforms, the backend model, the
+theme file, characters. Per-lane guides carry the prompt recipes and the known limits, and are worth
+reading before a batch rather than after:
+
+| Lane | Guide | Read it for |
+| --- | --- | --- |
+| sprite | `studio/pixel-art/AGENTS.md` | prompt structure, locking a character, why sprites need post-processing |
+| sfx | `studio/sounds/AGENTS.md` | physical-description prompting, a table of recipes that worked |
+| voice | `studio/voices/AGENTS.md` | archetypes, cloning a voice, punctuation as prosody |
+| music | `studio/musics/AGENTS.md` | track recipes, genre blending, why nothing loops cleanly |
+
+Claude Code users also get `.claude/skills/game-assets/`, which fires on its own when a session
+needs an asset. It is a shortcut to the same commands, not a separate path.
 
 The LoRA is trained in the separate `pixel-art-model` lab; `studio/models/` holds the picked
-checkpoint. The Tiny Swords source art is Pixel Frog's pack — check its terms before distributing
-the LoRA or generated sprites outside this project.
+checkpoint. Promoting a new one is a `cp` plus one line in `studio/theme.json`. The Tiny Swords
+source art is Pixel Frog's pack — check its terms before distributing the LoRA or generated sprites
+outside this project.
 
 ## Secrets
 

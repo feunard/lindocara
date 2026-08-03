@@ -126,6 +126,10 @@ and **espeak-ng** (Kokoro's phonemiser) — on Windows grab the installer from t
 [espeak-ng releases](https://github.com/espeak-ng/espeak-ng/releases), on Linux
 `apt install espeak-ng`.
 
+Every command in this file starts with `python3`, which on Windows is **`python`** (or
+`py -3`). `python3` there resolves to a Microsoft Store stub that opens the Store rather
+than running anything, so a command that seems to do nothing at all is usually this.
+
 Nothing else to install by hand: each lane's virtualenv is built on first use from its
 `pyproject.toml`. Warm them all up and confirm the machine is ready with:
 
