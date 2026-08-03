@@ -236,12 +236,13 @@ scene.add(particles.group);
 // (`createPetalFall`), recolorée/redensifiée pour lire comme des flocons plutôt que des pétales —
 // `PetalFallOptions.color`/`count`/`size` (voir `packages/hd2d/src/particles.ts`, dont le rapport
 // de cette task explique le touché). `neigeCentre` est un `THREE.Vector3` MUTÉ chaque image dans
-// la boucle (voir plus bas) pour suivre le héros — `createPetalFall` relit `centre.x`/`centre.z` à
-// chaque respawn de grain, donc rien d'autre n'est nécessaire pour que le champ suive sans jamais
-// réallouer. Sa hauteur, elle, n'est capturée qu'UNE fois à la construction (`createPetalFall` :
-// `const sol = centre.y`) : le +1 ci-dessous n'a donc besoin d'être qu'une approximation généreuse
-// du sol de la banquise, jamais relue ensuite. Ambiguïté 5 du brief : un rayon autour du héros, pas
-// toute la zone — en couvrir toute l'île serait invisible (hors cadre la plupart du temps) et cher.
+// la boucle (voir plus bas) pour suivre le héros, x/y/z compris — `createPetalFall` relit
+// `centre.x`/`centre.y`/`centre.z` à chaque respawn de grain (correction du round 1 de revue :
+// `y` était lu une seule fois à la construction, donc figé sur l'altitude du spawn, alors que la
+// banquise a du relief — un flocon pouvait traverser le sol ou flotter au-dessus dès qu'on
+// s'éloignait du point de départ), donc rien d'autre n'est nécessaire pour que le champ suive sans
+// jamais réallouer. Ambiguïté 5 du brief : un rayon autour du héros, pas toute la zone — en
+// couvrir toute l'île serait invisible (hors cadre la plupart du temps) et cher.
 const neigeCentre = new THREE.Vector3(hero.position.x, hero.position.y + 1, hero.position.z);
 const neige = createPetalFall(ctx, {
   centre: neigeCentre,

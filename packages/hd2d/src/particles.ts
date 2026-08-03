@@ -301,7 +301,6 @@ export interface PetalFallOptions {
 export function createPetalFall(_ctx: Hd2dContext, opts: PetalFallOptions): PetalFall {
   const { centre, radius, height, color = 0xff8fbe, count = 170, size = 0.3 } = opts;
   const group = new THREE.Group();
-  const sol = centre.y;
 
   const nuee = swarm(
     count,
@@ -312,12 +311,16 @@ export function createPetalFall(_ctx: Hd2dContext, opts: PetalFallOptions): Peta
       const d = Math.sqrt(Math.random()) * radius; // racine : répartition uniforme sur le disque
       p.x = centre.x + Math.cos(a) * d;
       p.z = centre.z + Math.sin(a) * d;
-      p.y = sol + height * (0.55 + Math.random() * 0.45);
+      // Sol lu EN VIF, comme `centre.x`/`centre.z` juste au-dessus : un appelant dont le centre
+      // suit un relief mobile (voir `apps/lab`) doit voir la référence verticale des grains suivre
+      // ce relief au lieu de rester figée sur l'altitude captée à la construction. Pour un centre
+      // immobile (le cerisier), lire en vif équivaut exactement à figer — aucune régression ici.
+      p.y = centre.y + height * (0.55 + Math.random() * 0.45);
       p.vy = -(0.28 + Math.random() * 0.22);
       p.vx = (Math.random() - 0.5) * 0.18;
       p.vz = (Math.random() - 0.5) * 0.18;
       p.seed = Math.random() * Math.PI * 2;
-      p.max = (p.y - sol) / -p.vy; // il vit exactement le temps de sa chute
+      p.max = (p.y - centre.y) / -p.vy; // il vit exactement le temps de sa chute
       p.life = p.max;
     },
     (p, dt) => {
