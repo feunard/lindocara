@@ -54,11 +54,16 @@ and `three`-free on purpose, so S2 can promote them by moving the file, not rewr
   `core/audio.ts` and the hero.
 - `world/colliders.ts` — the static circular-footprint spatial grid props/the house/the NPCs
   register into.
+- `world/npc-base.ts` — `planStaticNpc()`, the shape every static NPC shares (water guard,
+  collider registration, squared-distance `inReach`) and the `NpcHandle` interface `npc.ts`/
+  `snow-npc.ts` alias. Holds nothing about a billboard, an animator or dialogue text — those stay
+  per-character in the two factories below.
 - `world/hero.ts`, `sheep.ts`, `npc.ts`, `snow-npc.ts`, `chest.ts`, `house.ts`, `interior.ts`,
   `props.ts` — gameplay entities, each a `create*(ctx, textures, ...)` factory returning an
   `update(dt)` handle. `npc.ts` (Grota) and `snow-npc.ts` (Nanuq, Task 12 of the snow island) are
-  deliberately near-duplicates: a second NPC is a second CONTENT in a system that already expects
-  one, not a second system — see "The snow island" below.
+  a second CONTENT in a system that already expects one, not a second system: their shared shape
+  (collider, height guard, reach test) lives in `world/npc-base.ts`, each factory keeps only what
+  genuinely differs — see "The snow island" below.
 - `world/debug.ts` — the `B` collision-volume overlay: walkable-cell edges, impassable-step edges,
   prop/hero footprints. When a move looks wrong, this is where you see why.
 
@@ -129,15 +134,22 @@ independently of which zone the hero is standing in. `ZONE_LARGE` (rayon `Infini
 `ZONES`) is the catch-all that delegates back to the day/night nappe — read its own comment in
 `settings.ts` before adding a third zone, the ordering IS the priority.
 
-**Nanuq reuses Grota's machinery as-is.** `world/snow-npc.ts`'s `createSnowNpc` is `world/npc.ts`'s
-`createGrota` pattern applied to a second character: a collider, turning to face whoever approaches,
-`F` opening the exact same `Dialog` (`core/dialog.ts`) — not a second dialogue system. The one real
-difference is the sprite: Grota is one frame of a Tiny Swords pack sheet (animated idle bob);
-Nanuq's `habitant.png` is a single generated pose (no `Clip`/`createAnimator`), so `SnowNpcSettings`
-(`settings.ts`) has no `frame` field the way `GrotaSettings` does. Voice is threaded the same way
-for both: `core/audio.ts`'s `VOIX` is keyed by character (`"grota"`, `"habitant"`), and
-`Dialog.start(speaker, lines, portrait, voice)`'s `voice` argument is what tells the shared bandeau
-which `sayLine` entry cadences that NPC's typing — see `core/dialog.ts`'s docstring.
+**Nanuq shares Grota's NPC shape through `world/npc-base.ts`.** A first pass copied
+`createGrota`'s collider/reach/height-guard machinery near-verbatim into `createSnowNpc`; code
+review caught it as exactly the kind of duplication the task asked NOT to introduce, so
+`npc-base.ts`'s `planStaticNpc()` now owns the part that was truly identical between the two —
+the water guard, the collider registration and the squared-distance `inReach` test — plus the
+shared `NpcHandle` interface both `Grota` and `SnowNpc` alias. `createGrota` (`world/npc.ts`) and
+`createSnowNpc` (`world/snow-npc.ts`) each call `planStaticNpc()` and keep only what genuinely
+differs: their billboard/atlas setup, their animator (or its absence) and their `update()` body.
+`F` still opens the exact same `Dialog` (`core/dialog.ts`) for both — not a second dialogue
+system. The one real difference stays the sprite: Grota is one frame of a Tiny Swords pack sheet
+(animated idle bob); Nanuq's `habitant.png` is a single generated pose (no `Clip`/`createAnimator`),
+so `SnowNpcSettings` (`settings.ts`) has no `frame` field the way `GrotaSettings` does. Voice is
+threaded the same way for both: `core/audio.ts`'s `VOIX` is keyed by character (`"grota"`,
+`"habitant"`), and `Dialog.start(speaker, lines, portrait, voice)`'s `voice` argument is what tells
+the shared bandeau which `sayLine` entry cadences that NPC's typing — see `core/dialog.ts`'s
+docstring.
 
 **Generated assets, and where they came from.** The pre-chantier convention
 (`assets/generated/PROVENANCE.md`, "Asset discipline" below) staged raw LoRA output under

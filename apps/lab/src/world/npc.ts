@@ -1,18 +1,12 @@
 import { createAnimator, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
-import * as THREE from "three";
 import { CAMERA, GROTA } from "../settings.js";
 import type { Colliders } from "./colliders.js";
+import { type NpcHandle, planStaticNpc } from "./npc-base.js";
 import type { TerrainQuery } from "./terrain-query.js";
 
-export interface Grota {
-  object: THREE.Mesh;
-  position: THREE.Vector3;
-  /** À portée de parole ? Comparé au carré : pas de racine par frame. */
-  inReach(p: THREE.Vector3): boolean;
-  update(dt: number, heroPosition: THREE.Vector3): void;
-}
+export type Grota = NpcHandle;
 
 /**
  * Grota, le panda. Un PNJ, donc : il ne bouge pas, il ne se bat pas, il attend
@@ -25,9 +19,7 @@ export function createGrota(
   query: TerrainQuery,
   colliders: Colliders,
 ): Grota {
-  const [x, z] = GROTA.at;
-  const y = query.heightAt(x, z);
-  if (y === null) throw new Error(`Grota est dans l'eau (${x}, ${z})`);
+  const spot = planStaticNpc(query, colliders, "Grota", GROTA.at, GROTA.radius, GROTA.reach);
 
   const billboard = makeBillboard(ctx, {
     texture: textures.get("/tex/panda.png"),
@@ -38,30 +30,23 @@ export function createGrota(
     foot: GROTA.foot,
     pitch: CAMERA.pitch,
   });
-  billboard.placeAt(x, y, z);
-  colliders.add(x, z, GROTA.radius);
+  billboard.placeAt(spot.x, spot.y, spot.z);
 
   const anim = createAnimator(
     billboard,
     { row: 0, frames: GROTA.frame.frames, fps: GROTA.frame.fps },
     GROTA.frame.cols,
   );
-  const position = new THREE.Vector3(x, y, z);
-  const portee2 = GROTA.reach * GROTA.reach;
 
   return {
     object: billboard.mesh,
-    position,
-    inReach(p) {
-      const dx = p.x - x;
-      const dz = p.z - z;
-      return dx * dx + dz * dz <= portee2;
-    },
+    position: spot.position,
+    inReach: spot.inReach,
     update(dt, heroPosition) {
       anim.update(dt);
       // Il suit des yeux celui qui passe. Le sprite n'a qu'un profil, comme le
       // chevalier : le miroir fait le reste.
-      billboard.setFlip(heroPosition.x < x);
+      billboard.setFlip(heroPosition.x < spot.x);
     },
   };
 }
