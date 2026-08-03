@@ -395,15 +395,47 @@ const benchCenter = (): readonly [number, number] => [
 const bench = createBench(ctx, scene, textures, query, benchCenter, {
   level: benchLevel,
 });
-bench.populate();
 // Round 3 de revue : `scheduleBenchMeasure` se redéclenche à CHAQUE bascule jour/nuit, longtemps
 // après ce peuplement — instantané de l'état qui a servi à peupler, comparé plus tard dans
 // `runBenchMeasure` (`benchStillValid`, `bench.ts`) avant d'afficher un chiffre au HUD.
-const benchPopulatedAt: BenchSnapshot = {
+//
+// Round 5 de revue : cet instantané était un `const` pris une seule fois, alors que le round 4
+// venait de rendre `benchCenter` relisable à chaque peuplement. Le correctif n'était donc appliqué
+// qu'à moitié : réarmer au pôle recentrait bien la charge, puis `benchStillValid` comparait la
+// position courante à celle du SPAWN, concluait « déplacé depuis le peuplement » et affichait
+// « mesure invalide » à jamais dès qu'on quittait le spawn — réarmé ou non. Il doit donc se
+// rafraîchir avec la charge, ce qui n'est garanti qu'en passant par un point d'entrée unique.
+let benchPopulatedAt: BenchSnapshot = {
   heroX: hero.position.x,
   heroZ: hero.position.z,
   cameraDistance: CAMERA.distance,
 };
+
+/**
+ * Le SEUL point d'entrée du peuplement du harnais : il recentre la charge sur la position courante
+ * et réaligne l'instantané de validité dans le même geste. Appeler `bench.populate()` directement
+ * peuple sans rafraîchir l'instantané, ce qui est exactement le demi-correctif décrit ci-dessus.
+ */
+function armerBench(): void {
+  bench.populate();
+  benchPopulatedAt = {
+    heroX: hero.position.x,
+    heroZ: hero.position.z,
+    cameraDistance: CAMERA.distance,
+  };
+}
+
+armerBench();
+
+// Mesurer ailleurs qu'au spawn suppose de réarmer SUR PLACE, et jusqu'ici cela n'était possible
+// qu'en bricolant depuis la console ou en éditant `SPAWN` avant de recharger. Trois mesures fausses
+// de suite sur ce chantier ont eu pour cause une charge mal ancrée : autant rendre le geste correct
+// explicite plutôt que de compter sur la ruse de celui qui mesure.
+if (benchLevel !== "off") {
+  (globalThis as unknown as { labBench?: { armer: () => void } }).labBench = {
+    armer: armerBench,
+  };
+}
 
 // --- lumières -----------------------------------------------------------------------------------
 const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
