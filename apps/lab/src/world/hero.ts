@@ -25,6 +25,7 @@ import {
 } from "../core/audio.js";
 import { CAMERA, GLACE_FINE, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
+import type { Room } from "./hero-state.js";
 import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
 import { compteCommeEau, createThinIce, type EtatGlace, tombeEnArrivant } from "./thin-ice.js";
@@ -136,16 +137,8 @@ export interface HeroInput {
   haleineVisible: boolean;
 }
 
-/** Rectangle où le héros peut marcher, quand il est en intérieur — plancher plat, ni gravité ni
- *  nage ni saut, meubles à contourner. */
-export interface Room {
-  x0: number;
-  x1: number;
-  z0: number;
-  z1: number;
-  y: number;
-  obstacles: readonly { x: number; z: number; r: number }[];
-}
+// Room est déplacé vers hero-state.ts et ré-exporté d'ici
+export type { Room };
 
 export interface Hero {
   readonly object: THREE.Mesh;
