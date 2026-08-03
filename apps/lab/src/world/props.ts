@@ -11,7 +11,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { CAMERA, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
-import { LAKE_OBSTACLES, mulberry32 } from "./island.js";
+import { mulberry32 } from "./island.js";
 import { createFlock, type Flock } from "./sheep.js";
 import type { TerrainQuery } from "./terrain-query.js";
 
@@ -168,14 +168,6 @@ export function populate(
       const h = field.levelAt(i, j);
       if (h === null || !levels.includes(h)) continue;
       if (field.materialAt(i, j) === "sable") continue; // on laisse la plage nue
-      // Le lac gelé (Task 7b) : ni arbre, ni buisson, ni décor au hasard — ses seuls obstacles
-      // sont `LAKE_OBSTACLES` (`island.ts`), un tracé AUTHORÉ pour l'énigme de glisse verrouillée.
-      // `materialAt` rend "glace" pour la glace ET la glace fine (même atlas, voir `island.ts`) :
-      // exclure cette seule clé écarte tout le disque ET sa couronne d'un coup. Sans cette garde,
-      // un arbre ou un buisson pouvait atterrir sur le lac par pur hasard du tirage, à côté des
-      // rochers authorés — un obstacle qui n'a plus rien d'authoré, contredisant le principe même
-      // de l'énigme (« un tracé authoré, pas semé au hasard », voir le spec).
-      if (field.materialAt(i, j) === "glace") continue;
       if (taken.has(key(i, j))) continue;
       // Pas au bord d'une falaise : le sprite déborderait dans le vide.
       let ok = true;
@@ -255,16 +247,6 @@ export function populate(
     const z = Math.sin(a) * r;
     if (query.heightAt(x, z) !== null) continue;
     spawnProp("rock", x, z, { scale: 0.7 + rng() * 0.6, flip: rng() > 0.5 });
-  }
-
-  // Les butoirs du lac gelé (Task 7b) : voir `island.ts`, `LAKE_OBSTACLES`, pour le tracé et sa
-  // justification — un rayon EXPLICITE, pas celui de `KINDS.rock` (qui n'en a pas : les rochers
-  // d'eau juste au-dessus sont purement décoratifs, jamais un collider). Ceux-ci doivent vraiment
-  // arrêter la glisse, donc `colliders.add` est appelé pour de bon.
-  const LAKE_ROCK_RADIUS = 0.4;
-  for (const { x, z } of LAKE_OBSTACLES) {
-    spawnProp("rock", x, z, { scale: 1.1 + rng() * 0.2, flip: rng() > 0.5 });
-    colliders.add(x, z, LAKE_ROCK_RADIUS);
   }
 
   // --- le feu de camp : sprite non éclairé + vraie lumière ponctuelle -------
