@@ -62,7 +62,39 @@ vitesse *= exp(−friction(matière) · dt)
 
 - **herbe** — friction assez haute pour que le comportement soit **indiscernable de l'actuel** ;
 - **neige** — friction plus haute encore, et vitesse de pointe réduite : on peine ;
-- **glace** — friction quasi nulle : on garde son élan, tourner dérape, on ne s'arrête pas net.
+- **glace** — voir ci-dessous : la friction basse a été remplacée par une glisse verrouillée.
+
+### La glace : glisse verrouillée, pas friction basse (révisé 2026-08-03)
+
+La première version donnait à la glace une friction quasi nulle : on gardait son élan, on dérapait en
+tournant, mais **on pouvait encore diriger**. C'est du patinage, et l'auteur en voulait autre chose.
+
+**La règle est celle de Pokémon Argent** : entrer sur une case de glace **verrouille la direction**,
+l'entrée est ignorée, et on file en ligne droite jusqu'à ce que la case suivante ne soit plus
+glissante — terre, neige, rocher, bord d'eau. On s'arrête sur la dernière case de glace.
+
+Ce n'est pas un réglage de friction, c'est un **état de déplacement contraint**, et c'est ce qui
+change tout : le joueur ne résout plus « comment tourner » mais **« par où entrer »**. C'est la
+condition d'existence des **énigmes de glace**, qui sont l'objectif réel de cette matière.
+
+Trois conséquences :
+
+1. **Le lac doit être authoré**, pas généré lisse. Une énigme, c'est une grille avec des **butoirs**
+   placés pour qu'un itinéraire existe et ne soit pas trivial. Un disque de glace vide se traverse
+   tout droit et ne demande rien.
+2. **La glace fine change de sens, et en mieux.** Sous cette règle on ne stationne jamais sur la
+   glace : on glisse jusqu'à buter. La seule case dangereuse est donc **celle où l'on s'immobilise**.
+   Traverser une case de glace fine ne coûte rien ; s'y arrêter fait tomber. Les seuils de temps
+   restent valables tels quels — ils se déclenchent à l'arrêt.
+3. **Le son de glisse devient plus simple** : actif pendant tout le glissement verrouillé, au lieu de
+   suivre l'intensité d'un dérapage qui n'existe plus.
+
+Le modèle à friction **reste** pour la neige et l'herbe, et `locomotion.ts` reste la maison des
+règles de déplacement. Seule la glace change de nature.
+
+**Extension possible, non retenue pour l'instant :** le saut coupe une glisse (espace fait retomber
+une case plus loin en changeant de direction). Ça enrichirait les énigmes et donnerait au saut un
+rôle qu'il n'a pas — à garder si les tracés paraissent trop plats.
 
 Un seul modèle et trois nombres valent mieux que deux systèmes qui cohabitent, et la neige profonde
 sort gratuitement de la même équation.
