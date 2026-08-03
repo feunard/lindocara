@@ -61,7 +61,7 @@ interface PropKind {
 // Exportée : `bench.ts` (Task 13) réutilise `rocks.png` comme projectile générique et doit poser
 // le même cadrage que le prop rocher — recopier ces mesures à la main les aurait laissées diverger
 // sans qu'aucun test ne le voie.
-export const KINDS: Record<"tree" | "rock" | "fire", PropKind> = {
+export const KINDS: Record<"tree" | "rock" | "fire" | "sapin" | "stalagmite", PropKind> = {
   // L'arbre : seule la ligne 0 est le balancement. Les frames 4 et 5 sont plus
   // étroites — c'est l'arbre qu'on abat — et la 8 est la souche.
   tree: {
@@ -93,6 +93,35 @@ export const KINDS: Record<"tree" | "rock" | "fire", PropKind> = {
     radius: 0.45,
     anim: { row: 0, frames: 7, fps: 12 },
     lit: false,
+  },
+  // Les deux props enneigés (Task 11 de l'île de neige) : générés puis découpés par
+  // `scripts/sprite.py` (détourage/recadrage/densité), une seule frame chacun — pas de feuille
+  // à poses multiples comme `tree`, donc pas de balancement au vent, comme `campfire-base`/
+  // `chest-*`. Hauteur choisie pour retomber sur la même densité de pixels à l'écran que
+  // `tree.png` (~48 px/unité monde, voir le rapport de la task) : une source à 94x142/58x92 px
+  // affichée trop grande aurait l'air floue à côté d'un pin du pack d'origine.
+  sapin: {
+    url: "/tex/sapin-neige.png",
+    cols: 1,
+    rows: 1,
+    height: 2.9,
+    aspect: 94 / 142,
+    foot: 0.03,
+    // Collider au TRONC, pas à la ramure — la règle de tous les props du labo. Le sapin généré
+    // n'a pas de tronc visible distinct (contrairement à `tree.png`, qui en peint un), donc le
+    // rayon vise le centre du bas de la silhouette plutôt qu'un tronc repérable au pixel.
+    radius: 0.22,
+  },
+  stalagmite: {
+    url: "/tex/stalagmite.png",
+    cols: 1,
+    rows: 1,
+    height: 1.7,
+    aspect: 58 / 92,
+    foot: 0.03,
+    // Même principe : le collider tient lieu de "tronc" — le socle où le pic touche le sol,
+    // pas la pointe qui domine au-dessus.
+    radius: 0.24,
   },
 };
 
@@ -146,7 +175,7 @@ export function populate(
   const animated: { update(dt: number): void }[] = [];
 
   function spawnProp(
-    kind: "tree" | "rock" | "fire",
+    kind: "tree" | "rock" | "fire" | "sapin" | "stalagmite",
     wx: number,
     wz: number,
     opts: { scale?: number; flip?: boolean } = {},
@@ -216,7 +245,18 @@ export function populate(
   for (let dj = -2; dj <= 2; dj++)
     for (let di = -2; di <= 2; di++) taken.add(key(sourceCell[0] + di, sourceCell[1] + dj));
 
-  const freeCells = (levels: readonly number[], count: number, margin = 0): [number, number][] => {
+  // `materials`, quand fourni, est une liste D'AUTORISATION exclusive : seules ces matières
+  // passent. Sans elle, le tirage garde son comportement d'origine (la plage reste nue) ET
+  // exclut désormais aussi l'île du nord (`neige`/`glace`) — avant la Task 11, rien ne
+  // distinguait cette île des autres pour ce tirage générique, et un pin tempéré (`tree.png`)
+  // ou un buisson pouvait y atterrir par hasard (vérifié à l'écran avant cette task : c'était
+  // bien le cas). Les props polaires ont leur propre tirage plus bas, avec `materials: ["neige"]`.
+  const freeCells = (
+    levels: readonly number[],
+    count: number,
+    margin = 0,
+    materials?: readonly string[],
+  ): [number, number][] => {
     const out: [number, number][] = [];
     let guard = 0;
     while (out.length < count && guard++ < count * 400) {
@@ -224,7 +264,11 @@ export function populate(
       const j = Math.floor(rng() * size);
       const h = field.levelAt(i, j);
       if (h === null || !levels.includes(h)) continue;
-      if (field.materialAt(i, j) === "sable") continue; // on laisse la plage nue
+      const m = field.materialAt(i, j) ?? "";
+      const exclu = materials
+        ? !materials.includes(m)
+        : m === "sable" || m === "neige" || m === "glace";
+      if (exclu) continue;
       if (taken.has(key(i, j))) continue;
       // Pas au bord d'une falaise : le sprite déborderait dans le vide.
       let ok = true;
@@ -284,6 +328,21 @@ export function populate(
     const a = createAnimator(billboard, { row: 0, frames, fps: 2.6 * (0.96 + rng() * 0.08) }, 8);
     a.setPhase(windPhase(x, z, frames) + rng() * 0.4);
     animated.push(a);
+  }
+
+  // --- les props enneigés (Task 11 de l'île de neige) : uniquement sur `neige`, jamais sur la
+  // glace du lac ni sa couronne de glace fine (matière RÈGLE, `field.materialAt` la renvoie comme
+  // "glace" — voir `island.ts`). `materials: ["neige"]` rend ce tirage exclusif à cette seule
+  // matière, à l'inverse de tous les tirages ci-dessus qui viennent d'en être fermés à l'île
+  // (voir le commentaire de `freeCells`). La réservation de la clairière de la source chaude,
+  // plus haut, s'applique ici comme partout : ces cases sont déjà dans `taken`.
+  for (const [i, j] of freeCells([0, 1], 16, 1, ["neige"])) {
+    const [x, z] = jitter(i, j, 0.5);
+    spawnProp("sapin", x, z, { scale: 0.85 + rng() * 0.3, flip: rng() > 0.5 });
+  }
+  for (const [i, j] of freeCells([0, 1], 9, 1, ["neige"])) {
+    const [x, z] = jitter(i, j, 0.4);
+    spawnProp("stalagmite", x, z, { scale: 0.8 + rng() * 0.35, flip: rng() > 0.5 });
   }
 
   // Moutons : ils se baladent, donc pas de collider (la grille est statique).

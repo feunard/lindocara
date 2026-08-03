@@ -541,6 +541,9 @@ export const TEXTURE_URLS: readonly TextureSpec[] = [
   { url: "/tex/bush-4.png" },
   { url: "/tex/sheep.png" },
   { url: "/tex/explosion.png" },
+  // --- props enneigés (Task 11 de l'île de neige) : générés, une seule frame chacun -------------
+  { url: "/tex/sapin-neige.png" },
+  { url: "/tex/stalagmite.png" },
   // --- Grota, le coffre, la maison, l'intérieur ---------------------------------------------------
   { url: "/tex/panda.png" },
   { url: "/tex/chest-closed.png" },

@@ -124,6 +124,12 @@ def entourer(im):
 
 if __name__ == "__main__":
     entree, sortie, hauteur = sys.argv[1], sys.argv[2], int(sys.argv[3])
-    im = entourer(quantifier(durcir(reduire(recadrer(detourer(Image.open(entree))), hauteur))))
+    # Le 4e argument (optionnel) ajuste la palette : la génération produit un dégradé lisse,
+    # et 24 couleurs suffisent souvent à garder ce lissé même après réduction de résolution —
+    # le pack d'origine peint un arbre en une dizaine de teintes plates. Sans ce levier, seule
+    # option pour égaler cette densité aurait été de retoucher les pixels à la main, exactement
+    # ce que ce script existe pour éviter.
+    couleurs = int(sys.argv[4]) if len(sys.argv) > 4 else 24
+    im = entourer(quantifier(durcir(reduire(recadrer(detourer(Image.open(entree))), hauteur)), couleurs))
     im.save(sortie)
     print(f"{sortie}  {im.width}x{im.height}")
