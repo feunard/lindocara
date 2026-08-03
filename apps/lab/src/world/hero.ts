@@ -33,9 +33,9 @@ import {
   type Room,
   type StepDeps,
 } from "./hero-state.js";
-import { stepHero } from "./hero-step.js";
+import { enterWater, stepHero } from "./hero-step.js";
 import type { TerrainQuery } from "./terrain-query.js";
-import { compteCommeEau, createThinIce, tombeEnArrivant } from "./thin-ice.js";
+import { createThinIce, tombeEnArrivant } from "./thin-ice.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.
 const SPLASH = { cols: 9, frames: 9, fps: 20, height: 1.7, foot: 0.32 };
@@ -372,65 +372,24 @@ export function createHero(
     tr.sprite.mesh.visible = true;
   }
 
-  /** Entre dans l'eau : position, souffle, vitesse remis à zéro, éclaboussure. `sonSplash` reste
-   *  `sonEntreeEau` par défaut (le plouf ordinaire, en marchant/tombant dans l'eau) — la glace fine
-   *  (Task 7) passe `plunge` à la place pour le SEUL son qui change quand on tombe à travers la
-   *  glace plutôt que d'y entrer par un bord. Toute la mécanique (splash, reset de vitesse, souffle
-   *  plein) reste ICI, une seule fois : la rupture doit y MENER, pas la réimplémenter. */
-  function enterWater(sonSplash: () => void = sonEntreeEau): void {
-    state.swimming = true;
-    state.airborne = false;
-    state.vy = 0;
-    state.vx = 0;
-    state.vz = 0;
-    state.breath = HERO.swim.breath;
-    state.y = WORLD.waterLevel;
-    state.groundY = WORLD.waterLevel;
-    splash(state.x, WORLD.waterLevel, state.z);
-    sonSplash();
-  }
-
-  function leaveWater(y: number): void {
-    state.swimming = false;
-    state.vx = 0;
-    state.vz = 0;
-    state.breath = HERO.swim.breath;
-    state.y = y;
-    state.groundY = y;
-    splash(state.x, WORLD.waterLevel, state.z);
-    sonSortieEau();
-  }
-
-  function drown(): void {
-    splash(state.x, WORLD.waterLevel, state.z);
-    sonEntreeEau();
-    state.swimming = false;
-    state.airborne = false;
-    state.vy = 0;
-    state.vx = 0;
-    state.vz = 0;
-    state.breath = HERO.swim.breath;
-    state.x = spawn[0];
-    state.y = query.heightAt(spawn[0], spawn[1]) ?? 0;
-    state.z = spawn[1];
-    state.groundY = state.y;
-  }
-
   /** Glace fine (Task 7) : la case `cle` cède sous le poids — qu'elle vienne tout juste de finir
    *  de charger, ou qu'on l'ait retrouvée déjà rompue en y remarchant. Le poids QUITTE la case en
    *  cédant : on relâche nous-mêmes, tout de suite — sinon le regel n'aurait plus jamais
    *  l'occasion de démarrer, `thinIce.update()` (dans `update()`, plus bas) ne touchant que les
    *  cases déjà relâchées, et le bloc qui appelle `tomber` ne s'exécute plus une fois `swimming`
-   *  devenu vrai (voir `enterWater`, juste au-dessus). La chute réutilise `enterWater` telle
-   *  quelle — position, souffle plein, vitesse coupée, éclaboussure — SEUL le son change
-   *  (`plunge` plutôt que le plouf générique `sonEntreeEau`) : la rupture doit MENER à l'entrée
-   *  dans l'eau, pas la réimplémenter. Le taux de souffle de la zone (`input.souffleTaux`)
-   *  s'applique ensuite exactement comme pour toute autre entrée dans l'eau. */
+   *  devenu vrai. La chute réutilise `enterWater` (`hero-step.ts`, Task 4) telle quelle — position,
+   *  souffle plein, vitesse coupée — avec `rupture: true` : SEUL le son change (`plunge` plutôt que
+   *  le plouf générique `sonEntreeEau`), choisi ICI plutôt que par `stepHero` puisque `tomber()`
+   *  s'exécute hors de son retour d'événements (voir `hero-step.ts` pour pourquoi la rupture de
+   *  glace fine reste hors de la règle pure). La rupture doit MENER à l'entrée dans l'eau, pas la
+   *  réimplémenter — même principe que l'ancien code, juste rendu à travers la fonction partagée. */
   function tomber(cle: string): void {
     shatter();
     thinIce.relache(cle);
     state.glaceCase = null;
-    enterWater(plunge);
+    const e = enterWater(state, deps, true);
+    splash(e.x, e.y, e.z);
+    plunge();
   }
 
   return {
@@ -482,16 +441,16 @@ export function createHero(
       // inconditionnellement, une fois par image, avant tout le reste.
       thinIce.update(dt);
 
-      const avantX = state.x;
-      const avantZ = state.z;
-
-      // --- déplacement, verticale comprise (Tasks 2-3 : extraits en règle pure, `hero-step.ts`) -
-      // `stepHero` mute `state` en place (position et vitesse horizontales ET verticales, plancher
-      // de pièce, saut/gravité/coyote/réception, cadence des pas) et RACONTE ce qu'il s'est produit
-      // ; on joue ces événements ici, sur l'unique frontière encore en fermeture sur
+      // --- déplacement, verticale ET nage comprises (Tasks 2-4 : extraites en règle pure,
+      // `hero-step.ts`) - `stepHero` mute `state` en place (position et vitesse horizontales ET
+      // verticales, plancher de pièce, saut/gravité/coyote/réception, entrée/sortie d'eau
+      // ordinaire, noyade, cadence des pas ET des brasses) et RACONTE ce qu'il s'est produit ; on
+      // joue ces événements ici, sur l'unique frontière encore en fermeture sur
       // `settings.ts`/`core/audio.ts`. Le bundle joué sur "pas" (réarmer le repos d'haleine, poser
       // une trace) reproduit exactement l'ancien bloc `distanceDepuisLePas >= PAS_TOUS_LES` — seul
-      // son DÉCLENCHEUR a bougé, pas ce qu'il fait.
+      // son DÉCLENCHEUR a bougé, pas ce qu'il fait. Idem pour "entree-eau"/"sortie-eau"/"noyade" :
+      // seul le SPLASH + le SON a bougé de place, la mécanique (reset vitesse/souffle, position au
+      // niveau de l'eau) est désormais dans `enterWater`/`leaveWater`/`drown` de `hero-step.ts`.
       const evts = stepHero(state, input, dt, deps);
       for (const e of evts) {
         if (e.t === "glisse") {
@@ -508,45 +467,41 @@ export function createHero(
           // ici seulement joué (son + secousse de caméra lue par `takeImpact()`).
           impact = e.force;
           land(impact);
+        } else if (e.t === "entree-eau") {
+          splash(e.x, e.y, e.z);
+          // `rupture` distingue le plouf ordinaire du `plunge` de la glace qui cède — cette
+          // dernière n'emprunte pas encore ce chemin (elle reste hors de `stepHero`, voir
+          // `tomber()` plus bas, Task 5), mais l'événement porte déjà le distinguo pour quand elle
+          // le fera.
+          if (e.rupture) plunge();
+          else sonEntreeEau();
+        } else if (e.t === "sortie-eau") {
+          splash(e.x, e.y, e.z);
+          sonSortieEau();
+        } else if (e.t === "noyade") {
+          splash(e.x, e.y, e.z);
+          sonEntreeEau();
+          // Le renvoi au point d'apparition reste ICI : `stepHero` ne connaît pas `spawn` (voir sa
+          // docstring de `drown`) — seul l'adaptateur, qui l'a reçu à la construction, le peut.
+          state.x = spawn[0];
+          state.y = query.heightAt(spawn[0], spawn[1]) ?? 0;
+          state.z = spawn[1];
+          state.groundY = state.y;
+        } else if (e.t === "brasse") {
+          swimStroke();
         }
       }
 
-      // Le plancher de pièce et toute la verticale (saut, gravité, coyote, réception) sont
-      // maintenant résolus SUR `state` par `stepHero` lui-même (Task 3) — cette relecture de
-      // `sol`/`eau` ne fait que redériver les mêmes valeurs pures pour ce qui reste ici en
-      // fermeture sur l'audio et les billboards (nage, glace fine, entrée dans l'eau) ; elle ne
-      // rejoue rien.
-      const sol = state.room ? state.room.y : query.heightAt(state.x, empreinte(state.z));
-      const eau = !state.room && sol === null;
-
-      if (state.swimming) {
-        // Glace fine (Task 7) : `compteCommeEau` (`thin-ice.ts`) est la règle pure — voir sa
-        // docstring pour le POURQUOI. Garde purement ADDITIVE, en `&&` avec la condition `sol !==
-        // null` déjà là : nager jusqu'à une case voisine — regelée ou jamais rompue — ressort
-        // normalement par cette même branche, sans changement.
-        const dansUnTrou = compteCommeEau(thinIce.etat(caseDe(state.x, empreinte(state.z))));
-        if (sol !== null && !dansUnTrou) {
-          leaveWater(sol);
-        } else {
-          state.y = WORLD.waterLevel;
-          // Le taux vient de la zone (voir `HeroInput.souffleTaux`) : le héros n'a plus à savoir
-          // QUELLE eau consomme plus vite, seulement lire ce qu'on lui donne.
-          state.breath -= dt * input.souffleTaux;
-          if (state.breath <= 0) drown();
-        }
-      } else {
-        // Saut, gravité, coyote et réception vivent maintenant dans `stepHero` (Task 3, la règle
-        // pure, exécutée juste au-dessus) : `state.y`/`airborne`/`groundY`/`coyote` sont déjà à
-        // jour ici, et une éventuelle réception a déjà été jouée par le `for` d'événements plus
-        // haut.
-
-        // --- glace fine (Task 7) ----------------------------------------------------------------
+      // Glace fine (Task 7) : uniquement à pied, sous le poids — la nage (entrée/sortie/noyade,
+      // Task 4) est entièrement résolue par `stepHero` ci-dessus, et `tombeEnArrivant`/`tomber`
+      // n'ont de sens que hors de l'eau. `!state.swimming` remplace l'ancien `else` qui séparait
+      // implicitement les deux : la nage n'a plus de branche ici pour l'exclure.
+      if (!state.swimming) {
         // Sous le POIDS seulement : sauter par-dessus ne charge rien, c'est tout le point du
         // mécanisme (« sous le poids », voir le spec). `!state.room` est nécessaire même si
-        // `swimming` est déjà exclu par la branche `else` : en pièce, `state.x`/`state.z` sont les
-        // coordonnées VIRTUELLES de l'intérieur — interroger le terrain réel avec elles n'a aucun
-        // sens et pourrait tomber par coïncidence sur une vraie case de glace fine ailleurs sur la
-        // carte.
+        // `swimming` est déjà exclu ci-dessus : en pièce, `state.x`/`state.z` sont les coordonnées
+        // VIRTUELLES de l'intérieur — interroger le terrain réel avec elles n'a aucun sens et
+        // pourrait tomber par coïncidence sur une vraie case de glace fine ailleurs sur la carte.
         const surGlaceFine =
           !state.airborne &&
           !state.room &&
@@ -582,23 +537,6 @@ export function createHero(
         // rester visible tant qu'on reste plantés sur une case craquelée, pas clignoter une image.
         crackDisc.visible = surGlaceFine && state.glaceEtat === "craquelee";
         if (crackDisc.visible) crackDisc.position.set(state.x, state.y + 0.02, state.z);
-
-        // On touche l'eau : plouf, et on passe en nage.
-        if (eau && !state.airborne) enterWater();
-      }
-
-      // --- brasses ----------------------------------------------------------------------------
-      // Cadencées à la DISTANCE parcourue, pas au temps : la cadence suit ainsi la vitesse et ne
-      // se dérègle jamais. Les PAS suivent la même règle, mais leur cadence vit désormais dans
-      // `stepHero` (voir plus haut) : seule la brasse — nage, hors du périmètre de cette task —
-      // reste ici.
-      const avance = Math.hypot(state.x - avantX, state.z - avantZ);
-      if (state.swimming) {
-        state.brasse -= dt;
-        if (avance > 1e-4 && state.brasse <= 0) {
-          swimStroke();
-          state.brasse = BRASSE_TOUTES_LES;
-        }
       }
 
       // Souffle au repos (Task 8) : hors du branchement ci-dessus (arrêt, en l'air, en train de

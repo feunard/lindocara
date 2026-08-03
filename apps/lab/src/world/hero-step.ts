@@ -9,13 +9,23 @@
 //
 // DÉPLACÉE depuis `hero.ts` (l'ancienne section horizontale de `update()`, lignes ~504-538, et
 // `canEnter`/`centreOk`, lignes ~359-399, avant Task 2 ; le saut/la gravité/le coyote/la
-// réception, lignes ~591-627, avant Task 3) : les règles ne changent pas de forme, seulement de
-// fichier — voir le rapport de chaque task pour les divergences assumées (la mise à jour de
-// `facing`, restée dans `hero.ts` — voir plus bas — et le clamp de l'impact de réception, écrit à
-// la main faute de pouvoir importer `three` ici).
+// réception, lignes ~591-627, avant Task 3 ; l'entrée/la sortie d'eau, la noyade et la cadence des
+// brasses, lignes ~432-476 et ~576-602, avant Task 4) : les règles ne changent pas de forme,
+// seulement de fichier — voir le rapport de chaque task pour les divergences assumées (la mise à
+// jour de `facing`, restée dans `hero.ts` — voir plus bas —, le clamp de l'impact de réception,
+// écrit à la main faute de pouvoir importer `three` ici, et le renvoi au point d'apparition après
+// noyade, resté dans `hero.ts` — voir la docstring de `drown` plus bas).
 
-import type { HeroEvent, HeroInput, HeroSettings, HeroState, StepDeps } from "./hero-state.js";
+import type {
+  HeroEvent,
+  HeroInput,
+  HeroSettings,
+  HeroState,
+  StepDeps,
+  WorldSettings,
+} from "./hero-state.js";
 import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
+import { compteCommeEau } from "./thin-ice.js";
 
 /** Centre de l'empreinte de collision, décalé sous le corps du sprite — même formule que
  *  `hero.ts`, dupliquée à dessein : `hero-step.ts` ne doit importer AUCUN réglage du labo, y
@@ -78,6 +88,79 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   if (!colliders.blocked(x, empreinte(z, hero), hero.radius)) return true;
   // Même échappatoire face aux props (spawn malheureux, prop ajouté dessous).
   return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius);
+}
+
+/** Clef de la case de glace fine sous un point monde — même formule que `hero.ts` (sa fonction
+ *  interne `caseDe`, elle-même alignée sur `TerrainQuery`, voir `terrain-query.ts:toCell`),
+ *  dupliquée à dessein : `hero-step.ts` ne doit importer AUCUN réglage du labo (voir l'en-tête). */
+function caseDe(x: number, z: number, world: WorldSettings): string {
+  const demiGrille = world.size / 2;
+  return `${Math.floor(x + demiGrille)},${Math.floor(z + demiGrille)}`;
+}
+
+/**
+ * Entre dans l'eau : position au niveau de l'eau, souffle plein, vitesse coupée. La remise à zéro
+ * de `vx`/`vz` est LOAD-BEARING (voir l'en-tête du fichier) : sans elle on entre dans l'eau avec
+ * l'élan de la glace qu'on vient de quitter.
+ *
+ * `rupture` distingue le plouf ordinaire (bord, chute) de la glace fine qui cède sous le poids —
+ * cette dernière reste hors de `stepHero` (Task 5 : `hero.ts`, `tomber()`) mais réutilise CETTE
+ * fonction telle quelle plutôt que de la réimplémenter, comme le faisait déjà l'ancien
+ * `enterWater(plunge)` de `hero.ts`. C'est la SEULE raison de l'exporter : l'adaptateur choisit le
+ * son (le plouf ordinaire ou le `plunge` de la glace qui cède) à la lecture de `rupture` sur
+ * l'événement rendu, jamais `stepHero` lui-même.
+ *
+ * Le type de retour est le membre PRÉCIS de l'union `HeroEvent`, pas `HeroEvent` en général :
+ * `tomber()` (`hero.ts`) lit `x`/`y`/`z` sur la valeur rendue sans re-tester `t`, ce que `HeroEvent`
+ * seul n'autoriserait pas (les autres membres de l'union n'ont pas tous ces champs).
+ */
+export function enterWater(
+  state: HeroState,
+  deps: StepDeps,
+  rupture: boolean,
+): Extract<HeroEvent, { t: "entree-eau" }> {
+  const { hero, world } = deps;
+  state.swimming = true;
+  state.airborne = false;
+  state.vy = 0;
+  state.vx = 0;
+  state.vz = 0;
+  state.breath = hero.swim.breath;
+  state.y = world.waterLevel;
+  state.groundY = world.waterLevel;
+  return { t: "entree-eau", x: state.x, y: world.waterLevel, z: state.z, rupture };
+}
+
+/** Sort de l'eau sur une rive à `y` — jamais une falaise : `canEnter` (plus haut, la contrainte de
+ *  `climb`) a déjà exclu cette possibilité en amont, cette fonction ne fait qu'acter la sortie. */
+function leaveWater(state: HeroState, deps: StepDeps, y: number): HeroEvent {
+  const { hero, world } = deps;
+  state.swimming = false;
+  state.vx = 0;
+  state.vz = 0;
+  state.breath = hero.swim.breath;
+  state.y = y;
+  state.groundY = y;
+  return { t: "sortie-eau", x: state.x, y: world.waterLevel, z: state.z };
+}
+
+/**
+ * Le souffle est épuisé. L'événement porte la position DE LA NOYADE — celle où l'éclaboussure doit
+ * apparaître — jamais celle du renvoi au point d'apparition : ce renvoi (téléportation vers
+ * `spawn`, hauteur du terrain à cet endroit) reste le travail de l'adaptateur (`hero.ts`), qui SEUL
+ * connaît `spawn` — `stepHero` ne le reçoit jamais en paramètre, à dessein (voir l'en-tête).
+ */
+function drown(state: HeroState, deps: StepDeps): HeroEvent {
+  const { hero, world } = deps;
+  const x = state.x;
+  const z = state.z;
+  state.swimming = false;
+  state.airborne = false;
+  state.vy = 0;
+  state.vx = 0;
+  state.vz = 0;
+  state.breath = hero.swim.breath;
+  return { t: "noyade", x, y: world.waterLevel, z };
 }
 
 export function stepHero(
@@ -146,8 +229,6 @@ export function stepHero(
   }
   const sol = state.room ? state.room.y : query.heightAt(state.x, empreinteZ(state.z));
 
-  // Pas de saut ni de gravité à la nage : ce branchement reste résolu par `hero.ts` (entrée/sortie
-  // d'eau, noyade — tout à effets de bord, audio et splash, hors de portée d'une règle pure).
   if (!state.swimming) {
     const ground = sol ?? world.waterLevel;
     if (state.airborne) {
@@ -186,20 +267,57 @@ export function stepHero(
         state.distanceDepuisLePas = 0;
       }
     }
+
+    // --- entrée dans l'eau ordinaire (Task 4) -----------------------------------------------
+    // Bord ou chute — hors glace fine, restée dans `hero.ts` (`tomber()`, Task 5) : cette dernière
+    // réutilise `enterWater` telle quelle, avec `rupture: true`, plutôt que de la réimplémenter.
+    // Évaluée ICI, à la fin de la résolution verticale : `state.swimming` est donc déjà à jour pour
+    // la cadence des pas/brasses juste en dessous, sur CETTE MÊME image — c'est la moitié « eau
+    // ordinaire » de la dette de cadence que cette task ferme (voir son rapport ; la moitié
+    // « rupture de glace fine », elle, reste ouverte : `tomber()` s'exécute encore après le retour
+    // de `stepHero`, dans `hero.ts`).
+    const eau = !state.room && sol === null;
+    if (eau && !state.airborne) events.push(enterWater(state, deps, false));
+  } else {
+    // --- résolution de nage (Task 4) ----------------------------------------------------------
+    // Transposée telle quelle depuis `hero.ts` : sortie sur une rive, ou noyade progressive.
+    // `dansUnTrou` reproduit le garde `compteCommeEau` déjà présent dans le code d'origine (voir sa
+    // docstring, `thin-ice.ts`) — SANS lui, une case de glace fine rompue posée sur un terrain de
+    // hauteur NON NULLE ferait ressortir le héros de l'eau une image après y être tombé : `sol` y
+    // reste un nombre réel, `kindAt` changeant la matière d'une case, jamais sa hauteur. C'est le
+    // piège que l'île de neige a découvert en jouant — couvert par `hero-step-nage.test.ts`.
+    const dansUnTrou = compteCommeEau(deps.glace.etat(caseDe(state.x, empreinteZ(state.z), world)));
+    if (sol !== null && !dansUnTrou) {
+      events.push(leaveWater(state, deps, sol));
+    } else {
+      state.y = world.waterLevel;
+      // Le taux vient de la zone (voir `HeroInput.souffleTaux`) : le héros n'a plus à savoir QUELLE
+      // eau consomme plus vite, seulement lire ce qu'on lui donne.
+      state.breath -= dt * input.souffleTaux;
+      if (state.breath <= 0) events.push(drown(state, deps));
+    }
   }
 
-  // La cadence des pas est à la DISTANCE parcourue, et ne compte que si l'on se propulse
-  // réellement — glisser fait avancer sans qu'aucun pied ne quitte le sol. Évaluée ICI, après la
-  // résolution verticale ci-dessus : `airborne`/`swimming` sont donc à jour pour l'image COURANTE,
-  // pas celle d'avant — ce qui ferme l'écart de parité borné laissé par la Task 2 (voir son
-  // rapport) aux images d'atterrissage et de transition d'eau, l'ancien code évaluant la condition
-  // équivalente après cette même résolution sol/eau. `facing` (l'orientation du sprite) N'EST PAS
-  // mise à jour ici, à dessein : `hero.ts` la pilote depuis `input.x` telle quelle, pas depuis
-  // `state.vx` — voir le rapport de la task pour la divergence avec le brief (piloter depuis `vx`
-  // retarderait le flip sur la glace, où la vitesse met du temps à changer de signe après un
-  // demi-tour, ce que le jeu d'avant cette task ne faisait jamais).
-  if (!state.airborne && !state.swimming && propulsion) {
-    state.distanceDepuisLePas += Math.hypot(state.x - avantX, state.z - avantZ);
+  // La cadence des pas/brasses est à la DISTANCE parcourue — les pas ne comptent que si l'on se
+  // propulse réellement (glisser fait avancer sans qu'aucun pied ne quitte le sol), les brasses à
+  // chaque avance en nage. Évaluée ICI, après la résolution verticale ET de nage ci-dessus :
+  // `airborne`/`swimming` sont donc à jour pour l'image COURANTE, pas celle d'avant — ce qui ferme
+  // l'écart de parité borné laissé par la Task 2 (voir son rapport) aux images d'atterrissage et de
+  // transition d'eau ordinaire, l'ancien code évaluant la condition équivalente après cette même
+  // résolution sol/eau. `facing` (l'orientation du sprite) N'EST PAS mise à jour ici, à dessein :
+  // `hero.ts` la pilote depuis `input.x` telle quelle, pas depuis `state.vx` — voir le rapport de
+  // la Task 2 pour la divergence avec le brief (piloter depuis `vx` retarderait le flip sur la
+  // glace, où la vitesse met du temps à changer de signe après un demi-tour, ce que le jeu d'avant
+  // cette task ne faisait jamais).
+  const avance = Math.hypot(state.x - avantX, state.z - avantZ);
+  if (state.swimming) {
+    state.brasse -= dt;
+    if (avance > 1e-4 && state.brasse <= 0) {
+      events.push({ t: "brasse" });
+      state.brasse = hero.brasseTousLes;
+    }
+  } else if (!state.airborne && propulsion) {
+    state.distanceDepuisLePas += avance;
     if (state.distanceDepuisLePas >= hero.pasTousLes) {
       state.distanceDepuisLePas = 0;
       events.push({ t: "pas", matiere: query.kindAt(state.x, empreinteZ(state.z)) ?? "herbe" });
