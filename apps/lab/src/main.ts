@@ -516,17 +516,15 @@ function pushMood(): void {
   const feuOpacite = THREE.MathUtils.clamp(m.fire / 13, 0.16, 1);
   (props.fireGlow.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
   (props.fireHalo.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
-  // Six rendus de la scène pour une ombre qu'on ne distingue pas en plein jour : le foyer ne
-  // projette qu'une fois la nuit tombée.
-  props.fireLight.castShadow = m.fire > 2.2;
-  // La source chaude (Task 10 de l'île de neige) suit EXACTEMENT la même règle que le foyer — même
-  // canal `m.fire`, pas un second canal de mood par source : il n'y a qu'une seule horloge
-  // jour/nuit pour toute la carte (voir le commentaire d'`aurora`/`fogPulse` dans `MOODS`,
-  // `settings.ts`, pour le même principe appliqué ailleurs). Piège n°2 payé ici aussi : l'ombre ne
-  // projette que la nuit.
+  // La source chaude (Task 10 de l'île de neige) suit EXACTEMENT la même règle jour/nuit que le
+  // foyer — même canal `m.fire`, pas un second canal de mood par source : il n'y a qu'une seule
+  // horloge jour/nuit pour toute la carte (voir le commentaire d'`aurora`/`fogPulse` dans `MOODS`,
+  // `settings.ts`, pour le même principe appliqué ailleurs).
   (props.springGlow.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
   (props.springHalo.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
-  props.springLight.castShadow = m.fire > 2.2;
+  // La décision d'ombre (nuit ET bonne zone) est calculée dans `updateSourceShadows` — voir sa
+  // JSDoc pour pourquoi ELLE seule ne suffit pas ici et doit aussi être rappelée depuis `applyZone`.
+  updateSourceShadows();
   particles.apply(m);
   sky.apply(m, sun.position.clone().sub(sun.target.position));
   // `fog.color` n'est PAS recopié ici : `sky.horizon` change aussi hors fondu d'ambiance (l'aurore
@@ -557,6 +555,39 @@ function applyZone(zone: Zone): void {
   // on lit donc l'ambiance courante du mood plutôt que ce champ statique — sinon rentrer du pôle
   // de nuit écraserait silencieusement une nuit choisie à la main par un "jour" en dur.
   setAmbience(zone === ZONE_LARGE ? (mood.name === "day" ? "jour" : "nuit") : zone.nappe);
+  // Revue post-Task 10 : le pôle et le camp du sud ne sont JAMAIS covisibles (une trentaine
+  // d'unités séparent les deux îles), donc chaque source n'a besoin de projeter que dans SA zone —
+  // voir `updateSourceShadows` juste en dessous. Appelée ICI, au changement de zone, pas seulement
+  // depuis `pushMood` (bascules jour/nuit) : `enPolaire` change au FIL DE LA MARCHE du héros, pas à
+  // une bascule d'ambiance, et `pushMood` ne tourne pas à chaque image.
+  updateSourceShadows();
+}
+
+/**
+ * Décide, pour CHAQUE source ponctuelle, si elle doit projeter une ombre — six rendus de scène
+ * chacune, d'où la règle « seulement si ça peut se voir ». Deux conditions, comme avant : la nuit
+ * (`mood.value.fire` au-delà du seuil, inchangé) ET, nouveau depuis la revue, être dans la zone où
+ * cette source est visible. Le foyer du sud (`fireLight`) n'a besoin de projeter que HORS de la
+ * zone polaire ; la source chaude du nord (`springLight`), seulement DEDANS — les deux îles ne sont
+ * jamais covisibles, donc jamais besoin des deux ombres à la fois.
+ *
+ * Piège à ne pas réintroduire : un naïf `castShadow = ... && enPolaire` écrit directement dans
+ * `pushMood` ne marche PAS. `pushMood` ne tourne qu'aux transitions d'ambiance (l'amorçage et
+ * chaque bascule jour/nuit), jamais à chaque image — alors que la zone du héros change en marchant,
+ * sans aucune bascule jour/nuit. Entrer en zone polaire de nuit ne redéclencherait donc aucun
+ * `pushMood`, et l'ombre resterait éteinte exactement là où on la regarde. D'où les DEUX points
+ * d'appel : `pushMood` (la nuit tombe/se lève, la zone ne change pas) et `applyZone` (le héros
+ * change de zone, l'ambiance ne change pas) — chacun couvre l'axe que l'autre ne peut pas voir
+ * bouger. Aucun des deux n'appelle cette fonction à chaque image : `pushMood` ne tourne que pendant
+ * un fondu jour/nuit (rare), et `applyZone` n'agit que sur un changement RÉEL de zone (comparaison
+ * d'identité, voir plus haut) — donc PAS une écriture three.js par frame, seulement sur les
+ * transitions elles-mêmes, exactement comme le reste du câblage de zone.
+ */
+function updateSourceShadows(): void {
+  const nuit = mood.value.fire > 2.2;
+  const enPolaire = zoneActuelle === ZONE_POLAIRE;
+  props.fireLight.castShadow = nuit && !enPolaire;
+  props.springLight.castShadow = nuit && enPolaire;
 }
 
 const moodLabel = document.getElementById("mood");
