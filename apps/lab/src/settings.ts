@@ -180,6 +180,44 @@ export const TRACES: TracesSettings = {
   opaciteInitiale: 0.7,
 };
 
+/** La vapeur de la source chaude (Task 10 de l'île de neige, `world/props.ts`) — un lot recyclé en
+ *  rond, même motif que le souffle du héros (`HALEINE` ci-dessus) : une émission CONTINUE plutôt
+ *  qu'au rythme des pas, puisque la source fume en permanence, pas seulement quand on marche.
+ *  Contrairement à la flaque de lumière de la source (qui suit `MOODS.*.fire` et s'éteint de jour,
+ *  voir `main.ts`, `pushMood`), la vapeur reste visible à toute heure — de la buée ne disparaît pas
+ *  au lever du jour. Le spec suggère qu'elle monte plus vite quand il fait plus froid dans la
+ *  fiction ; en pratique ce couplage n'est pas modélisé, `montee` est un réglage unique jugé à
+ *  l'écran. */
+export interface VapeurSourceSettings {
+  /** Taille du lot recyclé — jamais d'allocation en cours de partie. */
+  count: number;
+  /** Durée de vie d'une bouffée, secondes. */
+  vie: number;
+  /** Taille monde d'une bouffée. */
+  taille: number;
+  /** Rayon du disque, autour de la source, où une bouffée peut naître. */
+  rayon: number;
+  /** Vitesse d'ascension, unités par seconde. */
+  montee: number;
+  /** Facteur d'expansion en fin de vie (0 = taille d'origine à la fin, 1 = taille doublée). */
+  expansion: number;
+  /** Opacité au moment de l'émission ; décroît ensuite linéairement jusqu'à 0. */
+  opaciteInitiale: number;
+  /** Secondes entre deux bouffées : une émission continue, pas cadencée sur un événement (pas de
+   *  pas, pas de souffle) — la source fume tout le temps. */
+  emission: number;
+}
+export const VAPEUR_SOURCE: VapeurSourceSettings = {
+  count: 14,
+  vie: 2.6,
+  taille: 0.6,
+  rayon: 0.35,
+  montee: 0.55,
+  expansion: 1.6,
+  opaciteInitiale: 0.5,
+  emission: 0.2,
+};
+
 /** Aurore boréale (Task 9 de l'île de neige) — le canal `MoodConfig.aurora` (`@lindocara/hd2d`)
  *  vaut 0 dans les deux ambiances du labo (`MOODS` plus bas) : c'est `main.ts` qui l'allume, en
  *  zone polaire ET de nuit seulement, avec son propre fondu d'entrée/sortie de zone — indépendant

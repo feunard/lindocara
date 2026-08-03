@@ -1,4 +1,5 @@
 import {
+  type Billboard,
   type Clip,
   createAnimator,
   makeBillboard,
@@ -9,11 +10,37 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
-import { CAMERA, WORLD } from "../settings.js";
+import { CAMERA, NORD, VAPEUR_SOURCE, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
 import { mulberry32 } from "./island.js";
 import { createFlock, type Flock } from "./sheep.js";
 import type { TerrainQuery } from "./terrain-query.js";
+
+// --- texture procédurale de la vapeur (Task 10 de l'île de neige) --------------------------------
+// Même motif que `textureHaleine`/`textureTrace` du héros (`world/hero.ts`) : un dégradé radial
+// calculé une seule fois en canvas, jamais reconstruit d'une bouffée à l'autre. Ni l'une ni l'autre
+// n'a d'artefact généré au plan (voir le spec, section « Les assets générés » : la liste ne prévoit
+// que les tilesets, le sapin, la stalagmite et le PNJ — rien pour la source), donc construite ici
+// en canvas comme les deux autres. Teintée chaud plutôt que blanc-bleuté (contraste avec
+// `textureHaleine`, qui est le souffle FROID du héros) : la vapeur porte la couleur de la source
+// qui l'exhale.
+let vapeurTex: THREE.CanvasTexture | undefined;
+function textureVapeur(): THREE.CanvasTexture {
+  if (vapeurTex) return vapeurTex;
+  const S = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = S;
+  const cx = canvas.getContext("2d");
+  if (!cx) throw new Error("Contexte 2D indisponible");
+  const g = cx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, "rgba(255,238,210,0.85)");
+  g.addColorStop(0.5, "rgba(255,224,190,0.4)");
+  g.addColorStop(1, "rgba(255,224,190,0)");
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, S, S);
+  vapeurTex = new THREE.CanvasTexture(canvas);
+  return vapeurTex;
+}
 
 // Chaque entrée décrit une feuille de sprites : découpage, taille monde, où se
 // trouvent les "pieds" dans la frame (pour poser l'objet au sol), et le rayon
@@ -96,6 +123,13 @@ export interface Props {
   fireGlow: THREE.Mesh;
   fireHalo: THREE.Mesh;
   firePosition: THREE.Vector3;
+  /** La source chaude (Task 10 de l'île de neige) : le pendant exact du feu, sur l'île du nord —
+   *  mêmes trois champs, mêmes usages dans `main.ts` (ambiance, ombre nocturne, appoint de
+   *  lumière). */
+  springLight: THREE.PointLight;
+  springGlow: THREE.Mesh;
+  springHalo: THREE.Mesh;
+  springPosition: THREE.Vector3;
   update(dt: number, t: number): void;
 }
 
@@ -163,6 +197,24 @@ export function populate(
   // On garde une clairière autour du point d'apparition et du feu.
   for (let dj = -3; dj <= 3; dj++)
     for (let di = -3; di <= 3; di++) taken.add(key(spawnCell[0] + di, spawnCell[1] + dj));
+
+  // Position de la source chaude (Task 10, île de neige) : construite plus bas (section dédiée,
+  // après les tirages de `freeCells`), mais réservée ICI — trop tard une fois les arbres/buissons
+  // tirés, un tirage aurait pu tomber en plein dans son halo. Choisie au débarcadère SUD du lac
+  // gelé (voir `settings.ts`, `NORD`, et `world/island.ts` pour le tracé des matières) : c'est là
+  // qu'on pose pied après avoir nagé depuis le sud, essoufflé — le point de repos le plus logique
+  // de la zone. `NORD.x - 2, NORD.z + 5` place la source à ~5.4 unités du centre du lac, largement
+  // au-delà de la couronne de glace fine (rayon 3.4) et à bonne distance du monticule de saut
+  // (`NORD.x + 4.5, NORD.z - 3.5`, rayon 2) — vérifié hors-écran contre la même formule que
+  // `island.ts` avant de s'y fier à l'écran (voir le rapport de la task).
+  const sourceX = NORD.x - 2;
+  const sourceZ = NORD.z + 5;
+  const sourceCell: [number, number] = [
+    Math.floor(sourceX + size / 2),
+    Math.floor(sourceZ + size / 2),
+  ];
+  for (let dj = -2; dj <= 2; dj++)
+    for (let di = -2; di <= 2; di++) taken.add(key(sourceCell[0] + di, sourceCell[1] + dj));
 
   const freeCells = (levels: readonly number[], count: number, margin = 0): [number, number][] => {
     const out: [number, number][] = [];
@@ -302,6 +354,90 @@ export function populate(
   fireHalo.position.set(fx, fy + 0.02, fz);
   group.add(fireHalo);
 
+  // --- la source chaude : le point de repos de la zone polaire, pendant exact du feu ----------
+  // `sourceX`/`sourceZ` sont calculés plus haut (avant les tirages de `freeCells`) pour réserver
+  // leur clairière ; cette section construit les objets, exactement comme la section du feu
+  // ci-dessus. La recette est PORTÉE, pas réinventée : mêmes trois pièges déjà payés une fois pour
+  // le feu, à ne pas repayer ici.
+  const sy = query.heightAt(sourceX, sourceZ) ?? 0;
+  // La "flaque" elle-même n'a pas de sprite : aucun asset n'est généré pour cette task (voir le
+  // plan, section « Les assets générés » — rien pour la source), la source n'est donc QUE lumière
+  // et vapeur. On ne veut pourtant pas qu'on marche EN PLEIN DEDANS : un collider modeste en tient
+  // lieu, comme celui du foyer (`KINDS.fire.radius`).
+  colliders.add(sourceX, sourceZ, 0.7);
+
+  // Même couleur de base que le feu (chaude), teinte ambrée plutôt qu'orange franc : les deux
+  // landmarks ne doivent jamais se confondre au premier regard malgré la même mécanique.
+  const springLight = new THREE.PointLight(0xffb066, 1, 34, 2);
+  springLight.position.set(sourceX, sy + 0.4, sourceZ);
+  // Piège n°2 : une lumière ponctuelle qui projette coûte SIX rendus de la scène, et l'ombre ne se
+  // lit pas en plein jour. `castShadow` reste activé sur l'objet — c'est `pushMood` (`main.ts`) qui
+  // le coupe le jour, exactement comme pour `fireLight`.
+  springLight.castShadow = true;
+  springLight.shadow.mapSize.set(256, 256);
+  springLight.shadow.camera.far = 9;
+  springLight.shadow.bias = -0.005;
+  group.add(springLight);
+
+  // Piège n°1 : DEUX couches à POIDS ÉGAL, comme `fireGlow`/`fireHalo` ci-dessus. Donner le dessus
+  // à la petite lui rendrait aussitôt son statut de tache principale, et le « gros rond » reviendrait.
+  // Rayons plus PETITS que ceux du feu (5.4/13 là-bas) : jugé à l'écran, la neige — bien plus
+  // réfléchissante que l'herbe du camp sud — renvoie tellement de `springLight` que les mêmes
+  // rayons noyaient toute la petite île sous le halo, au lieu d'y laisser une flaque contenue.
+  const springGlow = makeGlow(4, 0xffa64d, 0);
+  springGlow.position.set(sourceX, sy + 0.03, sourceZ);
+  group.add(springGlow);
+
+  const springHalo = makeGlow(9, 0xff9640, 1);
+  springHalo.position.set(sourceX, sy + 0.02, sourceZ);
+  group.add(springHalo);
+
+  // --- la vapeur : un lot recyclé en rond, même motif que le souffle du héros (`world/hero.ts`,
+  // `haleines`) — mais une émission CONTINUE plutôt que cadencée sur les pas, la source fume tout
+  // le temps.
+  interface Puff {
+    billboard: Billboard;
+    material: THREE.MeshBasicMaterial;
+    t: number;
+    seed: number;
+  }
+  const puffs: Puff[] = Array.from({ length: VAPEUR_SOURCE.count }, () => {
+    const billboard = makeBillboard(ctx, {
+      texture: textureVapeur(),
+      height: VAPEUR_SOURCE.taille,
+      aspect: 1,
+      foot: 0.5, // pivot au centre : une bouffée de vapeur ne "pose" rien au sol, elle flotte
+      // Non éclairée, comme la bouffée de souffle du héros (`HALEINE`) : à l'ambiance nocturne,
+      // l'hémisphère et le contre-jour sont quasi noirs — une bouffée ÉCLAIRÉE y serait invisible
+      // pile au moment où on a le plus besoin de la voir.
+      lit: false,
+    });
+    billboard.mesh.visible = false;
+    group.add(billboard.mesh);
+    return {
+      billboard,
+      material: billboard.mesh.material as THREE.MeshBasicMaterial,
+      t: Number.POSITIVE_INFINITY,
+      seed: 0,
+    };
+  });
+  let puffSuivant = 0;
+  let prochaineVapeur = 0;
+
+  function emitVapeur(): void {
+    const p = puffs[puffSuivant];
+    if (!p) return;
+    puffSuivant = (puffSuivant + 1) % VAPEUR_SOURCE.count;
+    const a = rng() * Math.PI * 2;
+    const r = rng() * VAPEUR_SOURCE.rayon;
+    p.t = 0;
+    p.seed = rng() * Math.PI * 2;
+    p.billboard.mesh.position.set(sourceX + Math.cos(a) * r, sy + 0.12, sourceZ + Math.sin(a) * r);
+    p.billboard.mesh.scale.setScalar(1);
+    p.material.opacity = VAPEUR_SOURCE.opaciteInitiale;
+    p.billboard.mesh.visible = true;
+  }
+
   return {
     group,
     flock,
@@ -309,6 +445,10 @@ export function populate(
     fireGlow,
     fireHalo,
     firePosition: new THREE.Vector3(fx, fy, fz),
+    springLight,
+    springGlow,
+    springHalo,
+    springPosition: new THREE.Vector3(sourceX, sy, sourceZ),
     update(dt, t) {
       for (const a of animated) a.update(dt);
       flock.update(dt);
@@ -327,6 +467,47 @@ export function populate(
       fireGlow.scale.setScalar(0.94 + flicker * 0.12);
       fireHalo.scale.setScalar(0.88 + flicker * 0.1 + Math.sin(t * 1.9) * 0.05);
       fireHalo.rotation.y += dt * 0.06;
+
+      // --- la source chaude : même mécanique que le feu ci-dessus, phases différentes -----------
+      // Des sinus déphasés DIFFÉREMMENT de ceux du feu : les deux sources sont à des dizaines
+      // d'unités l'une de l'autre et ne sont jamais co-visibles, mais réutiliser exactement les
+      // mêmes arguments les ferait "respirer" en cadence si elles l'étaient un jour.
+      const springFlicker = 0.85 + 0.1 * Math.sin(t * 8.9 + 2.3) + 0.07 * Math.sin(t * 19.4 + 0.4);
+      springLight.userData.flicker = springFlicker;
+      springLight.position.set(
+        sourceX + Math.sin(t * 2.9 + 1.1) * 0.07,
+        sy + 0.4 + Math.sin(t * 4.4 + 0.2) * 0.04,
+        sourceZ + Math.cos(t * 3.3 + 0.8) * 0.07,
+      );
+      springGlow.scale.setScalar(0.94 + springFlicker * 0.12);
+      springHalo.scale.setScalar(0.88 + springFlicker * 0.1 + Math.sin(t * 1.4 + 3) * 0.05);
+      // Tourne dans le sens OPPOSÉ au halo du feu (`-=` contre `+=`) : un repère de plus qui
+      // distingue les deux landmarks, même figés sur une capture.
+      springHalo.rotation.y -= dt * 0.045;
+
+      // Vapeur : émission continue, INDÉPENDANTE de l'ambiance jour/nuit — contrairement à la
+      // flaque de lumière, qui suit `mood.value.fire` et s'éteint de jour (`main.ts`, `pushMood`),
+      // la buée d'une source chaude se voit à toute heure.
+      prochaineVapeur -= dt;
+      if (prochaineVapeur <= 0) {
+        emitVapeur();
+        prochaineVapeur = VAPEUR_SOURCE.emission;
+      }
+      for (const p of puffs) {
+        if (p.t > VAPEUR_SOURCE.vie) {
+          p.billboard.mesh.visible = false;
+          continue;
+        }
+        p.t += dt;
+        const k = Math.min(1, p.t / VAPEUR_SOURCE.vie);
+        p.billboard.mesh.position.y += VAPEUR_SOURCE.montee * dt;
+        // Une légère dérive latérale : de la vapeur qui monte parfaitement droite se lit comme un
+        // jeu de particules, pas comme un phénomène physique.
+        p.billboard.mesh.position.x += Math.sin(p.t * 2.1 + p.seed) * 0.05 * dt;
+        p.billboard.mesh.position.z += Math.cos(p.t * 1.7 + p.seed) * 0.05 * dt;
+        p.billboard.mesh.scale.setScalar(1 + k * VAPEUR_SOURCE.expansion);
+        p.material.opacity = (1 - k) * VAPEUR_SOURCE.opaciteInitiale;
+      }
     },
   };
 }

@@ -1,7 +1,7 @@
 import { makeBillboard, RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import { createCloudCover } from "@lindocara/hd2d/clouds.js";
-import { createHd2dContext } from "@lindocara/hd2d/context.js";
-import { applyFillFromPointLight } from "@lindocara/hd2d/fill-light.js";
+import { createHd2dContext, type Hd2dContext } from "@lindocara/hd2d/context.js";
+import { fillAmount } from "@lindocara/hd2d/fill-light.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import { createMoodMixer } from "@lindocara/hd2d/mood.js";
 import { createParticleField, createPetalFall } from "@lindocara/hd2d/particles.js";
@@ -519,6 +519,14 @@ function pushMood(): void {
   // Six rendus de la scène pour une ombre qu'on ne distingue pas en plein jour : le foyer ne
   // projette qu'une fois la nuit tombée.
   props.fireLight.castShadow = m.fire > 2.2;
+  // La source chaude (Task 10 de l'île de neige) suit EXACTEMENT la même règle que le foyer — même
+  // canal `m.fire`, pas un second canal de mood par source : il n'y a qu'une seule horloge
+  // jour/nuit pour toute la carte (voir le commentaire d'`aurora`/`fogPulse` dans `MOODS`,
+  // `settings.ts`, pour le même principe appliqué ailleurs). Piège n°2 payé ici aussi : l'ombre ne
+  // projette que la nuit.
+  (props.springGlow.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
+  (props.springHalo.material as THREE.MeshBasicMaterial).opacity = feuOpacite * 0.5;
+  props.springLight.castShadow = m.fire > 2.2;
   particles.apply(m);
   sky.apply(m, sun.position.clone().sub(sun.target.position));
   // `fog.color` n'est PAS recopié ici : `sky.horizon` change aussi hors fondu d'ambiance (l'aurore
@@ -923,6 +931,54 @@ let fpsFrames = 0;
 // tomberait à 30.
 const MIN_FRAME_MS = TARGET_FPS ? 1000 / TARGET_FPS - 1 : 0;
 
+// --- appoint de lumière, plusieurs sources (Task 10 de l'île de neige) ------------------------
+// Même distance plancher que `fill-light.ts` (non exportée de hd2d — `DISTANCE_MIN`) : un sprite
+// au contact d'une source ne doit pas diviser par zéro.
+const APPOINT_DISTANCE_MIN = 0.6;
+
+/**
+ * `applyFillFromPointLight` (hd2d) ÉCRASE l'émissif de chaque sprite éclairé à chaque appel — un
+ * choix correct tant qu'une seule source existe dans la scène. La source chaude en ajoute une
+ * seconde, permanente : appeler la fonction de hd2d deux fois de suite (une par source) ferait
+ * perdre le résultat du premier appel au second, quelle que soit sa distance — un héros au feu du
+ * sud verrait son appoint écrasé par la source du nord (à ~30 unités, donc quasi nulle) si elle
+ * est appliquée en second, et réciproquement pour un héros à la source. Piège n°3 du brief, sous
+ * une forme que le feu seul ne pouvait pas révéler.
+ *
+ * hd2d exporte `fillAmount` — la brique PURE, séparée de la boucle qui l'applique — précisément
+ * pour ce genre de composition : on somme sa contribution pour chaque source ICI, dans le labo,
+ * sans qu'`@lindocara/hd2d` ait à connaître ni une seconde source ni l'existence d'une île de
+ * neige.
+ */
+function applyFillFromPointLights(
+  ctx: Hd2dContext,
+  sources: readonly { position: THREE.Vector3; color: THREE.Color; intensity: number }[],
+): void {
+  const yaw = ctx.yaw();
+  const nSprite = new THREE.Vector3(Math.sin(yaw) * 0.86, 0.42, Math.cos(yaw) * 0.86).normalize();
+  const versSource = new THREE.Vector3();
+  const somme = new THREE.Color();
+  for (const { mesh, material, mid } of ctx.litBillboards()) {
+    somme.setRGB(0, 0, 0);
+    for (const source of sources) {
+      if (source.intensity <= 0) continue;
+      versSource.set(
+        source.position.x - mesh.position.x,
+        source.position.y - (mesh.position.y + mid),
+        source.position.z - mesh.position.z,
+      );
+      const distance = Math.max(versSource.length(), APPOINT_DISTANCE_MIN);
+      versSource.divideScalar(distance);
+      const dot = versSource.dot(nSprite);
+      const k = fillAmount({ dot, intensity: source.intensity, distance });
+      somme.r += source.color.r * k;
+      somme.g += source.color.g * k;
+      somme.b += source.color.b * k;
+    }
+    material.emissive.copy(somme);
+  }
+}
+
 function frame(now = performance.now()): void {
   requestAnimationFrame(frame);
   if (now - last < MIN_FRAME_MS) return;
@@ -1010,16 +1066,25 @@ function frame(now = performance.now()): void {
   setFireDistance(hero.position.distanceTo(props.firePosition));
 
   props.fireLight.intensity = mood.value.fire * ((props.fireLight.userData.flicker as number) ?? 1);
+  props.springLight.intensity =
+    mood.value.fire * ((props.springLight.userData.flicker as number) ?? 1);
   // Appoint sur les sprites : un plan face caméra ne peut rien recevoir d'une source placée
-  // derrière lui, alors qu'on s'attend à voir le héros éclairé dès qu'il est près du feu. On
-  // complète donc exactement ce que la vraie lumière rate, en fonction de la distance et de
-  // l'orientation.
-  applyFillFromPointLight(
-    ctx,
-    props.fireLight.position,
-    props.fireLight.color,
-    props.fireLight.intensity,
-  );
+  // derrière lui, alors qu'on s'attend à voir le héros éclairé dès qu'il est près d'une source
+  // chaude — feu ou source. On complète donc exactement ce que la vraie lumière rate, en fonction
+  // de la distance et de l'orientation, pour les DEUX sources à la fois (piège n°3 : sans ça, un
+  // héros dos à la source devient noir à deux pas d'elle).
+  applyFillFromPointLights(ctx, [
+    {
+      position: props.fireLight.position,
+      color: props.fireLight.color,
+      intensity: props.fireLight.intensity,
+    },
+    {
+      position: props.springLight.position,
+      color: props.springLight.color,
+      intensity: props.springLight.intensity,
+    },
+  ]);
 
   // La bande nette suit le héros à l'écran : il reste toujours net.
   const p = hero.position.clone().project(camera);
