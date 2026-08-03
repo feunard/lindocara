@@ -882,7 +882,7 @@ Rules that matter:
   `studio/theme.json` into every prompt — that is what makes a goblin sprite, a door creak and a
   village theme feel like one game rather than four models. `--no-theme` opts out deliberately.
 - **Sprites are not finished when they come out.** The model renders a smooth 768² illustration;
-  `scripts/sprite.py` is what turns it into pixel art at the game's density. Record the prompt and
+  `apps/lab/scripts/sprite.py` is what turns it into pixel art at the game's density. Record the prompt and
   seed in `apps/lab/assets/generated/PROVENANCE.md`.
 - `studio/characters.json` binds a name to a look *and* a voice, so a creature stays itself across
   lanes (`--character elf-druid`). Add an entry, nothing else changes.

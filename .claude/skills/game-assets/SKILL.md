@@ -37,7 +37,7 @@ sfx ~4 s, voice ~5 s, music ~55 s.
 1. **Always go through `studio.py`.** It injects the art direction from `studio/theme.json`;
    calling the models directly produces assets that do not match the rest of the game.
 2. **A sprite is not finished when it comes out.** The model renders a smooth 768²
-   illustration — `scripts/sprite.py` reduces it to the game's pixel density. Then record the
+   illustration — `apps/lab/scripts/sprite.py` reduces it to the game's pixel density. Then record the
    prompt and seed in `apps/lab/assets/generated/PROVENANCE.md`, or it cannot be regenerated.
 3. **Describe sound effects physically.** `a steel sword swinging fast through air, sharp
    whoosh` works; `sword attack sound` does not. The model has no idea what a game event is

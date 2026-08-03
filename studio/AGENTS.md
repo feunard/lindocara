@@ -34,7 +34,7 @@ Shared flags: `--seed` (default 42), `--variants N` (writes `name_1 … name_N`)
 `--no-theme`, `--dry-run` (prints the command it would run and generates nothing — the
 fastest way to see what the theme actually did to your prompt).
 
-Sprites usually need the post-processing pass in `scripts/sprite.py` afterwards: the model
+Sprites usually need the post-processing pass in `apps/lab/scripts/sprite.py` afterwards: the model
 renders a smooth 768² illustration, and it is the averaging down that makes the pixels.
 See `apps/lab/assets/generated/PROVENANCE.md`.
 

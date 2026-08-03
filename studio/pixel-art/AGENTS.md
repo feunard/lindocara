@@ -13,7 +13,7 @@ python3 studio/studio.py sprite --prompt "a goblin archer with a short bow, stan
 ## What comes out, and what to do with it
 
 The model renders a **smooth 768² illustration**, not pixel art. What makes it pixel art is
-the averaging-down pass in `scripts/sprite.py`: background cutout, crop, reduce to the
+the averaging-down pass in `apps/lab/scripts/sprite.py`: background cutout, crop, reduce to the
 game's pixel density, binary alpha, palette reduction, outline in rgb(22,28,46). Skip it
 and your new prop is ten times more detailed than the trees around it.
 
