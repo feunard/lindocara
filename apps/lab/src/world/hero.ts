@@ -27,6 +27,7 @@ import { CAMERA, GLACE_FINE, HALEINE, HERO, TRACES, WORLD } from "../settings.js
 import type { Colliders } from "./colliders.js";
 import {
   createHeroState,
+  type HeroEvent,
   type HeroInput,
   type HeroSettings,
   type HeroState,
@@ -263,10 +264,10 @@ export function createHero(
     };
   });
   let haleineSuivante = 0;
-  // Décompte du souffle AU REPOS (arrêt, l'air, glisse) — jamais réarmé à moins de ce délai : tant
-  // qu'on enchaîne des pas, chaque pas le réarme (voir la cadence des pas plus bas). Vit maintenant
-  // sur `state.reposHaleine` (`HeroState`) : c'est une variable qui doit survivre d'une image à
-  // l'autre, exactement ce que `state` existe pour porter.
+  // Décompte du souffle AU REPOS (arrêt, l'air, glisse), et cadence sur les pas en marchant : les
+  // deux vivent maintenant dans `stepHero` (Task 7, règle pure) — `state.reposHaleine` (survit
+  // d'une image à l'autre) y est lu ET écrit, cet adaptateur ne fait plus que JOUER l'événement
+  // "haleine" qu'elle rend (voir `emitHaleine` et la boucle d'événements dans `update()`).
 
   // Traces de pas (Task 8) : même motif, un lot recyclé en rond de décalques posés à plat.
   const traces: Trace[] = Array.from({ length: TRACES.count }, () => {
@@ -284,8 +285,10 @@ export function createHero(
     };
   });
   let traceSuivante = 0;
-  // Le côté (gauche/droit) alterné vit sur `state.coteTrace` (`HeroState`) — même raison que
-  // `reposHaleine` ci-dessus.
+  // Le côté (gauche/droit) alterné vit sur `state.coteTrace` (`HeroState`), et l'alternance elle-
+  // même — comme le décalage perpendiculaire à la vitesse qui l'accompagne — est calculée par
+  // `stepHero` (Task 7) : l'événement "trace" qu'il rend porte déjà la position posée, cet
+  // adaptateur ne fait plus que POSER le décalque (billboard recyclé, orientation, durée de vie).
 
   // TOUT ce qui doit survivre d'une image à l'autre vit maintenant dans `state` (`hero-state.ts`),
   // muté en place par `stepHero` (déplacement horizontal) et par les sections encore résidentes
@@ -334,7 +337,11 @@ export function createHero(
   }
 
   /** Émet une bouffée de souffle à hauteur de tête, devant le visage — dans le sens `facing`
-   *  courant, pas dans celui du déplacement (au repos il n'y a pas de déplacement à lire). */
+   *  courant, pas dans celui du déplacement (au repos il n'y a pas de déplacement à lire). Appelée
+   *  depuis la boucle d'événements de `update()`, sur l'événement "haleine" rendu par `stepHero`
+   *  (Task 7) — donc AVANT que `facing` soit remis à jour plus bas dans `update()` : elle lit
+   *  toujours la valeur de l'image PRÉCÉDENTE (voir la docstring de `HeroState.facing`, raison 2),
+   *  peu importe que le déclencheur soit un pas ou le timer de repos. */
   function emitHaleine(): void {
     const b = haleines[haleineSuivante];
     if (!b) return;
@@ -350,21 +357,20 @@ export function createHero(
     b.billboard.mesh.visible = true;
   }
 
-  /** Pose une empreinte de pas sous les pieds, décalée perpendiculairement à la vitesse pour
-   *  alterner pied gauche/pied droit — sans ce décalage, deux pas consécutifs se superposent et
-   *  se lisent comme une seule tache plutôt qu'une trace. */
-  function poserTrace(): void {
+  /** Pose une empreinte de pas à la position que `stepHero` (Task 7) a déjà décalée
+   *  perpendiculairement à la vitesse et alternée gauche/droite (`e.x`/`e.z`, événement "trace") —
+   *  cet adaptateur ne recalcule plus l'écart ni le côté, il ne fait que POSER le décalque. */
+  function poserTrace(e: Extract<HeroEvent, { t: "trace" }>): void {
     const tr = traces[traceSuivante];
     if (!tr) return;
     traceSuivante = (traceSuivante + 1) % TRACES.count;
-    state.coteTrace = -state.coteTrace;
-    const norme = Math.hypot(state.vx, state.vz) || 1;
-    const px = (-state.vz / norme) * TRACES.ecart * state.coteTrace;
-    const pz = (state.vx / norme) * TRACES.ecart * state.coteTrace;
     tr.t = 0;
-    tr.sprite.mesh.position.set(state.x + px, state.y + 0.015, state.z + pz);
+    tr.sprite.mesh.position.set(e.x, state.y + 0.015, e.z);
     // Orientée dans le sens du pas : une empreinte alignée sur le déplacement se lit comme un pas,
-    // une empreinte à plat toujours dans le même sens se lit comme un tampon.
+    // une empreinte à plat toujours dans le même sens se lit comme un tampon. `state.vx`/`state.vz`
+    // n'ont pas bougé depuis que `stepHero` a rendu cet événement (rien, dans la règle, ne les
+    // touche plus après la cadence des pas) : les relire ici donne la même valeur qu'au moment du
+    // calcul de la trace.
     tr.sprite.mesh.rotation.y = Math.atan2(state.vx, state.vz);
     tr.material.opacity = TRACES.opaciteInitiale;
     tr.sprite.mesh.visible = true;
@@ -435,14 +441,16 @@ export function createHero(
       // --- déplacement, verticale ET nage comprises (Tasks 2-4 : extraites en règle pure,
       // `hero-step.ts`) - `stepHero` mute `state` en place (position et vitesse horizontales ET
       // verticales, plancher de pièce, saut/gravité/coyote/réception, entrée/sortie d'eau
-      // ordinaire, noyade, cadence des pas ET des brasses, glace fine) et RACONTE ce qu'il s'est
-      // produit ; on joue ces événements ici, sur l'unique frontière encore en fermeture sur
-      // `settings.ts`/`core/audio.ts`. Le bundle joué sur "pas" (réarmer le repos d'haleine, poser
-      // une trace) reproduit exactement l'ancien bloc `distanceDepuisLePas >= PAS_TOUS_LES` — seul
-      // son DÉCLENCHEUR a bougé, pas ce qu'il fait. Idem pour "entree-eau"/"sortie-eau"/"noyade"/
-      // "glace-craque"/"glace-rompt" : seul le SPLASH + le SON a bougé de place, la mécanique
-      // (reset vitesse/souffle, position au niveau de l'eau, charge/rupture d'une case) est
-      // désormais dans `enterWater`/`leaveWater`/`drown`/`rompre` de `hero-step.ts`.
+      // ordinaire, noyade, cadence des pas ET des brasses, glace fine, souffle visible et traces —
+      // Task 7) et RACONTE ce qu'il s'est produit ; on joue ces événements ici, sur l'unique
+      // frontière encore en fermeture sur `settings.ts`/`core/audio.ts`/`three`. "haleine" et
+      // "trace" reproduisent exactement les anciens blocs `e.t === "pas"` (réarmer le repos
+      // d'haleine, poser une trace sur neige) et le décompte de repos hors marche — seul leur
+      // DÉCLENCHEUR a bougé de fichier, pas ce qu'ils font : voir `emitHaleine`/`poserTrace`
+      // ci-dessus. Idem pour "entree-eau"/"sortie-eau"/"noyade"/"glace-craque"/"glace-rompt" : seul
+      // le SPLASH + le SON a bougé de place, la mécanique (reset vitesse/souffle, position au
+      // niveau de l'eau, charge/rupture d'une case) est désormais dans
+      // `enterWater`/`leaveWater`/`drown`/`rompre` de `hero-step.ts`.
       //
       // Plus d'instantané de `state.swimming` pris AVANT cet appel (l'ancien `nageaitDejaCeTick`,
       // devenu inutile depuis que le suivi de la glace fine vit DANS `stepHero` — voir sa docstring
@@ -454,9 +462,10 @@ export function createHero(
           setSkid(e.intensite);
         } else if (e.t === "pas") {
           step(e.matiere);
-          if (input.haleineVisible) emitHaleine();
-          state.reposHaleine = HALEINE.reposInterval;
-          if (e.matiere === "neige") poserTrace();
+        } else if (e.t === "haleine") {
+          emitHaleine();
+        } else if (e.t === "trace") {
+          poserTrace(e);
         } else if (e.t === "saut") {
           sonSaut();
         } else if (e.t === "reception") {
@@ -503,17 +512,9 @@ export function createHero(
       crackDisc.visible = state.glaceCase !== null && state.glaceEtat === "craquelee";
       if (crackDisc.visible) crackDisc.position.set(state.x, state.y + 0.02, state.z);
 
-      // Souffle au repos (Task 8) : hors du branchement ci-dessus (arrêt, en l'air, en train de
-      // glisser sur la glace) — quelqu'un qui respire ne s'arrête pas de respirer. `!swimming`
-      // seul : on continue de respirer en sautant ou en dérapant, seule la nage (souffle retenu,
-      // Task 7) le coupe.
-      if (input.haleineVisible && !state.swimming) {
-        state.reposHaleine -= dt;
-        if (state.reposHaleine <= 0) {
-          emitHaleine();
-          state.reposHaleine = HALEINE.reposInterval;
-        }
-      }
+      // Le décompte du souffle AU REPOS (arrêt, l'air, glisse) vit désormais dans `stepHero`
+      // (Task 7) : il rend son propre événement "haleine" quand le timer expire, déjà joué par la
+      // boucle d'événements ci-dessus — rien à faire ici.
 
       // --- attaque ------------------------------------------------------------------------------
       // On ne frappe pas en nageant, et un coup va jusqu'au bout : réappuyer pendant qu'il se joue
@@ -597,8 +598,9 @@ export function createHero(
 
       // --- souffle visible ------------------------------------------------------------------
       // Toujours animées, MÊME quand `input.haleineVisible` est retombé à faux (en quittant la
-      // zone polaire) : le drapeau ne coupe QUE l'ÉMISSION plus haut, jamais l'animation d'une
-      // bouffée déjà en vol — sinon quitter la zone la ferait disparaître d'un coup en plein vol.
+      // zone polaire) : le drapeau ne coupe QUE l'ÉMISSION, dans `stepHero`, jamais l'animation
+      // d'une bouffée déjà en vol — sinon quitter la zone la ferait disparaître d'un coup en plein
+      // vol.
       for (const b of haleines) {
         if (b.t > HALEINE.vie) {
           b.billboard.mesh.visible = false;

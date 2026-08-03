@@ -11,7 +11,8 @@
 // `canEnter`/`centreOk`, lignes ~359-399, avant Task 2 ; le saut/la gravité/le coyote/la
 // réception, lignes ~591-627, avant Task 3 ; l'entrée/la sortie d'eau, la noyade et la cadence des
 // brasses, lignes ~432-476 et ~576-602, avant Task 4 ; la glace fine — `tomber()` et le suivi
-// craquement/rupture d'une case, lignes ~375-393 et ~629-660 —, avant Task 5) : les règles ne
+// craquement/rupture d'une case, lignes ~375-393 et ~629-660 —, avant Task 5 ; le souffle visible
+// et les traces de pas — leur CADENCE seulement, jamais leur rendu — avant Task 7) : les règles ne
 // changent pas de forme, seulement de fichier — voir le rapport de chaque task pour les
 // divergences assumées (la mise à jour de `facing`, restée dans `hero.ts` — voir plus bas —, le
 // clamp de l'impact de réception, écrit à la main faute de pouvoir importer `three` ici, et le
@@ -409,7 +410,49 @@ export function stepHero(
     state.distanceDepuisLePas += avance;
     if (state.distanceDepuisLePas >= hero.pasTousLes) {
       state.distanceDepuisLePas = 0;
-      events.push({ t: "pas", matiere: query.kindAt(state.x, empreinteZ(state.z)) ?? "herbe" });
+      const matiere = query.kindAt(state.x, empreinteZ(state.z)) ?? "herbe";
+      events.push({ t: "pas", matiere });
+
+      // Souffle et traces (Task 7) : DÉPLACÉS depuis `hero.ts` (l'ancien bloc `e.t === "pas"` de
+      // `update()`) — leur cadence est celle des PAS, donc elle vit ici, au même endroit que le
+      // pas lui-même, plutôt que d'obliger l'adaptateur à la recalculer. Le repos d'haleine est
+      // réarmé À CHAQUE pas, `haleineVisible` ou non — seule l'ÉMISSION en dépend, exactement
+      // comme l'ancien bloc (`if (input.haleineVisible) emitHaleine(); state.reposHaleine = …`,
+      // sans garde sur la seconde ligne).
+      if (input.haleineVisible) events.push({ t: "haleine" });
+      state.reposHaleine = hero.haleineRepos;
+
+      // Une trace ne se pose que sur la neige, et seulement ICI : cette branche n'est atteinte
+      // QUE quand on se propulse réellement (`propulsion`, voir plus haut) — glisser sur la glace
+      // avance sans qu'aucun pied ne quitte le sol, et n'en pose donc jamais.
+      if (matiere === "neige") {
+        // L'alternance gauche/droite d'une trace à l'autre, et son décalage PERPENDICULAIRE à la
+        // vitesse (rotation de 90° du vecteur vitesse normalisé) : sans ce décalage, deux pas
+        // consécutifs se superposeraient et se liraient comme une seule tache plutôt qu'une
+        // trace. Transposé tel quel depuis `hero.ts` (`poserTrace`).
+        state.coteTrace = -state.coteTrace;
+        const norme = Math.hypot(state.vx, state.vz) || 1;
+        const px = (-state.vz / norme) * hero.traceEcart * state.coteTrace;
+        const pz = (state.vx / norme) * hero.traceEcart * state.coteTrace;
+        events.push({ t: "trace", x: state.x + px, z: state.z + pz, cote: state.coteTrace });
+      }
+    }
+  }
+
+  // Souffle au repos (Task 7) : DÉPLACÉ depuis `hero.ts` (l'ancien bloc après la boucle
+  // d'événements dans `update()`) — hors du branchement ci-dessus (arrêt, en l'air, en train de
+  // glisser sur la glace) : quelqu'un qui respire ne s'arrête pas de respirer. `!state.swimming`
+  // seul : on continue de respirer en sautant ou en dérapant, seule la nage (souffle retenu,
+  // `breath` plus haut) le coupe — et le timer ne décompte pas non plus sous l'eau, pour la même
+  // raison. Évalué ICI, après la cadence des pas ci-dessus : si un pas vient de réarmer
+  // `reposHaleine` à `hero.haleineRepos` sur CETTE image, ce bloc ne fait que le redécrémenter de
+  // `dt` — jamais assez pour retomber à zéro le même tick, exactement le comportement de l'ancien
+  // code (les deux blocs s'exécutaient déjà dans cet ordre, l'un après l'autre).
+  if (input.haleineVisible && !state.swimming) {
+    state.reposHaleine -= dt;
+    if (state.reposHaleine <= 0) {
+      events.push({ t: "haleine" });
+      state.reposHaleine = hero.haleineRepos;
     }
   }
 
