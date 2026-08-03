@@ -14,7 +14,12 @@
     "height": 768,
     "backends": {
       "mlx": { "runtime": "mflux", "model": "flux2-klein-4b", "quantize": 8 },
-      "cuda": { "runtime": "diffusers", "model": "black-forest-labs/FLUX.2-klein-4B", "dtype": "bfloat16", "guidance": 4.0 }
+      "cuda": {
+        "runtime": "diffusers",
+        "model": "black-forest-labs/FLUX.2-klein-4B",
+        "dtype": "bfloat16",
+        "guidance": 4.0
+      }
     }
   },
 
@@ -24,21 +29,26 @@
     "crunch": "off",
     "backends": {
       "mlx": { "runtime": "mlx-speech", "model": "moss-sound-effect" },
-      "cuda": { "runtime": "moss-torch", "model": "OpenMOSS-Team/MOSS-SoundEffect-v2.0", "steps": 100, "cfg_scale": 4.0 }
+      "cuda": {
+        "runtime": "moss-torch",
+        "model": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+        "steps": 100,
+        "cfg_scale": 4.0
+      }
     }
   },
 
   "voices": {
     "default_archetype": "narrator",
     "archetypes": {
-      "brute":    { "voice": "am_fenrir",  "pitch": -3, "speed": 0.92 },
-      "elder":    { "voice": "bm_george",  "pitch": -1, "speed": 0.90 },
-      "druid":    { "voice": "bf_emma",    "pitch":  0, "speed": 0.95 },
-      "trickster":{ "voice": "am_puck",    "pitch":  4, "speed": 1.10 },
-      "boss":     { "voice": "am_onyx",    "pitch": -5, "speed": 0.88 },
-      "hero_m":   { "voice": "am_michael", "pitch":  0, "speed": 1.00 },
-      "hero_f":   { "voice": "af_heart",   "pitch":  0, "speed": 1.00 },
-      "narrator": { "voice": "bm_fable",   "pitch":  0, "speed": 0.95 }
+      "brute": { "voice": "am_fenrir", "pitch": -3, "speed": 0.92 },
+      "elder": { "voice": "bm_george", "pitch": -1, "speed": 0.9 },
+      "druid": { "voice": "bf_emma", "pitch": 0, "speed": 0.95 },
+      "trickster": { "voice": "am_puck", "pitch": 4, "speed": 1.1 },
+      "boss": { "voice": "am_onyx", "pitch": -5, "speed": 0.88 },
+      "hero_m": { "voice": "am_michael", "pitch": 0, "speed": 1.0 },
+      "hero_f": { "voice": "af_heart", "pitch": 0, "speed": 1.0 },
+      "narrator": { "voice": "bm_fable", "pitch": 0, "speed": 0.95 }
     },
     "backends": {
       "mlx": {
