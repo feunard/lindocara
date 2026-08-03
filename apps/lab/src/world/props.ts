@@ -77,7 +77,12 @@ export const KINDS: Record<"tree" | "rock" | "fire", PropKind> = {
 // en boucle mécanique.
 const WIND_DIR = [0.86, 0.51] as const;
 const WIND_WAVELENGTH = 13; // unités monde entre deux crêtes de la bourrasque
-const windPhase = (x: number, z: number, frames: number): number =>
+// Exportée : le pulse de blizzard (Task 9 de l'île de neige, `main.ts`) réutilise EXACTEMENT cette
+// même phase spatiale pour que la rafale de brouillard traverse la zone comme le vent traverse les
+// arbres, au lieu de resserrer la visibilité partout à la fois. Avec `frames = 1`, le résultat est
+// la phase spatiale en CYCLES : `main.ts` la combine avec le temps (`phase - t / période`) pour en
+// faire une onde qui voyage, exactement l'équation d'une onde progressive.
+export const windPhase = (x: number, z: number, frames: number): number =>
   ((x * WIND_DIR[0] + z * WIND_DIR[1]) / WIND_WAVELENGTH) * frames;
 
 // Cadrage des `deco-0N.png` : une seule frame, posées au sol. Exportée pour la même raison que

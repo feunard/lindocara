@@ -15,6 +15,8 @@ const base: MoodConfig = {
   fireflies: 0,
   bloom: { strength: 0.38, threshold: 0.78 },
   grade: { saturation: 1.14, lift: 0 },
+  aurora: 0,
+  fogPulse: 0,
 };
 const nuit: MoodConfig = {
   ...base,
@@ -67,5 +69,19 @@ describe("createMoodMixer", () => {
     mix.goTo("day");
     mix.update(0.001);
     expect(mix.value.exposure).toBeCloseTo(milieu, 2);
+  });
+
+  it("interpole les nouveaux canaux comme les anciens", () => {
+    // `aurora` et `fogPulse` ne sont pas des cas particuliers : ils traversent le même fondu que
+    // `stars` ou `exposure`. Si l'un des deux ne se mélange pas, c'est qu'il a été câblé à côté.
+    const mix = createMoodMixer(
+      { day: base, night: { ...nuit, aurora: 1, fogPulse: 0.6 } },
+      "day",
+      FADE,
+    );
+    mix.goTo("night");
+    mix.update(FADE / 2);
+    expect(mix.value.aurora).toBeCloseTo(0.5, 2);
+    expect(mix.value.fogPulse).toBeCloseTo(0.3, 2);
   });
 });

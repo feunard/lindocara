@@ -23,6 +23,13 @@ export interface MoodConfig {
   fireflies: number;
   bloom: { strength: number; threshold: number };
   grade: { saturation: number; lift: number };
+  /** Intensité d'aurore boréale, 0..1 — un canal de plus, comme `sky.stars` : le moteur mélange le
+   *  nombre et l'envoie à un shader, il ne sait pas ce qu'il représente. Vaut 0 dans toute ambiance
+   *  qui n'en a pas besoin ; c'est au contenu (pas à `hd2d`) de l'allumer là où ça a un sens. */
+  aurora: number;
+  /** Amplitude du pulse de brouillard, 0..1 — resserre périodiquement `fog.far` par rafales. Même
+   *  logique que `aurora` : un canal générique, jamais lu ici pour ce qu'il représente. */
+  fogPulse: number;
 }
 
 /** `MoodConfig`, une fois préparée : les couleurs y sont des `THREE.Color`, prêtes à être mélangées
@@ -47,6 +54,8 @@ export type ResolvedMood = {
   fireflies: number;
   bloom: { strength: number; threshold: number };
   grade: { saturation: number; lift: number };
+  aurora: number;
+  fogPulse: number;
 };
 
 const estCouleur = (v: unknown): v is string => typeof v === "string" && v[0] === "#";

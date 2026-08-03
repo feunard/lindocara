@@ -180,6 +180,29 @@ export const TRACES: TracesSettings = {
   opaciteInitiale: 0.7,
 };
 
+/** Aurore boréale (Task 9 de l'île de neige) — le canal `MoodConfig.aurora` (`@lindocara/hd2d`)
+ *  vaut 0 dans les deux ambiances du labo (`MOODS` plus bas) : c'est `main.ts` qui l'allume, en
+ *  zone polaire ET de nuit seulement, avec son propre fondu d'entrée/sortie de zone — indépendant
+ *  du fondu jour/nuit de `MOOD_FADE`, qui ne connaît pas la position du héros. */
+export const AURORE = {
+  /** Secondes pour atteindre pleine intensité en entrant dans la zone polaire de nuit (et pour
+   *  s'éteindre en la quittant ou au lever du jour). */
+  fade: 2.2,
+};
+
+/** Pulse de blizzard (Task 9) — le canal `MoodConfig.fogPulse` vaut 0 dans les deux ambiances du
+ *  labo, pour la même raison qu'`AURORE` ci-dessus. La rafale elle-même réutilise la mécanique de
+ *  bourrasque des props (`world/props.ts`, `windPhase`) : sa phase se déduit de la position du
+ *  héros, pour qu'elle TRAVERSE la zone au lieu de resserrer le brouillard partout à la fois. */
+export const BLIZZARD = {
+  /** Secondes pour que l'effet s'installe/se retire en entrant/sortant de la zone polaire. */
+  fade: 1.5,
+  /** Période d'une rafale complète, secondes. */
+  periode: 9,
+  /** Fraction MAXIMALE dont la portée du brouillard (`fog.far`) se resserre au pic d'une rafale. */
+  intensite: 0.4,
+};
+
 export interface CameraSettings {
   fov: number;
   distance: number;
@@ -375,6 +398,12 @@ export const MOODS: Record<"day" | "night", MoodConfig> = {
     fireflies: 0,
     bloom: { strength: 0.38, threshold: 0.78 },
     grade: { saturation: 1.14, lift: 0.0 },
+    // Aurore et pulse de blizzard (Task 9 de l'île de neige) : deux phénomènes de la banquise, à 0
+    // dans les DEUX ambiances du labo — jour comme nuit ne changent pas d'un pixel. C'est
+    // `main.ts` qui les allume, en zone polaire seulement (voir `AURORE`/`BLIZZARD`,
+    // `applyAurora`/le pulse du brouillard) sans passer par une troisième paire jour/nuit.
+    aurora: 0,
+    fogPulse: 0,
   },
   // Nuit « à la Minecraft » : la lumière globale est crevée, et ce qui éclaire vraiment, c'est le
   // foyer. Loin de lui, c'est presque noir.
@@ -414,6 +443,9 @@ export const MOODS: Record<"day" | "night", MoodConfig> = {
     // Aucun lift : relever les noirs, c'est précisément ce qu'il ne faut pas faire ici — c'est ce
     // qui empêchait la nuit d'être noire.
     grade: { saturation: 1.0, lift: 0.0 },
+    // Voir le commentaire du même champ dans `day` : 0 ici aussi, la nuit du sud n'a pas d'aurore.
+    aurora: 0,
+    fogPulse: 0,
   },
 };
 

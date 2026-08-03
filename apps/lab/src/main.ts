@@ -38,6 +38,8 @@ import {
 import { createDialog, createPrompt } from "./core/dialog.js";
 import { createInput, type InputSample } from "./core/input.js";
 import {
+  AURORE,
+  BLIZZARD,
   CAMERA,
   MOOD_FADE,
   MOODS,
@@ -59,7 +61,7 @@ import { createHouse } from "./world/house.js";
 import { createInterior } from "./world/interior.js";
 import { generateIsland } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
-import { populate } from "./world/props.js";
+import { populate, windPhase } from "./world/props.js";
 import { type Zone, zoneAt } from "./world/zones.js";
 
 // --- chargement -------------------------------------------------------------------------------
@@ -486,9 +488,9 @@ function pushMood(): void {
   props.fireLight.castShadow = m.fire > 2.2;
   particles.apply(m);
   sky.apply(m, sun.position.clone().sub(sun.target.position));
-  // Le brouillard prend la couleur d'horizon du ciel : deux teintes voisines mais distinctes
-  // dessinaient une ligne franche là où la mer lointaine rencontre la voûte.
-  fog.color.copy(sky.horizon);
+  // `fog.color` n'est PAS recopié ici : `sky.horizon` change aussi hors fondu d'ambiance (l'aurore
+  // polaire le teinte à chaque image, voir `frame()`) — le copier seulement ici le figerait entre
+  // deux bascules jour/nuit. C'est `frame()` qui le fait, à chaque image, juste après `sky.update`.
 }
 
 // --- zones ------------------------------------------------------------------------------------
@@ -722,6 +724,14 @@ const shake = (a: number) => {
 };
 props.flock.onExplode = () => shake(0.26);
 
+// Aurore et pulse de blizzard (Task 9 de l'île de neige) : deux canaux `MoodConfig`
+// (`aurora`/`fogPulse`) qui valent 0 dans les deux ambiances du labo (voir `MOODS`,
+// `settings.ts`) — c'est ICI, en zone polaire, que `frame()` les allume, avec leur PROPRE fondu
+// (`AURORE.fade`/`BLIZZARD.fade`) indépendant de celui du jour/nuit (`MOOD_FADE`), qui ignore la
+// position du héros.
+let auroraAmount = 0;
+let fogPulseAmount = 0;
+
 function updateCamera(
   dt: number,
   cmd: InputSample,
@@ -786,7 +796,16 @@ function updateCamera(
   // bords au lieu d'être simplement la même image en plus petit.
   const k = distance / CAMERA.distance;
   fog.near = mood.value.fog.near * k;
-  fog.far = mood.value.fog.far * k ** CAMERA.fogFar;
+  // Le pulse de blizzard (Task 9) resserre la portée par rafales qui TRAVERSENT la zone : la phase
+  // se déduit de la position du héros (`windPhase`, `world/props.ts`, réutilisée telle quelle —
+  // c'est la même bourrasque que celle qui balaie les arbres), pas d'une horloge globale, sinon la
+  // rafale pulserait partout à la fois au lieu de balayer l'île. `mood.value.fogPulse` reste à 0
+  // dans les deux ambiances du labo ; `fogPulseAmount` porte la contribution de la zone polaire.
+  const rafale =
+    0.5 +
+    0.5 * Math.sin((windPhase(camTarget.x, camTarget.z, 1) - t / BLIZZARD.periode) * Math.PI * 2);
+  const pulse = (mood.value.fogPulse + fogPulseAmount) * rafale * BLIZZARD.intensite;
+  fog.far = mood.value.fog.far * k ** CAMERA.fogFar * (1 - pulse);
   // Reculer doit renforcer l'effet maquette, pas l'aplatir.
   pipeline.setTiltShiftZoom(k);
 }
@@ -856,6 +875,13 @@ function frame(now = performance.now()): void {
   // posent que sur la matière "neige", géographiquement confinée à cette même île — voir
   // `world/island.ts`) ; le souffle et les flocons ont besoin de ce drapeau explicite.
   const enPolaire = zone === ZONE_POLAIRE;
+  // Aurore et pulse de blizzard suivent la zone avec leur propre fondu — voir la déclaration de
+  // `auroraAmount`/`fogPulseAmount` plus haut. L'aurore, en plus, exige la NUIT (un ruban vert dans
+  // un ciel de plein jour serait absurde) ; le blizzard, lui, souffle à toute heure.
+  const auroraCible = enPolaire && mood.name === "night" ? 1 : 0;
+  auroraAmount += (auroraCible - auroraAmount) * (1 - Math.exp(-dt / AURORE.fade));
+  const fogPulseCible = enPolaire ? 1 : 0;
+  fogPulseAmount += (fogPulseCible - fogPulseAmount) * (1 - Math.exp(-dt / BLIZZARD.fade));
   hero.update(dt, {
     x: fige ? 0 : move.x,
     z: fige ? 0 : move.z,
@@ -886,7 +912,13 @@ function frame(now = performance.now()): void {
   chest.update(hero.position);
   interior.update(dt, elapsed);
   sakura?.petales.update(dt);
-  sky.update(dt, camera);
+  // `mood.value.aurora` reste à 0 dans les deux ambiances du labo (voir `MOODS`) ; `auroraAmount`
+  // porte la contribution de la zone polaire — la somme documente que les deux s'additionnent,
+  // même si l'un des deux termes vaut toujours 0 aujourd'hui.
+  sky.update(dt, camera, mood.value.aurora + auroraAmount);
+  // Recopié à CHAQUE image, pas seulement au fondu d'ambiance : `sky.horizon` change aussi avec
+  // l'aurore, qui suit son propre fondu (`AURORE.fade`) indépendant de celui du jour/nuit.
+  fog.color.copy(sky.horizon);
   updateCamera(dt, cmd, move, elapsed);
   // L'ambiance se fond : tant qu'elle bouge, il faut la repousser partout.
   if (mood.update(dt)) pushMood();

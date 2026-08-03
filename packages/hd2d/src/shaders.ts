@@ -102,12 +102,16 @@ export const GradeShader = {
 
 /**
  * Voûte céleste : dégradé horizon -> zénith, halo autour de l'astre, étoiles
- * procédurales. Remplace le `scene.background` d'une couleur unie, qui posait
- * l'île sur un aplat et ne donnait aucune profondeur au ciel.
+ * procédurales, rubans d'aurore. Remplace le `scene.background` d'une couleur
+ * unie, qui posait l'île sur un aplat et ne donnait aucune profondeur au ciel.
  *
  * Le brouillard prend la couleur d'horizon de ce dégradé : sans ça, la mer qui
  * s'estompe au loin et le ciel se rejoignent sur deux teintes différentes et
  * dessinent une ligne franche là où il ne devrait rien y avoir.
+ *
+ * `uAurora` (0..1) est un canal de plus, comme `uStars` : purement optique, à zéro il ne change
+ * RIEN à l'image (garde `if (uAurora > 0.001)`), et rien ici ne sait ce qu'il représente — c'est
+ * l'appelant (`sky.ts`) qui l'alimente et qui, seul, sait pourquoi.
  */
 export const SkyShader = {
   uniforms: {
@@ -116,6 +120,10 @@ export const SkyShader = {
     uGlow: { value: new THREE.Color("#fff4d2") },
     uGlowStrength: { value: 0.5 },
     uStars: { value: 0 },
+    // Rubans d'aurore, 0..1 — un canal de plus, comme `uStars` : purement optique, sans savoir
+    // pourquoi ni où on l'allume (voir `mood.ts`, `MoodConfig.aurora`). À 0 il ne contribue rien,
+    // exactement comme `uStars` à 0.
+    uAurora: { value: 0 },
     uSunDir: { value: new THREE.Vector3(0, 1, 0) },
     uTime: { value: 0 },
   },
@@ -130,7 +138,7 @@ export const SkyShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform vec3 uTop, uHorizon, uGlow;
-    uniform float uGlowStrength, uStars, uTime;
+    uniform float uGlowStrength, uStars, uAurora, uTime;
     uniform vec3 uSunDir;
     varying vec3 vDir;
 
@@ -164,6 +172,23 @@ export const SkyShader = {
           float b = smoothstep(0.34, 0.0, dist) * twinkle;
           col += vec3(0.85, 0.9, 1.0) * b * uStars * smoothstep(0.0, 0.18, d.y);
         }
+      }
+
+      // Rubans d'aurore : deux ondes lentes, de fréquences différentes, dont le produit casse le
+      // motif en bandes irrégulières plutôt qu'un simple quadrillage. Concentrés près du zénith
+      // et jamais sous l'horizon — même garde que les étoiles. Rappel du registre des pièges de
+      // rendu : à la plongée et au champ de la caméra du jeu, le zénith n'entre jamais dans le
+      // cadre — ce bloc reste donc surtout un contrôle en caméra redressée ; ce qu'on VOIT en jeu,
+      // c'est uAurora qui a déjà teinté uHorizon avant d'arriver ici (voir sky.ts).
+      if (uAurora > 0.001) {
+        float ruban = sin(d.x * 3.1 + d.z * 1.7 + uTime * 0.15) * 0.5 + 0.5;
+        ruban *= sin(d.z * 4.6 - d.x * 2.2 - uTime * 0.09) * 0.5 + 0.5;
+        // Seuil relevé (0.35 au lieu d'un quart de voûte) : sinon les rubans se lisent comme un
+        // simple lavis vert plein cadre dès qu'on redresse la caméra pour les contrôler, au lieu
+        // de bandes concentrées près du zénith.
+        float zenith = smoothstep(0.35, 0.85, d.y);
+        vec3 teinte = mix(vec3(0.25, 0.95, 0.55), vec3(0.5, 0.35, 0.95), ruban);
+        col += teinte * ruban * zenith * uAurora * 0.7;
       }
 
       gl_FragColor = vec4(col, 1.0);
