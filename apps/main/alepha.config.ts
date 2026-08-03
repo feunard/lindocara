@@ -18,15 +18,24 @@ export default defineConfig({
          * SQLite file on disk. Same code, one runtime instead of two, and the
          * `build.cloudflare` block that used to live here is gone with it.
          *
-         * `endpoint` is bay-admin, not Bay itself. Bay's control API listens on
-         * a unix socket and nothing else, so the only way in from a CI runner
-         * is through the panel that authenticates over HTTPS. `$BAY_ENDPOINT`
-         * overrides it without editing this file.
+         * `adapter: "lore"`, not `"bay"`. Bay's control API is a unix socket
+         * and nothing else, so a CI runner cannot reach it — it used to go
+         * through bay-admin, which no longer exists. Instead the artifact goes
+         * to Lore, which writes a release row, and the machine hosting this app
+         * asks for work on its own outbound channel. Nothing reaches in: no
+         * port is opened, no address is known, and `up` still blocks until the
+         * release is serving or has failed.
+         *
+         * `campaignId` is the Lore campaign the release is written into. Not
+         * derived from the project name on purpose — campaign ids and project
+         * names are separate namespaces, and guessing a mapping would silently
+         * deploy into whichever campaign happened to match.
          */
         production: {
-          adapter: "bay",
+          adapter: "lore",
           domain: "lindocara.bay.alepha.dev",
-          endpoint: "https://admin.bay.alepha.dev",
+          endpoint: "https://lore.alepha.dev",
+          campaignId: 63,
         },
       },
     }),

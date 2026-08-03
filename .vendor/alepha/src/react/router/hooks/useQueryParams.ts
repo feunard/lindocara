@@ -1,4 +1,4 @@
-import type { Alepha, Static, TObject } from "alepha";
+import { type Alepha, type Infer, type ZObject, z } from "alepha";
 import { useAlepha } from "alepha/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "./useRouter.ts";
@@ -24,10 +24,10 @@ import { useRouterState } from "./useRouterState.ts";
  * );
  * // params.tab reads from `?tab=…`; setParams({ tab: "security" }) writes it.
  */
-export const useQueryParams = <T extends TObject>(
+export const useQueryParams = <T extends ZObject>(
   schema: T,
   options: UseQueryParamsHookOptions = {},
-): [Partial<Static<T>>, (data: Static<T>) => void] => {
+): [Partial<Infer<T>>, (data: Infer<T>) => void] => {
   const alepha = useAlepha();
   const router = useRouter();
   // Subscribe to router-state changes: navigations this component did not
@@ -40,7 +40,7 @@ export const useQueryParams = <T extends TObject>(
 
   // The slice of the URL this hook reads from: a single opaque param in
   // base64 mode, or the schema's own field names in querystring mode.
-  const read = (): Partial<Static<T>> | undefined =>
+  const read = (): Partial<Infer<T>> | undefined =>
     format === "querystring"
       ? decodeQueryString(alepha, schema, router.query)
       : decodeBase64(alepha, schema, router.query[key]);
@@ -49,13 +49,13 @@ export const useQueryParams = <T extends TObject>(
   // relevant part of the URL actually changes.
   const signature =
     format === "querystring"
-      ? Object.keys(schema.properties)
+      ? Object.keys(z.schema.shape(schema))
           .map((name) => `${name}=${router.query[name] ?? ""}`)
           .join("&")
       : router.query[key];
 
   const [queryParams = {}, setQueryParams] = useState<
-    Partial<Static<T>> | undefined
+    Partial<Infer<T>> | undefined
   >(read());
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export const useQueryParams = <T extends TObject>(
 
   return [
     queryParams,
-    (next: Static<T>) => {
+    (next: Infer<T>) => {
       setQueryParams(next);
       router.setQueryParams(
         (data) =>
@@ -100,15 +100,15 @@ export interface UseQueryParamsHookOptions {
   push?: boolean;
 }
 
-const encodeBase64 = (alepha: Alepha, schema: TObject, data: any) => {
+const encodeBase64 = (alepha: Alepha, schema: ZObject, data: any) => {
   return btoa(JSON.stringify(alepha.codec.decode(schema, data)));
 };
 
-const decodeBase64 = <T extends TObject>(
+const decodeBase64 = <T extends ZObject>(
   alepha: Alepha,
   schema: T,
   data: any,
-): Static<T> | undefined => {
+): Infer<T> | undefined => {
   try {
     return alepha.codec.decode(
       schema,
@@ -124,20 +124,20 @@ const decodeBase64 = <T extends TObject>(
  * server's per-key query decode — `codec.decode(propertySchema, rawString)`
  * coerces the raw string into the declared type (number, boolean, …).
  */
-const decodeQueryString = <T extends TObject>(
+const decodeQueryString = <T extends ZObject>(
   alepha: Alepha,
   schema: T,
   query: Record<string, any>,
-): Partial<Static<T>> | undefined => {
+): Partial<Infer<T>> | undefined => {
   try {
     const out: Record<string, any> = {};
-    for (const name of Object.keys(schema.properties)) {
+    for (const name of Object.keys(z.schema.shape(schema))) {
       const raw = query[name];
       if (raw != null && raw !== "") {
-        out[name] = alepha.codec.decode(schema.properties[name], raw);
+        out[name] = alepha.codec.decode(z.schema.shape(schema)[name], raw);
       }
     }
-    return out as Partial<Static<T>>;
+    return out as Partial<Infer<T>>;
   } catch {
     return;
   }
@@ -150,13 +150,13 @@ const decodeQueryString = <T extends TObject>(
  */
 const writeQueryString = (
   alepha: Alepha,
-  schema: TObject,
+  schema: ZObject,
   current: Record<string, any>,
   next: any,
 ): Record<string, any> => {
   const decoded = alepha.codec.decode(schema, next) as Record<string, any>;
   const merged = { ...current };
-  for (const name of Object.keys(schema.properties)) {
+  for (const name of Object.keys(z.schema.shape(schema))) {
     const value = decoded?.[name];
     if (value == null || value === "") {
       delete merged[name];

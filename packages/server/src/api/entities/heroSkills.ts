@@ -1,4 +1,4 @@
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { $entity, db, sql } from "alepha/orm";
 import { heroes } from "./heroes.ts";
 
@@ -43,4 +43,4 @@ export const heroSkills = $entity({
   ],
 });
 
-export type HeroSkill = Static<typeof heroSkills.schema>;
+export type HeroSkill = Infer<typeof heroSkills.schema>;

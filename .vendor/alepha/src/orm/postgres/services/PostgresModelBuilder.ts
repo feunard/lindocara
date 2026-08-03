@@ -1,4 +1,4 @@
-import { AlephaError, type TObject, z } from "alepha";
+import { AlephaError, type ZObject, z } from "alepha";
 import {
   type EntityPrimitive,
   type FromSchema,
@@ -8,7 +8,6 @@ import {
   PG_IDENTITY,
   PG_PRIMARY_KEY,
   PG_REF,
-  PG_SERIAL,
   PG_UPDATED_AT,
   type PgGeneratedOptions,
   type PgIdentityOptions,
@@ -158,14 +157,14 @@ export class PostgresModelBuilder extends ModelBuilder {
     >(entity, pgBuilders as any, tableResolver);
   }
 
-  schemaToPgColumns = <T extends TObject>(
+  schemaToPgColumns = <T extends ZObject>(
     tableName: string,
     schema: T,
     nsp: PgSchema,
     enums: Map<string, unknown>,
     tables: Map<string, unknown>,
   ): FromSchema<T> => {
-    return Object.entries(schema.properties as Record<string, any>).reduce<
+    return Object.entries(z.schema.shape(schema)).reduce<
       Partial<FromSchema<T>>
     >((columns, [key, value]) => {
       let col = this.mapFieldToColumn(tableName, key, value, nsp, enums);
@@ -247,10 +246,6 @@ export class PostgresModelBuilder extends ModelBuilder {
     }
 
     if (z.schema.isInteger(value)) {
-      if (PG_SERIAL in value) {
-        return pg.serial(key);
-      }
-
       if (PG_IDENTITY in value) {
         const options = value[PG_IDENTITY] as PgIdentityOptions;
         if (options.mode === "byDefault") {
@@ -324,7 +319,7 @@ export class PostgresModelBuilder extends ModelBuilder {
     }
 
     if (z.schema.isArray(value)) {
-      const items = value.items;
+      const items = z.schema.element(value);
       if (z.schema.isObject(items)) {
         return schema(key, value);
       }
@@ -370,7 +365,10 @@ export class PostgresModelBuilder extends ModelBuilder {
         name?: string;
       };
 
-      // SQL Enum (default for z.enum unless mode: "text")
+      // SQL Enum (default for z.enum unless mode: "text", which asks for a
+      // plain TEXT column instead). `name` overrides the generated type name
+      // so several tables can share one PG ENUM type — the conflict check
+      // below is what makes that sharing safe.
       if (enumMeta.mode !== "text") {
         const enumName = enumMeta.name ?? `${tableName}_${key}_enum`;
 

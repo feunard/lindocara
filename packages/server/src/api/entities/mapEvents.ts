@@ -1,5 +1,5 @@
 import { EVENT_KINDS } from "@lindocara/engine/map-events.js";
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { $entity, db } from "alepha/orm";
 import { maps } from "./maps.ts";
 
@@ -64,4 +64,4 @@ export const mapEvents = $entity({
   ],
 });
 
-export type MapEvent = Static<typeof mapEvents.schema>;
+export type MapEvent = Infer<typeof mapEvents.schema>;

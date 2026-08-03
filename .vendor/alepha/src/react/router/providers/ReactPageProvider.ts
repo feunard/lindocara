@@ -2,13 +2,13 @@ import {
   $atom,
   $hook,
   $inject,
-  $state,
+  $store,
   Alepha,
   AlephaError,
   coerceObject,
   OPTIONS,
   PipelineHandler,
-  type TSchema,
+  type ZType,
   z,
 } from "alepha";
 import { DateTimeProvider } from "alepha/datetime";
@@ -66,7 +66,7 @@ export const reactPageOptions = $atom({
 export class ReactPageProvider {
   protected readonly dateTimeProvider = $inject(DateTimeProvider);
   protected readonly log = $logger();
-  protected readonly options = $state(reactPageOptions);
+  protected readonly options = $store(reactPageOptions);
   protected readonly alepha = $inject(Alepha);
   protected readonly rootComponentsProvider = $inject(RootComponentsProvider);
   protected readonly localeProvider = $inject(RouterLocaleProvider);
@@ -270,15 +270,16 @@ export class ReactPageProvider {
   }
 
   protected convertStringObjectToObject = (
-    schema?: TSchema,
+    schema?: ZType,
     value?: any,
   ): any => {
     if (z.schema.isObject(schema) && typeof value === "object") {
-      for (const key in schema.properties) {
+      const shape = z.schema.shape(schema);
+      for (const key in shape) {
         // Peel optional/nullable/default wrappers so a field declared as
         // `z.object(...).optional()` is still recognised as an object whose
         // JSON-encoded query value needs parsing.
-        const propSchema = z.schema.unwrap(schema.properties[key]);
+        const propSchema = z.schema.unwrap(shape[key]);
         if (z.schema.isObject(propSchema) && typeof value[key] === "string") {
           try {
             value[key] = this.alepha.codec.decode(

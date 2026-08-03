@@ -26,11 +26,11 @@ import { CodecManager } from "./providers/CodecManager.ts";
 import { EventManager } from "./providers/EventManager.ts";
 import { StateManager } from "./providers/StateManager.ts";
 import {
-  type Static,
-  type TObject,
-  type TSchema,
+  type Infer,
+  type ZObject,
+  type ZType,
   z,
-} from "./providers/TypeProvider.ts";
+} from "./providers/ZodProvider.ts";
 
 /**
  * Where an `$env` schema was declared.
@@ -222,7 +222,17 @@ export class Alepha {
     if (alepha.isTest()) {
       // inject global hooks for testing purposes
       // > for vitest, { globals: true } is required in the config
-      const g = globalThis as any;
+      // Vitest/Jest publish these on the global object only when the runner
+      // is configured with `globals: true`, so each one is optional. Naming
+      // the shape beats `any`: a typo in one of the four would otherwise be
+      // silently undefined at runtime.
+      type TestHook = ((run: () => unknown) => unknown) | undefined;
+      const g = globalThis as Partial<
+        Record<
+          "beforeAll" | "afterAll" | "afterEach" | "onTestFinished",
+          TestHook
+        >
+      >;
       const beforeAll = state["alepha.test.beforeAll"] ?? g.beforeAll;
       const afterAll = state["alepha.test.afterAll"] ?? g.afterAll;
       const afterEach = state["alepha.test.afterEach"] ?? g.afterEach;
@@ -305,14 +315,14 @@ export class Alepha {
    * Cache for environment variables.
    * > It allows us to avoid parsing the same schema multiple times.
    */
-  protected cacheEnv: Map<TSchema, any> = new Map();
+  protected cacheEnv: Map<ZType, any> = new Map();
 
   /**
    * Which service/module declared each $env schema, so tooling can attribute
    * a variable to its source. Kept beside `cacheEnv` rather than inside it so
    * the parsed-value cache keeps its simple shape.
    */
-  protected cacheEnvOwner: Map<TSchema, EnvOwner> = new Map();
+  protected cacheEnvOwner: Map<ZType, EnvOwner> = new Map();
 
   /**
    * List of modules that are registered in the container.
@@ -400,7 +410,7 @@ export class Alepha {
   public get<T extends TAtomObject>(
     target: Atom<T>,
     scope?: StateScope,
-  ): Static<T>;
+  ): Infer<T>;
   public get<Key extends keyof State>(
     target: Key,
     scope?: StateScope,
@@ -521,7 +531,7 @@ export class Alepha {
     // Cloudflare Workers support
     if (
       typeof global === "object" &&
-      typeof (global as any).Cloudflare === "object"
+      typeof (global as { Cloudflare?: unknown }).Cloudflare === "object"
     ) {
       return true;
     }
@@ -627,7 +637,7 @@ export class Alepha {
         this.primitiveRegistry = new Map();
         this.pendingInstantiations = [];
         this.events.clear();
-        delete (target as any)[MODULE];
+        delete (target as WithModule)[MODULE];
         this.with(target);
         for (const [key] of this.substitutions.entries()) {
           this.inject(key);
@@ -996,8 +1006,11 @@ export class Alepha {
     }
 
     // If the requested type is the container, the current instance is returned.
-    if ((service as any) === Alepha) {
-      return this as any;
+    if ((service as unknown) === Alepha) {
+      // The container is not a `T`, but asking for it is how a service reaches
+      // the container it lives in — the one injection that is definitionally
+      // untyped. `unknown` first because `this` and `T` do not overlap.
+      return this as unknown as T;
     }
 
     if (typeof service === "string") {
@@ -1140,7 +1153,7 @@ export class Alepha {
    * @param schema - The schema object to apply environment variables to.
    * @return The schema object with environment variables applied.
    */
-  public parseEnv<T extends TObject>(schema: T, owner?: EnvOwner): Static<T> {
+  public parseEnv<T extends ZObject>(schema: T, owner?: EnvOwner): Infer<T> {
     if (owner && !this.cacheEnvOwner.has(schema)) {
       // Recorded even on a cache hit path below, because the first caller to
       // parse a shared schema is not necessarily the one that declared it.
@@ -1148,7 +1161,7 @@ export class Alepha {
     }
 
     if (this.cacheEnv.has(schema)) {
-      return this.cacheEnv.get(schema) as Static<T>;
+      return this.cacheEnv.get(schema) as Infer<T>;
     }
 
     // Env vars are strings on the wire — coerce declared fields to their
@@ -1192,7 +1205,7 @@ export class Alepha {
 
     this.cacheEnv.set(schema, config);
 
-    return config as Static<T>;
+    return config as Infer<T>;
   }
 
   /**
@@ -1201,12 +1214,12 @@ export class Alepha {
    * This is useful for DevTools to display all expected environment variables.
    */
   public getEnvSchemas(): Array<{
-    schema: TSchema;
+    schema: ZType;
     values: Record<string, any>;
     owner?: EnvOwner;
   }> {
     const result: Array<{
-      schema: TSchema;
+      schema: ZType;
       values: Record<string, any>;
       owner?: EnvOwner;
     }> = [];
@@ -1284,22 +1297,23 @@ export class Alepha {
 
     const env: Record<string, AlephaDumpEnvVariable> = {};
     for (const [schema] of this.cacheEnv.entries()) {
-      const ref = schema as any;
-      // zod object: `.properties` aliases `.shape`; `required` field names come
-      // from `z.schema.requiredKeys` (zod has no `.required` array — that name
-      // is the `.required()` method). Metadata (description/enum/default) lives
-      // on the unwrapped inner schema, under `.meta()`.
-      const shape = (ref.properties ?? {}) as Record<string, TSchema>;
-      const required = new Set(z.schema.requiredKeys(ref));
+      // `required` field names come from `z.schema.requiredKeys` (zod has no
+      // `.required` array — that name is the `.required()` method). Metadata
+      // (description/enum/default) lives on the unwrapped inner schema, under
+      // `.meta()`.
+      const shape = z.schema.shape(schema);
+      const required = new Set(z.schema.requiredKeys(schema));
       for (const [key, value] of Object.entries(shape)) {
-        const prop = value as any;
-        const inner = z.schema.unwrap(prop) as any;
+        const inner = z.schema.unwrap(value);
         const enumValues = z.schema.isEnum(inner)
           ? z.schema.enumValues(inner)
           : undefined;
         env[key] = {
-          description: inner?.description ?? prop?.description,
-          default: z.schema.getDefault(prop) as string | undefined,
+          // The inner (unwrapped) schema first: a `.describe()` sits on the
+          // schema it was called on, which for an optional field is the inner
+          // one. Falling back to the wrapper catches the reverse order.
+          description: inner?.description ?? value.description,
+          default: z.schema.getDefault(value) as string | undefined,
           required: required.has(key) ? true : undefined,
           enum: enumValues?.length
             ? ([...enumValues] as Array<string>)
@@ -1378,7 +1392,10 @@ export class Alepha {
         typeof value[OPTIONS] === "object" &&
         "getter" in value[OPTIONS]
       ) {
-        const getter = value[OPTIONS].getter as keyof State;
+        // `$store` hands over the Atom/Computed itself, not its key: a computed
+        // has a `key` but no store entry under it. `StateManager.get` is
+        // overloaded on `Computed | Atom | string`, so the object resolves both.
+        const getter = value[OPTIONS].getter;
         Object.defineProperty(obj, key, {
           get: () => this.store.get(getter),
         });
@@ -1400,6 +1417,10 @@ export class Alepha {
 
   protected processPrimitive(value: Primitive, propertyKey = "") {
     value.config.propertyKey = propertyKey;
+    // `onInit` is protected: a primitive must not invoke it on itself, and the
+    // container is the only legitimate caller. Naming the shape would need a
+    // double cast (protected vs public are not assignable), which says less
+    // than this comment does.
     (value as any).onInit();
 
     const kind = value.constructor as Service;

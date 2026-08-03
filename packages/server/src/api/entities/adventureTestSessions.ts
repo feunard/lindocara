@@ -1,4 +1,4 @@
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { users } from "alepha/api/users";
 import { $entity, db } from "alepha/orm";
 import { adventures } from "./adventures.ts";
@@ -34,4 +34,4 @@ export const adventureTestSessions = $entity({
   ],
 });
 
-export type AdventureTestSession = Static<typeof adventureTestSessions.schema>;
+export type AdventureTestSession = Infer<typeof adventureTestSessions.schema>;

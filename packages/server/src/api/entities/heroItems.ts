@@ -1,4 +1,4 @@
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { $entity, db, sql } from "alepha/orm";
 import { heroes } from "./heroes.ts";
 import { itemDefinitions } from "./itemDefinitions.ts";
@@ -34,4 +34,4 @@ export const heroItems = $entity({
   constraints: [{ columns: ["quantity"], check: sql`quantity >= 0` }],
 });
 
-export type HeroItem = Static<typeof heroItems.schema>;
+export type HeroItem = Infer<typeof heroItems.schema>;

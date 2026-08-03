@@ -2,17 +2,21 @@ import {
   $inject,
   Alepha,
   AlephaError,
+  createPagination,
+  type Infer,
   type Page,
   type PageQuery,
-  type Static,
-  type StaticEncode,
-  type TObject,
-  type TSchema,
+  type ZObject,
+  type ZType,
   z,
 } from "alepha";
 import { type DateTime, DateTimeProvider } from "alepha/datetime";
 import { $logger } from "alepha/logger";
-import { currentTenantAtom, currentUserAtom } from "alepha/security";
+import {
+  currentTenantAtom,
+  currentUserAtom,
+  tenancyAtom,
+} from "alepha/security";
 import {
   asc,
   avg,
@@ -92,7 +96,7 @@ import type { TObjectUpdate } from "../schemas/updateSchema.ts";
 import { PgRelationManager } from "./PgRelationManager.ts";
 import { type PgJoin, QueryManager } from "./QueryManager.ts";
 
-export abstract class Repository<T extends TObject> {
+export abstract class Repository<T extends ZObject> {
   public readonly entity: EntityPrimitive<T>;
   public readonly provider: DatabaseProvider;
 
@@ -105,7 +109,7 @@ export abstract class Repository<T extends TObject> {
   protected readonly dbCache = $inject(DbCacheProvider);
   protected readonly alepha = $inject(Alepha);
 
-  static of<T extends TObject>(
+  static of<T extends ZObject>(
     entity: EntityPrimitive<T>,
     provider = DatabaseProvider,
   ): new () => Repository<T> {
@@ -130,8 +134,8 @@ export abstract class Repository<T extends TObject> {
    * ID is mandatory. If the table does not have a primary key, it will throw an error.
    */
   public get id(): {
-    type: TSchema;
-    key: keyof T["properties"];
+    type: ZType;
+    key: keyof T["shape"];
     col: PgColumn;
   } {
     return this.getPrimaryKey(this.entity.schema);
@@ -184,7 +188,7 @@ export abstract class Repository<T extends TObject> {
    * }
    * ```
    */
-  public async query<R extends TObject = T>(
+  public async query<R extends ZObject = T>(
     query:
       | SQLLike
       | ((
@@ -192,7 +196,7 @@ export abstract class Repository<T extends TObject> {
           db: PgAsyncDatabase<any>,
         ) => SQLLike),
     schema?: R,
-  ): Promise<Static<R>[]> {
+  ): Promise<Infer<R>[]> {
     const raw =
       typeof query === "function" ? query(this.table, this.db) : query;
 
@@ -225,7 +229,7 @@ export abstract class Repository<T extends TObject> {
       return this.clean(
         this.mapRawFieldsToEntity(it),
         schema ?? this.entity.schema,
-      ) as Static<R>;
+      ) as Infer<R>;
     });
   }
 
@@ -258,7 +262,7 @@ export abstract class Repository<T extends TObject> {
   /**
    * Get a Drizzle column from the table by his name.
    */
-  protected col(name: keyof StaticEncode<T>): PgColumn {
+  protected col(name: keyof Infer<T>): PgColumn {
     const column = (this.table as any)[name];
     if (!column) {
       throw new AlephaError(
@@ -331,7 +335,7 @@ export abstract class Repository<T extends TObject> {
    */
   protected async insertDefaultValues(
     opts: StatementOptions,
-  ): Promise<Static<T>> {
+  ): Promise<Infer<T>> {
     if (this.provider.dialect !== "postgresql") {
       throw new AlephaError(
         `create() against '${this.tableName}' has nothing to insert (every column is generated), and this fallback is only implemented for the 'postgresql' dialect. Add at least one non-generated column, or ask for '${this.provider.dialect}' support to be added.`,
@@ -399,7 +403,7 @@ export abstract class Repository<T extends TObject> {
    */
   protected rawSelectColumns(
     opts: StatementOptions = {},
-    columns: (keyof Static<T>)[] = [],
+    columns: (keyof Infer<T>)[] = [],
   ) {
     const db = opts.tx === null ? this.provider.db : (opts.tx ?? this.db);
     const table = this.table as PgTable;
@@ -416,7 +420,7 @@ export abstract class Repository<T extends TObject> {
 
   protected rawSelectDistinct(
     opts: StatementOptions = {},
-    columns: (keyof Static<T>)[] = [],
+    columns: (keyof Infer<T>)[] = [],
   ) {
     const db = opts.tx === null ? this.provider.db : (opts.tx ?? this.db);
     const table = this.table as PgTable;
@@ -468,7 +472,8 @@ export abstract class Repository<T extends TObject> {
   ): Promise<PgStatic<T, R>[]> {
     // Check cache
     if (opts.cache) {
-      const cacheKey = opts.cache.key ?? this.buildCacheKey("findMany", query);
+      const cacheKey =
+        opts.cache.key ?? this.buildCacheKey("findMany", query, opts);
       const cached = await this.dbCache.get<PgStatic<T, R>[]>(
         this.tableName,
         cacheKey,
@@ -563,11 +568,11 @@ export abstract class Repository<T extends TObject> {
     try {
       let rows = await builder.execute();
 
-      let schema: TObject = this.entity.schema;
+      let schema: ZObject = this.entity.schema;
       if (columns) {
         schema = schema.pick(
           Object.fromEntries(columns.map((c) => [c, true])) as never,
-        ) as TObject;
+        ) as ZObject;
       }
 
       // Build joinedSchema once per query (not per row) to avoid SchemaValidator
@@ -605,7 +610,7 @@ export abstract class Repository<T extends TObject> {
       // Store in cache
       if (opts.cache) {
         const cacheKey =
-          opts.cache.key ?? this.buildCacheKey("findMany", query);
+          opts.cache.key ?? this.buildCacheKey("findMany", query, opts);
         await this.dbCache.set(
           this.tableName,
           cacheKey,
@@ -725,12 +730,7 @@ export abstract class Repository<T extends TObject> {
       sortMetadata = this.queryManager.normalizeOrderBy(orderBy);
     }
 
-    const response = this.queryManager.createPagination<T>(
-      entities,
-      limit,
-      offset,
-      sortMetadata,
-    );
+    const response = createPagination<T>(entities, limit, offset, sortMetadata);
 
     response.page.totalElements = countResult;
     if (countResult != null) {
@@ -811,9 +811,9 @@ export abstract class Repository<T extends TObject> {
    * @returns The created entity.
    */
   public async create(
-    data: Static<TObjectInsert<T>>,
+    data: Infer<TObjectInsert<T>>,
     opts: StatementOptions = {},
-  ): Promise<Static<T>> {
+  ): Promise<Infer<T>> {
     this.stampOrganization(data);
     await this.alepha.events.emit("repository:create:before", {
       tableName: this.tableName,
@@ -864,9 +864,9 @@ export abstract class Repository<T extends TObject> {
    * @returns The created entities, in the same order as `values`.
    */
   public async createMany(
-    values: Array<Static<TObjectInsert<T>>>,
+    values: Array<Infer<TObjectInsert<T>>>,
     opts: StatementOptions & { batchSize?: number } = {},
-  ): Promise<Static<T>[]> {
+  ): Promise<Infer<T>[]> {
     if (values.length === 0) {
       return [];
     }
@@ -886,7 +886,7 @@ export abstract class Repository<T extends TObject> {
     // transaction around an arbitrarily large insert is its own hazard (lock
     // duration, WAL growth) and the caller is better placed to decide.
     const batchSize = opts.batchSize ?? 1000;
-    const allEntities: Static<T>[] = [];
+    const allEntities: Infer<T>[] = [];
 
     try {
       for (let i = 0; i < values.length; i += batchSize) {
@@ -944,12 +944,12 @@ export abstract class Repository<T extends TObject> {
    * ```
    */
   public async upsert(
-    data: Static<TObjectInsert<T>>,
+    data: Infer<TObjectInsert<T>>,
     opts: StatementOptions & {
-      target?: Array<keyof Static<T>>;
-      set?: WithSQL<Static<TObjectUpdate<T>>>;
+      target?: Array<keyof Infer<T>>;
+      set?: WithSQL<Infer<TObjectUpdate<T>>>;
     } = {},
-  ): Promise<Static<T>> {
+  ): Promise<Infer<T>> {
     this.stampOrganization(data);
     await this.alepha.events.emit("repository:create:before", {
       tableName: this.tableName,
@@ -961,7 +961,10 @@ export abstract class Repository<T extends TObject> {
 
     let setData: any;
     if (opts.set) {
-      setData = opts.set;
+      // Copy, never stamp in place: `updatedAt` is injected below, and writing
+      // it into the caller's `set` object leaves them holding a clause that
+      // gained a column they never wrote. The `else` branch already copies.
+      setData = { ...(opts.set as Record<string, unknown>) };
     } else {
       // Default: update all fields from the insert data except the conflict target and primary key columns
       setData = { ...data };
@@ -1062,21 +1065,25 @@ export abstract class Repository<T extends TObject> {
    */
   public async updateOne(
     where: PgQueryWhereOrSQL<T>,
-    data: WithSQL<Static<TObjectUpdate<T>>>,
+    data: WithSQL<Infer<TObjectUpdate<T>>>,
     opts: StatementOptions = {},
-  ): Promise<Static<T>> {
+  ): Promise<Infer<T>> {
     await this.alepha.events.emit("repository:update:before", {
       tableName: this.tableName,
       where,
       data,
     });
 
-    let row = data as any;
-
     const updatedAtField = getAttrFields(
       this.entity.schema,
       PG_UPDATED_AT,
     )?.[0];
+
+    // Shallow-copy before stamping, same as `updateMany`: writing `updatedAt`
+    // into the caller's object hands back a patch carrying a column it never
+    // declared — which bites when the patch is a shared constant, is reused
+    // across calls, or is validated/audited by the caller afterwards.
+    let row: any = { ...(data as Record<string, unknown>) };
 
     if (updatedAtField) {
       row[updatedAtField.key] =
@@ -1142,7 +1149,7 @@ export abstract class Repository<T extends TObject> {
    * @see {@link DbVersionMismatchError}
    */
   public async save(
-    entity: Static<T>,
+    entity: Infer<T>,
     opts: StatementOptions = {},
   ): Promise<void> {
     const row = entity as any;
@@ -1155,7 +1162,7 @@ export abstract class Repository<T extends TObject> {
     }
 
     // in save mode, we do not ignore undefined values, but set them to null
-    for (const key of Object.keys(this.entity.schema.properties)) {
+    for (const key of Object.keys(z.schema.shape(this.entity.schema))) {
       if (row[key] === undefined) {
         row[key] = null;
       }
@@ -1183,7 +1190,7 @@ export abstract class Repository<T extends TObject> {
 
     try {
       const newValue = await this.updateOne(where, row, opts);
-      for (const key of Object.keys(this.entity.schema.properties)) {
+      for (const key of Object.keys(z.schema.shape(this.entity.schema))) {
         row[key] = undefined;
       }
       Object.assign(row, newValue);
@@ -1216,9 +1223,9 @@ export abstract class Repository<T extends TObject> {
    */
   public async updateById(
     id: string | number,
-    data: WithSQL<Static<TObjectUpdate<T>>>,
+    data: WithSQL<Infer<TObjectUpdate<T>>>,
     opts: StatementOptions = {},
-  ): Promise<Static<T>> {
+  ): Promise<Infer<T>> {
     return await this.updateOne(this.getWhereId(id), data, opts);
   }
 
@@ -1227,7 +1234,7 @@ export abstract class Repository<T extends TObject> {
    */
   public async updateMany(
     where: PgQueryWhereOrSQL<T>,
-    data: WithSQL<Static<TObjectUpdate<T>>>,
+    data: WithSQL<Infer<TObjectUpdate<T>>>,
     opts: StatementOptions = {},
   ): Promise<Array<number | string>> {
     await this.alepha.events.emit("repository:update:before", {
@@ -1340,7 +1347,7 @@ export abstract class Repository<T extends TObject> {
    * @returns Array containing the deleted entity ID
    */
   public async destroy(
-    entity: Static<T>,
+    entity: Infer<T>,
     opts: StatementOptions = {},
   ): Promise<Array<number | string>> {
     const id = (entity as any)[this.id.key];
@@ -1350,13 +1357,18 @@ export abstract class Repository<T extends TObject> {
 
     const deletedAt = this.deletedAt();
     if (deletedAt && !opts.force) {
-      // Stamping the caller's entity is DELIBERATE, not a stray mutation: it
+      // Stamping the caller's ENTITY is DELIBERATE, not a stray mutation: it
       // keeps the in-memory object consistent with the row, so a later
       // `save(entity, { force: true })` writes the soft-delete back instead of
       // nulling it and resurrecting the row (`save` nulls undefined fields).
       // `testNoUpdateIfAlreadyDeleted` depends on exactly this.
-      opts.now ??= this.dateTimeProvider.nowISOString();
-      (entity as any)[deletedAt.key] = opts.now;
+      //
+      // The caller's OPTIONS object is a different matter — it belongs to them,
+      // and a reused `StatementOptions` that silently acquired a `now` would
+      // pin every later statement to this instant. Resolve into a local copy.
+      const now = opts.now ?? this.dateTimeProvider.nowISOString();
+      (entity as any)[deletedAt.key] = now;
+      return await this.deleteById(id, { ...opts, now });
     }
 
     return await this.deleteById(id, opts);
@@ -1721,11 +1733,11 @@ export abstract class Repository<T extends TObject> {
       }
     }
 
-    let schema: TObject = this.entity.schema;
+    let schema: ZObject = this.entity.schema;
     if (options.columns) {
       schema = schema.pick(
         Object.fromEntries(options.columns.map((c) => [c, true])) as never,
-      ) as TObject;
+      ) as ZObject;
     }
 
     return {
@@ -1769,6 +1781,23 @@ export abstract class Repository<T extends TObject> {
     return undefined;
   }
 
+  /**
+   * Whether this entity fails closed when no tenant resolves.
+   *
+   * The entity's own `strict` wins in both directions when it was set at all;
+   * otherwise the application's {@link tenancyAtom} decides. That third state
+   * is the whole design: framework entities say nothing, so the app — which
+   * is the only place that knows whether it serves one tenant or many —
+   * answers for them.
+   */
+  protected isStrictTenancy(orgField: PgAttrField): boolean {
+    const declared = orgField.data?.strict;
+    if (typeof declared === "boolean") {
+      return declared;
+    }
+    return this.alepha.store.get(tenancyAtom).mode === "multi";
+  }
+
   protected withOrganization(
     where: PgQueryWhereOrSQL<T>,
   ): PgQueryWhereOrSQL<T> {
@@ -1777,7 +1806,7 @@ export abstract class Repository<T extends TObject> {
       return where;
     }
 
-    const strict = orgField.data?.strict === true;
+    const strict = this.isStrictTenancy(orgField);
     const value = this.resolveOrganizationValue();
     if (!value) {
       if (strict) {
@@ -1826,7 +1855,7 @@ export abstract class Repository<T extends TObject> {
       return;
     }
 
-    if (orgField.data?.strict === true) {
+    if (this.isStrictTenancy(orgField)) {
       // Fail closed: an unscoped insert would create a NULL/global row on a
       // sensitive table. Require an explicit organization or a resolved tenant.
       throw new AlephaError(
@@ -1872,7 +1901,7 @@ export abstract class Repository<T extends TObject> {
   ): PgInsertValue<PgTableWithColumns<SchemaToTableConfig<T>>> {
     const schema = insert
       ? this.entity.insertSchema // insert
-      : (this.entity.updateSchema.partial() as TObject); // update
+      : (this.entity.updateSchema.partial() as ZObject); // update
 
     // Extract raw SQL expressions before codec validation — the schema
     // would reject them since they aren't plain values of the declared type
@@ -1915,12 +1944,12 @@ export abstract class Repository<T extends TObject> {
   /**
    * Transform a row from the database into a clean entity.
    */
-  protected clean<T extends TObject>(
+  protected clean<T extends ZObject>(
     row: Record<string, unknown>,
     schema: T,
-  ): Static<T> {
-    for (const key of Object.keys(schema.properties)) {
-      const prop = schema.properties[key];
+  ): Infer<T> {
+    for (const key of Object.keys(z.schema.shape(schema))) {
+      const prop = z.schema.shape(schema)[key];
       // Unwrap optional/nullable so format detection works on the base type.
       const value = z.schema.unwrap(prop);
 
@@ -1957,7 +1986,7 @@ export abstract class Repository<T extends TObject> {
       }
     }
 
-    return this.alepha.codec.decode(schema, row) as Static<T>;
+    return this.alepha.codec.decode(schema, row) as Infer<T>;
   }
 
   // -------------------------------------------------------------------------------------------------------------------
@@ -1966,12 +1995,12 @@ export abstract class Repository<T extends TObject> {
   /**
    * Clean a row with joins recursively
    */
-  protected cleanWithJoins<T extends TObject>(
+  protected cleanWithJoins<T extends ZObject>(
     row: Record<string, unknown>,
     schema: T,
     joins: PgJoin[],
     parentPath?: string,
-  ): Static<T> {
+  ): Infer<T> {
     // Get joins at this level
     const joinsAtThisLevel = joins.filter((j) => j.parent === parentPath);
 
@@ -2017,14 +2046,33 @@ export abstract class Repository<T extends TObject> {
       }
     }
 
-    return entity as Static<T>;
+    return entity as Infer<T>;
   }
 
   /**
-   * Build a cache key from method name and query parameters.
+   * Build a cache key from the method name, the caller's query, AND the
+   * predicate this repository adds on top of it.
+   *
+   * The scope suffix is what makes `opts.cache` safe. Keyed on the caller's
+   * query alone, two tenants issuing the identical `findMany` shared one entry
+   * and whichever arrived first filled it for everyone — a cross-tenant read
+   * caused by nothing but switching on a performance flag. The same omission
+   * let a `force: true` read (which deliberately includes soft-deleted rows)
+   * poison the entry a normal read then consumed.
+   *
+   * `readWhere()` is exactly the org + soft-delete envelope applied to the
+   * statement, so folding it in keeps one cache entry per (query, tenant,
+   * visibility) triple. It also throws on strict tenancy with no tenant
+   * resolved, which is the correct answer on a cached read too — the entry
+   * must not be reachable without a tenant when the query itself would not be.
    */
-  protected buildCacheKey(method: string, query: any): string {
-    return `${method}:${JSON.stringify(query)}`;
+  protected buildCacheKey(
+    method: string,
+    query: any,
+    opts: StatementOptions = {},
+  ): string {
+    const scope = JSON.stringify(this.readWhere(query?.where ?? {}, opts));
+    return `${method}:${JSON.stringify(query)}:${scope}`;
   }
 
   /**
@@ -2061,7 +2109,7 @@ export abstract class Repository<T extends TObject> {
   /**
    * Find a primary key in the schema.
    */
-  protected getPrimaryKey(schema: TObject) {
+  protected getPrimaryKey(schema: ZObject) {
     const primaryKeys = getAttrFields(schema, PG_PRIMARY_KEY);
     if (primaryKeys.length === 0) {
       // Surface the table name and tell the dev exactly what to add.

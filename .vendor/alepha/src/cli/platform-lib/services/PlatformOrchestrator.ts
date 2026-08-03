@@ -4,13 +4,13 @@ import type { RunnerMethod } from "alepha/command";
 import { $logger, ConsoleColorProvider } from "alepha/logger";
 import { BayAdapter } from "../adapters/BayAdapter.ts";
 import { CloudflareAdapter } from "../adapters/CloudflareAdapter.ts";
+import { LoreAdapter } from "../adapters/LoreAdapter.ts";
 import type {
   DetectedResources,
   PlatformAdapter,
   PlatformContext,
   PlatformState,
 } from "../adapters/PlatformAdapter.ts";
-import { VercelAdapter } from "../adapters/VercelAdapter.ts";
 import {
   type NamingContext,
   NamingService,
@@ -35,7 +35,7 @@ export class PlatformOrchestrator {
   protected readonly naming = $inject(NamingService);
   protected readonly bayAdapter = $inject(BayAdapter);
   protected readonly cloudflareAdapter = $inject(CloudflareAdapter);
-  protected readonly vercelAdapter = $inject(VercelAdapter);
+  protected readonly loreAdapter = $inject(LoreAdapter);
   protected readonly alepha = $inject(Alepha);
 
   // -------------------------------------------------------------------------
@@ -46,10 +46,10 @@ export class PlatformOrchestrator {
     switch (adapterName) {
       case "cloudflare":
         return this.cloudflareAdapter;
-      case "vercel":
-        return this.vercelAdapter;
       case "bay":
         return this.bayAdapter;
+      case "lore":
+        return this.loreAdapter;
       default:
         throw new AlephaError(`Unknown adapter: "${adapterName}"`);
     }

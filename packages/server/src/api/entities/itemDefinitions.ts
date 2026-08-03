@@ -1,5 +1,5 @@
 import { HERO_CLASSES } from "@lindocara/engine/hero.js";
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { $entity, db, sql } from "alepha/orm";
 
 /**
@@ -54,4 +54,4 @@ export const itemDefinitions = $entity({
   ],
 });
 
-export type ItemDefinition = Static<typeof itemDefinitions.schema>;
+export type ItemDefinition = Infer<typeof itemDefinitions.schema>;

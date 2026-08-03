@@ -1,4 +1,4 @@
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { $entity, db } from "alepha/orm";
 import { maps } from "./maps.ts";
 
@@ -37,4 +37,4 @@ export const mapElements = $entity({
   ],
 });
 
-export type MapElement = Static<typeof mapElements.schema>;
+export type MapElement = Infer<typeof mapElements.schema>;

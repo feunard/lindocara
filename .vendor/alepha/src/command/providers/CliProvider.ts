@@ -5,17 +5,16 @@ import {
   $env,
   $hook,
   $inject,
-  $state,
+  $store,
   Alepha,
+  type Infer,
   SchemaValidationError,
-  type Static,
-  type TObject,
-  type TSchema,
-  type TUnion,
+  type ZObject,
+  type ZType,
   z,
 } from "alepha";
 import { $logger, ConsoleColorProvider } from "alepha/logger";
-import { CommandError } from "../errors/CommandError.ts";
+import { UsageError } from "../errors/UsageError.ts";
 import { Asker } from "../helpers/Asker.ts";
 import { EnvUtils } from "../helpers/EnvUtils.ts";
 import { Runner } from "../helpers/Runner.ts";
@@ -39,7 +38,7 @@ const envSchema = z.object({
 });
 
 declare module "alepha" {
-  interface Env extends Partial<Static<typeof envSchema>> {}
+  interface Env extends Partial<Infer<typeof envSchema>> {}
 }
 
 /**
@@ -62,7 +61,7 @@ export const cliOptions = $atom({
   serverOnly: true,
 });
 
-export type CliProviderOptions = Static<typeof cliOptions.schema>;
+export type CliProviderOptions = Infer<typeof cliOptions.schema>;
 
 declare module "alepha" {
   interface State {
@@ -110,7 +109,7 @@ export class CliProvider {
   protected readonly runner = $inject(Runner);
   protected readonly asker = $inject(Asker);
   protected readonly envUtils = $inject(EnvUtils);
-  protected readonly options = $state(cliOptions);
+  protected readonly options = $store(cliOptions);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Configuration
@@ -167,63 +166,108 @@ export class CliProvider {
       const { command, consumedArgs, positionalArgs } =
         this.resolveCommandFromArgv(argv);
 
-      const globalFlags = this.parseFlags(
-        argv,
-        Object.entries(this.getAllGlobalFlags()).map(([key, value]) => ({
-          key,
-          ...value,
-        })),
-        { strict: false }, // Don't throw for command-specific flags
-      );
-
-      // `--verbose` → raise the logger to trace + pretty format via state
-      // (read live by Logger). At DEBUG level Runner also switches shelled
-      // task output from captured to streamed, so tool output shows live.
-      //
-      // An agent session (Claude Code sets CLAUDECODE) implies verbose: the
-      // compact `cli` format is tuned for a human watching a terminal, but an
-      // agent benefits from the full module/context and internal logs — same
-      // as if `--verbose` were passed.
-      const verbose = globalFlags.verbose || !!this.alepha.env.CLAUDECODE;
-      if (verbose) {
-        this.alepha.store.set("alepha.logger.level", "trace");
-        this.alepha.store.set("alepha.logger.format", "pretty");
-      }
-
-      if (globalFlags.help) {
-        this.printHelp(command);
-        return;
-      }
-
-      if (!command) {
-        // Check if there's a root command (name === "")
-        const rootCommand = this.findCommand("");
-
-        // If we have positional args but no matching command, show error
-        const commandName = positionalArgs[0] ?? "";
-        if (commandName !== "" && !rootCommand?.options.args) {
-          this.log.error(`Unknown command: '${commandName}'`);
-          this.printHelp();
-          return;
+      try {
+        return await this.dispatch(argv, command, consumedArgs, positionalArgs);
+      } catch (error) {
+        // Nothing has run yet — the argv itself was rejected. Render it the way
+        // an unknown command is rendered, not as a crash.
+        if (error instanceof UsageError) {
+          return this.reportUsage(error.message, command);
         }
-
-        // Execute root command if it exists
-        if (rootCommand) {
-          await this.executeCommand(rootCommand, argv, true);
-          return;
-        }
-
-        // No command found and no root command
-        return;
+        throw error;
       }
-
-      // Remove consumed command path args from argv for argument parsing
-      const remainingArgv = this.removeConsumedArgs(argv, consumedArgs);
-
-      // Since we've removed the command path, treat it like a root command for parsing
-      await this.executeCommand(command, remainingArgv, true);
     },
   });
+
+  /**
+   * Resolve what the argv asks for and run it.
+   *
+   * Split out of the `ready` hook so the hook has one job: turn a
+   * {@link UsageError} into a usage message. Every throw below is either a
+   * `UsageError` (the user's argv is wrong) or a genuine failure that should
+   * keep its stack.
+   */
+  protected async dispatch(
+    argv: string[],
+    command: CommandPrimitive<ZObject> | undefined,
+    consumedArgs: string[],
+    positionalArgs: string[],
+  ): Promise<void> {
+    const globalFlags = this.parseFlags(
+      argv,
+      Object.entries(this.getAllGlobalFlags()).map(([key, value]) => ({
+        key,
+        ...value,
+      })),
+      { strict: false }, // Don't throw for command-specific flags
+    );
+
+    // `--verbose` → raise the logger to trace + pretty format via state
+    // (read live by Logger). At DEBUG level Runner also switches shelled
+    // task output from captured to streamed, so tool output shows live.
+    //
+    // An agent session (Claude Code sets CLAUDECODE) implies verbose: the
+    // compact `cli` format is tuned for a human watching a terminal, but an
+    // agent benefits from the full module/context and internal logs — same
+    // as if `--verbose` were passed.
+    const verbose = globalFlags.verbose || !!this.alepha.env.CLAUDECODE;
+    if (verbose) {
+      this.alepha.store.set("alepha.logger.level", "trace");
+      this.alepha.store.set("alepha.logger.format", "pretty");
+    }
+
+    if (globalFlags.help) {
+      this.printHelp(command);
+      return;
+    }
+
+    if (!command) {
+      // Check if there's a root command (name === "")
+      const rootCommand = this.findCommand("");
+
+      // If we have positional args but no matching command, show error
+      const commandName = positionalArgs[0] ?? "";
+      if (commandName !== "" && !rootCommand?.options.args) {
+        return this.reportUsage(`Unknown command: '${commandName}'`);
+      }
+
+      // Execute root command if it exists
+      if (rootCommand) {
+        await this.executeCommand(rootCommand, argv, true);
+        return;
+      }
+
+      // No command found and no root command
+      return;
+    }
+
+    // Remove consumed command path args from argv for argument parsing
+    const remainingArgv = this.removeConsumedArgs(argv, consumedArgs);
+
+    // Since we've removed the command path, treat it like a root command for parsing
+    await this.executeCommand(command, remainingArgv, true);
+  }
+
+  /**
+   * Print a usage failure the way a CLI should: the reason, then the help for
+   * whatever context we managed to resolve, then a non-zero exit code.
+   *
+   * A typo must not report success. Exit code rather than a throw: throwing
+   * surfaces as "Alepha failed to start" plus a stack through `CliProvider`
+   * internals, which reads as a crash when the right answer is a usage
+   * message. The `process` guard mirrors core/index.ts — there is no process
+   * in workerd or the browser.
+   */
+  protected reportUsage(
+    message: string,
+    command?: CommandPrimitive<ZObject>,
+  ): void {
+    this.log.error(message);
+    this.printHelp(command);
+    if (typeof process === "object") {
+      process.exitCode = 1;
+    }
+  }
 
   /**
    * Execute a command with full lifecycle support.
@@ -237,7 +281,7 @@ export class CliProvider {
    * @see run() for a lightweight test-only alternative
    */
   protected async executeCommand(
-    command: CommandPrimitive<TObject>,
+    command: CommandPrimitive<ZObject>,
     argv: string[],
     isRootCommand: boolean,
   ): Promise<void> {
@@ -294,17 +338,17 @@ export class CliProvider {
       const preHooks = this.findPreHooks(command.name);
       for (const hook of preHooks) {
         this.log.debug(`Executing pre-hook for '${command.name}'...`);
-        await hook.options.handler(args as CommandHandlerArgs<TObject>);
+        await hook.options.handler(args as CommandHandlerArgs<ZObject>);
       }
 
       // Execute main command
-      await command.options.handler(args as CommandHandlerArgs<TObject>);
+      await command.options.handler(args as CommandHandlerArgs<ZObject>);
 
       // Execute post-hooks
       const postHooks = this.findPostHooks(command.name);
       for (const hook of postHooks) {
         this.log.debug(`Executing post-hook for '${command.name}'...`);
-        await hook.options.handler(args as CommandHandlerArgs<TObject>);
+        await hook.options.handler(args as CommandHandlerArgs<ZObject>);
       }
 
       runner.end();
@@ -374,7 +418,7 @@ export class CliProvider {
    * argument here — which is the behaviour a user expects from a CLI.
    */
   protected resolveCommandFromArgv(argv: string[]): {
-    command: CommandPrimitive<TObject> | undefined;
+    command: CommandPrimitive<ZObject> | undefined;
     consumedArgs: string[];
     positionalArgs: string[];
   } {
@@ -385,7 +429,7 @@ export class CliProvider {
         schema: value.schema,
       })),
       ...this.commands.flatMap((command) => {
-        const flags = (command.options as { flags?: TObject }).flags;
+        const flags = (command.options as { flags?: ZObject }).flags;
         return flags ? this.extractFlagDefs(flags) : [];
       }),
     ];
@@ -400,7 +444,7 @@ export class CliProvider {
   }
 
   protected resolveCommand(positionalArgs: string[]): {
-    command: CommandPrimitive<TObject> | undefined;
+    command: CommandPrimitive<ZObject> | undefined;
     consumedArgs: string[];
   } {
     if (positionalArgs.length === 0) {
@@ -485,7 +529,7 @@ export class CliProvider {
    * await cli.run(cmd.init, { argv: "--agent", root: "/project" });
    * ```
    */
-  public async run<T extends TObject, A extends TSchema>(
+  public async run<T extends ZObject, A extends ZType>(
     command: CommandPrimitive<T, A>,
     options:
       | string
@@ -542,7 +586,7 @@ export class CliProvider {
   /**
    * Find a command by name or alias
    */
-  protected findCommand(name: string): CommandPrimitive<TObject> | undefined {
+  protected findCommand(name: string): CommandPrimitive<ZObject> | undefined {
     return this.commands.findLast(
       (command) => command.name === name || command.aliases.includes(name),
     );
@@ -553,7 +597,7 @@ export class CliProvider {
    */
   protected findTopLevelCommand(
     name: string,
-  ): CommandPrimitive<TObject> | undefined {
+  ): CommandPrimitive<ZObject> | undefined {
     return this.getTopLevelCommands().findLast(
       (command) => command.name === name || command.aliases.includes(name),
     );
@@ -562,14 +606,14 @@ export class CliProvider {
   /**
    * Find all pre-hooks for a command (commands named `pre{commandName}`)
    */
-  protected findPreHooks(commandName: string): CommandPrimitive<TObject>[] {
+  protected findPreHooks(commandName: string): CommandPrimitive<ZObject>[] {
     return this.commands.filter((cmd) => cmd.name === `pre${commandName}`);
   }
 
   /**
    * Find all post-hooks for a command (commands named `post{commandName}`)
    */
-  protected findPostHooks(commandName: string): CommandPrimitive<TObject>[] {
+  protected findPostHooks(commandName: string): CommandPrimitive<ZObject>[] {
     return this.commands.filter((cmd) => cmd.name === `post${commandName}`);
   }
 
@@ -578,7 +622,7 @@ export class CliProvider {
    */
   protected getAllGlobalFlags(): Record<
     string,
-    { aliases: string[]; description?: string; schema: TSchema }
+    { aliases: string[]; description?: string; schema: ZType }
   > {
     return { ...this.globalFlags };
   }
@@ -590,7 +634,7 @@ export class CliProvider {
    * as direct properties (typebox), and they sit on the INNER schema — so any
    * optional / nullable / default wrappers are peeled first.
    */
-  protected schemaMeta(schema: TSchema | undefined): Record<string, any> {
+  protected schemaMeta(schema: ZType | undefined): Record<string, any> {
     if (!schema) return {};
     const base = z.schema.unwrap(schema) as any;
     return (typeof base?.meta === "function" ? base.meta() : undefined) ?? {};
@@ -601,20 +645,20 @@ export class CliProvider {
    * object schema. Centralises the metadata reading so every call-site (parsing,
    * arg-splitting, help) extracts aliases/descriptions the same way.
    */
-  protected extractFlagDefs(schema: TObject): Array<{
+  protected extractFlagDefs(schema: ZObject): Array<{
     key: string;
     aliases: string[];
     description?: string;
-    schema: TSchema;
+    schema: ZType;
   }> {
-    return Object.entries(schema.properties).map(([key, value]) => {
-      const meta = this.schemaMeta(value as TSchema);
+    return Object.entries(z.schema.shape(schema)).map(([key, value]) => {
+      const meta = this.schemaMeta(value as ZType);
       const extra: string[] = meta.aliases ?? (meta.alias ? [meta.alias] : []);
       return {
         key,
         aliases: [key, ...extra],
         description: meta.description,
-        schema: value as TSchema,
+        schema: value as ZType,
       };
     });
   }
@@ -628,7 +672,7 @@ export class CliProvider {
    */
   protected parseCommandFlags(
     argv: string[],
-    schema: TObject,
+    schema: ZObject,
     options: { modeEnabled?: boolean } = {},
   ): Record<string, any> {
     const { modeEnabled = false } = options;
@@ -668,9 +712,7 @@ export class CliProvider {
     }
 
     // apply manually defaults for optional properties that have defaults
-    for (const [key, value] of Object.entries(
-      schema.properties as Record<string, TSchema>,
-    )) {
+    for (const [key, value] of Object.entries(z.schema.shape(schema))) {
       if (!(key in parsed)) {
         const def = z.schema.getDefault(value);
         if (def !== undefined) {
@@ -683,7 +725,7 @@ export class CliProvider {
       return this.alepha.codec.decode(schema, parsed);
     } catch (error) {
       if (error instanceof SchemaValidationError) {
-        throw new CommandError(
+        throw new UsageError(
           `Invalid flag: ${error.cause.instancePath || "command"} ${error.cause.message}`,
         );
       }
@@ -695,15 +737,13 @@ export class CliProvider {
    * Parse and validate environment variables using the command's env schema
    */
   protected parseCommandEnv(
-    schema: TObject,
+    schema: ZObject,
     commandName: string,
   ): Record<string, any> {
     const result: Record<string, any> = {};
     const missing: string[] = [];
 
-    for (const [key, propSchema] of Object.entries(
-      schema.properties as Record<string, TSchema>,
-    )) {
+    for (const [key, propSchema] of Object.entries(z.schema.shape(schema))) {
       const value = process.env[key];
 
       if (value !== undefined) {
@@ -722,7 +762,7 @@ export class CliProvider {
 
     if (missing.length > 0) {
       const vars = missing.join(", ");
-      throw new CommandError(
+      throw new UsageError(
         `Missing required environment variable${missing.length > 1 ? "s" : ""}: ${vars}`,
       );
     }
@@ -731,7 +771,7 @@ export class CliProvider {
       return this.alepha.codec.decode(schema, result);
     } catch (error) {
       if (error instanceof SchemaValidationError) {
-        throw new CommandError(
+        throw new UsageError(
           `Invalid environment variable: ${error.cause.instancePath || "env"} ${error.cause.message}`,
         );
       }
@@ -757,7 +797,7 @@ export class CliProvider {
         if (nextArg && !nextArg.startsWith("-")) {
           return nextArg;
         }
-        throw new CommandError("Flag --mode requires a value.");
+        throw new UsageError("Flag --mode requires a value.");
       }
     }
 
@@ -784,7 +824,7 @@ export class CliProvider {
    */
   protected parseFlags(
     argv: string[],
-    flagDefs: { key: string; aliases: string[]; schema: TSchema }[],
+    flagDefs: { key: string; aliases: string[]; schema: ZType }[],
     options: { strict?: boolean } = {},
   ): Record<string, any> {
     const { strict = true } = options;
@@ -800,7 +840,7 @@ export class CliProvider {
       const def = flagDefs.find((d) => d.aliases.includes(rawKey));
       if (!def) {
         if (strict) {
-          throw new CommandError(`Unknown flag: --${rawKey}`);
+          throw new UsageError(`Unknown flag: --${rawKey}`);
         }
         continue;
       }
@@ -812,7 +852,7 @@ export class CliProvider {
       // Check if schema is a union containing boolean (allows flag without value)
       const isUnionWithBoolean =
         z.schema.isUnion(base) &&
-        (base as TUnion).anyOf.some((s) => z.schema.isBoolean(s));
+        z.schema.options(base).some((s) => z.schema.isBoolean(s));
 
       if (z.schema.isBoolean(base)) {
         result[def.key] = true;
@@ -836,7 +876,7 @@ export class CliProvider {
         if (nextArg && !nextArg.startsWith("-")) {
           result[def.key] = this.castFlagValue(nextArg, base, rawKey);
         } else {
-          throw new CommandError(`Flag --${rawKey} requires a value.`);
+          throw new UsageError(`Flag --${rawKey} requires a value.`);
         }
       }
     }
@@ -852,7 +892,7 @@ export class CliProvider {
    * args); object / array / record values are JSON-parsed. `schema` is expected
    * to already be unwrapped of optional/nullable/default.
    */
-  protected castFlagValue(value: string, schema: TSchema, rawKey: string): any {
+  protected castFlagValue(value: string, schema: ZType, rawKey: string): any {
     if (
       z.schema.isObject(schema) ||
       z.schema.isArray(schema) ||
@@ -861,7 +901,7 @@ export class CliProvider {
       try {
         return JSON.parse(value);
       } catch {
-        throw new CommandError(`Invalid JSON value for flag --${rawKey}`);
+        throw new UsageError(`Invalid JSON value for flag --${rawKey}`);
       }
     }
     return this.parseArgumentValue(value, schema);
@@ -872,7 +912,7 @@ export class CliProvider {
    */
   protected getFlagConsumedIndices(
     argv: string[],
-    flagDefs: { key: string; aliases: string[]; schema: TSchema }[],
+    flagDefs: { key: string; aliases: string[]; schema: ZType }[],
   ): Set<number> {
     const consumed = new Set<number>();
 
@@ -894,7 +934,7 @@ export class CliProvider {
       // Check if schema is a union containing boolean
       const isUnionWithBoolean =
         z.schema.isUnion(base) &&
-        (base as TUnion).anyOf.some((s) => z.schema.isBoolean(s));
+        z.schema.options(base).some((s) => z.schema.isBoolean(s));
 
       // If not a boolean flag and no = value, the next arg is consumed as the value
       // Exception: union with boolean can work without a value
@@ -917,9 +957,9 @@ export class CliProvider {
 
   protected parseCommandArgs(
     argv: string[],
-    schema?: TSchema,
+    schema?: ZType,
     isRootCommand = false,
-    flagSchema?: TObject,
+    flagSchema?: ZObject,
   ): any {
     if (!schema) {
       return undefined;
@@ -943,10 +983,10 @@ export class CliProvider {
           return undefined;
         }
         return this.parseArgumentValue(argsOnly[0], schema);
-      } else if (z.schema.isTuple(schema) && schema.items) {
+      } else if (z.schema.items(schema).length > 0) {
         // Handle tuple args: z.tuple([z.text(), z.number()])
         const result: any[] = [];
-        const items = schema.items;
+        const items = z.schema.items(schema);
         for (let i = 0; i < items.length; i++) {
           const itemSchema = items[i];
           if (i < argsOnly.length) {
@@ -954,7 +994,7 @@ export class CliProvider {
           } else if (z.schema.isOptional(itemSchema)) {
             result.push(undefined);
           } else {
-            throw new CommandError(
+            throw new UsageError(
               `Missing required argument at position ${i + 1}`,
             );
           }
@@ -963,13 +1003,13 @@ export class CliProvider {
       } else {
         // Handle single arg: z.text(), z.number(), etc.
         if (argsOnly.length === 0) {
-          throw new CommandError("Missing required argument");
+          throw new UsageError("Missing required argument");
         }
         return this.parseArgumentValue(argsOnly[0], schema);
       }
     } catch (error) {
       if (error instanceof SchemaValidationError) {
-        throw new CommandError(`Invalid argument: ${error.value.message}`);
+        throw new UsageError(`Invalid argument: ${error.value.message}`);
       }
       throw error;
     }
@@ -978,7 +1018,7 @@ export class CliProvider {
   /**
    * Convert a string argument value to the appropriate type based on schema
    */
-  protected parseArgumentValue(value: string, schema: TSchema): any {
+  protected parseArgumentValue(value: string, schema: ZType): any {
     if (z.schema.isString(schema)) {
       return value;
     }
@@ -986,10 +1026,10 @@ export class CliProvider {
     if (z.schema.isNumber(schema) || z.schema.isInteger(schema)) {
       const num = Number(value);
       if (Number.isNaN(num)) {
-        throw new CommandError(`Expected number, got "${value}"`);
+        throw new UsageError(`Expected number, got "${value}"`);
       }
       if (z.schema.isInteger(schema) && !Number.isInteger(num)) {
-        throw new CommandError(`Expected integer, got "${value}"`);
+        throw new UsageError(`Expected integer, got "${value}"`);
       }
       return num;
     }
@@ -998,7 +1038,7 @@ export class CliProvider {
       const lower = value.toLowerCase();
       if (lower === "true" || lower === "1") return true;
       if (lower === "false" || lower === "0") return false;
-      throw new CommandError(`Expected boolean, got "${value}"`);
+      throw new UsageError(`Expected boolean, got "${value}"`);
     }
 
     // For other types, return the string value and let Zod validate it
@@ -1012,7 +1052,7 @@ export class CliProvider {
   /**
    * Generate usage string for command arguments (e.g., "<path>" or "[path]")
    */
-  protected generateArgsUsage(schema?: TSchema): string {
+  protected generateArgsUsage(schema?: ZType): string {
     if (!schema) {
       return "";
     }
@@ -1023,8 +1063,8 @@ export class CliProvider {
       return ` [${key}${typeName}]`;
     }
 
-    if (z.schema.isTuple(schema) && schema.items) {
-      const items = schema.items;
+    if (z.schema.items(schema).length > 0) {
+      const items = z.schema.items(schema);
       const args = items.map((item, index) => {
         const argName = `arg${index + 1}`;
         const typeName = this.getTypeName(item);
@@ -1044,7 +1084,7 @@ export class CliProvider {
   /**
    * Get display type name for a schema (e.g., ": number", ": boolean")
    */
-  protected getTypeName(schema: TSchema): string {
+  protected getTypeName(schema: ZType): string {
     if (!schema) return "";
 
     // Peel optional/nullable/default before inspecting the scalar type.
@@ -1139,7 +1179,7 @@ export class CliProvider {
                     typeof command.options.mode === "string"
                       ? `Environment mode - loads .env.{mode} (default: ${command.options.mode})`
                       : "Environment mode (e.g., production, staging) - loads .env.{mode}",
-                  schema: z.string() as TSchema,
+                  schema: z.string() as ZType,
                 },
               ]
             : []),
@@ -1152,8 +1192,7 @@ export class CliProvider {
         const maxFlagLength = this.getMaxFlagLength(flags);
         for (const flag of flags) {
           const { aliases, description } = flag;
-          const schema =
-            "schema" in flag ? (flag.schema as TSchema) : undefined;
+          const schema = "schema" in flag ? (flag.schema as ZType) : undefined;
           // Sort aliases by length (shorter first: -t before --target)
           const sortedAliases = (Array.isArray(aliases) ? aliases : [aliases])
             .slice()
@@ -1170,18 +1209,18 @@ export class CliProvider {
         }
 
         // Show environment variables if defined
-        const envVars = Object.entries(command.env.properties);
+        const envVars = Object.entries(z.schema.shape(command.env));
         if (envVars.length > 0) {
           this.log.info("");
           this.log.info(c.set("WHITE_BOLD", "Env:"));
           const maxEnvLength = Math.max(...envVars.map(([key]) => key.length));
           for (const [key, schema] of envVars) {
-            const isOptional = z.schema.isOptional(schema as TSchema);
+            const isOptional = z.schema.isOptional(schema as ZType);
             // Wrapped schemas (`.optional()`) keep the description in the
             // INNER schema's `.meta()` registry, so reading `.description`
             // off the wrapper rendered an empty Env: section.
             const description =
-              this.schemaMeta(schema as TSchema).description ?? "";
+              this.schemaMeta(schema as ZType).description ?? "";
             const optionalStr = isOptional
               ? c.set("GREY_DARK", " (optional)")
               : c.set("RED", " (required)");
@@ -1259,7 +1298,7 @@ export class CliProvider {
   /**
    * Generate colored usage string for command arguments (for help display)
    */
-  protected generateColoredArgsUsage(schema?: TSchema): string {
+  protected generateColoredArgsUsage(schema?: ZType): string {
     if (!schema) {
       return "";
     }
@@ -1272,8 +1311,8 @@ export class CliProvider {
       return ` ${c.set("GREY_DARK", `[${key}${typeName}]`)}`;
     }
 
-    if (z.schema.isTuple(schema) && schema.items) {
-      const items = schema.items;
+    if (z.schema.items(schema).length > 0) {
+      const items = z.schema.items(schema);
       const args = items.map((item, index) => {
         const argName = `arg${index + 1}`;
         const typeName = this.getTypeName(item);
@@ -1323,7 +1362,15 @@ export class CliProvider {
   }
 
   /**
-   * Get top-level commands (commands that are not children of other commands)
+   * Get top-level commands (commands that are not children of other commands).
+   *
+   * Deduplicated by name, keeping the LAST registration. A project that
+   * redefines a builtin in its `alepha.config.ts` — `clean` and `verify` in
+   * this repo — otherwise appeared twice in `--help`, with two contradictory
+   * descriptions, while only one of them could ever run. Last-wins is not a
+   * choice made here: it is what {@link findCommand} already does with
+   * `findLast`, so this makes the help agree with the resolution instead of
+   * inventing a second rule.
    */
   protected getTopLevelCommands(): CommandPrimitive<any>[] {
     const allChildren = new Set<CommandPrimitive<any>>();
@@ -1335,8 +1382,15 @@ export class CliProvider {
       }
     }
 
-    // Return commands that are not children
-    return this.commands.filter((cmd) => !allChildren.has(cmd));
+    const topLevel = this.commands.filter((cmd) => !allChildren.has(cmd));
+
+    // Keep insertion order, but let a later same-named command take the
+    // earlier one's slot rather than adding a row.
+    const byName = new Map<string, CommandPrimitive<any>>();
+    for (const cmd of topLevel) {
+      byName.set(cmd.name, cmd);
+    }
+    return [...byName.values()];
   }
 
   /**
@@ -1390,7 +1444,7 @@ export class CliProvider {
    * Extract enum values from a schema if it represents an enum.
    * Returns undefined if the schema is not an enum.
    */
-  protected getEnumValues(schema: TSchema): string[] | undefined {
+  protected getEnumValues(schema: ZType): string[] | undefined {
     if (!schema) return undefined;
 
     const base = z.schema.unwrap(schema);
@@ -1405,7 +1459,7 @@ export class CliProvider {
 
     // A union of string literals (alternative enum representation).
     if (z.schema.isUnion(base)) {
-      const variants = (base as any).anyOf ?? [];
+      const variants = z.schema.options(base);
       const values: string[] = [];
 
       for (const variant of variants) {
@@ -1429,7 +1483,7 @@ export class CliProvider {
    */
   protected formatFlagDescription(
     description: string | undefined,
-    schema: TSchema | undefined,
+    schema: ZType | undefined,
   ): string {
     const baseDesc = description ?? "";
 

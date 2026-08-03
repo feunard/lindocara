@@ -3,11 +3,11 @@ import {
   $atom,
   $hook,
   $inject,
-  $state,
+  $store,
   Alepha,
   type FileLike,
+  type Infer,
   isTypeFile,
-  type Static,
   z,
 } from "alepha";
 import { $logger } from "alepha/logger";
@@ -45,7 +45,7 @@ export const multipartOptions = $atom({
   serverOnly: true,
 });
 
-export type MultipartOptions = Static<typeof multipartOptions.schema>;
+export type MultipartOptions = Infer<typeof multipartOptions.schema>;
 
 declare module "alepha" {
   interface State {
@@ -77,7 +77,7 @@ declare module "alepha" {
 export class ServerMultipartProvider {
   protected readonly alepha = $inject(Alepha);
   protected readonly log = $logger();
-  protected readonly options = $state(multipartOptions);
+  protected readonly options = $store(multipartOptions);
 
   public readonly onRequest = $hook({
     on: "server:onRequest",
@@ -216,7 +216,9 @@ export class ServerMultipartProvider {
     let totalSize = 0;
 
     if (route.schema?.body && z.schema.isObject(route.schema.body)) {
-      for (const [key, value] of Object.entries(route.schema.body.properties)) {
+      for (const [key, value] of Object.entries(
+        z.schema.shape(route.schema.body),
+      )) {
         if (!z.schema.isSchema(value)) {
           continue;
         }

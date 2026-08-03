@@ -1,4 +1,4 @@
-import { $atom, $inject, $state, z } from "alepha";
+import { $atom, $inject, $store, z } from "alepha";
 import { $logger } from "alepha/logger";
 import { $route } from "alepha/server";
 import {
@@ -113,7 +113,7 @@ export const mcpSseOptions = mcpStreamableHttpOptions;
  */
 export class StreamableHttpMcpTransport {
   protected readonly log = $logger();
-  protected readonly options = $state(mcpStreamableHttpOptions);
+  protected readonly options = $store(mcpStreamableHttpOptions);
   protected readonly mcpServer = $inject(McpServerProvider);
 
   /**
@@ -274,10 +274,3 @@ export class StreamableHttpMcpTransport {
     },
   });
 }
-
-/**
- * @deprecated Use {@link StreamableHttpMcpTransport}. The 2024-11-05
- * two-endpoint HTTP+SSE pattern was replaced by Streamable HTTP in spec
- * 2025-03-26. This alias is preserved for one release to ease migration.
- */
-export const SseMcpTransport = StreamableHttpMcpTransport;

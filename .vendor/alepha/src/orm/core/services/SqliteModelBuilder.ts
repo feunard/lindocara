@@ -1,11 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  AlephaError,
-  type Static,
-  type TObject,
-  type TSchema,
-  z,
-} from "alepha";
+import { AlephaError, type Infer, type ZObject, type ZType, z } from "alepha";
 import { type BuildColumns, sql } from "drizzle-orm";
 import * as pg from "drizzle-orm/sqlite-core";
 import {
@@ -24,7 +18,6 @@ import {
   PG_IDENTITY,
   PG_PRIMARY_KEY,
   PG_REF,
-  PG_SERIAL,
   PG_UPDATED_AT,
   type PgGeneratedOptions,
   type PgRefOptions,
@@ -113,13 +106,13 @@ export class SqliteModelBuilder extends ModelBuilder {
 
   // -------------------------------------------------------------------------------------------------------------------
 
-  schemaToSqliteColumns = <T extends TObject>(
+  schemaToSqliteColumns = <T extends ZObject>(
     tableName: string,
     schema: T,
     enums: Map<string, unknown>,
     tables: Map<string, unknown>,
   ): SchemaToSqliteBuilder<T> => {
-    return Object.entries(schema.properties as Record<string, any>).reduce<
+    return Object.entries(z.schema.shape(schema)).reduce<
       Partial<SchemaToSqliteBuilder<T>>
     >((columns, [key, value]) => {
       let col = this.mapFieldToSqliteColumn(tableName, key, value, enums);
@@ -186,7 +179,7 @@ export class SqliteModelBuilder extends ModelBuilder {
     value = z.schema.unwrap(value);
 
     if (z.schema.isInteger(value)) {
-      if (PG_SERIAL in value || PG_IDENTITY in value) {
+      if (PG_IDENTITY in value) {
         return pg
           .integer(key, { mode: "number" })
           .primaryKey({ autoIncrement: true });
@@ -244,28 +237,28 @@ export class SqliteModelBuilder extends ModelBuilder {
     }
 
     if (z.schema.isArray(value)) {
-      if (z.schema.isObject(value.items)) {
+      if (z.schema.isObject(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
-      if (z.schema.isRecord(value.items)) {
+      if (z.schema.isRecord(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
-      if (z.schema.isAny(value.items)) {
+      if (z.schema.isAny(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
-      if (z.schema.isString(value.items)) {
+      if (z.schema.isString(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
-      if (z.schema.isInteger(value.items)) {
+      if (z.schema.isInteger(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
-      if (z.schema.isNumber(value.items)) {
+      if (z.schema.isNumber(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
-      if (z.schema.isBoolean(value.items)) {
+      if (z.schema.isBoolean(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
-      if (z.schema.isEnum(value.items)) {
+      if (z.schema.isEnum(z.schema.element(value))) {
         return this.sqliteJson(key, value);
       }
     }
@@ -316,10 +309,10 @@ export class SqliteModelBuilder extends ModelBuilder {
     return pg.text(key);
   };
 
-  sqliteJson = <TDocument extends TSchema>(name: string, document: TDocument) =>
+  sqliteJson = <TDocument extends ZType>(name: string, document: TDocument) =>
     pg
       .customType<{
-        data: Static<TDocument>;
+        data: Infer<TDocument>;
         driverData: string;
         config: { document: TDocument };
         configRequired: true;
@@ -330,7 +323,7 @@ export class SqliteModelBuilder extends ModelBuilder {
           return value && typeof value === "string" ? JSON.parse(value) : value;
         },
       })(name, { document })
-      .$type<Static<TDocument>>();
+      .$type<Infer<TDocument>>();
 
   sqliteDateTime = pg.customType<{
     data: string;
@@ -367,6 +360,6 @@ export class SqliteModelBuilder extends ModelBuilder {
   });
 }
 
-export type SchemaToSqliteBuilder<T extends TObject> = {
-  [key in keyof T["properties"]]: SQLiteColumnBuilder;
+export type SchemaToSqliteBuilder<T extends ZObject> = {
+  [key in keyof T["shape"]]: SQLiteColumnBuilder;
 };

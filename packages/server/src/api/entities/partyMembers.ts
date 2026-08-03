@@ -1,5 +1,5 @@
 import { PARTY_COLORS } from "@lindocara/engine/party.js";
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { users } from "alepha/api/users";
 import { $entity, db } from "alepha/orm";
 import { parties } from "./parties.ts";
@@ -29,4 +29,4 @@ export const partyMembers = $entity({
   ],
 });
 
-export type PartyMember = Static<typeof partyMembers.schema>;
+export type PartyMember = Infer<typeof partyMembers.schema>;

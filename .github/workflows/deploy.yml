@@ -26,16 +26,20 @@ jobs:
       name: production
       url: https://lindocara.bay.alepha.dev
     env:
-      # A key issued from bay-admin, tied to a user with the `admin` role. The
-      # adapter prefers `$BAY_API_KEY` over the stored credential precisely so
-      # CI needs no login and no file — a device flow wants a human, and there
-      # is nobody at the keyboard here.
-      BAY_API_KEY: ${{ secrets.BAY_API_KEY }}
-      # Alepha's SecretProvider requires this in production and throws on the
-      # dev default — that's the guarantee we want. Pushed to the instance's
-      # `.env` by `platform up`, which sends exactly the variables the manifest
-      # allowlists.
-      APP_SECRET: ${{ secrets.APP_SECRET }}
+      # A Lore API key (`alepha/api/keys`), minted under a robot account that is
+      # a member of the Lindocara campaign and nothing else. A key carries its
+      # owner's powers in Lore, so minting it under a human account would hand
+      # this runner everything that human can do.
+      #
+      # A key rather than the device flow because a device flow wants a human,
+      # and there is nobody at the keyboard here.
+      LORE_API_KEY: ${{ secrets.LORE_API_KEY }}
+      #
+      # `APP_SECRET` is deliberately absent. It is a Bay-owned variable
+      # (`bayOwnedKeys` in apps/bay/internal/deploy/deploy.go): Bay generates
+      # and manages it, and the user-owned keys already in the instance's `.env`
+      # survive every redeploy. Passing it from here entertained the illusion
+      # that CI pushes secrets — it never did.
     steps:
       - uses: actions/checkout@v5
 
@@ -48,12 +52,13 @@ jobs:
 
       # `alepha platform up` is the whole pipeline: build (`--target=bare`,
       # because a workerd bundle has no node-runnable entry and Bay refuses
-      # it), pack the artifact with its migrations, upload it to bay-admin, and
-      # push the allowlisted `$env` values.
+      # it), pack the artifact with its migrations, upload it to Lore, register
+      # a release, and then WAIT — the step stays red until the machine reports
+      # the release serving, or reports why it failed.
       #
-      # Bay's own control API is a unix socket and nothing else, so bay-admin
-      # over HTTPS is the only way in from a runner — that indirection is what
-      # makes a CI deploy possible without exposing a root-equivalent port.
+      # Bay's control API is a unix socket and nothing else, and stays that way.
+      # Nothing here reaches the host: the machine hosting this app polls Lore
+      # on its own outbound channel and pulls the artifact when it sees one.
       #
       # Migrations run at app boot, not from here.
       - name: Deploy to Bay

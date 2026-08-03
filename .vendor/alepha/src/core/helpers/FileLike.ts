@@ -1,7 +1,7 @@
 import type { Readable } from "node:stream";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
-import type { TSchema, TUnsafe } from "../providers/TypeProvider.ts";
-import { z } from "../providers/TypeProvider.ts";
+import type { ZType } from "../providers/ZodProvider.ts";
+import { z } from "../providers/ZodProvider.ts";
 
 export interface FileLike {
   /**
@@ -67,11 +67,15 @@ export interface FileLike {
 }
 
 /**
- * Schema view of FileLike.
+ * A schema describing a file field — i.e. one tagged `format: "binary"`.
+ *
+ * Documentation, not a constraint: zod has no distinct file schema, so this is
+ * `ZType` and any schema satisfies it. {@link isTypeFile} is what actually
+ * tells one apart, at runtime.
  */
-export type TFile = TUnsafe<FileLike>;
+export type FileSchema = ZType;
 
-export const isTypeFile = (value: TSchema): value is TFile => {
+export const isTypeFile = (value: ZType): value is FileSchema => {
   // The format tag lives in zod's `.meta()`, read via `z.schema.format` — there
   // is no own `format` property to test for.
   return (
@@ -100,4 +104,8 @@ export type StreamLike =
   | Readable
   | NodeJS.ReadableStream;
 
-export type TStream = TUnsafe<StreamLike>;
+/**
+ * A schema describing a streamed body. Same caveat as {@link FileSchema}: it
+ * is `ZType`, so it documents intent rather than restricting anything.
+ */
+export type StreamSchema = ZType;

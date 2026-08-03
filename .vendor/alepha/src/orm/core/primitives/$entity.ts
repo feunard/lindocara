@@ -1,4 +1,4 @@
-import { KIND, type Static, type TObject } from "alepha";
+import { type Infer, KIND, type ZObject, z } from "alepha";
 import type { BuildExtraConfigColumns, SQL } from "drizzle-orm";
 import type {
   PgColumn,
@@ -26,17 +26,17 @@ import { type TObjectUpdate, updateSchema } from "../schemas/updateSchema.ts";
  * });
  * ```
  */
-export const $entity = <TSchema extends TObject>(
-  options: EntityPrimitiveOptions<TSchema>,
-): EntityPrimitive<TSchema> => {
-  return new EntityPrimitive<TSchema>(options);
+export const $entity = <ZType extends ZObject>(
+  options: EntityPrimitiveOptions<ZType>,
+): EntityPrimitive<ZType> => {
+  return new EntityPrimitive<ZType>(options);
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
 
 export interface EntityPrimitiveOptions<
-  T extends TObject,
-  Keys = keyof Static<T>,
+  T extends ZObject,
+  Keys = keyof Infer<T>,
 > {
   /**
    * The database table name that will be created for this entity.
@@ -134,7 +134,7 @@ export interface EntityPrimitiveOptions<
     /**
      * Local columns that reference the foreign table.
      */
-    columns: Array<keyof Static<T>>;
+    columns: Array<keyof Infer<T>>;
     /**
      * Referenced columns in the foreign table.
      * Must be EntityColumn references from other entities.
@@ -177,7 +177,7 @@ export interface EntityPrimitiveOptions<
     /**
      * Columns involved in this constraint.
      */
-    columns: Array<keyof Static<T>>;
+    columns: Array<keyof Infer<T>>;
     /**
      * Optional name for the constraint.
      */
@@ -202,7 +202,7 @@ export interface EntityPrimitiveOptions<
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-export class EntityPrimitive<T extends TObject = TObject> {
+export class EntityPrimitive<T extends ZObject = ZObject> {
   public readonly options: EntityPrimitiveOptions<T>;
 
   constructor(options: EntityPrimitiveOptions<T>) {
@@ -223,8 +223,8 @@ export class EntityPrimitive<T extends TObject = TObject> {
 
   get cols(): EntityColumns<T> {
     const cols: Partial<EntityColumns<T>> = {};
-    for (const key of Object.keys(this.schema.properties) as Array<
-      keyof T["properties"]
+    for (const key of Object.keys(z.schema.shape(this.schema)) as Array<
+      keyof T["shape"]
     >) {
       cols[key] = {
         name: key as string,
@@ -263,8 +263,8 @@ $entity[KIND] = EntityPrimitive;
 /**
  * Convert a schema to columns.
  */
-export type FromSchema<T extends TObject> = {
-  [key in keyof T["properties"]]: PgColumnBuilder;
+export type FromSchema<T extends ZObject> = {
+  [key in keyof T["shape"]]: PgColumnBuilder;
 };
 
 /**
@@ -333,24 +333,24 @@ export type SchemaToColumn<
   }
 >;
 
-export type SchemaToTableConfig<T extends TObject> = {
+export type SchemaToTableConfig<T extends ZObject> = {
   name: string;
   schema: string | undefined;
   columns: {
-    [key in keyof Static<T> & string]: SchemaToColumn<
+    [key in keyof Infer<T> & string]: SchemaToColumn<
       key,
       string,
-      Static<T>[key]
+      Infer<T>[key]
     >;
   };
   dialect: string;
 };
 
-export type EntityColumn<T extends TObject> = {
+export type EntityColumn<T extends ZObject> = {
   name: string;
   entity: EntityPrimitive<T>;
 };
 
-export type EntityColumns<T extends TObject> = {
-  [key in keyof T["properties"]]: EntityColumn<T>;
+export type EntityColumns<T extends ZObject> = {
+  [key in keyof T["shape"]]: EntityColumn<T>;
 };

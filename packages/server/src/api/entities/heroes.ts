@@ -1,6 +1,6 @@
 import { LIFE_STATES } from "@lindocara/engine/death.js";
 import { HERO_CLASSES } from "@lindocara/engine/hero.js";
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { users } from "alepha/api/users";
 import { $entity, db } from "alepha/orm";
 import { parties } from "./parties.ts";
@@ -59,4 +59,4 @@ export const heroes = $entity({
   indexes: [{ columns: ["partyId", "userId"], name: "hero_party_account_idx" }],
 });
 
-export type Hero = Static<typeof heroes.schema>;
+export type Hero = Infer<typeof heroes.schema>;

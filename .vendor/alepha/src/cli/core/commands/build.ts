@@ -1,4 +1,4 @@
-import { $inject, $state, Alepha, AlephaError, z } from "alepha";
+import { $inject, $store, Alepha, AlephaError, z } from "alepha";
 import { $command } from "alepha/command";
 import { $logger } from "alepha/logger";
 import {
@@ -22,7 +22,6 @@ import { BuildPwaTask } from "../tasks/BuildPwaTask.ts";
 import { BuildServerTask } from "../tasks/BuildServerTask.ts";
 import { BuildStaticTask } from "../tasks/BuildStaticTask.ts";
 import type { BuildTaskContext } from "../tasks/BuildTask.ts";
-import { BuildVercelTask } from "../tasks/BuildVercelTask.ts";
 
 export class BuildCommand {
   protected readonly alepha = $inject(Alepha);
@@ -32,7 +31,7 @@ export class BuildCommand {
   protected readonly scaffolder = $inject(ProjectScaffolder);
   protected readonly boot = $inject(AppEntryProvider);
   protected readonly viteBuildProvider = $inject(ViteBuildProvider);
-  protected readonly options = $state(buildOptions);
+  protected readonly options = $store(buildOptions);
 
   /**
    * Build pipeline: tasks run sequentially in this order.
@@ -48,7 +47,6 @@ export class BuildCommand {
     // Before the target-specific config tasks: `dist/` exists by now, and
     // anything generating deploy config may want to read what was captured.
     $inject(BuildManifestTask),
-    $inject(BuildVercelTask),
     $inject(BuildCloudflareTask),
     $inject(BuildDockerTask),
     $inject(BuildStaticTask),
@@ -83,7 +81,6 @@ export class BuildCommand {
    *
    * Some targets force a specific runtime:
    * - `cloudflare` always uses `workerd`
-   * - `vercel` always uses `node`
    * - `docker` and bare deployments respect the runtime flag
    *
    * @throws {AlephaError} If an incompatible runtime is specified for a target
@@ -101,15 +98,6 @@ export class BuildCommand {
       return "workerd";
     }
 
-    if (target === "vercel") {
-      if (runtime && runtime !== "node") {
-        throw new AlephaError(
-          `Target 'vercel' requires 'node' runtime, got '${runtime}'`,
-        );
-      }
-      return "node";
-    }
-
     return runtime ?? "node";
   }
 
@@ -123,7 +111,7 @@ export class BuildCommand {
         .describe("Generate build stats report")
         .optional(),
       target: z
-        .enum(["bare", "docker", "vercel", "cloudflare", "cf", "static"])
+        .enum(["bare", "docker", "cloudflare", "cf", "static"])
         .meta({ aliases: ["t"] })
         .describe("Deployment target (cf = cloudflare)")
         .optional(),

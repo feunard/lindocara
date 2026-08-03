@@ -1,4 +1,4 @@
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { users } from "alepha/api/users";
 import { $entity, db, sql } from "alepha/orm";
 import { adventures } from "./adventures.ts";
@@ -65,4 +65,4 @@ export const maps = $entity({
   constraints: [{ columns: ["revision"], check: sql`revision >= 1` }],
 });
 
-export type MapRow = Static<typeof maps.schema>;
+export type MapRow = Infer<typeof maps.schema>;

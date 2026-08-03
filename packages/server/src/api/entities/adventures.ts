@@ -1,4 +1,4 @@
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { users } from "alepha/api/users";
 import { $entity, db, sql } from "alepha/orm";
 
@@ -39,4 +39,4 @@ export const adventures = $entity({
   constraints: [{ columns: ["maxPlayers"], check: sql`max_players BETWEEN 1 AND 4` }],
 });
 
-export type Adventure = Static<typeof adventures.schema>;
+export type Adventure = Infer<typeof adventures.schema>;

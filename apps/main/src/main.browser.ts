@@ -9,7 +9,7 @@
 // BEFORE Alepha mounts the router tree into `#root` (see `main.tsx`'s docblock on why `prepend`
 // is safe). `?preview` takes the whole page over itself and returns `false`, so the router never
 // mounts on top of it.
-import { AlephaPulse } from "@alepha/pulse-client";
+import { AlephaSigil } from "@alepha/sigil";
 import { bootClient } from "@lindocara/client/main.js";
 import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { Alepha, run } from "alepha";
@@ -24,12 +24,12 @@ if (bootClient()) {
   alepha.set(reactBrowserOptions, { scrollRestoration: "manual", interceptAnchorClicks: false });
   alepha.with(AppRouter);
   // Registered on BOTH entries, because they are two containers. The server
-  // half of `AlephaPulse` is the same-origin proxy that forwards to Pulse; the
-  // browser half is what collects page views, vitals and client errors in the
-  // first place. Adding it to `main.ts` alone gives a working relay with
-  // nothing to relay — the symptom is an app that is plainly reporting
-  // (its config atom arrives in the hydration payload) and a Pulse that
-  // receives nothing.
-  alepha.with(AlephaPulse);
+  // half of `AlephaSigil` is the same-origin proxy that forwards to the sink;
+  // the browser half is what collects page views, vitals and client errors in
+  // the first place. Adding it to `main.ts` alone gives a working relay with
+  // nothing to relay — the symptom is an app that is plainly reporting (its
+  // config atom arrives in the hydration payload) and a sink that receives
+  // nothing.
+  alepha.with(AlephaSigil);
   run(alepha);
 }

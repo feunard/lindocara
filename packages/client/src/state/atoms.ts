@@ -17,23 +17,23 @@
  * there is no zustand shim left for it to go through.
  *
  * Schemas for the complex, externally-owned shapes (`PartyListing`, `AdventureTestSession`,
- * `AdventureEditorSession`) are typed passthroughs (`Type.custom`, see below) rather than
+ * `AdventureEditorSession`) are typed passthroughs (`ZType.custom`, see below) rather than
  * hand-mirrored zod shapes: `api.ts`/`store.ts` already own those types and validate/produce them
  * at their own boundaries (the D1-backed API, the editor's own draft model) — re-validating their
  * internal shape here would just be a second, driftable copy of the same contract. `quickItemsAtom`
  * is the deliberate exception — see its own docblock.
  */
 import { CONSUMABLE_IDS, type ConsumableId } from "@lindocara/engine/consumables.js";
-import { $atom, Type, z } from "alepha";
+import { $atom, z } from "alepha";
 import type { AdventureTestSession, PartyListing } from "../api.js";
 import type { AdventureEditorSession } from "../store.js";
 
-// Alepha's own `z` is a deliberately narrow wrapper (`ZodProvider.ts`) that does not expose
-// `.custom`. `Type` is alepha's own documented "raw zod namespace" escape hatch
-// (`TypeProvider.ts`) — the SAME zod module instance `z`/`$atom` resolve against, unlike importing
-// the `zod` package directly from this workspace package (which resolves alepha's own nested `zod`
+// `z.custom` is alepha's typed-passthrough escape hatch (`ZodProvider.ts`): it carries the type and
+// validates nothing, which is what these atoms want — the shapes below are owned and checked at
+// their own boundaries. It is exposed on alepha's own `z` rather than reached for by importing the
+// `zod` package directly from this workspace package (which resolves alepha's own nested `zod`
 // dependency, a structurally distinct instance zod's nominal-ish `_zod` brand treats as
-// incompatible). Used for the typed-passthrough schemas below only, as `Type.custom<T>()`.
+// incompatible). Used for the typed-passthrough schemas below only, as `z.custom<T>()`.
 
 /**
  * One hotbar slot: a real consumable id, or empty. Unlike the passthrough schemas above,
@@ -41,7 +41,7 @@ import type { AdventureEditorSession } from "../store.js";
  */
 const quickItemSlotSchema = z.enum(CONSUMABLE_IDS).nullable();
 
-/** A `z.tuple` of the slot schema above, not `Type.custom` — see `quickItemsAtom`'s docblock. */
+/** A `z.tuple` of the slot schema above, not `ZType.custom` — see `quickItemsAtom`'s docblock. */
 const quickItemsSchema = z.tuple([quickItemSlotSchema, quickItemSlotSchema, quickItemSlotSchema]);
 
 const DEFAULT_QUICK_ITEMS: [ConsumableId | null, ConsumableId | null, ConsumableId | null] = [
@@ -53,7 +53,7 @@ const DEFAULT_QUICK_ITEMS: [ConsumableId | null, ConsumableId | null, Consumable
 /** The persistent party/save currently driving this game session, or null outside one. */
 export const activePartyAtom = $atom({
   name: "lindocara.activeParty",
-  schema: Type.custom<PartyListing | null>(),
+  schema: z.custom<PartyListing | null>(),
   default: null,
 });
 
@@ -61,7 +61,7 @@ export const activePartyAtom = $atom({
  *  save — see `AdventureTestOverlay.tsx`/`game/session.ts`. */
 export const adventureTestSessionAtom = $atom({
   name: "lindocara.adventureTestSession",
-  schema: Type.custom<AdventureTestSession | null>(),
+  schema: z.custom<AdventureTestSession | null>(),
   default: null,
 });
 
@@ -70,7 +70,7 @@ export const adventureTestSessionAtom = $atom({
  *  dialogs) — there is no zustand shim in the way any more. */
 export const adventureEditorSessionAtom = $atom({
   name: "lindocara.adventureEditorSession",
-  schema: Type.custom<AdventureEditorSession | null>(),
+  schema: z.custom<AdventureEditorSession | null>(),
   default: null,
 });
 
@@ -79,13 +79,13 @@ export const adventureEditorSessionAtom = $atom({
  * preference, not part of any save, so it should survive a reload the same way audio settings do
  * (this is a small behaviour upgrade over the old zustand field, which reset every reload).
  *
- * This is the one atom in this module that carries a real schema instead of `Type.custom` — every
+ * This is the one atom in this module that carries a real schema instead of `ZType.custom` — every
  * other atom above is fed exclusively by this app's own React writers, but a `localStorage` value
  * is attacker/corruption surface: a stale key from a previous build, hand-edited devtools, or a
  * half-written quota-exceeded write. `StateManager.bindWebStorage()`
  * (`.vendor/alepha/src/core/providers/StateManager.ts`) reads the persisted JSON and calls
  * `safeValidate(atom.schema, value)` — on failure it removes the bad key and silently keeps the
- * atom's already-seeded default, never throwing. `Type.custom<T>()` is zod's `custom()` called with
+ * atom's already-seeded default, never throwing. `z.custom<T>()` is zod's `custom()` called with
  * no predicate, which accepts literally any value, so it can never fail that check — a corrupted
  * payload would flow straight through into `useQuickItem`'s hotkey dispatch. `z.tuple` of a real
  * `z.enum(CONSUMABLE_IDS).nullable()` slot schema actually rejects it.

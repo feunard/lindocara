@@ -1,4 +1,4 @@
-import { AlephaPulse } from "@alepha/pulse-client";
+import { AlephaSigil } from "@alepha/sigil";
 import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
 import { Alepha, run } from "alepha";
@@ -24,11 +24,11 @@ import { Alepha, run } from "alepha";
 // `SpaController` deleted, nothing else answers `GET /`.
 const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi);
 
-// Reports page views, web vitals and errors to Pulse. Without `PULSE_SINK` and
-// `PULSE_KEY` the module still captures and sends nothing — errors go to the
-// logger instead — so it is safe to register unconditionally, including in
-// development and in tests.
-alepha.with(AlephaPulse);
+// Reports page views, web vitals and errors to the sigil sink. Without
+// `SIGIL_SINK` and `SIGIL_KEY` the module still captures and sends nothing —
+// errors go to the logger instead — so it is safe to register unconditionally,
+// including in development and in tests.
+alepha.with(AlephaSigil);
 
 // Drizzle executes this entry under plain Node to discover server entities. Importing the browser
 // router in that process also imports Vite-only `import.meta.glob` asset modules, which plain Node

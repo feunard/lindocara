@@ -6,37 +6,55 @@ import type { Readable as NodeStream } from "node:stream";
 import type { ReadableStream as NodeWebStream } from "node:stream/web";
 import type {
   Async,
+  FileSchema,
   PipelineHandler,
   SchemaOutput,
   StreamLike,
-  TArray,
-  TFile,
-  TObject,
-  TRecord,
-  TStream,
-  TString,
-  TVoid,
+  StreamSchema,
+  ZObject,
+  ZodArray,
+  ZodRecord,
+  ZodString,
+  ZodVoid,
 } from "alepha";
 import type { Route } from "alepha/router";
 import type { RouteMethod } from "../constants/routeMethods.ts";
 import type { ServerReply } from "../helpers/ServerReply.ts";
 import type { UserAgentInfo } from "../services/UserAgentParser.ts";
 
-export type TRequestBody = TObject | TString | TArray | TRecord | TStream;
+/**
+ * What may appear in `schema.body` / `schema.response`.
+ *
+ * Both unions read as a whitelist but do not behave as one: `StreamSchema` and
+ * `FileSchema` are aliases of `ZType`, the supertype of every member, so each
+ * union collapses to "any schema". Listing the members is still worth it — it
+ * documents what is actually *handled* downstream, and a reader reaching for
+ * something exotic is warned — but do not rely on the compiler to reject a
+ * shape the serializer cannot produce.
+ *
+ * Narrowing them for real is a breaking change (schemas that compile today
+ * would stop), so it is a deliberate decision, not a cleanup.
+ */
+export type TRequestBody =
+  | ZObject
+  | ZodString
+  | ZodArray
+  | ZodRecord
+  | StreamSchema;
 export type TResponseBody =
-  | TObject
-  | TString
-  | TRecord
-  | TFile
-  | TArray
-  | TStream
-  | TVoid;
+  | ZObject
+  | ZodString
+  | ZodRecord
+  | FileSchema
+  | ZodArray
+  | StreamSchema
+  | ZodVoid;
 
 export interface RequestConfigSchema {
   body?: TRequestBody;
-  params?: TObject;
-  query?: TObject;
-  headers?: TObject;
+  params?: ZObject;
+  query?: ZObject;
+  headers?: ZObject;
   response?: TResponseBody;
 }
 

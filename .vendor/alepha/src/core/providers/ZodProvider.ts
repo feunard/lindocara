@@ -1,6 +1,5 @@
 import { z as zod } from "zod";
 import enLocale from "zod/v4/locales/en.js";
-import "./zodAugment.ts";
 
 // Re-activate zod's English error map. zod's classic entry does this as a module
 // side effect (`config(en())`) so messages read "Too small: expected string to
@@ -26,16 +25,41 @@ zod.config(enLocale());
  */
 
 // ---------------------------------------------------------------------------
-// Re-exported type aliases (the spine swap: Static->Infer, TObject->ZObject…)
+// The type-level surface
 // ---------------------------------------------------------------------------
 
+/**
+ * Alepha's `z` is a plain object literal, not a namespace — `z.infer<T>` and
+ * `z.ZodString` do not resolve. So the type-level names have to be exported
+ * standalone, which is what this block is for.
+ *
+ * Three of them are Alepha's own, because zod has no reachable equivalent
+ * ({@link Infer}) or because a defaulted type parameter is load-bearing for
+ * inference ({@link ZType}, {@link ZObject}). Everything else below is zod's
+ * own name, re-exported verbatim: one concept, one name, wherever it is
+ * imported from.
+ */
 export type ZType = zod.ZodType;
 export type ZObject<T extends zod.ZodRawShape = any> = zod.ZodObject<T>;
-/** Replaces typebox `Static<T>`. */
+/** Extract the TypeScript type of a schema — `z.infer` is not reachable. */
 export type Infer<T extends zod.ZodType> = zod.infer<T>;
 
+export type {
+  ZodAny,
+  ZodArray,
+  ZodBoolean,
+  ZodNull,
+  ZodNumber,
+  ZodOptional,
+  ZodRawShape,
+  ZodRecord,
+  ZodString,
+  ZodUnion,
+  ZodVoid,
+} from "zod";
+
 /**
- * Shallow output-extraction for `T extends SomeSchema ? Static<T> : Fallback`
+ * Shallow output-extraction for `T extends SomeSchema ? Infer<T> : Fallback`
  * conditional positions.
  *
  * Reads zod's `_zod.output` directly (a single shallow conditional) instead of
@@ -43,7 +67,7 @@ export type Infer<T extends zod.ZodType> = zod.infer<T>;
  * `T` against 5-6 member unions of deeply-recursive zod class types, and that
  * structural assignability check is what trips TypeScript's instantiation-depth
  * limit (TS2589) inside `$action`'s generics. The extracted type is identical to
- * `Static<T>` for any real schema; non-schema `T` (e.g. `undefined`) yields
+ * `Infer<T>` for any real schema; non-schema `T` (e.g. `undefined`) yields
  * `Fallback`.
  */
 export type SchemaOutput<T, Fallback = any> = [T] extends [
@@ -176,6 +200,28 @@ export const z = {
   /** Free-form JSON object (`Record<string, any>`). */
   json: () => zod.record(zod.string(), zod.any()),
 
+  /**
+   * A typed passthrough — carries a TypeScript type and validates nothing.
+   *
+   * The legitimate use is a value whose shape is already owned and checked at
+   * its own boundary, held somewhere that requires a schema anyway: an `$atom`
+   * over a type an API client produces, an editor's own draft model. Writing a
+   * zod mirror of those would be a second, driftable copy of a contract that
+   * already exists.
+   *
+   * ⚠️ Never for anything crossing a trust boundary. A request body, a query
+   * parameter, an env var or a database row declared this way is unvalidated
+   * input wearing a type — which is worse than `z.any()`, because it reads as
+   * if something checked it.
+   *
+   * Exposed here rather than left to `import { z } from "zod"` in the app: a
+   * workspace importing zod directly resolves its own copy, and zod's branded
+   * types treat two instances as structurally distinct — so the schema is
+   * rejected by every alepha primitive with a type error that names neither
+   * cause nor cure.
+   */
+  custom: zod.custom,
+
   // -- text family (alepha size-capped strings — the options ARE the API) --
   text: (options: TextOptions = {}) => {
     const {
@@ -205,7 +251,7 @@ export const z = {
   richText: (options: TextOptions = {}) => z.text({ ...options, size: "rich" }),
 
   // -- string formats (format tag drives ORM column-type detection) --------
-  // All return a real `ZodString` (assignable to `TString`, instanceof-safe);
+  // All return a real `ZodString` (assignable to `ZodString`, instanceof-safe);
   // the JSON-Schema format rides on `.meta()` and is read via `z.schema.format`.
   email: () => strFmt(zod.email(), "email"),
   // `z.guid` accepts any 8-4-4-4-12 hex UUID; `z.uuid` additionally enforces an
@@ -332,6 +378,34 @@ export const z = {
       s instanceof zod.ZodAny || s instanceof zod.ZodUnknown,
     isVoid: (s: any) => s instanceof zod.ZodVoid,
     format: (s: any) => fmt(s),
+
+    // -- structural accessors ------------------------------------------------
+    // Zod names these `.shape` / `.element` / `.options`, and a schema-walker
+    // has to reach for them constantly. They live here rather than as
+    // prototype aliases on zod's own classes: patching a third-party prototype
+    // is a process-wide side effect on a library the application also imports,
+    // so two copies of zod in the tree leave one of them silently unpatched.
+
+    /** Property schemas of a `ZodObject`. Empty object for anything else. */
+    shape: (s: any): Record<string, ZType> => s?.shape ?? {},
+
+    /** Element schema of a `ZodArray`, or `undefined`. */
+    element: (s: any): ZType | undefined => s?.element,
+
+    /** Member schemas of a `ZodUnion`. Empty array for anything else. */
+    options: (s: any): ZType[] =>
+      Array.isArray(s?.options) ? (s.options as ZType[]) : [],
+
+    /**
+     * Element schemas of a `ZodTuple`.
+     *
+     * A tuple keeps them at `_zod.def.items` rather than exposing a public
+     * accessor, which is why this is not simply `s.items`.
+     */
+    items: (s: any): ZType[] => {
+      const items = s?._zod?.def?.items;
+      return Array.isArray(items) ? (items as ZType[]) : [];
+    },
     /** The string values of a `ZodEnum` (typebox-compat for `value.enum`). */
     enumValues: (s: any): string[] => {
       const opts = s?.options;

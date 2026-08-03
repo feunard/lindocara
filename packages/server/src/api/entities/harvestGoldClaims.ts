@@ -1,4 +1,4 @@
-import { type Static, z } from "alepha";
+import { type Infer, z } from "alepha";
 import { $entity, db, sql } from "alepha/orm";
 import { heroes } from "./heroes.ts";
 import { parties } from "./parties.ts";
@@ -41,4 +41,4 @@ export const harvestGoldClaims = $entity({
   ],
 });
 
-export type HarvestGoldClaim = Static<typeof harvestGoldClaims.schema>;
+export type HarvestGoldClaim = Infer<typeof harvestGoldClaims.schema>;
