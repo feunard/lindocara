@@ -1025,6 +1025,71 @@ git commit -m "feat(lab): le souffle et les traces deviennent des événements d
 
 ---
 
+### Task 7b: Le saut qui s'arme en pièce
+
+> **AJOUTÉE après l'audit de la Task 6.** Ce bug n'est pas une régression du chantier — il est
+> antérieur (commit `8295f200`) — mais l'extraction l'a rendu visible et testable pour la première
+> fois. Il est épinglé, documenté à sa source, et sans propriétaire : cette task le lui donne.
+>
+> Placée **après la Task 7**, c'est-à-dire après la fin de l'extraction, pour que les tasks 1 à 7
+> puissent revendiquer une parité de comportement stricte. Corriger un bug *pendant* l'extraction
+> aurait brouillé ce qu'on cherchait à prouver.
+
+**Files:**
+- Modify: `apps/lab/src/world/hero-step.ts` (le bloc `ground`/`coyote`, vers la ligne 258)
+- Modify: `apps/lab/test/hero-step-interieur.test.ts` (retirer le `it.fails`)
+
+**Le bug :** le bloc qui calcule `ground` et recharge `coyote` n'est pas gardé par `!state.room`.
+En pièce, `ground` vaut `state.room.y`, donc égale `state.y` après l'aplatissement — la branche
+« au sol » s'exécute, recharge `state.coyote`, et le saut peut s'armer une image. Observé en jeu :
+`y` passe à 5,095, `airborne` à `true`, et un événement `saut` parasite part.
+
+**Ce qui rend cette task facile :** le test qui doit passer au vert existe déjà, avec les
+assertions d'origine intactes.
+
+- [ ] **Step 1: Vérifier que le test épinglé échoue bien pour la bonne raison**
+
+Run: `npx vitest run --project lab test/hero-step-interieur.test.ts`
+Expected: 2 passés, 1 échec **attendu** (`it.fails`).
+
+Lis l'échec. Il doit porter sur `y`, `airborne` ou l'événement `saut` — pas sur autre chose.
+
+- [ ] **Step 2: Garder le bloc**
+
+Le plancher d'une pièce est plat : ni gravité, ni chute, ni coyote, ni saut. La correction consiste
+à ne pas exécuter ce bloc du tout quand `state.room` est renseigné, plutôt qu'à corriger `ground`.
+
+**Attention à ne pas casser la sortie de pièce** : quand `setRoom(null)` rend le héros au terrain,
+le bloc doit reprendre normalement dès cette image.
+
+- [ ] **Step 3: Retirer le `it.fails`**
+
+Le test redevient un `it` ordinaire. **Ne touche pas ses assertions** — ce sont celles d'origine, et
+c'est ce qui donne sa valeur à la correction.
+
+- [ ] **Step 4: Retirer le commentaire « BUG CONNU »**
+
+Il vit dans `hero-step.ts` vers la ligne 258. Un avertissement qui décrit un bug corrigé est pire
+qu'aucun avertissement.
+
+- [ ] **Step 5: Vérifier**
+
+Run: `npx vitest run --project lab && npm run typecheck:lab && npm run lint`
+Expected: tout vert, **aucun échec attendu restant**.
+
+À l'écran : entrer dans la maison, marteler la touche de saut, en faire le tour. Le héros ne doit
+pas décoller d'un pixel, et aucun son de saut ne doit partir. Puis ressortir et sauter dehors — le
+saut doit fonctionner normalement.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/lab
+git commit -m "fix(lab): le saut ne s'arme plus dans une pièce"
+```
+
+---
+
 ### Task 8: Les colliders deviennent des rectangles
 
 **Files:**
