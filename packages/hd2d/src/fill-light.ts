@@ -47,6 +47,18 @@ export function fillAmount({
  * constantes de module comme dans le PoC : elles ne portent aucun état d'un appel à l'autre, et
  * garder l'état de scène hors du module (voir `context.ts`) reste la règle même quand cet état est
  * un simple scratch, pas seulement quand il est vraiment partagé.
+ *
+ * Sans appelant dans ce dépôt depuis la Task 10 de l'île de neige : `apps/lab` a désormais DEUX
+ * sources chaudes (feu de camp + source d'eau chaude), et cette fonction ÉCRASE l'émissif au lieu
+ * de l'accumuler — l'appeler une fois par source perdrait le résultat de la précédente. Le labo
+ * compose donc ses propres sources au-dessus de `fillAmount` (sa fonction locale
+ * `applyFillFromPointLights`, `apps/lab/src/main.ts`), précisément pour qu'`@lindocara/hd2d` n'ait
+ * pas à apprendre qu'une seconde source — ni l'île de neige qui l'a introduite — existe.
+ * `@lindocara/hd2d` reste conçu pour plusieurs consommateurs (voir son AGENTS.md) au-delà d'`apps/lab`
+ * aujourd'hui unique ; celui-ci reste la primitive prête pour un futur appelant à source unique,
+ * le cas courant qu'un second consommateur (l'éditeur de carte, par exemple) est susceptible
+ * d'avoir. Elle n'est pas remplacée par `applyFillFromPointLights` : cette dernière est locale au
+ * labo et ne fait pas partie de l'API du package.
  */
 export function applyFillFromPointLight(
   ctx: Hd2dContext,
