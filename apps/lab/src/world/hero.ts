@@ -318,6 +318,23 @@ export function createHero(
     groundY = pos.y;
   }
 
+  /** Glace fine (Task 7) : la case `cle` cède sous le poids — qu'elle vienne tout juste de finir
+   *  de charger, ou qu'on l'ait retrouvée déjà rompue en y remarchant. Le poids QUITTE la case en
+   *  cédant : on relâche nous-mêmes, tout de suite — sinon le regel n'aurait plus jamais
+   *  l'occasion de démarrer, `thinIce.update()` (dans `update()`, plus bas) ne touchant que les
+   *  cases déjà relâchées, et le bloc qui appelle `tomber` ne s'exécute plus une fois `swimming`
+   *  devenu vrai (voir `enterWater`, juste au-dessus). La chute réutilise `enterWater` telle
+   *  quelle — position, souffle plein, vitesse coupée, éclaboussure — SEUL le son change
+   *  (`plunge` plutôt que le plouf générique `sonEntreeEau`) : la rupture doit MENER à l'entrée
+   *  dans l'eau, pas la réimplémenter. Le taux de souffle de la zone (`input.souffleTaux`)
+   *  s'applique ensuite exactement comme pour toute autre entrée dans l'eau. */
+  function tomber(cle: string): void {
+    shatter();
+    thinIce.relache(cle);
+    glaceCase = null;
+    enterWater(plunge);
+  }
+
   return {
     object: billboard.mesh,
     effects,
@@ -474,30 +491,24 @@ export function createHero(
           if (cle !== glaceCase) {
             // Case différente de la précédente (ou première case de la traversée) : l'ancienne
             // n'est plus sous le poids, et celle-ci reprend son état là où il en était — peut-être
-            // déjà craquelé par un passage précédent qui n'a pas encore eu le temps de regeler.
+            // déjà craquelée par un passage précédent qui n'a pas encore eu le temps de regeler.
             if (glaceCase) thinIce.relache(glaceCase);
             glaceCase = cle;
             glaceEtat = thinIce.etat(cle);
           }
-          const etatSuivant = thinIce.charge(cle, dt);
-          if (etatSuivant !== glaceEtat) {
-            glaceEtat = etatSuivant;
-            if (etatSuivant === "craquelee") crack();
-            else if (etatSuivant === "rompue") {
-              shatter();
-              // Le poids QUITTE la case en cédant : on relâche nous-mêmes, tout de suite — sinon
-              // le regel n'aurait plus jamais l'occasion de démarrer, `update()` ci-dessus ne
-              // touchant que les cases déjà relâchées, et la branche `else` où vit ce bloc ne
-              // s'exécute plus une fois `swimming` devenu vrai (voir `enterWater`, juste après).
-              thinIce.relache(cle);
-              glaceCase = null;
-              // La chute réutilise `enterWater` telle quelle — position, souffle plein, vitesse
-              // coupée, éclaboussure — SEUL le son change (`plunge` plutôt que le plouf générique
-              // `sonEntreeEau`) : la rupture doit MENER à l'entrée dans l'eau, pas la
-              // réimplémenter. Le taux de souffle de la zone (`input.souffleTaux`) s'applique
-              // ensuite exactement comme pour toute autre entrée dans l'eau, plus haut dans cette
-              // même fonction — rien de plus à faire ici.
-              enterWater(plunge);
+          if (glaceEtat === "rompue") {
+            // On a marché À PIED sur un trou déjà ouvert (pas encore regelé) — rien à charger, il
+            // n'y a plus de glace du tout sous ce pas : on tombe SANS délai. Sans cette garde, un
+            // héros revenu sur ses pas depuis la rive resterait planté sur du vide, la collision
+            // ne connaissant que le relief (inchangé, toujours solide) et jamais l'état de
+            // `thinIce`.
+            tomber(cle);
+          } else {
+            const etatSuivant = thinIce.charge(cle, dt);
+            if (etatSuivant !== glaceEtat) {
+              glaceEtat = etatSuivant;
+              if (etatSuivant === "craquelee") crack();
+              else if (etatSuivant === "rompue") tomber(cle);
             }
           }
         } else if (glaceCase) {
