@@ -1005,11 +1005,36 @@ class VirtualPlayer {
   }
 }
 
+/**
+ * Confirme que `target` sert bien l'app lindocara avant de provisionner quoi que ce soit.
+ *
+ * `--target` par défaut est `http://localhost:5173`, un port par défaut partagé par toute
+ * app Alepha (`alepha dev` retombe sur 5173 faute de `SERVER_PORT`) — un autre projet Alepha
+ * qui tourne déjà sur ce port (ex. Alepha Lore, lancé depuis un autre repo) répond aux mêmes
+ * routes d'inscription avec SES réglages de realm (email + captcha requis), pas ceux de
+ * lindocara. Sans ce garde-fou l'échec ressemble à un bug de configuration du realm
+ * lindocara ("Email is required" / "Captcha verification is required") alors qu'il s'agit
+ * d'une simple collision de port. `HealthController.apiHealth` (lindocara uniquement)
+ * répond `{"ok":true}` sur `/api/health` ; une autre app Alepha n'a pas cette route et sert
+ * sa coquille SPA (HTML) à la place.
+ */
+async function verifyTarget(config) {
+  const result = await requestJson(config.target, "/api/health", { method: "GET" });
+  if (!result.response.ok || result.body?.ok !== true) {
+    throw new Error(
+      `target ${config.target.origin} does not look like the lindocara server ` +
+        `(GET /api/health did not return {"ok":true}) — check what is actually listening on ` +
+        "that port; --target defaults to :5173, which any Alepha app's dev server may occupy",
+    );
+  }
+}
+
 async function main() {
   const config = configuration(process.argv.slice(2));
   console.log(
     `LindoCara load test: ${config.players} players, ${config.durationSeconds}s, ${config.scenario}, ${config.target.origin}`,
   );
+  await verifyTarget(config);
   const setupStartedAt = performance.now();
   const authenticated = await mapConcurrent(config.players, 5, (index) =>
     authenticateVirtualPlayer(config, index),
