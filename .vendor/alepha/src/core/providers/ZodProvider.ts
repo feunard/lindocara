@@ -295,9 +295,28 @@ export const z = {
       .meta({ format: "int64" }),
 
   // -- file-like / composite -----------------------------------------------
-  file: (options?: { maxSize?: number }) =>
+  /**
+   * A file field. `maxBytes` caps what the transport will accept for it.
+   *
+   * The unit is in the name on purpose. `$storage({ maxSize })` next door is
+   * declared in **megabytes**, and two fields sharing a name while meaning
+   * different units is not a documentation problem — nobody re-reads a docblock
+   * for a name they believe they know. The mistake is silent in both
+   * directions: bytes read as megabytes accepts a million times too much, and
+   * the reverse refuses everything.
+   */
+  file: (options?: { maxBytes?: number }) =>
     zod.any().meta({ format: "binary", ...options }),
-  stream: () => zod.any().meta({ format: "stream" }),
+  /**
+   * The bytes as they arrive, consumed once.
+   *
+   * Takes the same `maxBytes` as {@link file} and for the same reason: a route
+   * has to be able to say how much it expects. Without it a streamed field is
+   * pinned to the application-wide default, which is the one number chosen
+   * without knowing what any particular route is for.
+   */
+  stream: (options?: { maxBytes?: number }) =>
+    zod.any().meta({ format: "stream", ...options }),
   valueLabel: () =>
     zod.object({
       value: z.constantCase(),
@@ -378,6 +397,21 @@ export const z = {
       s instanceof zod.ZodAny || s instanceof zod.ZodUnknown,
     isVoid: (s: any) => s instanceof zod.ZodVoid,
     format: (s: any) => fmt(s),
+    /**
+     * Everything a schema was tagged with via `.meta()`.
+     *
+     * `format` above reads one key out of this; a walker that needs another —
+     * the `maxSize` a `z.file()` carries, say — would otherwise have to reach
+     * into zod's internals at the call site, which is exactly the coupling this
+     * namespace exists to prevent.
+     */
+    meta: (s: any): Record<string, any> => {
+      try {
+        return s?.meta?.() ?? {};
+      } catch {
+        return {};
+      }
+    },
 
     // -- structural accessors ------------------------------------------------
     // Zod names these `.shape` / `.element` / `.options`, and a schema-walker
