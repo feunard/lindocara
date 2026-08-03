@@ -826,17 +826,29 @@ git commit -m "feat(lab): la glace fine passe dans le pas pur"
 
 ---
 
-### Task 6: L'intérieur, et la fin de l'extraction
+### Task 6: L'intérieur — couvrir ce qui a déjà bougé, et l'audit final
+
+> **AMENDÉE après la Task 3.** Cette task devait déplacer la logique d'intérieur depuis
+> `hero.ts:394-402` et `566-572`. **Les deux morceaux sont déjà partis** : la branche `if (piece)`
+> de `canEnter` en Task 2, celle de `update` en Task 3 — cette dernière parce que sans elle, la
+> physique du saut pouvait s'armer sur un état non aplati et diverger de l'original. L'élargissement
+> était justifié, mais il vide cette task de son déplacement.
+>
+> **Ce qu'il reste, et qui n'est pas rien :** l'intérieur n'a **aucun test**, et personne n'a encore
+> vérifié que `hero.ts` ne contient plus de règle. Les tests ci-dessous ne échoueront donc pas —
+> c'est attendu. Leur valeur est de **pinner** un comportement déplacé sans filet, pas de piloter
+> une implémentation. Si l'un d'eux échoue, c'est une régression réelle des tasks 2 ou 3 : rapporte-la
+> plutôt que d'adapter le test.
 
 **Files:**
-- Modify: `apps/lab/src/world/hero-step.ts`, `apps/lab/src/world/hero.ts` (lignes 394-402 et 566-572)
+- Modify: `apps/lab/src/world/hero.ts` (l'audit ; retirer tout résidu de règle)
 - Test: `apps/lab/test/hero-step-interieur.test.ts`
 
 **Interfaces:**
 - Consumes: `stepHero` (Task 5), `Room` (Task 1).
-- Produces: `stepHero` complet. `hero.ts` ne contient plus **aucune** règle.
+- Produces: `stepHero` complet et couvert. `hero.ts` ne contient plus **aucune** règle.
 
-- [ ] **Step 1: Écrire les tests qui échouent**
+- [ ] **Step 1: Écrire les tests (qui passeront d'emblée — c'est voulu)**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -878,15 +890,17 @@ describe("stepHero — en intérieur", () => {
 });
 ```
 
-- [ ] **Step 2: Lancer les tests pour les voir échouer**
+- [ ] **Step 2: Lancer les tests — ils doivent PASSER**
 
 Run: `npx vitest run --project lab test/hero-step-interieur.test.ts`
-Expected: FAIL.
+Expected: **PASS**, puisque la logique est déjà dans `stepHero` depuis les tasks 2 et 3.
 
-- [ ] **Step 3: Déplacer la logique d'intérieur, et vider `hero.ts` de ses règles**
+**Un échec ici est une régression réelle**, pas un test à ajuster. Rapporte-la avec le comportement
+observé et le comportement attendu, et n'adapte surtout pas l'assertion à ce que le code fait.
 
-Transposer la branche `if (piece)` de `canEnter` (`hero.ts:394-402`) et la branche
-`if (piece)` de `update` (`hero.ts:566-572`).
+- [ ] **Step 3: Vider `hero.ts` de tout résidu de règle**
+
+Le déplacement de l'intérieur est fait. Ce qui reste est un **audit**.
 
 Puis **relire `hero.ts` en entier** et vérifier qu'il ne reste plus une seule décision de jeu : il
 ne doit plus contenir que la création des billboards, l'animateur, les lots recyclés, la lecture de
