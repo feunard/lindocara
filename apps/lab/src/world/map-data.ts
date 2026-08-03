@@ -61,23 +61,36 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function isCollider(value: unknown): value is ColliderRect {
-  return (
-    isRecord(value) &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.z) &&
-    isFiniteNumber(value.w) &&
-    isFiniteNumber(value.h)
-  );
+// Reconstruites champ par champ, jamais affectées telles quelles : un objet qui a les bons champs
+// mais aussi des clefs en trop (`{ x, z, w, h, evil: "payload" }`) ne doit pas faire ressortir
+// `evil` du décodage. Même geste que `decodeMap` au premier niveau, qui construit déjà son objet
+// de retour champ par champ plutôt que d'étaler `value` — la cohérence interne au fichier prime
+// ici sur le `hasOnlyKeys` de `protocol.ts` : ce format est un fichier de carte relu par un
+// éditeur qui gagnera des champs avec le temps, pas un message temps réel où une clef inconnue
+// mérite d'invalider tout le paquet. Une carte qu'un éditeur plus récent enrichit (un `locked` sur
+// un collider, par exemple) reste lisible par ce code tant qu'il ignore silencieusement ce qu'il
+// ne connaît pas encore, au lieu de rejeter la carte entière.
+function toCollider(value: unknown): ColliderRect | null {
+  if (
+    !isRecord(value) ||
+    !isFiniteNumber(value.x) ||
+    !isFiniteNumber(value.z) ||
+    !isFiniteNumber(value.w) ||
+    !isFiniteNumber(value.h)
+  )
+    return null;
+  return { x: value.x, z: value.z, w: value.w, h: value.h };
 }
 
-function isSpawn(value: unknown): value is { name: string; x: number; z: number } {
-  return (
-    isRecord(value) &&
-    typeof value.name === "string" &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.z)
-  );
+function toSpawn(value: unknown): { name: string; x: number; z: number } | null {
+  if (
+    !isRecord(value) ||
+    typeof value.name !== "string" ||
+    !isFiniteNumber(value.x) ||
+    !isFiniteNumber(value.z)
+  )
+    return null;
+  return { name: value.name, x: value.x, z: value.z };
 }
 
 /**
@@ -111,8 +124,13 @@ export function decodeMap(s: string): MapData | null {
     if (!isTerrainMaterial(material)) return null;
   }
 
-  if (!Array.isArray(colliders) || !colliders.every(isCollider)) return null;
-  if (!Array.isArray(spawns) || !spawns.every(isSpawn)) return null;
+  if (!Array.isArray(colliders)) return null;
+  const decodedColliders = colliders.map(toCollider);
+  if (decodedColliders.some((c) => c === null)) return null;
+
+  if (!Array.isArray(spawns)) return null;
+  const decodedSpawns = spawns.map(toSpawn);
+  if (decodedSpawns.some((s) => s === null)) return null;
 
   return {
     version: 1,
@@ -121,8 +139,8 @@ export function decodeMap(s: string): MapData | null {
     waterLevel,
     levels: levels as (number | null)[],
     materials: materials as TerrainMaterial[],
-    colliders: colliders as ColliderRect[],
-    spawns: spawns as { name: string; x: number; z: number }[],
+    colliders: decodedColliders as ColliderRect[],
+    spawns: decodedSpawns as { name: string; x: number; z: number }[],
   };
 }
 
