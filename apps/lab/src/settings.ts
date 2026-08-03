@@ -72,6 +72,23 @@ export const ZONE_LARGE: Zone = {
 /** L'ordre EST la priorité (voir `zoneAt`) : la polaire d'abord, la zone par défaut en dernier. */
 export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_LARGE];
 
+/** Les trois seuils de la glace fine (Task 7) — voir `world/thin-ice.ts` pour la mécanique pure et
+ *  `world/hero.ts` pour le câblage. La charge s'accumule PAR CASE, tant que le héros y reste :
+ *  traverser la couronne perpendiculairement (`GLACE_FINE_LARGEUR` dans `island.ts`, 0.9 unité) à
+ *  pleine vitesse (`HERO.speed`) prend ~0.2s sur une même case, largement sous `seuilCraquement` —
+ *  un franchissement perpendiculaire reste donc sûr par construction. C'est s'attarder dessus
+ *  (longer le rivage gelé au lieu de le traverser, faire des allers-retours) qui charge une case.
+ *  - `seuilCraquement` (0.5s) : le temps posé avant que le premier craquement prévienne — assez
+ *    court pour qu'on l'entende avant d'avoir eu le temps de dériver sur deux ou trois cases.
+ *  - `seuilRupture` (1.4s) : encore 0.9s de charge après le craquement avant que la case cède —
+ *    le temps d'un demi-tour et de deux pas, pas un piège qui referme instantanément.
+ *  - `regel` (6s) : assez long pour laisser le temps de s'éloigner puis de revenir par un autre
+ *    chemin sans la retrouver déjà regelée, assez court pour qu'un aller-retour dans la même
+ *    exploration la retrouve intacte plutôt qu'un trou définitif (voir le spec, section « La
+ *    glace fine » : « dans un labo, réessayer est tout ce qu'on y fait »).
+ */
+export const GLACE_FINE = { seuilCraquement: 0.5, seuilRupture: 1.4, regel: 6 } as const;
+
 export interface CameraSettings {
   fov: number;
   distance: number;

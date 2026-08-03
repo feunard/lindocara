@@ -27,7 +27,10 @@ type BankKey =
   | "entreeEau"
   | "sortieEau"
   | "suivant"
-  | "rafale";
+  | "rafale"
+  | "craquement"
+  | "rupture"
+  | "ploufGlace";
 
 const BANQUE: Record<BankKey, readonly string[]> = {
   pasHerbe: [1, 2, 3, 4, 5].map((i) => `/sfx/step-grass-${i}.ogg`),
@@ -64,6 +67,14 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // à l'écran de chargement) sans fonction d'export : décider QUAND elle joue est le travail de
   // Task 9, pas de celui-ci.
   rafale: ["/sfx/rafale.ogg"],
+  // La glace fine (Task 7, `world/thin-ice.ts`) : trois temps, trois sons. Le craquement est
+  // RÉPÉTÉ tant qu'on reste dessus après le premier avertissement (voir `hero.ts`) — il lui faut
+  // donc des variantes comme les pas, pour la même raison (`jouer()` en tire une au hasard à
+  // chaque appel). Rupture et plongeon n'arrivent qu'une fois par chute : un seul fichier chacun,
+  // comme `saut`/`reception`/`entreeEau` plus haut.
+  craquement: [1, 2, 3].map((i) => `/sfx/craquement-${i}.ogg`),
+  rupture: ["/sfx/rupture.ogg"],
+  ploufGlace: ["/sfx/plouf-glace.ogg"],
 };
 
 type Ambiance = "jour" | "nuit";
@@ -505,6 +516,23 @@ export const openChest = (): void => jouer("coffre", { gain: 0.9 });
 export const closeChest = (): void => jouer("coffreFerme", { gain: 0.9 });
 export const openDoor = (): void => jouer("porte", { gain: 0.85 });
 export const closeDoor = (): void => jouer("porteFerme", { gain: 0.85 });
+
+/**
+ * La glace fine (Task 7, `world/thin-ice.ts`) : `crack()` prévient, `shatter()` marque la
+ * rupture, `plunge()` accompagne la chute. Les trois passent par `jouer()` comme le reste du
+ * module — `plunge`/`shatter` n'ont qu'une seule variante chacun dans `BANQUE`, `jouer()` la joue
+ * donc à chaque appel (avec sa propre hauteur aléatoire, comme tout le reste), exactement le même
+ * chemin que `jump`/`land`/`enterWater` plus haut.
+ */
+export const crack = (): void => jouer("craquement", { gain: 0.8 });
+/** Jouée juste avant que `hero.ts` fasse tomber le héros à l'eau (`enterWater`, réutilisé tel
+ *  quel) : le bruit de la glace qui cède, distinct du `plunge()` qui suit d'une fraction de
+ *  seconde. */
+export const shatter = (): void => jouer("rupture", { gain: 0.95 });
+/** Le plongeon À TRAVERS la glace, à la place du `entreeEau` générique : c'est la même chute dans
+ *  l'eau que partout ailleurs (`hero.ts` réutilise `enterWater`), seul le son change — passé en
+ *  paramètre plutôt que réimplémenté. */
+export const plunge = (): void => jouer("ploufGlace", { gain: 0.95 });
 
 /**
  * Bascule la NAPPE d'ambiance ; les boucles concernées se croisent en fondu. `nom` était borné à

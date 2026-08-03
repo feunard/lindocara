@@ -9,8 +9,11 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
+  crack,
   land,
+  plunge,
   setSkid,
+  shatter,
   attack as sonAttaque,
   enterWater as sonEntreeEau,
   jump as sonSaut,
@@ -18,10 +21,11 @@ import {
   step,
   swimStroke,
 } from "../core/audio.js";
-import { CAMERA, HERO, WORLD } from "../settings.js";
+import { CAMERA, GLACE_FINE, HERO, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
 import { derapage, frictionPour, pasAmorti, vitesseMaxPour } from "./locomotion.js";
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
+import { createThinIce, type EtatGlace } from "./thin-ice.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.
 const SPLASH = { cols: 9, frames: 9, fps: 20, height: 1.7, foot: 0.32 };
@@ -130,6 +134,21 @@ export function createHero(
   effects.add(disc);
   const splashes: Splash[] = [];
 
+  // Glace fine (Task 7) : visuel FACULTATIF du craquement — un simple décalque givré sous les
+  // pieds, réutilisant `makeSurfaceDisc` comme le disque de nage juste au-dessus plutôt qu'un
+  // système de rendu par case (hors périmètre, voir le brief). Il ne suit que la case ACTUELLEMENT
+  // sous le poids : une case craquelée qu'on vient de quitter perd son décalque, mais garde son
+  // état réel (`thinIce`) — le son prévient déjà que ça craque, ce décalque n'est qu'un appoint.
+  // 1.4 : plus large que le héros lui-même. Vérifié à l'écran (voir le rapport de la task) —
+  // à sa taille initiale (0.85, sous l'empreinte du personnage) le décalque restait quasi
+  // entièrement caché par son propre sprite vu de l'angle isométrique du jeu ; il doit DÉBORDER
+  // pour se voir, comme une flaque plus large que les pieds qui la font. Teinte sombre plutôt que
+  // givrée : sur une glace déjà pâle (`tileset-glace.png`), un décalque clair s'y noyait aussi.
+  const crackDisc = makeSurfaceDisc(1.4);
+  (crackDisc.material as THREE.MeshBasicMaterial).color.set(0x1c3a4a);
+  (crackDisc.material as THREE.MeshBasicMaterial).opacity = 0.8;
+  effects.add(crackDisc);
+
   // Ondes de nage : un petit lot recyclé en rond, jamais rien à allouer en cours de partie. Le
   // disque sombre disait où était le nageur, pas qu'il avançait — sous lui, la surface restait un
   // miroir immobile.
@@ -165,6 +184,15 @@ export function createHero(
   let impact = 0;
   let attaque = -1; // temps écoulé dans le coup en cours ; négatif = pas d'attaque
 
+  // Glace fine (Task 7) : un état par case, tenu par un module pur (`world/thin-ice.ts`) — le
+  // héros ne fait que lui donner le `dt` et lire l'état en retour, jamais sa propre horloge.
+  // `glaceCase` retient la case actuellement chargée (pour savoir QUAND relâcher l'ancienne en
+  // changeant de case), `glaceEtat` le dernier état lu dessus (pour ne déclencher son et visuel
+  // qu'à la TRANSITION, pas à chaque image où on reste craquelé).
+  const thinIce = createThinIce(GLACE_FINE);
+  let glaceCase: string | null = null;
+  let glaceEtat: EtatGlace = "intacte";
+
   const maxStep = WORLD.maxStep * WORLD.levelHeight + 1e-3;
   // Depuis l'eau on se hisse sur une rive de plain-pied, jamais sur une falaise.
   const climb = WORLD.levelHeight * HERO.swim.climb;
@@ -179,6 +207,14 @@ export function createHero(
    *  réduites à deux. `null` (hors carte / eau) retombe sur "herbe" : `step()` n'est de toute
    *  façon jamais appelée en nageant (voir plus bas, la cadence des pas et brasses). */
   const solSous = (): TerrainMaterial => query.kindAt(pos.x, empreinte(pos.z)) ?? "herbe";
+
+  // Glace fine (Task 7) : clef de la case sous un point monde, dans le même quadrillage que
+  // `TerrainQuery` (voir `terrain-query.ts`, sa fonction interne `toCell`) — non exposée par son
+  // interface, donc reconstruite ici avec la même formule plutôt que d'élargir `TerrainQuery`
+  // pour ce seul appelant.
+  const demiGrille = WORLD.size / 2;
+  const caseDe = (x: number, z: number): string =>
+    `${Math.floor(x + demiGrille)},${Math.floor(z + demiGrille)}`;
 
   function splash(x: number, y: number, z: number): void {
     const s = makeBillboard(ctx, {
@@ -240,7 +276,12 @@ export function createHero(
     return colliders.blocked(pos.x, empreinte(pos.z), HERO.radius);
   };
 
-  function enterWater(): void {
+  /** Entre dans l'eau : position, souffle, vitesse remis à zéro, éclaboussure. `sonSplash` reste
+   *  `sonEntreeEau` par défaut (le plouf ordinaire, en marchant/tombant dans l'eau) — la glace fine
+   *  (Task 7) passe `plunge` à la place pour le SEUL son qui change quand on tombe à travers la
+   *  glace plutôt que d'y entrer par un bord. Toute la mécanique (splash, reset de vitesse, souffle
+   *  plein) reste ICI, une seule fois : la rupture doit y MENER, pas la réimplémenter. */
+  function enterWater(sonSplash: () => void = sonEntreeEau): void {
     swimming = true;
     airborne = false;
     vy = 0;
@@ -250,7 +291,7 @@ export function createHero(
     pos.y = WORLD.waterLevel;
     groundY = WORLD.waterLevel;
     splash(pos.x, WORLD.waterLevel, pos.z);
-    sonEntreeEau();
+    sonSplash();
   }
 
   function leaveWater(y: number): void {
@@ -312,6 +353,12 @@ export function createHero(
       vz = 0;
     },
     update(dt, input) {
+      // Glace fine (Task 7) : le regel doit avancer au TEMPS RÉEL écoulé, pas seulement quand le
+      // héros est dessus, dessous (nage) ou ailleurs (pièce) — sinon tomber à l'eau y GÈLERAIT le
+      // compte à rebours de la case qu'on vient de quitter, tant qu'on reste submergé. Appelé
+      // inconditionnellement, une fois par image, avant tout le reste.
+      thinIce.update(dt);
+
       const avantX = pos.x;
       const avantZ = pos.z;
 
@@ -357,7 +404,16 @@ export function createHero(
       const eau = !piece && sol === null;
 
       if (swimming) {
-        if (sol !== null) {
+        // Glace fine (Task 7) : le champ de hauteur ignore tout du trou qu'on vient de creuser —
+        // la banquise reste un sol plein à cet endroit (`kindAt` en change la MATIÈRE, jamais la
+        // hauteur, voir `island.ts`), donc `sol` y est un nombre bien réel, jamais `null`. Sans
+        // cette garde, le héros remonterait tout seul UNE IMAGE après `enterWater(plunge)` — pile
+        // là où il vient de s'enfoncer, ce qui viderait la mécanique de tout enjeu. Tant que LA
+        // CASE SOUS LUI reste "rompue" (pas encore regelée), on force la lecture "encore de
+        // l'eau" ; nager jusqu'à une case voisine — regelée ou jamais rompue — ressort normalement
+        // par la branche `sol !== null` ci-dessous, sans changement.
+        const dansUnTrou = thinIce.etat(caseDe(pos.x, empreinte(pos.z))) === "rompue";
+        if (sol !== null && !dansUnTrou) {
           leaveWater(sol);
         } else {
           pos.y = WORLD.waterLevel;
@@ -403,6 +459,56 @@ export function createHero(
             distanceDepuisLePas = 0;
           }
         }
+
+        // --- glace fine (Task 7) ----------------------------------------------------------------
+        // Sous le POIDS seulement : sauter par-dessus ne charge rien, c'est tout le point du
+        // mécanisme (« sous le poids », voir le spec). `!piece` est nécessaire même si `swimming`
+        // est déjà exclu par la branche `else` : en pièce, `pos.x`/`pos.z` sont les coordonnées
+        // VIRTUELLES de l'intérieur (voir `matiere` plus haut, même garde) — interroger le terrain
+        // réel avec elles n'a aucun sens et pourrait tomber par coïncidence sur une vraie case de
+        // glace fine ailleurs sur la carte.
+        const surGlaceFine =
+          !airborne && !piece && query.kindAt(pos.x, empreinte(pos.z)) === "glace-fine";
+        if (surGlaceFine) {
+          const cle = caseDe(pos.x, empreinte(pos.z));
+          if (cle !== glaceCase) {
+            // Case différente de la précédente (ou première case de la traversée) : l'ancienne
+            // n'est plus sous le poids, et celle-ci reprend son état là où il en était — peut-être
+            // déjà craquelé par un passage précédent qui n'a pas encore eu le temps de regeler.
+            if (glaceCase) thinIce.relache(glaceCase);
+            glaceCase = cle;
+            glaceEtat = thinIce.etat(cle);
+          }
+          const etatSuivant = thinIce.charge(cle, dt);
+          if (etatSuivant !== glaceEtat) {
+            glaceEtat = etatSuivant;
+            if (etatSuivant === "craquelee") crack();
+            else if (etatSuivant === "rompue") {
+              shatter();
+              // Le poids QUITTE la case en cédant : on relâche nous-mêmes, tout de suite — sinon
+              // le regel n'aurait plus jamais l'occasion de démarrer, `update()` ci-dessus ne
+              // touchant que les cases déjà relâchées, et la branche `else` où vit ce bloc ne
+              // s'exécute plus une fois `swimming` devenu vrai (voir `enterWater`, juste après).
+              thinIce.relache(cle);
+              glaceCase = null;
+              // La chute réutilise `enterWater` telle quelle — position, souffle plein, vitesse
+              // coupée, éclaboussure — SEUL le son change (`plunge` plutôt que le plouf générique
+              // `sonEntreeEau`) : la rupture doit MENER à l'entrée dans l'eau, pas la
+              // réimplémenter. Le taux de souffle de la zone (`input.souffleTaux`) s'applique
+              // ensuite exactement comme pour toute autre entrée dans l'eau, plus haut dans cette
+              // même fonction — rien de plus à faire ici.
+              enterWater(plunge);
+            }
+          }
+        } else if (glaceCase) {
+          thinIce.relache(glaceCase);
+          glaceCase = null;
+          glaceEtat = "intacte";
+        }
+        // Le décalque suit l'état COURANT, pas seulement les transitions ci-dessus : il doit
+        // rester visible tant qu'on reste plantés sur une case craquelée, pas clignoter une image.
+        crackDisc.visible = surGlaceFine && glaceEtat === "craquelee";
+        if (crackDisc.visible) crackDisc.position.set(pos.x, pos.y + 0.02, pos.z);
 
         // On touche l'eau : plouf, et on passe en nage.
         if (eau && !airborne) enterWater();
