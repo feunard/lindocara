@@ -177,6 +177,37 @@ export function isBeach(
   return (waterDist[j * size + i] ?? 9999) <= (arc < 0.75 ? 3 : 2);
 }
 
+/** Rayon du lac gelé de l'île du nord (voir `generateIsland`, la boucle `kinds`), en unités
+ *  monde — hissé au niveau du module (plutôt que local à `generateIsland`) pour que
+ *  `LAKE_OBSTACLES`, juste en dessous, puisse s'y positionner sans dupliquer le nombre. */
+export const LAC_R = 2.5;
+
+/**
+ * Task 7b (la glisse verrouillée, la règle Pokémon) : un disque de glace vide se traverse tout
+ * droit et ne demande rien — la glisse verrouillée n'est intéressante que si le lac est AUTHORÉ,
+ * pas généré lisse (voir le spec, section « La glace : glisse verrouillée »). Trois rochers en
+ * chaîne, du sud-ouest au nord-est, posés par `props.ts` (`populate`, avec leur collider) :
+ *
+ * - le rocher central barre le passage le plus évident, tout droit par le milieu du lac, dans les
+ *   deux axes cardinaux à la fois (nord-sud ET est-ouest) ;
+ * - les deux rochers d'aile le prolongent en diagonale, assez proches du central pour qu'aucun
+ *   des trois ne laisse un interstice où se faufiler (l'espacement, 0.53 unité sur chaque axe,
+ *   tient sous le diamètre du héros, 0.6 — voir `HERO.radius`, `settings.ts`) : la chaîne se
+ *   franchit seulement en la CONTOURNANT par un bout, jamais en la traversant.
+ *
+ * La chaîne ne fait qu'1.5 unité de bout en bout, très en deçà du rayon du lac (`LAC_R`, 2.5) :
+ * chaque bout laisse une bande de glace nue assez large pour qu'on puisse la contourner UNE FOIS
+ * qu'on s'est arrêté contre elle et qu'on a redirigé perpendiculairement — exactement le geste que
+ * la glisse verrouillée impose (on ne peut pas simplement « obliquer légèrement » en glissant).
+ * C'est délibérément une PREMIÈRE énigme simple, pas un labyrinthe : l'auteur redessinera un tracé
+ * plus riche une fois la mécanique en main (voir le brief).
+ */
+export const LAKE_OBSTACLES: readonly { x: number; z: number }[] = [
+  { x: NORD.x, z: NORD.z },
+  { x: NORD.x + 0.53, z: NORD.z - 0.53 },
+  { x: NORD.x - 0.53, z: NORD.z + 0.53 },
+] as const;
+
 export interface GenerateIslandOptions {
   size: number;
   /** Réservé aux futures variations procédurales (props, Task 12) : la forme de l'île, `ILES`
@@ -210,7 +241,6 @@ export function generateIsland(opts: GenerateIslandOptions): {
   // (`NORD_EMPRISE`) n'a besoin que d'être plus large que le rayon effectif du littoral gelé
   // (`NORD.r` majoré de l'amplitude de son onde, ~8.3 unités ici) : il sert seulement à écarter les
   // trois autres îles, qui sont à des dizaines d'unités de distance.
-  const LAC_R = 2.5;
   const GLACE_FINE_LARGEUR = 0.9;
   const NORD_EMPRISE = NORD.r + 2;
   const c = size / 2;

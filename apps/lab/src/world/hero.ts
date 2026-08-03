@@ -23,7 +23,13 @@ import {
 } from "../core/audio.js";
 import { CAMERA, GLACE_FINE, HERO, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
-import { derapage, frictionPour, pasAmorti, vitesseMaxPour } from "./locomotion.js";
+import {
+  frictionPour,
+  type Glissement,
+  glissementSuivant,
+  pasAmorti,
+  vitesseMaxPour,
+} from "./locomotion.js";
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
 import { compteCommeEau, createThinIce, type EtatGlace, tombeEnArrivant } from "./thin-ice.js";
 
@@ -173,6 +179,11 @@ export function createHero(
   let vx = 0;
   let vz = 0;
   let vy = 0;
+  // Glisse verrouillée (Task 7b, la règle de Pokémon) : la direction figée tant qu'on file sur la
+  // glace, ou `null` en dehors d'une glisse. Portée ICI, d'une image à l'autre, exactement comme
+  // `vx`/`vz` — c'est `glissementSuivant` (pur, `world/locomotion.ts`) qui décide ce qu'elle
+  // devient à chaque image, jamais ce fichier directement.
+  let glisse: Glissement = null;
   let airborne = false;
   let swimming = false;
   let breath = HERO.swim.breath;
@@ -387,28 +398,81 @@ export function createHero(
       // 2 images (imperceptible, voir `world/locomotion.ts`). La nage garde son propre plafond de
       // vitesse (`HERO.swim.speed`) : ce n'est pas une matière de sol, juste un milieu plus lent.
       const matiere = swimming || piece ? null : query.kindAt(pos.x, empreinte(pos.z));
-      const friction = frictionPour(matiere);
-      const vmax = swimming ? HERO.speed * HERO.swim.speed : vitesseMaxPour(matiere);
-      const accel = vmax * friction;
 
-      vx = pasAmorti(vx, input.x, accel, friction, dt);
-      vz = pasAmorti(vz, input.z, accel, friction, dt);
+      // --- glisse verrouillée (Task 7b, la règle de Pokémon) ---------------------------------
+      // Jamais en l'air, en pièce ou à la nage — un saut au-dessus de la glace, comme la glace
+      // fine (Task 7), ne charge ni ne verrouille rien tant qu'on ne touche pas le sol dessus.
+      // La direction candidate est celle du verrou si on glisse déjà (l'entrée est ignorée, c'est
+      // TOUTE la règle), sinon celle demandée par le joueur. `matiereDevant` est échantillonnée à
+      // la distance que parcourrait UN pas à la vitesse de glace — la même distance, que la glisse
+      // soit déjà en cours ou sur le point de le devenir, pour que `glissementSuivant` voie
+      // toujours « la case suivante » à la même échelle (voir sa docstring).
+      const iceSpeed = vitesseMaxPour("glace");
+      const glissaitAvant = glisse !== null;
+      let matiereDevant: TerrainMaterial | null = matiere;
+      if (!airborne && !piece && !swimming) {
+        const dirX = glisse ? glisse.dirX : input.x;
+        const dirZ = glisse ? glisse.dirZ : input.z;
+        const norme = Math.hypot(dirX, dirZ);
+        if (norme > 1e-6) {
+          matiereDevant = query.kindAt(
+            pos.x + (dirX / norme) * iceSpeed * dt,
+            empreinte(pos.z + (dirZ / norme) * iceSpeed * dt),
+          );
+        }
+        glisse = glissementSuivant(glisse, { x: input.x, z: input.z }, matiere, matiereDevant);
+      } else {
+        glisse = null;
+      }
 
-      // --- glisse (son tenu) ----------------------------------------------------------------
-      // `derapage` (`world/locomotion.ts`) ne regarde jamais la matière — coupée ici seulement
-      // en l'air et à la nage, où le dérapage au sol n'a pas de sens.
-      setSkid(airborne || swimming ? 0 : derapage(vx, vz, input.x, input.z, HERO.speed));
+      if (glisse) {
+        // Vitesse CONSTANTE, pas amortie : la friction de la glace n'a plus de sens ici (voir
+        // `frictionPour`, `world/locomotion.ts`) — on file, on ne ramp pas vers une cible.
+        vx = glisse.dirX * iceSpeed;
+        vz = glisse.dirZ * iceSpeed;
+      } else if (glissaitAvant) {
+        // La glisse vient de s'arrêter (case suivante non glissante) : stop NET, comme contre un
+        // butoir. Sans ça, l'élan de la glace — encore à pleine vitesse constante l'image
+        // précédente — déborderait d'un pas sur la matière qui a coupé le glissement avant que la
+        // friction de cette matière n'ait eu le temps de le ramener, contredisant « on s'arrête
+        // sur la dernière case de glace » (le spec).
+        vx = 0;
+        vz = 0;
+      } else {
+        const friction = frictionPour(matiere);
+        const vmax = swimming ? HERO.speed * HERO.swim.speed : vitesseMaxPour(matiere);
+        const accel = vmax * friction;
+        vx = pasAmorti(vx, input.x, accel, friction, dt);
+        vz = pasAmorti(vz, input.z, accel, friction, dt);
+      }
 
       // Un axe à la fois : buter sur un obstacle en diagonale fait glisser le long — inchangé,
       // seule la façon de calculer `nx`/`nz` change. Sur l'axe refusé, la vitesse retombe à zéro :
       // sinon on resterait collé au mur à pleine vitesse et on repartirait d'un coup dès qu'on
-      // s'en écarte (voir le rapport de la Task 3 pour ce choix).
+      // s'en écarte (voir le rapport de la Task 3 pour ce choix). `canEnter` ne change pas d'une
+      // ligne (voir le brief) : un butoir arrête la glisse EXACTEMENT comme il arrêtait déjà tout
+      // déplacement, sauf qu'ici il coupe aussi le verrou — sinon on resterait « verrouillé » sur
+      // place contre un rocher, incapable de repartir perpendiculairement (voir le spec : « on
+      // s'arrête contre un rocher, on repart perpendiculairement »).
       const nx = pos.x + vx * dt;
       if (canEnter(nx, pos.z)) pos.x = nx;
-      else vx = 0;
+      else {
+        vx = 0;
+        glisse = null;
+      }
       const nz = pos.z + vz * dt;
       if (canEnter(pos.x, nz)) pos.z = nz;
-      else vz = 0;
+      else {
+        vz = 0;
+        glisse = null;
+      }
+
+      // --- glisse (son tenu) ------------------------------------------------------------------
+      // Task 7b : plus d'intensité de dérapage à suivre (elle n'existe plus, voir
+      // `world/locomotion.ts`) — actif pendant TOUTE la glisse verrouillée, muet sinon. `setSkid`
+      // lisse déjà la transition (`setTargetAtTime`, `core/audio.ts`) : passer 0/1 au lieu d'un
+      // flottant continu ne change rien à la douceur du fondu, seulement à ce qui le pilote.
+      setSkid(glisse ? 1 : 0);
 
       if (piece) {
         // Plancher plat : ni gravité, ni nage, ni saut. On garde les pas.

@@ -53,9 +53,19 @@ export function pasAmorti(
 
 /** `null` = hors carte ou dans l'eau : on y nage, la friction du sol ne s'applique pas, mais la
  *  fonction doit rendre quelque chose de fini plutôt que d'obliger chaque appelant à tester.
- *  `"glace-fine"` partage la friction de `"glace"` — même comportement de glisse tant qu'elle n'a
- *  pas cédé (Task 7 lui donnera son propre visuel de craquelure, pas sa propre physique).
- *  `"sable"` n'a pas encore de règle propre : il retombe sur `"herbe"`. */
+ *  `"glace-fine"` partage la friction de `"glace"` — même comportement tant qu'elle n'a pas cédé
+ *  (Task 7 lui donnera son propre visuel de craquelure, pas sa propre physique).
+ *  `"sable"` n'a pas encore de règle propre : il retombe sur `"herbe"`.
+ *
+ *  ⚠ Depuis Task 7b, `HERO.friction.glace` NE PILOTE PLUS le cas nominal sur la glace : la glisse
+ *  y est désormais VERROUILLÉE (`glissementSuivant`, plus bas), à vitesse constante, pas amortie
+ *  par une friction. Cette valeur ne reste appelée que dans les marges où la glace n'est PAS
+ *  verrouillée : le tout premier pas où le pied vient de toucher la glace mais où la règle ne
+ *  verrouille pas encore (un pas d'avance, voir `glissementSuivant`), et le cas d'une case de
+ *  glace isolée qu'on quitte sans qu'aucune case glissante ne suive (là non plus rien ne
+ *  verrouille). Garder cette valeur BASSE reste correct dans ces deux marges — on continue d'y
+ *  glisser un peu plutôt que de piler — mais elle n'est plus LA règle de la glace, seulement son
+ *  filet de sécurité. */
 export function frictionPour(m: TerrainMaterial | null): number {
   switch (m) {
     case "glace":
@@ -87,30 +97,70 @@ export function vitesseMaxPour(m: TerrainMaterial | null): number {
   }
 }
 
+// --- la glisse verrouillée (Task 7b, la règle de Pokémon Argent) -------------------------------
+//
+// La Task 3 avait donné à la glace une friction quasi nulle : on gardait son élan, on dérapait en
+// tournant, mais on pouvait encore diriger — du patinage. L'auteur en voulait autre chose (voir le
+// spec, section « La glace : glisse verrouillée, pas friction basse ») : entrer sur la glace
+// VERROUILLE la direction, l'entrée est ignorée, et on file en ligne droite jusqu'à ce que la case
+// suivante ne soit plus glissante. Ce n'est plus un réglage de friction, c'est un ÉTAT de
+// déplacement contraint — la condition d'existence des énigmes de glace, l'objectif réel de cette
+// matière (voir le spec pour le POURQUOI).
+//
+// L'ancien `derapage()` (Task 6, le son de la glisse) a disparu avec elle : il mesurait le
+// désaccord entre la vitesse et l'entrée pendant un virage qui dérape, un état qui n'existe plus —
+// soit on n'est pas verrouillé et la vitesse suit l'entrée normalement, soit on l'est et l'entrée
+// n'est même plus lue. Il n'y a plus rien entre les deux à mesurer.
+
+/** L'état de glisse verrouillée : la direction (unitaire) dans laquelle on file, ou `null` quand
+ *  on n'est pas en train de glisser. Portée par le héros (`hero.ts`) d'une image à l'autre — cette
+ *  fonction ne fait que dire, à chaque image, ce que devient l'état d'AVANT. */
+export type Glissement = { readonly dirX: number; readonly dirZ: number } | null;
+
+/** `true` pour les deux matières qui verrouillent la direction — la glace fine glisse EXACTEMENT
+ *  comme la glace pour cette règle (elle partage déjà sa friction et son son, voir plus haut et
+ *  `core/audio.ts`) : c'est justement ce qui la rend plus sûre sous cette règle (Task 7b) — on ne
+ *  s'y attarde plus jamais, on la traverse en glissant. */
+function estGlissante(m: TerrainMaterial | null): boolean {
+  return m === "glace" || m === "glace-fine";
+}
+
 /**
- * Intensité du dérapage (Task 6, le son de la glisse) : 0 quand la vitesse suit l'entrée, 1
- * quand elles s'opposent — pondérée par la vitesse, pour qu'un résidu de dérive à vitesse
- * quasi nulle (la toute fin d'un arrêt) ne sonne pas à pleine intensité. Entrée nulle mais
- * vitesse non nulle vaut le désaccord MAXIMAL : glisser sur son élan sans direction demandée est
- * exactement l'arrêt sur la glace, pas une absence de dérapage.
+ * La règle ENTIÈRE de la glisse verrouillée, pure et déterministe (elle remonte dans `engine` en
+ * S2, autoritative côté serveur) : ni terrain, ni colliders, ni héros — seulement des matières et
+ * une entrée, fournis par l'appelant (`hero.ts`) qui seul sait ce qu'il y a sous les pieds et
+ * devant. `matiereSousLesPieds` est la matière de la case où l'on se trouve MAINTENANT, avant le
+ * pas de cette image (le même instant que `frictionPour`/`vitesseMaxPour` interrogent, voir plus
+ * haut) ; `matiereDevant` est celle de la case que le pas de cette image atteindrait, dans la
+ * direction candidate (celle du verrou si on glisse déjà, sinon celle de `entree`).
  *
- * SANS jamais regarder la matière du sol, par construction — c'est le même calcul qui fait que
- * la glace glisse (l'entrée accélère, la matière freine, voir plus haut) qui fait que cette
- * intensité retombe proche de zéro ailleurs : sur l'herbe/le sable/la neige la vitesse rattrape
- * l'entrée en une ou deux images, bien avant que `setSkid` (`core/audio.ts`) n'ait le temps de le
- * rendre audible. Pure et déterministe comme le reste du module : c'est un effet SONORE, pas une
- * règle de jeu qui remontera dans `engine`, mais autant la garder testable au même titre.
+ * Deux branches :
+ * - **Verrouillé** (`actuel` non nul) : `entree` n'est même pas lue — c'est elle qui EST la règle
+ *   de Pokémon. On continue tant que la case suivante glisse encore ; sinon le verrou tombe, sans
+ *   qu'aucun mouvement supplémentaire n'ait à se produire pour ça (c'est `hero.ts` qui garantit
+ *   qu'aucun pas ne suit ce `null` — voir sa docstring, le rapport de la task pour le détail).
+ * - **Pas verrouillé** : il faut ÊTRE sur la glace maintenant (`matiereSousLesPieds`) — regarder
+ *   seulement la case devant verrouillerait un pas trop tôt, avant même d'avoir posé le pied
+ *   dessus. Il faut AUSSI que la case devant glisse encore — sinon on verrouillerait la sortie
+ *   d'une case de glace isolée, ce qui enverrait un pas à vitesse de glace vers la matière censée
+ *   arrêter la glisse : exactement le débordement que « on s'arrête sur la dernière case de
+ *   glace » (le spec) interdit. Les deux conditions sont nécessaires, aucune ne suffit seule.
+ *
+ * Enfin, sans direction, rien ne se verrouille (`entree` nulle) : poussé à l'arrêt sur la glace,
+ * ou tombé dessus sans élan, partir dans une direction arbitraire serait pire qu'attendre l'entrée
+ * du joueur.
  */
-export function derapage(
-  vx: number,
-  vz: number,
-  ix: number,
-  iz: number,
-  vitesseRef: number,
-): number {
-  const vitesse = Math.hypot(vx, vz);
-  if (vitesse < 1e-3) return 0;
-  const entree = Math.hypot(ix, iz);
-  const desaccord = entree > 1e-3 ? (1 - (vx * ix + vz * iz) / (vitesse * entree)) / 2 : 1;
-  return desaccord * Math.min(1, vitesse / vitesseRef);
+export function glissementSuivant(
+  actuel: Glissement,
+  entree: { x: number; z: number },
+  matiereSousLesPieds: TerrainMaterial | null,
+  matiereDevant: TerrainMaterial | null,
+): Glissement {
+  if (actuel) {
+    return estGlissante(matiereDevant) ? actuel : null;
+  }
+  if (!estGlissante(matiereSousLesPieds) || !estGlissante(matiereDevant)) return null;
+  const norme = Math.hypot(entree.x, entree.z);
+  if (norme < 1e-6) return null;
+  return { dirX: entree.x / norme, dirZ: entree.z / norme };
 }

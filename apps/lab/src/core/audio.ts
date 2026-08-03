@@ -115,9 +115,10 @@ const BOUCLES: Record<BoucleKey, string> = {
   // silencieusement jour/nuit à l'arrivée sur la banquise, faute de mieux — voir sa docstring,
   // mise à jour plus bas, pour le câblage réel.
   polaire: "/sfx/amb-polaire.ogg",
-  // La glisse (Task 6) : PAS une ambiance de zone — un son TENU dont le gain suit l'intensité du
-  // dérapage, piloté image par image par `setSkid` depuis `hero.ts`. Elle emprunte quand même
-  // cette infrastructure de boucle plutôt que d'en inventer une seconde : `demarrerBoucles`
+  // La glisse (Task 6, simplifiée Task 7b) : PAS une ambiance de zone — un son TENU piloté image
+  // par image par `setSkid` depuis `hero.ts`, actif pendant une glisse verrouillée et muet sinon
+  // (voir la docstring de `setSkid`, plus bas). Elle emprunte quand même cette infrastructure de
+  // boucle plutôt que d'en inventer une seconde : `demarrerBoucles`
   // (plus bas) la crée une fois, silencieuse par défaut puisque `ambiance` ne vaut jamais
   // "glisse" — exactement comme le foyer avant que `setFireDistance` ne lui donne un gain.
   glisse: "/sfx/glisse.ogg",
@@ -150,8 +151,8 @@ const NIVEAUX: Record<BoucleKey, number> = {
   mer: 0.22,
   feu: 0.5,
   polaire: 0.42,
-  // Le plafond de la glisse à pleine intensité — `setSkid` le multiplie par le dérapage (0..1),
-  // jamais utilisé directement comme les autres nappes.
+  // Le plafond de la glisse à pleine intensité — `setSkid` le multiplie par 0 ou 1 (verrouillé ou
+  // pas, voir sa docstring), jamais utilisé directement comme les autres nappes.
   glisse: 0.6,
 };
 // La musique se fait attendre : elle entre en fondu long, et laisse un vrai
@@ -286,7 +287,7 @@ function demarrerBoucles(): void {
     if (loopEnd !== undefined) src.loopEnd = loopEnd;
     const g = context.createGain();
     // Le feu, la nappe polaire et la glisse démarrent muets : c'est la scène (`setAmbience`) ou
-    // le dérapage (`setSkid`) qui les ouvre.
+    // la glisse verrouillée (`setSkid`) qui les ouvre.
     g.gain.value = clef === "mer" ? NIVEAUX.mer : clef === ambiance ? NIVEAUX[clef] : 0;
     src.connect(g).connect(m);
     src.start();
@@ -634,17 +635,21 @@ export function setFireDistance(d: number): void {
 }
 
 /**
- * La glisse : un son TENU, pas un déclenchement — jamais `jouer()`. `intensite` va de 0 (la
- * vitesse suit l'entrée, aucun dérapage) à 1 (elles divergent complètement) ; `hero.ts` la
- * recalcule à chaque image à partir de `vx`/`vz` et de l'entrée, SANS jamais regarder la matière
- * du sol — c'est le même calcul qui fait que la glace glisse (`locomotion.ts` : l'entrée
- * accélère, la matière freine) qui fait aussi que ce son ne s'entend presque jamais ailleurs :
- * sur l'herbe/le sable/la neige la vitesse rattrape l'entrée en une ou deux images, largement
- * sous la constante de lissage ci-dessous, donc l'intensité y reste proche de zéro.
+ * La glisse : un son TENU, pas un déclenchement — jamais `jouer()`.
  *
- * `setTargetAtTime` lisse l'image par image en un vrai fondu continu — sans lui, chaque appel
- * (60 fois par seconde) redéfinirait le gain instantanément et on entendrait un crépitement
- * haché plutôt qu'un son qui monte et qui descend.
+ * Task 6 pilotait `intensite` en continu (0..1) sur le DÉSACCORD entre la vitesse et l'entrée — un
+ * dérapage en virage que la glace de l'époque (friction quasi nulle, mais encore dirigeable)
+ * permettait. Task 7b a remplacé cette glace-là par une glisse VERROUILLÉE (la règle de Pokémon,
+ * `glissementSuivant`, `world/locomotion.ts`) : soit on glisse, direction figée, entrée ignorée,
+ * soit on ne glisse pas — il n'y a plus de désaccord à mesurer entre les deux. `hero.ts` appelle
+ * donc `setSkid` avec 0 ou 1 seulement, jamais une valeur intermédiaire : `intensite` reste un
+ * `number` (pas un booléen) uniquement parce que `Math.max(0, Math.min(1, ...))` ci-dessous
+ * l'accepte sans problème et qu'un futur appelant pourrait redevenir continu sans changer cette
+ * signature.
+ *
+ * `setTargetAtTime` lisse l'image par image en un vrai fondu continu — sans lui, un signal 0/1
+ * changerait le gain instantanément et on entendrait un CLIC au lieu d'un son qui monte et qui
+ * descend en douceur au verrouillage et à l'arrêt.
  */
 export function setSkid(intensite: number): void {
   const glisse = boucles.glisse;

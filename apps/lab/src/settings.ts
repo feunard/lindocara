@@ -131,13 +131,19 @@ export const CAMERA: CameraSettings = {
 export interface HeroSettings {
   speed: number;
   /** Une friction et un plafond de vitesse par matière (Task 3 de l'île de neige) — l'entrée
-   *  ACCÉLÈRE, la matière FREINE, et c'est la même équation pour l'herbe, la neige et la glace.
-   *  Ordre qui fait le jeu : `glace ≪ herbe < neige`. L'herbe est réglée pour rester indiscernable
-   *  de l'ancien modèle instantané (voir `world/locomotion.ts`) ; la neige freine plus ET plafonne
-   *  plus bas — on y peine des deux façons à la fois ; la glace freine à peine — on garde son élan
-   *  et un virage dérape au lieu de pivoter sec. Indexé par `TerrainMaterial`, mais seules ces
-   *  trois matières changent le déplacement : `sable` retombe sur `herbe`, `glace-fine` retombe
-   *  sur `glace` via `frictionPour`/`vitesseMaxPour` (locomotion.ts). */
+   *  ACCÉLÈRE, la matière FREINE, et c'est la même équation pour l'herbe et la neige. L'herbe est
+   *  réglée pour rester indiscernable de l'ancien modèle instantané (voir `world/locomotion.ts`) ;
+   *  la neige freine plus ET plafonne plus bas — on y peine des deux façons à la fois. Indexé par
+   *  `TerrainMaterial`, mais seules herbe/neige/glace changent le déplacement : `sable` retombe
+   *  sur `herbe`, `glace-fine` retombe sur `glace` (`frictionPour`/`vitesseMaxPour`,
+   *  `locomotion.ts`).
+   *
+   *  ⚠ `glace` NE DÉCRIT PLUS le cas nominal depuis Task 7b : la glace glisse désormais en
+   *  direction VERROUILLÉE (`glissementSuivant`, `locomotion.ts`, la règle de Pokémon), à vitesse
+   *  constante — ni accélération ni friction n'y participent tant qu'on est verrouillé. Cette
+   *  valeur ne reste utile que dans les marges où la glace n'est PAS verrouillée (voir la
+   *  docstring de `frictionPour`) — la garder basse y reste correct, un peu de glisse résiduelle
+   *  plutôt qu'un arrêt sec, mais ce n'est plus elle qui fait « la glace glisse ». */
   friction: { herbe: number; neige: number; glace: number };
   /** Multiplicateur de `speed` par matière, au-dessus de la friction — c'est lui qui fait
    *  PLAFONNER plus bas dans la neige, pas seulement freiner plus fort pour l'atteindre. */
@@ -191,13 +197,15 @@ export const HERO: HeroSettings = {
   //  - neige (130) : encore plus haute que l'herbe — on peine à ACCÉLÉRER — et son `vitesseSol`
   //    plafonne aussi plus bas — on peine aussi à ATTEINDRE sa vitesse de pointe. Les deux jouent
   //    ensemble, pas l'un à la place de l'autre.
-  //  - glace (0.35) : quasi nulle. `exp(-0.35 · 1) ≈ 0.70` : une seconde après avoir relâché les
-  //    touches, on glisse encore aux deux tiers de sa vitesse — largement de quoi déraper en
-  //    tournant et ne jamais s'arrêter net.
+  //  - glace (0.35) : depuis Task 7b, ne pilote plus le cas nominal (glisse verrouillée à vitesse
+  //    constante — voir `glissementSuivant`, `world/locomotion.ts`). Gardée quasi nulle pour les
+  //    marges où elle sert encore (voir `frictionPour`) : mieux vaut y glisser un peu que piler.
   friction: { herbe: 80, neige: 130, glace: 0.35 },
   // Multiplicateur de `speed`, PAR-DESSUS la friction : sur l'herbe on atteint `speed` pile, mais
   // sur la neige l'équilibre plafonne à 55 % de `speed` — pas seulement plus lentement à
-  // l'atteindre. La glace ne réduit pas le plafond : seule sa friction quasi nulle la distingue.
+  // l'atteindre. `glace` (1, donc `speed` pile) sert désormais de VITESSE DE GLISSE CONSTANTE —
+  // `vitesseMaxPour("glace")` est ce que `hero.ts` assigne littéralement à `vx`/`vz` pendant une
+  // glisse verrouillée (Task 7b), pas seulement un plafond que la friction laisserait atteindre.
   vitesseSol: { herbe: 1, neige: 0.55, glace: 1 },
   radius: 0.3,
   offset: 0.15,

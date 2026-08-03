@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HERO } from "../src/settings.js";
-import { derapage, frictionPour, pasAmorti, vitesseMaxPour } from "../src/world/locomotion.js";
+import { frictionPour, pasAmorti, vitesseMaxPour } from "../src/world/locomotion.js";
 
 /** Rejoue N pas de temps à entrée constante et rend la vitesse atteinte. */
 function apres(secondes: number, friction: number, accel: number, dt = 1 / 60): number {
@@ -59,44 +59,8 @@ describe("le modèle à friction", () => {
   });
 });
 
-describe("le dérapage (le son de la glisse, Task 6)", () => {
-  it("est nul à l'arrêt, quelle que soit l'entrée", () => {
-    expect(derapage(0, 0, 1, 0, HERO.speed)).toBe(0);
-    expect(derapage(0, 0, 0, 0, HERO.speed)).toBe(0);
-  });
-
-  it("est nul quand la vitesse suit exactement l'entrée, à pleine vitesse", () => {
-    expect(derapage(HERO.speed, 0, 1, 0, HERO.speed)).toBeCloseTo(0, 6);
-  });
-
-  it("est maximal quand la vitesse s'oppose exactement à l'entrée, à pleine vitesse", () => {
-    expect(derapage(HERO.speed, 0, -1, 0, HERO.speed)).toBeCloseTo(1, 6);
-  });
-
-  it("vaut la moitié quand vitesse et entrée sont perpendiculaires", () => {
-    expect(derapage(HERO.speed, 0, 0, 1, HERO.speed)).toBeCloseTo(0.5, 6);
-  });
-
-  it(
-    "est maximal entrée relâchée mais vitesse pleine : glisser sur son élan sans direction " +
-      "demandée est l'arrêt sur la glace, pas une absence de dérapage",
-    () => {
-      expect(derapage(HERO.speed, 0, 0, 0, HERO.speed)).toBeCloseTo(1, 6);
-    },
-  );
-
-  it(
-    "descend avec la vitesse : un résidu de dérive à vitesse quasi nulle ne sonne pas à pleine " +
-      "intensité, même entrée relâchée",
-    () => {
-      const plein = derapage(HERO.speed, 0, 0, 0, HERO.speed);
-      const residuel = derapage(HERO.speed * 0.05, 0, 0, 0, HERO.speed);
-      expect(residuel).toBeLessThan(plein);
-      expect(residuel).toBeCloseTo(0.05, 2);
-    },
-  );
-
-  it("ne dépasse jamais 1 même à vitesse supérieure à la référence", () => {
-    expect(derapage(HERO.speed * 3, 0, -1, 0, HERO.speed)).toBeLessThanOrEqual(1);
-  });
-});
+// Le dérapage (Task 6, le son de la glisse en virage) a disparu avec la friction basse de la
+// glace qu'il mesurait : depuis Task 7b, la glace verrouille la direction plutôt que de laisser
+// tourner en dérapant — il n'y a plus de désaccord vitesse/entrée à mesurer, seulement verrouillé
+// ou pas. Voir `test/glisse.test.ts` pour la nouvelle règle (`glissementSuivant`) et son
+// intégration au son (`setSkid`, `world/hero.ts`).
