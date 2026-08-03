@@ -1,0 +1,26 @@
+[project]
+name = "studio-runner-sprite"
+version = "0"
+description = "CUDA sprite lane — FLUX.2-klein through diffusers"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "torch>=2.9",
+    "diffusers>=0.36",
+    "transformers>=4.57",
+    "accelerate>=1.0",
+    "peft>=0.14",
+    "safetensors>=0.4",
+    "sentencepiece>=0.2",
+    "protobuf>=4",
+    "pillow>=10",
+]
+
+# CUDA wheels on Windows and Linux; on macOS the default index already ships Metal builds
+# (that path is unused — Apple Silicon goes through mflux, not this runner).
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128", marker = "sys_platform != 'darwin'" }]

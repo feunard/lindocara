@@ -1,0 +1,57 @@
+{
+  "_doc": "Cross-lane identity. sprite_ref locks the look (passed to mflux-generate-flux2-edit via --image-paths), voice_ref locks the voice (5-15s of clean speech, passed to the cloning model). Either may be null: a null sprite_ref falls back to text-only generation, a null voice_ref falls back to the archetype's stock voice. description is repeated verbatim on every sheet — it is what holds identity together within a generation.",
+  "elf-druid": {
+    "description": "a female wood elf druid with long braided auburn hair, green hooded cloak worn up, leather bracers, holding a gnarled wooden staff topped with a glowing acorn",
+    "sprite_ref": "pixel-art/refs/elf-druid.png",
+    "voice_ref": null,
+    "archetype": "druid"
+  },
+  "demon-hunter": {
+    "description": "a lithe demon hunter with a blindfold over the eyes, dark leather armour, twin warglaives, tattered green cape",
+    "sprite_ref": "pixel-art/refs/demon-hunter.png",
+    "voice_ref": null,
+    "archetype": "hero_f"
+  },
+  "gnoll-shaman": {
+    "description": "a hunched hyena-headed gnoll shaman with bone fetishes braided into its mane, patchwork hide robe, carved totem staff",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "elder"
+  },
+  "gnoll": {
+    "description": "a hunched hyena-headed gnoll warrior with matted fur, scavenged iron armour plates, notched cleaver",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "brute"
+  },
+  "sporeling": {
+    "description": "a small grumpy mushroom monster with a red spotted cap, stubby legs and tiny angry eyes",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "trickster"
+  },
+  "imp": {
+    "description": "a small red-skinned imp with stubby horns, bat wings and a barbed tail, grinning",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "trickster"
+  },
+  "dracthyr": {
+    "description": "a bipedal dragonkin with bronze scales, small folded wings, ridged brow and a tail",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "boss"
+  },
+  "dragon": {
+    "description": "a stocky green dragon with a heavy jaw, short horns and leathery wings",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "boss"
+  },
+  "polar-hermit": {
+    "description": "a stocky bipedal polar bear wrapped in a thick fur-lined hooded cloak, frost crusted on his fur, leaning on a long wooden ice-fishing spear, standing idle",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "elder"
+  }
+}

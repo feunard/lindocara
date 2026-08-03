@@ -21,9 +21,16 @@ artifacts/
 
 # Agent worktrees and local agent state. Worktree contents are checkouts of this
 # same repo — tracking them would commit the repo into itself.
-.claude/
+# Excluding the contents rather than the directory itself: git never descends into an
+# excluded directory, so `.claude/` would make the skills exception below unreachable.
+.claude/*
+# Skills are project tooling, shared by everyone working here.
+!.claude/skills/
 
 wireframes
 
 # `alepha pack` writes the artifact next to the app when -o is omitted.
 *.tar.gz
+
+# ACE-Step writes progress estimates next to the working directory.
+.cache/

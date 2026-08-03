@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""CUDA sprite runner — FLUX.2-klein + the Tiny Swords LoRA through diffusers.
+
+studio.py calls this on non-Apple machines; on Apple Silicon it calls mflux instead.
+Both produce the same thing from the same prompt, LoRA and seed.
+
+Not invoked directly: `python3 studio.py sprite ...` builds the command line.
+"""
+import argparse
+import sys
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Generate one sprite with FLUX.2-klein + a LoRA.")
+    ap.add_argument("--model", required=True)
+    ap.add_argument("--prompt", required=True)
+    ap.add_argument("--lora", required=True)
+    ap.add_argument("--lora-scale", type=float, default=1.4)
+    ap.add_argument("--steps", type=int, default=4)
+    ap.add_argument("--guidance", type=float, default=4.0)
+    ap.add_argument("--width", type=int, default=768)
+    ap.add_argument("--height", type=int, default=768)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--dtype", default="bfloat16")
+    ap.add_argument("--image", help="Reference image — locks a character's look between generations.")
+    ap.add_argument("--offload", action="store_true",
+                    help="Stream the model from system RAM. Only for cards under ~10 GB: it is slow.")
+    ap.add_argument("--out", required=True)
+    args = ap.parse_args()
+
+    try:
+        import torch
+    except ImportError:
+        sys.exit("torch is missing — `uv sync` in this runner's directory should install it.")
+
+    try:
+        from diffusers import Flux2KleinPipeline
+    except ImportError:
+        sys.exit(
+            "diffusers has no Flux2KleinPipeline. It needs a build with FLUX.2 support:\n"
+            "  uv add --project studio/runners/sprite 'diffusers @ git+https://github.com/huggingface/diffusers'"
+        )
+
+    if not torch.cuda.is_available():
+        sys.exit("no CUDA device visible — check the NVIDIA driver, or run with STUDIO_BACKEND=mlx on a Mac.")
+
+    dtype = getattr(torch, args.dtype, None)
+    if dtype is None:
+        sys.exit("unknown dtype %r" % args.dtype)
+
+    pipe = Flux2KleinPipeline.from_pretrained(args.model, torch_dtype=dtype)
+    # A 12 GB card holds the 4B distilled model whole (~8.4 GB); offloading is a fallback,
+    # and a costly one when system RAM is slow.
+    if args.offload:
+        pipe.enable_model_cpu_offload()
+    else:
+        pipe.to("cuda")
+
+    pipe.load_lora_weights(args.lora, adapter_name="tinyswords")
+    pipe.set_adapters("tinyswords", adapter_weights=args.lora_scale)
+
+    call = {
+        "prompt": args.prompt,
+        "height": args.height,
+        "width": args.width,
+        "num_inference_steps": args.steps,
+        "guidance_scale": args.guidance,
+        "generator": torch.Generator(device="cuda").manual_seed(args.seed),
+    }
+    if args.image:
+        from PIL import Image
+        call["image"] = [Image.open(args.image).convert("RGB")]
+
+    pipe(**call).images[0].save(args.out)
+    print("wrote %s" % args.out)
+
+
+if __name__ == "__main__":
+    main()

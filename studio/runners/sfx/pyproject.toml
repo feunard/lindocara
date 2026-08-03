@@ -1,0 +1,23 @@
+[project]
+name = "studio-runner-sfx"
+version = "0"
+description = "CUDA sound-effect lane — MOSS-SoundEffect v2"
+requires-python = ">=3.12,<3.13"
+# Upstream pins these hard (numpy 1.26 / transformers 4.57 / torch 2.9). Loosening them
+# reproduces the numpy ABI crash the MLX side already ran into.
+dependencies = [
+    "moss-soundeffect-v2",
+    "numpy==1.26.*",
+    "transformers==4.57.*",
+    "torch>=2.9,<2.10",
+    "soundfile>=0.12",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128", marker = "sys_platform != 'darwin'" }]
+moss-soundeffect-v2 = { git = "https://github.com/OpenMOSS/MOSS-TTS", subdirectory = "moss_soundeffect_v2" }

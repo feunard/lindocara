@@ -856,40 +856,46 @@ The PoC used module state because it only ever opened one scene; the game and a 
 preview will each open their own `hd2d` context, and a module singleton would mean rotating one
 scene's camera also rotates the other's sprites. See `packages/hd2d/AGENTS.md`.
 
-## Generating assets (macOS / Apple Silicon only)
+## Generating assets
 
-`~/git/pixel-art-model` is a **four-lane asset studio** for this game's art direction — sprites,
-sound effects, voice lines and music — running entirely locally on Apple Silicon. Every model in it
-is Apache 2.0 or MIT, so **generated assets are shippable**; that constraint drove the model picks
+`studio/` is a **four-lane asset studio** for this game's art direction — sprites, sound effects,
+voice lines and music — running entirely locally. macOS on Apple Silicon uses MLX, Windows and
+Linux use CUDA; the backend is detected from the machine and the commands are identical. Every
+model is Apache 2.0 or MIT, so **generated assets are shippable**; that constraint drove the picks
 (MusicGen, AudioGen and F5-TTS are all CC-BY-NC and were rejected for it).
 
 ```bash
-cd ~/git/pixel-art-model
-python3 studio.py sprite --prompt "a goblin archer with a short bow, standing idle" --out <chemin>.png
-python3 studio.py sfx    --prompt "a heavy wooden door creaking open" --duration 3 --out <chemin>.wav
-python3 studio.py voice  --text "You shall not pass!" --archetype brute --out <chemin>.wav
-python3 studio.py music  --prompt "calm village at dawn" --duration 60 --out <chemin>.wav
+python3 studio/studio.py sprite --prompt "a goblin archer with a short bow, standing idle" --out <chemin>.png
+python3 studio/studio.py sfx    --prompt "a heavy wooden door creaking open" --duration 3 --out <chemin>.wav
+python3 studio/studio.py voice  --text "You shall not pass!" --archetype brute --out <chemin>.wav
+python3 studio/studio.py music  --prompt "calm village at dawn" --duration 60 --out <chemin>.wav
 ```
 
 Rules that matter:
 
 - **Call `studio.py`, never the underlying runtimes.** It injects the art direction from
-  `theme.json` into every prompt — that is what makes a goblin sprite, a door creak and a village
-  theme feel like one game rather than four models. `--no-theme` opts out deliberately.
-- **Generate straight into this repo with `--out`.** That folder is a studio, not a library: don't
-  copy assets out of it, and don't commit anything to it.
-- `characters.json` binds a name to a look *and* a voice, so a creature stays itself across lanes
-  (`--character elf-druid`). Add an entry, nothing else changes.
-- Shared flags: `--seed` (default 42), `--variants N`, `--no-theme`.
-- `python3 studio.py doctor` proves the plumbing. It cannot tell you whether a bleat sounds like a
-  sheep — **that stays a human pass**, same as sprites always needed an eye on the grid.
+  `studio/theme.json` into every prompt — that is what makes a goblin sprite, a door creak and a
+  village theme feel like one game rather than four models. `--no-theme` opts out deliberately.
+- **Sprites are not finished when they come out.** The model renders a smooth 768² illustration;
+  `scripts/sprite.py` is what turns it into pixel art at the game's density. Record the prompt and
+  seed in `apps/lab/assets/generated/PROVENANCE.md`.
+- `studio/characters.json` binds a name to a look *and* a voice, so a creature stays itself across
+  lanes (`--character elf-druid`). Add an entry, nothing else changes.
+- Shared flags: `--seed` (default 42), `--variants N`, `--no-theme`, `--dry-run`.
+- `python3 studio/studio.py doctor` proves the plumbing. It cannot tell you whether a bleat sounds
+  like a sheep — **that stays a human pass**, same as sprites always needed an eye on the grid.
 
 Rough costs on the M4 Pro it was built on: a 768×768 sprite ~25 s, 2 s of SFX ~4 s, a short voice
-line ~5 s, 20 s of music ~55 s. Its own `CLAUDE.md` documents the install and the per-lane details;
-read it before a first run, the `mlx-audio` install line in particular is load-bearing.
+line ~5 s, 20 s of music ~55 s. A 12 GB NVIDIA card is in the same range.
 
-The Tiny Swords source art is Pixel Frog's pack — check its terms before distributing the LoRA or
-generated sprites publicly.
+`studio/AGENTS.md` documents the install for both platforms and the per-lane details; read it
+before a first run — the `mlx-audio` install line and the Windows sysmem-fallback setting are both
+load-bearing. Weights are ~30 GB and download on first use; the repo itself only carries the 64 MB
+LoRA.
+
+The LoRA is trained in the separate `pixel-art-model` lab; `studio/models/` holds the picked
+checkpoint. The Tiny Swords source art is Pixel Frog's pack — check its terms before distributing
+the LoRA or generated sprites outside this project.
 
 ## Secrets
 

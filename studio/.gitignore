@@ -1,0 +1,13 @@
+# ACE-Step's clone and its 9.4 GB of checkpoints. Fetched by the install step in
+# AGENTS.md — never committed.
+musics/ACE-Step-1.5/
+
+# Per-runner virtualenvs, created on demand by `uv run`.
+runners/*/.venv/
+runners/*/uv.lock
+
+# Scratch output from `studio.py doctor`.
+examples/_smoke/
+
+__pycache__/
+*.pyc

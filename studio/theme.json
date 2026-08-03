@@ -1,0 +1,71 @@
+{
+  "name": "Tiny Swords",
+  "description": "Chunky HD pixel art, warm cartoon fantasy. Clean readable silhouettes, saturated palette, thick outlines, cel shading. Audio matches: dry close-mic foley, no lo-fi crunch unless asked, light orchestral score.",
+
+  "_doc": "Each lane holds its art direction at the top and its plumbing under `backends`. The backend is chosen by the machine: `mlx` on Apple Silicon, `cuda` everywhere else. Art direction is shared by both — that is the point.",
+
+  "pixel_art": {
+    "trigger": "T1NYSW0RDS.",
+    "prompt_suffix": "video game sprite on a dark navy background",
+    "lora": "models/tinyswords-v2-4000.safetensors",
+    "lora_scale": 1.4,
+    "steps": 4,
+    "width": 768,
+    "height": 768,
+    "backends": {
+      "mlx": { "runtime": "mflux", "model": "flux2-klein-4b", "quantize": 8 },
+      "cuda": { "runtime": "diffusers", "model": "black-forest-labs/FLUX.2-klein-4B", "dtype": "bfloat16", "guidance": 4.0 }
+    }
+  },
+
+  "sounds": {
+    "prompt_suffix": "clean isolated single sound effect, dry close recording, no music, no speech, no background ambience",
+    "default_duration": 3,
+    "crunch": "off",
+    "backends": {
+      "mlx": { "runtime": "mlx-speech", "model": "moss-sound-effect" },
+      "cuda": { "runtime": "moss-torch", "model": "OpenMOSS-Team/MOSS-SoundEffect-v2.0", "steps": 100, "cfg_scale": 4.0 }
+    }
+  },
+
+  "voices": {
+    "default_archetype": "narrator",
+    "archetypes": {
+      "brute":    { "voice": "am_fenrir",  "pitch": -3, "speed": 0.92 },
+      "elder":    { "voice": "bm_george",  "pitch": -1, "speed": 0.90 },
+      "druid":    { "voice": "bf_emma",    "pitch":  0, "speed": 0.95 },
+      "trickster":{ "voice": "am_puck",    "pitch":  4, "speed": 1.10 },
+      "boss":     { "voice": "am_onyx",    "pitch": -5, "speed": 0.88 },
+      "hero_m":   { "voice": "am_michael", "pitch":  0, "speed": 1.00 },
+      "hero_f":   { "voice": "af_heart",   "pitch":  0, "speed": 1.00 },
+      "narrator": { "voice": "bm_fable",   "pitch":  0, "speed": 0.95 }
+    },
+    "backends": {
+      "mlx": {
+        "runtime": "mlx-audio",
+        "draft": "mlx-community/Kokoro-82M-bf16",
+        "clone": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
+      },
+      "cuda": {
+        "runtime": "torch-tts",
+        "draft": "hexgrad/Kokoro-82M",
+        "clone": "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+      }
+    }
+  },
+
+  "musics": {
+    "style_prompt": "heroic medieval fantasy, light orchestral, warm cartoon adventure, live instruments, clean mix",
+    "default_duration": 60,
+    "instrumental": true,
+    "backends": {
+      "mlx": { "runtime": "acestep", "lm_backend": "mlx" },
+      "cuda": { "runtime": "acestep", "lm_backend": "pt" }
+    }
+  },
+
+  "crunch_presets": {
+    "light": { "rate": 22050, "bits": 12 },
+    "heavy": { "rate": 11025, "bits": 8 }
+  }
+}
