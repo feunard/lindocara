@@ -88,6 +88,25 @@ export function vitesseMaxPour(m: TerrainMaterial | null): number {
 }
 
 /**
+ * L'écart de DIRECTION seul entre la vitesse et l'entrée, 0 (alignées) à 1 (opposées, ou entrée
+ * relâchée) — SANS la pondération par la vitesse que `derapage` applique juste en dessous. Cette
+ * pondération est correcte pour le SON (un résidu de dérive à vitesse quasi nulle ne doit pas
+ * hurler), mais fausse pour trancher « on se propulse ou on glisse » (`sePropulse`, plus bas) :
+ * pondérée, une glisse sans la moindre entrée mais encore lente — le tout DÉBUT d'un lancer sur
+ * la glace, avant que la vitesse n'ait rattrapé `HERO.speed` — retombait sous le seuil et
+ * laissait passer des pas, découvert en rejouant la scène en conditions réelles (voir le rapport)
+ * : aucun test purement analytique sur `derapage` seul ne pouvait le voir, puisque le seuil
+ * choisi (0.5) n'était franchi qu'en combinant un désaccord total avec une vitesse random autour
+ * de la moitié de la référence — exactement la fenêtre où glisser sur son élan commence.
+ */
+function desaccord(vx: number, vz: number, ix: number, iz: number): number {
+  const vitesse = Math.hypot(vx, vz);
+  if (vitesse < 1e-3) return 0;
+  const entree = Math.hypot(ix, iz);
+  return entree > 1e-3 ? (1 - (vx * ix + vz * iz) / (vitesse * entree)) / 2 : 1;
+}
+
+/**
  * Intensité du dérapage (Task 6, le son de la glisse) : 0 quand la vitesse suit l'entrée, 1
  * quand elles s'opposent — pondérée par la vitesse, pour qu'un résidu de dérive à vitesse
  * quasi nulle (la toute fin d'un arrêt) ne sonne pas à pleine intensité. Entrée nulle mais
@@ -110,7 +129,23 @@ export function derapage(
 ): number {
   const vitesse = Math.hypot(vx, vz);
   if (vitesse < 1e-3) return 0;
-  const entree = Math.hypot(ix, iz);
-  const desaccord = entree > 1e-3 ? (1 - (vx * ix + vz * iz) / (vitesse * entree)) / 2 : 1;
-  return desaccord * Math.min(1, vitesse / vitesseRef);
+  return desaccord(vx, vz, ix, iz) * Math.min(1, vitesse / vitesseRef);
+}
+
+/**
+ * Le pivot de `desaccord` (0.5 = exactement perpendiculaire) seuillé en booléen : en dessous, on
+ * SE PROPULSE (l'entrée pousse dans le sens de la vitesse) ; à partir de ce seuil, on GLISSE —
+ * porté par son élan (entrée relâchée ou nulle) ou en train de déraper en tournant fort (entrée
+ * franchement hors du sens de la vitesse). Volontairement SANS `vitesseRef`, contrairement à
+ * `derapage` : la vitesse actuelle ne doit rien changer à CETTE décision (voir `desaccord`).
+ *
+ * C'est le signal qui manquait à la cadence des pas (`hero.ts`, `PAS_TOUS_LES`) : elle est
+ * comptée à la distance parcourue, donc elle se déclenchait aussi en glissant, où le héros
+ * avance sans qu'aucun pied ne quitte le sol. Le critère n'est délibérément PAS la matière — la
+ * même glace se marche prudemment (on pousse dans son sens de déplacement, on se propulse) ou se
+ * glisse dessus (élan sans entrée, ou virage trop sec) — c'est le désaccord de direction qui
+ * tranche, pas une matière ni une vitesse.
+ */
+export function sePropulse(vx: number, vz: number, ix: number, iz: number): boolean {
+  return desaccord(vx, vz, ix, iz) < 0.5;
 }

@@ -23,7 +23,7 @@ import {
 } from "../core/audio.js";
 import { CAMERA, GLACE_FINE, HERO, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
-import { derapage, frictionPour, pasAmorti, vitesseMaxPour } from "./locomotion.js";
+import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
 import { compteCommeEau, createThinIce, type EtatGlace, tombeEnArrivant } from "./thin-ice.js";
 
@@ -398,6 +398,11 @@ export function createHero(
       // `derapage` (`world/locomotion.ts`) ne regarde jamais la matière — coupée ici seulement
       // en l'air et à la nage, où le dérapage au sol n'a pas de sens.
       setSkid(airborne || swimming ? 0 : derapage(vx, vz, input.x, input.z, HERO.speed));
+      // Même signal, seuillé en booléen (`sePropulse`) : sert plus bas à ne compter un pas que
+      // si le héros se propulse réellement, pas s'il est porté par son élan (voir la cadence des
+      // pas, section suivante). En l'air ou à la nage la question ne se pose pas — ces branches
+      // ne comptent de toute façon jamais de pas (voir plus bas).
+      const propulsion = sePropulse(vx, vz, input.x, input.z);
 
       // Un axe à la fois : buter sur un obstacle en diagonale fait glisser le long — inchangé,
       // seule la façon de calculer `nx`/`nz` change. Sur l'axe refusé, la vitesse retombe à zéro :
@@ -528,7 +533,12 @@ export function createHero(
           swimStroke();
           brasse = BRASSE_TOUTES_LES;
         }
-      } else if (!airborne) {
+      } else if (!airborne && propulsion) {
+        // La distance parcourue en GLISSANT (`!propulsion`) ne compte pas : sinon on entend
+        // marcher quelqu'un qui patine — c'est tout le bug de ce rapport. La distance déjà
+        // accumulée avant un dérapage reste en réserve (on ne la remet pas à zéro) : reprendre
+        // appui dans le sens de la vitesse doit reprendre la cadence là où elle en était, pas
+        // repartir de zéro comme si on venait de s'arrêter.
         distanceDepuisLePas += avance;
         if (distanceDepuisLePas >= PAS_TOUS_LES) {
           distanceDepuisLePas = 0;
