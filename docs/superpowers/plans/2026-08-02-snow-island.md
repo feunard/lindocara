@@ -682,6 +682,81 @@ git commit -m "feat(lab): la glace fine craque, cède, et regèle"
 
 ---
 
+### Task 7b: La glisse verrouillée — la règle Pokémon (ajoutée 2026-08-03)
+
+**Files:**
+- Modify: `apps/lab/src/world/locomotion.ts`, `apps/lab/src/world/hero.ts`, `apps/lab/src/world/island.ts`, `apps/lab/src/core/audio.ts`, `apps/lab/src/settings.ts`
+- Test: `apps/lab/test/hero-friction.test.ts` (ou un `test/glisse.test.ts` dédié)
+
+**Interfaces:**
+- Produces: `type Glissement = { dirX: number; dirZ: number } | null` — l'état de glisse verrouillée
+- Produces: `glissementSuivant(actuel, entree, matiereSousLesPieds, matiereDevant): Glissement` — **pure**, la règle entière
+
+La Task 3 avait donné à la glace une friction quasi nulle : on gardait son élan mais **on pouvait
+diriger**. L'auteur en voulait autre chose (voir la section révisée du spec) : **entrer sur la glace
+verrouille la direction, l'entrée est ignorée, et on file en ligne droite jusqu'à ce que la case
+suivante ne soit plus glissante.** On s'arrête sur la dernière case de glace.
+
+Ce n'est pas un réglage, c'est un **état**. Et c'est ce qui rend les **énigmes de glace** possibles :
+le joueur ne résout plus « comment tourner » mais « par où entrer ».
+
+- [ ] **Step 1: Écrire les tests qui échouent**
+
+La règle est **pure** et doit l'être : c'est elle qui remonte dans `engine` en S2. Les cas qui
+comptent :
+
+- entrer sur la glace depuis la neige **verrouille** la direction d'entrée ;
+- pendant la glisse, **l'entrée est ignorée** — une direction opposée ne fait rien ;
+- la glisse **s'arrête** quand la case suivante n'est pas glissante ;
+- elle continue tant que la suivante l'est ;
+- **s'arrêter sur la glace n'est pas possible** sans butoir : la règle ne rend jamais `null` au milieu d'une étendue glissante ;
+- entrer sans direction (à l'arrêt, poussé par rien) ne verrouille rien.
+
+- [ ] **Step 2: La règle, dans `locomotion.ts`**
+
+`glissementSuivant` est pure et ne connaît que des matières et une entrée — **pas de terrain, pas de
+colliders, pas de héros**. C'est l'appelant qui lui dit ce qu'il y a devant.
+
+La friction de la glace **disparaît** : elle n'a plus de sens, la vitesse pendant une glisse est
+constante. `frictionPour("glace")` peut rester pour la glace fine traversée, mais dis en commentaire
+pourquoi elle ne sert plus au cas nominal.
+
+- [ ] **Step 3: Le câblage dans `hero.ts`**
+
+Le héros porte l'état de glisse. Pendant une glisse : la direction est celle verrouillée, la vitesse
+est constante, **l'entrée du joueur n'est pas lue**. Les colliders arrêtent la glisse comme un
+butoir — c'est `canEnter` qui tranche, et **il ne change pas d'une ligne**.
+
+**La glace fine (Task 7) devient meilleure sous cette règle** : on ne stationne jamais, donc la seule
+case dangereuse est celle où l'on s'immobilise. Traverser ne coûte rien, s'arrêter fait tomber. Les
+seuils de temps restent valables tels quels.
+
+- [ ] **Step 4: Le son**
+
+`setSkid` suivait l'intensité d'un dérapage qui n'existe plus. Il devient **actif pendant tout le
+glissement**, muet sinon. C'est plus simple, pas plus compliqué.
+
+- [ ] **Step 5: Des butoirs dans le lac, pour qu'une énigme existe**
+
+Un disque de glace vide se traverse tout droit et ne demande rien. Sème des obstacles — rochers,
+stalagmites — selon un tracé **authoré, pas aléatoire**, de sorte qu'un itinéraire non trivial mène
+d'une rive à l'autre. Une première énigme simple suffit : l'auteur redessinera.
+
+- [ ] **Step 6: Vérifier à l'écran**
+
+Entrer sur la glace en courant : on file tout droit, et appuyer dans une autre direction ne fait
+rien. On s'arrête contre un rocher. On repart perpendiculairement. Le son de glisse court pendant
+tout le trajet. S'arrêter sur une case de glace fine la fait craquer puis céder.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/lab
+git commit -m "feat(lab): la glace verrouille la direction, pour les énigmes"
+```
+
+---
+
 ### Task 8: Neige qui tombe, souffle visible, traces de pas
 
 **Files:**
