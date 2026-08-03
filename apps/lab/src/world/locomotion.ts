@@ -1,4 +1,4 @@
-import { HERO } from "../settings.js";
+import type { HeroSettings } from "./hero-state.js";
 import type { TerrainMaterial } from "./terrain-query.js";
 
 /**
@@ -55,35 +55,39 @@ export function pasAmorti(
  *  fonction doit rendre quelque chose de fini plutôt que d'obliger chaque appelant à tester.
  *  `"glace-fine"` partage la friction de `"glace"` — même comportement de glisse tant qu'elle n'a
  *  pas cédé (Task 7 lui donnera son propre visuel de craquelure, pas sa propre physique).
- *  `"sable"` n'a pas encore de règle propre : il retombe sur `"herbe"`. */
-export function frictionPour(m: TerrainMaterial | null): number {
+ *  `"sable"` n'a pas encore de règle propre : il retombe sur `"herbe"`.
+ *
+ *  `hero` en paramètre plutôt que `HERO` importé de `settings.ts` : c'est ce qui permet à ce
+ *  module de partir dans `@lindocara/engine` sans emporter les réglages du labo avec lui — voir
+ *  `hero-state.ts`, `HeroSettings`. */
+export function frictionPour(m: TerrainMaterial | null, hero: HeroSettings): number {
   switch (m) {
     case "glace":
     case "glace-fine":
-      return HERO.friction.glace;
+      return hero.friction.glace;
     case "neige":
-      return HERO.friction.neige;
+      return hero.friction.neige;
     case "sable":
     case "herbe":
     case null:
-      return HERO.friction.herbe;
+      return hero.friction.herbe;
   }
 }
 
 /** Vitesse de pointe (= vitesse d'équilibre, `accel/friction` quand `accel` en dérive) sur cette
  *  matière. C'est le multiplicateur `vitesseSol` qui fait PLAFONNER plus bas dans la neige, en plus
  *  de la friction plus haute qui fait déjà peiner à l'ATTEINDRE. */
-export function vitesseMaxPour(m: TerrainMaterial | null): number {
+export function vitesseMaxPour(m: TerrainMaterial | null, hero: HeroSettings): number {
   switch (m) {
     case "glace":
     case "glace-fine":
-      return HERO.speed * HERO.vitesseSol.glace;
+      return hero.speed * hero.vitesseSol.glace;
     case "neige":
-      return HERO.speed * HERO.vitesseSol.neige;
+      return hero.speed * hero.vitesseSol.neige;
     case "sable":
     case "herbe":
     case null:
-      return HERO.speed * HERO.vitesseSol.herbe;
+      return hero.speed * hero.vitesseSol.herbe;
   }
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HERO } from "../src/settings.js";
+import type { HeroSettings } from "../src/world/hero-state.js";
 import {
   derapage,
   frictionPour,
@@ -7,6 +8,25 @@ import {
   sePropulse,
   vitesseMaxPour,
 } from "../src/world/locomotion.js";
+
+// `frictionPour`/`vitesseMaxPour` prennent désormais un `HeroSettings` (`hero-state.ts`) complet
+// plutôt que d'importer `HERO` eux-mêmes (Task 2) — c'est ce qui leur permet de partir dans
+// `@lindocara/engine` sans emporter les réglages du labo. `HERO` (`settings.ts`) n'a pas les
+// quatre champs de cadence de `HeroSettings` (ils n'existaient pas avant cette task) : ce fixture
+// leur donne une valeur de test, jamais lue par `frictionPour`/`vitesseMaxPour`.
+const HERO_STEP: HeroSettings = {
+  speed: HERO.speed,
+  radius: HERO.radius,
+  offset: HERO.offset,
+  friction: HERO.friction,
+  vitesseSol: HERO.vitesseSol,
+  jump: HERO.jump,
+  swim: HERO.swim,
+  pasTousLes: 1.2,
+  brasseTousLes: 0.85,
+  haleineRepos: 2.2,
+  traceEcart: 0.14,
+};
 
 /** Rejoue N pas de temps à entrée constante et rend la vitesse atteinte. */
 function apres(secondes: number, friction: number, accel: number, dt = 1 / 60): number {
@@ -19,7 +39,7 @@ describe("le modèle à friction", () => {
   it("atteint exactement la vitesse du héros en régime établi, sur l'herbe", () => {
     // La vitesse d'équilibre vaut accel / friction : c'est ce qui permet de garder HERO.speed
     // comme LA vitesse de référence au lieu d'un nombre qui ne veut plus rien dire.
-    const f = frictionPour("herbe");
+    const f = frictionPour("herbe", HERO_STEP);
     const v = apres(2, f, HERO.speed * f);
     expect(v).toBeCloseTo(HERO.speed, 3);
   });
@@ -28,7 +48,7 @@ describe("le modèle à friction", () => {
     // C'est la définition opérationnelle d'« indiscernable de l'ancien modèle » : le joueur ne
     // peut pas percevoir deux images. Une égalité stricte est impossible — un amorti exponentiel
     // n'atteint sa cible qu'asymptotiquement — donc on pin le TEMPS, pas la trajectoire.
-    const f = frictionPour("herbe");
+    const f = frictionPour("herbe", HERO_STEP);
     const accel = HERO.speed * f;
     expect(apres(2 / 60, f, accel)).toBeGreaterThan(HERO.speed * 0.9);
     // Puis relâché : la vitesse retombe sous 10 % en deux images.
@@ -38,7 +58,7 @@ describe("le modèle à friction", () => {
   });
 
   it("sur la glace, garde son élan bien après le relâchement", () => {
-    const f = frictionPour("glace");
+    const f = frictionPour("glace", HERO_STEP);
     let v = HERO.speed;
     for (let i = 0; i < 60; i++) v = pasAmorti(v, 0, HERO.speed * f, f, 1 / 60);
     // Une seconde plus tard, il glisse encore à plus de la moitié de sa vitesse.
@@ -46,13 +66,13 @@ describe("le modèle à friction", () => {
   });
 
   it("sur la neige, plafonne plus bas que sur l'herbe", () => {
-    expect(vitesseMaxPour("neige")).toBeLessThan(vitesseMaxPour("herbe"));
-    expect(frictionPour("neige")).toBeGreaterThan(frictionPour("herbe"));
+    expect(vitesseMaxPour("neige", HERO_STEP)).toBeLessThan(vitesseMaxPour("herbe", HERO_STEP));
+    expect(frictionPour("neige", HERO_STEP)).toBeGreaterThan(frictionPour("herbe", HERO_STEP));
   });
 
   it("ordonne les trois frictions dans le sens qui fait le jeu", () => {
-    expect(frictionPour("glace")).toBeLessThan(frictionPour("herbe"));
-    expect(frictionPour("herbe")).toBeLessThan(frictionPour("neige"));
+    expect(frictionPour("glace", HERO_STEP)).toBeLessThan(frictionPour("herbe", HERO_STEP));
+    expect(frictionPour("herbe", HERO_STEP)).toBeLessThan(frictionPour("neige", HERO_STEP));
   });
 
   it("ne rend jamais une vitesse infinie ni NaN, même à dt aberrant", () => {
