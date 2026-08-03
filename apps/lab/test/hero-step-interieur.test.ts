@@ -7,31 +7,23 @@ const immobile = { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, halei
 const piece = { x0: -2, x1: 2, z0: -2, z1: 2, y: 5, obstacles: [{ x: 0, z: 1, r: 0.5 }] };
 
 describe("stepHero — en intérieur", () => {
-  // `it.fails` — et NON une assertion ajustée à ce que le code fait (interdit par le brief de
-  // cette task) : `state.room` n'aplatit la verticale qu'AU DÉBUT du bloc (`hero-step.ts`,
-  // `if (state.room) { state.y = state.room.y; airborne = false; … }`), mais le réarmement du
-  // saut par le coyote-time juste en dessous n'est jamais gardé par `!state.room`. Sur CE tick
-  // (coyote initial à 0, donc fraîchement remis à `hero.jump.coyote` par la branche `else` du sol),
-  // `input.jump` arme quand même : `state.y` finit à 5.095 au lieu de 5, `airborne` à `true`, et un
-  // événement "saut" est rendu — en pièce, où aucun des trois ne devrait se produire.
-  //
-  // Vérifié sur git history : CE N'EST PAS une régression des Tasks 2/3. La même structure —
-  // aplatissement du bloc `if (piece)` SANS garde sur le réarmement du saut juste après — existe
-  // déjà telle quelle dans `hero.ts` au commit `8295f200`, avant même le premier commit de ce
-  // chantier (`daf0a41e`) : un bug latent du PoC original, jamais couvert par un test avant cette
-  // task, que l'extraction a fidèlement porté (l'objectif affiché du chantier), pas introduit.
-  // Voir task-6-report.md pour le détail. Laissé en l'état plutôt que corrigé : la correction
-  // (garder le réarmement du saut derrière `!state.room`) change un comportement de jeu déjà validé
-  // task par task, hors du périmètre de cet audit.
-  it.fails("garde le plancher plat : ni gravité, ni nage, ni saut", () => {
+  it("garde le plancher plat : ni gravité, ni nage, ni saut", () => {
     const deps = depsPlates({ hauteur: () => null });
     const s = createHeroState(0, 0, 0, 10, 2.2);
     s.room = piece;
+    // Vitesses initiales non nulles pour tester qu'elles ne sont pas écrasées à zéro par leaveWater
+    s.vx = 2;
+    s.vz = 2;
     const evts = stepHero(s, { ...immobile, jump: true }, 1 / 60, deps);
     expect(s.y).toBe(5);
     expect(s.airborne).toBe(false);
     expect(s.swimming).toBe(false);
     expect(evts.some((e) => e.t === "saut")).toBe(false);
+    // Assertions supplémentaires : aucune sortie d'eau ne doit être émise en pièce, et les vitesses
+    // ne doivent pas être écrasées à zéro (ce qu'aurait fait leaveWater si le bloc swimming s'exécutait)
+    expect(evts.some((e) => e.t === "sortie-eau")).toBe(false);
+    expect(s.vx).not.toBe(0);
+    expect(s.vz).not.toBe(0);
   });
 
   it("ne sort pas du rectangle et contourne les meubles", () => {

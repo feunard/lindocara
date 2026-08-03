@@ -256,135 +256,133 @@ export function stepHero(
   }
   const sol = state.room ? state.room.y : query.heightAt(state.x, empreinteZ(state.z));
 
-  // BUG CONNU : ce bloc n'est pas gardé par `!state.room`. En pièce, `ground` vaut `state.room.y`
-  // et égale donc `state.y` après l'aplatissement ci-dessus, si bien que la branche `else` (aux
-  // lignes ~267-268) s'exécute et recharge `state.coyote` à `hero.jump.coyote`. Le saut peut alors
-  // s'armer une image dans une pièce, avec un événement `saut` parasite. Préexistant au chantier
-  // d'extraction (git history : commit `8295f200`). Épinglé par `it.fails` dans
-  // `apps/lab/test/hero-step-interieur.test.ts`, ligne 26 — CORRIGER ce bug fera ÉCHOUER ce test,
-  // ce qui est voulu : c'est le fil qui prévient de la correction, il faudra alors retirer le `it.fails`.
-  if (!state.swimming) {
-    const ground = sol ?? world.waterLevel;
-    if (state.airborne) {
-      state.coyote -= dt;
-    } else if (ground < state.y - 1e-3) {
-      state.airborne = true; // le sol s'est dérobé : on tombe, on ne glisse pas
-      state.vy = 0;
-    } else {
-      state.y = ground;
-      state.groundY = ground;
-      state.coyote = hero.jump.coyote;
-    }
-
-    // Pas de saut depuis l'eau, et coyote time : on pardonne quelques frames après avoir quitté
-    // le bord.
-    if (input.jump && state.coyote > 0) {
-      state.vy = hero.jump.speed;
-      state.airborne = true;
-      state.coyote = 0;
-      events.push({ t: "saut" });
-    }
-
-    if (state.airborne) {
-      state.vy -= hero.jump.gravity * dt;
-      state.y += state.vy * dt;
-      if (state.vy <= 0 && state.y <= ground) {
+  // En pièce, le plancher est plat : ni gravité, ni nage, ni saut. Tout le bloc vertical est
+  // gardé par `!state.room` pour qu'aucune de ces mécaniques ne s'exécute en intérieur.
+  if (!state.room) {
+    if (!state.swimming) {
+      const ground = sol ?? world.waterLevel;
+      if (state.airborne) {
+        state.coyote -= dt;
+      } else if (ground < state.y - 1e-3) {
+        state.airborne = true; // le sol s'est dérobé : on tombe, on ne glisse pas
+        state.vy = 0;
+      } else {
         state.y = ground;
         state.groundY = ground;
-        // Le poids de la réception suit la vitesse de chute — pour le son comme pour la secousse
-        // de caméra. `Math.min(Math.max(...))` plutôt que `THREE.MathUtils.clamp` : cette règle
-        // n'importe pas `three` (voir l'en-tête du fichier).
-        const impact = Math.min(1.4, Math.max(0.35, -state.vy / hero.jump.speed));
-        events.push({ t: "reception", force: impact });
-        state.vy = 0;
-        state.airborne = false;
-        state.distanceDepuisLePas = 0;
+        state.coyote = hero.jump.coyote;
       }
-    }
 
-    // --- glace fine (Task 5) ------------------------------------------------------------------
-    // Transposée telle quelle depuis `hero.ts` (`tomber()` et le bloc `surGlaceFine` de `update()`)
-    // — SANS garde `!state.swimming` explicite : cette section vit à dessein AVANT la vérification
-    // d'entrée dans l'eau ordinaire juste en dessous, à l'intérieur de la branche `if
-    // (!state.swimming)` ouverte plus haut. `state.swimming` y reflète donc encore le DÉBUT du tick
-    // (rien ne l'a mutée avant ce point) — exactement ce que l'ancien `hero.ts` obtenait en prenant
-    // un instantané de `swimming` AVANT d'appeler `stepHero` (`nageaitDejaCeTick`, devenu inutile :
-    // ce bloc vit maintenant au bon ENDROIT de la séquence plutôt que d'avoir besoin d'une valeur
-    // mise de côté). Une rupture ICI fait passer `state.swimming` à `true` (voir `rompre`), mais la
-    // vérification d'eau ordinaire juste après reste sans effet sur une case de glace fine : `sol`
-    // y est un nombre réel (la banquise a un relief plein), jamais `null`.
-    //
-    // `!state.airborne` : sous le POIDS seulement, sauter par-dessus ne charge rien — c'est tout le
-    // mécanisme (voir le spec). `!state.room` : en pièce, `state.x`/`state.z` sont des coordonnées
-    // VIRTUELLES ; les interroger contre le terrain réel n'a aucun sens et pourrait tomber par
-    // coïncidence sur une vraie case de glace fine ailleurs sur la carte. Ni l'un ni l'autre n'est
-    // testé une seconde fois pour la branche `else` ci-dessous (relâcher la case suivie) : sauter ou
-    // entrer en pièce doit la relâcher tout aussi immédiatement que marcher ailleurs, exactement
-    // comme le faisait l'ancien `hero.ts`.
-    const surGlaceFine =
-      !state.airborne && !state.room && query.kindAt(state.x, empreinteZ(state.z)) === "glace-fine";
-    if (surGlaceFine) {
-      const cle = caseDe(state.x, empreinteZ(state.z), world);
-      if (cle !== state.glaceCase) {
-        // Case différente de la précédente (ou première case de la traversée) : l'ancienne n'est
-        // plus sous le poids, et celle-ci reprend son état là où il en était — peut-être déjà
-        // craquelée par un passage précédent qui n'a pas encore eu le temps de regeler.
-        if (state.glaceCase) deps.glace.relache(state.glaceCase);
-        state.glaceCase = cle;
-        state.glaceEtat = deps.glace.etat(cle);
+      // Pas de saut depuis l'eau, et coyote time : on pardonne quelques frames après avoir quitté
+      // le bord.
+      if (input.jump && state.coyote > 0) {
+        state.vy = hero.jump.speed;
+        state.airborne = true;
+        state.coyote = 0;
+        events.push({ t: "saut" });
       }
-      if (tombeEnArrivant(state.glaceEtat)) {
-        // Arrivée (à pied) directement sur un trou déjà ouvert (pas encore regelé) : rien à
-        // charger, `tombeEnArrivant` (`thin-ice.ts`) le dit sans délai — voir sa docstring. C'est le
-        // second bug de l'île de neige (trouvé en jouant, pas en lisant) : sans cette question posée
-        // à part, revenir à pied sur un trou déjà ouvert ne déclenchait rien, la logique d'origine
-        // ne réagissant qu'aux TRANSITIONS pendant qu'on charge une case.
-        events.push(...rompre(state, deps, cle));
-      } else {
-        const etatSuivant = deps.glace.charge(cle, dt);
-        if (etatSuivant !== state.glaceEtat) {
-          state.glaceEtat = etatSuivant;
-          if (etatSuivant === "craquelee") {
-            events.push({ t: "glace-craque", cle, x: state.x, z: state.z });
-          } else if (tombeEnArrivant(etatSuivant)) {
-            events.push(...rompre(state, deps, cle));
-          }
+
+      if (state.airborne) {
+        state.vy -= hero.jump.gravity * dt;
+        state.y += state.vy * dt;
+        if (state.vy <= 0 && state.y <= ground) {
+          state.y = ground;
+          state.groundY = ground;
+          // Le poids de la réception suit la vitesse de chute — pour le son comme pour la secousse
+          // de caméra. `Math.min(Math.max(...))` plutôt que `THREE.MathUtils.clamp` : cette règle
+          // n'importe pas `three` (voir l'en-tête du fichier).
+          const impact = Math.min(1.4, Math.max(0.35, -state.vy / hero.jump.speed));
+          events.push({ t: "reception", force: impact });
+          state.vy = 0;
+          state.airborne = false;
+          state.distanceDepuisLePas = 0;
         }
       }
-    } else if (state.glaceCase) {
-      deps.glace.relache(state.glaceCase);
-      state.glaceCase = null;
-      state.glaceEtat = "intacte";
-    }
 
-    // --- entrée dans l'eau ordinaire (Task 4) -----------------------------------------------
-    // Bord ou chute — la glace fine ci-dessus a déjà géré sa propre entrée dans l'eau (`rompre`),
-    // donc `eau` ne peut valoir vrai que sur une case qui n'en est pas une. Évaluée ICI, à la fin de
-    // la résolution verticale : `state.swimming` est donc déjà à jour pour la cadence des
-    // pas/brasses juste en dessous, sur CETTE MÊME image — la dette de cadence identifiée à Task 4
-    // (le bloc « eau ordinaire ») est maintenant ENTIÈREMENT refermée par cette task : la rupture de
-    // glace fine, elle aussi, mute `state.swimming` avant que la cadence ne soit évaluée plus bas,
-    // ce qui n'était pas le cas tant que `tomber()` vivait dans `hero.ts`, APRÈS le retour de
-    // `stepHero`.
-    const eau = !state.room && sol === null;
-    if (eau && !state.airborne) events.push(enterWater(state, deps, false));
-  } else {
-    // --- résolution de nage (Task 4) ----------------------------------------------------------
-    // Transposée telle quelle depuis `hero.ts` : sortie sur une rive, ou noyade progressive.
-    // `dansUnTrou` reproduit le garde `compteCommeEau` déjà présent dans le code d'origine (voir sa
-    // docstring, `thin-ice.ts`) — SANS lui, une case de glace fine rompue posée sur un terrain de
-    // hauteur NON NULLE ferait ressortir le héros de l'eau une image après y être tombé : `sol` y
-    // reste un nombre réel, `kindAt` changeant la matière d'une case, jamais sa hauteur. C'est le
-    // piège que l'île de neige a découvert en jouant — couvert par `hero-step-nage.test.ts`.
-    const dansUnTrou = compteCommeEau(deps.glace.etat(caseDe(state.x, empreinteZ(state.z), world)));
-    if (sol !== null && !dansUnTrou) {
-      events.push(leaveWater(state, deps, sol));
+      // --- glace fine (Task 5) ------------------------------------------------------------------
+      // Transposée telle quelle depuis `hero.ts` (`tomber()` et le bloc `surGlaceFine` de `update()`)
+      // — SANS garde `!state.swimming` explicite : cette section vit à dessein AVANT la vérification
+      // d'entrée dans l'eau ordinaire juste en dessous, à l'intérieur de la branche `if
+      // (!state.swimming)` ouverte plus haut. `state.swimming` y reflète donc encore le DÉBUT du tick
+      // (rien ne l'a mutée avant ce point) — exactement ce que l'ancien `hero.ts` obtenait en prenant
+      // un instantané de `swimming` AVANT d'appeler `stepHero` (`nageaitDejaCeTick`, devenu inutile :
+      // ce bloc vit maintenant au bon ENDROIT de la séquence plutôt que d'avoir besoin d'une valeur
+      // mise de côté). Une rupture ICI fait passer `state.swimming` à `true` (voir `rompre`), mais la
+      // vérification d'eau ordinaire juste après reste sans effet sur une case de glace fine : `sol`
+      // y est un nombre réel (la banquise a un relief plein), jamais `null`.
+      //
+      // `!state.airborne` : sous le POIDS seulement, sauter par-dessus ne charge rien — c'est tout le
+      // mécanisme (voir le spec). `!state.room` est déjà garanti par la branche englobante (ligne
+      // ci-dessus), donc ce garde est redondant mais conservé par prudence : il rappelle que les
+      // coordonnées virtuelles de pièce ne doivent jamais interroger le terrain réel.
+      const surGlaceFine =
+        !state.airborne &&
+        !state.room &&
+        query.kindAt(state.x, empreinteZ(state.z)) === "glace-fine";
+      if (surGlaceFine) {
+        const cle = caseDe(state.x, empreinteZ(state.z), world);
+        if (cle !== state.glaceCase) {
+          // Case différente de la précédente (ou première case de la traversée) : l'ancienne n'est
+          // plus sous le poids, et celle-ci reprend son état là où il en était — peut-être déjà
+          // craquelée par un passage précédent qui n'a pas encore eu le temps de regeler.
+          if (state.glaceCase) deps.glace.relache(state.glaceCase);
+          state.glaceCase = cle;
+          state.glaceEtat = deps.glace.etat(cle);
+        }
+        if (tombeEnArrivant(state.glaceEtat)) {
+          // Arrivée (à pied) directement sur un trou déjà ouvert (pas encore regelé) : rien à
+          // charger, `tombeEnArrivant` (`thin-ice.ts`) le dit sans délai — voir sa docstring. C'est le
+          // second bug de l'île de neige (trouvé en jouant, pas en lisant) : sans cette question posée
+          // à part, revenir à pied sur un trou déjà ouvert ne déclenchait rien, la logique d'origine
+          // ne réagissant qu'aux TRANSITIONS pendant qu'on charge une case.
+          events.push(...rompre(state, deps, cle));
+        } else {
+          const etatSuivant = deps.glace.charge(cle, dt);
+          if (etatSuivant !== state.glaceEtat) {
+            state.glaceEtat = etatSuivant;
+            if (etatSuivant === "craquelee") {
+              events.push({ t: "glace-craque", cle, x: state.x, z: state.z });
+            } else if (tombeEnArrivant(etatSuivant)) {
+              events.push(...rompre(state, deps, cle));
+            }
+          }
+        }
+      } else if (state.glaceCase) {
+        deps.glace.relache(state.glaceCase);
+        state.glaceCase = null;
+        state.glaceEtat = "intacte";
+      }
+
+      // --- entrée dans l'eau ordinaire (Task 4) -----------------------------------------------
+      // Bord ou chute — la glace fine ci-dessus a déjà géré sa propre entrée dans l'eau (`rompre`),
+      // donc `eau` ne peut valoir vrai que sur une case qui n'en est pas une. Évaluée ICI, à la fin de
+      // la résolution verticale : `state.swimming` est donc déjà à jour pour la cadence des
+      // pas/brasses juste en dessous, sur CETTE MÊME image — la dette de cadence identifiée à Task 4
+      // (le bloc « eau ordinaire ») est maintenant ENTIÈREMENT refermée par cette task : la rupture de
+      // glace fine, elle aussi, mute `state.swimming` avant que la cadence ne soit évaluée plus bas,
+      // ce qui n'était pas le cas tant que `tomber()` vivait dans `hero.ts`, APRÈS le retour de
+      // `stepHero`.
+      const eau = !state.room && sol === null;
+      if (eau && !state.airborne) events.push(enterWater(state, deps, false));
     } else {
-      state.y = world.waterLevel;
-      // Le taux vient de la zone (voir `HeroInput.souffleTaux`) : le héros n'a plus à savoir QUELLE
-      // eau consomme plus vite, seulement lire ce qu'on lui donne.
-      state.breath -= dt * input.souffleTaux;
-      if (state.breath <= 0) events.push(drown(state, deps));
+      // --- résolution de nage (Task 4) ----------------------------------------------------------
+      // Transposée telle quelle depuis `hero.ts` : sortie sur une rive, ou noyade progressive.
+      // `dansUnTrou` reproduit le garde `compteCommeEau` déjà présent dans le code d'origine (voir sa
+      // docstring, `thin-ice.ts`) — SANS lui, une case de glace fine rompue posée sur un terrain de
+      // hauteur NON NULLE ferait ressortir le héros de l'eau une image après y être tombé : `sol` y
+      // reste un nombre réel, `kindAt` changeant la matière d'une case, jamais sa hauteur. C'est le
+      // piège que l'île de neige a découvert en jouant — couvert par `hero-step-nage.test.ts`.
+      const dansUnTrou = compteCommeEau(
+        deps.glace.etat(caseDe(state.x, empreinteZ(state.z), world)),
+      );
+      if (sol !== null && !dansUnTrou) {
+        events.push(leaveWater(state, deps, sol));
+      } else {
+        state.y = world.waterLevel;
+        // Le taux vient de la zone (voir `HeroInput.souffleTaux`) : le héros n'a plus à savoir QUELLE
+        // eau consomme plus vite, seulement lire ce qu'on lui donne.
+        state.breath -= dt * input.souffleTaux;
+        if (state.breath <= 0) events.push(drown(state, deps));
+      }
     }
   }
 
