@@ -2,6 +2,14 @@ import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { NORD, WORLD } from "../settings.js";
 import { createTerrainQuery, type TerrainMaterial, type TerrainQuery } from "./terrain-query.js";
 
+/** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
+ *  `generateIsland` ci-dessous. Sorti au niveau module (et exporté) pour que
+ *  `test/zone-precede-matiere.test.ts` puisse en pinner la relation avec `ZONE_POLAIRE.rayon`
+ *  (`settings.ts`) sans dupliquer la formule : l'ambiance doit s'installer PENDANT la nage, avant
+ *  que le pied touche la neige, et seul un import du vrai symbole garantit que le test rougit si
+ *  cet ordre se rompt un jour. */
+export const NORD_EMPRISE = NORD.r + 2;
+
 /**
  * PRNG déterministe, port verbatim de `terrain.js` du PoC. La forme de l'île
  * elle-même est une donnée AUTEUR (`ILES`, ci-dessous), pas procédurale — ce générateur n'est donc
@@ -212,7 +220,6 @@ export function generateIsland(opts: GenerateIslandOptions): {
   // trois autres îles, qui sont à des dizaines d'unités de distance.
   const LAC_R = 2.5;
   const GLACE_FINE_LARGEUR = 0.9;
-  const NORD_EMPRISE = NORD.r + 2;
   const c = size / 2;
 
   const kinds = new Array<TerrainMaterial | null>(size * size).fill(null);
