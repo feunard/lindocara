@@ -818,7 +818,12 @@ function updateCamera(
   const rafale =
     0.5 +
     0.5 * Math.sin((windPhase(camTarget.x, camTarget.z, 1) - t / BLIZZARD.periode) * Math.PI * 2);
-  const pulse = (mood.value.fogPulse + fogPulseAmount) * rafale * BLIZZARD.intensite;
+  // Bornée à 1 : les deux termes valent 0 dans les ambiances du labo aujourd'hui, donc sans effet
+  // observable, mais `fogPulse`/`aurora` existent précisément pour qu'une AUTRE ambiance future s'en
+  // serve aussi — une somme non bornée pourrait alors dépasser 1 et faire déborder le `lerp` de
+  // teinte plus bas (`sky.update`) ou ici la resserre du brouillard au-delà de ce que `intensite`
+  // prévoit.
+  const pulse = Math.min(1, mood.value.fogPulse + fogPulseAmount) * rafale * BLIZZARD.intensite;
   fog.far = mood.value.fog.far * k ** CAMERA.fogFar * (1 - pulse);
   // Reculer doit renforcer l'effet maquette, pas l'aplatir.
   pipeline.setTiltShiftZoom(k);
@@ -954,8 +959,10 @@ function frame(now = performance.now()): void {
   sakura?.petales.update(dt);
   // `mood.value.aurora` reste à 0 dans les deux ambiances du labo (voir `MOODS`) ; `auroraAmount`
   // porte la contribution de la zone polaire — la somme documente que les deux s'additionnent,
-  // même si l'un des deux termes vaut toujours 0 aujourd'hui.
-  sky.update(dt, camera, mood.value.aurora + auroraAmount);
+  // même si l'un des deux termes vaut toujours 0 aujourd'hui. Bornée à 1 pour la même raison que
+  // `pulse` dans `updateCamera` : sans effet aujourd'hui, mais `aurora` existe pour qu'une autre
+  // ambiance future s'y ajoute, et `sky.update`/`update` (mood.ts) lerpent tous deux sur `[0, 1]`.
+  sky.update(dt, camera, Math.min(1, mood.value.aurora + auroraAmount));
   // Recopié à CHAQUE image, pas seulement au fondu d'ambiance : `sky.horizon` change aussi avec
   // l'aurore, qui suit son propre fondu (`AURORE.fade`) indépendant de celui du jour/nuit.
   fog.color.copy(sky.horizon);
