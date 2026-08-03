@@ -179,8 +179,7 @@ export function isBeach(
 
 /** Rayon du lac gelé de l'île du nord (voir `generateIsland`, la boucle `kinds`), en unités
  *  monde — hissé au niveau du module (plutôt que local à `generateIsland`) pour que
- *  `LAKE_OBSTACLES`, juste en dessous, puisse s'en réclamer dans sa docstring (la chaîne de
- *  rochers doit rester très en deçà de ce rayon) sans dupliquer le nombre à l'aveugle. */
+ *  `LAKE_OBSTACLES`, juste en dessous, puisse s'y positionner sans dupliquer le nombre. */
 export const LAC_R = 2.5;
 
 /**
