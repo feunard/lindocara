@@ -274,8 +274,8 @@ describe("createHeroState", () => {
   it("ne partage aucune structure entre deux états", () => {
     // Un `createHeroState` qui rendrait un objet figé partagé ferait diverger deux héros en
     // silence. Bon marché à vérifier, très cher à découvrir plus tard.
-    const a = createHeroState(0, 0, 0, 10);
-    const b = createHeroState(0, 0, 0, 10);
+    const a = createHeroState(0, 0, 0, 10, 2.2);
+    const b = createHeroState(0, 0, 0, 10, 2.2);
     a.vx = 5;
     expect(b.vx).toBe(0);
   });
@@ -327,7 +327,7 @@ import { depsPlates } from "./helpers/step-deps.js";
 describe("stepHero — déplacement horizontal", () => {
   it("accélère vers la vitesse de la matière et s'y stabilise", () => {
     const deps = depsPlates();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     for (let i = 0; i < 300; i++) {
       stepHero(s, { x: 1, z: 0, jump: false, attack: false, souffleTaux: 1, haleineVisible: false }, 1 / 60, deps);
     }
@@ -340,7 +340,7 @@ describe("stepHero — déplacement horizontal", () => {
     // Un mur en x : on doit continuer de glisser le long, en z. C'est ce que le test axe par axe
     // achète, et c'est exactement ce que la Task 8 ne doit pas casser en passant aux rectangles.
     const deps = depsPlates({ bloque: (x) => x > 1 });
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     s.vx = 5;
     s.vz = 5;
     s.x = 1;
@@ -353,7 +353,7 @@ describe("stepHero — déplacement horizontal", () => {
 
   it("émet un pas quand on se propulse, jamais quand on glisse", () => {
     const deps = depsPlates();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     // Lancé sans aucune entrée : c'est une glisse, pas une marche.
     s.vx = deps.hero.speed;
     let pas = 0;
@@ -559,7 +559,7 @@ const immobile = { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, halei
 describe("stepHero — la verticale", () => {
   it("saute, retombe, et annonce sa réception", () => {
     const deps = depsPlates();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     const saut = stepHero(s, { ...immobile, jump: true }, 1 / 60, deps);
     expect(saut.some((e) => e.t === "saut")).toBe(true);
     expect(s.airborne).toBe(true);
@@ -578,7 +578,7 @@ describe("stepHero — la verticale", () => {
   it("pardonne le saut quelques images après avoir quitté le bord", () => {
     // Le coyote time : sans lui, sauter au bord exact d'une falaise rate une fois sur deux.
     const deps = depsPlates({ hauteur: (x) => (x < 1 ? 0 : null) });
-    const s = createHeroState(0.99, 0, 0, 10);
+    const s = createHeroState(0.99, 0, 0, 10, 2.2);
     s.airborne = true;
     s.coyote = deps.hero.jump.coyote;
     const evts = stepHero(s, { ...immobile, jump: true }, 1 / 60, deps);
@@ -587,7 +587,7 @@ describe("stepHero — la verticale", () => {
 
   it("ne saute plus une fois le coyote épuisé", () => {
     const deps = depsPlates();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     s.airborne = true;
     s.coyote = 0;
     const evts = stepHero(s, { ...immobile, jump: true }, 1 / 60, deps);
@@ -658,7 +658,7 @@ const immobile = { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, halei
 describe("stepHero — la nage", () => {
   it("entre à l'eau en tombant du bord, et l'annonce une seule fois", () => {
     const deps = depsPlates({ hauteur: (x) => (x < 0 ? 0 : null) });
-    const s = createHeroState(-0.05, 0, 0, 10);
+    const s = createHeroState(-0.05, 0, 0, 10, 2.2);
     let entrees = 0;
     for (let i = 0; i < 120; i++) {
       const evts = stepHero(s, { ...immobile, x: 1 }, 1 / 60, deps);
@@ -670,7 +670,7 @@ describe("stepHero — la nage", () => {
 
   it("consomme le souffle au taux fourni par la zone, puis se noie", () => {
     const deps = depsPlates({ hauteur: () => null });
-    const s = createHeroState(0, 0, 0, 2);
+    const s = createHeroState(0, 0, 0, 2, 2.2);
     s.swimming = true;
     // Taux 2 : l'eau polaire consomme deux fois plus vite. Un souffle de 2 s doit donc tenir 1 s.
     let noyades = 0;
@@ -682,7 +682,7 @@ describe("stepHero — la nage", () => {
 
   it("se hisse sur une rive de plain-pied, jamais sur une falaise", () => {
     const hauteM = depsPlates({ hauteur: (x) => (x > 0 ? 5 : null) });
-    const s = createHeroState(-0.01, 0, 0, 10);
+    const s = createHeroState(-0.01, 0, 0, 10, 2.2);
     s.swimming = true;
     for (let i = 0; i < 60; i++) stepHero(s, { ...immobile, x: 1 }, 1 / 60, hauteM);
     expect(s.swimming).toBe(true);
@@ -758,7 +758,7 @@ function depsGlace() {
 describe("stepHero — la glace fine", () => {
   it("craque sous le poids, puis cède", () => {
     const deps = depsGlace();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     const vus: string[] = [];
     for (let i = 0; i < 120; i++) {
       for (const e of stepHero(s, immobile, 1 / 60, deps)) {
@@ -772,7 +772,7 @@ describe("stepHero — la glace fine", () => {
   it("ne charge rien quand on saute par-dessus", () => {
     // « Sous le poids » est tout le mécanisme : survoler ne doit rien user.
     const deps = depsGlace();
-    const s = createHeroState(0, 3, 0, 10);
+    const s = createHeroState(0, 3, 0, 10, 2.2);
     s.airborne = true;
     s.vy = 1;
     for (let i = 0; i < 60; i++) stepHero(s, immobile, 1 / 60, deps);
@@ -781,7 +781,7 @@ describe("stepHero — la glace fine", () => {
 
   it("fait tomber celui qui revient à pied sur un trou déjà ouvert", () => {
     const deps = depsGlace();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     for (let i = 0; i < 120; i++) stepHero(s, immobile, 1 / 60, deps);
     // Sorti de l'eau, on remet le pied sur la MÊME case, encore rompue.
     s.swimming = false;
@@ -850,7 +850,7 @@ const piece = { x0: -2, x1: 2, z0: -2, z1: 2, y: 5, obstacles: [{ x: 0, z: 1, r:
 describe("stepHero — en intérieur", () => {
   it("garde le plancher plat : ni gravité, ni nage, ni saut", () => {
     const deps = depsPlates({ hauteur: () => null });
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     s.room = piece;
     const evts = stepHero(s, { ...immobile, jump: true }, 1 / 60, deps);
     expect(s.y).toBe(5);
@@ -861,7 +861,7 @@ describe("stepHero — en intérieur", () => {
 
   it("ne sort pas du rectangle et contourne les meubles", () => {
     const deps = depsPlates();
-    const s = createHeroState(0, 5, 0, 10);
+    const s = createHeroState(0, 5, 0, 10, 2.2);
     s.room = piece;
     for (let i = 0; i < 300; i++) stepHero(s, { ...immobile, x: 1 }, 1 / 60, deps);
     expect(s.x).toBeLessThan(2);
@@ -870,7 +870,7 @@ describe("stepHero — en intérieur", () => {
   it("laisse ressortir celui qui chevauche déjà un meuble", () => {
     // L'échappatoire : sans elle, un héros posé sur un meuble est cimenté sur place.
     const deps = depsPlates();
-    const s = createHeroState(0, 5, 1, 10);
+    const s = createHeroState(0, 5, 1, 10, 2.2);
     s.room = piece;
     for (let i = 0; i < 60; i++) stepHero(s, { ...immobile, z: -1 }, 1 / 60, deps);
     expect(s.z).toBeLessThan(1);
@@ -945,7 +945,7 @@ describe("stepHero — souffle et traces", () => {
     // Quelqu'un qui respire ne s'arrête pas de respirer. C'est le détail qui distingue « un
     // effet » de « il fait froid ».
     const deps = depsPlates();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     let n = 0;
     for (let i = 0; i < 60 * 10; i++) {
       n += stepHero(s, arret, 1 / 60, deps).filter((e) => e.t === "haleine").length;
@@ -956,7 +956,7 @@ describe("stepHero — souffle et traces", () => {
 
   it("ne souffle pas hors de la zone froide", () => {
     const deps = depsPlates();
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     let n = 0;
     for (let i = 0; i < 60 * 10; i++) {
       n += stepHero(s, { ...arret, haleineVisible: false }, 1 / 60, deps).filter((e) => e.t === "haleine").length;
@@ -966,7 +966,7 @@ describe("stepHero — souffle et traces", () => {
 
   it("alterne le côté des traces", () => {
     const deps = depsPlates({ matiere: () => "neige" });
-    const s = createHeroState(0, 0, 0, 10);
+    const s = createHeroState(0, 0, 0, 10, 2.2);
     const cotes: number[] = [];
     for (let i = 0; i < 60 * 20; i++) {
       for (const e of stepHero(s, { ...arret, x: 1 }, 1 / 60, deps)) {
