@@ -157,8 +157,9 @@ second contenu dans un système qui en attend un.
 ## Les assets générés
 
 Une quinzaine d'artefacts, tous par `python3 studio.py` depuis `~/git/pixel-art-model`, avec `--out`
-pointant directement dans `apps/lab/assets/` (voir la section « Generating assets » de l'`AGENTS.md`
-racine) :
+pointant directement dans `apps/lab/public/{tex,sfx,voice,music}/` — pas `apps/lab/assets/`, qui
+reste le chemin `sync-assets.sh`/LoRA d'avant ce chantier. Voir la section « Asset discipline » de
+l'`AGENTS.md` d'`apps/lab`, qui explique pourquoi ce chantier a inauguré ce raccourci :
 
 | Voie | Artefacts |
 | --- | --- |
