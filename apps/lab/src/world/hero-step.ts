@@ -10,11 +10,13 @@
 // DÉPLACÉE depuis `hero.ts` (l'ancienne section horizontale de `update()`, lignes ~504-538, et
 // `canEnter`/`centreOk`, lignes ~359-399, avant Task 2 ; le saut/la gravité/le coyote/la
 // réception, lignes ~591-627, avant Task 3 ; l'entrée/la sortie d'eau, la noyade et la cadence des
-// brasses, lignes ~432-476 et ~576-602, avant Task 4) : les règles ne changent pas de forme,
-// seulement de fichier — voir le rapport de chaque task pour les divergences assumées (la mise à
-// jour de `facing`, restée dans `hero.ts` — voir plus bas —, le clamp de l'impact de réception,
-// écrit à la main faute de pouvoir importer `three` ici, et le renvoi au point d'apparition après
-// noyade, resté dans `hero.ts` — voir la docstring de `drown` plus bas).
+// brasses, lignes ~432-476 et ~576-602, avant Task 4 ; la glace fine — `tomber()` et le suivi
+// craquement/rupture d'une case, lignes ~375-393 et ~629-660 —, avant Task 5) : les règles ne
+// changent pas de forme, seulement de fichier — voir le rapport de chaque task pour les
+// divergences assumées (la mise à jour de `facing`, restée dans `hero.ts` — voir plus bas —, le
+// clamp de l'impact de réception, écrit à la main faute de pouvoir importer `three` ici, et le
+// renvoi au point d'apparition après noyade, resté dans `hero.ts` — voir la docstring de `drown`
+// plus bas).
 
 import type {
   HeroEvent,
@@ -25,7 +27,7 @@ import type {
   WorldSettings,
 } from "./hero-state.js";
 import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
-import { compteCommeEau } from "./thin-ice.js";
+import { compteCommeEau, tombeEnArrivant } from "./thin-ice.js";
 
 /** Centre de l'empreinte de collision, décalé sous le corps du sprite — même formule que
  *  `hero.ts`, dupliquée à dessein : `hero-step.ts` ne doit importer AUCUN réglage du labo, y
@@ -103,18 +105,18 @@ function caseDe(x: number, z: number, world: WorldSettings): string {
  * de `vx`/`vz` est LOAD-BEARING (voir l'en-tête du fichier) : sans elle on entre dans l'eau avec
  * l'élan de la glace qu'on vient de quitter.
  *
- * `rupture` distingue le plouf ordinaire (bord, chute) de la glace fine qui cède sous le poids —
- * cette dernière reste hors de `stepHero` (Task 5 : `hero.ts`, `tomber()`) mais réutilise CETTE
- * fonction telle quelle plutôt que de la réimplémenter, comme le faisait déjà l'ancien
- * `enterWater(plunge)` de `hero.ts`. C'est la SEULE raison de l'exporter : l'adaptateur choisit le
- * son (le plouf ordinaire ou le `plunge` de la glace qui cède) à la lecture de `rupture` sur
- * l'événement rendu, jamais `stepHero` lui-même.
+ * `rupture` distingue le plouf ordinaire (bord, chute — appelé plus bas avec `false`) de la glace
+ * fine qui cède sous le poids (`rompre`, juste en dessous, avec `true`) — deux appelants de CETTE
+ * fonction plutôt que deux implémentations. Depuis Task 5, les deux vivent dans `stepHero` : plus
+ * besoin de l'exporter au-delà de ce fichier, l'adaptateur (`hero.ts`) ne fait plus que LIRE
+ * `rupture` sur l'événement `entree-eau` rendu pour choisir le son (le plouf ordinaire ou le
+ * `plunge` de la glace qui cède), jamais n'appelle plus cette fonction lui-même.
  *
  * Le type de retour est le membre PRÉCIS de l'union `HeroEvent`, pas `HeroEvent` en général :
- * `tomber()` (`hero.ts`) lit `x`/`y`/`z` sur la valeur rendue sans re-tester `t`, ce que `HeroEvent`
- * seul n'autoriserait pas (les autres membres de l'union n'ont pas tous ces champs).
+ * `rompre` (juste en dessous) lit `x`/`z` par-dessus la valeur rendue sans re-tester `t`, ce que
+ * `HeroEvent` seul n'autoriserait pas (les autres membres de l'union n'ont pas tous ces champs).
  */
-export function enterWater(
+function enterWater(
   state: HeroState,
   deps: StepDeps,
   rupture: boolean,
@@ -129,6 +131,30 @@ export function enterWater(
   state.y = world.waterLevel;
   state.groundY = world.waterLevel;
   return { t: "entree-eau", x: state.x, y: world.waterLevel, z: state.z, rupture };
+}
+
+/**
+ * Glace fine (Task 5) : la case `cle` cède sous le poids — qu'elle vienne tout juste de finir de
+ * craquer, ou qu'on l'ait retrouvée déjà rompue en y remarchant (`tombeEnArrivant`, appelé par
+ * `stepHero` plus bas). Le poids QUITTE la case en cédant : on relâche nous-mêmes, tout de suite —
+ * sinon le regel n'aurait plus jamais l'occasion de démarrer, `thinIce.update()` (inconditionnel en
+ * tête de `stepHero`) ne touchant que les cases déjà relâchées. La rupture doit MENER à l'entrée
+ * dans l'eau, pas la réimplémenter, d'où l'appel à `enterWater` ci-dessus plutôt qu'une seconde
+ * copie de la même mécanique.
+ *
+ * Rend LES DEUX événements, dans cet ordre : `glace-rompt` (le son du craquement final,
+ * `shatter()`) puis `entree-eau` avec `rupture: true` (le splash et le `plunge()` — déjà branchés
+ * dans `hero.ts` avant même cette task, voir sa docstring). C'est l'ordre exact que jouait l'ancien
+ * `tomber()` de `hero.ts` (`shatter()` avant `plunge()`) ; le préserver ici évite à l'adaptateur de
+ * devoir reconstituer un ordre que le tableau d'événements peut simplement porter tel quel.
+ */
+function rompre(state: HeroState, deps: StepDeps, cle: string): HeroEvent[] {
+  const x = state.x;
+  const z = state.z;
+  deps.glace.relache(cle);
+  state.glaceCase = null;
+  const entree = enterWater(state, deps, true);
+  return [{ t: "glace-rompt", cle, x, z }, entree];
 }
 
 /** Sort de l'eau sur une rive à `y` — jamais une falaise : `canEnter` (plus haut, la contrainte de
@@ -268,14 +294,70 @@ export function stepHero(
       }
     }
 
+    // --- glace fine (Task 5) ------------------------------------------------------------------
+    // Transposée telle quelle depuis `hero.ts` (`tomber()` et le bloc `surGlaceFine` de `update()`)
+    // — SANS garde `!state.swimming` explicite : cette section vit à dessein AVANT la vérification
+    // d'entrée dans l'eau ordinaire juste en dessous, à l'intérieur de la branche `if
+    // (!state.swimming)` ouverte plus haut. `state.swimming` y reflète donc encore le DÉBUT du tick
+    // (rien ne l'a mutée avant ce point) — exactement ce que l'ancien `hero.ts` obtenait en prenant
+    // un instantané de `swimming` AVANT d'appeler `stepHero` (`nageaitDejaCeTick`, devenu inutile :
+    // ce bloc vit maintenant au bon ENDROIT de la séquence plutôt que d'avoir besoin d'une valeur
+    // mise de côté). Une rupture ICI fait passer `state.swimming` à `true` (voir `rompre`), mais la
+    // vérification d'eau ordinaire juste après reste sans effet sur une case de glace fine : `sol`
+    // y est un nombre réel (la banquise a un relief plein), jamais `null`.
+    //
+    // `!state.airborne` : sous le POIDS seulement, sauter par-dessus ne charge rien — c'est tout le
+    // mécanisme (voir le spec). `!state.room` : en pièce, `state.x`/`state.z` sont des coordonnées
+    // VIRTUELLES ; les interroger contre le terrain réel n'a aucun sens et pourrait tomber par
+    // coïncidence sur une vraie case de glace fine ailleurs sur la carte. Ni l'un ni l'autre n'est
+    // testé une seconde fois pour la branche `else` ci-dessous (relâcher la case suivie) : sauter ou
+    // entrer en pièce doit la relâcher tout aussi immédiatement que marcher ailleurs, exactement
+    // comme le faisait l'ancien `hero.ts`.
+    const surGlaceFine =
+      !state.airborne && !state.room && query.kindAt(state.x, empreinteZ(state.z)) === "glace-fine";
+    if (surGlaceFine) {
+      const cle = caseDe(state.x, empreinteZ(state.z), world);
+      if (cle !== state.glaceCase) {
+        // Case différente de la précédente (ou première case de la traversée) : l'ancienne n'est
+        // plus sous le poids, et celle-ci reprend son état là où il en était — peut-être déjà
+        // craquelée par un passage précédent qui n'a pas encore eu le temps de regeler.
+        if (state.glaceCase) deps.glace.relache(state.glaceCase);
+        state.glaceCase = cle;
+        state.glaceEtat = deps.glace.etat(cle);
+      }
+      if (tombeEnArrivant(state.glaceEtat)) {
+        // Arrivée (à pied) directement sur un trou déjà ouvert (pas encore regelé) : rien à
+        // charger, `tombeEnArrivant` (`thin-ice.ts`) le dit sans délai — voir sa docstring. C'est le
+        // second bug de l'île de neige (trouvé en jouant, pas en lisant) : sans cette question posée
+        // à part, revenir à pied sur un trou déjà ouvert ne déclenchait rien, la logique d'origine
+        // ne réagissant qu'aux TRANSITIONS pendant qu'on charge une case.
+        events.push(...rompre(state, deps, cle));
+      } else {
+        const etatSuivant = deps.glace.charge(cle, dt);
+        if (etatSuivant !== state.glaceEtat) {
+          state.glaceEtat = etatSuivant;
+          if (etatSuivant === "craquelee") {
+            events.push({ t: "glace-craque", cle, x: state.x, z: state.z });
+          } else if (tombeEnArrivant(etatSuivant)) {
+            events.push(...rompre(state, deps, cle));
+          }
+        }
+      }
+    } else if (state.glaceCase) {
+      deps.glace.relache(state.glaceCase);
+      state.glaceCase = null;
+      state.glaceEtat = "intacte";
+    }
+
     // --- entrée dans l'eau ordinaire (Task 4) -----------------------------------------------
-    // Bord ou chute — hors glace fine, restée dans `hero.ts` (`tomber()`, Task 5) : cette dernière
-    // réutilise `enterWater` telle quelle, avec `rupture: true`, plutôt que de la réimplémenter.
-    // Évaluée ICI, à la fin de la résolution verticale : `state.swimming` est donc déjà à jour pour
-    // la cadence des pas/brasses juste en dessous, sur CETTE MÊME image — c'est la moitié « eau
-    // ordinaire » de la dette de cadence que cette task ferme (voir son rapport ; la moitié
-    // « rupture de glace fine », elle, reste ouverte : `tomber()` s'exécute encore après le retour
-    // de `stepHero`, dans `hero.ts`).
+    // Bord ou chute — la glace fine ci-dessus a déjà géré sa propre entrée dans l'eau (`rompre`),
+    // donc `eau` ne peut valoir vrai que sur une case qui n'en est pas une. Évaluée ICI, à la fin de
+    // la résolution verticale : `state.swimming` est donc déjà à jour pour la cadence des
+    // pas/brasses juste en dessous, sur CETTE MÊME image — la dette de cadence identifiée à Task 4
+    // (le bloc « eau ordinaire ») est maintenant ENTIÈREMENT refermée par cette task : la rupture de
+    // glace fine, elle aussi, mute `state.swimming` avant que la cadence ne soit évaluée plus bas,
+    // ce qui n'était pas le cas tant que `tomber()` vivait dans `hero.ts`, APRÈS le retour de
+    // `stepHero`.
     const eau = !state.room && sol === null;
     if (eau && !state.airborne) events.push(enterWater(state, deps, false));
   } else {
