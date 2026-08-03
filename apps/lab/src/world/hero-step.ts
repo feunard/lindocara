@@ -255,6 +255,13 @@ export function stepHero(
   }
   const sol = state.room ? state.room.y : query.heightAt(state.x, empreinteZ(state.z));
 
+  // BUG CONNU : ce bloc n'est pas gardé par `!state.room`. En pièce, `ground` vaut `state.room.y`
+  // et égale donc `state.y` après l'aplatissement ci-dessus, si bien que la branche `else` (aux
+  // lignes ~267-268) s'exécute et recharge `state.coyote` à `hero.jump.coyote`. Le saut peut alors
+  // s'armer une image dans une pièce, avec un événement `saut` parasite. Préexistant au chantier
+  // d'extraction (git history : commit `8295f200`). Épinglé par `it.fails` dans
+  // `apps/lab/test/hero-step-interieur.test.ts`, ligne 26 — CORRIGER ce bug fera ÉCHOUER ce test,
+  // ce qui est voulu : c'est le fil qui prévient de la correction, il faudra alors retirer le `it.fails`.
   if (!state.swimming) {
     const ground = sol ?? world.waterLevel;
     if (state.airborne) {
