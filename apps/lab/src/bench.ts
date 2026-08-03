@@ -286,22 +286,33 @@ function frozenSprite(
  * RENDU d'une population réaliste, pas celui d'un chargement — charger quoi que ce soit de neuf ici
  * fausserait la mesure avec un temps de décodage qui n'a rien à voir avec le GPU.
  *
- * `textures`/`query`/`center` s'ajoutent à la signature du brief (`createBench(ctx, scene, opts)`),
- * pour la même raison que `createHero` en Task 11 : `makeBillboard` a besoin d'une texture déjà
- * décodée, un peuplement qui a l'air d'un jeu a besoin de terre ferme sous les pieds, et — depuis le
- * round 1 de revue — la scène ne peut plus être peuplée n'importe où sur la carte : `center` est le
- * MILIEU de l'empreinte au sol réellement visible (round 2 : PAS la position du héros elle-même,
- * qui n'en est pas le centre — voir `cameraGroundFootprint`), que `main.ts` calcule en décalant la
- * position du héros de `BENCH_CENTER_OFFSET` le long de l'axe de visée. Peupler hors du champ de la
- * caméra/de la shadow map mesurerait une scène partiellement cullée — un chiffre rassurant et faux,
- * précisément le piège que ce harnais existe pour éviter.
+ * `textures`/`query`/`getCenter` s'ajoutent à la signature du brief (`createBench(ctx, scene,
+ * opts)`), pour la même raison que `createHero` en Task 11 : `makeBillboard` a besoin d'une texture
+ * déjà décodée, un peuplement qui a l'air d'un jeu a besoin de terre ferme sous les pieds, et —
+ * depuis le round 1 de revue — la scène ne peut plus être peuplée n'importe où sur la carte : le
+ * centre du disque est le MILIEU de l'empreinte au sol réellement visible (round 2 : PAS la
+ * position du héros elle-même, qui n'en est pas le centre — voir `cameraGroundFootprint`).
+ *
+ * Round 4 de revue : `getCenter` est un ACCESSEUR, relu à chaque `populate()`, et non plus une
+ * valeur figée à la construction. Une valeur figée verrouillait le peuplement sur la position du
+ * héros au moment où `main.ts` construit le harnais — c'est-à-dire toujours au spawn, puisque
+ * `createBench` est appelé une seule fois avant la boucle. Mesurer `?bench=` depuis l'île polaire
+ * (en marchant, ou en téléportant le héros depuis la console puis en rappelant `populate()`)
+ * peuplait alors une scène centrée loin du cadre réel — hors tronc de vue, hors passe d'ombre — et
+ * le chiffre relevé était plus bas qu'au spawn alors que trois effets de particules tournaient en
+ * plus : « moins cher là où il y a plus », exactement le piège que ce harnais existe pour éviter.
+ * `main.ts` fournit un accesseur qui relit `hero.position` à l'appel et applique le même décalage de
+ * `BENCH_CENTER_OFFSET` le long de l'axe de visée qu'au premier peuplement — au spawn, rien ne
+ * change (le héros n'a pas bougé avant le premier `populate()`), ce qui est la garantie qui rend
+ * une mesure au spawn comparable avant/après ce correctif. Peupler hors du champ de la caméra/de la
+ * shadow map mesurerait une scène partiellement cullée — un chiffre rassurant et faux.
  */
 export function createBench(
   ctx: Hd2dContext,
   scene: THREE.Scene,
   textures: TextureRegistry,
   query: TerrainQuery,
-  center: readonly [number, number],
+  getCenter: () => readonly [number, number],
   opts: { level: BenchLevel },
 ): Bench {
   const { level } = opts;
@@ -332,7 +343,11 @@ export function createBench(
     billboards.push(b);
   }
 
-  function scatter(rng: () => number, count: number): readonly (readonly [number, number])[] {
+  function scatter(
+    rng: () => number,
+    count: number,
+    center: readonly [number, number],
+  ): readonly (readonly [number, number])[] {
     return scatterOnLand(query, rng, count, center, BENCH_RADIUS);
   }
 
@@ -342,6 +357,12 @@ export function createBench(
     clear();
     if (level === "off") return;
 
+    // Relu ICI, à chaque appel — pas une seule fois à la construction du harnais (round 4 de
+    // revue) : c'est ce qui permet de réarmer le peuplement là où le héros/la caméra se trouve
+    // VRAIMENT au moment de l'appel (spawn au premier chargement, île polaire après un
+    // déplacement suivi d'un `bench.populate()` manuel), plutôt que de le laisser figé sur le
+    // spawn pour toute la durée de la page.
+    const center = getCenter();
     const pop = POPULATION[level];
     // Graine dédiée, distincte de celle des props (`WORLD.seed + 7`, `props.ts`) : le peuplement du
     // harnais ne doit ni dépendre de l'ordre d'appel des autres générateurs, ni varier d'un
@@ -349,7 +370,7 @@ export function createBench(
     const rng = mulberry32(WORLD.seed + 613);
 
     // --- joueurs : le plafond d'une partie ------------------------------------------------------
-    for (const [x, z] of scatter(rng, pop.players)) {
+    for (const [x, z] of scatter(rng, pop.players, center)) {
       const y = query.heightAt(x, z) ?? 0;
       const b = frozenSprite(ctx, textures, rng, {
         url: "/tex/warrior.png",
@@ -364,7 +385,7 @@ export function createBench(
     }
 
     // --- monstres : rayon d'intérêt monstres, 850 px ≈ 13 cases --------------------------------
-    for (const [x, z] of scatter(rng, pop.monsters)) {
+    for (const [x, z] of scatter(rng, pop.monsters, center)) {
       const y = query.heightAt(x, z) ?? 0;
       const b = frozenSprite(ctx, textures, rng, {
         url: "/tex/sheep.png",
@@ -382,7 +403,7 @@ export function createBench(
     // Même feuille que les joueurs — aucun sprite de garde dédié n'est chargé au labo, et ce qui
     // compte pour la mesure GPU est le coût MATÉRIEL d'un billboard éclairé, pas sa peau. Teinte
     // bleutée pour rester lisible sur les captures.
-    for (const [x, z] of scatter(rng, pop.guards)) {
+    for (const [x, z] of scatter(rng, pop.guards, center)) {
       const y = query.heightAt(x, z) ?? 0;
       const b = frozenSprite(ctx, textures, rng, {
         url: "/tex/warrior.png",
@@ -400,7 +421,7 @@ export function createBench(
     // --- butin au sol : rayon butin, 650 px -----------------------------------------------------
     // Un tiers de coffres fermés (le seul sprite de loot du labo), le reste de la décoration déjà
     // chargée (`deco-0N.png`) : la variété d'un vrai tas de butin sans rien charger de neuf.
-    for (const [x, z] of scatter(rng, pop.loot)) {
+    for (const [x, z] of scatter(rng, pop.loot, center)) {
       const y = query.heightAt(x, z) ?? 0;
       const b =
         rng() < 0.34
@@ -420,7 +441,7 @@ export function createBench(
     // --- corps : un par joueur, plus la marge -----------------------------------------------------
     // Même matériau qu'un joueur (alphaTest, ombre reçue ET portée) — c'est ce coût-là qui compte —
     // aplati et assombri pour se lire comme un corps au sol plutôt qu'un joueur debout.
-    for (const [x, z] of scatter(rng, pop.corpses)) {
+    for (const [x, z] of scatter(rng, pop.corpses, center)) {
       const y = query.heightAt(x, z) ?? 0;
       const b = frozenSprite(ctx, textures, rng, {
         url: "/tex/warrior.png",
@@ -440,7 +461,7 @@ export function createBench(
     // Suspendus à mi-hauteur plutôt que posés au sol : un projectile réel est en l'air, pas planté
     // dans l'herbe. Cadrage (cols/rows/foot) repris du rocher de `props.ts` — seule la hauteur monde
     // est réduite, un choix de contenu qui reste valide à n'importe quelle échelle du plan.
-    for (const [x, z] of scatter(rng, pop.projectiles)) {
+    for (const [x, z] of scatter(rng, pop.projectiles, center)) {
       const y = (query.heightAt(x, z) ?? 0) + 1 + rng() * 0.6;
       const b = frozenSprite(ctx, textures, rng, {
         url: "/tex/rocks.png",
@@ -456,7 +477,7 @@ export function createBench(
     // --- effets de combat : impacts, soins, portails ---------------------------------------------
     // Non éclairés (comme l'explosion des moutons, `sheep.ts`) : un impact/soin/portail est sa
     // propre source visuelle, il ne reçoit pas la lumière de la scène.
-    for (const [x, z] of scatter(rng, pop.effects)) {
+    for (const [x, z] of scatter(rng, pop.effects, center)) {
       const y = query.heightAt(x, z) ?? 0;
       const b = frozenSprite(ctx, textures, rng, {
         url: "/tex/explosion.png",
@@ -474,7 +495,7 @@ export function createBench(
     // Celles-ci restent TOUJOURS actives — contrairement au foyer, coupé de jour — parce qu'elles
     // représentent des torches ou des effets de combat, qui n'attendent pas la tombée de la nuit :
     // c'est la mesure de NUIT qui cumule les deux (voir `task-13-report.md`).
-    for (const [x, z] of scatter(rng, pop.castingLights)) {
+    for (const [x, z] of scatter(rng, pop.castingLights, center)) {
       const y = (query.heightAt(x, z) ?? 0) + 1.4;
       const light = new THREE.PointLight(0xfff2c8, 3, 18, 2);
       light.position.set(x, y, z);

@@ -363,15 +363,29 @@ scene.add(debugView.group);
 // `bench.ts` : proche ≈9.07, lointain ≈19.17). Le centre est donc décalé de `BENCH_CENTER_OFFSET`
 // (le milieu de cette empreinte) le long de l'axe de visée, dans le sens OPPOSÉ à la caméra.
 //
-// yaw=0 est le SEUL yaw possible ici — le peuplement a lieu avant la première image, donc avant
-// toute rotation de caméra (`yaw` n'est même pas encore déclaré à ce point du fichier) — et à
-// yaw=0, `updateCamera` place la caméra à `camTarget.z + horizontal` : la caméra est du côté +Z,
-// donc l'opposé de la caméra est -Z.
+// yaw=0 est le SEUL yaw possible au premier peuplement — il a lieu avant la première image, donc
+// avant toute rotation de caméra (`yaw` n'est même pas encore déclaré à ce point du fichier) — et
+// à yaw=0, `updateCamera` place la caméra à `camTarget.z + horizontal` : la caméra est du côté +Z,
+// donc l'opposé de la caméra est -Z. La même hypothèse reste la bonne approximation pour un
+// réarmement ultérieur (voir round 4 ci-dessous) : hors orbite active, `yaw` revient tout seul vers
+// 0 par amortissement exponentiel (`updateCamera`), donc -Z reste la direction correcte dès que le
+// joueur n'est pas activement en train de faire tourner la caméra pile au moment du réarmement.
+//
+// Round 4 de revue : ce calcul était fait UNE fois ici et figé dans `benchCenter`, que `bench.ts`
+// fermait ensuite pour toujours — peupler la charge lourde restait donc ancré au spawn même si le
+// héros marchait ensuite jusqu'à l'île polaire et qu'on rappelait `bench.populate()` depuis la
+// console : la population, hors cadre, se faisait culler et le chiffre relevé au pôle était plus
+// bas qu'au spawn alors que trois effets de particules tournent en plus. `benchCenter` devient donc
+// un ACCESSEUR, relu par `bench.ts` à CHAQUE `populate()` plutôt qu'une seule fois à la
+// construction — au tout premier appel (avant la boucle), `hero.position` est encore celle du
+// spawn, donc une mesure prise là reste identique à avant ce correctif ; un réarmement plus tard
+// (déplacement/téléportation suivi d'un nouvel appel à `populate()`) recentre alors réellement sur
+// la position courante.
 const benchLevel: BenchLevel = ((): BenchLevel => {
   const v = new URLSearchParams(location.search).get("bench");
   return v === "game" || v === "heavy" ? v : "off";
 })();
-const benchCenter: readonly [number, number] = [
+const benchCenter = (): readonly [number, number] => [
   hero.position.x,
   hero.position.z - BENCH_CENTER_OFFSET,
 ];
