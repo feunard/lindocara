@@ -25,9 +25,17 @@ export interface HeroInput {
   z: number;
   jump: boolean;
   attack: boolean;
-  /** Multiplicateur de consommation du souffle en nage, fourni par la zone à chaque image. */
+  /** Multiplicateur de consommation du souffle en nage — la zone le fournit à chaque image (Task 4
+   *  de l'île de neige, `world/zones.ts`, `Zone.souffle`) : 1 en temps normal, 2 dans l'eau
+   *  polaire (Task 7, la glace fine). Un TAUX lu chaque image plutôt qu'une constante figée ici :
+   *  c'est ce qui permettra à Task 7 de le faire varier sans revenir toucher le héros. */
   souffleTaux: number;
-  /** `true` quand la zone est assez froide pour qu'on voie l'haleine. */
+  /** `true` quand le héros est dans une zone assez froide pour qu'on voie son haleine (Task 8 :
+   *  la zone polaire, `main.ts` compare `zone === ZONE_POLAIRE` par identité, comme le reste du
+   *  câblage de zone). Ne coupe QUE l'émission de nouvelles bouffées — une bouffée déjà en vol
+   *  finit de s'estomper normalement, sinon sortir de la zone en ferait disparaître une en plein
+   *  vol. Nommé "haleine" et non "souffle" pour ne pas se confondre avec `souffleTaux` ci-dessus
+   *  (Task 7, la réserve d'air en apnée) : même mot français, deux notions sans rapport. */
   haleineVisible: boolean;
 }
 
@@ -56,7 +64,8 @@ export interface HeroState {
   room: Room | null;
   /** Distance parcourue depuis le dernier pas — la cadence est à la DISTANCE, pas au temps. */
   distanceDepuisLePas: number;
-  /** Idem pour la brasse, en nage. */
+  /** Compte à rebours du temps avant la prochaine brasse, en nage. Contrairement à
+   *  `distanceDepuisLePas` (distance-based), `brasse` DÉCROÎT avec le `dt` chaque image. */
   brasse: number;
   /** Compte à rebours avant la prochaine bouffée d'haleine au repos. */
   reposHaleine: number;
@@ -141,7 +150,13 @@ export interface StepDeps {
 }
 
 /** L'état de départ, au sol, à la position donnée. */
-export function createHeroState(x: number, z: number, y: number, breath: number): HeroState {
+export function createHeroState(
+  x: number,
+  z: number,
+  y: number,
+  breath: number,
+  reposHaleine: number,
+): HeroState {
   return {
     x,
     y,
@@ -158,7 +173,7 @@ export function createHeroState(x: number, z: number, y: number, breath: number)
     room: null,
     distanceDepuisLePas: 0,
     brasse: 0,
-    reposHaleine: 0,
+    reposHaleine,
     glaceCase: null,
     glaceEtat: "intacte",
     attaque: -1,

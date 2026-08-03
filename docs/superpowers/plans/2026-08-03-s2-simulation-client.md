@@ -77,6 +77,9 @@ export interface Room {
   obstacles: readonly { x: number; z: number; r: number }[];
 }
 
+/** DÉPLACÉ depuis `hero.ts:121`, comme `Room` et pour la même raison : `hero.ts` le RÉ-EXPORTE
+ *  depuis ici et n'en garde pas une seconde déclaration. Reprendre au passage les commentaires
+ *  d'origine sur `souffleTaux` et `haleineVisible` — ils portent le POURQUOI. */
 export interface HeroInput {
   x: number;
   z: number;
@@ -113,7 +116,9 @@ export interface HeroState {
   room: Room | null;
   /** Distance parcourue depuis le dernier pas — la cadence est à la DISTANCE, pas au temps. */
   distanceDepuisLePas: number;
-  /** Idem pour la brasse, en nage. */
+  /** La brasse, elle, est un compte à rebours au TEMPS (`brasse -= dt`), pas à la distance —
+   *  on nage à vitesse à peu près constante, et compter la distance y ferait accélérer la
+   *  cadence des bras avec le courant. Ne pas la traiter comme `distanceDepuisLePas`. */
   brasse: number;
   /** Compte à rebours avant la prochaine bouffée d'haleine au repos. */
   reposHaleine: number;
@@ -197,8 +202,16 @@ export interface StepDeps {
   glace: ThinIce;
 }
 
-/** L'état de départ, au sol, à la position donnée. */
-export function createHeroState(x: number, z: number, y: number, breath: number): HeroState {
+/** L'état de départ, au sol, à la position donnée. `reposHaleine` part à son intervalle PLEIN,
+ *  pas à zéro : à zéro, le héros soufflerait dès l'apparition au lieu d'attendre l'intervalle
+ *  authoré — un changement de comportement qu'aucun typecheck ni aucun test n'attraperait. */
+export function createHeroState(
+  x: number,
+  z: number,
+  y: number,
+  breath: number,
+  reposHaleine: number,
+): HeroState {
   return {
     x,
     y,
@@ -215,7 +228,7 @@ export function createHeroState(x: number, z: number, y: number, breath: number)
     room: null,
     distanceDepuisLePas: 0,
     brasse: 0,
-    reposHaleine: 0,
+    reposHaleine,
     glaceCase: null,
     glaceEtat: "intacte",
     attaque: -1,
@@ -234,7 +247,20 @@ import { createHeroState } from "../src/world/hero-state.js";
 
 describe("createHeroState", () => {
   it("part immobile, au sol, avec son souffle plein", () => {
-    const s = createHeroState(3, -4, 1.8, 12);
+    const s = createHeroState(3, -4, 1.8, 12, 2.2);
+    // Assertion sur CHAQUE champ, pas sur une poignée : c'est ce test qui garde `HeroState`
+    // complet, et un champ non assené est un champ dont la valeur de départ peut dériver de
+    // celle de `hero.ts` sans que rien ne le signale.
+    expect(s.reposHaleine).toBe(2.2);
+    expect(s.facing).toBe(1);
+    expect(s.room).toBeNull();
+    expect(s.glaceCase).toBeNull();
+    expect(s.glaceEtat).toBe("intacte");
+    expect(s.attaque).toBe(-1);
+    expect(s.coteTrace).toBe(1);
+    expect(s.distanceDepuisLePas).toBe(0);
+    expect(s.brasse).toBe(0);
+    expect(s.coyote).toBe(0);
     expect([s.x, s.y, s.z]).toEqual([3, 1.8, -4]);
     expect([s.vx, s.vz, s.vy]).toEqual([0, 0, 0]);
     expect(s.airborne).toBe(false);

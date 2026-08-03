@@ -25,7 +25,7 @@ import {
 } from "../core/audio.js";
 import { CAMERA, GLACE_FINE, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
-import type { Room } from "./hero-state.js";
+import type { HeroInput, Room } from "./hero-state.js";
 import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
 import { compteCommeEau, createThinIce, type EtatGlace, tombeEnArrivant } from "./thin-ice.js";
@@ -118,27 +118,8 @@ interface Trace {
   t: number;
 }
 
-export interface HeroInput {
-  x: number;
-  z: number;
-  jump: boolean;
-  attack: boolean;
-  /** Multiplicateur de consommation du souffle en nage — la zone le fournit à chaque image (Task 4
-   *  de l'île de neige, `world/zones.ts`, `Zone.souffle`) : 1 en temps normal, 2 dans l'eau
-   *  polaire (Task 7, la glace fine). Un TAUX lu chaque image plutôt qu'une constante figée ici :
-   *  c'est ce qui permettra à Task 7 de le faire varier sans revenir toucher le héros. */
-  souffleTaux: number;
-  /** `true` quand le héros est dans une zone assez froide pour qu'on voie son haleine (Task 8 :
-   *  la zone polaire, `main.ts` compare `zone === ZONE_POLAIRE` par identité, comme le reste du
-   *  câblage de zone). Ne coupe QUE l'émission de nouvelles bouffées — une bouffée déjà en vol
-   *  finit de s'estomper normalement, sinon sortir de la zone en ferait disparaître une en plein
-   *  vol. Nommé "haleine" et non "souffle" pour ne pas se confondre avec `souffleTaux` ci-dessus
-   *  (Task 7, la réserve d'air en apnée) : même mot français, deux notions sans rapport. */
-  haleineVisible: boolean;
-}
-
-// Room est déplacé vers hero-state.ts et ré-exporté d'ici
-export type { Room };
+// HeroInput et Room sont déplacés vers hero-state.ts et ré-exportés d'ici
+export type { HeroInput, Room };
 
 export interface Hero {
   readonly object: THREE.Mesh;
