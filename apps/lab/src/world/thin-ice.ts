@@ -56,6 +56,36 @@ function etatDe(c: Case, opts: ThinIceOptions): EtatGlace {
   return "intacte";
 }
 
+/**
+ * Une case ROMPUE compte comme de l'eau pour la résolution de nage, MÊME si le champ de hauteur du
+ * terrain y reste un nombre bien réel : `kindAt` change la MATIÈRE d'une case, jamais sa hauteur
+ * (voir `island.ts`) — la banquise reste un sol plein à cet endroit tant que rien ne le sait.
+ *
+ * Sans cette règle, la résolution `if (sol !== null) leaveWater(sol)` de `hero.ts` (préexistante,
+ * volontairement inchangée dans sa forme) ferait remonter le héros tout seul UNE IMAGE après être
+ * tombé — pile là où il vient de s'enfoncer, ce qui viderait la mécanique de tout enjeu (le
+ * souffle n'aurait jamais le temps de baisser). `hero.ts` l'appelle dans la branche `swimming`,
+ * en `&&` avec la condition `sol !== null` existante — un garde purement ADDITIF qui resserre
+ * quand on remonte, sans toucher la formule ni le reste de la résolution de nage.
+ */
+export function compteCommeEau(etat: EtatGlace): boolean {
+  return etat === "rompue";
+}
+
+/**
+ * Poser le pied — À PIED, pas à la nage — sur une case DÉJÀ rompue (pas encore regelée) fait
+ * tomber SANS délai de charge : il n'y a plus de glace du tout sous ce pas, rien à accumuler.
+ *
+ * Sans cette règle, un héros qui s'est échappé à la nage puis revient sur ses pas depuis la rive
+ * resterait planté sur du vide — la collision (`hero.ts`, `centreOk`/`canEnter`) ne connaît que le
+ * relief, toujours solide, et jamais l'état de `thinIce`. La logique de `hero.ts` qui charge une
+ * case ne réagit qu'aux TRANSITIONS d'état pendant qu'on la charge ; arriver directement dessus
+ * déjà rompue n'en produit aucune, d'où le besoin de cette question posée à part, à l'ARRIVÉE.
+ */
+export function tombeEnArrivant(etat: EtatGlace): boolean {
+  return etat === "rompue";
+}
+
 export function createThinIce(opts: ThinIceOptions): ThinIce {
   const cases = new Map<string, Case>();
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createThinIce } from "../src/world/thin-ice.js";
+import { compteCommeEau, createThinIce, tombeEnArrivant } from "../src/world/thin-ice.js";
 
 const REGLAGES = { seuilCraquement: 0.4, seuilRupture: 1.2, regel: 5 } as const;
 
@@ -47,5 +47,40 @@ describe("la glace fine", () => {
     g.relache("1,1");
     g.update(REGLAGES.regel + 0.1);
     expect(g.taille()).toBe(0);
+  });
+});
+
+// Les deux règles ci-dessous sont nées d'un bug trouvé en JOUANT (voir le rapport de la task), pas
+// en lisant le code : `apps/lab/test/` n'exerce nulle part `createHero().update()`, donc rien ne
+// les protégeait d'une régression silencieuse — exactement les résolutions de nage que S2 rendra
+// autoritatives côté serveur. Extraites ici en fonctions pures pour être testables sans monter un
+// héros complet.
+describe("compteCommeEau — une case rompue doit être traitée comme de l'eau", () => {
+  it("une case rompue compte comme de l'eau, malgré un terrain de hauteur non nulle", () => {
+    // C'est la règle qui empêche `hero.ts` de faire remonter le héros une image après
+    // `enterWater(plunge)` : le champ de hauteur ne sait rien du trou (voir `island.ts`), seule
+    // cette question — posée à l'état de la glace, pas au terrain — le sait.
+    expect(compteCommeEau("rompue")).toBe(true);
+  });
+
+  it("une case intacte ou craquelée ne compte pas comme de l'eau", () => {
+    expect(compteCommeEau("intacte")).toBe(false);
+    expect(compteCommeEau("craquelee")).toBe(false);
+  });
+});
+
+describe("tombeEnArrivant — poser le pied sur un trou déjà ouvert fait tomber sans délai", () => {
+  it("arriver sur une case rompue fait tomber immédiatement", () => {
+    // Sans elle, un héros qui revient à pied sur un trou qu'il a lui-même ouvert (et dont il
+    // s'est échappé à la nage) resterait planté sur du vide : la collision ne connaît que le
+    // relief, toujours solide, et jamais l'état de la glace.
+    expect(tombeEnArrivant("rompue")).toBe(true);
+  });
+
+  it("arriver sur une case intacte ou craquelée ne fait pas tomber", () => {
+    // Une case craquelée reste franchissable : c'est justement l'avertissement qui laisse le
+    // temps de partir, pas une chute immédiate.
+    expect(tombeEnArrivant("intacte")).toBe(false);
+    expect(tombeEnArrivant("craquelee")).toBe(false);
   });
 });

@@ -25,7 +25,7 @@ import { CAMERA, GLACE_FINE, HERO, WORLD } from "../settings.js";
 import type { Colliders } from "./colliders.js";
 import { derapage, frictionPour, pasAmorti, vitesseMaxPour } from "./locomotion.js";
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
-import { createThinIce, type EtatGlace } from "./thin-ice.js";
+import { compteCommeEau, createThinIce, type EtatGlace, tombeEnArrivant } from "./thin-ice.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.
 const SPLASH = { cols: 9, frames: 9, fps: 20, height: 1.7, foot: 0.32 };
@@ -421,15 +421,11 @@ export function createHero(
       const eau = !piece && sol === null;
 
       if (swimming) {
-        // Glace fine (Task 7) : le champ de hauteur ignore tout du trou qu'on vient de creuser —
-        // la banquise reste un sol plein à cet endroit (`kindAt` en change la MATIÈRE, jamais la
-        // hauteur, voir `island.ts`), donc `sol` y est un nombre bien réel, jamais `null`. Sans
-        // cette garde, le héros remonterait tout seul UNE IMAGE après `enterWater(plunge)` — pile
-        // là où il vient de s'enfoncer, ce qui viderait la mécanique de tout enjeu. Tant que LA
-        // CASE SOUS LUI reste "rompue" (pas encore regelée), on force la lecture "encore de
-        // l'eau" ; nager jusqu'à une case voisine — regelée ou jamais rompue — ressort normalement
-        // par la branche `sol !== null` ci-dessous, sans changement.
-        const dansUnTrou = thinIce.etat(caseDe(pos.x, empreinte(pos.z))) === "rompue";
+        // Glace fine (Task 7) : `compteCommeEau` (`thin-ice.ts`) est la règle pure — voir sa
+        // docstring pour le POURQUOI. Garde purement ADDITIVE, en `&&` avec la condition `sol !==
+        // null` déjà là : nager jusqu'à une case voisine — regelée ou jamais rompue — ressort
+        // normalement par cette même branche, sans changement.
+        const dansUnTrou = compteCommeEau(thinIce.etat(caseDe(pos.x, empreinte(pos.z))));
         if (sol !== null && !dansUnTrou) {
           leaveWater(sol);
         } else {
@@ -496,19 +492,16 @@ export function createHero(
             glaceCase = cle;
             glaceEtat = thinIce.etat(cle);
           }
-          if (glaceEtat === "rompue") {
-            // On a marché À PIED sur un trou déjà ouvert (pas encore regelé) — rien à charger, il
-            // n'y a plus de glace du tout sous ce pas : on tombe SANS délai. Sans cette garde, un
-            // héros revenu sur ses pas depuis la rive resterait planté sur du vide, la collision
-            // ne connaissant que le relief (inchangé, toujours solide) et jamais l'état de
-            // `thinIce`.
+          if (tombeEnArrivant(glaceEtat)) {
+            // Arrivée (à pied) directement sur un trou déjà ouvert (pas encore regelé) : rien à
+            // charger, `tombeEnArrivant` (`thin-ice.ts`) le dit sans délai — voir sa docstring.
             tomber(cle);
           } else {
             const etatSuivant = thinIce.charge(cle, dt);
             if (etatSuivant !== glaceEtat) {
               glaceEtat = etatSuivant;
               if (etatSuivant === "craquelee") crack();
-              else if (etatSuivant === "rompue") tomber(cle);
+              else if (tombeEnArrivant(etatSuivant)) tomber(cle);
             }
           }
         } else if (glaceCase) {
