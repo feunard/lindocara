@@ -45,6 +45,7 @@ import {
   MOOD_FADE,
   MOODS,
   NEIGE_CHUTE,
+  NORD,
   SUN_DRIFT,
   TARGET_FPS,
   TEXTURE_URLS,
@@ -442,6 +443,24 @@ if (benchLevel !== "off") {
     armer: armerBench,
   };
 }
+
+// Téléportation de DEBUG (aucune mécanique de jeu ne s'en sert) : trois implémenteurs successifs
+// de la Task 5 (glace fine) n'ont pas pu vérifier leur travail sur l'île du nord — la traversée se
+// fait à la nage, le souffle y est calibré juste (doublement consommé dans le couloir polaire,
+// `ZONE_POLAIRE.souffle`), et chacun s'est noyé avant d'accoster. Sans poignée, le seul recours
+// était de bricoler `SPAWN` puis de recharger toute la scène. `versIleDuNord` évite à quiconque
+// d'avoir à retrouver les coordonnées de `NORD` (`settings.ts`) : elle pose le héros au centre du
+// lac gelé — solide (matière "glace", pas "glace-fine"), à quelques pas seulement de la couronne
+// de glace fine à tester. Exposée INCONDITIONNELLEMENT (pas seulement sous `?bench=`) : contrairement
+// au harnais de mesure, ce n'est pas une charge coûteuse, et c'est utile dans toute session de dev.
+(
+  globalThis as unknown as {
+    labHero?: { teleporter: (x: number, z: number) => void; versIleDuNord: () => void };
+  }
+).labHero = {
+  teleporter: (x, z) => hero.teleport(x, z),
+  versIleDuNord: () => hero.teleport(NORD.x, NORD.z),
+};
 
 // --- lumières -----------------------------------------------------------------------------------
 const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1);

@@ -163,6 +163,15 @@ export interface Hero {
   takeImpact(): number;
   /** Entre dans une pièce (rectangle + hauteur de plancher), ou en ressort (`null`). */
   setRoom(room: Room | null, position?: THREE.Vector3): void;
+  /**
+   * Téléportation de DEBUG — aucune mécanique de jeu ne l'appelle, seule la poignée exposée sur
+   * `globalThis` par `main.ts` (voir son commentaire : trois implémenteurs successifs n'ont pas pu
+   * vérifier leur travail sur l'île du nord, la traversée à la nage étant juste assez essoufflante
+   * pour s'y noyer avant d'accoster). Pose le héros à `(x, z)`, hors eau et hors pièce, la vitesse
+   * coupée — voir l'implémentation, qui réutilise `setRoom` plutôt que d'écrire ces champs à la
+   * main pour ne pas en oublier un.
+   */
+  teleport(x: number, z: number): void;
   update(dt: number, input: HeroInput): void;
 }
 
@@ -402,6 +411,19 @@ export function createHero(
       // n'est resynchronisé qu'en fin de `update()`, donc sans cette ligne `hero.position` resterait
       // périmé jusqu'à la prochaine image si quelque chose le lit entre-temps.
       pos.set(state.x, state.y, state.z);
+    },
+    teleport(x, z) {
+      // Réutilise `setRoom(null, ...)` plutôt que d'écrire `state.x`/`z`/`y`/vitesses à la main :
+      // c'est EXACTEMENT la même remise à zéro qu'une sortie de pièce (hauteur relue sur le
+      // terrain via `query.heightAt`, vitesses coupées, `airborne`/`swimming` retombés, `pos`
+      // resynchronisé) — la dupliquer ici serait la façon la plus sûre d'en oublier un champ le
+      // jour où `setRoom` en gagne un nouveau. `y` du vecteur passé n'a pas d'importance : `setRoom`
+      // le recalcule aussitôt depuis le terrain à `(x, z)`, jamais depuis la valeur fournie.
+      this.setRoom(null, new THREE.Vector3(x, 0, z));
+      // `setRoom` ne touche pas au souffle : sans cette ligne, se téléporter hors d'une nage
+      // entamée arriverait à pied sec déjà à moitié essoufflé — une incohérence qu'aucun joueur ne
+      // verrait jamais en vrai (on ne quitte l'eau qu'en ayant regagné une rive, souffle plein).
+      state.breath = HERO.swim.breath;
     },
     update(dt, input) {
       // Glace fine (Task 7) : le regel doit avancer au TEMPS RÉEL écoulé, pas seulement quand le
