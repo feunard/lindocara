@@ -52,8 +52,10 @@ and `three`-free on purpose, so S2 can promote them by moving the file, not rewr
 - `world/zones.ts` — `Zone`/`zoneAt`: a named region carrying its own ambience (soundscape, music,
   breath-drain rate). Pure rules; `main.ts` reads `zoneAt` every frame and wires the result to
   `core/audio.ts` and the hero.
-- `world/colliders.ts` — the static circular-footprint spatial grid props/the house/the NPCs
-  register into.
+- `world/collider-index.ts` — the static spatial grid props/the house/the NPCs register into.
+  Colliders are axis-aligned rectangles (Task 8: the primitive that can model a long wall, which a
+  circle couldn't); the hero's own footprint stays a circle, tested disc-vs-rect by nearest point —
+  see `hero-state.ts`'s `ColliderQuery`, the interface that hides the shape change from the rule.
 - `world/npc-base.ts` — `planStaticNpc()`, the shape every static NPC shares (water guard,
   collider registration, squared-distance `inReach`) and the `NpcHandle` interface `npc.ts`/
   `snow-npc.ts` alias. Holds nothing about a billboard, an animator or dialogue text — those stay

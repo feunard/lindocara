@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Colliders } from "./colliders.js";
+import type { ColliderIndex } from "./collider-index.js";
 import type { TerrainQuery } from "./terrain-query.js";
 
 /**
@@ -35,7 +35,7 @@ export interface NpcSpot {
  */
 export function planStaticNpc(
   query: TerrainQuery,
-  colliders: Colliders,
+  colliders: ColliderIndex,
   label: string,
   at: readonly [number, number],
   radius: number,
@@ -44,7 +44,8 @@ export function planStaticNpc(
   const [x, z] = at;
   const y = query.heightAt(x, z);
   if (y === null) throw new Error(`${label} est dans l'eau (${x}, ${z})`);
-  colliders.add(x, z, radius);
+  // Rectangle centré, de côté 2*radius : même rayon qu'avant Task 8, en rectangle.
+  colliders.add({ x: x - radius, z: z - radius, w: 2 * radius, h: 2 * radius });
   const portee2 = reach * reach;
   return {
     x,

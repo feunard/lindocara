@@ -2,7 +2,7 @@ import { makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import { CAMERA, NANUQ } from "../settings.js";
-import type { Colliders } from "./colliders.js";
+import type { ColliderIndex } from "./collider-index.js";
 import { type NpcHandle, planStaticNpc } from "./npc-base.js";
 import type { TerrainQuery } from "./terrain-query.js";
 
@@ -23,7 +23,7 @@ export function createSnowNpc(
   ctx: Hd2dContext,
   textures: TextureRegistry,
   query: TerrainQuery,
-  colliders: Colliders,
+  colliders: ColliderIndex,
 ): SnowNpc {
   const spot = planStaticNpc(query, colliders, "Nanuq", NANUQ.at, NANUQ.radius, NANUQ.reach);
 

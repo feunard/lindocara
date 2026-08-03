@@ -11,7 +11,7 @@ import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { CAMERA, NORD, VAPEUR_SOURCE, WORLD } from "../settings.js";
-import type { Colliders } from "./colliders.js";
+import type { ColliderIndex } from "./collider-index.js";
 import { mulberry32 } from "./island.js";
 import { createFlock, type Flock } from "./sheep.js";
 import type { TerrainQuery } from "./terrain-query.js";
@@ -167,7 +167,7 @@ export function populate(
   textures: TextureRegistry,
   field: HeightField,
   query: TerrainQuery,
-  colliders: Colliders,
+  colliders: ColliderIndex,
   spawn: readonly [number, number],
 ): Props {
   const rng = mulberry32(WORLD.seed + 7);
@@ -184,7 +184,12 @@ export function populate(
     const k = KINDS[kind];
     const y = query.heightAt(wx, wz);
     if (y === null && kind !== "rock") return;
-    if (k.radius) colliders.add(wx, wz, k.radius * scale);
+    // Rectangle centré, de côté 2r : même rayon qu'avant (Task 8 change la FORME, pas le réglage),
+    // donc un tronc d'arbre ne grossit pas en devenant carré.
+    if (k.radius) {
+      const r = k.radius * scale;
+      colliders.add({ x: wx - r, z: wz - r, w: 2 * r, h: 2 * r });
+    }
 
     const billboard = makeBillboard(ctx, {
       texture: textures.get(k.url),
@@ -422,8 +427,8 @@ export function populate(
   // La "flaque" elle-même n'a pas de sprite : aucun asset n'est généré pour cette task (voir le
   // plan, section « Les assets générés » — rien pour la source), la source n'est donc QUE lumière
   // et vapeur. On ne veut pourtant pas qu'on marche EN PLEIN DEDANS : un collider modeste en tient
-  // lieu, comme celui du foyer (`KINDS.fire.radius`).
-  colliders.add(sourceX, sourceZ, 0.7);
+  // lieu, comme celui du foyer (`KINDS.fire.radius`). Même rayon (0.7) qu'avant Task 8, en rectangle.
+  colliders.add({ x: sourceX - 0.7, z: sourceZ - 0.7, w: 1.4, h: 1.4 });
 
   // Même couleur de base que le feu (chaude), teinte ambrée plutôt qu'orange franc : les deux
   // landmarks ne doivent jamais se confondre au premier regard malgré la même mécanique.

@@ -24,7 +24,7 @@ import {
   swimStroke,
 } from "../core/audio.js";
 import { CAMERA, GLACE_FINE, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
-import type { Colliders } from "./colliders.js";
+import type { ColliderIndex } from "./collider-index.js";
 import {
   createHeroState,
   type HeroEvent,
@@ -189,7 +189,7 @@ export function createHero(
   ctx: Hd2dContext,
   textures: TextureRegistry,
   query: TerrainQuery,
-  colliders: Colliders,
+  colliders: ColliderIndex,
   spawn: readonly [number, number],
 ): Hero {
   const [sx, sz] = spawn;

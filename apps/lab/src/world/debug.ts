@@ -1,7 +1,7 @@
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import * as THREE from "three";
 import { HERO, WORLD } from "../settings.js";
-import type { Colliders } from "./colliders.js";
+import type { ColliderIndex } from "./collider-index.js";
 import type { Hero } from "./hero.js";
 import type { TerrainQuery } from "./terrain-query.js";
 
@@ -25,6 +25,19 @@ function circle(radius: number, segments = 28): THREE.BufferGeometry {
   return new THREE.BufferGeometry().setFromPoints(pts);
 }
 
+/** Contour d'un rectangle (Task 8 : les colliders de props sont désormais des rectangles, pas des
+ *  cercles), centré sur l'origine locale — la position du mesh porte le coin `(rect.x, rect.z)`. */
+function rectangle(w: number, h: number): THREE.BufferGeometry {
+  const pts = [
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(w, 0, 0),
+    new THREE.Vector3(w, 0, h),
+    new THREE.Vector3(0, 0, h),
+    new THREE.Vector3(0, 0, 0),
+  ];
+  return new THREE.BufferGeometry().setFromPoints(pts);
+}
+
 export interface DebugView {
   group: THREE.Group;
   readonly enabled: boolean;
@@ -35,7 +48,7 @@ export interface DebugView {
 export function createDebugView(
   field: HeightField,
   query: TerrainQuery,
-  colliders: Colliders,
+  colliders: ColliderIndex,
 ): DebugView {
   const group = new THREE.Group();
   group.visible = false;
@@ -127,12 +140,15 @@ export function createDebugView(
   group.add(lines(sol, COL.sol));
   group.add(lines(paroi, COL.paroi));
 
-  // Empreintes des props, au rayon exact utilisé par le test de collision.
+  // Empreintes des props : au rectangle exact utilisé par le test de collision (Task 8 — le héros
+  // seul reste rond, cf. le ring ci-dessous).
   const propMat = new THREE.LineBasicMaterial({ color: COL.prop, depthTest: false });
-  for (const p of colliders.all) {
-    const ring = new THREE.Line(circle(p.r), propMat);
-    ring.position.set(p.x, (query.heightAt(p.x, p.z) ?? 0) + 0.05, p.z);
-    group.add(ring);
+  for (const rect of colliders.all) {
+    const cx = rect.x + rect.w / 2;
+    const cz = rect.z + rect.h / 2;
+    const outline = new THREE.Line(rectangle(rect.w, rect.h), propMat);
+    outline.position.set(rect.x, (query.heightAt(cx, cz) ?? 0) + 0.05, rect.z);
+    group.add(outline);
   }
 
   // Empreinte du héros : la même face au relief et face aux props.

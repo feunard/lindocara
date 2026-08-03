@@ -56,7 +56,7 @@ import {
   ZONES,
 } from "./settings.js";
 import { createChest } from "./world/chest.js";
-import { createColliders } from "./world/colliders.js";
+import { createColliderIndex } from "./world/collider-index.js";
 import { createDebugView } from "./world/debug.js";
 import { createHero } from "./world/hero.js";
 import { createHouse } from "./world/house.js";
@@ -213,7 +213,7 @@ scene.add(foam.group);
 // juste après Grota — doit voir la MÊME instance que celle que `populate`/`createGrota` peuplent :
 // contrairement au PoC, où `props.js` fabrique et possède ses colliders, l'architecture du labo
 // (Task 11) fait déjà de `main.ts` le propriétaire de `colliders`.
-const colliders = createColliders();
+const colliders = createColliderIndex();
 
 const SPAWN = [-2, 4] as const;
 const props = populate(ctx, textures, field, query, colliders, SPAWN);
@@ -306,7 +306,13 @@ const house = placeMaison
   : null;
 if (house) {
   scene.add(house.group);
-  colliders.add(house.footprint.x, house.footprint.z, house.footprint.r);
+  // Rectangle centré, de côté 2r : même rayon qu'avant Task 8, en rectangle.
+  colliders.add({
+    x: house.footprint.x - house.footprint.r,
+    z: house.footprint.z - house.footprint.r,
+    w: 2 * house.footprint.r,
+    h: 2 * house.footprint.r,
+  });
 }
 
 // L'intérieur vit très loin de la carte, caché tant qu'on n'y est pas entré.
@@ -339,7 +345,8 @@ const sakura = ((): {
   });
   billboard.placeAt(x, y, z);
   scene.add(billboard.mesh);
-  colliders.add(x, z, 0.42);
+  // Rectangle centré, côté 0.84 : même rayon (0.42) qu'avant Task 8, en rectangle.
+  colliders.add({ x: x - 0.42, z: z - 0.42, w: 0.84, h: 0.84 });
   // La ramure culmine vers 2.9 : les pétales tombent de là.
   const petales = createPetalFall(ctx, {
     centre: new THREE.Vector3(x, y, z),

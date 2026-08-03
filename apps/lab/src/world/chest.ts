@@ -5,7 +5,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { closeChest, openChest } from "../core/audio.js";
 import { CAMERA } from "../settings.js";
-import type { Colliders } from "./colliders.js";
+import type { ColliderIndex } from "./collider-index.js";
 import type { TerrainQuery } from "./terrain-query.js";
 
 // Les deux sprites partagent un canevas de 80x80, coffre calé en bas : ouvrir
@@ -38,7 +38,7 @@ export function createChest(
   textures: TextureRegistry,
   field: HeightField,
   query: TerrainQuery,
-  colliders: Colliders,
+  colliders: ColliderIndex,
 ): Chest {
   const group = new THREE.Group();
 
@@ -113,7 +113,8 @@ export function createChest(
     group.add(billboard.mesh);
   }
 
-  colliders.add(x, z, RAYON);
+  // Rectangle centré, de côté 2*RAYON : même rayon qu'avant Task 8, en rectangle.
+  colliders.add({ x: x - RAYON, z: z - RAYON, w: 2 * RAYON, h: 2 * RAYON });
 
   let ouvert = false;
   let aPortee = false;
