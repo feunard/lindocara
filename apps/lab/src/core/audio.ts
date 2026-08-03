@@ -98,10 +98,16 @@ const MUSIQUE: Record<string, string> = {
   neige: "/music/neige.ogg",
 };
 
-// Les répliques de Grota, une prise par ligne. Elles ne passent pas par
-// `jouer()` : celui-ci tire une variante et une hauteur au hasard, ce qui est
-// exactement ce qu'il ne faut pas faire à une voix.
-const VOIX = [1, 2, 3, 4].map((i) => `/voice/grota-${i}.ogg`);
+// Les répliques doublées, une prise par ligne — Grota, puis Nanuq (Task 12 de l'île de neige).
+// Elles ne passent pas par `jouer()` : celui-ci tire une variante et une hauteur au hasard, ce
+// qui est exactement ce qu'il ne faut pas faire à une voix. Une clef par PERSONNAGE plutôt qu'un
+// tableau unique : `sayLine` doit savoir QUELLE voix jouer, puisque le bandeau (`dialog.ts`) est
+// partagé entre tous les PNJ — un second `Dialog` par personnage aurait été un second système, ce
+// que la task refuse explicitement.
+const VOIX: Record<string, readonly string[]> = {
+  grota: [1, 2, 3, 4].map((i) => `/voice/grota-${i}.ogg`),
+  habitant: [1, 2, 3, 4].map((i) => `/voice/habitant-${i}.ogg`),
+};
 
 const BOUCLES: Record<BoucleKey, string> = {
   jour: "/sfx/amb-day.ogg",
@@ -137,7 +143,7 @@ const LOOP_END_S: Partial<Record<BoucleKey, number>> = {
 /** Tout ce que le son a besoin de charger — l'écran de chargement le pèse. */
 export const AUDIO_URLS: readonly string[] = [
   ...Object.values(BANQUE).flat(),
-  ...VOIX,
+  ...Object.values(VOIX).flat(),
   ...Object.values(BOUCLES),
   ...Object.values(MUSIQUE),
 ];
@@ -668,22 +674,23 @@ export function setSkid(intensite: number): void {
 export const bleat = (semitones = 0): void =>
   jouer("belement", { hauteur: 2 ** (semitones / 12), gain: 0.5 });
 
-// --- Grota ------------------------------------------------------------------
-// Il a une vraie voix : quatre prises, une par réplique. Le bandeau en a besoin
+// --- voix des PNJ -------------------------------------------------------------
+// Chacun a une vraie voix : quatre prises, une par réplique. Le bandeau en a besoin
 // de la DURÉE, pas seulement du déclenchement — c'est elle qui cadence la
 // frappe du texte. Une réplique de neuf secondes écrite en une seconde et demie
-// laisserait le panda parler devant un texte déjà fini.
+// laisserait le personnage parler devant un texte déjà fini.
 let voixEnCours: AudioBufferSourceNode | null = null;
 
 /**
- * Lance la réplique `i` et renvoie sa durée en secondes, ou 0 si la prise n'est
- * pas encore décodée — auquel cas le bandeau reprend sa cadence par défaut.
+ * Lance la réplique `i` du PERSONNAGE `personnage` (une clef de `VOIX` — "grota" ou "habitant")
+ * et renvoie sa durée en secondes, ou 0 si la prise n'est pas encore décodée, ou si `personnage`
+ * ne correspond à aucune voix connue — auquel cas le bandeau reprend sa cadence par défaut.
  * Toute réplique en cours est coupée : on ne se superpose pas à soi-même.
  */
-export function sayLine(i: number): number {
+export function sayLine(personnage: string, i: number): number {
   stopLine();
   if (!ctx || !debloque || !master) return 0;
-  const url = VOIX[i];
+  const url = VOIX[personnage]?.[i];
   const buf = url ? tampons.get(url) : undefined;
   if (!buf) return 0;
 

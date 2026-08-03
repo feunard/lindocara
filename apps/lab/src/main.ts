@@ -63,6 +63,7 @@ import { createInterior } from "./world/interior.js";
 import { generateIsland } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
 import { populate, windPhase } from "./world/props.js";
+import { createSnowNpc } from "./world/snow-npc.js";
 import { type Zone, zoneAt } from "./world/zones.js";
 
 // --- chargement -------------------------------------------------------------------------------
@@ -220,6 +221,11 @@ scene.add(props.group);
 // Grota AVANT le héros : il déclare son collider, que le héros doit connaître.
 const grota = createGrota(ctx, textures, query, colliders);
 scene.add(grota.object);
+
+// Nanuq, l'habitant de la banquise (Task 12 de l'île de neige) : même raison, même ordre — son
+// collider doit exister avant que le héros ne soit construit.
+const nanuq = createSnowNpc(ctx, textures, query, colliders);
+scene.add(nanuq.object);
 
 const hero = createHero(ctx, textures, query, colliders, SPAWN);
 scene.add(hero.object);
@@ -660,6 +666,18 @@ const GROTA_DIT = [
   "Repars avant la nuit. Elle tombe pour de bon, ici. Au large, on ne voit plus sa propre main.",
 ];
 
+// Nanuq, l'habitant de la banquise (Task 12 de l'île de neige) : quatre répliques, comme Grota,
+// mais qui parlent du FROID, de la glace qui ne tient pas partout, et de ce qu'il fait là — le
+// registre à tenir est celui de Grota (terse, sec, jamais explicatif), pas un cahier des charges.
+// La 3e réplique est un tutoriel déguisé : elle décrit la VRAIE mécanique de la glace fine
+// (`world/thin-ice.ts`, `GLACE_FINE` dans `settings.ts`) — elle craque, PUIS elle cède.
+const HABITANT_DIT = [
+  "Tiens. Un chevalier qui a nagé jusqu’ici. Tu ne dois plus sentir tes doigts.",
+  "Je pose mes lignes où le poisson remonte respirer. Le reste du temps, je répare ce que le vent défait.",
+  "La glace grince avant de céder, un vrai avertissement, pas un bruit de rien. Si tu l’entends sous tes pas, bouge.",
+  "Elle ne tient pas partout pareil. Ce qui a cédé regèle, avec le temps, mais pas ce jour-là. Choisis où tu marches.",
+];
+
 const fondu = document.getElementById("fade");
 let enTransition = false;
 
@@ -700,15 +718,22 @@ const hudEl = document.getElementById("hud");
 let hudMasque = false;
 
 function parler(action: boolean, cancel: boolean): void {
-  const portee = grota.inReach(hero.position) && !hero.swimming;
-  // S'éloigner referme la conversation : rester à l'écoute d'un panda qu'on ne voit plus n'aurait
+  const porteeGrota = grota.inReach(hero.position) && !hero.swimming;
+  // Nanuq (Task 12 de l'île de neige) : même garde `!hero.swimming` que Grota — les deux zones
+  // de portée sont à des dizaines d'unités l'une de l'autre (îles différentes), donc jamais
+  // vraies en même temps ; `portee` peut donc les combiner sans jamais devoir arbitrer entre les
+  // deux PNJ.
+  const porteeNanuq = nanuq.inReach(hero.position) && !hero.swimming;
+  const portee = porteeGrota || porteeNanuq;
+  // S'éloigner referme la conversation : rester à l'écoute d'un PNJ qu'on ne voit plus n'aurait
   // aucun sens, et ça évite un bandeau orphelin à l'écran.
   if (dialog.open && (!portee || cancel)) dialog.close();
   else if (action) {
     if (dialog.open) dialog.advance();
-    else if (portee) dialog.start("Grota", GROTA_DIT, "/ui/grota.png");
+    else if (porteeGrota) dialog.start("Grota", GROTA_DIT, "/ui/grota.png", "grota");
+    else if (porteeNanuq) dialog.start("Nanuq", HABITANT_DIT, "/ui/habitant.png", "habitant");
   }
-  // Une seule invite pour toute la scène : le panda et le coffre s'y partagent la même pastille.
+  // Une seule invite pour toute la scène : les PNJ et le coffre s'y partagent la même pastille.
   const surSeuil = hero.indoors
     ? interior.nearExit(hero.position)
     : !!house && house.atDoor(hero.position);
@@ -1059,6 +1084,7 @@ function frame(now = performance.now()): void {
 
   props.update(dt, elapsed);
   grota.update(dt, hero.position);
+  nanuq.update(dt, hero.position);
   parler(cmd.action, cmd.cancel);
   dialog.update(dt);
   water.update(dt);
@@ -1169,6 +1195,7 @@ bouton?.addEventListener("click", () => {
   house,
   sakura,
   grota,
+  nanuq,
   dialog,
   props,
   sun,

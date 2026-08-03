@@ -403,6 +403,51 @@ export const GROTA: GrotaSettings = {
   reach: 2.6, // distance à laquelle on peut lui parler
 };
 
+export interface SnowNpcSettings {
+  at: readonly [number, number];
+  /** Largeur/hauteur du sprite : contrairement à la feuille de Grota (une frame parmi
+   *  plusieurs sur un pack Tiny Swords), c'est un sprite GÉNÉRÉ à une seule pose (Task 12 de
+   *  l'île de neige, voir `world/snow-npc.ts`) — pas d'animation à jouer, donc pas de
+   *  `frame`/`Clip` comme `GrotaSettings`, seulement l'aspect de l'image traitée. */
+  aspect: number;
+  size: number;
+  foot: number;
+  radius: number;
+  reach: number;
+}
+
+// Nanuq, l'habitant de la banquise (Task 12 de l'île de neige) : même machinerie que Grota —
+// il ne bouge pas, il ne se bat pas, il se tourne vers qui l'approche, et `F` ouvre LE MÊME
+// bandeau (`world/snow-npc.ts` réutilise `Dialog`/`sayLine`, ce n'est pas un second système).
+// Posé sur la neige de l'île du nord, au sud-ouest du lac gelé — assez près du débarcadère de la
+// source chaude (`sourceX/sourceZ = NORD.x - 2, NORD.z + 5`, `world/props.ts`, à 2,5 unités d'ici)
+// pour qu'on le croise vite après la traversée à la nage, mais hors de sa clairière réservée
+// (rayon 2). À 4,6 unités du centre du lac (`NORD`, rayon `LAC_R` 2,5 + couronne de glace fine
+// 0,9, voir `island.ts`) — large marge sur la glace fine — et à plus de dix du monticule de saut
+// (`NORD.x + 4.5, NORD.z - 3.5`). La position n'est pas déduite à l'aveugle : le semis des
+// sapins/stalagmites de la Task 11 est tiré au hasard, donc choisie en interrogeant
+// `window.lab.colliders.all` à l'écran (le rapport de la task documente la méthode) pour retenir
+// une case à plus de 1,5 unité de tout collider existant et entièrement entourée de terre.
+export const NANUQ: SnowNpcSettings = {
+  at: [-3.5, -23],
+  // Sprite généré (Task 12) : `apps/lab/public/tex/habitant.png`, 100x127, traité par
+  // `scripts/sprite.py` (détourage/recadrage/densité, 10 couleurs opaques — même palette que
+  // `sapin-neige.png`/`stalagmite.png`, la Task 11 avait déjà établi cette densité comme la
+  // bonne pour l'île du nord). Provenance et jugement des variantes dans le rapport de la task.
+  aspect: 100 / 127,
+  // 127 px / 2.65 unité ≈ 48 px/unité — la même densité de référence que `sapin-neige.png`
+  // (142 px / 2.9 unité ≈ 49) et `stalagmite.png` (Task 11) : un personnage généré à côté
+  // d'accessoires générés doit tomber sur la même échelle qu'eux, pas seulement sur celle de
+  // Grota (un asset de pack, pas comparable directement).
+  size: 2.65,
+  // Marge de recadrage de `scripts/sprite.py` (2 px par défaut) sur une image de 127 px de
+  // haut : les pieds touchent quasiment le bas du cadre, contrairement à Grota (une frame de
+  // feuille avec du vide peint au-dessus de la tête).
+  foot: 0.02,
+  radius: 0.32, // on ne lui marche pas dessus, comme Grota (0.34) — stature comparable
+  reach: 2.6, // même portée de parole que Grota : une seule convention pour tout le labo
+};
+
 export interface WaterSettings {
   /** 0.12 fait de la mer un miroir : à cette échelle le lobe spéculaire du soleil couvre le
    *  cadre entier et l'écran vire au blanc laiteux — une nappe, pas des reflets. Il faut une
@@ -546,6 +591,9 @@ export const TEXTURE_URLS: readonly TextureSpec[] = [
   { url: "/tex/stalagmite.png" },
   // --- Grota, le coffre, la maison, l'intérieur ---------------------------------------------------
   { url: "/tex/panda.png" },
+  // Nanuq, l'habitant de la banquise (Task 12 de l'île de neige) : sprite généré, une seule
+  // frame comme sapin-neige/stalagmite ci-dessus — voir `world/snow-npc.ts`.
+  { url: "/tex/habitant.png" },
   { url: "/tex/chest-closed.png" },
   { url: "/tex/chest-open.png" },
   { url: "/tex/house-front.png" },

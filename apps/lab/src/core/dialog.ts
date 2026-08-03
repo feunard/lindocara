@@ -18,8 +18,9 @@ function requireElement<T extends HTMLElement>(id: string): T {
 }
 
 export interface DialogHandlers {
-  /** Lance la réplique `i` et renvoie sa durée en secondes (0 si non décodée). */
-  say?(i: number): number;
+  /** Lance la réplique `i` du personnage `voice` (une clef de `VOIX`, `core/audio.ts`) et
+   *  renvoie sa durée en secondes (0 si non décodée, ou si `voice` est vide/inconnue). */
+  say?(voice: string, i: number): number;
   /** Coupe la voix en cours. */
   stop?(): void;
   /** Le « toc » de validation, au passage d'une réplique à la suivante. */
@@ -28,8 +29,11 @@ export interface DialogHandlers {
 
 export interface Dialog {
   readonly open: boolean;
-  /** Ouvre le bandeau sur une série de répliques. */
-  start(speaker: string, lines: readonly string[], portrait?: string): void;
+  /** Ouvre le bandeau sur une série de répliques. `voice` sélectionne le jeu de prises doublées
+   *  (Task 12 de l'île de neige : Grota et l'habitant de la banquise partagent CE bandeau, pas
+   *  deux bandeaux distincts) — omis ou inconnu, le texte s'affiche à la cadence de repli
+   *  (`VITESSE`), sans voix. */
+  start(speaker: string, lines: readonly string[], portrait?: string, voice?: string): void;
   close(): void;
   /** L'action : terminer la réplique, ou passer à la suivante. Ferme au bout. */
   advance(): void;
@@ -51,6 +55,11 @@ export function createDialog(handlers: DialogHandlers = {}): Dialog {
   let reveles = 0; // caractères déjà écrits, en flottant
   let vitesse = VITESSE;
   let ouvert = false;
+  // Le personnage qui parle EN CE MOMENT — posé par `start()`, relu à chaque réplique par
+  // `dire()`. Un seul bandeau pour tous les PNJ (voir la JSDoc de `Dialog.start`) : sans cette
+  // mémoire, `dire()` ne saurait pas quelle voix demander à `say()` au passage d'une réplique à
+  // la suivante (`advance()` n'a accès qu'à l'index, pas au personnage d'origine).
+  let voixActuelle = "";
 
   const texte = (): string => repliques[index] ?? "";
 
@@ -62,13 +71,13 @@ export function createDialog(handlers: DialogHandlers = {}): Dialog {
 
   /**
    * Lance la réplique courante et cale la frappe sur sa durée. Une prise de
-   * neuf secondes écrite en une seconde et demie laisserait le panda parler
+   * neuf secondes écrite en une seconde et demie laisserait le personnage parler
    * devant un texte déjà terminé ; c'est la voix qui donne le tempo, pas
    * l'inverse.
    */
   function dire(): void {
     reveles = 0;
-    const duree = say(index);
+    const duree = say(voixActuelle, index);
     vitesse = duree > 0 ? texte().length / (duree * AVANCE) : VITESSE;
     peindre();
   }
@@ -77,10 +86,11 @@ export function createDialog(handlers: DialogHandlers = {}): Dialog {
     get open() {
       return ouvert;
     },
-    start(speaker, lines, portrait) {
+    start(speaker, lines, portrait, voice) {
       repliques = lines;
       index = 0;
       ouvert = true;
+      voixActuelle = voice ?? "";
       nom.textContent = speaker;
       if (portrait) avatar.src = portrait;
       boite.classList.add("on");
