@@ -201,6 +201,17 @@ export const BLIZZARD = {
   periode: 9,
   /** Fraction MAXIMALE dont la portée du brouillard (`fog.far`) se resserre au pic d'une rafale. */
   intensite: 0.4,
+  /** Seuil (0..1) que le signal de rafale doit franchir EN CROISSANT pour compter comme le début
+   *  d'une bourrasque (voir `main.ts`, déclenchement de `gust()`) — pas chaque image où le signal
+   *  reste fort. Le milieu de l'oscillation : assez tôt pour que le son précède le pic visuel plutôt
+   *  que de le suivre. */
+  seuilSon: 0.5,
+  /** Intervalle plancher (s) entre deux déclenchements du son de rafale — filet de sécurité si le
+   *  franchissement du seuil pouvait se redéclencher rapidement ; à `periode` = 9 s le
+   *  franchissement naturel n'arrive qu'une fois par cycle, donc ce plancher ne joue normalement
+   *  aucun rôle, il ne fait que garantir qu'un futur réglage de `periode` plus courte ne puisse pas
+   *  mitrailler le son. */
+  intervalleSonMin: 3,
 };
 
 export interface CameraSettings {

@@ -62,10 +62,8 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // panda en chapeau de paille. Trois variantes, comme partout ailleurs.
   suivant: [1, 2, 3].map((i) => `/sfx/next-${i}.ogg`),
   // Une rafale de vent isolée, générée ici avec le reste des sons du lieu pour éviter un
-  // aller-retour au studio pour un seul fichier — mais NON déclenchée par ce travail : Task 9 la
-  // reliera au pulse visuel du brouillard polaire. Déclarée au catalogue (donc pesée et décodée
-  // à l'écran de chargement) sans fonction d'export : décider QUAND elle joue est le travail de
-  // Task 9, pas de celui-ci.
+  // aller-retour au studio pour un seul fichier. Déclenchée par Task 9 (voir `gust()` plus bas) sur
+  // le front montant du pulse visuel de brouillard polaire, câblé depuis `main.ts`.
   rafale: ["/sfx/rafale.ogg"],
   // La glace fine (Task 7, `world/thin-ice.ts`) : trois temps, trois sons. Le craquement est
   // RÉPÉTÉ tant qu'on reste dessus après le premier avertissement (voir `hero.ts`) — il lui faut
@@ -533,6 +531,14 @@ export const shatter = (): void => jouer("rupture", { gain: 0.95 });
  *  l'eau que partout ailleurs (`hero.ts` réutilise `enterWater`), seul le son change — passé en
  *  paramètre plutôt que réimplémenté. */
 export const plunge = (): void => jouer("ploufGlace", { gain: 0.95 });
+
+/**
+ * La rafale de vent isolée (Task 6, `BANQUE.rafale`). Comme `crack`/`shatter`/`plunge` ci-dessus,
+ * un simple passe-plat vers `jouer()` — décider QUAND elle joue (le front montant du pulse visuel
+ * de brouillard polaire, en zone polaire uniquement) est le travail de `main.ts`, pas de ce module :
+ * `audio.ts` ne sait pas ce qu'est un biome de neige, il sait seulement jouer un son nommé.
+ */
+export const gust = (): void => jouer("rafale", { gain: 0.85 });
 
 /**
  * Bascule la NAPPE d'ambiance ; les boucles concernées se croisent en fondu. `nom` était borné à

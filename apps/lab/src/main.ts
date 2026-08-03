@@ -24,6 +24,7 @@ import {
   AUDIO_URLS,
   closeDoor,
   ding,
+  gust,
   initAudio,
   musicEnabled,
   openDoor,
@@ -732,11 +733,24 @@ props.flock.onExplode = () => shake(0.26);
 let auroraAmount = 0;
 let fogPulseAmount = 0;
 
+// Son de rafale (Correction 1 de la revue de cette task) : `rafalePrec` retient la valeur du signal
+// visuel calculée à l'image précédente, pour repérer son FRANCHISSEMENT ASCENDANT du seuil
+// (`BLIZZARD.seuilSon`, `settings.ts`) — c'est ce franchissement qui marque le DÉBUT d'une
+// bourrasque, pas chaque image où le signal reste fort. `null` tant qu'aucune image n'a encore été
+// mesurée EN ZONE POLAIRE (et remis à `null` dès qu'on en sort) : sans ce garde, entrer dans la zone
+// au milieu d'une bourrasque déjà haute lirait un "franchissement" dès la première image, comme si
+// elle venait tout juste de commencer. `dernierGustAt` est le filet de sécurité demandé en revue :
+// un intervalle plancher (`BLIZZARD.intervalleSonMin`) au cas où un futur réglage ferait se
+// redéclencher le seuil trop vite pour rester "une bourrasque, un son".
+let rafalePrec: number | null = null;
+let dernierGustAt = -Infinity;
+
 function updateCamera(
   dt: number,
   cmd: InputSample,
   move: { x: number; z: number },
   t: number,
+  enPolaire: boolean,
 ): void {
   distance = THREE.MathUtils.clamp(distance + cmd.zoom, CAMERA.zoom.min, CAMERA.zoom.max);
   // La rotation n'est qu'un coup d'oeil : elle revient d'elle-même une fois le bouton relâché,
@@ -808,6 +822,29 @@ function updateCamera(
   fog.far = mood.value.fog.far * k ** CAMERA.fogFar * (1 - pulse);
   // Reculer doit renforcer l'effet maquette, pas l'aplatir.
   pipeline.setTiltShiftZoom(k);
+
+  // Son de rafale (Correction 1 de la revue) : uniquement en zone polaire — `hd2d` ne sait pas qu'un
+  // biome de neige existe, ce gating reste donc entièrement ici, côté labo, jamais dans le package.
+  // `rafale` ci-dessus EST déjà le signal visuel (même formule que le pulse de brouillard) : on le
+  // relit tel quel plutôt que d'en dériver un second, pour que le son et l'image ne puissent jamais
+  // diverger. Un franchissement ASCENDANT du seuil = le début d'une bourrasque ; le plancher
+  // `intervalleSonMin` est un filet de sécurité, pas le mécanisme principal (voir la déclaration de
+  // `rafalePrec` plus haut pour le raisonnement complet, notamment le cas d'une entrée en zone en
+  // pleine bourrasque).
+  if (enPolaire) {
+    if (
+      rafalePrec !== null &&
+      rafalePrec < BLIZZARD.seuilSon &&
+      rafale >= BLIZZARD.seuilSon &&
+      t - dernierGustAt >= BLIZZARD.intervalleSonMin
+    ) {
+      gust();
+      dernierGustAt = t;
+    }
+    rafalePrec = rafale;
+  } else {
+    rafalePrec = null;
+  }
 }
 
 // --- amorçage -----------------------------------------------------------------------------------
@@ -828,6 +865,9 @@ updateCamera(
   },
   { x: 0, z: 0 },
   0,
+  // Pas encore en zone polaire à cet instant (le spawn ne l'est pas) : aucun son de rafale à ce
+  // premier cadrage à vide.
+  false,
 );
 pushMood();
 applyMood("day");
@@ -919,7 +959,7 @@ function frame(now = performance.now()): void {
   // Recopié à CHAQUE image, pas seulement au fondu d'ambiance : `sky.horizon` change aussi avec
   // l'aurore, qui suit son propre fondu (`AURORE.fade`) indépendant de celui du jour/nuit.
   fog.color.copy(sky.horizon);
-  updateCamera(dt, cmd, move, elapsed);
+  updateCamera(dt, cmd, move, elapsed, enPolaire);
   // L'ambiance se fond : tant qu'elle bouge, il faut la repousser partout.
   if (mood.update(dt)) pushMood();
 
