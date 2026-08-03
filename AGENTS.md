@@ -31,6 +31,11 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npm run deploy` | `alepha platform up -e production` — build, pack and upload to Bay; CI runs it on every push to `main` and migrations run at app boot |
 | `npm run db:generate -w @lindocara/main` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration |
 | `npm run check:migrations -w @lindocara/main` | fail on entity/migration drift (also part of `npm run v`) |
+| `python3 studio/studio.py sprite\|sfx\|voice\|music` | generate a game asset locally, in this game's art direction — sprites, sound effects, voice lines, music. No API, no cloud, no key. See [Generating assets](#generating-assets) |
+| `python3 studio/studio.py doctor` | check the asset studio's runtimes and weights, then generate one artifact per lane — run it first on a machine that has never generated anything |
+
+Asset generation runs on macOS (Apple Silicon) and on Windows/Linux with an NVIDIA GPU; on
+Windows the commands start with `python`, not `python3`.
 
 ### History: the Alepha migration (2026-07-29 → 2026-07-31)
 
