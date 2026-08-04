@@ -309,7 +309,7 @@ export function createHero(
   // que `state` porte, donc rien n'oblige la règle pure à la connaître.
   let impact = 0;
 
-  // Glace fine (Task 7) : un état par case, tenu par un module pur (`packages/engine/hd2d/thin-ice.js`) — le
+  // Glace fine (Task 7) : un état par case, tenu par un module pur (`@lindocara/engine/hd2d/thin-ice.js`) — le
   // héros ne fait que lui donner le `dt` et lire l'état en retour, jamais sa propre horloge.
   // `state.glaceCase` retient la case actuellement chargée (pour savoir QUAND relâcher l'ancienne
   // en changeant de case), `state.glaceEtat` le dernier état lu dessus (pour ne déclencher son et
