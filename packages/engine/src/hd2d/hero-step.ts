@@ -201,6 +201,12 @@ export function stepHero(
   const events: HeroEvent[] = [];
   const { query, hero, world } = deps;
 
+  // The jump input is a LEVEL. Read the rising edge ONCE, here, before any branch: the latch has
+  // to advance on every step — indoors, swimming, anywhere — or a key held across a doorway would
+  // read as a fresh press on the way out.
+  const jumpPressed = input.jump && !state.jumpHeld;
+  state.jumpHeld = input.jump;
+
   const empreinteZ = (z: number) => empreinte(z, hero);
   const avantX = state.x;
   const avantZ = state.z;
@@ -275,15 +281,39 @@ export function stepHero(
 
       // No jumping from the water, and coyote time: a few frames are forgiven after leaving an
       // edge.
+      let vientDeSauter = false;
       if (input.jump && state.coyote > 0) {
         state.vy = hero.jump.speed;
         state.airborne = true;
         state.coyote = 0;
+        vientDeSauter = true;
         events.push({ t: "saut" });
       }
 
+      // The canopy: a fresh press while ALREADY in the air opens it, another folds it. Two guards,
+      // both load-bearing. `!vientDeSauter` — the same press that just started the jump is still a
+      // rising edge on this very frame, and without it every take-off would pop the canopy.
+      // `state.airborne` — there is nothing to glide from on the ground. Not swimming and not
+      // indoors come for free: this whole block is nested inside those two branches.
+      if (jumpPressed && !vientDeSauter && state.airborne) {
+        if (state.gliding) {
+          state.gliding = false;
+          events.push({ t: "glider-close" });
+        } else {
+          state.gliding = true;
+          // Drop straight into the slow descent rather than letting the jump arc finish: opening
+          // at the top of a jump should feel like catching the air, not like a delay.
+          state.vy = -hero.glide.fall;
+          events.push({ t: "glider-open" });
+        }
+      }
+
       if (state.airborne) {
-        state.vy -= hero.jump.gravity * dt;
+        // Gliding stops gravity ACCUMULATING, it does not merely cap it: a glide descends at one
+        // constant speed and never gains altitude. Nothing else in the block changes — the landing
+        // test below reads `vy` exactly as before, and a canopy landing is simply a soft one.
+        if (state.gliding) state.vy = -hero.glide.fall;
+        else state.vy -= hero.jump.gravity * dt;
         state.y += state.vy * dt;
         if (state.vy <= 0 && state.y <= ground) {
           state.y = ground;
@@ -391,6 +421,15 @@ export function stepHero(
         if (state.breath <= 0) events.push(drown(state, deps));
       }
     }
+  }
+
+  // --- the canopy cannot outlive the fall ------------------------------------------------------
+  // ONE invariant rather than a fold written into landing, water entry, drowning and walking
+  // into a room separately: all four already clear `airborne` or set `swimming`, and a rule spread
+  // over four call sites is a rule with a fifth path waiting to be forgotten.
+  if (state.gliding && (!state.airborne || state.swimming || state.room)) {
+    state.gliding = false;
+    events.push({ t: "glider-close" });
   }
 
   // --- thin ice: release, unconditionally ------------------------------------------------------

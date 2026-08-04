@@ -57,6 +57,15 @@ export interface HeroState {
   swimming: boolean;
   breath: number;
   coyote: number;
+  /** The canopy is open: a slow, steady descent instead of gravity. */
+  gliding: boolean;
+  /** Was the jump key down on the PREVIOUS step. `HeroInput.jump` is a LEVEL, not an edge — the
+   *  jump itself can live with that because `coyote` is zeroed on take-off, but the canopy cannot:
+   *  without this latch, the very press that starts a jump would still be down on the next frame
+   *  and open the canopy on every single take-off. Keeping the edge HERE rather than adding an
+   *  `HeroInput.jumpPressed` leaves the input contract untouched, which matters because a server
+   *  tick would consume that same contract. */
+  jumpHeld: boolean;
   /** Height of the last ground stood on — the reference for `maxStep`, not `y`. */
   groundY: number;
   /** Character orientation: -1 or 1. ONE OF TWO FIELDS `stepHero` never writes (see `attaque`
@@ -123,7 +132,10 @@ export type HeroEvent =
   | { t: "trace"; x: number; z: number; cote: number }
   | { t: "haleine" }
   /** Skid intensity, 0..1 — a HELD sound, so emitted every frame, not on trigger. */
-  | { t: "glisse"; intensite: number };
+  | { t: "glisse"; intensite: number }
+  /** The canopy opened / folded. Nothing about a texture or a sound: the adapter decides that. */
+  | { t: "glider-open" }
+  | { t: "glider-close" };
 
 /**
  * The settings the rule reads. Passed as a parameter rather than imported from `settings.ts`:
@@ -138,6 +150,9 @@ export interface HeroSettings {
   friction: { herbe: number; neige: number; glace: number };
   vitesseSol: { herbe: number; neige: number; glace: number };
   jump: { speed: number; gravity: number; coyote: number };
+  /** The glider. `fall` is the descent speed, in world units per second, POSITIVE — the rule
+   *  negates it. A constant, not a terminal velocity: a glide never accelerates. */
+  glide: { fall: number };
   swim: { speed: number; breath: number; climb: number };
   /** Distance traveled between two footsteps. */
   pasTousLes: number;
@@ -203,6 +218,8 @@ export function createHeroState(
     swimming: false,
     breath,
     coyote: 0,
+    gliding: false,
+    jumpHeld: false,
     groundY: y,
     facing: 1,
     room: null,

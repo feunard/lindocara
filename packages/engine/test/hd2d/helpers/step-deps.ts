@@ -32,6 +32,7 @@ export function depsPlates(o: Options = {}): StepDeps {
       friction: { herbe: 80, neige: 130, glace: 0.35 },
       vitesseSol: { herbe: 1, neige: 0.55, glace: 1 },
       jump: { speed: 6, gravity: 18, coyote: 0.12 },
+      glide: { fall: 2 },
       swim: { speed: 0.6, breath: 12, climb: 1.2 },
       pasTousLes: 1.2,
       brasseTousLes: 1.6,
