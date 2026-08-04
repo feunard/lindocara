@@ -93,6 +93,12 @@ export function createPipeline(
   renderer.toneMappingExposure = 1.0;
   // En dessous de la pleine résolution, c'est le navigateur qui remonte l'image :
   // sans ça il la lisse, et on perd justement le grain qu'on cherchait.
+  //
+  // Le canvas appartient à l'APPELANT, pas au pipeline : sa valeur d'origine est donc mémorisée
+  // pour être rendue telle quelle au `dispose()`. Sans ça, un canvas partagé (celui du jeu, celui
+  // d'un futur éditeur) garde un `pixelated` que plus personne n'a demandé une fois la scène HD-2D
+  // démontée.
+  const imageRenderingAvant = canvas.style.imageRendering;
   canvas.style.imageRendering = RENDER.pixelScale < 1 ? "pixelated" : "auto";
 
   // L'EffectComposer fabrique ses cibles internes sans multiéchantillonnage, et
@@ -218,6 +224,19 @@ export function createPipeline(
   // shaders — silencieusement, rien ne le signale à l'écran avant que la mémoire GPU s'épuise.
   // `outputPass` suivait ce même sort avant la revue finale : ajouté en ligne, sans variable
   // locale, il restait le seul des six à ne jamais être disposé.
+  //
+  // Le `image-rendering` est en revanche RENDU tel qu'il a été trouvé : le canvas appartient à
+  // l'appelant, et un canvas partagé (le `#stage` du jeu) garderait sinon un `pixelated` que plus
+  // personne n'a demandé.
+  //
+  // Ce qui n'est PAS rendu, et ne peut pas l'être : le contexte WebGL. `renderer.dispose()` libère
+  // les ressources de three, jamais le contexte lui-même, qui reste attaché au canvas jusqu'à la
+  // fin de la page. `renderer.forceContextLoss()` NE RÉPARE PAS ça — mesuré, pas supposé : il perd
+  // le contexte via `WEBGL_lose_context` sans le détacher, si bien qu'un `canvas.getContext()`
+  // ultérieur rend ce même contexte, PERDU. Essayé sur le `#stage` du jeu (S3, task 6) : PixiJS
+  // s'initialisait alors sur un contexte mort et la page se figeait — plus un seul `eval` ne
+  // répondait. Sans cet appel, le moteur suivant hérite d'un contexte VIVANT et fonctionne (à ses
+  // attributs près : celui-ci n'a pas de stencil buffer). Ne pas le rajouter.
   function dispose() {
     source.dispose();
     bloom.dispose();
@@ -228,6 +247,7 @@ export function createPipeline(
     composer.dispose();
     sceneTarget.dispose();
     renderer.dispose();
+    canvas.style.imageRendering = imageRenderingAvant;
   }
 
   return {

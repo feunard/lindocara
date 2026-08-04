@@ -344,6 +344,15 @@ async function startGameIdentity(
   const serverClock = new ServerClock();
   // Temporary: sequences S3's first increment so each task leaves the game runnable. DELETE with the
   // PixiJS path — if this flag outlives that deletion, the increment is not finished.
+  //
+  // ONE-WAY WITHIN A PAGE LOAD. `#stage` is a single canvas and a WebGL context, once created on it,
+  // stays attached for the life of the page — nothing detaches one, `forceContextLoss()` least of
+  // all (see `packages/hd2d/src/pipeline.ts`'s `dispose`, which records the measurement). So once an
+  // HD-2D session has run, a later PixiJS session on that same page load inherits three's context
+  // instead of building its own: measured, it still renders, but Pixi logs "Provided WebGL context
+  // does not have a stencil buffer, masks may not render correctly" and that warning is true.
+  // **Getting back to a clean PixiJS path takes a full page reload.** A fresh page load is
+  // unaffected either way, which is what makes this acceptable for a flag that dies in task 9.
   const useHd2d = new URLSearchParams(location.search).get("hd2d") === "1";
   const renderer: RendererLike = useHd2d
     ? await Hd2dRenderer.create(canvas, serverClock)
@@ -508,12 +517,12 @@ async function startGameIdentity(
           decodeTileMap(world.tiles),
           world.elements,
           world.revision,
-          // The heightfield is decoded once, here, rather than by each renderer: `decodeMap` is a
-          // full validation pass over the whole grid, and only one of the two paths reads the
-          // result. `null` covers both "the room has none" and "the room sent one this client
-          // could not parse" — the HD-2D path draws nothing either way, which is the honest
-          // outcome for a map it cannot read.
-          world.heightfield === null ? null : decodeMap(world.heightfield),
+          // Decoded only on the path that reads it: `decodeMap` is a full validation pass over the
+          // whole grid (~60 KB of JSON for a 72² map), and the PixiJS path discards the result. On
+          // the HD-2D path, `null` covers both "the room has none" and "the room sent one this
+          // client could not parse" — it draws nothing either way, which is the honest outcome for
+          // a map it cannot read.
+          useHd2d && world.heightfield !== null ? decodeMap(world.heightfield) : null,
           { tilesetId: world.tilesetId, layers: world.layers },
         );
       }

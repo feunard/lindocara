@@ -428,6 +428,13 @@ export function createHd2dScene(
       pipeline.render();
     },
     resize: pipeline.resize,
+    /**
+     * Gives back everything this scene took — with one exception it CANNOT give back: the canvas's
+     * WebGL context. `createPipeline` built it and `pipeline.dispose()` restores the canvas's
+     * `image-rendering`, but no API detaches a context from a canvas; `forceContextLoss()` was
+     * measured and makes it strictly worse (see that function's own comment). The consequence for
+     * the shared `#stage` is spelled out at the `?hd2d=1` flag site in `client/game/session.ts`.
+     */
     dispose(): void {
       terrain.dispose();
       water.dispose();
