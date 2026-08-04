@@ -186,6 +186,70 @@ export const TRACES: TracesSettings = {
   opaciteInitiale: 0.7,
 };
 
+export interface GlideSettings {
+  /** Fraction de gravite appliquee pendant le planeur (0..1). */
+  gravityScale: number;
+  /** Duree maximale de reelle reserve, en secondes. */
+  reserve: number;
+  /** Consommation de reserve par seconde. */
+  burnRate: number;
+  /** Vitesse verticale minimale en descente pour activer le planeur (valeur positive). */
+  activationDescent: number;
+  /** Limite de vitesse de chute atteignable en planeur. */
+  maxFallSpeed: number;
+  /** Multiplicateur de controle horizontal quand le planeur est actif. */
+  airControl: number;
+}
+
+export interface GeyserCurrentSettings {
+  /** Position monde du geyser. */
+  position: [number, number];
+  /** Rayon du bassin actif. */
+  radius: number;
+  /** Force verticale appliquee instantanee. */
+  strength: number;
+  /** Cooldown entre deux impulsions. */
+  cooldown: number;
+  /** Hauteur max entre plafond local et le hero avant rejet. */
+  maxOverhead: number;
+  /** Attire uniquement quand la touche de planeur est maintenue. */
+  requiresGlide: boolean;
+  /** Pas de repete visible a chaque passage. */
+  cadence: number;
+  /** Hauteur du repere visuel du jet. */
+  visualHeight: number;
+}
+
+export interface GlideArrivalMarkerSettings {
+  position: [number, number];
+  radius: number;
+}
+
+export const GLIDE: GlideSettings = {
+  gravityScale: 0.14,
+  reserve: 3.2,
+  burnRate: 1,
+  activationDescent: 0.22,
+  maxFallSpeed: 2.8,
+  airControl: 1.05,
+};
+
+export const GEYSER_CURRENT: GeyserCurrentSettings = {
+  position: [6, -5],
+  radius: 1.35,
+  strength: 14,
+  cooldown: 0,
+  maxOverhead: 1.5,
+  requiresGlide: false,
+  cadence: 0.2,
+  visualHeight: 4.2,
+};
+
+export const GLIDE_ARRIVAL_MARKER: GlideArrivalMarkerSettings = {
+  position: [10, -7],
+  radius: 1.6,
+};
+
 /** La vapeur de la source chaude (Task 10 de l'île de neige, `world/props.ts`) — un lot recyclé en
  *  rond, même motif que le souffle du héros (`HALEINE` ci-dessus) : une émission CONTINUE plutôt
  *  qu'au rythme des pas, puisque la source fume en permanence, pas seulement quand on marche.
