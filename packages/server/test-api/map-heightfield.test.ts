@@ -90,6 +90,27 @@ describe("map heightfield storage", () => {
     expect(payload.heightfield).toBe(encoded);
   });
 
+  test("bumps the map's revision on every write, so the client's cache identity moves", async () => {
+    const adventureId = await newAdventure("heightfieldrev");
+    const map = await mapService.createMap(adventureId, "Test Map");
+    const before = (await mapService.getMap(map.id)).revision;
+    const encoded =
+      '{"version":1,"size":1,"levelHeight":0.5,"waterLevel":0,"levels":[0],"materials":["herbe"],"colliders":[],"spawns":[],"elements":[],"events":[]}';
+
+    await mapService.saveHeightfield(map.id, encoded);
+    const afterFirst = (await mapService.getMap(map.id)).revision;
+
+    // Cache identity is `(mapId, revision)` and the renderer early-returns on an unchanged pair
+    // (`configureMapTerrain`), so a second write of DIFFERENT terrain under the same revision would
+    // leave a live session drawing the old map. Re-running the proving-map generator is exactly
+    // that case, which is why the bump is asserted across two successive writes and not just one.
+    await mapService.saveHeightfield(map.id, encoded);
+    const afterSecond = (await mapService.getMap(map.id)).revision;
+
+    expect(afterFirst).toBe(before + 1);
+    expect(afterSecond).toBe(before + 2);
+  });
+
   test("reports no heightfield as null, not as an empty string", async () => {
     const adventureId = await newAdventure("heightfieldnull");
     const map = await mapService.createMap(adventureId, "Test Map");

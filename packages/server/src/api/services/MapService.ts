@@ -443,16 +443,22 @@ export class MapService {
   }
 
   /**
-   * Writes the map's heightfield column directly — a single-column write shape mirroring
-   * `setFirstMap` above, deliberately bypassing `updateMap`'s revision/graph/authoring plumbing.
-   * The heightfield is not yet part of the collaborative map-authoring surface (no controller
-   * route calls this): today the only writer is `scripts/build-proving-map.ts` (Task 5), and the
-   * editor gains its own authoring path in a later piece.
+   * Writes the map's heightfield column, deliberately bypassing `updateMap`'s graph/authoring
+   * plumbing. The heightfield is not yet part of the collaborative map-authoring surface (no
+   * controller route calls this): today the only writer is `scripts/build-proving-map.ts` (Task 5),
+   * and the editor gains its own authoring path in a later piece.
+   *
+   * It does NOT bypass the revision bump, and must not. `revision` is the map's cache identity
+   * (`(mapId, revision)`, see the `maps` entity) and the client early-returns from
+   * `configureMapTerrain` on an unchanged pair — a heightfield rewritten under a stale revision
+   * would leave a live session drawing the previous terrain forever. `sql\`revision + 1\`` is the
+   * same monotone bump `updateMap` applies, done in the database rather than read-then-written
+   * here, so two concurrent writers cannot land on the same number.
    */
   async saveHeightfield(id: string, heightfield: string): Promise<void> {
     const row = await this.maps.findById(id);
     if (!row) throw new Error("not_found: no such map");
-    await this.maps.updateById(id, { heightfield });
+    await this.maps.updateById(id, { heightfield, revision: sql`revision + 1` });
   }
 
   // ---------------------------------------------------------------------------------------------
