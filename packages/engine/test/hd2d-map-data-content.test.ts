@@ -38,4 +38,14 @@ describe("MapData content", () => {
     const broken = { ...base, events: [{ id: "e", x: "0", z: 0, graphicAssetId: null }] };
     expect(decodeMap(JSON.stringify(broken))).toBeNull();
   });
+
+  it("rejects elements that is present but not an array", () => {
+    const broken = { ...base, elements: "not-an-array" };
+    expect(decodeMap(JSON.stringify(broken))).toBeNull();
+  });
+
+  it("rejects events that is present but not an array", () => {
+    const broken = { ...base, events: "not-an-array" };
+    expect(decodeMap(JSON.stringify(broken))).toBeNull();
+  });
 });

@@ -176,13 +176,13 @@ export function decodeMap(s: string): MapData | null {
   // Absent means empty (a map written before these fields existed is still readable), malformed
   // means `null` (a corrupt one is not) — the "newer editor may add fields" comment above, applied
   // to a field that is itself new.
-  const rawElements = Array.isArray(value.elements) ? value.elements : [];
   if (value.elements !== undefined && !Array.isArray(value.elements)) return null;
+  const rawElements = Array.isArray(value.elements) ? value.elements : [];
   const decodedElements = rawElements.map(toElement);
   if (decodedElements.some((e) => e === null)) return null;
 
-  const rawEvents = Array.isArray(value.events) ? value.events : [];
   if (value.events !== undefined && !Array.isArray(value.events)) return null;
+  const rawEvents = Array.isArray(value.events) ? value.events : [];
   const decodedEvents = rawEvents.map(toEvent);
   if (decodedEvents.some((e) => e === null)) return null;
 
