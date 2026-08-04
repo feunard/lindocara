@@ -281,21 +281,21 @@ export function stepHero(
 
       // No jumping from the water, and coyote time: a few frames are forgiven after leaving an
       // edge.
-      let vientDeSauter = false;
+      let justJumped = false;
       if (input.jump && state.coyote > 0) {
         state.vy = hero.jump.speed;
         state.airborne = true;
         state.coyote = 0;
-        vientDeSauter = true;
+        justJumped = true;
         events.push({ t: "saut" });
       }
 
       // The canopy: a fresh press while ALREADY in the air opens it, another folds it. Two guards,
-      // both load-bearing. `!vientDeSauter` — the same press that just started the jump is still a
+      // both load-bearing. `!justJumped` — the same press that just started the jump is still a
       // rising edge on this very frame, and without it every take-off would pop the canopy.
       // `state.airborne` — there is nothing to glide from on the ground. Not swimming and not
       // indoors come for free: this whole block is nested inside those two branches.
-      if (jumpPressed && !vientDeSauter && state.airborne) {
+      if (jumpPressed && !justJumped && state.airborne) {
         if (state.gliding) {
           state.gliding = false;
           events.push({ t: "glider-close" });
