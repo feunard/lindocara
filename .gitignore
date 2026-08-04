@@ -4,6 +4,15 @@ dist/
 .dev.vars*
 .wrangler/
 
+# Local environment files. `APP_SECRET` lives in `.env.production` on a machine that
+# deploys by hand — alepha's CLI loads `.env` then `.env.$NODE_ENV` into `process.env`,
+# and the SecretProvider THROWS in production when the secret is defaulted. Never commit
+# one: a secret in git history is a secret that has to be rotated, and rotating this one
+# invalidates every live session. `.env.example` stays tracked as documentation.
+.env
+.env.*
+!.env.example
+
 .DS_Store
 .idea/
 .vscode/
