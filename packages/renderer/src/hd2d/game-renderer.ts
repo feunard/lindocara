@@ -9,8 +9,9 @@
  * Grep `NOT YET DRAWN ON THE HD-2D PATH` for the full list of what is still owed; the next S3 piece
  * takes the elements and events.
  *
- * An actor is drawn at rest and facing east: this piece places sprites, and neither the animation
- * clip nor the facing crosses `ActorView` yet. Both are a later piece, and both are visible.
+ * An actor is drawn AT REST: it faces the way the server says, but it does not animate. `sync` has
+ * no clock and `ActorView` carries no clip, and giving it one is a later piece — a visible gap,
+ * named here rather than left to be discovered.
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
@@ -37,6 +38,7 @@ import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { TileMap } from "@lindocara/engine/tilemap.js";
 import { guardPrimaryColorForAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneId } from "@lindocara/engine/zones.js";
+import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
@@ -49,7 +51,7 @@ import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
 import { unitSheet } from "../tiny-swords-art.js";
 import type { ActorView, BillboardRegistry } from "./billboards.js";
-import { createBillboardRegistry, pixelToTile } from "./billboards.js";
+import { createBillboardRegistry } from "./billboards.js";
 import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
 
@@ -72,6 +74,20 @@ function playerTextureKey(player: PlayerSnapshot): string {
  *  one — the PixiJS path draws the authored art on top of the same species model. */
 function monsterTextureKey(monster: MonsterSnapshot): string {
   return TINY_SWORDS_ENEMIES[monster.species].idle.source;
+}
+
+/**
+ * The wire's last-accepted movement vector, as one of the four names a billboard understands.
+ *
+ * The dominant axis wins. A ZERO vector answers `"north"` rather than falling through to `"east"`:
+ * north and south are `facingToFlip`'s no-ops, so "no direction" leaves the sprite turned the way
+ * it already was — where `"east"` would snap a westward hero around the instant the server ever
+ * sent a zeroed facing.
+ */
+function facingOf(vector: Vec2): Facing {
+  if (vector.x === 0 && vector.y === 0) return "north";
+  if (Math.abs(vector.x) >= Math.abs(vector.y)) return vector.x < 0 ? "west" : "east";
+  return vector.y < 0 ? "north" : "south";
 }
 
 /** A guard is a Tiny Swords unit like any other — the same warrior sheet the PixiJS path gives it,
@@ -116,9 +132,6 @@ export class Hd2dRenderer implements RendererLike {
    *  per frame is garbage for nothing. */
   #actorViews: ActorView[] = [];
   #selfId: string | null = null;
-  /** The current heightfield's grid side, the `size` half of the TILE→PIXEL bridge. Kept beside the
-   *  scene because the camera converts the local player's position itself. */
-  #mapSize = 0;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -203,7 +216,6 @@ export class Hd2dRenderer implements RendererLike {
     this.#currentMapRevision = revision;
     this.#disposeScene();
     if (!heightfield) return;
-    this.#mapSize = heightfield.size;
     const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
     this.#scene = scene;
     this.#actors = createBillboardRegistry(
@@ -226,10 +238,11 @@ export class Hd2dRenderer implements RendererLike {
     this.#actors?.sync(this.#collectActors(sample));
 
     // The camera follows the local player, and only it: every other actor is drawn where the
-    // interpolated view puts it. A player the view has not sent yet leaves the camera wherever it
-    // last was, which is the map's spawn on the very first frames.
+    // interpolated view puts it. `focusOn` takes the snapshot's own pixels and converts them
+    // itself, so this renderer never touches the TILE→PIXEL bridge. A player the view has not sent
+    // yet leaves the camera wherever it last was, which is the map's spawn on the very first frames.
     const self = sample.players.find((player) => player.id === this.#selfId);
-    if (self) scene.focusOn(pixelToTile(self.x, this.#mapSize), pixelToTile(self.y, this.#mapSize));
+    if (self) scene.focusOn(self.x, self.y);
 
     // `context.now` rather than a clock read of our own: it is the very `now` this frame's callback
     // was handed, so the scene's animations advance on the same timeline as everything else in it.
@@ -238,22 +251,35 @@ export class Hd2dRenderer implements RendererLike {
 
   /**
    * The frame's actors, in the one shape the registry understands. Positions ride across in the
-   * snapshot's own PIXELS — the single conversion lives inside `sync`.
+   * snapshot's own PIXELS — the conversion lives inside `sync`.
    *
-   * A dead monster is skipped: the PixiJS path keeps it for a death animation this one does not
-   * play, so leaving it in would stand a corpse upright until the server swept it.
+   * Two skips, and one thing still owed for each:
+   *
+   * - A **dead monster** is skipped. The PixiJS path keeps it for a death animation this one does
+   *   not play, so leaving it in would stand a corpse upright until the server swept it. NOT YET
+   *   DRAWN ON THE HD-2D PATH: the death animation itself.
+   * - A player in the **`corpse`** life state is skipped for the same reason — a body lies down,
+   *   and an idle billboard standing to attention over it is worse than nothing. Its body rides in
+   *   `sample.corpses`, which this path does not draw yet either. NOT YET DRAWN ON THE HD-2D PATH:
+   *   corpses.
+   * - A **`ghost`** is deliberately KEPT. Its pose is right (a ghost walks), it is very often the
+   *   local player mid-corpse-run, and skipping it would blank the one actor whose screen this is.
+   *   NOT YET DRAWN ON THE HD-2D PATH: the translucency that tells a ghost from the living.
    */
   #collectActors(sample: SceneSample): readonly ActorView[] {
     const views = this.#actorViews;
     views.length = 0;
-    for (const player of sample.players)
+    for (const player of sample.players) {
+      if (player.life === "corpse") continue;
       views.push({
         id: player.id,
         kind: "player",
         x: player.x,
         y: player.y,
+        facing: facingOf(player.facing),
         textureKey: playerTextureKey(player),
       });
+    }
     for (const monster of sample.monsters) {
       if (monster.dead) continue;
       views.push({
@@ -261,6 +287,7 @@ export class Hd2dRenderer implements RendererLike {
         kind: "monster",
         x: monster.x,
         y: monster.y,
+        facing: facingOf(monster.facing),
         textureKey: monsterTextureKey(monster),
       });
     }
@@ -270,6 +297,9 @@ export class Hd2dRenderer implements RendererLike {
         kind: "guard",
         x: guard.x,
         y: guard.y,
+        // A guard carries no facing on the wire. `"north"` is `facingToFlip`'s no-op, so it keeps
+        // whichever profile the guard already had rather than snapping it east every frame.
+        facing: "north",
         textureKey: guardTextureKey(guard),
       });
     return views;
@@ -303,7 +333,6 @@ export class Hd2dRenderer implements RendererLike {
   configureZone(_zoneId: ZoneId): void {
     this.#currentMapId = null;
     this.#currentMapRevision = -1;
-    this.#mapSize = 0;
     this.#disposeScene();
   }
 

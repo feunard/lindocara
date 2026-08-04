@@ -141,7 +141,7 @@ export function zoneFromMapPayload(
       JSON.stringify({ event: "map_heightfield_corrupt", mapId: payload.id, reason: "decode" }),
     );
   }
-  // TILE→PIXEL BRIDGE — see packages/server/src/world/heightfield-pixel-bridge.ts
+  // TILE→PIXEL BRIDGE — see packages/engine/src/hd2d/tile-pixel-bridge.ts
   const terrain =
     heightfield === null ? terrainFromMap(data) : pixelTerrainFromHeightfield(heightfield);
   // A heightfield room's APPEARANCE must not contradict its own collision, and the contradiction

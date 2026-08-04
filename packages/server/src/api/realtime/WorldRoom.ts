@@ -1479,7 +1479,7 @@ export class WorldRoom {
       // Audio does not affect terrain: a default config is enough to bake the destination's
       // collision for the arrival clamp, without an extra adventure-audio read per transition.
       const destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
-      // TILE→PIXEL BRIDGE — see packages/server/src/world/heightfield-pixel-bridge.ts
+      // TILE→PIXEL BRIDGE — see packages/engine/src/hd2d/tile-pixel-bridge.ts
       // The entry marker below is authored in the map's TILE-EDITOR cell space, while a
       // heightfield destination's terrain is baked from the heightfield's own grid. Placing one
       // inside the other would land the hero at an arbitrary point of a map nobody authored that
@@ -1567,7 +1567,7 @@ export class WorldRoom {
         return;
       }
       const destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
-      // TILE→PIXEL BRIDGE — see packages/server/src/world/heightfield-pixel-bridge.ts
+      // TILE→PIXEL BRIDGE — see packages/engine/src/hd2d/tile-pixel-bridge.ts
       // Same split source as the authored-entry transition above: the authored `col`/`row` is a
       // tile-editor cell, the destination's terrain would be the heightfield's grid, and the bounds
       // check below would validate one against the other. Refused rather than silently mis-placed.

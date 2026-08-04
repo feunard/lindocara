@@ -524,9 +524,10 @@ export interface WorldInfo {
    * grid-centred. This is what the client DRAWS.
    *
    * `tiles`/`colliders` above stay the collision truth for as long as the server simulates in
-   * pixels: one stored source, projected twice by the one authority (see the TILE→PIXEL BRIDGE in
-   * `packages/server/src/world/heightfield-pixel-bridge.ts`). Both projections die together when
-   * the server's own geometry migrates — this field is not a second world model, it is the same
+   * pixels: one stored source, projected into pixels by the one authority, and projected back into
+   * tile units by the renderer that draws it — one shared conversion for both directions (see the
+   * TILE→PIXEL BRIDGE in `packages/engine/src/hd2d/tile-pixel-bridge.ts`). All of it dies together
+   * when the game's own geometry migrates — this field is not a second world model, it is the same
    * one in the units the renderer needs.
    *
    * `null` means the room has no heightfield and nothing HD-2D can be drawn for it.

@@ -13,9 +13,10 @@
 import { flattenColliderIndex } from "@lindocara/engine/collider.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import { tileToPixel } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
-import { pixelTerrainFromHeightfield, tileToPixel } from "../src/world/heightfield-pixel-bridge.ts";
+import { pixelTerrainFromHeightfield } from "../src/world/heightfield-pixel-bridge.ts";
 
 const map: MapData = {
   version: 1,

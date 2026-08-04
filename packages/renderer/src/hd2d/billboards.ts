@@ -2,10 +2,11 @@
  * The running game's actors — players, monsters and guards — as HD-2D billboards.
  *
  * ONE responsibility, deliberately narrow: keep one billboard alive per actor the frame loop still
- * shows, place it on the ground under its position, and give it back the moment it leaves. It is
- * not a sprite framework: it holds no clip, no facing and no effect, because this piece draws
- * actors and nothing else. What sheet an actor draws with is the ADAPTER's knowledge and lives in
- * `game-renderer.ts`; `@lindocara/hd2d` below stays domain-free and never learns what a monster is.
+ * shows, place it on the ground under its position, turn it the way the snapshot faces it, and give
+ * it back the moment it leaves. It is not a sprite framework: it holds no animation clip and no
+ * effect, because this piece draws actors and nothing else. What sheet an actor draws with is the
+ * ADAPTER's knowledge and lives in `game-renderer.ts`; `@lindocara/hd2d` below stays domain-free
+ * and never learns what a monster is.
  *
  * The billboard's shape — `height`, `aspect`, `foot`, `pitch` — is `apps/lab/src/world/hero.ts`'s,
  * and the reasons are in `docs/hd2d-rendering.md`: a sprite is a strictly VERTICAL plane pivoted on
@@ -14,44 +15,30 @@
  */
 
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+// TILE→PIXEL BRIDGE — see `packages/engine/src/hd2d/tile-pixel-bridge.ts`. An `ActorView` carries
+// the snapshot's own pixels and `sync` is the only place in this file that converts them.
+import { pixelToTile } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import type { Billboard } from "@lindocara/hd2d/billboard.js";
+import type { Billboard, Facing } from "@lindocara/hd2d/billboard.js";
 import { makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import type * as THREE from "three";
 import { HD2D_CAMERA } from "./scene.js";
 
-//
-// ============================ TILE→PIXEL BRIDGE ============================
-// TEMPORARY, AND DELIBERATELY SO. The map is stored and shipped as a heightfield in TILE units,
-// grid-centred; the server's simulation still runs in PIXELS with a top-left origin, so every
-// snapshot on the wire carries pixels. This is the CLIENT half of the bridge whose server half is
-// `packages/server/src/world/heightfield-pixel-bridge.ts`.
-//
-// It exists for exactly as long as that migration takes. When the server's geometry moves to tile
-// units, DELETE both halves and every call site — `grep -rn "TILE→PIXEL BRIDGE"` finds them all.
-// Do not grow it, and do not let a caller convert coordinates by hand instead of going through it.
-// ===========================================================================
-
-/** Top-left pixel units -> grid-centred tile units: the exact inverse of the server's
- *  `tileToPixel`. The origin shift is the half that gets forgotten, and forgetting it puts every
- *  actor half a map from the ground under its feet — `hd2d-billboards.test.ts` pins the round trip
- *  against the server's own function for that reason. */
-export function pixelToTile(value: number, size: number): number {
-  return value / TILE_SIZE - size / 2;
-}
-
 export type ActorKind = "player" | "monster" | "guard";
 
 /** One actor of one frame, as the renderer hands it over. `x`/`y` are the snapshot's own GAME
- *  PIXELS, top-left origin, converted inside `sync` — so exactly one place in this package knows
- *  that two unit systems exist. `y` is the game's southward axis and becomes the scene's `z`. */
+ *  PIXELS, top-left origin, and `sync` is the only place in this file that converts them. `y` is
+ *  the game's southward axis and becomes the scene's `z`. */
 export interface ActorView {
   id: string;
   kind: ActorKind;
   x: number;
   y: number;
+  /** Which way the actor is turned. The Tiny Swords units are drawn in profile only, so `north`
+   *  and `south` deliberately leave the current profile alone (`facingToFlip`). */
+  facing: Facing;
   /** A url in the `TextureRegistry` the registry was built with. */
   textureKey: string;
 }
@@ -171,6 +158,7 @@ export function createBillboardRegistry(
         const x = pixelToTile(actor.x, scene.size);
         const z = pixelToTile(actor.y, scene.size);
         entry.billboard.placeAt(x, scene.query.heightAt(x, z) ?? scene.waterLevel, z);
+        entry.billboard.setFacing(actor.facing);
       }
       for (const [id, entry] of entries) {
         if (present.has(id)) continue;

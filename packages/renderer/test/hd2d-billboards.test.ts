@@ -2,18 +2,18 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+// Both directions of the bridge, from the ONE module that owns the arithmetic — the same
+// `tileToPixel` the server calls to put these pixels on the wire. Asserting against a local copy of
+// its formula would assert nothing at all.
+import { pixelToTile, tileToPixel } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { billboardHeight } from "@lindocara/hd2d/billboard.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
-// The SERVER's half of the bridge, imported by the ROUND-TRIP test alone. It is the function that
-// put these pixels on the wire in the first place (`grep -rn "TILE→PIXEL BRIDGE"`), so asserting
-// against a local copy of its formula would assert nothing. Test-only, and it dies with the bridge.
-import { tileToPixel } from "@lindocara/server/world/heightfield-pixel-bridge.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
-import { ACTOR_FOOT, createBillboardRegistry, pixelToTile } from "../src/hd2d/billboards.js";
+import { ACTOR_FOOT, createBillboardRegistry } from "../src/hd2d/billboards.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 
 /** A square map from a row-major list of levels — `null` is water. Same shape as the terrain
@@ -73,7 +73,7 @@ function meshes(root: THREE.Object3D): THREE.Mesh[] {
 }
 
 /** The world-space centre of cell `(i, j)` expressed the way a SNAPSHOT expresses it: game pixels,
- *  top-left origin, through the server's own bridge. */
+ *  top-left origin, through the very `tileToPixel` the server uses to write them. */
 function pixelCentre(map: MapData, i: number, j: number): { x: number; y: number } {
   const query = createTerrainQuery(mapToQuerySource(map));
   const [cx, cz] = query.cellCenter(i, j);
@@ -81,7 +81,7 @@ function pixelCentre(map: MapData, i: number, j: number): { x: number; y: number
 }
 
 function actor(id: string, x: number, y: number): ActorView {
-  return { id, kind: "player", x, y, textureKey: "warrior-idle" };
+  return { id, kind: "player", x, y, facing: "east", textureKey: "warrior-idle" };
 }
 
 describe("the billboard registry", () => {
@@ -103,20 +103,44 @@ describe("the billboard registry", () => {
   it("removes the billboard of an actor that left the view", () => {
     const map = flatMap(4);
     const scene = sceneFor(map);
-    const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());
+    const ctx = createHd2dContext();
+    const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
 
     registry.sync([actor("a", 64, 64), actor("b", 128, 128)]);
+    // Identify the LEAVER before it leaves, by the position only it has, and watch its geometry:
+    // `THREE.BufferGeometry.dispose()` dispatches a `dispose` event, so this observes the real call
+    // rather than trusting that removal implies it.
+    const leaverX = pixelToTile(128, 4);
+    const survivorX = pixelToTile(64, 4);
+    const leaver = meshes(scene.root).find((mesh) => Math.abs(mesh.position.x - leaverX) < 1e-6);
+    if (!leaver) throw new Error("expected actor b's billboard");
+    let geometryDisposed = false;
+    leaver.geometry.addEventListener("dispose", () => {
+      geometryDisposed = true;
+    });
+
     registry.sync([actor("a", 64, 64)]);
 
-    expect(meshes(scene.root)).toHaveLength(1);
-    // Gone from the scene AND given back: a departed actor that keeps its geometry is a leak the
-    // scene graph would never show.
-    const disposed = meshes(scene.root)[0];
-    if (!disposed) throw new Error("expected the surviving billboard");
-    expect(disposed.position.x).toBeCloseTo(pixelToTile(64, 4));
+    // Gone from the scene AND given back. A departed actor that keeps its geometry is a leak the
+    // scene graph would never show — and one still sitting in the context's registry is worse:
+    // `setYaw` would go on rotating a destroyed mesh at every camera turn (see
+    // `unregisterBillboard`).
+    const survivors = meshes(scene.root);
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]?.position.x).toBeCloseTo(survivorX);
+    expect(geometryDisposed).toBe(true);
+    expect(ctx.billboards()).not.toContain(leaver);
+    expect(ctx.billboards()).toContain(survivors[0]);
 
+    // ...and `dispose()` does the same for everything left.
+    let survivorDisposed = false;
+    survivors[0]?.geometry.addEventListener("dispose", () => {
+      survivorDisposed = true;
+    });
     registry.dispose();
     expect(meshes(scene.root)).toHaveLength(0);
+    expect(survivorDisposed).toBe(true);
+    expect(ctx.billboards()).toHaveLength(0);
   });
 
   it("places an actor on the ground height under its position", () => {
@@ -152,6 +176,33 @@ describe("the billboard registry", () => {
       });
     expect(lowMesh.position.y + foot).toBeCloseTo(0);
     expect(highMesh.position.y + foot).toBeCloseTo(map.levelHeight);
+  });
+
+  it("turns an actor the way the snapshot faces it", () => {
+    const scene = sceneFor(flatMap(4));
+    const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());
+
+    /** A flip is a NEGATIVE horizontal repeat on the sprite's own texture clone (`bindSheet`). */
+    const flipped = (): boolean => {
+      const mesh = meshes(scene.root)[0];
+      if (!mesh) throw new Error("expected a billboard");
+      const material = mesh.material as THREE.MeshLambertMaterial;
+      return (material.map?.repeat.x ?? 0) < 0;
+    };
+
+    registry.sync([{ ...actor("a", 64, 64), facing: "east" }]);
+    expect(flipped()).toBe(false);
+
+    registry.sync([{ ...actor("a", 64, 64), facing: "west" }]);
+    expect(flipped()).toBe(true);
+
+    // The Tiny Swords units are profile-only: `north`/`south` have no frames of their own, so they
+    // must LEAVE the current profile alone rather than snap the sprite back to east. This is also
+    // what makes `facingOf`'s zero-vector answer safe.
+    registry.sync([{ ...actor("a", 64, 64), facing: "north" }]);
+    expect(flipped()).toBe(true);
+    registry.sync([{ ...actor("a", 64, 64), facing: "south" }]);
+    expect(flipped()).toBe(true);
   });
 
   it("round-trips pixelToTile against tileToPixel", () => {

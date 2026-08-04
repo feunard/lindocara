@@ -26,6 +26,7 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { pixelToTile } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
@@ -221,11 +222,12 @@ const MAX_FRAME_SECONDS = 0.05;
 export interface Hd2dScene {
   render(now: number): void;
   /**
-   * Ask the camera to follow a point, in TILE units — the local player, in practice. Recorded here
-   * and consumed by the next `render`, which is the only place that knows the frame's `dt` and can
-   * therefore damp towards it.
+   * Ask the camera to follow a point — the local player, in practice. `x`/`y` are the snapshot's
+   * own GAME PIXELS, top-left origin, exactly as `ActorView` carries them: the caller never
+   * converts, so the bridge keeps one call site per file. Recorded here and consumed by the next
+   * `render`, which is the only place that knows the frame's `dt` and can therefore damp towards it.
    */
-  focusOn(x: number, z: number): void;
+  focusOn(x: number, y: number): void;
   resize(): void;
   dispose(): void;
   ctx: Hd2dContext;
@@ -432,8 +434,11 @@ export function createHd2dScene(
     scene,
     camera,
     query,
-    focusOn(x: number, z: number): void {
-      focus = { x, z };
+    // TILE→PIXEL BRIDGE — see `packages/engine/src/hd2d/tile-pixel-bridge.ts`. The camera follows a
+    // player, and a player's position arrives in the snapshot's pixels; this is the only place in
+    // this file that converts.
+    focusOn(x: number, y: number): void {
+      focus = { x: pixelToTile(x, map.size), z: pixelToTile(y, map.size) };
     },
     render(now: number): void {
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);

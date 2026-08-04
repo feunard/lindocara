@@ -1,26 +1,23 @@
 //
 // ============================ TILE→PIXEL BRIDGE ============================
-// TEMPORARY, AND DELIBERATELY SO. The map is stored and shipped as a heightfield in TILE units,
-// grid-centred; the server's own simulation (`simulation.ts`, `collider.ts`, the fourteen world
-// systems) still runs in PIXELS with a top-left origin. This file is the only place the two meet.
+// The arithmetic itself lives in `packages/engine/src/hd2d/tile-pixel-bridge.ts` — read its banner
+// first. It moved there because BOTH sides convert: the HD-2D renderer projects the snapshot's
+// pixels back into tile units, and two copies of an origin shift is how the two sides silently
+// disagree.
 //
-// It exists for exactly as long as that migration takes. When the server's geometry moves to tile
-// units, DELETE this file and every call site — `grep -rn "TILE→PIXEL BRIDGE"` finds them all.
-// Do not grow it, do not make it two-way, and do not let a caller convert coordinates by hand
-// instead of going through `tileToPixel`.
+// This file is the SERVER's call site, and is TEMPORARY for exactly as long as that migration
+// takes: it projects the stored heightfield's grid-centred TILE units into the PIXEL,
+// top-left-origin geometry the current simulation collides against. It goes when the bridge goes —
+// `grep -rn "TILE→PIXEL BRIDGE"` finds every site. Do not convert coordinates by hand here or
+// anywhere else; go through `tileToPixel`.
 // ===========================================================================
 
 import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { Rect, TerrainGeometry } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import { tileToPixel } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "@lindocara/engine/tilemap.js";
-
-/** Grid-centred tile units -> top-left pixel units. The origin shift is the half that gets
- *  forgotten; keeping it in one exported function is why this is not inlined at each site. */
-export function tileToPixel(value: number, size: number): number {
-  return (value + size / 2) * TILE_SIZE;
-}
 
 /**
  * Projects the stored heightfield into the pixel-unit `TerrainGeometry` the current simulation
