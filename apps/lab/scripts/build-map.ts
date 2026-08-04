@@ -11,7 +11,14 @@ import { writeFileSync } from "node:fs";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
-import { SPAWN, WORLD } from "../src/settings.js";
+import { GROTA, NANUQ, SPAWN, WORLD } from "../src/settings.js";
+import { CHEST_RADIUS, decideChestPlacement } from "../src/world/chest.js";
+import {
+  decideHousePlacement,
+  decideSakuraPlacement,
+  HOUSE_FOOTPRINT_RADIUS,
+  SAKURA_RADIUS,
+} from "../src/world/house.js";
 import { generateIsland } from "../src/world/island.js";
 import { decidePlacements } from "../src/world/props.js";
 
@@ -63,6 +70,31 @@ for (const p of plan.placements) if (p.collider) colliders.push(p.collider);
 if (plan.fire.collider) colliders.push(plan.fire.collider);
 colliders.push(plan.spring.collider);
 
+// --- les cinq colliders que `main.ts` enregistrait encore à l'assemblage de la scène, jamais
+// via la carte (relevé de la revue finale du chantier S2) : Grota, Nanuq, la maison, le cerisier
+// et le coffre. Leurs positions sont toutes des fonctions déterministes de `field`/`query`/de
+// réglages fixes, exactement comme les props ci-dessus — la carte peut donc porter TOUTE la
+// collision du labo, pas seulement la plus grande part. Ajoutés APRÈS les colliders existants
+// plutôt qu'entremêlés : ça garde les index des 57 colliders déjà livrés stables.
+const rectFor = (at: readonly [number, number], radius: number): ColliderRect => ({
+  x: at[0] - radius,
+  z: at[1] - radius,
+  w: 2 * radius,
+  h: 2 * radius,
+});
+colliders.push(rectFor(GROTA.at, GROTA.radius));
+colliders.push(rectFor(NANUQ.at, NANUQ.radius));
+
+const maison = decideHousePlacement(query);
+if (maison) {
+  colliders.push(rectFor(maison, HOUSE_FOOTPRINT_RADIUS));
+  const sakura = decideSakuraPlacement(maison, query);
+  if (sakura) colliders.push(rectFor(sakura, SAKURA_RADIUS));
+}
+
+const coffre = decideChestPlacement(field, query);
+if (coffre) colliders.push(rectFor([coffre.x, coffre.z], CHEST_RADIUS));
+
 const map: MapData = {
   version: 1,
   size,
@@ -71,9 +103,10 @@ const map: MapData = {
   levels,
   materials,
   colliders,
-  // Le spawn reste un réglage codé en dur côté labo (`settings.ts`, `SPAWN`) — rien dans cette task
-  // ne le fait encore lire depuis la carte.
-  spawns: [],
+  // Le spawn du héros (`settings.ts`, `SPAWN`) est un point fixe unique : rien dans cette task ne
+  // fait encore LIRE le spawn depuis la carte (`main.ts` continue de lire `SPAWN` directement),
+  // mais l'écrire ici coûte une ligne et prépare le jour où ce sera le cas.
+  spawns: [{ name: "default", x: SPAWN[0], z: SPAWN[1] }],
 };
 
 const dest = new URL("../public/maps/ile.json", import.meta.url);

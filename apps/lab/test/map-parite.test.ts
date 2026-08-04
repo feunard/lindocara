@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { describe, expect, it } from "vitest";
-import { SPAWN, WORLD } from "../src/settings.js";
+import { GROTA, NANUQ, SPAWN, WORLD } from "../src/settings.js";
+import { CHEST_RADIUS, decideChestPlacement } from "../src/world/chest.js";
+import {
+  decideHousePlacement,
+  decideSakuraPlacement,
+  HOUSE_FOOTPRINT_RADIUS,
+  SAKURA_RADIUS,
+} from "../src/world/house.js";
 import { generateIsland } from "../src/world/island.js";
 import { decidePlacements } from "../src/world/props.js";
 
@@ -46,7 +53,7 @@ describe("la carte sérialisée", () => {
     }
   });
 
-  it("décrit exactement les colliders que `decidePlacements` produit", () => {
+  it("décrit exactement les colliders que `decidePlacements` ET le reste de la scène produisent", () => {
     // Recharge la carte LIVRÉE (pas une carte fraîchement régénérée) : sinon ce test compare le
     // générateur à lui-même et ne prouve rien — voir le commentaire du test précédent.
     const carte = decodeMap(
@@ -56,14 +63,37 @@ describe("la carte sérialisée", () => {
     if (!carte) return;
 
     // Reconstruit la carte des colliders EXACTEMENT comme `scripts/build-map.ts` le fait au
-    // moment de la génération : seuls les cinq premiers kinds de `decidePlacements` peuvent porter
-    // un collider, plus le feu (s'il tombe dans la carte) et la source (toujours).
+    // moment de la génération : les cinq premiers kinds de `decidePlacements` peuvent porter un
+    // collider, plus le feu (s'il tombe dans la carte) et la source (toujours) — 57 en tout — PLUS
+    // les cinq colliders que `main.ts` enregistre encore lui-même à l'assemblage de la scène :
+    // Grota, Nanuq, la maison, le cerisier et le coffre (62 au total). Voir `build-map.ts` pour
+    // pourquoi ces cinq-là ont fini par rejoindre la carte, et `world/house.ts`/`world/chest.ts`
+    // pour où vivent désormais les fonctions PURES de placement qui les décident.
     const { field, query } = generateIsland({ size: WORLD.size, seed: WORLD.seed });
     const plan = decidePlacements(field, query, WORLD.seed + 7, SPAWN);
     const attendus: ColliderRect[] = [];
     for (const p of plan.placements) if (p.collider) attendus.push(p.collider);
     if (plan.fire.collider) attendus.push(plan.fire.collider);
     attendus.push(plan.spring.collider);
+
+    const rectFor = (at: readonly [number, number], radius: number): ColliderRect => ({
+      x: at[0] - radius,
+      z: at[1] - radius,
+      w: 2 * radius,
+      h: 2 * radius,
+    });
+    attendus.push(rectFor(GROTA.at, GROTA.radius));
+    attendus.push(rectFor(NANUQ.at, NANUQ.radius));
+
+    const maison = decideHousePlacement(query);
+    if (maison) {
+      attendus.push(rectFor(maison, HOUSE_FOOTPRINT_RADIUS));
+      const sakura = decideSakuraPlacement(maison, query);
+      if (sakura) attendus.push(rectFor(sakura, SAKURA_RADIUS));
+    }
+
+    const coffre = decideChestPlacement(field, query);
+    if (coffre) attendus.push(rectFor([coffre.x, coffre.z], CHEST_RADIUS));
 
     // Le COMPTE d'abord : un message d'échec clair si un collider a disparu ou a été dupliqué,
     // avant même de regarder son contenu.

@@ -14,7 +14,9 @@ import { CAMERA } from "../settings.js";
 // doit poser le même cadrage, pas une valeur recopiée à la main qui pourrait diverger sans test.
 export const TAILLE = 1.15; // hauteur monde d'une frame
 export const FOOT = 0.02; // le coffre touche le bas de son canevas
-const RAYON = 0.42; // empreinte au sol
+// Exportée pour la même raison que `TAILLE`/`FOOT` : `scripts/build-map.ts` doit poser exactement
+// le même rectangle que `createChest` ci-dessous sans jamais construire un seul billboard.
+export const CHEST_RADIUS = 0.42; // empreinte au sol
 const PORTEE = 1.9; // distance à laquelle on peut l'ouvrir
 
 export interface Chest {
@@ -29,21 +31,16 @@ export interface Chest {
 }
 
 /**
- * Le coffre du sommet. Deux sprites superposés dont on bascule la visibilité :
- * plus simple et plus sûr que d'échanger la texture d'un matériau, et les deux
- * frames n'ont pas la même hauteur.
+ * Où le coffre se pose : le point le plus haut de la carte, au nord — la case du palier maximal
+ * la plus proche du centre de ce sommet, entourée de sol (jamais au bord de la falaise). MOVED
+ * from `createChest`'s inline search below — pur vis-à-vis de `field`/`query`, donc appelable par
+ * `scripts/build-map.ts` to serialize the collider without ever building a billboard, exactly
+ * like `decideHousePlacement`/`decideSakuraPlacement` (`world/house.ts`).
  */
-export function createChest(
-  ctx: Hd2dContext,
-  textures: TextureRegistry,
+export function decideChestPlacement(
   field: HeightField,
   query: TerrainQuery,
-  colliders: ColliderIndex,
-): Chest {
-  const group = new THREE.Group();
-
-  // Le point le plus haut de la carte, au nord : on cherche la case du palier
-  // maximal la plus proche du centre de ce sommet.
+): { x: number; z: number } | null {
   const size = field.cols;
   let meilleur: { x: number; z: number; score: number } | null = null;
   for (let j = 0; j < size; j++) {
@@ -66,6 +63,24 @@ export function createChest(
       if (!meilleur || score < meilleur.score) meilleur = { x, z, score };
     }
   }
+  return meilleur ? { x: meilleur.x, z: meilleur.z } : null;
+}
+
+/**
+ * Le coffre du sommet. Deux sprites superposés dont on bascule la visibilité :
+ * plus simple et plus sûr que d'échanger la texture d'un matériau, et les deux
+ * frames n'ont pas la même hauteur.
+ */
+export function createChest(
+  ctx: Hd2dContext,
+  textures: TextureRegistry,
+  field: HeightField,
+  query: TerrainQuery,
+  colliders: ColliderIndex,
+): Chest {
+  const group = new THREE.Group();
+
+  const meilleur = decideChestPlacement(field, query);
   // Repli : si le relief change et qu'aucun sommet ne convient, on ne pose rien
   // plutôt que de faire flotter un coffre au hasard.
   if (!meilleur) {
@@ -113,8 +128,13 @@ export function createChest(
     group.add(billboard.mesh);
   }
 
-  // Rectangle centré, de côté 2*RAYON : même rayon qu'avant Task 8, en rectangle.
-  colliders.add({ x: x - RAYON, z: z - RAYON, w: 2 * RAYON, h: 2 * RAYON });
+  // Rectangle centré, de côté 2*CHEST_RADIUS : même rayon qu'avant Task 8, en rectangle.
+  colliders.add({
+    x: x - CHEST_RADIUS,
+    z: z - CHEST_RADIUS,
+    w: 2 * CHEST_RADIUS,
+    h: 2 * CHEST_RADIUS,
+  });
 
   let ouvert = false;
   let aPortee = false;

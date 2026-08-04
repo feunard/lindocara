@@ -62,7 +62,12 @@ import {
 import { createChest } from "./world/chest.js";
 import { createDebugView } from "./world/debug.js";
 import { createHero } from "./world/hero.js";
-import { createHouse } from "./world/house.js";
+import {
+  createHouse,
+  decideHousePlacement,
+  decideSakuraPlacement,
+  SAKURA_RADIUS,
+} from "./world/house.js";
 import { createInterior } from "./world/interior.js";
 import { mapToHeightField } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
@@ -295,30 +300,10 @@ const sky = createSky(ctx);
 scene.add(sky.mesh);
 
 // La maison sur l'île de l'est : posée au centre d'une zone plate cherchée par anneaux, et son
-// empreinte entre dans la grille de collision comme n'importe quel prop.
-const placeMaison = ((): readonly [number, number] | null => {
-  for (let r = 0; r < 6; r++) {
-    for (const [ox, oz] of [
-      [0, 0],
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-      [1, 1],
-      [-1, -1],
-    ] as const) {
-      const x = 25 + ox * r;
-      const z = -2 + oz * r;
-      if (query.levelAt(x, z) !== 0) continue;
-      let plat = true;
-      for (let dx = -2; dx <= 2 && plat; dx++)
-        for (let dz = -2; dz <= 2 && plat; dz++)
-          if (query.levelAt(x + dx, z + dz) !== 0) plat = false;
-      if (plat) return [x, z];
-    }
-  }
-  return null;
-})();
+// empreinte entre dans la grille de collision comme n'importe quel prop. La recherche elle-même
+// vit dans `world/house.ts` (`decideHousePlacement`), pas ici : `scripts/build-map.ts` doit
+// trouver EXACTEMENT la même position pour sérialiser le collider de la maison dans la carte.
+const placeMaison = decideHousePlacement(query);
 
 const house = placeMaison
   ? createHouse(
@@ -344,21 +329,16 @@ const interior = createInterior(ctx, textures);
 scene.add(interior.group);
 
 // Le cerisier devant la maison. 7.5 unités : à l'échelle du héros, qui fait 1.3 unité pour
-// environ 1m75, ça vaut la dizaine de mètres demandée.
-//
-// Décalé de 2.5 unités vers l'est : au point pile devant la maison, le tronc se plantait dans un
-// buisson. Les buissons et les décors au sol ne posent PAS de collider (voir `props.ts`) — ils sont
-// traversables à dessein — donc aucune recherche de place ne peut les éviter, et le seul recours
-// est de choisir le décalage à l'oeil.
-const SAKURA_DECALAGE_X = 2.5;
+// environ 1m75, ça vaut la dizaine de mètres demandée. Le décalage vers l'est et le refus de
+// palier vivent dans `world/house.ts` (`decideSakuraPlacement`), pour la même raison que
+// `placeMaison` ci-dessus : `build-map.ts` doit trouver la même position.
+const sakuraSpot = decideSakuraPlacement(placeMaison, query);
 const sakura = ((): {
   petales: ReturnType<typeof createPetalFall>;
   position: THREE.Vector3;
 } | null => {
-  if (!house) return null;
-  const x = house.footprint.x + SAKURA_DECALAGE_X;
-  const z = house.footprint.z + 7.5;
-  if (query.levelAt(x, z) !== 0) return null;
+  if (!house || !sakuraSpot) return null;
+  const [x, z] = sakuraSpot;
   const y = query.heightAt(x, z) ?? 0;
   const billboard = makeBillboard(ctx, {
     texture: textures.get("/tex/sakura.png"),
@@ -369,8 +349,13 @@ const sakura = ((): {
   });
   billboard.placeAt(x, y, z);
   scene.add(billboard.mesh);
-  // Rectangle centré, côté 0.84 : même rayon (0.42) qu'avant Task 8, en rectangle.
-  colliders.add({ x: x - 0.42, z: z - 0.42, w: 0.84, h: 0.84 });
+  // Rectangle centré, côté 2*SAKURA_RADIUS : même rayon (0.42) qu'avant Task 8, en rectangle.
+  colliders.add({
+    x: x - SAKURA_RADIUS,
+    z: z - SAKURA_RADIUS,
+    w: 2 * SAKURA_RADIUS,
+    h: 2 * SAKURA_RADIUS,
+  });
   // La ramure culmine vers 2.9 : les pétales tombent de là.
   const petales = createPetalFall(ctx, {
     centre: new THREE.Vector3(x, y, z),
