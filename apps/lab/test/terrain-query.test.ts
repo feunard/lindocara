@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Construit une `TerrainQuery` à partir d'une grille de paliers écrite à la main
- * (`levels[j][i]`, `null` = eau/hors grille). C'est la primitive de collision — la même qui
- * remontera en `@lindocara/engine` en S2 comme autorité serveur — donc chaque test ici fixe une
+ * (`levels[j][i]`, `null` = eau/hors grille). C'est la primitive de collision — la même qui a
+ * remonté dans `@lindocara/engine` en S2 comme autorité serveur — donc chaque test ici fixe une
  * position exacte et un rayon exacts, calculés à la main contre la grille, plutôt que de dériver
  * d'une île générée où une régression pourrait se cacher derrière la forme du terrain.
  */

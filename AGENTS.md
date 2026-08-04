@@ -80,7 +80,7 @@ prefixes in the file map further down map straight onto these homes:
 | [`@lindocara/testing`](./packages/testing/AGENTS.md) | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup) | engine | node/jsdom (dev) |
 | [`@lindocara/hd2d`](./packages/hd2d/AGENTS.md) | the HD-2D render engine (billboards, terrain mesh, lighting, post-fx) | three only | browser, framework-free (Three.js) |
 | [`@lindocara/main`](./apps/main/AGENTS.md) | **the deployable app** — `alepha.config.ts`, the server/browser entries, `migrations/`, build/deploy | client, server | build → Worker + assets |
-| [`apps/lab`](./apps/lab/AGENTS.md) | the HD-2D render **witness** — reproduces the PoC on `hd2d`, not a game; see its own `AGENTS.md` | hd2d, three | browser (Vite dev app) |
+| [`apps/lab`](./apps/lab/AGENTS.md) | the HD-2D render **witness** — reproduces the PoC on `hd2d`, not a game; see its own `AGENTS.md` | engine (`hd2d/` only), hd2d, three | browser (Vite dev app) |
 
 `.vendor/alepha` is the vendored framework — a real workspace member, pinned by
 `.vendor/vendor.json` to a commit of the sibling `../alepha` repo. **The dogfood loop for
@@ -89,9 +89,13 @@ with `yarn v` upstream, committed and pushed, then pulled here with `npx alepha 
 sync is its own commit. `npx alepha vendor diff` shows any local patches; keep it clean.
 
 `hd2d`/`apps/lab` sit outside that graph entirely, and deliberately so: **the game's render path
-stays PixiJS through S3.** `hd2d` is consumed only by `apps/lab` today. Before touching anything in
-the render path, read [`docs/hd2d-rendering.md`](./docs/hd2d-rendering.md) — what makes the HD-2D
-style, and the fifteen-odd rendering pitfalls already paid for once. See also
+stays PixiJS through S3.** `hd2d` is consumed only by `apps/lab` today. `apps/lab` also depends on
+`@lindocara/engine`, but only its `hd2d/` subfolder (see `packages/engine/AGENTS.md`'s
+Responsibility section — the game rule geometry a future server will consume, not the render path)
+— that dependency does not pull the lab into the render graph above; the render path itself is
+untouched, still `hd2d` + `three`. Before touching anything in the render path, read
+[`docs/hd2d-rendering.md`](./docs/hd2d-rendering.md) — what makes the HD-2D style, and the
+fifteen-odd rendering pitfalls already paid for once. See also
 [`docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md`](./docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)
 for the staged plan that eventually retires `@lindocara/renderer`'s PixiJS path in its favor.
 

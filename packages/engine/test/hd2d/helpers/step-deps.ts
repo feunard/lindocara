@@ -1,16 +1,16 @@
+import type { ColliderQuery, StepDeps } from "@lindocara/engine/hd2d/hero-state.js";
 import type { TerrainMaterial, TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import type { ColliderQuery, StepDeps } from "../../src/world/hero-state.js";
 
 interface Options {
-  /** `true` là où un obstacle bloque. Par défaut : nulle part. */
+  /** `true` where an obstacle blocks. Default: nowhere. */
   bloque?: (x: number, z: number) => boolean;
-  /** Hauteur du sol, ou `null` pour de l'eau. Par défaut : plat à 0. */
+  /** Ground height, or `null` for water. Default: flat at 0. */
   hauteur?: (x: number, z: number) => number | null;
   matiere?: (x: number, z: number) => TerrainMaterial | null;
 }
 
-/** Un terrain plat et sans obstacle, dont chaque morceau est surchargeable — `hero-step-*.test.ts`
- *  s'en servent tous : un seul fixture, pas un par task. */
+/** Flat, obstacle-free terrain, every part of which can be overridden — every
+ *  `hero-step-*.test.ts` uses it: one fixture, not one per test file. */
 export function depsPlates(o: Options = {}): StepDeps {
   const hauteur = o.hauteur ?? (() => 0);
   const matiere = o.matiere ?? (() => "herbe" as TerrainMaterial);

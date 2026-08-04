@@ -16,14 +16,29 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
 - `i18n/` — FR/EN dictionaries (data only; the server sends codes, never prose). `skills.ts`,
   `combat-actions.ts`, `cooperation.ts`, `resources.ts`, `character.ts`, `adventure*.ts`,
   `event-commands.ts`/`event-interpreter.ts` (the pure, clockless command stepper).
-- `hd2d/` — the HD-2D witness's geometry, quarantined in its own subfolder rather than the flat
-  root above (Task 11, moved from `apps/lab`): `terrain-query.ts` (world-space collision queries
-  over a heightmap), `collider-index.ts` (the sparse rect index disc queries test against) and
-  `map-data.ts` (a map as pure, defensively-parsed data). These read in **tile units**, unlike
-  `simulation.ts`/`game.ts`/`collider.ts` above, which read in **pixels** — the subfolder is the
-  visible fence against importing one unit system into the other by accident. It is a reprieve,
-  not a permanent home: a later task retires the old pixel-based collision path in `hd2d`'s favor,
-  at which point this boundary goes away too.
+- `hd2d/` — the HD-2D witness's geometry and movement rule, quarantined in its own subfolder
+  rather than the flat root above (moved from `apps/lab` across two S2 tasks): `terrain-query.ts`
+  (world-space collision queries over a heightmap), `collider-index.ts` (the sparse rect index
+  disc queries test against), `map-data.ts` (a map as pure, defensively-parsed data),
+  `hero-state.ts` (`HeroState`/`HeroInput`/`HeroSettings`/`HeroEvent`, the data the rule reads and
+  writes), `locomotion.ts` (the friction-based movement model — one `pasAmorti` integrator, three
+  materials' worth of friction/speed/skid), `thin-ice.ts` (the crack → break → refreeze state
+  machine) and `hero-step.ts` (`stepHero`, the per-frame rule that ties the other three together
+  and narrates what happened as `HeroEvent`s rather than playing sound or touching a billboard
+  itself). These read in **tile units**, unlike `simulation.ts`/`game.ts`/`collider.ts` above,
+  which read in **pixels** — the subfolder is the visible fence against importing one unit system
+  into the other by accident.
+
+  **`simulation.ts` is in reprieve, not a permanent fixture.** It is the movement truth the live
+  game currently ships against — `step()`, called by both server and client, is still the one
+  copy client prediction depends on (see "Why `step()` lives in `shared/`" in the root
+  `AGENTS.md`) — but `hd2d/`'s pixel-free, tile-unit model is what eventually replaces it, once a
+  later task wires `hero-step.ts` into the server's authoritative tick and the client's
+  prediction. **Until that wiring lands, write no new code against `simulation.ts`/`game.ts`'s
+  movement path** — a change belongs in `hd2d/` if it's about hero movement, so it isn't done
+  twice. The two live side by side, deliberately unconnected, for the whole of S2: `hd2d/` is
+  proven only inside `apps/lab`, `simulation.ts` is what production actually runs. Wiring them
+  together is S3's job, not a natural next step to take here.
 
 ## Graph
 

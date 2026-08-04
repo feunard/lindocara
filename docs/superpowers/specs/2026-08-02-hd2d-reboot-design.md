@@ -161,7 +161,7 @@ deux palettes qui ne coexistent plus.
 | | Livrable | État du jeu |
 | --- | --- | --- |
 | **S1** | `@lindocara/hd2d` extrait du PoC en TypeScript + `apps/lab` qui reproduit le PoC à l'identique + le harnais de charge | intact, encore sur Pixi |
-| **S2** | Nouveau modèle de carte + collision/saut/nage dans `engine`, serveur autoritatif, prédiction ; **prouvé dans le labo** | éteint |
+| **S2** | Nouveau modèle de carte + collision/saut/nage dans `engine`, serveur autoritatif, prédiction ; **prouvé dans le labo** | intact, encore sur Pixi |
 | **S3** | `renderer` réécrit en adaptateur hd2d ; les 5 228 lignes de Pixi retirées | rallumé, en HD-2D |
 | **S5** | La scène de l'éditeur sur hd2d — WYSIWYG réel avec le jeu | — |
 | **S4** | Le langage visuel sombre, parallélisable avec S3 (React, pas de WebGL) | — |

@@ -16,11 +16,18 @@ still PixiJS, and `hd2d` is consumed only here until S3 (see the root
 [`docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md`](../../docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)).
 `island.ts` is the remaining deliberate exception to "witness, don't build product here": it is
 written as the future `@lindocara/engine` generation module, kept pure and `three`-free on
-purpose, so a later task can promote it by moving the file, not rewriting it. Its sibling
-collision module already made that move in Task 11: `terrain-query.ts`, `collider-index.ts` and
-`map-data.ts` now live in `@lindocara/engine/hd2d/` — tile-unit geometry kept in its own
-subfolder there, away from the pixel-unit `simulation.ts`/`collider.ts` the game already ships —
-and the lab imports them back as `@lindocara/engine/hd2d/*.js`.
+purpose, so a later task can promote it by moving the file, not rewriting it. Its siblings already
+made that move: `terrain-query.ts`, `collider-index.ts` and `map-data.ts` first, then
+`hero-state.ts`, `locomotion.ts`, `thin-ice.ts` and `hero-step.ts` — all seven now live in
+`@lindocara/engine/hd2d/`, tile-unit geometry AND the hero's movement rule kept in their own
+subfolder there, away from the pixel-unit `simulation.ts`/`collider.ts` the live game still ships
+against — and the lab imports every one of them back as `@lindocara/engine/hd2d/*.js`. **The hero
+has no rules of its own left in this app.** `world/hero.ts` is an adapter now, nothing more: it
+holds the billboards, the animator, the audio calls and the camera-facing bits, and every frame it
+calls `stepHero()` (`@lindocara/engine/hd2d/hero-step.js`) with the current `HeroState` and plays
+back whatever `HeroEvent`s that pure call returns. If you're looking for why the hero jumps,
+skids, drowns or cracks thin ice the way it does, that logic isn't here — read
+`packages/engine/AGENTS.md`'s `hd2d/` section and the four files it lists.
 
 ## Files
 
@@ -47,21 +54,28 @@ and the lab imports them back as `@lindocara/engine/hd2d/*.js`.
   snow island). Destined for `@lindocara/engine` in S2 — see above and "The snow island" below.
 - `@lindocara/engine/hd2d/terrain-query.ts` — `TerrainQuery`: world-space collision queries over a
   `HeightField`, and `TerrainMaterial`, the five-material type
-  (`sable`/`herbe`/`neige`/`glace`/`glace-fine`). Moved out of `apps/lab` in Task 11, kept
-  `three`-free from the start for exactly this move.
-- `world/locomotion.ts` — the friction-based movement model (`pasAmorti`) and the per-material
-  friction/speed/skid helpers. Pure and deterministic on purpose — see "The snow island" below for
-  why, and for the consequence this has for S2.
-- `world/thin-ice.ts` — the thin-ice state machine (`ThinIce`: intact → cracking → broken, with a
-  delayed refreeze). Same purity discipline as `locomotion.ts`, same S2 destination.
+  (`sable`/`herbe`/`neige`/`glace`/`glace-fine`). Moved out of `apps/lab` first, kept `three`-free
+  from the start for exactly this move.
+- `@lindocara/engine/hd2d/locomotion.ts` — the friction-based movement model (`pasAmorti`) and the
+  per-material friction/speed/skid helpers. Pure and deterministic on purpose — see "The snow
+  island" below for why, and for the consequence this had for S2. Moved out of `apps/lab` alongside
+  `hero-state.ts`, `thin-ice.ts` and `hero-step.ts`.
+- `@lindocara/engine/hd2d/thin-ice.ts` — the thin-ice state machine (`ThinIce`: intact → cracking →
+  broken, with a delayed refreeze). Same purity discipline as `locomotion.ts`, moved alongside it.
 - `world/zones.ts` — `Zone`/`zoneAt`: a named region carrying its own ambience (soundscape, music,
   breath-drain rate). Pure rules; `main.ts` reads `zoneAt` every frame and wires the result to
   `core/audio.ts` and the hero.
+- `@lindocara/engine/hd2d/hero-state.ts` — `HeroState`/`HeroInput`/`HeroSettings`/`HeroEvent`/
+  `StepDeps`: the data a step of hero simulation reads and writes, and what it narrates having
+  caused. Nothing here holds a `three` type, a billboard or a sound — that's `hero.ts`'s job, below.
+- `@lindocara/engine/hd2d/hero-step.ts` — `stepHero`: the per-frame movement rule itself, horizontal
+  and vertical, mutating a `HeroState` in place and returning the `HeroEvent`s it caused for the
+  adapter to play. This is what moved out of `world/hero.ts`'s old `update()` across S2's tasks.
 - `@lindocara/engine/hd2d/collider-index.ts` — the static spatial grid props/the house/the NPCs
-  register into. Colliders are axis-aligned rectangles (Task 8: the primitive that can model a
-  long wall, which a circle couldn't); the hero's own footprint stays a circle, tested disc-vs-rect
-  by nearest point — see `hero-state.ts`'s `ColliderQuery`, the interface that hides the shape
-  change from the rule. Moved out of `apps/lab` in Task 11, alongside `terrain-query.ts`.
+  register into. Colliders are axis-aligned rectangles (the primitive that can model a long wall,
+  which a circle couldn't); the hero's own footprint stays a circle, tested disc-vs-rect by nearest
+  point — see `hero-state.ts`'s `ColliderQuery`, the interface that hides the shape change from the
+  rule. Moved out of `apps/lab` first, alongside `terrain-query.ts`.
 - `@lindocara/engine/hd2d/map-data.ts` — `MapData`/`encodeMap`/`decodeMap`: a map as pure,
   defensively-parsed data (Task 10), plus `mapToQuerySource` to adapt a decoded map into what
   `createTerrainQuery` consumes. `scripts/build-map.ts` writes one; `main.ts` loads it instead of
@@ -112,30 +126,52 @@ from the baked grid, never from appearance): material is read to pick friction, 
 whether a cell can crack, never to decide whether a cell blocks.
 
 **One movement model, three frictions — and why that's the load-bearing decision of this whole
-chantier.** `world/locomotion.ts`'s `pasAmorti` replaces the old instantaneous
+chantier.** `@lindocara/engine/hd2d/locomotion.ts`'s `pasAmorti` replaces the old instantaneous
 `vitesse = entrée · HERO.speed` with `dv/dt = friction · (cible − v)`, integrated EXACTLY (not
 Euler) so the result is independent of `dt` and replays identically at any step size. Input
 accelerates, the material brakes — grass is tuned to stay indistinguishable from the old
 instantaneous model (fast accel/decel), snow brakes harder AND caps lower (`HERO.vitesseSol.neige`
 = 0.55×), ice barely brakes at all (`HERO.friction.glace` = 0.35, so releasing input a full second
-later you're still gliding at ~70% speed — a turn skids instead of snapping). `world/thin-ice.ts`
-adds a small state machine on top (`intacte → craquelee → rompue`, then a delayed `regel`), driven
-by the same per-frame `dt`.
+later you're still gliding at ~70% speed — a turn skids instead of snapping).
+`@lindocara/engine/hd2d/thin-ice.ts` adds a small state machine on top (`intacte → craquelee →
+rompue`, then a delayed `regel`), driven by the same per-frame `dt`. `hero-state.ts` (the data) and
+`hero-step.ts` (`stepHero`, the per-frame rule that calls into both) complete the set — all four
+files, and all their tests, moved into `@lindocara/engine/hd2d/` in this chantier's last task; see
+`packages/engine/AGENTS.md`'s `hd2d/` section for what each one now holds.
 
-Both modules are written **pure and deterministic to the bit** — no `Math.random`, no clock, no
+All four are written **pure and deterministic to the bit** — no `Math.random`, no clock, no
 `three` — not as a style preference but because **this is the movement model the game is getting**.
 Introducing inertia here is deciding the game has inertia, and that decision has a real cost
 downstream: `@lindocara/server`'s authoritative `step()` and the client's prediction/reconciliation
 (root `AGENTS.md`, "Why `step()` lives in `shared/`") both replay committed input deterministically
 — an inertial model must replay identically bit-for-bit on both sides, or reconciliation drifts
-silently exactly the way a wrong ghost/alive speed already does for `shared/death.ts`. **The
-consequence for S2**: when this locomotion model is promoted into `@lindocara/engine`, the port is
-meant to be a *file move* (`locomotion.ts`, `thin-ice.ts` → `packages/engine/src/`), not a rewrite —
-that's the entire reason these two files may not import `three`, touch the DOM, or read a clock of
-their own. Whoever does that port should expect to update imports and wire the friction table into
-`shared/game.ts`'s per-tick step, not to re-derive the math. If a future change to either file
-starts reading `performance.now()`, a `THREE.*` type, or a global RNG, that change has broken the
-one property that makes the eventual port cheap — flag it, don't quietly let it in.
+silently exactly the way a wrong ghost/alive speed already does for `shared/death.ts`.
+
+**The consequence for S2 and beyond.** The move you're reading about above — `apps/lab` into
+`@lindocara/engine` — was deliberately made a *file move*, not a rewrite: `git mv`, then translate
+the comments, fix the imports, nothing else. That was only possible because the four files were
+kept pure from the day they were written, specifically so this move would cost nothing. The port
+that matters is the NEXT one, still ahead: `stepHero` becoming the server's authoritative per-tick
+rule and the client's prediction function, the same way `shared/simulation.ts`'s `step()` is today
+(root `AGENTS.md`, "Why `step()` lives in `shared/`"). That port is meant to be exactly as cheap as
+this one was — another file already living in the right package, wired into a tick loop — and it
+stays that cheap for exactly as long as `hero-state.ts`/`hero-step.ts`/`locomotion.ts`/`thin-ice.ts`
+stay pure. Nothing enforces that after this task except discipline: `npm run typecheck:engine`
+catches a stray `three` type or a leaked DOM global (the package has neither in its `tsconfig`),
+but it does NOT catch a call to `performance.now()`, a bare `Math.random()`, or a `dt` silently
+assumed to be `1/60` instead of read from the parameter — all three typecheck clean, all three
+compile, all three pass in the lab where nobody but a human eye would notice. Each one is exactly
+the kind of change that looks like an innocent improvement (a jitter effect seeded from `Math.random()`,
+a debug timestamp, a "just use the standard frame time" shortcut) and is in fact the thing that
+turns a promised file move into a rewrite: the day this code runs on the server, `Math.random()`
+diverges between server and client, `performance.now()` doesn't exist in the same form on both
+sides and wouldn't agree with either one's clock if it did, and a hardcoded `dt` breaks the moment
+the server's tick rate and the lab's frame rate aren't identical — replaying a client's pending
+commands (root `AGENTS.md`, "One command per tick") assumes the exact same function produces the
+exact same result from the exact same inputs, nothing else. If you're about to add any of those
+three things to a file under `@lindocara/engine/hd2d/`, you have just made this port more
+expensive than it needs to be — flag it, or find the way to do it without them, rather than let it
+in quietly.
 
 **Zones own ambience, not the day/night cycle.** `world/zones.ts`'s `Zone`/`zoneAt` predates the
 snow island's specific content but the polar biome is what actually exercises it: `ZONE_POLAIRE`
@@ -314,7 +350,8 @@ LAB_SFX_PACK=/path/to/pack apps/lab/scripts/sync-assets.sh
 
 ## Graph
 
-- **Depends on:** `@lindocara/hd2d`, `three`. Nothing else — see "witness, not a frozen copy" above.
+- **Depends on:** `@lindocara/engine` (its `hd2d/` subfolder only), `@lindocara/hd2d`, `three`.
+  Nothing else — see "witness, not a frozen copy" above.
 
 ## Commands
 
@@ -323,7 +360,10 @@ npm run lab                  # (root) vite dev — http://localhost:5174
 npm run build -w @lindocara/lab
 npm run typecheck:lab        # tsc
 npm test -w @lindocara/lab   # or: npm run test:lab — Node env, pure logic only (island, terrain-query,
-                              # locomotion/hero-friction, thin-ice, zones, colliders, bench)
+                              # map-parite, zones, bench). The hero's own tests
+                              # (hero-state/hero-step/hero-friction/thin-ice) moved to
+                              # `packages/engine/test/hd2d/` alongside the code — run with
+                              # `npm run test:engine`.
 ```
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the full monorepo layout, and the `playwright-cli`

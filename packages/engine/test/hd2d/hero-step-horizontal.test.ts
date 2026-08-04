@@ -1,10 +1,10 @@
+import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
+import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { describe, expect, it } from "vitest";
-import { createHeroState } from "../src/world/hero-state.js";
-import { stepHero } from "../src/world/hero-step.js";
 import { depsPlates } from "./helpers/step-deps.js";
 
-describe("stepHero — déplacement horizontal", () => {
-  it("accélère vers la vitesse de la matière et s'y stabilise", () => {
+describe("stepHero — horizontal movement", () => {
+  it("accelerates toward the material's speed and settles there", () => {
     const deps = depsPlates();
     const s = createHeroState(0, 0, 0, 10, 2.2);
     for (let i = 0; i < 300; i++) {
@@ -15,14 +15,14 @@ describe("stepHero — déplacement horizontal", () => {
         deps,
       );
     }
-    // Régime établi = `accel / friction` = la vitesse de la matière, à l'erreur machine près.
+    // Steady state = `accel / friction` = the material's speed, to machine error.
     expect(s.vx).toBeCloseTo(deps.hero.speed, 3);
     expect(s.vz).toBeCloseTo(0, 6);
   });
 
-  it("annule la vitesse sur l'axe refusé, pas sur l'autre", () => {
-    // Un mur en x : on doit continuer de glisser le long, en z. C'est ce que le test axe par axe
-    // achète, et c'est exactement ce que la Task 8 ne doit pas casser en passant aux rectangles.
+  it("cancels speed on the refused axis, not on the other", () => {
+    // A wall on x: sliding along it must continue, in z. That's what the axis-by-axis test buys,
+    // and it's exactly what switching colliders from circles to rectangles must not break.
     const deps = depsPlates({ bloque: (x) => x > 1 });
     const s = createHeroState(0, 0, 0, 10, 2.2);
     s.vx = 5;
@@ -40,10 +40,10 @@ describe("stepHero — déplacement horizontal", () => {
     expect(s.z).toBeGreaterThan(0);
   });
 
-  it("émet un pas quand on se propulse, jamais quand on glisse", () => {
+  it("emits a footstep while propelling, never while skidding", () => {
     const deps = depsPlates();
     const s = createHeroState(0, 0, 0, 10, 2.2);
-    // Lancé sans aucune entrée : c'est une glisse, pas une marche.
+    // Launched with no input at all: this is a skid, not a walk.
     s.vx = deps.hero.speed;
     let pas = 0;
     for (let i = 0; i < 120; i++) {
