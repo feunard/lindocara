@@ -3,23 +3,30 @@
  * `packages/client/src/game/session.ts`).
  *
  * It draws the world's GROUND — terrain, sea, foam, sky and light, from the welcome's heightfield —
- * and nothing else. Every other method of `RendererLike` is an explicit, marked no-op rather than a
- * missing member: the session calls all of them, and a silent partial implementation would be a
- * renderer that looks finished. Grep `NOT YET DRAWN ON THE HD-2D PATH` for the full list of what is
- * still owed; Task 7 takes the actors, Task 8 the elements and events.
+ * and its ACTORS, as billboards the camera follows (`billboards.ts`). Nothing else. Every other
+ * method of `RendererLike` is an explicit, marked no-op rather than a missing member: the session
+ * calls all of them, and a silent partial implementation would be a renderer that looks finished.
+ * Grep `NOT YET DRAWN ON THE HD-2D PATH` for the full list of what is still owed; the next S3 piece
+ * takes the elements and events.
+ *
+ * An actor is drawn at rest and facing east: this piece places sprites, and neither the animation
+ * clip nor the facing crosses `ActorView` yet. Both are a later piece, and both are visible.
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
-import type { PrimaryColor } from "@lindocara/engine/character.js";
-import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
+import { PRIMARY_COLORS, type PrimaryColor } from "@lindocara/engine/character.js";
+import { type MonsterSpecies, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
   CombatAnimation,
+  GuardSnapshot,
+  MonsterSnapshot,
   MonsterSpecialImpact,
   PeasantBombImpactVisual,
   PeasantCampVisual,
+  PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestLumenTrailVisual,
   PriestPolarityOrbVisual,
@@ -28,18 +35,74 @@ import type {
 } from "@lindocara/engine/protocol.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { TileMap } from "@lindocara/engine/tilemap.js";
+import { guardPrimaryColorForAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneId } from "@lindocara/engine/zones.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
-import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
+import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import type { MonsterImpactSound } from "../combat-art.js";
+import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
 import type { RenderContext } from "../renderer.js";
 import type { RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
+import { unitSheet } from "../tiny-swords-art.js";
+import type { ActorView, BillboardRegistry } from "./billboards.js";
+import { createBillboardRegistry, pixelToTile } from "./billboards.js";
 import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
+
+// --- actor art direction --------------------------------------------------------------------------
+
+/**
+ * Which sheet each kind of actor draws with — the ADAPTER's knowledge, exactly like the terrain
+ * atlases in `scene.ts`. `billboards.ts` never sees a class, a species or a faction colour.
+ *
+ * The IDLE sheet only. This path draws an actor where the server says it is; it does not animate it
+ * yet, so a run or attack sheet would be three quarters of a download for a frame never shown.
+ */
+function playerTextureKey(player: PlayerSnapshot): string {
+  return unitSheet(player.class, player.appearance, "idle").source;
+}
+
+/** The SPECIES, never `graphicAssetId`: an authored catalogue appearance is one more sheet per
+ *  authored monster, and preloading a set that only the running adventure knows is a later piece.
+ *  The species is the authoritative combat model, so it is never a wrong answer, only a plainer
+ *  one — the PixiJS path draws the authored art on top of the same species model. */
+function monsterTextureKey(monster: MonsterSnapshot): string {
+  return TINY_SWORDS_ENEMIES[monster.species].idle.source;
+}
+
+/** A guard is a Tiny Swords unit like any other — the same warrior sheet the PixiJS path gives it,
+ *  in the faction colour its authored asset id implies. */
+function guardTextureKey(guard: GuardSnapshot): string {
+  return unitSheet(
+    "warrior",
+    { body: "wayfarer", primaryColor: guardPrimaryColorForAsset(guard.graphicAssetId) },
+    "idle",
+  ).source;
+}
+
+/**
+ * Every sheet the three functions above can name, deduplicated — the registry's `get` throws on a
+ * texture nobody preloaded, and a hero walking into a species that was never downloaded must not be
+ * the thing that finds out.
+ *
+ * `atlas` stays false, as it does for every sprite sheet in the lab's own catalogue: a sprite is
+ * sampled frame by frame but it is also seen at every distance, so it keeps its mipmaps (the
+ * tilesets and the foam are the atlases, and `scene.ts` marks them).
+ */
+export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
+  ...new Set([
+    ...PLAYER_CLASSES.flatMap((playerClass) =>
+      PRIMARY_COLORS.map(
+        (primaryColor) => unitSheet(playerClass, { body: "wayfarer", primaryColor }, "idle").source,
+      ),
+    ),
+    ...Object.values(TINY_SWORDS_ENEMIES).map((art) => art.idle.source),
+  ]),
+].map((url) => ({ url }));
 
 export class Hd2dRenderer implements RendererLike {
   #canvas: HTMLCanvasElement;
@@ -47,6 +110,15 @@ export class Hd2dRenderer implements RendererLike {
   /** Built on the first `configureMapTerrain` carrying a heightfield, not at construction: the map
    *  only exists once the welcome has landed. */
   #scene: Hd2dScene | null = null;
+  /** Lives and dies with the scene: its billboards are parented to that scene's graph. */
+  #actors: BillboardRegistry | null = null;
+  /** Rebuilt every frame into the same array — `render` runs 60 times a second, and a fresh array
+   *  per frame is garbage for nothing. */
+  #actorViews: ActorView[] = [];
+  #selfId: string | null = null;
+  /** The current heightfield's grid side, the `size` half of the TILE→PIXEL bridge. Kept beside the
+   *  scene because the camera converts the local player's position itself. */
+  #mapSize = 0;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -73,9 +145,12 @@ export class Hd2dRenderer implements RendererLike {
     canvas: HTMLCanvasElement,
     _serverClock: ServerClock = new ServerClock(),
   ): Promise<Hd2dRenderer> {
-    const urls = HD2D_TEXTURE_URLS.map((spec) => spec.url);
-    const blobs = await fetchAll(urls, () => {});
-    const textures = createTextureRegistry(HD2D_TEXTURE_URLS);
+    const specs = [...HD2D_TEXTURE_URLS, ...HD2D_ACTOR_TEXTURE_URLS];
+    const blobs = await fetchAll(
+      specs.map((spec) => spec.url),
+      () => {},
+    );
+    const textures = createTextureRegistry(specs);
     await textures.decode(blobs, () => {});
     return new Hd2dRenderer(canvas, textures);
   }
@@ -126,17 +201,87 @@ export class Hd2dRenderer implements RendererLike {
       return;
     this.#currentMapId = zoneId;
     this.#currentMapRevision = revision;
-    this.#scene?.dispose();
-    this.#scene = null;
+    this.#disposeScene();
     if (!heightfield) return;
-    this.#scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
+    this.#mapSize = heightfield.size;
+    const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
+    this.#scene = scene;
+    this.#actors = createBillboardRegistry(
+      scene.ctx,
+      {
+        root: scene.scene,
+        query: scene.query,
+        size: heightfield.size,
+        waterLevel: heightfield.waterLevel,
+      },
+      this.#textures,
+    );
   }
 
-  render(_sample: SceneSample, context: RenderContext): void {
+  render(sample: SceneSample, context: RenderContext): void {
     if (this.#destroyed) return;
+    const scene = this.#scene;
+    if (!scene) return;
+
+    this.#actors?.sync(this.#collectActors(sample));
+
+    // The camera follows the local player, and only it: every other actor is drawn where the
+    // interpolated view puts it. A player the view has not sent yet leaves the camera wherever it
+    // last was, which is the map's spawn on the very first frames.
+    const self = sample.players.find((player) => player.id === this.#selfId);
+    if (self) scene.focusOn(pixelToTile(self.x, this.#mapSize), pixelToTile(self.y, this.#mapSize));
+
     // `context.now` rather than a clock read of our own: it is the very `now` this frame's callback
     // was handed, so the scene's animations advance on the same timeline as everything else in it.
-    this.#scene?.render(context.now);
+    scene.render(context.now);
+  }
+
+  /**
+   * The frame's actors, in the one shape the registry understands. Positions ride across in the
+   * snapshot's own PIXELS — the single conversion lives inside `sync`.
+   *
+   * A dead monster is skipped: the PixiJS path keeps it for a death animation this one does not
+   * play, so leaving it in would stand a corpse upright until the server swept it.
+   */
+  #collectActors(sample: SceneSample): readonly ActorView[] {
+    const views = this.#actorViews;
+    views.length = 0;
+    for (const player of sample.players)
+      views.push({
+        id: player.id,
+        kind: "player",
+        x: player.x,
+        y: player.y,
+        textureKey: playerTextureKey(player),
+      });
+    for (const monster of sample.monsters) {
+      if (monster.dead) continue;
+      views.push({
+        id: monster.id,
+        kind: "monster",
+        x: monster.x,
+        y: monster.y,
+        textureKey: monsterTextureKey(monster),
+      });
+    }
+    for (const guard of sample.guards)
+      views.push({
+        id: guard.id,
+        kind: "guard",
+        x: guard.x,
+        y: guard.y,
+        textureKey: guardTextureKey(guard),
+      });
+    return views;
+  }
+
+  #disposeScene(): void {
+    // Billboards first: they are parented to the scene's graph, and disposing that graph out from
+    // under them would leave the context's yaw registry holding meshes nothing can reach.
+    this.#actors?.dispose();
+    this.#actors = null;
+    this.#scene?.dispose();
+    this.#scene = null;
   }
 
   destroy(): void {
@@ -146,8 +291,7 @@ export class Hd2dRenderer implements RendererLike {
     if (this.#rafHandle !== null) cancelAnimationFrame(this.#rafHandle);
     this.#rafHandle = null;
     this.#frameCallbacks = [];
-    this.#scene?.dispose();
-    this.#scene = null;
+    this.#disposeScene();
     this.#textures.dispose();
   }
 
@@ -159,8 +303,14 @@ export class Hd2dRenderer implements RendererLike {
   configureZone(_zoneId: ZoneId): void {
     this.#currentMapId = null;
     this.#currentMapRevision = -1;
-    this.#scene?.dispose();
-    this.#scene = null;
+    this.#mapSize = 0;
+    this.#disposeScene();
+  }
+
+  /** Which of the frame's players the camera follows. Not a no-op any more: this is the one actor
+   *  the view is built around. */
+  setSelfId(id: string): void {
+    this.#selfId = id;
   }
 
   // --- not yet drawn ------------------------------------------------------------------------------
@@ -249,9 +399,10 @@ export class Hd2dRenderer implements RendererLike {
   /**
    * NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece.
    *
-   * The origin in the game's PIXEL space, which this path has no projection into yet (that
-   * conversion is Task 7's). Returning the origin keeps the peasant's bomb aim pointing at a fixed,
-   * obviously-wrong spot rather than at a plausible lie.
+   * The origin in the game's PIXEL space. `billboards.ts` carries the pixel->tile half of the
+   * bridge, which is the direction actors need; this method wants the other one, plus a ray cast
+   * through the ground to have a tile position to convert at all. Returning the origin keeps the
+   * peasant's bomb aim pointing at a fixed, obviously-wrong spot rather than at a plausible lie.
    */
   screenToWorld(_clientX: number, _clientY: number): Vec2 {
     return { x: 0, y: 0 };
@@ -259,9 +410,6 @@ export class Hd2dRenderer implements RendererLike {
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
   setAuthoredQuestMarkers(_markers: readonly AuthoredQuestMarker[]): void {}
-
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  setSelfId(_id: string): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
   showPeasantBombAim(_origin: Vec2, _direction: Vec2, _range: number): void {}

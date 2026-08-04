@@ -23,8 +23,11 @@ game ships, and the HD-2D one (`hd2d/`) behind `?hd2d=1`. They satisfy one contr
   implement it; adding a method the session calls means adding it here first.
 - `hd2d/` — the **second** renderer, on `@lindocara/hd2d` + `three` rather than PixiJS, selected by
   a temporary `?hd2d=1` (S3's first increment). `scene.ts` is the composition root, transcribed from
-  `apps/lab/src/main.ts`; `game-renderer.ts` is the `RendererLike` around it. It draws terrain, sea,
-  foam, sky and light from `WorldInfo.heightfield`, and nothing else yet — grep
+  `apps/lab/src/main.ts`; `billboards.ts` is the actor registry plus the client half of the
+  `TILE→PIXEL BRIDGE` (snapshots arrive in pixels, the scene is in tile units); `game-renderer.ts`
+  is the `RendererLike` around them and owns which sheet an actor draws with. It draws terrain, sea,
+  foam, sky and light from `WorldInfo.heightfield`, plus the actors as billboards the camera follows
+  (at rest and facing east — neither clip nor facing crosses `ActorView` yet) — grep
   `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed. Read
   [`docs/hd2d-rendering.md`](../../docs/hd2d-rendering.md) before touching it.
 
@@ -36,6 +39,10 @@ The raw Tiny Swords art is bundled via a Vite glob over `../../catalog/assets/**
 - **Depends on:** `engine`, `hd2d` (the `hd2d/` renderer only) (+ `pixi.js` and `three`; raw art
   from the `catalog` package's `assets/`).
 - **Depended on by:** `client`, `editor`.
+- One **devDependency on `server`**, declared rather than left to workspace hoisting, and used by
+  exactly one file: `test/hd2d-billboards.test.ts` round-trips `pixelToTile` against the server's
+  own `tileToPixel`. No `src/` file may import `server`. Both halves carry the `TILE→PIXEL BRIDGE`
+  banner and die together, and this edge dies with them.
 
 ## Commands
 

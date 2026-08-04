@@ -9,12 +9,13 @@
  * package is not).
  *
  * What is knowingly NOT transcribed, because this task draws bare ground:
- * - every billboard (hero, props, NPCs, sheep, the chest, the house and its interior) and the
- *   collider index they populate — Task 7 brings actors;
+ * - the props, NPCs, sheep, the chest, the house and its interior, and the collider index they
+ *   populate — the game's own actors are `billboards.ts`, and its scenery is a later S3 piece;
  * - the day/night TOGGLE, the zone machinery, particles, cloud cover, the wind gusts and the whole
  *   audio layer — they are lab content, not the game's;
- * - camera orbit/zoom/shake and the look-ahead that follows a running hero — there is no hero yet,
- *   so the camera is parked over the map's spawn (see `frameCamera`).
+ * - camera orbit/zoom/shake and the look-ahead that follows a running hero. The camera DOES follow
+ *   now (`focusOn`, with the lab's exponential damping), but it neither leads nor shakes, and it is
+ *   parked over the map's spawn until something names a point to follow.
  *
  * `@lindocara/hd2d` stays domain-free: it takes numbers. Everything below the "art direction" line
  * — which tileset a material draws with, which URLs the game serves — is the ADAPTER's knowledge and
@@ -159,7 +160,10 @@ export function heightFieldFor(map: MapData): HeightField {
 // it. `levelHeight` and `waterLevel` are NOT copied — they travel with the map, which is the whole
 // point of the heightfield.
 
-const CAMERA = {
+/** Exported because a billboard's vertical stretch is computed FROM the pitch (`billboardHeight`):
+ *  `billboards.ts` must read the very angle this camera uses, or every sprite is compensated for a
+ *  plunge the scene does not have. */
+export const HD2D_CAMERA = {
   /** A short FOV is what makes the near-orthographic, diorama look. */
   fov: 22,
   distance: 40,
@@ -170,7 +174,11 @@ const CAMERA = {
   /** 1 = fog neutral under zoom, 0 = fog frozen in absolute terms. Unused while the camera cannot
    *  zoom, but `frameCamera` still applies the coupling so the day zoom lands it is already right. */
   fogFar: 0.38,
+  /** How fast the camera catches up with what it follows, as an exponential rate (see `render`). */
+  follow: 6,
 } as const;
+
+const CAMERA = HD2D_CAMERA;
 
 const WATER = { roughness: 0.46, segment: 2, depthRange: 7 } as const;
 
@@ -212,6 +220,12 @@ const MAX_FRAME_SECONDS = 0.05;
 
 export interface Hd2dScene {
   render(now: number): void;
+  /**
+   * Ask the camera to follow a point, in TILE units — the local player, in practice. Recorded here
+   * and consumed by the next `render`, which is the only place that knows the frame's `dt` and can
+   * therefore damp towards it.
+   */
+  focusOn(x: number, z: number): void;
   resize(): void;
   dispose(): void;
   ctx: Hd2dContext;
@@ -312,14 +326,21 @@ export function createHd2dScene(
 
   const sunOffset = new THREE.Vector3();
 
-  /** Where the camera looks. No hero yet, so it is the map's spawn — the one point on the map the
-   *  server itself considers the way in. Task 7 replaces this with the local player. */
+  /** Where the camera looks. The map's spawn until `focusOn` names the local player — the one point
+   *  on the map the server itself considers the way in, and the honest answer for the frames before
+   *  the first snapshot has landed. */
   const target = ((): THREE.Vector3 => {
     const spawn = map.spawns.find((s) => s.name === "default") ?? map.spawns[0];
     const x = spawn?.x ?? 0;
     const z = spawn?.z ?? 0;
     return new THREE.Vector3(x, (query.heightAt(x, z) ?? map.waterLevel) + CAMERA.height, z);
   })();
+
+  /** The point `focusOn` last named, and whether the camera has already been placed over it once.
+   *  Reused every frame rather than reallocated: `render` runs 60 times a second. */
+  let focus: { x: number; z: number } | null = null;
+  let focusReached = false;
+  const wantedTarget = new THREE.Vector3();
 
   function frameCamera(): void {
     // How far back the camera sits. A constant while nothing can zoom; the variable it becomes the
@@ -411,9 +432,30 @@ export function createHd2dScene(
     scene,
     camera,
     query,
+    focusOn(x: number, z: number): void {
+      focus = { x, z };
+    },
     render(now: number): void {
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
       last = now;
+      if (focus) {
+        wantedTarget.set(
+          focus.x,
+          (query.heightAt(focus.x, focus.z) ?? map.waterLevel) + CAMERA.height,
+          focus.z,
+        );
+        // Exponential damping, transcribed from `apps/lab/src/main.ts`'s `updateCamera`: it is
+        // framerate-independent, unlike a fixed lerp, which converges faster on a fast machine and
+        // makes the same follow read as two different games. The FIRST focus snaps instead — the
+        // camera starts parked over the map's spawn, and damping from there would be a one-second
+        // fly-in every time a hero joins somewhere else.
+        if (focusReached) target.lerp(wantedTarget, 1 - Math.exp(-CAMERA.follow * dt));
+        else {
+          target.copy(wantedTarget);
+          focusReached = true;
+        }
+        frameCamera();
+      }
       water.update(dt);
       foam.update(dt);
       sky.update(dt, camera, mood.value.aurora);

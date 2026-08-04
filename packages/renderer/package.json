@@ -13,6 +13,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@lindocara/server": "*",
     "@types/three": "^0.185.0"
   },
   "scripts": {
