@@ -403,12 +403,17 @@ export interface GliderSettings {
   /** Height of the billboard PLANE's bottom edge above the feet — not the height of the visible
    *  grip. The grip (where the risers converge) sits inside the sprite's frame, not on its very
    *  bottom edge: about 0.27 world units above the plane's bottom, once `billboardHeight`'s
-   *  camera-pitch stretch is accounted for. First set to `HERO.size · (1 − HERO.foot)` ≈ 1.82 (the
-   *  top of the skull) on the wrong assumption that the anchor itself WAS the grip — Task 4's
-   *  on-screen check (`.superpowers/sdd/2026-08-04-glider/task-4-report.md`) found that put the
-   *  actual grip roughly 0.7 units above the head: a parachute hovering over him, not one he's
-   *  holding. Retuned by eye so the grip now rests on, and slightly overlaps, the top of the
-   *  helmet plume — a small overlap is what sells the canopy as HELD rather than floating. */
+   *  camera-pitch stretch is accounted for. First set to `HERO.size · (1 − HERO.foot)` ≈ 1.82,
+   *  read as "the top of the skull" — wrong on two counts. That formula skips the very
+   *  camera-pitch stretch this field needs: applying it to the hero's OWN billboard puts its
+   *  plane top at ≈2.24 above the feet, not 1.82. And even 2.24 overstates the head: the `air`
+   *  frame's actual pixel content (the pose shown while gliding) tops out lower still, at ≈1.54
+   *  above the feet. Task 4's on-screen check
+   *  (`.superpowers/sdd/2026-08-04-glider/task-4-report.md`) found that at the first-committed
+   *  `lift: 2.05` the grip landed around 2.32 — roughly 0.78 units above the actual head: a
+   *  parachute hovering over him, not one he's holding. Retuned by eye so the grip now rests on,
+   *  and slightly overlaps, the top of the helmet plume — a small overlap is what sells the
+   *  canopy as HELD rather than floating. */
   lift: number;
 }
 export const GLIDER: GliderSettings = {

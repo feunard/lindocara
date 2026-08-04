@@ -64,14 +64,27 @@ def vider_poches(im, fond, tolerance=20):
     on both sides. `detourer` leaves it filled, and the sprite ships with a
     navy blob under its wing.
 
-    This is not the global colour test `detourer`'s docstring rejects. It works
-    by CONNECTED COMPONENT: a pocket is cleared only when every pixel in it is
-    within `tolerance` of the background, so a shaded part of the subject — which
-    always carries a gradient, and so always holds pixels outside the tolerance —
-    survives whole. The tolerance is deliberately tighter than `detourer`'s (20
-    against 42) because a pocket has no edge to vouch for it: measured on the
-    glider, background sits under 20 and the subject's own outline starts at 30,
-    with nothing in between.
+    Mechanically, this is nothing more than a plain per-pixel colour test — the
+    same test `detourer`'s own docstring rejects for the FIRST pass — run a
+    SECOND time, after `detourer`. The walk below only visits neighbours to
+    avoid re-testing a pixel twice; every pixel it ever visits already passed
+    `proche()` on its own, so "the whole component qualifies" is automatically
+    true and gates nothing. There is no connected-component check here.
+
+    What makes running that same test again SAFE, despite `detourer` having
+    just rejected it, is what already ran before it, not anything this pass
+    does itself: by the time `vider_poches` runs, `detourer` has already
+    cleared every pixel reachable from the image border. A pixel still opaque
+    here therefore has NO path to the edge — it is provably enclosed by the
+    subject, not merely similarly coloured. Clearing it can only remove
+    enclosed background, never open a real gap in the subject — but only as
+    long as this pass's `tolerance` stays STRICTLY TIGHTER than `detourer`'s.
+    Raising it to or past `detourer`'s 42 would let this pass clear pixels
+    `detourer` itself would have kept as part of the subject, and the
+    enclosure argument stops holding: treat that as a constraint on this
+    function, not a knob to tune freely. Measured on the glider: the
+    background sits under 20 and the subject's own outline starts at 30 —
+    nothing in between, so 20 has margin without needing to be exact.
 
     Opt-in (see `__main__`): the sprites already committed were produced without
     it, and their source illustrations are not in the repo, so it cannot be
@@ -81,21 +94,20 @@ def vider_poches(im, fond, tolerance=20):
     px = im.load()
     proche = lambda c: abs(c[0] - fond[0]) + abs(c[1] - fond[1]) + abs(c[2] - fond[2]) <= tolerance
 
+    # No collect-then-clear list: nothing downstream conditions on a pocket as a whole (see the
+    # docstring above — every visited pixel already qualifies on its own), so each one is cleared
+    # the moment it's found. `vus` still exists, to avoid re-testing a pixel already cleared.
     vus = bytearray(im.width * im.height)
     for y0 in range(im.height):
         for x0 in range(im.width):
             i0 = y0 * im.width + x0
             if vus[i0] or px[x0, y0][3] == 0 or not proche(px[x0, y0]):
                 continue
-            # One pocket: collect it whole, then clear it. Collect-then-clear rather
-            # than clear-as-you-go so the component can still be rejected as a block
-            # if a future rule wants to (a size floor, say).
-            poche = []
-            pile = [(x0, y0)]
             vus[i0] = 1
+            px[x0, y0] = (0, 0, 0, 0)
+            pile = [(x0, y0)]
             while pile:
                 x, y = pile.pop()
-                poche.append((x, y))
                 for vx, vy in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
                     if not (0 <= vx < im.width and 0 <= vy < im.height):
                         continue
@@ -103,9 +115,8 @@ def vider_poches(im, fond, tolerance=20):
                     if vus[i] or px[vx, vy][3] == 0 or not proche(px[vx, vy]):
                         continue
                     vus[i] = 1
+                    px[vx, vy] = (0, 0, 0, 0)
                     pile.append((vx, vy))
-            for x, y in poche:
-                px[x, y] = (0, 0, 0, 0)
     return im
 
 
@@ -195,8 +206,10 @@ if __name__ == "__main__":
     # background — a paraglider's risers closing off the sky between them. Off by default
     # because the sprites already committed were made without it and their source
     # illustrations are not in the repo, so it cannot be proven a no-op for them.
-    # See `vider_poches`.
-    poches = len(sys.argv) > 5 and sys.argv[5] == "poches"
+    # See `vider_poches`. Any other value is a typo, not a silent no-op: reject it.
+    if len(sys.argv) > 5 and sys.argv[5] != "poches":
+        raise SystemExit(f'unrecognised 5th argument: {sys.argv[5]!r} (only "poches" is accepted)')
+    poches = len(sys.argv) > 5
     source = Image.open(entree)
     fond = couleur_de_fond(source)
     detoure = detourer(source)

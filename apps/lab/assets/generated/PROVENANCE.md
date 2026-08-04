@@ -76,9 +76,11 @@ a silhouette once downscaled.
 **Why `sprite.py` grew a `poches` pass for this one.** The risers converge on the
 grip, so the sky between the outermost two is walled in by canopy above and rope
 on both sides, and `detourer`'s edge propagation cannot reach it — the first
-attempt shipped a navy blob under the wing. `vider_poches` clears such a pocket
-by connected component, and only when every pixel in it sits within a tight
-tolerance of the background (20, against `detourer`'s 42): measured here, the
+attempt shipped a navy blob under the wing. `vider_poches` runs a second,
+tighter colour test AFTER `detourer` (20, against `detourer`'s 42): since
+`detourer` has already cleared everything reachable from the border, any pixel
+still opaque at that point is provably enclosed by the subject, and clearing it
+is safe as long as this pass stays tighter than `detourer`'s. Measured here, the
 background stays under 20 and the subject's own outline starts at 30, with
 nothing in between. It is opt-in, because the sprites above were produced
 without it and their source illustrations are not in the repo.

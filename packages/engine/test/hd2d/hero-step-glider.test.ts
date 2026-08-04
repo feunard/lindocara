@@ -124,4 +124,47 @@ describe("stepHero — the glider", () => {
     expect(evts.some((e) => e.t === "glider-open")).toBe(false);
     expect(s.gliding).toBe(false);
   });
+
+  it("folds the canopy when the hero walks into a room mid-glide", () => {
+    // The fold invariant's `state.room` clause, alongside `!state.airborne`/`state.swimming`.
+    // `s.room` is set directly here, the same way the adapter (`hero.ts`'s `setRoom`) would set
+    // it right before calling `stepHero` again after the hero crosses a doorway mid-glide.
+    const deps = depsPlates();
+    const s = createHeroState(0, 0, 0, 10, 2.2);
+    s.airborne = true;
+    s.gliding = true;
+    s.room = { x0: -5, x1: 5, z0: -5, z1: 5, y: 0, obstacles: [] };
+    const evts = stepHero(s, immobile, DT, deps);
+    expect(evts.some((e) => e.t === "glider-close")).toBe(true);
+    expect(s.gliding).toBe(false);
+  });
+
+  it("does not misread a jump key held across a room visit as a fresh press on exit", () => {
+    // The whole reason `jumpPressed`'s latch (`state.jumpHeld`) is updated ONCE, before every
+    // branch, rather than only inside the outdoor/airborne branch: a key held the entire time
+    // indoors, where no jump/glide branch runs at all, must not look like a brand new press the
+    // moment the hero steps back outside.
+    const deps = depsPlates();
+    const s = createHeroState(0, 0, 0, 10, 2.2);
+    s.room = { x0: -5, x1: 5, z0: -5, z1: 5, y: 0, obstacles: [] };
+
+    // Pressed, then held, for several indoor frames — no jump/glide branch runs indoors, but the
+    // latch must still track the key.
+    stepHero(s, jumping, DT, deps);
+    expect(s.jumpHeld).toBe(true);
+    stepHero(s, jumping, DT, deps);
+    stepHero(s, jumping, DT, deps);
+    expect(s.jumpHeld).toBe(true);
+
+    // Leaves the room with the SAME press still held, already mid-air (as if the hero walked off
+    // a ledge right at the doorway) — a fresh press here WOULD open the canopy. If the latch had
+    // only updated inside the outdoor branch, `jumpHeld` would still read the stale pre-room
+    // value and this step would misread the held key as new.
+    s.room = null;
+    s.airborne = true;
+    const evts = stepHero(s, jumping, DT, deps);
+    expect(evts.some((e) => e.t === "glider-open")).toBe(false);
+    expect(evts.some((e) => e.t === "saut")).toBe(false);
+    expect(s.gliding).toBe(false);
+  });
 });
