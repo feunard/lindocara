@@ -86,11 +86,16 @@ export function placeStaticContent(
   resolve: StaticArtResolver,
 ): StaticContent {
   const placed: Billboard[] = [];
+  /** Unresolved ids, counted rather than reported one by one. A map dressed entirely out of assets
+   *  this build cannot draw — the sub-rect crops are a real such family — would otherwise emit one
+   *  line per PLACEMENT, hundreds of them, and bury whatever else the console had to say. The same
+   *  care the graphicless-event skip below takes, applied to the case that actually is a warning. */
+  const skipped = new Map<string, number>();
 
-  function place(assetId: string, x: number, z: number, what: string): void {
+  function place(assetId: string, x: number, z: number): void {
     const sprite = resolve(assetId);
     if (!sprite) {
-      console.warn(`[hd2d] skipping ${what}: no art for asset id "${assetId}"`);
+      skipped.set(assetId, (skipped.get(assetId) ?? 0) + 1);
       return;
     }
     const billboard = makeBillboard(ctx, {
@@ -109,12 +114,15 @@ export function placeStaticContent(
     placed.push(billboard);
   }
 
-  for (const element of map.elements) place(element.assetId, element.x, element.z, "element");
+  for (const element of map.elements) place(element.assetId, element.x, element.z);
   for (const event of map.events) {
     // No graphic is an authored choice, not a missing asset: a bare trigger cell draws nothing and
     // says nothing. Warning here would fill the console on any map that uses invisible triggers.
     if (event.graphicAssetId === null) continue;
-    place(event.graphicAssetId, event.x, event.z, `event ${event.id}`);
+    place(event.graphicAssetId, event.x, event.z);
+  }
+  for (const [assetId, count] of skipped) {
+    console.warn(`[hd2d] no art for asset id "${assetId}": skipped ${count} placement(s)`);
   }
 
   return {

@@ -126,32 +126,38 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
 // --- scenery art direction ------------------------------------------------------------------------
 
 /**
- * Which file a catalogue asset id draws from, or `null` when this build cannot draw it at all.
+ * One catalogue asset, resolved: the file it draws from and the geometry a billboard is built with.
+ * `StaticSpriteArt` minus its texture, because the sheet has to be NAMED before it can be
+ * downloaded and TEXTURED only afterwards — see `staticAssetSpec`.
+ */
+export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture"> {
+  url: string;
+}
+
+/**
+ * A catalogue asset id, read as everything the HD-2D path needs to draw it — or `null` when this
+ * build cannot draw it at all. The ADAPTER's knowledge, exactly like `playerTextureKey` above and
+ * the terrain atlases in `scene.ts`.
  *
- * Two honest refusals, both of which `placeStaticContent` turns into one skipped sprite and a
- * console warning rather than a thrown error:
+ * ONE function, deliberately, and exported so it can be pinned by a test: the url and the geometry
+ * were briefly two functions with the REFUSALS in only one of them, which made "never ask for the
+ * geometry of an asset the other one rejected" an invariant living in neither — a second call site
+ * (an editor preview, which the spec anticipates) would have quietly framed a whole shared sheet as
+ * one sprite. The refusals and the arithmetic now sit together, and every caller gets both.
+ *
+ * Four honest refusals. `placeStaticContent` turns each into one skipped sprite and a console
+ * warning, never a thrown error:
  *
  * - an id no catalogue entry answers to — a map authored against a newer pack;
  * - an entry whose art is a sub-RECTANGLE of a shared sheet (`editor.sourceRect`: the six Update-010
  *   trees all live in one 768x576 image). A billboard frames a regular `cols x rows` grid and
  *   nothing else, so cropping one of those would need a second framing path. NOT YET DRAWN ON THE
- *   HD-2D PATH: sub-rect crops — 9 of the catalogue's 144 placeable assets.
- */
-function staticAssetUrl(assetId: string): string | null {
-  const definition = editorAsset(assetId);
-  if (!definition || definition.editor.sourceRect) return null;
-  try {
-    return tinySwordsSourceUrl(definition.sourcePath);
-  } catch {
-    // The Vite glob is the only boundary to the raw pack and it throws on a path it never bundled.
-    // A catalogue entry pointing at a file this build does not ship is one lost prop, not a crash.
-    return null;
-  }
-}
-
-/**
- * A catalogue entry, read as the four numbers a billboard is built from — the ADAPTER's knowledge,
- * exactly like `playerTextureKey` above and the terrain atlases in `scene.ts`.
+ *   HD-2D PATH: sub-rect crops — 9 of the catalogue's 144 placeable assets;
+ * - an entry NOT anchored on the bottom of its frame. `foot` is measured up from the frame's bottom
+ *   edge, which is only the sprite's ground line when `anchor.y === 1` — the PixiJS path reads the
+ *   real anchor (`catalog-element-render.ts`), this one cannot express it. No shipped asset has any
+ *   other anchor today, so this guard costs nothing and stops the first one that does from floating;
+ * - a file the Vite glob never bundled (`tinySwordsSourceUrl` throws on those, by design).
  *
  * `definition.width`/`height` are the FRAME's size, not the sheet's, so a frame count along its own
  * axis is what gives the grid. The scale rule is the pack's own and the same one `billboards.ts`
@@ -160,13 +166,9 @@ function staticAssetUrl(assetId: string): string | null {
  * ground line measured up from the bottom of the frame — which is precisely what `foot` wants, and
  * the same number the PixiJS path uses to stand the very same sprite on the very same cell.
  */
-function staticArtFor(
-  assetId: string,
-  url: string,
-  textures: TextureRegistry,
-): StaticSpriteArt | null {
+export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   const definition = editorAsset(assetId);
-  if (!definition) return null;
+  if (!definition || definition.editor.sourceRect || definition.anchor.y !== 1) return null;
   const frame = definition.frame;
   const framePx = {
     width: frame?.width ?? definition.width,
@@ -175,8 +177,16 @@ function staticArtFor(
   if (framePx.width <= 0 || framePx.height <= 0) return null;
   const count = Math.max(1, frame?.count ?? 1);
   const alongX = (frame?.axis ?? "x") === "x";
+  let url: string;
+  try {
+    url = tinySwordsSourceUrl(definition.sourcePath);
+  } catch {
+    // The Vite glob is the only boundary to the raw pack and it throws on a path it never bundled.
+    // A catalogue entry pointing at a file this build does not ship is one lost prop, not a crash.
+    return null;
+  }
   return {
-    texture: textures.get(url),
+    url,
     cols: alongX ? count : 1,
     rows: alongX ? 1 : count,
     height: framePx.height / TILE_SIZE,
@@ -341,17 +351,21 @@ export class Hd2dRenderer implements RendererLike {
     const assetIds = staticAssetIds(heightfield);
     if (assetIds.length === 0) return;
 
-    // Resolved BEFORE the download: an id this build cannot draw must not become a 404 that fails
-    // the whole batch. It stays out of the url map, `resolve` answers `null` for it, and
-    // `placeStaticContent` skips it with one warning.
-    const urlByAsset = new Map<string, string>();
+    // Resolved ONCE, BEFORE the download, and reused as the placement's own resolver below: an id
+    // this build cannot draw must not become a 404 that fails the whole batch, and — because the
+    // spec carries the geometry as well as the url — there is no second lookup that could disagree
+    // with this one about what is drawable. An unresolved id stays out of the map, `resolve`
+    // answers `null` for it, and `placeStaticContent` skips it with a warning.
+    const specByAsset = new Map<string, StaticAssetSpec>();
     for (const assetId of assetIds) {
-      const url = staticAssetUrl(assetId);
-      if (url) urlByAsset.set(assetId, url);
+      const spec = staticAssetSpec(assetId);
+      if (spec) specByAsset.set(assetId, spec);
     }
     // `atlas` stays false, as it does for every sprite sheet: a prop is seen at every distance, so
     // it keeps its mipmaps. Same reasoning as `HD2D_ACTOR_TEXTURE_URLS`.
-    const specs: TextureSpec[] = [...new Set(urlByAsset.values())].map((url) => ({ url }));
+    const specs: TextureSpec[] = [...new Set([...specByAsset.values()].map((s) => s.url))].map(
+      (url) => ({ url }),
+    );
 
     let textures: TextureRegistry | null = null;
     if (specs.length > 0) {
@@ -374,9 +388,10 @@ export class Hd2dRenderer implements RendererLike {
       this.#sceneFor(scene, heightfield),
       heightfield,
       (assetId) => {
-        const url = urlByAsset.get(assetId);
-        if (!url || !textures) return null;
-        return staticArtFor(assetId, url, textures);
+        const spec = specByAsset.get(assetId);
+        if (!spec || !textures) return null;
+        const { url, ...geometry } = spec;
+        return { texture: textures.get(url), ...geometry };
       },
     );
   }

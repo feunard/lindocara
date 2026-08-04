@@ -11,6 +11,7 @@ import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 import type { BillboardScene } from "../src/hd2d/billboards.js";
+import { staticAssetSpec } from "../src/hd2d/game-renderer.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 import type { StaticSpriteArt } from "../src/hd2d/static-content.js";
 import { placeStaticContent } from "../src/hd2d/static-content.js";
@@ -224,5 +225,67 @@ describe("static map content", () => {
     };
     expect(sample(populated)).toEqual(sample(bare));
     expect(populated.colliders).toEqual([]);
+  });
+
+  it("warns once per unresolved asset id, not once per placement", () => {
+    const map = flatMap(4, {
+      elements: [
+        { assetId: "not-in-the-catalogue", x: -1.5, z: -1.5 },
+        { assetId: "not-in-the-catalogue", x: -0.5, z: -1.5 },
+        { assetId: "also-missing", x: 0.5, z: -1.5 },
+      ],
+    });
+    const scene = sceneFor(map);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      placeStaticContent(createHd2dContext(), scene, map, resolverFor({}));
+      // Two ids, two lines — not three. A map dressed entirely out of assets this build cannot
+      // draw must not bury the console under one line per prop.
+      expect(warn).toHaveBeenCalledTimes(2);
+      const lines = warn.mock.calls.map((call) => String(call[0]));
+      expect(
+        lines.some((line) => line.includes("not-in-the-catalogue") && line.includes("2")),
+      ).toBe(true);
+      expect(lines.some((line) => line.includes("also-missing") && line.includes("1"))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(meshes(scene.root)).toHaveLength(0);
+  });
+});
+
+/**
+ * The ADAPTER's half of the resolution, over the real frozen catalogue. It is a pure function and
+ * the one place the geometry arithmetic AND the refusals live, so a catalogue edit that would stand
+ * a tree in the ground fails here rather than on screen.
+ */
+describe("staticAssetSpec", () => {
+  it("reads a catalogue sheet's grid, scale and ground line", () => {
+    // `tree3` is a 192x192 frame repeated 8 times along x, its measured ground line 22px up.
+    const spec = staticAssetSpec("resource.terrain-resources-wood-trees.tree3");
+    expect(spec).not.toBeNull();
+    expect(spec).toMatchObject({
+      cols: 8,
+      rows: 1,
+      // 192px at 64 to the tile: three tiles tall, square, standing on 22/192 of its own frame.
+      height: 3,
+      aspect: 1,
+      foot: 22 / 192,
+    });
+    expect(spec?.url).toContain("Tree3");
+  });
+
+  it("refuses an asset cropped out of a shared sheet", () => {
+    // The six Update-010 trees all live in one 768x576 image, each an `editor.sourceRect` of it. A
+    // billboard frames a regular grid and nothing else, so framing this id would draw all six trees
+    // as one sprite — the exact failure the single-function refusal exists to make impossible.
+    const spec = staticAssetSpec("resource.resources-trees.tree-1");
+    expect(spec).toBeNull();
+  });
+
+  it("refuses an id the catalogue does not answer to", () => {
+    expect(staticAssetSpec("not-in-the-catalogue")).toBeNull();
+    expect(staticAssetSpec("")).toBeNull();
   });
 });
