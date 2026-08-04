@@ -91,7 +91,9 @@ sync is its own commit. `npx alepha vendor diff` shows any local patches; keep i
 **The game's render path IS `hd2d`** since S3's first increment (2026-08-04). `packages/renderer`
 no longer contains a PixiJS renderer at all: `renderer.ts`, `stage-application.ts`,
 `catalog-element-render.ts`, `editor-asset-art.ts`, `world-event-art.ts` and `tiny-swords-art.ts`'s
-`slice*` helpers were deleted and `pixi.js` left the dependency tree. `packages/renderer/src/hd2d/`
+`slice*` helpers were deleted and `pixi.js` left THAT package's dependencies — it is still declared
+by the quarantined `@lindocara/editor`, so it remains installed until that stage is rebuilt on
+`hd2d`; no runtime path the game ships imports it. `packages/renderer/src/hd2d/`
 is the whole renderer, `apps/lab` remains the witness that proves the engine outside the game, and
 the two are the only consumers of `@lindocara/hd2d`. `apps/lab` also depends on `@lindocara/engine`,
 but only its `hd2d/` subfolder (see `packages/engine/AGENTS.md`'s Responsibility section — the game

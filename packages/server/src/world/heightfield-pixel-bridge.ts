@@ -57,9 +57,11 @@ export function pixelTerrainFromHeightfield(map: MapData): TerrainGeometry {
  *  the same walk. `null` is water — the format's own word for "no ground here". */
 function bakeHeightfieldCollision(map: MapData): TileMap {
   const cells = map.size * map.size;
-  const kinds: TileKind[] = new Array<TileKind>(cells).fill("water");
+  // Every cell is written, so there is no default to seed: the grid is built by appending one kind
+  // per cell rather than pre-filling and overwriting.
+  const kinds: TileKind[] = [];
   for (let index = 0; index < cells; index += 1) {
-    kinds[index] = (map.levels[index] ?? null) === null ? "water" : "grass";
+    kinds.push((map.levels[index] ?? null) === null ? "water" : "grass");
   }
   return { cols: map.size, rows: map.size, kinds };
 }
