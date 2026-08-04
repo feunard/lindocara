@@ -408,8 +408,9 @@ export interface GliderSettings {
    *  camera-pitch stretch this field needs: applying it to the hero's OWN billboard puts its
    *  plane top at ≈2.24 above the feet, not 1.82. And even 2.24 overstates the head: the `air`
    *  frame's actual pixel content (the pose shown while gliding) tops out lower still, at ≈1.54
-   *  above the feet. Task 4's on-screen check
-   *  (`.superpowers/sdd/2026-08-04-glider/task-4-report.md`) found that at the first-committed
+   *  above the feet. The on-screen check (see
+   *  [the glider's design](../../../docs/superpowers/specs/2026-08-04-glider-design.md), "What
+   *  well oriented means here") found that at the first-committed
    *  `lift: 2.05` the grip landed around 2.32 — roughly 0.78 units above the actual head: a
    *  parachute hovering over him, not one he's holding. Retuned by eye so the grip now rests on,
    *  and slightly overlaps, the top of the helmet plume — a small overlap is what sells the
