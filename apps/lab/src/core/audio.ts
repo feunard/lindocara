@@ -23,6 +23,7 @@ type BankKey =
   | "attaque"
   | "belement"
   | "saut"
+  | "glider"
   | "reception"
   | "entreeEau"
   | "sortieEau"
@@ -53,6 +54,9 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // de durée standard, et c'est tant mieux.
   belement: [1, 2, 3, 4].map((i) => `/sfx/bleat-${i}.ogg`),
   saut: ["/sfx/jump.ogg"],
+  // The glider's canopy opening (Task 2 of the glider plan, `~/git/pixel-art-model`'s `sfx` lane) —
+  // a single take, played once per deployment like `saut`/`reception` above, not a variant pool.
+  glider: ["/sfx/glider-open.ogg"],
   reception: ["/sfx/land.ogg"],
   entreeEau: ["/sfx/water-in.ogg"],
   sortieEau: ["/sfx/water-out.ogg"],
@@ -508,6 +512,8 @@ export const step = (sol: TerrainMaterial = "herbe"): void => {
 };
 
 export const jump = (): void => jouer("saut", { gain: 0.8 });
+/** The canopy deploying. Played once per opening, not once per glide-frame. */
+export const gliderOpen = (): void => jouer("glider", { gain: 0.7 });
 /** Réception : le poids suit la vitesse de chute. */
 export const land = (force = 1): void => jouer("reception", { gain: 0.55 * force });
 export const enterWater = (): void => jouer("entreeEau", { gain: 0.9 });

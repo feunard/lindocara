@@ -25,6 +25,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
   crack,
+  gliderOpen,
   land,
   plunge,
   setSkid,
@@ -36,7 +37,7 @@ import {
   step,
   swimStroke,
 } from "../core/audio.js";
-import { CAMERA, GLACE_FINE, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
+import { CAMERA, GLACE_FINE, GLIDER, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.
 const SPLASH = { cols: 9, frames: 9, fps: 20, height: 1.7, foot: 0.32 };
@@ -60,6 +61,7 @@ const HERO_STEP: HeroSettings = {
   friction: HERO.friction,
   vitesseSol: HERO.vitesseSol,
   jump: HERO.jump,
+  glide: HERO.glide,
   swim: HERO.swim,
   pasTousLes: PAS_TOUS_LES,
   brasseTousLes: BRASSE_TOUTES_LES,
@@ -203,6 +205,19 @@ export function createHero(
     pitch: CAMERA.pitch,
   });
 
+  // The canopy: one more billboard, not one more system. Hidden until deployed, and never
+  // recreated — opening it allocates nothing.
+  const glider = makeBillboard(ctx, {
+    texture: textures.get("/tex/glider.png"),
+    height: GLIDER.size,
+    aspect: GLIDER.aspect,
+    // Pivot at the bottom of the plane: `placeAt` then takes the height at which the canopy
+    // starts directly, with no "feet" offset to subtract.
+    foot: 0,
+    pitch: CAMERA.pitch,
+  });
+  glider.mesh.visible = false;
+
   const anim = createAnimator(billboard, HERO.anims.idle, HERO.frame.cols);
 
   // Tout ce qui n'est pas le héros lui-même : les éclaboussures et le disque qui le signale à la
@@ -210,6 +225,10 @@ export function createHero(
   const effects = new THREE.Group();
   const disc = makeSurfaceDisc(1.1);
   effects.add(disc);
+  // The glider's mesh joins the same group as every other secondary billboard here: `makeBillboard`
+  // registers it with `ctx` for yaw/lighting but never adds it to a scene graph — without this it
+  // would stay invisible regardless of `mesh.visible` or `placeAt`.
+  effects.add(glider.mesh);
   const splashes: Splash[] = [];
 
   // Glace fine (Task 7) : visuel FACULTATIF du craquement — un simple décalque givré sous les
@@ -468,6 +487,11 @@ export function createHero(
           poserTrace(e);
         } else if (e.t === "saut") {
           sonSaut();
+        } else if (e.t === "glider-open") {
+          glider.mesh.visible = true;
+          gliderOpen();
+        } else if (e.t === "glider-close") {
+          glider.mesh.visible = false;
         } else if (e.t === "reception") {
           // Le poids de la réception suit la vitesse de chute — calculé par `stepHero` (Task 3),
           // ici seulement joué (son + secousse de caméra lue par `takeImpact()`).
@@ -555,6 +579,13 @@ export function createHero(
       // En nage, le héros est descendu sous le plan d'eau : c'est lui qui le masque, et le
       // disque à la surface dit où il se trouve.
       billboard.placeAt(state.x, state.swimming ? state.y - HERO.swim.depth : state.y, state.z);
+      // The canopy follows the SAME `state.facing` as the body — one source for the orientation,
+      // so the two cannot contradict each other. Placed only while deployed: a hidden billboard
+      // has no need to be up to date.
+      if (state.gliding) {
+        glider.setFlip(state.facing < 0);
+        glider.placeAt(state.x, state.y + GLIDER.lift, state.z);
+      }
       disc.visible = state.swimming;
       if (state.swimming) disc.position.set(state.x, WORLD.waterLevel + 0.03, state.z);
 

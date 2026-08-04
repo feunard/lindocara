@@ -334,6 +334,10 @@ export interface HeroSettings {
   /** Apex = speed² / (2·gravity) = 1.35 unité : un palier (0.9) avec de la marge, jamais deux.
    *  Gravité forte pour garder le saut nerveux (~0.6 s en l'air). */
   jump: { speed: number; gravity: number; coyote: number };
+  /** The glider: consumed by the pure rule (`@lindocara/engine/hd2d/hero-step.js`) as the
+   *  descent speed while gliding. See `GLIDER` below for the billboard's own settings, which
+   *  are content for this adapter, not part of the rule. */
+  glide: { fall: number };
   /** Nage : on avance moins vite, on ne saute pas, et le souffle est compté. */
   swim: {
     speed: number;
@@ -378,9 +382,30 @@ export const HERO: HeroSettings = {
     attack: { row: 2, frames: 6, fps: 15, strike: 3 },
   },
   jump: { speed: 9, gravity: 30, coyote: 0.12 },
+  // The glider: 2.2 units/s of descent, against a free fall that passes 9 within the second. At
+  // that rate and at `speed` 4.2, almost two horizontal units are covered per unit lost — enough
+  // to cross a bay, not enough to cross the island in one leap.
+  glide: { fall: 2.2 },
   swim: { speed: 0.45, breath: 11, depth: 0.5, climb: 0.5 },
   size: 2.6,
   foot: 0.3,
+};
+
+/** The glider (`world/hero.ts`) — the GENERATED sprite's proportions, not a rule: the descent
+ *  speed lives in `HERO.glide`, which the pure rule consumes. */
+export interface GliderSettings {
+  /** Width / height of the image, measured on the post-processed PNG. */
+  aspect: number;
+  /** World height of the sprite. `aspect · size` gives the wingspan. */
+  size: number;
+  /** Height of the canopy above the feet. The hero stands `HERO.size · (1 − HERO.foot)` ≈ 1.82
+   *  to the top of the skull: the canopy sits just above that, not stuck to it. */
+  lift: number;
+}
+export const GLIDER: GliderSettings = {
+  aspect: 0.938,
+  size: 2.45,
+  lift: 2.05,
 };
 
 export interface GrotaSettings {
@@ -595,6 +620,7 @@ export const TEXTURE_URLS: readonly TextureSpec[] = [
   // --- props enneigés (Task 11 de l'île de neige) : générés, une seule frame chacun -------------
   { url: "/tex/sapin-neige.png" },
   { url: "/tex/stalagmite.png" },
+  { url: "/tex/glider.png" },
   // --- Grota, le coffre, la maison, l'intérieur ---------------------------------------------------
   { url: "/tex/panda.png" },
   // Nanuq, l'habitant de la banquise (Task 12 de l'île de neige) : sprite généré, une seule
