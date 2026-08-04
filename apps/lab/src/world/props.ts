@@ -11,7 +11,7 @@ import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { CAMERA, NORD, VAPEUR_SOURCE, WORLD } from "../settings.js";
-import type { ColliderIndex } from "./collider-index.js";
+import type { ColliderRect } from "./collider-index.js";
 import { mulberry32 } from "./island.js";
 import { createFlock, type Flock } from "./sheep.js";
 import type { TerrainQuery } from "./terrain-query.js";
@@ -162,64 +162,85 @@ export interface Props {
   update(dt: number, t: number): void;
 }
 
-export function populate(
-  ctx: Hd2dContext,
-  textures: TextureRegistry,
+// Buissons : les feuilles font 8 cases de large, mais les dernières ne sont
+// qu'un rembourrage identique à la première — les jouer ferait un temps mort
+// à chaque tour. Nombre de frames utiles relevé sheet par sheet. Exportée : `decidePlacements` ET
+// `populate` en ont désormais chacun besoin (tirage pour l'une, rendu pour l'autre).
+export const BUSH_FRAMES = [7, 6, 8, 7] as const;
+
+/**
+ * Ce que `populate` DÉCIDE avant d'avoir rien créé — position, échelle, retournement, empreinte de
+ * collision — pour les cinq props RÉPARTIS AU HASARD (arbre, décor, buisson, sapin, stalagmite).
+ * Pur, donc appelable depuis un script Node (`scripts/build-map.ts`) comme depuis le navigateur :
+ * c'est ce qui permet de sérialiser les colliders sans jamais construire un seul billboard.
+ *
+ * `variant` choisit la texture (`deco-0N.png`, 1..6 ; `bush-N.png`/`BUSH_FRAMES`, 0..3) — sans
+ * objet pour tree/sapin/stalagmite (une seule feuille chacun). `animFps`/`animPhase` sont la
+ * cadence et la phase de balancement déjà tirées : `populate` ne doit plus piocher dans le hasard
+ * à la création, sous peine de désynchroniser le tirage qui suit (buissons, arbres... tout ce qui
+ * vient après dans le même flux). 0 pour un décor sans animation (`deco`).
+ */
+export interface Placement {
+  kind: "tree" | "sapin" | "stalagmite" | "deco" | "bush";
+  x: number;
+  z: number;
+  scale: number;
+  flip: boolean;
+  variant: number;
+  animFps: number;
+  animPhase: number;
+  /** `null` pour un décor traversable — buisson, décoration au sol. */
+  collider: ColliderRect | null;
+}
+
+export interface PlacementPlan {
+  placements: readonly Placement[];
+  /** Positions du troupeau : jamais de collider (la grille est statique, les moutons bougent), donc
+   *  pas des `Placement` — juste de quoi nourrir `createFlock`. */
+  sheep: readonly (readonly [number, number])[];
+  /** Le feu et la source ne sont pas TIRÉS (position fixe, dérivée de `spawn`/`NORD`) : ils
+   *  sortent de `placements`, qui ne modélise que les tirages au hasard. `fire.collider` est
+   *  `null` dans le même cas que l'ancien `spawnProp` le laissait sans collider : sa position
+   *  tombe hors carte / dans l'eau (jamais le cas avec `SPAWN` actuel, mais rien ne l'impose au
+   *  niveau du type). La source, elle, a toujours son collider (l'original l'ajoutait sans garde). */
+  fire: { x: number; z: number; collider: ColliderRect | null };
+  spring: { x: number; z: number; collider: ColliderRect };
+  /**
+   * Le flux continue APRÈS ces décisions. `populate` le réutilise TEL QUEL pour tout ce qui suit
+   * dans l'ORDRE D'ORIGINE et n'a aucun collider à sérialiser : le tirage propre au troupeau à sa
+   * création (`createFlock`), les rochers du large, la cadence/phase du feu. L'exposer ainsi,
+   * plutôt que de couper le tirage en deux graines indépendantes, est ce qui garde `populate` bit
+   * à bit identique à avant cette task pour tout ce qui n'a pas de collider à sérialiser — et donc
+   * inutile de reproduire ici (le script de production, lui, n'en a jamais besoin).
+   */
+  rng: () => number;
+}
+
+/** Cadence et phase d'un clip animé, DÉJÀ TIRÉES — la même formule que l'ancien `spawnProp` : le
+ *  vent (`souffle`) garde une cadence resserrée (±4 %) et une phase spatiale (`windPhase`) qui
+ *  balaie l'île comme une bourrasque ; sans lui (rochers, feu), cadence et phase restent
+ *  décorrélées (±20 %, phase aléatoire). `undefined` (pas d'animation dans `KINDS`) ne consomme
+ *  RIEN au hasard — sapin/stalagmite n'en ont jamais tiré, et il ne faut pas commencer maintenant. */
+function animDraw(
+  rng: () => number,
+  anim: { frames: number; fps: number } | undefined,
+  x: number,
+  z: number,
+  souffle: boolean,
+): { fps: number; phase: number } {
+  if (!anim) return { fps: 0, phase: 0 };
+  const fps = anim.fps * (souffle ? 0.96 + rng() * 0.08 : 0.8 + rng() * 0.4);
+  const phase = souffle ? windPhase(x, z, anim.frames) + rng() * 0.4 : rng() * 40;
+  return { fps, phase };
+}
+
+export function decidePlacements(
   field: HeightField,
   query: TerrainQuery,
-  colliders: ColliderIndex,
+  seed: number,
   spawn: readonly [number, number],
-): Props {
-  const rng = mulberry32(WORLD.seed + 7);
-  const group = new THREE.Group();
-  const animated: { update(dt: number): void }[] = [];
-
-  function spawnProp(
-    kind: "tree" | "rock" | "fire" | "sapin" | "stalagmite",
-    wx: number,
-    wz: number,
-    opts: { scale?: number; flip?: boolean } = {},
-  ): void {
-    const { scale = 1, flip = false } = opts;
-    const k = KINDS[kind];
-    const y = query.heightAt(wx, wz);
-    if (y === null && kind !== "rock") return;
-    // Rectangle centré, de côté 2r : même rayon qu'avant (Task 8 change la FORME, pas le réglage),
-    // donc un tronc d'arbre ne grossit pas en devenant carré.
-    if (k.radius) {
-      const r = k.radius * scale;
-      colliders.add({ x: wx - r, z: wz - r, w: 2 * r, h: 2 * r });
-    }
-
-    const billboard = makeBillboard(ctx, {
-      texture: textures.get(k.url),
-      cols: k.cols,
-      rows: k.rows,
-      height: k.height * scale,
-      aspect: k.aspect,
-      foot: k.foot,
-      lit: k.lit !== false,
-      pitch: CAMERA.pitch,
-    });
-    billboard.placeAt(wx, y ?? WORLD.waterLevel, wz);
-    billboard.setFlip(flip);
-    if (k.anim) {
-      const souffle = kind === "tree";
-      const clip: Clip = {
-        row: k.anim.row,
-        frames: k.anim.frames,
-        fps: k.anim.fps * (souffle ? 0.96 + rng() * 0.08 : 0.8 + rng() * 0.4),
-      };
-      const a = createAnimator(billboard, clip, k.cols);
-      // Les rochers ne subissent pas le vent : leur feuille est un clapot, pas
-      // un balancement. Ils gardent donc leur phase tirée au hasard.
-      a.setPhase(souffle ? windPhase(wx, wz, k.anim.frames) + rng() * 0.4 : rng() * 40);
-      animated.push(a);
-    }
-    group.add(billboard.mesh);
-  }
-
-  // --- répartition sur les cases libres -------------------------------------
+): PlacementPlan {
+  const rng = mulberry32(seed);
   const taken = new Set<string>();
   const key = (i: number, j: number) => `${i},${j}`;
   const size = field.cols;
@@ -292,47 +313,67 @@ export function populate(
     return [x + (rng() - 0.5) * amount, z + (rng() - 0.5) * amount];
   };
 
+  const placements: Placement[] = [];
+
   for (const [i, j] of freeCells([0, 1], 30, 1)) {
     const [x, z] = jitter(i, j, 0.5);
-    spawnProp("tree", x, z, { scale: 0.85 + rng() * 0.35, flip: rng() > 0.5 });
+    const scale = 0.85 + rng() * 0.35;
+    const flip = rng() > 0.5;
+    // Garde héritée de l'ancien `spawnProp` : avec `margin = 1`, les 8 voisins de la case sont
+    // garantis du même palier (jamais d'eau), donc jamais atteinte en pratique — reproduite pour
+    // ne pas dépendre silencieusement de cette propriété si `margin` change un jour.
+    if (query.heightAt(x, z) === null) continue;
+    const r = (KINDS.tree.radius ?? 0) * scale;
+    const { fps, phase } = animDraw(rng, KINDS.tree.anim, x, z, true);
+    placements.push({
+      kind: "tree",
+      x,
+      z,
+      scale,
+      flip,
+      variant: 0,
+      animFps: fps,
+      animPhase: phase,
+      collider: { x: x - r, z: z - r, w: 2 * r, h: 2 * r },
+    });
   }
 
   for (const [i, j] of freeCells([0, 1, 2], 46)) {
     const [x, z] = jitter(i, j, 0.7);
-    const n = 1 + Math.floor(rng() * 6);
-    const url = `/tex/deco-0${n}.png`;
-    const billboard = makeBillboard(ctx, {
-      texture: textures.get(url),
-      height: DECO_SHEET.height,
-      foot: DECO_SHEET.foot,
-      pitch: CAMERA.pitch,
+    const variant = 1 + Math.floor(rng() * 6);
+    const flip = rng() > 0.5;
+    placements.push({
+      kind: "deco",
+      x,
+      z,
+      scale: 1,
+      flip,
+      variant,
+      animFps: 0,
+      animPhase: 0,
+      collider: null,
     });
-    billboard.placeAt(x, query.heightAt(x, z) ?? 0, z);
-    billboard.setFlip(rng() > 0.5);
-    group.add(billboard.mesh);
   }
 
-  // Buissons : les feuilles font 8 cases de large, mais les dernières ne sont
-  // qu'un rembourrage identique à la première — les jouer ferait un temps mort
-  // à chaque tour. Nombre de frames utiles relevé sheet par sheet.
-  const BUSH_FRAMES = [7, 6, 8, 7] as const;
   for (const [i, j] of freeCells([0, 1, 2], 22)) {
     const [x, z] = jitter(i, j, 0.6);
     const variant = Math.floor(rng() * 4);
-    const billboard = makeBillboard(ctx, {
-      texture: textures.get(`/tex/bush-${variant + 1}.png`),
-      cols: 8,
-      height: 1.5,
-      foot: 0.43,
-      pitch: CAMERA.pitch,
-    });
-    billboard.placeAt(x, query.heightAt(x, z) ?? 0, z);
-    billboard.setFlip(rng() > 0.5);
-    group.add(billboard.mesh);
+    const flip = rng() > 0.5;
     const frames = BUSH_FRAMES[variant] ?? 7;
-    const a = createAnimator(billboard, { row: 0, frames, fps: 2.6 * (0.96 + rng() * 0.08) }, 8);
-    a.setPhase(windPhase(x, z, frames) + rng() * 0.4);
-    animated.push(a);
+    // Les buissons se balancent au vent comme les arbres — toujours `souffle = true`, quel que
+    // soit `variant` : ce n'est pas la même condition que `KINDS`, qui ne connaît pas les buissons.
+    const { fps, phase } = animDraw(rng, { frames, fps: 2.6 }, x, z, true);
+    placements.push({
+      kind: "bush",
+      x,
+      z,
+      scale: 1,
+      flip,
+      variant,
+      animFps: fps,
+      animPhase: phase,
+      collider: null,
+    });
   }
 
   // --- les props enneigés (Task 11 de l'île de neige) : uniquement sur `neige`, jamais sur la
@@ -343,36 +384,182 @@ export function populate(
   // plus haut, s'applique ici comme partout : ces cases sont déjà dans `taken`.
   for (const [i, j] of freeCells([0, 1], 16, 1, ["neige"])) {
     const [x, z] = jitter(i, j, 0.5);
-    spawnProp("sapin", x, z, { scale: 0.85 + rng() * 0.3, flip: rng() > 0.5 });
+    const scale = 0.85 + rng() * 0.3;
+    const flip = rng() > 0.5;
+    if (query.heightAt(x, z) === null) continue; // garde, voir plus haut (jamais atteinte)
+    const r = (KINDS.sapin.radius ?? 0) * scale;
+    const { fps, phase } = animDraw(rng, KINDS.sapin.anim, x, z, false);
+    placements.push({
+      kind: "sapin",
+      x,
+      z,
+      scale,
+      flip,
+      variant: 0,
+      animFps: fps,
+      animPhase: phase,
+      collider: { x: x - r, z: z - r, w: 2 * r, h: 2 * r },
+    });
   }
   for (const [i, j] of freeCells([0, 1], 9, 1, ["neige"])) {
     const [x, z] = jitter(i, j, 0.4);
-    spawnProp("stalagmite", x, z, { scale: 0.8 + rng() * 0.35, flip: rng() > 0.5 });
+    const scale = 0.8 + rng() * 0.35;
+    const flip = rng() > 0.5;
+    if (query.heightAt(x, z) === null) continue; // garde, voir plus haut (jamais atteinte)
+    const r = (KINDS.stalagmite.radius ?? 0) * scale;
+    const { fps, phase } = animDraw(rng, KINDS.stalagmite.anim, x, z, false);
+    placements.push({
+      kind: "stalagmite",
+      x,
+      z,
+      scale,
+      flip,
+      variant: 0,
+      animFps: fps,
+      animPhase: phase,
+      collider: { x: x - r, z: z - r, w: 2 * r, h: 2 * r },
+    });
+  }
+
+  // Positions du troupeau — moutons SEULS, jamais de collider (ils bougent). `createFlock` tire
+  // encore, à sa construction, quatre valeurs par mouton (phase/minuteur/orientation/voix) : ce
+  // ne sont plus des DÉCISIONS DE PLACEMENT (aucun collider, aucun impact sur le rendu du reste de
+  // la carte), donc elles restent dans `populate`, via `rng` exposé ci-dessous.
+  const sheep = freeCells([0, 1], 6).map(([i, j]) => jitter(i, j, 0.4));
+
+  const fx = spawn[0] + 1.8;
+  const fz = spawn[1] - 1.4;
+  const fr = KINDS.fire.radius ?? 0;
+  // Même garde que l'ancien `spawnProp` : `y === null` (position hors carte / dans l'eau) le
+  // laissait sans collider ET sans billboard. `populate` referme la garde côté billboard ; celle-ci
+  // en est le pendant côté collider.
+  const fireCollider: ColliderRect | null =
+    query.heightAt(fx, fz) === null ? null : { x: fx - fr, z: fz - fr, w: 2 * fr, h: 2 * fr };
+
+  return {
+    placements,
+    sheep,
+    fire: { x: fx, z: fz, collider: fireCollider },
+    // La source, elle, n'a jamais eu cette garde dans l'original — son collider était ajouté
+    // inconditionnellement (voir le rapport de la task).
+    spring: {
+      x: sourceX,
+      z: sourceZ,
+      collider: { x: sourceX - 0.7, z: sourceZ - 0.7, w: 1.4, h: 1.4 },
+    },
+    rng,
+  };
+}
+
+export function populate(
+  ctx: Hd2dContext,
+  textures: TextureRegistry,
+  field: HeightField,
+  query: TerrainQuery,
+  spawn: readonly [number, number],
+): Props {
+  const plan = decidePlacements(field, query, WORLD.seed + 7, spawn);
+  const group = new THREE.Group();
+  const animated: { update(dt: number): void }[] = [];
+
+  // Un seul billboard animé par KIND — reprend ce que faisait `spawnProp`, MOINS le collider (il
+  // vient désormais de la carte, jamais d'ici) et MOINS le tirage au hasard (déjà fait, voir
+  // `decidePlacements`/`plan`).
+  function placeKindBillboard(
+    kind: "tree" | "rock" | "fire" | "sapin" | "stalagmite",
+    x: number,
+    y: number,
+    z: number,
+    scale: number,
+    flip: boolean,
+    animFps: number,
+    animPhase: number,
+  ): void {
+    const k = KINDS[kind];
+    const billboard = makeBillboard(ctx, {
+      texture: textures.get(k.url),
+      cols: k.cols,
+      rows: k.rows,
+      height: k.height * scale,
+      aspect: k.aspect,
+      foot: k.foot,
+      lit: k.lit !== false,
+      pitch: CAMERA.pitch,
+    });
+    billboard.placeAt(x, y, z);
+    billboard.setFlip(flip);
+    if (k.anim) {
+      const clip: Clip = { row: k.anim.row, frames: k.anim.frames, fps: animFps };
+      const a = createAnimator(billboard, clip, k.cols);
+      a.setPhase(animPhase);
+      animated.push(a);
+    }
+    group.add(billboard.mesh);
+  }
+
+  for (const p of plan.placements) {
+    if (p.kind === "deco") {
+      // Jamais de garde `y === null` ici : l'original posait la décoration à `?? 0` plutôt que de
+      // la sauter (elle n'a pas de collider à perdre si elle tombe un peu à côté).
+      const y = query.heightAt(p.x, p.z) ?? 0;
+      const billboard = makeBillboard(ctx, {
+        texture: textures.get(`/tex/deco-0${p.variant}.png`),
+        height: DECO_SHEET.height,
+        foot: DECO_SHEET.foot,
+        pitch: CAMERA.pitch,
+      });
+      billboard.placeAt(p.x, y, p.z);
+      billboard.setFlip(p.flip);
+      group.add(billboard.mesh);
+      continue;
+    }
+    if (p.kind === "bush") {
+      const y = query.heightAt(p.x, p.z) ?? 0;
+      const billboard = makeBillboard(ctx, {
+        texture: textures.get(`/tex/bush-${p.variant + 1}.png`),
+        cols: 8,
+        height: 1.5,
+        foot: 0.43,
+        pitch: CAMERA.pitch,
+      });
+      billboard.placeAt(p.x, y, p.z);
+      billboard.setFlip(p.flip);
+      group.add(billboard.mesh);
+      const frames = BUSH_FRAMES[p.variant] ?? 7;
+      const a = createAnimator(billboard, { row: 0, frames, fps: p.animFps }, 8);
+      a.setPhase(p.animPhase);
+      animated.push(a);
+      continue;
+    }
+    // tree / sapin / stalagmite : même garde que `decidePlacements` (jamais atteinte en pratique,
+    // voir son commentaire), reproduite ici parce que c'est `populate`, pas `decidePlacements`,
+    // qui construit le billboard.
+    const y = query.heightAt(p.x, p.z);
+    if (y === null) continue;
+    placeKindBillboard(p.kind, p.x, y, p.z, p.scale, p.flip, p.animFps, p.animPhase);
   }
 
   // Moutons : ils se baladent, donc pas de collider (la grille est statique).
-  const flock = createFlock(
-    ctx,
-    textures,
-    query,
-    freeCells([0, 1], 6).map(([i, j]) => jitter(i, j, 0.4)),
-    rng,
-  );
+  const flock = createFlock(ctx, textures, query, plan.sheep, plan.rng);
   group.add(flock.group);
 
   // Rochers dans l'eau, autour de l'île.
   for (let n = 0; n < 14; n++) {
-    const a = rng() * Math.PI * 2;
-    const r = size * 0.5 + 1.5 + rng() * 4;
+    const a = plan.rng() * Math.PI * 2;
+    const r = field.cols * 0.5 + 1.5 + plan.rng() * 4;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
     if (query.heightAt(x, z) !== null) continue;
-    spawnProp("rock", x, z, { scale: 0.7 + rng() * 0.6, flip: rng() > 0.5 });
+    const scale = 0.7 + plan.rng() * 0.6;
+    const flip = plan.rng() > 0.5;
+    const { fps, phase } = animDraw(plan.rng, KINDS.rock.anim, x, z, false);
+    placeKindBillboard("rock", x, WORLD.waterLevel, z, scale, flip, fps, phase);
   }
 
   // --- le feu de camp : sprite non éclairé + vraie lumière ponctuelle -------
-  const fx = spawn[0] + 1.8;
-  const fz = spawn[1] - 1.4;
+  // Position décidée par `decidePlacements` (`plan.fire`) — jamais recalculée ici, pour que
+  // `populate` et le script de production ne puissent jamais en dériver deux valeurs différentes.
+  const { x: fx, z: fz } = plan.fire;
   const fy = query.heightAt(fx, fz) ?? 0;
   // Le foyer est posé À PLAT : le modèle l'a dessiné vu de dessus, et un cercle
   // de pierres au sol dressé sur un plan vertical ferait un disque debout.
@@ -384,7 +571,15 @@ export function populate(
   });
   foyer.mesh.position.set(fx, fy + 0.03, fz);
   group.add(foyer.mesh);
-  spawnProp("fire", fx, fz);
+  // Même garde que `decidePlacements` (`plan.fire.collider`) : si le point tombait hors carte, ni
+  // billboard ni collider. Cadence/phase tirées ICI, au même point du flux qu'avant cette task
+  // (après les rochers du large) — `plan.rng` continue le MÊME tirage, la flamme n'a donc pas
+  // changé d'un chiffre.
+  const fireY = query.heightAt(fx, fz);
+  if (fireY !== null) {
+    const { fps, phase } = animDraw(plan.rng, KINDS.fire.anim, fx, fz, false);
+    placeKindBillboard("fire", fx, fireY, fz, 1, false, fps, phase);
+  }
   // La portée d'une lumière ponctuelle est une COUPURE : l'atténuation atteint
   // zéro pile à `distance`, et avec une décroissance de 1.6 elle y arrive encore
   // vive. D'où le cerne net que le foyer traçait au sol, à seize unités de lui.
@@ -419,16 +614,11 @@ export function populate(
   group.add(fireHalo);
 
   // --- la source chaude : le point de repos de la zone polaire, pendant exact du feu ----------
-  // `sourceX`/`sourceZ` sont calculés plus haut (avant les tirages de `freeCells`) pour réserver
-  // leur clairière ; cette section construit les objets, exactement comme la section du feu
-  // ci-dessus. La recette est PORTÉE, pas réinventée : mêmes trois pièges déjà payés une fois pour
-  // le feu, à ne pas repayer ici.
+  // Position décidée par `decidePlacements` (`plan.spring`), pour la même raison que `plan.fire`
+  // plus haut. Son collider (rayon 0.7, comme avant Task 8) vient désormais de la carte — cette
+  // section ne construit plus que la lumière et la vapeur, jamais de collider.
+  const { x: sourceX, z: sourceZ } = plan.spring;
   const sy = query.heightAt(sourceX, sourceZ) ?? 0;
-  // La "flaque" elle-même n'a pas de sprite : aucun asset n'est généré pour cette task (voir le
-  // plan, section « Les assets générés » — rien pour la source), la source n'est donc QUE lumière
-  // et vapeur. On ne veut pourtant pas qu'on marche EN PLEIN DEDANS : un collider modeste en tient
-  // lieu, comme celui du foyer (`KINDS.fire.radius`). Même rayon (0.7) qu'avant Task 8, en rectangle.
-  colliders.add({ x: sourceX - 0.7, z: sourceZ - 0.7, w: 1.4, h: 1.4 });
 
   // Même couleur de base que le feu (chaude), teinte ambrée plutôt qu'orange franc : les deux
   // landmarks ne doivent jamais se confondre au premier regard malgré la même mécanique.
@@ -492,10 +682,13 @@ export function populate(
     const p = puffs[puffSuivant];
     if (!p) return;
     puffSuivant = (puffSuivant + 1) % VAPEUR_SOURCE.count;
-    const a = rng() * Math.PI * 2;
-    const r = rng() * VAPEUR_SOURCE.rayon;
+    // Toujours le MÊME générateur que `decidePlacements`/`populate` — il continue simplement de
+    // tourner pendant toute la vie de la scène, exactement comme avant cette task (`rng` était un
+    // seul flux partagé pour toute la durée de `populate`, décisions de placement comprises).
+    const a = plan.rng() * Math.PI * 2;
+    const r = plan.rng() * VAPEUR_SOURCE.rayon;
     p.t = 0;
-    p.seed = rng() * Math.PI * 2;
+    p.seed = plan.rng() * Math.PI * 2;
     p.billboard.mesh.position.set(sourceX + Math.cos(a) * r, sy + 0.12, sourceZ + Math.sin(a) * r);
     p.billboard.mesh.scale.setScalar(1);
     p.material.opacity = VAPEUR_SOURCE.opaciteInitiale;

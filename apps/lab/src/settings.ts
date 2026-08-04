@@ -34,6 +34,12 @@ export const WORLD: WorldSettings = {
   maxStep: 0,
 };
 
+/** Le point d'apparition du héros — sorti ici (Task 10) pour que `main.ts` ET
+ *  `scripts/build-map.ts` partagent la MÊME valeur : le script en a besoin pour décider la
+ *  clairière du spawn et la position du feu (`world/props.ts`, `decidePlacements`) exactement
+ *  comme le fait `populate` au chargement — deux copies auraient tôt ou tard divergé. */
+export const SPAWN: readonly [number, number] = [-2, 4];
+
 /** L'île gelée. Au nord, hors de portée à pied : le couloir qui l'en sépare est de l'eau, et
  *  c'est voulu — on arrive sur la banquise essoufflé, et la musique change à ce moment-là. */
 export const NORD = { x: 0, z: -26, r: 7.5 } as const;

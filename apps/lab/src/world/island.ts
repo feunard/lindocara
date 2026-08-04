@@ -1,5 +1,6 @@
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { NORD, WORLD } from "../settings.js";
+import type { MapData } from "./map-data.js";
 import { createTerrainQuery, type TerrainMaterial, type TerrainQuery } from "./terrain-query.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
@@ -116,6 +117,22 @@ function makeHeightmap(size: number): (number | null)[] {
 
 const LEVEL_SET = ["lvl0", "lvl1", "lvl2"] as const;
 const levelSet = (h: number): string => LEVEL_SET[Math.min(h, LEVEL_SET.length - 1)] ?? "lvl2";
+
+/**
+ * La clé d'ATLAS d'une case, à partir de sa matière de RÈGLE (`TerrainMaterial`, cinq valeurs) et
+ * de son palier — la distinction que `field.materialAt` fait depuis toujours (voir `generateIsland`
+ * ci-dessous) : le sable et la neige gardent leur nom, la glace fine partage l'atlas de la glace (une
+ * matière de règle sans encore d'apparence propre), et l'herbe se décline en trois bandes lvl0/1/2
+ * pour que la falaise change d'image avec la hauteur. Exportée pour que `mapToHeightField`
+ * (Task 10) puisse reconstruire un `HeightField` de RENDU depuis une `MapData` qui, elle, ne
+ * connaît QUE la matière de règle — jamais la bande de rendu, qui n'est qu'une dérivation
+ * (palier, matière) → bloc d'atlas, pas une donnée en soi.
+ */
+export function renderMaterialAt(kind: TerrainMaterial, level: number): string {
+  if (kind === "sable" || kind === "neige") return kind;
+  if (kind === "glace" || kind === "glace-fine") return "glace";
+  return levelSet(level);
+}
 
 const NEIGHBORS_4 = [
   [1, 0],
@@ -248,12 +265,9 @@ export function generateIsland(opts: GenerateIslandOptions): {
       const h = at(i, j);
       if (h === null) return null;
       const k = kindAt(i, j);
-      if (k === "sable" || k === "neige") return k;
-      // La glace fine partage l'atlas de la glace : c'est une matière de RÈGLE (elle cède sous le
-      // poids), pas encore d'apparence — la Task 7 lui donnera son propre visuel de craquelure
-      // (voir `main.ts`, `atlases`).
-      if (k === "glace" || k === "glace-fine") return "glace";
-      return levelSet(h);
+      // Ne devrait jamais être `null` ici (`kinds` est rempli partout où `at` ne l'est pas), mais
+      // `renderMaterialAt` exige une matière non-nulle — un `null` défensif plutôt qu'un cast.
+      return k === null ? null : renderMaterialAt(k, h);
     },
   };
 
@@ -266,4 +280,33 @@ export function generateIsland(opts: GenerateIslandOptions): {
   });
 
   return { field, query };
+}
+
+/**
+ * Reconstruit un `HeightField` de RENDU depuis une `MapData` DÉCODÉE (Task 10) — le pendant de
+ * `generateIsland` quand la carte vient d'un fichier plutôt que du bruit procédural : même forme
+ * (`levelAt`/`materialAt`), même convention de bande d'atlas (`renderMaterialAt`), pour que
+ * `meshTerrain`/`createWater`/`createFoam` ne voient AUCUNE différence entre les deux origines.
+ * Vit ici plutôt que dans `map-data.ts` : ce dernier reste sans dépendance vers `@lindocara/hd2d`
+ * (il partira dans `@lindocara/engine`, qui ne doit rien savoir du rendu), alors qu'`island.ts`
+ * importe déjà `HeightField` et connaît déjà la convention lvl0/lvl1/lvl2 — c'est le seul endroit du
+ * labo où les deux notions (donnée de carte, bande de rendu) se rencontrent légitimement.
+ */
+export function mapToHeightField(m: MapData): HeightField {
+  const inBounds = (i: number, j: number) => i >= 0 && j >= 0 && i < m.size && j < m.size;
+  return {
+    cols: m.size,
+    rows: m.size,
+    levelAt(i, j) {
+      if (!inBounds(i, j)) return null;
+      return m.levels[j * m.size + i] ?? null;
+    },
+    materialAt(i, j) {
+      if (!inBounds(i, j)) return null;
+      const h = m.levels[j * m.size + i];
+      if (h === null || h === undefined) return null;
+      const mat = m.materials[j * m.size + i];
+      return mat === undefined ? null : renderMaterialAt(mat, h);
+    },
+  };
 }

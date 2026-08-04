@@ -46,6 +46,7 @@ import {
   MOODS,
   NEIGE_CHUTE,
   NORD,
+  SPAWN,
   SUN_DRIFT,
   TARGET_FPS,
   TEXTURE_URLS,
@@ -61,11 +62,20 @@ import { createDebugView } from "./world/debug.js";
 import { createHero } from "./world/hero.js";
 import { createHouse } from "./world/house.js";
 import { createInterior } from "./world/interior.js";
-import { generateIsland } from "./world/island.js";
+import { mapToHeightField } from "./world/island.js";
+import { decodeMap, mapToQuerySource } from "./world/map-data.js";
 import { createGrota } from "./world/npc.js";
 import { populate, windPhase } from "./world/props.js";
 import { createSnowNpc } from "./world/snow-npc.js";
+import { createTerrainQuery } from "./world/terrain-query.js";
 import { type Zone, zoneAt } from "./world/zones.js";
+
+// Task 10 : l'île n'est plus générée au démarrage, elle est CHARGÉE — `world/island.ts`
+// (`generateIsland`) reste le seul outil qui sait la produire, mais devient un outil de
+// PRODUCTION de données (`scripts/build-map.ts`), plus une dépendance d'exécution du labo. La
+// carte rejoint donc les textures et les sons dans la barre de chargement, pondérée en octets
+// comme le reste (voir `avancement` plus bas).
+const MAP_URL = "/maps/ile.json";
 
 // --- chargement -------------------------------------------------------------------------------
 // Tout est chargé AVANT de construire quoi que ce soit : la scène naît complète, et aucun sprite
@@ -86,7 +96,7 @@ function avancement(): void {
   if (barreChargement) barreChargement.style.width = `${p}%`;
 }
 
-const blobs = await fetchAll([...TEXTURE_URLS.map((t) => t.url), ...AUDIO_URLS], (p) => {
+const blobs = await fetchAll([...TEXTURE_URLS.map((t) => t.url), ...AUDIO_URLS, MAP_URL], (p) => {
   partTelechargee = p;
   avancement();
 });
@@ -116,7 +126,17 @@ const camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 220);
 const ctx = createHd2dContext();
 
 // --- monde ------------------------------------------------------------------------------------
-const { field, query } = generateIsland({ size: WORLD.size, seed: WORLD.seed });
+// La carte remplace `generateIsland` comme source de vérité (Task 10) : `decodeMap` ne jette
+// jamais, mais une carte absente ou corrompue laisserait le labo démarrer sur un monde vide sans
+// rien dire — un échec bruyant ici vaut mieux qu'une île silencieusement plate.
+const carteBlob = blobs.get(MAP_URL);
+if (!carteBlob) throw new Error(`Carte introuvable au chargement : ${MAP_URL}`);
+const carte = decodeMap(await carteBlob.text());
+if (!carte)
+  throw new Error(`Carte invalide : ${MAP_URL} (relancer "npm run build:map -w @lindocara/lab")`);
+
+const field = mapToHeightField(carte);
+const query = createTerrainQuery(mapToQuerySource(carte));
 
 // Un atlas par clé de matière (voir `HeightField.materialAt`, `island.ts`). `TerrainAtlas.block`
 // dit quel bloc 4x4 l'image contient (voir `atlas.ts`) : dans le tileset du Free Pack, le palier 0
@@ -208,15 +228,19 @@ const foam = createFoam(ctx, field, {
 });
 scene.add(foam.group);
 
-// Les props d'abord : ce sont eux qui déclarent les colliders (arbres, rochers, feu) que le héros
-// et Grota testent. `colliders` est créé ICI, dans le composition root, parce que le héros — créé
-// juste après Grota — doit voir la MÊME instance que celle que `populate`/`createGrota` peuplent :
-// contrairement au PoC, où `props.js` fabrique et possède ses colliders, l'architecture du labo
-// (Task 11) fait déjà de `main.ts` le propriétaire de `colliders`.
+// `colliders` est créé ICI, dans le composition root, parce que le héros — créé juste après
+// Grota — doit voir la MÊME instance que celle que Grota/Nanuq peuplent ensuite : contrairement au
+// PoC, où `props.js` fabriquait et possédait ses propres colliders, l'architecture du labo (Task
+// 11) fait de `main.ts` le propriétaire de `colliders`.
+//
+// Task 10 : les colliders des PROPS (arbres, rochers, feu, source chaude) ne sont plus déclarés
+// par `populate` — ils viennent de la carte, chargée une fois pour toutes. `populate` continue de
+// créer les billboards (mêmes positions, même graine — voir `world/props.ts`, `decidePlacements`),
+// mais n'écrit plus dans `colliders`.
 const colliders = createColliderIndex();
+for (const c of carte.colliders) colliders.add(c);
 
-const SPAWN = [-2, 4] as const;
-const props = populate(ctx, textures, field, query, colliders, SPAWN);
+const props = populate(ctx, textures, field, query, SPAWN);
 scene.add(props.group);
 
 // Grota AVANT le héros : il déclare son collider, que le héros doit connaître.
