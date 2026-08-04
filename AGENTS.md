@@ -88,6 +88,15 @@ framework work:** a framework fix is implemented in `../alepha` (its tests live 
 with `yarn v` upstream, committed and pushed, then pulled here with `npx alepha vendor sync` — the
 sync is its own commit. `npx alepha vendor diff` shows any local patches; keep it clean.
 
+> **The deployed game draws nothing until a map carries a heightfield (since 2026-08-04).** The
+> renderer builds no scene without one (`packages/renderer/src/hd2d/game-renderer.ts`), and all five
+> authored adventures are still tile maps whose `heightfield` column is empty — so every existing
+> party renders a blank screen in production. This is the increment's accepted cost, not a
+> regression to hunt: the spec put porting the adventures in a later piece. Note there is currently
+> **no in-band way to seed one**: `MapService.saveHeightfield` is reachable from no controller, and
+> `scripts/build-proving-map.ts` writes to a local SQLite path while production's database lives
+> inside the Bay process. Regenerating the adventures as heightfields is what closes this.
+
 **The game's render path IS `hd2d`** since S3's first increment (2026-08-04). `packages/renderer`
 no longer contains a PixiJS renderer at all: `renderer.ts`, `stage-application.ts`,
 `catalog-element-render.ts`, `editor-asset-art.ts`, `world-event-art.ts` and `tiny-swords-art.ts`'s
