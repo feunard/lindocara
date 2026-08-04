@@ -70,7 +70,7 @@ prefixes in the file map further down map straight onto these homes:
 
 | Package | Old path | Depends on | Runtime |
 | --- | --- | --- | --- |
-| [`@lindocara/engine`](./packages/engine/AGENTS.md) | `src/shared/` | — | pure (ni DOM ni Workers) |
+| [`@lindocara/engine`](./packages/engine/AGENTS.md) | `src/shared/`, plus `hd2d/` — the HD-2D witness's geometry and movement rule, moved in from `apps/lab` in S2 | — | pure (ni DOM ni Workers) |
 | [`@lindocara/server`](./packages/server/AGENTS.md) | `src/server/` — now Alepha services/entities/controllers (`src/api/`), the realtime rooms (`src/api/realtime/`) and the world systems (`src/world/`) | engine, alepha | Node (dev) / workerd (prod) |
 | [`@lindocara/renderer`](./packages/renderer/AGENTS.md) | drawing half of `src/client/game/` (+ `input`, `locale`, `scene-sample`) | engine | browser, React-free (PixiJS) |
 | [`@lindocara/ui`](./packages/ui/AGENTS.md) | the stock shadcn tree (base-nova) + `cn` + `globals.css` tokens — shadcn monorepo mode | npm only | browser + React |
@@ -115,8 +115,9 @@ pattern for the two newest members. **Tests are co-located per package** in `pac
 own `vitest.config.ts` (engine/catalog/server/hd2d/lab = node, renderer/client/editor = jsdom — hd2d
 and lab need no DOM because three itself builds geometry/material/color data identically outside a
 browser, and the two packages' own pure logic — `tiltShiftRadius`/`fillAmount`/`sheetUv` in hd2d,
-`island.ts`/`terrain-query.ts` in lab — is exactly what's left once anything canvas/WebGL is
-excluded). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything
+`island.ts` in lab (its sibling `terrain-query.ts` moved into `@lindocara/engine/hd2d/` in S2,
+alongside the rest of the hero's movement rule) — is exactly what's left once anything
+canvas/WebGL is excluded). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything
 and `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`, e.g. `test:hd2d`/`test:lab`) runs one.
 
 **The app's config lives with the app:** `apps/main/alepha.config.ts` declares the production
@@ -314,6 +315,12 @@ commands during reconciliation. Reconciliation is only correct because the two a
 the same function. Two hand-synchronised copies of movement logic is the classic way to make
 prediction unfixable. There is one copy, and `prediction.test.ts` asserts that replaying
 commands over a stale position lands exactly where the server lands.
+
+`@lindocara/engine/hd2d/hero-step.ts`'s `stepHero` is a SECOND movement model, in tile units
+rather than `step()`'s pixels — this is not a fork of the rule above, and never unify the two by
+hand. It is the movement truth the HD-2D witness (`apps/lab`) runs today, in reprieve until a
+later task wires it into the server's authoritative tick and the client's prediction the same way
+`step()` is wired in now; see `packages/engine/AGENTS.md`'s `hd2d/` section for the terms.
 
 ### Per-package tsconfigs, not one
 

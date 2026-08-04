@@ -21,13 +21,16 @@ made that move: `terrain-query.ts`, `collider-index.ts` and `map-data.ts` first,
 `hero-state.ts`, `locomotion.ts`, `thin-ice.ts` and `hero-step.ts` — all seven now live in
 `@lindocara/engine/hd2d/`, tile-unit geometry AND the hero's movement rule kept in their own
 subfolder there, away from the pixel-unit `simulation.ts`/`collider.ts` the live game still ships
-against — and the lab imports every one of them back as `@lindocara/engine/hd2d/*.js`. **The hero
-has no rules of its own left in this app.** `world/hero.ts` is an adapter now, nothing more: it
-holds the billboards, the animator, the audio calls and the camera-facing bits, and every frame it
-calls `stepHero()` (`@lindocara/engine/hd2d/hero-step.js`) with the current `HeroState` and plays
-back whatever `HeroEvent`s that pure call returns. If you're looking for why the hero jumps,
-skids, drowns or cracks thin ice the way it does, that logic isn't here — read
-`packages/engine/AGENTS.md`'s `hd2d/` section and the four files it lists.
+against — and the lab imports every one of them back as `@lindocara/engine/hd2d/*.js`. **`world/hero.ts`
+is an adapter, not the rule** — it holds the billboards, the animator, the audio calls and the
+camera-facing bits, and every frame it calls `stepHero()` (`@lindocara/engine/hd2d/hero-step.js`)
+with the current `HeroState` and plays back whatever `HeroEvent`s that pure call returns. It keeps
+exactly TWO rules of its own, both deliberate exceptions documented at the field level in
+`HeroState` (`packages/engine/AGENTS.md`'s `hd2d/` section): the attack state machine (`attaque`,
+presentation timing a server doesn't need) and advancing thin ice's refreeze clock
+(`thinIce.update(dt)`, called once per frame, unconditionally, before `stepHero` — see
+`StepDeps.glace`'s docstring for why `stepHero` itself never does). Everything else about why the
+hero jumps, skids, drowns or cracks thin ice the way it does lives in `hd2d/`, not here.
 
 ## Files
 
@@ -358,11 +361,16 @@ LAB_SFX_PACK=/path/to/pack apps/lab/scripts/sync-assets.sh
 ```bash
 npm run lab                  # (root) vite dev — http://localhost:5174
 npm run build -w @lindocara/lab
+npm run build:map -w @lindocara/lab  # regenerate public/maps/ile.json — required after editing
+                              # `world/island.ts`/`world/props.ts`'s placement rules, or anything
+                              # else `scripts/build-map.ts` bakes into the map: the file is
+                              # committed, not generated at dev-server start, so an edit that
+                              # changes the map silently drifts from what's on disk until this runs.
 npm run typecheck:lab        # tsc
-npm test -w @lindocara/lab   # or: npm run test:lab — Node env, pure logic only (island, terrain-query,
+npm test -w @lindocara/lab   # or: npm run test:lab — Node env, pure logic only (island,
                               # map-parite, zones, bench). The hero's own tests
-                              # (hero-state/hero-step/hero-friction/thin-ice) moved to
-                              # `packages/engine/test/hd2d/` alongside the code — run with
+                              # (hero-state/hero-step/hero-friction/thin-ice) AND terrain-query's
+                              # moved to `packages/engine/test/hd2d/` alongside the code — run with
                               # `npm run test:engine`.
 ```
 
