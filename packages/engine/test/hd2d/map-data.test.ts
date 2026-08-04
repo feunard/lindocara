@@ -27,6 +27,8 @@ const map: MapData = {
   ],
   colliders: [{ x: 1, z: 1, w: 0.4, h: 0.4 }],
   spawns: [{ name: "depart", x: 0, z: 0 }],
+  elements: [{ assetId: "tree_01", x: 2, z: 2 }],
+  events: [{ id: "ev-1", x: 3, z: 3, graphicAssetId: "chest_closed" }],
 };
 
 describe("the map codec", () => {

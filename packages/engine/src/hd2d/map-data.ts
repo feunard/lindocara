@@ -38,6 +38,26 @@ export interface MapData {
   materials: readonly TerrainMaterial[];
   colliders: readonly ColliderRect[];
   spawns: readonly { name: string; x: number; z: number }[];
+  /** Decoration. Appearance only. */
+  elements: readonly HeightfieldElement[];
+  /** Authored events' active page. Appearance only. */
+  events: readonly HeightfieldEvent[];
+}
+
+/** Decoration, appearance only. Collision comes from `colliders`, never from this list — the
+ *  same rule `WorldInfo.elements` follows on the wire. Coordinates are tile units, grid-centred. */
+export interface HeightfieldElement {
+  assetId: string;
+  x: number;
+  z: number;
+}
+
+/** An authored event's active page, appearance only. Mirrors `WorldInfo.events`. */
+export interface HeightfieldEvent {
+  id: string;
+  x: number;
+  z: number;
+  graphicAssetId: string | null;
 }
 
 /** No transformation: readability wins for as long as size hasn't become a measured problem.
@@ -91,6 +111,29 @@ function toSpawn(value: unknown): { name: string; x: number; z: number } | null 
   return { name: value.name, x: value.x, z: value.z };
 }
 
+function toElement(value: unknown): HeightfieldElement | null {
+  if (
+    !isRecord(value) ||
+    typeof value.assetId !== "string" ||
+    !isFiniteNumber(value.x) ||
+    !isFiniteNumber(value.z)
+  )
+    return null;
+  return { assetId: value.assetId, x: value.x, z: value.z };
+}
+
+function toEvent(value: unknown): HeightfieldEvent | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    !isFiniteNumber(value.x) ||
+    !isFiniteNumber(value.z) ||
+    !(value.graphicAssetId === null || typeof value.graphicAssetId === "string")
+  )
+    return null;
+  return { id: value.id, x: value.x, z: value.z, graphicAssetId: value.graphicAssetId };
+}
+
 /**
  * REALLY validates a map before making it usable: version, positive integer size, both grids at
  * exactly `size * size` entries, every material within the union, every number finite. The
@@ -130,6 +173,19 @@ export function decodeMap(s: string): MapData | null {
   const decodedSpawns = spawns.map(toSpawn);
   if (decodedSpawns.some((s) => s === null)) return null;
 
+  // Absent means empty (a map written before these fields existed is still readable), malformed
+  // means `null` (a corrupt one is not) — the "newer editor may add fields" comment above, applied
+  // to a field that is itself new.
+  const rawElements = Array.isArray(value.elements) ? value.elements : [];
+  if (value.elements !== undefined && !Array.isArray(value.elements)) return null;
+  const decodedElements = rawElements.map(toElement);
+  if (decodedElements.some((e) => e === null)) return null;
+
+  const rawEvents = Array.isArray(value.events) ? value.events : [];
+  if (value.events !== undefined && !Array.isArray(value.events)) return null;
+  const decodedEvents = rawEvents.map(toEvent);
+  if (decodedEvents.some((e) => e === null)) return null;
+
   return {
     version: 1,
     size: size as number,
@@ -139,6 +195,8 @@ export function decodeMap(s: string): MapData | null {
     materials: materials as TerrainMaterial[],
     colliders: decodedColliders as ColliderRect[],
     spawns: decodedSpawns as { name: string; x: number; z: number }[],
+    elements: decodedElements as HeightfieldElement[],
+    events: decodedEvents as HeightfieldEvent[],
   };
 }
 

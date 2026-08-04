@@ -107,6 +107,9 @@ const map: MapData = {
   // fait encore LIRE le spawn depuis la carte (`main.ts` continue de lire `SPAWN` directement),
   // mais l'écrire ici coûte une ligne et prépare le jour où ce sera le cas.
   spawns: [{ name: "default", x: SPAWN[0], z: SPAWN[1] }],
+  // Le lab n'a ni décor authoré ni événements : ces deux champs existent pour le jeu, pas pour lui.
+  elements: [],
+  events: [],
 };
 
 const dest = new URL("../public/maps/ile.json", import.meta.url);
