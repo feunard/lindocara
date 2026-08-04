@@ -28,6 +28,7 @@
  */
 
 import { writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import {
   encodeMap,
   type HeightfieldElement,
@@ -160,7 +161,10 @@ function buildScenery(
   return { elements, events };
 }
 
-function buildProvingMap(): MapData {
+/** Exported so `seed-proving-adventure.ts` builds the SAME island rather than a second one that
+ *  drifts from it. The CLI below only runs when this file is the process entry (see the guard at
+ *  the bottom), so importing it costs nothing but the module evaluation. */
+export function buildProvingMap(): MapData {
   const { field, query } = generateIsland({ size: WORLD.size, seed: WORLD.seed });
   const size = field.cols;
   const levels = new Array<number | null>(size * size);
@@ -249,4 +253,9 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+// Only when this file IS the process entry. `seed-proving-adventure.ts` imports `buildProvingMap`
+// above, and an unguarded top-level `await main()` would run this whole CLI — including its
+// `--map is required` throw — as a side effect of that import.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

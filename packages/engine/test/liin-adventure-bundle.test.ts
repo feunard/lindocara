@@ -27,7 +27,7 @@ import { PLAYER_SIZE } from "../src/simulation.js";
 import { TILE_SIZE } from "../src/tilemap.js";
 import { editorAsset } from "../src/tiny-swords-catalog.js";
 
-const BUNDLE_URL = new URL("../../../adventures/liin-adventure-ia.json", import.meta.url);
+const BUNDLE_URL = new URL("../../../adventures/legacy/liin-adventure-ia.json", import.meta.url);
 const parsedBundle = parseAdventureBundle(JSON.parse(readFileSync(BUNDLE_URL, "utf8")));
 if (!parsedBundle) throw new Error("The generated Liin bundle is invalid");
 const BUNDLE: AdventureBundle = parsedBundle;

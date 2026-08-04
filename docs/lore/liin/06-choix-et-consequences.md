@@ -50,7 +50,7 @@ mêmes combinaisons.
 | `0062`–`0068` | conséquences des quêtes secondaires régionales |
 | `0069`–`0079` | route finale et résolution des énigmes |
 
-Les noms et numéros complets vivent dans `scripts/liin-adventure/campaign.ts`, source utilisée par
+Les noms et numéros complets vivent dans `scripts/legacy/liin-adventure/campaign.ts`, source utilisée par
 le générateur et les tests. La documentation ne doit pas inventer de switch absent de ce registre.
 
 ## Décisions principales

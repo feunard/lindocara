@@ -4,7 +4,7 @@ import { type AdventureBundle, parseAdventureBundle } from "../src/adventure-bun
 import type { EventCommand } from "../src/event-commands.js";
 import { CURATED_MONSTER_SPECIES } from "../src/game.js";
 
-const BUNDLE_URL = new URL("../../../adventures/cite-assiegee.json", import.meta.url);
+const BUNDLE_URL = new URL("../../../adventures/legacy/cite-assiegee.json", import.meta.url);
 const parsedBundle = parseAdventureBundle(JSON.parse(readFileSync(BUNDLE_URL, "utf8")));
 if (!parsedBundle) throw new Error("The generated Cité assiégée bundle is invalid");
 const BUNDLE: AdventureBundle = parsedBundle;

@@ -20,5 +20,5 @@
   // cannot be checked under this program's stricter-than-alepha base. It has its own program,
   // `tsconfig.tooling.api.json`, which `npm run typecheck` runs beside this one — see that file's
   // header. Excluded here so it is never checked under two incompatible regimes.
-  "exclude": ["scripts/build-proving-map.ts"]
+  "exclude": ["scripts/build-proving-map.ts", "scripts/seed-proving-adventure.ts"]
 }

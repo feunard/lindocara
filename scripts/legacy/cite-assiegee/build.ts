@@ -20,11 +20,11 @@ import {
   validateBundleMaps,
   validateStateReferences,
   visitCommands,
-} from "../lib/bundle-validate.js";
+} from "../../lib/bundle-validate.js";
 import { type StoryRefs, SWITCHES, VARIABLES } from "./campaign.js";
 import { buildMaps } from "./maps.js";
 
-const OUTPUT = new URL("../../adventures/cite-assiegee.json", import.meta.url);
+const OUTPUT = new URL("../../../adventures/legacy/cite-assiegee.json", import.meta.url);
 const refs: StoryRefs = {};
 const maps = buildMaps(refs);
 

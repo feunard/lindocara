@@ -46,7 +46,7 @@ import {
   shoreTreeLine,
   smooth,
   snapper,
-} from "../lib/island-terrain.js";
+} from "../../lib/island-terrain.js";
 
 export type MapKey = "port" | "greve" | "bois" | "enclos" | "camp" | "eperon";
 

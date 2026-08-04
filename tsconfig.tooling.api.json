@@ -22,5 +22,5 @@
     // use ES2024 Iterator Helpers, so `lib` defaults from the base's `target: "esnext"`.
     "types": ["node", "bun"]
   },
-  "include": ["scripts/build-proving-map.ts"]
+  "include": ["scripts/build-proving-map.ts", "scripts/seed-proving-adventure.ts"]
 }

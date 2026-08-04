@@ -24,13 +24,13 @@ import {
   validateBundleMaps,
   validateStateReferences,
   visitCommands,
-} from "../lib/bundle-validate.js";
+} from "../../lib/bundle-validate.js";
 import { S, type StoryRefs, SWITCHES, VARIABLES } from "./campaign.js";
 import { buildMaps } from "./maps.js";
 import { buildQuests } from "./quests.js";
 import { previewScene } from "./scenery.js";
 
-const OUTPUT = new URL("../../adventures/baie-cent-voiles.json", import.meta.url);
+const OUTPUT = new URL("../../../adventures/legacy/baie-cent-voiles.json", import.meta.url);
 
 const refs: StoryRefs = {};
 const maps = buildMaps(refs);

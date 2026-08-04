@@ -16,7 +16,7 @@ import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
 import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
-import { rngFor } from "../lib/island-terrain.js";
+import { rngFor } from "../../lib/island-terrain.js";
 import {
   activity,
   addVar,

@@ -16,12 +16,12 @@ import {
   validateBundleMaps,
   validateStateReferences,
   visitCommands,
-} from "../lib/bundle-validate.js";
+} from "../../lib/bundle-validate.js";
 import { MAP_IDS, type StoryRefs, SWITCHES, VARIABLES } from "./campaign.js";
 import { buildMaps } from "./maps.js";
 import { buildQuests } from "./quests.js";
 
-const OUTPUT = new URL("../../adventures/liin-adventure-ia.json", import.meta.url);
+const OUTPUT = new URL("../../../adventures/legacy/liin-adventure-ia.json", import.meta.url);
 
 const refs: StoryRefs = {};
 const maps = buildMaps(refs);

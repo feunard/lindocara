@@ -2,12 +2,12 @@
 
 ## Sources d’autorité
 
-- `scripts/liin-adventure/campaign.ts` : identifiants de maps, switches, variables, UUID stables,
+- `scripts/legacy/liin-adventure/campaign.ts` : identifiants de maps, switches, variables, UUID stables,
   terrain commun et helpers de commandes ;
-- `scripts/liin-adventure/maps.ts` : terrain, éléments, événements, téléportations et monstres ;
-- `scripts/liin-adventure/quests.ts` : définitions des quêtes et récompenses ;
-- `scripts/liin-adventure/build.ts` : assemblage, validation sémantique et écriture du JSON ;
-- `adventures/liin-adventure-ia.json` : artefact généré, jamais édité à la main ;
+- `scripts/legacy/liin-adventure/maps.ts` : terrain, éléments, événements, téléportations et monstres ;
+- `scripts/legacy/liin-adventure/quests.ts` : définitions des quêtes et récompenses ;
+- `scripts/legacy/liin-adventure/build.ts` : assemblage, validation sémantique et écriture du JSON ;
+- `adventures/legacy/liin-adventure-ia.json` : artefact généré, jamais édité à la main ;
 - `docs/lore/liin/` : contrat narratif maintenu en regard de ces sources.
 
 ## Identifiants

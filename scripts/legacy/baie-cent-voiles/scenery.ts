@@ -51,7 +51,7 @@ import {
   smooth,
   snapper,
   TREES,
-} from "../lib/island-terrain.js";
+} from "../../lib/island-terrain.js";
 
 export const CLOUDS: readonly EditorAssetId[] = [
   "decoration.terrain-decorations-clouds.clouds-01",
