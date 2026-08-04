@@ -28,9 +28,12 @@ import type {
 import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
 import { compteCommeEau, tombeEnArrivant } from "./thin-ice.js";
 
-/** Center of the collision footprint, offset under the sprite's body — the same formula as
- *  `hero.ts` (in the lab), duplicated on purpose: `hero-step.ts` must import NO lab setting, not
- *  even through a shared module that would carry it along at the move into `engine`. */
+/** Center of the collision footprint, offset under the sprite's body — MOVED from the lab's
+ *  `hero.ts`, where an identical local helper used to live before this rule was extracted;
+ *  `hero.ts` keeps no copy of its own anymore (it has no rule left in it at all, see
+ *  `apps/lab/AGENTS.md`). Kept as its own function here, not exported and reimported, because
+ *  `hero-step.ts` must import NO lab setting, not even through a shared module that would carry
+ *  it along at the move into `engine`. */
 function empreinte(z: number, hero: HeroSettings): number {
   return z - hero.offset;
 }
@@ -90,9 +93,11 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius);
 }
 
-/** Key of the thin-ice cell under a world point — the same formula as `hero.ts`'s internal
- *  `caseDe` (itself aligned with `TerrainQuery`, see `terrain-query.ts`'s `toCell`), duplicated on
- *  purpose: `hero-step.ts` must import NO lab setting (see the file header). */
+/** Key of the thin-ice cell under a world point — MOVED from the lab's `hero.ts`'s internal
+ *  `caseDe` (itself aligned with `TerrainQuery`, see `terrain-query.ts`'s `toCell`); `hero.ts`
+ *  keeps no copy of its own anymore, same as `empreinte` above. Kept as its own function here
+ *  rather than exported and reimported: `hero-step.ts` must import NO lab setting (see the file
+ *  header). */
 function caseDe(x: number, z: number, world: WorldSettings): string {
   const demiGrille = world.size / 2;
   return `${Math.floor(x + demiGrille)},${Math.floor(z + demiGrille)}`;
@@ -135,10 +140,10 @@ function enterWater(
  * Thin ice: the cell `cle` gives way under weight — whether it just finished cracking, or was
  * found already broken while walking back onto it (`tombeEnArrivant`, called by `stepHero`
  * below). Weight LEAVES the cell as it gives way: released right away, by the rule itself —
- * otherwise refreezing would never get the chance to start, since `thinIce.update()`
- * (unconditional at the top of `stepHero`) only touches cells already released. Breaking through
- * must LEAD INTO water entry, not reimplement it, hence the call to `enterWater` above rather than
- * a second copy of the same mechanic.
+ * otherwise refreezing would never get the chance to start, since `thinIce.update()` only
+ * touches cells already released. `stepHero` never calls `update()` itself — see `StepDeps.glace`
+ * for who must, and when. Breaking through must LEAD INTO water entry, not reimplement it, hence
+ * the call to `enterWater` above rather than a second copy of the same mechanic.
  *
  * Returns BOTH events, in this order: `glace-rompt` (the final crack sound, `shatter()`) then
  * `entree-eau` with `rupture: true` (the splash and `plunge()` — already wired in `hero.ts` before
@@ -294,22 +299,29 @@ export function stepHero(
         }
       }
 
-      // --- thin ice ------------------------------------------------------------------------------
+      // --- thin ice: load / break ---------------------------------------------------------------
       // Ported as is from the lab's `hero.ts` (`tomber()` and `update()`'s `surGlaceFine` block) —
       // WITHOUT an explicit `!state.swimming` guard: this section deliberately lives BEFORE the
       // ordinary water-entry check just below, inside the `if (!state.swimming)` branch opened
-      // above. `state.swimming` there still reflects the START of the tick (nothing has mutated it
-      // before this point) — exactly what the old `hero.ts` achieved by snapshotting `swimming`
-      // BEFORE calling `stepHero` (`nageaitDejaCeTick`, now unnecessary: this block now lives at
-      // the right SPOT in the sequence instead of needing a value set aside). Breaking through HERE
-      // flips `state.swimming` to `true` (see `rompre`), but the ordinary-water check right after
-      // has no effect on a thin-ice cell: `sol` there is a real number (the ice sheet has full
-      // relief), never `null`.
+      // above. `state.swimming` there still reflects the START of this branch (nothing on THIS
+      // branch has mutated it yet — the only earlier write in `stepHero`, the room branch above,
+      // cannot have run in the same call: `state.room` is constant for the whole of one
+      // `stepHero` invocation, so the two branches are mutually exclusive) — exactly what the old
+      // `hero.ts` achieved by snapshotting `swimming` BEFORE calling `stepHero`
+      // (`nageaitDejaCeTick`, now unnecessary: this block now lives at the right SPOT in the
+      // sequence instead of needing a value set aside). Breaking through HERE flips
+      // `state.swimming` to `true` (see `rompre`), but the ordinary-water check right after has no
+      // effect on a thin-ice cell: `sol` there is a real number (the ice sheet has full relief),
+      // never `null`.
       //
-      // `!state.airborne`: only under WEIGHT — jumping over it loads nothing, that's the whole
-      // mechanism (see the spec). `!state.room` is already guaranteed by the enclosing branch
-      // (line above), so this guard is redundant but kept out of caution: it's a reminder that a
-      // room's virtual coordinates must never query the real terrain.
+      // ONLY the load/break path lives here, scoped to where loading makes sense: outdoors,
+      // grounded (`!state.airborne` — only under WEIGHT, jumping over it loads nothing, that's the
+      // whole mechanism, see the spec), not swimming. The RELEASE path — a loaded cell letting go
+      // the instant the weight is gone, for ANY reason — runs unconditionally after the whole
+      // `!state.room` block below, see the comment there for why it can't stay nested in here.
+      // `!state.room` is already guaranteed by the enclosing branch (line above), so this guard is
+      // redundant but kept out of caution: it's a reminder that a room's virtual coordinates must
+      // never query the real terrain.
       const surGlaceFine =
         !state.airborne &&
         !state.room &&
@@ -343,10 +355,6 @@ export function stepHero(
             }
           }
         }
-      } else if (state.glaceCase) {
-        deps.glace.relache(state.glaceCase);
-        state.glaceCase = null;
-        state.glaceEtat = "intacte";
       }
 
       // --- ordinary water entry -----------------------------------------------------------------
@@ -355,7 +363,10 @@ export function stepHero(
       // vertical resolution: `state.swimming` is therefore already up to date for the
       // footstep/stroke cadence just below, on this SAME frame — breaking through thin ice also
       // mutates `state.swimming` before the cadence is evaluated further down, which was not the
-      // case while `tomber()` still lived in `hero.ts`, AFTER `stepHero` returned.
+      // case while `tomber()` still lived in `hero.ts`, AFTER `stepHero` returned. `!state.room`
+      // is already guaranteed by the enclosing branch, same as `surGlaceFine`'s above: redundant
+      // but kept out of caution, as the same reminder that a room's virtual coordinates must never
+      // be read as if they were real terrain.
       const eau = !state.room && sol === null;
       if (eau && !state.airborne) events.push(enterWater(state, deps, false));
     } else {
@@ -380,6 +391,33 @@ export function stepHero(
         if (state.breath <= 0) events.push(drown(state, deps));
       }
     }
+  }
+
+  // --- thin ice: release, unconditionally ------------------------------------------------------
+  // A cell loaded under the hero's weight must let go the instant that weight is gone — for ANY
+  // reason: a jump, swimming off it, stepping to a different cell, or (the bug this guards
+  // against) walking into a room. The load/break path above lives nested inside
+  // `!state.room && !state.swimming`, because loading only makes sense there; this release does
+  // NOT live nested the same way, on purpose — the whole `if (!state.room) { … }` block above
+  // never runs at all while indoors, so a cleanup nested inside it would never fire for a cell
+  // loaded right before stepping through a door. Before this fix, that was exactly the bug: the
+  // cell stayed loaded FOREVER once indoors — it never refroze (see `taille()`, which exists to
+  // prove `ThinIce`'s table never grows without bound) and the crack decal kept following the hero
+  // inside the house. Evaluated here, once, regardless of room/swimming/airborne, is what makes
+  // the release actually unconditional in `stepHero` rather than in some outer caller.
+  //
+  // `state.room ||` is checked FIRST and short-circuits the rest: a room's virtual coordinates
+  // must never reach `query.kindAt` (see the load/break comment above for the same rule).
+  if (
+    state.glaceCase !== null &&
+    (state.room ||
+      state.swimming ||
+      state.airborne ||
+      query.kindAt(state.x, empreinteZ(state.z)) !== "glace-fine")
+  ) {
+    deps.glace.relache(state.glaceCase);
+    state.glaceCase = null;
+    state.glaceEtat = "intacte";
   }
 
   // Footstep/stroke cadence is by DISTANCE traveled — footsteps only count when actually
