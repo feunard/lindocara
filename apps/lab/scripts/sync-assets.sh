@@ -52,6 +52,7 @@ done
 cp "$ROOT/assets/generated/chest-closed.png" "$OUT/chest-closed.png"
 cp "$ROOT/assets/generated/chest-open.png"   "$OUT/chest-open.png"
 cp "$ROOT/assets/generated/campfire-base.png" "$OUT/campfire-base.png"
+cp "$ROOT/assets/generated/glider.png"        "$OUT/glider.png"
 for f in house-front house-side house-roof interior-floor interior-wall \
          rug bed table cupboard hearth sakura; do
   cp "$ROOT/assets/generated/$f.png" "$OUT/$f.png"
@@ -212,6 +213,17 @@ if command -v ffmpeg >/dev/null; then
   done
 else
   echo "! ffmpeg absent : public/voice/*.ogg n'est pas régénéré" >&2
+fi
+
+# --- glider (generated sound) -----------------------------------------------
+# Generated with studio/ (see assets/generated/PROVENANCE.md) rather than taken
+# from the pack: it is the lab's only sound arriving as a WAV, hence its own
+# encode. Opus mono like the bleats — a canvas snap gains nothing from stereo.
+if command -v ffmpeg >/dev/null; then
+  ffmpeg -hide_banner -loglevel error -y -i "$ROOT/assets/sounds/glider-open.wav" \
+    -ac 1 -c:a libopus -b:a 96k "$SND/glider-open.ogg"
+else
+  echo "! ffmpeg missing: public/sfx/glider-open.ogg was not regenerated" >&2
 fi
 
 # --- musique ---------------------------------------------------------------

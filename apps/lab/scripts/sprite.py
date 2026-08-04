@@ -48,6 +48,67 @@ def detourer(im, tolerance=42):
     return im
 
 
+def couleur_de_fond(im):
+    """The flat background colour, read from the top-left corner of the ORIGINAL
+    image. Read it before `detourer` runs: afterwards that corner is transparent,
+    and a pocket pass that sampled it there would measure its distance to black."""
+    return im.convert("RGB").getpixel((0, 0))
+
+
+def vider_poches(im, fond, tolerance=20):
+    """Clear pockets of background that the subject ENCLOSES, so the edge flood
+    above can never reach them.
+
+    A paraglider is the case that needed this: its risers converge on the grip,
+    so the sky between the outermost two is walled in by canopy above and rope
+    on both sides. `detourer` leaves it filled, and the sprite ships with a
+    navy blob under its wing.
+
+    This is not the global colour test `detourer`'s docstring rejects. It works
+    by CONNECTED COMPONENT: a pocket is cleared only when every pixel in it is
+    within `tolerance` of the background, so a shaded part of the subject — which
+    always carries a gradient, and so always holds pixels outside the tolerance —
+    survives whole. The tolerance is deliberately tighter than `detourer`'s (20
+    against 42) because a pocket has no edge to vouch for it: measured on the
+    glider, background sits under 20 and the subject's own outline starts at 30,
+    with nothing in between.
+
+    Opt-in (see `__main__`): the sprites already committed were produced without
+    it, and their source illustrations are not in the repo, so it cannot be
+    proven a no-op for them.
+    """
+    im = im.convert("RGBA")
+    px = im.load()
+    proche = lambda c: abs(c[0] - fond[0]) + abs(c[1] - fond[1]) + abs(c[2] - fond[2]) <= tolerance
+
+    vus = bytearray(im.width * im.height)
+    for y0 in range(im.height):
+        for x0 in range(im.width):
+            i0 = y0 * im.width + x0
+            if vus[i0] or px[x0, y0][3] == 0 or not proche(px[x0, y0]):
+                continue
+            # One pocket: collect it whole, then clear it. Collect-then-clear rather
+            # than clear-as-you-go so the component can still be rejected as a block
+            # if a future rule wants to (a size floor, say).
+            poche = []
+            pile = [(x0, y0)]
+            vus[i0] = 1
+            while pile:
+                x, y = pile.pop()
+                poche.append((x, y))
+                for vx, vy in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if not (0 <= vx < im.width and 0 <= vy < im.height):
+                        continue
+                    i = vy * im.width + vx
+                    if vus[i] or px[vx, vy][3] == 0 or not proche(px[vx, vy]):
+                        continue
+                    vus[i] = 1
+                    pile.append((vx, vy))
+            for x, y in poche:
+                px[x, y] = (0, 0, 0, 0)
+    return im
+
+
 def recadrer(im, marge=2):
     boite = im.getbbox()
     if not boite:
@@ -130,6 +191,17 @@ if __name__ == "__main__":
     # option pour égaler cette densité aurait été de retoucher les pixels à la main, exactement
     # ce que ce script existe pour éviter.
     couleurs = int(sys.argv[4]) if len(sys.argv) > 4 else 24
-    im = entourer(quantifier(durcir(reduire(recadrer(detourer(Image.open(entree))), hauteur)), couleurs))
+    # The 5th argument (optional) is "poches": pass it when the subject WALLS IN some
+    # background — a paraglider's risers closing off the sky between them. Off by default
+    # because the sprites already committed were made without it and their source
+    # illustrations are not in the repo, so it cannot be proven a no-op for them.
+    # See `vider_poches`.
+    poches = len(sys.argv) > 5 and sys.argv[5] == "poches"
+    source = Image.open(entree)
+    fond = couleur_de_fond(source)
+    detoure = detourer(source)
+    if poches:
+        detoure = vider_poches(detoure, fond)
+    im = entourer(quantifier(durcir(reduire(recadrer(detoure), hauteur)), couleurs))
     im.save(sortie)
     print(f"{sortie}  {im.width}x{im.height}")
