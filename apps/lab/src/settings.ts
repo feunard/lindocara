@@ -78,7 +78,7 @@ export const ZONE_LARGE: Zone = {
 /** L'ordre EST la priorité (voir `zoneAt`) : la polaire d'abord, la zone par défaut en dernier. */
 export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_LARGE];
 
-/** Les trois seuils de la glace fine (Task 7) — voir `world/thin-ice.ts` pour la mécanique pure et
+/** Les trois seuils de la glace fine (Task 7) — voir `packages/engine/hd2d/thin-ice.js` pour la mécanique pure et
  *  `world/hero.ts` pour le câblage. La charge s'accumule PAR CASE, tant que le héros y reste :
  *  traverser la couronne perpendiculairement (`GLACE_FINE_LARGEUR` dans `island.ts`, 0.9 unité) à
  *  pleine vitesse (`HERO.speed`) prend ~0.2s sur une même case, largement sous `seuilCraquement` —
@@ -302,7 +302,7 @@ export interface HeroSettings {
   /** Une friction et un plafond de vitesse par matière (Task 3 de l'île de neige) — l'entrée
    *  ACCÉLÈRE, la matière FREINE, et c'est la même équation pour l'herbe, la neige et la glace.
    *  Ordre qui fait le jeu : `glace ≪ herbe < neige`. L'herbe est réglée pour rester indiscernable
-   *  de l'ancien modèle instantané (voir `world/locomotion.ts`) ; la neige freine plus ET plafonne
+   *  de l'ancien modèle instantané (voir `packages/engine/hd2d/locomotion.js`) ; la neige freine plus ET plafonne
    *  plus bas — on y peine des deux façons à la fois ; la glace freine à peine — on garde son élan
    *  et un virage dérape au lieu de pivoter sec. Indexé par `TerrainMaterial`, mais seules ces
    *  trois matières changent le déplacement : `sable` retombe sur `herbe`, `glace-fine` retombe
@@ -352,7 +352,7 @@ export interface HeroSettings {
 
 export const HERO: HeroSettings = {
   speed: 4.2,
-  // Réglés et vérifiés dans `test/hero-friction.test.ts` — voir `world/locomotion.ts` pour la
+  // Réglés et vérifiés dans `packages/engine/test/hd2d/hero-friction.test.ts` — voir `packages/engine/hd2d/locomotion.js` pour la
   // formule et le rapport de la Task 3 pour le détail des calculs.
   //  - herbe (80) : assez haute pour que 2 images d'entrée suffisent à dépasser 90 % de la
   //    vitesse de pointe, et 2 images de relâchement à retomber sous 10 % — c'est la définition

@@ -720,7 +720,7 @@ const GROTA_DIT = [
 // mais qui parlent du FROID, de la glace qui ne tient pas partout, et de ce qu'il fait là — le
 // registre à tenir est celui de Grota (terse, sec, jamais explicatif), pas un cahier des charges.
 // La 3e réplique est un tutoriel déguisé : elle décrit la VRAIE mécanique de la glace fine
-// (`world/thin-ice.ts`, `GLACE_FINE` dans `settings.ts`) — elle craque, PUIS elle cède.
+// (`packages/engine/hd2d/thin-ice.js`, `GLACE_FINE` dans `settings.ts`) — elle craque, PUIS elle cède.
 const HABITANT_DIT = [
   "Tiens. Un chevalier qui a nagé jusqu’ici. Tu ne dois plus sentir tes doigts.",
   "Je pose mes lignes où le poisson remonte respirer. Le reste du temps, je répare ce que le vent défait.",

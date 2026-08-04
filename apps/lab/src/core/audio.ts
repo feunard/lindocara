@@ -65,7 +65,7 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // aller-retour au studio pour un seul fichier. Déclenchée par Task 9 (voir `gust()` plus bas) sur
   // le front montant du pulse visuel de brouillard polaire, câblé depuis `main.ts`.
   rafale: ["/sfx/rafale.ogg"],
-  // La glace fine (Task 7, `world/thin-ice.ts`) : trois temps, trois sons. Le craquement est
+  // La glace fine (Task 7, `packages/engine/hd2d/thin-ice.js`) : trois temps, trois sons. Le craquement est
   // RÉPÉTÉ tant qu'on reste dessus après le premier avertissement (voir `hero.ts`) — il lui faut
   // donc des variantes comme les pas, pour la même raison (`jouer()` en tire une au hasard à
   // chaque appel). Rupture et plongeon n'arrivent qu'une fois par chute : un seul fichier chacun,
@@ -522,7 +522,7 @@ export const openDoor = (): void => jouer("porte", { gain: 0.85 });
 export const closeDoor = (): void => jouer("porteFerme", { gain: 0.85 });
 
 /**
- * La glace fine (Task 7, `world/thin-ice.ts`) : `crack()` prévient, `shatter()` marque la
+ * La glace fine (Task 7, `packages/engine/hd2d/thin-ice.js`) : `crack()` prévient, `shatter()` marque la
  * rupture, `plunge()` accompagne la chute. Les trois passent par `jouer()` comme le reste du
  * module — `plunge`/`shatter` n'ont qu'une seule variante chacun dans `BANQUE`, `jouer()` la joue
  * donc à chaque appel (avec sa propre hauteur aléatoire, comme tout le reste), exactement le même
