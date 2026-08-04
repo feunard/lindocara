@@ -59,9 +59,9 @@ export interface HeroState {
   coyote: number;
   /** Height of the last ground stood on — the reference for `maxStep`, not `y`. */
   groundY: number;
-  /** Character orientation: -1 or 1. DOCUMENTED EXCEPTION: written by the adapter (`hero.ts`, in
-   *  `update()`, AFTER `stepHero`'s event loop), not by the pure rule `stepHero`. This is
-   *  deliberate, for two reasons:
+  /** Character orientation: -1 or 1. ONE OF TWO FIELDS `stepHero` never writes (see `attaque`
+   *  below for the other) — written by the adapter (`hero.ts`, in `update()`, AFTER `stepHero`'s
+   *  event loop) instead. This is deliberate, for two reasons:
    *
    *  1. It follows USER INPUT (`input.x`), not speed (`state.vx`). This avoids a turnaround delay
    *     on ice: speed persists there long after input has changed, and deriving `facing` from
@@ -74,6 +74,11 @@ export interface HeroState {
    *     the CURRENT frame instead, which would be a behavior change: the breath puff would point in
    *     the new direction before the sprite had even been drawn turned. */
   facing: number;
+  /** The THIRD field `stepHero` never writes to (see `facing` and `attaque` above for the other
+   *  two, and for why each is an exception) — the room transition itself belongs to the adapter
+   *  (`hero.ts`'s `setRoom`), which alone knows when the hero has walked through a door or a map
+   *  edge. `stepHero` only READS it, every step, to decide which physics apply (see `canEnter` and
+   *  the vertical block in `hero-step.ts`). */
   room: Room | null;
   /** Distance traveled since the last footstep — the cadence is by DISTANCE, not by time. */
   distanceDepuisLePas: number;
@@ -86,7 +91,15 @@ export interface HeroState {
   glaceCase: string | null;
   /** Last state read on that cell, to react only to TRANSITIONS. */
   glaceEtat: EtatGlace;
-  /** Time elapsed in the current attack; negative = no attack. */
+  /** Time elapsed in the current attack; negative = no attack. THE OTHER FIELD `stepHero` never
+   *  writes (see `facing` above for the first) — advanced and armed by the adapter (`hero.ts`, in
+   *  `update()`, after `stepHero`'s event loop) instead, on its own clock. Deliberately kept out
+   *  of the rule: the attack timeline is PRESENTATION timing — which animation frame to show, when
+   *  to play the strike sound (`ATTAQUE_SON`, offset from `ATTAQUE_FRAPPE` to cover a sound
+   *  sample's own attack curve) — not a fact a server needs to know to resolve anything. Nothing in
+   *  `stepHero`'s output depends on it either: moving it into the rule would only widen the
+   *  rule's surface for no gain, the same call already made for `facing`. A server driving
+   *  `stepHero` directly can simply ignore this field. */
   attaque: number;
   /** Alternates left foot / right foot from one footprint to the next. */
   coteTrace: number;
@@ -158,7 +171,16 @@ export interface StepDeps {
   /** Thin-ice state — mutable and kept outside `HeroState` because it belongs to the MAP, not the
    *  hero: two heroes on the same cell share the same ice. This is the existing `ThinIce` type as
    *  is, not a redeclaration: redeclaring it here would let it drift from its implementation the
-   *  moment either one changes. */
+   *  moment either one changes.
+   *
+   *  CALLER OBLIGATION, not `stepHero`'s: `stepHero` never calls `glace.update()` itself — it only
+   *  calls `charge()`/`relache()`/`etat()`, which load, release and read a cell, never advance its
+   *  refreeze clock. The caller (the lab's `hero.ts`, unconditionally, once per frame, BEFORE
+   *  calling `stepHero`) must advance `update(dt)` itself, every frame, independent of whether the
+   *  hero is on ice, underwater, indoors or anywhere else that frame — refreezing a cell nobody is
+   *  standing on is the whole point (see `thin-ice.ts`'s own docstring). Skip this call and a
+   *  broken cell never refreezes: `stepHero`'s own rule only loads and releases cells, it has no
+   *  clock of its own to advance one with. */
   glace: ThinIce;
 }
 
