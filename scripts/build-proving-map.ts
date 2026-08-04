@@ -5,10 +5,16 @@
  * bakes is the terrain the HD-2D witness already renders correctly. Proving the pipeline is the
  * whole point; inventing a second island would have proved a second island.
  *
- * A DEV SCRIPT, not production code: nothing under `src/` imports it, it is outside the server's
- * tsconfig program, and the one-way import into `apps/lab/src/` below is a script-only edge that
- * must never appear in the server's runtime path (`apps/lab` sits outside the package graph —
- * see the root `AGENTS.md`).
+ * A DEV SCRIPT, not production code. It lives in the repo's root `scripts/` — beside the other
+ * cross-workspace generators (`build-map.ts`, `lib/island-terrain.ts`) — for two reasons: nothing a
+ * package ships may import it, and `tsconfig.tooling.json` actually TYPECHECKS it (its include
+ * covers every `.ts` file under `scripts/`). Its earlier home under `packages/server/scripts/` did
+ * neither: being outside that package's tsconfig program did not make the `apps/lab` import below
+ * safe, only invisible to the checker.
+ *
+ * That import — reaching into `apps/lab/src/` for the island generator — remains a one-way,
+ * script-only edge. `apps/lab` sits outside the package dependency graph (see the root
+ * `AGENTS.md`); no package's own source may reach for it.
  *
  * Run (from the repo root):
  *   npm run map:proving -- --map=<mapId>
@@ -24,17 +30,17 @@
 import { writeFileSync } from "node:fs";
 import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
+import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
+import { LindocaraApi } from "@lindocara/server/api/index.js";
+import { MapService } from "@lindocara/server/api/services/MapService.js";
 import { Alepha } from "alepha";
-import { SPAWN, WORLD } from "../../../apps/lab/src/settings.js";
-import { generateIsland } from "../../../apps/lab/src/world/island.js";
-import { BODY_PARSER_OPTIONS_SEED } from "../src/api/bodySizeCap.ts";
-import { LindocaraApi } from "../src/api/index.ts";
-import { MapService } from "../src/api/services/MapService.ts";
+import { SPAWN, WORLD } from "../apps/lab/src/settings.js";
+import { generateIsland } from "../apps/lab/src/world/island.js";
 
 /** `alepha dev` runs in `apps/main`, so its SQLite file lives beside that workspace's own
  *  `node_modules` (`NodeSqliteProvider`'s non-test default is a cwd-relative path — resolving it
  *  from this file instead makes the script work from any directory). */
-const DEV_DATABASE = new URL("../../../apps/main/node_modules/.alepha/sqlite.db", import.meta.url)
+const DEV_DATABASE = new URL("../apps/main/node_modules/.alepha/sqlite.db", import.meta.url)
   .pathname;
 
 function argumentsOf(argv: readonly string[]): Map<string, string> {

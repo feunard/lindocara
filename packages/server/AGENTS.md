@@ -44,10 +44,12 @@ that must be trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo
   place the two unit systems meet, and every call site carries the same banner comment —
   `grep -rn "TILE→PIXEL BRIDGE"` finds them all the day the server's geometry moves to tile units
   and the file is deleted. Do not convert coordinates by hand anywhere else.
-- `scripts/` — dev tooling, outside `src` and outside this package's tsconfig program.
-  `build-proving-map.ts` generates the HD-2D heightfield (reusing `apps/lab`'s own island
-  generator, a script-only one-way import that must never reach the runtime path) and stores it on
-  a map row through `MapService.saveHeightfield` — see Commands below.
+- The proving-map generator is NOT in this package: it lives in the repo's root `scripts/`
+  (`scripts/build-proving-map.ts`), beside the other cross-workspace generators and inside
+  `tsconfig.tooling.json`'s program so it is actually typechecked. It generates the HD-2D
+  heightfield (reusing `apps/lab`'s own island generator, a script-only one-way import that must
+  never reach any package's runtime path) and stores it on a map row through
+  `MapService.saveHeightfield` — see Commands below.
 - The SPA shell is not this package's job: `GET /` and every page route are served by
   `@lindocara/client`'s `ui/AppRouter.tsx` `$page` tree, registered alongside `LindocaraApi` in
   `apps/main/src/main.ts` (the one workspace that depends on both `client` and `server`). This

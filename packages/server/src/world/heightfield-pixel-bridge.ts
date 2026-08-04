@@ -70,12 +70,37 @@ function bakeHeightfieldCollision(map: MapData): TileMap {
 /**
  * `terrainFromMap` always supplies exactly one spawn point, and `spawnPosition` (`engine/game.ts`)
  * takes `spawnPoints.length` as a modulus — a geometry with none yields `NaN` there. A heightfield
- * may legitimately carry no authored spawn, so the grid's centre stands in for it.
+ * may legitimately carry no authored spawn, so one is derived: the GROUND cell whose centre sits
+ * nearest the grid's own centre.
+ *
+ * Nearest ground, not the centre itself: an island heightfield is mostly water, and its middle is
+ * as likely to be sea as land — a bare geometric centre would seat a hero in the water and leave
+ * the fallback looking correct in every test that only checks it returned a point.
  */
 function heightfieldSpawnPoints(map: MapData, width: number, height: number): Vec2[] {
   const spawns = map.spawns.map((spawn) => ({
     x: tileToPixel(spawn.x, map.size),
     y: tileToPixel(spawn.z, map.size),
   }));
-  return spawns.length > 0 ? spawns : [{ x: width / 2, y: height / 2 }];
+  if (spawns.length > 0) return spawns;
+
+  const centre: Vec2 = { x: width / 2, y: height / 2 };
+  let best: Vec2 | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let row = 0; row < map.size; row += 1) {
+    for (let col = 0; col < map.size; col += 1) {
+      if ((map.levels[row * map.size + col] ?? null) === null) continue;
+      const point: Vec2 = {
+        x: col * TILE_SIZE + TILE_SIZE / 2,
+        y: row * TILE_SIZE + TILE_SIZE / 2,
+      };
+      const distance = (point.x - centre.x) ** 2 + (point.y - centre.y) ** 2;
+      if (distance >= bestDistance) continue;
+      bestDistance = distance;
+      best = point;
+    }
+  }
+  // A heightfield with no ground at all has nowhere to stand; the centre is then the only answer
+  // left, and it is water by construction rather than by oversight.
+  return [best ?? centre];
 }

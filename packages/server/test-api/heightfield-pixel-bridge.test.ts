@@ -71,4 +71,26 @@ describe("the TILE->PIXEL bridge", () => {
     const terrain = pixelTerrainFromHeightfield(map);
     expect(terrain.spawnPoints).toEqual([{ x: 2 * TILE_SIZE, y: 2 * TILE_SIZE }]);
   });
+
+  it("falls back to walkable ground, never the sea, when no spawn is authored", () => {
+    // A 3x3 grid whose only ground is the far corner (2, 2). The grid's geometric centre is cell
+    // (1, 1), which is water — a fallback that returned it would seat a hero in the sea, and on an
+    // island heightfield that is the common case, not a contrived one.
+    const island: MapData = {
+      version: 1,
+      size: 3,
+      levelHeight: 0.5,
+      waterLevel: 0,
+      levels: [null, null, null, null, null, null, null, null, 0],
+      materials: new Array(9).fill("herbe"),
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+    };
+    const terrain = pixelTerrainFromHeightfield(island);
+
+    expect(terrain.spawnPoints).toEqual([{ x: 2.5 * TILE_SIZE, y: 2.5 * TILE_SIZE }]);
+    expect(isWalkableCell(terrain, 2, 2)).toBe(true);
+  });
 });

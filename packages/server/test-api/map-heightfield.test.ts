@@ -13,7 +13,7 @@
  * running app, not about a function.
  */
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
-import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
@@ -169,7 +169,16 @@ async function newPlayableHero(
   return { token, mapId: adventure.defaultMap.id, partyId, heroId };
 }
 
-/** Opens a real `/ws/world` socket and resolves with the first `welcome` it receives. */
+/**
+ * Opens a real `/ws/world` socket and resolves with the first `welcome` it receives — read through
+ * `parseServerMessage`, NOT a bare `JSON.parse`.
+ *
+ * That distinction is the whole point of this harness. `parseServerMessage` is the single wire
+ * truth (`realtime-wire.test.ts`, `packages/server/AGENTS.md`), and it is what the real client runs
+ * (`packages/client/src/game/net.ts`): a frame it refuses is a frame the client never sees, so a
+ * `welcome` whose appearance layers do not decode against its own `tiles` grid does not merely draw
+ * wrong — the room is unjoinable. A `JSON.parse` here would let exactly that pass unnoticed.
+ */
 function waitForWelcome(roomId: string, heroId: string, token: string): Promise<ServerMessage> {
   const socket = new WebSocket(
     `${hostname.replace(/^http/, "ws")}/ws/world?roomId=${roomId}&hero=${heroId}`,
@@ -179,7 +188,14 @@ function waitForWelcome(roomId: string, heroId: string, token: string): Promise<
   return new Promise<ServerMessage>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("timed out waiting for 'welcome'")), 5_000);
     socket.on("message", (data) => {
-      const message = JSON.parse(data.toString()) as ServerMessage;
+      const raw = data.toString();
+      const message = parseServerMessage(raw);
+      if (message === null) {
+        const kind = (JSON.parse(raw) as { t?: unknown }).t;
+        clearTimeout(timer);
+        reject(new Error(`the wire refused a '${String(kind)}' frame: a client would drop it`));
+        return;
+      }
       if (message.t !== "welcome") return;
       clearTimeout(timer);
       resolve(message);
@@ -210,6 +226,13 @@ describe("the heightfield on the wire", () => {
     // default tile map's dimensions.
     expect(welcome.world.width).toBe(PROVING_SIZE * 64);
     expect(welcome.world.tiles.length).toBe(PROVING_SIZE);
+    // The appearance agrees with that grid instead of contradicting it: blank layers sized to the
+    // heightfield, and none of the map's tile-space elements. Reaching this line at all already
+    // proves it — `parseServerMessage` would have refused the frame otherwise — but assert the
+    // shape too, so a future change that keeps the frame legal by some other route still has to
+    // say so out loud.
+    expect(welcome.world.layers).toEqual(["0*64", "0*64", "0*64"]);
+    expect(welcome.world.elements).toEqual([]);
   });
 
   test("a map with no heightfield still welcomes with null", async () => {

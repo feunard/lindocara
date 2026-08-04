@@ -1,0 +1,26 @@
+{
+  // The tooling program's alepha-flavoured twin, and the exact same split every package with an
+  // `alepha` import already carries (`packages/client/tsconfig.api.json`,
+  // `packages/server/tsconfig.json`, `apps/main/tsconfig.json`): `alepha`'s package.json points
+  // its "types" condition at RAW SOURCE, so any file importing `alepha` — or a package that
+  // re-exports it, like `@lindocara/server` — drags the whole framework source tree into whichever
+  // program resolves it, checked under THAT program's `compilerOptions`. `tsconfig.tooling.json`
+  // extends the repo's own base, which is stricter than alepha's (`exactOptionalPropertyTypes`,
+  // `noUncheckedIndexedAccess`, …), and alepha's internals fail it by the hundreds — none of it
+  // code this repo owns. So the one root script that boots the real app gets its own program,
+  // extending alepha's base, and is `exclude`d from `tsconfig.tooling.json` so it is never checked
+  // under two incompatible regimes at once.
+  //
+  // The point of it existing at all: `scripts/build-proving-map.ts` reaches into `apps/lab/src/`
+  // for the island generator. That import is legitimate for a dev script and illegitimate anywhere
+  // a package ships, which is a distinction only a checker can hold — leaving the file outside
+  // every program (its first home, under `packages/server/scripts/`) did not make the import safe,
+  // it made it invisible.
+  "extends": "./.vendor/alepha/tsconfig.base.json",
+  "compilerOptions": {
+    // No `lib` override, for the same reason the client's twin has none: alepha's own internals
+    // use ES2024 Iterator Helpers, so `lib` defaults from the base's `target: "esnext"`.
+    "types": ["node", "bun"]
+  },
+  "include": ["scripts/build-proving-map.ts"]
+}

@@ -1478,7 +1478,27 @@ export class WorldRoom {
       }
       // Audio does not affect terrain: a default config is enough to bake the destination's
       // collision for the arrival clamp, without an extra adventure-audio read per transition.
-      const terrain = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO).terrain;
+      const destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
+      // TILE→PIXEL BRIDGE — see packages/server/src/world/heightfield-pixel-bridge.ts
+      // The entry marker below is authored in the map's TILE-EDITOR cell space, while a
+      // heightfield destination's terrain is baked from the heightfield's own grid. Placing one
+      // inside the other would land the hero at an arbitrary point of a map nobody authored that
+      // way — so the transition is refused, loudly, instead of silently arriving somewhere wrong.
+      // Unreachable today (nothing authors both), and it must stay unreachable rather than
+      // becoming a quiet mis-placement the day something does.
+      if (destination.heightfield != null) {
+        console.warn(
+          JSON.stringify({
+            event: "zone_transition_refused",
+            reason: "heightfield_destination",
+            mapId: destinationMap.id,
+            entryId: destinationAnchor.entryId,
+          }),
+        );
+        this.send(room, connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      const terrain = destination.terrain;
       const spawn = clampRestoredPosition(eventCellCentre(entry), player.id, terrain);
 
       claimedAuthorization = true;
@@ -1546,7 +1566,24 @@ export class WorldRoom {
         this.send(room, connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
         return;
       }
-      const terrain = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO).terrain;
+      const destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
+      // TILE→PIXEL BRIDGE — see packages/server/src/world/heightfield-pixel-bridge.ts
+      // Same split source as the authored-entry transition above: the authored `col`/`row` is a
+      // tile-editor cell, the destination's terrain would be the heightfield's grid, and the bounds
+      // check below would validate one against the other. Refused rather than silently mis-placed.
+      if (destination.heightfield != null) {
+        if (
+          logTeleportRefusedOnce(state, eventId, "heightfield_destination", { mapId, col, row })
+        ) {
+          this.send(room, connectionId, {
+            t: "event",
+            code: "zone.transition_failed",
+            tone: "bad",
+          });
+        }
+        return;
+      }
+      const terrain = destination.terrain;
       const inBounds =
         col >= 0 && row >= 0 && col < terrain.width / TILE_SIZE && row < terrain.height / TILE_SIZE;
       if (!inBounds) {

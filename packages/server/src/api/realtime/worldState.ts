@@ -25,7 +25,12 @@ import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import { MAP_LAYERS, terrainFromMap } from "@lindocara/engine/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import type { QuestEventReference } from "@lindocara/engine/quests.js";
-import { parseTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import {
+  emptyLayer,
+  encodeTileLayer,
+  parseTileLayer,
+  type TileLayer,
+} from "@lindocara/engine/tile-layer-codec.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
 import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
@@ -91,10 +96,22 @@ export function parseWorldRoomId(roomId: string): ParsedWorldRoomId | null {
 }
 
 /**
+ * The appearance a heightfield room ships instead of the map's tile-space one: `MAP_LAYERS` empty
+ * layers sized to the heightfield's own grid, so `isWorldInfo`'s per-layer
+ * `parseTileLayer(layer, tiles.cols, tiles.rows)` check agrees with the baked `tiles` rather than
+ * rejecting the welcome outright.
+ */
+function blankAppearance(size: number): { layers: string[] } {
+  const encoded = encodeTileLayer(emptyLayer(size, size));
+  return { layers: new Array<string>(MAP_LAYERS).fill(encoded) };
+}
+
+/**
  * A stored map (as the Alepha API round-trips it) into the `ZoneDefinition` the world systems run
  * on. Port of `zoneFromMap`; the RLE layer strings pass through verbatim as the zone's appearance
  * layers (legacy re-encoded its decoded layers — same bytes either way) and are decoded once here
- * for `terrainFromMap`'s collision bake.
+ * for `terrainFromMap`'s collision bake — except on a heightfield map, whose appearance comes from
+ * `blankAppearance` above so it cannot contradict the heightfield-baked `tiles`.
  */
 export function zoneFromMapPayload(
   payload: MapPayload,
@@ -127,6 +144,15 @@ export function zoneFromMapPayload(
   // TILE→PIXEL BRIDGE — see packages/server/src/world/heightfield-pixel-bridge.ts
   const terrain =
     heightfield === null ? terrainFromMap(data) : pixelTerrainFromHeightfield(heightfield);
+  // A heightfield room's APPEARANCE must not contradict its own collision, and the contradiction
+  // is not cosmetic: `isWorldInfo` (`engine/protocol.ts`) validates every appearance collection
+  // against `tiles.cols/rows`, so an authored 20x15 tile layer beside an 8x8 heightfield makes
+  // `parseServerMessage` drop the whole `welcome` and the room becomes UNJOINABLE. The tile layers,
+  // the authored elements and the authored events are all expressed in the other coordinate space,
+  // so a heightfield room ships none of them: blank layers sized to its own grid, and nothing else.
+  // Task 8 is what gives a heightfield its own decoration and events; until then, absent beats
+  // misplaced.
+  const appearance = heightfield === null ? null : blankAppearance(heightfield.size);
   return {
     id: payload.id,
     // The name is authored content rather than an i18n key. The client prints unknown keys
@@ -143,12 +169,12 @@ export function zoneFromMapPayload(
     guards: [],
     portals: [],
     navigation: { ...DEFAULT_ZONE_NAVIGATION },
-    elements: payload.elements,
+    elements: appearance === null ? payload.elements : [],
     markers: payload.markers,
     revision: payload.revision,
     tilesetId: payload.tilesetId,
-    layers: payload.layers,
-    events: payload.events,
+    layers: appearance === null ? payload.layers : appearance.layers,
+    events: appearance === null ? payload.events : [],
     audio: resolveMapAudio(adventureAudio, payload.audio),
     heroSettings: payload.heroSettings,
     // Only a heightfield the room actually baked its terrain from travels on: shipping a stored

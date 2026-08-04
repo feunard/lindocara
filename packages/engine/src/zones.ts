@@ -74,10 +74,14 @@ export interface ZoneDefinition {
   /** Authored hero balance for this map. Catalogue zones inherit code-owned defaults. */
   readonly heroSettings?: MapHeroSettings;
   /**
-   * JSON-encoded `MapData` heightfield (`hd2d/map-data.ts`), or `null` when this map has none —
-   * `MapService`'s `heightfield` column, sentinel already normalised. Undefined for every
-   * catalogue zone (they carry no map row at all). Not yet wired onto the wire — `WorldRoom.
-   * worldInfo()` still sends `WorldInfo.heightfield: null` unconditionally until a later task.
+   * JSON-encoded `MapData` heightfield (`hd2d/map-data.ts`), or `null` when this map has none.
+   * Undefined for every catalogue zone (they carry no map row at all).
+   *
+   * Set only when the stored column DECODED and the zone's `terrain` was baked from it — not
+   * merely when `MapService`'s empty-string sentinel was normalised away. A stored heightfield the
+   * server itself refused to parse leaves this `null`, so the room is honestly heightfield-less
+   * rather than advertising a map its own collision does not agree with. `WorldRoom.worldInfo()`
+   * ships this field as `WorldInfo.heightfield`.
    */
   readonly heightfield?: string | null;
 }
