@@ -29,7 +29,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npm test` | Vitest — every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
 | `npm run build` | `alepha build` — bundles `apps/main`; CI builds the production shape via `npm run build -w @lindocara/main -- --target bare` |
 | `npm run deploy` | `alepha platform up -e production` — build, pack and upload to Bay; CI runs it on every push to `main` and migrations run at app boot |
-| `npm run db:generate -w @lindocara/main` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration |
+| `npm run db:generate -w @lindocara/main` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration — **currently broken repo-wide**, see below |
 | `npm run check:migrations -w @lindocara/main` | fail on entity/migration drift (also part of `npm run v`) |
 | `python3 studio/studio.py sprite\|sfx\|voice\|music` | generate a game asset locally, in this game's art direction — sprites, sound effects, voice lines, music. No API, no cloud, no key. See [Generating assets](#generating-assets) |
 | `python3 studio/studio.py doctor` | check the asset studio's runtimes and weights, then generate one artifact per lane — run it first on a machine that has never generated anything |
@@ -72,10 +72,10 @@ prefixes in the file map further down map straight onto these homes:
 | --- | --- | --- | --- |
 | [`@lindocara/engine`](./packages/engine/AGENTS.md) | `src/shared/`, plus `hd2d/` — the HD-2D witness's geometry and movement rule, moved in from `apps/lab` in S2 | — | pure (ni DOM ni Workers) |
 | [`@lindocara/server`](./packages/server/AGENTS.md) | `src/server/` — now Alepha services/entities/controllers (`src/api/`), the realtime rooms (`src/api/realtime/`) and the world systems (`src/world/`) | engine, alepha | Node (dev) / workerd (prod) |
-| [`@lindocara/renderer`](./packages/renderer/AGENTS.md) | drawing half of `src/client/game/` (+ `input`, `locale`, `scene-sample`) | engine | browser, React-free (PixiJS) |
+| [`@lindocara/renderer`](./packages/renderer/AGENTS.md) | drawing half of `src/client/game/` (+ `input`, `locale`, `scene-sample`) | engine, hd2d | browser, React-free (Three.js via `@lindocara/hd2d`) |
 | [`@lindocara/ui`](./packages/ui/AGENTS.md) | the stock shadcn tree (base-nova) + `cn` + `globals.css` tokens — shadcn monorepo mode | npm only | browser + React |
 | [`@lindocara/client`](./packages/client/AGENTS.md) | rest of `src/client/` + `public/` (app shell, HUD, Tiny-Swords tree, store, api, i18n, glue) | engine, renderer, ui | browser + React |
-| [`@lindocara/editor`](./packages/editor/AGENTS.md) | `src/client/ui/editor/` + editor game files | engine, renderer, client, ui | browser + React |
+| [`@lindocara/editor`](./packages/editor/AGENTS.md) | `src/client/ui/editor/` + editor game files — **quarantined since 2026-08-04, does not compile**, see its `AGENTS.md` | engine, renderer, client, ui | browser + React |
 | [`@lindocara/catalog`](./packages/catalog/AGENTS.md) | `assets/` (raw Tiny Swords art) + the catalogue codegen (was `scripts/tiny-swords-catalog-*`) | engine | node (dev) |
 | [`@lindocara/testing`](./packages/testing/AGENTS.md) | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup) | engine | node/jsdom (dev) |
 | [`@lindocara/hd2d`](./packages/hd2d/AGENTS.md) | the HD-2D render engine (billboards, terrain mesh, lighting, post-fx) | three only | browser, framework-free (Three.js) |
@@ -88,24 +88,36 @@ framework work:** a framework fix is implemented in `../alepha` (its tests live 
 with `yarn v` upstream, committed and pushed, then pulled here with `npx alepha vendor sync` — the
 sync is its own commit. `npx alepha vendor diff` shows any local patches; keep it clean.
 
-`hd2d`/`apps/lab` sit outside that graph entirely, and deliberately so: **the game's render path
-stays PixiJS through S3.** `hd2d` is consumed only by `apps/lab` today. `apps/lab` also depends on
-`@lindocara/engine`, but only its `hd2d/` subfolder (see `packages/engine/AGENTS.md`'s
-Responsibility section — the game rule geometry a future server will consume, not the render path)
-— that dependency does not pull the lab into the render graph above; the render path itself is
-untouched, still `hd2d` + `three`. Before touching anything in the render path, read
-[`docs/hd2d-rendering.md`](./docs/hd2d-rendering.md) — what makes the HD-2D style, and the
-fifteen-odd rendering pitfalls already paid for once. See also
+**The game's render path IS `hd2d`** since S3's first increment (2026-08-04). `packages/renderer`
+no longer contains a PixiJS renderer at all: `renderer.ts`, `stage-application.ts`,
+`catalog-element-render.ts`, `editor-asset-art.ts`, `world-event-art.ts` and `tiny-swords-art.ts`'s
+`slice*` helpers were deleted and `pixi.js` left the dependency tree. `packages/renderer/src/hd2d/`
+is the whole renderer, `apps/lab` remains the witness that proves the engine outside the game, and
+the two are the only consumers of `@lindocara/hd2d`. `apps/lab` also depends on `@lindocara/engine`,
+but only its `hd2d/` subfolder (see `packages/engine/AGENTS.md`'s Responsibility section — the game
+rule geometry a future server will consume, not the render path). Before touching anything in the
+render path, read [`docs/hd2d-rendering.md`](./docs/hd2d-rendering.md) — what makes the HD-2D style,
+the rendering pitfalls already paid for once, and what the deleted PixiJS renderer knew that nothing
+else records. See also
 [`docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md`](./docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)
-for the staged plan that eventually retires `@lindocara/renderer`'s PixiJS path in its favor.
+for the staged plan this executed the first increment of.
+
+**The editor is broken on purpose while this lands.** Its authoring stage was built on the deleted
+modules; it is excluded from `npm run typecheck` and from the vitest project list, and `/editor`
+plus the DEV `?preview` route render a notice. `packages/editor/AGENTS.md` carries the banner and
+the list of exclusions to undo. Do not resurrect the PixiJS path to spare it — that is exactly the
+coexistence the spec rejected.
 
 The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client, editor}`, `{client, ui} ←
 editor`; `apps/main` composes `client` + `server` into one deploy. The client's `ui/AppRouter.tsx`
-`editor` route lazy-`import()`s the editor screen at runtime without declaring it, so there is no
-`client → editor` cycle. Cross-package imports use `@lindocara/<pkg>/<file>.js`; the `@` alias means
+`editor` route lazy-`import()`ed the editor screen at runtime without declaring it, so there is no
+`client → editor` cycle — while the editor is quarantined that route is a static notice instead, and
+its docblock carries the exact `lazy` block to restore. Cross-package imports use `@lindocara/<pkg>/<file>.js`; the `@` alias means
 the client source root everywhere.
 
-`npm run typecheck` runs every package `tsc`, `apps/main`'s own `tsconfig.json` (covers its
+`npm run typecheck` runs every package `tsc` **except `typecheck:editor`, unchained while the editor
+is quarantined** (the script still exists and still fails — that is how its rebuild measures
+progress), `apps/main`'s own `tsconfig.json` (covers its
 `main.ts`/`main.browser.ts` bootstrap entries, previously typechecked by no program at all — it
 extends alepha's own base config, the same fix `packages/client/tsconfig.api.json` already needed,
 because both entries import the alepha-flavored `AppRouter`) and the Node tooling program; `npm run
@@ -118,7 +130,8 @@ browser, and the two packages' own pure logic — `tiltShiftRadius`/`fillAmount`
 `island.ts` in lab (its sibling `terrain-query.ts` moved into `@lindocara/engine/hd2d/` in S2,
 alongside the rest of the hero's movement rule) — is exactly what's left once anything
 canvas/WebGL is excluded). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything
-and `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`, e.g. `test:hd2d`/`test:lab`) runs one.
+and `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`, e.g. `test:hd2d`/`test:lab`) runs one —
+minus `packages/editor`, excluded from that `projects` list for as long as it is quarantined.
 
 **The app's config lives with the app:** `apps/main/alepha.config.ts` declares the production
 platform (Bay adapter, public domain and bay-admin endpoint); `apps/main/migrations/`
@@ -211,7 +224,7 @@ src/client/     runs in a browser.
                 with the same hooks as before — only its scope shrank. Text state stays i18n keys
                 + params, never rendered strings.
   api.ts        fetch client; machine-code errors mapped to dictionary keys.
-  game/         the game loop: net.ts (prediction), renderer.ts (PixiJS), input.ts,
+  game/         the game loop: net.ts (prediction), the hd2d renderer, input.ts,
                 sound.ts, session.ts (owns the store writes, navigates only through
                 `state/navigation.ts`). No React, and no `alepha`/`alepha/react` import, in here —
                 enforced by keeping `game/**` in the package's plain (non-alepha) `tsconfig.json`
@@ -430,6 +443,10 @@ Migrations live in `apps/main/migrations/sqlite/`:
 
 ```bash
 # edit packages/server/src/api/entities/*.ts
+# BROKEN as of 2026-08-04 and not yet fixed: a top-level `await` inside an `if` in
+# apps/main/src/main.ts defeats drizzle-kit's esbuild bundling, and every `alepha db` command boots
+# that entry. `npm run check:migrations` (the drift check) is unaffected. Writing a migration by
+# hand, or hoisting that await, are the two ways round it until someone fixes the entry.
 npm run db:generate -w @lindocara/main        # alepha db migrations create — commit the output
 npm run check:migrations -w @lindocara/main   # entity/migration drift check (also inside `npm run v`)
 ```
@@ -542,7 +559,8 @@ same cache identity.
 
 The `adventures` and `map-editor` screens are gone: one `adventure-editor` screen
 (`src/client/ui/editor/`) now owns both, as menu bar / toolbar / three resizable panes (shadcn
-`TerrainPalette` left, the WYSIWYG PixiJS stage centre, `MapListPanel` right) / status bar.
+`TerrainPalette` left, the WYSIWYG stage centre (PixiJS until 2026-08-04; awaiting its HD-2D
+rebuild), `MapListPanel` right) / status bar.
 Adventure metadata lives in `AdventureSettingsDialog`, off the canvas. All chrome is stock shadcn —
 the old floating asset palette was the last Tiny import inside a creator surface, and it died with
 the pre-merge screens, so the two-tree rule now has zero exceptions in the editor. The stage keeps

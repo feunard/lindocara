@@ -72,7 +72,7 @@ export interface BillboardRegistry {
  *
  * Two numbers because the Tiny Swords pack has two rosters with two conventions. Every UNIT (the
  * player classes, and a guard, which is a warrior) is drawn on the same baseline — 56px up a 192px
- * frame, the very `footOffset` the PixiJS path uses. The ENEMY pack measures its ground line per
+ * frame, the very `footOffset` the deleted PixiJS path used. The ENEMY pack measures its ground line per
  * species (`ENEMY_RENDER_METRICS`), and those measurements cluster at ~0.30 of the frame; the
  * registry deliberately does not know a species, so it takes the cluster. A troll (0.23) therefore
  * stands ~0.3 tiles deep and a pig rider (0.35) ~0.3 tiles high until an actor carries its own
@@ -124,7 +124,7 @@ export function createBillboardRegistry(
       texture,
       cols,
       rows: 1,
-      // The pack's own scale system, and the same one the PixiJS path draws with: a frame is worth
+      // The pack's own scale system, and the same one the deleted PixiJS path drew with: a frame is worth
       // its native pixels at 64 to the tile, so a 192px goblin and a 384px troll stay in proportion
       // with each other and with the heroes rather than each being scaled to taste.
       height: framePx / TILE_SIZE,

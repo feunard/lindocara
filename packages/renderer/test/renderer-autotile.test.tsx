@@ -13,15 +13,14 @@ import {
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { autotileSheetCell } from "@lindocara/renderer/renderer.js";
-import { tileDrawAt } from "@lindocara/renderer/tile-draw.js";
+import { autotileSheetCell, tileDrawAt } from "@lindocara/renderer/tile-draw.js";
 import { describe, expect, it } from "vitest";
 
 /**
- * `#paintLayeredCell`'s per-cell autotile arithmetic, exercised directly rather than mirrored: this
- * is the actual function the renderer calls, exported because it has no Pixi in it and needs none
- * to test. Lives under `test/ui/` rather than the workerd suite because importing `renderer.ts` at
- * all pulls in `pixi.js` and `client/i18n.ts`'s `localStorage` read, both of which need a DOM.
+ * The per-cell autotile arithmetic, exercised directly rather than mirrored. It lives in
+ * `tile-draw.ts` — the module the map editor's stage draws from too, so the two cannot index the
+ * sheet differently. It used to be reached through `renderer.js`'s re-export; that file went with
+ * the PixiJS path (S3, 2026-08-04) and this now imports from the definition.
  */
 describe("autotileSheetCell", () => {
   const cliffWall = TINY_SWORDS_TILESET.autotiles[CLIFF_WALL_SLOT];
@@ -148,7 +147,7 @@ describe("tileDrawAt", () => {
     };
     expect(tileDrawAt(TINY_SWORDS_TILESET, grid, 2, 0)).toBeNull();
     expect(tileDrawAt(TINY_SWORDS_TILESET, grid, 0, -1)).toBeNull();
-    // (col=-1, row=1) is the seam `renderer.ts` computes from a negative camera-relative `startX`:
+    // (col=-1, row=1) is the seam a negative camera-relative `startX` computes:
     // a bare `row * cols + col` folds it to index 1, which is *inside* the array and, on this grid,
     // non-empty — so without the `col < 0` guard this would silently return the previous row's tile
     // instead of nothing. `grid`'s own index 1 is EMPTY_TILE, which would pass either way, so this

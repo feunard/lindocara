@@ -12,6 +12,12 @@ Traveler et de The Adventures of Elliot, appliquée aux assets **Tiny Swords**
 > **C'est un registre de pièges autant qu'une explication.** Chaque section dit ce qui a été
 > essayé et n'a pas marché, la mesure qui a tranché, et pourquoi un réglage vaut ce qu'il vaut.
 > S3 (le renderer du jeu) et S5 (la scène de l'éditeur) le reliront autant que S1 l'a fait.
+>
+> **S3's first increment has landed** (2026-08-04): the game itself now draws through this engine and
+> the PixiJS renderer is deleted. What that file knew, and what the port cost, is the section
+> [The game's renderer](#the-games-renderer--what-retiring-pixijs-cost-and-taught) near the end.
+> It is written in English — the repository's language rule applies to everything written from now
+> on; the French sections above stay as they were written.
 
 ![jour](hd2d/day.png)
 ![nuit](hd2d/night.png)
@@ -522,6 +528,137 @@ simplement pas — rien ne bloque la scène.
   littoral, seul le bout d'un coin dépasse et se lit comme une moucheture
   flottant au large. Le débord se règle donc au plus juste (`FOAM_SPREAD`) :
   1.56 semait des taches, 1.42 donne un liseré continu.
+
+## The game's renderer — what retiring PixiJS cost, and taught
+
+S3's first increment (2026-08-04) moved the game itself onto this engine and deleted the PixiJS
+renderer — `packages/renderer/src/renderer.ts` and its four satellites, 5 800-odd lines.
+
+This is the same kind of registry as the French one above: what was tried, what the measurement said, and what a future reader
+must not redo. Everything below was found while porting terrain, actors and scenery onto `hd2d`.
+
+### Pitfalls found porting the game onto the engine
+
+- **One canvas holds one WebGL context, for the life of the page.** Nothing detaches one.
+  `forceContextLoss()` least of all: it goes through `WEBGL_lose_context.loseContext()`, which
+  *loses* the context without *detaching* it, so a later `getContext()` returns the same dead object
+  and the next engine initialises on a corpse — measured on the game's `#stage`, and the page froze
+  (a screenshot call timed out at 5 s; that timeout is the evidence). Leaving it alone is strictly
+  better: the second engine inherits a live context and renders, merely warning about a missing
+  stencil buffer. With one engine left this is no longer reachable by switching renderers — but the
+  rule is not moot, because the editor's future HD-2D preview will want a second context on that
+  same shared canvas. The note lives in `packages/hd2d/src/pipeline.ts`'s `dispose()`; do not add
+  `forceContextLoss()` back.
+- **…and a SECOND session on the same canvas inherits that context, warnings and all.** Reachable by
+  ordinary play now that HD-2D is the only path: leave `/game`, come back, and a second
+  `WebGLRenderer` is built on the first one's context. Measured: it renders correctly — the terrain
+  pixels of the two sessions are byte-identical — but three logs two
+  `texImage3D: FLIP_Y or PREMULTIPLY_ALPHA isn't allowed for uploading 3D textures` while uploading
+  the grading LUT, because the new renderer's unpack state does not match what the context was left
+  in. Noise rather than damage, and unfixed: the fix belongs in `@lindocara/hd2d`'s pipeline, and the
+  first session is silent.
+- **A pipeline that writes on a canvas it does not own must give it back.** `pipeline.dispose()`
+  records `canvas.style.imageRendering` before overwriting it and restores *what was there* — it
+  knows nothing about the game and reads the same for the lab or an editor preview. Measured: `""`
+  before, `"auto"` during, `""` after.
+- **A camera that follows must SNAP on its first frame.** The scene is built parked over the map's
+  spawn; damping toward the hero from there is a one-second fly-in on every single join, which reads
+  as a feature and is a bug. Only the first focus snaps; every frame after it damps
+  (`1 - exp(-follow · dt)`, the lab's own exponential).
+- **`setFocusY` damps 8 % per call, so calling it once beside the framing is very nearly a no-op**
+  that *reads* as "the tilt-shift band tracks the target". It must be called every frame, from
+  `render()`. Caught only by asking what one call actually moves.
+- **A billboard's vertical stretch is computed from the camera's plunge, so the two must read one
+  constant.** `HD2D_CAMERA.pitch` is exported for that reason alone: a stretch computed for an angle
+  the camera does not have is a whole scene of subtly wrong sprites, with nothing on screen naming
+  the cause.
+- **Actor sheets must NOT be declared atlases — the exact inverse of the tileset rule above.** A
+  tileset is sampled by sub-rectangle and needs its mipmaps suppressed; a sprite is seen at every
+  distance and needs them. The lab's own catalogue marks the four tilesets and the foam, and nothing
+  else, and that is not an oversight.
+- **A sheet's frame grid can be read off the image only if every frame is square.** True of all 40
+  unit and enemy sheets (`width % height === 0`, verified programmatically), so an actor's layout is
+  derived rather than tabulated. **Scenery is not like that**: a building is 128×192, a rock 64×64, a
+  bush eight frames wide, and each carries its own measured ground line. Guessing there draws a house
+  as a 3×3 square and stands a tree in the ground — the catalogue already holds all four numbers and
+  they must be read, not inferred.
+- **A `cols × rows` billboard cannot frame a sub-rectangle of a shared sheet.** Nine of the
+  catalogue's 144 placeable assets are crops out of one image (the six Update-010 trees share a
+  768×576 PNG). They are skipped with one warning each, and a map dressed mostly out of them comes up
+  sparse. Fixing it needs a second framing path in `makeBillboard` — an explicit UV rect rather than
+  a grid index.
+- **Warn once per asset id, not once per placement.** The first version of the scenery placer logged
+  a line per prop, so exactly the map that trips the pitfall above — dozens of the same unsupported
+  tree — is the map that floods the console and hides everything else.
+- **A foot offset is per asset, not per kind.** Units share the pack's measured 56/192, so one
+  constant is honest for players and guards. Enemies do not: their ground lines cluster near 0.30 of
+  the frame but a troll and a pig rider sit ~0.3 tiles off it in opposite directions, and that cost
+  is being paid today because no per-species measurement crosses the actor seam.
+- **Scenery and actors want different lifecycles, so they get different code.** The actor registry
+  exists to keep sprites alive ACROSS frames: diff, move, turn, drop, rebuild on a texture change —
+  every one of those behaviours is about things that move. Scenery is placed once when the map lands
+  and given back when the map goes. Folding it into the registry costs either a per-frame diff over
+  hundreds of immobile trees or a second lifecycle inside it; both were refused.
+- **Draw one thing per frame of a prop sheet: frame 0.** A tree's sheet also holds its felling and
+  its stump; a bush is padded with duplicates of its first frame. Nothing animates on this path yet,
+  and when it does it must animate the measured run, not the sheet.
+
+### What `renderer.ts` knew, and where that knowledge is now
+
+The deleted file held rules nobody had written down. Three groups, with different fates:
+
+- **The camera rules survive as pure, tested functions that nothing calls.**
+  `world-view.ts`'s `gameCameraScale` (which deliberately CLAMPS how close and how far the game
+  camera may sit, so a zoom control multiplies its result instead of widening the clamp),
+  `cameraAxisOffset` (which centres a world smaller than the viewport rather than pinning it to a
+  corner), `elevatedCameraAxisOffset`, and `terrain-visuals.ts`'s `elevationCameraRise` are all
+  still here, still covered by `world-view.test.ts` and `terrain-visuals.test.ts`. **The HD-2D camera
+  honours none of them**: it follows the hero with no map-bound clamping at all, so a hero at a map
+  edge sees past it. The load-bearing detail those functions encode, and which cost a bug once
+  already: **the elevation rise is applied AFTER map-bound clamping**, never folded into the camera
+  target, or a stair near the north edge silently loses the whole effect. Whoever gives the HD-2D
+  camera bounds must apply them in that order.
+  `renderer.ts` also snapped rather than damped whenever the target jumped more than 640 px (a
+  teleport, a map handoff) and damped at `1 - exp(-dt · 8.5)` otherwise. The HD-2D scene uses the
+  same shape with `follow: 6`, and snaps only on the first frame — a teleport currently sweeps.
+- **The draw-ordering rules died, and mostly deserved to.** `mapElementRenderLayer` routed an
+  authored prop into one of three containers by its `renderLayer` (`ground` → the decor layer,
+  `object`/`canopy` → the actor layer so painter's-algorithm sorting could interleave them with
+  heroes, `sky` → above everything). A depth buffer does that job now without being told, which is
+  the single largest thing 3D buys here. **But the `sky` case has no equivalent**: an authored prop
+  that asked to draw above everything now simply obeys geometry. If a map ever needed that, this is
+  where it went.
+  Two smaller losses in the same family: elevation shadow layers were maintained per level
+  (a level-1 prop's shadow had to be drawn into the level-1 container or it landed on the wrong
+  ground), and `EVENT_GRAPHIC_FIT_TILES` scaled an authored event's graphic to fit a fixed number of
+  tiles. That constant is gone with its file, so **event graphics now draw at the pack's native
+  scale** — the same authored map reads differently than it did before this increment. That is a
+  deliberate consequence, not a regression to chase: native scale is the pack's own scale system (see
+  "Toutes les frames…" and `tiny-swords-art.ts`'s own note about never fitting a frame to a box),
+  and fitting-to-a-box is what shrank an NPC once already.
+- **The feedback rules survive intact and uncalled.** `feedback.ts` still owns
+  `MAX_ACTIVE_WORLD_EFFECTS` (28), `shouldFloatEvent` (which system/loot/quest prose belongs in
+  React's event log rather than the world) and `questSiteFeedback`. The last one is a security
+  property, not a style one: **it must keep returning a zero signal alpha**, because a non-zero one
+  would leak the expected rune order to anyone reading pixels. Whoever re-implements world effects on
+  billboards inherits that rule along with the file.
+
+### What this path does not draw yet
+
+Grep `NOT YET DRAWN ON THE HD-2D PATH` in `packages/renderer/src/hd2d/` for the authoritative list.
+The ones a player would notice first:
+
+- **Actors do not animate.** `ActorView` carries no clip and `sync` has no clock; every actor is
+  frame 0 of its idle strip, facing the direction the server reports. Giving it a clip is a real API
+  change (a `dt` into `sync`), which is why it was not done unilaterally.
+- **A ghost is drawn opaque.** The corpse-run's whole visual language is missing; a corpse is not
+  drawn at all, because an idle billboard standing to attention over a body is worse than nothing.
+- **Combat, healing, loot, projectiles, portals, camp and quest-marker effects are explicit no-ops.**
+  The session calls all of them; each returns without drawing, and says so.
+- **Snow and ice borrow `Tilemap_color5.png`**, the coldest of the pack's five hues. The lab composes
+  dedicated cold tilesets with `apps/lab/scripts/compose-tileset.py` and those are not committed, so
+  the two cold materials currently read as the same teal as each other. They are two separate atlas
+  entries pointing at one texture, so giving snow its own art later is one line.
 
 ## Réglages
 

@@ -4,8 +4,10 @@
  * until the legacy retirement tranche deleted it entirely). Every route is live now:
  * `title`/`menu`/`credits`/`auth`, the three launch
  * carousels (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own
- * docblock below), `game` (Task 5) and, since Task 6, `editor` — a lazy-loaded route (see its own
- * field docblock below) rendering the real `@lindocara/editor` shell instead of a stub.
+ * docblock below), `game` (Task 5) and `editor`. `editor` was a lazy-loaded route rendering the real
+ * `@lindocara/editor` shell; since S3 retired the PixiJS render path (2026-08-04) it renders a
+ * notice instead, because that package no longer compiles. Its own field docblock has the whole
+ * story and the exact code to restore.
  *
  * The root `layout` carries the chrome the old `App.tsx` used to own directly: the boot ping (now
  * `ReactAuth.ping()` -> guest fallback -> /auth, replacing the old `fetchMe()`), the launch-menu music effect and the
@@ -22,6 +24,7 @@
  * directly, since that event never fires for them.
  */
 
+import { Button } from "@lindocara/ui/components/button.js";
 import { $hook, $inject, Alepha } from "alepha";
 import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
@@ -38,7 +41,7 @@ import {
 import { menuAudio } from "../game/menu-audio.js";
 import { stopActiveGameSession } from "../game/session.js";
 import { continueAsGuest } from "../guest.js";
-import { useLocale } from "../i18n.js";
+import { t, useLocale } from "../i18n.js";
 import { activePartyAtom, adventureTestSessionAtom, quickItemsAtom } from "../state/atoms.js";
 import type { GameNavigation } from "../state/navigation.js";
 import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/navigation.js";
@@ -127,6 +130,41 @@ function GameScreen() {
       <VictoryOverlay />
       <AdventureTestOverlay />
     </>
+  );
+}
+
+/**
+ * What `/editor` renders while `@lindocara/editor` is quarantined — see the `editor` field below for
+ * why, and for what to put back.
+ *
+ * Stock shadcn rather than the Tiny Swords tree, because this stands in for a creator surface. It is
+ * `position: fixed` at the same `z-index` the editor shell used (`legacy.css`'s `.editor-root`): the
+ * `#stage` canvas is a full-viewport fixed sibling of `#root`, so anything meant to be read — and
+ * clicked — over it has to say so.
+ */
+function EditorRebuildingNotice() {
+  const router = useRouter<AppRouter>();
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 20,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "16px",
+        padding: "24px",
+        textAlign: "center",
+        background: "var(--background)",
+        color: "var(--foreground)",
+      }}
+    >
+      <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>{t("editor.rebuilding.title")}</h1>
+      <p style={{ maxWidth: "48ch", opacity: 0.8 }}>{t("editor.rebuilding.body")}</p>
+      <Button onClick={() => void router.push("menu")}>{t("editor.rebuilding.back")}</Button>
+    </div>
   );
 }
 
@@ -406,24 +444,33 @@ export class AppRouter {
   });
 
   /**
-   * The creator tools, lazy-loaded (Task 6) — this is the ONE undeclared cross-package edge in the
-   * whole app: `packages/client/package.json` deliberately does NOT depend on `@lindocara/editor`
-   * (see the root AGENTS.md — "the client App lazy-`import()`s the editor at runtime without
-   * declaring it, so there is no static `client -> editor` cycle"), the same pattern the old
-   * `LegacyShell.tsx`'s own `lazy(async () => ...)` used before this route existed (and before that
-   * file was deleted). `$page`'s own
-   * `lazy` contract (`$page.ts`) is `() => Promise<{ default: FC<...> }>`, not React's `lazy()`
-   * shape, and `AdventureEditorScreen` is a NAMED export — `.then()` reshapes the module into the
-   * `{ default }` envelope `ReactPageProvider.createElement` awaits and destructures inline, no
-   * separate wrapper module needed. `npm run typecheck:client` resolves the type across the package
-   * boundary via the workspace's node_modules symlink (created by npm workspaces regardless of a
-   * declared `package.json` dependency).
+   * The creator tools — **a stub since S3 retired the PixiJS render path (2026-08-04).**
+   *
+   * `@lindocara/editor`'s stage (`game/map-editor-stage.ts`, `game/map-preview.ts`) is built on
+   * `renderer.ts`, `stage-application.ts`, `catalog-element-render.ts` and `editor-asset-art.ts`,
+   * all of which that increment deleted. The spec chose a deliberate break over keeping a second
+   * render path alive for the editor's sake, so the package no longer compiles and is excluded from
+   * the verify pipeline (see the root `package.json` and `vitest.config.ts`). This route renders a
+   * plain message instead of `import()`ing a module that would throw at load; it is restored, as a
+   * lazy import of the real shell, by the S3 piece that rebuilds the editor on `@lindocara/hd2d`.
+   *
+   * What it looked like, and must look like again:
+   *
+   * ```ts
+   * lazy: async () => {
+   *   const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
+   *   return { default: module.AdventureEditorScreen };
+   * }
+   * ```
+   *
+   * That was the ONE undeclared cross-package edge in the whole app —
+   * `packages/client/package.json` deliberately does NOT depend on `@lindocara/editor` (see the root
+   * AGENTS.md), and `$page`'s `lazy` contract is `() => Promise<{ default: FC }>` while
+   * `AdventureEditorScreen` is a named export, which is what the reshaping `.then()` was for. Keep
+   * both properties when restoring it.
    */
   editor = $page({
     path: "/editor",
-    lazy: async () => {
-      const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
-      return { default: module.AdventureEditorScreen };
-    },
+    component: () => <EditorRebuildingNotice />,
   });
 }

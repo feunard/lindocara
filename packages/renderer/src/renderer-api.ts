@@ -1,14 +1,12 @@
 /**
  * The renderer contract `game/session.ts` consumes — every method it calls, and nothing else.
  *
- * Extracted so the PixiJS `Renderer` and the HD-2D `Hd2dRenderer` satisfy ONE named contract
- * instead of the session duck-typing whichever object it happens to hold. Two implementations
- * behind an implicit shape is how a method silently exists on one path and not the other; the
- * `implements` clause on each class is what turns that into a compile error.
- *
- * Every signature below is copied verbatim from `renderer.ts`, with one deliberate exception:
- * `configureMapTerrain` gained the decoded heightfield (see its own docblock). If `npm run
- * typecheck:renderer` complains after a change here, the interface is wrong, not the class.
+ * It was extracted so the PixiJS `Renderer` and the HD-2D `Hd2dRenderer` could satisfy ONE named
+ * contract while both existed. The PixiJS path is gone (S3, 2026-08-04) and `Hd2dRenderer` is the
+ * only implementation, but the interface stays: it is the seam `session.ts` is written against, and
+ * an editor preview or a headless harness is expected to satisfy it next. Adding a method the
+ * session calls means adding it here first — a member that exists only on the class is a method the
+ * session can call without the contract knowing.
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
@@ -22,29 +20,43 @@ import type {
   MonsterSpecialImpact,
   PeasantBombImpactVisual,
   PeasantCampVisual,
+  PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestLumenTrailVisual,
   PriestPolarityOrbVisual,
+  QuestState,
   RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { TileMap } from "@lindocara/engine/tilemap.js";
-import type { ZoneId } from "@lindocara/engine/zones.js";
 import type { MonsterImpactSound } from "./combat-art.js";
-import type { RenderContext } from "./renderer.js";
+import type { HealthBarMode } from "./display-settings.js";
 import type { SceneSample } from "./scene-sample.js";
 
+/**
+ * The per-frame view state the session hands the renderer beside the interpolated sample.
+ *
+ * It lived in `renderer.ts` until that file was deleted with the PixiJS path (S3, 2026-08-04). It is
+ * a plain data shape with no render-engine types in it, so its home is the contract, not an
+ * implementation of it.
+ */
+export interface RenderContext {
+  self?: PlayerSnapshot;
+  quest: QuestState;
+  now: number;
+  healthBars: HealthBarMode;
+  grid: boolean;
+}
+
 export interface RendererLike {
-  configureZone(zoneId: ZoneId): void;
   /**
-   * The wire-terrain twin of `configureZone`.
+   * Install the map the room is running.
    *
    * `heightfield` is the welcome's decoded `MapData` (`WorldInfo.heightfield`), or `null` when the
-   * room has none. It is the ONLY thing the HD-2D path draws its ground from; the PixiJS path
-   * ignores it and keeps reading `tiles`/`layers`/`elements`. Both live in the same signature on
-   * purpose — the day the PixiJS path goes away, the parameters it alone reads go with it, and a
-   * grep for the survivors names every call site.
+   * room has none — the only thing the HD-2D path draws its ground from. `tiles`/`elements`/
+   * `appearance` are the older wire terrain: still passed, still what the minimap and the movement
+   * rule read, and drawn by nothing since the PixiJS path was deleted.
    */
   configureMapTerrain(
     zoneId: string,

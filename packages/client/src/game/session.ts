@@ -44,8 +44,7 @@ import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { trackActions, trackInput } from "@lindocara/renderer/input.js";
 import { type InteriorDoor, nearestInterior } from "@lindocara/renderer/interiors.js";
 import { MapSurface } from "@lindocara/renderer/minimap-surface.js";
-import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
-import type { RendererLike } from "@lindocara/renderer/renderer-api.js";
+import type { RenderContext, RendererLike } from "@lindocara/renderer/renderer-api.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import type { PartyListing, StoredHero } from "../api.js";
 import { t } from "../i18n.js";
@@ -342,21 +341,7 @@ async function startGameIdentity(
   setStatus("status.connecting", { name: identity.name });
   const canvas = required<HTMLCanvasElement>("#stage");
   const serverClock = new ServerClock();
-  // Temporary: sequences S3's first increment so each task leaves the game runnable. DELETE with the
-  // PixiJS path — if this flag outlives that deletion, the increment is not finished.
-  //
-  // ONE-WAY WITHIN A PAGE LOAD. `#stage` is a single canvas and a WebGL context, once created on it,
-  // stays attached for the life of the page — nothing detaches one, `forceContextLoss()` least of
-  // all (see `packages/hd2d/src/pipeline.ts`'s `dispose`, which records the measurement). So once an
-  // HD-2D session has run, a later PixiJS session on that same page load inherits three's context
-  // instead of building its own: measured, it still renders, but Pixi logs "Provided WebGL context
-  // does not have a stencil buffer, masks may not render correctly" and that warning is true.
-  // **Getting back to a clean PixiJS path takes a full page reload.** A fresh page load is
-  // unaffected either way, which is what makes this acceptable for a flag that dies in task 9.
-  const useHd2d = new URLSearchParams(location.search).get("hd2d") === "1";
-  const renderer: RendererLike = useHd2d
-    ? await Hd2dRenderer.create(canvas, serverClock)
-    : await Renderer.create(canvas, serverClock);
+  const renderer: RendererLike = await Hd2dRenderer.create(canvas, serverClock);
   // Renderer creation is asynchronous — the ONLY `await` between "loading started" and "the game
   // handle is installed". `activeLaunchId` may have moved on for two reasons: another hero was
   // launched while assets were loading (`launchGameIdentity`'s own `++activeLaunchId`), or an
@@ -506,26 +491,22 @@ async function startGameIdentity(
       // Harvest replacements are explicit appearance metadata in the welcome. Queue them before
       // the first playable frame so the last authoritative hit never initiates their texture load.
       renderer.preloadWorldEventAssets(world.events);
-      // A known id resolves to the compiled catalogue (terrain, furniture and all); anything else
-      // is a D1 map, so its baked terrain and authored props travel in the welcome and are drawn
-      // from there. Same hybrid-routing rule the server used to pick this room.
-      if (isKnownZone(world.zoneId)) {
-        renderer.configureZone(world.zoneId);
-      } else {
-        renderer.configureMapTerrain(
-          world.zoneId,
-          decodeTileMap(world.tiles),
-          world.elements,
-          world.revision,
-          // Decoded only on the path that reads it: `decodeMap` is a full validation pass over the
-          // whole grid (~60 KB of JSON for a 72² map), and the PixiJS path discards the result. On
-          // the HD-2D path, `null` covers both "the room has none" and "the room sent one this
-          // client could not parse" — it draws nothing either way, which is the honest outcome for
-          // a map it cannot read.
-          useHd2d && world.heightfield !== null ? decodeMap(world.heightfield) : null,
-          { tilesetId: world.tilesetId, layers: world.layers },
-        );
-      }
+      // Every live room is a database map: `WorldRoom` builds its world with `zoneFromMapPayload`
+      // and never reads the compiled catalogue, so the old `isKnownZone(world.zoneId)` branch to
+      // `configureZone` was routing that no snapshot could reach. It went with the PixiJS path,
+      // which was the only renderer that could draw a compiled zone. The remaining `isKnownZone`
+      // guards in this file are about catalogue QUESTS and interiors, not terrain, and still hold.
+      renderer.configureMapTerrain(
+        world.zoneId,
+        decodeTileMap(world.tiles),
+        world.elements,
+        world.revision,
+        // `null` covers both "the room has no heightfield" and "the room sent one this client could
+        // not parse" — the renderer draws nothing either way, which is the honest outcome for a map
+        // it cannot read.
+        world.heightfield !== null ? decodeMap(world.heightfield) : null,
+        { tilesetId: world.tilesetId, layers: world.layers },
+      );
       activeZoneId = world.zoneId;
       currentMerchant = world.merchant;
       renderer.configureMerchant(world.merchant);

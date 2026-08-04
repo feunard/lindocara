@@ -1,6 +1,5 @@
 /**
- * The HD-2D renderer, beside the PixiJS one and selected by `?hd2d=1` (see
- * `packages/client/src/game/session.ts`).
+ * The game's renderer — the only one, since S3 retired the PixiJS path (2026-08-04).
  *
  * It draws the world's GROUND — terrain, sea, foam, sky and light, from the welcome's heightfield —
  * its ACTORS, as billboards the camera follows (`billboards.ts`), and the map's own SCENERY, the
@@ -37,7 +36,6 @@ import type {
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
 import { editorAsset, guardPrimaryColorForAsset } from "@lindocara/engine/tiny-swords-catalog.js";
-import type { ZoneId } from "@lindocara/engine/zones.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
@@ -45,8 +43,7 @@ import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import type { MonsterImpactSound } from "../combat-art.js";
 import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
-import type { RenderContext } from "../renderer.js";
-import type { RendererLike } from "../renderer-api.js";
+import type { RenderContext, RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
 import { unitSheet } from "../tiny-swords-art.js";
@@ -74,7 +71,7 @@ function playerTextureKey(player: PlayerSnapshot): string {
 /** The SPECIES, never `graphicAssetId`: an authored catalogue appearance is one more sheet per
  *  authored monster, and preloading a set that only the running adventure knows is a later piece.
  *  The species is the authoritative combat model, so it is never a wrong answer, only a plainer
- *  one — the PixiJS path draws the authored art on top of the same species model. */
+ *  one — the deleted PixiJS path drew the authored art on top of the same species model. */
 function monsterTextureKey(monster: MonsterSnapshot): string {
   return TINY_SWORDS_ENEMIES[monster.species].idle.source;
 }
@@ -93,8 +90,8 @@ function facingOf(vector: Vec2): Facing {
   return vector.y < 0 ? "north" : "south";
 }
 
-/** A guard is a Tiny Swords unit like any other — the same warrior sheet the PixiJS path gives it,
- *  in the faction colour its authored asset id implies. */
+/** A guard is a Tiny Swords unit like any other — the same warrior sheet the deleted PixiJS path
+ *  gave it, in the faction colour its authored asset id implies. */
 function guardTextureKey(guard: GuardSnapshot): string {
   return unitSheet(
     "warrior",
@@ -154,8 +151,8 @@ export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture"> {
  *   nothing else, so cropping one of those would need a second framing path. NOT YET DRAWN ON THE
  *   HD-2D PATH: sub-rect crops — 9 of the catalogue's 144 placeable assets;
  * - an entry NOT anchored on the bottom of its frame. `foot` is measured up from the frame's bottom
- *   edge, which is only the sprite's ground line when `anchor.y === 1` — the PixiJS path reads the
- *   real anchor (`catalog-element-render.ts`), this one cannot express it. No shipped asset has any
+ *   edge, which is only the sprite's ground line when `anchor.y === 1`. The deleted PixiJS path read
+ *   the real anchor; this one cannot express it. No shipped asset has any
  *   other anchor today, so this guard costs nothing and stops the first one that does from floating;
  * - a file the Vite glob never bundled (`tinySwordsSourceUrl` throws on those, by design).
  *
@@ -164,7 +161,7 @@ export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture"> {
  * gives actors: a frame is worth its native pixels at 64 to the tile, so an authored tree and the
  * hero beside it stay in proportion. `footOffset` is `frameHeight - alphaBboxBottom` — the visible
  * ground line measured up from the bottom of the frame — which is precisely what `foot` wants, and
- * the same number the PixiJS path uses to stand the very same sprite on the very same cell.
+ * the same number the deleted PixiJS path used to stand the very same sprite on the very same cell.
  */
 export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   const definition = editorAsset(assetId);
@@ -263,8 +260,8 @@ export class Hd2dRenderer implements RendererLike {
   }
 
   /**
-   * The frame loop. The PixiJS renderer borrows the shared `Application`'s ticker; there is no such
-   * ticker here, so this owns a `requestAnimationFrame` loop and hands the session the same
+   * The frame loop. The deleted PixiJS renderer borrowed a shared `Application`'s ticker; there is
+   * no such ticker here, so this owns a `requestAnimationFrame` loop and hands the session the same
    * `(nowMs, deltaSeconds)` it has always received. The session's callback is what calls `render`,
    * so the scene advances from inside the callback, never beside it.
    */
@@ -342,9 +339,10 @@ export class Hd2dRenderer implements RendererLike {
    * a two-second first frame for scenery that could simply arrive a moment later. The ground, the
    * sea and the actors are already on screen while this runs.
    *
-   * `token` is the guard that makes that safe. Two maps in quick succession — a transition, a
-   * `configureZone` — must not let the first one's download graft its trees onto the second one's
-   * scene, so a load that is no longer the current one gives its textures straight back.
+   * `token` is the guard that makes that safe. Two maps in quick succession — a map transition, a
+   * reconnect onto a different map — must not let the first one's download graft its trees onto the
+   * second one's scene, so a load that is no longer the current one gives its textures straight
+   * back.
    */
   async #loadStaticContent(scene: Hd2dScene, heightfield: MapData): Promise<void> {
     const token = ++this.#contentToken;
@@ -421,8 +419,8 @@ export class Hd2dRenderer implements RendererLike {
    *
    * Two skips, and one thing still owed for each:
    *
-   * - A **dead monster** is skipped. The PixiJS path keeps it for a death animation this one does
-   *   not play, so leaving it in would stand a corpse upright until the server swept it. NOT YET
+   * - A **dead monster** is skipped. The deleted PixiJS path kept it for a death animation this one
+   *   does not play, so leaving it in would stand a corpse upright until the server swept it. NOT YET
    *   DRAWN ON THE HD-2D PATH: the death animation itself.
    * - A player in the **`corpse`** life state is skipped for the same reason — a body lies down,
    *   and an idle billboard standing to attention over it is worse than nothing. Its body rides in
@@ -496,17 +494,6 @@ export class Hd2dRenderer implements RendererLike {
     this.#frameCallbacks = [];
     this.#disposeScene();
     this.#textures.dispose();
-  }
-
-  /**
-   * A compiled-catalogue zone has no heightfield, so there is nothing for this path to draw. It
-   * clears whatever was on screen rather than leaving the previous map's ground under a zone that
-   * has replaced it.
-   */
-  configureZone(_zoneId: ZoneId): void {
-    this.#currentMapId = null;
-    this.#currentMapRevision = -1;
-    this.#disposeScene();
   }
 
   /** Which of the frame's players the camera follows. Not a no-op any more: this is the one actor

@@ -1069,6 +1069,12 @@ export const en = {
   "adventure.victory.copy": "Your party completed the adventure. You may keep exploring.",
   "adventure.victory.continue": "Keep playing",
 
+  // The `/editor` route while the editor is quarantined — see `AppRouter.tsx`'s `editor` field.
+  "editor.rebuilding.title": "The editor is being rebuilt",
+  "editor.rebuilding.body":
+    "The creator tools were built on the PixiJS renderer, which the HD-2D increment retired. They come back rebuilt on the new render path; nothing you have authored is affected.",
+  "editor.rebuilding.back": "Back to the menu",
+
   // Map editor (list mode; painting arrives with the stage in a later task)
   "editor.title": "Map editor",
   "editor.new": "New map",

@@ -479,8 +479,15 @@ export function createHd2dScene(
      * Gives back everything this scene took — with one exception it CANNOT give back: the canvas's
      * WebGL context. `createPipeline` built it and `pipeline.dispose()` restores the canvas's
      * `image-rendering`, but no API detaches a context from a canvas; `forceContextLoss()` was
-     * measured and makes it strictly worse (see that function's own comment). The consequence for
-     * the shared `#stage` is spelled out at the `?hd2d=1` flag site in `client/game/session.ts`.
+     * measured and makes it strictly worse (see that function's own comment).
+     *
+     * The consequence, measured on `#stage` after this increment made HD-2D the only path: a SECOND
+     * session in the same page load (leave `/game`, come back) builds a second `WebGLRenderer` on
+     * the first one's context. It renders identically — terrain pixels compared byte for byte — but
+     * three logs two `texImage3D: FLIP_Y or PREMULTIPLY_ALPHA isn't allowed` warnings while
+     * uploading the grading LUT, because the new renderer's unpack state does not match what the
+     * context was left in. Noise, not damage, and it is the same inherited-context rule; a fix
+     * belongs in `@lindocara/hd2d`'s pipeline, not here.
      */
     dispose(): void {
       terrain.dispose();

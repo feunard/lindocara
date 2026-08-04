@@ -1084,6 +1084,11 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.victory.continue": "Continuer à jouer",
 
   // Éditeur de cartes (mode liste ; la peinture arrive avec la scène dans une tâche future)
+  "editor.rebuilding.title": "L'éditeur est en cours de reconstruction",
+  "editor.rebuilding.body":
+    "Les outils de création reposaient sur le rendu PixiJS, retiré par le chantier HD-2D. Ils reviendront reconstruits sur le nouveau moteur de rendu ; rien de ce que vous avez créé n'est affecté.",
+  "editor.rebuilding.back": "Retour au menu",
+
   "editor.title": "Éditeur de cartes",
   "editor.new": "Nouvelle carte",
   "editor.name": "Nom",

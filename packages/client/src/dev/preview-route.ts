@@ -1,26 +1,32 @@
 /**
  * `?preview` — walk a map on the bare canvas, with no login, no party and no server.
  *
- * The point is the feedback loop. Judging how a map LOOKS meant, until now, seeding it into D1,
- * logging in, creating a party, picking a hero and connecting a socket — minutes per look, which is
- * why nobody looked. This boots the real game renderer straight onto `#stage` from a map built in
- * memory, so `npm run dev` plus one query parameter is the whole cycle.
+ * **QUARANTINED WITH THE EDITOR (S3, 2026-08-04).** The route's whole body was one call into the
+ * editor's `startMapPreview`, which is built on the PixiJS renderer S3 deleted. It deliberately
+ * reused that preview rather than growing a second walk loop — that one already runs the shared
+ * `step()` + `resolveTerrain()` on the real `terrainFromMap` bake, and a second copy of movement is
+ * the exact fork this codebase refuses everywhere else. That reasoning still holds, so the route
+ * waits for the editor's HD-2D rebuild instead of forking. Until then it says so on screen.
+ *
+ * What it did, and must do again:
  *
  *   /?preview=1                 the étalon map
  *   /?preview=1&palette=color1  the same map on another of the pack's five ground palettes
  *
- * It deliberately reuses the editor's `startMapPreview` rather than growing a second walk loop: that
- * one already runs the shared `step()` + `resolveTerrain()` on the real `terrainFromMap` bake, and a
- * second copy of movement is the exact fork this codebase refuses everywhere else. The import is
- * dynamic for the same reason `App` lazy-loads the editor — a static `client -> editor` edge would
- * be a cycle.
+ * ```ts
+ * const palette = request.palette;
+ * const paletteApplied = palette === null ? true : setGroundPalette(palette);
+ * const { map, stairsPlaced, stairsRequested } = buildReferenceMapBuild();
+ * const { startMapPreview } = await import("@lindocara/editor/game/map-preview.js");
+ * await startMapPreview(map, [], { playerChrome: false, ambience: …, zoom: …, zoomControls: true });
+ * ```
+ *
+ * The import was dynamic on purpose: a static `client -> editor` edge would be a cycle. Keep that
+ * when restoring it.
  *
  * Dev only. `main.tsx` gates the whole route on `import.meta.env.DEV`, so it leaves production
  * builds entirely.
  */
-import { AMBIENCE_FULL, AMBIENCE_NONE } from "@lindocara/renderer/ambience.js";
-import { setGroundPalette } from "@lindocara/renderer/tiny-swords-art.js";
-import { buildReferenceMapBuild } from "./reference-map.js";
 
 export interface PreviewRequest {
   palette: string | null;
@@ -64,29 +70,12 @@ function captionInto(root: Element, lines: readonly string[]): void {
   root.appendChild(box);
 }
 
-export async function startPreviewRoute(request: PreviewRequest): Promise<void> {
-  // Before any renderer exists: `Renderer.create` loads the terrain sheet once, so the palette has
-  // to be chosen while there is still nothing to reload.
-  const palette = request.palette;
-  const paletteApplied = palette === null ? true : setGroundPalette(palette);
-
-  const { map, stairsPlaced, stairsRequested } = buildReferenceMapBuild();
-  const { startMapPreview } = await import("@lindocara/editor/game/map-preview.js");
-  // No ring, no nameplate, no health bar: this route exists to judge the MAP, and all three sit in
-  // the middle of the frame. The hero stays — scale is part of what a reference shot has to show.
-  await startMapPreview(map, [], {
-    playerChrome: false,
-    ambience: request.ambience ? AMBIENCE_FULL : AMBIENCE_NONE,
-    zoom: request.zoom,
-    zoomControls: true,
-  });
-
+export async function startPreviewRoute(_request: PreviewRequest): Promise<void> {
   const root = document.querySelector("#root");
   if (!root) return;
   captionInto(root, [
-    `étalon  ${map.cols}x${map.rows}  ${map.elements.length} elements  stairs ${stairsPlaced}/${stairsRequested}`,
-    `palette ${palette ?? "default"}${paletteApplied ? "" : "  (unknown — ignored)"}   ambience ${request.ambience ? "on" : "off"}`,
-    "WASD / arrows to walk    wheel or - / + to zoom, 0 resets",
-    "?palette=color1..color5    ?ambience=0    ?zoom=0.5",
+    "?preview is out of order — it drew through the editor's map preview, and the editor is",
+    "quarantined while it is rebuilt on @lindocara/hd2d (S3, 2026-08-04).",
+    "You did not break this. See packages/editor/AGENTS.md.",
   ]);
 }

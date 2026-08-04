@@ -1,5 +1,26 @@
 # @lindocara/editor
 
+> **BROKEN ON PURPOSE (S3, 2026-08-04).** This package does not typecheck: its stage imports the
+> PixiJS renderer, which S3's first increment deleted. It is excluded from the verify pipeline and
+> is rebuilt on `@lindocara/hd2d` in its own S3 piece. You did not cause this.
+>
+> Concretely: `game/map-editor-stage.ts` and `game/map-preview.ts` import
+> `@lindocara/renderer/renderer.js`, `stage-application.js`, `catalog-element-render.js`,
+> `editor-asset-art.js` and `tiny-swords-art.js`'s three `slice*` helpers — all gone. The exclusions
+> that keep the pipeline honest, each carrying a comment pointing back here:
+>
+> - the root `package.json`'s `typecheck` script no longer chains `typecheck:editor` (the script
+>   itself still exists and still fails — that is the point, it is how you check your progress);
+> - the root `vitest.config.ts` `projects` list excludes `packages/editor/vitest.config.ts`, and
+>   `test:editor` was dropped from the root scripts along with `test:ui`'s editor project;
+> - `packages/client/src/ui/AppRouter.tsx`'s `editor` route renders a notice instead of lazy-loading
+>   `AdventureEditorScreen`, and carries the exact code to restore;
+> - `packages/client/src/dev/preview-route.ts` (`?preview`) is quarantined the same way, for the same
+>   reason — it drew through this package's `startMapPreview`.
+>
+> Restoring the package means rebuilding the stage on `@lindocara/hd2d` and then undoing all five.
+> The prose below still describes the PixiJS stage, because that is what has to be replaced.
+
 The creator tools: the adventure/map editor UI and its PixiJS authoring stage. Browser + React. It
 sits **on top of** the client base (i18n, api, store, shadcn components) and the renderer (the shared
 draw layer). The client App lazy-`import()`s it, so there is no static `client -> editor` cycle.

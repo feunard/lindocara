@@ -2,8 +2,6 @@ import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/en
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { Rectangle, Texture } from "pixi.js";
 import { tinySwordsSourceUrl } from "./tiny-swords-assets.js";
 
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
@@ -76,65 +74,6 @@ export const TINY_SWORDS_FOAM_FRAME = 192;
 export const TINY_SWORDS_FOAM_FRAMES = 8;
 /** Native canvas of the official shadow sprite (the guide prose calls it 128px). */
 export const TINY_SWORDS_SHADOW_FRAME = 192;
-
-/**
- * `Tilemap_Flat.png`'s first 4x4 group sliced into one `Texture` per cell — the shared arithmetic
- * the world renderer and the map editor both draw the autotiled coastline from, so neither keeps a
- * private copy that could index the sheet a different way. `land[row][col]` mirrors `landTile()`'s
- * `{ col, row }` return, so a lookup is a plain index rather than a search. Sliced once per sheet,
- * never per frame.
- */
-export function sliceAutotileSheet(sheet: Texture): Texture[][] {
-  return Array.from({ length: 4 }, (_, row) =>
-    Array.from(
-      { length: 4 },
-      (_, col) =>
-        new Texture({
-          source: sheet.source,
-          frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
-          label: `terrain.flat:${col}:${row}`,
-        }),
-    ),
-  );
-}
-
-/**
- * A whole tileset sheet sliced into one `Texture` per cell, indexed `[row][col]`.
- *
- * `sliceAutotileSheet` reads only `Tilemap_Flat.png`'s first 4x4 group; a tileset's ids may land
- * anywhere in the extended Tiny Swords grid, so this slices the lot. Sliced once per sheet, never
- * per frame. The grid's dimensions are the tileset's own (`TINY_SWORDS_SHEET_COLS/ROWS` in
- * `shared/tilesets/tiny-swords.ts`) rather than a second copy here — they are the bound every
- * declared id must resolve inside, and shared arithmetic must be able to name them.
- */
-export function sliceTilesetSheet(sheet: Texture, cols: number, rows: number): Texture[][] {
-  return Array.from({ length: rows }, (_, row) =>
-    Array.from(
-      { length: cols },
-      (_, col) =>
-        new Texture({
-          source: sheet.source,
-          frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
-          label: `tileset:${col}:${row}`,
-        }),
-    ),
-  );
-}
-
-/** One horizontal strip of `frames` square `frameSize` cells (foam, a tree or bush's sway) sliced
- *  into a `Texture` each. The same arithmetic `loadArt` runs for its own strips, shared here so the
- *  editor stage does not grow a second copy of it. */
-export function sliceStrip(sheet: Texture, frameSize: number, frames: number): Texture[] {
-  return Array.from(
-    { length: frames },
-    (_, index) =>
-      new Texture({
-        source: sheet.source,
-        frame: new Rectangle(index * frameSize, 0, frameSize, frameSize),
-        label: `${sheet.label ?? "strip"}:${index}`,
-      }),
-  );
-}
 
 /**
  * The pack's own props, at the pack's own sizes.

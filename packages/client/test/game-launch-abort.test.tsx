@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * `game/session.ts`'s `startGameIdentity` has exactly one `await` between "loading started" and
- * "the game handle is installed" — `Renderer.create()`. It already rechecks `activeLaunchId` right
+ * "the game handle is installed" — `Hd2dRenderer.create()`. It already rechecks `activeLaunchId` right
  * after that await and tears down the renderer when stale, but until this fix it never cleared
  * `heroLoading` on that path — a browser BACK during the loading window (`AppRouter.tsx`'s leave
  * effect, which used to gate on `store.game` alone and ignore `heroLoading`) left the hero-loading
@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  *
  * This test drives the REAL `startGameAsHero`/`startGameIdentity` (unlike `game-route-back.test.tsx`,
  * which mocks `game/session.js` wholesale to test the router's leave effect in isolation) with a
- * controllable gate on `Renderer.create` so the launch can be held open exactly in the window where
+ * controllable gate on `Hd2dRenderer.create` so the launch can be held open exactly in the window where
  * `heroLoading` is set but `store.game` is not yet. `stopActiveGameSession({ navigate: false })` is
  * called directly mid-flight — the exact seam `AppRouter.tsx`'s leave effect calls — standing in for
  * a real router leave without needing a full router mount (net.js/fetch are never reached on this
@@ -24,14 +24,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const rendererMock = vi.hoisted(() => ({ create: vi.fn() }));
-vi.mock("@lindocara/renderer/renderer.js", () => ({
-  Renderer: { create: (...args: unknown[]) => rendererMock.create(...args) },
+vi.mock("@lindocara/renderer/hd2d/game-renderer.js", () => ({
+  Hd2dRenderer: { create: (...args: unknown[]) => rendererMock.create(...args) },
 }));
 
 function fakeRenderer() {
   // `destroy` is what the abort path calls; `onFrame` is registered unconditionally once a launch
-  // reaches the end of `startGameIdentity` (the "normal launch" test below) — nothing else on
-  // `Renderer` is reached synchronously before either of those two points.
+  // reaches the end of `startGameIdentity` (the "normal launch" test below) — nothing else on the
+  // renderer is reached synchronously before either of those two points.
   return { destroy: vi.fn(), hidePeasantBombAim: vi.fn(), onFrame: vi.fn() };
 }
 
@@ -104,7 +104,7 @@ describe("aborting a game launch mid-flight", () => {
 
     const launch = startGameAsHero(HERO, PARTY);
 
-    // Loading has started synchronously (everything up to the `await Renderer.create()` runs before
+    // Loading has started synchronously (everything up to the `await Hd2dRenderer.create()` runs before
     // control returns to the caller): heroLoading is set, the game handle is not.
     expect(useUiStore.getState().heroLoading).not.toBeNull();
     expect(useUiStore.getState().game).toBeNull();

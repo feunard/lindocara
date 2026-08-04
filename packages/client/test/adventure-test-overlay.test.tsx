@@ -25,10 +25,24 @@ vi.mock("@lindocara/client/api.js", async (importOriginal) => ({
 }));
 
 const sessionMock = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn() }));
-vi.mock("@lindocara/client/game/session.js", () => ({
-  startGameAsHero: sessionMock.start,
-  stopActiveGameSession: sessionMock.stop,
-}));
+vi.mock("@lindocara/client/game/session.js", async () => {
+  // The store is imported INSIDE the factory: `vi.mock` is hoisted above every import, so reaching
+  // this file's own top-level `useUiStore` binding from here would be a temporal-dead-zone bet.
+  const { useUiStore: store } = await import("@lindocara/client/store.js");
+  return {
+    startGameAsHero: sessionMock.start,
+    // The real `stopActiveGameSession` clears `store.game` SYNCHRONOUSLY before anything navigates,
+    // which is precisely what makes `AppLayout`'s leave-`/game` effect a no-op on a sanctioned exit
+    // (see that effect's own docblock). The stub has to do the same, or the pathname change it
+    // triggers comes straight back round and calls it a second time. This was latent until S3
+    // stubbed the `/editor` route: while that route lazy-loaded the real editor chunk, the
+    // navigation never completed inside the test window and the second call never happened.
+    stopActiveGameSession: (...args: unknown[]) => {
+      store.setState({ game: null, heroLoading: null });
+      return sessionMock.stop(...args);
+    },
+  };
+});
 
 function fakeGameHandle(): GameHandle {
   return {
@@ -246,10 +260,9 @@ describe("AdventureTestOverlay", () => {
     const result = await mountOnGameWithTestSession();
     alepha = result.alepha;
     const { router } = result;
-    // Spy rather than await the real navigation: `/editor` lazy-loads the actual
-    // `@lindocara/editor` chunk (real dynamic `import()`, not mocked — see `AppRouter.tsx`'s own
-    // docblock), which is unrelated to what this test asserts (that exiting routes to the editor,
-    // not what the editor itself renders — that's `editor-shell.test.tsx`'s job).
+    // Spy rather than assert on what `/editor` renders: this test asserts that exiting ROUTES to
+    // the editor, not what that route draws. (It drew the real `@lindocara/editor` shell until S3
+    // quarantined the package; today it is a notice. Either way, not this test's business.)
     const pushSpy = vi.spyOn(router, "push");
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.exit") }));
