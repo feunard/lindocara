@@ -527,8 +527,18 @@ export interface WorldInfo {
    * pixels: one stored source, projected into pixels by the one authority, and projected back into
    * tile units by the renderer that draws it — one shared conversion for both directions (see the
    * TILE→PIXEL BRIDGE in `packages/engine/src/hd2d/tile-pixel-bridge.ts`). All of it dies together
-   * when the game's own geometry migrates — this field is not a second world model, it is the same
-   * one in the units the renderer needs.
+   * when the game's own geometry migrates.
+   *
+   * **The pixel projection is LOSSY in elevation, and knowing it is load-bearing.** One stored
+   * source, yes — but the two projections do not carry the same world. `tiles` is a flat grid of
+   * whole cells: `pixelTerrainFromHeightfield` (`server/world/heightfield-pixel-bridge.ts`) bakes
+   * every non-water cell as `grass` regardless of its level, because in the heightfield model a
+   * level change is a climb the movement rule decides, not a cell you cannot enter — and that rule
+   * (`hero-step.ts`) is not wired into the authoritative tick yet. So the DRAWN world has cliffs
+   * the COLLIDED world does not: a hero walks through a cliff face and pops to the plateau top,
+   * because the renderer snaps actors to the heightfield's own surface. That is a deliberate,
+   * temporary gap, not a bug in either projection — do not "fix" it by baking elevation into
+   * `tiles` (a cliff is not a wall) nor by deriving collision from this field on the client.
    *
    * `null` means the room has no heightfield and nothing HD-2D can be drawn for it.
    */

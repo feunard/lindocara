@@ -645,9 +645,31 @@ The deleted file held rules nobody had written down. Three groups, with differen
 
 ### What this path does not draw yet
 
-Grep `NOT YET DRAWN ON THE HD-2D PATH` in `packages/renderer/src/hd2d/` for the authoritative list.
-The ones a player would notice first:
+Grep `NOT YET DRAWN ON THE HD-2D PATH` in `packages/renderer/src/hd2d/` for the authoritative list,
+and `NOT YET WIRED ON THE HD-2D PATH` for the shorter, sharper one: the members whose absence is a
+GAMEPLAY gap rather than a visual one, because the session turns their answer into something it
+sends to the server. Triage that second list first — a missing effect looks plain, a missing answer
+misbehaves. The ones a player would notice first:
 
+- **Cliffs are drawn but not collided.** This one is not a missing effect: the drawn world and the
+  collided world genuinely differ. The server ships one stored heightfield, but its pixel projection
+  (`pixelTerrainFromHeightfield`, `server/world/heightfield-pixel-bridge.ts`) bakes every non-water
+  cell as flat `grass`, deliberately — in the heightfield model a level change is a climb the
+  movement rule decides, not a cell you cannot enter, and that rule (`engine/hd2d/hero-step.ts`) is
+  not wired into the authoritative tick yet. Meanwhile `billboards.ts` snaps each actor to
+  `query.heightAt(x, z)`, the heightfield's own surface. So on the proving map a hero walks straight
+  through a cliff face and pops onto the plateau top. Do not close the gap by baking elevation into
+  the collision tiles — a cliff is not a wall, and treating it as one would author the opposite rule
+  from the one landing with `stepHero`. The gap closes when the server's geometry moves to tile
+  units and the whole TILE→PIXEL BRIDGE is deleted.
+- **The peasant's bomb cannot be aimed, and therefore cannot be thrown.** `screenToWorld` is the one
+  no-op whose return value crosses the wire — the session turns it into `skill(5, direction)`, an
+  authoritative intent — so it is marked `NOT YET WIRED ON THE HD-2D PATH — GAMEPLAY, NOT RENDERING`
+  rather than `NOT YET DRAWN`, and it returns `null` instead of a point. `session.ts` reads that
+  `null` as "no direction the player chose" and sends nothing: the aim overlay stays blank and a
+  confirm just leaves aim mode. That is the deliberate trade — a silent skill beats a bomb thrown at
+  the map's north-west corner every time the player clicks. It needs a ray cast through the ground
+  plus the tile→pixel half of the bridge.
 - **Actors do not animate.** `ActorView` carries no clip and `sync` has no clock; every actor is
   frame 0 of its idle strip, facing the direction the server reports. Giving it a clip is a real API
   change (a `dt` into `sync`), which is why it was not done unilaterally.
