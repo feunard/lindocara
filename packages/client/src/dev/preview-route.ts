@@ -28,10 +28,16 @@
  * builds entirely.
  */
 
+/**
+ * **Every field here is parsed and then IGNORED** for as long as the route is quarantined (see the
+ * file docblock): nothing reads them, because nothing draws. They are kept — parsed, validated and
+ * defaulted — as one half of the restore package, so bringing the route back is re-wiring
+ * `startPreviewRoute` rather than re-deriving what `?palette`/`?ambience`/`?zoom` meant.
+ */
 export interface PreviewRequest {
   palette: string | null;
   ambience: boolean;
-  /** Starting camera multiplier. Below 1 pulls back; the renderer clamps the extremes. */
+  /** Starting camera multiplier. Below 1 pulls back; the renderer used to clamp the extremes. */
   zoom: number;
 }
 

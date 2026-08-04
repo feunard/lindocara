@@ -79,7 +79,14 @@ export function authoredElevationAt(layers: readonly TileLayer[], position: Vec2
   return stairs.lowLevel + uphillProgress;
 }
 
-/** Positive world-space distance by which the camera target should look uphill. */
+/**
+ * Positive world-space distance by which the camera target should look uphill.
+ *
+ * **NOTHING CALLS THIS TODAY.** It was the deleted PixiJS renderer's elevation cue; the HD-2D camera
+ * (`hd2d/scene.ts`'s `focusOn`) applies no rise, and no bound clamping either. `terrain-visuals.
+ * test.ts` still asserts it, so the suite covers a rule rather than a behaviour. Its companion —
+ * and the ordering that must survive the port — is `world-view.ts`'s `elevatedCameraAxisOffset`.
+ */
 export function elevationCameraRise(layers: readonly TileLayer[], position: Vec2): number {
   const elevation = authoredElevationAt(layers, position);
   if (elevation <= 1) return elevation * ELEVATION_CAMERA_RISE_PX;

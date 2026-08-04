@@ -46,7 +46,7 @@
     "catalog:build": "npm run catalog:build -w @lindocara/catalog",
     "catalog:check": "npm run catalog:check -w @lindocara/catalog",
     "format": "biome format --write .",
-    "//typecheck": "`typecheck:editor` is DELIBERATELY absent: @lindocara/editor does not compile since S3 deleted the PixiJS renderer its stage is built on (see packages/editor/AGENTS.md). Put it back — here and in the `projects` list in vitest.config.ts — with the S3 piece that rebuilds the editor stage on @lindocara/hd2d.",
+    "//": "typecheck: typecheck:editor is DELIBERATELY absent from the chain below. @lindocara/editor does not compile since S3 deleted the PixiJS renderer its stage is built on (see packages/editor/AGENTS.md); the typecheck:editor script itself is kept so its rebuild can measure progress. Put it back in the chain — and restore the editor project in vitest.config.ts projects — with the S3 piece that rebuilds the stage on @lindocara/hd2d.",
     "typecheck": "npm run typecheck:engine && npm run typecheck:hd2d && npm run typecheck:lab && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:ui && npm run typecheck:testing && npm run typecheck:catalog && npm run typecheck:main && tsc -p tsconfig.tooling.json && tsc -p tsconfig.tooling.api.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",
     "typecheck:hd2d": "tsc -p packages/hd2d/tsconfig.json",

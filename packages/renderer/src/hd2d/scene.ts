@@ -437,6 +437,16 @@ export function createHd2dScene(
     // TILE→PIXEL BRIDGE — see `packages/engine/src/hd2d/tile-pixel-bridge.ts`. The camera follows a
     // player, and a player's position arrives in the snapshot's pixels; this is the only place in
     // this file that converts.
+    //
+    // NOT YET DRAWN ON THE HD-2D PATH: camera bounds. This follows the point it is given, full stop
+    // — no clamping to the map's extent, so a hero at an edge sees past it, and no snap on a large
+    // jump, so a teleport or a map handoff sweeps instead of cutting. The deleted PixiJS renderer
+    // did both, and the RULES survive as pure, tested functions with no callers left:
+    // `world-view.ts`'s `gameCameraScale`/`cameraAxisOffset`/`elevatedCameraAxisOffset` and
+    // `terrain-visuals.ts`'s `elevationCameraRise`. Whoever wires them in must keep their ordering
+    // — the elevation rise is applied AFTER the map-bound clamp, never folded into the target, or a
+    // stair near the north edge loses the whole effect. See `docs/hd2d-rendering.md`, "What
+    // `renderer.ts` knew".
     focusOn(x: number, y: number): void {
       focus = { x: pixelToTile(x, map.size), z: pixelToTile(y, map.size) };
     },

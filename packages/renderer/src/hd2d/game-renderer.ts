@@ -579,7 +579,20 @@ export class Hd2dRenderer implements RendererLike {
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
   playTeleportEffect(_x?: number, _y?: number): void {}
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
+  /**
+   * NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece.
+   *
+   * **The invariant this owes, rescued from the deleted `world-event-art.ts`:** collect ONLY the
+   * explicit visual ids the authoritative snapshot carries — `event.graphicAssetId` and
+   * `event.harvest.exhaustedAssetId`, each validated by `isEditorAssetId`. In particular **never
+   * inspect an asset's name or path to guess that a resource might need a stump, an empty rock or
+   * any other harvested replacement.** Guessing from a filename makes the preload set drift the day
+   * an asset is renamed, and a harvest that lands on an unpreloaded texture initiates its download
+   * from the last authoritative hit — which is exactly the frame it must not.
+   *
+   * The point of preloading here at all is that timing: queue every replacement before the first
+   * playable frame, so the swap is a texture already in memory.
+   */
   preloadWorldEventAssets(_events: readonly WorldEventSnapshot[]): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */

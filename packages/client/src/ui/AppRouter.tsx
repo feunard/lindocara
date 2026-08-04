@@ -282,7 +282,7 @@ function AppLayout() {
   // written this often, see `store.ts`'s own docblock.
   //
   // `heroLoading` is checked too, not just `game`: `startGameIdentity` (`game/session.ts`) sets
-  // `heroLoading` synchronously before its one `await` (`Renderer.create()`) and only installs
+  // `heroLoading` synchronously before its one `await` (`Hd2dRenderer.create()`) and only installs
   // `game` after that await resolves — a BACK landing in THAT window would otherwise be invisible to
   // this effect (`game` still null) and the launch would finish unattended, installing an orphaned
   // live session under the menu a moment later. `stopActiveGameSession()` bumps the module-level

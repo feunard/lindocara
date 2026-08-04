@@ -6,8 +6,8 @@
  * Every enemy has its own frame size. They are single-row horizontal strips, so `frame` is the
  * sheet's height and `frames` is its width divided by that. Measure; do not guess.
  *
- * **An enemy is drawn at its sheet's native frame size**, exactly like a player (192, see
- * `UNIT_OFFSET_X` in `renderer.ts`) and a guard. The differing frame sizes ARE the pack's scale
+ * **An enemy is drawn at its sheet's native frame size**, exactly like a player (192, the
+ * `TINY_SWORDS_UNIT_FRAME` in `tiny-swords-art.ts`) and a guard. The differing frame sizes ARE the pack's scale
  * system: 192 for a gnoll or a skull, 256 for a spear goblin, 320 for a minotaur, 384 for a troll.
  * Draw each at its own frame and the whole bestiary is in proportion with itself and with the heroes.
  *

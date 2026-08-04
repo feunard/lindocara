@@ -195,7 +195,7 @@ interface UiState {
   game: GameHandle | null;
   /** Which `game/session.ts` launch (its module-local `launchId`) currently owns `heroLoading`/
    *  `game` and everything else `clearedGameSessionFields()` clears. Stamped once, synchronously,
-   *  at the very start of a launch — before its one `await Renderer.create()` — and cleared back to
+   *  at the very start of a launch — before its one `await Hd2dRenderer.create()` — and cleared back to
    *  null only by `clearedGameSession()`. A launch that discovers post-await it has been superseded
    *  (`activeLaunchId` moved on) must clear the store ONLY IF it still owns it: ownership is
    *  current truth, so it stays correct through any number of further launches/stops that happened

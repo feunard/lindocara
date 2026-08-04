@@ -17,7 +17,8 @@ export interface TileWindow {
  *
  * This was 0.7 while guards, monsters and authored NPCs drew at 1.0 — so a hero stood a head shorter
  * than the captain he was talking to, and 43% shorter than the goblin swinging at him. It is the same
- * mistake `enemy-art.ts` documents for the bestiary and `renderer.ts` documents for the unit frame:
+ * mistake `enemy-art.ts` documents for the bestiary, and that the deleted `renderer.ts` documented
+ * for the unit frame:
  * Tiny Swords is already in proportion with itself, and shrinking ONE class of sprite is what breaks
  * it. A hero's body is 79x89px on 64px tiles here — about 1.2 x 1.4 tiles, which is the proportion
  * the pack's own promo art draws a knight at.
@@ -39,6 +40,17 @@ export function playerRenderScale(_playerId: string, _selfId: string | null): nu
   return PLAYER_RENDER_SCALE;
 }
 
+/**
+ * **NOTHING CALLS THESE THREE TODAY.** `gameCameraScale`, `cameraAxisOffset` and
+ * `elevatedCameraAxisOffset` were the deleted PixiJS renderer's camera placement, and the HD-2D
+ * camera (`hd2d/scene.ts`'s `focusOn`/`render`) does not apply them: it follows its target with no
+ * bound clamping at all. `world-view.test.ts` still asserts them, so the suite reports green
+ * coverage over a clamp the game does not run — the tests are pinning a rule, not a behaviour.
+ *
+ * They are kept rather than deleted because the rules are the expensive part and they were measured
+ * once already; the HD-2D camera is expected to adopt them. Read the marker at `scene.ts`'s
+ * `focusOn` and `docs/hd2d-rendering.md`'s "What `renderer.ts` knew" before wiring them in.
+ */
 export function gameCameraScale(viewportWidth: number, viewportHeight: number): number {
   const fitted = Math.min(viewportWidth / 1220, viewportHeight / 700);
   return Math.max(
@@ -62,9 +74,11 @@ export function cameraAxisOffset(
 /**
  * Vertical camera placement with an authored elevation cue.
  *
- * The ordinary camera remains clamped to map bounds. Elevation is then applied as a small
- * screen-space look-up offset so a staircase near the north edge still moves the view; folding the
- * rise into `cameraCoordinate` before the clamp makes the clamp erase it completely.
+ * **The ordering is the whole point, and it is a rule, not a description of what runs today** (see
+ * the note above `gameCameraScale`: no camera calls this). The ordinary camera is clamped to map
+ * bounds FIRST; the elevation rise is then applied as a small screen-space look-up offset, so a
+ * staircase near the north edge still moves the view. Folding the rise into `cameraCoordinate`
+ * before the clamp makes the clamp erase it completely — that was a real bug, once.
  */
 export function elevatedCameraAxisOffset(
   viewportSize: number,

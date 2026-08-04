@@ -173,7 +173,8 @@ describe("leaving /game via history-BACK", () => {
     await waitFor(() => expect(document.querySelector(".main-menu")).toBeTruthy());
 
     // Stands in for `startGameIdentity`'s window between "loading started" and "the game handle is
-    // installed" — `session.ts`'s own launch-id recheck after its one `await` (`Renderer.create()`)
+    // installed" — `session.ts`'s own launch-id recheck after its one `await`
+    // (`Hd2dRenderer.create()`)
     // is what actually tears the launch down in that window; see `game-launch-abort.test.tsx` for
     // that half. Here the router has not entered `/game` yet, which matches the real ordering:
     // `nav.toGame()` fires first, but `heroLoading` is already set by the time the router's own

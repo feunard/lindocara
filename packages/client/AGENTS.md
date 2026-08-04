@@ -6,9 +6,12 @@ glue that binds the renderer to the network. Browser + React. This is the base t
 ## Responsibility
 
 - `main.tsx`/`ui/AppRouter.tsx` — bootstrap + routing. `main.tsx`'s `bootClient()` is the shared
-  pre-mount bootstrap (locale, theme, the `#stage` canvas, the DEV-only `?preview` route), run by
+  pre-mount bootstrap (locale, theme, the `#stage` canvas, the DEV-only `?preview` route — itself
+  quarantined with the editor, since it drew through that package's map preview), run by
   `apps/main/src/main.browser.ts` before it mounts `AppRouter` on Alepha's `$page` router (title
-  → login → resumable parties/saves; the editor is lazy-`import()`ed). `ui/*` — screens
+  → login → resumable parties/saves; the `/editor` route lazy-`import()`ed the editor package until
+  the 2026-08-04 quarantine, and renders a notice meanwhile — see that route's docblock and
+  `packages/editor/AGENTS.md`). `ui/*` — screens
   (`AuthScreen`, `PartiesScreen`, `PartyScreen`, …). `ui/hud/` — the in-game HUD.
   `ui/tiny-swords/` — the game component tree (its own `--tiny-*` tokens).
 - `state/atoms.ts` — Alepha `$atom`s for the application state that used to live on the store but
