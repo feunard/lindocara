@@ -45,6 +45,18 @@ side effect. If either survives, the piece is not done.
    S2 on measured grounds — ACK latency is ~107 ms and structural.
 5. **One increment, not two.** The author chose this knowing the attribution cost; see
    *Keeping regressions attributable* below for the mitigation the plan must carry.
+6. **Mobility skills are applied by the client.** `blink`, Shadow Dance and rogue mobility work
+   today by the server computing the hero's step — a held blink clamps the desired movement to its
+   remaining `mobilityDistance` and debits it (`movement-system.ts:90-107`). Client-authored
+   movement makes that undecidable. The server therefore keeps **granting** each skill — cost,
+   cooldown, resource, effects, all still server-decided — and the **client performs the
+   displacement**, reporting the resulting position like any other movement.
+
+   The author chose this over the alternative (the server issuing an authoritative displacement
+   the client accepts, as teleport already does) with the tradeoff stated: a modified client gains
+   free repositioning that is indistinguishable from a legitimate blink. That is an extension of
+   the movement authority already given up in decision 4, not a new category of exposure — but it
+   is a second thing a cheat can do, and it is recorded here so it is not rediscovered as a bug.
 
 ## The coordinate system
 
@@ -93,8 +105,8 @@ of decision 4, and the spec records it so nobody rediscovers it as a bug.
 What a modified client still cannot do: deal damage, heal, take loot, gain XP, complete a quest,
 resurrect, change its own health, or move another player. Every one of those remains
 server-decided. **The rule "the server decides outcomes" survives with exactly one exception —
-where a hero is.** A task that finds itself moving a second decision to the client has misread
-this piece.
+where a hero is**, including where a mobility skill puts it (decision 6). A task that finds itself
+moving a third decision to the client has misread this piece.
 
 ## What the server keeps simulating
 
