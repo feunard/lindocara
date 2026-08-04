@@ -30,7 +30,10 @@ exactly TWO rules of its own, both deliberate exceptions documented at the field
 presentation timing a server doesn't need) and advancing thin ice's refreeze clock
 (`thinIce.update(dt)`, called once per frame, unconditionally, before `stepHero` — see
 `StepDeps.glace`'s docstring for why `stepHero` itself never does). Everything else about why the
-hero jumps, skids, drowns or cracks thin ice the way it does lives in `hd2d/`, not here.
+hero jumps, skids, drowns or cracks thin ice the way it does lives in `hd2d/`, not here. **The
+glider adds no third rule**: opening/closing the canopy and pinning the descent to
+`HERO.glide.fall` are `stepHero`'s (`state.gliding`, `hero-step.ts`), and `hero.ts` holds only the
+canopy billboard, its flip (sharing `state.facing` with the body) and the deploy sound.
 
 ## Files
 
@@ -223,6 +226,10 @@ lane: every stock archetype voice is English-trained, and without an explicit Fr
 French line gets phonemized as if it were English and comes out wrong — the flag doesn't change
 timbre, only how the TEXT is read, and needs `espeak-ng` installed (`brew install espeak-ng`) for
 any language beyond English/Japanese/Chinese.
+
+The glider's canopy (`public/tex/glider.png`, `world/hero.ts`) follows the same one-off generated-
+sprite path — a single frame, no `Clip`/animator, cut with `scripts/sprite.py` — but is not snow-
+island content: it belongs to the separate glider chantier (`.superpowers/sdd/2026-08-04-glider/`).
 
 ## The load-testing harness
 
