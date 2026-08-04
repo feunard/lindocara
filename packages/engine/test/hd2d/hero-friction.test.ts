@@ -24,6 +24,7 @@ const HERO_STEP: HeroSettings = {
   friction: { herbe: 80, neige: 130, glace: 0.35 },
   vitesseSol: { herbe: 1, neige: 0.55, glace: 1 },
   jump: { speed: 9, gravity: 30, coyote: 0.12 },
+  glide: { fall: 2 },
   swim: { speed: 0.45, breath: 11, climb: 0.5 },
   pasTousLes: 1.2,
   brasseTousLes: 0.85,
