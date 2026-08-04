@@ -86,7 +86,7 @@ them — but an implementer should know they were chosen, not inherited.
 - `packages/hd2d/test/height-field-from-grid.test.ts`
 - `packages/server/src/world/heightfield-pixel-bridge.ts` — the marked TILE→PIXEL bridge.
 - `packages/server/test-api/heightfield-pixel-bridge.test.ts`
-- `packages/server/scripts/build-proving-map.ts` — generates and stores the one proving map.
+- `scripts/build-proving-map.ts` — generates and stores the one proving map.
 - `packages/renderer/src/hd2d/scene.ts` — composition root: context, pipeline, terrain, lights, sky.
 - `packages/renderer/src/hd2d/billboards.ts` — actor/element/event billboard registry.
 - `packages/renderer/src/hd2d/game-renderer.ts` — `Hd2dRenderer`, the `RendererLike` implementation.
@@ -715,7 +715,7 @@ simulation run on it, and `worldInfo()` shipping the heightfield.
 **Files:**
 - Create: `packages/server/src/world/heightfield-pixel-bridge.ts`
 - Create: `packages/server/test-api/heightfield-pixel-bridge.test.ts`
-- Create: `packages/server/scripts/build-proving-map.ts`
+- Create: `scripts/build-proving-map.ts`
 - Modify: `packages/server/src/api/realtime/worldState.ts`, `WorldRoom.ts`
 
 **Interfaces:**
@@ -875,7 +875,7 @@ In `WorldRoom.worldInfo()`, replace the `heightfield: null` placeholder from Tas
 
 - [ ] **Step 7: Write the proving map generator**
 
-`packages/server/scripts/build-proving-map.ts` reuses the lab's island generator — the same one
+`scripts/build-proving-map.ts` reuses the lab's island generator — the same one
 `apps/lab/scripts/build-map.ts` calls — writes an encoded `MapData` and stores it on a named map
 row. Model it directly on `apps/lab/scripts/build-map.ts`, including its non-finite-height guard
 (`JSON.stringify` turns `NaN` into `null`, which would read back as water, silently). Add an npm
@@ -1142,7 +1142,7 @@ npm test -w @lindocara/renderer -- hd2d-content
 
 - [ ] **Step 4: Fill the proving map with content**
 
-Extend `packages/server/scripts/build-proving-map.ts` to emit a handful of elements and one event,
+Extend `scripts/build-proving-map.ts` to emit a handful of elements and one event,
 so the increment has something to look at and the wiring is exercised end to end. Regenerate the
 map.
 
