@@ -599,15 +599,23 @@ export class Hd2dRenderer implements RendererLike {
   removePeasantCamp(_id: string): void {}
 
   /**
-   * NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece.
+   * NOT YET WIRED ON THE HD-2D PATH — GAMEPLAY, NOT RENDERING — owed by a later S3 piece.
    *
-   * The origin in the game's PIXEL space. `billboards.ts` carries the pixel->tile half of the
-   * bridge, which is the direction actors need; this method wants the other one, plus a ray cast
-   * through the ground to have a tile position to convert at all. Returning the origin keeps the
-   * peasant's bomb aim pointing at a fixed, obviously-wrong spot rather than at a plausible lie.
+   * Deliberately a different marker from the `NOT YET DRAWN` no-ops around it, because it is a
+   * different kind of gap and must not be triaged beside them: every other stub here withholds
+   * PIXELS, and the worst a missing bloom or camp sprite can do is look plain. This one withholds
+   * an ANSWER the session turns into an authoritative intent — `session.ts` builds the peasant's
+   * bomb direction from it and sends `skill(5, direction)` over the wire. A wrong value here is a
+   * wrong bomb throw, not a missing effect.
+   *
+   * So it returns `null` — the contract's word for "I cannot answer" (`renderer-api.ts`) — and the
+   * session refuses to aim or confirm rather than send a direction it invented. Implementing it
+   * means a ray cast through the ground for a tile position plus the tile->pixel half of the bridge
+   * (`billboards.ts` carries the pixel->tile half, the direction actors need); until then, nothing
+   * is sent at all, which is the only honest option.
    */
-  screenToWorld(_clientX: number, _clientY: number): Vec2 {
-    return { x: 0, y: 0 };
+  screenToWorld(_clientX: number, _clientY: number): Vec2 | null {
+    return null;
   }
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */

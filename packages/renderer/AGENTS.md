@@ -42,7 +42,11 @@ authoring stage was built on those modules and is quarantined until it is rebuil
   the actors as billboards the camera follows — drawn at rest, since no clip crosses `ActorView`
   yet — and `heightfield.elements`/`heightfield.events` as static billboards, appearance only: no
   element or event ever contributes a collider, because the server bakes collision from the terrain
-  alone. Grep `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed.
+  alone. Grep `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed visually, and
+  `NOT YET WIRED ON THE HD-2D PATH` for the one gap that is not visual at all: `screenToWorld` is
+  the only member whose return value leaves the client (the session makes the peasant's bomb
+  direction out of it and sends it), so it answers `null` — "I cannot answer" — instead of a
+  placeholder point, and the session sends nothing rather than a direction it invented.
   Read
   [`docs/hd2d-rendering.md`](../../docs/hd2d-rendering.md) before touching it.
 

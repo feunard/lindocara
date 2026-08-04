@@ -423,15 +423,24 @@ async function startGameIdentity(
   const playerClass = () => currentSelf?.class ?? identity.class;
 
   let bombAiming = false;
-  let bombDirection: Vec2 = { x: 1, y: 0 };
+  /**
+   * `null` means "no direction the player actually chose". It stays `null` for as long as
+   * `renderer.screenToWorld` cannot answer (the HD-2D path's stub returns `null` — see its
+   * docblock), and `confirmBombAim` sends NOTHING while it is: this direction crosses the wire as
+   * an authoritative `skill(5, direction)` intent, so a placeholder here is not a cosmetic
+   * fallback, it is a bomb thrown somewhere the player never aimed. Sending nothing is the honest
+   * option until the screen ray exists.
+   */
+  let bombDirection: Vec2 | null = null;
   const bombRange = skillFor("peasant", 5).range;
   const cancelBombAim = () => {
     bombAiming = false;
+    bombDirection = null;
     canvas.removeAttribute("data-bomb-aiming");
     renderer.hidePeasantBombAim();
   };
   const drawBombAim = () => {
-    if (!bombAiming || !currentSelf) return;
+    if (!bombAiming || !currentSelf || !bombDirection) return;
     renderer.showPeasantBombAim(
       { x: currentSelf.x + PLAYER_SIZE / 2, y: currentSelf.y + PLAYER_SIZE / 2 },
       bombDirection,
@@ -441,6 +450,10 @@ async function startGameIdentity(
   const aimBombAt = (clientX: number, clientY: number) => {
     if (!bombAiming || !currentSelf) return;
     const target = renderer.screenToWorld(clientX, clientY);
+    // The renderer declined to map the pointer into the world: keep the previous answer (or none
+    // at all) rather than manufacture one from the origin, which would aim every throw at the
+    // map's north-west corner.
+    if (target === null) return;
     bombDirection = normalizeDirection(
       {
         x: target.x - (currentSelf.x + PLAYER_SIZE / 2),
@@ -452,8 +465,10 @@ async function startGameIdentity(
   };
   const confirmBombAim = () => {
     if (!bombAiming) return;
-    connection?.skill(5, bombDirection);
+    const direction = bombDirection;
     cancelBombAim();
+    if (direction === null) return;
+    connection?.skill(5, direction);
   };
   const onBombPointerMove = (event: PointerEvent) => aimBombAt(event.clientX, event.clientY);
   const onBombPointerDown = (event: PointerEvent) => {
@@ -999,10 +1014,13 @@ async function startGameIdentity(
     if (store.self?.class === "peasant" && slot === 5) {
       sound.unlock();
       if (bombAiming) {
+        // A second press confirms — and, while `screenToWorld` cannot answer, confirms nothing and
+        // simply leaves aim mode. The entry below no longer seeds the hero's facing as a starting
+        // direction: the throw must be the point the player aimed at, and a facing-shaped default
+        // would make the stub's silence indistinguishable from a real aim.
         confirmBombAim();
       } else {
         bombAiming = true;
-        bombDirection = normalizeDirection(currentSelf?.facing ?? { x: 1, y: 0 });
         canvas.setAttribute("data-bomb-aiming", "true");
         drawBombAim();
       }

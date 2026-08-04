@@ -98,7 +98,17 @@ export interface RendererLike {
   preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void;
   removePeasantCamp(id: string): void;
   render(sample: SceneSample, context: RenderContext): void;
-  screenToWorld(clientX: number, clientY: number): Vec2;
+  /**
+   * The world-pixel point under a screen coordinate, or `null` when this renderer cannot answer.
+   *
+   * `null` is not a rendering detail: this is the ONE member of the contract whose return value
+   * leaves the client — the session turns it into the peasant's bomb direction and sends that as an
+   * authoritative `skill(5, direction)` intent. A renderer that cannot cast a screen ray must say
+   * so rather than return a placeholder point, because the caller cannot tell a placeholder from an
+   * answer, and an invented direction is a lie the server acts on. The session's rule for `null` is
+   * to send nothing at all.
+   */
+  screenToWorld(clientX: number, clientY: number): Vec2 | null;
   setAuthoredQuestMarkers(markers: readonly AuthoredQuestMarker[]): void;
   setSelfId(id: string): void;
   showPeasantBombAim(origin: Vec2, direction: Vec2, range: number): void;
