@@ -396,16 +396,25 @@ export const HERO: HeroSettings = {
 export interface GliderSettings {
   /** Width / height of the image, measured on the post-processed PNG. */
   aspect: number;
-  /** World height of the sprite. `aspect · size` gives the wingspan. */
+  /** World height of the sprite. `aspect · size` gives the wingspan. Re-judged on screen against
+   *  the retuned `lift` below (Task 4 of the glider chantier): the wing still reads as
+   *  proportionate to the hero once the canopy sits lower, so this value is unchanged. */
   size: number;
-  /** Height of the canopy above the feet. The hero stands `HERO.size · (1 − HERO.foot)` ≈ 1.82
-   *  to the top of the skull: the canopy sits just above that, not stuck to it. */
+  /** Height of the billboard PLANE's bottom edge above the feet — not the height of the visible
+   *  grip. The grip (where the risers converge) sits inside the sprite's frame, not on its very
+   *  bottom edge: about 0.27 world units above the plane's bottom, once `billboardHeight`'s
+   *  camera-pitch stretch is accounted for. First set to `HERO.size · (1 − HERO.foot)` ≈ 1.82 (the
+   *  top of the skull) on the wrong assumption that the anchor itself WAS the grip — Task 4's
+   *  on-screen check (`.superpowers/sdd/2026-08-04-glider/task-4-report.md`) found that put the
+   *  actual grip roughly 0.7 units above the head: a parachute hovering over him, not one he's
+   *  holding. Retuned by eye so the grip now rests on, and slightly overlaps, the top of the
+   *  helmet plume — a small overlap is what sells the canopy as HELD rather than floating. */
   lift: number;
 }
 export const GLIDER: GliderSettings = {
   aspect: 0.938,
   size: 2.45,
-  lift: 2.05,
+  lift: 1.05,
 };
 
 export interface GrotaSettings {
