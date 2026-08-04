@@ -9,6 +9,7 @@ import {
   isMonsterSpecies,
   pointDistance,
 } from "@lindocara/engine/game.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
@@ -39,10 +40,12 @@ import {
 } from "@lindocara/engine/zones.js";
 import { getDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { healingEffectColor, shouldFloatEvent } from "@lindocara/renderer/feedback.js";
+import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { trackActions, trackInput } from "@lindocara/renderer/input.js";
 import { type InteriorDoor, nearestInterior } from "@lindocara/renderer/interiors.js";
 import { MapSurface } from "@lindocara/renderer/minimap-surface.js";
 import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
+import type { RendererLike } from "@lindocara/renderer/renderer-api.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import type { PartyListing, StoredHero } from "../api.js";
 import { t } from "../i18n.js";
@@ -339,7 +342,12 @@ async function startGameIdentity(
   setStatus("status.connecting", { name: identity.name });
   const canvas = required<HTMLCanvasElement>("#stage");
   const serverClock = new ServerClock();
-  const renderer = await Renderer.create(canvas, serverClock);
+  // Temporary: sequences S3's first increment so each task leaves the game runnable. DELETE with the
+  // PixiJS path — if this flag outlives that deletion, the increment is not finished.
+  const useHd2d = new URLSearchParams(location.search).get("hd2d") === "1";
+  const renderer: RendererLike = useHd2d
+    ? await Hd2dRenderer.create(canvas, serverClock)
+    : await Renderer.create(canvas, serverClock);
   // Renderer creation is asynchronous — the ONLY `await` between "loading started" and "the game
   // handle is installed". `activeLaunchId` may have moved on for two reasons: another hero was
   // launched while assets were loading (`launchGameIdentity`'s own `++activeLaunchId`), or an
@@ -500,6 +508,12 @@ async function startGameIdentity(
           decodeTileMap(world.tiles),
           world.elements,
           world.revision,
+          // The heightfield is decoded once, here, rather than by each renderer: `decodeMap` is a
+          // full validation pass over the whole grid, and only one of the two paths reads the
+          // result. `null` covers both "the room has none" and "the room sent one this client
+          // could not parse" — the HD-2D path draws nothing either way, which is the honest
+          // outcome for a map it cannot read.
+          world.heightfield === null ? null : decodeMap(world.heightfield),
           { tilesetId: world.tilesetId, layers: world.layers },
         );
       }

@@ -188,10 +188,19 @@ export async function startMapPreview(
   // Re-encoded rather than handed over parsed: the renderer owns the one degrade policy for a
   // malformed layer, and a preview must exercise the same path a welcome does. Once per preview
   // build, never per frame.
-  renderer.configureMapTerrain(`preview:${generation}`, geometry.tiles, data.elements, generation, {
-    tilesetId: data.tilesetId,
-    layers: data.layers.map(encodeTileLayer),
-  });
+  // `null` heightfield: the editor's preview is the tile path by construction — it draws through the
+  // PixiJS renderer, which ignores that parameter entirely.
+  renderer.configureMapTerrain(
+    `preview:${generation}`,
+    geometry.tiles,
+    data.elements,
+    generation,
+    null,
+    {
+      tilesetId: data.tilesetId,
+      layers: data.layers.map(encodeTileLayer),
+    },
+  );
   renderer.setSelfId(SELF_ID);
   const playerChrome = options.playerChrome ?? true;
   renderer.setPlayerChrome(playerChrome);

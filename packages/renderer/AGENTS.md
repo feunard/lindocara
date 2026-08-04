@@ -1,8 +1,12 @@
 # @lindocara/renderer
 
-The browser-side game core: PixiJS rendering, local input and the locale runtime. **React-free by
+The browser-side game core: rendering, local input and the locale runtime. **React-free by
 design** — both the running game and the editor's WYSIWYG stage build on it, and neither pulls React
-in through here. Depends only on `engine`.
+in through here.
+
+Two renderers live here for the length of S3's first increment: the PixiJS one (`renderer.ts`) the
+game ships, and the HD-2D one (`hd2d/`) behind `?hd2d=1`. They satisfy one contract,
+`renderer-api.ts`'s `RendererLike`. The flag and the PixiJS path die together.
 
 ## Responsibility
 
@@ -15,13 +19,22 @@ in through here. Depends only on `engine`.
   `onLocaleChange`, `applyLocale`); the client's i18n adds the React hook on top.
 - `scene-sample.ts` — the interpolated-frame view type (built from engine snapshot types); the
   client's `net` re-exports it. `server-clock`, `display-settings`.
+- `renderer-api.ts` — `RendererLike`, the contract `client/game/session.ts` consumes. Both renderers
+  implement it; adding a method the session calls means adding it here first.
+- `hd2d/` — the **second** renderer, on `@lindocara/hd2d` + `three` rather than PixiJS, selected by
+  a temporary `?hd2d=1` (S3's first increment). `scene.ts` is the composition root, transcribed from
+  `apps/lab/src/main.ts`; `game-renderer.ts` is the `RendererLike` around it. It draws terrain, sea,
+  foam, sky and light from `WorldInfo.heightfield`, and nothing else yet — grep
+  `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed. Read
+  [`docs/hd2d-rendering.md`](../../docs/hd2d-rendering.md) before touching it.
 
 The raw Tiny Swords art is bundled via a Vite glob over `../../catalog/assets/**` (see
 `tiny-swords-assets.ts`); the atlas/equipment art is served from the client's `public/`.
 
 ## Graph
 
-- **Depends on:** `engine` (+ `pixi.js`; raw art from the `catalog` package's `assets/`).
+- **Depends on:** `engine`, `hd2d` (the `hd2d/` renderer only) (+ `pixi.js` and `three`; raw art
+  from the `catalog` package's `assets/`).
 - **Depended on by:** `client`, `editor`.
 
 ## Commands

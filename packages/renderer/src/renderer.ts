@@ -13,6 +13,7 @@ import {
   type PlayerClass,
   pointDistance,
 } from "@lindocara/engine/game.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
@@ -140,6 +141,7 @@ import {
 } from "./harvest-visuals.js";
 import { onLocaleChange, t } from "./locale.js";
 import { sameRenderedMap } from "./map-render-cache.js";
+import type { RendererLike } from "./renderer-api.js";
 import type { SceneSample } from "./scene-sample.js";
 import { ServerClock, type ServerClockSample, serverTimestampToLocal } from "./server-clock.js";
 import { acquireStageApp } from "./stage-application.js";
@@ -999,7 +1001,7 @@ function reconcile<T extends { id: string }>(
   }
 }
 
-export class Renderer {
+export class Renderer implements RendererLike {
   #app: Application;
   #destroyed = false;
   /** The ticker callbacks this renderer added, kept so `destroy()` can remove exactly its own from
@@ -1434,12 +1436,16 @@ export class Renderer {
    * grid the client collides against; `elements` is the authored scenery drawn on top of it. There
    * are no landmarks, roads or districts, so the visuals are empty and the rebuild is otherwise
    * identical to a catalogue zone's.
+   *
+   * `_heightfield` is the welcome's decoded `MapData`, which only the HD-2D renderer draws from
+   * (see `RendererLike`). This path is the tile path, and reads none of it.
    */
   configureMapTerrain(
     zoneId: string,
     tiles: TileMap,
     elements: readonly MapElement[],
     revision: number,
+    _heightfield: MapData | null,
     appearance?: { tilesetId: string; layers: readonly string[] },
   ): void {
     if (

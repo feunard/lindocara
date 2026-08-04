@@ -8,7 +8,12 @@
   },
   "dependencies": {
     "@lindocara/engine": "*",
-    "pixi.js": "^8.19.0"
+    "@lindocara/hd2d": "*",
+    "pixi.js": "^8.19.0",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.0"
   },
   "scripts": {
     "test": "vitest run"
