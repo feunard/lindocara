@@ -16,11 +16,20 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
 - `i18n/` — FR/EN dictionaries (data only; the server sends codes, never prose). `skills.ts`,
   `combat-actions.ts`, `cooperation.ts`, `resources.ts`, `character.ts`, `adventure*.ts`,
   `event-commands.ts`/`event-interpreter.ts` (the pure, clockless command stepper).
+- `hd2d/` — the HD-2D witness's geometry, quarantined in its own subfolder rather than the flat
+  root above (Task 11, moved from `apps/lab`): `terrain-query.ts` (world-space collision queries
+  over a heightmap), `collider-index.ts` (the sparse rect index disc queries test against) and
+  `map-data.ts` (a map as pure, defensively-parsed data). These read in **tile units**, unlike
+  `simulation.ts`/`game.ts`/`collider.ts` above, which read in **pixels** — the subfolder is the
+  visible fence against importing one unit system into the other by accident. It is a reprieve,
+  not a permanent home: a later task retires the old pixel-based collision path in `hd2d`'s favor,
+  at which point this boundary goes away too.
 
 ## Graph
 
 - **Depends on:** nothing.
-- **Depended on by:** everyone (`server`, `renderer`, `client`, `editor`, `testing`).
+- **Depended on by:** everyone (`server`, `renderer`, `client`, `editor`, `testing`) plus
+  `apps/lab`, for `hd2d/` only.
 
 ## Commands
 

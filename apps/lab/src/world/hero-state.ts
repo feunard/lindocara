@@ -4,7 +4,7 @@
 // c'est le seul des trois qui n'a AUCUNE dépendance, donc le seul que les deux autres peuvent
 // importer sans cycle. Il part dans `@lindocara/engine` en Task 11 tel quel.
 
-import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
+import type { TerrainMaterial, TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { EtatGlace, ThinIce } from "./thin-ice.js";
 
 /** Rectangle où le héros peut marcher en intérieur — plancher plat, ni gravité ni nage ni saut.

@@ -1,5 +1,5 @@
+import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeroSettings } from "./hero-state.js";
-import type { TerrainMaterial } from "./terrain-query.js";
 
 /**
  * Un seul modèle de déplacement, trois frictions.

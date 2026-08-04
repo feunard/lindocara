@@ -1,3 +1,4 @@
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   type Animator,
   type Billboard,
@@ -9,7 +10,6 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { bleat, pop } from "../core/audio.js";
 import { CAMERA } from "../settings.js";
-import type { TerrainQuery } from "./terrain-query.js";
 
 // HappySheep_All : 8 colonnes x 2 lignes de 128px. Ligne 0 au repos, ligne 1 le
 // sautillement (6 frames utiles seulement).

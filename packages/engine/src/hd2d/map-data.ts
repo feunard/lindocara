@@ -1,20 +1,19 @@
-// Une carte, en données. Ce que le labo dessine aujourd'hui par du code procédural, ce qu'un
-// éditeur produira demain, et ce qu'un serveur doit pouvoir lire sans une ligne de rendu.
+// A map, as data. What the lab draws today through procedural code, what an editor will produce
+// tomorrow, and what a server must be able to read without a single line of rendering.
 //
-// `decodeMap` rend `null` plutôt que de jeter : ce format traversera un jour le réseau, et une
-// carte corrompue ne doit pas abattre une salle entière. Même discipline que
-// `parseClientMessage` dans `@lindocara/engine` — un `JSON.parse` enveloppé dans un `try` qui
-// renverrait ensuite l'objet tel quel ne suffit pas : il faut vérifier chaque champ, pas
-// seulement que le texte était du JSON valide.
+// `decodeMap` returns `null` rather than throwing: this format will one day cross the network,
+// and a corrupted map must not take down an entire room. Same discipline as `parseClientMessage`
+// in `@lindocara/engine` — a `JSON.parse` wrapped in a `try` that then returns the object as-is is
+// not enough: every field must be checked, not just that the text was valid JSON.
 //
-// Reste PUR (ni DOM, ni `three`, ni horloge, ni aléa) : ce fichier partira dans
-// `@lindocara/engine` à la Task 11, à côté de `terrain-query.ts` qui l'y a précédé.
+// Stays PURE (no DOM, no `three`, no clock, no randomness): this file moved into
+// `@lindocara/engine` in Task 11, alongside `terrain-query.ts`, which got there first.
 
 import type { ColliderRect } from "./collider-index.js";
 import type { TerrainMaterial, TerrainQuerySource } from "./terrain-query.js";
 
-/** Les cinq matières de `TerrainMaterial`, en énumération de RUNTIME — le type seul ne suffit
- *  pas à valider une chaîne venue du réseau, il s'efface à la compilation. */
+/** The five materials of `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
+ *  enough to validate a string coming from the network, it vanishes at compile time. */
 const TERRAIN_MATERIALS: readonly TerrainMaterial[] = [
   "sable",
   "herbe",
@@ -29,25 +28,25 @@ function isTerrainMaterial(value: unknown): value is TerrainMaterial {
 
 export interface MapData {
   version: 1;
-  /** Côté de la grille, en cases. */
+  /** Grid side, in cells. */
   size: number;
   levelHeight: number;
   waterLevel: number;
-  /** `size * size`, en ligne d'abord (index = j * size + i). `null` = eau. */
+  /** `size * size`, row-major (index = j * size + i). `null` = water. */
   levels: readonly (number | null)[];
-  /** `size * size`. Sans signification là où `levels` vaut `null`. */
+  /** `size * size`. Meaningless wherever `levels` is `null`. */
   materials: readonly TerrainMaterial[];
   colliders: readonly ColliderRect[];
   spawns: readonly { name: string; x: number; z: number }[];
 }
 
-/** Aucune transformation : la lisibilité prime tant que la taille n'est pas devenue un problème
- *  mesuré. `tile-layer-codec.ts` (`@lindocara/engine`) est le précédent si un jour elle l'est —
- *  un codage par plages, choisi là-bas parce qu'une carte est surtout de longues zones uniformes
- *  et parce qu'un texte en plages reste lisible dans une ligne de base et dans un test qui échoue,
- *  contrairement au base64. Ne pas le réutiliser ici sans la même preuve d'aller-retour ET la
- *  même preuve que du texte malformé rend toujours `null` : un codec compressé est plus dur à
- *  déboguer, et cette tâche n'a mesuré aucune taille qui le justifie.
+/** No transformation: readability wins for as long as size hasn't become a measured problem.
+ *  `tile-layer-codec.ts` (`@lindocara/engine`) is the precedent for the day it is — a run-length
+ *  encoding, chosen there because a map is mostly long uniform stretches and because run-length
+ *  text stays readable in a baseline and in a failing test, unlike base64. Don't reuse it here
+ *  without the same round-trip proof AND the same proof that malformed text always yields `null`:
+ *  a compressed codec is harder to debug, and this task hasn't measured any size that justifies
+ *  it.
  */
 export function encodeMap(m: MapData): string {
   return JSON.stringify(m);
@@ -61,15 +60,14 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-// Reconstruites champ par champ, jamais affectées telles quelles : un objet qui a les bons champs
-// mais aussi des clefs en trop (`{ x, z, w, h, evil: "payload" }`) ne doit pas faire ressortir
-// `evil` du décodage. Même geste que `decodeMap` au premier niveau, qui construit déjà son objet
-// de retour champ par champ plutôt que d'étaler `value` — la cohérence interne au fichier prime
-// ici sur le `hasOnlyKeys` de `protocol.ts` : ce format est un fichier de carte relu par un
-// éditeur qui gagnera des champs avec le temps, pas un message temps réel où une clef inconnue
-// mérite d'invalider tout le paquet. Une carte qu'un éditeur plus récent enrichit (un `locked` sur
-// un collider, par exemple) reste lisible par ce code tant qu'il ignore silencieusement ce qu'il
-// ne connaît pas encore, au lieu de rejeter la carte entière.
+// Rebuilt field by field, never assigned as-is: an object with the right fields but also extra
+// keys (`{ x, z, w, h, evil: "payload" }`) must not let `evil` surface out of decoding. Same move
+// as `decodeMap` at the top level, which already builds its return object field by field rather
+// than spreading `value` — internal consistency within the file wins here over `protocol.ts`'s
+// `hasOnlyKeys`: this format is a map file re-read by an editor that will gain fields over time,
+// not a real-time message where an unknown key deserves to invalidate the whole packet. A map
+// enriched by a newer editor (a `locked` flag on a collider, say) stays readable by this code as
+// long as it silently ignores what it doesn't yet know about, instead of rejecting the whole map.
 function toCollider(value: unknown): ColliderRect | null {
   if (
     !isRecord(value) ||
@@ -94,10 +92,10 @@ function toSpawn(value: unknown): { name: string; x: number; z: number } | null 
 }
 
 /**
- * Valide RÉELLEMENT une carte avant de la rendre utilisable : version, taille entière positive,
- * les deux grilles à exactement `size * size` entrées, chaque matière dans l'union, chaque
- * nombre fini. La moindre violation rend `null` — jamais une exception, jamais un objet
- * partiellement cru sur parole.
+ * REALLY validates a map before making it usable: version, positive integer size, both grids at
+ * exactly `size * size` entries, every material within the union, every number finite. The
+ * slightest violation yields `null` — never an exception, never an object partially taken on
+ * faith.
  */
 export function decodeMap(s: string): MapData | null {
   let value: unknown;
@@ -144,9 +142,9 @@ export function decodeMap(s: string): MapData | null {
   };
 }
 
-/** Adapte une `MapData` décodée en ce que `createTerrainQuery` consomme : les mêmes accesseurs
- *  indexés par cellule que `HeightField` (`island.ts`), lus dans la grille sérialisée plutôt que
- *  calculés par le bruit procédural. */
+/** Adapts a decoded `MapData` into what `createTerrainQuery` consumes: the same cell-indexed
+ *  accessors as `HeightField` (`island.ts`), read from the serialized grid instead of computed by
+ *  procedural noise. */
 export function mapToQuerySource(m: MapData): TerrainQuerySource {
   const inBounds = (i: number, j: number) => i >= 0 && j >= 0 && i < m.size && j < m.size;
   return {
@@ -159,8 +157,8 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
     },
     kindAt(i, j) {
       if (!inBounds(i, j)) return null;
-      // L'eau n'a pas de matière — `levels` reste l'autorité, `materials` "sans signification"
-      // là où il vaut `null` (voir le commentaire du champ), donc on ne le lit même pas.
+      // Water has no material — `levels` stays the authority, `materials` is "meaningless"
+      // wherever it is `null` (see the field's comment), so we don't even read it.
       if (m.levels[j * m.size + i] === null) return null;
       return m.materials[j * m.size + i] ?? null;
     },

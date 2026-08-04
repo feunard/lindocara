@@ -1,7 +1,11 @@
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import {
+  createTerrainQuery,
+  type TerrainMaterial,
+  type TerrainQuery,
+} from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { NORD, WORLD } from "../settings.js";
-import type { MapData } from "./map-data.js";
-import { createTerrainQuery, type TerrainMaterial, type TerrainQuery } from "./terrain-query.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
  *  `generateIsland` ci-dessous. Sorti au niveau module (et exporté) pour que

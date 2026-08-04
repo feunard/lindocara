@@ -1,3 +1,5 @@
+import type { ColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { type Billboard, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
@@ -5,8 +7,6 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { closeChest, openChest } from "../core/audio.js";
 import { CAMERA } from "../settings.js";
-import type { ColliderIndex } from "./collider-index.js";
-import type { TerrainQuery } from "./terrain-query.js";
 
 // Les deux sprites partagent un canevas de 80x80, coffre calé en bas : ouvrir
 // ne le fait donc pas sauter, seul le couvercle dépasse plus haut.

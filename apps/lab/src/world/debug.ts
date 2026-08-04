@@ -1,9 +1,9 @@
+import type { ColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import * as THREE from "three";
 import { HERO, WORLD } from "../settings.js";
-import type { ColliderIndex } from "./collider-index.js";
 import type { Hero } from "./hero.js";
-import type { TerrainQuery } from "./terrain-query.js";
 
 // Vue de contrôle des collisions : on ne montre QUE les volumes réellement
 // testés, pas les sprites. Quand un déplacement paraît anormal, c'est ici qu'on

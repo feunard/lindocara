@@ -1,3 +1,5 @@
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   type Billboard,
   type Clip,
@@ -11,10 +13,8 @@ import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { CAMERA, NORD, VAPEUR_SOURCE, WORLD } from "../settings.js";
-import type { ColliderRect } from "./collider-index.js";
 import { mulberry32 } from "./island.js";
 import { createFlock, type Flock } from "./sheep.js";
-import type { TerrainQuery } from "./terrain-query.js";
 
 // --- texture procédurale de la vapeur (Task 10 de l'île de neige) --------------------------------
 // Même motif que `textureHaleine`/`textureTrace` du héros (`world/hero.ts`) : un dégradé radial

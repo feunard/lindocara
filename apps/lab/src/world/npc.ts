@@ -1,10 +1,10 @@
+import type { ColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createAnimator, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import { CAMERA, GROTA } from "../settings.js";
-import type { ColliderIndex } from "./collider-index.js";
 import { type NpcHandle, planStaticNpc } from "./npc-base.js";
-import type { TerrainQuery } from "./terrain-query.js";
 
 export type Grota = NpcHandle;
 

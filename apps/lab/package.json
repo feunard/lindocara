@@ -11,6 +11,7 @@
     "build:map": "tsx scripts/build-map.ts"
   },
   "dependencies": {
+    "@lindocara/engine": "*",
     "@lindocara/hd2d": "*",
     "three": "^0.185.1"
   },

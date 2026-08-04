@@ -7,7 +7,7 @@
 // une variante au hasard ET une hauteur légèrement différente — sans ça, cinq
 // échantillons en boucle s'entendent au bout de dix secondes.
 
-import type { TerrainMaterial } from "../world/terrain-query.js";
+import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 
 type BankKey =
   | "pasHerbe"

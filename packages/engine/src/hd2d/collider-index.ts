@@ -1,20 +1,19 @@
-// Collisions par rectangles alignés sur les axes, testées depuis un disque : le héros GARDE son
-// empreinte ronde (Task 8, décision du plan qui réduit le risque) — le glissement le long d'un
-// obstacle vient du test AXE PAR AXE dans `hero-step.ts`, pas de la forme de l'obstacle, donc
-// changer un cercle en rectangle ne change que le coin qu'on longe, jamais la façon de le longer.
+// Axis-aligned-rectangle collision, tested from a disc: the hero KEEPS its round footprint
+// (Task 8, a risk-reducing plan decision) — sliding along an obstacle comes from the
+// AXIS-BY-AXIS test in `hero-step.ts`, not from the obstacle's shape, so turning a circle into a
+// rectangle only changes the corner you slide along, never how you slide along it.
 //
-// La grille reste la `Map` creuse de l'ancien `colliders.ts` — adaptée à une carte large et
-// clairsemée, contrairement aux seaux denses de `packages/engine/src/collider.ts` — mais un
-// rectangle peut désormais s'étendre sur PLUSIEURS cellules (un mur long, le cas que le cercle ne
-// savait pas modéliser) et doit donc être inséré dans toutes celles qu'il recouvre, pas seulement
-// celle de son coin.
+// The grid stays the sparse `Map` from the old `colliders.ts` — suited to a wide, sparsely
+// populated map, unlike the dense buckets of `packages/engine/src/collider.ts` — but a rectangle
+// can now span SEVERAL cells (a long wall, the case the circle could not model), and so must be
+// inserted into every cell it covers, not just the one at its corner.
 
 const CELL = 4;
-// Marge du chemin RAPIDE de `blocked` (petit rayon de requête) : une seule case y est interrogée.
-// Pour que ce chemin ne rate jamais un rectangle proche d'une frontière de case, l'insertion
-// pad du même montant de chaque côté — un rectangle déborde donc un peu dans les cases voisines de
-// son emprise réelle, exactement le raisonnement de l'ancien `colliders.ts` transposé au rectangle
-// (là-bas, le pad incluait le rayon de l'objet ; ici l'emprise du rectangle EST déjà sa taille).
+// Margin of the FAST path in `blocked` (small query radius): only a single cell is queried there.
+// For that path to never miss a rectangle near a cell boundary, insertion pads the same amount on
+// every side — a rectangle therefore spills a little into the cells neighboring its actual
+// footprint, exactly the reasoning of the old `colliders.ts` carried over to the rectangle (there,
+// the pad included the object's radius; here the rectangle's footprint IS already its size).
 const QUERY_PAD = 0.6;
 
 export interface ColliderRect {
@@ -27,11 +26,11 @@ export interface ColliderRect {
 export interface ColliderIndex {
   readonly all: readonly ColliderRect[];
   add(rect: ColliderRect): void;
-  /** `true` si un disque de rayon `r` centré en `(x, z)` chevauche un rectangle. */
+  /** `true` if a disc of radius `r` centered at `(x, z)` overlaps a rectangle. */
   blocked(x: number, z: number, r: number): boolean;
 }
 
-/** Distance au carré du centre du disque au point du rectangle le plus proche. */
+/** Squared distance from the disc's center to the closest point of the rectangle. */
 function overlaps(rect: ColliderRect, x: number, z: number, r: number): boolean {
   const px = Math.min(Math.max(x, rect.x), rect.x + rect.w);
   const pz = Math.min(Math.max(z, rect.z), rect.z + rect.h);
@@ -68,11 +67,11 @@ export function createColliderIndex(): ColliderIndex {
         if (!bucket) return false;
         return bucket.some((rect) => overlaps(rect, x, z, r));
       }
-      // Revue finale (point C2, héritée de `colliders.ts`) : cette fonction promue en collision
-      // AUTORITATIVE serveur en S2 recevra des rayons décidés par la DONNÉE d'entité, un rayon mal
-      // réglé ne doit donc jamais abattre un tick de simulation. On élargit la fenêtre de cellules
-      // interrogées à la taille réelle de la requête au lieu de lever : plus large que le chemin
-      // rapide ci-dessus, jamais plus étroit, donc jamais moins de rectangles trouvés.
+      // Final review (point C2, inherited from `colliders.ts`): this function, promoted to
+      // AUTHORITATIVE server-side collision in S2, will receive radii decided by ENTITY DATA, so a
+      // badly tuned radius must never take down a simulation tick. We widen the queried cell
+      // window to the actual query size instead of throwing: wider than the fast path above,
+      // never narrower, so never fewer rectangles found.
       const seen = new Set<ColliderRect>();
       for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
         for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {

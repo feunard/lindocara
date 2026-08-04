@@ -1,3 +1,4 @@
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { describe, expect, it } from "vitest";
 import {
   BENCH_CENTER_OFFSET,
@@ -11,7 +12,6 @@ import {
 } from "../src/bench.js";
 import { CAMERA } from "../src/settings.js";
 import { mulberry32 } from "../src/world/island.js";
-import type { TerrainQuery } from "../src/world/terrain-query.js";
 
 /**
  * Minimal `TerrainQuery`: only `levelAt` matters to `scatterOnLand` (the sole method it calls),

@@ -8,12 +8,12 @@
 // Run: npm run build:map -w @lindocara/lab
 
 import { writeFileSync } from "node:fs";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
+import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import { SPAWN, WORLD } from "../src/settings.js";
-import type { ColliderRect } from "../src/world/collider-index.js";
 import { generateIsland } from "../src/world/island.js";
-import { encodeMap, type MapData } from "../src/world/map-data.js";
 import { decidePlacements } from "../src/world/props.js";
-import type { TerrainMaterial } from "../src/world/terrain-query.js";
 
 const { field, query } = generateIsland({ size: WORLD.size, seed: WORLD.seed });
 const size = field.cols;

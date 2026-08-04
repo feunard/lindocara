@@ -1,0 +1,55 @@
+import { createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import { describe, expect, it } from "vitest";
+
+describe("createColliderIndex", () => {
+  it("blocks a disc that overlaps a rectangle, via the closest point", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: 0, z: 0, w: 2, h: 2 }); // from (0,0) to (2,2)
+    // At the corner, the distance to the rectangle is the distance to the point (0,0).
+    expect(idx.blocked(-0.2, -0.2, 0.5)).toBe(true);
+    // A radius of 0.2 is no longer enough: the corner's diagonal is ~0.283.
+    expect(idx.blocked(-0.2, -0.2, 0.2)).toBe(false);
+  });
+
+  it("lets a disc pass that grazes the edge without touching it", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: 0, z: 0, w: 2, h: 2 });
+    expect(idx.blocked(-0.51, 1, 0.5)).toBe(false);
+    expect(idx.blocked(-0.49, 1, 0.5)).toBe(true);
+  });
+
+  it("finds a rectangle wider than the index's cell", () => {
+    // A long wall is the case the circle could not model, so it's the one no existing test
+    // covers. It must be found from any point along its length.
+    const idx = createColliderIndex();
+    idx.add({ x: -20, z: 0, w: 40, h: 0.5 });
+    expect(idx.blocked(-18, 0.2, 0.3)).toBe(true);
+    expect(idx.blocked(0, 0.2, 0.3)).toBe(true);
+    expect(idx.blocked(18, 0.2, 0.3)).toBe(true);
+    expect(idx.blocked(0, 5, 0.3)).toBe(false);
+  });
+
+  // The next three tests reprise the coverage of the old `colliders.test.ts` (circles), carried
+  // over to rectangles: degrading gracefully with a large query radius is about the overlap TEST,
+  // not the collider's shape, so the same cases must stay true.
+  it("degrades gracefully instead of throwing when r exceeds the fast path's margin", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: -0.5, z: -0.5, w: 1, h: 1 }); // centered at (0,0), equivalent radius 0.5
+    expect(() => idx.blocked(0, 0, 2)).not.toThrow();
+    expect(idx.blocked(0, 0, 2)).toBe(true);
+  });
+
+  it("always finds an overlapped rectangle with a large radius, even far from the origin cell", () => {
+    const idx = createColliderIndex();
+    // Rectangle centered at (6, 0): outside cell (0,0) (CELL=4), but a query disc of radius 3
+    // centered at (3, 0) must still find it.
+    idx.add({ x: 5.6, z: -0.4, w: 0.8, h: 0.8 });
+    expect(idx.blocked(3, 0, 3)).toBe(true);
+  });
+
+  it("a large radius that truly overlaps nothing stays `false`", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: 99.5, z: 99.5, w: 1, h: 1 }); // centered at (100, 100)
+    expect(idx.blocked(0, 0, 2)).toBe(false);
+  });
+});

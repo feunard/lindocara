@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { describe, expect, it } from "vitest";
 import { SPAWN, WORLD } from "../src/settings.js";
-import type { ColliderRect } from "../src/world/collider-index.js";
 import { generateIsland } from "../src/world/island.js";
-import { decodeMap } from "../src/world/map-data.js";
 import { decidePlacements } from "../src/world/props.js";
 
 // Le contrôle de non-régression de tout ce chantier (Task 10) : si la carte livrée cesse de

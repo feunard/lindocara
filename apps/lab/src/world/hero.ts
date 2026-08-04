@@ -1,3 +1,5 @@
+import type { ColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   type Billboard,
   createAnimator,
@@ -24,7 +26,6 @@ import {
   swimStroke,
 } from "../core/audio.js";
 import { CAMERA, GLACE_FINE, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
-import type { ColliderIndex } from "./collider-index.js";
 import {
   createHeroState,
   type HeroEvent,
@@ -35,7 +36,6 @@ import {
   type StepDeps,
 } from "./hero-state.js";
 import { stepHero } from "./hero-step.js";
-import type { TerrainQuery } from "./terrain-query.js";
 import { createThinIce } from "./thin-ice.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.

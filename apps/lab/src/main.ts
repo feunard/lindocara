@@ -1,3 +1,6 @@
+import { createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import { decodeMap, mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
+import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { makeBillboard, RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import { createCloudCover } from "@lindocara/hd2d/clouds.js";
 import { createHd2dContext, type Hd2dContext } from "@lindocara/hd2d/context.js";
@@ -57,17 +60,14 @@ import {
   ZONES,
 } from "./settings.js";
 import { createChest } from "./world/chest.js";
-import { createColliderIndex } from "./world/collider-index.js";
 import { createDebugView } from "./world/debug.js";
 import { createHero } from "./world/hero.js";
 import { createHouse } from "./world/house.js";
 import { createInterior } from "./world/interior.js";
 import { mapToHeightField } from "./world/island.js";
-import { decodeMap, mapToQuerySource } from "./world/map-data.js";
 import { createGrota } from "./world/npc.js";
 import { populate, windPhase } from "./world/props.js";
 import { createSnowNpc } from "./world/snow-npc.js";
-import { createTerrainQuery } from "./world/terrain-query.js";
 import { type Zone, zoneAt } from "./world/zones.js";
 
 // Task 10 : l'île n'est plus générée au démarrage, elle est CHARGÉE — `world/island.ts`

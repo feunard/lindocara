@@ -1,3 +1,4 @@
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { type Billboard, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
@@ -11,7 +12,6 @@ import {
   IDLE as MONSTER_IDLE,
   SHEET as MONSTER_SHEET,
 } from "./world/sheep.js";
-import type { TerrainQuery } from "./world/terrain-query.js";
 
 // Task 13 : le harnais de charge. C'est le vrai inconnu du chantier — le PoC affiche un héros, une
 // trentaine de props et une île ; le jeu affiche quatre joueurs, des monstres, des projectiles, des

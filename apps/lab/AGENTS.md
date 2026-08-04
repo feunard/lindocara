@@ -9,14 +9,18 @@ two weeks of the next change and stop being a witness for anything — every cha
 proven against the lab before it's trusted, and the lab is kept current with `hd2d`, not the other
 way around.
 
-**`apps/lab` depends on exactly `@lindocara/hd2d` and `three`** — no `@lindocara/engine`,
+**`apps/lab` depends on exactly `@lindocara/hd2d`, `@lindocara/engine` and `three`** — no
 `server`, `client` or `renderer`. It also does not (yet) feed the game: the game's render path is
 still PixiJS, and `hd2d` is consumed only here until S3 (see the root
 [`AGENTS.md`](../../AGENTS.md) and
 [`docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md`](../../docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)).
-`island.ts`/`terrain-query.ts` are the one deliberate exception to "witness, don't build product
-here": they are written as the future `@lindocara/engine` collision/generation module, kept pure
-and `three`-free on purpose, so S2 can promote them by moving the file, not rewriting it.
+`island.ts` is the remaining deliberate exception to "witness, don't build product here": it is
+written as the future `@lindocara/engine` generation module, kept pure and `three`-free on
+purpose, so a later task can promote it by moving the file, not rewriting it. Its sibling
+collision module already made that move in Task 11: `terrain-query.ts`, `collider-index.ts` and
+`map-data.ts` now live in `@lindocara/engine/hd2d/` — tile-unit geometry kept in its own
+subfolder there, away from the pixel-unit `simulation.ts`/`collider.ts` the game already ships —
+and the lab imports them back as `@lindocara/engine/hd2d/*.js`.
 
 ## Files
 
@@ -41,9 +45,10 @@ and `three`-free on purpose, so S2 can promote them by moving the file, not rewr
 - `world/island.ts` — pure procedural heightmap + beach generation (`generateIsland`,
   `mulberry32`), including the frozen lake/thin-ice ring/snow of the north island (Task 4-7 of the
   snow island). Destined for `@lindocara/engine` in S2 — see above and "The snow island" below.
-- `world/terrain-query.ts` — `TerrainQuery`: world-space collision queries over a `HeightField`,
-  and `TerrainMaterial`, the five-material type (`sable`/`herbe`/`neige`/`glace`/`glace-fine`).
-  Same S2 destination as `island.ts`, and for the same reason kept `three`-free.
+- `@lindocara/engine/hd2d/terrain-query.ts` — `TerrainQuery`: world-space collision queries over a
+  `HeightField`, and `TerrainMaterial`, the five-material type
+  (`sable`/`herbe`/`neige`/`glace`/`glace-fine`). Moved out of `apps/lab` in Task 11, kept
+  `three`-free from the start for exactly this move.
 - `world/locomotion.ts` — the friction-based movement model (`pasAmorti`) and the per-material
   friction/speed/skid helpers. Pure and deterministic on purpose — see "The snow island" below for
   why, and for the consequence this has for S2.
@@ -52,10 +57,15 @@ and `three`-free on purpose, so S2 can promote them by moving the file, not rewr
 - `world/zones.ts` — `Zone`/`zoneAt`: a named region carrying its own ambience (soundscape, music,
   breath-drain rate). Pure rules; `main.ts` reads `zoneAt` every frame and wires the result to
   `core/audio.ts` and the hero.
-- `world/collider-index.ts` — the static spatial grid props/the house/the NPCs register into.
-  Colliders are axis-aligned rectangles (Task 8: the primitive that can model a long wall, which a
-  circle couldn't); the hero's own footprint stays a circle, tested disc-vs-rect by nearest point —
-  see `hero-state.ts`'s `ColliderQuery`, the interface that hides the shape change from the rule.
+- `@lindocara/engine/hd2d/collider-index.ts` — the static spatial grid props/the house/the NPCs
+  register into. Colliders are axis-aligned rectangles (Task 8: the primitive that can model a
+  long wall, which a circle couldn't); the hero's own footprint stays a circle, tested disc-vs-rect
+  by nearest point — see `hero-state.ts`'s `ColliderQuery`, the interface that hides the shape
+  change from the rule. Moved out of `apps/lab` in Task 11, alongside `terrain-query.ts`.
+- `@lindocara/engine/hd2d/map-data.ts` — `MapData`/`encodeMap`/`decodeMap`: a map as pure,
+  defensively-parsed data (Task 10), plus `mapToQuerySource` to adapt a decoded map into what
+  `createTerrainQuery` consumes. `scripts/build-map.ts` writes one; `main.ts` loads it instead of
+  generating the island procedurally. Moved out of `apps/lab` in Task 11.
 - `world/npc-base.ts` — `planStaticNpc()`, the shape every static NPC shares (water guard,
   collider registration, squared-distance `inReach`) and the `NpcHandle` interface `npc.ts`/
   `snow-npc.ts` alias. Holds nothing about a billboard, an animator or dialogue text — those stay
@@ -92,7 +102,8 @@ narrow thin-ice ring around that lake, snow everywhere else, a hot spring (the p
 the campfire — same glow/shadow/fill-light plumbing, `world/props.ts`), snow-covered pines and ice
 stalagmites, and Nanuq, the second NPC.
 
-**Five terrain materials, one collision path.** `TerrainMaterial` (`world/terrain-query.ts`) is
+**Five terrain materials, one collision path.** `TerrainMaterial`
+(`@lindocara/engine/hd2d/terrain-query.ts`) is
 `"sable" | "herbe" | "neige" | "glace" | "glace-fine"`. `glace-fine` is a RULE material, not yet a
 render one — it shares `glace`'s atlas and step sound, and only Task 7's crackle overlay tells them
 apart visually. Passability still comes from `tiles`/`isWalkable` exactly like the other three

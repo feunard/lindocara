@@ -1,5 +1,5 @@
+import type { TerrainMaterial, TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { ColliderQuery, StepDeps } from "../../src/world/hero-state.js";
-import type { TerrainMaterial, TerrainQuery } from "../../src/world/terrain-query.js";
 
 interface Options {
   /** `true` là où un obstacle bloque. Par défaut : nulle part. */

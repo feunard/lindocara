@@ -1,6 +1,6 @@
+import type { ColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import * as THREE from "three";
-import type { ColliderIndex } from "./collider-index.js";
-import type { TerrainQuery } from "./terrain-query.js";
 
 /**
  * Ce qu'un PNJ statique EST, indépendamment de son billboard : une position posée sur le
