@@ -5,6 +5,7 @@ import {
   type TerrainQuery,
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
+import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
 import { NORD, WORLD } from "../settings.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
@@ -297,20 +298,10 @@ export function generateIsland(opts: GenerateIslandOptions): {
  * labo où les deux notions (donnée de carte, bande de rendu) se rencontrent légitimement.
  */
 export function mapToHeightField(m: MapData): HeightField {
-  const inBounds = (i: number, j: number) => i >= 0 && j >= 0 && i < m.size && j < m.size;
-  return {
-    cols: m.size,
-    rows: m.size,
-    levelAt(i, j) {
-      if (!inBounds(i, j)) return null;
-      return m.levels[j * m.size + i] ?? null;
-    },
-    materialAt(i, j) {
-      if (!inBounds(i, j)) return null;
-      const h = m.levels[j * m.size + i];
-      if (h === null || h === undefined) return null;
-      const mat = m.materials[j * m.size + i];
-      return mat === undefined ? null : renderMaterialAt(mat, h);
-    },
-  };
+  return heightFieldFromGrid({
+    size: m.size,
+    levels: m.levels,
+    materials: m.materials,
+    materialKey: (material, level) => renderMaterialAt(material as TerrainMaterial, level),
+  });
 }
