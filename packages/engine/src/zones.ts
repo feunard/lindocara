@@ -73,6 +73,13 @@ export interface ZoneDefinition {
   readonly audio?: AdventureAudioConfig;
   /** Authored hero balance for this map. Catalogue zones inherit code-owned defaults. */
   readonly heroSettings?: MapHeroSettings;
+  /**
+   * JSON-encoded `MapData` heightfield (`hd2d/map-data.ts`), or `null` when this map has none —
+   * `MapService`'s `heightfield` column, sentinel already normalised. Undefined for every
+   * catalogue zone (they carry no map row at all). Not yet wired onto the wire — `WorldRoom.
+   * worldInfo()` still sends `WorldInfo.heightfield: null` unconditionally until a later task.
+   */
+  readonly heightfield?: string | null;
 }
 
 /** A server-owned exit. The browser can only ask to interact near it. */

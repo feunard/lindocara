@@ -137,6 +137,7 @@ export function zoneFromMapPayload(
     events: payload.events,
     audio: resolveMapAudio(adventureAudio, payload.audio),
     heroSettings: payload.heroSettings,
+    heightfield: payload.heightfield,
   };
 }
 

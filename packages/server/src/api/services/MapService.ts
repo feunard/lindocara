@@ -102,6 +102,13 @@ const MAP_ELEMENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_ELEMENT_CO
 const MAP_EVENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_COLUMNS);
 const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_PAGE_COLUMNS);
 
+/** The `heightfield` column's empty-string "no heightfield" sentinel (matching the `audio`/
+ *  `heroSettings` convention on the same entity), normalised to `null` so nothing past
+ *  `MapService` needs to know the sentinel exists. */
+function heightfieldOfRow(value: string): string | null {
+  return value === "" ? null : value;
+}
+
 /** Corrupt or missing harvest JSON never escapes as trusted gameplay configuration. */
 function decodeHarvestProfileColumn(text: string | null | undefined): HarvestProfile | null {
   if (!text) return null;
@@ -140,6 +147,10 @@ export interface MapPayload {
   events: MapEvent[];
   audio: ReturnType<typeof decodeMapAudio>;
   heroSettings: MapHeroSettings;
+  /** JSON-encoded `MapData` heightfield (`engine/hd2d/map-data.ts`), or `null` if this map has
+   *  none yet — the empty-string column sentinel normalised away at this boundary (see
+   *  `saveHeightfield`'s docblock). */
+  heightfield: string | null;
 }
 
 export class MapService {
@@ -338,6 +349,10 @@ export class MapService {
         input.heroSettings === undefined
           ? decodeMapHeroSettings(existing.heroSettings)
           : data.heroSettings,
+      // Not part of the authoring PUT (the editor gains this in its own later piece) — carried
+      // over from the existing row unconditionally, same as every other write in this method
+      // leaves it untouched.
+      heightfield: heightfieldOfRow(existing.heightfield),
     };
   }
 
@@ -425,6 +440,19 @@ export class MapService {
       { isFirst: false },
     );
     await this.maps.updateById(row.id, { isFirst: true });
+  }
+
+  /**
+   * Writes the map's heightfield column directly — a single-column write shape mirroring
+   * `setFirstMap` above, deliberately bypassing `updateMap`'s revision/graph/authoring plumbing.
+   * The heightfield is not yet part of the collaborative map-authoring surface (no controller
+   * route calls this): today the only writer is `scripts/build-proving-map.ts` (Task 5), and the
+   * editor gains its own authoring path in a later piece.
+   */
+  async saveHeightfield(id: string, heightfield: string): Promise<void> {
+    const row = await this.maps.findById(id);
+    if (!row) throw new Error("not_found: no such map");
+    await this.maps.updateById(id, { heightfield });
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -543,6 +571,7 @@ export class MapService {
       events,
       audio: decodeMapAudio(row.audio),
       heroSettings: decodeMapHeroSettings(row.heroSettings),
+      heightfield: heightfieldOfRow(row.heightfield),
     };
   }
 

@@ -45,6 +45,12 @@ export const maps = $entity({
     audio: db.default(z.string(), ""),
     /** JSON MapHeroSettings. Empty string makes pre-feature maps inherit current defaults. */
     heroSettings: db.default(z.string(), ""),
+    /**
+     * JSON-encoded `MapData` (`engine/hd2d/map-data.ts`) — the terrain as a heightfield, in tile
+     * units. Empty string is the "no heightfield" sentinel, same convention as `audio` above.
+     * Written today only by `scripts/build-proving-map.ts`; the editor gains this in its own piece.
+     */
+    heightfield: db.default(z.string(), ""),
     /** Monotone authored-content revision. Cache identity is `(mapId, revision)`. */
     revision: db.default(z.integer().min(1), 1),
     /** Internal compare-and-swap token for a whole-map rewrite, never exposed on the authoring API. */
