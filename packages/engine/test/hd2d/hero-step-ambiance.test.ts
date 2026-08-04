@@ -43,4 +43,43 @@ describe("stepHero — breath and footprints", () => {
     expect(cotes.length).toBeGreaterThanOrEqual(2);
     expect(cotes[0]).not.toBe(cotes[1]);
   });
+
+  it("rearms the idle-breath timer on a footstep even with haleineVisible false, but never emits", () => {
+    // The footstep branch rearms `reposHaleine` on EVERY footstep, whether `haleineVisible` or
+    // not — only the EMISSION depends on it (see `hero-step.ts`'s comment on the "pas" branch).
+    // Walking outside the cold zone must therefore never puff, footsteps or no footsteps.
+    const deps = depsPlates();
+    const s = createHeroState(0, 0, 0, 10, 2.2);
+    let n = 0;
+    let pas = 0;
+    for (let i = 0; i < 60 * 10; i++) {
+      for (const e of stepHero(s, { ...arret, x: 1, haleineVisible: false }, 1 / 60, deps)) {
+        if (e.t === "haleine") n++;
+        if (e.t === "pas") pas++;
+      }
+    }
+    // The walk must actually have produced footsteps, or the branch this test targets never ran.
+    expect(pas).toBeGreaterThan(0);
+    expect(n).toBe(0);
+  });
+
+  it("doesn't count down the idle-breath timer while swimming", () => {
+    // `!state.swimming` gates the countdown itself (`hero-step.ts`, the idle-breath block at the
+    // end of `stepHero`) — breathing continues while jumping or skidding, only swimming (breath
+    // HELD, a separate mechanic) cuts it. Kept swimming for the whole window by making the terrain
+    // water everywhere (`hauteur: () => null`): a flat floor would surface the hero back out and
+    // reset the very state this test is trying to hold still.
+    const deps = depsPlates({ hauteur: () => null });
+    const s = createHeroState(0, 0, 0, 10, 2.2);
+    s.swimming = true;
+    s.breath = 1000; // never drown mid-test, or `drown()` would itself unset `swimming`
+    let n = 0;
+    for (let i = 0; i < 60 * 10; i++) {
+      n += stepHero(s, arret, 1 / 60, deps).filter((e) => e.t === "haleine").length;
+    }
+    expect(s.swimming).toBe(true);
+    // Untouched: the countdown never ran, so it never rearmed either.
+    expect(s.reposHaleine).toBe(2.2);
+    expect(n).toBe(0);
+  });
 });
