@@ -23,13 +23,18 @@ game ships, and the HD-2D one (`hd2d/`) behind `?hd2d=1`. They satisfy one contr
   implement it; adding a method the session calls means adding it here first.
 - `hd2d/` — the **second** renderer, on `@lindocara/hd2d` + `three` rather than PixiJS, selected by
   a temporary `?hd2d=1` (S3's first increment). `scene.ts` is the composition root, transcribed from
-  `apps/lab/src/main.ts`; `billboards.ts` is the actor registry; `game-renderer.ts` is the
-  `RendererLike` around them and owns which sheet an actor draws with. Snapshots arrive in PIXELS
+  `apps/lab/src/main.ts`; `billboards.ts` is the actor registry, synced every frame;
+  `static-content.ts` places the map's own scenery once per map (its own file for that reason — the
+  actor registry has a lifecycle, scenery has none); `game-renderer.ts` is the `RendererLike` around
+  them and owns which sheet an actor or a catalogue asset draws with. Snapshots arrive in PIXELS
   and the scene is in TILE units — the conversion is `engine/hd2d/tile-pixel-bridge.ts`, and every
   site here carries its `TILE→PIXEL BRIDGE` marker (`sync` in `billboards.ts`, `focusOn` in
-  `scene.ts`, and nowhere else). It draws terrain, sea, foam, sky and light from
-  `WorldInfo.heightfield`, plus the actors as billboards the camera follows — drawn at rest, since
-  no clip crosses `ActorView` yet. Grep `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed.
+  `scene.ts`, and nowhere else; the heightfield's own elements and events are ALREADY in tile units
+  and need no conversion). It draws terrain, sea, foam, sky and light from `WorldInfo.heightfield`,
+  the actors as billboards the camera follows — drawn at rest, since no clip crosses `ActorView`
+  yet — and `heightfield.elements`/`heightfield.events` as static billboards, appearance only: no
+  element or event ever contributes a collider, because the server bakes collision from the terrain
+  alone. Grep `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed.
   Read
   [`docs/hd2d-rendering.md`](../../docs/hd2d-rendering.md) before touching it.
 

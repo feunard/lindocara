@@ -3,11 +3,11 @@
  * `packages/client/src/game/session.ts`).
  *
  * It draws the world's GROUND — terrain, sea, foam, sky and light, from the welcome's heightfield —
- * and its ACTORS, as billboards the camera follows (`billboards.ts`). Nothing else. Every other
+ * its ACTORS, as billboards the camera follows (`billboards.ts`), and the map's own SCENERY, the
+ * heightfield's elements and authored events (`static-content.ts`). Nothing else. Every other
  * method of `RendererLike` is an explicit, marked no-op rather than a missing member: the session
  * calls all of them, and a silent partial implementation would be a renderer that looks finished.
- * Grep `NOT YET DRAWN ON THE HD-2D PATH` for the full list of what is still owed; the next S3 piece
- * takes the elements and events.
+ * Grep `NOT YET DRAWN ON THE HD-2D PATH` for the full list of what is still owed.
  *
  * An actor is drawn AT REST: it faces the way the server says, but it does not animate. `sync` has
  * no clock and `ActorView` carries no clip, and giving it one is a later piece — a visible gap,
@@ -35,8 +35,8 @@ import type {
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
-import type { TileMap } from "@lindocara/engine/tilemap.js";
-import { guardPrimaryColorForAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
+import { editorAsset, guardPrimaryColorForAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneId } from "@lindocara/engine/zones.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
@@ -50,10 +50,13 @@ import type { RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
 import { unitSheet } from "../tiny-swords-art.js";
-import type { ActorView, BillboardRegistry } from "./billboards.js";
+import { tinySwordsSourceUrl } from "../tiny-swords-assets.js";
+import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.js";
 import { createBillboardRegistry } from "./billboards.js";
 import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
+import type { StaticContent, StaticSpriteArt } from "./static-content.js";
+import { placeStaticContent } from "./static-content.js";
 
 // --- actor art direction --------------------------------------------------------------------------
 
@@ -120,6 +123,78 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
   ]),
 ].map((url) => ({ url }));
 
+// --- scenery art direction ------------------------------------------------------------------------
+
+/**
+ * Which file a catalogue asset id draws from, or `null` when this build cannot draw it at all.
+ *
+ * Two honest refusals, both of which `placeStaticContent` turns into one skipped sprite and a
+ * console warning rather than a thrown error:
+ *
+ * - an id no catalogue entry answers to — a map authored against a newer pack;
+ * - an entry whose art is a sub-RECTANGLE of a shared sheet (`editor.sourceRect`: the six Update-010
+ *   trees all live in one 768x576 image). A billboard frames a regular `cols x rows` grid and
+ *   nothing else, so cropping one of those would need a second framing path. NOT YET DRAWN ON THE
+ *   HD-2D PATH: sub-rect crops — 9 of the catalogue's 144 placeable assets.
+ */
+function staticAssetUrl(assetId: string): string | null {
+  const definition = editorAsset(assetId);
+  if (!definition || definition.editor.sourceRect) return null;
+  try {
+    return tinySwordsSourceUrl(definition.sourcePath);
+  } catch {
+    // The Vite glob is the only boundary to the raw pack and it throws on a path it never bundled.
+    // A catalogue entry pointing at a file this build does not ship is one lost prop, not a crash.
+    return null;
+  }
+}
+
+/**
+ * A catalogue entry, read as the four numbers a billboard is built from — the ADAPTER's knowledge,
+ * exactly like `playerTextureKey` above and the terrain atlases in `scene.ts`.
+ *
+ * `definition.width`/`height` are the FRAME's size, not the sheet's, so a frame count along its own
+ * axis is what gives the grid. The scale rule is the pack's own and the same one `billboards.ts`
+ * gives actors: a frame is worth its native pixels at 64 to the tile, so an authored tree and the
+ * hero beside it stay in proportion. `footOffset` is `frameHeight - alphaBboxBottom` — the visible
+ * ground line measured up from the bottom of the frame — which is precisely what `foot` wants, and
+ * the same number the PixiJS path uses to stand the very same sprite on the very same cell.
+ */
+function staticArtFor(
+  assetId: string,
+  url: string,
+  textures: TextureRegistry,
+): StaticSpriteArt | null {
+  const definition = editorAsset(assetId);
+  if (!definition) return null;
+  const frame = definition.frame;
+  const framePx = {
+    width: frame?.width ?? definition.width,
+    height: frame?.height ?? definition.height,
+  };
+  if (framePx.width <= 0 || framePx.height <= 0) return null;
+  const count = Math.max(1, frame?.count ?? 1);
+  const alongX = (frame?.axis ?? "x") === "x";
+  return {
+    texture: textures.get(url),
+    cols: alongX ? count : 1,
+    rows: alongX ? 1 : count,
+    height: framePx.height / TILE_SIZE,
+    aspect: framePx.width / framePx.height,
+    foot: definition.footOffset / framePx.height,
+  };
+}
+
+/** Every catalogue id a map's scenery names, deduplicated and in placement order. */
+function staticAssetIds(map: MapData): string[] {
+  const ids = new Set<string>();
+  for (const element of map.elements) ids.add(element.assetId);
+  for (const event of map.events) {
+    if (event.graphicAssetId !== null) ids.add(event.graphicAssetId);
+  }
+  return [...ids];
+}
+
 export class Hd2dRenderer implements RendererLike {
   #canvas: HTMLCanvasElement;
   #textures: TextureRegistry;
@@ -128,6 +203,15 @@ export class Hd2dRenderer implements RendererLike {
   #scene: Hd2dScene | null = null;
   /** Lives and dies with the scene: its billboards are parented to that scene's graph. */
   #actors: BillboardRegistry | null = null;
+  /** The map's scenery, placed once per map. Lives and dies with the scene, like the actors. */
+  #content: StaticContent | null = null;
+  /** The scenery's own textures. A second registry rather than an addition to `#textures`: which
+   *  catalogue sheets a map needs is only known once that map has landed, and the actor/terrain
+   *  registry is fixed at construction so the first frame can be correct. */
+  #contentTextures: TextureRegistry | null = null;
+  /** Bumped by every map change and every teardown, so a download still in flight for the previous
+   *  map cannot land its scenery in the new one's scene. */
+  #contentToken = 0;
   /** Rebuilt every frame into the same array — `render` runs 60 times a second, and a fresh array
    *  per frame is garbage for nothing. */
   #actorViews: ActorView[] = [];
@@ -220,13 +304,80 @@ export class Hd2dRenderer implements RendererLike {
     this.#scene = scene;
     this.#actors = createBillboardRegistry(
       scene.ctx,
-      {
-        root: scene.scene,
-        query: scene.query,
-        size: heightfield.size,
-        waterLevel: heightfield.waterLevel,
-      },
+      this.#sceneFor(scene, heightfield),
       this.#textures,
+    );
+    // Fire and forget, but never silently: a failed scenery download costs the map its props and
+    // must say so, while the ground and the actors carry on.
+    void this.#loadStaticContent(scene, heightfield).catch((error: unknown) => {
+      console.warn("[hd2d] map scenery could not be loaded", error);
+    });
+  }
+
+  /** What `billboards.ts` and `static-content.ts` both need of the scene they draw into. */
+  #sceneFor(scene: Hd2dScene, heightfield: MapData): BillboardScene {
+    return {
+      root: scene.scene,
+      query: scene.query,
+      size: heightfield.size,
+      waterLevel: heightfield.waterLevel,
+    };
+  }
+
+  /**
+   * Downloads the map's own scenery sheets, then places them.
+   *
+   * Asynchronous where `configureMapTerrain` is not, and it has to be: the catalogue holds 480
+   * assets and a map names a handful of them, so preloading the lot beside the terrain would trade
+   * a two-second first frame for scenery that could simply arrive a moment later. The ground, the
+   * sea and the actors are already on screen while this runs.
+   *
+   * `token` is the guard that makes that safe. Two maps in quick succession — a transition, a
+   * `configureZone` — must not let the first one's download graft its trees onto the second one's
+   * scene, so a load that is no longer the current one gives its textures straight back.
+   */
+  async #loadStaticContent(scene: Hd2dScene, heightfield: MapData): Promise<void> {
+    const token = ++this.#contentToken;
+    const assetIds = staticAssetIds(heightfield);
+    if (assetIds.length === 0) return;
+
+    // Resolved BEFORE the download: an id this build cannot draw must not become a 404 that fails
+    // the whole batch. It stays out of the url map, `resolve` answers `null` for it, and
+    // `placeStaticContent` skips it with one warning.
+    const urlByAsset = new Map<string, string>();
+    for (const assetId of assetIds) {
+      const url = staticAssetUrl(assetId);
+      if (url) urlByAsset.set(assetId, url);
+    }
+    // `atlas` stays false, as it does for every sprite sheet: a prop is seen at every distance, so
+    // it keeps its mipmaps. Same reasoning as `HD2D_ACTOR_TEXTURE_URLS`.
+    const specs: TextureSpec[] = [...new Set(urlByAsset.values())].map((url) => ({ url }));
+
+    let textures: TextureRegistry | null = null;
+    if (specs.length > 0) {
+      const blobs = await fetchAll(
+        specs.map((spec) => spec.url),
+        () => {},
+      );
+      const registry = createTextureRegistry(specs);
+      await registry.decode(blobs, () => {});
+      textures = registry;
+    }
+
+    if (this.#destroyed || token !== this.#contentToken || this.#scene !== scene) {
+      textures?.dispose();
+      return;
+    }
+    this.#contentTextures = textures;
+    this.#content = placeStaticContent(
+      scene.ctx,
+      this.#sceneFor(scene, heightfield),
+      heightfield,
+      (assetId) => {
+        const url = urlByAsset.get(assetId);
+        if (!url || !textures) return null;
+        return staticArtFor(assetId, url, textures);
+      },
     );
   }
 
@@ -307,7 +458,14 @@ export class Hd2dRenderer implements RendererLike {
 
   #disposeScene(): void {
     // Billboards first: they are parented to the scene's graph, and disposing that graph out from
-    // under them would leave the context's yaw registry holding meshes nothing can reach.
+    // under them would leave the context's yaw registry holding meshes nothing can reach. The
+    // token bump is part of the same teardown — a scenery download still in flight belongs to a
+    // scene that no longer exists.
+    this.#contentToken += 1;
+    this.#content?.dispose();
+    this.#content = null;
+    this.#contentTextures?.dispose();
+    this.#contentTextures = null;
     this.#actors?.dispose();
     this.#actors = null;
     this.#scene?.dispose();

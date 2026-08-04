@@ -28,8 +28,14 @@
  */
 
 import { writeFileSync } from "node:fs";
-import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
-import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
+import {
+  encodeMap,
+  type HeightfieldElement,
+  type HeightfieldEvent,
+  type MapData,
+} from "@lindocara/engine/hd2d/map-data.js";
+import type { TerrainMaterial, TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
 import { MapService } from "@lindocara/server/api/services/MapService.js";
@@ -52,6 +58,106 @@ function argumentsOf(argv: readonly string[]): Map<string, string> {
     else args.set(raw.slice(2, eq), raw.slice(eq + 1));
   }
   return args;
+}
+
+/**
+ * The scenery this map is dressed with — chosen from the catalogue's own placeable assets, and only
+ * from those whose art is a WHOLE sheet: the HD-2D path frames a regular `cols x rows` grid, so an
+ * asset cropped out of a shared image (`editor.sourceRect`, the six Update-010 trees) would be
+ * skipped at draw time. Every id is checked against the catalogue below, so a typo fails here rather
+ * than silently costing the map its trees.
+ */
+const SCENERY_ASSET_IDS = [
+  "resource.terrain-resources-wood-trees.tree3",
+  "resource.terrain-resources-wood-trees.tree4",
+  "decoration.terrain-decorations-bushes.bushe1",
+  "decoration.terrain-decorations-rocks.rock1",
+] as const;
+
+/** One authored event, with a graphic and nothing else: this task DRAWS events, it does not run
+ *  them. A pawn is a unit sheet, so it also proves a scenery billboard and a hero end up the same
+ *  size — the mistake `catalog-element-render.ts` records as having shrunk Brumeval's monk. */
+const EVENT_GRAPHIC_ASSET_ID = "character.units-blue-units-pawn.pawn-idle";
+
+/** One candidate cell in this many is taken. Coprime with the two hash weights below, so the props
+ *  spread over the island instead of lining up in stripes. */
+const SCENERY_STRIDE = 11;
+const SCENERY_LIMIT = 48;
+/** Tiles kept clear around the way in: the first thing a heightfield map has to prove is that a hero
+ *  can see, and a tree dropped on the spawn hides it. */
+const SPAWN_CLEARANCE = 3;
+
+/**
+ * Deterministic decoration over the generated island.
+ *
+ * Two rules, both about the terrain rather than about taste. A cell is only dressed if it AND its
+ * eight neighbours share one level: a prop straddling a shoreline or a cliff edge stands in mid-air,
+ * because a billboard is placed on the ground under its own single point. And the spawn is left
+ * clear. Everything else is a hash of the cell's own coordinates — no clock, no `Math.random`, so
+ * regenerating the map twice gives the same island twice.
+ */
+function buildScenery(
+  size: number,
+  levels: readonly (number | null)[],
+  query: TerrainQuery,
+): { elements: HeightfieldElement[]; events: HeightfieldEvent[] } {
+  for (const assetId of [...SCENERY_ASSET_IDS, EVENT_GRAPHIC_ASSET_ID]) {
+    if (!editorAsset(assetId)) throw new Error(`unknown catalogue asset: ${assetId}`);
+  }
+
+  const levelAt = (i: number, j: number): number | null =>
+    i < 0 || j < 0 || i >= size || j >= size ? null : (levels[j * size + i] ?? null);
+  const flatAround = (i: number, j: number): boolean => {
+    const level = levelAt(i, j);
+    if (level === null) return false;
+    for (let dj = -1; dj <= 1; dj += 1) {
+      for (let di = -1; di <= 1; di += 1) {
+        if (levelAt(i + di, j + dj) !== level) return false;
+      }
+    }
+    return true;
+  };
+
+  const elements: HeightfieldElement[] = [];
+  let nearestToGreeter: { x: number; z: number; distance: number } | null = null;
+  // Where the authored event wants to stand: a couple of tiles east of the spawn, so a hero meets it
+  // on the way out. The nearest dressable cell to that point wins, because the island's own shape
+  // decides whether that exact spot is ground at all.
+  const greeter = { x: SPAWN[0] + 2, z: SPAWN[1] };
+
+  for (let j = 0; j < size; j += 1) {
+    for (let i = 0; i < size; i += 1) {
+      if (!flatAround(i, j)) continue;
+      const [x, z] = query.cellCenter(i, j);
+
+      const distance = (x - greeter.x) ** 2 + (z - greeter.z) ** 2;
+      if (!nearestToGreeter || distance < nearestToGreeter.distance) {
+        nearestToGreeter = { x, z, distance };
+      }
+
+      if (Math.abs(x - SPAWN[0]) < SPAWN_CLEARANCE && Math.abs(z - SPAWN[1]) < SPAWN_CLEARANCE)
+        continue;
+      if ((i * 7 + j * 13) % SCENERY_STRIDE !== 0) continue;
+      if (elements.length >= SCENERY_LIMIT) continue;
+      const assetId = SCENERY_ASSET_IDS[(i + j) % SCENERY_ASSET_IDS.length];
+      if (!assetId) continue;
+      elements.push({ assetId, x, z });
+    }
+  }
+
+  // A map with no flat cell at all has nowhere to stand an event; it also has no elements, and the
+  // heightfield stays honest about it rather than inventing a position.
+  const events: HeightfieldEvent[] = nearestToGreeter
+    ? [
+        {
+          id: "proving-map-greeter",
+          x: nearestToGreeter.x,
+          z: nearestToGreeter.z,
+          graphicAssetId: EVENT_GRAPHIC_ASSET_ID,
+        },
+      ]
+    : [];
+  return { elements, events };
 }
 
 function buildProvingMap(): MapData {
@@ -79,6 +185,7 @@ function buildProvingMap(): MapData {
       materials[index] = query.kindAt(x, z) ?? "herbe";
     }
   }
+  const { elements, events } = buildScenery(size, levels, query);
   return {
     version: 1,
     size,
@@ -92,9 +199,12 @@ function buildProvingMap(): MapData {
     // conversion is pinned by `test-api/heightfield-pixel-bridge.test.ts` instead.
     colliders: [],
     spawns: [{ name: "default", x: SPAWN[0], z: SPAWN[1] }],
-    // Authored decoration and events are the tile editor's, not this generator's.
-    elements: [],
-    events: [],
+    // Decoration and one authored event, so the HD-2D path has something to draw beyond bare
+    // ground. APPEARANCE ONLY, and deliberately alongside the empty `colliders` above: neither an
+    // element nor an event bakes anything a hero can bump into — collision on this path comes from
+    // the terrain and from nowhere else (`heightfield-pixel-bridge.ts`).
+    elements,
+    events,
   };
 }
 
@@ -109,7 +219,8 @@ async function main(): Promise<void> {
   const water = map.levels.filter((level) => level === null).length;
   console.log(
     `Proving map: ${map.size}x${map.size} cells, ${map.size * map.size - water} ground, ` +
-      `${water} water, spawn (${SPAWN[0]}, ${SPAWN[1]}), ${encoded.length} bytes.`,
+      `${water} water, spawn (${SPAWN[0]}, ${SPAWN[1]}), ${map.elements.length} elements, ` +
+      `${map.events.length} events, ${encoded.length} bytes.`,
   );
 
   const out = args.get("out");
