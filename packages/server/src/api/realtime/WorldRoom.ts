@@ -1844,8 +1844,11 @@ export class WorldRoom {
       colliders: state.staticColliders.map(
         ({ x, y, width, height }) => [x, y, width, height] as const,
       ),
-      // Not baked yet — a later task wires the HD-2D terrain through here.
-      heightfield: null,
+      // The terrain the room's own collision was baked from, when this map stores one: the same
+      // single source, projected twice by the one authority (`zoneFromMapPayload`). `null` here
+      // means the map has none, or that its stored one failed to decode — never that the server
+      // kept a heightfield to itself.
+      heightfield: definition.heightfield ?? null,
       elements: definition.elements ?? [],
       tilesetId: definition.tilesetId ?? TINY_SWORDS_TILESET_ID,
       layers: definition.layers ?? [],

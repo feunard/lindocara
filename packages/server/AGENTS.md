@@ -38,7 +38,16 @@ that must be trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo
 - `src/api/realtime/` — the running game (below). `src/world/` — the explicit-dependency domain
   systems the world room composes (movement, combat, monsters, projectiles, quests, loot,
   navigation, interest/snapshot, event-run, class variants, ...). No module-level mutable room
-  state.
+  state. One of those files is explicitly TEMPORARY:
+  `src/world/heightfield-pixel-bridge.ts` projects the stored heightfield's grid-centred TILE units
+  into the PIXEL, top-left-origin geometry the current simulation collides against. It is the only
+  place the two unit systems meet, and every call site carries the same banner comment —
+  `grep -rn "TILE→PIXEL BRIDGE"` finds them all the day the server's geometry moves to tile units
+  and the file is deleted. Do not convert coordinates by hand anywhere else.
+- `scripts/` — dev tooling, outside `src` and outside this package's tsconfig program.
+  `build-proving-map.ts` generates the HD-2D heightfield (reusing `apps/lab`'s own island
+  generator, a script-only one-way import that must never reach the runtime path) and stores it on
+  a map row through `MapService.saveHeightfield` — see Commands below.
 - The SPA shell is not this package's job: `GET /` and every page route are served by
   `@lindocara/client`'s `ui/AppRouter.tsx` `$page` tree, registered alongside `LindocaraApi` in
   `apps/main/src/main.ts` (the one workspace that depends on both `client` and `server`). This
@@ -113,6 +122,12 @@ npm run typecheck:server        # tsc -p packages/server/tsconfig.json (one prog
 npm run test:server             # or: npm test -w @lindocara/server — the Node test-api project
 npm run db:generate -w @lindocara/main         # entity change -> apps/main/migrations/
 npm run check:migrations -w @lindocara/main    # entity/migration drift check
+
+# The proving map: generate the HD-2D heightfield and store it on a map row (run from the repo
+# root). `--dry-run` generates and reports without touching the database; `--out` also writes the
+# encoded `MapData` to a file; `--database` overrides the dev SQLite file.
+npm run map:proving -- --map=<mapId>
+npm run map:proving -- --dry-run --out=/tmp/proving.json
 ```
 
 ## Tests and typechecking

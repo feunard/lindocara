@@ -1,0 +1,81 @@
+//
+// ============================ TILE→PIXEL BRIDGE ============================
+// TEMPORARY, AND DELIBERATELY SO. The map is stored and shipped as a heightfield in TILE units,
+// grid-centred; the server's own simulation (`simulation.ts`, `collider.ts`, the fourteen world
+// systems) still runs in PIXELS with a top-left origin. This file is the only place the two meet.
+//
+// It exists for exactly as long as that migration takes. When the server's geometry moves to tile
+// units, DELETE this file and every call site — `grep -rn "TILE→PIXEL BRIDGE"` finds them all.
+// Do not grow it, do not make it two-way, and do not let a caller convert coordinates by hand
+// instead of going through `tileToPixel`.
+// ===========================================================================
+
+import { colliderIndexFrom } from "@lindocara/engine/collider.js";
+import type { Rect, TerrainGeometry } from "@lindocara/engine/game.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE, type TileKind, type TileMap } from "@lindocara/engine/tilemap.js";
+
+/** Grid-centred tile units -> top-left pixel units. The origin shift is the half that gets
+ *  forgotten; keeping it in one exported function is why this is not inlined at each site. */
+export function tileToPixel(value: number, size: number): number {
+  return (value + size / 2) * TILE_SIZE;
+}
+
+/**
+ * Projects the stored heightfield into the pixel-unit `TerrainGeometry` the current simulation
+ * collides against. Water and off-map are impassable; every ground cell is walkable, and the
+ * authored collider rects ride across unchanged apart from their units.
+ *
+ * Elevation is deliberately NOT collision here: in the heightfield model a level change is a climb
+ * the movement rule decides, not a cell you cannot enter — so every non-water cell bakes as
+ * `grass`. `kindAt` already answers `water` for anything off the grid, so the map's rim needs no
+ * baked border.
+ */
+export function pixelTerrainFromHeightfield(map: MapData): TerrainGeometry {
+  // Same assembly as `terrainFromMap` (`engine/map-data.ts`): bake the grid, size the world from
+  // it, index the sub-cell rects, and declare no safe zone — an authored map has no way to declare
+  // one, and `monster-system` reads that rect as "monsters may not touch a player here".
+  const tiles = bakeHeightfieldCollision(map);
+  const width = tiles.cols * TILE_SIZE;
+  const height = tiles.rows * TILE_SIZE;
+  const rects: Rect[] = map.colliders.map((collider) => ({
+    x: tileToPixel(collider.x, map.size),
+    y: tileToPixel(collider.z, map.size),
+    width: collider.w * TILE_SIZE,
+    height: collider.h * TILE_SIZE,
+  }));
+  return {
+    width,
+    height,
+    obstacles: [],
+    spawnPoints: heightfieldSpawnPoints(map, width, height),
+    safeZone: null,
+    tiles,
+    colliders: colliderIndexFrom(rects, tiles.cols, tiles.rows),
+  };
+}
+
+/** `levels` is row-major on `size`, exactly the layout `TileMap.kinds` uses, so the two grids are
+ *  the same walk. `null` is water — the format's own word for "no ground here". */
+function bakeHeightfieldCollision(map: MapData): TileMap {
+  const cells = map.size * map.size;
+  const kinds: TileKind[] = new Array<TileKind>(cells).fill("water");
+  for (let index = 0; index < cells; index += 1) {
+    kinds[index] = (map.levels[index] ?? null) === null ? "water" : "grass";
+  }
+  return { cols: map.size, rows: map.size, kinds };
+}
+
+/**
+ * `terrainFromMap` always supplies exactly one spawn point, and `spawnPosition` (`engine/game.ts`)
+ * takes `spawnPoints.length` as a modulus — a geometry with none yields `NaN` there. A heightfield
+ * may legitimately carry no authored spawn, so the grid's centre stands in for it.
+ */
+function heightfieldSpawnPoints(map: MapData, width: number, height: number): Vec2[] {
+  const spawns = map.spawns.map((spawn) => ({
+    x: tileToPixel(spawn.x, map.size),
+    y: tileToPixel(spawn.z, map.size),
+  }));
+  return spawns.length > 0 ? spawns : [{ x: width / 2, y: height / 2 }];
+}

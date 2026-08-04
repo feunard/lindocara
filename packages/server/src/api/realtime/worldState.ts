@@ -19,6 +19,7 @@ import {
   flattenColliderIndex,
 } from "@lindocara/engine/collider.js";
 import type { Rect } from "@lindocara/engine/game.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import { MAP_LAYERS, terrainFromMap } from "@lindocara/engine/map-data.js";
@@ -28,6 +29,7 @@ import { parseTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-cod
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
 import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
+import { pixelTerrainFromHeightfield } from "../../world/heightfield-pixel-bridge.js";
 import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
 import type { NpcMovementRuntime } from "../../world/npc-movement-system.js";
 import type { PeasantHarvestJob } from "../../world/peasant-harvest-system.js";
@@ -113,6 +115,18 @@ export function zoneFromMapPayload(
     spawn: payload.spawn,
     markers: payload.markers,
   };
+  const heightfield = payload.heightfield === null ? null : decodeMap(payload.heightfield);
+  if (payload.heightfield !== null && heightfield === null) {
+    // A stored heightfield that fails to decode must NOT silently fall back to the tile path: that
+    // would be a corrupt map presenting as a working one, on a room whose collision then disagrees
+    // with what the client is told to render. The room stays honestly heightfield-less instead.
+    console.warn(
+      JSON.stringify({ event: "map_heightfield_corrupt", mapId: payload.id, reason: "decode" }),
+    );
+  }
+  // TILE→PIXEL BRIDGE — see packages/server/src/world/heightfield-pixel-bridge.ts
+  const terrain =
+    heightfield === null ? terrainFromMap(data) : pixelTerrainFromHeightfield(heightfield);
   return {
     id: payload.id,
     // The name is authored content rather than an i18n key. The client prints unknown keys
@@ -121,7 +135,7 @@ export function zoneFromMapPayload(
     type: "open_world",
     defaultInstanceId: "main",
     maxPlayers: MAP_MAX_PLAYERS,
-    terrain: terrainFromMap(data),
+    terrain,
     quests: [],
     questSites: [],
     // Authored monsters are conditional event pages; nothing spawns in tranche α (Task 5).
@@ -137,7 +151,10 @@ export function zoneFromMapPayload(
     events: payload.events,
     audio: resolveMapAudio(adventureAudio, payload.audio),
     heroSettings: payload.heroSettings,
-    heightfield: payload.heightfield,
+    // Only a heightfield the room actually baked its terrain from travels on: shipping a stored
+    // string the server itself refused to decode would hand the client a map the two sides
+    // disagree about.
+    heightfield: heightfield === null ? null : payload.heightfield,
   };
 }
 
