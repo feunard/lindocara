@@ -48,6 +48,7 @@ const WELCOME: ServerMessage = {
     tilesetId: "tiny-swords",
     layers: ["0*16", "0*16", "0*16"],
     events: [],
+    heightfield: null,
     width: 128,
     height: 128,
     playerSize: 32,

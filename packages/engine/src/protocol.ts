@@ -63,6 +63,7 @@ import {
   type Rect,
 } from "./game.js";
 import { HARVEST_PROFILE_LIMITS, isPeasantCarryKind, type PeasantCarryKind } from "./harvest.js";
+import { decodeMap } from "./hd2d/map-data.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
@@ -518,6 +519,19 @@ export interface WorldInfo {
    * `elements`, graphic ids and asset paths remain appearance only.
    */
   colliders: readonly (readonly [number, number, number, number])[];
+  /**
+   * The terrain as a heightfield — the encoded `MapData` (`hd2d/map-data.ts`), in TILE units,
+   * grid-centred. This is what the client DRAWS.
+   *
+   * `tiles`/`colliders` above stay the collision truth for as long as the server simulates in
+   * pixels: one stored source, projected twice by the one authority (see the TILE→PIXEL BRIDGE in
+   * `packages/server/src/world/heightfield-pixel-bridge.ts`). Both projections die together when
+   * the server's own geometry migrates — this field is not a second world model, it is the same
+   * one in the units the renderer needs.
+   *
+   * `null` means the room has no heightfield and nothing HD-2D can be drawn for it.
+   */
+  heightfield: string | null;
   /**
    * What to draw on the ground. Appearance only — collision is already in `tiles` and `colliders`
    * above, the same rule `layers` and `events` below follow.
@@ -1586,6 +1600,10 @@ function isWorldInfo(value: unknown): value is WorldInfo {
   const tiles = parseTileMap(value.tiles);
   if (!tiles || parseMapElements(value.elements, tiles.cols, tiles.rows) === null) return false;
   if (parseWorldColliders(value.colliders) === null) return false;
+  if (value.heightfield !== null) {
+    if (typeof value.heightfield !== "string" || decodeMap(value.heightfield) === null)
+      return false;
+  }
   return (
     isBoundedString(value.zoneNameKey, 128) &&
     typeof value.tilesetId === "string" &&

@@ -243,6 +243,7 @@ describe("server protocol", () => {
     tilesetId: TINY_SWORDS_TILESET_ID,
     layers: [layer, layer, layer],
     events: [],
+    heightfield: null,
     width: 64,
     height: 64,
     playerSize: 32,
