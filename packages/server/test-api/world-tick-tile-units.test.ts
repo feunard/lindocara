@@ -15,6 +15,12 @@
  * 4. **a released ghost lands somewhere standable, away from its own corpse, with three axes.**
  *    Releasing on top of your own body reclaims it on the next tick, and a two-axis landing
  *    typechecks while leaving the ghost's elevation at whatever it died holding.
+ * 5. **every server-authored teleport writes BOTH ground axes.** `WorldPosition`'s ground pair is
+ *    `x`/`z` and its `y` is elevation, so `player.x = d.x; player.y = d.y;` — the pixel shape,
+ *    verbatim — typechecks perfectly, moves the body along ONE ground axis and leaves it at a
+ *    position `canStand` never validated. Two of these shipped and were caught in review; each
+ *    destination below therefore differs from its origin on **both** ground axes, which is the only
+ *    arrangement that can tell an arrival apart from a half-arrival.
  */
 
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
@@ -27,8 +33,10 @@ import { describe, expect, it } from "vitest";
 import { activeEventCentre, touchesEventCell } from "../src/api/realtime/worldEvents.ts";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
+  advanceWorldTick,
   handleRelease,
   killPlayer,
+  startPlayerAction,
   teleportSameMap,
   type WorldGlue,
   type WorldTickDeps,
@@ -343,5 +351,83 @@ describe("releasing a spirit", () => {
 
     expect(player.life).toBe("ghost");
     expect({ x: player.x, z: player.z }).toEqual(landed);
+  });
+
+  it("sends the ghost off an unstandable anchor rather than into the sea", () => {
+    // A map with no authored spawn falls back to the grid CENTRE, which on a heightfield is just
+    // another cell and may be water or, here, a prop. The anchor is a starting point for the
+    // search, never a landing.
+    const built = terrain([{ x: -1.5, z: -1.5, w: 3, h: 3 }]);
+    const player = hero(4.5, 4.5);
+    const w = glue(built, player, null);
+    expect(canStand(built, 0, 0, BODY_RADIUS, groundUnder(built, 0, 0))).toBe(false);
+
+    killPlayer(w, "connection", player);
+    handleRelease(w, "connection", player);
+
+    expect(player.life).toBe("ghost");
+    expect(
+      canStand(built, player.x, player.z, BODY_RADIUS, groundUnder(built, player.x, player.z)),
+    ).toBe(true);
+  });
+});
+
+/**
+ * The two dropped-`z` regressions review caught, each pinned by a destination that differs from
+ * the origin on BOTH ground axes. A destination that moves only in `x` is passed by
+ * `player.x = d.x; player.y = d.y;` — the exact bug — so a single-axis fixture proves nothing.
+ */
+describe("a server-authored teleport writes both ground axes", () => {
+  it("moves the rogue's shadow return along x AND z, to the level it planned", () => {
+    const built = terrain();
+    const player = hero(1.5, 1.5);
+    player.class = "rogue";
+    player.level = 10;
+    player.equipment = starterEquipmentFor("rogue");
+    // Read straight off the runtime: `talentEffects` is a set lookup over `player.talents`.
+    player.talents = ["rogue.shadow_step.shadow_return"];
+    const remembered = { x: -3.5, y: 0, z: -2.5, expiresAt: NOW + 10_000 };
+    player.rogueShadowReturn = remembered;
+    const w = glue(built, player);
+
+    expect(startPlayerAction(w, "connection", player, 2)).toBe(true);
+
+    expect(player.x).toBeCloseTo(remembered.x, 10);
+    expect(player.z).toBeCloseTo(remembered.z, 10);
+    expect(player.y).toBe(groundUnder(built, remembered.x, remembered.z));
+    expect(player.rogueShadowReturn).toBeNull();
+  });
+
+  it("carries a hero through a Pas de Lumen gate along x AND z", () => {
+    const built = terrain();
+    // The gate's mouth, and an exit two tiles away on both ground axes.
+    const from = { x: 1.5, y: 0, z: 1.5 };
+    const to = { x: -2.5, y: 0, z: -2.5 };
+    const player = hero(from.x, from.z);
+    player.class = "priest";
+    player.equipment = starterEquipmentFor("priest");
+    const w = glue(built, player);
+    w.state.lumenPortals.push({
+      id: "portal-1",
+      ownerId: HERO_ID,
+      from,
+      to,
+      startedAt: NOW,
+      expiresAt: NOW + 10_000,
+      triggerRadius: 1,
+      usedPlayerIds: new Set(),
+      // Empty rather than the owner: the hero is standing in the mouth already, and the
+      // waiting-for-exit latch exists to stop that bouncing them the instant the gate opens.
+      waitingForExitIds: new Set(),
+      healingPower: 0,
+    });
+
+    // The gate fires on the movement edge, so it needs a real accepted command.
+    player.queue.push({ seq: 1, input: { up: false, down: false, left: false, right: true } });
+    advanceWorldTick(w);
+
+    expect(player.x).toBeCloseTo(to.x, 10);
+    expect(player.z).toBeCloseTo(to.z, 10);
+    expect(player.y).toBe(groundUnder(built, to.x, to.z));
   });
 });

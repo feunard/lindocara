@@ -474,8 +474,9 @@ export function runnablePage(
 
 /**
  * Port of `#detectPlayerTouch` (`world.ts:1386`): the contact-with-hero trigger, evaluated on the
- * movement edge (from `movement-system`'s `onPlayerMoved`), not a per-tick scan. Uses the 32px
- * body plus the maximum living-player step as tolerance — a door/shore teleporter commonly sits on
+ * movement edge (from `movement-system`'s `onPlayerMoved`), not a per-tick scan. Uses the body's
+ * own half-tile footprint (`BODY_RADIUS` either side of its centre) plus the maximum living-player
+ * step as tolerance — a door/shore teleporter commonly sits on
  * solid terrain the body can touch but never occupy. Standing in contact does not re-fire; the
  * one-run lock covers a re-entry while the run lives.
  */

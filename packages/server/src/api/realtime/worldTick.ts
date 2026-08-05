@@ -1035,7 +1035,8 @@ export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRun
  * The pixel `CEMETERIES` fallback died with the pixel geometry, and its absence is the conversion
  * rather than an omission: those three anchors are catalogue content authored in PIXELS, and a live
  * room is a heightfield map whose only spirit anchor is its authored spawn. A map with no authored
- * spawn releases at the grid centre — the same fallback `restoredPosition` already takes.
+ * spawn starts its search at the grid centre — which on a heightfield may be open sea, so that
+ * point is a starting POINT and never a landing: the search below has to accept it too.
  *
  * The neighbour search is `nearestStandableCell` rather than a hand-rolled ring of eight offsets:
  * that helper already knows what "somewhere a body could stand" means on a heightfield, and its
@@ -1054,15 +1055,20 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
   const anchor: GroundVector = spawn ? { x: spawn.x, z: spawn.z } : { x: 0, z: 0 };
   const previousPosition = { x: player.x, y: player.y, z: player.z };
   let releasePosition: GroundVector = anchor;
-  // An authored map currently has one spirit anchor: its entry spawn. If the player dies on that
-  // exact point, releasing there would reclaim the body on the very next tick. Find the nearest
-  // standable cell far enough away that the ghost state remains observable and playable.
-  if (groundDistance(releasePosition, corpse) <= CORPSE_RECLAIM_RANGE) {
+  const anchorGround = groundUnder(terrain, anchor.x, anchor.z);
+  // An authored map currently has one spirit anchor: its entry spawn. Two things disqualify it, and
+  // BOTH have to send the ghost elsewhere: releasing on top of the corpse would reclaim the body on
+  // the very next tick, and an anchor a body cannot stand on — an unauthored map's grid centre out
+  // in the water, or a spawn a later terrain edit drowned — would materialise the ghost in the sea.
+  if (
+    groundDistance(anchor, corpse) <= CORPSE_RECLAIM_RANGE ||
+    !canStand(terrain, anchor.x, anchor.z, BODY_RADIUS, anchorGround)
+  ) {
     const landing = nearestStandableCell(
       terrain,
       anchor,
       BODY_RADIUS,
-      groundUnder(terrain, anchor.x, anchor.z),
+      anchorGround,
       (candidate) => groundDistance(candidate, corpse) > CORPSE_RECLAIM_RANGE,
     );
     if (landing) releasePosition = landing;
@@ -2076,7 +2082,12 @@ function projectileDamage(
   const definition = actionForClassSlot(owner.player.class, skill.slot).projectile;
   if (!target || !definition) return;
   const direction = normalizeGround({ x: target.x - monster.x, z: target.z - monster.z });
-  const origin = projectileOrigin(monster, direction, definition.radius);
+  // A ricochet leaves the BODY IT BOUNCED OFF, not a muzzle: the pixel path spawned it at the
+  // struck monster's centre with no muzzle offset, and `projectileOrigin` would add one
+  // (`BODY_RADIUS` + the shot's radius + 2 px of daylight). That is a balance change, not a units
+  // conversion, so the centre is carried through verbatim — with the monster's elevation, which is
+  // the bounce's flight height.
+  const origin: WorldPosition = { x: monster.x, y: monster.y, z: monster.z };
   spawnProjectile(w.state.projectiles, {
     actionId: crypto.randomUUID(),
     owner: owner.player,
@@ -2636,6 +2647,7 @@ export function startPlayerAction(
     cancelCombatAction(player);
     player.x = planning.destination.x;
     player.y = planning.destination.y;
+    player.z = planning.destination.z;
     player.rogueShadowReturn = null;
     player.dirty = true;
     w.state.playerGrid.update(player, origin);
@@ -4455,6 +4467,7 @@ function applyLumenPortal(
     const previous = { x: player.x, y: player.y, z: player.z };
     player.x = destination.x;
     player.y = destination.y;
+    player.z = destination.z;
     player.dirty = true;
     w.state.playerGrid.update(player, previous);
     if (portal.healingPower > 0)

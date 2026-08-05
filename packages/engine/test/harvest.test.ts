@@ -6,10 +6,12 @@ import {
   type HarvestProfile,
   harvestColliderAt,
   harvestFootprintFitsMap,
+  harvestGroundColliderAt,
   harvestToolForResource,
   harvestToolMatchesResource,
   parseHarvestProfile,
 } from "@lindocara/engine/harvest.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 
 const STUMP_ASSET_ID = "resource.terrain-resources-wood-trees.stump-1";
@@ -83,6 +85,46 @@ describe("harvest profile", () => {
       width: 40,
       height: 15,
     });
+  });
+
+  it("projects the same footprint onto the grid-centred ground plane", () => {
+    // The tile-unit twin of the case above. Two independent things have to be right and the
+    // compiler can check neither: the SCALE (the authored box stays pixels, so every field is
+    // divided by `TILE_SIZE`) and the ORIGIN (cell indices are top-left, the grid is centred, so
+    // half the grid comes off). Getting only one right typechecks and puts every tree trunk either
+    // 64x too far out or a whole half-map to the south-east.
+    const size = 16;
+    // Cell (2, 3)'s foot is its horizontal centre and its far edge: x = 2.5 - 8, z = 4 - 8.
+    expect(harvestGroundColliderAt(WOOD_PROFILE, 2, 3, "intact", size)).toEqual({
+      x: 2.5 - 8 + -26 / TILE_SIZE,
+      z: 4 - 8 + -36 / TILE_SIZE,
+      w: 52 / TILE_SIZE,
+      h: 36 / TILE_SIZE,
+    });
+    expect(harvestGroundColliderAt(WOOD_PROFILE, 2, 3, "depleted", size)).toEqual({
+      x: 2.5 - 8 + -20 / TILE_SIZE,
+      z: 4 - 8 + -15 / TILE_SIZE,
+      w: 40 / TILE_SIZE,
+      h: 15 / TILE_SIZE,
+    });
+
+    // It is the exact inverse of the pixel projection, which is the property that stops the two
+    // from drifting: same rectangle, two coordinate frames.
+    const pixel = harvestColliderAt(WOOD_PROFILE, 2, 3, "intact");
+    const ground = harvestGroundColliderAt(WOOD_PROFILE, 2, 3, "intact", size);
+    if (!pixel || !ground) throw new Error("both projections must exist for an intact wood node");
+    expect(ground.x).toBeCloseTo(pixel.x / TILE_SIZE - size / 2, 10);
+    expect(ground.z).toBeCloseTo(pixel.y / TILE_SIZE - size / 2, 10);
+    expect(ground.w).toBeCloseTo(pixel.width / TILE_SIZE, 10);
+    expect(ground.h).toBeCloseTo(pixel.height / TILE_SIZE, 10);
+  });
+
+  it("has no depleted ground footprint when exhaustion is not a replacement", () => {
+    // Fade and hide REMOVE collision; a hidden collider would be an invisible wall. The ground
+    // projection has to inherit that rule, not re-derive it.
+    const fading: HarvestProfile = { ...WOOD_PROFILE, exhaustionBehavior: "fade" };
+    expect(harvestGroundColliderAt(fading, 2, 3, "depleted", 16)).toBeNull();
+    expect(harvestGroundColliderAt(fading, 2, 3, "intact", 16)).not.toBeNull();
   });
 
   it("rejects any intact or replacement footprint that crosses the map boundary", () => {
