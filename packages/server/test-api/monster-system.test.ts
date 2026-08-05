@@ -27,14 +27,16 @@
  *   catalogue's own tests, and no converted system calls it.
  * - the same rule is why "telegraphs a monster attack before the guard defeats it" no longer wraps
  *   its terrain in an all-covering safe zone: it was never what the test asserted.
- * - "does not attack through an obstacle even when centre distance is within melee range" is
- *   **geometrically unreachable** now, and that is worth stating rather than quietly dropping. The
- *   only thing that interrupts `groundLineOfSight` is relief, and `canStand` keeps a body's whole
- *   `BODY_RADIUS` disc off it — so two standable points with relief between them are at least
- *   `2 * 0.25 + 1` tiles apart across a cell face, and about 1.9 across a corner, while
- *   `GUARD_ATTACK_RANGE` is 0.84. The pixel version could stage it because a 32 px body box could
- *   sit 16 px from a 64 px wall and clip its corner diagonally. The rule itself is very much alive
- *   and is pinned at ranged distance by "repositions instead of firing through an obstacle".
+ * "Does not attack through an obstacle even when centre distance is within melee range" was very
+ * nearly a fifth casualty, on the theory that a `BODY_RADIUS` disc kept off relief puts any two
+ * standable points further apart than `GUARD_ATTACK_RANGE`. **That is true across a cell FACE
+ * (1 + 2 * 0.25 = 1.5 tiles) and false across a CORNER.** `maxHeightAround`
+ * (`hd2d/terrain-query.ts:63-82`) is a disc test against each cell's CLOSEST POINT, so around a
+ * plateau's corner the standable region pinches to "further than `BODY_RADIUS` from that one
+ * point" rather than "outside the whole cell", and two bodies can sit diagonally opposite at
+ * `2 * 0.25 * sqrt(2) ≈ 0.707` — comfortably inside the 0.84 melee reach. The test lives on below,
+ * on exactly that corner. It is the ONLY melee-range coverage of `groundLineOfSight`, which
+ * `monster-system.ts` consults at `:318` (monsters) and `:558` (guards).
  */
 
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
@@ -60,6 +62,9 @@ import {
 import { createNavigationRuntime } from "@lindocara/server/world/navigation-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import {
+  BODY_RADIUS,
+  canStand,
+  groundLineOfSight,
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
 } from "@lindocara/server/world/terrain-access.js";
@@ -411,6 +416,35 @@ describe("guard effective attack acceptance", () => {
     expect(monster.hp).toBe(hpBefore);
     expect(guard.lastAttackAt).toBe(0);
     expect(guard.fightingUntil).toBe(0);
+  });
+
+  it("does not attack through an obstacle even when centre distance is within melee range", () => {
+    // A single plateau cell covering world [0, 1]^2 (grid cell 8, 8 on a 16-tile grid), and two
+    // bodies tucked diagonally against its north-west corner at (0, 0). Both are standable —
+    // `maxHeightAround` measures to the cell's CLOSEST POINT, which for each of them is that
+    // corner, 0.2517 away and therefore outside the 0.25 disc — and their centres are 0.8251
+    // apart, inside `GUARD_ATTACK_RANGE` (0.84375). The segment between them passes through the
+    // cell's interior, so relief must refuse the strike. This is the only melee-range witness for
+    // `groundLineOfSight`; deleting it leaves `monster-system.ts:318` and `:558` covered at
+    // projectile distance only.
+    const corner = plateauTerrain([{ col: 8, row: 8, cols: 1, rows: 1 }]);
+    const { context, guard, monster, startAttack } = guardHarness(
+      { x: 0.3317, z: -0.2517 },
+      { x: -0.2517, z: 0.3317 },
+      corner,
+    );
+    const hpBefore = monster.hp;
+    expect(groundDistance(guard, monster)).toBeLessThan(GUARD_ATTACK_RANGE);
+    expect(canStand(corner, guard.x, guard.z, BODY_RADIUS, 0)).toBe(true);
+    expect(canStand(corner, monster.x, monster.z, BODY_RADIUS, 0)).toBe(true);
+    expect(groundLineOfSight(corner, guard, monster)).toBe(false);
+
+    advanceGuards(context, 1_000);
+
+    expect(monster.hp).toBe(hpBefore);
+    expect(guard.lastAttackAt).toBe(0);
+    expect(guard.fightingUntil).toBe(0);
+    expect(startAttack).not.toHaveBeenCalled();
   });
 
   it("applies one attack and keeps the normal cooldown at the stable range boundary", () => {

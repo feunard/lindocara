@@ -11,13 +11,13 @@ import type { MonsterRuntime } from "./world-runtime.js";
 
 const PATH_CACHE_LIMIT = 128;
 
+/**
+ * A navigation node is exactly one heightfield cell, so there is no cell size to carry: the field
+ * that used to hold `TILE_SIZE` would now be a permanent `1`, read by one function that expresses
+ * its origin shift as `terrain.size / 2` — any other value would silently disagree with that shift
+ * rather than scale anything. The grid's geometry is `terrain`'s, and only `terrain`'s.
+ */
 export interface NavigationGrid {
-  /**
-   * Cell edge in TILE UNITS, and therefore always 1: a navigation node is exactly one heightfield
-   * cell. It was `TILE_SIZE` for the same reason — one node per collision cell — and survives as a
-   * named constant only so the arithmetic below reads as arithmetic rather than as magic ones.
-   */
-  cellSize: number;
   columns: number;
   rows: number;
   walkable: Uint8Array;
@@ -122,7 +122,7 @@ export function createNavigationGrid(terrain: ZoneTerrain): NavigationGrid {
     height[node] = ground;
     walkable[node] = canStand(terrain, x, z, BODY_RADIUS, ground) ? 1 : 0;
   }
-  return { cellSize: 1, columns, rows, walkable, height, terrain };
+  return { columns, rows, walkable, height, terrain };
 }
 
 export function createNavigationRuntime(
@@ -529,11 +529,8 @@ function heuristic(grid: NavigationGrid, from: number, to: number): number {
  */
 function nodeForPoint(grid: NavigationGrid, point: GroundVector): number {
   const half = grid.terrain.size / 2;
-  const column = Math.max(
-    0,
-    Math.min(grid.columns - 1, Math.floor((point.x + half) / grid.cellSize)),
-  );
-  const row = Math.max(0, Math.min(grid.rows - 1, Math.floor((point.z + half) / grid.cellSize)));
+  const column = Math.max(0, Math.min(grid.columns - 1, Math.floor(point.x + half)));
+  const row = Math.max(0, Math.min(grid.rows - 1, Math.floor(point.z + half)));
   return row * grid.columns + column;
 }
 

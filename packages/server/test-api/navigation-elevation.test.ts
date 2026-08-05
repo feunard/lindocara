@@ -183,12 +183,14 @@ describe("navigation with elevation", () => {
     }
     expect(processNavigationBudget(runtime, 0)).toBeLessThanOrEqual(3);
     expect(runtime.metrics.expandedThisTick).toBeLessThanOrEqual(3);
+  });
 
-    // And the search itself did not get hungrier. A plateau nothing can climb onto and a lake
-    // nothing can walk into block exactly the same cells; the elevation-aware grid must expand
-    // exactly the nodes the flat-obstacle grid does, not a single one more. An implementation
-    // that re-tested relief per candidate, or widened the frontier to "look for a way up", shows
-    // up here as a number that is merely close.
+  it("expands exactly the nodes the equivalent flat obstacle does", () => {
+    // The other half of "the budget is unchanged", and a separate claim: the search itself did not
+    // get hungrier. A plateau nothing can climb onto and a lake nothing can walk into block exactly
+    // the same cells, so the elevation-aware grid must expand exactly the nodes the flat-obstacle
+    // grid does, not a single one more. An implementation that re-tested relief per candidate, or
+    // widened the frontier to "look for a way up", shows up here as a number that is merely close.
     const elevated = runtimeFor(terrain(MESA));
     const blocked = runtimeFor(terrain(LAKE));
     for (const [index, subject] of [elevated, blocked].entries()) {
