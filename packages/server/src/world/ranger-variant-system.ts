@@ -1,6 +1,5 @@
-import { normalizeDirection, normalizeGround } from "@lindocara/engine/directional-combat.js";
+import { normalizeGround } from "@lindocara/engine/directional-combat.js";
 import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { TalentEffect } from "@lindocara/engine/talents.js";
 import type {
   CombatActionRuntime,

@@ -7,7 +7,12 @@
  */
 import { activePageIndex, type PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import type { GuardDefinition } from "@lindocara/engine/game.js";
-import { eventCellCentre, guardEvents, type MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  authoredCellCentreGround,
+  authoredPatrolRadius,
+  guardEvents,
+  type MapEvent,
+} from "@lindocara/engine/map-events.js";
 import { createGuards, type GuardRuntime } from "./world-runtime.js";
 
 const AUTHORED_GUARD_PREFIX = "guard-";
@@ -20,6 +25,7 @@ export function authoredGuardRuntimeId(eventId: string): string {
 export function activeAuthoredGuardDefinitions(
   events: readonly MapEvent[],
   state: PartyAdventureState,
+  gridSize: number,
 ): GuardDefinition[] {
   return guardEvents(events).flatMap((event) => {
     const pageIndex = activePageIndex(event, state);
@@ -29,8 +35,8 @@ export function activeAuthoredGuardDefinitions(
     return [
       {
         id: authoredGuardRuntimeId(event.id),
-        ...eventCellCentre(event),
-        patrolRadius: event.patrolRadius,
+        ...authoredCellCentreGround(event, gridSize),
+        patrolRadius: authoredPatrolRadius(event.patrolRadius),
         graphicAssetId: page.graphicAssetId,
         graphicTint: page.graphicTint ?? 0xffffff,
       },
@@ -54,7 +60,7 @@ export function reconcileActiveGuards(
     return {
       ...existing,
       homeX: definition.x,
-      homeY: definition.y,
+      homeZ: definition.z,
       patrolRadius: definition.patrolRadius,
       graphicAssetId: definition.graphicAssetId ?? null,
       graphicTint: definition.graphicTint ?? 0xffffff,

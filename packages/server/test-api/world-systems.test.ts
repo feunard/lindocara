@@ -1,6 +1,9 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceCombatActions,
   cancelCombatAction,
@@ -17,68 +20,86 @@ import {
   movePlayerInDirection,
   nearestChargeTarget,
 } from "@lindocara/server/world/skill-system.js";
-import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
+import {
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/server/world/terrain-access.js";
 import {
   createGuards,
+  type GroundIndexUpdate,
   newPlayer,
   type PlayerRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
-const OBSTACLES = [{ x: 80, y: 0, width: 20, height: 120 }];
+/** Original PIXEL geometry over `TILE_SIZE`; positions are body centres. */
+const t = (pixels: number): number => pixels / TILE_SIZE;
 
-const WORLD_TILES = tileMapFromRects(400, 300, OBSTACLES);
+/**
+ * The one capability `movePlayerInDirection` asks of the room's index. The grid itself still
+ * indexes ground `x` against ELEVATION `y` and is Task 6's to convert; recording the calls is all
+ * this suite ever needed from it.
+ */
+function recordingIndex(): GroundIndexUpdate<PlayerRuntime> & {
+  calls: { entity: PlayerRuntime; previous: GroundVector }[];
+} {
+  const calls: { entity: PlayerRuntime; previous: GroundVector }[] = [];
+  return {
+    calls,
+    update(entity, previous) {
+      calls.push({ entity, previous });
+    },
+  };
+}
 
-const terrain: TerrainGeometry = {
-  width: 400,
-  height: 300,
-  spawnPoints: [{ x: 10, y: 10 }],
-  safeZone: { x: 0, y: 200, width: 100, height: 100 },
-  obstacles: OBSTACLES,
-  tiles: WORLD_TILES,
-  colliders: noColliders(WORLD_TILES),
-};
+function heightfield(options: {
+  size: number;
+  water?: (i: number, j: number) => boolean;
+  colliders?: readonly ColliderRect[];
+}): ZoneTerrain {
+  const { size } = options;
+  const levels: (number | null)[] = [];
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) levels.push(options.water?.(i, j) ? null : 0);
+  }
+  const map: MapData = {
+    version: 1,
+    size,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels,
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [...(options.colliders ?? [])],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
 
-const lumenTerrain: TerrainGeometry = {
-  width: 320,
-  height: 64,
-  spawnPoints: [{ x: 0, y: 0 }],
-  safeZone: null,
-  obstacles: [],
-  tiles: {
-    cols: 5,
-    rows: 1,
-    kinds: ["grass", "water", "water", "grass", "grass"],
-  },
-  colliders: noColliders({
-    cols: 5,
-    rows: 1,
-    kinds: ["grass", "water", "water", "grass", "grass"],
-  }),
-};
+/** A wall of props at `x ∈ [1.25, 1.56)`, the tile-unit twin of the old 80 px obstacle. */
+const terrain = heightfield({
+  size: 16,
+  colliders: [{ x: t(80), z: -8, w: t(20), h: 16 }],
+});
 
-const buildingWallTerrain: TerrainGeometry = {
-  width: 256,
-  height: 64,
-  spawnPoints: [{ x: 0, y: 0 }],
-  safeZone: null,
-  obstacles: [],
-  tiles: {
-    cols: 4,
-    rows: 1,
-    kinds: ["grass", "water", "building", "grass"],
-  },
-  colliders: noColliders({ cols: 4, rows: 1, kinds: ["grass", "water", "building", "grass"] }),
-};
+/** Open water filling the cells `x ∈ [-7, -5)`; the hero starts on the shore west of it. */
+const lumenTerrain = heightfield({ size: 16, water: (i) => i === 1 || i === 2 });
+
+/** A prop wall the size of a whole cell — the old "building" tile, as a collider. */
+const buildingWallTerrain = heightfield({
+  size: 16,
+  colliders: [{ x: -6, z: -8, w: 1, h: 16 }],
+});
 
 function player(): PlayerRuntime {
   return newPlayer(
     {
       id: "player-1",
       nick: "Mira",
-      x: 10,
-      y: 10,
+      x: t(10),
+      y: 0,
+      z: t(10),
       level: 1,
       xp: 0,
       hp: 100,
@@ -106,13 +127,13 @@ describe("isolated directional combat systems", () => {
       kind: "basic",
       skillId: "cleave",
       slot: 1,
-      direction: { x: 3, y: 0 },
+      direction: { x: 3, z: 0 },
       now: 1_000,
       anticipationMs: 220,
       recoveryMs: 430,
     });
     expect(action).toMatchObject({
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       impactAt: 1_220,
       recoveryEndsAt: 1_650,
       resolved: false,
@@ -135,13 +156,13 @@ describe("isolated directional combat systems", () => {
       kind: "skill",
       skillId: "shield_bash",
       slot: 3,
-      direction: { x: 0, y: -1 },
+      direction: { x: 0, z: -1 },
       now: 2_000,
       anticipationMs: 180,
       recoveryMs: 480,
     });
-    actor.facing = { x: 1, y: 0 };
-    expect(first?.direction).toEqual({ x: 0, y: -1 });
+    actor.facing = { x: 1, z: 0 };
+    expect(first?.direction).toEqual({ x: 0, z: -1 });
     expect(
       startCombatAction(actor, {
         kind: "basic",
@@ -165,7 +186,7 @@ describe("isolated directional combat systems", () => {
       kind: "basic" as const,
       skillId: definition.skillId,
       slot: 1,
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       anticipationMs: definition.anticipationMs,
       recoveryMs: definition.recoveryMs,
     };
@@ -182,27 +203,28 @@ describe("isolated directional combat systems", () => {
 
   it("resolves mobility in segments and does not cross a wall", () => {
     const actor = player();
-    const grid = new SpatialGrid<PlayerRuntime>(64);
-    grid.insert(actor);
+    const grid = recordingIndex();
 
-    expect(movePlayerInDirection(actor, { x: 1, y: 0 }, 120, terrain, grid)).toBe(true);
-    expect(actor.x).toBeLessThan(80);
-    expect(grid.queryRadius(actor, 1)).toContain(actor);
+    expect(movePlayerInDirection(actor, { x: 1, z: 0 }, t(120), terrain, grid)).toBe(true);
+    expect(actor.x).toBeLessThan(t(80));
+    // Every accepted segment tells the index where the body was, so a converted grid re-buckets it.
+    expect(grid.calls.length).toBeGreaterThan(0);
+    expect(grid.calls.at(-1)?.entity).toBe(actor);
   });
 
   it("selects the nearest visible living charge target deterministically", () => {
     const targets = [
-      { id: "far", x: 180, y: 10, deadUntil: 0 },
-      { id: "dead", x: 20, y: 10, deadUntil: 2_000 },
-      { id: "blocked", x: 30, y: 10, deadUntil: 0 },
-      { id: "z-near", x: 50, y: 10, deadUntil: 0 },
-      { id: "a-near", x: -30, y: 10, deadUntil: 0 },
+      { id: "far", x: t(180), z: t(10), deadUntil: 0 },
+      { id: "dead", x: t(20), z: t(10), deadUntil: 2_000 },
+      { id: "blocked", x: t(30), z: t(10), deadUntil: 0 },
+      { id: "z-near", x: t(50), z: t(10), deadUntil: 0 },
+      { id: "a-near", x: t(-30), z: t(10), deadUntil: 0 },
     ];
     expect(
       nearestChargeTarget(
-        { x: 10, y: 10 },
+        { x: t(10), z: t(10) },
         targets,
-        100,
+        t(100),
         1_000,
         (target) => target.id !== "blocked",
       )?.id,
@@ -213,7 +235,7 @@ describe("isolated directional combat systems", () => {
     expect(heldMovementDirection({ up: false, down: false, left: false, right: false })).toBeNull();
     const diagonal = heldMovementDirection({ up: true, down: false, left: false, right: true });
     expect(diagonal?.x).toBeCloseTo(Math.SQRT1_2);
-    expect(diagonal?.y).toBeCloseTo(-Math.SQRT1_2);
+    expect(diagonal?.z).toBeCloseTo(-Math.SQRT1_2);
   });
 
   it("keeps a held Lumen action active until release and then appends recovery", () => {
@@ -222,18 +244,18 @@ describe("isolated directional combat systems", () => {
       kind: "skill",
       skillId: "blink",
       slot: 3,
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       now: 1_000,
       anticipationMs: 180,
       recoveryMs: 420,
-      mobilityDistance: 247.5,
+      mobilityDistance: t(247.5),
       channelDurationMs: 2_500,
     });
     expect(action).toMatchObject({
       impactAt: 1_180,
       channelMaxEndsAt: 3_500,
       recoveryEndsAt: 3_920,
-      mobilityDistance: 247.5,
+      mobilityDistance: t(247.5),
     });
     expect(finishHeldCombatAction(actor, 1_600, 2)).toBe(false);
     expect(finishHeldCombatAction(actor, 1_600, 3)).toBe(true);
@@ -248,11 +270,11 @@ describe("isolated directional combat systems", () => {
       kind: "skill",
       skillId: "blink",
       slot: 3,
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       now: 1_000,
       anticipationMs: 180,
       recoveryMs: 420,
-      mobilityDistance: 247.5,
+      mobilityDistance: t(247.5),
       channelDurationMs: 2_500,
     });
     expect(action).not.toBeNull();
@@ -274,7 +296,7 @@ describe("isolated directional combat systems", () => {
   });
 
   it("centralizes the service-guard one-HP floor", () => {
-    const guard = createGuards([{ id: "service-guard", x: 0, y: 0, patrolRadius: 64 }])[0];
+    const guard = createGuards([{ id: "service-guard", x: 0, y: 0, z: 0, patrolRadius: 1 }])[0];
     if (!guard) throw new Error("guard fixture missing");
     guard.hp = 10;
 
@@ -309,52 +331,50 @@ describe("isolated directional combat systems", () => {
 
 describe("lumen mobility terrain rules", () => {
   it("moves through water when Lumen is allowed but not with regular terrain resolution", () => {
+    // Cells `i = 1, 2` are water: world `x ∈ [-7, -5)`. The hero starts on the shore at x = -7.4.
+    const shore = -7.4;
     const actor = player();
-    actor.x = 0;
-    actor.y = 0;
-    const grid = new SpatialGrid<PlayerRuntime>(64);
-    grid.insert(actor);
+    actor.x = shore;
+    actor.z = 0;
+    const grid = recordingIndex();
 
-    movePlayerInDirection(actor, { x: 1, y: 0 }, 128, lumenTerrain, grid, true);
+    movePlayerInDirection(actor, { x: 1, z: 0 }, 3, lumenTerrain, grid, true);
     const lumenPosition = actor.x;
-    expect(lumenPosition).toBeGreaterThan(64);
+    expect(lumenPosition).toBeGreaterThan(-5);
 
-    actor.x = 0;
-    grid.update(actor, { x: lumenPosition, y: 0 });
-    movePlayerInDirection(actor, { x: 1, y: 0 }, 128, lumenTerrain, grid, false);
-    expect(actor.x).toBeGreaterThan(0);
-    expect(actor.x).toBeLessThan(64);
+    actor.x = shore;
+    movePlayerInDirection(actor, { x: 1, z: 0 }, 3, lumenTerrain, grid, false);
+    expect(actor.x).toBeGreaterThan(shore);
+    expect(actor.x).toBeLessThan(-7);
   });
 
   it("phases through building obstacles during Lumen movement", () => {
+    // The prop wall fills `x ∈ [-6, -5)`; both heroes start two tiles west of it.
+    const start = -8;
     const blockedWithLumen = player();
-    blockedWithLumen.x = 0;
-    blockedWithLumen.y = 0;
-    const lumenGrid = new SpatialGrid<PlayerRuntime>(64);
-    lumenGrid.insert(blockedWithLumen);
+    blockedWithLumen.x = start;
+    blockedWithLumen.z = 0;
     movePlayerInDirection(
       blockedWithLumen,
-      { x: 1, y: 0 },
-      128,
+      { x: 1, z: 0 },
+      3,
       buildingWallTerrain,
-      lumenGrid,
+      recordingIndex(),
       true,
     );
 
     const blockedNormally = player();
-    blockedNormally.x = 0;
-    blockedNormally.y = 0;
-    const normalGrid = new SpatialGrid<PlayerRuntime>(64);
-    normalGrid.insert(blockedNormally);
+    blockedNormally.x = start;
+    blockedNormally.z = 0;
     movePlayerInDirection(
       blockedNormally,
-      { x: 1, y: 0 },
-      128,
+      { x: 1, z: 0 },
+      3,
       buildingWallTerrain,
-      normalGrid,
+      recordingIndex(),
       false,
     );
-    expect(blockedWithLumen.x).toBe(128);
+    expect(blockedWithLumen.x).toBeCloseTo(start + 3, 5);
     expect(blockedWithLumen.x).toBeGreaterThan(blockedNormally.x);
   });
 });

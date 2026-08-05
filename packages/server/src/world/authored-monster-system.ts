@@ -9,12 +9,21 @@ import { activePageIndex, type PartyAdventureState } from "@lindocara/engine/adv
 import { resolveMonsterAttackProfile } from "@lindocara/engine/combat-actions.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "@lindocara/engine/game.js";
 import { animalCarcassHarvestProfile } from "@lindocara/engine/harvest.js";
-import { eventCellCentre, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
+import {
+  authoredCellCentreGround,
+  authoredPatrolRadius,
+  type MapEvent,
+  monsterEvents,
+} from "@lindocara/engine/map-events.js";
 import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
 
 const AUTHORED_MONSTER_PREFIX = "mon-";
 
-export function authoredMonsterDefinition(event: MapEvent, pageIndex = 0): MonsterSpawn | null {
+export function authoredMonsterDefinition(
+  event: MapEvent,
+  gridSize: number,
+  pageIndex = 0,
+): MonsterSpawn | null {
   if (event.kind !== "monster" || event.species === null || event.patrolRadius === null)
     return null;
   const species = event.species;
@@ -24,8 +33,8 @@ export function authoredMonsterDefinition(event: MapEvent, pageIndex = 0): Monst
     kind: MONSTER_SPECIES_KIND[species],
     species,
     zone: "route",
-    ...eventCellCentre(event),
-    patrolRadius: event.patrolRadius,
+    ...authoredCellCentreGround(event, gridSize),
+    patrolRadius: authoredPatrolRadius(event.patrolRadius),
     graphicAssetId: event.pages[pageIndex]?.graphicAssetId ?? null,
     ...(event.monsterAttackProfile ? { attackProfile: event.monsterAttackProfile } : {}),
     ...(event.monsterRank ? { rank: event.monsterRank } : {}),
@@ -54,6 +63,7 @@ export function authoredMonsterDefinition(event: MapEvent, pageIndex = 0): Monst
 export function activeAuthoredMonsterDefinitions(
   events: readonly MapEvent[],
   state: PartyAdventureState,
+  gridSize: number,
 ): MonsterSpawn[] {
   return monsterEvents(events).flatMap((event) => {
     const pageIndex = activePageIndex(event, state);
@@ -65,7 +75,7 @@ export function activeAuthoredMonsterDefinitions(
       const profile = event.species ? animalCarcassHarvestProfile(event.species, "never", 0) : null;
       if (!profile || state.harvestNodes?.[event.id]?.depleted === true) return [];
     }
-    const definition = authoredMonsterDefinition(event, pageIndex);
+    const definition = authoredMonsterDefinition(event, gridSize, pageIndex);
     return definition ? [definition] : [];
   });
 }
@@ -86,7 +96,7 @@ export function reconcileActiveMonsters(
       ...existing,
       name: definition.name ?? existing.name,
       spawnX: definition.x,
-      spawnY: definition.y,
+      spawnZ: definition.z,
       patrolRadius: definition.patrolRadius,
       attackProfile: resolveMonsterAttackProfile(definition.species, definition.attackProfile),
       graphicAssetId: definition.graphicAssetId ?? null,

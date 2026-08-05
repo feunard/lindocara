@@ -77,6 +77,7 @@ describe("runtime entities use ground x/z and elevation y", () => {
         species: "spear_goblin",
         zone: "route",
         x: 2.5,
+        y: 0,
         z: -4,
         patrolRadius: 3,
       },
@@ -88,7 +89,7 @@ describe("runtime entities use ground x/z and elevation y", () => {
   });
 
   it("gives a fresh guard three axes and a ground-plane home", () => {
-    const guard = createGuards([{ id: "guard-1", x: 1.5, z: -2.25, patrolRadius: 4 }])[0];
+    const guard = createGuards([{ id: "guard-1", x: 1.5, y: 0, z: -2.25, patrolRadius: 4 }])[0];
     if (!guard) throw new Error("missing guard");
     expect(guard).toMatchObject({ x: 1.5, y: 0, z: -2.25, homeX: 1.5, homeZ: -2.25 });
   });

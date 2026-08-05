@@ -1,24 +1,24 @@
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
+import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import { hasRogueLineOfSight, shadowStepDestination } from "./rogue-skill-system.js";
+import { groundUnder, type ZoneTerrain } from "./terrain-access.js";
 
-export interface ShadowDanceCandidate extends Vec2 {
+export interface ShadowDanceCandidate extends GroundVector {
   id: string;
   deadUntil: number;
 }
 
 export interface ShadowDanceStrikePlan {
   targetId: string;
-  targetPosition: Vec2;
-  from: Vec2;
-  landing: Vec2;
+  targetPosition: GroundVector;
+  from: WorldPosition;
+  landing: WorldPosition;
   repeated?: true;
 }
 
 export interface ShadowDancePlan {
   primaryTargetId: string;
   strikes: ShadowDanceStrikePlan[];
-  finalPosition: Vec2;
+  finalPosition: WorldPosition;
 }
 
 export type ShadowDancePlanningResult =
@@ -31,8 +31,9 @@ export interface ShadowDancePlanningOptions {
 
 const MAX_PLANNED_STRIKES = 8;
 
-function distance(left: Vec2, right: Vec2): number {
-  return Math.hypot(left.x - right.x, left.y - right.y);
+/** Ground distance: `y` is elevation now, and a dance is a route across the floor. */
+function distance(left: GroundVector, right: GroundVector): number {
+  return groundDistance(left, right);
 }
 
 /**
@@ -41,20 +42,23 @@ function distance(left: Vec2, right: Vec2): number {
  * independently collision-checked.
  */
 export function planShadowDance<T extends ShadowDanceCandidate>(
-  origin: Vec2,
+  origin: WorldPosition,
   candidates: Iterable<T>,
   range: number,
   maximumHits: number,
   now: number,
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
   bodyRadius: (candidate: T) => number,
   options: ShadowDancePlanningOptions = {},
 ): ShadowDancePlanningResult {
   const pool = [...candidates];
   const selectedIds = new Set<string>();
   const strikes: ShadowDanceStrikePlan[] = [];
-  let actorPosition = { x: origin.x, y: origin.y };
-  let selectionOrigin = actorPosition;
+  // The rogue's own ground decides every sight test and every landing along the route: `MAX_STEP`
+  // is 0, so a dance is no more a way up a cliff than a single shadow step is.
+  const groundY = groundUnder(terrain, origin.x, origin.z, origin.y);
+  let actorPosition: WorldPosition = { x: origin.x, y: origin.y, z: origin.z };
+  let selectionOrigin: GroundVector = { x: origin.x, z: origin.z };
   let firstVisibleTargetWasBlocked = false;
   const boundedHits = Math.max(1, Math.min(MAX_PLANNED_STRIKES, Math.floor(maximumHits)));
 
@@ -65,7 +69,7 @@ export function planShadowDance<T extends ShadowDanceCandidate>(
           candidate.deadUntil <= now &&
           !selectedIds.has(candidate.id) &&
           distance(selectionOrigin, candidate) <= range &&
-          hasRogueLineOfSight(selectionOrigin, candidate, terrain),
+          hasRogueLineOfSight(selectionOrigin, candidate, terrain, groundY),
       )
       .sort(
         (left, right) =>
@@ -73,13 +77,14 @@ export function planShadowDance<T extends ShadowDanceCandidate>(
           left.id.localeCompare(right.id),
       );
 
-    let selected: { candidate: T; landing: Vec2 } | null = null;
+    let selected: { candidate: T; landing: WorldPosition } | null = null;
     for (const candidate of ordered) {
       const landing = shadowStepDestination(
         actorPosition,
         candidate,
         bodyRadius(candidate),
         terrain,
+        groundY,
       );
       if (!landing) {
         if (strikes.length === 0) firstVisibleTargetWasBlocked = true;
@@ -92,13 +97,13 @@ export function planShadowDance<T extends ShadowDanceCandidate>(
 
     strikes.push({
       targetId: selected.candidate.id,
-      targetPosition: { x: selected.candidate.x, y: selected.candidate.y },
+      targetPosition: { x: selected.candidate.x, z: selected.candidate.z },
       from: { ...actorPosition },
       landing: { ...selected.landing },
     });
     selectedIds.add(selected.candidate.id);
     actorPosition = { ...selected.landing };
-    selectionOrigin = { x: selected.candidate.x, y: selected.candidate.y };
+    selectionOrigin = { x: selected.candidate.x, z: selected.candidate.z };
   }
 
   const first = strikes[0];
@@ -110,12 +115,18 @@ export function planShadowDance<T extends ShadowDanceCandidate>(
   if (options.repeatPrimary) {
     const primary = pool.find((candidate) => candidate.id === first.targetId);
     while (primary && strikes.length < boundedHits && primary.deadUntil <= now) {
-      if (!hasRogueLineOfSight(actorPosition, primary, terrain)) break;
-      const landing = shadowStepDestination(actorPosition, primary, bodyRadius(primary), terrain);
+      if (!hasRogueLineOfSight(actorPosition, primary, terrain, groundY)) break;
+      const landing = shadowStepDestination(
+        actorPosition,
+        primary,
+        bodyRadius(primary),
+        terrain,
+        groundY,
+      );
       if (!landing) break;
       strikes.push({
         targetId: primary.id,
-        targetPosition: { x: primary.x, y: primary.y },
+        targetPosition: { x: primary.x, z: primary.z },
         from: { ...actorPosition },
         landing: { ...landing },
         repeated: true,

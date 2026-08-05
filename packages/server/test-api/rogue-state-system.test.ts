@@ -36,8 +36,9 @@ function rogue(talents: readonly string[] = []) {
     {
       id: "rogue",
       nick: "Shade",
-      x: 20,
-      y: 40,
+      x: 20 / 64,
+      y: 0,
+      z: 40 / 64,
       level: 10,
       xp: 0,
       hp: 100,
@@ -224,7 +225,7 @@ describe("Rogue runtime contract", () => {
     player.rogueSmokeProtectionUntil = 500;
     player.roguePredatorShivUntil = 2_000;
     player.rogueShadowDanceInvulnerableUntil = 1_450;
-    player.rogueShadowReturn = { x: 10, y: 12, expiresAt: 2_000 };
+    player.rogueShadowReturn = { x: 10, y: 0, z: 12, expiresAt: 2_000 };
     player.rogueExecution = { targetId: "monster", expiresAt: 2_000 };
     expect(isPlayerInvulnerable(player, 1_449)).toBe(true);
     expect(isPlayerInvulnerable(player, 1_450)).toBe(false);
@@ -258,7 +259,7 @@ describe("Rogue runtime contract", () => {
     player.opening = { source: "vanish", expiresAt: 9_000, bonusRatio: 0.4 };
     player.rogueStealthUntil = 8_000;
     player.rogueShadowDanceInvulnerableUntil = 8_450;
-    player.rogueShadowReturn = { x: 10, y: 12, expiresAt: 2_000 };
+    player.rogueShadowReturn = { x: 10, y: 0, z: 12, expiresAt: 2_000 };
     player.rogueExecution = { targetId: "monster", expiresAt: 2_000 };
 
     const persisted = toProfile(player);

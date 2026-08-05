@@ -94,7 +94,6 @@ import {
   monsterBodyHitbox,
   monsterBodyRadius,
   nearestCemetery,
-  nearestLumenLanding,
   pointDistance,
   QUEST_RUN_LIMIT_MS,
   QUEST_SITE_RESPAWN_MS,
@@ -103,6 +102,12 @@ import {
   resolveTerrain,
   withinRange,
 } from "@lindocara/engine/game.js";
+import {
+  type GroundVector,
+  groundDistance,
+  groundOf,
+  type WorldPosition,
+} from "@lindocara/engine/ground.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/interest.js";
 import {
@@ -322,6 +327,12 @@ import {
   sendState,
   sendWorldResync,
 } from "../../world/snapshot-system.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  nearestStandableCell,
+} from "../../world/terrain-access.js";
 import {
   activeRallyPowerMultiplier,
   advanceWarriorCyclones,
@@ -2173,53 +2184,85 @@ function bodyCenter(position: Vec2): Vec2 {
   return { x: position.x + PLAYER_SIZE / 2, y: position.y + PLAYER_SIZE / 2 };
 }
 
-function monsterHitboxWithin(center: Vec2, monster: MonsterRuntime, range: number): boolean {
+function monsterHitboxWithin(
+  center: GroundVector,
+  monster: MonsterRuntime,
+  range: number,
+): boolean {
   const hitbox = monsterBodyHitbox(monster.species, monster);
-  return pointDistance(center, hitbox.center) <= range + hitbox.radius;
+  return groundDistance(center, hitbox.center) <= range + hitbox.radius;
 }
 
-/** Live bodies are deliberately checked only when Lumen rematerialises, never while it phases. */
+/**
+ * Live bodies are deliberately checked only when Lumen rematerialises, never while it phases.
+ *
+ * TILE UNITS, and every position is a body CENTRE — so the pixel version's `+ PLAYER_SIZE / 2`
+ * recentring is gone and `PLAYER_SIZE` (a diameter) is `2 * BODY_RADIUS`.
+ */
 function lumenLandingClear(
   w: WorldGlue,
   player: PlayerRuntime,
-  candidate: Vec2,
+  candidate: GroundVector,
   now: number,
 ): boolean {
-  const center = { x: candidate.x + PLAYER_SIZE / 2, y: candidate.y + PLAYER_SIZE / 2 };
+  const center = { x: candidate.x, z: candidate.z };
   for (const other of w.state.players.values()) {
     if (
       other !== player &&
       other.authorized &&
       other.life !== "ghost" &&
-      pointDistance(candidate, other) < PLAYER_SIZE
+      groundDistance(candidate, other) < 2 * BODY_RADIUS
     )
       return false;
   }
   for (const monster of w.state.monsters) {
-    if (monster.deadUntil <= now && monsterHitboxWithin(center, monster, PLAYER_SIZE / 2))
-      return false;
+    if (monster.deadUntil <= now && monsterHitboxWithin(center, monster, BODY_RADIUS)) return false;
   }
   for (const guard of w.state.guards) {
-    if (guard.hp > 0 && pointDistance(candidate, guard) < PLAYER_SIZE) return false;
+    if (guard.hp > 0 && groundDistance(candidate, guard) < 2 * BODY_RADIUS) return false;
   }
   for (const event of w.state.activeEvents) {
     const movement = w.state.npcMovement.get(event.id);
     if (!movement || movement.through || event.graphicAssetId === null) continue;
-    if (pointDistance(center, eventCellCentre(event)) < PLAYER_SIZE) return false;
+    // CARRY FORWARD: `eventCellCentre` still answers in the editor's PIXEL, top-left-origin space.
+    // `authoredCellCentreGround` is its tile-unit successor and needs the map's grid size, which
+    // this file will have once the rest of its terrain reads are converted; the whole authored-map
+    // boundary is one conversion, not a dozen call-site divisions.
+    if (groundDistance(center, groundOf(eventCellCentre(event))) < 2 * BODY_RADIUS) return false;
   }
   return true;
 }
 
+/**
+ * Where a held Pas de Lumen actually comes back to the world.
+ *
+ * All THREE axes travel out of here. The previous version returned a two-axis value whose `y` was a
+ * GROUND coordinate, and the caller wrote it straight into `player.y` — the ELEVATION field — so a
+ * priest's rematerialisation buried or launched them by the width of the map. The landing's `y` is
+ * now the ground under it, read from the terrain, and its ground pair is `x`/`z`.
+ *
+ * `groundY` is the priest's own level: `MAX_STEP` is 0, so phasing crosses relief without climbing
+ * it, and a landing on top of a plateau the priest could not have walked onto is refused.
+ */
 function safeLumenLanding(
   w: WorldGlue,
   player: PlayerRuntime,
-  desired: Vec2,
+  desired: GroundVector,
   now: number,
-): Vec2 | null {
+): WorldPosition | null {
   const terrain = zone(w.state).terrain;
-  if (isWalkable(desired, PLAYER_SIZE, terrain) && lumenLandingClear(w, player, desired, now))
-    return { ...desired };
-  return nearestLumenLanding(desired, PLAYER_SIZE, terrain, (candidate) =>
+  const groundY = groundUnder(terrain, player.x, player.z, player.y);
+  if (
+    canStand(terrain, desired.x, desired.z, BODY_RADIUS, groundY) &&
+    lumenLandingClear(w, player, desired, now)
+  ) {
+    return {
+      x: desired.x,
+      y: groundUnder(terrain, desired.x, desired.z, groundY),
+      z: desired.z,
+    };
+  }
+  return nearestStandableCell(terrain, desired, BODY_RADIUS, groundY, (candidate) =>
     lumenLandingClear(w, player, candidate, now),
   );
 }
@@ -2237,9 +2280,11 @@ export function finishHeldPlayerAction(
   if (action?.skillId === "blink") {
     const terrain = zone(w.state).terrain;
     const landing = safeLumenLanding(w, player, player, now);
-    if (landing && (landing.x !== player.x || landing.y !== player.y)) {
-      const previous = { x: player.x, y: player.y };
+    if (landing && (landing.x !== player.x || landing.z !== player.z)) {
+      const previous = { x: player.x, z: player.z };
       player.x = landing.x;
+      // The GROUND pair is `x`/`z`; `y` is the elevation the terrain reports under the landing.
+      player.z = landing.z;
       player.y = landing.y;
       w.state.playerGrid.update(player, previous);
       player.dirty = true;

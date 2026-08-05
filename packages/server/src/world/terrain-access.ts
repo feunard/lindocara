@@ -413,6 +413,43 @@ export function clampToGrid(terrain: ZoneTerrain, point: GroundVector): GroundVe
 }
 
 /**
+ * The nearest cell centre a body could stand on — the tile-unit successor of
+ * `engine/game.ts`'s `nearestLumenLanding`, used when a terrain-ignoring traversal (Pas de Lumen)
+ * has to rematerialise somewhere real.
+ *
+ * `accepts` is the server's seam for live bodies (players, monsters, guards, NPCs), which the
+ * terrain cannot know about, exactly as before. `groundY` is the level the body may land on:
+ * `MAX_STEP` is 0, so a phased traversal cannot end on top of a plateau it could not have walked
+ * onto — the skill crosses relief, it does not climb it.
+ *
+ * Cell CENTRES, not corners: a tile-unit position is a body's centre, and the pixel version's
+ * `col * TILE_SIZE` was a top-left corner. Landing on a corner would put half the body in the
+ * neighbouring cell.
+ */
+export function nearestStandableCell(
+  terrain: ZoneTerrain,
+  position: GroundVector,
+  radius: number,
+  groundY: number,
+  accepts: (candidate: GroundVector) => boolean = () => true,
+): WorldPosition | null {
+  let nearest: WorldPosition | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let j = 0; j < terrain.size; j++) {
+    for (let i = 0; i < terrain.size; i++) {
+      const [x, z] = terrain.query.cellCenter(i, j);
+      if (!canStand(terrain, x, z, radius, groundY)) continue;
+      if (!accepts({ x, z })) continue;
+      const distance = Math.hypot(position.x - x, position.z - z);
+      if (distance >= bestDistance) continue;
+      nearest = { x, y: groundUnder(terrain, x, z, groundY), z };
+      bestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
+/**
  * Where a body restored from storage actually enters the world — the tile-unit successor of
  * `clampRestoredPosition`, which lived in `engine/game.ts` because it needed a pixel
  * `TerrainGeometry` and a `spawnPoints` list. It lives here instead because the two things it now

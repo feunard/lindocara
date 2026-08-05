@@ -37,22 +37,25 @@ function conditionalMonster(): MapEvent {
   };
 }
 
+const GRID_SIZE = 32;
+
 describe("authored monster projection", () => {
   it("keeps a narrative encounter absent until one of its conditional pages holds", () => {
     const event = conditionalMonster();
 
-    expect(activeAuthoredMonsterDefinitions([event], state())).toEqual([]);
-    expect(activeAuthoredMonsterDefinitions([event], state({ "0076": true }))).toEqual([
+    expect(activeAuthoredMonsterDefinitions([event], state(), GRID_SIZE)).toEqual([]);
+    expect(activeAuthoredMonsterDefinitions([event], state({ "0076": true }), GRID_SIZE)).toEqual([
       expect.objectContaining({
         id: `mon-${MONSTER_EVENT_ID}`,
         name: "Varkesh",
         species: "skull_warden",
         rank: "boss",
         maxHp: 1_400,
-        x: 11 * TILE_SIZE + TILE_SIZE / 2,
-        y: 6 * TILE_SIZE + TILE_SIZE / 2,
-        patrolRadius: 120,
-        respawnDelayMs: 6_000,
+        x: 11.5 - GRID_SIZE / 2,
+        y: 0,
+        z: 6.5 - GRID_SIZE / 2,
+        // Authored in PIXELS on the event, read in TILE UNITS by the runtime.
+        patrolRadius: 120 / TILE_SIZE,
         graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID,
       }),
     ]);
@@ -62,6 +65,7 @@ describe("authored monster projection", () => {
     const definition = activeAuthoredMonsterDefinitions(
       [conditionalMonster()],
       state({ "0076": true }),
+      GRID_SIZE,
     )[0];
     if (!definition) throw new Error("monster definition missing");
     const monster = createMonsters([definition])[0];
@@ -72,8 +76,16 @@ describe("authored monster projection", () => {
   it("keeps appearance visual while projecting an explicit attack profile", () => {
     const visualOnly = conditionalMonster();
     const explicitArcher = { ...visualOnly, monsterAttackProfile: "arrow" as const };
-    const natural = activeAuthoredMonsterDefinitions([visualOnly], state({ "0076": true }))[0];
-    const archer = activeAuthoredMonsterDefinitions([explicitArcher], state({ "0076": true }))[0];
+    const natural = activeAuthoredMonsterDefinitions(
+      [visualOnly],
+      state({ "0076": true }),
+      GRID_SIZE,
+    )[0];
+    const archer = activeAuthoredMonsterDefinitions(
+      [explicitArcher],
+      state({ "0076": true }),
+      GRID_SIZE,
+    )[0];
     if (!natural || !archer) throw new Error("monster definition missing");
 
     expect(natural.graphicAssetId).toBe(archer.graphicAssetId);
@@ -85,6 +97,7 @@ describe("authored monster projection", () => {
     const retainedDefinition = activeAuthoredMonsterDefinitions(
       [conditionalMonster()],
       state({ "0075": true }),
+      GRID_SIZE,
     )[0];
     if (!retainedDefinition) throw new Error("monster fixture creation failed");
     const retained = createMonsters([retainedDefinition])[0];
@@ -108,7 +121,7 @@ describe("authored monster projection", () => {
       hp: 713,
       x: retained.x,
       spawnX: retainedDefinition.x,
-      spawnY: retainedDefinition.y,
+      spawnZ: retainedDefinition.z,
       respawnDelayMs: 6_000,
     });
   });
@@ -116,12 +129,13 @@ describe("authored monster projection", () => {
   it("removes a permanently defeated encounter from the party's active definitions", () => {
     const permanent = { ...conditionalMonster(), monsterRespawnMode: "never" as const };
     const active = state({ "0075": true });
-    expect(activeAuthoredMonsterDefinitions([permanent], active)).toHaveLength(1);
+    expect(activeAuthoredMonsterDefinitions([permanent], active, GRID_SIZE)).toHaveLength(1);
     expect(
-      activeAuthoredMonsterDefinitions([permanent], {
-        ...active,
-        defeatedMonsters: { [MONSTER_EVENT_ID]: true },
-      }),
+      activeAuthoredMonsterDefinitions(
+        [permanent],
+        { ...active, defeatedMonsters: { [MONSTER_EVENT_ID]: true } },
+        GRID_SIZE,
+      ),
     ).toEqual([]);
   });
 });

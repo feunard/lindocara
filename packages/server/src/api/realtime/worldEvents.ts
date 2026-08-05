@@ -21,6 +21,7 @@ import {
   harvestColliderAt,
 } from "@lindocara/engine/harvest.js";
 import {
+  authoredPatrolRadius,
   type EventTrigger,
   eventCellCentre,
   isActiveWorldEventKind,
@@ -188,7 +189,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
 
   const monsterDefinitions = [
     ...definition.monsters,
-    ...activeAuthoredMonsterDefinitions(events, adventureState),
+    ...activeAuthoredMonsterDefinitions(events, adventureState, definition.terrain.size),
   ];
   state.monsters = reconcileActiveMonsters(state.monsters, monsterDefinitions);
   // A permanent authored animal remains as a corpse until its explicit carcass node is depleted.
@@ -202,14 +203,14 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
     monster.deadUntil = Number.POSITIVE_INFINITY;
     monster.action = null;
     monster.vx = 0;
-    monster.vy = 0;
+    monster.vz = 0;
   }
   state.monsterGrid.clear();
   for (const monster of state.monsters) state.monsterGrid.insert(monster);
 
   const guardDefinitions = [
     ...definition.guards,
-    ...activeAuthoredGuardDefinitions(events, adventureState),
+    ...activeAuthoredGuardDefinitions(events, adventureState, definition.terrain.size),
   ];
   state.guards = reconcileActiveGuards(state.guards, guardDefinitions);
 
@@ -285,7 +286,9 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
         moveSpeed: wanderingHarvest ? 2 : page.moveSpeed,
         moveFreq: wanderingHarvest ? 2 : page.moveFreq,
         through: page.optThrough,
-        patrolRadius: event.patrolRadius ?? TILE_SIZE * 2,
+        // Authored leashes are stored in pixels; `authoredPatrolRadius` is the one place they
+        // cross into tile units. The default is two cells, which is two TILES here, not 128 px.
+        patrolRadius: event.patrolRadius === null ? 2 : authoredPatrolRadius(event.patrolRadius),
         route: page.moveRoute ?? [],
       });
     }

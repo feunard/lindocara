@@ -15,7 +15,7 @@ import {
 } from "@lindocara/engine/harvest.js";
 import type { ColliderIndex, ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
-import { eventCellFoot, harvestableEvents, type MapEvent } from "@lindocara/engine/map-events.js";
+import { harvestableEvents, type MapEvent } from "@lindocara/engine/map-events.js";
 import {
   isHarvestNodeId,
   type PartyMaterialAmounts,
