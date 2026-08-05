@@ -71,20 +71,17 @@ import {
   circleIntersectsCapsule,
   firstSegmentImpact,
   frontalArc,
-  normalizeDirection,
+  normalizeGround,
   strikeCapsule,
   sweptProjectileEntityImpact,
-  sweptProjectileTerrainImpact,
 } from "@lindocara/engine/directional-combat.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
 import type { StateMutation } from "@lindocara/engine/event-interpreter.js";
 import {
   applyDamage,
   applyExperience,
-  hasLineOfSight,
   INTERACTION_RANGE,
   isMonsterSpecialTechnique,
-  isWalkable,
   LOOT_EXPIRY_MS,
   MAX_MONSTER_BODY_REACH,
   MONSTER_AGGRO_RANGE,
@@ -93,21 +90,23 @@ import {
   maxHpForLevel,
   monsterBodyHitbox,
   monsterBodyRadius,
-  nearestCemetery,
-  pointDistance,
   QUEST_RUN_LIMIT_MS,
   QUEST_SITE_RESPAWN_MS,
   type QuestChapter,
   type QuestSite,
-  resolveTerrain,
-  withinRange,
 } from "@lindocara/engine/game.js";
-import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
+import {
+  type GroundVector,
+  groundDistance,
+  groundOf,
+  planarOf,
+  type WorldPosition,
+  withinGroundRange,
+} from "@lindocara/engine/ground.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/interest.js";
 import {
   authoredCellCentreGround,
-  eventCellCentre,
   exitEvents,
   isInteractiveWorldEventKind,
   type MapEvent,
@@ -143,13 +142,7 @@ import {
   spendResource,
 } from "@lindocara/engine/resources.js";
 import { ROGUE_BALANCE, roguePoisonTickPower } from "@lindocara/engine/rogue.js";
-import {
-  NETWORK_TICKS_PER_SNAPSHOT,
-  NO_INPUT,
-  PLAYER_SIZE,
-  TICK_HZ,
-  type Vec2,
-} from "@lindocara/engine/simulation.js";
+import { NETWORK_TICKS_PER_SNAPSHOT, NO_INPUT, TICK_HZ } from "@lindocara/engine/simulation.js";
 import {
   CLASS_SKILLS,
   isSkillUnlocked,
@@ -284,7 +277,10 @@ import {
   swornPreyTarget,
   windstepCanInterrupt,
 } from "../../world/ranger-variant-system.js";
-import { planShadowDance } from "../../world/rogue-shadow-dance-system.js";
+import {
+  planShadowDance,
+  type ShadowDanceStrikePlan,
+} from "../../world/rogue-shadow-dance-system.js";
 import {
   hasRogueLineOfSight,
   isShadowStepLandingValid,
@@ -326,8 +322,11 @@ import {
 import {
   BODY_RADIUS,
   canStand,
+  groundLineOfSight,
   groundUnder,
   nearestStandableCell,
+  resolveGroundMovement,
+  sweptGroundTerrainImpact,
 } from "../../world/terrain-access.js";
 import {
   activeRallyPowerMultiplier,
@@ -508,6 +507,34 @@ interface MonsterDamageContext {
 // Shared helpers
 // -------------------------------------------------------------------------------------------------
 
+/**
+ * The daylight a dropped stack is nudged by so it does not sit exactly under the body that dropped
+ * it — the pixel path's `+ 8` on both ground axes, in tile units. Elevation is NOT offset: loot
+ * lands on the ground the monster died on, and adding an eighth of a tile to `y` would float it.
+ */
+const LOOT_DROP_OFFSET = 8 / TILE_SIZE;
+
+/**
+ * The travel a held Pas de Lumen must cover before its gate is worth opening — one PIXEL, as it
+ * always was, expressed in tile units. Carried over verbatim rather than rounded to a tile: it is
+ * an "did the priest move at all" guard, not a balance range.
+ */
+const MINIMUM_PORTAL_SPAN = 1 / TILE_SIZE;
+
+/**
+ * How far short of its contact a charge stops, so the warrior never ends flush inside what it hit —
+ * one PIXEL, as it always was. A bare `- 1` in tile units would have eaten a whole tile of travel
+ * off every charge and turned a wall stop into a visible rebound.
+ */
+const IMPACT_BACKOFF = 1 / TILE_SIZE;
+
+/**
+ * A hero's body DIAMETER in tile units — the tile-unit successor of the bare `PLAYER_SIZE` that
+ * widened every broad-phase grid query, so a body whose navigation point is just outside the query
+ * radius is still found by its far edge. `PLAYER_SIZE / 2` sites become `BODY_RADIUS` directly.
+ */
+const BODY_DIAMETER = BODY_RADIUS * 2;
+
 function zone(state: WorldRoomState): ZoneDefinition {
   if (!state.location) throw new Error("world room was not initialized with a zone");
   return state.location.definition;
@@ -616,7 +643,7 @@ export function sendPriestLumenEffectsTo(w: WorldGlue, connectionId: string, now
       t: "priest.lumen_trail",
       id: trail.id,
       actorId: trail.ownerId,
-      points: trail.points.map((point) => ({ ...point })),
+      points: trail.points.map((point) => planarOf(point)),
       width: trail.width,
       startedAt: trail.startedAt,
       endsAt: trail.expiresAt,
@@ -791,7 +818,7 @@ function playerQuestMarkers(state: WorldRoomState, player: PlayerRuntime): Autho
 }
 
 /** Port of `#sendSpatialEvent` (`world.ts:6093`). */
-function sendSpatialEvent(w: WorldGlue, message: ServerMessage, position: Vec2): void {
+function sendSpatialEvent(w: WorldGlue, message: ServerMessage, position: GroundVector): void {
   for (const recipient of w.state.playerGrid.queryRadius(position, SPATIAL_EVENT_RADIUS)) {
     if (!recipient.authorized) continue;
     const connectionId = connectionOf(w.state, recipient.id);
@@ -803,7 +830,7 @@ function sendSpatialEvent(w: WorldGlue, message: ServerMessage, position: Vec2):
 function sendSpatialEventAcross(
   w: WorldGlue,
   message: ServerMessage,
-  positions: readonly Vec2[],
+  positions: readonly GroundVector[],
 ): void {
   const sent = new Set<string>();
   for (const position of positions) {
@@ -969,7 +996,7 @@ function grantReviveGrace(w: WorldGlue, player: PlayerRuntime, now: number): voi
   player.forgottenUntil = Math.max(player.forgottenUntil, now + REVIVE_AGGRO_GRACE_MS);
   forgetPlayer(w, player);
   for (const monster of w.state.monsters) {
-    if (pointDistance(monster, player) <= MONSTER_AGGRO_RANGE) {
+    if (groundDistance(monster, player) <= MONSTER_AGGRO_RANGE) {
       monster.lastAttackAt = Math.max(monster.lastAttackAt, now);
     }
   }
@@ -978,7 +1005,7 @@ function grantReviveGrace(w: WorldGlue, player: PlayerRuntime, now: number): voi
 /** Port of `#killPlayer` (`world.ts:5650`): dying does not move you — your body stays put. */
 export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
   player.life = "corpse";
-  player.corpse = { x: player.x, y: player.y };
+  player.corpse = { x: player.x, y: player.y, z: player.z };
   for (const monster of w.state.monsters) monster.threat.delete(player.id);
   freeze(w, player);
   sendSpatialEvent(
@@ -1002,51 +1029,48 @@ export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRun
   });
 }
 
-/** Port of `#release` (`world.ts:5728`): one-way and deliberate. */
+/**
+ * Port of `#release` (`world.ts:5728`): one-way and deliberate.
+ *
+ * The pixel `CEMETERIES` fallback died with the pixel geometry, and its absence is the conversion
+ * rather than an omission: those three anchors are catalogue content authored in PIXELS, and a live
+ * room is a heightfield map whose only spirit anchor is its authored spawn. A map with no authored
+ * spawn releases at the grid centre — the same fallback `restoredPosition` already takes.
+ *
+ * The neighbour search is `nearestStandableCell` rather than a hand-rolled ring of eight offsets:
+ * that helper already knows what "somewhere a body could stand" means on a heightfield, and its
+ * `accepts` seam is exactly the "far enough from the corpse" clause the ring existed to express.
+ * Grounding the candidates on their OWN terrain is right here and would be a cliff-climbing bug in
+ * a step (see `resolveGroundMovement`): nobody is walking anywhere, the question is whether the
+ * ghost could be standing there.
+ */
 export function handleRelease(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
   if (player.life !== "corpse" || player.corpse === null) return;
   player.resurrectionAt = 0;
-  const terrain = zone(w.state).terrain;
-  const cemetery =
-    player.identityKind === "hero"
-      ? (terrain.spawnPoints[0] ?? nearestCemetery(player.corpse))
-      : nearestCemetery(player.corpse);
-  const previousPosition = { x: player.x, y: player.y };
-  let releasePosition: Vec2 = cemetery;
+  const definition = zone(w.state);
+  const terrain = definition.terrain;
+  const corpse = player.corpse;
+  const spawn = definition.spawns?.[0];
+  const anchor: GroundVector = spawn ? { x: spawn.x, z: spawn.z } : { x: 0, z: 0 };
+  const previousPosition = { x: player.x, y: player.y, z: player.z };
+  let releasePosition: GroundVector = anchor;
   // An authored map currently has one spirit anchor: its entry spawn. If the player dies on that
   // exact point, releasing there would reclaim the body on the very next tick. Find the nearest
-  // walkable neighbouring tile so the ghost state remains observable and playable.
-  if (pointDistance(releasePosition, player.corpse) <= CORPSE_RECLAIM_RANGE) {
-    const directions = [
-      { x: 1, y: 0 },
-      { x: -1, y: 0 },
-      { x: 0, y: 1 },
-      { x: 0, y: -1 },
-      { x: 1, y: 1 },
-      { x: -1, y: 1 },
-      { x: 1, y: -1 },
-      { x: -1, y: -1 },
-    ];
-    for (const radius of [TILE_SIZE, TILE_SIZE * 2, TILE_SIZE * 3]) {
-      const candidate = directions
-        .map((direction) => ({
-          x: cemetery.x + direction.x * radius,
-          y: cemetery.y + direction.y * radius,
-        }))
-        .find(
-          (position) =>
-            pointDistance(position, player.corpse as Vec2) > CORPSE_RECLAIM_RANGE &&
-            isWalkable(position, PLAYER_SIZE, terrain),
-        );
-      if (candidate) {
-        releasePosition = candidate;
-        break;
-      }
-    }
+  // standable cell far enough away that the ghost state remains observable and playable.
+  if (groundDistance(releasePosition, corpse) <= CORPSE_RECLAIM_RANGE) {
+    const landing = nearestStandableCell(
+      terrain,
+      anchor,
+      BODY_RADIUS,
+      groundUnder(terrain, anchor.x, anchor.z),
+      (candidate) => groundDistance(candidate, corpse) > CORPSE_RECLAIM_RANGE,
+    );
+    if (landing) releasePosition = landing;
   }
   player.life = "ghost";
   player.x = releasePosition.x;
-  player.y = releasePosition.y;
+  player.z = releasePosition.z;
+  player.y = groundUnder(terrain, releasePosition.x, releasePosition.z, player.y);
   w.state.playerGrid.update(player, previousPosition);
   freeze(w, player);
   w.deps.send(connectionId, {
@@ -1206,7 +1230,7 @@ export function markMonsterDead(w: WorldGlue, monster: MonsterRuntime, now: numb
   monster.deadUntil =
     monster.respawnMode === "never" ? Number.POSITIVE_INFINITY : now + monster.respawnDelayMs;
   monster.vx = 0;
-  monster.vy = 0;
+  monster.vz = 0;
   if (monster.respawnMode !== "never" || !monster.id.startsWith("mon-")) return;
   w.deps.markPermanentMonsterDefeated(monster.id.slice(4));
 }
@@ -1271,8 +1295,8 @@ function defeatMonster(
         (candidate) =>
           candidate.id !== monster.id &&
           candidate.deadUntil <= now &&
-          pointDistance(monster, candidate) <= contagion.range &&
-          hasLineOfSight(monster, candidate, zone(w.state).terrain.tiles) &&
+          groundDistance(monster, candidate) <= contagion.range &&
+          groundLineOfSight(zone(w.state).terrain, monster, candidate) &&
           !w.state.damageOverTime.some(
             (effect) =>
               effect.kind === "poison" &&
@@ -1283,7 +1307,7 @@ function defeatMonster(
       )
       .sort(
         (left, right) =>
-          pointDistance(monster, left) - pointDistance(monster, right) ||
+          groundDistance(monster, left) - groundDistance(monster, right) ||
           left.id.localeCompare(right.id),
       )
       .slice(0, Math.max(0, contagion.maximumTargets));
@@ -1308,7 +1332,7 @@ function defeatMonster(
       return (
         candidate?.authorized === true &&
         candidate.life === "alive" &&
-        pointDistance(candidate, monster) <= REWARD_DISTANCE &&
+        groundDistance(candidate, monster) <= REWARD_DISTANCE &&
         isMeaningfulContribution(contribution)
       );
     })
@@ -1316,7 +1340,7 @@ function defeatMonster(
   if (
     !directlyEligible.includes(player.id) &&
     player.authorized &&
-    (persistentOwnerCredit || pointDistance(player, monster) <= REWARD_DISTANCE)
+    (persistentOwnerCredit || groundDistance(player, monster) <= REWARD_DISTANCE)
   )
     directlyEligible.push(player.id);
 
@@ -1327,7 +1351,7 @@ function defeatMonster(
       if (
         member?.authorized &&
         member.life === "alive" &&
-        pointDistance(member, monster) <= REWARD_DISTANCE
+        groundDistance(member, monster) <= REWARD_DISTANCE
       )
         eligible.add(memberId);
     }
@@ -1377,8 +1401,9 @@ function defeatMonster(
         id: crypto.randomUUID(),
         kind,
         amount: kind === "gold" ? 4 : 1,
-        x: monster.x + 8,
-        y: monster.y + 8,
+        x: monster.x + LOOT_DROP_OFFSET,
+        y: monster.y,
+        z: monster.z + LOOT_DROP_OFFSET,
         expiresAt: now + LOOT_EXPIRY_MS,
         ownerId: recipient.id,
       };
@@ -1582,8 +1607,8 @@ function mirrorLifeLinks(
       if (
         linked?.life !== "alive" ||
         owner.life !== "alive" ||
-        pointDistance(owner, linked) > link.range ||
-        !hasLineOfSight(owner, linked, zone(w.state).terrain.tiles)
+        groundDistance(owner, linked) > link.range ||
+        !groundLineOfSight(zone(w.state).terrain, owner, linked)
       )
         continue;
       const counterpart =
@@ -1631,7 +1656,7 @@ function damagePlayer(
     w.state.players.values(),
     now,
     (source, target) => areCombatAllies(source, target),
-    (source, target) => hasLineOfSight(source, target, zone(w.state).terrain.tiles),
+    (source, target) => groundLineOfSight(zone(w.state).terrain, source, target),
     (protector, prevented) =>
       chargeCounterOffensive(
         protector,
@@ -1692,14 +1717,19 @@ function damagePlayer(
     result.killed &&
     soulAnchor &&
     soulAnchor.expiresAt > now &&
-    isWalkable(soulAnchor, PLAYER_SIZE, zone(w.state).terrain)
+    // Grounded on the anchor's OWN remembered elevation, exactly as `planShadowReturn` re-validates
+    // a remembered landing: the anchor was placed where a body could stand, and the rescue may not
+    // become a free climb onto ground the priest could never have reached.
+    canStand(zone(w.state).terrain, soulAnchor.x, soulAnchor.z, BODY_RADIUS, soulAnchor.y)
   ) {
     const owner = playerById(w.state, soulAnchor.ownerId);
     if (owner?.authorized && owner.life === "alive" && areCombatAllies(owner, player)) {
-      const previous = { x: player.x, y: player.y };
+      const terrain = zone(w.state).terrain;
+      const previous = { x: player.x, y: player.y, z: player.z };
       player.hp = 1;
       player.x = soulAnchor.x;
-      player.y = soulAnchor.y;
+      player.z = soulAnchor.z;
+      player.y = groundUnder(terrain, soulAnchor.x, soulAnchor.z, soulAnchor.y);
       player.priestSoulAnchor = null;
       if (soulAnchor.cleansePoison) {
         cleanseNegativeEffect(player, "poison");
@@ -1760,8 +1790,8 @@ export function startMonsterAttack(
       : null;
   const basicDefinition = monsterActionDefinition(monster.species, monster.attackProfile);
   const definition = specialTechnique ? MONSTER_SPECIAL_ACTIONS[specialTechnique] : basicDefinition;
-  const direction = normalizeDirection(
-    { x: target.x - monster.x, y: target.y - monster.y },
+  const direction = normalizeGround(
+    { x: target.x - monster.x, z: target.z - monster.z },
     monster.facing,
   );
   monster.facing = direction;
@@ -1786,7 +1816,7 @@ export function startMonsterAttack(
       actorId: monster.id,
       action: specialTechnique ? "skill" : "attack",
       ...(specialTechnique ? { skillId: specialTechnique } : {}),
-      direction: { ...action.direction },
+      direction: planarOf(action.direction),
       startedAt: action.startedAt,
       impactAt: action.impactAt,
       recoveryEndsAt: action.recoveryEndsAt,
@@ -1841,7 +1871,9 @@ export function resolveMonsterAction(
     });
     return;
   }
-  const origin = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
+  // A tile-unit position is already the body's CENTRE, so the pixel path's `+ PLAYER_SIZE / 2`
+  // recentring is gone; keeping it would have started every strike half a body off its own origin.
+  const origin: GroundVector = { x: monster.x, z: monster.z };
   if (specialTechnique) {
     sendSpatialEvent(
       w,
@@ -1851,8 +1883,8 @@ export function resolveMonsterAction(
         actorId: monster.id,
         technique: specialTechnique,
         x: origin.x,
-        y: origin.y,
-        direction: { ...action.direction },
+        y: origin.z,
+        direction: planarOf(action.direction),
         impactAt: now,
       },
       origin,
@@ -1875,17 +1907,14 @@ export function resolveMonsterAction(
     Math.round(monster.damage * (specialDefinition?.damageMultiplier ?? 1)),
   );
   let drainedDamage = 0;
-  const hits = (target: Vec2, radius: number): boolean => {
-    if (!hasLineOfSight(monster, target, zone(w.state).terrain.tiles)) return false;
-    const circle = {
-      center: { x: target.x + PLAYER_SIZE / 2, y: target.y + PLAYER_SIZE / 2 },
-      radius,
-    };
+  const hits = (target: GroundVector, radius: number): boolean => {
+    if (!groundLineOfSight(zone(w.state).terrain, monster, target)) return false;
+    const circle = { center: { x: target.x, z: target.z }, radius };
     if (hitbox) return circleIntersectsCapsule(circle, hitbox);
     if (arc) return circleIntersectsArc(circle, arc);
     return (
       specialDefinition !== null &&
-      pointDistance(origin, circle.center) <= specialDefinition.range + radius
+      groundDistance(origin, circle.center) <= specialDefinition.range + radius
     );
   };
   for (const [connectionId, player] of w.state.players) {
@@ -1894,7 +1923,7 @@ export function resolveMonsterAction(
       !silhouette ||
       silhouette.expiresAt <= now ||
       !monster.threat.has(player.id) ||
-      !hits(silhouette, PLAYER_SIZE / 2)
+      !hits(silhouette, BODY_RADIUS)
     )
       continue;
     silhouette.hp = Math.max(0, silhouette.hp - damage);
@@ -1913,7 +1942,7 @@ export function resolveMonsterAction(
       player.invisibleUntil > now ||
       isRogueStealthed(player, now) ||
       player.transitioning ||
-      !hits(player, PLAYER_SIZE / 2)
+      !hits(player, BODY_RADIUS)
     )
       continue;
     damagePlayer(
@@ -1929,7 +1958,7 @@ export function resolveMonsterAction(
     drainedDamage += damage;
   }
   for (const guard of w.state.guards) {
-    if (!hits(guard, PLAYER_SIZE / 2)) continue;
+    if (!hits(guard, BODY_RADIUS)) continue;
     applyGuardDamage(guard, damage);
     drainedDamage += damage;
   }
@@ -2011,14 +2040,14 @@ function projectileDamage(
     applyCometExplosion(
       w.state.monsterGrid.queryRadius(
         cometCenter,
-        cometArrow.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
+        cometArrow.radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
       ),
       monster.id,
       cometArrow,
       (candidate, radius) =>
         candidate.deadUntil <= now &&
         monsterHitboxWithin(cometCenter, candidate, radius) &&
-        hasLineOfSight(monster, candidate, zone(w.state).terrain.tiles),
+        groundLineOfSight(zone(w.state).terrain, monster, candidate),
       (candidate, powerRatio) =>
         damageMonster(
           w,
@@ -2041,13 +2070,13 @@ function projectileDamage(
         candidate.id !== monster.id &&
         candidate.deadUntil <= now &&
         !projectile.hitEntityIds.has(candidate.id) &&
-        hasLineOfSight(monster, candidate, zone(w.state).terrain.tiles),
+        groundLineOfSight(zone(w.state).terrain, monster, candidate),
     )
-    .sort((a, b) => pointDistance(monster, a) - pointDistance(monster, b))[0];
+    .sort((a, b) => groundDistance(monster, a) - groundDistance(monster, b))[0];
   const definition = actionForClassSlot(owner.player.class, skill.slot).projectile;
   if (!target || !definition) return;
-  const origin = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
-  const direction = normalizeDirection({ x: target.x - monster.x, y: target.y - monster.y });
+  const direction = normalizeGround({ x: target.x - monster.x, z: target.z - monster.z });
+  const origin = projectileOrigin(monster, direction, definition.radius);
   spawnProjectile(w.state.projectiles, {
     actionId: crypto.randomUUID(),
     owner: owner.player,
@@ -2121,10 +2150,10 @@ function projectileHeal(
         candidate.life === "alive" &&
         candidate.hp < maxHpForLevel(candidate.level) &&
         areCombatAllies(owner.player, candidate) &&
-        pointDistance(target, candidate) <= chain.range &&
-        hasLineOfSight(target, candidate, zone(w.state).terrain.tiles),
+        groundDistance(target, candidate) <= chain.range &&
+        groundLineOfSight(zone(w.state).terrain, target, candidate),
     )
-    .sort(([, a], [, b]) => pointDistance(target, a) - pointDistance(target, b))[0];
+    .sort(([, a], [, b]) => groundDistance(target, a) - groundDistance(target, b))[0];
   if (chained) {
     const chainedHealing = healPlayer(
       w,
@@ -2143,7 +2172,7 @@ function projectileHeal(
 }
 
 /** Port of `#projectileBlocked` (`world.ts:5462`). */
-function projectileBlocked(w: WorldGlue, projectile: ProjectileRuntime, point: Vec2): void {
+function projectileBlocked(w: WorldGlue, projectile: ProjectileRuntime, point: GroundVector): void {
   const owner = projectileOwner(w, projectile);
   if (!owner) return;
   w.deps.send(owner.connectionId, {
@@ -2152,7 +2181,7 @@ function projectileBlocked(w: WorldGlue, projectile: ProjectileRuntime, point: V
     params: { skill: projectile.sourceSkillId },
     tone: "info",
     x: point.x,
-    y: point.y,
+    y: point.z,
   });
 }
 
@@ -2164,7 +2193,7 @@ function projectileBlocked(w: WorldGlue, projectile: ProjectileRuntime, point: V
 function movePlayer(
   w: WorldGlue,
   player: PlayerRuntime,
-  direction: Vec2,
+  direction: GroundVector,
   distance: number,
 ): boolean {
   return movePlayerInDirection(
@@ -2176,9 +2205,9 @@ function movePlayer(
   );
 }
 
-function bodyCenter(position: Vec2): Vec2 {
-  return { x: position.x + PLAYER_SIZE / 2, y: position.y + PLAYER_SIZE / 2 };
-}
+// `bodyCenter` is gone rather than converted: it existed only to turn a pixel position — a 32 px
+// box's TOP-LEFT corner — into the body's centre, and a tile-unit position already is that centre.
+// Kept as an identity helper it would read as meaningful and invite a second recentring.
 
 function monsterHitboxWithin(
   center: GroundVector,
@@ -2315,8 +2344,8 @@ export function finishHeldPlayerAction(
           target === player ||
           target.life !== "alive" ||
           !areCombatAllies(player, target) ||
-          pointDistance(player, target) > transfiguration.radius ||
-          !hasLineOfSight(player, target, terrain.tiles)
+          groundDistance(player, target) > transfiguration.radius ||
+          !groundLineOfSight(terrain, player, target)
         )
           continue;
         healPlayer(
@@ -2338,10 +2367,7 @@ export function finishHeldPlayerAction(
       ? w.state.lumenTrails.find((trail) => trail.id === action.priestLumenTrailId)
       : undefined;
     if (lumenTrail) {
-      appendLumenTrailPoint(lumenTrail, {
-        x: player.x + PLAYER_SIZE / 2,
-        y: player.y + PLAYER_SIZE / 2,
-      });
+      appendLumenTrailPoint(lumenTrail, { x: player.x, z: player.z });
       const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", 3);
       finishLumenTrail(lumenTrail, now, sacredPassage?.durationMs ?? 6_000);
       if (lumenTrail.points.length >= 2) {
@@ -2349,7 +2375,7 @@ export function finishHeldPlayerAction(
           t: "priest.lumen_trail",
           id: lumenTrail.id,
           actorId: player.id,
-          points: lumenTrail.points.map((point) => ({ ...point })),
+          points: lumenTrail.points.map((point) => planarOf(point)),
           width: lumenTrail.width,
           startedAt: lumenTrail.startedAt,
           endsAt: lumenTrail.expiresAt,
@@ -2362,15 +2388,25 @@ export function finishHeldPlayerAction(
     if (
       lumenGate &&
       lumenOrigin &&
-      pointDistance(lumenOrigin, player) > 1 &&
-      isWalkable(lumenOrigin, PLAYER_SIZE, terrain) &&
-      isWalkable(player, PLAYER_SIZE, terrain)
+      // "The priest actually moved": one PIXEL in the old world, so a tile-unit `> 1` would have
+      // silently demanded a whole 64 px tile of travel before a gate could open.
+      groundDistance(lumenOrigin, player) > MINIMUM_PORTAL_SPAN &&
+      // Each endpoint is grounded on ITS own level — the origin on the elevation it was remembered
+      // at, the priest on the ground under them now. Neither is a step, so neither may climb.
+      canStand(terrain, lumenOrigin.x, lumenOrigin.z, BODY_RADIUS, lumenOrigin.y) &&
+      canStand(
+        terrain,
+        player.x,
+        player.z,
+        BODY_RADIUS,
+        groundUnder(terrain, player.x, player.z, player.y),
+      )
     ) {
       const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", 3);
       const portal = startLumenPortal(w.state.lumenPortals, {
         ownerId: player.id,
         from: lumenOrigin,
-        to: { x: player.x, y: player.y },
+        to: { x: player.x, y: player.y, z: player.z },
         effect: lumenGate,
         now,
         transfiguration: Boolean(transfiguration),
@@ -2398,9 +2434,9 @@ export function finishHeldPlayerAction(
           (monster) => monster.id === action.rangerSwornPreyTargetId && monster.deadUntil <= now,
         )
       : undefined;
-    if (target && hasLineOfSight(player, target, zone(w.state).terrain.tiles)) {
-      action.direction = normalizeDirection(
-        { x: target.x - player.x, y: target.y - player.y },
+    if (target && groundLineOfSight(zone(w.state).terrain, player, target)) {
+      action.direction = normalizeGround(
+        { x: target.x - player.x, z: target.z - player.z },
         action.direction,
       );
     }
@@ -2426,7 +2462,7 @@ export function preparePeasantSupportRequest(
   connectionId: string,
   player: PlayerRuntime,
   slot: SkillSlot,
-  direction?: Vec2,
+  direction?: GroundVector,
 ): PeasantSupportRequest | null {
   if (player.class !== "peasant" || (slot !== 4 && slot !== 5)) return null;
   const skill = configuredSkill(w, player, slot);
@@ -2515,7 +2551,7 @@ export function activatePeasantSupportRequest(
       ...(evolvedTalent(player.class, player.talents, request.slot)
         ? { evolved: true as const }
         : {}),
-      direction: { ...action.direction },
+      direction: planarOf(action.direction),
       startedAt: action.startedAt,
       impactAt: action.impactAt,
       recoveryEndsAt: action.recoveryEndsAt,
@@ -2590,7 +2626,7 @@ export function startPlayerAction(
       }
       return false;
     }
-    const origin = { x: player.x, y: player.y };
+    const origin = { x: player.x, y: player.y, z: player.z };
     const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
     const stealthExited = exitRogueStealth(player, now, {
       offensive: true,
@@ -2623,9 +2659,11 @@ export function startPlayerAction(
         skillId: skill.id,
         talented: true,
         evolved: true,
-        direction: normalizeDirection(
-          { x: planning.destination.x - origin.x, y: planning.destination.y - origin.y },
-          player.facing,
+        direction: planarOf(
+          normalizeGround(
+            { x: planning.destination.x - origin.x, z: planning.destination.z - origin.z },
+            player.facing,
+          ),
         ),
         startedAt: now,
         impactAt: now,
@@ -2646,11 +2684,11 @@ export function startPlayerAction(
     ? nearestChargeTarget(
         player,
         w.state.monsterGrid
-          .queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
+          .queryRadius(player, skill.range + BODY_DIAMETER + MAX_MONSTER_BODY_REACH)
           .filter((monster) => monster.id !== chargeFollowup.excludedTargetId),
         skill.range,
         now,
-        (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
+        (monster) => groundLineOfSight(zone(w.state).terrain, player, monster),
       )
     : null;
   if (chargeFollowup && !followupTarget) {
@@ -2667,26 +2705,32 @@ export function startPlayerAction(
   if (player.rangerAfterimage && player.rangerAfterimage.expiresAt <= now)
     player.rangerAfterimage = null;
   if (afterimage && player.rangerAfterimage) {
-    const destination = { x: player.rangerAfterimage.x, y: player.rangerAfterimage.y };
-    if (!isWalkable(destination, PLAYER_SIZE, zone(w.state).terrain)) {
+    const terrain = zone(w.state).terrain;
+    const destination = player.rangerAfterimage;
+    // The afterimage remembers the elevation the ranger left, and the swap back is validated
+    // against it: a remembered coordinate is never trusted as a landing, and it may not become a
+    // free climb onto ground the ranger could not have walked onto.
+    if (!canStand(terrain, destination.x, destination.z, BODY_RADIUS, destination.y)) {
       deps.send(connectionId, {
         t: "event",
         code: "skill.blocked",
         params: { skill: skill.id },
         tone: "info",
-        ...destination,
+        x: destination.x,
+        y: destination.z,
       });
       return false;
     }
-    const origin = { x: player.x, y: player.y };
+    const origin = { x: player.x, y: player.y, z: player.z };
     cancelCombatAction(player);
     player.x = destination.x;
-    player.y = destination.y;
+    player.z = destination.z;
+    player.y = groundUnder(terrain, destination.x, destination.z, destination.y);
     player.rangerAfterimage = null;
     player.dirty = true;
     w.state.playerGrid.update(player, origin);
-    const swapDirection = normalizeDirection(
-      { x: destination.x - origin.x, y: destination.y - origin.y },
+    const swapDirection = normalizeGround(
+      { x: destination.x - origin.x, z: destination.z - origin.z },
       player.facing,
     );
     const swapAction: CombatActionRuntime = {
@@ -2716,7 +2760,7 @@ export function startPlayerAction(
         skillId: skill.id,
         talented: true,
         evolved: true,
-        direction: swapDirection,
+        direction: planarOf(swapDirection),
         startedAt: now,
         impactAt: now,
         recoveryEndsAt: now + 180,
@@ -2738,23 +2782,28 @@ export function startPlayerAction(
         (monster) =>
           markedIds.has(monster.id) &&
           monster.deadUntil <= now &&
-          hasRogueLineOfSight(player, monster, zone(w.state).terrain),
+          hasRogueLineOfSight(
+            player,
+            monster,
+            zone(w.state).terrain,
+            groundUnder(zone(w.state).terrain, player.x, player.z, player.y),
+          ),
       )
       .sort((left, right) => {
-        const leftDirection = normalizeDirection(
-          { x: left.x - player.x, y: left.y - player.y },
+        const leftDirection = normalizeGround(
+          { x: left.x - player.x, z: left.z - player.z },
           player.facing,
         );
-        const rightDirection = normalizeDirection(
-          { x: right.x - player.x, y: right.y - player.y },
+        const rightDirection = normalizeGround(
+          { x: right.x - player.x, z: right.z - player.z },
           player.facing,
         );
-        const leftAlignment = leftDirection.x * player.facing.x + leftDirection.y * player.facing.y;
+        const leftAlignment = leftDirection.x * player.facing.x + leftDirection.z * player.facing.z;
         const rightAlignment =
-          rightDirection.x * player.facing.x + rightDirection.y * player.facing.y;
+          rightDirection.x * player.facing.x + rightDirection.z * player.facing.z;
         return (
           rightAlignment - leftAlignment ||
-          pointDistance(player, left) - pointDistance(player, right) ||
+          groundDistance(player, left) - groundDistance(player, right) ||
           left.id.localeCompare(right.id)
         );
       });
@@ -2774,10 +2823,11 @@ export function startPlayerAction(
       });
       return false;
     }
-    const origin = { x: player.x, y: player.y };
+    const origin = { x: player.x, y: player.y, z: player.z };
     cancelCombatAction(player);
     player.x = destination.x;
     player.y = destination.y;
+    player.z = destination.z;
     player.rogueDanceMarks = [];
     player.dirty = true;
     w.state.playerGrid.update(player, origin);
@@ -2793,9 +2843,11 @@ export function startPlayerAction(
         skillId: skill.id,
         talented: true,
         evolved: true,
-        direction: normalizeDirection(
-          { x: destination.x - origin.x, y: destination.y - origin.y },
-          player.facing,
+        direction: planarOf(
+          normalizeGround(
+            { x: destination.x - origin.x, z: destination.z - origin.z },
+            player.facing,
+          ),
         ),
         startedAt: now,
         impactAt: now,
@@ -2835,7 +2887,7 @@ export function startPlayerAction(
           player,
           w.state.monsterGrid.queryRadius(
             player,
-            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
+            skill.range + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
           ),
           skill.range,
           now,
@@ -2890,11 +2942,11 @@ export function startPlayerAction(
           player,
           w.state.monsterGrid.queryRadius(
             player,
-            skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
+            skill.range + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
           ),
           skill.range,
           now,
-          (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
+          (monster) => groundLineOfSight(zone(w.state).terrain, player, monster),
         )
       : null);
   const swornPrey =
@@ -2904,36 +2956,39 @@ export function startPlayerAction(
   const swornTarget = swornPrey
     ? swornPreyTarget(
         player,
-        w.state.monsterGrid.queryRadius(player, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH),
+        w.state.monsterGrid.queryRadius(
+          player,
+          skill.range + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
+        ),
         skill.range,
         now,
-        (monster) => hasLineOfSight(player, monster, zone(w.state).terrain.tiles),
+        (monster) => groundLineOfSight(zone(w.state).terrain, player, monster),
       )
     : null;
   const shadowDanceTarget =
     shadowDance?.ok === true ? shadowDance.plan.strikes[0]?.targetPosition : undefined;
   const direction =
     shadowStep?.ok === true
-      ? normalizeDirection(
+      ? normalizeGround(
           {
             x: shadowStep.plan.targetPosition.x - player.x,
-            y: shadowStep.plan.targetPosition.y - player.y,
+            z: shadowStep.plan.targetPosition.z - player.z,
           },
           player.facing,
         )
       : shadowDanceTarget
-        ? normalizeDirection(
-            { x: shadowDanceTarget.x - player.x, y: shadowDanceTarget.y - player.y },
+        ? normalizeGround(
+            { x: shadowDanceTarget.x - player.x, z: shadowDanceTarget.z - player.z },
             player.facing,
           )
         : swornTarget
-          ? normalizeDirection(
-              { x: swornTarget.x - player.x, y: swornTarget.y - player.y },
+          ? normalizeGround(
+              { x: swornTarget.x - player.x, z: swornTarget.z - player.z },
               player.facing,
             )
           : chargeTarget
-            ? normalizeDirection(
-                { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
+            ? normalizeGround(
+                { x: chargeTarget.x - player.x, z: chargeTarget.z - player.z },
                 player.facing,
               )
             : player.facing;
@@ -2982,14 +3037,14 @@ export function startPlayerAction(
     const trail = startLumenTrail(w.state.lumenTrails, {
       id: action.id,
       ownerId: player.id,
-      origin: { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+      origin: { x: player.x, z: player.z },
       effect: sacredPassage,
       power: sacredPassage.power + Math.max(0, player.level - 1) * sacredPassage.powerPerLevel,
       now,
     });
     action.priestLumenTrailId = trail.id;
   }
-  if (skill.id === "blink") action.priestLumenOrigin = { x: player.x, y: player.y };
+  if (skill.id === "blink") action.priestLumenOrigin = { x: player.x, y: player.y, z: player.z };
 
   if (skill.id !== "vanish") {
     const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
@@ -3032,7 +3087,7 @@ export function startPlayerAction(
       ...(slot > 1 && evolvedTalent(player.class, player.talents, slot)
         ? { evolved: true as const }
         : {}),
-      direction: { ...action.direction },
+      direction: planarOf(action.direction),
       startedAt: action.startedAt,
       impactAt: action.impactAt,
       ...(cyclone ? { impactTimes: cycloneImpactTimes(cyclone, action.impactAt) } : {}),
@@ -3110,13 +3165,18 @@ function resolveShadowDance(
     return;
   }
 
-  const origin = { x: player.x, y: player.y };
+  const origin = { x: player.x, y: player.y, z: player.z };
   const strikes: RogueShadowDanceSequence["strikes"] = [];
+  // The wire copies above are two-axis (`Vec2`) by protocol, so the route the SERVER still has to
+  // read — the final landing, the facing it looks at, the AOI points the sequence is broadcast
+  // across — is kept here in ground coordinates rather than read back out of the payload.
+  const landed: ShadowDanceStrikePlan[] = [];
   for (const planned of planning.plan.strikes) {
     const target = w.state.monsters.find((monster) => monster.id === planned.targetId);
     if (!target || target.deadUntil > now) continue;
     player.x = planned.landing.x;
     player.y = planned.landing.y;
+    player.z = planned.landing.z;
     const repeatedPower =
       planned.repeated && thousandCuts
         ? Math.max(
@@ -3142,26 +3202,29 @@ function resolveShadowDance(
     if (!result) continue;
     strikes.push({
       targetId: target.id,
-      from: { ...planned.from },
-      targetPosition: { ...planned.targetPosition },
-      landing: { ...planned.landing },
+      from: planarOf(planned.from),
+      targetPosition: planarOf(planned.targetPosition),
+      landing: planarOf(planned.landing),
       impactAt: now + strikes.length * ROGUE_BALANCE.shadowDance.strikeIntervalMs,
       damage: result.actualDamage,
       killed: result.killed,
       ...(planned.repeated ? { repeated: true as const } : {}),
     });
+    landed.push(planned);
   }
-  const last = strikes.at(-1);
+  const last = landed.at(-1);
   if (!last) {
     player.x = origin.x;
     player.y = origin.y;
+    player.z = origin.z;
     return;
   }
 
   player.x = last.landing.x;
   player.y = last.landing.y;
-  player.facing = normalizeDirection(
-    { x: last.targetPosition.x - player.x, y: last.targetPosition.y - player.y },
+  player.z = last.landing.z;
+  player.facing = normalizeGround(
+    { x: last.targetPosition.x - player.x, z: last.targetPosition.z - player.z },
     action.direction,
   );
   w.state.playerGrid.update(player, origin);
@@ -3198,11 +3261,11 @@ function resolveShadowDance(
     startedAt: now,
     endsAt,
     strikes,
-    finalPosition: { x: player.x, y: player.y },
+    finalPosition: planarOf(player),
   };
   sendSpatialEventAcross(w, sequence, [
     origin,
-    ...strikes.flatMap((strike) => [strike.targetPosition, strike.landing]),
+    ...landed.flatMap((strike) => [strike.targetPosition, strike.landing]),
   ]);
 }
 
@@ -3217,21 +3280,23 @@ function resolveShieldBash(
 ): void {
   const terrain = zone(w.state).terrain;
   const distance = skill.distance ?? 0;
-  const start = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
+  const start: GroundVector = { x: player.x, z: player.z };
   const end = {
     x: start.x + action.direction.x * distance,
-    y: start.y + action.direction.y * distance,
+    z: start.z + action.direction.z * distance,
   };
-  const terrainImpact = sweptProjectileTerrainImpact(
+  // The charge is a swept BODY, and its ceiling is the ground the warrior is standing on: a bash
+  // stops at a cliff face rather than carrying its owner up one.
+  const terrainImpact = sweptGroundTerrainImpact(
+    terrain,
     start,
     end,
-    PLAYER_SIZE / 2,
-    terrain.tiles,
-    terrain.colliders,
+    BODY_RADIUS,
+    groundUnder(terrain, player.x, player.z, player.y),
   );
-  const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const midpoint = { x: (start.x + end.x) / 2, z: (start.z + end.z) / 2 };
   const monsterImpacts = w.state.monsterGrid
-    .queryRadius(midpoint, distance / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
+    .queryRadius(midpoint, distance / 2 + BODY_DIAMETER + MAX_MONSTER_BODY_REACH)
     .filter(
       (monster) =>
         monster.deadUntil <= now && monster.id !== action.warriorChargeFollowup?.excludedTargetId,
@@ -3241,7 +3306,7 @@ function resolveShieldBash(
       impact: sweptProjectileEntityImpact(
         start,
         end,
-        PLAYER_SIZE / 2,
+        BODY_RADIUS,
         monsterBodyHitbox(monster.species, monster),
         monster.id,
       ),
@@ -3261,7 +3326,12 @@ function resolveShieldBash(
       terrainFraction,
       colossus,
     );
-    movePlayer(w, player, action.direction, Math.max(0, distance * terrainFraction - 1));
+    movePlayer(
+      w,
+      player,
+      action.direction,
+      Math.max(0, distance * terrainFraction - IMPACT_BACKOFF),
+    );
     const basePower = skill.power + Math.max(0, player.level - 1) * 2;
     for (const contact of contacts) {
       damageMonster(
@@ -3295,13 +3365,13 @@ function resolveShieldBash(
         params: { skill: skill.id },
         tone: "info",
         x: terrainImpact.point.x,
-        y: terrainImpact.point.y,
+        y: terrainImpact.point.z,
       });
     }
     return;
   }
   const first = firstSegmentImpact([terrainImpact, ...monsterImpacts.map(({ impact }) => impact)]);
-  const travel = Math.max(0, distance * (first?.fraction ?? 1) - 1);
+  const travel = Math.max(0, distance * (first?.fraction ?? 1) - IMPACT_BACKOFF);
   movePlayer(w, player, action.direction, travel);
   let directTargetId: string | null = null;
   if (first?.kind === "entity") {
@@ -3329,19 +3399,22 @@ function resolveShieldBash(
       params: { skill: skill.id },
       tone: "info",
       x: first.point.x,
-      y: first.point.y,
+      y: first.point.z,
     });
   }
   const seismic = talentEffect(player.class, player.talents, "seismic_impact", skill.slot);
   if (!seismic) return;
   applySeismicImpact(
-    w.state.monsterGrid.queryRadius(player, seismic.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH),
+    w.state.monsterGrid.queryRadius(
+      player,
+      seismic.radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
+    ),
     directTargetId,
     seismic,
     (target, radius) =>
       target.deadUntil <= now &&
-      monsterHitboxWithin(bodyCenter(player), target, radius) &&
-      hasLineOfSight(player, target, terrain.tiles),
+      monsterHitboxWithin(player, target, radius) &&
+      groundLineOfSight(terrain, player, target),
     (target, powerRatio) =>
       damageMonster(
         w,
@@ -3379,7 +3452,6 @@ function spawnPlayerProjectiles(
   const swornPrey = talentEffect(player.class, player.talents, "sworn_prey", skill.slot);
   // Direction is frozen at wind-up, but projectile origin is frozen only when the projectile
   // actually appears. A moving ranger/priest therefore fires from their active-frame position.
-  const source = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
   const count = Math.max(1, (projectileDefinition.count ?? 1) + (extraProjectiles?.value ?? 0));
   const spread = (projectileDefinition.spreadRadians ?? 0) * (focusedVolley?.spreadMultiplier ?? 1);
   const activationHitEntityIds = count > 1 && !focusedVolley ? new Set<string>() : undefined;
@@ -3388,9 +3460,9 @@ function spawnPlayerProjectiles(
     const offset = count === 1 ? 0 : -spread / 2 + (spread * index) / (count - 1);
     const cosine = Math.cos(offset);
     const sine = Math.sin(offset);
-    const direction = normalizeDirection({
-      x: action.direction.x * cosine - action.direction.y * sine,
-      y: action.direction.x * sine + action.direction.y * cosine,
+    const direction = normalizeGround({
+      x: action.direction.x * cosine - action.direction.z * sine,
+      z: action.direction.x * sine + action.direction.z * cosine,
     });
     const healStats = mapHeroClassSettings(zone(w.state).heroSettings, player.class).stats.heal;
     const power =
@@ -3404,15 +3476,10 @@ function spawnPlayerProjectiles(
       actionId: action.id,
       owner: player,
       roomKey: player.roomKey,
-      origin: {
-        ...source,
-        x:
-          source.x +
-          normalizeDirection(direction).x * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
-        y:
-          source.y +
-          normalizeDirection(direction).y * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
-      },
+      // `projectileOrigin` owns the muzzle offset — one body radius, the shot's own radius and the
+      // historical 2 px of daylight — so the pixel path's hand-rolled copy of it, and the
+      // `+ PLAYER_SIZE / 2` recentring it was built on, both go.
+      origin: projectileOrigin(player, direction, projectileDefinition.radius),
       direction,
       definition: projectileDefinition,
       range: skill.range,
@@ -3514,8 +3581,12 @@ export function resolvePlayerAction(
   }
   const skill = configuredSkill(w, player, slot as SkillSlot);
   const definition = actionForClassSlot(player.class, slot);
-  const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
+  // A tile-unit position IS the body's centre; the pixel `+ PLAYER_SIZE / 2` recentring is gone.
+  const center: GroundVector = { x: player.x, z: player.z };
   const terrain = zone(w.state).terrain;
+  // The actor's OWN ground, read once: every sight test, sweep and landing below is grounded on
+  // where the body IS, never on where it is going — `MAX_STEP` is 0 and none of these climb.
+  const groundY = groundUnder(terrain, player.x, player.z, player.y);
 
   if (definition.shape === "stealth") {
     if (enterRogueStealth(player, now)) {
@@ -3524,6 +3595,7 @@ export function resolvePlayerAction(
         player.rogueSilhouette = {
           x: player.x,
           y: player.y,
+          z: player.z,
           hp: Math.max(1, silhouette.health),
           expiresAt: now + Math.max(0, silhouette.durationMs),
         };
@@ -3533,7 +3605,7 @@ export function resolvePlayerAction(
         for (const monster of w.state.monsters) {
           if (
             monster.deadUntil <= now &&
-            pointDistance(monster, player.rogueSilhouette) <= MONSTER_AGGRO_RANGE
+            groundDistance(monster, player.rogueSilhouette) <= MONSTER_AGGRO_RANGE
           ) {
             tauntThreat(monster.threat, player.id, now);
           }
@@ -3554,15 +3626,15 @@ export function resolvePlayerAction(
       : undefined;
     const destinationValid = planned
       ? planned.phaseThroughObstacles
-        ? isShadowStepLandingValid(planned.destination, terrain)
-        : isShadowStepPathClear(player, planned.destination, terrain)
+        ? isShadowStepLandingValid(planned.destination, terrain, groundY)
+        : isShadowStepPathClear(player, planned.destination, terrain, groundY)
       : false;
     if (
       !planned ||
       !target ||
       target.deadUntil > now ||
-      !withinRange(player, target, skill.range) ||
-      (!planned.phaseThroughObstacles && !hasRogueLineOfSight(player, target, terrain)) ||
+      !withinGroundRange(player, target, skill.range) ||
+      (!planned.phaseThroughObstacles && !hasRogueLineOfSight(player, target, terrain, groundY)) ||
       !destinationValid
     ) {
       w.deps.send(connectionId, {
@@ -3575,7 +3647,7 @@ export function resolvePlayerAction(
       });
       return;
     }
-    const previousPosition = { x: player.x, y: player.y };
+    const previousPosition = { x: player.x, y: player.y, z: player.z };
     const shadowReturn = talentEffect(player.class, player.talents, "rogue_shadow_return", 2);
     if (shadowReturn) {
       player.rogueShadowReturn = {
@@ -3585,8 +3657,9 @@ export function resolvePlayerAction(
     }
     player.x = planned.destination.x;
     player.y = planned.destination.y;
-    player.facing = normalizeDirection(
-      { x: target.x - player.x, y: target.y - player.y },
+    player.z = planned.destination.z;
+    player.facing = normalizeGround(
+      { x: target.x - player.x, z: target.z - player.z },
       action.direction,
     );
     w.state.playerGrid.update(player, previousPosition);
@@ -3614,19 +3687,17 @@ export function resolvePlayerAction(
       definition.halfAngleRadians ?? Math.PI / 3,
     );
     const targets = w.state.monsterGrid
-      .queryRadius(center, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
+      .queryRadius(center, skill.range + BODY_DIAMETER + MAX_MONSTER_BODY_REACH)
       .filter(
         (monster) =>
           monster.deadUntil <= now &&
           circleIntersectsArc(monsterBodyHitbox(monster.species, monster), arc) &&
           (player.class === "rogue"
-            ? hasRogueLineOfSight(player, monster, terrain)
-            : hasLineOfSight(player, monster, terrain.tiles)),
+            ? hasRogueLineOfSight(player, monster, terrain, groundY)
+            : groundLineOfSight(terrain, player, monster)),
       )
       .sort((left, right) => {
-        const distance =
-          Math.hypot(left.x - player.x, left.y - player.y) -
-          Math.hypot(right.x - player.x, right.y - player.y);
+        const distance = groundDistance(left, player) - groundDistance(right, player);
         return distance || left.id.localeCompare(right.id);
       });
     const resolvedTargets = player.class === "rogue" ? targets.slice(0, 1) : targets;
@@ -3707,8 +3778,8 @@ export function resolvePlayerAction(
     return;
   }
   if (definition.shape === "dash") {
-    const origin = { x: player.x, y: player.y };
-    movePlayer(w, player, { x: -action.direction.x, y: -action.direction.y }, skill.distance ?? 0);
+    const origin = { x: player.x, y: player.y, z: player.z };
+    movePlayer(w, player, { x: -action.direction.x, z: -action.direction.z }, skill.distance ?? 0);
     const afterimage = talentEffect(player.class, player.talents, "afterimage", slot as SkillSlot);
     if (afterimage) {
       player.rangerAfterimage = {
@@ -3718,8 +3789,8 @@ export function resolvePlayerAction(
       for (const monster of w.state.monsterGrid.queryRadius(origin, afterimage.aggroRadius)) {
         if (
           monster.deadUntil <= now &&
-          pointDistance(origin, monster) <= afterimage.aggroRadius &&
-          hasLineOfSight(origin, monster, terrain.tiles)
+          groundDistance(origin, monster) <= afterimage.aggroRadius &&
+          groundLineOfSight(terrain, origin, monster)
         )
           tauntMonster(player, monster, now);
       }
@@ -3775,7 +3846,7 @@ export function resolvePlayerAction(
         radius,
         now,
         (source, target) => areCombatAllies(source, target),
-        (source, target) => hasLineOfSight(source, target, terrain.tiles),
+        (source, target) => groundLineOfSight(terrain, source, target),
       );
       if (banner) {
         applyWarBanner(
@@ -3787,8 +3858,7 @@ export function resolvePlayerAction(
           now,
           (source, target) => areCombatAllies(source, target),
           (target) =>
-            pointDistance(player, target) <= radius &&
-            hasLineOfSight(player, target, terrain.tiles),
+            groundDistance(player, target) <= radius && groundLineOfSight(terrain, player, target),
         );
       }
       return;
@@ -3796,14 +3866,14 @@ export function resolvePlayerAction(
     let taunted = 0;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
-      radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
+      radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
     )) {
       if (
         monster.deadUntil <= now &&
         // Reach the monster's BODY, not its centre: a troll standing with its bulk inside the ring
         // and its centre just outside is visibly in the area, so it must answer for being there.
         monsterHitboxWithin(center, monster, radius) &&
-        hasLineOfSight(player, monster, terrain.tiles)
+        groundLineOfSight(terrain, player, monster)
       ) {
         tauntMonster(player, monster, now);
         taunted += 1;
@@ -3841,14 +3911,14 @@ export function resolvePlayerAction(
     const radius = skill.radius ?? skill.range;
     const corpse = nearestMercyCorpse(
       w.state.players.values(),
-      (candidate) => pointDistance(player, candidate.corpse ?? candidate),
+      (candidate) => groundDistance(player, candidate.corpse ?? candidate),
       (candidate) =>
         candidate !== player &&
         candidate.life === "corpse" &&
         candidate.corpse !== null &&
         areCombatAllies(player, candidate) &&
-        pointDistance(player, candidate.corpse) <= radius &&
-        hasLineOfSight(player, candidate.corpse, terrain.tiles),
+        groundDistance(player, candidate.corpse) <= radius &&
+        groundLineOfSight(terrain, player, candidate.corpse),
     );
     if (corpse) {
       const targetConnectionId = connectionOf(w.state, corpse.id);
@@ -3863,7 +3933,7 @@ export function resolvePlayerAction(
     const orb = startPolarityOrb(
       w.state.polarityOrbs,
       player.id,
-      { x: player.x, y: player.y },
+      { x: player.x, y: player.y, z: player.z },
       skill.radius ?? skill.range,
       polarityOrb,
       now,
@@ -3898,7 +3968,7 @@ export function resolvePlayerAction(
       if (eyeOfTheStorm) {
         startWarriorVortex(
           player,
-          { x: player.x, y: player.y },
+          { x: player.x, y: player.y, z: player.z },
           skill.radius ?? skill.range,
           {
             ...eyeOfTheStorm,
@@ -3919,12 +3989,12 @@ export function resolvePlayerAction(
     const radius = skill.radius ?? skill.range;
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
-      radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH,
+      radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
     )) {
       if (
         monster.deadUntil <= now &&
         monsterHitboxWithin(center, monster, radius) &&
-        hasLineOfSight(player, monster, terrain.tiles)
+        groundLineOfSight(terrain, player, monster)
       ) {
         const result = damageMonster(
           w,
@@ -3948,7 +4018,14 @@ export function resolvePlayerAction(
       }
     }
     if (steelTempest && eyeOfTheStorm) {
-      startWarriorVortex(player, { x: player.x, y: player.y }, radius, eyeOfTheStorm, now, false);
+      startWarriorVortex(
+        player,
+        { x: player.x, y: player.y, z: player.z },
+        radius,
+        eyeOfTheStorm,
+        now,
+        false,
+      );
     }
   }
   if (definition.shape === "area_heal" || definition.shape === "nova") {
@@ -3963,14 +4040,15 @@ export function resolvePlayerAction(
         if (
           target.life !== "alive" ||
           !areCombatAllies(player, target) ||
-          pointDistance(player, target) > radius ||
-          !hasLineOfSight(player, target, terrain.tiles)
+          groundDistance(player, target) > radius ||
+          !groundLineOfSight(terrain, player, target)
         )
           continue;
         target.priestSoulAnchor = {
           ownerId: player.id,
           x: player.x,
           y: player.y,
+          z: player.z,
           expiresAt: now + soulAnchor.durationMs,
           cleansePoison,
         };
@@ -3982,6 +4060,7 @@ export function resolvePlayerAction(
         ownerId: player.id,
         x: player.x,
         y: player.y,
+        z: player.z,
         radius: skill.radius ?? skill.range,
         power: skill.power + Math.max(0, player.level - 1) * 2,
         effect: sanctuary,
@@ -4147,12 +4226,12 @@ function resolveWarriorCycloneStrike(
   if (connectionId === undefined) return;
   const skill = configuredSkill(w, player, 5);
   for (const monster of w.state.monsterGrid
-    .queryRadius(player, radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
+    .queryRadius(player, radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      !monsterHitboxWithin(bodyCenter(player), monster, radius) ||
-      !hasLineOfSight(player, monster, zone(w.state).terrain.tiles)
+      !monsterHitboxWithin(player, monster, radius) ||
+      !groundLineOfSight(zone(w.state).terrain, player, monster)
     )
       continue;
     damageMonster(w, connectionId, player, monster, skill, now, false, power);
@@ -4177,7 +4256,7 @@ function advanceRangerVolley(w: WorldGlue, player: PlayerRuntime, now: number): 
           skillId: "volley",
           talented: true,
           evolved: true,
-          direction: { ...sequence.direction },
+          direction: planarOf(sequence.direction),
           startedAt: salvo.animationAt,
           impactAt: salvo.impactAt,
           recoveryEndsAt: salvo.recoveryEndsAt,
@@ -4224,14 +4303,14 @@ function releaseCounterOffensive(
   }
   const power = consumeCounterOffensive(player);
   if (power <= 0) return;
-  const center = { x: player.x, y: player.y };
+  const center = { x: player.x, y: player.y, z: player.z };
   for (const monster of w.state.monsterGrid
-    .queryRadius(center, effect.radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
+    .queryRadius(center, effect.radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
-      !monsterHitboxWithin(bodyCenter(player), monster, effect.radius) ||
-      !hasLineOfSight(player, monster, zone(w.state).terrain.tiles)
+      !monsterHitboxWithin(player, monster, effect.radius) ||
+      !groundLineOfSight(zone(w.state).terrain, player, monster)
     )
       continue;
     const result = damageMonster(w, connectionId, player, monster, skill, now, false, power);
@@ -4257,7 +4336,7 @@ function releaseCounterOffensive(
       skillId: skill.id,
       talented: true,
       evolved: true,
-      direction: { ...player.facing },
+      direction: planarOf(player.facing),
       startedAt: now,
       impactAt: now,
       recoveryEndsAt: now + 240,
@@ -4269,35 +4348,41 @@ function releaseCounterOffensive(
 function pulseWarriorVortex(
   w: WorldGlue,
   player: PlayerRuntime,
-  center: Vec2,
+  center: GroundVector,
   effect: Extract<TalentEffect, { kind: "eye_of_the_storm" }>,
   now: number,
 ): void {
+  const terrain = zone(w.state).terrain;
   const radius = player.warriorVortex?.radius ?? 0;
   for (const monster of w.state.monsterGrid
-    .queryRadius(center, radius + PLAYER_SIZE + MAX_MONSTER_BODY_REACH)
+    .queryRadius(center, radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH)
     .sort((left, right) => left.id.localeCompare(right.id))) {
     if (
       monster.deadUntil > now ||
       !monsterHitboxWithin(center, monster, radius) ||
-      !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
+      !groundLineOfSight(terrain, center, monster)
     )
       continue;
-    const previous = { x: monster.x, y: monster.y };
-    const direction = normalizeDirection(
-      { x: center.x - monster.x, y: center.y - monster.y },
+    const previous = { x: monster.x, y: monster.y, z: monster.z };
+    const direction = normalizeGround(
+      { x: center.x - monster.x, z: center.z - monster.z },
       monster.facing,
     );
-    const moved = resolveTerrain(
+    // The pull is a MOVE, so it is grounded on where the body IS. A pull can be a whole tile —
+    // far more than the body's radius — so grounding it on the destination would drag a monster
+    // straight up a cliff face, deterministically rather than by luck.
+    const moved = resolveGroundMovement(
+      terrain,
       monster,
       {
         x: monster.x + direction.x * effect.pullDistance,
-        y: monster.y + direction.y * effect.pullDistance,
+        z: monster.z + direction.z * effect.pullDistance,
       },
-      zone(w.state).terrain,
+      groundUnder(terrain, monster.x, monster.z, monster.y),
     );
     monster.x = moved.x;
-    monster.y = moved.y;
+    monster.z = moved.z;
+    monster.y = groundUnder(terrain, moved.x, moved.z, monster.y);
     applyMonsterSlow(monster, effect.slowRatio, effect.slowDurationMs, now);
     w.state.monsterGrid.update(monster, previous);
   }
@@ -4308,10 +4393,7 @@ function extendSacredPassage(w: WorldGlue, caster: PlayerRuntime): void {
   if (action?.skillId !== "blink" || !action.priestLumenTrailId) return;
   const trail = w.state.lumenTrails.find((candidate) => candidate.id === action.priestLumenTrailId);
   if (trail) {
-    appendLumenTrailPoint(trail, {
-      x: caster.x + PLAYER_SIZE / 2,
-      y: caster.y + PLAYER_SIZE / 2,
-    });
+    appendLumenTrailPoint(trail, { x: caster.x, z: caster.z });
   }
 }
 
@@ -4360,8 +4442,8 @@ function applyLumenPortal(
     if (ownerConnectionId === undefined) continue;
     const owner = w.state.players.get(ownerConnectionId);
     if (!owner?.authorized || owner.life !== "alive" || !areCombatAllies(owner, player)) continue;
-    const atFrom = pointDistance(player, portal.from) <= portal.triggerRadius;
-    const atTo = pointDistance(player, portal.to) <= portal.triggerRadius;
+    const atFrom = groundDistance(player, portal.from) <= portal.triggerRadius;
+    const atTo = groundDistance(player, portal.to) <= portal.triggerRadius;
     if (portal.waitingForExitIds.has(player.id)) {
       if (!atFrom && !atTo) portal.waitingForExitIds.delete(player.id);
       continue;
@@ -4370,7 +4452,7 @@ function applyLumenPortal(
     const destination = safeLumenLanding(w, player, atFrom ? portal.to : portal.from, now);
     if (!destination) continue;
     portal.usedPlayerIds.add(player.id);
-    const previous = { x: player.x, y: player.y };
+    const previous = { x: player.x, y: player.y, z: player.z };
     player.x = destination.x;
     player.y = destination.y;
     player.dirty = true;
@@ -4420,19 +4502,19 @@ function resolvePolarityOrbStep(
   const mercy = talentEffect(owner.class, owner.talents, "nova_mercy", 5);
   const multipliers = novaSpecializationMultipliers(judgment, mercy);
   const hitIds = returning ? orb.returnHitIds : orb.outwardHitIds;
-  const center = { x: orb.x, y: orb.y };
+  const center: GroundVector = { x: orb.x, z: orb.z };
   for (const monster of [...w.state.monsters].sort((a, b) => a.id.localeCompare(b.id))) {
     const hitId = `monster:${monster.id}`;
     if (
       monster.deadUntil > now ||
       hitIds.has(hitId) ||
       !crossedRing(
-        pointDistance(center, monsterBodyHitbox(monster.species, monster).center),
+        groundDistance(center, monsterBodyHitbox(monster.species, monster).center),
         fromRadius,
         toRadius,
         monsterBodyHitbox(monster.species, monster).radius,
       ) ||
-      !hasLineOfSight(center, monster, zone(w.state).terrain.tiles)
+      !groundLineOfSight(zone(w.state).terrain, center, monster)
     )
       continue;
     hitIds.add(hitId);
@@ -4463,8 +4545,8 @@ function resolvePolarityOrbStep(
       target.life !== "alive" ||
       !areCombatAllies(owner, target) ||
       hitIds.has(hitId) ||
-      !crossedRing(pointDistance(center, target), fromRadius, toRadius, PLAYER_SIZE / 2) ||
-      !hasLineOfSight(center, target, zone(w.state).terrain.tiles)
+      !crossedRing(groundDistance(center, target), fromRadius, toRadius, BODY_RADIUS) ||
+      !groundLineOfSight(zone(w.state).terrain, center, target)
     )
       continue;
     hitIds.add(hitId);
@@ -4500,10 +4582,10 @@ function areaHeal(
     if (
       target.life !== "alive" ||
       !areCombatAllies(player, target) ||
-      pointDistance(player, target) > (skill.radius ?? skill.range)
+      groundDistance(player, target) > (skill.radius ?? skill.range)
     )
       continue;
-    if (!hasLineOfSight(player, target, zone(w.state).terrain.tiles)) continue;
+    if (!groundLineOfSight(zone(w.state).terrain, player, target)) continue;
     if (absolution) cleanseNegativeEffect(target, absolution.cleanse);
     const amount = Math.max(
       0,
@@ -4537,8 +4619,8 @@ function resolveSanctuaryTick(w: WorldGlue, sanctuary: SanctuaryRuntime, now: nu
     if (
       target.life !== "alive" ||
       !areCombatAllies(caster, target) ||
-      pointDistance(sanctuary, target) > sanctuary.radius ||
-      !hasLineOfSight(sanctuary, target, zone(w.state).terrain.tiles)
+      groundDistance(sanctuary, target) > sanctuary.radius ||
+      !groundLineOfSight(zone(w.state).terrain, sanctuary, target)
     )
       continue;
     healPlayer(
@@ -4612,7 +4694,7 @@ function resurrectNearbyCorpse(
       candidate.corpse === null
     )
       continue;
-    const candidateDistance = pointDistance(player, candidate.corpse);
+    const candidateDistance = groundDistance(player, candidate.corpse);
     if (candidateDistance > distance) continue;
     target = candidate;
     targetConnectionId = candidateConnectionId;
@@ -4691,7 +4773,7 @@ function interactQuestSite(
         x: site.x,
         y: site.y,
       },
-      site,
+      groundOf(site),
     );
   }
   player.quest.progress += 1;
@@ -4781,7 +4863,7 @@ export async function handleInteract(
   const now = w.deps.now();
   if (!canAct(player.life)) return { cooldownStarted: false };
   const portal = zone(w.state).portals.find(
-    (candidate) => pointDistance(player, candidate) <= INTERACTION_RANGE,
+    (candidate) => groundDistance(player, groundOf(candidate)) <= INTERACTION_RANGE,
   );
   if (portal) {
     // Unreachable today (see the docblock above); refusing is the safe authoritative answer for
@@ -4790,7 +4872,7 @@ export async function handleInteract(
     return { cooldownStarted: false };
   }
   const merchant = merchantForRuntimeRoom();
-  if (merchant && pointDistance(player, merchant) <= INTERACTION_RANGE) {
+  if (merchant && groundDistance(player, groundOf(merchant)) <= INTERACTION_RANGE) {
     w.deps.send(connectionId, { t: "merchant.open" });
     return { cooldownStarted: false };
   }
@@ -4819,7 +4901,8 @@ export async function handleInteract(
 
   const site = zone(w.state).questSites.find(
     (candidate) =>
-      candidate.chapter === chapter && pointDistance(player, candidate) <= INTERACTION_RANGE,
+      candidate.chapter === chapter &&
+      groundDistance(player, groundOf(candidate)) <= INTERACTION_RANGE,
   );
   if (site && player.quest.status === "active") {
     if (site.kind === "resource" && (w.state.siteRespawnAt.get(site.id) ?? 0) > now) {
@@ -4835,7 +4918,7 @@ export async function handleInteract(
     w.deps.send(connectionId, { t: "event", code: "interact.nothing", tone: "info" });
     return { cooldownStarted: false };
   }
-  if (pointDistance(player, definition.giver) > INTERACTION_RANGE) {
+  if (groundDistance(player, groundOf(definition.giver)) > INTERACTION_RANGE) {
     w.deps.send(connectionId, { t: "event", code: "interact.nothing", tone: "info" });
     return { cooldownStarted: false };
   }
@@ -5011,8 +5094,12 @@ export function handleBuyConsumable(
   player: PlayerRuntime,
   item: ConsumableId,
 ): void {
-  const counter = player.shopAnchor ?? merchantForRuntimeRoom();
-  if (!counter || pointDistance(player, counter) > INTERACTION_RANGE) {
+  // The hero's own shop anchor is already a ground position; the catalogue merchant is a pixel
+  // `Vec2`. `groundOf` on the former would read its ELEVATION as a ground axis — the exact flip
+  // this increment exists to make impossible — so the two are resolved separately.
+  const merchant = merchantForRuntimeRoom();
+  const counter: GroundVector | null = player.shopAnchor ?? (merchant ? groundOf(merchant) : null);
+  if (!counter || groundDistance(player, counter) > INTERACTION_RANGE) {
     player.shopAnchor = null;
     w.deps.send(connectionId, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
     return;
@@ -5176,13 +5263,17 @@ export function teleportSameMap(
   eventId: string,
 ): "teleported" | "first-refusal" | "repeat-refusal" {
   const terrain = zone(w.state).terrain;
-  const destination = eventCellCentre({ col, row });
-  const inBounds =
-    destination.x >= 0 &&
-    destination.y >= 0 &&
-    destination.x < terrain.width &&
-    destination.y < terrain.height;
-  if (!inBounds || !isWalkable(destination, PLAYER_SIZE, terrain)) {
+  // `authoredCellCentreGround`, not `eventCellCentre`: the latter answers in the editor's PIXEL,
+  // top-left-origin space, and a hero snapped there would land thousands of tiles off the grid.
+  const destination = authoredCellCentreGround({ col, row }, terrain.size);
+  // The grid runs `-size/2`..`+size/2`, so "in bounds" is a cell index test rather than a
+  // rectangle anchored at zero — the origin moved to the middle with the units.
+  const inBounds = col >= 0 && row >= 0 && col < terrain.size && row < terrain.size;
+  // A teleport is not a step, so the destination's own ground is the right thing to test it
+  // against: the question is whether a body could be standing there, not whether one could walk
+  // there. Only the disc's relief and the props may refuse it.
+  const landing = groundUnder(terrain, destination.x, destination.z, player.y);
+  if (!inBounds || !canStand(terrain, destination.x, destination.z, BODY_RADIUS, landing)) {
     const first = logTeleportRefusedOnce(
       w.state,
       eventId,
@@ -5191,9 +5282,10 @@ export function teleportSameMap(
     );
     return first ? "first-refusal" : "repeat-refusal";
   }
-  const previousPosition = { x: player.x, y: player.y };
+  const previousPosition = { x: player.x, y: player.y, z: player.z };
   player.x = destination.x;
-  player.y = destination.y;
+  player.z = destination.z;
+  player.y = landing;
   w.state.playerGrid.update(player, previousPosition);
   // Clear the movement queue so no buffered command replays past the snap (the sprint bug class).
   player.queue = [];
@@ -5230,12 +5322,18 @@ export function handleCheatCommand(
     cheatRevive(w, player);
   }
   if (result.teleport) {
-    const destination = eventCellCentre(result.teleport);
     const terrain = zone(w.state).terrain;
+    const destination = authoredCellCentreGround(result.teleport, terrain.size);
     const landable =
-      destination.x < terrain.width &&
-      destination.y < terrain.height &&
-      isWalkable(destination, PLAYER_SIZE, terrain);
+      result.teleport.col < terrain.size &&
+      result.teleport.row < terrain.size &&
+      canStand(
+        terrain,
+        destination.x,
+        destination.z,
+        BODY_RADIUS,
+        groundUnder(terrain, destination.x, destination.z, player.y),
+      );
     if (!landable) {
       w.deps.send(connectionId, { t: "event", code: "cheat.tp_blocked", tone: "bad" });
       return;
@@ -5268,7 +5366,7 @@ function triggerActionEventNearby(w: WorldGlue, player: PlayerRuntime): boolean 
   for (const event of events) {
     const runnable = runnablePage(w.state, event, "action");
     if (runnable === null) continue;
-    const distance = pointDistance(player, activeEventCentre(w.state, event));
+    const distance = groundDistance(player, activeEventCentre(w.state, event));
     if (distance > INTERACTION_RANGE) continue;
     if (best === null || distance < best.distance) best = { event, ...runnable, distance };
   }
@@ -5329,7 +5427,7 @@ function closeWalkedAwayDialogues(w: WorldGlue): void {
     if (player === undefined) return true;
     const event = events.find((candidate) => candidate.id === context.eventId);
     if (event === undefined) return true;
-    return pointDistance(player, activeEventCentre(w.state, event)) > DIALOGUE_CLOSE_RADIUS;
+    return groundDistance(player, activeEventCentre(w.state, event)) > DIALOGUE_CLOSE_RADIUS;
   });
 }
 
@@ -5487,8 +5585,9 @@ function dispatchTeleport(
   const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
   if (connectionId === undefined || !player?.authorized || player.transitioning) return;
   if (effect.mapId === w.state.location?.zoneId) {
-    const fromX = player.x + PLAYER_SIZE / 2;
-    const fromY = player.y + PLAYER_SIZE / 2;
+    // A tile-unit position IS the body's centre; the pixel `+ PLAYER_SIZE / 2` recentring is gone.
+    const fromX = player.x;
+    const fromZ = player.z;
     const result = teleportSameMap(w, player, effect.col, effect.row, dispatch.eventId);
     if (result === "first-refusal") {
       w.deps.send(connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
@@ -5500,13 +5599,13 @@ function dispatchTeleport(
           teleport: 1,
           sameMap: 1,
           fromX,
-          fromY,
-          toX: player.x + PLAYER_SIZE / 2,
-          toY: player.y + PLAYER_SIZE / 2,
+          fromY: fromZ,
+          toX: player.x,
+          toY: player.z,
         },
         tone: "good",
         x: fromX,
-        y: fromY,
+        y: fromZ,
       });
     }
     return;
@@ -5771,7 +5870,7 @@ function triggerQuestTargetNearby(
     if (pageIndex === null) continue;
     const page = event.pages[pageIndex];
     if (page?.trigger !== "action") continue;
-    const distance = pointDistance(player, activeEventCentre(state, event));
+    const distance = groundDistance(player, activeEventCentre(state, event));
     if (distance > INTERACTION_RANGE) continue;
     const entries = questDialogueEntries(w, player, { mapId, eventId: event.id });
     if (entries.length === 0) continue;
@@ -5955,7 +6054,7 @@ export async function handleQuestAction(
     !event ||
     !page ||
     page.trigger !== "action" ||
-    pointDistance(player, activeEventCentre(state, event)) > DIALOGUE_CLOSE_RADIUS
+    groundDistance(player, activeEventCentre(state, event)) > DIALOGUE_CLOSE_RADIUS
   ) {
     state.questConversations.delete(player.id);
     w.deps.send(connectionId, { t: "quest.close", conversationId: conversation.id });
@@ -6101,8 +6200,12 @@ function detectAdventureExits(w: WorldGlue, now: number): void {
       w.state.occupiedExitByPlayerId.delete(player.id);
       continue;
     }
-    const col = Math.floor(player.x / TILE_SIZE);
-    const row = Math.floor(player.y / TILE_SIZE);
+    // Cell indices are top-left and the grid is centred, so the cell a body stands in is its
+    // ground coordinate shifted back by half the grid — never a division by `TILE_SIZE`, and never
+    // the elevation `y`.
+    const half = zone(w.state).terrain.size / 2;
+    const col = Math.floor(player.x + half);
+    const row = Math.floor(player.z + half);
     const exit = exits.find((candidate) => candidate.col === col && candidate.row === row);
     if (!exit) {
       w.state.occupiedExitByPlayerId.delete(player.id);

@@ -382,6 +382,19 @@ export function cloneHarvestProfile(profile: HarvestProfile): HarvestProfile {
   };
 }
 
+/** The authored box for one lifecycle state, before any coordinate frame is chosen. */
+function harvestCollisionBoxAt(
+  profile: HarvestProfile,
+  state: "intact" | "depleted",
+): HarvestCollisionBox | null {
+  const collision = harvestCollisionProfile(profile);
+  return state === "intact"
+    ? collision.intact
+    : profile.exhaustionBehavior === "replace"
+      ? collision.depleted
+      : null;
+}
+
 /** Authoritative world-space rectangle for one node lifecycle state. */
 export function harvestColliderAt(
   profile: HarvestProfile,
@@ -389,13 +402,7 @@ export function harvestColliderAt(
   row: number,
   state: "intact" | "depleted",
 ): Rect | null {
-  const collision = harvestCollisionProfile(profile);
-  const box =
-    state === "intact"
-      ? collision.intact
-      : profile.exhaustionBehavior === "replace"
-        ? collision.depleted
-        : null;
+  const box = harvestCollisionBoxAt(profile, state);
   if (!box) return null;
   const footX = col * TILE_SIZE + TILE_SIZE / 2;
   const footY = (row + 1) * TILE_SIZE;
@@ -404,6 +411,43 @@ export function harvestColliderAt(
     y: footY + box.offsetY,
     width: box.width,
     height: box.height,
+  };
+}
+
+/**
+ * The same authoritative rectangle on the GROUND PLANE, in tile units with the grid centre as the
+ * origin — `harvestColliderAt`'s successor for everything the server collides against, exactly as
+ * `authoredCellCentreGround` is `eventCellCentre`'s.
+ *
+ * `harvestColliderAt` above stays: its pixel rectangle is what the wire still carries as
+ * `events[].harvest.collider`. This is the producer-side crossing for the room's own collision, and
+ * the ONLY place a stored collision box is divided by `TILE_SIZE` — the authored offsets and sizes
+ * remain PIXELS in storage and in the editor's bounds, the same decision `authoredPatrolRadius`
+ * records. A box divided at a use site is how half a conversion hides.
+ *
+ * `gridSize` is the map's own `size`, which is what turns a top-left cell index into a grid-centred
+ * coordinate. The result is `ColliderIndex`'s `{x, z, w, h}` shape rather than the pixel `Rect`, so
+ * the two can never be handed to each other by accident.
+ */
+export function harvestGroundColliderAt(
+  profile: HarvestProfile,
+  col: number,
+  row: number,
+  state: "intact" | "depleted",
+  gridSize: number,
+): { x: number; z: number; w: number; h: number } | null {
+  const box = harvestCollisionBoxAt(profile, state);
+  if (!box) return null;
+  const half = gridSize / 2;
+  // The authored box is anchored at the event's FOOT: the cell's horizontal centre and its far
+  // edge, which is `col + 0.5` and `row + 1` once a cell is one unit wide.
+  const footX = col + 0.5 - half;
+  const footZ = row + 1 - half;
+  return {
+    x: footX + box.offsetX / TILE_SIZE,
+    z: footZ + box.offsetY / TILE_SIZE,
+    w: box.width / TILE_SIZE,
+    h: box.height / TILE_SIZE,
   };
 }
 

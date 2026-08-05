@@ -11,27 +11,29 @@
  */
 
 import { activePageIndex } from "@lindocara/engine/adventure-state.js";
-import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
-import { isWalkable, type Rect, rectsOverlap } from "@lindocara/engine/game.js";
+import type { Rect } from "@lindocara/engine/game.js";
+import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import {
   animalCarcassHarvestProfile,
   type HarvestProfile,
   harvestActorBehavior,
   harvestColliderAt,
+  harvestGroundColliderAt,
 } from "@lindocara/engine/harvest.js";
+import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import {
+  authoredCellCentreGround,
   authoredPatrolRadius,
   type EventTrigger,
-  eventCellCentre,
   isActiveWorldEventKind,
   isInteractiveWorldEventKind,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
 import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js";
 import { refreshHarvestNode } from "@lindocara/engine/party-harvest-state.js";
-import { PLAYER_SIZE, TICK_MS, type Vec2 } from "@lindocara/engine/simulation.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { TICK_MS } from "@lindocara/engine/simulation.js";
+import type { ZoneTerrain } from "@lindocara/engine/zones.js";
 import {
   activeAuthoredGuardDefinitions,
   authoredGuardRuntimeId,
@@ -45,26 +47,37 @@ import { abortRunForEvent, startRun } from "../../world/event-run-system.js";
 import { resetMonsterNavigation } from "../../world/monster-system.js";
 import { createNavigationRuntime } from "../../world/navigation-system.js";
 import { reconcileNpcMovement } from "../../world/npc-movement-system.js";
+import { BODY_RADIUS, canStand, groundUnder } from "../../world/terrain-access.js";
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "../../world/world-runtime.js";
 import type { WorldRoomState } from "./worldState.ts";
+
+/** The map's grid side, which is what turns a top-left cell index into a grid-centred coordinate. */
+function gridSize(state: WorldRoomState): number {
+  return state.location?.definition.terrain.size ?? 0;
+}
 
 function colliderTuple(rect: Rect | null): readonly [number, number, number, number] | null {
   return rect ? [rect.x, rect.y, rect.width, rect.height] : null;
 }
 
-function sameCollider(a: Rect | undefined, b: Rect | undefined): boolean {
+function sameCollider(a: ColliderRect | undefined, b: ColliderRect | undefined): boolean {
   return (
-    a !== undefined &&
-    b !== undefined &&
-    a.x === b.x &&
-    a.y === b.y &&
-    a.width === b.width &&
-    a.height === b.height
+    a !== undefined && b !== undefined && a.x === b.x && a.z === b.z && a.w === b.w && a.h === b.h
   );
 }
 
-function actorBody(x: number, y: number): Rect {
-  return { x, y, width: PLAYER_SIZE, height: PLAYER_SIZE };
+/**
+ * An actor's occupancy box on the ground plane. A tile-unit position is the body's CENTRE, so the
+ * box is anchored half a body back on each ground axis — the pixel version anchored at the position
+ * itself because a pixel position was already a 32 px box's top-left corner.
+ */
+function actorBody(x: number, z: number): ColliderRect {
+  return { x: x - BODY_RADIUS, z: z - BODY_RADIUS, w: BODY_RADIUS * 2, h: BODY_RADIUS * 2 };
+}
+
+/** Axis-aligned overlap on the ground plane — `rectsOverlap`'s `{x, z, w, h}` counterpart. */
+function groundRectsOverlap(a: ColliderRect, b: ColliderRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.h && a.z + a.h > b.z;
 }
 
 /**
@@ -72,38 +85,38 @@ function actorBody(x: number, y: number): Rect {
  * depleted. The intact visual may return immediately, but its collision and harvest eligibility
  * stay pending until every authoritative combat actor has cleared the footprint.
  */
-function harvestColliderOccupied(state: WorldRoomState, collider: Rect, now: number): boolean {
+function harvestColliderOccupied(
+  state: WorldRoomState,
+  collider: ColliderRect,
+  now: number,
+): boolean {
   for (const player of state.players.values()) {
-    if (rectsOverlap(collider, actorBody(player.x, player.y))) return true;
+    if (groundRectsOverlap(collider, actorBody(player.x, player.z))) return true;
   }
   for (const monster of state.monsters) {
     // A living monster occupies its current body. A corpse due this tick will first teleport to
     // its authored spawn, so guard that destination rather than the unrelated corpse position.
     const position =
       monster.hp > 0
-        ? { x: monster.x, y: monster.y }
+        ? { x: monster.x, z: monster.z }
         : monster.deadUntil <= now
-          ? { x: monster.spawnX, y: monster.spawnY }
+          ? { x: monster.spawnX, z: monster.spawnZ }
           : null;
-    if (position && rectsOverlap(collider, actorBody(position.x, position.y))) {
+    if (position && groundRectsOverlap(collider, actorBody(position.x, position.z))) {
       return true;
     }
   }
   for (const guard of state.guards) {
-    if (guard.hp > 0 && rectsOverlap(collider, actorBody(guard.x, guard.y))) return true;
+    if (guard.hp > 0 && groundRectsOverlap(collider, actorBody(guard.x, guard.z))) return true;
   }
-  const inset = (TILE_SIZE - PLAYER_SIZE) / 2;
+  const size = gridSize(state);
   for (const event of state.activeEvents) {
     const movement = state.npcMovement.get(event.id);
     if (!movement || movement.through) continue;
-    if (
-      rectsOverlap(
-        collider,
-        actorBody(event.col * TILE_SIZE + inset, event.row * TILE_SIZE + inset),
-      )
-    ) {
-      return true;
-    }
+    // An NPC stands at its cell's CENTRE. The pixel version inset its top-left box by half the
+    // difference between a tile and a body to say the same thing.
+    const centre = authoredCellCentreGround(event, size);
+    if (groundRectsOverlap(collider, actorBody(centre.x, centre.z))) return true;
   }
   return false;
 }
@@ -119,11 +132,14 @@ function projectHarvestCollider(
   collider: readonly [number, number, number, number] | null;
   collisionPending?: true;
 } {
+  // The wire tuple stays the authored PIXEL rectangle; the occupancy test is the room's own
+  // collision and is therefore asked on the ground plane.
   const collider = harvestColliderAt(profile, col, row, harvestState);
   // Wandering harvest actors still advertise their moving body for directional tool selection,
   // but `syncHarvestColliders` keeps that body out of terrain so it cannot block its own next cell.
   if (harvestActorBehavior(profile) === "wander") return { collider: colliderTuple(collider) };
-  if (harvestState === "intact" && collider && harvestColliderOccupied(state, collider, now)) {
+  const ground = harvestGroundColliderAt(profile, col, row, harvestState, gridSize(state));
+  if (harvestState === "intact" && ground && harvestColliderOccupied(state, ground, now)) {
     return { collider: null, collisionPending: true };
   }
   return { collider: colliderTuple(collider) };
@@ -138,17 +154,23 @@ function syncHarvestColliders(state: WorldRoomState): void {
   const eventById = new Map(
     (state.location?.definition.events ?? []).map((event) => [event.id, event]),
   );
-  const next = state.activeEvents.flatMap((event) => {
+  const size = gridSize(state);
+  // Rebuilt from the AUTHORED profile rather than read back out of `harvest.collider`: that tuple
+  // is the wire's pixel rectangle, and the room's collision index is tile units.
+  const next = state.activeEvents.flatMap((event): ColliderRect[] => {
     const authored = eventById.get(event.id);
-    if (
-      authored?.kind === "harvestable" &&
-      authored.harvestProfile &&
-      harvestActorBehavior(authored.harvestProfile) === "wander"
-    ) {
-      return [];
-    }
-    const tuple = event.harvest?.collider;
-    return tuple ? [{ x: tuple[0], y: tuple[1], width: tuple[2], height: tuple[3] }] : [];
+    const profile = authored?.kind === "harvestable" ? authored.harvestProfile : undefined;
+    if (!profile || harvestActorBehavior(profile) === "wander") return [];
+    // A null tuple means the footprint is deliberately absent (depleted, or collision pending).
+    if (!event.harvest || event.harvest.collider === null) return [];
+    const ground = harvestGroundColliderAt(
+      profile,
+      event.col,
+      event.row,
+      event.harvest.state,
+      size,
+    );
+    return ground ? [ground] : [];
   });
   if (
     next.length === state.harvestColliders.length &&
@@ -159,14 +181,10 @@ function syncHarvestColliders(state: WorldRoomState): void {
   state.harvestColliders = next;
   const definition = state.location?.definition;
   if (!definition) return;
-  const terrain = {
-    ...definition.terrain,
-    colliders: colliderIndexFrom(
-      [...state.staticColliders, ...next],
-      definition.terrain.tiles.cols,
-      definition.terrain.tiles.rows,
-    ),
-  };
+  const colliders = createColliderIndex();
+  for (const rect of state.staticColliders) colliders.add(rect);
+  for (const rect of next) colliders.add(rect);
+  const terrain: ZoneTerrain = { ...definition.terrain, colliders };
   definition.terrain = terrain;
   state.navigation = createNavigationRuntime(terrain, definition.navigation);
   // Replacing the runtime abandons its queue and active search. Reset every actor that could
@@ -392,38 +410,49 @@ export function activeEventCell(
   return state.activeEvents.find((candidate) => candidate.id === event.id) ?? event;
 }
 
-/** Port of `#activeEventCentre`. */
+/**
+ * Port of `#activeEventCentre`, on the GROUND PLANE.
+ *
+ * `eventCellCentre` answers in the editor's pixel, top-left-origin space; measuring one of those
+ * against a tile-unit hero gives hundreds against a range of a few tiles, so every proximity clause
+ * reading it would have silently stopped rejecting anything.
+ */
 export function activeEventCentre(
   state: WorldRoomState,
   event: Pick<MapEvent, "id" | "col" | "row" | "kind">,
-): { x: number; y: number } {
+): WorldPosition {
   if (event.kind === "guard") {
     const guard = state.guards.find(
       (candidate) => candidate.id === authoredGuardRuntimeId(event.id),
     );
-    if (guard) return guard;
+    if (guard) return { x: guard.x, y: guard.y, z: guard.z };
   }
-  return eventCellCentre(activeEventCell(state, event));
+  return authoredCellCentreGround(activeEventCell(state, event), gridSize(state));
 }
 
 /** Port of `#touchesEventCell` (`world.ts:1562`): whether an actor-sized authoritative body
- *  overlaps an event cell. Heroes and monsters share this exact geometry. */
+ *  overlaps an event cell. Heroes and monsters share this exact geometry.
+ *
+ *  One cell is ONE unit wide now, and the grid is centred, so the cell's bounds are its indices
+ *  shifted by half the grid rather than multiplied by `TILE_SIZE`. The body is centred on its
+ *  position instead of anchored at its top-left corner. */
 export function touchesEventCell(
   state: WorldRoomState,
-  position: Vec2,
+  position: GroundVector,
   event: Pick<MapEvent, "id" | "col" | "row">,
   tolerance: number,
 ): boolean {
   const cell = activeEventCell(state, event);
-  const left = cell.col * TILE_SIZE - tolerance;
-  const top = cell.row * TILE_SIZE - tolerance;
-  const right = (cell.col + 1) * TILE_SIZE + tolerance;
-  const bottom = (cell.row + 1) * TILE_SIZE + tolerance;
+  const half = gridSize(state) / 2;
+  const left = cell.col - half - tolerance;
+  const top = cell.row - half - tolerance;
+  const right = cell.col + 1 - half + tolerance;
+  const bottom = cell.row + 1 - half + tolerance;
   return (
-    position.x < right &&
-    position.x + PLAYER_SIZE > left &&
-    position.y < bottom &&
-    position.y + PLAYER_SIZE > top
+    position.x - BODY_RADIUS < right &&
+    position.x + BODY_RADIUS > left &&
+    position.z - BODY_RADIUS < bottom &&
+    position.z + BODY_RADIUS > top
   );
 }
 
@@ -453,7 +482,7 @@ export function runnablePage(
 export function detectPlayerTouch(
   state: WorldRoomState,
   player: PlayerRuntime,
-  previous: { x: number; y: number },
+  previous: GroundVector,
 ): void {
   if (player.identityKind !== "hero" || player.life !== "alive" || !player.authorized) return;
   const events = state.location?.definition.events;
@@ -531,7 +560,7 @@ export function logGoldRefusedOnce(
 export function detectMonsterTouch(
   state: WorldRoomState,
   monster: MonsterRuntime,
-  previous: Vec2,
+  previous: GroundVector,
 ): void {
   const events = state.location?.definition.events;
   const mapId = state.location?.zoneId;
@@ -567,13 +596,16 @@ export function detectMonsterTouch(
     }
     const terrain = state.location?.definition.terrain;
     if (!terrain) return;
-    const destination = eventCellCentre(command);
+    const destination = authoredCellCentreGround(command, terrain.size);
+    // The grid runs `-size/2`..`+size/2`, so bounds are a cell-index test, not a rectangle
+    // anchored at zero: the origin moved to the middle along with the units.
     const inBounds =
-      destination.x >= 0 &&
-      destination.y >= 0 &&
-      destination.x < terrain.width &&
-      destination.y < terrain.height;
-    if (!inBounds || !isWalkable(destination, PLAYER_SIZE, terrain)) {
+      command.col >= 0 &&
+      command.row >= 0 &&
+      command.col < terrain.size &&
+      command.row < terrain.size;
+    const landing = groundUnder(terrain, destination.x, destination.z, monster.y);
+    if (!inBounds || !canStand(terrain, destination.x, destination.z, BODY_RADIUS, landing)) {
       logTeleportRefusedOnce(state, event.id, inBounds ? "unwalkable" : "out_of_bounds", {
         monsterId: monster.id,
         mapId,
@@ -582,9 +614,10 @@ export function detectMonsterTouch(
       });
       return;
     }
-    const beforeTeleport = { x: monster.x, y: monster.y };
+    const beforeTeleport = { x: monster.x, y: monster.y, z: monster.z };
     monster.x = destination.x;
-    monster.y = destination.y;
+    monster.z = destination.z;
+    monster.y = landing;
     state.monsterGrid.update(monster, beforeTeleport);
     resetMonsterNavigation(monster);
     return;
