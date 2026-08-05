@@ -12,9 +12,13 @@ import type { LifeState } from "@lindocara/engine/death.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { Inventory, QuestState } from "@lindocara/engine/protocol.js";
 import type { ClassResourceState } from "@lindocara/engine/resources.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
+// Type-only, so nothing of `world-runtime.ts`'s import graph reaches a program that only wants
+// this shape — the whole reason this module was split out of `profile.ts` in the first place. The
+// convention is declared once, there, where every runtime entity reads it; a second structurally
+// identical declaration here would compile and then drift.
+import type { WorldPosition } from "./world/world-runtime.js";
 
-export interface PlayerProfile extends Vec2 {
+export interface PlayerProfile extends WorldPosition {
   id: string;
   nick: string;
   level: number;
@@ -35,7 +39,7 @@ export interface PlayerProfile extends Vec2 {
   wardRunExpiresAt: number | null;
   life: LifeState;
   /** Null exactly when `life` is "alive". */
-  corpse: Vec2 | null;
+  corpse: WorldPosition | null;
   resource?: ClassResourceState;
   cooldowns?: CombatCooldownState;
   consumableCooldownUntil?: number;

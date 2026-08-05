@@ -44,7 +44,7 @@ import type {
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
-import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "@lindocara/engine/simulation.js";
+import { type Input, NO_INPUT, TICK_HZ } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { normalizeTalentSelection, skillWithTalents } from "@lindocara/engine/talents.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -92,7 +92,35 @@ export const MAX_QUEUED_COMMANDS = 12;
 export const MAX_STARVED_TICKS = 5;
 export const RESYNC_COOLDOWN_MS = 1_000;
 
-export interface Attachment extends Vec2 {
+/**
+ * A two-component quantity on the GROUND PLANE, in tile units: a heading, a facing, a velocity, a
+ * navigation waypoint. The ground axes are `x` and `z` — there is no ground `y` any more.
+ *
+ * Deliberately NOT `@lindocara/engine`'s `Vec2`, whose `y` IS a ground axis. The two are
+ * structurally different by exactly one field name, which is the only reason a half-finished
+ * conversion cannot compile: keeping `Vec2` here would let the pixel plane survive inside a world
+ * that has moved on, and nothing at runtime would say so.
+ */
+export interface GroundVector {
+  x: number;
+  z: number;
+}
+
+/**
+ * A world position in tile units with the grid centre as the origin: `x` and `z` are the two
+ * GROUND axes and `y` is ELEVATION. This is `HeroState`'s convention
+ * (`@lindocara/engine/hd2d/hero-state.js`), now the whole game's.
+ *
+ * **`y` is 0 for every entity at this point in the increment** — nothing leaves the ground until
+ * jumping and gliding arrive in Phase B. It is not dead weight and must not be dropped as
+ * "unused": the axis is carried now so that the thirteen world systems are converted once against
+ * the final shape rather than twice.
+ */
+export interface WorldPosition extends GroundVector {
+  y: number;
+}
+
+export interface Attachment extends WorldPosition {
   id: string;
   nick: string;
   level?: number;
@@ -136,7 +164,7 @@ export interface CombatActionRuntime {
   kind: CombatActionKind;
   skillId?: string;
   slot?: number;
-  direction: Vec2;
+  direction: GroundVector;
   startedAt: number;
   impactAt: number;
   recoveryEndsAt: number;
@@ -154,7 +182,7 @@ export interface CombatActionRuntime {
   /** Fully server-authored Shadow Step target and collision-validated landing. */
   rogueShadowStep?: {
     targetId: string;
-    destination: Vec2;
+    destination: WorldPosition;
     /** Frozen from the selected Tier 4 talent when the server accepts this cast. */
     phaseThroughObstacles: boolean;
   };
@@ -163,7 +191,7 @@ export interface CombatActionRuntime {
   /** Frozen server-selected target for Proie jurée. */
   rangerSwornPreyTargetId?: string;
   /** Frozen departure point for safe rematerialisation and Porte de Lumen. */
-  priestLumenOrigin?: Vec2;
+  priestLumenOrigin?: WorldPosition;
   /** Server-owned persistent Sacred Passage trail extended by each authoritative movement step. */
   priestLumenTrailId?: string;
 }
@@ -182,7 +210,7 @@ export interface WarriorChargeFollowupRuntime {
   expiresAt: number;
 }
 
-export interface WarriorVortexRuntime extends Vec2 {
+export interface WarriorVortexRuntime extends WorldPosition {
   expiresAt: number;
   nextPulseAt: number;
   pulseIntervalMs: number;
@@ -203,15 +231,15 @@ export interface RangerVolleySalvoRuntime {
 }
 
 export interface RangerVolleySequenceRuntime {
-  direction: Vec2;
+  direction: GroundVector;
   salvos: RangerVolleySalvoRuntime[];
 }
 
-export interface RangerAfterimageRuntime extends Vec2 {
+export interface RangerAfterimageRuntime extends WorldPosition {
   expiresAt: number;
 }
 
-export interface RogueSilhouetteRuntime extends Vec2 {
+export interface RogueSilhouetteRuntime extends WorldPosition {
   expiresAt: number;
   hp: number;
 }
@@ -230,7 +258,7 @@ export interface PriestLifeLinkRuntime {
   maximumMirroredPower: number;
 }
 
-export interface PriestSoulAnchorRuntime extends Vec2 {
+export interface PriestSoulAnchorRuntime extends WorldPosition {
   ownerId: string;
   expiresAt: number;
   cleansePoison: boolean;
@@ -246,7 +274,7 @@ export interface RogueOpeningRuntime {
   executionTargetId?: string;
 }
 
-export interface RogueShadowReturnRuntime extends Vec2 {
+export interface RogueShadowReturnRuntime extends WorldPosition {
   expiresAt: number;
 }
 
@@ -265,7 +293,7 @@ export interface NegativeEffectRuntime {
 
 export type ProjectileTargetFilter = "monsters" | "wounded_allies" | "players_and_guards";
 
-export interface ProjectileRuntime extends Vec2 {
+export interface ProjectileRuntime extends WorldPosition {
   id: string;
   actionId: string;
   ownerId: string;
@@ -274,7 +302,7 @@ export interface ProjectileRuntime extends Vec2 {
   roomKey: string;
   kind: ProjectileKind;
   targetFilter: ProjectileTargetFilter;
-  direction: Vec2;
+  direction: GroundVector;
   speed: number;
   radius: number;
   rangeRemaining: number;
@@ -300,6 +328,11 @@ export interface ProjectileRuntime extends Vec2 {
   homingTurnRateRadians?: number;
 }
 
+/**
+ * A connected hero, alive in a room. Its position — `x`/`z` on the ground, `y` for elevation, all
+ * in tile units — is inherited from `PlayerProfile`, which is also the shape that gets saved, so
+ * the runtime and the save cannot disagree about how many axes a hero has.
+ */
 export interface PlayerRuntime extends PlayerProfile {
   identityKind: "character" | "hero";
   partyId: string | null;
@@ -352,7 +385,7 @@ export interface PlayerRuntime extends PlayerProfile {
   lastResurrectAt: number;
   messageTimes: number[];
   malformedCount: number;
-  facing: Vec2;
+  facing: GroundVector;
   connectionId: string;
   roomKey: string;
   authorized: boolean;
@@ -377,16 +410,16 @@ export interface PlayerRuntime extends PlayerProfile {
   invisibleUntil: number;
   resurrectionAt: number;
   /**
-   * The counter of the shop this hero currently has open, in world pixels — the cell of the `openShop`
+   * The counter of the shop this hero currently has open, in tile units — the cell of the `openShop`
    * event that served them. Room-local and never persisted: a shop is a conversation, not a state.
    *
    * The buy path measures against THIS rather than a room-global merchant, which is what lets a map
    * carry several traders and what stops a hero buying from across the map after walking away.
    */
-  shopAnchor: Vec2 | null;
+  shopAnchor: WorldPosition | null;
 }
 
-export interface MonsterRuntime extends Vec2 {
+export interface MonsterRuntime extends WorldPosition {
   id: string;
   name: string;
   kind: MonsterKind;
@@ -394,8 +427,9 @@ export interface MonsterRuntime extends Vec2 {
   attackProfile: MonsterAttackProfile;
   graphicAssetId: EditorAssetId | null;
   rank: MonsterRank;
+  /** Where it was spawned, on the ground plane. Elevation is read from the terrain, not stored. */
   spawnX: number;
-  spawnY: number;
+  spawnZ: number;
   patrolRadius: number;
   mayEnterSafeZone?: boolean;
   hp: number;
@@ -415,22 +449,28 @@ export interface MonsterRuntime extends Vec2 {
   nextSpecialAt: number;
   lastAttackAt: number;
   deadUntil: number;
+  /** Ground velocity. Monsters do not leave the ground, so there is no vertical component. */
   vx: number;
-  vy: number;
+  vz: number;
   threat: Map<string, ThreatEntry>;
   contributions: Map<string, CombatContribution>;
   rewardsGranted: boolean;
   navigation: MonsterNavigationRuntime;
-  facing: Vec2;
+  facing: GroundVector;
   action: CombatActionRuntime | null;
 }
 
+/**
+ * A monster's path is a plan across the ground plane: waypoints are `GroundVector`s and the
+ * elevation under each is whatever the terrain says when the monster gets there. Storing a `y`
+ * per waypoint would freeze a height the heightfield already owns.
+ */
 export interface MonsterNavigationRuntime {
   state: MonsterNavigationState;
-  path: Vec2[];
+  path: GroundVector[];
   pathIndex: number;
-  destination: Vec2 | null;
-  requestedDestination: Vec2 | null;
+  destination: GroundVector | null;
+  requestedDestination: GroundVector | null;
   targetId: string | null;
   requestId: number;
   requestPending: boolean;
@@ -438,15 +478,16 @@ export interface MonsterNavigationRuntime {
   unreachableTargetId: string | null;
   unreachableUntil: number;
   abandonReason: string | null;
-  directBlockedDestination: Vec2 | null;
+  directBlockedDestination: GroundVector | null;
 }
 
-export interface GuardRuntime extends Vec2 {
+export interface GuardRuntime extends WorldPosition {
   id: string;
   hp: number;
   maxHp: number;
+  /** The post it patrols around, on the ground plane. */
   homeX: number;
-  homeY: number;
+  homeZ: number;
   patrolRadius: number;
   lastAttackAt: number;
   fightingUntil: number;
@@ -454,7 +495,14 @@ export interface GuardRuntime extends Vec2 {
   graphicTint: number;
 }
 
-export interface GroundLoot extends LootSnapshot {
+/**
+ * A dropped item lying in the room. It takes everything but its position from the wire snapshot;
+ * the position is the runtime's own three axes, because `LootSnapshot` still carries the pixel
+ * world's two-axis `x`/`y` until the wire itself is converted. Omitting rather than inheriting
+ * those two fields is what makes the serialization boundary a compile error instead of a silent
+ * reinterpretation of `y`.
+ */
+export interface GroundLoot extends Omit<LootSnapshot, "x" | "y">, WorldPosition {
   expiresAt: number;
   ownerId?: string;
 }
@@ -466,7 +514,7 @@ export interface PersistenceServices {
 
 export interface InternalWorldEvent {
   message: ServerMessage;
-  position?: Vec2;
+  position?: WorldPosition;
   recipient?: WebSocket;
 }
 
@@ -516,12 +564,18 @@ export function zoneFromRoom(room: RoomContext): ZoneDefinition {
   return room.location.definition;
 }
 
+/**
+ * The saved shape of a hero. All three axes travel together: `x`/`z` are where they stand and `y`
+ * is how high, in tile units. Dropping `z` here would typecheck as long as `y` still existed and
+ * would only surface as a hero reappearing on the wrong side of the map after a reconnect.
+ */
 export function toProfile(player: PlayerRuntime): SaveableProfile {
   return {
     id: player.id,
     nick: player.nick,
     x: player.x,
     y: player.y,
+    z: player.z,
     level: player.level,
     xp: player.xp,
     hp: player.hp,
@@ -662,7 +716,7 @@ export function newPlayer(
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
     messageTimes: [],
     malformedCount: 0,
-    facing: { x: 1, y: 0 },
+    facing: { x: 1, z: 0 },
     connectionId,
     roomKey,
     authorized: true,
@@ -781,14 +835,17 @@ export function profileFromAttachment(
   };
 }
 
-function lifeFromAttachment(attachment: Attachment): { life: LifeState; corpse: Vec2 | null } {
+function lifeFromAttachment(attachment: Attachment): {
+  life: LifeState;
+  corpse: WorldPosition | null;
+} {
   const life = attachment.life ?? "alive";
   const corpse = attachment.corpse ?? null;
   if (life === "alive" || corpse === null) return { life: "alive", corpse: null };
   return { life, corpse: { ...corpse } };
 }
 
-export function positionFromAttachment(attachment: Attachment | null): Vec2 {
+export function positionFromAttachment(attachment: Attachment | null): WorldPosition {
   return attachment === null ? spawnPosition() : clampRestoredPosition(attachment, attachment.id);
 }
 
@@ -812,8 +869,14 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       attackProfile: resolveMonsterAttackProfile(spawn.species, spawn.attackProfile),
       graphicAssetId: spawn.graphicAssetId ?? null,
       rank: tuning.rank,
+      // Written explicitly rather than left to the spread: a spawn authors only where on the
+      // ground a monster stands. Elevation is whatever the terrain holds under it, and nothing is
+      // airborne at this point in the increment, so it starts at 0.
+      x: spawn.x,
+      y: 0,
+      z: spawn.z,
       spawnX: spawn.x,
-      spawnY: spawn.y,
+      spawnZ: spawn.z,
       hp: tuning.maxHp,
       maxHp: tuning.maxHp,
       damage: tuning.damage,
@@ -831,7 +894,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       lastAttackAt: 0,
       deadUntil: 0,
       vx: 0,
-      vy: 0,
+      vz: 0,
       threat: new Map(),
       contributions: new Map(),
       rewardsGranted: false,
@@ -850,7 +913,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
         abandonReason: null,
         directBlockedDestination: null,
       },
-      facing: { x: 1, y: 0 },
+      facing: { x: 1, z: 0 },
       action: null,
     };
   });
@@ -859,10 +922,14 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
 export function createGuards(definitions: readonly GuardDefinition[]): GuardRuntime[] {
   return definitions.map((guard) => ({
     ...guard,
+    // Same rule as the monsters above: the definition authors a spot on the ground, not a height.
+    x: guard.x,
+    y: 0,
+    z: guard.z,
     hp: GUARD_MAX_HP,
     maxHp: GUARD_MAX_HP,
     homeX: guard.x,
-    homeY: guard.y,
+    homeZ: guard.z,
     lastAttackAt: 0,
     fightingUntil: 0,
     graphicAssetId: guard.graphicAssetId ?? null,
