@@ -4,12 +4,31 @@ Cette tranche remplace le ciblage d'entité par un contrat de combat de type Zel
 uniquement une intention `attack` ou `skill` et décide de l'orientation, de la chronologie, de la
 géométrie, des collisions, des dégâts, des soins, de la menace et des récompenses.
 
+> **Two things S3 changed under this document (2026-08-06). The balance below is untouched; how it
+> is expressed and who applies one of its effects are not.**
+>
+> - **Every distance and speed written here in `px` is TILE units in the code**, written as the same
+>   number over `TILE_SIZE` (`skills.ts`, `combat-actions.ts`) so the value a designer tuned stays
+>   legible. `540 px/s` is `540 / 64` tiles per second, and the reach is identical — only the ruler
+>   changed. Do not "convert" a figure in this file; read it as the numerator.
+> - **A mobility skill's DISPLACEMENT is applied by the client, its GRANT is not.** The server still
+>   spends the cost, the cooldown, the resource and every effect, then publishes a standing
+>   permission on `SelfState.mobility` — a distance and a deadline derived from the live held
+>   action, so its absence IS the withdrawal. The client spends it once per action id, lands on a
+>   standable cell and reports the result as an ordinary `move`. `ClientMessage` gained nothing that
+>   mentions mobility, so a client cannot fabricate a grant, and the bound it may travel is the
+>   server's number, not its own. Blink's directional hold and Dash's collided path below describe
+>   what the client now runs, under that grant.
+
 ## Contrat réseau et orientation
 
 - Le client envoie `{ t: "attack" }` ou `{ t: "skill", slot }`, sans `targetId`, victime, impact,
   dégâts, soin ni position.
 - Le message historique `heal` est rejeté ; Mend est la compétence 2 du Prêtre.
-- Le dernier mouvement non nul accepté par le serveur devient le facing. L'immobilité le conserve.
+- Le facing arrive maintenant explicitement sur la trame `move` du client (un `GroundVector`
+  unitaire, `{x, z}` ; une trame dont le vecteur n'est pas unitaire est rejetée entière).
+  L'immobilité le conserve, et le serveur le fige au wind-up d'une action comme avant : le facing de
+  COMBAT reste sa décision, pas celle du client.
 - Les snapshots diffusent ce facing pour orienter les autres héros, sans le persister dans D1.
 - Les messages `animation` transportent un `actionId`, l'acteur, l'action/compétence, la direction
   figée et les instants serveur de début, impact et fin. Ces champs sont exclusivement visuels.

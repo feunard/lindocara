@@ -6,9 +6,16 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
 
 ## Responsibility
 
-- `simulation.ts` — the single source of movement truth: `step(position, input, dt)`. Both the
-  server (to decide) and the client (to predict + replay) call the *same* function.
-- `prediction.ts` — pure `reconcile()`/`prunePending()`. `death.ts` — the corpse/ghost state machine.
+- `hd2d/hero-step.ts` — the single source of movement truth: `stepHero(state, input, dt, deps)`,
+  in tile units, run by the CLIENT (see `hd2d/` below).
+- `simulation.ts` — the simulation's CLOCK and the shape of a movement intent, and nothing else:
+  `TICK_HZ`/`TICK_DT`/`NETWORK_SNAPSHOT_HZ`, the pixel-era `PLAYER_SIZE`/`WORLD_*`/`clampToWorld`
+  the unconverted zone catalogue in `game.ts` still reads, and `Input`. `step()` and `PLAYER_SPEED`
+  are DELETED, and `prediction.ts` with them — S3 moved movement to the client, so there is nothing
+  left to predict or replay. `Input` is no longer a command: nothing stamps, sends, queues or
+  replays it, and it never crosses the wire.
+- `death.ts` — the corpse/ghost state machine, plus `speedForLife`, which is how a client folds its
+  life state into the one speed `stepHero` reads.
 - `game.ts` — map geometry, collision, combat/progression constants. `protocol.ts` — the wire
   format with defensive parsing (`parseClientMessage` returns `null`, never throws).
 - `tileset.ts`/`autotile.ts`/`tile-brush.ts`/`tile-layer-codec.ts`/`map-data.ts` — the layered map
@@ -16,8 +23,8 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
 - `i18n/` — FR/EN dictionaries (data only; the server sends codes, never prose). `skills.ts`,
   `combat-actions.ts`, `cooperation.ts`, `resources.ts`, `character.ts`, `adventure*.ts`,
   `event-commands.ts`/`event-interpreter.ts` (the pure, clockless command stepper).
-- `hd2d/` — the HD-2D witness's geometry and movement rule, quarantined in its own subfolder
-  rather than the flat root above (moved from `apps/lab` across two S2 tasks): `terrain-query.ts`
+- `hd2d/` — **the game's geometry and movement rule**, in its own subfolder rather than the flat
+  root above (moved from `apps/lab` across two S2 tasks): `terrain-query.ts`
   (world-space collision queries over a heightmap), `collider-index.ts` (the sparse rect index
   disc queries test against), `map-data.ts` (a map as pure, defensively-parsed data),
   `hero-state.ts` (`HeroState`/`HeroInput`/`HeroSettings`/`HeroEvent`, the data the rule reads and
@@ -25,20 +32,19 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
   materials' worth of friction/speed/skid), `thin-ice.ts` (the crack → break → refreeze state
   machine) and `hero-step.ts` (`stepHero`, the per-frame rule that ties the other three together
   and narrates what happened as `HeroEvent`s rather than playing sound or touching a billboard
-  itself). These read in **tile units**, unlike `simulation.ts`/`game.ts`/`collider.ts` above,
-  which read in **pixels** — the subfolder is the visible fence against importing one unit system
-  into the other by accident.
+  itself). These read in **tile units** — as does the whole game now; what is left in **pixels** is
+  the unconverted zone catalogue in `game.ts`/`collider.ts` and the `clampToWorld` it calls, which
+  no live party reaches. The subfolder is still the visible fence between the two.
 
-  **`simulation.ts` is in reprieve, not a permanent fixture.** It is the movement truth the live
-  game currently ships against — `step()`, called by both server and client, is still the one
-  copy client prediction depends on (see "Why `step()` lives in `shared/`" in the root
-  `AGENTS.md`) — but `hd2d/`'s pixel-free, tile-unit model is what eventually replaces it, once a
-  later task wires `hero-step.ts` into the server's authoritative tick and the client's
-  prediction. **Until that wiring lands, write no new code against `simulation.ts`/`game.ts`'s
-  movement path** — a change belongs in `hd2d/` if it's about hero movement, so it isn't done
-  twice. The two live side by side, deliberately unconnected, for the whole of S2: `hd2d/` is
-  proven only inside `apps/lab`, `simulation.ts` is what production actually runs. Wiring them
-  together is S3's job, not a natural next step to take here.
+  **The reprieve is over: `hd2d/` IS the game's movement.** S3's second increment (2026-08-06)
+  wired `stepHero` into the client — `packages/client/src/game/hero-controller.ts` owns a
+  `HeroState` and feeds it every animation frame — and deleted `step()`, `PLAYER_SPEED`,
+  `prediction.ts` and the whole command-queue model with it. The server no longer steps a hero; it
+  validates the position the client reports (`applyReportedMove`, `worldTick.ts`). `apps/lab` is
+  still a witness that exercises the same rule outside the game, not a second copy of it.
+
+  **So: anything about hero movement belongs here, and nowhere else.** There is no second movement
+  path left to do it twice in.
 
 - `ground.ts` and `terrain-access.ts` — tile units, at the ROOT rather than behind that fence, and
   deliberately: they are the vocabulary the whole game speaks now, not the lab's. `ground.ts` owns
@@ -48,8 +54,9 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
   `terrain-access.ts` is the terrain junction — `zoneTerrainFromHeightfield` bakes a stored
   heightfield into a `ZoneTerrain`, and `canStand`/`resolveGroundMovement`/`groundUnder` answer
   every "can a body be here" question. It moved here from `packages/server/src/world/` when the
-  client started predicting against the same terrain: **both sides bake from the same string with
-  the same function**, which is the argument that keeps `step()` here too.
+  client started moving against the same terrain: **both sides bake from the same string with the
+  same function** — the client to move, the server to validate — which is the same argument that
+  keeps `stepHero` here.
 
 ## Graph
 
@@ -68,18 +75,18 @@ npm test -w @lindocara/engine   # or: npm run test:engine  — Node env, no work
 
 - Keep it pure. If a change needs `document`, `WebSocket`, `DurableObject` or `react`, it belongs in
   a consumer package, not here.
-- `step()` has exactly one copy on purpose — client prediction is only correct because both sides
-  run the identical function. Never fork it.
+- `stepHero` has exactly one copy on purpose — the client, the lab witness and every suite run the
+  identical function. Never fork it. The terrain it walks on has one bake for the same reason
+  (`zoneTerrainFromHeightfield`): the client moves against it and the server validates against it,
+  and two bakes would let a hero walk through a wall on one side of the wire and into it on the
+  other.
 - **Pure also means no `Math.random`, no clock (`performance.now()`, `Date.now()`), and no `dt`
   silently assumed to be a fixed value instead of read from the parameter.** These three typecheck
-  clean, compile clean, and pass in `apps/lab` where nobody but a human eye would notice — but each
-  one is exactly what turns `hd2d/`'s promised "just wire it into a tick loop" port (see its
-  Responsibility entry above) into a rewrite instead: the day this code runs on a server,
-  `Math.random()` diverges between server and client, `performance.now()` doesn't exist in the same
-  form on both sides, and a hardcoded `dt` breaks the moment the server's tick rate and the client's
-  frame rate aren't identical — replaying a client's pending commands (root `AGENTS.md`, "One
-  command per tick") assumes the exact same function produces the exact same result from the exact
-  same inputs, nothing else. See `apps/lab/AGENTS.md`'s "The snow island" section for the fuller
+  clean, compile clean, and pass in `apps/lab` where nobody but a human eye would notice — and the
+  rule now runs at the client's own frame rate, on whatever `dt` that frame happened to be, against
+  terrain a server baked separately. A hardcoded `dt` or a clock read inside the rule breaks that
+  immediately; `Math.random()` would make the position a client reports unreproducible by the room
+  that has to judge it. See `apps/lab/AGENTS.md`'s "The snow island" section for the fuller
   argument and the concrete traps this guards against.
 - Server events are codes, not sentences: add an `EventCode` + both dictionary entries, never an
   English string. The i18n test enforces FR/EN parity.

@@ -28,7 +28,10 @@ glue that binds the renderer to the network. Browser + React. This is the base t
   unfiltered global event bus — fine once per screen transition, disqualifying for anything
   written 20-60x/s. `api.ts` — the fetch client (machine codes → dictionary keys). `i18n.ts`
   — re-exports the renderer's locale core + the React `useLocale` hook and `setLocale` (flushSync).
-- `game/` glue: `net` (prediction/WS + re-exports `SceneSample`), `session` (constructs the renderer,
+- `game/` glue: `net` (the WebSocket, the 20 Hz move report + re-exports `SceneSample`),
+  `hero-controller` (**the client's own `HeroState`**, stepped by `stepHero` every animation frame —
+  the seam that replaced prediction when S3 moved movement here, and where a server-granted blink is
+  spent), `session` (constructs the renderer,
   owns store writes), `sound`/`audio-settings`/`combat-sounds`, `party`, `cooldown-sync`.
 - `styles/` — `app.css` (Tailwind + the client sheets + `@lindocara/ui/globals.css` last), `legacy.css`
   (the Tiny Swords skin + the two-tree fence), `tokens.css`. `public/` — atlas/audio/served assets.
@@ -53,8 +56,12 @@ npm test -w @lindocara/client   # or: npm run test:client — jsdom
   React transitively) — the store is the bridge for the 60Hz game state (`GameHandle` is the
   seam), and `state/navigation.ts` is the bridge for navigation/atom writes; `game/session.ts`
   reaches the router and the atoms in `state/atoms.ts` only through that seam, never directly.
-- Interpolation delay (150ms) buys smooth remote motion; do not "fix" it. Your own square is drawn in
-  the present, everyone else `INTERPOLATION_DELAY_MS` in the past.
+- Interpolation delay (150ms) buys smooth remote motion; do not "fix" it. Your own hero is drawn in
+  the present — it IS the present now, since this package runs the movement rule — and everyone else
+  `INTERPOLATION_DELAY_MS` in the past.
+- The move report is capped at 20/s (`MOVE_REPORT_MS`) and suppresses identical frames. The hero
+  still steps every animation frame; only the report is throttled. Lifting that ceiling spends the
+  rate window (`RATE_MAX_MESSAGES`, 35/s) that chat, actions and resyncs share.
 - CSS is not covered by tests (`css: false`) — verify skin changes in a browser. Fix game text colour
   in `legacy.css`'s unlayered `html, body`, never in the generated token blocks.
 

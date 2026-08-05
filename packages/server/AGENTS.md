@@ -1,9 +1,14 @@
 # @lindocara/server
 
 The authoritative game server, built on the vendored [Alepha](../../.vendor/alepha) framework.
-**The server decides outcomes** — clients send movement and action *intent*, never positions,
-damage, health, inventory, XP, deaths, loot or quest completion. This package owns everything
-that must be trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo root, i.e.
+**The server decides outcomes** — clients send action *intent*, never damage, health, inventory,
+XP, deaths, loot or quest completion. Since S3 moved movement to the client, a `move` frame is the
+one message that carries a FACT rather than an intent: the hero's own client ran the rule and
+reports where it ended up. **That conceded AUTHORITY, not VALIDITY** — `applyReportedMove`
+(`worldTick.ts`) bounds the claim against the real map (`withinRoomBounds`), the parser caps every
+coordinate at `MOVE_COORDINATE_LIMIT`, and a corpse's or a mid-handoff hero's frames are dropped.
+Everything else in the list above stayed here, and this package still owns everything that must be
+trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo root, i.e.
 `apps/main`'s `alepha dev`) and on Cloudflare Workers + Durable Objects + D1 in production
 (`alepha platform up`).
 
@@ -44,8 +49,9 @@ that must be trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo
   The terrain junction it was a stopgap for now lives in `@lindocara/engine/terrain-access.js` —
   `zoneTerrainFromHeightfield` builds the room's `ZoneTerrain`, and every "can something stand
   here" question is one `canStand` call. It is in the engine rather than here because the CLIENT
-  bakes its prediction terrain from the same string with the same function; two copies of a
-  collision rule is the drift prediction exists to expose.
+  bakes the terrain it MOVES on from the same string with the same function; two copies of a
+  collision rule would let a hero walk through a wall on one side of the wire and into it on the
+  other, with nothing failing anywhere.
 - The proving-map generator is NOT in this package: it lives in the repo's root `scripts/`
   (`scripts/build-proving-map.ts`), beside the other cross-workspace generators and inside
   `tsconfig.tooling.json`'s program so it is actually typechecked. It generates the HD-2D
@@ -65,9 +71,13 @@ declares `/ws/world`, `/ws/party`, `/ws/presence` with deliberately LOOSE zod sc
 never duplicate the message variants in zod.
 
 - **`WorldRoom`** (`/ws/world`, roomId `partyId:mapId`) — the room owner: admission, the full
-  authoritative tick order (`worldTick.ts`: movement, combat actions, projectiles, monsters,
-  guards, loot, events, quests, snapshots/deltas), reusing the pure `src/world/*` systems with
-  injected dependencies. Admission: the client first calls `GET /api/join?party&hero`
+  authoritative tick order (`worldTick.ts`: combat actions, projectiles, monsters, guards, loot,
+  events, quests, snapshots/deltas), reusing the pure `src/world/*` systems with injected
+  dependencies. HERO movement is no longer in that order: it arrives as a reported `move` and is
+  validated on receipt (`applyReportedMove`), while `movement-system.ts` keeps only the per-player
+  beat that used to sit beside it — resource regeneration, the presence heartbeat, corpse reclaim,
+  loot collection, the attachment write and the dirty flush. Monsters, guards and projectiles are
+  still stepped here, and always will be. Admission: the client first calls `GET /api/join?party&hero`
   (`JoinController` + `AdmissionService`) for a `{roomId, channelPath}` HINT, then dials
   `/ws/world?roomId=…&party=…&hero=…`; the room re-validates everything against the database in
   `onJoin` — no query parameter selects an outcome. `conn` carries only `userId` (resolved at the
@@ -85,8 +95,10 @@ never duplicate the message variants in zod.
 **Wire envelope**: client→server frames arrive wrapped `{roomId, message}` (the room unwraps
 before `parseClientMessage`); server→client frames are sent raw, and the transport may stamp a
 `__alephaRoom` key the client strips (`net.ts`). **App-level caps are ours** (2 KiB frames,
-35 msg/s, 5 malformed, 12 queued commands, resync 1/s) — Alepha has no built-in frame cap or rate
-limit. `onTick` stays SYNCHRONOUS: an async tick slower than its 50ms period silently skips
+`RATE_MAX_MESSAGES` 35 msg/s, 5 malformed, resync 1/s) — Alepha has no built-in frame cap or rate
+limit. The 12-deep command queue died with the command queue itself; the client's own move report
+is throttled to 20/s (`MOVE_REPORT_MS`) and suppresses identical frames, deliberately leaving room
+under the 35/s window for chat, actions and resyncs. `onTick` stays SYNCHRONOUS: an async tick slower than its 50ms period silently skips
 beats.
 
 **Volatile-state caveats (accepted, documented in the room docblocks)**: room state is

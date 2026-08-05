@@ -92,6 +92,38 @@ function facingOf(vector: GroundVector): Facing {
   return vector.z < 0 ? "north" : "south";
 }
 
+/**
+ * One player snapshot, as the actor the registry draws.
+ *
+ * Exported, and a function rather than an object literal inlined in `#collectActors`, for one
+ * reason: this is the seam the wire's locomotion state crosses into the renderer's. A flag dropped
+ * here is a flag `billboards.ts` can do nothing with, and every placement test in the package would
+ * still pass — so the seam is pinned by `hd2d-remote-state.test.ts` instead of trusted.
+ *
+ * All three flags and the elevation ride across untouched. `billboards.ts` decides what to do with
+ * them; this only refuses to lose them.
+ */
+/** The locomotion flags of anything the ROOM steps. A monster and a guard walk on the ground and
+ *  nowhere else — they never jump, swim or glide — so they are grounded by construction rather than
+ *  by a flag nobody sets. Spelled once so the day a flying monster exists, there is one place that
+ *  has to stop being a constant. */
+const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
+
+export function playerActorView(player: PlayerSnapshot): ActorView {
+  return {
+    id: player.id,
+    kind: "player",
+    x: player.x,
+    y: player.y,
+    z: player.z,
+    airborne: player.airborne,
+    swimming: player.swimming,
+    gliding: player.gliding,
+    facing: facingOf(player.facing),
+    textureKey: playerTextureKey(player),
+  };
+}
+
 /** A guard is a Tiny Swords unit like any other — the same warrior sheet the deleted PixiJS path
  *  gave it, in the faction colour its authored asset id implies. */
 function guardTextureKey(guard: GuardSnapshot): string {
@@ -417,9 +449,13 @@ export class Hd2dRenderer implements RendererLike {
 
   /**
    * The frame's actors, in the one shape the registry understands. Positions ride across in the
-   * snapshot's own TILE units, `x`/`z` on the ground — the same frame the scene draws in, so there
-   * is no conversion anywhere in this package. The billboard's elevation is the TERRAIN's
-   * (`heightAt`), never the snapshot's `y`, so `ActorView` carries no `y` at all.
+   * snapshot's own TILE units, `x`/`z` on the ground and `y` the elevation — the same frame the
+   * scene draws in, so there is no conversion anywhere in this package.
+   *
+   * A PLAYER also carries its three locomotion flags (`playerActorView`), because since S3 moved
+   * movement to the client a hero's elevation is a fact its own client computed and the room
+   * relayed. A monster or a guard is stepped by the room, on the ground and nowhere else, so all
+   * three are false for them and the registry stands them on the terrain as it always did.
    *
    * Two skips, and one thing still owed for each:
    *
@@ -439,14 +475,7 @@ export class Hd2dRenderer implements RendererLike {
     views.length = 0;
     for (const player of sample.players) {
       if (player.life === "corpse") continue;
-      views.push({
-        id: player.id,
-        kind: "player",
-        x: player.x,
-        z: player.z,
-        facing: facingOf(player.facing),
-        textureKey: playerTextureKey(player),
-      });
+      views.push(playerActorView(player));
     }
     for (const monster of sample.monsters) {
       if (monster.dead) continue;
@@ -454,7 +483,9 @@ export class Hd2dRenderer implements RendererLike {
         id: monster.id,
         kind: "monster",
         x: monster.x,
+        y: monster.y,
         z: monster.z,
+        ...GROUNDED,
         facing: facingOf(monster.facing),
         textureKey: monsterTextureKey(monster),
       });
@@ -464,7 +495,9 @@ export class Hd2dRenderer implements RendererLike {
         id: guard.id,
         kind: "guard",
         x: guard.x,
+        y: guard.y,
         z: guard.z,
+        ...GROUNDED,
         // A guard carries no facing on the wire. `"north"` is `facingToFlip`'s no-op, so it keeps
         // whichever profile the guard already had rather than snapping it east every frame.
         facing: "north",

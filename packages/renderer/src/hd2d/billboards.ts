@@ -25,18 +25,36 @@ import { HD2D_CAMERA } from "./scene.js";
 
 export type ActorKind = "player" | "monster" | "guard";
 
-/** One actor of one frame, as the renderer hands it over. `x`/`y` are the snapshot's own GAME
- *  PIXELS, top-left origin, and `sync` is the only place in this file that converts them. `y` is
- *  the game's southward axis and becomes the scene's `z`. */
+/** One actor of one frame, as the renderer hands it over. Every coordinate is the snapshot's own —
+ *  TILE units, grid centre as origin — so `sync` converts nothing. */
 export interface ActorView {
   id: string;
   kind: ActorKind;
   /** GROUND axis, in tile units with the grid centre as origin — the snapshot's own coordinate,
    *  with no conversion left between the wire and the scene. */
   x: number;
-  /** The other GROUND axis. The elevation the billboard is placed at is the TERRAIN's
-   *  (`heightAt`), never the snapshot's `y`: a sprite stands on the ground under it. */
+  /** ELEVATION, as the actor's own authority reported it. Read only when one of the three flags
+   *  below says the actor is off the ground; a walking actor is placed on the TERRAIN under it
+   *  (`heightAt`) instead, because a grounded elevation one snapshot stale would jitter the sprite
+   *  through the floor it is standing on. */
+  y: number;
+  /** The other GROUND axis. */
   z: number;
+  /**
+   * The three locomotion flags, straight off the snapshot.
+   *
+   * They exist because the position stream alone cannot tell a jump from a swim from a glide, and
+   * the difference is exactly what decides where the sprite belongs. Since S3 moved movement to the
+   * client, a remote hero's elevation is a fact its own client computed and the room relayed — so
+   * ground-snapping every actor would make every OTHER player's jump invisible, and would draw a
+   * swimmer standing on the bed beneath them. Nothing about that fails; it just looks wrong forever.
+   *
+   * Only a player ever sets one. Monsters and guards are stepped by the room, which walks them on
+   * the ground and nowhere else, so they cross with all three false.
+   */
+  airborne: boolean;
+  swimming: boolean;
+  gliding: boolean;
   /** Which way the actor is turned. The Tiny Swords units are drawn in profile only, so `north`
    *  and `south` deliberately leave the current profile alone (`facingToFlip`). */
   facing: Facing;
@@ -98,6 +116,29 @@ function sheetOf(texture: THREE.Texture): { cols: number; framePx: number } {
   return { cols: Math.max(1, Math.round(width / framePx)), framePx };
 }
 
+/**
+ * Where an actor's feet belong this frame.
+ *
+ * Three cases, and the order between the first two is load-bearing:
+ *
+ * - **Swimming wins first.** A swimmer's body is held at the surface by the rule itself
+ *   (`hero-step.ts` pins `y` to the water level on entry), so the water line is the answer whatever
+ *   elevation rides beside the flag — and the ground under a swimmer is the BED, which is where the
+ *   sprite would sink to if the terrain were consulted. Reading the flag rather than the reported
+ *   `y` also means a stale or hostile elevation cannot float a swimmer above their own sea.
+ * - **Airborne or gliding: the reported elevation**, which is the whole point of relaying it. The
+ *   two are checked independently even though the rule clears the canopy on landing: they are three
+ *   separate booleans on the wire, and a glider drawn on the grass is never the right reading.
+ * - **Otherwise the TERRAIN under the actor** — the scene's own query, so an actor and the ground it
+ *   stands on can never disagree, and a monster or guard (no flags, ever) is unaffected. The
+ *   `waterLevel` fallback is for a point with no ground at all: off the map, or over open water.
+ */
+function elevationOf(actor: ActorView, scene: BillboardScene): number {
+  if (actor.swimming) return scene.waterLevel;
+  if (actor.airborne || actor.gliding) return actor.y;
+  return scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
+}
+
 interface Entry {
   billboard: Billboard;
   /** Kept so a texture change — a class swap, a recoloured guard — rebuilds rather than silently
@@ -156,8 +197,7 @@ export function createBillboardRegistry(
           entry = create(actor);
           entries.set(actor.id, entry);
         }
-        const { x, z } = actor;
-        entry.billboard.placeAt(x, scene.query.heightAt(x, z) ?? scene.waterLevel, z);
+        entry.billboard.placeAt(actor.x, elevationOf(actor, scene), actor.z);
         entry.billboard.setFacing(actor.facing);
       }
       for (const [id, entry] of entries) {

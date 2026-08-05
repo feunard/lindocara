@@ -77,8 +77,22 @@ function cellCentre(map: MapData, i: number, j: number): { x: number; z: number 
   return { x: cx, z: cz };
 }
 
+/** A GROUNDED actor — the case this suite is about. What the three locomotion flags do when one of
+ *  them is set is `hd2d-remote-state.test.ts`'s subject; here they stay false so every placement
+ *  below still reads the terrain, exactly as it did before the flags existed. */
 function actor(id: string, x: number, z: number): ActorView {
-  return { id, kind: "player", x, z, facing: "east", textureKey: "warrior-idle" };
+  return {
+    id,
+    kind: "player",
+    x,
+    y: 0,
+    z,
+    airborne: false,
+    swimming: false,
+    gliding: false,
+    facing: "east",
+    textureKey: "warrior-idle",
+  };
 }
 
 describe("the billboard registry", () => {

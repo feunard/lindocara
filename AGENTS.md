@@ -56,9 +56,20 @@ Everything below describes the present.
 
 ## Architecture
 
-The one rule that matters: **the server decides outcomes.** Clients send movement and action
-intent, never positions, damage, health, heals, inventory, XP, deaths, loot, or quest
-completion.
+The one rule that matters: **the server decides outcomes.** Damage, healing, loot, XP, quests,
+deaths, monster AI and projectiles are all decided by the room and only relayed to a client.
+
+**Exactly two decisions moved to the client, and no more: where a hero is, and where a mobility
+skill puts it.** A client owns its own hero's movement — it runs the rule, reports the position it
+reached (`{t:"move"}`) and applies a blink the server GRANTED. Everything in the first paragraph
+stayed where it was, and a `ClientMessage` still cannot carry damage, health, a heal, an inventory
+change, XP, a death, loot or a quest completion.
+
+**The spec conceded AUTHORITY over movement, not VALIDITY.** The server no longer steps a hero, but
+it still refuses one: `applyReportedMove` bounds a reported position against the real map
+(`withinRoomBounds`), the wire caps every coordinate at `MOVE_COORDINATE_LIMIT`, and a mobility
+grant is a server-issued distance with a server-issued deadline. A client that reports where it
+wishes it were is dropped, not believed.
 
 ### Monorepo layout (npm workspaces)
 
@@ -96,7 +107,9 @@ sync is its own commit. `npx alepha vendor diff` shows any local patches; keep i
 > regression to hunt: the spec put porting the adventures in a later piece. Note there is currently
 > **no in-band way to seed one**: `MapService.saveHeightfield` is reachable from no controller, and
 > `scripts/build-proving-map.ts` writes to a local SQLite path while production's database lives
-> inside the Bay process. Regenerating the adventures as heightfields is what closes this.
+> inside the Bay process. Regenerating the adventures as heightfields is what closes this. **Since
+> 2026-08-06 the stakes are higher, not lower:** the client runs the movement rule against the
+> heightfield it was sent, so a map without one is not merely unlit — nobody in it can move at all.
 >
 > **And a heightfield room runs no authored events at all (since 2026-08-05).** `zoneFromMapPayload`
 > (`packages/server/src/api/realtime/worldState.ts`) bakes `events: []` deliberately: an authored
@@ -119,7 +132,8 @@ by the quarantined `@lindocara/editor`, so it remains installed until that stage
 is the whole renderer, `apps/lab` remains the witness that proves the engine outside the game, and
 the two are the only consumers of `@lindocara/hd2d`. `apps/lab` also depends on `@lindocara/engine`,
 but only its `hd2d/` subfolder (see `packages/engine/AGENTS.md`'s Responsibility section — the game
-rule geometry a future server will consume, not the render path). Before touching anything in the
+rule geometry, which the CLIENT now runs for real and the lab exercises in isolation, not the render
+path). Before touching anything in the
 render path, read [`docs/hd2d-rendering.md`](./docs/hd2d-rendering.md) — what makes the HD-2D style,
 the rendering pitfalls already paid for once, and what the deleted PixiJS renderer knew that nothing
 else records. See also
@@ -175,10 +189,14 @@ migration (their `World`/`GameSession`/`HeroPresence` are today's `WorldRoom`/`P
 
 ```
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
-  simulation.ts pure step(position, input, dt). The single source of movement truth.
+  hd2d/hero-step.ts pure stepHero(state, input, dt, deps). The single source of movement truth,
+                in tile units, run by the CLIENT. (`simulation.ts`/`prediction.ts` — the pixel
+                `step()` and `reconcile()` — are deleted: S3 moved movement to the client.)
+  terrain-access.ts the terrain junction: zoneTerrainFromHeightfield + canStand /
+                resolveGroundMovement. Both sides bake the same ZoneTerrain from the same
+                stored string with the same function.
   game.ts       map geometry, collision, combat/progression constants and pure rules.
   protocol.ts   the wire format, with defensive parsing of anything a client sends.
-  prediction.ts pure reconcile()/prunePending(). Client-side prediction, as functions.
   i18n/         FR/EN dictionaries — data only; the server sends codes, never prose.
   zones.ts      typed zone catalogue, validation and deterministic room keys.
   tileset.ts    the tile id space (autotile band, fixed-tile band) and tileset types. A tile
@@ -248,7 +266,8 @@ src/client/     runs in a browser.
                 with the same hooks as before — only its scope shrank. Text state stays i18n keys
                 + params, never rendered strings.
   api.ts        fetch client; machine-code errors mapped to dictionary keys.
-  game/         the game loop: net.ts (prediction), the hd2d renderer, input.ts,
+  game/         the game loop: net.ts (the wire + the move report), hero-controller.ts (the
+                client's own HeroState, fed to stepHero), the hd2d renderer, input.ts,
                 sound.ts, session.ts (owns the store writes, navigates only through
                 `state/navigation.ts`). No React, and no `alepha`/`alepha/react` import, in here —
                 enforced by keeping `game/**` in the package's plain (non-alepha) `tsconfig.json`
@@ -267,8 +286,10 @@ Modules under `packages/server/src/world/` are concrete domain systems, not an E
 - `world-runtime.ts` defines player, monster, guard, loot and room runtime types plus attachment
   hydration/serialization and entity factories.
 - `connection-system.ts` maintains socket/player indexes and connection rate windows.
-- `movement-system.ts` consumes at most one command per tick, advances players, updates the player
-  grid and schedules movement-adjacent maintenance.
+- `movement-system.ts` no longer moves anyone: the hero's rule runs on the client and
+  `applyReportedMove` (`worldTick.ts`) is where a position changes. What it kept is the per-player
+  beat that always sat beside movement — resource regeneration, the presence heartbeat, corpse
+  reclaim, loot collection, the attachment write and the dirty flush.
 - `combat-action-system.ts` owns the authoritative anticipation/impact/recovery timeline and
   guarantees one resolution per action. `projectile-system.ts` advances bounded swept projectiles,
   resolves terrain/entity contacts and removes them on impact, expiry or owner departure.
@@ -318,46 +339,64 @@ integration coverage. Never let a new message select a room or supply an authori
 
 ### Two players, two rules
 
-- **You** are drawn in the present. Your input is applied locally the frame you press a key
-  (measured: 1 frame, ~7ms). Each snapshot carries the server's truth, which is one
-  round-trip stale, so the commands it has not acknowledged yet are replayed on top of it.
-  When client and server agree, nothing visibly happens.
+- **You** are drawn in the present, because you ARE the present. Your client runs the movement
+  rule (`stepHero`) every animation frame and draws the result immediately. There is nothing to
+  reconcile and nothing to smear: the position on your screen is not a guess at the server's
+  answer, it is the answer, and the server's copy is the one that trails.
 - **Everyone else** is drawn `INTERPOLATION_DELAY_MS` (150ms) in the past, interpolated
   between the two snapshots bracketing that instant. You cannot know where a remote player is
   *now*, and guessing looks worse than being slightly late.
 
 Do not "fix" the interpolation delay by removing it. It is what buys smooth remote motion out
-of a 20Hz snapshot stream, and it does not apply to your own square.
+of a 10Hz delta stream, and it does not apply to your own hero — it never did, and moving movement
+to the client changed nothing about that half.
 
-### One command per tick
+**A remote hero is drawn in its reported STATE, not just at its reported point.** `PlayerSnapshot`
+carries `airborne`, `swimming` and `gliding` beside the position, and the renderer reads them
+(`packages/renderer/src/hd2d/billboards.ts`): a swimmer is drawn at the water line, an airborne or
+gliding hero at its own reported elevation, and only a walking one is stood on the terrain under it.
+The position stream cannot tell those three apart, so a renderer that ground-snapped everyone would
+make every other player's jump invisible and never fail a test.
 
-The client stamps every input with a sequence number and sends one per simulation tick. The
-server queues them and applies **exactly one per tick**, echoing the highest sequence it has
-applied as `ack`. This is the load-bearing invariant:
+### The move report
 
-- Flooding commands buys no speed. The tick rate is the speed limit, not the send rate.
-- A replayed or out-of-order sequence is dropped (`seq <= lastSeq`).
-- With no command to apply the server repeats the last intent for up to `MAX_STARVED_TICKS`
-  (5, i.e. 250ms) to ride out a late packet, then stops the square. A frozen tab must not
-  leave a square sprinting.
+The client owns its hero's position and REPORTS it — `{t:"move"}`, carrying all three axes, the
+unit facing vector and the three locomotion flags. There is no command queue, no sequence number
+and no `ack`; `{t:"input"}`, `MAX_STARVED_TICKS` and the starve branch are deleted.
 
-If you change the tick rate, the client's command rate follows automatically — both derive
-from `TICK_HZ`. If you ever make them differ, reconciliation breaks silently, because replay
-assumes one command means exactly one `TICK_DT`.
+- **20 reports a second, deliberately** (`MOVE_REPORT_MS = TICK_MS`, `packages/client/src/game/net.ts`)
+  — the exact rate the retired one-command-per-tick stream ran at, so it is already proven to sit
+  inside `RATE_MAX_MESSAGES` (35/s) with chat, actions and resyncs beside it. Do not lift it.
+- **An identical frame is not sent.** An idle hero reports nothing: the last frame the server has is
+  still true. The hero still STEPS every animation frame; only the report is throttled, and remote
+  clients fill the gaps with the interpolation above.
+- **The server validates, it does not step.** `applyReportedMove` (`worldTick.ts`) bounds the
+  reported position against the real map (`withinRoomBounds`), the parser caps every coordinate at
+  `MOVE_COORDINATE_LIMIT`, and a corpse's or a mid-handoff hero's frames are dropped outright.
+  Authority over movement was conceded; validity was not.
 
-### Why `step()` lives in `shared/`
+### Why `stepHero()` lives in `engine/`
 
-Both sides call it. The server to decide truth; the client to predict, and to replay pending
-commands during reconciliation. Reconciliation is only correct because the two are literally
-the same function. Two hand-synchronised copies of movement logic is the classic way to make
-prediction unfixable. There is one copy, and `prediction.test.ts` asserts that replaying
-commands over a stale position lands exactly where the server lands.
+The client runs it to move, and it is the only copy — so the terms have changed but the reason has
+not. What both sides still share is the TERRAIN: `zoneTerrainFromHeightfield` bakes a `ZoneTerrain`
+out of the stored heightfield string, and `canStand`/`resolveGroundMovement` answer every "can a
+body be here" question. The server bakes it to validate; the client bakes it to move. **Same
+string, same function, one answer** — fork that and a hero walks through a wall on one side of the
+wire and into it on the other, with nothing failing anywhere.
 
-`@lindocara/engine/hd2d/hero-step.ts`'s `stepHero` is a SECOND movement model, in tile units
-rather than `step()`'s pixels — this is not a fork of the rule above, and never unify the two by
-hand. It is the movement truth the HD-2D witness (`apps/lab`) runs today, in reprieve until a
-later task wires it into the server's authoritative tick and the client's prediction the same way
-`step()` is wired in now; see `packages/engine/AGENTS.md`'s `hd2d/` section for the terms.
+Two client-owned decisions and their fences:
+
+- **Mobility (blink).** The server GRANTS it: `SelfState.mobility` carries a distance and a deadline
+  derived from the live held action, so the grant's ABSENCE is its withdrawal — there is no revoke
+  message. The client spends it once per action id and lands on a standable cell. Cost, cooldown,
+  resource, invulnerability and every effect stayed server-side, and `ClientMessage` gained nothing
+  that mentions mobility, so a client cannot fabricate a grant.
+- **Drowning.** A server-decided death in place. The client reports a bare `{t:"drowned"}` — no
+  position, no damage — and the room refuses it unless that client's own position stream has the
+  hero alive and swimming. Then `killPlayer` leaves the body where it went under, and the corpse run
+  brings it back like any other death.
+
+`apps/lab` remains the witness that exercises `stepHero` outside the game, not a second copy of it.
 
 ### Per-package tsconfigs, not one
 
@@ -436,12 +475,11 @@ Three consequences, each easy to break:
   `corpse_z` — three axes, `x`/`z` ground and `y` elevation, like every other position).
   Death that lives only in memory turns logging out into a free resurrection.
 
-A ghost moves at `GHOST_SPEED`, so `step()` takes a speed and `reconcile()` takes a `LifeState`.
-Replaying a ghost's commands at living speed is a *silent* desync: nothing in the protocol would
-complain, the client would simply draw its own spirit permanently short of where the server has
-put it. The server clears the command queue on **every** life transition, so a batch of pending
-commands is never split across two life states. `prediction.test.ts` pins both speeds against the
-server, and that assertion is the thing standing between you and an unfixable drift.
+A ghost moves at `GHOST_SPEED` and a corpse at zero, so the client folds its life state into the
+one speed the rule reads (`speedForLife`, `engine/death.ts`) before every `stepHero` — it does not
+branch on life twice, and a corpse is fed a zeroed input rather than skipped, so gravity, the water
+and the thin ice keep running underneath it. The server's half of the fence is `applyReportedMove`,
+which refuses a corpse's frames outright: a body that reports itself walking is not believed.
 
 The priest's resurrect is the interact key, not a sixth skill slot: `#interact` already dispatches
 to the nearest sensible thing, and a corpse is one more thing you can be standing next to.
@@ -559,15 +597,18 @@ editor computes the autotile edge variant when you paint and freezes the result,
 an author override a single tile by hand afterwards. What an id *means* — walkable or not, drawn
 behind or in front of characters — is a tileset property authored once per tile, never a per-cell
 one, so collision stays derivable from appearance through one indirection: `tile id → tileset →
-passable`. Collision now has two baked sources on `TerrainGeometry`: `tiles` (the grid, whole cells)
-and `colliders` (a `ColliderIndex` of sub-cell rectangles, one per colliding element) — `isWalkable`
-is the single junction that queries both, so a tree blocks its trunk (~24x20 px), not its whole
-64x64 cell. **On the wire, `WorldInfo.heightfield` is the ONLY terrain, and
+passable`. The pixel `TerrainGeometry` still carries two baked collision sources — `tiles` (the
+grid, whole cells) and `colliders` (a `ColliderIndex` of sub-cell rectangles, one per colliding
+element), joined by `isWalkable` so a tree blocks its trunk rather than its whole cell — **but no
+running room reads them any more.** That model belongs to the tile editor and the catalogue zones
+now; it feeds no live party and dies with them. **On the wire, `WorldInfo.heightfield` is the ONLY
+terrain, and
 `WorldInfo.layers`/`WorldInfo.elements`/`WorldInfo.events` are appearance only** — never derive
 collision from any of the latter three. `WorldInfo.tiles` and `WorldInfo.colliders` are gone: S3's
 tile-units increment made the stored heightfield the single geometry, baked into a `ZoneTerrain` by
 `zoneTerrainFromHeightfield` (`packages/engine/src/terrain-access.ts`) on the server AND, from the
-same string with the same function, on the client for its own prediction. An agent that reads
+same string with the same function, on the client — which runs the movement rule itself and needs
+the very geometry the server will validate it against. An agent that reads
 `layers` to decide walkability reintroduces exactly the silent desync this design exists to prevent,
 and reading `elements` for a collider is the same mistake with a second bake: collision only ever
 comes from the heightfield, via `canStand`/`resolveGroundMovement`. Elevation needs no engine change — a cliff face
@@ -581,9 +622,10 @@ that creates an apparently empty but inaccessible strip around raised ground. Se
 [`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./docs/superpowers/specs/2026-07-18-layered-map-model-design.md)
 for the full model.
 
-The welcome message includes `mapId + revision`, baked collision tiles, sub-cell colliders,
-appearance layers, `tilesetId` and authored elements so prediction, renderer and mini-map share the
-same cache identity.
+The welcome message includes `mapId + revision`, the `heightfield` (the only geometry there is),
+appearance layers, `tilesetId` and authored elements, so the client's movement rule, the renderer
+and the mini-map share the same cache identity. The baked collision tiles and sub-cell colliders it
+used to carry are gone with `WorldInfo.tiles`/`WorldInfo.colliders`.
 
 The `adventures` and `map-editor` screens are gone: one `adventure-editor` screen
 (`src/client/ui/editor/`) now owns both, as menu bar / toolbar / three resizable panes (shadcn
@@ -623,7 +665,7 @@ pair and restores normal cliff upkeep. Baked ramp cells reduce hero movement to 
 adds a smooth 7px hero lift and raises the camera target by 24px on level 1 and 56px on level 2,
 blending through the stair and reversing on descent. The elevation offset is applied after ordinary
 map-bound camera clamping, otherwise a stair near the north edge silently loses the whole effect.
-Server movement, prediction and local preview all read the same
+Client movement, server validation and local preview all read the same
 baked `ramp` kind. Fill has no fill-to-empty primitive; the UI disables it rather than let it
 silently no-op.
 
@@ -746,7 +788,7 @@ model + total parser; `shared/event-interpreter.ts` is the **pure, clockless ste
   TRIGGERER only (`event-run-system` buffers by `heroId`); the other party members' viewports stay
   clean. Movement stays LIVE while the panel is open — the panel captures only its own keys (Space /
   the interact key to advance, 1-4 to choose), never WASD or the skills. Each drain tick, a run parked
-  on a dialogue whose triggerer has walked beyond `DIALOGUE_CLOSE_RADIUS` (`3 * TILE_SIZE`) ENDS: the
+  on a dialogue whose triggerer has walked beyond `DIALOGUE_CLOSE_RADIUS` (3 tiles) ENDS: the
   panel closes and the conversation is over (WoW's rule). Walk-away is not a state rollback — anything
   the run already wrote stays written; it abandons only the REMAINDER.
 
@@ -789,12 +831,15 @@ signal alpha. World-space notifications are limited by `MAX_ACTIVE_WORLD_EFFECTS
 ### Spatial grid and area of interest
 
 `server/spatial-grid.ts` is a non-authoritative index: the room's own collections remain the
-source of truth. Cells are 256 px. Per-recipient views query nearby players (900 px), monsters (850 px) and
-loot (650 px), with a 96 px exit hysteresis; self is unconditional. Guards and corpses use a
-900 px view, spatial events 850 px, and local chat 700 px. `welcome` is the complete baseline;
-`world.delta` is emitted at 10 Hz while simulation stays at 20 Hz. Per-player network maps compare
-against the last state actually sent, including ACK, HP, life, class, appearance and equipment.
-Movement below 0.5 px accumulates against that sent baseline rather than being forgotten.
+source of truth. **Every radius below is in TILE units** since S3 converted the world; each is still
+written in `engine/interest.ts` as its old pixel value over `TILE_SIZE`, so the distances themselves
+did not change — only the ruler. Cells are 4 tiles. Per-recipient views query nearby players
+(14.0625), monsters (13.28125) and loot (10.15625), with a 1.5 exit hysteresis; self is
+unconditional. Guards and corpses use a 14.0625 view, spatial events 13.28125, and local chat
+10.9375. `welcome` is the complete baseline; `world.delta` is emitted at 10 Hz while simulation
+stays at 20 Hz. Per-player network maps compare against the last state actually sent, including HP,
+life, class, appearance and equipment. Movement below `WORLD_POSITION_DELTA_THRESHOLD`
+(`0.5 / 64` of a tile) accumulates against that sent baseline rather than being forgotten.
 
 The client applies upserts/removals to maps, materializes a complete view, and only then appends it
 to the existing interpolation buffer. A non-monotone/unexpected delta tick, invalid frame, unknown
@@ -826,12 +871,15 @@ temporary combat contribution state remains room-local. See
 ### Monster navigation
 
 `ZoneDefinition.navigation` configures a room-local walkability grid generated from the zone's
-authoritative `TerrainGeometry`. `world/navigation-system.ts` owns incremental four-neighbour A*,
-the 128-entry path cache, unique request queue and per-tick node budget. `monster-system.ts` owns
-behaviour selection: patrol, threat chase, unreachable-target abandonment and return to spawn.
-Never bypass `resolveTerrain()` when following a path; it remains the final collision authority.
+authoritative `ZoneTerrain` — one node per heightfield cell, walkable per `canStand`, so the grid
+and the movement rule read the same geometry. `world/navigation-system.ts` owns incremental
+four-neighbour A*, the 128-entry path cache, unique request queue and per-tick node budget.
+`monster-system.ts` owns behaviour selection: patrol, threat chase, unreachable-target abandonment
+and return to spawn. Never bypass `resolveGroundMovement()` when following a path; it remains the
+final collision authority.
 
-A target must move at least 72 px and respect the 650 ms repath interval. A threat target change
+A target must move at least `72 / 64` of a tile (the same distance the pixel world used, in the
+units S3 converted to) and respect the 650 ms repath interval. A threat target change
 may force a request, but navigation work still stays inside the room budget. Add navigation for a
 new zone by configuring `navigation` beside its terrain, not by branching in the engine. See
 [`docs/monster-navigation.md`](./docs/monster-navigation.md) for generation, budgets, debug mode and
@@ -856,8 +904,10 @@ script.
 
 Security limits live beside the boundary they protect: HTTP JSON is capped before parsing,
 WebSocket frames are capped at 2 KiB, identifiers are server-minted UUIDs, malformed/rate-limited
-connections are closed, command queues are bounded, resync is limited to one per second, action
-cooldowns remain authoritative, and database mutations use ownership/epoch/idempotency constraints.
+connections are closed, a reported position is bounded by the map it claims to be on
+(`applyReportedMove`) and by `MOVE_COORDINATE_LIMIT` before that, resync is limited to one per
+second, action cooldowns remain authoritative, and database mutations use
+ownership/epoch/idempotency constraints.
 When adding a message, assign its cost class: cheap intents use the connection window, expensive
 rebuild-like requests also need a dedicated cooldown. Add rejection coverage as well as the happy
 path. Credential stuffing is guarded separately from room traffic: Alepha's login service keeps

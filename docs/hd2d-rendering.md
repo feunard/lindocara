@@ -330,6 +330,15 @@ donc agrandir la carte n'en change ni la taille ni la position.
 Mesuré : 1.89 u/s à la nage contre 4.2 à pied, saut sans effet, noyade puis
 réapparition au point de départ.
 
+**In the GAME, two of those sentences read differently** (the rule is the same `stepHero`; what
+differs is who owns the consequence). Drowning is not a respawn at the starting point: the client
+reports a bare `{t:"drowned"}`, the room refuses it unless that client's own position stream has the
+hero alive and swimming, and then kills it IN PLACE — the body stays where it went under and the
+ordinary corpse run brings it back. And there is **no breath gauge in the game's HUD yet**: the
+reserve is counted by the same rule, but nothing draws it and nothing exposes it — `window.
+__lindocara.self()` hands back a `PlayerSnapshot`, which carries no breath — so the first and only
+signal a player gets is drowning itself. A meter is owed.
+
 ## Les moutons
 
 Ils errent au hasard sur leur palier (`apps/lab/src/world/sheep.ts`), font demi-tour
@@ -654,11 +663,28 @@ misbehaves. The ones a player would notice first:
 - **~~Cliffs are drawn but not collided.~~ CLOSED** by S3's tile-units increment. The pixel
   projection that flattened every non-water cell is deleted along with the whole TILE→PIXEL BRIDGE;
   the server collides against the heightfield itself (`canStand`, `packages/engine/src/
-  terrain-access.ts`) and so does the client's prediction, from the same string with the same
-  function. A cliff face is now solid on both sides of the wire. What remains is a GAMEPLAY state
-  rather than a gap: `MAX_STEP` is 0, so high ground is unreachable on foot until jumping lands —
-  do not "fix" that by letting a grounded body climb, which would author the opposite rule from the
-  one arriving with `stepHero`.
+  terrain-access.ts`) and so does the client, from the same string with the same function — one
+  bakes to move, the other to validate. A cliff face is solid on both sides of the wire.
+- **~~High ground is unreachable, and nobody else's elevation is visible.~~ CLOSED** by S3's
+  client-movement increment (2026-08-06), in two halves that had to land together:
+  - **Reaching it.** `stepHero` runs on the client (`packages/client/src/game/hero-controller.ts`),
+    so the jump, the fall, the water and the canopy are real gameplay rather than a lab
+    demonstration. `MAX_STEP` is still 0 — a grounded body does not climb, it jumps — and that
+    remains the rule, not a gap to fix.
+  - **Seeing it.** A hero's elevation is now a fact its OWN client computed, so the room relays it
+    with three locomotion flags beside it (`PlayerSnapshot.airborne`/`swimming`/`gliding`) and
+    `billboards.ts` reads them: a swimmer is drawn at the water line, an airborne or gliding hero at
+    its reported elevation, and only a walking one is stood on the terrain under it
+    (`elevationOf`). The trap this closed is worth naming, because it fails silently in the most
+    convincing way there is: ground-snapping every actor to `heightAt` looks perfectly correct on
+    your own screen — you are drawn from your own state — while making every OTHER player's jump
+    invisible and standing every swimmer on the seabed. `hd2d-remote-state.test.ts` is what holds
+    it closed.
+- **A remote hero still has no VERTICAL animation.** The elevation is right; the pose is not. No
+  stretch on the rise, no squash on the fall (the lab does both from `state.vy`, which does not
+  cross the wire), and no canopy sprite over a glider — `gliding` moves the body but draws no
+  glider. Grep `NOT YET DRAWN ON THE HD-2D PATH` in `game-renderer.ts`; it belongs with the
+  animation gap below rather than with the placement one above.
 - **The peasant's bomb cannot be aimed, and therefore cannot be thrown.** `screenToWorld` is the one
   no-op whose return value crosses the wire — the session turns it into `skill(5, direction)`, an
   authoritative intent — so it is marked `NOT YET WIRED ON THE HD-2D PATH — GAMEPLAY, NOT RENDERING`

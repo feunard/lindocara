@@ -40,7 +40,14 @@ authoring stage was built on those modules and is quarantined until it is rebuil
   BRIDGE` markers are deleted, and a `pixelToTile` reappearing here would mean the wire went
   backwards. It draws terrain, sea, foam, sky and light from `WorldInfo.heightfield`,
   the actors as billboards the camera follows — drawn at rest, since no clip crosses `ActorView`
-  yet — and `heightfield.elements`/`heightfield.events` as static billboards, appearance only: no
+  yet, but in their real LOCOMOTION state: `ActorView` carries `airborne`/`swimming`/`gliding` and
+  the reported elevation, so a swimmer is drawn at the water line and an airborne or gliding hero at
+  its own `y` rather than snapped to the ground under it (`elevationOf`, `billboards.ts`). Since S3
+  moved movement to the client, a remote hero's elevation is a fact only its owner computed, and
+  ground-snapping it would make every other player's jump invisible without failing anything —
+  `hd2d-remote-state.test.ts` is the guard. Monsters and guards are stepped by the room, on the
+  ground, so all three flags are false for them. It also draws
+  `heightfield.elements`/`heightfield.events` as static billboards, appearance only: no
   element or event ever contributes a collider, because the server bakes collision from the terrain
   alone. Grep `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed visually, and
   `NOT YET WIRED ON THE HD-2D PATH` for the one gap that is not visual at all: `screenToWorld` is
