@@ -1,3 +1,42 @@
+/**
+ * Monster and guard behaviour, in tile units against a heightfield.
+ *
+ * Geometry is expressed through `tile()`, which is the old pixel coordinate divided by `TILE_SIZE`
+ * and shifted onto a grid-centred origin. That is not nostalgia: every range these tests measure
+ * against (`MONSTER_ATTACK_RANGE`, `GUARD_ATTACK_RANGE`, the patrol radii) was converted by the
+ * exact same quotient, so keeping the positions in step preserves each test's margin instead of
+ * silently re-tuning it. `tile(px)` and the cell index `px / TILE_SIZE` line up by construction,
+ * which is what lets a legacy pixel obstacle rectangle become a block of cells with no arithmetic.
+ *
+ * **Five tests died with the pixel model rather than being converted**, and each of them pinned a
+ * rule that no longer exists:
+ *
+ * - "paths around a coarsened tile wall instead of grinding into it" pinned the disagreement
+ *   between a rectangle-based line of sight and a tile grid that rasterised an 8 px rectangle into
+ *   a solid 64 px cell. A heightfield has no rasterisation step: relief is per cell and props are
+ *   sub-cell rectangles a disc is tested against directly, so there is no fattened wall to
+ *   disagree about. What that test really guarded — a monster routes round an obstruction and
+ *   actually arrives, rather than grinding along its face — is kept below as "paths around a
+ *   blocked cell", built on a cell that is genuinely impassable.
+ * - "leaves no rect an authored map's entities can hide in", "still lets the catalogue's safe city
+ *   disarm a monster standing right on top of a player" and "lets a monster acquire threat and
+ *   attack a player standing on a bare authored map" were three faces of the SAFE ZONE.
+ *   `ZoneTerrain` carries no `safeZone` and a stored heightfield has no way to declare one, so the
+ *   "monsters may not touch a player inside the walls" rule is gone and the guard patrol ring
+ *   replaces it (see the root `AGENTS.md`). `safeZoneShelters` survives only for the pixel
+ *   catalogue's own tests, and no converted system calls it.
+ * - the same rule is why "telegraphs a monster attack before the guard defeats it" no longer wraps
+ *   its terrain in an all-covering safe zone: it was never what the test asserted.
+ * - "does not attack through an obstacle even when centre distance is within melee range" is
+ *   **geometrically unreachable** now, and that is worth stating rather than quietly dropping. The
+ *   only thing that interrupts `groundLineOfSight` is relief, and `canStand` keeps a body's whole
+ *   `BODY_RADIUS` disc off it — so two standable points with relief between them are at least
+ *   `2 * 0.25 + 1` tiles apart across a cell face, and about 1.9 across a corner, while
+ *   `GUARD_ATTACK_RANGE` is 0.84. The pixel version could stage it because a 32 px body box could
+ *   sit 16 px from a 64 px wall and clip its corner diagonally. The rule itself is very much alive
+ *   and is pinned at ranged distance by "repositions instead of firing through an obstacle".
+ */
+
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { THREAT_EXPIRES_MS } from "@lindocara/engine/cooperation.js";
 import {
@@ -6,15 +45,12 @@ import {
   GUARD_DAMAGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
-  pointDistance,
-  SAFE_ZONE,
-  safeZoneShelters,
-  type TerrainGeometry,
 } from "@lindocara/engine/game.js";
-import { EMPTY_MARKERS, type MapData, terrainFromMap } from "@lindocara/engine/map-data.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
-import { PLAYER_SIZE, TICK_DT } from "@lindocara/engine/simulation.js";
-import { type ZoneDefinition, zoneDefinition } from "@lindocara/engine/zones.js";
+import { TICK_DT } from "@lindocara/engine/simulation.js";
+import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import {
   advanceGuards,
   advanceMonsters,
@@ -24,37 +60,73 @@ import {
 import { createNavigationRuntime } from "@lindocara/server/world/navigation-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import {
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/server/world/terrain-access.js";
+import {
   createGuards,
   createMonsters,
   type MonsterRuntime,
   newPlayer,
   type PlayerRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
+const SIZE = 16;
+const HALF = SIZE / 2;
+
+/** A legacy pixel coordinate, in tile units with the grid centre as origin. */
+function tile(pixels: number): number {
+  return pixels / 64 - HALF;
+}
+
+/** A block of cells, in grid indices — the successor of a pixel obstacle rectangle. */
+interface CellRect {
+  col: number;
+  row: number;
+  cols: number;
+  rows: number;
+}
+
+/** Blocked cells are WATER: `canStand` refuses them at any elevation, like a solid tile did. */
+function terrainOf(blocks: readonly CellRect[] = []): ZoneTerrain {
+  const blocked = (col: number, row: number) =>
+    blocks.some(
+      (rect) =>
+        col >= rect.col &&
+        col < rect.col + rect.cols &&
+        row >= rect.row &&
+        row < rect.row + rect.rows,
+    );
+  const levels: (number | null)[] = [];
+  for (let row = 0; row < SIZE; row++) {
+    for (let col = 0; col < SIZE; col++) levels.push(blocked(col, row) ? null : 0);
+  }
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels,
+    materials: new Array(SIZE * SIZE).fill("herbe"),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
+const terrain = terrainOf();
+/** The old 64x128 px wall at (64, 0): cells col 1, rows 0-1. */
+const WALL_BLOCK: CellRect = { col: 1, row: 0, cols: 1, rows: 2 };
 /**
- * A single small rect, thinner than one tile, that the rasteriser (any-overlap; conservative in
- * the direction production's 50%-coverage rule also leans) coarsens to a whole solid 64px tile —
- * exactly the shape of the hazard `forest-goblin-1` and `gate-troll`'s patrol rings had before
- * their spawns were nudged clear of it: a wall the tile grid draws fatter than the rectangle it
- * came from.
+ * The closest a body may stand west of `WALL_BLOCK` — its west face at `tile(64)`, less the disc
+ * `canStand` keeps off relief. A monster placed a hair further out is standing still, and the very
+ * next eastward step is refused: the pixel suite got the same "one pixel shy of the boundary" start
+ * from a body box against a tile edge.
  */
-const OBSTACLE = { x: 300, y: 300, width: 8, height: 8 };
-
-const TERRAIN_TILES = tileMapFromRects(640, 640, [OBSTACLE]);
-const WALL_TILES = tileMapFromRects(320, 192, [{ x: 64, y: 0, width: 64, height: 128 }]);
-
-const terrain: TerrainGeometry = {
-  width: 640,
-  height: 640,
-  obstacles: [OBSTACLE],
-  spawnPoints: [{ x: 20, y: 20 }],
-  safeZone: { x: 600, y: 600, width: 20, height: 20 },
-  tiles: TERRAIN_TILES,
-  colliders: noColliders(TERRAIN_TILES),
-};
+const WALL_WEST_LIMIT = tile(64) - 0.25;
 
 const zone: ZoneDefinition = {
   id: "verdant-reach",
@@ -71,13 +143,18 @@ const zone: ZoneDefinition = {
   navigation: { ...DEFAULT_ZONE_NAVIGATION, nodeBudgetPerTick: 200 },
 };
 
-function targetPlayer(x: number, y: number): PlayerRuntime {
+function zoneWith(built: ZoneTerrain): ZoneDefinition {
+  return { ...zone, terrain: built };
+}
+
+function targetPlayer(x: number, z: number): PlayerRuntime {
   return newPlayer(
     {
       id: "chase-target",
       nick: "Target",
       x,
-      y,
+      y: 0,
+      z,
       level: 1,
       xp: 0,
       hp: 100,
@@ -105,9 +182,10 @@ function chasingMonster(): MonsterRuntime {
       kind: "goblin",
       species: "spear_goblin",
       zone: "route",
-      x: 250,
-      y: 220,
-      patrolRadius: 40,
+      x: tile(250),
+      y: 0,
+      z: tile(220),
+      patrolRadius: 40 / 64,
     },
   ])[0];
   if (!monster) throw new Error("missing monster");
@@ -123,9 +201,10 @@ describe("authored monster tuning", () => {
         kind: "skull",
         species: "skull_warden",
         zone: "route",
-        x: 320,
-        y: 192,
-        patrolRadius: 96,
+        x: tile(320),
+        y: 0,
+        z: tile(192),
+        patrolRadius: 96 / 64,
         rank: "boss",
         maxHp: 3_600,
         damage: 52,
@@ -156,12 +235,12 @@ describe("authored monster tuning", () => {
 describe("enemy ranged attack acceptance", () => {
   function rangedHarness(monsterX: number, playerX: number, combatZone = zone) {
     const monster = chasingMonster();
-    monster.x = monsterX;
-    monster.y = 32;
+    monster.x = tile(monsterX);
+    monster.z = tile(32);
     monster.attackProfile = "arrow";
-    const player = targetPlayer(playerX, 32);
+    const player = targetPlayer(tile(playerX), tile(32));
     monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 1_000 });
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(1);
     monsterGrid.insert(monster);
     const startAttack = vi.fn();
     const context: MonsterSystemContext = {
@@ -201,16 +280,10 @@ describe("enemy ranged attack acceptance", () => {
   });
 
   it("repositions instead of firing through an obstacle or consuming its cooldown", () => {
-    const wallTerrain: TerrainGeometry = {
-      width: 320,
-      height: 192,
-      obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
-      spawnPoints: [{ x: 0, y: 128 }],
-      safeZone: null,
-      tiles: WALL_TILES,
-      colliders: noColliders(WALL_TILES),
-    };
-    const wallZone: ZoneDefinition = { ...zone, terrain: wallTerrain };
+    // The wall is water, and water does NOT block a shot — it is a surface below the arrow, not a
+    // wall (see `groundLineOfSight`). Relief does, so the obstruction is a plateau: cells col 1,
+    // rows 0-1, standing between a shooter and a target both on level 0.
+    const wallZone = zoneWith(plateauTerrain([WALL_BLOCK]));
     const { context, monster, startAttack } = rangedHarness(0, 160, wallZone);
 
     advanceMonsters(context, 1_000);
@@ -221,29 +294,59 @@ describe("enemy ranged attack acceptance", () => {
   });
 });
 
+/** The same block shape as `terrainOf`, raised one level instead of flooded. Relief blocks sight. */
+function plateauTerrain(blocks: readonly CellRect[]): ZoneTerrain {
+  const raised = (col: number, row: number) =>
+    blocks.some(
+      (rect) =>
+        col >= rect.col &&
+        col < rect.col + rect.cols &&
+        row >= rect.row &&
+        row < rect.row + rect.rows,
+    );
+  const levels: (number | null)[] = [];
+  for (let row = 0; row < SIZE; row++) {
+    for (let col = 0; col < SIZE; col++) levels.push(raised(col, row) ? 1 : 0);
+  }
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels,
+    materials: new Array(SIZE * SIZE).fill("herbe"),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
 describe("guard effective attack acceptance", () => {
   function guardHarness(
-    monsterPosition: { x: number; y: number },
-    guardPosition: { x: number; y: number },
-    combatTerrain: TerrainGeometry = { ...terrain, safeZone: null },
+    monsterPosition: GroundVector,
+    guardPosition: GroundVector,
+    combatTerrain: ZoneTerrain = terrain,
   ) {
-    const combatZone: ZoneDefinition = { ...zone, terrain: combatTerrain };
+    const combatZone = zoneWith(combatTerrain);
     const monster = chasingMonster();
     monster.x = monsterPosition.x;
-    monster.y = monsterPosition.y;
+    monster.z = monsterPosition.z;
     monster.maxHp = GUARD_DAMAGE * 4;
     monster.hp = monster.maxHp;
     const guards = createGuards([
       {
         id: "effective-range-guard",
         x: guardPosition.x,
-        y: guardPosition.y,
-        patrolRadius: 240,
+        y: 0,
+        z: guardPosition.z,
+        patrolRadius: 240 / 64,
       },
     ]);
     const guard = guards[0];
     if (!guard) throw new Error("missing guard");
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(1);
     monsterGrid.insert(monster);
     const startAttack = vi.fn();
     const context: MonsterSystemContext = {
@@ -261,14 +364,14 @@ describe("guard effective attack acceptance", () => {
 
   it("pursues a detected target outside effective range without attacking or spending cooldown", () => {
     const { context, guard, monster, startAttack } = guardHarness(
-      { x: 220, y: 100 },
-      { x: 100, y: 100 },
+      { x: tile(220), z: tile(100) },
+      { x: tile(100), z: tile(100) },
     );
     const hpBefore = monster.hp;
 
     advanceGuards(context, 1_000);
 
-    expect(guard.x).toBeGreaterThan(100);
+    expect(guard.x).toBeGreaterThan(tile(100));
     expect(monster.hp).toBe(hpBefore);
     expect(guard.lastAttackAt).toBe(0);
     expect(guard.fightingUntil).toBe(0);
@@ -276,10 +379,13 @@ describe("guard effective attack acceptance", () => {
   });
 
   it("starts attacking as soon as the pursued target reaches the exact range boundary", () => {
-    const { context, guard, monster } = guardHarness({ x: 220, y: 100 }, { x: 100, y: 100 });
+    const { context, guard, monster } = guardHarness(
+      { x: tile(220), z: tile(100) },
+      { x: tile(100), z: tile(100) },
+    );
     advanceGuards(context, 1_000);
     monster.x = guard.x + GUARD_ATTACK_RANGE;
-    monster.y = guard.y;
+    monster.z = guard.z;
     const acceptedAt = 1_100;
     const hpBefore = monster.hp;
 
@@ -292,14 +398,14 @@ describe("guard effective attack acceptance", () => {
 
   it("does not accept or spend cooldown when a target leaves range before the guard is ready", () => {
     const { context, guard, monster } = guardHarness(
-      { x: 100 + GUARD_ATTACK_RANGE, y: 100 },
-      { x: 100, y: 100 },
+      { x: tile(100) + GUARD_ATTACK_RANGE, z: tile(100) },
+      { x: tile(100), z: tile(100) },
     );
     const hpBefore = monster.hp;
 
     advanceGuards(context, GUARD_ATTACK_COOLDOWN_MS - 1);
     expect(monster.hp).toBe(hpBefore);
-    monster.x = guard.x + GUARD_ATTACK_RANGE + 1;
+    monster.x = guard.x + GUARD_ATTACK_RANGE + 1 / 64;
     advanceGuards(context, GUARD_ATTACK_COOLDOWN_MS + 1);
 
     expect(monster.hp).toBe(hpBefore);
@@ -307,38 +413,10 @@ describe("guard effective attack acceptance", () => {
     expect(guard.fightingUntil).toBe(0);
   });
 
-  it("does not attack through an obstacle even when centre distance is within melee range", () => {
-    const blockedTerrain: TerrainGeometry = {
-      width: 320,
-      height: 192,
-      obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
-      spawnPoints: [{ x: 0, y: 128 }],
-      safeZone: null,
-      tiles: WALL_TILES,
-      colliders: noColliders(WALL_TILES),
-    };
-    // Both 32px bodies occupy passable tiles on either side of the wall corner. Their centres are
-    // close enough for melee, but the centre-to-centre segment crosses the blocked tile briefly.
-    const { context, guard, monster, startAttack } = guardHarness(
-      { x: 64, y: 128 },
-      { x: 32, y: 94 },
-      blockedTerrain,
-    );
-    const hpBefore = monster.hp;
-    expect(pointDistance(guard, monster)).toBeLessThan(GUARD_ATTACK_RANGE);
-
-    advanceGuards(context, 1_000);
-
-    expect(monster.hp).toBe(hpBefore);
-    expect(guard.lastAttackAt).toBe(0);
-    expect(guard.fightingUntil).toBe(0);
-    expect(startAttack).not.toHaveBeenCalled();
-  });
-
   it("applies one attack and keeps the normal cooldown at the stable range boundary", () => {
     const { context, guard, monster } = guardHarness(
-      { x: 100 + GUARD_ATTACK_RANGE, y: 100 },
-      { x: 100, y: 100 },
+      { x: tile(100) + GUARD_ATTACK_RANGE, z: tile(100) },
+      { x: tile(100), z: tile(100) },
     );
     const acceptedAt = 1_000;
     advanceGuards(context, acceptedAt);
@@ -354,24 +432,32 @@ describe("guard effective attack acceptance", () => {
   });
 });
 
-describe("monster navigation on the tile grid", () => {
-  it("keeps threat alive while the monster is still pursuing its valid target", () => {
-    const monster = chasingMonster();
-    const player = targetPlayer(500, 220);
-    const socket = { id: "pursuit-socket" } as unknown as WebSocket;
-    monster.threat.set(player.id, { playerId: player.id, amount: 50, updatedAt: 1_000 });
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
+describe("monster navigation on the heightfield", () => {
+  function monsterContext(
+    monsters: MonsterRuntime[],
+    players: Map<WebSocket, PlayerRuntime>,
+    combatZone = zone,
+  ): MonsterSystemContext {
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(1);
+    for (const monster of monsters) monsterGrid.insert(monster);
+    return {
+      players,
+      monsters,
       guards: [],
       monsterGrid,
-      zone,
+      zone: combatZone,
       tick: 0,
-      navigation: createNavigationRuntime(terrain, zone.navigation),
+      navigation: createNavigationRuntime(combatZone.terrain, combatZone.navigation),
       startAttack: vi.fn(),
     };
+  }
+
+  it("keeps threat alive while the monster is still pursuing its valid target", () => {
+    const monster = chasingMonster();
+    const player = targetPlayer(tile(500), tile(220));
+    const socket = { id: "pursuit-socket" } as unknown as WebSocket;
+    monster.threat.set(player.id, { playerId: player.id, amount: 50, updatedAt: 1_000 });
+    const context = monsterContext([monster], new Map([[socket, player]]));
 
     const firstRefresh = 1_000 + THREAT_EXPIRES_MS - 1;
     advanceMonsters(context, firstRefresh);
@@ -383,7 +469,7 @@ describe("monster navigation on the tile grid", () => {
 
   it("abandons a vanished Rogue immediately without erasing earned contribution", () => {
     const monster = chasingMonster();
-    const player = targetPlayer(260, 220);
+    const player = targetPlayer(tile(260), tile(220));
     player.class = "rogue";
     monster.threat.set(player.id, { playerId: player.id, amount: 50, updatedAt: 1_000 });
     monster.contributions.set(player.id, {
@@ -395,9 +481,9 @@ describe("monster navigation on the tile grid", () => {
     });
     monster.navigation.state = "chase";
     monster.navigation.targetId = player.id;
-    monster.navigation.destination = { x: player.x, y: player.y };
-    monster.navigation.requestedDestination = { x: player.x, y: player.y };
-    monster.navigation.path = [{ x: player.x, y: player.y }];
+    monster.navigation.destination = { x: player.x, z: player.z };
+    monster.navigation.requestedDestination = { x: player.x, z: player.z };
+    monster.navigation.path = [{ x: player.x, z: player.z }];
     monster.vx = 20;
 
     forgetPlayerFromMonsters([monster], player.id);
@@ -417,22 +503,11 @@ describe("monster navigation on the tile grid", () => {
 
   it("cannot acquire a stealthed Rogue but can target them after the window ends", () => {
     const monster = chasingMonster();
-    const player = targetPlayer(260, 220);
+    const player = targetPlayer(tile(260), tile(220));
     player.class = "rogue";
     player.rogueStealthUntil = 2_000;
     const socket = { id: "rogue-socket" } as unknown as WebSocket;
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone,
-      tick: 0,
-      navigation: createNavigationRuntime(terrain, zone.navigation),
-      startAttack: vi.fn(),
-    };
+    const context = monsterContext([monster], new Map([[socket, player]]));
 
     advanceMonsters(context, 1_000);
     expect(monster.threat.has(player.id)).toBe(false);
@@ -445,26 +520,15 @@ describe("monster navigation on the tile grid", () => {
 
   it("pursues a live Ranger afterimage instead of the Ranger until the decoy expires", () => {
     const monster = chasingMonster();
-    const player = targetPlayer(260, 220);
+    const player = targetPlayer(tile(260), tile(220));
     player.class = "ranger";
-    player.rangerAfterimage = { x: 400, y: 220, expiresAt: 3_000 };
+    player.rangerAfterimage = { x: tile(400), y: 0, z: tile(220), expiresAt: 3_000 };
     monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 1_000 });
     const socket = { id: "afterimage-socket" } as unknown as WebSocket;
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone,
-      tick: 0,
-      navigation: createNavigationRuntime(terrain, zone.navigation),
-      startAttack: vi.fn(),
-    };
+    const context = monsterContext([monster], new Map([[socket, player]]));
 
     advanceMonsters(context, 1_000);
-    expect(monster.navigation.destination?.x).toBe(400);
+    expect(monster.navigation.destination?.x).toBe(tile(400));
     advanceMonsters(context, 3_001);
     expect(player.rangerAfterimage).toBeNull();
     expect(monster.navigation.destination?.x).toBe(player.x);
@@ -472,46 +536,32 @@ describe("monster navigation on the tile grid", () => {
 
   it("keeps pursuing a vanished Rogue's silhouette until it expires", () => {
     const monster = chasingMonster();
-    const player = targetPlayer(260, 220);
+    const player = targetPlayer(tile(260), tile(220));
     player.class = "rogue";
     player.rogueStealthUntil = 4_000;
-    player.rogueSilhouette = { x: 400, y: 220, hp: 45, expiresAt: 3_000 };
+    player.rogueSilhouette = { x: tile(400), y: 0, z: tile(220), hp: 45, expiresAt: 3_000 };
     monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 1_000 });
     const socket = { id: "silhouette-socket" } as unknown as WebSocket;
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone,
-      tick: 0,
-      navigation: createNavigationRuntime(terrain, zone.navigation),
-      startAttack: vi.fn(),
-    };
+    const context = monsterContext([monster], new Map([[socket, player]]));
 
     advanceMonsters(context, 1_000);
     expect(monster.threat.has(player.id)).toBe(true);
-    expect(monster.navigation.destination?.x).toBe(400);
+    expect(monster.navigation.destination?.x).toBe(tile(400));
     advanceMonsters(context, 3_001);
     expect(player.rogueSilhouette).toBeNull();
     expect(monster.threat.has(player.id)).toBe(false);
   });
 
   it("telegraphs a monster attack before the guard defeats it", () => {
-    const combatTerrain: TerrainGeometry = {
-      ...terrain,
-      safeZone: { x: 0, y: 0, width: 640, height: 640 },
-    };
-    const combatZone: ZoneDefinition = { ...zone, terrain: combatTerrain };
     const monster = chasingMonster();
-    monster.x = 100;
-    monster.y = 100;
-    const guards = createGuards([{ id: "guard", x: 110, y: 100, patrolRadius: 100 }]);
+    monster.x = tile(100);
+    monster.z = tile(100);
+    const guards = createGuards([
+      { id: "guard", x: tile(110), y: 0, z: tile(100), patrolRadius: 100 / 64 },
+    ]);
     const guard = guards[0];
     if (!guard) throw new Error("missing guard");
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(1);
     monsterGrid.insert(monster);
     const startAttack = vi.fn();
     const context: MonsterSystemContext = {
@@ -519,9 +569,9 @@ describe("monster navigation on the tile grid", () => {
       monsters: [monster],
       guards,
       monsterGrid,
-      zone: combatZone,
+      zone,
       tick: 0,
-      navigation: createNavigationRuntime(combatTerrain, combatZone.navigation),
+      navigation: createNavigationRuntime(terrain, zone.navigation),
       startAttack,
     };
 
@@ -532,23 +582,23 @@ describe("monster navigation on the tile grid", () => {
     expect(monster.hp).toBe(0);
   });
 
-  it("lets an authored-map guard engage inside its patrol when no safe zone exists", () => {
-    const authoredTerrain: TerrainGeometry = { ...terrain, safeZone: null };
-    const authoredZone: ZoneDefinition = { ...zone, terrain: authoredTerrain };
+  it("lets a guard engage a monster inside its patrol ring", () => {
     const monster = chasingMonster();
-    monster.x = 100;
-    monster.y = 100;
-    const guards = createGuards([{ id: "authored-guard", x: 110, y: 100, patrolRadius: 100 }]);
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monster.x = tile(100);
+    monster.z = tile(100);
+    const guards = createGuards([
+      { id: "authored-guard", x: tile(110), y: 0, z: tile(100), patrolRadius: 100 / 64 },
+    ]);
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(1);
     monsterGrid.insert(monster);
     const context: MonsterSystemContext = {
       players: new Map(),
       monsters: [monster],
       guards,
       monsterGrid,
-      zone: authoredZone,
+      zone,
       tick: 0,
-      navigation: createNavigationRuntime(authoredTerrain, authoredZone.navigation),
+      navigation: createNavigationRuntime(terrain, zone.navigation),
       startAttack: vi.fn(),
     };
 
@@ -558,16 +608,16 @@ describe("monster navigation on the tile grid", () => {
     expect(monster.deadUntil).toBeGreaterThan(MONSTER_ATTACK_COOLDOWN_MS + 1);
   });
 
-  it("keeps an authored-map guard inside its patrol leash against a distant target", () => {
-    const authoredTerrain: TerrainGeometry = { ...terrain, safeZone: null };
-    const authoredZone: ZoneDefinition = { ...zone, terrain: authoredTerrain };
+  it("keeps a guard inside its patrol leash against a distant target", () => {
     const monster = chasingMonster();
-    monster.x = 260;
-    monster.y = 100;
-    const guards = createGuards([{ id: "leashed-guard", x: 100, y: 100, patrolRadius: 32 }]);
+    monster.x = tile(260);
+    monster.z = tile(100);
+    const guards = createGuards([
+      { id: "leashed-guard", x: tile(100), y: 0, z: tile(100), patrolRadius: 32 / 64 },
+    ]);
     const guard = guards[0];
     if (!guard) throw new Error("missing guard");
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(1);
     monsterGrid.insert(monster);
     const startAttack = vi.fn();
     const context: MonsterSystemContext = {
@@ -575,9 +625,9 @@ describe("monster navigation on the tile grid", () => {
       monsters: [monster],
       guards,
       monsterGrid,
-      zone: authoredZone,
+      zone,
       tick: 0,
-      navigation: createNavigationRuntime(authoredTerrain, authoredZone.navigation),
+      navigation: createNavigationRuntime(terrain, zone.navigation),
       startAttack,
     };
 
@@ -585,34 +635,23 @@ describe("monster navigation on the tile grid", () => {
       advanceGuards(context, (tick + 1) * TICK_DT * 1_000);
     }
 
-    expect(guard.x).toBeGreaterThan(100);
-    expect(pointDistance(guard, { x: guard.homeX, y: guard.homeY })).toBeLessThanOrEqual(32.001);
+    expect(guard.x).toBeGreaterThan(tile(100));
+    expect(groundDistance(guard, { x: guard.homeX, z: guard.homeZ })).toBeLessThanOrEqual(
+      32 / 64 + 0.001,
+    );
     expect(startAttack).not.toHaveBeenCalled();
   });
 
-  it("paths around a coarsened tile wall instead of grinding into it", () => {
-    // The straight line from the monster to its target passes through column 4 / row 4 — the
-    // single tile the 8x8 rect above coarsens to solid — even though that continuous segment
-    // never touches the rect itself (it runs at x ≈ 266, the rect sits at x 300-308). A
-    // rectangle-based line-of-sight check would call this clear; the tile grid must not.
+  it("paths around a blocked cell instead of grinding into it", () => {
+    // The straight line from the monster to its target crosses a water cell. The direct-move
+    // branch is refused, the pathfinder must produce a detour, and the monster must actually
+    // arrive rather than sliding along the obstruction's face forever.
+    const blockedZone = zoneWith(terrainOf([{ col: 3, row: 4, cols: 1, rows: 1 }]));
     const monster = chasingMonster();
-    const player = targetPlayer(250, 400);
+    const player = targetPlayer(tile(250), tile(400));
     const socket = { id: "socket-1" } as unknown as WebSocket;
     monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
-
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone,
-      tick: 0,
-      navigation: createNavigationRuntime(terrain, zone.navigation),
-      startAttack: vi.fn(),
-    };
+    const context = monsterContext([monster], new Map([[socket, player]]), blockedZone);
 
     let reachedAtTick = -1;
     let maxXDeviation = 0;
@@ -622,39 +661,23 @@ describe("monster navigation on the tile grid", () => {
       context.tick = tick;
       advanceMonsters(context, tick * tickMs);
       maxXDeviation = Math.max(maxXDeviation, Math.abs(monster.x - startX));
-      if (pointDistance(monster, player) <= MONSTER_ATTACK_RANGE) {
+      if (groundDistance(monster, player) <= MONSTER_ATTACK_RANGE) {
         reachedAtTick = tick;
         break;
       }
     }
 
-    // A monster grinding into the fattened wall never leaves the tile's edge and never reaches
-    // its target — this is the exact way `stuckTicks` used to paper over the disagreement between
-    // line-of-sight and collision. With both reading the same grid, it must actually arrive.
     expect(reachedAtTick).toBeGreaterThan(-1);
-    // It must have gone sideways to get around the tile, not merely slid along the wall's face.
-    expect(maxXDeviation).toBeGreaterThan(20);
+    // It went sideways to get round the cell rather than merely sliding along its face.
+    expect(maxXDeviation).toBeGreaterThan(20 / 64);
   });
 
   it("re-plans instead of freezing when a waypoint move is fully blocked", () => {
     // A single-column wall spanning rows 0-1, open only at row 2 — the monster must detour down
     // and back up to cross it. Column 0 (monster) and column 4 (player) sit on either side, all in
-    // row 0, so the straight line between them runs directly through the solid column: the
+    // row 0, so the straight line between them runs directly through the blocked column: the
     // direct-move branch never applies here, only the path-following one.
-    const wallTerrain: TerrainGeometry = {
-      width: 320,
-      height: 192,
-      obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
-      spawnPoints: [{ x: 20, y: 20 }],
-      safeZone: { x: 0, y: 0, width: 1, height: 1 },
-      tiles: WALL_TILES,
-      colliders: noColliders(WALL_TILES),
-    };
-    const wallZone: ZoneDefinition = {
-      ...zone,
-      terrain: wallTerrain,
-      navigation: { ...DEFAULT_ZONE_NAVIGATION, nodeBudgetPerTick: 200 },
-    };
+    const wallZone = zoneWith(plateauTerrain([WALL_BLOCK]));
 
     const monster = createMonsters([
       {
@@ -662,41 +685,29 @@ describe("monster navigation on the tile grid", () => {
         kind: "goblin",
         species: "spear_goblin",
         zone: "route",
-        x: 32,
-        y: 32,
-        patrolRadius: 40,
+        x: WALL_WEST_LIMIT - 0.01,
+        y: 0,
+        z: tile(32),
+        patrolRadius: 40 / 64,
       },
     ])[0];
     if (!monster) throw new Error("missing monster");
-    const player = targetPlayer(280, 32);
+    const player = targetPlayer(tile(280), tile(32));
     const socket = { id: "socket-2" } as unknown as WebSocket;
     monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
 
     // Sabotage: hand the monster a "path" whose one waypoint jumps straight across the wall, as
-    // if a stale plan had survived past the point collision actually refuses it. Monster x=32 is
-    // one pixel shy of the tile boundary at x=64, so a body 32px wide moving even slightly east
-    // immediately overlaps the solid column — the very first `moveMonsterDirect` call fails.
+    // if a stale plan had survived past the point collision actually refuses it.
     monster.navigation.state = "chase";
     monster.navigation.targetId = player.id;
-    monster.navigation.requestedDestination = { x: player.x, y: player.y };
-    monster.navigation.destination = { x: player.x, y: player.y };
-    monster.navigation.path = [{ x: player.x, y: player.y }];
+    monster.navigation.requestedDestination = { x: player.x, z: player.z };
+    monster.navigation.destination = { x: player.x, z: player.z };
+    monster.navigation.path = [{ x: player.x, z: player.z }];
     monster.navigation.pathIndex = 0;
     monster.navigation.requestPending = false;
     monster.navigation.lastPathRequestAt = 0;
 
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone: wallZone,
-      tick: 0,
-      navigation: createNavigationRuntime(wallTerrain, wallZone.navigation),
-      startAttack: vi.fn(),
-    };
+    const context = monsterContext([monster], new Map([[socket, player]]), wallZone);
 
     const startX = monster.x;
     advanceMonsters(context, 0);
@@ -709,14 +720,13 @@ describe("monster navigation on the tile grid", () => {
     expect(monster.navigation.abandonReason).toBe("waypoint_blocked");
 
     // Recovery must be real, not just internal bookkeeping: given ticks to re-plan around the
-    // wall (through the row-2 gap), the monster must actually arrive. Before this fix, the stale
-    // one-waypoint path was never replaced, and the monster sat at x=32 forever.
+    // wall (through the row-2 gap), the monster must actually arrive.
     let reachedAtTick = -1;
     const tickMs = TICK_DT * 1000;
     for (let tick = 1; tick < 300; tick++) {
       context.tick = tick;
       advanceMonsters(context, tick * tickMs);
-      if (pointDistance(monster, player) <= MONSTER_ATTACK_RANGE) {
+      if (groundDistance(monster, player) <= MONSTER_ATTACK_RANGE) {
         reachedAtTick = tick;
         break;
       }
@@ -725,26 +735,12 @@ describe("monster navigation on the tile grid", () => {
   });
 
   it("re-plans within a tick and does not reuse the stale cached path when a waypoint move is refused", () => {
-    // Same wedge shape as the test above (a single-column wall spanning rows 0-1, open only at
-    // row 2), but this time the stale path is also sitting in the navigation cache under the
-    // exact key a re-plan for this start/goal would use — the situation a *legitimate* earlier
-    // `requestMonsterPath` call would actually leave behind, not just a hand-injected path. If the
-    // recovery does not evict that entry, the very re-plan it triggers hands back the identical
+    // Same wedge shape as the test above, but this time the stale path is also sitting in the
+    // navigation cache under the exact key a re-plan for this start/goal would use — the situation
+    // a *legitimate* earlier `requestMonsterPath` call would actually leave behind. If the recovery
+    // does not evict that entry, the very re-plan it triggers hands back the identical
     // one-waypoint path that just failed.
-    const wallTerrain: TerrainGeometry = {
-      width: 320,
-      height: 192,
-      obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
-      spawnPoints: [{ x: 20, y: 20 }],
-      safeZone: { x: 0, y: 0, width: 1, height: 1 },
-      tiles: WALL_TILES,
-      colliders: noColliders(WALL_TILES),
-    };
-    const wallZone: ZoneDefinition = {
-      ...zone,
-      terrain: wallTerrain,
-      navigation: { ...DEFAULT_ZONE_NAVIGATION, nodeBudgetPerTick: 200 },
-    };
+    const wallZone = zoneWith(plateauTerrain([WALL_BLOCK]));
 
     const monster = createMonsters([
       {
@@ -752,54 +748,42 @@ describe("monster navigation on the tile grid", () => {
         kind: "goblin",
         species: "spear_goblin",
         zone: "route",
-        x: 32,
-        y: 32,
-        patrolRadius: 40,
+        x: WALL_WEST_LIMIT - 0.01,
+        y: 0,
+        z: tile(32),
+        patrolRadius: 40 / 64,
       },
     ])[0];
     if (!monster) throw new Error("missing monster");
-    const player = targetPlayer(280, 32);
+    const player = targetPlayer(tile(280), tile(32));
     const socket = { id: "socket-3" } as unknown as WebSocket;
     monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
 
     monster.navigation.state = "chase";
     monster.navigation.targetId = player.id;
-    monster.navigation.requestedDestination = { x: player.x, y: player.y };
-    monster.navigation.destination = { x: player.x, y: player.y };
-    const staleBlockedPath = [{ x: player.x, y: player.y }];
+    monster.navigation.requestedDestination = { x: player.x, z: player.z };
+    monster.navigation.destination = { x: player.x, z: player.z };
+    const staleBlockedPath = [{ x: player.x, z: player.z }];
     monster.navigation.path = staleBlockedPath.map((point) => ({ ...point }));
     monster.navigation.pathIndex = 0;
     monster.navigation.requestPending = false;
     monster.navigation.lastPathRequestAt = 0;
 
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const navigation = createNavigationRuntime(wallTerrain, wallZone.navigation);
-    // Columns = ceil(320 / 64) = 5. Monster (32,32) centers in column 0 / row 0 -> node 0; the
-    // player (280,32) centers in column 4 / row 0 -> node 4 -- the identical math
-    // `requestMonsterPath` uses to build its cache key.
-    navigation.cache.set("0:4", {
+    const context = monsterContext([monster], new Map([[socket, player]]), wallZone);
+    // Cell indices are `floor(world + SIZE / 2)`: the monster at `tile(32)` centres in column 0 /
+    // row 0 -> node 0, the player at `tile(280)` in column 4 / row 0 -> node 4 -- the identical
+    // math `requestMonsterPath` uses to build its cache key.
+    context.navigation.cache.set(`0:${4}`, {
       points: staleBlockedPath.map((point) => ({ ...point })),
       usedAt: 0,
     });
-
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone: wallZone,
-      tick: 0,
-      navigation,
-      startAttack: vi.fn(),
-    };
 
     advanceMonsters(context, 0);
     expect(monster.navigation.path.length).toBe(0);
     expect(monster.navigation.abandonReason).toBe("waypoint_blocked");
 
     let replannedAtTick = -1;
-    let firstPathAfterBlock: { x: number; y: number }[] | null = null;
+    let firstPathAfterBlock: GroundVector[] | null = null;
     const tickMs = TICK_DT * 1000;
     for (let tick = 1; tick <= 5; tick++) {
       context.tick = tick;
@@ -824,7 +808,7 @@ describe("monster navigation on the tile grid", () => {
     for (let tick = 6; tick < 300; tick++) {
       context.tick = tick;
       advanceMonsters(context, tick * tickMs);
-      if (pointDistance(monster, player) <= MONSTER_ATTACK_RANGE) {
+      if (groundDistance(monster, player) <= MONSTER_ATTACK_RANGE) {
         reachedAtTick = tick;
         break;
       }
@@ -833,138 +817,14 @@ describe("monster navigation on the tile grid", () => {
   });
 });
 
-/**
- * The unit layer used to hand-roll every `TerrainGeometry`, so it could not see what
- * `terrainFromMap` actually produced. These build their terrain the way a room does — through the
- * real map baker — so the two can no longer drift apart.
- */
-describe("authored-map geometry", () => {
-  const authoredMap: MapData = mapDataFromBlocks({
-    blocks: Array.from({ length: 15 }, () => ".".repeat(20)),
-    elements: [],
-    spawn: { col: 2, row: 2 },
-    markers: EMPTY_MARKERS,
-  });
-
-  function authoredZone(): ZoneDefinition {
-    const authoredTerrain = terrainFromMap(authoredMap);
-    return { ...zone, id: "map-id", terrain: authoredTerrain };
-  }
-
-  it("leaves no rect an authored map's entities can hide in", () => {
-    const terrainOfMap = terrainFromMap(authoredMap);
-    // Every cell centre, plus the four corners a clamped entity can actually reach. If any of
-    // these reads as "safe", monsters go back to being decorative on that map.
-    for (let row = 0; row < 15; row++) {
-      for (let col = 0; col < 20; col++) {
-        const point = { x: col * 64 + 32, y: row * 64 + 32 };
-        expect(safeZoneShelters(point, terrainOfMap)).toBe(false);
-      }
-    }
-    const maxX = terrainOfMap.width - PLAYER_SIZE;
-    const maxY = terrainOfMap.height - PLAYER_SIZE;
-    for (const corner of [
-      { x: 0, y: 0 },
-      { x: maxX, y: 0 },
-      { x: 0, y: maxY },
-      { x: maxX, y: maxY },
-    ]) {
-      expect(safeZoneShelters(corner, terrainOfMap)).toBe(false);
-    }
-  });
-
-  it("lets a monster acquire threat and attack a player standing on a bare authored map", () => {
-    const combatZone = authoredZone();
-    const player = targetPlayer(300, 300);
-    const socket = { id: "socket-authored" } as unknown as WebSocket;
-    const monster = createMonsters([
-      {
-        id: "authored-goblin",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 300 + MONSTER_ATTACK_RANGE - 4,
-        y: 300,
-        patrolRadius: 40,
-      },
-    ])[0];
-    if (!monster) throw new Error("missing monster");
-
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const startAttack = vi.fn();
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone: combatZone,
-      tick: 0,
-      navigation: createNavigationRuntime(combatZone.terrain, combatZone.navigation),
-      startAttack,
-    };
-
-    advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
-
-    expect(monster.threat.has(player.id)).toBe(true);
-    expect(startAttack).toHaveBeenCalledTimes(1);
-    expect(startAttack.mock.calls[0]?.[0]).toBe(monster);
-    expect(startAttack.mock.calls[0]?.[1]).toBe(player);
-  });
-
-  it("still lets the catalogue's safe city disarm a monster standing right on top of a player", () => {
-    // The other half of the same rule: fixing authored maps must not disarm Heartroot, where the
-    // guards — not invulnerability — are the reason a monster inside the walls is a problem.
-    const cityZone = zoneDefinition("verdant-reach");
-    const shelter = { x: SAFE_ZONE.x + 100, y: SAFE_ZONE.y + 100 };
-    expect(safeZoneShelters(shelter, cityZone.terrain)).toBe(true);
-
-    const player = targetPlayer(shelter.x, shelter.y);
-    const socket = { id: "socket-city" } as unknown as WebSocket;
-    const monster = createMonsters([
-      {
-        id: "city-goblin",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: shelter.x + 8,
-        y: shelter.y,
-        patrolRadius: 40,
-      },
-    ])[0];
-    if (!monster) throw new Error("missing monster");
-    // Even threat that somehow already exists must be pruned while the player is sheltered.
-    monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
-
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(monster);
-    const startAttack = vi.fn();
-    const context: MonsterSystemContext = {
-      players: new Map([[socket, player]]),
-      monsters: [monster],
-      guards: [],
-      monsterGrid,
-      zone: cityZone,
-      tick: 0,
-      navigation: createNavigationRuntime(cityZone.terrain, cityZone.navigation),
-      startAttack,
-    };
-
-    advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
-
-    expect(monster.threat.has(player.id)).toBe(false);
-    expect(startAttack).not.toHaveBeenCalled();
-  });
-});
-
 describe("monster action attacker identity", () => {
   it("starts each attacking monster's own action, not a same-species neighbour's", () => {
-    // Mirrors the real hazard next to the safe zone: road-goblin-scout and city-edge-prowler are
-    // both spear_goblin, close enough together that a client guessing the attacker from
-    // distance-to-victim alone cannot reliably tell them apart. Placed symmetrically around the
-    // player here for the same reason — equidistant is the worst case for that guess. The server
-    // must not make the client guess: it must name which monster it resolved as the attacker.
-    const player = targetPlayer(300, 500);
+    // Mirrors the real hazard next to a guard post: two same-species monsters close enough
+    // together that a client guessing the attacker from distance-to-victim alone cannot reliably
+    // tell them apart. Placed symmetrically around the player here for the same reason —
+    // equidistant is the worst case for that guess. The server must not make the client guess: it
+    // must name which monster it resolved as the attacker.
+    const player = targetPlayer(tile(300), tile(500));
     const socket = { id: "socket-hurt" } as unknown as WebSocket;
 
     const monsters = createMonsters([
@@ -973,18 +833,20 @@ describe("monster action attacker identity", () => {
         kind: "goblin",
         species: "spear_goblin",
         zone: "route",
-        x: 270,
-        y: 500,
-        patrolRadius: 40,
+        x: tile(270),
+        y: 0,
+        z: tile(500),
+        patrolRadius: 40 / 64,
       },
       {
         id: "goblin-b",
         kind: "goblin",
         species: "spear_goblin",
         zone: "route",
-        x: 330,
-        y: 500,
-        patrolRadius: 40,
+        x: tile(330),
+        y: 0,
+        z: tile(500),
+        patrolRadius: 40 / 64,
       },
     ]);
     const [monsterA, monsterB] = monsters;
@@ -992,7 +854,7 @@ describe("monster action attacker identity", () => {
     monsterA.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
     monsterB.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
 
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(1);
     monsterGrid.insert(monsterA);
     monsterGrid.insert(monsterB);
 

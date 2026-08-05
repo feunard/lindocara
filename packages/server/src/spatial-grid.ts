@@ -1,12 +1,25 @@
-import type { Vec2 } from "@lindocara/engine/simulation.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
 
-export interface SpatialEntity extends Vec2 {
+/**
+ * Anything the room can index: an id and a position **on the ground plane**.
+ *
+ * It used to be `extends Vec2`, and that was this increment's central bug wearing a green suite.
+ * Every three-axis runtime — `PlayerRuntime`, `MonsterRuntime`, `GroundLoot` — still satisfied
+ * `Vec2` structurally once it grew a `z`, so the grid went on bucketing each entity by its ground
+ * `x` against its **elevation** `y`: every body sat in the `y = 0` row, every query compared a
+ * ground distance against an elevation one, and neither the compiler nor a single test noticed.
+ * `GroundVector` is the fix and the fence: `{x, z}` and `{x, y}` are the one field name apart that
+ * makes a half-converted call site fail to compile.
+ */
+export interface SpatialEntity extends GroundVector {
   id: string;
 }
 
 /**
  * A non-authoritative spatial index. Callers retain ownership of entity state; the grid only
  * stores references and cell membership so nearby queries do not scan an entire room.
+ *
+ * `cellSize` is in tile units, like everything it indexes.
  */
 export class SpatialGrid<T extends SpatialEntity> {
   readonly cellSize: number;
@@ -32,7 +45,7 @@ export class SpatialGrid<T extends SpatialEntity> {
     this.#cellById.set(entity.id, key);
   }
 
-  update(entity: T, _previousPosition: Vec2): void {
+  update(entity: T, _previousPosition: GroundVector): void {
     const previousKey = this.#cellById.get(entity.id);
     const nextKey = this.#key(entity);
     if (previousKey === nextKey) return;
@@ -54,37 +67,37 @@ export class SpatialGrid<T extends SpatialEntity> {
     this.#cellById.clear();
   }
 
-  queryRadius(position: Vec2, radius: number): T[] {
+  queryRadius(position: GroundVector, radius: number): T[] {
     if (!Number.isFinite(radius) || radius < 0) return [];
     const minX = Math.floor((position.x - radius) / this.cellSize);
     const maxX = Math.floor((position.x + radius) / this.cellSize);
-    const minY = Math.floor((position.y - radius) / this.cellSize);
-    const maxY = Math.floor((position.y + radius) / this.cellSize);
+    const minZ = Math.floor((position.z - radius) / this.cellSize);
+    const maxZ = Math.floor((position.z + radius) / this.cellSize);
     const radiusSquared = radius * radius;
     const result: T[] = [];
-    for (let cellY = minY; cellY <= maxY; cellY++) {
+    for (let cellZ = minZ; cellZ <= maxZ; cellZ++) {
       for (let cellX = minX; cellX <= maxX; cellX++) {
-        const cell = this.#cells.get(`${cellX}:${cellY}`);
+        const cell = this.#cells.get(`${cellX}:${cellZ}`);
         if (!cell) continue;
         for (const entity of cell.values()) {
           const dx = entity.x - position.x;
-          const dy = entity.y - position.y;
-          if (dx * dx + dy * dy <= radiusSquared) result.push(entity);
+          const dz = entity.z - position.z;
+          if (dx * dx + dz * dz <= radiusSquared) result.push(entity);
         }
       }
     }
     return result;
   }
 
-  #key(position: Vec2): string {
-    return `${Math.floor(position.x / this.cellSize)}:${Math.floor(position.y / this.cellSize)}`;
+  #key(position: GroundVector): string {
+    return `${Math.floor(position.x / this.cellSize)}:${Math.floor(position.z / this.cellSize)}`;
   }
 }
 
 /** Keeps known entities through the wider exit radius while new entities use the enter radius. */
 export function queryWithHysteresis<T extends SpatialEntity>(
   grid: SpatialGrid<T>,
-  position: Vec2,
+  position: GroundVector,
   enterRadius: number,
   hysteresis: number,
   previouslyVisible: ReadonlySet<string>,
@@ -94,8 +107,8 @@ export function queryWithHysteresis<T extends SpatialEntity>(
   const enterRadiusSquared = enterRadius * enterRadius;
   const entities = grid.queryRadius(position, exitRadius).filter((entity) => {
     const dx = entity.x - position.x;
-    const dy = entity.y - position.y;
-    const distanceSquared = dx * dx + dy * dy;
+    const dz = entity.z - position.z;
+    const distanceSquared = dx * dx + dz * dz;
     return previouslyVisible.has(entity.id)
       ? distanceSquared <= exitRadiusSquared
       : distanceSquared <= enterRadiusSquared;

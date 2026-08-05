@@ -21,7 +21,6 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import { TICK_DT, TICK_MS } from "@lindocara/engine/simulation.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 import { collectLoot } from "../src/world/loot-system.js";
 import {
@@ -445,25 +444,13 @@ describe("loot pickup", () => {
 
 describe("a monster and a hero on high ground", () => {
   /**
-   * The navigation runtime is still the pixel one — `navigation-system.ts` is converted with the
-   * A* grid in a later task. Nothing in these tests reaches the pathfinder: the out-of-reach
-   * branch resolves before `navigateMonster` is ever called, and `processNavigationBudget` returns
-   * immediately on an empty queue.
+   * The A* grid is built from the SAME `ZoneTerrain` the chase is simulated against, now that
+   * `navigation-system.ts` reads a heightfield. It used to be a throwaway pixel grid, because the
+   * out-of-reach branch resolves before `navigateMonster` is ever called — a stopgap the elevation
+   * conversion removes rather than keeps.
    */
-  function navigation() {
-    const tiles = tileMapFromRects(64, 64, []);
-    return createNavigationRuntime(
-      {
-        width: 64,
-        height: 64,
-        obstacles: [],
-        spawnPoints: [{ x: 0, y: 0 }],
-        safeZone: null,
-        tiles,
-        colliders: noColliders(tiles),
-      },
-      DEFAULT_ZONE_NAVIGATION,
-    );
+  function navigation(built: ZoneTerrain) {
+    return createNavigationRuntime(built, DEFAULT_ZONE_NAVIGATION);
   }
 
   function goblinAt(x: number, z: number): MonsterRuntime {
@@ -497,7 +484,7 @@ describe("a monster and a hero on high ground", () => {
       monsterGrid,
       zone: zoneWith(built),
       tick: 0,
-      navigation: navigation(),
+      navigation: navigation(built),
       startAttack: vi.fn(),
     };
     let now = 1_000;

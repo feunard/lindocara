@@ -4,14 +4,15 @@
  * is unchanged; only the ruler measuring it is. Do not round these to "nicer" numbers — a changed
  * radius is a gameplay change, not a unit conversion.
  *
- * `SPATIAL_CELL_SIZE` and `SPATIAL_EVENT_RADIUS` stay in pixels here: their call sites still
- * query grids built from pixel positions, and converting them ahead of those positions (a later
- * task) would silently break the queries rather than the tests that should catch it.
+ * `SPATIAL_CELL_SIZE` and `SPATIAL_EVENT_RADIUS` were the last two left in pixels, because their
+ * call sites still queried a grid indexed by pixel positions. `SpatialGrid` now buckets on the
+ * ground plane in tile units, so they travel with it — same quotient by `TILE_SIZE`, same ground
+ * covered.
  */
 import { TILE_SIZE } from "./tilemap.js";
 
 /** Spatial index cell edge. Close to the entity radii while keeping queries to few cells. */
-export const SPATIAL_CELL_SIZE = 256;
+export const SPATIAL_CELL_SIZE = 256 / TILE_SIZE;
 
 export const PLAYER_VISIBILITY_RADIUS = 900 / TILE_SIZE;
 export const MONSTER_VISIBILITY_RADIUS = 850 / TILE_SIZE;
@@ -22,7 +23,7 @@ export const CORPSE_VISIBILITY_RADIUS = 900 / TILE_SIZE;
 /** Existing entities remain visible this far beyond their enter radius to prevent edge flicker. */
 export const INTEREST_HYSTERESIS = 96 / TILE_SIZE;
 
-export const SPATIAL_EVENT_RADIUS = 850;
+export const SPATIAL_EVENT_RADIUS = 850 / TILE_SIZE;
 export const LOCAL_CHAT_RADIUS = 700 / TILE_SIZE;
 
 export const CHAT_CHANNELS = ["local", "party", "guild", "global", "whisper"] as const;

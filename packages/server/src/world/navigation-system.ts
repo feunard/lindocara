@@ -1,17 +1,35 @@
-import { isWalkable, type TerrainGeometry } from "@lindocara/engine/game.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import type { ZoneNavigationDefinition } from "@lindocara/engine/navigation.js";
-import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
-import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  standingCeiling,
+  type ZoneTerrain,
+} from "./terrain-access.js";
 import type { MonsterRuntime } from "./world-runtime.js";
 
 const PATH_CACHE_LIMIT = 128;
 
 export interface NavigationGrid {
+  /**
+   * Cell edge in TILE UNITS, and therefore always 1: a navigation node is exactly one heightfield
+   * cell. It was `TILE_SIZE` for the same reason — one node per collision cell — and survives as a
+   * named constant only so the arithmetic below reads as arithmetic rather than as magic ones.
+   */
   cellSize: number;
   columns: number;
   rows: number;
   walkable: Uint8Array;
-  terrain: TerrainGeometry;
+  /**
+   * The ground height under each node's cell centre. This is the elevation half of walkability and
+   * the reason it is baked rather than sampled: an edge test that re-read the terrain under the
+   * CANDIDATE would be the self-satisfying `canStand(dest, groundUnder(dest))` that has already
+   * shipped a cliff-climbing bug three times over. `neighbors` reads the CURRENT node's height, so
+   * every edge is grounded on where the body is.
+   */
+  height: Float64Array;
+  terrain: ZoneTerrain;
 }
 
 interface PathRequest {
@@ -19,7 +37,7 @@ interface PathRequest {
   requestId: number;
   startNode: number;
   goalNode: number;
-  destination: Vec2;
+  destination: GroundVector;
   targetId: string | null;
   state: "patrol" | "chase" | "return";
   cacheKey: string;
@@ -40,7 +58,7 @@ interface SearchWork {
 }
 
 interface CachedPath {
-  points: Vec2[];
+  points: GroundVector[];
   usedAt: number;
 }
 
@@ -64,50 +82,51 @@ export interface NavigationRuntime {
 }
 
 /**
- * A cell is walkable exactly when the tilemap says so — no sampling, no approximation. Navigation
- * and collision reading the same grid is what makes a "clear" path always actually walkable; see
- * `hasLineOfSight` and `isWalkable`, which read the identical tiles.
+ * A node is walkable exactly when `canStand` says a body could stand at its cell centre, and the
+ * height it stands at is baked beside it. Navigation and collision asking the SAME function is
+ * what makes a "clear" path always actually walkable — this used to be "the tilemap says so", and
+ * every disagreement between the two rules had to be patched back out by hand.
  *
- * The grid's cell size is `TILE_SIZE`, always — not something a zone can configure. There used to
- * be a `ZoneNavigationDefinition.cellSize` a zone could override (that is how `mmo-test-zone` once
+ * One node per heightfield cell, always — not something a zone can configure. There used to be a
+ * `ZoneNavigationDefinition.cellSize` a zone could override (that is how `mmo-test-zone` once
  * shipped with `cellSize: 40`, silently misaligning every waypoint against the collision tiles);
- * it is gone, and this function takes only the tilemap-bearing `terrain`, so there is no longer a
- * second number to disagree with it.
+ * it is gone, and this function takes only the terrain, so there is no second number to disagree
+ * with it.
  *
- * The second pass below re-checks each node through `isWalkable` at its clamped waypoint, and that
- * single call is also where this grid gets sub-cell colliders for free: `isWalkable` already
- * queries `terrain.colliders` beside `terrain.tiles`, so a cell a tree trunk only partially covers
- * is not a special case here — it is walkable if a `PLAYER_SIZE` body fits at the waypoint the
- * pathfinder would actually send it to, and blocked otherwise, exactly like the edge-row clamping
- * case below.
+ * Two passes became one. The pixel grid needed a second sweep re-checking each node through
+ * `isWalkable` at its CLAMPED waypoint, because a tilemap rounds up to whole tiles while the world
+ * it was generated from does not, so an edge row's waypoint could be dragged into a neighbouring
+ * cell the tilemap disagreed about. A heightfield has no world rectangle separate from its grid
+ * and `pointForNode` returns an exact cell centre, so the waypoint a node promises is the point
+ * this pass tested — there is nothing left for a second pass to catch. Sub-cell colliders come
+ * along for free either way: `canStand` queries `terrain.colliders` beside the relief, so a cell a
+ * tree trunk only partially covers is walkable exactly when a `BODY_RADIUS` disc fits at the
+ * waypoint the pathfinder would send a monster to.
+ *
+ * Grounding each node on its OWN ground is right here and only here: nobody is stepping anywhere
+ * yet, the question is "could a body be standing at this cell", and the ground under it is by
+ * definition the ground it stands on (the same reading `restoreStandablePosition` takes). The
+ * question "may a body WALK from this cell to that one" is `neighbors`', and it is grounded
+ * differently on purpose.
  */
-export function createNavigationGrid(terrain: TerrainGeometry): NavigationGrid {
-  const columns = terrain.tiles.cols;
-  const rows = terrain.tiles.rows;
+export function createNavigationGrid(terrain: ZoneTerrain): NavigationGrid {
+  const columns = terrain.size;
+  const rows = terrain.size;
   const walkable = new Uint8Array(columns * rows);
+  const height = new Float64Array(columns * rows);
   for (let node = 0; node < walkable.length; node++) {
-    const col = node % columns;
+    const column = node % columns;
     const row = Math.floor(node / columns);
-    walkable[node] = isSolidKind(kindAt(terrain.tiles, col, row)) ? 0 : 1;
+    const [x, z] = terrain.query.cellCenter(column, row);
+    const ground = groundUnder(terrain, x, z);
+    height[node] = ground;
+    walkable[node] = canStand(terrain, x, z, BODY_RADIUS, ground) ? 1 : 0;
   }
-  const grid: NavigationGrid = { cellSize: TILE_SIZE, columns, rows, walkable, terrain };
-  // A node's own tile kind is not enough: `pointForNode` clamps a node's waypoint to stay inside
-  // `terrain.width`/`height`, and the tilemap can be taller or wider than the world it was
-  // generated from (a tile grid rounds up to whole tiles; the world does not). When it is, the
-  // clamped waypoint of an edge row can land in a cell the tilemap disagrees is walkable — the
-  // exact disagreement between "the grid" and "collision" this whole module exists to close. A
-  // node only counts as walkable if a body can actually stand at the point the pathfinder would
-  // ever send it to.
-  for (let node = 0; node < walkable.length; node++) {
-    if (walkable[node] === 1 && !isWalkable(pointForNode(grid, node), PLAYER_SIZE, terrain)) {
-      walkable[node] = 0;
-    }
-  }
-  return grid;
+  return { cellSize: 1, columns, rows, walkable, height, terrain };
 }
 
 export function createNavigationRuntime(
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
   definition: ZoneNavigationDefinition,
 ): NavigationRuntime {
   return {
@@ -131,7 +150,7 @@ export function createNavigationRuntime(
 export function requestMonsterPath(
   runtime: NavigationRuntime,
   monster: MonsterRuntime,
-  destination: Vec2,
+  destination: GroundVector,
   targetId: string | null,
   state: "patrol" | "chase" | "return",
   now: number,
@@ -142,7 +161,7 @@ export function requestMonsterPath(
   const requested = navigation.requestedDestination;
   const destinationMoved =
     requested === null ||
-    distance(requested, destination) >= runtime.definition.targetMoveThreshold;
+    groundDistance(requested, destination) >= runtime.definition.targetMoveThreshold;
   if (
     !force &&
     !targetChanged &&
@@ -167,8 +186,8 @@ export function requestMonsterPath(
 
   navigation.requestId += 1;
   navigation.requestPending = true;
-  navigation.requestedDestination = { ...destination };
-  navigation.destination = { ...destination };
+  navigation.requestedDestination = { x: destination.x, z: destination.z };
+  navigation.destination = { x: destination.x, z: destination.z };
   navigation.targetId = targetId;
   navigation.lastPathRequestAt = now;
   navigation.state = "waiting_path";
@@ -197,7 +216,7 @@ export function requestMonsterPath(
     requestId: navigation.requestId,
     startNode,
     goalNode,
-    destination: { ...destination },
+    destination: { x: destination.x, z: destination.z },
     targetId,
     state,
     cacheKey,
@@ -308,7 +327,7 @@ export function invalidateMonsterPath(monster: MonsterRuntime, reason: string): 
 export function invalidateBlockedWaypoint(
   runtime: NavigationRuntime,
   monster: MonsterRuntime,
-  destination: Vec2,
+  destination: GroundVector,
 ): void {
   invalidateMonsterPath(monster, "waypoint_blocked");
   monster.navigation.requestedDestination = null;
@@ -319,13 +338,13 @@ export function invalidateBlockedWaypoint(
   }
 }
 
-export function currentWaypoint(monster: MonsterRuntime): Vec2 | null {
+export function currentWaypoint(monster: MonsterRuntime): GroundVector | null {
   return monster.navigation.path[monster.navigation.pathIndex] ?? null;
 }
 
-export function advanceWaypoint(monster: MonsterRuntime, tolerance: number): Vec2 | null {
+export function advanceWaypoint(monster: MonsterRuntime, tolerance: number): GroundVector | null {
   let waypoint = currentWaypoint(monster);
-  while (waypoint && distance(monster, waypoint) <= tolerance) {
+  while (waypoint && groundDistance(monster, waypoint) <= tolerance) {
     monster.navigation.pathIndex += 1;
     waypoint = currentWaypoint(monster);
   }
@@ -334,30 +353,32 @@ export function advanceWaypoint(monster: MonsterRuntime, tolerance: number): Vec
 
 export function navigationDebug(monster: MonsterRuntime): {
   state: MonsterRuntime["navigation"]["state"];
-  path: Vec2[];
-  destination: Vec2 | null;
+  path: GroundVector[];
+  destination: GroundVector | null;
   reason: string | null;
 } {
   return {
     state: monster.navigation.state,
     path: monster.navigation.path
       .slice(monster.navigation.pathIndex)
-      .map((point) => ({ ...point })),
-    destination: monster.navigation.destination ? { ...monster.navigation.destination } : null,
+      .map((point) => ({ x: point.x, z: point.z })),
+    destination: monster.navigation.destination
+      ? { x: monster.navigation.destination.x, z: monster.navigation.destination.z }
+      : null,
     reason: monster.navigation.abandonReason,
   };
 }
 
 function applyPath(
   monster: MonsterRuntime,
-  points: readonly Vec2[],
-  destination: Vec2,
+  points: readonly GroundVector[],
+  destination: GroundVector,
   targetId: string | null,
   state: "patrol" | "chase" | "return",
 ): void {
-  monster.navigation.path = points.map((point) => ({ ...point }));
+  monster.navigation.path = points.map((point) => ({ x: point.x, z: point.z }));
   monster.navigation.pathIndex = 0;
-  monster.navigation.destination = { ...destination };
+  monster.navigation.destination = { x: destination.x, z: destination.z };
   monster.navigation.targetId = targetId;
   monster.navigation.requestPending = false;
   monster.navigation.state = state;
@@ -408,15 +429,23 @@ function nextValidRequest(queue: PathRequest[]): PathRequest | undefined {
   return undefined;
 }
 
-function rememberPath(runtime: NavigationRuntime, key: string, path: Vec2[], now: number): void {
+function rememberPath(
+  runtime: NavigationRuntime,
+  key: string,
+  path: GroundVector[],
+  now: number,
+): void {
   if (runtime.cache.size >= PATH_CACHE_LIMIT) {
     const oldest = [...runtime.cache.entries()].sort((a, b) => a[1].usedAt - b[1].usedAt)[0];
     if (oldest) runtime.cache.delete(oldest[0]);
   }
-  runtime.cache.set(key, { points: path.map((point) => ({ ...point })), usedAt: now });
+  runtime.cache.set(key, {
+    points: path.map((point) => ({ x: point.x, z: point.z })),
+    usedAt: now,
+  });
 }
 
-function reconstructPath(grid: NavigationGrid, work: SearchWork, goal: number): Vec2[] {
+function reconstructPath(grid: NavigationGrid, work: SearchWork, goal: number): GroundVector[] {
   const nodes = [goal];
   let current = goal;
   while (current !== work.request.startNode) {
@@ -447,14 +476,29 @@ function takeLowest(open: SearchNode[]): SearchNode | undefined {
   return selected;
 }
 
-// Only checks `walkable[candidate]`, not the segment between the two cell centres: a neighbour
-// is always the adjacent cell in one axis, exactly `cellSize` away, and a `PLAYER_SIZE` (32px)
-// body centred in one 64px cell can never reach far enough to touch a third cell while crossing
-// to the next — so if both endpoints are walkable, the straight line between them necessarily is
-// too. This used to be re-checked with a sampled sweep (`edgeIsWalkable`), which was load-bearing
-// only because `createNavigationGrid` could mark a node walkable whose own point was not (see its
-// docs) — verified dead (0 of 6,822 candidate edges rejected on verdant-reach, 0 of 264 on
-// mmo-test-zone) once that root cause was fixed, and deleted.
+/**
+ * **This is where the A* grid became elevation-aware, and the change is one comparison.** An edge
+ * exists when the candidate is standable AND its ground is no higher than a body standing on the
+ * CURRENT node could step onto. `MAX_STEP` is 0, so that means: a monster walks along its own tier
+ * and down off it, never up. A hero on a plateau is visible, in range and genuinely unreachable,
+ * and `monster-system.ts`'s abandonment path is what turns that into a monster giving up rather
+ * than one grinding against a cliff.
+ *
+ * `standingCeiling(terrain, height[node])` — the current node — is the whole discipline. Passing
+ * `height[candidate]` would make the comparison `h <= h + ε`, true for every pair of cells in the
+ * world, and the search would climb anything; that is `canStand(dest, groundUnder(dest))`, the
+ * self-satisfying shape that has already been fixed three times elsewhere in this increment.
+ *
+ * Edges are therefore DIRECTED: down is an edge, up is not. That is correct rather than an
+ * oversight — a monster really can drop off a ledge it cannot climb back up — and it costs the
+ * search nothing, because A* only ever expands forward from the start.
+ *
+ * Still no test of the segment BETWEEN the two cell centres: a neighbour is the adjacent cell in
+ * one axis, exactly one tile away, and a `BODY_RADIUS` (0.25 tile) disc centred in one cell can
+ * never reach far enough to touch a third cell while crossing to the next — if both endpoints are
+ * standable, the straight line between them necessarily is too. That reasoning survived the units
+ * unchanged; only the numbers it quotes shrank by `TILE_SIZE`.
+ */
 function neighbors(grid: NavigationGrid, node: number): number[] {
   const column = node % grid.columns;
   const row = Math.floor(node / grid.columns);
@@ -463,7 +507,10 @@ function neighbors(grid: NavigationGrid, node: number): number[] {
   if (column + 1 < grid.columns) result.push(node + 1);
   if (row > 0) result.push(node - grid.columns);
   if (row + 1 < grid.rows) result.push(node + grid.columns);
-  return result.filter((candidate) => grid.walkable[candidate] === 1);
+  const ceiling = standingCeiling(grid.terrain, grid.height[node] ?? 0);
+  return result.filter(
+    (candidate) => grid.walkable[candidate] === 1 && (grid.height[candidate] ?? 0) <= ceiling,
+  );
 }
 
 function heuristic(grid: NavigationGrid, from: number, to: number): number {
@@ -474,27 +521,33 @@ function heuristic(grid: NavigationGrid, from: number, to: number): number {
   return Math.abs(fromColumn - toColumn) + Math.abs(fromRow - toRow);
 }
 
-function nodeForPoint(grid: NavigationGrid, point: Vec2): number {
-  const centerX = point.x + PLAYER_SIZE / 2;
-  const centerY = point.y + PLAYER_SIZE / 2;
-  const column = Math.max(0, Math.min(grid.columns - 1, Math.floor(centerX / grid.cellSize)));
-  const row = Math.max(0, Math.min(grid.rows - 1, Math.floor(centerY / grid.cellSize)));
+/**
+ * The pixel version added half a body to each axis before dividing, because a pixel position was a
+ * body's TOP-LEFT CORNER and the grid needed its centre. A tile-unit position already IS the body's
+ * centre, and the grid is centred on the origin, so the whole correction collapses into the origin
+ * shift `TerrainQuery` uses everywhere: cell `i` covers `x ∈ [i - size/2, i + 1 - size/2)`.
+ */
+function nodeForPoint(grid: NavigationGrid, point: GroundVector): number {
+  const half = grid.terrain.size / 2;
+  const column = Math.max(
+    0,
+    Math.min(grid.columns - 1, Math.floor((point.x + half) / grid.cellSize)),
+  );
+  const row = Math.max(0, Math.min(grid.rows - 1, Math.floor((point.z + half) / grid.cellSize)));
   return row * grid.columns + column;
 }
 
-function pointForNode(grid: NavigationGrid, node: number): Vec2 {
+/**
+ * The exact cell centre — `TerrainQuery`'s own answer, so a waypoint and the height baked for its
+ * node can never be read from two different points. The pixel version clamped against
+ * `terrain.width`/`height`, a rectangle that could be smaller than the tilemap covering it; a
+ * heightfield has no such second extent, and a cell centre is inside the grid by construction.
+ */
+function pointForNode(grid: NavigationGrid, node: number): GroundVector {
   const column = node % grid.columns;
   const row = Math.floor(node / grid.columns);
-  return {
-    x: Math.min(
-      grid.terrain.width - PLAYER_SIZE,
-      column * grid.cellSize + (grid.cellSize - PLAYER_SIZE) / 2,
-    ),
-    y: Math.min(
-      grid.terrain.height - PLAYER_SIZE,
-      row * grid.cellSize + (grid.cellSize - PLAYER_SIZE) / 2,
-    ),
-  };
+  const [x, z] = grid.terrain.query.cellCenter(column, row);
+  return { x, z };
 }
 
 function nearestWalkableNode(grid: NavigationGrid, origin: number): number | null {
@@ -520,8 +573,4 @@ function nearestWalkableNode(grid: NavigationGrid, origin: number): number | nul
     }
   }
   return null;
-}
-
-function distance(a: Vec2, b: Vec2): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
