@@ -9,7 +9,7 @@ reports where it ended up. **That conceded AUTHORITY, not VALIDITY** — `applyR
 coordinate at `MOVE_COORDINATE_LIMIT`, and a corpse's or a mid-handoff hero's frames are dropped.
 Everything else in the list above stayed here, and this package still owns everything that must be
 trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo root, i.e.
-`apps/main`'s `alepha dev`) and on Cloudflare Workers + Durable Objects + D1 in production
+`apps/main`'s `alepha dev`) and as a plain Node process on Alepha Bay in production
 (`alepha platform up`).
 
 ## Responsibility

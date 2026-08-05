@@ -189,9 +189,13 @@ migration (their `World`/`GameSession`/`HeroPresence` are today's `WorldRoom`/`P
 
 ```
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
+  simulation.ts the simulation's clock and the shape of a movement intent, and nothing else:
+                `TICK_HZ`/`TICK_MS`/`TICK_DT`/`NETWORK_SNAPSHOT_HZ`, the pixel-era
+                `PLAYER_SIZE`/`WORLD_*`/`clampToWorld` the unconverted zone catalogue in `game.ts`
+                still reads, and `Input`. `step()`/`PLAYER_SPEED` are deleted, and `prediction.ts`
+                with them.
   hd2d/hero-step.ts pure stepHero(state, input, dt, deps). The single source of movement truth,
-                in tile units, run by the CLIENT. (`simulation.ts`/`prediction.ts` — the pixel
-                `step()` and `reconcile()` — are deleted: S3 moved movement to the client.)
+                in tile units, run by the CLIENT.
   terrain-access.ts the terrain junction: zoneTerrainFromHeightfield + canStand /
                 resolveGroundMovement. Both sides bake the same ZoneTerrain from the same
                 stored string with the same function.

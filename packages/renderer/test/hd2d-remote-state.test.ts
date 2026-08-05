@@ -179,6 +179,23 @@ describe("a remote hero's drawn state", () => {
     expect(drawnElevation(mesh, ctx)).toBeCloseTo(map.waterLevel);
   });
 
+  it("draws a swimmer at the water line even when a desynced client also reports airborne", () => {
+    // The two flags are mutually exclusive in `stepHero`'s own rule (water entry clears `airborne`
+    // in the same assignment that sets `swimming`), so this combination should never arrive from a
+    // well-behaved client. `elevationOf` still checks `swimming` first, precisely so a stale or
+    // hostile client reporting both cannot float a swimmer above their own sea.
+    const map = flatMap(4, -0.6);
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
+
+    registry.sync([actor({ y: 12, swimming: true, airborne: true })]);
+
+    const mesh = meshes(scene.root)[0];
+    if (!mesh) throw new Error("expected a billboard");
+    expect(drawnElevation(mesh, ctx)).toBeCloseTo(map.waterLevel);
+  });
+
   it("still stands a walking hero on the terrain, whatever elevation rides with it", () => {
     // A 4x4 map with one raised cell at (2, 1) — the billboard suite's own fixture.
     const map = mapOf(
