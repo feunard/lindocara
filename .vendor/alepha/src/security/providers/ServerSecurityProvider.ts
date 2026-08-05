@@ -17,20 +17,31 @@ export class ServerSecurityProvider {
   protected readonly onServerRequest = $hook({
     on: "server:onRequest",
     /**
-     * Before the body is read, not after.
+     * Last, and that is load-bearing.
      *
-     * It used to run `priority: "last"`, which put it behind the multipart
-     * hook — so a request was fully buffered before anyone knew who sent it.
-     * That was harmless while every route shared one small ceiling; it stopped
-     * being harmless once a route can be granted a large one, because the
-     * grant was then reachable by an anonymous caller.
+     * Resolvers read `request.cookies`, which `ServerCookiesProvider` fills
+     * from a hook in the *normal* tier. Tiers run first → normal → last, so
+     * anything earlier than `last` sees no cookies: every session-borne login
+     * resolves to nobody, the request continues as anonymous, and `$secure`
+     * refuses a caller who is perfectly well authenticated.
      *
-     * Ordering this way is safe by construction: user resolution takes only
-     * `url` and `headers` (see `SecurityProvider.resolveUserFromServerRequest`),
-     * so it cannot want a body that has not been parsed yet.
+     * This is not theoretical. A previous docblock here argued the hook should
+     * run before the body is read, on the grounds that resolution "takes only
+     * `url` and `headers`". It does not — it takes cookies too. Acting on that
+     * comment moved the hook to `first` and broke every cookie-authenticated
+     * upload, which only surfaced in Playwright because bearer tokens kept
+     * working and no unit test covered the cookie path. There is one now.
      *
-     * This resolves *who* is calling. It does not authorise — `$secure` still
-     * runs later, in the handler chain.
+     * The cost of running last is real and worth naming: `request.user` is not
+     * available to `server:onRequest` consumers that run before this, so a
+     * `MultipartCapProvider` resolver cannot key a size budget on the caller.
+     * Fixing that means ordering against the cookie hook explicitly rather than
+     * hoisting this one blindly — see the `before`/`after` constraints the hook
+     * system supports.
+     *
+     * ⚠️ Either way this resolves *who* is calling; it does not authorise.
+     * `$secure` runs later, in the handler chain, so a `z.file()` field is
+     * buffered before anyone can be refused regardless of this ordering.
      */
     priority: "last",
     handler: async ({ request }) => {

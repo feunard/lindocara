@@ -2,7 +2,7 @@ import { useStore } from "alepha/react";
 import { sigilClientAtom } from "../shared/sigilClientAtom.ts";
 
 /**
- * Where a user goes to file a petition, or `undefined` when the sink offers
+ * Where a user goes to file feedback, or `undefined` when the sink offers
  * none.
  *
  * Headless on purpose. This package used to mount a floating button and a
@@ -13,14 +13,14 @@ import { sigilClientAtom } from "../shared/sigilClientAtom.ts";
  * The app renders it wherever it belongs:
  *
  * ```tsx
- * const petition = usePetitionUrl();
- * return petition ? <a href={petition}>Signaler un problème</a> : null;
+ * const feedback = useFeedbackUrl();
+ * return feedback ? <a href={feedback}>Signaler un problème</a> : null;
  * ```
  *
- * Returns `undefined` rather than a fallback URL: a link to a petition form
+ * Returns `undefined` rather than a fallback URL: a link to a feedback form
  * that does not exist is worse than no link.
  */
-export const usePetitionUrl = (): string | undefined => {
+export const useFeedbackUrl = (): string | undefined => {
   const [config] = useStore(sigilClientAtom);
-  return config.petitionUrl || undefined;
+  return config.feedbackUrl || undefined;
 };

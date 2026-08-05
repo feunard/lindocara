@@ -1,28 +1,28 @@
 /**
  * Contract for the page-context metadata the sigil feedback button collects on
  * the host page and carries — via the popup's query string, appended directly
- * onto the sink-provided petition URL — through to the first-party Lore
- * petition form, which persists it as the petition `source`.
+ * onto the sink-provided feedback URL — through to the first-party Lore
+ * feedback form, which persists it as the feedback `source`.
  *
  * Two parties share these short query keys and MUST agree on them:
  *
  * 1. The browser feedback button reads `window.location` / `navigator` /
  *    `document` and sets these keys on the popup URL.
- * 2. The Lore petition page reads these keys back and maps them into the
- *    `petitionSourceSchema` fields.
+ * 2. The Lore feedback page reads these keys back and maps them into the
+ *    `feedbackSourceSchema` fields.
  *
  * There used to be a same-origin proxy in between that forwarded only this
  * whitelist onto its redirect; it is gone — the sink now hands out a
  * ready-to-use URL directly, and the button opens it with no server round
  * trip. The whitelist itself stays: it is still what keeps an embedding page
  * from smuggling arbitrary params into the Lore URL, since the server schema
- * (`petitionSourceSchema`) only ever reads these named fields back.
+ * (`feedbackSourceSchema`) only ever reads these named fields back.
  *
  * Kept React-free and browser-API-free (pure constants) so either side can
  * import it without pulling the other's globals. Importable via
  * `@alepha/sigil/context`.
  */
-export const SIGIL_PETITION_CONTEXT_PARAMS = [
+export const SIGIL_FEEDBACK_CONTEXT_PARAMS = [
   /** → source.hostUrl   (location.href) */
   "url",
   /** → source.hostPath  (location.pathname + search) */
@@ -43,12 +43,12 @@ export const SIGIL_PETITION_CONTEXT_PARAMS = [
   "tz",
 ] as const;
 
-export type SigilPetitionContextParam =
-  (typeof SIGIL_PETITION_CONTEXT_PARAMS)[number];
+export type SigilFeedbackContextParam =
+  (typeof SIGIL_FEEDBACK_CONTEXT_PARAMS)[number];
 
 /**
  * Per-key value cap (characters). A defensive backstop so a hostile embedding
  * page can't push a multi-megabyte URL through the popup; the server schema
- * (`petitionSourceSchema`) enforces the authoritative bounds on persist.
+ * (`feedbackSourceSchema`) enforces the authoritative bounds on persist.
  */
-export const SIGIL_PETITION_CONTEXT_MAX_LEN = 2000;
+export const SIGIL_FEEDBACK_CONTEXT_MAX_LEN = 2000;

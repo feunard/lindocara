@@ -26,16 +26,22 @@ export default defineConfig({
          * port is opened, no address is known, and `up` still blocks until the
          * release is serving or has failed.
          *
-         * `campaignId` is the Lore campaign the release is written into. Not
-         * derived from the project name on purpose — campaign ids and project
+         * `projectId` is the Lore project the release is written into. Not
+         * derived from the app name on purpose — Lore project ids and app
          * names are separate namespaces, and guessing a mapping would silently
-         * deploy into whichever campaign happened to match.
+         * deploy into whichever project happened to match.
+         *
+         * Was `campaignId` until Lore's 2026-08 rename (campaign → project),
+         * which also moved the endpoint from `/api/campaigns/*` to
+         * `/api/projects/*`. Both halves have to move together: the old adapter
+         * reads `campaignId` and the new one reads `projectId`, so a
+         * half-update throws instead of deploying somewhere unintended.
          */
         production: {
           adapter: "lore",
           domain: "lindocara.bay.alepha.dev",
           endpoint: "https://lore.alepha.dev",
-          campaignId: 63,
+          projectId: 63,
         },
       },
     }),
