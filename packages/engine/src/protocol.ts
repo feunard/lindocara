@@ -70,12 +70,11 @@ import {
 } from "./game.js";
 import type { GroundVector } from "./ground.js";
 import { HARVEST_PROFILE_LIMITS, isPeasantCarryKind, type PeasantCarryKind } from "./harvest.js";
-import { decodeMap } from "./hd2d/map-data.js";
+import { decodeMap, MAX_HEIGHTFIELD_SIZE } from "./hd2d/map-data.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import { parseMapHeroSettings } from "./map-hero-settings.js";
-import { MAP_MAX_COLS } from "./map-limits.js";
 import type { MerchantDefinition } from "./merchant.js";
 import { isPartyMaterials, MAX_HARVEST_HITS, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
@@ -89,15 +88,19 @@ import { isZoneId, type ZoneId } from "./zones.js";
 
 /**
  * The wire's absolute bound on a reported position, in TILE units. A heightfield is square and
- * centred on the origin, so no authored map can place a hero further than half its side from the
- * centre, and no map may exceed `MAP_MAX_COLS` cells a side. Elevation shares the bound: a stack of
- * levels tall enough to leave it is not a map any editor can author.
+ * centred on the origin, so no map can place a hero further than half its side from the centre —
+ * and `decodeMap` refuses a side above `MAX_HEIGHTFIELD_SIZE`, which is what makes that half a real
+ * number rather than a hope. Derived from the same constant on purpose: a bound stated here but
+ * enforced nowhere would drop every frame from a legitimately larger map, silently, on both ends.
+ * (It was briefly derived from `MAP_MAX_COLS` instead — the LEGACY tile-map validator's cap, which
+ * governs no heightfield at all.) Elevation shares the bound: a stack of levels tall enough to
+ * leave it is not a map any editor can author.
  *
  * This is a wire sanity bound, not the authority: the room still resolves every reported position
- * against the terrain it actually owns. It exists so a frame that could never describe any map is
- * dropped before anything reads it.
+ * against the terrain it actually owns, and a position inside this bound may be far outside a small
+ * map. It exists so a frame that could describe NO map is dropped before anything reads it.
  */
-export const MOVE_COORDINATE_LIMIT = MAP_MAX_COLS / 2;
+export const MOVE_COORDINATE_LIMIT = MAX_HEIGHTFIELD_SIZE / 2;
 
 /**
  * Where the client says its own hero now is. The one place a client supplies a fact rather than an

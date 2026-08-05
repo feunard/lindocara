@@ -1,4 +1,9 @@
-import { decodeMap, encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
+import {
+  decodeMap,
+  encodeMap,
+  MAX_HEIGHTFIELD_SIZE,
+  type MapData,
+} from "@lindocara/engine/hd2d/map-data.js";
 import { describe, expect, it } from "vitest";
 
 const map: MapData = {
@@ -67,6 +72,30 @@ describe("the map codec", () => {
     expect(decodeMap(JSON.stringify({ ...map, size: 0 }))).toBeNull();
     expect(decodeMap(JSON.stringify({ ...map, size: 2.5 }))).toBeNull();
     expect(decodeMap(JSON.stringify({ ...map, size: -4 }))).toBeNull();
+  });
+
+  /**
+   * The side has an upper bound, not just a lower one. `protocol.ts`'s `MOVE_COORDINATE_LIMIT`
+   * derives from it: a position bound of half a grid side means nothing if the side is unbounded,
+   * and a map that decoded past it would have every movement frame on it silently dropped.
+   */
+  it("rejects a size above the largest grid a heightfield may declare", () => {
+    const side = MAX_HEIGHTFIELD_SIZE + 1;
+    const oversized = {
+      ...map,
+      size: side,
+      levels: new Array(side * side).fill(0),
+      materials: new Array(side * side).fill("herbe"),
+    };
+    expect(decodeMap(JSON.stringify(oversized))).toBeNull();
+    // The bound itself is inclusive: the largest legal map still decodes.
+    const largest = {
+      ...map,
+      size: MAX_HEIGHTFIELD_SIZE,
+      levels: new Array(MAX_HEIGHTFIELD_SIZE * MAX_HEIGHTFIELD_SIZE).fill(0),
+      materials: new Array(MAX_HEIGHTFIELD_SIZE * MAX_HEIGHTFIELD_SIZE).fill("herbe"),
+    };
+    expect(decodeMap(JSON.stringify(largest))?.size).toBe(MAX_HEIGHTFIELD_SIZE);
   });
 
   it("rejects a colliders field that isn't an array", () => {

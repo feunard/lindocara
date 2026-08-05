@@ -26,9 +26,24 @@ function isTerrainMaterial(value: unknown): value is TerrainMaterial {
   return typeof value === "string" && (TERRAIN_MATERIALS as readonly string[]).includes(value);
 }
 
+/**
+ * The largest grid side a heightfield may declare, in cells — so `decodeMap` bounds `size` rather
+ * than only checking it is a positive integer.
+ *
+ * It is not decoration: `MOVE_COORDINATE_LIMIT` (`protocol.ts`) refuses a reported position beyond
+ * half a grid side, and that refusal is only honest if the side itself is bounded. Without this,
+ * a heightfield of side 400 decoded happily and a hero past ±128 tiles on it had every movement
+ * frame SILENTLY dropped, with no error on either end. Whoever raises this must raise that with it.
+ *
+ * The value matches `MAP_MAX_COLS`, the legacy tile-map validator's cap, so the two map formats
+ * agree on how big a world may get; `map-limits.ts` is not imported here because this file must
+ * stay at the bottom of `hd2d/`'s import graph.
+ */
+export const MAX_HEIGHTFIELD_SIZE = 256;
+
 export interface MapData {
   version: 1;
-  /** Grid side, in cells. */
+  /** Grid side, in cells. At most `MAX_HEIGHTFIELD_SIZE`. */
   size: number;
   levelHeight: number;
   waterLevel: number;
@@ -152,7 +167,8 @@ export function decodeMap(s: string): MapData | null {
   if (value.version !== 1) return null;
 
   const { size, levelHeight, waterLevel, levels, materials, colliders, spawns } = value;
-  if (!Number.isInteger(size) || (size as number) <= 0) return null;
+  if (!Number.isInteger(size) || (size as number) <= 0 || (size as number) > MAX_HEIGHTFIELD_SIZE)
+    return null;
   if (!isFiniteNumber(levelHeight) || !isFiniteNumber(waterLevel)) return null;
 
   const cells = (size as number) * (size as number);

@@ -1,3 +1,4 @@
+import { MAX_HEIGHTFIELD_SIZE } from "@lindocara/engine/hd2d/map-data.js";
 import { MOVE_COORDINATE_LIMIT, parseClientMessage } from "@lindocara/engine/protocol.js";
 import { describe, expect, it } from "vitest";
 
@@ -58,6 +59,39 @@ describe("the move message", () => {
     expect(
       parseClientMessage(JSON.stringify({ ...wellFormed, x: MOVE_COORDINATE_LIMIT })),
     ).not.toBeNull();
+  });
+
+  /**
+   * The bound above is only honest because a heightfield's side is itself bounded. Pinned here,
+   * beside the constant that derives from it, so raising one without the other fails loudly rather
+   * than silently dropping every frame from a legitimately larger map.
+   */
+  it("derives its bound from the largest grid a heightfield may declare", () => {
+    expect(MOVE_COORDINATE_LIMIT).toBe(MAX_HEIGHTFIELD_SIZE / 2);
+  });
+
+  /**
+   * `facing` is a unit heading on the GROUND plane. Left unpinned, a later refactor swapping
+   * `isDirection` for the laxer `isPosition` would accept both cases below and nothing would fail:
+   * a zero-length heading (a client that has not moved yet) and an `{x, y}` pair (the half-converted
+   * sender the third axis exists to catch) would both be read as a direction.
+   */
+  it("drops a frame whose facing is not a ground unit heading", () => {
+    expect(
+      parseClientMessage(JSON.stringify({ ...wellFormed, facing: { x: 0, z: 0 } })),
+    ).toBeNull();
+    expect(
+      parseClientMessage(JSON.stringify({ ...wellFormed, facing: { x: 0, y: 1 } })),
+    ).toBeNull();
+    expect(
+      parseClientMessage(JSON.stringify({ ...wellFormed, facing: { x: 3, z: 4 } })),
+    ).toBeNull();
+  });
+
+  it("drops a frame carrying a key the message does not define", () => {
+    // `seq` in particular: the retired sequenced command must not survive as a stowaway on a `move`.
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, seq: 7 }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, hp: 999 }))).toBeNull();
   });
 
   /**

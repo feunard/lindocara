@@ -279,6 +279,28 @@ describe("server protocol", () => {
     merchant: null,
   };
 
+  /**
+   * The snapshot's three locomotion flags follow the same absent-key rule as the `move` message
+   * they mirror: a remote renderer cannot tell a jump from a swim from an open canopy out of a
+   * position stream, so a missing flag is a malformed frame, never a defaulted `false`.
+   */
+  it("drops a welcome whose player snapshot omits or mistypes a locomotion flag", () => {
+    for (const flag of ["airborne", "swimming", "gliding"] as const) {
+      const { [flag]: _omitted, ...withoutFlag } = player;
+      expect(
+        parseServerMessage(JSON.stringify({ ...welcomeBase, world, players: [withoutFlag] })),
+      ).toBeNull();
+      expect(
+        parseServerMessage(
+          JSON.stringify({ ...welcomeBase, world, players: [{ ...player, [flag]: 1 }] }),
+        ),
+      ).toBeNull();
+    }
+    expect(
+      parseServerMessage(JSON.stringify({ ...welcomeBase, world, players: [player] })),
+    ).not.toBeNull();
+  });
+
   it("accepts the Rogue loadout and only finite server-authored combat windows", () => {
     const rogue = {
       ...player,
