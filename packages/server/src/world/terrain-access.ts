@@ -68,6 +68,16 @@ export const MAX_STEP = 0;
 const HEIGHT_EPSILON = 1e-3;
 
 /**
+ * The highest ground a body standing on `groundY` may step onto. One expression rather than three:
+ * `canStand`, `canStandOrEscape` and every caller asking "could this body reach that ground" must
+ * agree, and `MAX_STEP * levelHeight + epsilon` written out at each site is three places to get a
+ * sign or an epsilon wrong.
+ */
+export function standingCeiling(terrain: ZoneTerrain, groundY: number): number {
+  return groundY + MAX_STEP * terrain.levelHeight + HEIGHT_EPSILON;
+}
+
+/**
  * The room's collision, built from the map's decoded heightfield. The query and the collider index
  * are the two halves `canStand` consults; the three scalars travel with them because the query
  * answers in world units and a caller comparing heights needs to know what a level is worth.
@@ -101,7 +111,7 @@ export function canStand(
   // `null` is water or off the grid. Neither is ground a server-simulated body may stand on.
   if (surface === null) return false;
 
-  const ceiling = groundY + MAX_STEP * terrain.levelHeight + HEIGHT_EPSILON;
+  const ceiling = standingCeiling(terrain, groundY);
   // The ground under the CENTRE decides where a foot lands, and it is a hard rule in `canEnter`
   // too: relax it and a body climbs a cliff by leaning into it.
   if (surface > ceiling) return false;

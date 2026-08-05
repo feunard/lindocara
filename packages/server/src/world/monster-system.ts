@@ -40,8 +40,8 @@ import {
   groundLineOfSight,
   groundPathClear,
   groundUnder,
-  MAX_STEP,
   resolveGroundMovement,
+  standingCeiling,
   type ZoneTerrain,
 } from "./terrain-access.js";
 import type { GuardRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
@@ -177,7 +177,7 @@ function targetOutOfReach(
   const targetGround = terrain.query.heightAt(target.x, target.z);
   if (targetGround === null) return true;
   const monsterGround = groundUnder(terrain, monster.x, monster.z, monster.y);
-  return targetGround > monsterGround + MAX_STEP * terrain.levelHeight + 1e-3;
+  return targetGround > standingCeiling(terrain, monsterGround);
 }
 
 /** Clears pursuit but deliberately preserves contribution credit earned before stealth. */
