@@ -4,9 +4,15 @@
  * `RoomEngine.spec.ts` idiom, against real D1 rows created through the ordinary HTTP flow. Every
  * timing assertion advances virtual time; nothing sleeps for tick counts.
  *
- * Pinned here: one command per tick with `ack` echoing the applied seq, the
- * `MAX_STARVED_TICKS` repeat-then-stop rule, the every-2nd-tick snapshot cadence, the 35/s rate
- * window (close 1008) and the 2 KiB frame cap (close 1009).
+ * Pinned here: the room stores and relays the position its client REPORTS (`{t:"move"}`) rather
+ * than computing one — the one fact a client supplies (S3 spec, decision 4) —, the room's own
+ * bounds check on that position, the every-2nd-tick snapshot cadence, the 35/s rate window
+ * (close 1008) and the 2 KiB frame cap (close 1009).
+ *
+ * The retired model's assertions went with it: one command per tick, `ack` echoing the applied seq,
+ * the replayed-seq drop and the `MAX_STARVED_TICKS` repeat-then-stop rule. There is no queue, no
+ * sequence and nothing to acknowledge; `packages/client/test/hero-controller.test.ts` is where the
+ * movement itself is proven now.
  */
 
 import {
@@ -14,8 +20,7 @@ import {
   parseServerMessage,
   type ServerMessage,
 } from "@lindocara/engine/protocol.js";
-import type { Input } from "@lindocara/engine/simulation.js";
-import { MAX_STARVED_TICKS, RATE_MAX_MESSAGES } from "@lindocara/server/world/world-runtime.js";
+import { RATE_MAX_MESSAGES } from "@lindocara/server/world/world-runtime.js";
 import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
@@ -190,99 +195,74 @@ function lastSelfSnapshot(socket: FakeSocket, heroId: string): PlayerSnapshot | 
   return last;
 }
 
-function input(
-  seq: number,
-  partial: Partial<Input> = {},
-): { t: "input"; seq: number; input: Input } {
+/** A well-formed `move` frame. `facing` is unit-length on purpose: `isDirection` refuses anything
+ *  else and the whole frame is dropped silently, which is exactly the trap a client must not fall
+ *  into. */
+function move(x: number, y: number, z: number) {
   return {
-    t: "input",
-    seq,
-    input: { up: false, down: false, left: false, right: true, ...partial },
+    t: "move" as const,
+    x,
+    y,
+    z,
+    facing: { x: 1, z: 0 },
+    airborne: false,
+    swimming: false,
+    gliding: false,
   };
 }
 
 describe("world room movement (FakeClock)", () => {
-  test("applies exactly one queued command per tick, acking the applied seq", async () => {
-    const { userId, roomId, heroId } = await newPlayableHero("onepertick");
+  test("stores the position the client reports, and relays it", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("reported");
     const clock = new FakeClock();
     const engine = createEngine(roomId, clock);
     const socket = fakeSocket(userId, heroId);
     await engine.join(socket);
     const welcome = lastSelfSnapshot(socket, heroId);
     expect(welcome).toBeDefined();
-    const startX = welcome?.x ?? 0;
+    const start = { x: welcome?.x ?? 0, y: welcome?.y ?? 0, z: welcome?.z ?? 0 };
 
-    // Flood five commands before any tick runs. The tick rate, not the send rate, is the speed
-    // limit: after two ticks exactly two commands are consumed, so the snapshot acks seq 2.
-    for (let seq = 1; seq <= 5; seq += 1) {
-      await engine.message(socket.id, input(seq));
-    }
+    // Two tiles east and one south of where the room seated the hero — a jump's worth of elevation
+    // with it, so all three axes have to survive the trip.
+    await engine.message(socket.id, {
+      ...move(start.x + 2, start.y + 1.35, start.z + 1),
+      airborne: true,
+    });
     clock.advance(TICK_MS);
     clock.advance(TICK_MS);
-    const afterTwo = lastSelfSnapshot(socket, heroId);
-    expect(afterTwo?.ack).toBe(2);
-    expect(afterTwo?.x ?? 0).toBeGreaterThan(startX);
 
-    // Two more ticks consume two more; the queue (5 commands) drains at tick 5, never earlier.
-    clock.advance(TICK_MS);
-    clock.advance(TICK_MS);
-    expect(lastSelfSnapshot(socket, heroId)?.ack).toBe(4);
-    clock.advance(TICK_MS);
-    clock.advance(TICK_MS);
-    expect(lastSelfSnapshot(socket, heroId)?.ack).toBe(5);
+    const relayed = lastSelfSnapshot(socket, heroId);
+    expect(relayed?.x).toBeCloseTo(start.x + 2, 2);
+    expect(relayed?.y).toBeCloseTo(start.y + 1.35, 2);
+    expect(relayed?.z).toBeCloseTo(start.z + 1, 2);
+    // The locomotion flags are relayed too: nothing downstream can re-derive a jump from a
+    // position stream, and a remote renderer needs them to draw one.
+    expect(relayed?.airborne).toBe(true);
+    expect(relayed?.swimming).toBe(false);
+    expect(relayed?.gliding).toBe(false);
     engine.dispose();
   });
 
-  test("a replayed or out-of-order seq is dropped", async () => {
-    const { userId, roomId, heroId } = await newPlayableHero("replayseq");
+  test("the room refuses a reported position that describes no point on its own map", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("offmap");
     const clock = new FakeClock();
     const engine = createEngine(roomId, clock);
     const socket = fakeSocket(userId, heroId);
     await engine.join(socket);
+    const start = lastSelfSnapshot(socket, heroId);
+    expect(start).toBeDefined();
 
-    await engine.message(socket.id, input(3));
-    await engine.message(socket.id, input(3));
-    await engine.message(socket.id, input(2));
+    // Well inside the wire's own ±128-tile bound, so `parseClientMessage` hands it over: only the
+    // room knows how big its grid is, and it is the room that must refuse this.
+    await engine.message(socket.id, move(120, 0, 120));
     clock.advance(TICK_MS);
     clock.advance(TICK_MS);
-    // Only the first seq-3 command entered the queue; both stale frames were dropped.
-    expect(lastSelfSnapshot(socket, heroId)?.ack).toBe(3);
-    engine.dispose();
-  });
 
-  test("a starved player repeats the last intent for MAX_STARVED_TICKS, then stops", async () => {
-    const { userId, roomId, heroId } = await newPlayableHero("starved");
-    const clock = new FakeClock();
-    const engine = createEngine(roomId, clock);
-    const socket = fakeSocket(userId, heroId);
-    await engine.join(socket);
-
-    await engine.message(socket.id, input(1));
-    // Tick 1 applies the command; ticks 2..(1+MAX_STARVED_TICKS) repeat its intent.
-    const movingTicks = 1 + MAX_STARVED_TICKS;
-    const positions: number[] = [];
-    for (let tick = 1; tick <= movingTicks; tick += 1) {
-      clock.advance(TICK_MS);
-      if (tick % 2 === 0) {
-        positions.push(lastSelfSnapshot(socket, heroId)?.x ?? Number.NaN);
-      }
-    }
-    // Strictly increasing x across the starved window: the square keeps sprinting.
-    for (let index = 1; index < positions.length; index += 1) {
-      const previous = positions[index - 1] ?? Number.NaN;
-      const current = positions[index] ?? Number.NaN;
-      expect(current).toBeGreaterThan(previous);
-    }
-
-    // Past the starvation budget the intent resets to NO_INPUT: the position freezes.
-    clock.advance(TICK_MS);
-    clock.advance(TICK_MS);
-    const stoppedAt = lastSelfSnapshot(socket, heroId)?.x;
-    clock.advance(TICK_MS);
-    clock.advance(TICK_MS);
-    clock.advance(TICK_MS);
-    clock.advance(TICK_MS);
-    expect(lastSelfSnapshot(socket, heroId)?.x).toBe(stoppedAt);
+    const after = lastSelfSnapshot(socket, heroId);
+    expect(after?.x).toBeCloseTo(start?.x ?? Number.NaN, 6);
+    expect(after?.z).toBeCloseTo(start?.z ?? Number.NaN, 6);
+    // Refused, not fatal: a frame that could describe no map is dropped like any malformed one.
+    expect(socket.closed).toBeUndefined();
     engine.dispose();
   });
 
@@ -312,8 +292,15 @@ describe("world room movement (FakeClock)", () => {
     const socket = fakeSocket(userId, heroId);
     await engine.join(socket);
 
-    for (let seq = 1; seq <= RATE_MAX_MESSAGES + 1; seq += 1) {
-      await engine.message(socket.id, input(seq));
+    // The cap the client's send cadence exists to stay under: a controller reporting once per
+    // animation frame (60 Hz) trips this window and has its socket closed, which is why `net.ts`
+    // throttles its `move` frames to the 20 Hz the retired command rate already ran at.
+    const start = lastSelfSnapshot(socket, heroId);
+    for (let frame = 1; frame <= RATE_MAX_MESSAGES + 1; frame += 1) {
+      await engine.message(
+        socket.id,
+        move((start?.x ?? 0) + frame / 100, start?.y ?? 0, start?.z ?? 0),
+      );
     }
     expect(socket.closed?.code).toBe(1008);
     engine.dispose();

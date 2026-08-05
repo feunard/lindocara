@@ -45,7 +45,6 @@ import {
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
 import { canAct } from "@lindocara/engine/death.js";
-import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import { applyExperience, CEMETERIES, maxHpForLevel } from "@lindocara/engine/game.js";
 import type { WorldPosition } from "@lindocara/engine/ground.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
@@ -57,7 +56,7 @@ import {
   type ServerMessage,
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
-import { NO_INPUT, TICK_HZ } from "@lindocara/engine/simulation.js";
+import { TICK_HZ } from "@lindocara/engine/simulation.js";
 import { mapEntryPosition } from "@lindocara/engine/terrain-access.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
@@ -91,7 +90,6 @@ import {
   combatCooldownsFromPlayer,
   MAX_FRAME_BYTES,
   MAX_MALFORMED,
-  MAX_QUEUED_COMMANDS,
   newPlayer,
   type PlayerRuntime,
   RESYNC_COOLDOWN_MS,
@@ -133,6 +131,7 @@ import {
 import {
   activatePeasantSupportRequest,
   advanceWorldTick,
+  applyReportedMove,
   cancelPeasantSupportRequest,
   finishHeldPlayerAction,
   handleBuyConsumable,
@@ -493,7 +492,7 @@ export class WorldRoom {
       profile.wardRunExpiresAt = null;
     }
 
-    const player = newPlayer(profile, conn.id, state.roomKey, 0, 0, undefined, restoredCooldowns);
+    const player = newPlayer(profile, conn.id, state.roomKey, undefined, restoredCooldowns);
     player.identityKind = "hero";
     player.partyId = state.partyId;
     player.dirty = false;
@@ -637,19 +636,12 @@ export class WorldRoom {
       handleTalentReset(w, connectionId, player);
       return;
     }
-    if (message.t === "input") {
-      if (message.seq <= player.lastSeq) return;
-      player.lastSeq = message.seq;
-      // A corpse does not move. A ghost does — that is the whole point of the walk home.
-      if (player.life === "corpse") {
-        player.ack = message.seq;
-        player.lastInput = NO_INPUT;
-        player.queue = [];
-        return;
-      }
-      player.facing = facingFromInput(message.input, player.facing);
-      if (player.queue.length >= MAX_QUEUED_COMMANDS) return;
-      player.queue.push({ seq: message.seq, input: message.input });
+    if (message.t === "move") {
+      // The one message that carries a FACT rather than an intent: the hero's movement rule runs on
+      // its own client (the S3 spec, decision 4), so the room stores what it reports and relays it.
+      // A corpse's frames and a hero mid-handoff are dropped inside `applyReportedMove`, along with
+      // any position that describes no point on this map.
+      applyReportedMove(w, connectionId, player, message);
       return;
     }
     if (message.t === "release") {
@@ -1435,8 +1427,6 @@ export class WorldRoom {
 
     player.transitioning = true;
     player.lastTransitionAt = now;
-    player.lastInput = NO_INPUT;
-    player.queue = [];
     cancelPeasantHarvestJob(state.harvestJobs, player.id);
     cancelCombatAction(player);
     removeProjectilesByOwner(state.projectiles, player.id);
@@ -1581,8 +1571,6 @@ export class WorldRoom {
       const spawn = mapEntryPosition(destination.terrain, destination.spawns?.[0]);
 
       player.lastTransitionAt = now;
-      player.lastInput = NO_INPUT;
-      player.queue = [];
       cancelCombatAction(player);
       removeProjectilesByOwner(state.projectiles, player.id);
       exitRogueStealth(player, now);
@@ -1903,8 +1891,6 @@ export class WorldRoom {
   ): void {
     player.authorized = false;
     player.disconnecting = true;
-    player.lastInput = NO_INPUT;
-    player.queue = [];
     cancelPeasantHarvestJob(state.harvestJobs, player.id);
     state.occupiedExitByPlayerId.delete(player.id);
     state.questConversations.delete(player.id);

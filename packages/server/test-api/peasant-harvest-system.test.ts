@@ -101,8 +101,6 @@ function player(playerClass: "peasant" | "ranger" = "peasant") {
     },
     "connection",
     "verdant-reach:main",
-    0,
-    0,
     undefined,
     undefined,
     NOW,

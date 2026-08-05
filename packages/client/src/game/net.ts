@@ -1,12 +1,7 @@
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
-import { canMove, type LifeState, speedForLife } from "@lindocara/engine/death.js";
-import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import {
-  type GroundVector,
-  groundOf,
-  planarOf,
-  type WorldPosition,
-} from "@lindocara/engine/ground.js";
+import { canMove, speedForLife } from "@lindocara/engine/death.js";
+import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
+import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import {
   defaultMapHeroSettings,
@@ -14,18 +9,8 @@ import {
   mapHeroClassSettings,
 } from "@lindocara/engine/map-hero-settings.js";
 import {
-  CORRECTION_SMOOTHING_MS,
-  MAX_ACCUMULATED_SECONDS,
-  MAX_PENDING_COMMANDS,
-  predictStep,
-  prunePending,
-  reconcile,
-  SNAP_THRESHOLD,
-} from "@lindocara/engine/prediction.js";
-import {
   type ClientMessage,
   type CombatAnimation,
-  type Command,
   type CorpseSnapshot,
   type EventCode,
   type EventParams,
@@ -51,20 +36,9 @@ import {
   type WorldEventSnapshot,
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
-import {
-  type Input,
-  NETWORK_TICKS_PER_SNAPSHOT,
-  NO_INPUT,
-  step,
-  TICK_DT,
-} from "@lindocara/engine/simulation.js";
+import { type Input, NETWORK_TICKS_PER_SNAPSHOT, TICK_MS } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
-import {
-  groundUnder,
-  resolveGroundMovement,
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "@lindocara/engine/terrain-access.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import {
   applyEventDelta,
   applyWorldDelta,
@@ -75,6 +49,7 @@ import {
   type WorldCache,
 } from "@lindocara/engine/world-delta.js";
 import { resolveJoin } from "../api.js";
+import { createHeroController, type HeroController } from "./hero-controller.js";
 
 // A slightly deeper buffer covers short workerd/browser scheduling bursts, so AI movement stays
 // between two authoritative snapshots rather than briefly snapping to the newest one.
@@ -206,21 +181,40 @@ export interface ConnectionHandlers {
 }
 
 /**
- * The sub-tick remainder of the current frame, applied on top of the last full predicted tick — the
- * same three functions `predictStep` runs, so a partial tick and a whole one cannot disagree.
+ * How often the hero reports where it is, in milliseconds.
+ *
+ * **This is a client concern, and it is load-bearing.** The room drops a connection above
+ * `RATE_MAX_MESSAGES` (35) frames per `RATE_WINDOW_MS` (1 s) — nothing in `MoveMessage` states a
+ * cadence, so a controller reporting once per animation frame (60 Hz) trips that window and has its
+ * socket closed with 1008. One report per simulation tick is exactly the rate the retired
+ * `{t:"input"}` command stream ran at, so it is already proven to sit inside the window with room
+ * for chat, actions and resyncs beside it.
+ *
+ * The hero still STEPS every animation frame — only the report is throttled. Between two reports
+ * every other client draws it interpolated, which is what `INTERPOLATION_DELAY_MS` has always been
+ * for.
  */
-function predictPartial(
-  position: WorldPosition,
-  input: Input,
-  dt: number,
-  terrain: ZoneTerrain,
-  speed: number,
-): WorldPosition {
-  const desired = groundOf(step(planarOf(position), input, dt, speed, null));
-  const groundY = groundUnder(terrain, position.x, position.z, position.y);
-  const moved = resolveGroundMovement(terrain, position, desired, groundY);
-  return { x: moved.x, y: groundUnder(terrain, moved.x, moved.z, position.y), z: moved.z };
-}
+const MOVE_REPORT_MS = TICK_MS;
+
+/**
+ * A frame can be arbitrarily long — a backgrounded tab resumes with a multi-second delta. Feeding
+ * that to `stepHero` in one call would advance the hero by seconds of travel in a single step,
+ * straight through any collision its stride jumped over. Five ticks' worth, the ceiling client
+ * prediction used for the same reason.
+ */
+const MAX_FRAME_SECONDS = 5 * (TICK_MS / 1_000);
+
+/**
+ * How many reported positions are remembered when deciding whether an authoritative position is the
+ * server echoing us back or the server MOVING us (`#adoptServerPosition`). Two seconds at the
+ * cadence above — comfortably more than any round trip, and the buffer only advances while the hero
+ * is actually reporting, so an idle hero's last report never ages out from under it.
+ */
+const REPORT_HISTORY = 40;
+
+/** Half the quantum the server rounds a snapshot position to (1/6400 of a tile, `interest-system`),
+ *  so an echo compares equal despite the rounding and a real displacement never does. */
+const ECHO_EPSILON = 1 / 3_200;
 
 export class WorldClient {
   #socket: WebSocket | null = null;
@@ -232,39 +226,40 @@ export class WorldClient {
   #lastWorldTick: number | null = null;
   #receivedDelta = false;
   #resyncPending = false;
-  #predictionBlocked = false;
 
   #selfId: string | null = null;
   #selfSnapshot: PlayerSnapshot | null = null;
-  #life: LifeState = "alive";
   #corpses: CorpseSnapshot[] = [];
   /** The room's active events, maintained from welcome/delta/resync with the same validation rigor
    * as every other collection. Kept off the interpolation buffer: the renderer presents each
    * authoritative NPC step locally. */
   #events: readonly WorldEventSnapshot[] = [];
-  #predicted: WorldPosition | null = null;
-  #pending: Command[] = [];
-  #seq = 0;
-  #ack = 0;
   /**
-   * The terrain prediction collides against: the room's own, baked from the welcome's heightfield
+   * The hero itself. It owns its own `HeroState` and runs `stepHero` — the client is the authority
+   * on where this one body is (the S3 spec, decision 4), and the server stores what it reports.
+   * `null` until the first welcome has given it a terrain to collide against.
+   */
+  #hero: HeroController | null = null;
+  /**
+   * The terrain the hero collides against: the room's own, baked from the welcome's heightfield
    * with `zoneTerrainFromHeightfield` — the very function the server called on the very same
-   * string. That is what makes reconciliation converge, and it is the same argument that keeps
-   * `step()` in the engine: one function, one copy, no drift.
+   * string. One bake, one geometry, no drift between what the client walks on and what the server
+   * resolves monsters and projectiles against.
    *
-   * `null` until the first welcome. Prediction is skipped rather than run against a stand-in
-   * geometry: the old default (Verdant Reach's compiled tilemap) was a pixel world of the wrong
-   * size AND the wrong units, and colliding a tile-unit hero against it would cement it at the
-   * origin instead of simply not predicting.
+   * `null` until the first welcome. The hero simply does not step rather than stepping against a
+   * stand-in geometry.
    */
   #terrain: ZoneTerrain | null = null;
   #heroSettings: MapHeroSettings = defaultMapHeroSettings();
 
-  #accumulator = 0;
-  #input: Input = NO_INPUT;
-  #error: GroundVector = { x: 0, z: 0 };
-  #errorAt = 0;
-  /** Presentation lock matching the server-owned Shadow Dance sequence; inputs still carry seqs. */
+  /** Positions already reported, newest last — see `REPORT_HISTORY`. */
+  #reported: WorldPosition[] = [];
+  #reportedAt = 0;
+  /** The exact frame last put on the wire, so an unchanged hero reports nothing at all. */
+  #lastReport: string | null = null;
+
+  /** Presentation lock matching the server-owned Shadow Dance sequence: the hero keeps stepping
+   *  (gravity, water and thin ice do not pause) but is fed no input for its duration. */
   #shadowDanceMovementBlockedUntil = 0;
 
   get selfId(): string | null {
@@ -388,42 +383,78 @@ export class WorldClient {
     };
   }
 
-  update(input: Input, dt: number): void {
-    if (this.#predicted === null || this.#terrain === null) return;
-    this.#input = input;
-    // A corpse is frozen over its body; a ghost walks, and faster than the living.
-    if (this.#selfSnapshot && !canMove(this.#selfSnapshot.life)) return;
-    const speed = speedForLife(
-      this.#selfSnapshot?.life ?? "alive",
-      this.#selfSnapshot?.class ?? "warrior",
-      mapHeroClassSettings(this.#heroSettings, this.#selfSnapshot?.class ?? "warrior").stats
-        .movementSpeed,
+  /**
+   * One animation frame of the hero: run its movement rule, then report where it ended up if the
+   * cadence allows. Returns what the step CAUSED, so a caller can play footsteps, splashes and the
+   * canopy — nothing consumes them yet.
+   *
+   * The step runs every frame; only the report is throttled (see `MOVE_REPORT_MS`).
+   */
+  update(input: Input, dt: number): HeroEvent[] {
+    const hero = this.#hero;
+    if (!hero) return [];
+    const life = this.#selfSnapshot?.life ?? "alive";
+    const playerClass = this.#selfSnapshot?.class ?? "warrior";
+    // A corpse is frozen over its body; a ghost walks, and faster than the living. The rule reads
+    // one speed, so the life state is folded into it rather than branched on twice.
+    hero.setSpeed(
+      speedForLife(
+        life,
+        playerClass,
+        mapHeroClassSettings(this.#heroSettings, playerClass).stats.movementSpeed,
+      ),
     );
 
-    this.#accumulator = Math.min(this.#accumulator + dt, MAX_ACCUMULATED_SECONDS);
-    while (this.#accumulator >= TICK_DT) {
-      if (this.#predictionBlocked || this.#pending.length >= MAX_PENDING_COMMANDS) {
-        this.#predictionBlocked = true;
-        this.#accumulator = 0;
-        this.#requestResync();
-        return;
-      }
-      this.#accumulator -= TICK_DT;
+    // A corpse does not move at all, and a server-owned Shadow Dance sequence owns the body for its
+    // duration — both feed the rule no input rather than skipping the step, so gravity, the water
+    // and the thin ice keep running underneath.
+    const frozen = !canMove(life) || performance.now() < this.#shadowDanceMovementBlockedUntil;
+    const events = hero.step(
+      {
+        x: frozen ? 0 : Number(input.right) - Number(input.left),
+        z: frozen ? 0 : Number(input.down) - Number(input.up),
+        jump: !frozen && (input.jump ?? false),
+      },
+      Math.min(Math.max(dt, 0), MAX_FRAME_SECONDS),
+    );
+    this.#report();
+    return events;
+  }
 
-      const seq = ++this.#seq;
-      const command = { seq, input };
-      this.#pending.push(command);
-      if (performance.now() >= this.#shadowDanceMovementBlockedUntil)
-        this.#predicted = predictStep(
-          this.#predicted,
-          command,
-          this.#terrain,
-          speed,
-          this.#selfSnapshot?.action?.skillId === "blink" &&
-            this.#selfSnapshot.action.channelEndsAt === undefined,
-        );
-      this.#send({ t: "input", seq, input });
-    }
+  /**
+   * Puts the hero's position on the wire, at most once per `MOVE_REPORT_MS` and only when something
+   * about it actually changed. An idle hero reports nothing: the last frame the server received is
+   * still true, and re-sending it 20 times a second would spend the rate window on saying nothing.
+   */
+  #report(): void {
+    const hero = this.#hero;
+    if (!hero) return;
+    const now = performance.now();
+    if (now - this.#reportedAt < MOVE_REPORT_MS) return;
+    const { state } = hero;
+    // All three axes: `x`/`z` are the ground and `y` is ELEVATION. `facing` comes from the
+    // controller, which guarantees unit length — `isDirection` drops the whole frame otherwise.
+    const message: ClientMessage = {
+      t: "move",
+      x: state.x,
+      y: state.y,
+      z: state.z,
+      facing: { x: hero.facing.x, z: hero.facing.z },
+      airborne: state.airborne,
+      swimming: state.swimming,
+      gliding: state.gliding,
+    };
+    const encoded = JSON.stringify(message);
+    if (encoded === this.#lastReport) return;
+    this.#reportedAt = now;
+    this.#lastReport = encoded;
+    this.#rememberReported({ x: state.x, y: state.y, z: state.z });
+    this.#send(message);
+  }
+
+  #rememberReported(position: WorldPosition): void {
+    this.#reported.push(position);
+    if (this.#reported.length > REPORT_HISTORY) this.#reported.shift();
   }
 
   sample(now: number): SceneSample {
@@ -444,7 +475,7 @@ export class WorldClient {
       corpses: this.#corpses,
       events: this.#events,
     };
-    const self = this.#sampleSelf(now);
+    const self = this.#sampleSelf();
     if (!self) return interpolated;
     return {
       ...interpolated,
@@ -453,16 +484,17 @@ export class WorldClient {
   }
 
   /**
-   * The terrain the server actually sent, as the geometry prediction collides against.
+   * The terrain the server actually sent, as the geometry the hero collides against.
    *
    * The SAME function the server ran on the SAME string (`zoneTerrainFromHeightfield`), which is
-   * the whole reason a predicted position and an authoritative one converge. There is nothing here
-   * for the client to have an opinion about: no spawn list (only the server picks where anyone
-   * appears), and no collider bake of its own — the heightfield's `colliders` are the rectangles
-   * the server indexed, and re-deriving them from `elements` would be a second, disagreeing bake.
+   * what keeps the ground the client walks on identical to the one the server resolves monsters,
+   * projectiles and authored teleports against. There is nothing here for the client to have an
+   * opinion about: no spawn list (only the server picks where anyone appears), and no collider bake
+   * of its own — the heightfield's `colliders` are the rectangles the server indexed, and
+   * re-deriving them from `elements` would be a second, disagreeing bake.
    *
    * `null` when the welcome's heightfield does not decode. `parseServerMessage` has already refused
-   * such a frame, so this is unreachable from a real socket; predicting nothing is still the honest
+   * such a frame, so this is unreachable from a real socket; no hero at all is still the honest
    * answer to a map this build cannot read.
    */
   static terrainFrom(world: WorldInfo): ZoneTerrain | null {
@@ -486,7 +518,6 @@ export class WorldClient {
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
-      this.#predictionBlocked = false;
       this.#shadowDanceMovementBlockedUntil = 0;
       this.#push(
         message.players,
@@ -498,8 +529,27 @@ export class WorldClient {
       const self = message.players.find((player) => player.id === message.selfId);
       if (self) {
         this.#selfSnapshot = self;
-        this.#predicted = { x: self.x, y: self.y, z: self.z };
-        this.#ack = self.ack;
+        // A welcome is a new room: a fresh hero on the new map's terrain, seeded at the position
+        // and heading the server admitted it with. `facing` came off the wire already unit-length
+        // (`isDirection`), and the controller normalises it again anyway.
+        this.#hero = this.#terrain
+          ? createHeroController({
+              terrain: this.#terrain,
+              spawn: { x: self.x, y: self.y, z: self.z },
+              speed: speedForLife(
+                self.life,
+                self.class,
+                mapHeroClassSettings(this.#heroSettings, self.class).stats.movementSpeed,
+              ),
+              facing: self.facing,
+            })
+          : null;
+        // Seeded, not empty: until the hero has reported anything of its own, the position the
+        // server keeps relaying IS this one, and an empty history would read it as a server-authored
+        // displacement and re-snap the hero on every snapshot.
+        this.#reported = [{ x: self.x, y: self.y, z: self.z }];
+        this.#lastReport = null;
+        this.#reportedAt = 0;
       }
       handlers.onWelcome(message.selfId, message.world, message.self);
       return;
@@ -553,7 +603,6 @@ export class WorldClient {
         message.projectiles,
       );
       this.#reconcile(message.players, receivedAt);
-      this.#predictionBlocked = false;
       return;
     }
     if (message.t === "world.resync_required") {
@@ -590,21 +639,14 @@ export class WorldClient {
     }
     if (message.t === "rogue.shadow_dance") {
       if (message.actorId === this.#selfId) {
-        this.#predicted = {
+        // The sequence carries a GROUND landing; the controller resolves the elevation from the
+        // terrain under it rather than inventing one here.
+        this.#hero?.teleport({
           x: message.finalPosition.x,
-          // The sequence carries a GROUND landing; the elevation is whatever the terrain has under
-          // it, never a value invented here.
-          y: this.#terrain
-            ? groundUnder(
-                this.#terrain,
-                message.finalPosition.x,
-                message.finalPosition.z,
-                this.#predicted?.y ?? 0,
-              )
-            : (this.#predicted?.y ?? 0),
+          y: this.#hero.state.y,
           z: message.finalPosition.z,
-        };
-        this.#error = { x: 0, z: 0 };
+        });
+        this.#rememberReportedFromHero();
         this.#shadowDanceMovementBlockedUntil =
           performance.now() + Math.max(0, message.endsAt - message.startedAt);
       }
@@ -689,105 +731,75 @@ export class WorldClient {
     return receivedAt;
   }
 
-  #reconcile(players: PlayerSnapshot[], now: number): void {
-    if (this.#selfId === null || this.#predicted === null) return;
+  /**
+   * Reads the authoritative self snapshot for everything the server still owns — life, health,
+   * class, equipment, the combat action — and, when the position in it is one this client never
+   * reported, adopts it.
+   *
+   * The hero's position is the client's (the S3 spec, decision 4), so the server normally echoes
+   * back what it was told and there is nothing to do: no replay, no correction smearing, no pending
+   * queue. But the server DOES still move a hero on its own — an authored teleport, a resurrection,
+   * a Pas de Lumen landing — and a client that ignored that would walk straight back out of it.
+   * Comparing against what was actually reported is what tells the two apart; a stale echo is still
+   * an echo, which is why a window of recent reports is kept rather than only the newest.
+   */
+  #reconcile(players: PlayerSnapshot[], _now: number): void {
+    if (this.#selfId === null) return;
 
     const authoritative = players.find((player) => player.id === this.#selfId);
     if (!authoritative) return;
     this.#selfSnapshot = authoritative;
-
-    const drawnBefore = this.#samplePredictedPosition();
-    const previousLife = this.#life;
-    this.#life = authoritative.life;
-    this.#ack = authoritative.ack;
-    this.#pending = prunePending(this.#pending, authoritative.ack);
-
-    // Every life transition is a teleport or a freeze, and the server drops its queue across
-    // one. Replaying commands buffered under the old life state — at the old speed, from the
-    // old place — is exactly the desync this whole mechanism exists to prevent. Snap instead.
-    const transitioned = previousLife !== authoritative.life;
-    const authoritativePosition: WorldPosition = {
-      x: authoritative.x,
-      y: authoritative.y,
-      z: authoritative.z,
-    };
-    if (
-      this.#terrain === null ||
-      transitioned ||
-      authoritative.life === "corpse" ||
-      this.#pending.length > MAX_PENDING_COMMANDS
-    ) {
-      this.#pending = [];
-      this.#predicted = authoritativePosition;
-      this.#error = { x: 0, z: 0 };
-      return;
-    }
-
-    this.#predicted = reconcile(
-      authoritativePosition,
-      this.#pending,
-      this.#terrain,
-      authoritative.life,
-      authoritative.class,
-      mapHeroClassSettings(this.#heroSettings, authoritative.class).stats.movementSpeed,
-      authoritative.action?.skillId === "blink" && authoritative.action.channelEndsAt === undefined,
-    );
-
-    const drawnAfter = this.#samplePredictedPosition();
-    // The correction is smeared across the GROUND only. Elevation is the terrain's own answer under
-    // the corrected point, so smearing it would draw the hero briefly sunk into the ground it is
-    // standing on.
-    const error = { x: drawnBefore.x - drawnAfter.x, z: drawnBefore.z - drawnAfter.z };
-
-    if (Math.hypot(error.x, error.z) > SNAP_THRESHOLD) {
-      this.#error = { x: 0, z: 0 };
-      return;
-    }
-
-    this.#error = error;
-    this.#errorAt = now;
+    this.#adoptServerPosition(authoritative);
   }
 
-  #samplePredictedPosition(): WorldPosition {
-    const life = this.#selfSnapshot?.life ?? "alive";
-    if (this.#predicted === null || this.#terrain === null || !canMove(life)) {
-      return this.#predicted ?? { x: 0, y: 0, z: 0 };
-    }
-    return predictPartial(
-      this.#predicted,
-      this.#input,
-      this.#accumulator,
-      this.#terrain,
-      speedForLife(
-        life,
-        this.#selfSnapshot?.class ?? "warrior",
-        mapHeroClassSettings(this.#heroSettings, this.#selfSnapshot?.class ?? "warrior").stats
-          .movementSpeed,
-      ),
+  #adoptServerPosition(authoritative: PlayerSnapshot): void {
+    const hero = this.#hero;
+    if (!hero) return;
+    const echoed = this.#reported.some(
+      (reported) =>
+        Math.abs(reported.x - authoritative.x) <= ECHO_EPSILON &&
+        Math.abs(reported.y - authoritative.y) <= ECHO_EPSILON &&
+        Math.abs(reported.z - authoritative.z) <= ECHO_EPSILON,
     );
+    if (echoed) return;
+    // All three axes, and momentum cut: a hero the server moved did not walk there.
+    hero.teleport({ x: authoritative.x, y: authoritative.y, z: authoritative.z });
+    this.#reported = [];
+    this.#rememberReportedFromHero();
+    // The next frame must actually report the adopted position, even if the encoded frame happens
+    // to match the one before the snap.
+    this.#lastReport = null;
+    this.#reportedAt = 0;
   }
 
-  #sampleSelf(now: number): PlayerSnapshot | null {
-    if (!this.#selfSnapshot || this.#predicted === null) return null;
-    const position = this.#samplePredictedPosition();
-    const elapsed = now - this.#errorAt;
-    const decay = Math.max(0, 1 - elapsed / CORRECTION_SMOOTHING_MS);
+  #rememberReportedFromHero(): void {
+    const hero = this.#hero;
+    if (!hero) return;
+    this.#rememberReported({ x: hero.state.x, y: hero.state.y, z: hero.state.z });
+  }
 
-    // Predict facing from the held input, exactly as the server derives it from a dequeued command,
-    // so your own sprite flips the frame you press a direction instead of waiting a round trip for
-    // the server's facing to come back in a snapshot. Standing still keeps the last facing; a frozen
-    // corpse never turns. The server stays authoritative for combat facing (frozen at wind-up).
-    const facing = canMove(this.#selfSnapshot.life)
-      ? facingFromInput(this.#input, this.#selfSnapshot.facing)
-      : this.#selfSnapshot.facing;
-
+  /**
+   * The self entry of a scene sample: the server's own snapshot with this client's position, its
+   * three locomotion flags and its heading written over it. Your own hero is drawn in the present —
+   * it always was; what changed is that the present is now a fact rather than a prediction, so
+   * there is no correction left to smear.
+   */
+  #sampleSelf(): PlayerSnapshot | null {
+    const hero = this.#hero;
+    if (!this.#selfSnapshot || !hero) return null;
+    const { state } = hero;
     return {
       ...this.#selfSnapshot,
-      x: position.x + this.#error.x * decay,
-      y: position.y,
-      z: position.z + this.#error.z * decay,
-      ack: this.#ack,
-      facing,
+      x: state.x,
+      y: state.y,
+      z: state.z,
+      airborne: state.airborne,
+      swimming: state.swimming,
+      gliding: state.gliding,
+      // The client's own heading, not the round-trip-stale one in the snapshot: the sprite must
+      // flip the frame a direction is pressed. The server stays authoritative for COMBAT facing,
+      // which is frozen at wind-up and lives on `action`, not here.
+      facing: { x: hero.facing.x, z: hero.facing.z },
     };
   }
 

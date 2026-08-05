@@ -961,16 +961,9 @@ describe("world room transitions (FakeClock)", () => {
       disabledSkills: [1],
     });
     const playerA = playerOf(stateA, fixture.heroId);
-    const startA = { x: playerA.x, z: playerA.z };
-    await engineA.message(socketA.id, {
-      t: "input",
-      seq: 1,
-      input: { up: false, down: false, left: false, right: true },
-    });
-    clockA.advanceTicks(1);
-    expect(playerA.x - startA.x).toBeCloseTo(mapASpeed * (TICK_MS / 1_000));
-    // The OTHER ground axis, not the elevation one: pressing east must not drift the hero north.
-    expect(playerA.z).toBe(startA.z);
+    // The room no longer walks anyone at that speed — the hero's own client does, from the
+    // `heroSettings` the welcome above carries. What stays server-decided, and is asserted next, is
+    // the ability lock: a disabled skill is refused no matter what the client tries.
 
     await engineA.message(socketA.id, { t: "attack" });
     expect(playerA.lastAttackAt).toBe(0);
@@ -999,16 +992,6 @@ describe("world room transitions (FakeClock)", () => {
 
     const stateB = roomState(engineB);
     const playerB = playerOf(stateB, fixture.heroId);
-    const startB = { x: playerB.x, z: playerB.z };
-    await engineB.message(socketB.id, {
-      t: "input",
-      seq: 2,
-      input: { up: false, down: false, left: false, right: true },
-    });
-    clockB.advanceTicks(1);
-    expect(playerB.x - startB.x).toBeCloseTo(
-      defaults.classes.warrior.stats.movementSpeed * (TICK_MS / 1_000),
-    );
     await engineB.message(socketB.id, { t: "attack" });
     expect(playerB.lastAttackAt).toBeGreaterThan(0);
 

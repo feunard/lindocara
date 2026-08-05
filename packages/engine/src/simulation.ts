@@ -1,11 +1,19 @@
 /**
- * The authoritative movement rules, shared verbatim by the server and the client.
+ * The simulation's clock and the shape of a movement intent. **No movement rule any more.**
  *
- * Nothing in here may touch the DOM, Workers APIs, timers, or randomness: the server
- * runs it to decide where players actually are, and one day the client will run the
- * identical code to predict its own square before the server confirms. Two copies of
- * this logic that drift apart is precisely the bug class client-side prediction exists
- * to expose, so there is only ever one copy.
+ * `step()` and `PLAYER_SPEED` retired with client-side prediction: the hero's movement rule is
+ * `stepHero` (`./hd2d/hero-step.ts`), it runs on the client, and the server stores the position the
+ * client reports rather than computing one of its own (see the S3 spec, decision 4). The baseline
+ * walking speed moved to `CLASS_STATS.warrior.movementSpeed` (`./game.ts`), beside the other four
+ * classes' — it was only here because `step()` defaulted to it.
+ *
+ * What is left is what still has consumers — the tick and snapshot rates the server runs on, the
+ * pixel-era `PLAYER_SIZE`/`WORLD_*`/`clampToWorld` the unconverted zone catalogue in `game.ts` still
+ * reads, and `Input`, the keyboard/gamepad intent shape the client's own input tracker and every
+ * facing helper still speak.
+ *
+ * `Input` is no longer a COMMAND: nothing stamps it with a sequence, sends it, queues it or replays
+ * it. It never crosses the wire again.
  */
 
 export const TICK_HZ = 20;
@@ -23,16 +31,6 @@ export const WORLD_WIDTH = 4800;
 export const WORLD_HEIGHT = 2700;
 export const PLAYER_SIZE = 32;
 
-/**
- * Warrior/default speed at full tilt, in **tiles per second** — the exact quotient of the former
- * 260 px/s by `TILE_SIZE`, so a hero covers the same ground; only the ruler changed. Per-class
- * values live in `CLASS_STATS`.
- *
- * Written as a literal division rather than an import so `simulation.ts` keeps its place at the
- * bottom of the import graph (`tilemap.ts`, which owns `TILE_SIZE`, is above it).
- */
-export const PLAYER_SPEED = 260 / 64;
-
 export interface Vec2 {
   x: number;
   y: number;
@@ -48,25 +46,6 @@ export const VERDANT_REACH_BOUNDS: WorldBounds = {
   height: WORLD_HEIGHT,
 };
 
-export interface Input {
-  up: boolean;
-  down: boolean;
-  left: boolean;
-  right: boolean;
-  /** Optional continuous stick axis values in [-1, 1]. */
-  axisX?: number;
-  axisY?: number;
-}
-
-export const NO_INPUT: Input = Object.freeze({
-  up: false,
-  down: false,
-  left: false,
-  right: false,
-  axisX: 0,
-  axisY: 0,
-});
-
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
   if (value > max) return max;
@@ -74,10 +53,10 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * Advance one player by `dt` seconds. Pure: same inputs, same output, no side effects.
- *
- * Diagonal movement is normalised, otherwise holding two keys would be ~41% faster than
- * holding one.
+ * Keeps a PIXEL position inside a world rectangle anchored at the origin. It outlived `step()`
+ * because the unconverted pixel geometry in `game.ts` still calls it; nothing in the tile-unit
+ * world does — a tile grid is centred on the origin, so a rectangle anchored at zero would fence
+ * off its whole western and northern halves (`clampToGrid`, `terrain-access.ts`, is its successor).
  */
 export function clampToWorld(
   position: Vec2,
@@ -90,35 +69,28 @@ export function clampToWorld(
   };
 }
 
-/**
- * `bounds` accepts an explicit `null` — "this world is not a rectangle anchored at the origin".
- * A tile-unit grid is centred on the origin and runs `-size/2`..`+size/2`, so the pixel clamp
- * above would fence off its whole western and northern halves. The heightfield's own walkability
- * question (`canStand`, server-side) already refuses ground off the grid, which is a better
- * boundary than a rectangle: it also refuses the sea. Callers that still live in the pixel world
- * keep the default and are unaffected.
- */
-export function step(
-  position: Vec2,
-  input: Input,
-  dt: number,
-  speed: number = PLAYER_SPEED,
-  bounds: WorldBounds | null = VERDANT_REACH_BOUNDS,
-): Vec2 {
-  let dx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-  let dy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
-
-  if (dx !== 0 && dy !== 0) {
-    dx *= Math.SQRT1_2;
-    dy *= Math.SQRT1_2;
-  }
-
-  const distance = speed * dt;
-  return clampToWorld(
-    {
-      x: position.x + dx * distance,
-      y: position.y + dy * distance,
-    },
-    bounds,
-  );
+export interface Input {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+  /**
+   * Jump, as a LEVEL rather than an edge — `stepHero` reads the rising edge itself
+   * (`HeroState.jumpHeld`). Optional because it arrived with client-owned movement and every older
+   * `{up, down, left, right}` literal must keep compiling; absent reads as not pressed.
+   */
+  jump?: boolean;
+  /** Optional continuous stick axis values in [-1, 1]. */
+  axisX?: number;
+  axisY?: number;
 }
+
+export const NO_INPUT: Input = Object.freeze({
+  up: false,
+  down: false,
+  left: false,
+  right: false,
+  jump: false,
+  axisX: 0,
+  axisY: 0,
+});

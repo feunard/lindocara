@@ -523,6 +523,7 @@ export const en = {
   "settings.controls.move_down": "Move down",
   "settings.controls.move_left": "Move left",
   "settings.controls.move_right": "Move right",
+  "settings.controls.jump": "Jump",
   "settings.controls.skill_1": "Primary attack / ability 1",
   "settings.controls.skill_2": "Ability 2",
   "settings.controls.skill_3": "Ability 3",

@@ -119,6 +119,7 @@ import {
 import { mergePeasantMaterialRewards } from "@lindocara/engine/peasant.js";
 import type {
   ClientMessage,
+  MoveMessage,
   QuestDialogueEntry,
   RogueShadowDanceSequence,
   ServerMessage,
@@ -141,7 +142,7 @@ import {
   spendResource,
 } from "@lindocara/engine/resources.js";
 import { ROGUE_BALANCE, roguePoisonTickPower } from "@lindocara/engine/rogue.js";
-import { NETWORK_TICKS_PER_SNAPSHOT, NO_INPUT, TICK_HZ } from "@lindocara/engine/simulation.js";
+import { NETWORK_TICKS_PER_SNAPSHOT, TICK_HZ } from "@lindocara/engine/simulation.js";
 import {
   CLASS_SKILLS,
   isSkillUnlocked,
@@ -926,20 +927,98 @@ function recordActorQuestEvent(
 }
 
 // -------------------------------------------------------------------------------------------------
+// Reported movement
+// -------------------------------------------------------------------------------------------------
+
+/**
+ * Elevation slack around the room's own relief, in world units. A jump apex is
+ * `jump.speed² / (2 · gravity)` = 1.35 units above the ground it left, and nothing else the hero
+ * does goes higher; four is that with room to spare, and still two orders of magnitude tighter than
+ * the wire's own ±128.
+ */
+const REPORTED_ELEVATION_SLACK = 4;
+
+/**
+ * Does this reported position describe a point on THIS map?
+ *
+ * `MOVE_COORDINATE_LIMIT` (`protocol.ts`) is a stateless wire bound — half the largest grid any
+ * heightfield may declare — so a hero on a 40-cell map can report a position a hundred tiles off it
+ * and the parser will happily hand it over. Only the room knows which grid it owns, so only the room
+ * can ask this, and it must: every index downstream (the spatial grid, `heightAt`, navigation) is
+ * addressed by a cell, and a position that addresses no cell of this map is not a hero anywhere.
+ *
+ * This is VALIDITY, not authority. The spec gave up deciding *where a hero is* (decision 4) — a
+ * modified client may still walk through a wall or across water, and this deliberately does not
+ * refuse that. It refuses only what could describe no position on this map at all, and it refuses it
+ * the way every malformed frame is refused: by dropping it, silently.
+ */
+function withinRoomBounds(terrain: ZoneDefinition["terrain"], move: MoveMessage): boolean {
+  const half = terrain.size / 2;
+  if (Math.abs(move.x) > half || Math.abs(move.z) > half) return false;
+  // The tallest relief a grid of this side could carry, plus the slack above. Derived from the map
+  // rather than restated as a constant: a bigger map is allowed to be taller.
+  if (move.y > half * terrain.levelHeight + REPORTED_ELEVATION_SLACK) return false;
+  // Nothing goes below the water plane: entering the water pins the hero to it (`enterWater`,
+  // `hero-step.ts`), and swimming holds it there.
+  return move.y >= terrain.waterLevel - REPORTED_ELEVATION_SLACK;
+}
+
+/**
+ * The client's report of where its own hero now is — the one fact a client supplies rather than an
+ * intent (the S3 spec, decision 4). The room stores it and relays it; it never recomputes it.
+ *
+ * This is where the per-move choreography that used to hang off the tick's `onPlayerMoved` runs
+ * now: it fires where the position actually changes, which for a client-owned hero is on message
+ * arrival rather than once a tick.
+ *
+ * A corpse does not move, and a hero mid-handoff has had its position decided by the transition
+ * itself — both drop the frame rather than answering it, exactly as the retired command path did.
+ */
+export function applyReportedMove(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  move: MoveMessage,
+): void {
+  if (player.life === "corpse" || player.transitioning || player.disconnecting) return;
+  if (!withinRoomBounds(zone(w.state).terrain, move)) return;
+
+  const previousPosition = { x: player.x, z: player.z };
+  const moved = move.x !== player.x || move.z !== player.z;
+  // All three axes, every time: `x`/`z` are the ground and `y` is ELEVATION. A write that carries
+  // two of them puts the world on its side.
+  player.x = move.x;
+  player.y = move.y;
+  player.z = move.z;
+  player.facing = { x: move.facing.x, z: move.facing.z };
+  player.airborne = move.airborne;
+  player.swimming = move.swimming;
+  player.gliding = move.gliding;
+  player.dirty = true;
+  if (!moved) return;
+
+  w.state.playerGrid.update(player, previousPosition);
+  // Harvest channels require a stationary actor; the completion path also revalidates after its
+  // coordinator await, so movement cannot race a delayed credit.
+  cancelPeasantHarvestJob(w.state.harvestJobs, player.id);
+  detectPlayerTouch(w.state, player, previousPosition);
+  extendSacredPassage(w, player);
+  applyLumenPortal(w, connectionId, player, w.deps.now());
+}
+
+// -------------------------------------------------------------------------------------------------
 // Life-state transitions
 // -------------------------------------------------------------------------------------------------
 
 /**
- * Port of `#freeze` (`world.ts:5674`). The queue-clear on every life transition is the invariant
- * prediction relies on: no half-applied command batches. A life transition also ends any open
- * quest conversation and aborts the hero's event runs — a panel opened in one life state must not
- * linger into another, and a run buffered across a death/revive must not resume against a
- * different life state.
+ * Port of `#freeze` (`world.ts:5674`). The command-queue clear it opened with is gone with the
+ * queue itself — the client owns movement now and there is nothing buffered here to half-apply;
+ * `applyReportedMove` refuses a corpse's frames instead. What remains is what a life transition
+ * always also did: end any open quest conversation and abort the hero's event runs — a panel opened
+ * in one life state must not linger into another, and a run buffered across a death/revive must not
+ * resume against a different life state.
  */
 function freeze(w: WorldGlue, player: PlayerRuntime): void {
-  player.lastInput = NO_INPUT;
-  player.queue = [];
-  player.starvedTicks = 0;
   cancelPeasantHarvestJob(w.state.harvestJobs, player.id);
   player.peasantCarry = null;
   exitRogueStealth(player, w.deps.now());
@@ -5257,9 +5336,11 @@ function cheatRevive(w: WorldGlue, player: PlayerRuntime): void {
 
 /**
  * Port of `#teleportSameMap` (`world.ts:5068`): refuse an unwalkable/out-of-bounds destination
- * with a structured log while the run continues; otherwise set the authoritative position AND
- * clear the command queue — the death-transition precedent: a stale queue replayed after the snap
- * is the post-teleport sprint bug.
+ * with a structured log while the run continues; otherwise set the authoritative position.
+ *
+ * This is one of the few positions the SERVER still decides. The hero's own client learns of it the
+ * way everyone else does — from the next snapshot — and snaps to it, because the position it finds
+ * there is one it never reported (`net.ts`, `#adoptServerPosition`).
  */
 export function teleportSameMap(
   w: WorldGlue,
@@ -5293,10 +5374,6 @@ export function teleportSameMap(
   player.z = destination.z;
   player.y = landing;
   w.state.playerGrid.update(player, previousPosition);
-  // Clear the movement queue so no buffered command replays past the snap (the sprint bug class).
-  player.queue = [];
-  player.lastInput = NO_INPUT;
-  player.starvedTicks = 0;
   player.dirty = true;
   return "teleported";
 }
@@ -6315,14 +6392,8 @@ export function advanceWorldTick(w: WorldGlue): void {
     reclaimCorpse: (connectionId, player) => reclaimCorpse(w, connectionId, player),
     collectLoot: (connectionId, player) => collectLootFor(w, connectionId, player),
     savePlayer: (player, connectionId) => deps.savePlayer(player, connectionId),
-    onPlayerMoved: (connectionId, player, previous) => {
-      // Harvest channels require a stationary actor; the completion path also revalidates after
-      // its coordinator await, so movement cannot race a delayed credit.
-      cancelPeasantHarvestJob(state.harvestJobs, player.id);
-      detectPlayerTouch(state, player, previous);
-      extendSacredPassage(w, player);
-      applyLumenPortal(w, connectionId, player, now);
-    },
+    // No `onPlayerMoved`: the tick no longer moves anyone. The same choreography now runs in
+    // `applyReportedMove`, where a client-owned hero's position actually changes.
   });
   healSacredPassageCrossings(w, now);
   expireLumenTrails(state.lumenTrails, now);

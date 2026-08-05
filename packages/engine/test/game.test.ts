@@ -62,13 +62,7 @@ import {
   xpForNextLevel,
 } from "@lindocara/engine/game.js";
 import { groundDistance, withinGroundRange } from "@lindocara/engine/ground.js";
-import {
-  PLAYER_SIZE,
-  PLAYER_SPEED,
-  TICK_DT,
-  WORLD_HEIGHT,
-  WORLD_WIDTH,
-} from "@lindocara/engine/simulation.js";
+import { PLAYER_SIZE, TICK_DT, WORLD_HEIGHT, WORLD_WIDTH } from "@lindocara/engine/simulation.js";
 import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
@@ -228,7 +222,9 @@ describe("authoritative world geometry", () => {
           }),
         ).toBe(false);
       }
-      expect(Math.min(obstacle.width, obstacle.height)).toBeGreaterThan(PLAYER_SPEED * TICK_DT);
+      expect(Math.min(obstacle.width, obstacle.height)).toBeGreaterThan(
+        CLASS_STATS.warrior.movementSpeed * TICK_DT,
+      );
     }
   });
 
@@ -748,13 +744,13 @@ describe("cemeteries", () => {
 
 describe("the death state machine", () => {
   it("freezes a corpse and hurries a ghost", () => {
-    expect(speedForLife("alive")).toBe(PLAYER_SPEED);
+    expect(speedForLife("alive")).toBe(CLASS_STATS.warrior.movementSpeed);
     expect(speedForLife("alive", "ranger")).toBe(CLASS_STATS.ranger.movementSpeed);
     expect(speedForLife("alive", "priest")).toBe(CLASS_STATS.priest.movementSpeed);
     expect(speedForLife("alive", "rogue")).toBe(CLASS_STATS.rogue.movementSpeed);
     expect(speedForLife("alive", "peasant")).toBe(CLASS_STATS.peasant.movementSpeed);
     expect(speedForLife("corpse")).toBe(0);
-    expect(speedForLife("ghost")).toBeGreaterThan(PLAYER_SPEED);
+    expect(speedForLife("ghost")).toBeGreaterThan(CLASS_STATS.warrior.movementSpeed);
   });
 
   it("lets a ghost move but never act", () => {

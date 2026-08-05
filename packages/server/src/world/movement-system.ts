@@ -1,25 +1,9 @@
-import { canReclaim, speedForLife } from "@lindocara/engine/death.js";
-import {
-  facingFromInput,
-  movementDirectionFromInput,
-} from "@lindocara/engine/directional-combat.js";
-import { groundDistance, groundOf, planarOf } from "@lindocara/engine/ground.js";
-import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
+import { canReclaim } from "@lindocara/engine/death.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
-import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
-import {
-  clampToGrid,
-  groundUnder,
-  resolveGroundMovement,
-} from "@lindocara/engine/terrain-access.js";
+import { TICK_DT } from "@lindocara/engine/simulation.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import type { SpatialGrid } from "./spatial-grid.js";
-import {
-  type GroundVector,
-  MAX_STARVED_TICKS,
-  type PlayerRuntime,
-  toAttachment,
-} from "./world-runtime.js";
+import { type PlayerRuntime, toAttachment } from "./world-runtime.js";
 
 /**
  * Generic over the socket key (`TSocket`) so both hosts can drive it: the legacy Durable Object
@@ -42,13 +26,26 @@ export interface MovementSystemContext<TSocket = WebSocket> {
   reclaimCorpse(socket: TSocket, player: PlayerRuntime): void;
   collectLoot(socket: TSocket, player: PlayerRuntime): void;
   savePlayer(player: PlayerRuntime, socket: TSocket): Promise<boolean>;
-  /** Fired right after a player's authoritative position changed this tick, with where they were
-   *  before. `World` uses it to detect a hero's box landing on a `player-touch` event's cell — a
-   *  movement-edge check, not a per-tick scan. Absent for rooms that do not run events. */
-  onPlayerMoved?(socket: TSocket, player: PlayerRuntime, previousPosition: GroundVector): void;
 }
 
-/** Applies at most one queued command per player and performs movement-adjacent maintenance. */
+/**
+ * Every per-player duty the tick owes, **except moving anyone**.
+ *
+ * The movement branch retired here: the hero's movement rule (`stepHero`) runs on the client, which
+ * reports the position it computed (`MoveMessage`), and `WorldRoom.dispatch` stores it as it
+ * arrives rather than the tick recomputing one (see the S3 spec, decision 4). With it went the
+ * command queue, the one-command-per-tick rule and `MAX_STARVED_TICKS`' repeat-the-last-intent
+ * branch — there is no last intent to repeat when a client sends positions.
+ *
+ * What did NOT go, and is the whole reason this function still exists: class-resource regeneration,
+ * the presence-lease heartbeat, corpse reclaim, loot collection, the attachment write and the dirty
+ * flush. Each is on the same per-player beat as the movement it used to sit beside, and none of
+ * them was ever about where a hero is.
+ *
+ * `onPlayerMoved` left with the movement branch: the choreography it carried (harvest cancellation,
+ * `player-touch` detection, sacred passage, the Lumen gate) now runs in `applyReportedMove`
+ * (`worldTick.ts`), where a client-owned hero's position actually changes.
+ */
 export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>): void {
   for (const [socket, player] of context.players) {
     if (!player.authorized) continue;
@@ -60,98 +57,6 @@ export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>)
     if (context.now >= player.nextPresenceHeartbeatAt) {
       player.nextPresenceHeartbeatAt = context.now + context.presenceHeartbeatMs;
       context.waitUntil(context.renewPresence(player));
-    }
-    if (player.life !== "corpse") {
-      const command = player.queue.shift();
-      if (command) {
-        player.lastInput = command.input;
-        player.facing = facingFromInput(command.input, player.facing);
-        player.ack = command.seq;
-        player.starvedTicks = 0;
-      } else if (++player.starvedTicks > MAX_STARVED_TICKS) {
-        player.lastInput = NO_INPUT;
-      }
-
-      const terrain = context.zone.terrain;
-      const previousPosition = { x: player.x, z: player.z };
-      const shadowDanceLocked =
-        player.class === "rogue" && player.rogueShadowDanceInvulnerableUntil > context.now;
-      // `step` is still the movement rule, now fed tile-unit speeds and asked not to clamp; the
-      // ramp slowdown it used to be wrapped in (`movementSpeedAt`) is gone with the tile grid that
-      // carried the ramp kind — a heightfield has no ramps, it has cliffs and a jump.
-      const stepped = shadowDanceLocked
-        ? planarOf(player)
-        : step(
-            planarOf(player),
-            player.lastInput,
-            TICK_DT,
-            speedForLife(
-              player.life,
-              player.class,
-              mapHeroClassSettings(context.zone.heroSettings, player.class).stats.movementSpeed,
-            ),
-            null,
-          );
-      let desired: GroundVector = groundOf(stepped);
-      const heldBlink =
-        player.action?.skillId === "blink" &&
-        player.action.channelMaxEndsAt !== undefined &&
-        player.action.channelEndsAt === undefined
-          ? player.action
-          : null;
-      const desiredDistance = groundDistance(desired, player);
-      if (
-        heldBlink &&
-        heldBlink.mobilityDistance !== undefined &&
-        desiredDistance > heldBlink.mobilityDistance
-      ) {
-        const ratio = heldBlink.mobilityDistance / Math.max(desiredDistance, Number.EPSILON);
-        desired = {
-          x: player.x + (desired.x - player.x) * ratio,
-          z: player.z + (desired.z - player.z) * ratio,
-        };
-      }
-      // Pas de Lumen ignores terrain for the whole held traversal — that is the skill, and it is
-      // what `resolveTerrainForLumen` did too. What that function ALSO did was keep the priest
-      // inside the world, and `clampToGrid` is its tile-unit successor: relief, water and props
-      // stay ignored, but the grid's edge still holds. Without it a held traversal walks off the
-      // map, where `heightAt` is `null` and there is no ground to rematerialise onto.
-      //
-      // CARRY FORWARD: the rematerialisation check itself (`safeLumenLanding`, `worldTick.ts`) is
-      // unconverted and writes its landing's ground coordinate into `player.y`, the ELEVATION
-      // field. Until that call site converts, the landing is the weak half of this skill.
-      // The ground the hero is standing on RIGHT NOW is what decides where it may step. Reading
-      // it from under the destination instead makes the ceiling test self-satisfying and lets any
-      // body whose stride exceeds its own radius walk up a cliff — see `resolveGroundMovement`.
-      const groundY = groundUnder(terrain, previousPosition.x, previousPosition.z, player.y);
-      const moved = heldBlink
-        ? clampToGrid(terrain, desired)
-        : resolveGroundMovement(terrain, previousPosition, desired, groundY);
-      if (moved.x !== player.x || moved.z !== player.z) {
-        const movementDistance = groundDistance(moved, player);
-        player.x = moved.x;
-        player.z = moved.z;
-        player.y = groundUnder(terrain, moved.x, moved.z, player.y);
-        context.playerGrid.update(player, previousPosition);
-        context.onPlayerMoved?.(socket, player, previousPosition);
-        player.dirty = true;
-        const action = player.action;
-        if (
-          action?.skillId === "blink" &&
-          action.channelMaxEndsAt !== undefined &&
-          action.channelEndsAt === undefined
-        ) {
-          action.mobilityDistance = Math.max(0, (action.mobilityDistance ?? 0) - movementDistance);
-          const movementDirection = movementDirectionFromInput(player.lastInput);
-          const directionLength = Math.hypot(movementDirection.x, movementDirection.z);
-          if (directionLength > 0) {
-            action.direction = {
-              x: movementDirection.x / directionLength,
-              z: movementDirection.z / directionLength,
-            };
-          }
-        }
-      }
     }
 
     if (canReclaim(player.life, player, player.corpse)) context.reclaimCorpse(socket, player);

@@ -40,6 +40,7 @@ const CONTROL_GROUPS: readonly ControlGroup[] = [
       { id: "moveDown", label: "settings.controls.move_down" },
       { id: "moveLeft", label: "settings.controls.move_left" },
       { id: "moveRight", label: "settings.controls.move_right" },
+      { id: "jump", label: "settings.controls.jump" },
     ],
   },
   {

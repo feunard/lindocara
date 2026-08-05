@@ -244,10 +244,17 @@ function welcomeSelfState(socket: FakeSocket) {
   return undefined;
 }
 
-const rightInput = (seq: number) => ({
-  t: "input" as const,
-  seq,
-  input: { up: false, down: false, left: false, right: true },
+/** One step east, as the hero's own client reports it. `facing` must be unit-length or
+ *  `parseClientMessage` drops the whole frame. */
+const reportEast = (from: { x: number; y: number; z: number }) => ({
+  t: "move" as const,
+  x: from.x + 1,
+  y: from.y,
+  z: from.z,
+  facing: { x: 1, z: 0 },
+  airborne: false,
+  swimming: false,
+  gliding: false,
 });
 
 describe("world room persistence (FakeClock)", () => {
@@ -257,9 +264,10 @@ describe("world room persistence (FakeClock)", () => {
     const engine = createEngine(roomId, clock);
     const socket = fakeSocket(userId, heroId, "c-1");
     await engine.join(socket);
-    const startX = welcomeSelf(socket, heroId)?.x ?? 0;
+    const start = welcomeSelf(socket, heroId);
+    const startX = start?.x ?? 0;
 
-    await engine.message(socket.id, rightInput(1));
+    await engine.message(socket.id, reportEast({ x: startX, y: start?.y ?? 0, z: start?.z ?? 0 }));
     clock.advanceTicks(D1_SAVE_EVERY_TICKS);
 
     await vi.waitFor(async () => {
@@ -284,7 +292,7 @@ describe("world room persistence (FakeClock)", () => {
     };
     player.dirty = true;
 
-    await engine.message(socket.id, rightInput(1));
+    await engine.message(socket.id, reportEast(player));
 
     // A competing acquire (a second session for the SAME hero) bumps the D1 epoch out from under
     // the room's held `player.sessionEpoch`, exactly like a reconnect racing ahead of this room.
@@ -322,10 +330,11 @@ describe("world room persistence (FakeClock)", () => {
     const engine = createEngine(roomId, clock);
     const socket = fakeSocket(userId, heroId, "c-1");
     await engine.join(socket);
-    const startX = welcomeSelf(socket, heroId)?.x ?? 0;
+    const start = welcomeSelf(socket, heroId);
+    const startX = start?.x ?? 0;
 
-    await engine.message(socket.id, rightInput(1));
-    // One tick applies the movement; nowhere near the 100-tick save beat.
+    await engine.message(socket.id, reportEast({ x: startX, y: start?.y ?? 0, z: start?.z ?? 0 }));
+    // One tick, nowhere near the 100-tick save beat.
     clock.advance(TICK_MS);
 
     await engine.leave(socket.id);

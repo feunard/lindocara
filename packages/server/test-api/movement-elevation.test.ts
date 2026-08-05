@@ -15,7 +15,7 @@
  */
 
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
-import { GHOST_SPEED } from "@lindocara/engine/death.js";
+import { GHOST_SPEED, speedForLife } from "@lindocara/engine/death.js";
 import { CLASS_STATS } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
@@ -26,6 +26,7 @@ import {
   canStandOrEscape,
   groundPathClear,
   groundUnder,
+  resolveGroundMovement,
   restoreStandablePosition,
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
@@ -160,17 +161,48 @@ function movementHarness(built: ZoneTerrain, player: PlayerRuntime) {
 const HELD = { up: false, down: false, left: false, right: false };
 
 /**
- * Queues one real command per tick rather than writing `lastInput` directly: the starve branch
- * zeroes a player's input after `MAX_STARVED_TICKS`, so a harness that skips the queue silently
- * stops moving after five ticks.
+ * One tick of ground movement, driven through the engine rule itself.
+ *
+ * It used to queue a command and let `advancePlayers` resolve it. The hero's movement branch
+ * retired from that tick when the client took ownership of its own position (S3, Task 11), so this
+ * makes the same three calls the tick made, in the same order — `step` for the intent,
+ * `resolveGroundMovement` for the collision, `groundUnder` for the ground landed on. That keeps
+ * this suite's wall-slide, cliff and escape-hatch coverage pointed at the rule monsters, guards and
+ * NPCs still walk through, rather than at a branch that no longer exists.
+ *
+ * `advancePlayers` is still called each tick, because the per-player duties it kept (resource
+ * regeneration, presence heartbeat, corpse reclaim, loot collection, the dirty flush) are on the
+ * same beat and one test below asserts exactly that.
  */
 function press(
   harness: ReturnType<typeof movementHarness>,
   input: Partial<typeof HELD>,
   ticks: number,
 ): void {
+  const held = { ...HELD, ...input };
+  const terrain = harness.context.zone.terrain;
   for (let tick = 0; tick < ticks; tick++) {
-    harness.player.queue.push({ seq: harness.player.ack + 1, input: { ...HELD, ...input } });
+    const player = harness.player;
+    let dx = (held.right ? 1 : 0) - (held.left ? 1 : 0);
+    let dz = (held.down ? 1 : 0) - (held.up ? 1 : 0);
+    if (dx !== 0 && dz !== 0) {
+      dx *= Math.SQRT1_2;
+      dz *= Math.SQRT1_2;
+    }
+    const distance =
+      speedForLife(player.life, player.class, CLASS_STATS[player.class].movementSpeed) * TICK_DT;
+    const from = { x: player.x, z: player.z };
+    const desired = { x: from.x + dx * distance, z: from.z + dz * distance };
+    // The ground under the body NOW, never under the destination: the latter makes `canStand`'s
+    // ceiling test self-satisfying and predicts a hero straight up a cliff.
+    const groundY = groundUnder(terrain, from.x, from.z, player.y);
+    const moved = resolveGroundMovement(terrain, from, desired, groundY);
+    player.x = moved.x;
+    player.z = moved.z;
+    player.y = groundUnder(terrain, moved.x, moved.z, player.y);
+    // The dirty flag the real path sets on every accepted report — it is what makes the tick's
+    // save beat below fire at all.
+    player.dirty = true;
     harness.context.now += TICK_MS;
     advancePlayers(harness.context);
   }

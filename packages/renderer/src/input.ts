@@ -21,6 +21,10 @@ const MOVEMENT_CONTROLS: Partial<Record<ControlId, keyof Input>> = {
   moveDown: "down",
   moveLeft: "left",
   moveRight: "right",
+  // Jump rides with movement rather than with the edge-triggered actions: `stepHero` reads it as a
+  // LEVEL and finds the rising edge itself, so it must be polled like a direction, not dispatched
+  // once on keydown.
+  jump: "jump",
 };
 
 const ACTION_CONTROLS = [
@@ -59,6 +63,7 @@ function mergedInput(movement: Input, virtual: Input): Input {
     down: movement.down || virtual.down,
     left: movement.left || virtual.left,
     right: movement.right || virtual.right,
+    jump: (movement.jump ?? false) || (virtual.jump ?? false),
     ...(axisX === undefined ? {} : { axisX }),
     ...(axisY === undefined ? {} : { axisY }),
   };
@@ -132,6 +137,10 @@ export function trackInput(): InputTracker {
           keyboard.right ||
           virtual.right ||
           (gamepad ? gamepadControlPressed("moveRight", gamepad) : false),
+        jump:
+          (keyboard.jump ?? false) ||
+          (virtual.jump ?? false) ||
+          (gamepad ? gamepadControlPressed("jump", gamepad) : false),
         axisX: 0,
         axisY: 0,
       };

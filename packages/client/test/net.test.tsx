@@ -1,9 +1,8 @@
 import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
-import { MAX_PENDING_COMMANDS } from "@lindocara/engine/prediction.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
-import { TICK_DT } from "@lindocara/engine/simulation.js";
+import { TICK_DT, TICK_MS } from "@lindocara/engine/simulation.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 class FakeWebSocket extends EventTarget {
@@ -96,7 +95,9 @@ const WELCOME: ServerMessage = {
       x: 0,
       y: 0,
       z: 0,
-      ack: 0,
+      airborne: false,
+      swimming: false,
+      gliding: false,
       hp: 100,
       maxHp: 100,
       level: 1,
@@ -180,7 +181,7 @@ describe("WorldClient lifecycle", () => {
     vi.stubGlobal("WebSocket", FakeWebSocket);
   });
 
-  it("bounds unacknowledged prediction and requests one resync", async () => {
+  it("reports its position on a cadence the room's rate window can survive", async () => {
     stubJoin();
     const client = new WorldClient();
     client.connect(handlers(), "hero-1", "party-1");
@@ -189,16 +190,61 @@ describe("WorldClient lifecycle", () => {
     expect(socket).toBeDefined();
     socket?.message(WELCOME);
 
-    for (let i = 0; i < MAX_PENDING_COMMANDS + 20; i++) {
-      client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
+    // One second of animation frames at 60 Hz. The hero steps on every one of them; the report is
+    // throttled, because the room drops a connection above 35 frames a second.
+    vi.useFakeTimers();
+    try {
+      for (let frame = 0; frame < 60; frame++) {
+        client.update({ up: false, down: false, left: false, right: true }, 1 / 60);
+        vi.advanceTimersByTime(1_000 / 60);
+      }
+    } finally {
+      vi.useRealTimers();
     }
 
     // Every frame rides the `{roomId, message}` envelope (net-wire.test.ts covers its shape in
-    // detail) — unwrap it here since this test is only about the seq/resync counts underneath.
+    // detail) — unwrap it here since this test is only about how many go out.
     const messages =
       socket?.sent.map((raw) => (JSON.parse(raw) as { message: { t: string } }).message) ?? [];
-    expect(messages.filter((message) => message.t === "input")).toHaveLength(MAX_PENDING_COMMANDS);
-    expect(messages.filter((message) => message.t === "world.resync")).toHaveLength(1);
+    const moves = messages.filter((message) => message.t === "move");
+    expect(moves.length).toBeGreaterThan(0);
+    // At most one per simulation tick — the exact rate the retired command stream ran at, and well
+    // inside the room's 35/s window with chat, actions and resyncs still to fit beside it.
+    expect(moves.length).toBeLessThanOrEqual(1_000 / TICK_MS);
+    // And it really is throttled rather than merely deduplicated: the hero moved on every one of
+    // the 60 frames, so an unthrottled reporter would have sent 60 distinct positions.
+    expect(moves.length).toBeLessThan(60);
+  });
+
+  it("reports a unit heading, so the room never silently drops a frame", async () => {
+    stubJoin();
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME);
+
+    // Diagonally, where a raw heading would be length √2 rather than 1 — `isDirection` refuses
+    // anything outside [0.999, 1.001] and drops the WHOLE frame, on both ends, with no error.
+    for (let frame = 0; frame < 40; frame++) {
+      client.update({ up: true, down: false, left: false, right: true }, 1 / 60);
+    }
+    // …and then standing still, where a heading derived from the input alone would be zero-length.
+    for (let frame = 0; frame < 40; frame++) {
+      client.update({ up: false, down: false, left: false, right: false }, 1 / 60);
+    }
+
+    const moves = (socket?.sent ?? [])
+      .map(
+        (raw) =>
+          (JSON.parse(raw) as { message: { t: string; facing?: { x: number; z: number } } })
+            .message,
+      )
+      .filter((message) => message.t === "move");
+    expect(moves.length).toBeGreaterThan(0);
+    for (const move of moves) {
+      expect(Math.hypot(move.facing?.x ?? 0, move.facing?.z ?? 0)).toBeCloseTo(1, 6);
+    }
   });
 
   it("flips the self hero's facing from local input, without waiting for the server", async () => {
@@ -218,7 +264,7 @@ describe("WorldClient lifecycle", () => {
     expect(self?.facing.x).toBeLessThan(0); // faces left the frame the key is held, not after a round trip
   });
 
-  it("uses replacement map hero settings on the first predicted tick after its welcome", async () => {
+  it("uses replacement map hero settings from the first frame after its welcome", async () => {
     stubJoin();
     const callbacks = handlers();
     const client = new WorldClient();
@@ -233,10 +279,15 @@ describe("WorldClient lifecycle", () => {
       ...WELCOME,
       world: { ...WELCOME.world, zoneId: "map-a", heroSettings: mapASettings },
     });
-    client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
-    expect(
-      client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
-    ).toBe((100 / 64) * TICK_DT);
+    // A second of frames rather than one: the movement rule accelerates into its speed cap instead
+    // of snapping to it, so a single frame measures the ramp and not the setting.
+    for (let frame = 0; frame < 20; frame++) {
+      client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
+    }
+    const slow = client.sample(performance.now()).players.find((player) => player.id === "hero-1");
+    // Within one accelerating frame of a full second at the authored speed.
+    expect(slow?.x ?? 0).toBeGreaterThan((100 / 64) * 0.9);
+    expect(slow?.x ?? 0).toBeLessThanOrEqual(100 / 64);
 
     const mapBSettings = defaultMapHeroSettings();
     mapBSettings.classes.priest.stats.movementSpeed = 400 / 64;
@@ -246,7 +297,9 @@ describe("WorldClient lifecycle", () => {
       tick: 2,
       world: { ...WELCOME.world, zoneId: "map-b", heroSettings: mapBSettings },
     });
-    client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
+    for (let frame = 0; frame < 20; frame++) {
+      client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
+    }
 
     expect(callbacks.onWelcome).toHaveBeenLastCalledWith(
       "hero-1",
@@ -256,9 +309,11 @@ describe("WorldClient lifecycle", () => {
       }),
       WELCOME.self,
     );
-    expect(
-      client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
-    ).toBe((400 / 64) * TICK_DT);
+    const fast = client.sample(performance.now()).players.find((player) => player.id === "hero-1");
+    // The new map's own speed, from its own welcome — four times map A's, and measured from the
+    // fresh hero that welcome created rather than carried over from the old one.
+    expect(fast?.x ?? 0).toBeGreaterThan((400 / 64) * 0.9);
+    expect(fast?.x ?? 0).toBeLessThanOrEqual(400 / 64);
   });
 
   it("forwards the complete authoritative Shadow Dance result without deriving targets", async () => {

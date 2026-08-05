@@ -4,7 +4,6 @@ import { ROGUE_BALANCE } from "./rogue.js";
 import {
   clampToWorld,
   PLAYER_SIZE,
-  PLAYER_SPEED,
   type Vec2,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -1395,7 +1394,10 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
     attackBase: 27,
     attackPerLevel: 4,
     attackRange: 60 / TILE_SIZE,
-    movementSpeed: PLAYER_SPEED,
+    // The baseline every other class is expressed against, written in the same form as theirs. It
+    // used to live in `simulation.ts` as `PLAYER_SPEED`, only because `step()` defaulted to it;
+    // `step()` is gone and this is the one place a movement speed belongs.
+    movementSpeed: 260 / TILE_SIZE,
   },
   ranger: {
     attackBase: 16,

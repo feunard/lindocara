@@ -3,6 +3,7 @@ export const CONTROL_IDS = [
   "moveDown",
   "moveLeft",
   "moveRight",
+  "jump",
   "skill1",
   "skill2",
   "skill3",
@@ -53,6 +54,10 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     moveDown: [{ code: "KeyS" }, { code: "ArrowDown" }],
     moveLeft: [{ code: "KeyA" }, { code: "ArrowLeft" }],
     moveRight: [{ code: "KeyD" }, { code: "ArrowRight" }],
+    // The one control client-owned movement added (S3): high ground is reached by jumping now,
+    // not by walking up it. Space was free — the legacy `skill1` binding that used to hold it was
+    // migrated off in bindings version 3.
+    jump: [{ code: "Space" }],
     // Logical skill order (basic to ultimate), with the requested numpad mirror.
     skill1: [{ code: "KeyO" }, { code: "Numpad5" }],
     skill2: [{ code: "KeyM" }, { code: "Numpad3" }],
@@ -89,6 +94,9 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
       { kind: "axis", index: 0, direction: 1 },
       { kind: "button", index: 15 },
     ],
+    // No gamepad default: every face button is already spoken for by a skill, and silently
+    // stealing one would remap a control the player never asked to lose. Rebindable like any other.
+    jump: [],
     skill1: [{ kind: "button", index: 0 }],
     skill2: [{ kind: "button", index: 2 }],
     skill3: [{ kind: "button", index: 3 }],

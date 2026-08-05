@@ -529,6 +529,7 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.move_down": "Aller en bas",
   "settings.controls.move_left": "Aller à gauche",
   "settings.controls.move_right": "Aller à droite",
+  "settings.controls.jump": "Sauter",
   "settings.controls.skill_1": "Attaque principale / compétence 1",
   "settings.controls.skill_2": "Compétence 2",
   "settings.controls.skill_3": "Compétence 3",

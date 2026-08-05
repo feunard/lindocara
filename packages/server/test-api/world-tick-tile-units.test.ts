@@ -40,7 +40,7 @@ import { describe, expect, it } from "vitest";
 import { activeEventCentre, touchesEventCell } from "../src/api/realtime/worldEvents.ts";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
-  advanceWorldTick,
+  applyReportedMove,
   handleRelease,
   killPlayer,
   startPlayerAction,
@@ -244,14 +244,35 @@ describe("an authored teleport, in tile units", () => {
     expect(teleportSameMap(w, player, 3, 5, "event-1")).toBe("repeat-refusal");
   });
 
-  it("clears the movement queue so no buffered command replays past the snap", () => {
+  it("refuses a reported position that describes no point on this map", () => {
     const built = terrain();
     const player = hero(0, 0);
-    player.queue.push({ seq: 1, input: { up: false, down: true, left: false, right: false } });
     const w = glue(built, player);
+    const report = {
+      t: "move" as const,
+      y: 0,
+      facing: { x: 1, z: 0 },
+      airborne: false,
+      swimming: false,
+      gliding: false,
+    };
 
-    expect(teleportSameMap(w, player, 3, 5, "event-1")).toBe("teleported");
-    expect(player.queue).toHaveLength(0);
+    // Inside the wire's own ±128-tile bound (`MOVE_COORDINATE_LIMIT`) and far off THIS 16-cell
+    // grid: only the room knows which grid it owns, so only the room can refuse this.
+    applyReportedMove(w, "connection", player, { ...report, x: 100, z: 0 });
+    expect(player.x).toBe(0);
+    applyReportedMove(w, "connection", player, { ...report, x: 0, z: -100 });
+    expect(player.z).toBe(0);
+    // Elevation shares the rule: no relief on a grid this size reaches a hundred units up.
+    applyReportedMove(w, "connection", player, { ...report, x: 0, y: 100, z: 0 });
+    expect(player.y).toBe(0);
+
+    // A point ON the grid is stored as reported, all three axes — the server gave up deciding
+    // where a hero is, not whether the position is a position at all.
+    applyReportedMove(w, "connection", player, { ...report, x: 2, y: LEVEL_HEIGHT, z: -3 });
+    expect(player.x).toBe(2);
+    expect(player.y).toBe(LEVEL_HEIGHT);
+    expect(player.z).toBe(-3);
   });
 });
 
@@ -422,9 +443,17 @@ describe("a server-authored teleport writes both ground axes", () => {
       healingPower: 0,
     });
 
-    // The gate fires on the movement edge, so it needs a real accepted command.
-    player.queue.push({ seq: 1, input: { up: false, down: false, left: false, right: true } });
-    advanceWorldTick(w);
+    // The gate fires on the movement edge, and the edge is now a reported position.
+    applyReportedMove(w, "connection", player, {
+      t: "move",
+      x: from.x + 0.25,
+      y: from.y,
+      z: from.z,
+      facing: { x: 1, z: 0 },
+      airborne: false,
+      swimming: false,
+      gliding: false,
+    });
 
     expect(player.x).toBeCloseTo(to.x, 10);
     expect(player.z).toBeCloseTo(to.z, 10);

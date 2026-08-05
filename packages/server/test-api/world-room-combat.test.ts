@@ -77,6 +77,7 @@ import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
   advanceWorldTick,
+  applyReportedMove,
   finishHeldPlayerAction,
   resolveMonsterAction,
   resolvePlayerAction,
@@ -1533,7 +1534,7 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
-  test("one tick advances players before monsters before guards", async () => {
+  test("one tick advances monsters before guards, over the position the hero reported", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("tickorder");
     const clock = new FakeClock();
     const engine = createEngine(roomId, clock);
@@ -1541,9 +1542,9 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const player = playerOf(state, heroId);
 
-    // Probe A (players → monsters): the hero starts just OUTSIDE M1's aggro radius and has one
-    // queued eastward command whose movement lands INSIDE it. M1 acquires threat this very tick
-    // only if movement was applied before the monster pass read positions.
+    // Probe A (a reported position → monsters): the hero starts just OUTSIDE M1's aggro radius and
+    // reports one step east, landing INSIDE it. The tick no longer moves anyone — the client owns
+    // its hero's position — so this is what the monster pass must read on the very next tick.
     const moved = CLASS_STATS.warrior.movementSpeed * TICK_DT;
     const m1 = seedMonster(
       state,
@@ -1552,11 +1553,6 @@ describe("world room combat (FakeClock)", () => {
       player.z,
     );
     expect(groundDistance(m1, player)).toBeGreaterThan(MONSTER_AGGRO_RANGE);
-    player.queue.push({
-      seq: player.lastSeq + 1,
-      input: { up: false, down: false, left: false, right: true },
-    });
-    player.lastSeq += 1;
 
     // Probe B (monsters → guards): M2 stands at strike range of the hero with a guard beside it.
     // The monster pass starts M2's wind-up (an `animation` broadcast); the guard pass then kills
@@ -1567,10 +1563,23 @@ describe("world room combat (FakeClock)", () => {
 
     const t = Date.now() + 1_000;
     const { w, sent } = testGlue(state, () => t);
+    const connectionId = state.connectionIdByHeroId.get(heroId);
+    if (connectionId === undefined) throw new Error("hero has no connection");
+    applyReportedMove(w, connectionId, player, {
+      t: "move",
+      x: player.x + moved,
+      y: player.y,
+      z: player.z,
+      facing: { x: 1, z: 0 },
+      airborne: false,
+      swimming: false,
+      gliding: false,
+    });
     expect(m1.threat.has(heroId)).toBe(false);
     advanceWorldTick(w);
 
-    // Players before monsters: this tick's movement is what put the hero inside M1's aggro ring.
+    // The reported position is what put the hero inside M1's aggro ring, and the monster pass read
+    // it rather than a position of the room's own devising.
     expect(groundDistance(m1, player)).toBeLessThan(MONSTER_AGGRO_RANGE);
     expect(m1.threat.has(heroId)).toBe(true);
 

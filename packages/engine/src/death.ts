@@ -16,14 +16,15 @@
 
 import { CLASS_STATS, maxHpForLevel, type PlayerClass } from "./game.js";
 import { type GroundVector, groundDistance } from "./ground.js";
-import { PLAYER_SPEED } from "./simulation.js";
 
 export const LIFE_STATES = ["alive", "corpse", "ghost"] as const;
 export type LifeState = (typeof LIFE_STATES)[number];
 
 /** A ghost is brisk, not fast. The walk home should sting without being a commute. */
 export const GHOST_SPEED_MULTIPLIER = 1.3;
-export const GHOST_SPEED = PLAYER_SPEED * GHOST_SPEED_MULTIPLIER;
+/** Measured against the Warrior baseline, which is where the default walking speed lives now that
+ *  `simulation.ts`'s `PLAYER_SPEED` retired with `step()`. */
+export const GHOST_SPEED = CLASS_STATS.warrior.movementSpeed * GHOST_SPEED_MULTIPLIER;
 
 /**
  * Reclaiming is automatic within this radius, like loot. A corpse run that ends in one more

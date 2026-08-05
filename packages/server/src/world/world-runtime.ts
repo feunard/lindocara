@@ -35,14 +35,13 @@ import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import type { MonsterNavigationState } from "@lindocara/engine/navigation.js";
 import type {
   CombatActionKind,
-  Command,
   LootSnapshot,
   ProjectileKind,
   ServerMessage,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
-import { type Input, NO_INPUT, TICK_HZ } from "@lindocara/engine/simulation.js";
+import { TICK_HZ } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { normalizeTalentSelection, skillWithTalents } from "@lindocara/engine/talents.js";
 import { restoreStandablePosition, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
@@ -87,8 +86,6 @@ export const RATE_WINDOW_MS = 1_000;
 export const RATE_MAX_MESSAGES = 35;
 export const MAX_MALFORMED = 5;
 export const CHAT_MAX_LENGTH = 160;
-export const MAX_QUEUED_COMMANDS = 12;
-export const MAX_STARVED_TICKS = 5;
 export const RESYNC_COOLDOWN_MS = 1_000;
 
 /**
@@ -113,8 +110,6 @@ export interface Attachment extends WorldPosition {
   life?: PlayerProfile["life"];
   corpse?: PlayerProfile["corpse"];
   talents?: PlayerProfile["talents"];
-  ack?: number;
-  lastSeq?: number;
   connectionId?: string;
   roomKey?: string;
   sessionEpoch?: number;
@@ -334,11 +329,15 @@ export interface ProjectileRuntime extends WorldPosition {
 export interface PlayerRuntime extends PlayerProfile {
   identityKind: "character" | "hero";
   partyId: string | null;
-  queue: Command[];
-  lastInput: Input;
-  ack: number;
-  lastSeq: number;
-  starvedTicks: number;
+  /**
+   * The three locomotion flags the hero's own client reports alongside its position
+   * (`MoveMessage`). The room stores and relays them; it never derives them, because a position
+   * stream cannot tell a jump, a swim and an open canopy apart — which is exactly what a remote
+   * renderer needs in order to draw the difference.
+   */
+  airborne: boolean;
+  swimming: boolean;
+  gliding: boolean;
   dirty: boolean;
   lastAttackAt: number;
   lastHealAt: number;
@@ -607,8 +606,6 @@ export function toAttachment(player: PlayerRuntime): Attachment {
   return {
     ...toProfile(player),
     ...(player.resource ? { resource: { ...player.resource } } : {}),
-    ack: player.ack,
-    lastSeq: player.lastSeq,
     connectionId: player.connectionId,
     roomKey: player.roomKey,
     identityKind: player.identityKind,
@@ -625,8 +622,6 @@ export function newPlayer(
   profile: PlayerProfile,
   connectionId: string,
   roomKey: string,
-  ack = 0,
-  lastSeq = 0,
   restoredResource?: ClassResourceState,
   restoredCooldowns?: CombatCooldownState,
   now = Date.now(),
@@ -667,11 +662,11 @@ export function newPlayer(
       consumables: normalizeConsumables(profile.inventory.consumables, profile.inventory.potions),
     },
     quest: { ...profile.quest },
-    queue: [],
-    lastInput: NO_INPUT,
-    ack,
-    lastSeq,
-    starvedTicks: 0,
+    // A hero enters standing on the ground: the client's first `move` frame replaces all three the
+    // instant it reports.
+    airborne: false,
+    swimming: false,
+    gliding: false,
     dirty: false,
     lastAttackAt:
       cooldowns.attackUntil === 0

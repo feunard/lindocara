@@ -4,7 +4,7 @@
  * "Verified recon findings" #6), so every socketed room must enforce these itself in its
  * `onMessage`.
  *
- * The five numeric caps are re-exported straight from `../../world/world-runtime.ts`, which
+ * The four numeric caps are re-exported straight from `../../world/world-runtime.ts`, which
  * stays their single source of truth: `src/world/*` is the pure domain-system layer this
  * package's realtime rooms already compose with injected dependencies (see `WorldRoom.ts`'s own
  * import of `world-runtime.js`), not retired legacy code, so importing it here is unremarkable
@@ -14,7 +14,6 @@
 export {
   MAX_FRAME_BYTES,
   MAX_MALFORMED,
-  MAX_QUEUED_COMMANDS,
   RATE_MAX_MESSAGES,
   RATE_WINDOW_MS,
 } from "../../world/world-runtime.js";

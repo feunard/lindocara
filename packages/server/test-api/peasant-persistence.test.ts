@@ -321,7 +321,7 @@ describe("Peasant HTTP + WorldRoom persistence", () => {
     expect(state.players.size).toBe(0);
     expect(state.connectionIdByHeroId.size).toBe(0);
     expect(state.pendingSaves.size).toBe(0);
-    expect(player).toMatchObject({ authorized: false, disconnecting: true, queue: [] });
+    expect(player).toMatchObject({ authorized: false, disconnecting: true });
     expect(
       await presenceRoom.room.call(fixture.heroId, "isAuthorized", socket.id, epoch, state.roomKey),
     ).toBe(false);
