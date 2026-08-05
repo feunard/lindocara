@@ -1,5 +1,6 @@
 import { CLASS_STATS, PLAYER_CLASSES, type PlayerClass } from "./game.js";
 import { SKILL_SLOTS, type SkillSlot } from "./skills.js";
+import { TILE_SIZE } from "./tilemap.js";
 
 /**
  * Bounds shared by the editor and the authoritative map parser.
@@ -25,11 +26,11 @@ import { SKILL_SLOTS, type SkillSlot } from "./skills.js";
 export const MAP_HERO_STAT_LIMITS = {
   attackBase: { min: 1, max: 500 },
   attackPerLevel: { min: 0, max: 100 },
-  attackRange: { min: 16 / 64, max: 1_024 },
-  movementSpeed: { min: 80 / 64, max: 520 },
+  attackRange: { min: 16 / TILE_SIZE, max: 1_024 },
+  movementSpeed: { min: 80 / TILE_SIZE, max: 520 },
   healBase: { min: 1, max: 500 },
   healPerLevel: { min: 0, max: 100 },
-  healRange: { min: 16 / 64, max: 1_024 },
+  healRange: { min: 16 / TILE_SIZE, max: 1_024 },
 } as const;
 
 export interface MapHeroClassStats {

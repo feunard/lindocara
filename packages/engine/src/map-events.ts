@@ -265,29 +265,13 @@ export function eventCellCentre(event: { col: number; row: number }): { x: numbe
 }
 
 /**
- * The visual foot of an event graphic. Resource tools hit this point rather than the cell centre:
- * catalogue sprites are bottom-anchored, so the centre sits half a tile above the visible trunk,
- * ore or cache the player is actually facing.
- */
-/**
- * An authored `patrolRadius`, in the TILE UNITS every runtime consumer now reads.
- *
- * **The stored value stays PIXELS** and is bounded by `MIN_PATROL_RADIUS`/`MAX_PATROL_RADIUS` in
- * that space, exactly like authored monster speed and authored hero reach: narrowing the stored
- * bound would refuse every map already in the database and force a migration for a number nobody
- * asked to change. This function is therefore THE producer-side conversion — the single place an
- * authored leash crosses into the simulation's units — and it is what `authored-monster-system`,
- * `authored-guard-system` and `worldEvents` call. Do not divide by `TILE_SIZE` anywhere else; a
- * radius divided at a use site is how half a conversion hides.
- */
-/**
  * An authored cell's centre, on the GROUND PLANE in tile units with the grid centre as the origin
  * — the frame every converted runtime position lives in.
  *
- * `eventCellCentre`/`eventCellFoot` above answer in the editor's PIXEL, top-left-origin space and
- * stay for the pixel path. This is their successor and, like `authoredPatrolRadius`, it is the
- * single producer-side crossing: `gridSize` is the map's own `size`, which is what turns a
- * top-left cell index into a grid-centred coordinate.
+ * `eventCellCentre` above and `eventCellFoot` below answer in the editor's PIXEL,
+ * top-left-origin space and stay for the pixel path. This is their successor and, like
+ * `authoredPatrolRadius`, it is a producer-side crossing: `gridSize` is the map's own `size`,
+ * which is what turns a top-left cell index into a grid-centred coordinate.
  */
 export function authoredCellCentreGround(
   event: { col: number; row: number },
@@ -297,10 +281,26 @@ export function authoredCellCentreGround(
   return { x: event.col + 0.5 - half, y: 0, z: event.row + 0.5 - half };
 }
 
+/**
+ * An authored `patrolRadius`, in the TILE UNITS every runtime consumer now reads.
+ *
+ * **The stored value stays PIXELS** and is bounded by `MIN_PATROL_RADIUS`/`MAX_PATROL_RADIUS` in
+ * that space, exactly like authored monster speed and authored hero reach: narrowing the stored
+ * bound would refuse every map already in the database and force a migration for a number nobody
+ * asked to change. This function is therefore THE producer-side conversion — the single place an
+ * authored leash crosses into the simulation's units — and it is what `authored-monster-system`,
+ * `authored-guard-system` and `worldEvents` call. Do not divide a `patrolRadius` by `TILE_SIZE`
+ * anywhere else; a radius divided at a use site is how half a conversion hides.
+ */
 export function authoredPatrolRadius(pixels: number): number {
   return pixels / TILE_SIZE;
 }
 
+/**
+ * The visual foot of an event graphic, in PIXELS. Resource tools hit this point rather than the
+ * cell centre: catalogue sprites are bottom-anchored, so the centre sits half a tile above the
+ * visible trunk, ore or cache the player is actually facing.
+ */
 export function eventCellFoot(event: { col: number; row: number }): { x: number; y: number } {
   return { x: event.col * TILE_SIZE + TILE_SIZE / 2, y: (event.row + 1) * TILE_SIZE };
 }

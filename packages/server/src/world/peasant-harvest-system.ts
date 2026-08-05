@@ -29,15 +29,15 @@ import { sweptGroundTerrainImpact, type ZoneTerrain } from "./terrain-access.js"
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 /**
- * **CARRY FORWARD — authored harvest geometry is still PIXELS.** A map event's `harvest.collider`
- * tuple and its cell foot are authored, stored and parsed in the pixel, top-left-origin space the
- * editor writes, exactly like authored monster speed and `patrolRadius`. Converting them at the
- * MAP BOUNDARY belongs with the rest of the authored content (Task 7); until then the two helpers
- * below are the single place this system crosses from that space into tile units, so the crossing
- * is countable rather than smeared across every call site.
+ * **The authored-harvest boundary.** A map event's `harvest.collider` tuple, its cell foot and its
+ * `HarvestProfile.range` are authored, stored and parsed in the pixel, top-left-origin space the
+ * editor writes (`HARVEST_PROFILE_LIMITS` bounds them there, and narrowing those bounds would
+ * refuse every stored map — the same call `MONSTER_TUNING_LIMITS` makes). The three helpers below
+ * are therefore the SINGLE place this system crosses from that space into tile units, so the
+ * crossing is countable rather than smeared across every call site.
  *
  * A pixel rectangle's top-left corner maps to the tile grid's TOP-LEFT ORIGIN, so the grid-centre
- * shift is `- size / 2` on both ground axes.
+ * shift is `- size / 2` on both ground axes. A length carries no origin and only divides.
  */
 function authoredRect(
   tuple: readonly [number, number, number, number],
@@ -56,6 +56,17 @@ function authoredRect(
 function authoredCellFoot(event: { col: number; row: number }, gridSize: number): GroundVector {
   const half = gridSize / 2;
   return { x: event.col + 0.5 - half, z: event.row + 1 - half };
+}
+
+/**
+ * An authored node's own reach, in tile units.
+ *
+ * Without it `Math.min(skillRange, target.profile.range)` takes the minimum of a tile reach (~0.84)
+ * and a pixel one (tens), so the skill reach always wins and a node authored deliberately short is
+ * harvestable from the full swing — a live behaviour change, not a dormant one.
+ */
+function authoredReach(pixels: number): number {
+  return pixels / TILE_SIZE;
 }
 
 const PEASANT_TOOL_BY_SLOT: Readonly<Partial<Record<SkillSlot, HarvestTool>>> = {
@@ -266,8 +277,11 @@ export function hasPeasantHarvestLineOfSight(
    * does. Every caller inside this module passes `player.y` — the elevation the movement system
    * keeps under the body — never the ground under the TARGET, which would make the test
    * self-satisfying in exactly the way `resolveGroundMovement`'s docblock describes.
+   *
+   * Required, with no default: a `= 0` here is a silent invitation to forget it, and forgetting it
+   * once already blocked a harvester's sight with the ground it was standing on.
    */
-  groundY = 0,
+  groundY: number,
 ): boolean {
   if (
     sweptGroundTerrainImpact(
@@ -308,10 +322,8 @@ function targetMatchesAction(
   if (target.profile.tool !== tool) return false;
   // A tile-unit position IS the body's centre; the old `+ PLAYER_SIZE / 2` recentred a corner.
   const center = { x: player.x, z: player.z };
-  // CARRY FORWARD: `target.profile.range` is authored in PIXELS (see the header). Taking the
-  // minimum of a tile reach and a pixel one always yields the tile reach, so an authored node's
-  // own shorter range currently has no effect. Converting authored harvest profiles is Task 7's.
-  const range = Math.min(skillRange, target.profile.range);
+  // The narrower of the swing's reach and the node's own, both in tile units — see `authoredReach`.
+  const range = Math.min(skillRange, authoredReach(target.profile.range));
   return (
     circleIntersectsArc(
       { center: target.position, radius: target.radius },

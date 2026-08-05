@@ -126,7 +126,9 @@ export function startLumenPortal(
     to: { ...options.to },
     startedAt: options.now,
     expiresAt: options.now + Math.max(0, duration),
-    triggerRadius: Math.max(1, options.effect.triggerRadius),
+    // The floor is one PIXEL of extent — "a gate has a mouth" — not one whole tile. At one tile
+    // it would bind on the authored 28 px trigger and widen it 2.3x.
+    triggerRadius: Math.max(1 / TILE_SIZE, options.effect.triggerRadius),
     usedPlayerIds: new Set(),
     waitingForExitIds: new Set([options.ownerId]),
     healingPower: Math.max(0, Math.round(options.healingPower)),
@@ -151,7 +153,9 @@ export function startLumenTrail(
     id: options.id,
     ownerId: options.ownerId,
     points: [{ x: options.origin.x, z: options.origin.z }],
-    width: Math.max(1, options.effect.width),
+    // Same floor, same reason: one tile would bind on the authored 22 px trail and widen the
+    // heal corridor from 0.59 to 1.25 tiles.
+    width: Math.max(1 / TILE_SIZE, options.effect.width),
     power: Math.max(0, Math.round(options.power)),
     startedAt: options.now,
     expiresAt: options.now + Math.max(0, options.effect.durationMs),

@@ -178,7 +178,7 @@ describe("Peasant harvest target selection", () => {
     });
     if (!target?.collider) throw new Error("authored target collider missing");
     const origin = { x: a(64), z: a(48) };
-    expect(hasPeasantHarvestLineOfSight(origin, target, open)).toBe(true);
+    expect(hasPeasantHarvestLineOfSight(origin, target, open, 0)).toBe(true);
 
     const exactDuplicate = {
       ...open,
@@ -190,12 +190,12 @@ describe("Peasant harvest target selection", () => {
         },
       ],
     };
-    expect(hasPeasantHarvestLineOfSight(origin, target, exactDuplicate)).toBe(false);
+    expect(hasPeasantHarvestLineOfSight(origin, target, exactDuplicate, 0)).toBe(false);
 
     const thirdParty = createColliderIndex();
     thirdParty.add(obstacle(69, 42, 4, 12));
     const withThirdParty = { ...open, staticColliderIndex: thirdParty };
-    expect(hasPeasantHarvestLineOfSight(origin, target, withThirdParty)).toBe(false);
+    expect(hasPeasantHarvestLineOfSight(origin, target, withThirdParty, 0)).toBe(false);
   });
 
   it("requires the Peasant, matching tool, effective range, facing arc and line of sight", () => {
@@ -235,6 +235,31 @@ describe("Peasant harvest target selection", () => {
         ...input,
         view: mapView(WOOD, terrain([obstacle(64, 0, 64, 64)])),
       }),
+    ).toBeNull();
+  });
+
+  it("honours a node's OWN authored reach, not just the skill's", () => {
+    // The wood node's collider centre sits at pixel (96, 49); this peasant stands 96 px west of
+    // it, 1.5 tiles away, with a swing whose own reach (300 px) is far more than enough.
+    const distant = player();
+    distant.x = a(0);
+    const input = {
+      player: distant,
+      slot: 1 as const,
+      direction: { x: 1, z: 0 },
+      skillRange: 300 / TILE_SIZE,
+      halfAngleRadians: Math.PI / 3,
+      now: NOW,
+    };
+    // A node authored with a 120 px reach is within its own range and is selected...
+    expect(
+      selectPeasantHarvestTarget({ ...input, view: mapView({ ...WOOD, range: 120 }) })?.nodeId,
+    ).toBe(EVENT_ID);
+    // ...while the same node authored at 54 px is not, even though the SWING would reach it.
+    // `HarvestProfile.range` is authored in PIXELS: take `Math.min` of it and a tile reach without
+    // converting and the skill always wins, both cases select, and this pair is what says so.
+    expect(
+      selectPeasantHarvestTarget({ ...input, view: mapView({ ...WOOD, range: 54 }) }),
     ).toBeNull();
   });
 

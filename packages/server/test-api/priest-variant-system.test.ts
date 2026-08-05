@@ -27,6 +27,7 @@ import {
   startPolarityOrb,
   startSanctuary,
 } from "@lindocara/server/world/priest-variant-system.js";
+import { BODY_RADIUS } from "@lindocara/server/world/terrain-access.js";
 import { newPlayer, type PlayerRuntime, toProfile } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -94,6 +95,11 @@ describe("authoritative priest evolution systems", () => {
       healingPower: 24,
     });
     expect(portal).toMatchObject({ startedAt: 1_000, expiresAt: 7_000, healingPower: 24 });
+    // The authored trigger, unchanged by the runtime's floor. A floor of `1` rather than
+    // `1 / TILE_SIZE` binds here — 28 px is 0.44 tiles — and silently widens the gate's mouth
+    // 2.3x, with nothing to say so. This is the assertion that would catch that.
+    expect(portal.triggerRadius).toBe(t(28));
+    expect(portal.triggerRadius).toBe(effect.triggerRadius);
     expect(portal.waitingForExitIds.has("priest")).toBe(true);
     portal.usedPlayerIds.add("ally");
     expect(portal.usedPlayerIds.has("ally")).toBe(true);
@@ -116,6 +122,20 @@ describe("authoritative priest evolution systems", () => {
     finishLumenTrail(trail, 2_000, effect.durationMs);
 
     expect(trail).toMatchObject({ startedAt: 2_000, expiresAt: 8_000, power: 27 });
+    // Same trap, same guard: the authored 22 px corridor is 0.34 tiles, so a floor of one whole
+    // tile would widen the healed band from 0.59 to 1.25 tiles (`lumenTrailTouches` tests
+    // `width + BODY_RADIUS`).
+    expect(trail.width).toBe(t(22));
+    expect(trail.width).toBe(effect.width);
+    // ...and the corridor's edge is where that width puts it: 0.59 tiles from the segment heals,
+    // 0.65 does not. Both would pass with a one-tile floor, which is why the two lines above are
+    // the discriminating ones and this pair is the behavioural witness.
+    expect(lumenTrailTouches(trail, { x: t(56), z: t(16) + t(22) + BODY_RADIUS - 0.02 })).toBe(
+      true,
+    );
+    expect(lumenTrailTouches(trail, { x: t(56), z: t(16) + t(22) + BODY_RADIUS + 0.02 })).toBe(
+      false,
+    );
     // Positions are body CENTRES now, so each probe is the old top-left plus half a body.
     expect(lumenTrailTouches(trail, { x: t(72 + 16), z: t(0 + 16) })).toBe(true);
     expect(lumenTrailTouches(trail, { x: t(80 + 16), z: t(72 + 16) })).toBe(true);

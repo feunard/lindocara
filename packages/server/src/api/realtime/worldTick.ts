@@ -102,15 +102,11 @@ import {
   resolveTerrain,
   withinRange,
 } from "@lindocara/engine/game.js";
-import {
-  type GroundVector,
-  groundDistance,
-  groundOf,
-  type WorldPosition,
-} from "@lindocara/engine/ground.js";
+import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/interest.js";
 import {
+  authoredCellCentreGround,
   eventCellCentre,
   exitEvents,
   isInteractiveWorldEventKind,
@@ -2204,6 +2200,8 @@ function lumenLandingClear(
   player: PlayerRuntime,
   candidate: GroundVector,
   now: number,
+  /** The map's grid side, which is what turns an authored cell index into a world coordinate. */
+  gridSize: number,
 ): boolean {
   const center = { x: candidate.x, z: candidate.z };
   for (const other of w.state.players.values()) {
@@ -2224,11 +2222,12 @@ function lumenLandingClear(
   for (const event of w.state.activeEvents) {
     const movement = w.state.npcMovement.get(event.id);
     if (!movement || movement.through || event.graphicAssetId === null) continue;
-    // CARRY FORWARD: `eventCellCentre` still answers in the editor's PIXEL, top-left-origin space.
-    // `authoredCellCentreGround` is its tile-unit successor and needs the map's grid size, which
-    // this file will have once the rest of its terrain reads are converted; the whole authored-map
-    // boundary is one conversion, not a dozen call-site divisions.
-    if (groundDistance(center, groundOf(eventCellCentre(event))) < 2 * BODY_RADIUS) return false;
+    // `authoredCellCentreGround`, not `eventCellCentre`: the latter answers in the editor's PIXEL,
+    // top-left-origin space, so measuring it against a tile-unit centre gives hundreds against a
+    // half-tile threshold and the clause can never reject. A dead authority check that reads as
+    // live is worse than no check at all.
+    const npcCentre = authoredCellCentreGround(event, gridSize);
+    if (groundDistance(center, npcCentre) < 2 * BODY_RADIUS) return false;
   }
   return true;
 }
@@ -2254,7 +2253,7 @@ function safeLumenLanding(
   const groundY = groundUnder(terrain, player.x, player.z, player.y);
   if (
     canStand(terrain, desired.x, desired.z, BODY_RADIUS, groundY) &&
-    lumenLandingClear(w, player, desired, now)
+    lumenLandingClear(w, player, desired, now, terrain.size)
   ) {
     return {
       x: desired.x,
@@ -2263,7 +2262,7 @@ function safeLumenLanding(
     };
   }
   return nearestStandableCell(terrain, desired, BODY_RADIUS, groundY, (candidate) =>
-    lumenLandingClear(w, player, candidate, now),
+    lumenLandingClear(w, player, candidate, now, terrain.size),
   );
 }
 

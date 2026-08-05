@@ -26,9 +26,9 @@ export interface NpcMovementDefinition {
    * The leash, in TILES — which is also cells, now that the grid is the tile grid. It used to be
    * pixels and was divided by `TILE_SIZE` at every use.
    *
-   * CARRY FORWARD: its producer (`worldEvents.ts`, `event.patrolRadius ?? TILE_SIZE * 2`) still
-   * emits pixels, and converting it there is the next task's, at the definition rather than here
-   * at the use.
+   * Its producer converts it: `worldEvents.ts` builds this from
+   * `authoredPatrolRadius(event.patrolRadius)`, the single crossing from the authored pixel space
+   * (`engine/map-events.ts`). Do NOT divide it again here.
    */
   patrolRadius: number;
   route?: readonly NpcRoutineStep[];
