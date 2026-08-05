@@ -73,3 +73,21 @@ export function groundOf(vector: Vec2): GroundVector {
 export function planarOf(vector: GroundVector): Vec2 {
   return { x: vector.x, y: vector.z };
 }
+
+/**
+ * Rounds a tile-unit length to the precision the pixel balance tables were quantised to.
+ *
+ * The pixel code rounded a talent-scaled range to one decimal — a tenth of a PIXEL. Carrying
+ * `Math.round(v * 10) / 10` into tile units would quantise every range to a tenth of a TILE, i.e.
+ * 6.4 px, which is coarser than several of the talent bonuses themselves: a +12% reach on a
+ * 0.84-tile swing is 0.1 tiles, so half the peasant tree would round to no change at all.
+ *
+ * Six decimals of a tile is 6.4e-5 px. That is far finer than anything the pixel world resolved,
+ * which is deliberate: this rounding exists only to keep float noise (`0.30000000000000004`) out
+ * of a value that is compared and displayed, and a coarser quantum would silently move a table
+ * value that no talent even touched — an unmodified 110 px radius must still read back as exactly
+ * `110 / TILE_SIZE`.
+ */
+export function roundGroundLength(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}

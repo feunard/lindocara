@@ -1,6 +1,7 @@
 import { ATTACK_COOLDOWN_MS, type PlayerClass } from "./game.js";
 import { PEASANT_SUPPORT_SKILLS } from "./peasant-support.js";
 import { ROGUE_BALANCE } from "./rogue.js";
+import { TILE_SIZE } from "./tilemap.js";
 
 export const SKILL_SLOTS = [1, 2, 3, 4, 5] as const;
 export type SkillSlot = (typeof SKILL_SLOTS)[number];
@@ -24,6 +25,13 @@ export type SkillEffect =
   | "construction"
   | "homemade_bomb";
 
+/**
+ * `range`, `radius` and `distance` are TILE UNITS — the exact quotient of each former pixel value
+ * by `TILE_SIZE`, written as the division so the balance a designer tuned in pixels stays legible.
+ * The four rogue rows and the two peasant rows read their geometry from `ROGUE_BALANCE` and
+ * `PEASANT_SUPPORT_SKILLS`, which are converted at their own definitions rather than divided here:
+ * a range divided at a second site is how half a conversion hides.
+ */
 export interface SkillDefinition {
   id: string;
   slot: SkillSlot;
@@ -46,7 +54,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 1,
       effect: "attack",
       cooldownMs: ATTACK_COOLDOWN_MS,
-      range: 60,
+      range: 60 / TILE_SIZE,
       power: 0,
       icon: "⚔",
     },
@@ -55,7 +63,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 2,
       effect: "guard",
       cooldownMs: 8_000,
-      range: 0,
+      range: 0 / TILE_SIZE,
       power: 0,
       reduction: 0.5,
       icon: "◆",
@@ -65,9 +73,9 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 3,
       effect: "charge",
       cooldownMs: 3_200,
-      range: 308,
+      range: 308 / TILE_SIZE,
       power: 24,
-      distance: 300,
+      distance: 300 / TILE_SIZE,
       icon: "◈",
     },
     {
@@ -75,8 +83,8 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 4,
       effect: "area_taunt",
       cooldownMs: 5_500,
-      range: 105,
-      radius: 105,
+      range: 105 / TILE_SIZE,
+      radius: 105 / TILE_SIZE,
       power: 0,
       icon: "※",
     },
@@ -85,8 +93,8 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 5,
       effect: "area_damage",
       cooldownMs: 8_000,
-      range: 82,
-      radius: 82,
+      range: 82 / TILE_SIZE,
+      radius: 82 / TILE_SIZE,
       power: 36,
       icon: "◎",
     },
@@ -97,7 +105,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 1,
       effect: "attack",
       cooldownMs: ATTACK_COOLDOWN_MS,
-      range: 382.5,
+      range: 382.5 / TILE_SIZE,
       power: 0,
       icon: "➶",
     },
@@ -106,7 +114,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 2,
       effect: "single_damage",
       cooldownMs: 2_000,
-      range: 405,
+      range: 405 / TILE_SIZE,
       power: 29,
       icon: "➵",
     },
@@ -115,8 +123,8 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 3,
       effect: "area_damage",
       cooldownMs: 5_000,
-      range: 324,
-      radius: 324,
+      range: 324 / TILE_SIZE,
+      radius: 324 / TILE_SIZE,
       power: 17,
       icon: "⌁",
     },
@@ -125,9 +133,9 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 4,
       effect: "dash",
       cooldownMs: 7_000,
-      range: 0,
+      range: 0 / TILE_SIZE,
       power: 0,
-      distance: 189,
+      distance: 189 / TILE_SIZE,
       icon: "◒",
     },
     {
@@ -135,7 +143,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 5,
       effect: "single_damage",
       cooldownMs: 8_500,
-      range: 517.5,
+      range: 517.5 / TILE_SIZE,
       power: 52,
       icon: "✦",
     },
@@ -146,7 +154,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 1,
       effect: "attack",
       cooldownMs: ATTACK_COOLDOWN_MS,
-      range: 337.5,
+      range: 337.5 / TILE_SIZE,
       power: 0,
       icon: "✧",
     },
@@ -155,7 +163,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 2,
       effect: "single_heal",
       cooldownMs: 1_500,
-      range: 390,
+      range: 390 / TILE_SIZE,
       power: 35,
       allyPower: 35,
       icon: "✚",
@@ -165,9 +173,9 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 3,
       effect: "teleport",
       cooldownMs: 8_000,
-      range: 0,
+      range: 0 / TILE_SIZE,
       power: 0,
-      distance: 247.5,
+      distance: 247.5 / TILE_SIZE,
       icon: "◇",
     },
     {
@@ -175,8 +183,8 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 4,
       effect: "area_heal",
       cooldownMs: 6_000,
-      range: 155,
-      radius: 155,
+      range: 155 / TILE_SIZE,
+      radius: 155 / TILE_SIZE,
       power: 22,
       icon: "❈",
     },
@@ -185,8 +193,8 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 5,
       effect: "nova",
       cooldownMs: 10_000,
-      range: 120,
-      radius: 120,
+      range: 120 / TILE_SIZE,
+      radius: 120 / TILE_SIZE,
       power: 26,
       icon: "☼",
     },
@@ -215,7 +223,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 3,
       effect: "stealth",
       cooldownMs: ROGUE_BALANCE.vanish.cooldownMs,
-      range: 0,
+      range: 0 / TILE_SIZE,
       power: 0,
       durationMs: ROGUE_BALANCE.vanish.maximumDurationMs,
       icon: "◌",
@@ -245,7 +253,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 1,
       effect: "harvest",
       cooldownMs: 420,
-      range: 54,
+      range: 54 / TILE_SIZE,
       power: 0,
       icon: "🪓",
     },
@@ -254,7 +262,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 2,
       effect: "harvest",
       cooldownMs: 520,
-      range: 54,
+      range: 54 / TILE_SIZE,
       power: 6,
       icon: "⛏",
     },
@@ -263,7 +271,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 3,
       effect: "harvest",
       cooldownMs: 460,
-      range: 50,
+      range: 50 / TILE_SIZE,
       power: 4,
       icon: "🔪",
     },
@@ -272,7 +280,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 4,
       effect: "construction",
       cooldownMs: 12_000,
-      range: 72,
+      range: 72 / TILE_SIZE,
       radius: PEASANT_SUPPORT_SKILLS[4].radius,
       durationMs: PEASANT_SUPPORT_SKILLS[4].durationMs,
       power: PEASANT_SUPPORT_SKILLS[4].power,
@@ -283,7 +291,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 5,
       effect: "homemade_bomb",
       cooldownMs: 10_000,
-      range: 300,
+      range: 300 / TILE_SIZE,
       radius: PEASANT_SUPPORT_SKILLS[5].radius,
       durationMs: PEASANT_SUPPORT_SKILLS[5].durationMs,
       power: PEASANT_SUPPORT_SKILLS[5].power,

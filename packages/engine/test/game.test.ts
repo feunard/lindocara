@@ -63,6 +63,7 @@ import {
   withinRange,
   xpForNextLevel,
 } from "@lindocara/engine/game.js";
+import { groundDistance } from "@lindocara/engine/ground.js";
 import {
   PLAYER_SIZE,
   PLAYER_SPEED,
@@ -619,37 +620,37 @@ describe("class rules", () => {
     expect(CLASS_STATS.warrior).toMatchObject({
       attackBase: 27,
       attackPerLevel: 4,
-      attackRange: 60,
+      attackRange: 60 / TILE_SIZE,
       movementSpeed: 260 / 64,
     });
     expect(CLASS_STATS.ranger).toMatchObject({
       attackBase: 16,
       attackPerLevel: 2,
-      attackRange: 382.5,
+      attackRange: 382.5 / TILE_SIZE,
       movementSpeed: 286 / 64,
     });
     expect(CLASS_STATS.priest).toMatchObject({
       attackBase: 14,
       attackPerLevel: 2,
-      attackRange: 337.5,
+      attackRange: 337.5 / TILE_SIZE,
       movementSpeed: 234 / 64,
     });
     expect(CLASS_STATS.rogue).toEqual({
       attackBase: 22,
       attackPerLevel: 3,
-      attackRange: 58,
+      attackRange: 58 / TILE_SIZE,
       movementSpeed: 312 / 64,
     });
     expect(CLASS_STATS.peasant).toEqual({
       attackBase: 8,
       attackPerLevel: 1,
-      attackRange: 54,
+      attackRange: 54 / TILE_SIZE,
       movementSpeed: 247 / 64,
     });
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
       perLevel: 3,
-      range: 390,
+      range: 390 / TILE_SIZE,
       cooldownMs: 1500,
     });
     expect(CLASS_STATS.warrior.heal).toBeUndefined();
@@ -821,9 +822,13 @@ describe("monster body hitboxes", () => {
       expect(Number.isFinite(radius)).toBe(true);
       expect(radius).toBeGreaterThan(0);
       expect(radius).toBe(MONSTER_BODY_RADIUS[species]);
-      const hitbox = monsterBodyHitbox(species, { x: 100, y: 100 });
-      expect(hitbox.center.x).toBe(118);
-      expect(hitbox.center.y).toBeLessThanOrEqual(101);
+      const hitbox = monsterBodyHitbox(species, { x: 100, z: 100 });
+      // The combat disc now sits ON the monster's own ground position: a tile-unit position is the
+      // body's centre, so the +16 that used to recentre a top-left corner is gone and only the
+      // silhouette's 2 px eastward residual survives. The sprite's height left the ground plane
+      // for `offsetY` — see MONSTER_BODY_HITBOX's comment.
+      expect(hitbox.center.x).toBe(100 + 2 / TILE_SIZE);
+      expect(hitbox.center.z).toBe(100);
       expect(hitbox.radius).toBe(radius);
     }
   });
@@ -845,17 +850,24 @@ describe("monster body hitboxes", () => {
     // The combat body follows the art, while movement remains the same 32px ground square.
     expect(MAX_MONSTER_BODY_RADIUS).toBe(Math.max(...Object.values(MONSTER_BODY_RADIUS)));
     expect(MAX_MONSTER_BODY_REACH).toBeGreaterThan(MAX_MONSTER_BODY_RADIUS);
-    expect(monsterBodyRadius("mire_troll")).toBeGreaterThan(PLAYER_SIZE * 4);
+    expect(monsterBodyRadius("mire_troll")).toBeGreaterThan((PLAYER_SIZE * 4) / TILE_SIZE);
 
-    const hitbox = monsterBodyHitbox("mire_troll", { x: 0, y: 0 });
+    const hitbox = monsterBodyHitbox("mire_troll", { x: 0, z: 0 });
+    // The same four corners of the drawn troll, in tile units and around the monster's own
+    // position rather than around a point 80 px north of it.
     for (const point of [
-      { x: -85, y: -189 },
-      { x: 121, y: -189 },
-      { x: -85, y: 28 },
-      { x: 121, y: 28 },
+      { x: -103 / TILE_SIZE, z: -103 / TILE_SIZE },
+      { x: 103 / TILE_SIZE, z: -103 / TILE_SIZE },
+      { x: -103 / TILE_SIZE, z: 103 / TILE_SIZE },
+      { x: 103 / TILE_SIZE, z: 103 / TILE_SIZE },
     ]) {
-      expect(pointDistance(point, hitbox.center)).toBeLessThanOrEqual(hitbox.radius);
+      expect(groundDistance(point, hitbox.center)).toBeLessThanOrEqual(hitbox.radius);
     }
-    expect(MONSTER_BODY_HITBOX.mire_troll).toEqual({ offsetX: 18, offsetY: -80.5, radius: 150 });
+    expect(MONSTER_BODY_HITBOX.mire_troll).toEqual({
+      offsetX: 2 / TILE_SIZE,
+      offsetZ: 0,
+      offsetY: 96.5 / TILE_SIZE,
+      radius: 150 / TILE_SIZE,
+    });
   });
 });

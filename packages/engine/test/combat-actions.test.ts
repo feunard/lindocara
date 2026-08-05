@@ -11,6 +11,7 @@ import {
 import { ATTACK_COOLDOWN_MS, PLAYER_CLASSES } from "@lindocara/engine/game.js";
 import { ROGUE_BALANCE, roguePoisonTickPower } from "@lindocara/engine/rogue.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 
 describe("directional class kit contract", () => {
@@ -60,7 +61,7 @@ describe("directional class kit contract", () => {
 
   it("declares five typed Peasant tools with rapid harvesting action contracts", () => {
     expect(CLASS_SKILLS.peasant).toMatchObject([
-      { id: "woodcutters_swing", slot: 1, effect: "harvest", range: 54, power: 0 },
+      { id: "woodcutters_swing", slot: 1, effect: "harvest", range: 54 / TILE_SIZE, power: 0 },
       { id: "prospectors_pick", slot: 2, effect: "harvest", power: 6 },
       { id: "butchers_cut", slot: 3, effect: "harvest", power: 4 },
       {
@@ -68,7 +69,7 @@ describe("directional class kit contract", () => {
         slot: 4,
         effect: "construction",
         power: 60,
-        radius: 96,
+        radius: 96 / TILE_SIZE,
         durationMs: 30_000,
       },
       {
@@ -76,8 +77,8 @@ describe("directional class kit contract", () => {
         slot: 5,
         effect: "homemade_bomb",
         power: 85,
-        radius: 110,
-        range: 300,
+        radius: 110 / TILE_SIZE,
+        range: 300 / TILE_SIZE,
         durationMs: 650,
       },
     ]);
@@ -95,11 +96,11 @@ describe("directional class kit contract", () => {
 
   it("declares the Rogue kit without any client-authored target contract", () => {
     expect(CLASS_SKILLS.rogue).toMatchObject([
-      { id: "dual_slash", slot: 1, range: 58, power: 0 },
-      { id: "shadow_step", slot: 2, effect: "shadow_step", range: 312 },
+      { id: "dual_slash", slot: 1, range: 58 / TILE_SIZE, power: 0 },
+      { id: "shadow_step", slot: 2, effect: "shadow_step", range: 312 / TILE_SIZE },
       { id: "vanish", slot: 3, effect: "stealth", durationMs: 8_000 },
-      { id: "poisoned_shiv", slot: 4, range: 58, power: 14 },
-      { id: "shadow_dance", slot: 5, effect: "shadow_dance", range: 360, power: 32 },
+      { id: "poisoned_shiv", slot: 4, range: 58 / TILE_SIZE, power: 14 },
+      { id: "shadow_dance", slot: 5, effect: "shadow_dance", range: 360 / TILE_SIZE, power: 32 },
     ]);
     expect(PLAYER_ACTIONS.rogue.map((action) => action.shape)).toEqual([
       "arc",
@@ -132,7 +133,7 @@ describe("directional class kit contract", () => {
       projectile: { kind: "volley_arrow", count: 5 },
     });
     expect(PLAYER_ACTIONS.ranger[4]).toMatchObject({
-      projectile: { kind: "heartseeker", speed: 700, pierce: 0 },
+      projectile: { kind: "heartseeker", speed: 700 / TILE_SIZE, pierce: 0 },
     });
   });
 
@@ -140,7 +141,7 @@ describe("directional class kit contract", () => {
     const mend = CLASS_SKILLS.priest.find((skill) => skill.id === "mend");
     expect(mend).toMatchObject({
       cooldownMs: 1_500,
-      range: 390,
+      range: 390 / TILE_SIZE,
       power: 35,
       allyPower: 35,
     });
@@ -151,10 +152,14 @@ describe("directional class kit contract", () => {
   });
 
   it("applies the requested ranged and mobility range increases", () => {
-    expect(CLASS_SKILLS.ranger.map((skill) => skill.range)).toEqual([382.5, 405, 324, 0, 517.5]);
-    expect(CLASS_SKILLS.ranger[2]?.radius).toBe(324);
-    expect(CLASS_SKILLS.priest.slice(0, 2).map((skill) => skill.range)).toEqual([337.5, 390]);
-    expect(CLASS_SKILLS.priest[2]).toMatchObject({ id: "blink", distance: 247.5 });
+    expect(CLASS_SKILLS.ranger.map((skill) => skill.range)).toEqual(
+      [382.5, 405, 324, 0, 517.5].map((pixels) => pixels / TILE_SIZE),
+    );
+    expect(CLASS_SKILLS.ranger[2]?.radius).toBe(324 / TILE_SIZE);
+    expect(CLASS_SKILLS.priest.slice(0, 2).map((skill) => skill.range)).toEqual(
+      [337.5, 390].map((pixels) => pixels / TILE_SIZE),
+    );
+    expect(CLASS_SKILLS.priest[2]).toMatchObject({ id: "blink", distance: 247.5 / TILE_SIZE });
     expect(CLASS_SKILLS.warrior[1]).toMatchObject({
       id: "iron_guard",
       reduction: 0.5,
@@ -179,11 +184,11 @@ describe("directional class kit contract", () => {
 
   it("uses natural species attacks and only explicit authored profile overrides", () => {
     expect(monsterActionDefinition("hex_shaman", null)).toMatchObject({
-      range: 280 / 64,
+      range: 280 / TILE_SIZE,
       projectile: { kind: "hex_orb" },
     });
     expect(monsterActionDefinition("spear_goblin", "arrow")).toMatchObject({
-      range: 300 / 64,
+      range: 300 / TILE_SIZE,
       projectile: { kind: "arrow" },
     });
     expect(monsterActionDefinition("spear_goblin", "harpoon")).toMatchObject({
@@ -251,7 +256,7 @@ describe("directional class kit contract", () => {
   it("bounds projectile count, range, and lifetime defensively", () => {
     expect(MAX_PROJECTILES_PER_PLAYER).toBeLessThanOrEqual(12);
     expect(MAX_PROJECTILES_PER_ROOM).toBeLessThanOrEqual(48);
-    expect(MAX_PROJECTILE_RANGE).toBe(540);
+    expect(MAX_PROJECTILE_RANGE).toBe(540 / TILE_SIZE);
     expect(MAX_PROJECTILE_LIFETIME_MS).toBe(2_500);
   });
 });

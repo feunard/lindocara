@@ -16,17 +16,20 @@ import { SKILL_SLOTS, type SkillSlot } from "./skills.js";
  * in pixels moves its hero 64x too fast. It is recorded as a carry-forward rather than traded for
  * silent data loss.
  *
- * The attack/heal ranges are still pixels and still belong to the skill tables the next task
- * converts.
+ * `attackRange` and `healRange` now make exactly the same bargain, for exactly the same reason:
+ * `CLASS_STATS`' own reaches are tile units since the skill tables converted, so a floor of 16 px
+ * refuses `defaultMapHeroSettings()` itself, while a ceiling of `1024/64` refuses every stored map
+ * that authored a pixel reach. Floor down, ceiling unchanged, and the mixed reading stays a
+ * carry-forward.
  */
 export const MAP_HERO_STAT_LIMITS = {
   attackBase: { min: 1, max: 500 },
   attackPerLevel: { min: 0, max: 100 },
-  attackRange: { min: 16, max: 1_024 },
+  attackRange: { min: 16 / 64, max: 1_024 },
   movementSpeed: { min: 80 / 64, max: 520 },
   healBase: { min: 1, max: 500 },
   healPerLevel: { min: 0, max: 100 },
-  healRange: { min: 16, max: 1_024 },
+  healRange: { min: 16 / 64, max: 1_024 },
 } as const;
 
 export interface MapHeroClassStats {

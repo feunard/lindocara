@@ -1,4 +1,5 @@
 import type { PlayerClass } from "./game.js";
+import { roundGroundLength } from "./ground.js";
 import type { HarvestProfile } from "./harvest.js";
 import {
   isPeasantTalentEffect,
@@ -14,6 +15,7 @@ import {
 import { PEASANT_SUPPORT_SKILLS } from "./peasant-support.js";
 import { ROGUE_BALANCE } from "./rogue.js";
 import { isSkillUnlocked, type SkillDefinition, type SkillSlot, skillFor } from "./skills.js";
+import { TILE_SIZE } from "./tilemap.js";
 
 export type TalentEffect =
   | { kind: "power_multiplier"; value: number }
@@ -379,7 +381,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         {
           key: "rempart",
           label: "ally_guard",
-          effects: [{ kind: "ally_guard", radius: 120, reduction: 0.25 }],
+          effects: [{ kind: "ally_guard", radius: 120 / TILE_SIZE, reduction: 0.25 }],
         },
       ],
       {
@@ -393,8 +395,8 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
               guardedChargeRatio: 0.7,
               parryChargeRatio: 1.25,
               allyChargeRatio: 0.6,
-              radius: 135,
-              knockbackDistance: 72,
+              radius: 135 / TILE_SIZE,
+              knockbackDistance: 72 / TILE_SIZE,
             },
           ],
         },
@@ -422,7 +424,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
           effects: [
             range(-0.3),
             distance(-0.3),
-            { kind: "seismic_impact", radius: 90, powerRatio: 0.55 },
+            { kind: "seismic_impact", radius: 90 / TILE_SIZE, powerRatio: 0.55 },
           ],
         },
       ],
@@ -502,7 +504,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
               kind: "eye_of_the_storm",
               durationMs: 3_000,
               pulseIntervalMs: 250,
-              pullDistance: 18,
+              pullDistance: 18 / TILE_SIZE,
               slowRatio: 0.6,
               slowDurationMs: 6_000,
             },
@@ -522,7 +524,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         {
           key: "ricochet",
           label: "ricochet",
-          effects: [{ kind: "ricochet", ratio: 0.6, range: 160 }],
+          effects: [{ kind: "ricochet", ratio: 0.6, range: 160 / TILE_SIZE }],
         },
         {
           key: "line_piercer",
@@ -596,7 +598,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
               projectiles: 3,
               spreadRadians: (22 * Math.PI) / 180,
               powerRatio: 0.45,
-              range: 280,
+              range: 280 / TILE_SIZE,
             },
           ],
         },
@@ -605,7 +607,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         ultimate: {
           key: "afterimage",
           label: "ultimate",
-          effects: [{ kind: "afterimage", durationMs: 2_000, aggroRadius: 240 }],
+          effects: [{ kind: "afterimage", durationMs: 2_000, aggroRadius: 240 / TILE_SIZE }],
         },
       },
     ),
@@ -628,7 +630,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
             {
               kind: "comet_arrow",
               directPowerRatio: 0.85,
-              radius: 105,
+              radius: 105 / TILE_SIZE,
               splashPowerRatio: 0.65,
             },
           ],
@@ -654,7 +656,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         {
           key: "chain",
           label: "chain_heal",
-          effects: [{ kind: "chain_heal", ratio: 0.5, range: 140 }],
+          effects: [{ kind: "chain_heal", ratio: 0.5, range: 140 / TILE_SIZE }],
         },
         {
           key: "emergency",
@@ -670,7 +672,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
             {
               kind: "life_link",
               durationMs: 5_000,
-              range: 320,
+              range: 320 / TILE_SIZE,
               ratio: 0.3,
               chainRatio: 0.2,
               emergencyRatio: 0.45,
@@ -693,14 +695,25 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
           effects: [
             distance(0.3),
             cooldown(0.12),
-            { kind: "luminous_transfiguration", radius: 95, power: 16, powerPerLevel: 1 },
+            {
+              kind: "luminous_transfiguration",
+              radius: 95 / TILE_SIZE,
+              power: 16,
+              powerPerLevel: 1,
+            },
           ],
         },
         {
           key: "sacred_passage",
           label: "sacred_passage",
           effects: [
-            { kind: "sacred_passage", width: 22, power: 18, powerPerLevel: 1, durationMs: 6_000 },
+            {
+              kind: "sacred_passage",
+              width: 22 / TILE_SIZE,
+              power: 18,
+              powerPerLevel: 1,
+              durationMs: 6_000,
+            },
           ],
         },
       ],
@@ -713,7 +726,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
               kind: "lumen_gate",
               durationMs: 6_000,
               transfigurationDurationMs: 6_000,
-              triggerRadius: 28,
+              triggerRadius: 28 / TILE_SIZE,
             },
           ],
         },
@@ -1473,14 +1486,14 @@ export function skillWithTalents(
   return {
     ...skill,
     power: Math.round(skill.power * powerMultiplier),
-    range: Math.round(skill.range * rangeMultiplier * 10) / 10,
+    range: roundGroundLength(skill.range * rangeMultiplier),
     cooldownMs: Math.max(250, Math.round(skill.cooldownMs * cooldownMultiplier)),
     ...(skill.radius === undefined
       ? {}
-      : { radius: Math.round(skill.radius * rangeMultiplier * 10) / 10 }),
+      : { radius: roundGroundLength(skill.radius * rangeMultiplier) }),
     ...(skill.distance === undefined
       ? {}
-      : { distance: Math.round(skill.distance * distanceMultiplier * 10) / 10 }),
+      : { distance: roundGroundLength(skill.distance * distanceMultiplier) }),
     ...(skill.reduction === undefined
       ? {}
       : { reduction: Math.min(0.85, skill.reduction + sum("guard_reduction")) }),

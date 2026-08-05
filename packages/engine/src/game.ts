@@ -1,4 +1,5 @@
 import { type ColliderIndex, emptyColliderIndex, overlapsCollider } from "./collider.js";
+import type { GroundVector } from "./ground.js";
 import { ROGUE_BALANCE } from "./rogue.js";
 import {
   clampToWorld,
@@ -943,8 +944,17 @@ export function defaultMonsterTuning(species: MonsterSpecies): MonsterTuning {
 }
 
 export interface MonsterBodyHitbox {
-  /** Offset from the monster's authoritative 32px navigation position. */
+  /**
+   * GROUND offsets from the monster's authoritative position, in tile units. In the pixel world a
+   * position was a 32 px box's top-left corner and these offsets carried the +16 that recentred it;
+   * a tile-unit position IS the body's centre, so only the residual survives.
+   */
   offsetX: number;
+  offsetZ: number;
+  /**
+   * ELEVATION of the silhouette's centre above the monster's feet, in tile units. Carried, not yet
+   * read — see the table's comment.
+   */
   offsetY: number;
   radius: number;
 }
@@ -952,23 +962,88 @@ export interface MonsterBodyHitbox {
 /**
  * Combat target bodies measured from every Tiny Swords species' opaque idle/run silhouette.
  * Transparent atlas padding and attack-only weapon sweeps are deliberately excluded. Navigation,
- * terrain collision and monster separation still use the authoritative 32px ground body; only
- * attacks and area effects use these circles, so a tall creature remains fully hittable without
- * becoming capable of blocking an entire street.
+ * terrain collision and monster separation still use the authoritative ground body (`BODY_RADIUS`);
+ * only attacks and area effects use these circles, so a tall creature remains fully hittable
+ * without becoming capable of blocking an entire street.
+ *
+ * **The vertical offset moved axis, and that is a behaviour change worth stating.** In the pixel
+ * game the silhouette's centre sat up to 80 px "above" the monster — screen-up, which in a top-down
+ * world with two ground axes was literally ground-NORTH. A troll was therefore hittable from the
+ * north a tile earlier than from the south, and that asymmetry was an artefact of drawing a
+ * standing sprite, not a design. In this increment's axis convention that "above" is `y`,
+ * ELEVATION. Ground-plane combat has no vertical term yet, so the combat disc is now centred on the
+ * monster's own ground position and the height is carried in `offsetY` for the day a strike shape
+ * gains one. The alternative — keeping it as a ground offset — would have preserved the old feel by
+ * writing a screen-space quirk into the new coordinate system permanently.
  */
 export const MONSTER_BODY_HITBOX: Record<MonsterSpecies, MonsterBodyHitbox> = {
-  spear_goblin: { offsetX: 18, offsetY: -35.5, radius: 87 },
-  torch_goblin: { offsetX: 18, offsetY: -5.5, radius: 72 },
-  gnoll_marauder: { offsetX: 18, offsetY: -11, radius: 68 },
-  skull_guard: { offsetX: 18, offsetY: -10.5, radius: 55 },
-  skull_crusader: { offsetX: 18, offsetY: -10.5, radius: 55 },
-  skull_warden: { offsetX: 18, offsetY: -10.5, radius: 55 },
-  minotaur_brute: { offsetX: 18, offsetY: -37.5, radius: 126 },
-  mire_troll: { offsetX: 18, offsetY: -80.5, radius: 150 },
-  gate_troll: { offsetX: 18, offsetY: -80.5, radius: 150 },
-  hex_shaman: { offsetX: 18, offsetY: -17, radius: 73 },
-  war_pig: { offsetX: 18, offsetY: 1, radius: 45 },
-  pig_rider: { offsetX: 18, offsetY: -46, radius: 89 },
+  spear_goblin: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 51.5 / TILE_SIZE,
+    radius: 87 / TILE_SIZE,
+  },
+  torch_goblin: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 21.5 / TILE_SIZE,
+    radius: 72 / TILE_SIZE,
+  },
+  gnoll_marauder: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 27 / TILE_SIZE,
+    radius: 68 / TILE_SIZE,
+  },
+  skull_guard: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 26.5 / TILE_SIZE,
+    radius: 55 / TILE_SIZE,
+  },
+  skull_crusader: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 26.5 / TILE_SIZE,
+    radius: 55 / TILE_SIZE,
+  },
+  skull_warden: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 26.5 / TILE_SIZE,
+    radius: 55 / TILE_SIZE,
+  },
+  minotaur_brute: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 53.5 / TILE_SIZE,
+    radius: 126 / TILE_SIZE,
+  },
+  mire_troll: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 96.5 / TILE_SIZE,
+    radius: 150 / TILE_SIZE,
+  },
+  gate_troll: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 96.5 / TILE_SIZE,
+    radius: 150 / TILE_SIZE,
+  },
+  hex_shaman: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 33 / TILE_SIZE,
+    radius: 73 / TILE_SIZE,
+  },
+  war_pig: { offsetX: 2 / TILE_SIZE, offsetZ: 0, offsetY: 15 / TILE_SIZE, radius: 45 / TILE_SIZE },
+  pig_rider: {
+    offsetX: 2 / TILE_SIZE,
+    offsetZ: 0,
+    offsetY: 62 / TILE_SIZE,
+    radius: 89 / TILE_SIZE,
+  },
 };
 
 /** Compatibility radius table for consumers that only need the body's extent. */
@@ -978,10 +1053,14 @@ export const MONSTER_BODY_RADIUS: Record<MonsterSpecies, number> = Object.fromEn
 
 export const MAX_MONSTER_BODY_RADIUS = Math.max(...Object.values(MONSTER_BODY_RADIUS));
 
-/** Largest distance from the navigation point to a visible body edge, used by broad-phase grids. */
+/**
+ * Largest GROUND distance from the navigation point to a visible body edge, used by broad-phase
+ * grids. It reads `offsetZ`, not `offsetY`: a broad phase over a ground plane must be widened by
+ * the ground displacement of the body it is looking for, and elevation is not one.
+ */
 export const MAX_MONSTER_BODY_REACH = Math.max(
   ...Object.values(MONSTER_BODY_HITBOX).map(
-    (hitbox) => Math.hypot(hitbox.offsetX, hitbox.offsetY) + hitbox.radius,
+    (hitbox) => Math.hypot(hitbox.offsetX, hitbox.offsetZ) + hitbox.radius,
   ),
 );
 
@@ -991,11 +1070,11 @@ export function monsterBodyRadius(species: MonsterSpecies): number {
 
 export function monsterBodyHitbox(
   species: MonsterSpecies,
-  position: { x: number; y: number },
-): { center: { x: number; y: number }; radius: number } {
+  position: GroundVector,
+): { center: GroundVector; radius: number } {
   const hitbox = MONSTER_BODY_HITBOX[species];
   return {
-    center: { x: position.x + hitbox.offsetX, y: position.y + hitbox.offsetY },
+    center: { x: position.x + hitbox.offsetX, z: position.z + hitbox.offsetZ },
     radius: hitbox.radius,
   };
 }
@@ -1011,7 +1090,8 @@ export const MONSTER_AGGRO_RANGE = 210 / TILE_SIZE;
 export const MONSTER_ATTACK_RANGE = 42 / TILE_SIZE;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;
-export const INTERACTION_RANGE = 92;
+/** Tile units: the exact quotient of the former 92 px. */
+export const INTERACTION_RANGE = 92 / TILE_SIZE;
 /** Tile units: the exact quotient of the former 46 px. */
 export const LOOT_PICKUP_RANGE = 46 / TILE_SIZE;
 /** How long a dropped stack waits on the ground before `loot-system` sweeps it away. */
@@ -1259,26 +1339,33 @@ export const PLAYER_CLASSES: readonly PlayerClass[] = [
 export interface ClassStats {
   attackBase: number;
   attackPerLevel: number;
+  /** Authoritative basic-attack reach in TILE UNITS. */
   attackRange: number;
   /** Authoritative walking speed in TILES per second. Shared by server and prediction. */
   movementSpeed: number;
+  /** `range` is TILE UNITS, like `attackRange`. */
   heal?: { base: number; perLevel: number; range: number; cooldownMs: number };
 }
 
 export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
-  warrior: { attackBase: 27, attackPerLevel: 4, attackRange: 60, movementSpeed: PLAYER_SPEED },
+  warrior: {
+    attackBase: 27,
+    attackPerLevel: 4,
+    attackRange: 60 / TILE_SIZE,
+    movementSpeed: PLAYER_SPEED,
+  },
   ranger: {
     attackBase: 16,
     attackPerLevel: 2,
-    attackRange: 382.5,
+    attackRange: 382.5 / TILE_SIZE,
     movementSpeed: 286 / TILE_SIZE, // +10% versus Warrior.
   },
   priest: {
     attackBase: 14,
     attackPerLevel: 2,
-    attackRange: 337.5,
+    attackRange: 337.5 / TILE_SIZE,
     movementSpeed: 234 / TILE_SIZE, // -10% versus Warrior.
-    heal: { base: 35, perLevel: 3, range: 390, cooldownMs: 1_500 },
+    heal: { base: 35, perLevel: 3, range: 390 / TILE_SIZE, cooldownMs: 1_500 },
   },
   rogue: {
     attackBase: ROGUE_BALANCE.attack.base,
@@ -1289,7 +1376,7 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
   peasant: {
     attackBase: 8,
     attackPerLevel: 1,
-    attackRange: 54,
+    attackRange: 54 / TILE_SIZE,
     movementSpeed: 247 / TILE_SIZE, // -5% versus Warrior: deliberate utility-over-combat tradeoff.
   },
 };

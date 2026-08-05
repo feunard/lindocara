@@ -69,7 +69,7 @@ export interface MonsterSpecialActionDefinition {
 export const MAX_PROJECTILES_PER_PLAYER = 12;
 export const MAX_PROJECTILES_PER_ROOM = 48;
 export const MAX_PROJECTILE_LIFETIME_MS = 2_500;
-export const MAX_PROJECTILE_RANGE = 540;
+export const MAX_PROJECTILE_RANGE = 540 / TILE_SIZE;
 /** A held Lumen Step is bounded even if its release packet never arrives. */
 export const LUMEN_STEP_MAX_HOLD_MS = 2_500;
 
@@ -85,7 +85,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 110,
       recoveryMs: 215,
       halfAngleRadians: (65 * Math.PI) / 180,
-      hitboxRadius: 15,
+      hitboxRadius: 15 / TILE_SIZE,
     },
     { skillId: "iron_guard", shape: "guard", anticipationMs: 180, recoveryMs: 420 },
     {
@@ -93,7 +93,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       shape: "charge",
       anticipationMs: 180,
       recoveryMs: 480,
-      hitboxRadius: 18,
+      hitboxRadius: 18 / TILE_SIZE,
     },
     { skillId: "battle_cry", shape: "area_taunt", anticipationMs: 300, recoveryMs: 500 },
     { skillId: "whirlwind", shape: "area_damage", anticipationMs: 320, recoveryMs: 600 },
@@ -104,14 +104,19 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       shape: "projectile",
       anticipationMs: 130,
       recoveryMs: 195,
-      projectile: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
+      projectile: { kind: "arrow", speed: 540 / TILE_SIZE, radius: 5 / TILE_SIZE, pierce: 0 },
     },
     {
       skillId: "piercing_arrow",
       shape: "projectile",
       anticipationMs: 300,
       recoveryMs: 500,
-      projectile: { kind: "piercing_arrow", speed: 600, radius: 7, pierce: 7 },
+      projectile: {
+        kind: "piercing_arrow",
+        speed: 600 / TILE_SIZE,
+        radius: 7 / TILE_SIZE,
+        pierce: 7,
+      },
     },
     {
       skillId: "volley",
@@ -120,8 +125,8 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       recoveryMs: 640,
       projectile: {
         kind: "volley_arrow",
-        speed: 480,
-        radius: 5,
+        speed: 480 / TILE_SIZE,
+        radius: 5 / TILE_SIZE,
         pierce: 0,
         count: 5,
         spreadRadians: (36 * Math.PI) / 180,
@@ -133,7 +138,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       shape: "projectile",
       anticipationMs: 360,
       recoveryMs: 700,
-      projectile: { kind: "heartseeker", speed: 700, radius: 9, pierce: 0 },
+      projectile: { kind: "heartseeker", speed: 700 / TILE_SIZE, radius: 9 / TILE_SIZE, pierce: 0 },
     },
   ],
   priest: [
@@ -142,14 +147,24 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       shape: "projectile",
       anticipationMs: 140,
       recoveryMs: 185,
-      projectile: { kind: "radiant_bolt", speed: 480, radius: 8, pierce: 0 },
+      projectile: {
+        kind: "radiant_bolt",
+        speed: 480 / TILE_SIZE,
+        radius: 8 / TILE_SIZE,
+        pierce: 0,
+      },
     },
     {
       skillId: "mend",
       shape: "heal_projectile",
       anticipationMs: 240,
       recoveryMs: 600,
-      projectile: { kind: "healing_light", speed: 360, radius: 11, pierce: 0 },
+      projectile: {
+        kind: "healing_light",
+        speed: 360 / TILE_SIZE,
+        radius: 11 / TILE_SIZE,
+        pierce: 0,
+      },
     },
     { skillId: "blink", shape: "teleport", anticipationMs: 180, recoveryMs: 420 },
     { skillId: "prayer", shape: "area_heal", anticipationMs: 320, recoveryMs: 640 },
@@ -162,7 +177,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 105,
       recoveryMs: 220,
       halfAngleRadians: (58 * Math.PI) / 180,
-      hitboxRadius: 14,
+      hitboxRadius: 14 / TILE_SIZE,
     },
     {
       skillId: "shadow_step",
@@ -182,7 +197,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 125,
       recoveryMs: 300,
       halfAngleRadians: (48 * Math.PI) / 180,
-      hitboxRadius: 12,
+      hitboxRadius: 12 / TILE_SIZE,
     },
     {
       skillId: "shadow_dance",
@@ -198,7 +213,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 120,
       recoveryMs: 300,
       halfAngleRadians: (55 * Math.PI) / 180,
-      hitboxRadius: 14,
+      hitboxRadius: 14 / TILE_SIZE,
     },
     {
       skillId: "prospectors_pick",
@@ -206,7 +221,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 160,
       recoveryMs: 300,
       halfAngleRadians: (48 * Math.PI) / 180,
-      hitboxRadius: 13,
+      hitboxRadius: 13 / TILE_SIZE,
     },
     {
       skillId: "butchers_cut",
@@ -214,7 +229,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       anticipationMs: 130,
       recoveryMs: 270,
       halfAngleRadians: (48 * Math.PI) / 180,
-      hitboxRadius: 12,
+      hitboxRadius: 12 / TILE_SIZE,
     },
     {
       skillId: "makeshift_camp",
@@ -238,29 +253,32 @@ export function actionForClassSlot(playerClass: PlayerClass, slot: number): Play
 }
 
 /**
- * Everything from here down is the MONSTER half of the tables, and its `range` fields — the reach
- * the AI asks about before it decides to strike — are TILE UNITS: the exact quotient of each former
- * pixel value by `TILE_SIZE`.
+ * The MONSTER half of the tables. Since Task 5 this whole file is TILE UNITS — every `range`,
+ * `hitboxRadius`, projectile `speed`/`radius` and `MAX_PROJECTILE_RANGE` is the exact quotient of
+ * its former pixel value by `TILE_SIZE`, written as the division rather than as a decimal so the
+ * balance a designer tuned in pixels is still legible beside what the simulation now reads.
  *
- * `hitboxRadius`, every `projectile` (`speed`, `radius`) and `MAX_PROJECTILE_RANGE` above are
- * deliberately still PIXELS: they are combat-resolution and projectile geometry, converted with
- * `projectile-system.ts` and the player tables in the next task. `PLAYER_ACTIONS` above is
- * untouched for the same reason. This file is a mixed-unit file until then, and this comment is the
- * seam.
+ * Five monster `range` fields were left as bare pixels by the previous pass (`hex_shaman`,
+ * `pig_rider`, `gnoll_marauder`, `skull_crusader`, `skull_warden`); they are converted here.
  */
 const STANDARD_MONSTER_ACTION: MonsterActionDefinition = {
   anticipationMs: 450,
   recoveryMs: 500,
   range: 42 / TILE_SIZE,
-  hitboxRadius: 18,
+  hitboxRadius: 18 / TILE_SIZE,
 };
 
 export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefinition>> = {
-  spear_goblin: { ...STANDARD_MONSTER_ACTION, anticipationMs: 420, hitboxRadius: 14 },
-  torch_goblin: { ...STANDARD_MONSTER_ACTION, anticipationMs: 460, hitboxRadius: 16 },
+  spear_goblin: { ...STANDARD_MONSTER_ACTION, anticipationMs: 420, hitboxRadius: 14 / TILE_SIZE },
+  torch_goblin: { ...STANDARD_MONSTER_ACTION, anticipationMs: 460, hitboxRadius: 16 / TILE_SIZE },
   // A hex is thrown, so it reaches further than a spear and takes longer to shape. Still a melee
   // capsule: monsters have no projectile shape, so the reach is the honest approximation.
-  hex_shaman: { ...STANDARD_MONSTER_ACTION, anticipationMs: 620, recoveryMs: 640, range: 74 },
+  hex_shaman: {
+    ...STANDARD_MONSTER_ACTION,
+    anticipationMs: 620,
+    recoveryMs: 640,
+    range: 74 / TILE_SIZE,
+  },
   // A charge: the shortest wind-up in the bestiary — but still 400ms, because every monster strike
   // must be telegraphed long enough to be answered (pinned in `combat-actions.test.ts`). Its speed
   // reads through the tiny reach and the long recovery while it wheels around, not through a
@@ -270,33 +288,38 @@ export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefin
     anticipationMs: 400,
     recoveryMs: 620,
     range: 34 / TILE_SIZE,
-    hitboxRadius: 14,
+    hitboxRadius: 14 / TILE_SIZE,
   },
-  pig_rider: { ...STANDARD_MONSTER_ACTION, anticipationMs: 400, range: 52, hitboxRadius: 20 },
-  gnoll_marauder: { ...STANDARD_MONSTER_ACTION, anticipationMs: 480, range: 46 },
+  pig_rider: {
+    ...STANDARD_MONSTER_ACTION,
+    anticipationMs: 400,
+    range: 52 / TILE_SIZE,
+    hitboxRadius: 20 / TILE_SIZE,
+  },
+  gnoll_marauder: { ...STANDARD_MONSTER_ACTION, anticipationMs: 480, range: 46 / TILE_SIZE },
   skull_guard: { ...STANDARD_MONSTER_ACTION, anticipationMs: 440 },
-  skull_crusader: { ...STANDARD_MONSTER_ACTION, anticipationMs: 500, range: 48 },
-  skull_warden: { ...STANDARD_MONSTER_ACTION, anticipationMs: 520, range: 50 },
+  skull_crusader: { ...STANDARD_MONSTER_ACTION, anticipationMs: 500, range: 48 / TILE_SIZE },
+  skull_warden: { ...STANDARD_MONSTER_ACTION, anticipationMs: 520, range: 50 / TILE_SIZE },
   minotaur_brute: {
     ...STANDARD_MONSTER_ACTION,
     anticipationMs: 600,
     recoveryMs: 650,
     range: 56 / TILE_SIZE,
-    hitboxRadius: 24,
+    hitboxRadius: 24 / TILE_SIZE,
   },
   mire_troll: {
     ...STANDARD_MONSTER_ACTION,
     anticipationMs: 650,
     recoveryMs: 700,
     range: 58 / TILE_SIZE,
-    hitboxRadius: 25,
+    hitboxRadius: 25 / TILE_SIZE,
   },
   gate_troll: {
     ...STANDARD_MONSTER_ACTION,
     anticipationMs: 650,
     recoveryMs: 700,
     range: 58 / TILE_SIZE,
-    hitboxRadius: 25,
+    hitboxRadius: 25 / TILE_SIZE,
   },
 };
 
@@ -307,29 +330,29 @@ const MONSTER_RANGED_ACTIONS = {
     anticipationMs: 0,
     recoveryMs: 620,
     range: 300 / TILE_SIZE,
-    hitboxRadius: 0,
-    projectile: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
+    hitboxRadius: 0 / TILE_SIZE,
+    projectile: { kind: "arrow", speed: 540 / TILE_SIZE, radius: 5 / TILE_SIZE, pierce: 0 },
   },
   hex: {
     anticipationMs: 0,
     recoveryMs: 640,
     range: 280 / TILE_SIZE,
-    hitboxRadius: 0,
-    projectile: { kind: "hex_orb", speed: 390, radius: 9, pierce: 0 },
+    hitboxRadius: 0 / TILE_SIZE,
+    projectile: { kind: "hex_orb", speed: 390 / TILE_SIZE, radius: 9 / TILE_SIZE, pierce: 0 },
   },
   harpoon: {
     anticipationMs: 0,
     recoveryMs: 680,
     range: 290 / TILE_SIZE,
-    hitboxRadius: 0,
-    projectile: { kind: "enemy_harpoon", speed: 470, radius: 6, pierce: 0 },
+    hitboxRadius: 0 / TILE_SIZE,
+    projectile: { kind: "enemy_harpoon", speed: 470 / TILE_SIZE, radius: 6 / TILE_SIZE, pierce: 0 },
   },
   bomb: {
     anticipationMs: 0,
     recoveryMs: 760,
     range: 240 / TILE_SIZE,
-    hitboxRadius: 0,
-    projectile: { kind: "enemy_bomb", speed: 330, radius: 10, pierce: 0 },
+    hitboxRadius: 0 / TILE_SIZE,
+    projectile: { kind: "enemy_bomb", speed: 330 / TILE_SIZE, radius: 10 / TILE_SIZE, pierce: 0 },
   },
 } as const satisfies Readonly<
   Record<Exclude<MonsterAttackProfile, "melee">, MonsterRangedActionDefinition>

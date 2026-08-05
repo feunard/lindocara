@@ -49,37 +49,40 @@ describe("directional combat geometry", () => {
     });
   });
 
+  // Every shape below is on the GROUND PLANE (`x`/`z`); the numbers are unchanged because the
+  // geometry is unit-free — what moved is which second axis these functions read. A `{x, y}`
+  // literal here would now be a type error, which is the whole point of the conversion.
   it("hits entities in a frontal arc but not behind or outside its radius", () => {
-    const arc = frontalArc({ x: 100, y: 100 }, { x: 1, y: 0 }, 60, Math.PI / 3);
-    expect(circleIntersectsArc({ center: { x: 145, y: 105 }, radius: 8 }, arc)).toBe(true);
-    expect(circleIntersectsArc({ center: { x: 55, y: 100 }, radius: 8 }, arc)).toBe(false);
-    expect(circleIntersectsArc({ center: { x: 180, y: 100 }, radius: 8 }, arc)).toBe(false);
+    const arc = frontalArc({ x: 100, z: 100 }, { x: 1, z: 0 }, 60, Math.PI / 3);
+    expect(circleIntersectsArc({ center: { x: 145, z: 105 }, radius: 8 }, arc)).toBe(true);
+    expect(circleIntersectsArc({ center: { x: 55, z: 100 }, radius: 8 }, arc)).toBe(false);
+    expect(circleIntersectsArc({ center: { x: 180, z: 100 }, radius: 8 }, arc)).toBe(false);
   });
 
   it("builds a directional cone and capsule", () => {
-    const cone = directionalCone({ x: 0, y: 0 }, { x: 1, y: 0 }, 100, Math.PI / 6);
-    expect(circleIntersectsCone({ center: { x: 75, y: 20 }, radius: 5 }, cone)).toBe(true);
-    expect(circleIntersectsCone({ center: { x: 75, y: 70 }, radius: 5 }, cone)).toBe(false);
+    const cone = directionalCone({ x: 0, z: 0 }, { x: 1, z: 0 }, 100, Math.PI / 6);
+    expect(circleIntersectsCone({ center: { x: 75, z: 20 }, radius: 5 }, cone)).toBe(true);
+    expect(circleIntersectsCone({ center: { x: 75, z: 70 }, radius: 5 }, cone)).toBe(false);
 
-    const capsule = strikeCapsule({ x: 0, y: 0 }, { x: 1, y: 0 }, 100, 10);
-    expect(circleIntersectsCapsule({ center: { x: 65, y: 14 }, radius: 5 }, capsule)).toBe(true);
-    expect(circleIntersectsCapsule({ center: { x: 65, y: 17 }, radius: 5 }, capsule)).toBe(false);
+    const capsule = strikeCapsule({ x: 0, z: 0 }, { x: 1, z: 0 }, 100, 10);
+    expect(circleIntersectsCapsule({ center: { x: 65, z: 14 }, radius: 5 }, capsule)).toBe(true);
+    expect(circleIntersectsCapsule({ center: { x: 65, z: 17 }, radius: 5 }, capsule)).toBe(false);
   });
 
   it("advances a projectile along a normalised direction", () => {
-    expect(advanceProjectile({ x: 10, y: 20 }, { x: 3, y: 4 }, 100, 0.5)).toEqual({
-      from: { x: 10, y: 20 },
-      to: { x: 40, y: 60 },
+    expect(advanceProjectile({ x: 10, z: 20 }, { x: 3, z: 4 }, 100, 0.5)).toEqual({
+      from: { x: 10, z: 20 },
+      to: { x: 40, z: 60 },
       distance: 50,
     });
   });
 
   it("sweeps fast projectiles through entities instead of checking only the endpoint", () => {
     const impact = sweptProjectileEntityImpact(
-      { x: 0, y: 20 },
-      { x: 200, y: 20 },
+      { x: 0, z: 20 },
+      { x: 200, z: 20 },
       3,
-      { center: { x: 100, y: 20 }, radius: 12 },
+      { center: { x: 100, z: 20 }, radius: 12 },
       "monster-a",
     );
     expect(impact).not.toBeNull();
@@ -98,25 +101,25 @@ describe("directional combat geometry", () => {
   });
 
   it("tests a swept segment against one explicit rectangle without an index", () => {
-    const rect = { x: 40, y: 20, width: 12, height: 16 };
-    expect(segmentIntersectsRect({ x: 0, y: 28 }, { x: 80, y: 28 }, rect)).toBe(true);
-    expect(segmentIntersectsRect({ x: 0, y: 4 }, { x: 80, y: 4 }, rect)).toBe(false);
-    expect(segmentIntersectsRect({ x: 0, y: 14 }, { x: 80, y: 14 }, rect, 6)).toBe(true);
-    expect(segmentIntersectsRect({ x: Number.NaN, y: 0 }, { x: 80, y: 0 }, rect)).toBe(false);
+    const rect = { x: 40, z: 20, w: 12, h: 16 };
+    expect(segmentIntersectsRect({ x: 0, z: 28 }, { x: 80, z: 28 }, rect)).toBe(true);
+    expect(segmentIntersectsRect({ x: 0, z: 4 }, { x: 80, z: 4 }, rect)).toBe(false);
+    expect(segmentIntersectsRect({ x: 0, z: 14 }, { x: 80, z: 14 }, rect, 6)).toBe(true);
+    expect(segmentIntersectsRect({ x: Number.NaN, z: 0 }, { x: 80, z: 0 }, rect)).toBe(false);
   });
 
   it("chooses the first impact deterministically and lets terrain win exact ties", () => {
     const result = firstSegmentImpact([
-      { fraction: 0.4, point: { x: 40, y: 0 }, kind: "entity", id: "z" },
-      { fraction: 0.2, point: { x: 20, y: 0 }, kind: "entity", id: "b" },
-      { fraction: 0.2, point: { x: 20, y: 0 }, kind: "entity", id: "a" },
+      { fraction: 0.4, point: { x: 40, z: 0 }, kind: "entity", id: "z" },
+      { fraction: 0.2, point: { x: 20, z: 0 }, kind: "entity", id: "b" },
+      { fraction: 0.2, point: { x: 20, z: 0 }, kind: "entity", id: "a" },
     ]);
     expect(result?.id).toBe("a");
 
     expect(
       firstSegmentImpact([
-        { fraction: 0.2, point: { x: 20, y: 0 }, kind: "entity", id: "a" },
-        { fraction: 0.2, point: { x: 20, y: 0 }, kind: "terrain", id: "0:1" },
+        { fraction: 0.2, point: { x: 20, z: 0 }, kind: "entity", id: "a" },
+        { fraction: 0.2, point: { x: 20, z: 0 }, kind: "terrain", id: "0:1" },
       ])?.kind,
     ).toBe("terrain");
   });

@@ -4,6 +4,7 @@ import {
   peasantSupportSkill,
 } from "@lindocara/engine/peasant-support.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 
 describe("Peasant support contract", () => {
@@ -13,7 +14,7 @@ describe("Peasant support contract", () => {
         id: "makeshift_camp",
         slot: 4,
         cost: { wood: 4, stone: 2, meat: 2 },
-        radius: 96,
+        radius: 96 / TILE_SIZE,
         durationMs: 30_000,
         power: 60,
       },
@@ -21,7 +22,7 @@ describe("Peasant support contract", () => {
         id: "homemade_bomb",
         slot: 5,
         cost: { iron: 2, stone: 2 },
-        radius: 110,
+        radius: 110 / TILE_SIZE,
         durationMs: 650,
         power: 85,
       },

@@ -1,4 +1,5 @@
 import { xpForNextLevel } from "./game.js";
+import { roundGroundLength } from "./ground.js";
 import {
   HARVEST_PROFILE_LIMITS,
   type HarvestProfile,
@@ -7,6 +8,7 @@ import {
 } from "./harvest.js";
 import { PARTY_MATERIAL_TYPES, type PartyMaterialAmounts } from "./party-harvest-state.js";
 import { PEASANT_SUPPORT_SKILLS, type PeasantSupportSkillConfig } from "./peasant-support.js";
+import { TILE_SIZE } from "./tilemap.js";
 
 export type PeasantTalentEffect =
   | { kind: "peasant_harvest_yield"; tool: HarvestTool; bonusRatio: number }
@@ -106,8 +108,8 @@ export const PEASANT_TALENT_BALANCE = {
       hitsReduction: 1,
       durationReductionRatio: 0.15,
     },
-    sweepingFell: { radius: 84, maximumTargets: 3 },
-    greatFelling: { yieldBonusRatio: 0.4, radius: 128, maximumTargets: 6 },
+    sweepingFell: { radius: 84 / TILE_SIZE, maximumTargets: 3 },
+    greatFelling: { yieldBonusRatio: 0.4, radius: 128 / TILE_SIZE, maximumTargets: 6 },
   },
   prospectorsPick: {
     earlyYieldBonusRatio: 0.2,
@@ -117,14 +119,14 @@ export const PEASANT_TALENT_BALANCE = {
     fragmentation: {
       hitsReduction: 1,
       durationReductionRatio: 0.15,
-      radius: 72,
+      radius: 72 / TILE_SIZE,
       maximumTargets: 3,
     },
     motherLode: {
       yieldBonusRatio: 0.4,
       ironFromStone: 2,
       goldValueBonusRatio: 0.3,
-      radius: 110,
+      radius: 110 / TILE_SIZE,
       maximumTargets: 5,
     },
   },
@@ -135,21 +137,21 @@ export const PEASANT_TALENT_BALANCE = {
     preservation: {
       healingBonusRatio: 0.4,
       extraPortions: 1,
-      radius: 0,
+      radius: 0 / TILE_SIZE,
       buffDurationMs: 0,
       powerBonusRatio: 0,
     },
     fieldFeast: {
       healingBonusRatio: 0,
       extraPortions: 0,
-      radius: 120,
+      radius: 120 / TILE_SIZE,
       buffDurationMs: 6_000,
       powerBonusRatio: 0.1,
     },
     grandFeast: {
       healingBonusRatio: 0.75,
       extraPortions: 3,
-      radius: 180,
+      radius: 180 / TILE_SIZE,
       buffDurationMs: 10_000,
       powerBonusRatio: 0.15,
     },
@@ -160,7 +162,7 @@ export const PEASANT_TALENT_BALANCE = {
     reinforcement: {
       durabilityBonusRatio: 0.25,
       durationBonusMs: 3_000,
-      radius: 0,
+      radius: 0 / TILE_SIZE,
       powerBonusRatio: 0,
       protectionRatio: 0,
       slowRatio: 0,
@@ -169,7 +171,7 @@ export const PEASANT_TALENT_BALANCE = {
     stockade: {
       durabilityBonusRatio: 0.75,
       durationBonusMs: 5_000,
-      radius: 96,
+      radius: 96 / TILE_SIZE,
       powerBonusRatio: 0,
       protectionRatio: 0.15,
       slowRatio: 0.2,
@@ -178,7 +180,7 @@ export const PEASANT_TALENT_BALANCE = {
     campfire: {
       durabilityBonusRatio: 0.25,
       durationBonusMs: 5_000,
-      radius: 120,
+      radius: 120 / TILE_SIZE,
       powerBonusRatio: 0.5,
       protectionRatio: 0.08,
       slowRatio: 0,
@@ -187,7 +189,7 @@ export const PEASANT_TALENT_BALANCE = {
     completeEncampment: {
       durabilityBonusRatio: 1,
       durationBonusMs: 10_000,
-      radius: 144,
+      radius: 144 / TILE_SIZE,
       powerBonusRatio: 0.5,
       protectionRatio: 0.1,
       slowRatio: 0.2,
@@ -205,7 +207,7 @@ export const PEASANT_TALENT_BALANCE = {
       fragmentPowerRatio: 0.25,
       slowRatio: 0,
       slowDurationMs: 0,
-      knockbackDistance: 0,
+      knockbackDistance: 0 / TILE_SIZE,
       costReductionRatio: 0,
     },
     concussion: {
@@ -215,7 +217,7 @@ export const PEASANT_TALENT_BALANCE = {
       fragmentPowerRatio: 0,
       slowRatio: 0.35,
       slowDurationMs: 3_000,
-      knockbackDistance: 48,
+      knockbackDistance: 48 / TILE_SIZE,
       costReductionRatio: 0,
     },
     powderKeg: {
@@ -225,7 +227,7 @@ export const PEASANT_TALENT_BALANCE = {
       fragmentPowerRatio: 0.3,
       slowRatio: 0.25,
       slowDurationMs: 3_000,
-      knockbackDistance: 36,
+      knockbackDistance: 36 / TILE_SIZE,
       costReductionRatio: 0.5,
     },
   },
@@ -482,7 +484,7 @@ export function resolvePeasantBombPlan(
     id: "homemade_bomb",
     cost: resolvePeasantMaterialCost(base.cost, costReductionRatio),
     power: Math.round(safePower * Math.max(0, 1 + powerBonusRatio)),
-    radius: Math.round(safeRadius * Math.max(0, 1 + radiusBonusRatio) * 10) / 10,
+    radius: roundGroundLength(safeRadius * Math.max(0, 1 + radiusBonusRatio)),
     fragments: Math.max(0, Math.floor(fragments)),
     fragmentPowerRatio: Math.max(0, fragmentPowerRatio),
     slowRatio: clamp(slowRatio, 0, 0.75),

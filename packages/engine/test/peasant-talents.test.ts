@@ -20,6 +20,7 @@ import {
   talentBranchSlots,
   unlockTalent,
 } from "@lindocara/engine/talents.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 
 function harvestProfile(overrides: Partial<HarvestProfile> = {}): HarvestProfile {
@@ -167,7 +168,8 @@ describe("Peasant talents", () => {
       1,
       profile,
     );
-    expect(plan.skill).toMatchObject({ cooldownMs: 370, range: 60.5 });
+    // 54 px * 1.12 = 60.5 px, now the same reach in tiles at the finer rounding quantum.
+    expect(plan.skill).toMatchObject({ cooldownMs: 370, range: 0.945 });
     expect(plan.harvest).toEqual({
       resource: "wood",
       tool: "axe",
@@ -178,7 +180,7 @@ describe("Peasant talents", () => {
       materialReward: { wood: 19 },
       hitsRequired: 3,
       harvestDurationMs: 850,
-      areaRadius: 128,
+      areaRadius: 128 / TILE_SIZE,
       maximumTargets: 6,
     });
     expect(profile).toEqual(original);
@@ -202,7 +204,7 @@ describe("Peasant talents", () => {
       primaryMaterialReward: { stone: 16 },
       bonusMaterialReward: { iron: 3 },
       materialReward: { stone: 16, iron: 3 },
-      areaRadius: 110,
+      areaRadius: 110 / TILE_SIZE,
       maximumTargets: 5,
     });
 
@@ -243,7 +245,7 @@ describe("Peasant talents", () => {
     expect(resolvePeasantRationPlan(effects)).toEqual({
       healing: 26,
       portions: 5,
-      radius: 180,
+      radius: 180 / TILE_SIZE,
       buffDurationMs: 10_000,
       powerBonusRatio: 0.15,
     });
@@ -254,7 +256,7 @@ describe("Peasant talents", () => {
       harvestProfile(),
       peasantTalentEffects(["peasant.woodcutters_swing.sweeping_fell"], 1),
     );
-    expect(sweeping).toMatchObject({ areaRadius: 84, maximumTargets: 3 });
+    expect(sweeping).toMatchObject({ areaRadius: 84 / TILE_SIZE, maximumTargets: 3 });
 
     const fragmentation = resolvePeasantHarvestPlan(
       harvestProfile({ resource: "stone", tool: "pickaxe", yieldAmount: 8 }),
@@ -263,7 +265,7 @@ describe("Peasant talents", () => {
     expect(fragmentation).toMatchObject({
       hitsRequired: 3,
       harvestDurationMs: 850,
-      areaRadius: 72,
+      areaRadius: 72 / TILE_SIZE,
       maximumTargets: 3,
     });
 
@@ -277,7 +279,7 @@ describe("Peasant talents", () => {
     ).toEqual({
       healing: 12,
       portions: 1,
-      radius: 120,
+      radius: 120 / TILE_SIZE,
       buffDurationMs: 6_000,
       powerBonusRatio: 0.1,
     });
@@ -290,7 +292,7 @@ describe("Peasant talents", () => {
       power: 90,
       durabilityMultiplier: 1.25,
       durationMs: 35_000,
-      radius: 120,
+      radius: 120 / TILE_SIZE,
       protectionRatio: 0.08,
       slowRatio: 0,
       costMultiplier: 1,
@@ -302,7 +304,7 @@ describe("Peasant talents", () => {
       id: "homemade_bomb",
       cost: { iron: 2, stone: 2 },
       power: 85,
-      radius: 121,
+      radius: 121 / TILE_SIZE,
       fragments: 4,
       fragmentPowerRatio: 0.25,
       slowRatio: 0,
@@ -328,14 +330,15 @@ describe("Peasant talents", () => {
       "peasant.makeshift_camp.stockade",
       "peasant.makeshift_camp.complete_encampment",
     ]);
-    expect(camp.skill).toMatchObject({ cooldownMs: 10_200, range: 86.4, radius: 115.2 });
+    // 72 px * 1.2 = 86.4 px and 96 px * 1.2 = 115.2 px, in tiles.
+    expect(camp.skill).toMatchObject({ cooldownMs: 10_200, range: 1.35, radius: 1.8 });
     expect(camp.support).toEqual({
       id: "makeshift_camp",
       cost: { wood: 2, stone: 1, meat: 1 },
       power: 90,
       durabilityMultiplier: 3,
       durationMs: 48_000,
-      radius: 144,
+      radius: 144 / TILE_SIZE,
       protectionRatio: 0.25,
       slowRatio: 0.4,
       costMultiplier: 0.5,
@@ -355,17 +358,19 @@ describe("Peasant talents", () => {
       "peasant.homemade_bomb.concussion",
       "peasant.homemade_bomb.powder_keg",
     ]);
-    expect(bomb.skill).toMatchObject({ cooldownMs: 8_800, range: 336, power: 95, radius: 123.2 });
+    // 300 px * 1.12 = 336 px reach and 110 px * 1.12 = 123.2 px radius, in tiles.
+    expect(bomb.skill).toMatchObject({ cooldownMs: 8_800, range: 5.25, power: 95, radius: 1.925 });
     expect(bomb.support).toEqual({
       id: "homemade_bomb",
       cost: { iron: 1, stone: 1 },
       power: 119,
-      radius: 191,
+      // 110 px * 1.736; the pixel table rounded this to 191 px, tile units keep the exact product.
+      radius: 2.98375,
       fragments: 6,
       fragmentPowerRatio: 0.3,
       slowRatio: 0.6,
       slowDurationMs: 3_000,
-      knockbackDistance: 48,
+      knockbackDistance: 48 / TILE_SIZE,
       fuseDurationMs: 650,
       costMultiplier: 0.5,
     });

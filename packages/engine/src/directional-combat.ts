@@ -1,4 +1,23 @@
+/**
+ * Two vocabularies live in this file, deliberately and visibly:
+ *
+ * - **directions**, still `Vec2`. `normalizeDirection`, `orientationFromMovement`,
+ *   `movementDirectionFromInput` and `facingFromInput` are shared with the client's pixel
+ *   prediction path, which has not moved yet; they are pure angle arithmetic and mean the same
+ *   thing in either unit system. `normalizeGround` below is their ground-typed door.
+ * - **geometry**, now `GroundVector`. Every shape, point and impact is a position on the GROUND
+ *   PLANE in tile units, `x`/`z`. That is what makes a converted runtime entity — whose `y` is
+ *   ELEVATION — fail to compile here instead of silently being measured across the wrong plane.
+ *
+ * The one exception is `sweptProjectileTerrainImpact` at the bottom, which still indexes a PIXEL
+ * `TileMap` and therefore still speaks `Vec2`. It is the pixel path's own function and dies with
+ * it; `sweptGroundTerrainImpact` (`packages/server/src/world/terrain-access.ts`) is its heightfield
+ * successor and the one every converted system calls.
+ */
+
 import { type ColliderIndex, collidersOnSegment } from "./collider.js";
+import { type GroundVector, groundOf, planarOf } from "./ground.js";
+import type { ColliderRect } from "./hd2d/collider-index.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "./tilemap.js";
 
@@ -8,49 +27,60 @@ const ANALOG_DIRECTION_EPSILON = 0.2;
 
 export const DEFAULT_FACING: Readonly<Vec2> = Object.freeze({ x: 1, y: 0 });
 
+/** The ground-plane default facing: `DEFAULT_FACING` read through the same bridge as everything else. */
+export const DEFAULT_GROUND_FACING: Readonly<GroundVector> = Object.freeze({ x: 1, z: 0 });
+
 export interface Circle {
-  center: Vec2;
+  center: GroundVector;
   radius: number;
 }
 
 export interface FrontalArc {
-  origin: Vec2;
-  direction: Vec2;
+  origin: GroundVector;
+  direction: GroundVector;
   radius: number;
   innerRadius: number;
   halfAngleRadians: number;
 }
 
 export interface DirectionalCone {
-  origin: Vec2;
-  direction: Vec2;
+  origin: GroundVector;
+  direction: GroundVector;
   length: number;
   halfAngleRadians: number;
 }
 
 export interface StrikeCapsule {
-  start: Vec2;
-  end: Vec2;
+  start: GroundVector;
+  end: GroundVector;
   radius: number;
 }
 
 export interface ProjectileAdvance {
-  from: Vec2;
-  to: Vec2;
+  from: GroundVector;
+  to: GroundVector;
   distance: number;
 }
 
 export interface SegmentImpact {
   /** Fraction along the swept segment, from zero at its origin to one at its destination. */
   fraction: number;
-  point: Vec2;
+  point: GroundVector;
   kind: "entity" | "terrain";
   /** Stable identifier used to make equal-distance impacts deterministic. */
   id: string;
 }
 
-export interface TerrainImpact extends SegmentImpact {
+/**
+ * The PIXEL path's terrain impact. It does not extend `SegmentImpact` on purpose: its `point` is a
+ * pixel `Vec2` and letting the two share a type is exactly how one would end up compared against
+ * the other. See the file header.
+ */
+export interface TerrainImpact {
+  fraction: number;
+  point: Vec2;
   kind: "terrain";
+  id: string;
   /** Cell impacts carry their cell; a sub-cell collider impact has none, and is identified by id. */
   col?: number;
   row?: number;
@@ -58,6 +88,10 @@ export interface TerrainImpact extends SegmentImpact {
 
 function finiteVec(value: Vec2): boolean {
   return Number.isFinite(value.x) && Number.isFinite(value.y);
+}
+
+function finiteGround(value: GroundVector): boolean {
+  return Number.isFinite(value.x) && Number.isFinite(value.z);
 }
 
 function finiteNonNegative(value: number): boolean {
@@ -68,6 +102,13 @@ function pointAlong(start: Vec2, end: Vec2, fraction: number): Vec2 {
   return {
     x: start.x + (end.x - start.x) * fraction,
     y: start.y + (end.y - start.y) * fraction,
+  };
+}
+
+function groundAlong(start: GroundVector, end: GroundVector, fraction: number): GroundVector {
+  return {
+    x: start.x + (end.x - start.x) * fraction,
+    z: start.z + (end.z - start.z) * fraction,
   };
 }
 
@@ -86,6 +127,18 @@ export function normalizeDirection(direction: Vec2, fallback: Vec2 = DEFAULT_FAC
     return { x: fallback.x / fallbackLength, y: fallback.y / fallbackLength };
   }
   return { ...DEFAULT_FACING };
+}
+
+/**
+ * `normalizeDirection` on the ground plane. It crosses the `planarOf`/`groundOf` bridge once, here,
+ * rather than at every geometry call site: the arithmetic is identical, only the field names
+ * differ, and one crossing in the engine is auditable where fifty in the world systems are not.
+ */
+export function normalizeGround(
+  direction: GroundVector,
+  fallback: GroundVector = DEFAULT_GROUND_FACING,
+): GroundVector {
+  return groundOf(normalizeDirection(planarOf(direction), planarOf(fallback)));
 }
 
 /** The last non-zero authoritative movement becomes facing; standing still preserves it. */
@@ -125,15 +178,15 @@ export function facingFromInput(input: Input, current: Vec2 = DEFAULT_FACING): V
 }
 
 export function frontalArc(
-  origin: Vec2,
-  direction: Vec2,
+  origin: GroundVector,
+  direction: GroundVector,
   radius: number,
   halfAngleRadians: number,
   innerRadius = 0,
 ): FrontalArc {
   return {
-    origin: { ...origin },
-    direction: normalizeDirection(direction),
+    origin: { x: origin.x, z: origin.z },
+    direction: normalizeGround(direction),
     radius: Math.max(0, radius),
     innerRadius: Math.max(0, Math.min(innerRadius, radius)),
     halfAngleRadians: Math.max(0, Math.min(Math.PI, halfAngleRadians)),
@@ -141,32 +194,32 @@ export function frontalArc(
 }
 
 export function directionalCone(
-  origin: Vec2,
-  direction: Vec2,
+  origin: GroundVector,
+  direction: GroundVector,
   length: number,
   halfAngleRadians: number,
 ): DirectionalCone {
   return {
-    origin: { ...origin },
-    direction: normalizeDirection(direction),
+    origin: { x: origin.x, z: origin.z },
+    direction: normalizeGround(direction),
     length: Math.max(0, length),
     halfAngleRadians: Math.max(0, Math.min(Math.PI / 2, halfAngleRadians)),
   };
 }
 
 export function strikeCapsule(
-  origin: Vec2,
-  direction: Vec2,
+  origin: GroundVector,
+  direction: GroundVector,
   length: number,
   radius: number,
 ): StrikeCapsule {
-  const facing = normalizeDirection(direction);
+  const facing = normalizeGround(direction);
   const safeLength = Math.max(0, length);
   return {
-    start: { ...origin },
+    start: { x: origin.x, z: origin.z },
     end: {
       x: origin.x + facing.x * safeLength,
-      y: origin.y + facing.y * safeLength,
+      z: origin.z + facing.z * safeLength,
     },
     radius: Math.max(0, radius),
   };
@@ -175,9 +228,9 @@ export function strikeCapsule(
 /** Circle/entity intersection with a frontal annular sector. */
 export function circleIntersectsArc(circle: Circle, arc: FrontalArc): boolean {
   if (
-    !finiteVec(circle.center) ||
+    !finiteGround(circle.center) ||
     !finiteNonNegative(circle.radius) ||
-    !finiteVec(arc.origin) ||
+    !finiteGround(arc.origin) ||
     !finiteNonNegative(arc.radius) ||
     !finiteNonNegative(arc.innerRadius) ||
     !finiteNonNegative(arc.halfAngleRadians)
@@ -185,14 +238,14 @@ export function circleIntersectsArc(circle: Circle, arc: FrontalArc): boolean {
     return false;
   }
   const dx = circle.center.x - arc.origin.x;
-  const dy = circle.center.y - arc.origin.y;
+  const dy = circle.center.z - arc.origin.z;
   const distance = Math.hypot(dx, dy);
   if (distance > arc.radius + circle.radius) return false;
   if (distance + circle.radius < arc.innerRadius) return false;
   if (distance <= circle.radius + DIRECTION_EPSILON) return true;
 
-  const facing = normalizeDirection(arc.direction);
-  const dot = (dx * facing.x + dy * facing.y) / distance;
+  const facing = normalizeGround(arc.direction);
+  const dot = (dx * facing.x + dy * facing.z) / distance;
   const angularPadding = Math.asin(Math.min(1, circle.radius / distance));
   return dot + IMPACT_EPSILON >= Math.cos(Math.min(Math.PI, arc.halfAngleRadians + angularPadding));
 }
@@ -200,46 +253,50 @@ export function circleIntersectsArc(circle: Circle, arc: FrontalArc): boolean {
 /** Circle/entity intersection with a finite directional cone. */
 export function circleIntersectsCone(circle: Circle, cone: DirectionalCone): boolean {
   if (
-    !finiteVec(circle.center) ||
+    !finiteGround(circle.center) ||
     !finiteNonNegative(circle.radius) ||
-    !finiteVec(cone.origin) ||
+    !finiteGround(cone.origin) ||
     !finiteNonNegative(cone.length) ||
     !finiteNonNegative(cone.halfAngleRadians)
   ) {
     return false;
   }
-  const facing = normalizeDirection(cone.direction);
+  const facing = normalizeGround(cone.direction);
   const dx = circle.center.x - cone.origin.x;
-  const dy = circle.center.y - cone.origin.y;
-  const forward = dx * facing.x + dy * facing.y;
+  const dy = circle.center.z - cone.origin.z;
+  const forward = dx * facing.x + dy * facing.z;
   if (forward < -circle.radius || forward > cone.length + circle.radius) return false;
-  const sideways = Math.abs(dx * -facing.y + dy * facing.x);
+  const sideways = Math.abs(dx * -facing.z + dy * facing.x);
   const coneRadius = Math.max(0, forward) * Math.tan(cone.halfAngleRadians);
   return sideways <= coneRadius + circle.radius + IMPACT_EPSILON;
 }
 
-function distanceSquaredToSegment(point: Vec2, start: Vec2, end: Vec2): number {
+function distanceSquaredToSegment(
+  point: GroundVector,
+  start: GroundVector,
+  end: GroundVector,
+): number {
   const dx = end.x - start.x;
-  const dy = end.y - start.y;
+  const dy = end.z - start.z;
   const lengthSquared = dx * dx + dy * dy;
   if (lengthSquared <= DIRECTION_EPSILON * DIRECTION_EPSILON) {
-    return (point.x - start.x) ** 2 + (point.y - start.y) ** 2;
+    return (point.x - start.x) ** 2 + (point.z - start.z) ** 2;
   }
   const fraction = Math.max(
     0,
-    Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared),
+    Math.min(1, ((point.x - start.x) * dx + (point.z - start.z) * dy) / lengthSquared),
   );
   const closestX = start.x + dx * fraction;
-  const closestY = start.y + dy * fraction;
-  return (point.x - closestX) ** 2 + (point.y - closestY) ** 2;
+  const closestZ = start.z + dy * fraction;
+  return (point.x - closestX) ** 2 + (point.z - closestZ) ** 2;
 }
 
 export function circleIntersectsCapsule(circle: Circle, capsule: StrikeCapsule): boolean {
   if (
-    !finiteVec(circle.center) ||
+    !finiteGround(circle.center) ||
     !finiteNonNegative(circle.radius) ||
-    !finiteVec(capsule.start) ||
-    !finiteVec(capsule.end) ||
+    !finiteGround(capsule.start) ||
+    !finiteGround(capsule.end) ||
     !finiteNonNegative(capsule.radius)
   ) {
     return false;
@@ -252,17 +309,17 @@ export function circleIntersectsCapsule(circle: Circle, capsule: StrikeCapsule):
 }
 
 export function advanceProjectile(
-  position: Vec2,
-  direction: Vec2,
+  position: GroundVector,
+  direction: GroundVector,
   speed: number,
   dtSeconds: number,
 ): ProjectileAdvance {
-  const from = { ...position };
+  const from = { x: position.x, z: position.z };
   const distance = Math.max(0, speed) * Math.max(0, dtSeconds);
-  const facing = normalizeDirection(direction);
+  const facing = normalizeGround(direction);
   return {
     from,
-    to: { x: from.x + facing.x * distance, y: from.y + facing.y * distance },
+    to: { x: from.x + facing.x * distance, z: from.z + facing.z * distance },
     distance,
   };
 }
@@ -273,29 +330,29 @@ export function advanceProjectile(
  * tunnel through it.
  */
 export function sweptProjectileEntityImpact(
-  start: Vec2,
-  end: Vec2,
+  start: GroundVector,
+  end: GroundVector,
   projectileRadius: number,
   entity: Circle,
   entityId: string,
 ): SegmentImpact | null {
   if (
-    !finiteVec(start) ||
-    !finiteVec(end) ||
+    !finiteGround(start) ||
+    !finiteGround(end) ||
     !finiteNonNegative(projectileRadius) ||
-    !finiteVec(entity.center) ||
+    !finiteGround(entity.center) ||
     !finiteNonNegative(entity.radius)
   ) {
     return null;
   }
   const dx = end.x - start.x;
-  const dy = end.y - start.y;
+  const dy = end.z - start.z;
   const ox = start.x - entity.center.x;
-  const oy = start.y - entity.center.y;
+  const oy = start.z - entity.center.z;
   const radius = projectileRadius + entity.radius;
   const c = ox * ox + oy * oy - radius * radius;
   if (c <= 0) {
-    return { fraction: 0, point: { ...start }, kind: "entity", id: entityId };
+    return { fraction: 0, point: { x: start.x, z: start.z }, kind: "entity", id: entityId };
   }
   const a = dx * dx + dy * dy;
   if (a <= DIRECTION_EPSILON * DIRECTION_EPSILON) return null;
@@ -306,27 +363,34 @@ export function sweptProjectileEntityImpact(
   if (fraction < 0 || fraction > 1) return null;
   return {
     fraction,
-    point: pointAlong(start, end, fraction),
+    point: groundAlong(start, end, fraction),
     kind: "entity",
     id: entityId,
   };
 }
 
-function segmentAabbEntry(
-  start: Vec2,
-  end: Vec2,
-  left: number,
-  top: number,
-  right: number,
-  bottom: number,
+/**
+ * The slab test, in scalars rather than in either vocabulary: `(originU, originV)` is the segment's
+ * start, `(deltaU, deltaV)` its displacement, and the four bounds its axis-aligned box. Written this
+ * way so the pixel sweep, the ground sweep and the server's heightfield sweep are literally the
+ * same arithmetic — "two intersection routines that should agree" is how an arrow passes through a
+ * trunk on one side and not the other, and that comment already applies once inside this file.
+ */
+export function segmentBoxEntry(
+  originU: number,
+  originV: number,
+  deltaU: number,
+  deltaV: number,
+  minU: number,
+  minV: number,
+  maxU: number,
+  maxV: number,
 ): number | null {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
   let entry = 0;
   let exit = 1;
   const axes: readonly [number, number, number, number][] = [
-    [start.x, dx, left, right],
-    [start.y, dy, top, bottom],
+    [originU, deltaU, minU, maxU],
+    [originV, deltaV, minV, maxV],
   ];
   for (const [origin, delta, min, max] of axes) {
     if (Math.abs(delta) <= DIRECTION_EPSILON) {
@@ -350,38 +414,57 @@ function segmentAabbEntry(
  * map-sized ColliderIndex for every candidate.
  */
 export function segmentIntersectsRect(
-  start: Vec2,
-  end: Vec2,
-  rect: { x: number; y: number; width: number; height: number },
+  start: GroundVector,
+  end: GroundVector,
+  rect: ColliderRect,
   radius = 0,
 ): boolean {
+  return sweptRectEntry(start, end, rect, radius) !== null;
+}
+
+/**
+ * The swept entry fraction of a ground segment into one dilated `ColliderRect`, or `null` when it
+ * never enters. `segmentIntersectsRect` is the boolean question; the fraction is what a sweep that
+ * must report WHERE it was stopped needs, and both must come from one routine.
+ */
+export function sweptRectEntry(
+  start: GroundVector,
+  end: GroundVector,
+  rect: ColliderRect,
+  radius = 0,
+): number | null {
   if (
-    !finiteVec(start) ||
-    !finiteVec(end) ||
+    !finiteGround(start) ||
+    !finiteGround(end) ||
     !finiteNonNegative(radius) ||
     !Number.isFinite(rect.x) ||
-    !Number.isFinite(rect.y) ||
-    !finiteNonNegative(rect.width) ||
-    !finiteNonNegative(rect.height)
+    !Number.isFinite(rect.z) ||
+    !finiteNonNegative(rect.w) ||
+    !finiteNonNegative(rect.h)
   ) {
-    return false;
+    return null;
   }
-  return (
-    segmentAabbEntry(
-      start,
-      end,
-      rect.x - radius,
-      rect.y - radius,
-      rect.x + rect.width + radius,
-      rect.y + rect.height + radius,
-    ) !== null
+  return segmentBoxEntry(
+    start.x,
+    start.z,
+    end.x - start.x,
+    end.z - start.z,
+    rect.x - radius,
+    rect.z - radius,
+    rect.x + rect.w + radius,
+    rect.z + rect.h + radius,
   );
 }
 
 /**
  * Sweeps a projectile circle against the collision tiles and the sub-cell colliders, returning
- * whichever it meets first. Both use the same `segmentAabbEntry`: two intersection routines that
+ * whichever it meets first. Both use the same `segmentBoxEntry`: two intersection routines that
  * "should" agree is how an arrow passes through a trunk on one side and not the other.
+ *
+ * **The PIXEL path's function**, and the only `Vec2` geometry left in this file. Its `TileMap` is
+ * pixel-indexed from a top-left origin, so it cannot answer for a grid-centred heightfield at all.
+ * `sweptGroundTerrainImpact` (`packages/server/src/world/terrain-access.ts`) is its successor and
+ * carries the identical sweep against relief and the tile-unit collider index.
  */
 export function sweptProjectileTerrainImpact(
   start: Vec2,
@@ -399,9 +482,11 @@ export function sweptProjectileTerrainImpact(
   for (let row = minRow; row <= maxRow; row++) {
     for (let col = minCol; col <= maxCol; col++) {
       if (!isSolidKind(kindAt(tiles, col, row))) continue;
-      const fraction = segmentAabbEntry(
-        start,
-        end,
+      const fraction = segmentBoxEntry(
+        start.x,
+        start.y,
+        end.x - start.x,
+        end.y - start.y,
         col * TILE_SIZE - radius,
         row * TILE_SIZE - radius,
         (col + 1) * TILE_SIZE + radius,
@@ -432,9 +517,11 @@ export function sweptProjectileTerrainImpact(
     for (let index = 0; index < candidates.length; index++) {
       const rect = candidates[index];
       if (!rect) continue;
-      const fraction = segmentAabbEntry(
-        start,
-        end,
+      const fraction = segmentBoxEntry(
+        start.x,
+        start.y,
+        end.x - start.x,
+        end.y - start.y,
         rect.x - radius,
         rect.y - radius,
         rect.x + rect.width + radius,
@@ -453,7 +540,14 @@ export function sweptProjectileTerrainImpact(
   return first;
 }
 
-function compareImpacts(a: SegmentImpact, b: SegmentImpact): number {
+/**
+ * Ordering only, so it reads no point: the ground impacts and the pixel path's `TerrainImpact` are
+ * both ordered by fraction, then terrain-wins-ties, then stable id.
+ */
+function compareImpacts(
+  a: Pick<SegmentImpact, "fraction" | "kind" | "id">,
+  b: Pick<SegmentImpact, "fraction" | "kind" | "id">,
+): number {
   const difference = a.fraction - b.fraction;
   if (Math.abs(difference) > IMPACT_EPSILON) return difference;
   if (a.kind !== b.kind) return a.kind === "terrain" ? -1 : 1;

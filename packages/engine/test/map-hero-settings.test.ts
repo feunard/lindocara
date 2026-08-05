@@ -5,6 +5,7 @@ import {
   maxMapHeroMovementSpeed,
   parseMapHeroSettings,
 } from "@lindocara/engine/map-hero-settings.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, test } from "vitest";
 
 describe("map hero settings", () => {
@@ -21,10 +22,14 @@ describe("map hero settings", () => {
     expect(settings?.classes.peasant.stats).toMatchObject({
       attackBase: 8,
       attackPerLevel: 1,
-      attackRange: 54,
+      attackRange: 54 / TILE_SIZE,
       movementSpeed: 247 / 64,
     });
-    expect(settings?.classes.priest.stats.heal).toEqual({ base: 35, perLevel: 3, range: 390 });
+    expect(settings?.classes.priest.stats.heal).toEqual({
+      base: 35,
+      perLevel: 3,
+      range: 390 / TILE_SIZE,
+    });
   });
 
   test("round-trips map overrides and ability locks", () => {

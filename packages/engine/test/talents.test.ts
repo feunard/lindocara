@@ -12,6 +12,7 @@ import {
   talentState,
   unlockTalent,
 } from "@lindocara/engine/talents.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("class talents", () => {
@@ -306,7 +307,9 @@ describe("class talents", () => {
       1,
     );
     expect(axe.cooldownMs).toBe(370);
-    expect(axe.range).toBe(60.5);
+    // 54 px * 1.12 was 60.5 px; the same reach in tile units, rounded to the finer
+    // tile-unit quantum `roundGroundLength` now uses.
+    expect(axe.range).toBe(0.945);
     expect(axe).not.toBe(CLASS_SKILLS.peasant[0]);
 
     const peasantBase = CLASS_SKILLS.peasant[0];
@@ -319,7 +322,7 @@ describe("class talents", () => {
 
   it("exposes the ranger ricochet and warrior perfect-parry capstones", () => {
     expect(talentEffect("ranger", ["ranger.piercing_arrow.ricochet"], "ricochet", 2)).toMatchObject(
-      { ratio: 0.6, range: 160 },
+      { ratio: 0.6, range: 160 / TILE_SIZE },
     );
     expect(
       talentEffect("warrior", ["warrior.iron_guard.perfect"], "perfect_parry", 2),
@@ -329,7 +332,7 @@ describe("class talents", () => {
   it("exposes distinct warrior utility variants without changing offensive capstone values", () => {
     expect(talentEffect("warrior", ["warrior.iron_guard.rempart"], "ally_guard", 2)).toEqual({
       kind: "ally_guard",
-      radius: 120,
+      radius: 120 / TILE_SIZE,
       reduction: 0.25,
     });
     const colossus = skillWithTalents("warrior", ["warrior.shield_bash.mastery"], 3);
@@ -365,7 +368,7 @@ describe("class talents", () => {
     expect(priest.radius).toBeGreaterThan(CLASS_SKILLS.priest[3]?.radius ?? 0);
     expect(
       talentEffect("priest", ["priest.blink.mastery"], "luminous_transfiguration", 3),
-    ).toMatchObject({ radius: 95, power: 16, powerPerLevel: 1 });
+    ).toMatchObject({ radius: 95 / TILE_SIZE, power: 16, powerPerLevel: 1 });
   });
 
   it("adds four arrows to the five-arrow Volley", () => {
@@ -385,11 +388,11 @@ describe("class talents", () => {
     expect(talentEffect("ranger", ["ranger.dash.retreat_shot"], "retreat_shot", 4)).toMatchObject({
       projectiles: 3,
       powerRatio: 0.45,
-      range: 280,
+      range: 280 / TILE_SIZE,
     });
     expect(
       talentEffect("ranger", ["ranger.heartseeker.comet_arrow"], "comet_arrow", 5),
-    ).toMatchObject({ directPowerRatio: 0.85, radius: 105, splashPowerRatio: 0.65 });
+    ).toMatchObject({ directPowerRatio: 0.85, radius: 105 / TILE_SIZE, splashPowerRatio: 0.65 });
   });
 
   it("centralizes the priest specialization and cleanse contracts", () => {
@@ -399,7 +402,7 @@ describe("class talents", () => {
     });
     expect(
       talentEffect("priest", ["priest.blink.sacred_passage"], "sacred_passage", 3),
-    ).toMatchObject({ width: 22, power: 18, powerPerLevel: 1 });
+    ).toMatchObject({ width: 22 / TILE_SIZE, power: 18, powerPerLevel: 1 });
     expect(talentEffect("priest", ["priest.prayer.mastery"], "sanctuary", 4)).toMatchObject({
       ticks: 3,
       intervalMs: 1_000,

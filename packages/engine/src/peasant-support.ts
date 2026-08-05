@@ -3,6 +3,7 @@ import {
   type PartyMaterials,
   spendPartyMaterials,
 } from "./party-harvest-state.js";
+import { TILE_SIZE } from "./tilemap.js";
 
 export const PEASANT_SUPPORT_SKILL_SLOTS = [4, 5] as const;
 export type PeasantSupportSkillSlot = (typeof PEASANT_SUPPORT_SKILL_SLOTS)[number];
@@ -14,7 +15,7 @@ export interface PeasantSupportSkillConfig {
   slot: PeasantSupportSkillSlot;
   /** Party-wide stock reserved and spent atomically by the authoritative party/world saga. */
   cost: Readonly<PartyMaterialAmounts>;
-  /** World-space effect radius. */
+  /** World-space effect radius, in TILE UNITS since the game's geometry moved off pixels. */
   radius: number;
   /** Camp lifetime for slot 4; fuse duration for slot 5. */
   durationMs: number;
@@ -35,7 +36,7 @@ export const PEASANT_SUPPORT_SKILLS: Readonly<
     id: "makeshift_camp",
     slot: 4,
     cost: { wood: 4, stone: 2, meat: 2 },
-    radius: 96,
+    radius: 96 / TILE_SIZE,
     durationMs: 30_000,
     power: 60,
   },
@@ -43,7 +44,7 @@ export const PEASANT_SUPPORT_SKILLS: Readonly<
     id: "homemade_bomb",
     slot: 5,
     cost: { iron: 2, stone: 2 },
-    radius: 110,
+    radius: 110 / TILE_SIZE,
     durationMs: 650,
     power: 85,
   },
