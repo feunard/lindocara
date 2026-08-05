@@ -365,9 +365,9 @@ LAB_SFX_PACK=/path/to/pack apps/lab/scripts/sync-assets.sh
 
 ## Deployed as a static site
 
-The lab ships to [lab.bay.alepha.dev](https://lab.bay.alepha.dev) as **files, not a process**. Bay
-hosts a site with no server behind it: no port, no `.env`, no database, no health probe. Three
-pieces make that work, and each is easy to undo by accident:
+The lab ships to [lindocara-lab.bay.alepha.dev](https://lindocara-lab.bay.alepha.dev) as **files,
+not a process**. Bay hosts a site with no server behind it: no port, no `.env`, no database, no
+health probe. Three pieces make that work, and each is easy to undo by accident:
 
 - `alepha.config.ts` declares `build: { target: "static", static: { source: "dist-client" } }`.
   `dist-client` lives **outside** `dist/` on purpose — `alepha build` cleans `dist/` before any task
@@ -384,9 +384,20 @@ which is why the hand-written shell (HUD markup, inline CSS, the cursor `image-s
 verbatim — `static.source` copies it as written instead of generating a `<div id="root">` shell over
 it.
 
+**The host is not ours to choose.** Bay composes it from the app name — `<name>[-<env>].<base>`,
+bare name in production — which is why this is `lindocara-lab.bay.alepha.dev` and not the
+`lab.bay.alepha.dev` it was first configured with. That is deliberate on Bay's side (the name is a
+property of the artifact, not a deployment choice), and the `lore` path has no channel to override
+it the way the `bay` adapter does. A `domain` in `alepha.config.ts` therefore only NAMES the host —
+set it wrong and the deploy still reports success while the address 404s with no certificate.
+Moving it would mean renaming the app itself (`platform({ name: "lab" })`), which today also needs
+an upstream fix: `alepha pack` names the artifact from `package.json` while the adapter looks for
+`${project}-latest.tar.gz`, so a name override cannot be found after packing.
+
 The deploy needs `LORE_API_KEY` in the environment (it is a repository secret for the game's
 workflow). `npm run deploy -w @lindocara/lab` builds the client, builds the artifact and uploads the
-release to Lore; the machine picks it up on its own outbound channel.
+release to Lore; the machine picks it up on its own outbound channel. CI does the same on every push
+to `main` (`deploy-lab` in `.github/workflows/deploy.yml`), gated on the same checks a PR runs.
 
 ## Commands
 

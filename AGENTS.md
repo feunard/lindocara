@@ -24,7 +24,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` (each sync = its own commit, pinned in `.vendor/vendor.json`) |
 | `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
 | `npm run lab` | `vite dev` on `apps/lab` — the HD-2D render witness (`@lindocara/hd2d` + `three`), see below |
-| `npm run deploy -w @lindocara/lab` | ship the witness to [lab.bay.alepha.dev](https://lab.bay.alepha.dev) as a **static site** — files with no process behind them, `target: "static"` + `static.source`; needs `LORE_API_KEY`, see [`apps/lab/AGENTS.md`](./apps/lab/AGENTS.md) |
+| `npm run deploy -w @lindocara/lab` | ship the witness to [lindocara-lab.bay.alepha.dev](https://lindocara-lab.bay.alepha.dev) as a **static site** — files with no process behind them, `target: "static"` + `static.source`; needs `LORE_API_KEY`, see [`apps/lab/AGENTS.md`](./apps/lab/AGENTS.md) |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
 | `npm test` | Vitest — every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
