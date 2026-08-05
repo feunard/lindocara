@@ -11,10 +11,13 @@
 -- anchored at the map's top-left corner and a tile-unit grid is anchored at its centre, so the
 -- shift depends on a grid size the hero row does not carry, and the tile map the hero was standing
 -- on no longer exists as geometry at all (a room's collision is baked from its heightfield now).
--- `0,0,0` is the grid CENTRE in the new system, and admission does not take it literally: it seats
--- the body on the map's own authored spawn, or on the standable cell nearest to it
--- (`mapEntryPosition`, `packages/engine/src/terrain-access.ts`). A hero therefore lands somewhere
--- sane rather than at a coordinate 64 times too large, or in the sea.
+-- `0,0,0` is the grid CENTRE in the new system, and admission makes sure it is somewhere a body can
+-- actually be: `restoreStandablePosition` keeps it when the centre is standable ground, and falls
+-- back to `mapEntryPosition` — the map's own authored spawn, or the standable cell nearest it —
+-- when it is not (`packages/engine/src/terrain-access.ts`). So a migrated hero lands at the grid
+-- centre on most maps and at the map's entry on an island whose middle is sea. Not at its authored
+-- spawn, and not at a coordinate 64 times too large. New heroes are unaffected: `resolveHeroStart`
+-- writes the map's own heightfield spawn at creation.
 --
 -- Death is reset with it: a corpse whose coordinates cannot be trusted would send a ghost walking
 -- to a point on no map. Clearing `life` back to `alive` alongside the two corpse columns is what
