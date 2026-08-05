@@ -64,6 +64,44 @@ jobs:
       - name: Deploy to Bay
         run: npm run deploy -w @lindocara/main
 
+  # The HD-2D witness, deployed beside the game as a SITE rather than a service:
+  # `target: "static"` produces files and a manifest declaring `runtime: "static"`, and Bay
+  # hosts it with no process behind it — no port, no .env, no database, no health probe.
+  #
+  # Its own job rather than a second step in `deploy`, because the two apps are independent:
+  # a failed game deploy should not withhold the lab, and neither should wait on the other.
+  # Both still hang off `check`, so nothing ships without the same suite a PR runs.
+  #
+  # Same `LORE_API_KEY` — a Lore key is scoped to its owner's projects, and both apps live in
+  # the same Lindocara project (63), keyed apart by app name and environment.
+  deploy-lab:
+    if: github.ref == 'refs/heads/main'
+    needs: check
+    name: deploy the lab to Bay
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://lindocara-lab.bay.alepha.dev
+    env:
+      LORE_API_KEY: ${{ secrets.LORE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # `npm run deploy -w @lindocara/lab` is two halves: `vite build` fills `dist-client/`,
+      # then `alepha platform up` builds the static artifact around it, packs, uploads and waits
+      # for the release to serve. The vite half has to run FIRST and outside `dist/` — the alepha
+      # build cleans `dist/` before any task runs, so a client written there would be deleted
+      # before the static target could adopt it.
+      - name: Deploy the lab to Bay
+        run: npm run deploy -w @lindocara/lab
+
       # « La Baie des Cent Voiles » n'a PAS d'étape ici, volontairement. Elle est publiée à la main
       # sous le compte `baieauthor`, dont le mot de passe n'est pas celui de `secrets.SEED_PASSWORD`
       # (le pas de publication échouait en 401). Deux façons de l'automatiser, au choix : aligner le
