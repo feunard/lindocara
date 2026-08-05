@@ -132,6 +132,25 @@ export interface Attachment extends WorldPosition {
   resurrectionAt?: number;
 }
 
+/**
+ * The two capabilities the world systems actually need from the room's spatial index, on the
+ * GROUND plane.
+ *
+ * They are declared as capabilities rather than as `SpatialGrid<T>` because the grid is still
+ * planar-pixel — `SpatialEntity extends Vec2`, so it indexes a converted entity's ground `x`
+ * against its ELEVATION `y` — and converting it is Task 6's. Naming what is used keeps each
+ * system's own contract correct in tile units today, lets a ground-correct index satisfy it with
+ * no further change, and leaves the mismatch loud at the ONE place that composes the two (the
+ * room) instead of scattered through the systems.
+ */
+export interface GroundIndexQuery<T> {
+  queryRadius(position: GroundVector, radius: number): T[];
+}
+
+export interface GroundIndexUpdate<T> {
+  update(entity: T, previousPosition: GroundVector): void;
+}
+
 export interface PlayerInterest {
   players: Set<string>;
   monsters: Set<string>;

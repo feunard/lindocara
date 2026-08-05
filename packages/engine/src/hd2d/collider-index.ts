@@ -28,6 +28,16 @@ export interface ColliderIndex {
   add(rect: ColliderRect): void;
   /** `true` if a disc of radius `r` centered at `(x, z)` overlaps a rectangle. */
   blocked(x: number, z: number, r: number): boolean;
+  /**
+   * Broad phase for a SWEPT query: every distinct rectangle whose bucket the axis-aligned box
+   * touches. It over-reports (a bucket is coarser than a rectangle) and never under-reports, so
+   * the caller still tests each candidate exactly — which is the whole contract, because a swept
+   * projectile that only samples points along its path is a projectile that tunnels.
+   *
+   * `blocked` cannot serve here: it answers about one disc at one instant, and a tick's travel is
+   * a segment, not a point.
+   */
+  inBox(minX: number, minZ: number, maxX: number, maxZ: number): readonly ColliderRect[];
 }
 
 /** Squared distance from the disc's center to the closest point of the rectangle. */
@@ -82,6 +92,17 @@ export function createColliderIndex(): ColliderIndex {
       }
       for (const rect of seen) if (overlaps(rect, x, z, r)) return true;
       return false;
+    },
+    inBox(minX, minZ, maxX, maxZ) {
+      const seen = new Set<ColliderRect>();
+      for (let i = Math.floor(minX / CELL); i <= Math.floor(maxX / CELL); i++) {
+        for (let j = Math.floor(minZ / CELL); j <= Math.floor(maxZ / CELL); j++) {
+          const bucket = grid.get(key(i, j));
+          if (!bucket) continue;
+          for (const rect of bucket) seen.add(rect);
+        }
+      }
+      return [...seen];
     },
   };
 }

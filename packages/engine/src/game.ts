@@ -1,5 +1,5 @@
 import { type ColliderIndex, emptyColliderIndex, overlapsCollider } from "./collider.js";
-import type { GroundVector } from "./ground.js";
+import type { GroundVector, WorldPosition } from "./ground.js";
 import { ROGUE_BALANCE } from "./rogue.js";
 import {
   clampToWorld,
@@ -260,7 +260,15 @@ export function isMonsterSpecialTechnique(value: unknown): value is MonsterSpeci
   );
 }
 
-export interface MonsterSpawn extends Vec2 {
+/**
+ * **Legacy catalogue content, in PIXELS, on the three-axis shape.** `x`/`z` are the ground axes and
+ * `y` is elevation, like every other converted runtime position — but the magnitudes below are
+ * still the pixel coordinates of the Verdant Reach catalogue map, which is a `LegacyZoneDefinition`
+ * (see `zones.ts`) that no live party is ever routed to. The axis rename is what mattered: without
+ * it `createMonsters` silently produced monsters with `z: undefined`, which is a NaN position that
+ * no test and no compiler ever complained about.
+ */
+export interface MonsterSpawn extends WorldPosition {
   id: string;
   /** Authored name; falls back to the localized species name when absent. */
   name?: string;
@@ -309,7 +317,8 @@ export interface QuestDefinition {
   rewardGold: number;
 }
 
-export interface GuardDefinition extends Vec2 {
+/** Same shape and same legacy-pixel caveat as `MonsterSpawn` above. */
+export interface GuardDefinition extends WorldPosition {
   id: string;
   patrolRadius: number;
   graphicAssetId?: EditorAssetId | null;
@@ -457,10 +466,10 @@ export const SPAWN_POINTS: readonly Vec2[] = Array.from({ length: 24 }, (_, inde
 }));
 
 export const CITY_GUARDS: readonly GuardDefinition[] = [
-  { id: "guard-west", x: 430, y: 760, patrolRadius: 210 },
-  { id: "guard-east", x: 1510, y: 950, patrolRadius: 210 },
-  { id: "guard-north", x: 1040, y: 510, patrolRadius: 190 },
-  { id: "guard-south", x: 1040, y: 1120, patrolRadius: 190 },
+  { id: "guard-west", x: 430, y: 0, z: 760, patrolRadius: 210 },
+  { id: "guard-east", x: 1510, y: 0, z: 950, patrolRadius: 210 },
+  { id: "guard-north", x: 1040, y: 0, z: 510, patrolRadius: 190 },
+  { id: "guard-south", x: 1040, y: 0, z: 1120, patrolRadius: 190 },
 ] as const;
 
 /** The three geometric guard constants are tile units — exact quotients of 360/54/235 px. */
@@ -758,7 +767,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "spear_goblin",
     zone: "route",
     x: 1870,
-    y: 820,
+    y: 0,
+    z: 820,
     patrolRadius: 75,
   },
   {
@@ -767,7 +777,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "torch_goblin",
     zone: "route",
     x: 2260,
-    y: 820,
+    y: 0,
+    z: 820,
     patrolRadius: 85,
   },
   {
@@ -776,7 +787,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "spear_goblin",
     zone: "route",
     x: 1580,
-    y: 780,
+    y: 0,
+    z: 780,
     patrolRadius: 120,
     mayEnterSafeZone: true,
   },
@@ -786,7 +798,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "gnoll_marauder",
     zone: "clearing",
     x: 1880,
-    y: 390,
+    y: 0,
+    z: 390,
     patrolRadius: 95,
   },
   {
@@ -795,7 +808,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "gnoll_marauder",
     zone: "clearing",
     x: 2260,
-    y: 590,
+    y: 0,
+    z: 590,
     patrolRadius: 105,
   },
   {
@@ -807,7 +821,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     // the patrol ring's east edge stays clear of the fattened tile the coarsened grove wall
     // rounds out to — see the strict isWalkable assertion in game.test.ts.
     x: 2000,
-    y: 1290,
+    y: 0,
+    z: 1290,
     patrolRadius: 70,
   },
   {
@@ -816,7 +831,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "gnoll_marauder",
     zone: "forest",
     x: 2320,
-    y: 1610,
+    y: 0,
+    z: 1610,
     patrolRadius: 70,
   },
   {
@@ -825,7 +841,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "spear_goblin",
     zone: "farm",
     x: 1640,
-    y: 1900,
+    y: 0,
+    z: 1900,
     patrolRadius: 90,
   },
   {
@@ -834,7 +851,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "minotaur_brute",
     zone: "farm",
     x: 2350,
-    y: 1900,
+    y: 0,
+    z: 1900,
     patrolRadius: 100,
   },
   {
@@ -843,7 +861,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "skull_guard",
     zone: "ruins",
     x: 3380,
-    y: 420,
+    y: 0,
+    z: 420,
     patrolRadius: 100,
   },
   {
@@ -852,7 +871,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "skull_crusader",
     zone: "ruins",
     x: 3820,
-    y: 820,
+    y: 0,
+    z: 820,
     patrolRadius: 95,
   },
   {
@@ -861,7 +881,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "skull_warden",
     zone: "ruins",
     x: 3220,
-    y: 1160,
+    y: 0,
+    z: 1160,
     patrolRadius: 80,
   },
   {
@@ -870,7 +891,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "mire_troll",
     zone: "swamp",
     x: 3900,
-    y: 2450,
+    y: 0,
+    z: 2450,
     patrolRadius: 70,
   },
   {
@@ -879,7 +901,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "mire_troll",
     zone: "swamp",
     x: 3300,
-    y: 2100,
+    y: 0,
+    z: 2100,
     patrolRadius: 80,
   },
   {
@@ -888,7 +911,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     species: "minotaur_brute",
     zone: "gate",
     x: 4070,
-    y: 1100,
+    y: 0,
+    z: 1100,
     patrolRadius: 85,
   },
   {
@@ -899,7 +923,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     // y: 870 (was 850) so the patrol ring's north edge clears the fattened tile below
     // gate-north-cliff — see the strict isWalkable assertion in game.test.ts.
     x: 4300,
-    y: 870,
+    y: 0,
+    z: 870,
     patrolRadius: 95,
   },
 ] as const;

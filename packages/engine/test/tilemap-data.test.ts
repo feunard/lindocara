@@ -112,14 +112,16 @@ describe("the generated Verdant Reach tilemap", () => {
 
   it("keeps every monster spawn and guard post walkable", () => {
     for (const spawn of MONSTER_SPAWNS) {
-      expect(isWalkableBox(VERDANT_REACH_TILES, spawn, PLAYER_SIZE), `monster ${spawn.id}`).toBe(
-        true,
-      );
+      expect(
+        isWalkableBox(VERDANT_REACH_TILES, { x: spawn.x, y: spawn.z }, PLAYER_SIZE),
+        `monster ${spawn.id}`,
+      ).toBe(true);
     }
     for (const guard of CITY_GUARDS) {
-      expect(isWalkableBox(VERDANT_REACH_TILES, guard, PLAYER_SIZE), `guard ${guard.id}`).toBe(
-        true,
-      );
+      expect(
+        isWalkableBox(VERDANT_REACH_TILES, { x: guard.x, y: guard.z }, PLAYER_SIZE),
+        `guard ${guard.id}`,
+      ).toBe(true);
     }
   });
 

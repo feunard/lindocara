@@ -3,37 +3,83 @@ import {
   MAX_PROJECTILES_PER_PLAYER,
   MAX_PROJECTILES_PER_ROOM,
 } from "@lindocara/engine/combat-actions.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { ProjectileKind } from "@lindocara/engine/protocol.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceProjectiles,
   type ProjectileSystemContext,
   removeProjectilesByOwner,
   spawnProjectile,
 } from "@lindocara/server/world/projectile-system.js";
-import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
+import {
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/server/world/terrain-access.js";
 import {
   createGuards,
   createMonsters,
+  type GroundIndexQuery,
   type GuardRuntime,
   type MonsterRuntime,
   newPlayer,
   type PlayerRuntime,
   type ProjectileRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
-function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
-  const tiles = tileMapFromRects(500, 300, obstacles);
+/**
+ * Every coordinate in this suite is written as its original PIXEL value over `TILE_SIZE`, so the
+ * geometry each case was designed around stays readable while the numbers the system reads are
+ * tile units.
+ */
+const t = (pixels: number): number => pixels / TILE_SIZE;
+
+/**
+ * A flat 32x32 heightfield — 2048 px of the old world, wider than any shot here — plus whatever
+ * walls a case needs, as authored sub-cell colliders. Walls are colliders rather than raised cells
+ * because that is what the old `obstacles` rectangles were: props standing on flat ground, not
+ * relief.
+ */
+function terrain(walls: readonly ColliderRect[] = []): ZoneTerrain {
+  const size = 32;
+  const map: MapData = {
+    version: 1,
+    size,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels: new Array(size * size).fill(0),
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [...walls],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
+/** A pixel wall rectangle, in tile units and on the ground plane. */
+function wall(x: number, z: number, width: number, height: number): ColliderRect {
+  return { x: t(x), z: t(z), w: t(width), h: t(height) };
+}
+
+/**
+ * The broad phase the projectile system asks for, done exactly rather than through the room's
+ * spatial grid: the grid still indexes ground `x` against ELEVATION `y` and is Task 6's to
+ * convert, and a suite about projectile GEOMETRY must not be measuring the wrong plane while it
+ * waits. `queryRadius` is the whole capability the system uses.
+ */
+function groundIndex<T extends { id: string; x: number; z: number }>(
+  entities: readonly T[],
+): GroundIndexQuery<T> {
   return {
-    width: 500,
-    height: 300,
-    spawnPoints: [{ x: 0, y: 0 }],
-    obstacles,
-    safeZone: null,
-    tiles,
-    colliders: noColliders(tiles),
+    queryRadius(position: GroundVector, radius: number) {
+      return entities.filter(
+        (entity) => Math.hypot(entity.x - position.x, entity.z - position.z) <= radius,
+      );
+    },
   };
 }
 
@@ -44,6 +90,7 @@ function player(id: string, x: number, hp = 100, partyId = "party-a"): PlayerRun
       nick: id,
       x,
       y: 0,
+      z: 0,
       level: 1,
       xp: 0,
       hp,
@@ -76,7 +123,8 @@ function monster(id: string, x: number): MonsterRuntime {
       zone: "route",
       x,
       y: 0,
-      patrolRadius: 20,
+      z: 0,
+      patrolRadius: t(20),
     },
   ])[0];
   if (!result) throw new Error("monster fixture missing");
@@ -84,13 +132,13 @@ function monster(id: string, x: number): MonsterRuntime {
 }
 
 function guard(id: string, x: number): GuardRuntime {
-  const result = createGuards([{ id, x, y: 0, patrolRadius: 64 }])[0];
+  const result = createGuards([{ id, x, y: 0, z: 0, patrolRadius: t(64) }])[0];
   if (!result) throw new Error("guard fixture missing");
   return result;
 }
 
 function definition(kind: ProjectileKind, pierce = 0) {
-  return { kind, speed: 2_000, radius: 5, pierce };
+  return { kind, speed: t(2_000), radius: t(5), pierce };
 }
 
 function context(options: {
@@ -99,7 +147,7 @@ function context(options: {
   monsters?: MonsterRuntime[];
   allies?: PlayerRuntime[];
   guards?: GuardRuntime[];
-  world?: TerrainGeometry;
+  world?: ZoneTerrain;
   hostile?: boolean;
 }) {
   const monsters = options.monsters ?? [];
@@ -109,10 +157,8 @@ function context(options: {
   const sockets = players.map(
     (entry) => [{ id: `socket-${entry.id}` } as unknown as WebSocket, entry] as const,
   );
-  const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-  const playerGrid = new SpatialGrid<PlayerRuntime>(64);
-  for (const entry of monsters) monsterGrid.insert(entry);
-  for (const entry of players) playerGrid.insert(entry);
+  const monsterGrid = groundIndex(monsters);
+  const playerGrid = groundIndex(players);
   const damageMonster = vi.fn();
   const healPlayer = vi.fn();
   const damagePlayer = vi.fn();
@@ -150,10 +196,10 @@ function launch(
     actionId: "11111111-1111-4111-8111-111111111111",
     owner,
     roomKey: owner.roomKey,
-    origin: { x: 20, y: 16 },
-    direction: { x: 1, y: 0 },
+    origin: { x: t(20), y: 0, z: t(16) },
+    direction: { x: 1, z: 0 },
     definition: definition(kind, options.pierce),
-    range: options.range ?? 300,
+    range: options.range ?? t(300),
     power: 29,
     targetFilter: options.targetFilter ?? "monsters",
     sourceSkillId: kind,
@@ -166,9 +212,9 @@ function launch(
 
 describe("authoritative projectile system", () => {
   it("lets a straight projectile miss and expire at its maximum range", () => {
-    const owner = player("owner", 0);
+    const owner = player("owner", t(0));
     const projectiles: ProjectileRuntime[] = [];
-    launch(projectiles, owner, "arrow", { range: 80 });
+    launch(projectiles, owner, "arrow", { range: t(80) });
     const harness = context({ owner, projectiles });
     advanceProjectiles(harness.value, 1_050);
     expect(harness.damageMonster).not.toHaveBeenCalled();
@@ -176,20 +222,20 @@ describe("authoritative projectile system", () => {
   });
 
   it("hits the visible upper body of a tall monster above its navigation square", () => {
-    const owner = player("owner", 0);
-    const target = monster("tall-target", 100);
+    const owner = player("owner", t(0));
+    const target = monster("tall-target", t(100));
     target.species = "mire_troll";
     target.kind = "troll";
-    target.y = 180;
+    target.z = t(180);
     const projectiles: ProjectileRuntime[] = [];
     const projectile = spawnProjectile(projectiles, {
       actionId: "77777777-7777-4777-8777-777777777777",
       owner,
       roomKey: owner.roomKey,
-      origin: { x: 20, y: 100 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(100) },
+      direction: { x: 1, z: 0 },
       definition: definition("arrow"),
-      range: 300,
+      range: t(300),
       power: 10,
       targetFilter: "monsters",
       sourceSkillId: "quick_shot",
@@ -206,24 +252,53 @@ describe("authoritative projectile system", () => {
   });
 
   it("stops at terrain before an entity and reports the authoritative block", () => {
-    const owner = player("owner", 0);
-    const target = monster("behind-wall", 130);
+    const owner = player("owner", t(0));
+    // 300 px away, not the 130 px this case used in the pixel world. A monster's combat disc is
+    // now centred on the monster itself instead of on its drawn silhouette 50 px to the north (see
+    // MONSTER_BODY_HITBOX), so a goblin's 87 px radius reaches the shooting line squarely and a
+    // goblin standing 130 px behind a wall now overlaps that wall with its own body. Moving it
+    // back restores the case this test is about: a wall BETWEEN the shot and the target.
+    const target = monster("behind-wall", t(300));
     const projectiles: ProjectileRuntime[] = [];
     launch(projectiles, owner, "arrow");
-    const wall = [{ x: 80, y: 0, width: 64, height: 64 }];
-    const harness = context({ owner, projectiles, monsters: [target], world: terrain(wall) });
+    const walls = [wall(80, 0, 64, 64)];
+    const harness = context({ owner, projectiles, monsters: [target], world: terrain(walls) });
     advanceProjectiles(harness.value, 1_050);
     expect(harness.blocked).toHaveBeenCalledTimes(1);
     expect(harness.damageMonster).not.toHaveBeenCalled();
     expect(projectiles).toHaveLength(0);
   });
 
-  it("reports one terminal terrain point for a homemade bomb without piercing the obstacle", () => {
-    const owner = player("bomb-owner", 0);
+  it("cannot tunnel through a thin wall in one tick, however fast it flies", () => {
+    const owner = player("owner", t(0));
     const projectiles: ProjectileRuntime[] = [];
-    launch(projectiles, owner, "homemade_bomb", { range: 240 });
-    const world = terrain([{ x: 60, y: 0, width: 24, height: 96 }]);
-    const target = monster("behind-bomb-wall", 100);
+    // A 6 px fence post, far narrower than one tick of travel: at 2000 px/s the projectile covers
+    // 100 px per 50 ms tick, so an endpoint test — or any walk of samples coarser than the post —
+    // steps straight over it and the shot arrives on the far side untouched.
+    const post = wall(500, 0, 6, 200);
+    const harness = context({ owner, projectiles, world: terrain([post]) });
+    // `MAX_PROJECTILE_RANGE` caps the shot at 8.4 tiles; the post sits inside that.
+    const projectile = launch(projectiles, owner, "arrow", { range: t(1_200) });
+    const removed = vi.fn();
+    harness.value.removed = removed;
+
+    // The whole flight, tick by tick. Nothing may get past the post.
+    for (let tick = 0; tick < 12; tick++) advanceProjectiles(harness.value, 1_050 + tick * 50);
+
+    expect(harness.blocked).toHaveBeenCalledOnce();
+    expect(removed.mock.calls[0]?.[2]).toBe("terrain");
+    // Stopped AT the post's near face, not beyond it.
+    expect(projectile.x).toBeCloseTo(t(500) - projectile.radius, 5);
+    expect(projectiles).toEqual([]);
+  });
+
+  it("reports one terminal terrain point for a homemade bomb without piercing the obstacle", () => {
+    const owner = player("bomb-owner", t(0));
+    const projectiles: ProjectileRuntime[] = [];
+    launch(projectiles, owner, "homemade_bomb", { range: t(240) });
+    const world = terrain([wall(60, 0, 24, 96)]);
+    // Moved back for the same reason as the case above.
+    const target = monster("behind-bomb-wall", t(300));
     const harness = context({ owner, projectiles, monsters: [target], world });
     const removed = vi.fn();
     harness.value.removed = removed;
@@ -238,17 +313,17 @@ describe("authoritative projectile system", () => {
   });
 
   it("lets an enemy projectile hit a living hero and never pass through terrain", () => {
-    const caster = monster("archer", 0);
-    const target = player("target", 90);
+    const caster = monster("archer", t(0));
+    const target = player("target", t(90));
     const projectiles: ProjectileRuntime[] = [];
     const projectile = spawnProjectile(projectiles, {
       actionId: "77777777-7777-4777-8777-777777777777",
       owner: caster,
       roomKey: target.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("arrow"),
-      range: 300,
+      range: t(300),
       power: 17,
       targetFilter: "players_and_guards",
       sourceSkillId: "monster_ranged_attack",
@@ -265,23 +340,23 @@ describe("authoritative projectile system", () => {
       actionId: "88888888-8888-4888-8888-888888888888",
       owner: caster,
       roomKey: target.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("hex_orb"),
-      range: 300,
+      range: t(300),
       power: 17,
       targetFilter: "players_and_guards",
       sourceSkillId: "monster_ranged_attack",
       basic: true,
       now: 1_000,
     });
-    const wall = [{ x: 55, y: 0, width: 20, height: 64 }];
+    const walls = [wall(55, 0, 20, 64)];
     const blocked = context({
       owner: target,
       projectiles: blockedProjectiles,
       allies: [target],
       hostile: true,
-      world: terrain(wall),
+      world: terrain(walls),
     });
     advanceProjectiles(blocked.value, 1_050);
     expect(blocked.damagePlayer).not.toHaveBeenCalled();
@@ -289,20 +364,20 @@ describe("authoritative projectile system", () => {
   });
 
   it("hits a vanished Rogue's decoy without exposing or damaging the hidden hero", () => {
-    const caster = monster("decoy-archer", 0);
-    const rogue = player("hidden-rogue", 90);
+    const caster = monster("decoy-archer", t(0));
+    const rogue = player("hidden-rogue", t(90));
     rogue.class = "rogue";
     rogue.rogueStealthUntil = 9_000;
-    rogue.rogueSilhouette = { x: 90, y: 0, hp: 45, expiresAt: 6_000 };
+    rogue.rogueSilhouette = { x: t(90), y: 0, z: 0, hp: 45, expiresAt: 6_000 };
     const projectiles: ProjectileRuntime[] = [];
     spawnProjectile(projectiles, {
       actionId: "66666666-6666-4666-8666-666666666666",
       owner: caster,
       roomKey: rogue.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("arrow"),
-      range: 300,
+      range: t(300),
       power: 17,
       targetFilter: "players_and_guards",
       sourceSkillId: "monster_ranged_attack",
@@ -325,31 +400,31 @@ describe("authoritative projectile system", () => {
   });
 
   it("blocks an enemy projectile before a guard behind terrain", () => {
-    const caster = monster("blocked-caster", 0);
-    const target = player("observer", 300);
-    const protectedGuard = guard("behind-wall", 90);
+    const caster = monster("blocked-caster", t(0));
+    const target = player("observer", t(300));
+    const protectedGuard = guard("behind-wall", t(90));
     const projectiles: ProjectileRuntime[] = [];
     spawnProjectile(projectiles, {
       actionId: "99999999-9999-4999-8999-999999999999",
       owner: caster,
       roomKey: target.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("arrow"),
-      range: 300,
+      range: t(300),
       power: 17,
       targetFilter: "players_and_guards",
       sourceSkillId: "monster_ranged_attack",
       basic: true,
       now: 1_000,
     });
-    const wall = [{ x: 55, y: 0, width: 20, height: 64 }];
+    const walls = [wall(55, 0, 20, 64)];
     const harness = context({
       owner: target,
       projectiles,
       guards: [protectedGuard],
       hostile: true,
-      world: terrain(wall),
+      world: terrain(walls),
     });
 
     advanceProjectiles(harness.value, 1_050);
@@ -359,19 +434,19 @@ describe("authoritative projectile system", () => {
   });
 
   it("pierces guards in order without damaging either one twice", () => {
-    const caster = monster("piercing-caster", 0);
-    const target = player("observer", 300);
-    const first = guard("first-guard", 50);
-    const second = guard("second-guard", 100);
+    const caster = monster("piercing-caster", t(0));
+    const target = player("observer", t(300));
+    const first = guard("first-guard", t(50));
+    const second = guard("second-guard", t(100));
     const projectiles: ProjectileRuntime[] = [];
     spawnProjectile(projectiles, {
       actionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       owner: caster,
       roomKey: target.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("enemy_harpoon", 1),
-      range: 300,
+      range: t(300),
       power: 17,
       targetFilter: "players_and_guards",
       sourceSkillId: "monster_ranged_attack",
@@ -395,9 +470,9 @@ describe("authoritative projectile system", () => {
   });
 
   it("pierces several monsters without hitting either one twice", () => {
-    const owner = player("owner", 0);
-    const first = monster("first", 50);
-    const second = monster("second", 100);
+    const owner = player("owner", t(0));
+    const first = monster("first", t(50));
+    const second = monster("second", t(100));
     const projectiles: ProjectileRuntime[] = [];
     launch(projectiles, owner, "piercing_arrow", { pierce: 7 });
     const harness = context({ owner, projectiles, monsters: [first, second] });
@@ -407,18 +482,18 @@ describe("authoritative projectile system", () => {
   });
 
   it("turns a piercing arrow back at maximum range without repeating outward hits", () => {
-    const owner = player("owner", 0);
-    const first = monster("first", 50);
+    const owner = player("owner", t(0));
+    const first = monster("first", t(50));
     const projectiles: ProjectileRuntime[] = [];
     const projectile = spawnProjectile(projectiles, {
       actionId: "44444444-4444-4444-8444-444444444444",
       owner,
       roomKey: owner.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("piercing_arrow", 7),
-      range: 80,
-      returnRange: 80,
+      range: t(80),
+      returnRange: t(80),
       power: 29,
       targetFilter: "monsters",
       sourceSkillId: "piercing_arrow",
@@ -436,17 +511,17 @@ describe("authoritative projectile system", () => {
   });
 
   it("returns from terrain instead of reporting the first obstacle as a failed shot", () => {
-    const owner = player("owner", 0);
+    const owner = player("owner", t(0));
     const projectiles: ProjectileRuntime[] = [];
     const projectile = spawnProjectile(projectiles, {
       actionId: "55555555-5555-4555-8555-555555555555",
       owner,
       roomKey: owner.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("piercing_arrow", 7),
-      range: 200,
-      returnRange: 200,
+      range: t(200),
+      returnRange: t(200),
       power: 29,
       targetFilter: "monsters",
       sourceSkillId: "piercing_arrow",
@@ -454,27 +529,27 @@ describe("authoritative projectile system", () => {
       now: 1_000,
     });
     if (!projectile) throw new Error("returning projectile rejected");
-    const wall = [{ x: 80, y: 0, width: 64, height: 64 }];
-    const harness = context({ owner, projectiles, world: terrain(wall) });
+    const walls = [wall(80, 0, 64, 64)];
+    const harness = context({ owner, projectiles, world: terrain(walls) });
     advanceProjectiles(harness.value, 1_050);
     expect(projectile.returningToOwner).toBe(true);
     expect(harness.blocked).not.toHaveBeenCalled();
   });
 
   it("curves Heartseeker gradually while leaving the first interceptor authoritative", () => {
-    const owner = player("owner", 0);
-    const interceptor = monster("interceptor", 70);
-    const target = monster("target", 150);
-    target.y = 100;
+    const owner = player("owner", t(0));
+    const interceptor = monster("interceptor", t(70));
+    const target = monster("target", t(150));
+    target.z = t(100);
     const projectiles: ProjectileRuntime[] = [];
     const projectile = spawnProjectile(projectiles, {
       actionId: "66666666-6666-4666-8666-666666666666",
       owner,
       roomKey: owner.roomKey,
-      origin: { x: 20, y: 16 },
-      direction: { x: 1, y: 0 },
+      origin: { x: t(20), y: 0, z: t(16) },
+      direction: { x: 1, z: 0 },
       definition: definition("heartseeker"),
-      range: 300,
+      range: t(300),
       power: 29,
       targetFilter: "monsters",
       sourceSkillId: "heartseeker",
@@ -486,14 +561,14 @@ describe("authoritative projectile system", () => {
     if (!projectile) throw new Error("guided projectile rejected");
     const harness = context({ owner, projectiles, monsters: [interceptor, target] });
     advanceProjectiles(harness.value, 1_050);
-    expect(projectile.direction.y).toBeGreaterThan(0);
-    expect(projectile.direction.y).toBeLessThan(0.2);
+    expect(projectile.direction.z).toBeGreaterThan(0);
+    expect(projectile.direction.z).toBeLessThan(0.2);
     expect(harness.damageMonster.mock.calls[0]?.[1].id).toBe("interceptor");
   });
 
   it("lets focused-volley arrows share a bounded per-target impact count", () => {
-    const owner = player("owner", 0);
-    const target = monster("large-target", 50);
+    const owner = player("owner", t(0));
+    const target = monster("large-target", t(50));
     const projectiles: ProjectileRuntime[] = [];
     const activationHitCounts = new Map<string, number>();
     for (let index = 0; index < 2; index++) {
@@ -501,10 +576,10 @@ describe("authoritative projectile system", () => {
         actionId: "33333333-3333-4333-8333-333333333333",
         owner,
         roomKey: owner.roomKey,
-        origin: { x: 20, y: 16 },
-        direction: { x: 1, y: 0 },
+        origin: { x: t(20), y: 0, z: t(16) },
+        direction: { x: 1, z: 0 },
         definition: definition("volley_arrow"),
-        range: 300,
+        range: t(300),
         power: 17,
         targetFilter: "monsters",
         sourceSkillId: "volley",
@@ -522,14 +597,14 @@ describe("authoritative projectile system", () => {
   });
 
   it("heals the first wounded party ally while ignoring full-health and foreign heroes", () => {
-    const owner = player("owner", 0);
-    const full = player("full", 35, 100);
-    const foreign = player("foreign", 60, 40, "party-b");
-    const wounded = player("wounded", 90, 40);
+    const owner = player("owner", t(0));
+    const full = player("full", t(35), 100);
+    const foreign = player("foreign", t(60), 40, "party-b");
+    const wounded = player("wounded", t(90), 40);
     const projectiles: ProjectileRuntime[] = [];
     launch(projectiles, owner, "healing_light", {
       targetFilter: "wounded_allies",
-      range: 160,
+      range: t(160),
     });
     const harness = context({ owner, projectiles, allies: [full, foreign, wounded] });
     advanceProjectiles(harness.value, 1_050);
@@ -539,7 +614,7 @@ describe("authoritative projectile system", () => {
   });
 
   it("bounds projectile creation per player", () => {
-    const owner = player("owner", 0);
+    const owner = player("owner", t(0));
     const projectiles: ProjectileRuntime[] = [];
     for (let index = 0; index < MAX_PROJECTILES_PER_PLAYER; index++) {
       launch(projectiles, owner, "arrow");
@@ -549,10 +624,10 @@ describe("authoritative projectile system", () => {
         actionId: "22222222-2222-4222-8222-222222222222",
         owner,
         roomKey: owner.roomKey,
-        origin: { x: 20, y: 16 },
-        direction: { x: 1, y: 0 },
+        origin: { x: t(20), y: 0, z: t(16) },
+        direction: { x: 1, z: 0 },
         definition: definition("arrow"),
-        range: 100,
+        range: t(100),
         power: 10,
         targetFilter: "monsters",
         sourceSkillId: "quick_shot",
@@ -574,12 +649,12 @@ describe("authoritative projectile system", () => {
     expect(
       spawnProjectile(projectiles, {
         actionId: "22222222-2222-4222-8222-222222222222",
-        owner: player("overflow", 0),
+        owner: player("overflow", t(0)),
         roomKey: "party-a:map-a",
-        origin: { x: 20, y: 16 },
-        direction: { x: 1, y: 0 },
+        origin: { x: t(20), y: 0, z: t(16) },
+        direction: { x: 1, z: 0 },
         definition: definition("arrow"),
-        range: 100,
+        range: t(100),
         power: 10,
         targetFilter: "monsters",
         sourceSkillId: "quick_shot",

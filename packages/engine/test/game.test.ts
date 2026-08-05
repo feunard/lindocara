@@ -311,9 +311,10 @@ describe("authoritative world geometry", () => {
   it("keeps every combat clearing and landmark approach connected to Heartroot", () => {
     const reachable = reachableSamples(spawnPosition("pathfinder"));
     for (const spawn of MONSTER_SPAWNS) {
-      expect(hasReachableSample(reachable, spawn), `${spawn.id} should remain reachable`).toBe(
-        true,
-      );
+      expect(
+        hasReachableSample(reachable, legacyPlane(spawn)),
+        `${spawn.id} should remain reachable`,
+      ).toBe(true);
     }
     for (const landmark of WORLD_LANDMARKS) {
       const approach = landmark.collider
@@ -378,8 +379,8 @@ describe("authoritative world geometry", () => {
     }
     expect(CITY_GUARDS).toHaveLength(4);
     for (const guard of CITY_GUARDS) {
-      expect(isWalkable(guard)).toBe(true);
-      expect(distanceToRect(guard, SAFE_ZONE)).toBe(0);
+      expect(isWalkable(legacyPlane(guard))).toBe(true);
+      expect(distanceToRect(legacyPlane(guard), SAFE_ZONE)).toBe(0);
       expect(guard.patrolRadius).toBeLessThanOrEqual(Math.min(SAFE_ZONE.width, SAFE_ZONE.height));
     }
   });
@@ -396,11 +397,13 @@ describe("authoritative world geometry", () => {
     );
 
     for (const spawn of MONSTER_SPAWNS) {
-      expect(isWalkable(spawn)).toBe(true);
+      expect(isWalkable(legacyPlane(spawn))).toBe(true);
       if (spawn.mayEnterSafeZone) {
-        expect(distanceToRect(spawn, SAFE_ZONE)).toBeLessThanOrEqual(spawn.patrolRadius);
+        expect(distanceToRect(legacyPlane(spawn), SAFE_ZONE)).toBeLessThanOrEqual(
+          spawn.patrolRadius,
+        );
       } else {
-        expect(distanceToRect(spawn, SAFE_ZONE)).toBeGreaterThan(
+        expect(distanceToRect(legacyPlane(spawn), SAFE_ZONE)).toBeGreaterThan(
           MONSTER_AGGRO_RANGE + spawn.patrolRadius,
         );
       }
@@ -408,7 +411,7 @@ describe("authoritative world geometry", () => {
         const angle = (sample / 16) * Math.PI * 2;
         const patrolSample = {
           x: spawn.x + Math.cos(angle) * spawn.patrolRadius,
-          y: spawn.y + Math.sin(angle) * spawn.patrolRadius,
+          y: spawn.z + Math.sin(angle) * spawn.patrolRadius,
         };
         if (!spawn.mayEnterSafeZone) {
           expect(isWalkable(patrolSample), `${spawn.id} patrol sample ${sample}`).toBe(true);
@@ -572,6 +575,17 @@ describe("authoritative combat and progression rules", () => {
     ).toBe(true);
   });
 });
+
+/**
+ * The Verdant Reach catalogue's spawns and guard posts now carry three axes (`x`/`z` ground, `y`
+ * elevation) while their magnitudes and the catalogue's own geometry are still the legacy PIXEL
+ * plane. This reads one back as the pixel `Vec2` every geometry helper in this suite speaks —
+ * ground `z` into the pixel plane's `y`. It is a legacy adapter, not a bridge worth keeping: the
+ * whole catalogue map goes away with the pixel world.
+ */
+function legacyPlane(point: { x: number; z: number }): { x: number; y: number } {
+  return { x: point.x, y: point.z };
+}
 
 describe("class rules", () => {
   it("unlocks the five ability slots at the intended progression levels", () => {

@@ -32,6 +32,11 @@
  * is likewise the caller's: this function takes the point to test, not a point to adjust.
  */
 
+import {
+  type SegmentImpact,
+  segmentBoxEntry,
+  sweptRectEntry,
+} from "@lindocara/engine/directional-combat.js";
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import { createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import { type MapData, mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
@@ -254,6 +259,101 @@ export function groundPathClear(
     carried = groundUnder(terrain, x, z, carried);
     return true;
   });
+}
+
+/**
+ * The heightfield successor of `sweptProjectileTerrainImpact` — the terrain question a projectile
+ * asks, moved off the pixel `TileMap` and onto the relief plus the tile-unit collider index.
+ *
+ * **It is still a SWEEP, and that is the whole point.** A projectile travels up to
+ * `speed * TICK_DT` in one tick — a Heartseeker covers nearly eleven tiles a second, half a tile a
+ * tick — so an endpoint test, or a walk of samples along the path, would let it pass clean through
+ * a one-cell cliff or a tree trunk narrower than its stride. Every candidate here is tested with
+ * the exact slab entry `segmentBoxEntry`, the same routine the pixel version used and the same one
+ * `segmentIntersectsRect` uses, so the earliest contact along the segment is found regardless of
+ * how far the projectile moved.
+ *
+ * What blocks:
+ *
+ * - RELIEF above `ceiling` — the flight height, which is the shooter's own ground. A projectile
+ *   fired on a plateau clears everything at or below that plateau and is stopped by anything
+ *   higher; one fired below it is stopped by the plateau's face. This is `groundLineOfSight`'s
+ *   rule, applied to a body with a radius.
+ * - the map's sub-cell COLLIDERS — a tree's trunk, exactly as the pixel version consulted its own
+ *   collider index.
+ *
+ * What does not: water and the ground off the grid. `heightAt` answers `null` for both, and both
+ * are surfaces BELOW the shot rather than walls — an arrow flies over a lake, and one that leaves
+ * the map dies of range, not of a wall at the edge.
+ */
+export function sweptGroundTerrainImpact(
+  terrain: ZoneTerrain,
+  from: GroundVector,
+  to: GroundVector,
+  radius: number,
+  ceiling: number,
+): SegmentImpact | null {
+  if (!Number.isFinite(from.x) || !Number.isFinite(from.z)) return null;
+  if (!Number.isFinite(to.x) || !Number.isFinite(to.z)) return null;
+  if (!Number.isFinite(radius) || radius < 0) return null;
+
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const half = terrain.size / 2;
+  const toCell = (world: number) => Math.floor(world + half);
+  const limit = ceiling + HEIGHT_EPSILON;
+
+  const hits: SegmentImpact[] = [];
+  const consider = (fraction: number | null, id: string) => {
+    if (fraction === null) return;
+    hits.push({
+      fraction,
+      point: { x: from.x + dx * fraction, z: from.z + dz * fraction },
+      kind: "terrain",
+      id,
+    });
+  };
+
+  const minI = toCell(Math.min(from.x, to.x) - radius);
+  const maxI = toCell(Math.max(from.x, to.x) + radius);
+  const minJ = toCell(Math.min(from.z, to.z) - radius);
+  const maxJ = toCell(Math.max(from.z, to.z) + radius);
+  for (let j = minJ; j <= maxJ; j++) {
+    for (let i = minI; i <= maxI; i++) {
+      const [centreX, centreZ] = terrain.query.cellCenter(i, j);
+      const surface = terrain.query.heightAt(centreX, centreZ);
+      if (surface === null || surface <= limit) continue;
+      consider(
+        segmentBoxEntry(
+          from.x,
+          from.z,
+          dx,
+          dz,
+          i - half - radius,
+          j - half - radius,
+          i + 1 - half + radius,
+          j + 1 - half + radius,
+        ),
+        `${j}:${i}`,
+      );
+    }
+  }
+
+  const candidates = terrain.colliders.inBox(
+    Math.min(from.x, to.x) - radius,
+    Math.min(from.z, to.z) - radius,
+    Math.max(from.x, to.x) + radius,
+    Math.max(from.z, to.z) + radius,
+  );
+  for (let index = 0; index < candidates.length; index++) {
+    const rect = candidates[index];
+    if (!rect) continue;
+    consider(sweptRectEntry(from, to, rect, radius), `c${index}`);
+  }
+  // Earliest contact wins; equal fractions fall back to the stable id so two cells met at exactly
+  // the same instant resolve the same way on every tick and in every room.
+  hits.sort((a, b) => a.fraction - b.fraction || a.id.localeCompare(b.id));
+  return hits[0] ?? null;
 }
 
 /**

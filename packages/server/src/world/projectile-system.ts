@@ -8,34 +8,36 @@ import {
 import {
   advanceProjectile,
   firstSegmentImpact,
-  normalizeDirection,
+  normalizeGround,
   type SegmentImpact,
   sweptProjectileEntityImpact,
-  sweptProjectileTerrainImpact,
 } from "@lindocara/engine/directional-combat.js";
 import {
   MAX_MONSTER_BODY_REACH,
   maxHpForLevel,
   monsterBodyHitbox,
-  type TerrainGeometry,
 } from "@lindocara/engine/game.js";
-import { PLAYER_SIZE, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
+import { TICK_DT } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { isRogueStealthed } from "./rogue-state-system.js";
-import type { SpatialGrid } from "./spatial-grid.js";
+import { BODY_RADIUS, sweptGroundTerrainImpact, type ZoneTerrain } from "./terrain-access.js";
 import type {
+  GroundIndexQuery,
   GuardRuntime,
   MonsterRuntime,
   PlayerRuntime,
   ProjectileRuntime,
   ProjectileTargetFilter,
+  WorldPosition,
 } from "./world-runtime.js";
 
 export interface SpawnProjectileOptions {
   actionId: string;
   owner: Pick<PlayerRuntime, "id" | "partyId" | "appearance"> | MonsterRuntime;
   roomKey: string;
-  origin: Vec2;
-  direction: Vec2;
+  origin: WorldPosition;
+  direction: GroundVector;
   definition: ProjectileActionDefinition;
   range: number;
   power: number;
@@ -58,12 +60,12 @@ export interface SpawnProjectileOptions {
  */
 export interface ProjectileSystemContext<TSocket = WebSocket> {
   projectiles: ProjectileRuntime[];
-  terrain: TerrainGeometry;
+  terrain: ZoneTerrain;
   monsters: MonsterRuntime[];
   players: Map<TSocket, PlayerRuntime>;
   guards: GuardRuntime[];
-  monsterGrid: SpatialGrid<MonsterRuntime>;
-  playerGrid: SpatialGrid<PlayerRuntime>;
+  monsterGrid: GroundIndexQuery<MonsterRuntime>;
+  playerGrid: GroundIndexQuery<PlayerRuntime>;
   canHeal(owner: PlayerRuntime, target: PlayerRuntime): boolean;
   damageMonster(projectile: ProjectileRuntime, monster: MonsterRuntime, now: number): void;
   healPlayer(
@@ -80,21 +82,38 @@ export interface ProjectileSystemContext<TSocket = WebSocket> {
   ): void;
   damageRogueSilhouette?(projectile: ProjectileRuntime, owner: PlayerRuntime, now: number): void;
   damageGuard(projectile: ProjectileRuntime, guard: GuardRuntime, now: number): void;
-  blocked(projectile: ProjectileRuntime, point: Vec2): void;
+  blocked(projectile: ProjectileRuntime, point: GroundVector): void;
   removed?(
     projectile: ProjectileRuntime,
-    point: Vec2,
+    point: GroundVector,
     reason: "expired" | "terrain" | "entity" | "range",
     now: number,
   ): void;
 }
 
-export function projectileOrigin(owner: Vec2, direction: Vec2, radius: number): Vec2 {
-  const facing = normalizeDirection(direction);
-  const center = { x: owner.x + PLAYER_SIZE / 2, y: owner.y + PLAYER_SIZE / 2 };
-  const offset = PLAYER_SIZE / 2 + radius + 2;
-  return { x: center.x + facing.x * offset, y: center.y + facing.y * offset };
+/**
+ * Where a shot leaves its owner: one body radius plus the projectile's own, plus the historical
+ * 2 px of daylight, along the facing.
+ *
+ * The `PLAYER_SIZE / 2` that used to recentre the owner is GONE, and its absence is the conversion,
+ * not an omission: a pixel position was a 32 px box's top-left corner, a tile-unit position is the
+ * body's centre. Adding half a body here now would spawn every projectile half a body off-axis.
+ *
+ * All three axes travel — the returned `y` is the owner's elevation, and it becomes the shot's
+ * flight height, which is what `advanceProjectiles` asks the terrain about.
+ */
+export function projectileOrigin(
+  owner: WorldPosition,
+  direction: GroundVector,
+  radius: number,
+): WorldPosition {
+  const facing = normalizeGround(direction);
+  const offset = BODY_RADIUS + radius + PROJECTILE_MUZZLE_GAP;
+  return { x: owner.x + facing.x * offset, y: owner.y, z: owner.z + facing.z * offset };
 }
+
+/** The 2 px of daylight the pixel muzzle offset always carried, in tile units. */
+const PROJECTILE_MUZZLE_GAP = 2 / TILE_SIZE;
 
 export function spawnProjectile(
   projectiles: ProjectileRuntime[],
@@ -117,10 +136,15 @@ export function spawnProjectile(
     kind: options.definition.kind,
     targetFilter: options.targetFilter,
     x: options.origin.x,
+    // The elevation the shot flies at. Nothing on the server leaves the ground yet, so this is the
+    // shooter's own ground — and it is what decides which relief the sweep below is stopped by.
     y: options.origin.y,
-    direction: normalizeDirection(options.direction),
+    z: options.origin.z,
+    direction: normalizeGround(options.direction),
     speed: Math.max(0, options.definition.speed),
-    radius: Math.max(1, options.definition.radius),
+    // The floor was 1 PIXEL: a projectile must have a body, however small. One pixel of a tile is
+    // the same promise in the new units, not a whole tile.
+    radius: Math.max(1 / TILE_SIZE, options.definition.radius),
     rangeRemaining: range,
     power: Math.max(0, options.power),
     pierceRemaining: Math.max(0, Math.trunc(options.definition.pierce)),
@@ -167,15 +191,19 @@ function playerById<TSocket>(
   return [...players.values()].find((player) => player.id === playerId);
 }
 
-function turnToward(current: Vec2, target: Vec2, maximumRadians: number): Vec2 {
-  const currentAngle = Math.atan2(current.y, current.x);
-  const targetAngle = Math.atan2(target.y, target.x);
+function turnToward(
+  current: GroundVector,
+  target: GroundVector,
+  maximumRadians: number,
+): GroundVector {
+  const currentAngle = Math.atan2(current.z, current.x);
+  const targetAngle = Math.atan2(target.z, target.x);
   const delta = Math.atan2(
     Math.sin(targetAngle - currentAngle),
     Math.cos(targetAngle - currentAngle),
   );
   const angle = currentAngle + Math.max(-maximumRadians, Math.min(maximumRadians, delta));
-  return { x: Math.cos(angle), y: Math.sin(angle) };
+  return { x: Math.cos(angle), z: Math.sin(angle) };
 }
 
 function beginReturn<TSocket>(
@@ -189,22 +217,18 @@ function beginReturn<TSocket>(
   projectile.returningToOwner = true;
   projectile.rangeRemaining = projectile.returnRange;
   projectile.pierceRemaining = projectile.returnPierce ?? 0;
-  projectile.direction = normalizeDirection({
+  projectile.direction = normalizeGround({
     x: owner.x - projectile.x,
-    y: owner.y - projectile.y,
+    z: owner.z - projectile.z,
   });
   projectile.expiresAt = now + MAX_PROJECTILE_LIFETIME_MS;
   return true;
 }
 
-function entityCenter(entity: Vec2): Vec2 {
-  return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
-}
-
 function entityImpacts<TSocket>(
   projectile: ProjectileRuntime,
-  from: Vec2,
-  to: Vec2,
+  from: GroundVector,
+  to: GroundVector,
   context: ProjectileSystemContext<TSocket>,
   now: number,
 ): {
@@ -215,11 +239,10 @@ function entityImpacts<TSocket>(
   guard?: GuardRuntime;
   socket?: TSocket;
 }[] {
-  const midpoint = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+  const midpoint = { x: (from.x + to.x) / 2, z: (from.z + to.z) / 2 };
   // Widened by the largest body any monster presents: a troll's edge can lie inside the sweep while
-  // its centre sits outside a search circle sized for a 32px body.
-  const searchRadius =
-    Math.hypot(to.x - from.x, to.y - from.y) / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_REACH;
+  // its centre sits outside a search circle sized for one ordinary body.
+  const searchRadius = groundDistance(from, to) / 2 + 2 * BODY_RADIUS + MAX_MONSTER_BODY_REACH;
   if (projectile.targetFilter === "monsters") {
     return context.monsterGrid
       .queryRadius(midpoint, searchRadius)
@@ -267,7 +290,7 @@ function entityImpacts<TSocket>(
             from,
             to,
             projectile.radius,
-            { center: entityCenter(player), radius: PLAYER_SIZE / 2 },
+            { center: { x: player.x, z: player.z }, radius: BODY_RADIUS },
             player.id,
           ),
           player,
@@ -296,10 +319,10 @@ function entityImpacts<TSocket>(
           projectile.radius,
           {
             center: {
-              x: (player.rogueSilhouette?.x ?? player.x) + PLAYER_SIZE / 2,
-              y: (player.rogueSilhouette?.y ?? player.y) + PLAYER_SIZE / 2,
+              x: player.rogueSilhouette?.x ?? player.x,
+              z: player.rogueSilhouette?.z ?? player.z,
             },
-            radius: PLAYER_SIZE / 2,
+            radius: BODY_RADIUS,
           },
           `rogue-silhouette-${player.id}`,
         ),
@@ -316,7 +339,7 @@ function entityImpacts<TSocket>(
           from,
           to,
           projectile.radius,
-          { center: entityCenter(guard), radius: PLAYER_SIZE / 2 },
+          { center: { x: guard.x, z: guard.z }, radius: BODY_RADIUS },
           guard.id,
         ),
         guard,
@@ -347,7 +370,7 @@ function entityImpacts<TSocket>(
           from,
           to,
           projectile.radius,
-          { center: entityCenter(player), radius: PLAYER_SIZE / 2 },
+          { center: { x: player.x, z: player.z }, radius: BODY_RADIUS },
           player.id,
         ),
         player,
@@ -382,25 +405,19 @@ export function advanceProjectiles<TSocket>(
     const owner = playerById(context.players, projectile.ownerId);
     if (projectile.returningToOwner) {
       if (!owner?.authorized || owner.transitioning || owner.life !== "alive") continue;
-      const ownerCenter = entityCenter(owner);
-      if (
-        Math.hypot(ownerCenter.x - projectile.x, ownerCenter.y - projectile.y) <=
-        projectile.speed * TICK_DT
-      )
-        continue;
-      projectile.direction = normalizeDirection({
-        x: ownerCenter.x - projectile.x,
-        y: ownerCenter.y - projectile.y,
+      if (groundDistance(owner, projectile) <= projectile.speed * TICK_DT) continue;
+      projectile.direction = normalizeGround({
+        x: owner.x - projectile.x,
+        z: owner.z - projectile.z,
       });
     } else if (projectile.homingTargetId) {
       const target = context.monsters.find(
         (monster) => monster.id === projectile.homingTargetId && monster.deadUntil <= now,
       );
       if (target) {
-        const targetCenter = entityCenter(target);
         projectile.direction = turnToward(
           projectile.direction,
-          { x: targetCenter.x - projectile.x, y: targetCenter.y - projectile.y },
+          { x: target.x - projectile.x, z: target.z - projectile.z },
           projectile.homingTurnRateRadians ?? 0,
         );
       }
@@ -409,14 +426,18 @@ export function advanceProjectiles<TSocket>(
     const fullDistance = Math.min(desired.distance, projectile.rangeRemaining);
     const to = {
       x: projectile.x + projectile.direction.x * fullDistance,
-      y: projectile.y + projectile.direction.y * fullDistance,
+      z: projectile.z + projectile.direction.z * fullDistance,
     };
-    const terrain = sweptProjectileTerrainImpact(
+    // Still one exact sweep per tick, never a walk of samples: `fullDistance` can be most of a
+    // tile at a Heartseeker's speed and several tiles for anything talented, and an obstacle
+    // narrower than that stride is exactly what must not be tunnelled through. `projectile.y` is
+    // the flight height, so only relief ABOVE the shot stops it.
+    const terrain = sweptGroundTerrainImpact(
+      context.terrain,
       projectile,
       to,
       projectile.radius,
-      context.terrain.tiles,
-      context.terrain.colliders,
+      projectile.y,
     );
     const contacts = entityImpacts(projectile, projectile, to, context, now).sort((a, b) => {
       if (a.impact.fraction !== b.impact.fraction) return a.impact.fraction - b.impact.fraction;
@@ -426,7 +447,7 @@ export function advanceProjectiles<TSocket>(
     const first = firstSegmentImpact([terrain, firstEntity]);
     if (first?.kind === "terrain") {
       projectile.x = first.point.x;
-      projectile.y = first.point.y;
+      projectile.z = first.point.z;
       if (beginReturn(projectile, context, now)) {
         survivors.push(projectile);
         continue;
@@ -464,14 +485,14 @@ export function advanceProjectiles<TSocket>(
     }
     if (blockingContact) {
       projectile.x = blockingContact.point.x;
-      projectile.y = blockingContact.point.y;
+      projectile.z = blockingContact.point.z;
       if (beginReturn(projectile, context, now)) survivors.push(projectile);
       else context.removed?.(projectile, blockingContact.point, "entity", now);
       continue;
     }
     if (terrain) {
       projectile.x = terrain.point.x;
-      projectile.y = terrain.point.y;
+      projectile.z = terrain.point.z;
       if (beginReturn(projectile, context, now)) {
         survivors.push(projectile);
         continue;
@@ -481,7 +502,7 @@ export function advanceProjectiles<TSocket>(
       continue;
     }
     projectile.x = to.x;
-    projectile.y = to.y;
+    projectile.z = to.z;
     projectile.rangeRemaining -= fullDistance;
     if (projectile.rangeRemaining > 0 || beginReturn(projectile, context, now)) {
       survivors.push(projectile);

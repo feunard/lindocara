@@ -96,8 +96,14 @@ function targetsFor(zone: LegacyZoneDefinition): ConnectivityTarget[] {
     ...zone.terrain.spawnPoints.map((spawn, index) => ({ ...spawn, label: `spawn ${index}` })),
     ...zone.quests.map((quest) => ({ ...quest.giver, label: `quest NPC ${quest.giver.id}` })),
     ...zone.questSites.map((site) => ({ ...site, label: `quest site ${site.id}` })),
-    ...zone.monsters.map((monster) => ({ ...monster, label: `monster spawn ${monster.id}` })),
-    ...zone.guards.map((guard) => ({ ...guard, label: `guard ${guard.id}` })),
+    // Spawns and guard posts carry three axes now (`x`/`z` ground, `y` elevation); this suite
+    // walks the catalogue's legacy PIXEL plane, where the second ground axis is `y`.
+    ...zone.monsters.map((monster) => ({
+      x: monster.x,
+      y: monster.z,
+      label: `monster spawn ${monster.id}`,
+    })),
+    ...zone.guards.map((guard) => ({ x: guard.x, y: guard.z, label: `guard ${guard.id}` })),
     ...(zone.id === "verdant-reach"
       ? CEMETERIES.map((cemetery) => ({ ...cemetery, label: `cemetery ${cemetery.id}` }))
       : []),
