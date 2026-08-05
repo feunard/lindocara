@@ -651,17 +651,14 @@ GAMEPLAY gap rather than a visual one, because the session turns their answer in
 sends to the server. Triage that second list first — a missing effect looks plain, a missing answer
 misbehaves. The ones a player would notice first:
 
-- **Cliffs are drawn but not collided.** This one is not a missing effect: the drawn world and the
-  collided world genuinely differ. The server ships one stored heightfield, but its pixel projection
-  (`pixelTerrainFromHeightfield`, `server/world/heightfield-pixel-bridge.ts`) bakes every non-water
-  cell as flat `grass`, deliberately — in the heightfield model a level change is a climb the
-  movement rule decides, not a cell you cannot enter, and that rule (`engine/hd2d/hero-step.ts`) is
-  not wired into the authoritative tick yet. Meanwhile `billboards.ts` snaps each actor to
-  `query.heightAt(x, z)`, the heightfield's own surface. So on the proving map a hero walks straight
-  through a cliff face and pops onto the plateau top. Do not close the gap by baking elevation into
-  the collision tiles — a cliff is not a wall, and treating it as one would author the opposite rule
-  from the one landing with `stepHero`. The gap closes when the server's geometry moves to tile
-  units and the whole TILE→PIXEL BRIDGE is deleted.
+- **~~Cliffs are drawn but not collided.~~ CLOSED** by S3's tile-units increment. The pixel
+  projection that flattened every non-water cell is deleted along with the whole TILE→PIXEL BRIDGE;
+  the server collides against the heightfield itself (`canStand`, `packages/engine/src/
+  terrain-access.ts`) and so does the client's prediction, from the same string with the same
+  function. A cliff face is now solid on both sides of the wire. What remains is a GAMEPLAY state
+  rather than a gap: `MAX_STEP` is 0, so high ground is unreachable on foot until jumping lands —
+  do not "fix" that by letting a grounded body climb, which would author the opposite rule from the
+  one arriving with `stepHero`.
 - **The peasant's bomb cannot be aimed, and therefore cannot be thrown.** `screenToWorld` is the one
   no-op whose return value crosses the wire — the session turns it into `skill(5, direction)`, an
   authoritative intent — so it is marked `NOT YET WIRED ON THE HD-2D PATH — GAMEPLAY, NOT RENDERING`

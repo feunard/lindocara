@@ -82,3 +82,42 @@ export function createTestApp() {
     .with({ provide: ServerProvider, use: FetchSafeTestHttpServerProvider })
     .with(LindocaraApi);
 }
+
+/** The side of {@link provingHeightfield}'s grid, in cells. */
+export const PROVING_SIZE = 16;
+
+/**
+ * A flat, entirely walkable heightfield with one spawn at the grid centre.
+ *
+ * **Every suite that opens a real `/ws/world` needs one.** A map with no usable heightfield cannot
+ * produce a zone at all (`zoneFromMapPayload` throws, `WorldRoom.createState` catches it into a
+ * `location: null` state), so every join of a map created through `POST /api/adventures` — which
+ * seeds a tile map and no heightfield — is refused 4007. Storing this on the adventure's default
+ * map (`MapService.saveHeightfield`) is what makes such a room joinable.
+ *
+ * Deliberately featureless: level-0 ground everywhere, no water, no colliders. Nothing about the
+ * terrain can make a movement, combat or persistence test fail for a reason that has nothing to do
+ * with what it is asserting. A suite that needs relief builds its own grid instead of tuning this.
+ *
+ * `spawn` defaults to the grid CENTRE, which is `0, 0` in tile units — and that default is a trap
+ * for any test asserting the world's UNITS rather than its rules. Zero times any scale factor is
+ * still zero, so a hero standing on it satisfies a bound like `|x| <= size / 2` whether the wire is
+ * shipping tiles or pixels. A test whose subject is the units must ask for an off-centre spawn.
+ */
+export function provingHeightfield(
+  size = PROVING_SIZE,
+  spawn: { x: number; z: number } = { x: 0, z: 0 },
+): string {
+  return JSON.stringify({
+    version: 1,
+    size,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: new Array(size * size).fill(0),
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [],
+    spawns: [{ name: "default", x: spawn.x, z: spawn.z }],
+    elements: [],
+    events: [],
+  });
+}

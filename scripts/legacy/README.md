@@ -38,10 +38,10 @@ Two things are missing before that is worth starting:
 - **A seeding path that reaches a deployed instance.** `MapService.saveHeightfield` is reachable
   from no controller, and the generator writes to a local SQLite file — production's database lives
   inside the Bay process. Locally there is no problem; remotely there is no way in at all.
-- **Elevation collision.** The server still simulates in pixels and its bake flattens every
-  non-water cell, so cliffs are drawn but not collided. Porting an adventure with real elevation
-  before that lands would give it terrain a hero walks straight through. See the
-  `TILE→PIXEL BRIDGE` banner in `packages/engine/src/hd2d/tile-pixel-bridge.ts`.
+- **Elevation collision.** RESOLVED as of S3's tile-units increment: the server simulates in tile
+  units against the heightfield itself (`canStand`, `packages/engine/src/terrain-access.ts`), so a
+  cliff is solid on both sides of the wire. High ground is unreachable until jumping lands —
+  `MAX_STEP` is 0 — which is a gameplay state, not a collision gap.
 
 For a heightfield adventure you can actually play right now, see
 [`scripts/seed-proving-adventure.ts`](../seed-proving-adventure.ts).

@@ -69,13 +69,15 @@ export interface AdmittedJoin {
   /** Set exactly when the hero's stored map was unusable: the start position the room must
    *  epoch-fence-relocate them to after acquiring presence. */
   /**
-   * The hero's stored map was gone and the adventure's start was re-derived, so the row must be
-   * moved before it is read. There is no position beside it: the destination's authored spawn is
-   * expressed in the tile-editor's cell space, which a heightfield grid does not have, so the body
-   * is written to the grid ORIGIN and `mapEntryPosition` seats it on real ground at admission —
-   * the same path an ordinary reconnect takes.
+   * Where the row must be moved to before it is read, or `null` when the hero's stored map is still
+   * a member of its adventure and nothing has to move.
+   *
+   * All three axes travel together, in the DESTINATION's own units: the re-derived start names its
+   * map from tile-editor content and its position from that map's own heightfield spawn
+   * (`HeroService.resolveHeroStart`). Admission then seats the body on real ground from there
+   * (`mapEntryPosition`), exactly as an ordinary reconnect is seated.
    */
-  relocated: boolean;
+  relocatedTo: WorldPosition | null;
 }
 
 export type AdmissionResolution =
@@ -222,7 +224,7 @@ export class AdmissionService {
     }
 
     let mapId = hero.mapId;
-    let relocated = false;
+    let relocatedTo: WorldPosition | null = null;
     const storedMap = adventure.mapIds.includes(mapId) ? await this.maps.findById(mapId) : null;
     if (!storedMap) {
       // The hero's stored map is gone (deleted, or never a member). Re-derive the adventure's
@@ -230,10 +232,10 @@ export class AdmissionService {
       const start = await this.heroService.resolveHeroStart(adventure.id);
       if (!start) return { ok: false, error: "not_found" };
       mapId = start.mapId;
-      relocated = true;
+      relocatedTo = start.position;
     }
 
-    return { ok: true, join: { partyId, heroId, mapId, adventure, relocated } };
+    return { ok: true, join: { partyId, heroId, mapId, adventure, relocatedTo } };
   }
 
   /**

@@ -38,14 +38,14 @@ that must be trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo
 - `src/api/realtime/` — the running game (below). `src/world/` — the explicit-dependency domain
   systems the world room composes (movement, combat, monsters, projectiles, quests, loot,
   navigation, interest/snapshot, event-run, class variants, ...). No module-level mutable room
-  state. One of those files is explicitly TEMPORARY:
-  `src/world/heightfield-pixel-bridge.ts` projects the stored heightfield's grid-centred TILE units
-  into the PIXEL, top-left-origin geometry the current simulation collides against. The arithmetic
-  it calls lives in `@lindocara/engine/hd2d/tile-pixel-bridge.js`, not here — the HD-2D renderer
-  converts the other way and there must be exactly one copy of the origin shift. Every call site on
-  both sides carries the same banner comment — `grep -rn "TILE→PIXEL BRIDGE"` finds them all the
-  day the game's geometry moves to tile units and the whole bridge is deleted. Do not convert
-  coordinates by hand anywhere else.
+  state. Everything here reads in TILE units, grid centre as origin: `x` and `z` are the two GROUND
+  axes and `y` is ELEVATION. The temporary `heightfield-pixel-bridge.ts` that used to project the
+  stored heightfield into a pixel geometry is deleted, with the engine-side arithmetic it called.
+  The terrain junction it was a stopgap for now lives in `@lindocara/engine/terrain-access.js` —
+  `zoneTerrainFromHeightfield` builds the room's `ZoneTerrain`, and every "can something stand
+  here" question is one `canStand` call. It is in the engine rather than here because the CLIENT
+  bakes its prediction terrain from the same string with the same function; two copies of a
+  collision rule is the drift prediction exists to expose.
 - The proving-map generator is NOT in this package: it lives in the repo's root `scripts/`
   (`scripts/build-proving-map.ts`), beside the other cross-workspace generators and inside
   `tsconfig.tooling.json`'s program so it is actually typechecked. It generates the HD-2D

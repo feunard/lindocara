@@ -388,14 +388,14 @@ export class WorldRoom {
       }
     }
 
-    if (join.relocated) {
+    if (join.relocatedTo) {
       const moved = await this.heroEpochService.relocate({
         heroId: join.heroId,
         sessionEpoch: acquired.sessionEpoch,
         mapId: join.mapId,
-        // The grid origin, not a converted coordinate: `mapEntryPosition` below seats the body on
-        // ground the destination actually has.
-        position: { x: 0, y: 0, z: 0 },
+        // The destination map's own authored spawn, in the destination's own units.
+        // `mapEntryPosition` below still seats the body on ground that map actually has.
+        position: join.relocatedTo,
       });
       if (!moved) {
         room.close(conn.id, WS_CLOSE.PRESENCE_ERROR, "relocation lost the lease");

@@ -14,7 +14,8 @@
  * TWO rules bind this file, and neither is negotiable:
  *
  * - **Appearance only.** Nothing here derives a collider. Collision on this path is baked by the
- *   server from the terrain alone (`heightfield-pixel-bridge.ts`), and an authored element carries
+ *   server from the terrain alone (`zoneTerrainFromHeightfield`, `engine/terrain-access.ts`), and
+ *   the client bakes its prediction terrain from the same string; an authored element carries
  *   none — a tree you can walk through is the correct behaviour of this increment, an invisible
  *   wall around one is not.
  * - **An unknown asset id is skipped, never thrown.** A map authored against a catalogue this build

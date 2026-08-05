@@ -34,11 +34,11 @@ authoring stage was built on those modules and is quarantined until it is rebuil
   transcribed from `apps/lab/src/main.ts`; `billboards.ts` is the actor registry, synced every frame;
   `static-content.ts` places the map's own scenery once per map (its own file for that reason — the
   actor registry has a lifecycle, scenery has none); `game-renderer.ts` is the `RendererLike` around
-  them and owns which sheet an actor or a catalogue asset draws with. Snapshots arrive in PIXELS
-  and the scene is in TILE units — the conversion is `engine/hd2d/tile-pixel-bridge.ts`, and every
-  site here carries its `TILE→PIXEL BRIDGE` marker (`sync` in `billboards.ts`, `focusOn` in
-  `scene.ts`, and nowhere else; the heightfield's own elements and events are ALREADY in tile units
-  and need no conversion). It draws terrain, sea, foam, sky and light from `WorldInfo.heightfield`,
+  them and owns which sheet an actor or a catalogue asset draws with. Snapshots arrive in the
+  scene's own TILE units since S3's wire task — `x`/`z` on the ground, `y` elevation — so there is
+  no conversion anywhere in this package any more: the `tile-pixel-bridge` and its `TILE→PIXEL
+  BRIDGE` markers are deleted, and a `pixelToTile` reappearing here would mean the wire went
+  backwards. It draws terrain, sea, foam, sky and light from `WorldInfo.heightfield`,
   the actors as billboards the camera follows — drawn at rest, since no clip crosses `ActorView`
   yet — and `heightfield.elements`/`heightfield.events` as static billboards, appearance only: no
   element or event ever contributes a collider, because the server bakes collision from the terrain
@@ -73,7 +73,9 @@ npm test -w @lindocara/renderer   # or: npm run test:renderer — jsdom
   arrangement S3 spent an increment ending; do not start a second one.
 - Never import client glue (`net`, `store`, `session`, `i18n`): the graph is `client -> renderer`,
   never the reverse. Shared view types (`SceneSample`) live here and are re-exported downstream.
-- Collision comes only from `tiles`/`colliders` via `isWalkable`/`resolveTerrain`; never derive it
+- Collision comes only from the welcome's `heightfield`, through `zoneTerrainFromHeightfield` +
+  `canStand` (`@lindocara/engine/terrain-access.js`) — the same function the server bakes with;
+  never derive it
   from `layers`/`elements`/`events` (appearance only).
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the renderer/editor stage-sharing contract.

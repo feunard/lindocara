@@ -199,14 +199,14 @@ export function buildProvingMap(): MapData {
     materials,
     // Deliberately none: the lab's collider rects belong to lab BILLBOARDS (props, the house, the
     // chest) that this game does not draw, and an invisible wall is worse than no wall on a map
-    // whose only job is to prove the terrain pipeline. `pixelTerrainFromHeightfield`'s rect
-    // conversion is pinned by `test-api/heightfield-pixel-bridge.test.ts` instead.
+    // whose only job is to prove the terrain pipeline. The collider index the server builds from
+    // these rects is pinned by `test-api/terrain-access.test.ts` instead.
     colliders: [],
     spawns: [{ name: "default", x: SPAWN[0], z: SPAWN[1] }],
     // Decoration and one authored event, so the HD-2D path has something to draw beyond bare
     // ground. APPEARANCE ONLY, and deliberately alongside the empty `colliders` above: neither an
     // element nor an event bakes anything a hero can bump into — collision on this path comes from
-    // the terrain and from nowhere else (`heightfield-pixel-bridge.ts`).
+    // the terrain and from nowhere else (`zoneTerrainFromHeightfield`, `engine/terrain-access.ts`).
     elements,
     events,
   };

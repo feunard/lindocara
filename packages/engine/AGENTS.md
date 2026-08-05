@@ -40,6 +40,17 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
   proven only inside `apps/lab`, `simulation.ts` is what production actually runs. Wiring them
   together is S3's job, not a natural next step to take here.
 
+- `ground.ts` and `terrain-access.ts` — tile units, at the ROOT rather than behind that fence, and
+  deliberately: they are the vocabulary the whole game speaks now, not the lab's. `ground.ts` owns
+  `GroundVector {x, z}` (the ground plane — there is no ground `y` any more), `WorldPosition`
+  (`+ y`, ELEVATION) and `groundDistance`; the one-field-name difference from `Vec2` is the only
+  reason a half-finished conversion fails to compile instead of shipping a world on its side.
+  `terrain-access.ts` is the terrain junction — `zoneTerrainFromHeightfield` bakes a stored
+  heightfield into a `ZoneTerrain`, and `canStand`/`resolveGroundMovement`/`groundUnder` answer
+  every "can a body be here" question. It moved here from `packages/server/src/world/` when the
+  client started predicting against the same terrain: **both sides bake from the same string with
+  the same function**, which is the argument that keeps `step()` here too.
+
 ## Graph
 
 - **Depends on:** nothing.

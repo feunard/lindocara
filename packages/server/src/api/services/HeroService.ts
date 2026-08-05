@@ -58,6 +58,8 @@
 import { type AdventureGraph, parseAdventureGraph } from "@lindocara/engine/adventure.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
+import type { WorldPosition } from "@lindocara/engine/ground.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { type CreateHeroInput, MAX_HEROES_PER_PARTY } from "@lindocara/engine/hero.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { z } from "alepha";
@@ -116,6 +118,32 @@ function toStored(row: Hero): StoredHero {
     xp: row.xp,
     hp: row.hp,
     life: row.life,
+  };
+}
+
+/** Where a hero starts: a member map, and a standing position inside that map's own grid. */
+export interface HeroStart {
+  mapId: string;
+  position: WorldPosition;
+}
+
+/**
+ * A member map, read as a starting point.
+ *
+ * The three tiers above all choose the map from TILE-EDITOR content — a `spawn` event, an `entry`
+ * event, the map's own `spawnCol`/`spawnRow`. That content picks the map perfectly well and cannot
+ * name a position at all any more: a tile-editor cell is expressed in a coordinate space a
+ * heightfield grid does not have. So the position comes from the map's OWN heightfield spawn, the
+ * only anchor stated in the destination's own units, and the grid centre when it has none — where
+ * admission's `mapEntryPosition` will find real ground for it.
+ */
+function startOn(map: { id: string; heightfield: string } | undefined): HeroStart | null {
+  if (!map) return null;
+  const decoded = map.heightfield === "" ? null : decodeMap(map.heightfield);
+  const spawn = decoded?.spawns[0];
+  return {
+    mapId: map.id,
+    position: spawn ? { x: spawn.x, y: 0, z: spawn.z } : { x: 0, y: 0, z: 0 },
   };
 }
 
@@ -187,7 +215,7 @@ export class HeroService {
           (${sql.raw(table.id.name)}, ${sql.raw(table.partyId.name)}, ${sql.raw(table.userId.name)},
            name, class, ${sql.raw(table.mapId.name)}, x, y, z)
         SELECT ${id}, ${partyId}, ${userId}, ${input.name}, ${input.class},
-               ${start.mapId}, 0, 0, 0
+               ${start.mapId}, ${start.position.x}, ${start.position.y}, ${start.position.z}
         WHERE (SELECT count(*) FROM ${table}
                WHERE ${table.partyId} = ${partyId} AND ${table.userId} = ${userId}) < ${MAX_HEROES_PER_PARTY}
         RETURNING ${table.id}
@@ -288,7 +316,7 @@ export class HeroService {
    * exactly this resolution when a hero's stored map is gone, the same way legacy `handleJoinHero`
    * called `resolveAdventureStart` directly.
    */
-  async resolveHeroStart(adventureId: string): Promise<{ mapId: string } | null> {
+  async resolveHeroStart(adventureId: string): Promise<HeroStart | null> {
     const memberMaps = await this.maps.findMany({
       where: { adventureId: { eq: adventureId } },
       orderBy: "createdAt",
@@ -306,7 +334,7 @@ export class HeroService {
         const chosen = spawnRows
           .filter((row) => row.mapId === mapId)
           .sort((a, b) => a.row - b.row || a.col - b.col)[0];
-        if (chosen) return { mapId };
+        if (chosen) return startOn(memberMaps.find((row) => row.id === mapId));
       }
     }
 
@@ -318,13 +346,11 @@ export class HeroService {
     const start = graph?.start;
     if (start && mapIds.includes(start.mapId)) {
       const startMap = memberMaps.find((row) => row.id === start.mapId);
-      if (startMap) return { mapId: startMap.id };
+      if (startMap) return startOn(startMap);
     }
 
     // Tier 3: the first member map at its own authored spawn point.
-    const firstMap = memberMaps[0];
-    if (!firstMap) return null;
-    return { mapId: firstMap.id };
+    return startOn(memberMaps[0]);
   }
 
   /** Ported from `character-persistence.ts::ensureNormalizedCharacter`'s `item_definition` seeding

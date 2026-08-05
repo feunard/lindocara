@@ -549,12 +549,15 @@ one, so collision stays derivable from appearance through one indirection: `tile
 passable`. Collision now has two baked sources on `TerrainGeometry`: `tiles` (the grid, whole cells)
 and `colliders` (a `ColliderIndex` of sub-cell rectangles, one per colliding element) — `isWalkable`
 is the single junction that queries both, so a tree blocks its trunk (~24x20 px), not its whole
-64x64 cell. **On the wire, `WorldInfo.tiles` and `WorldInfo.colliders` are baked collision truth and
+64x64 cell. **On the wire, `WorldInfo.heightfield` is the ONLY terrain, and
 `WorldInfo.layers`/`WorldInfo.elements`/`WorldInfo.events` are appearance only** — never derive
-collision from any of the latter three. An agent that reads `layers` to decide walkability
-reintroduces exactly the silent desync this design exists to prevent, and reading `elements` for a
-collider is the same mistake with a second bake: collision only ever comes from `tiles`/`colliders`
-via `isWalkable`/`resolveTerrain()`/`isWalkableBox`. Elevation needs no engine change — a cliff face
+collision from any of the latter three. `WorldInfo.tiles` and `WorldInfo.colliders` are gone: S3's
+tile-units increment made the stored heightfield the single geometry, baked into a `ZoneTerrain` by
+`zoneTerrainFromHeightfield` (`packages/engine/src/terrain-access.ts`) on the server AND, from the
+same string with the same function, on the client for its own prediction. An agent that reads
+`layers` to decide walkability reintroduces exactly the silent desync this design exists to prevent,
+and reading `elements` for a collider is the same mistake with a second bake: collision only ever
+comes from the heightfield, via `canStand`/`resolveGroundMovement`. Elevation needs no engine change — a cliff face
 is its own cell, impassable, one layer above the ground. The brush maintains that face on the lower
 cell of every north/east/south/west boundary, so a plateau is a real barrier on all four sides.
 Directional stair gateways are the only authored crossing: the editor chooses a side
