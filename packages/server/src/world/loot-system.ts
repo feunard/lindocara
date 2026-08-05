@@ -1,5 +1,6 @@
 import { canAct } from "@lindocara/engine/death.js";
-import { LOOT_PICKUP_RANGE, pointDistance } from "@lindocara/engine/game.js";
+import { LOOT_PICKUP_RANGE } from "@lindocara/engine/game.js";
+import { groundDistance } from "@lindocara/engine/ground.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { GroundLoot, PlayerRuntime } from "./world-runtime.js";
@@ -27,7 +28,12 @@ export function collectLoot<TSocket>(
     if (
       !item ||
       (item.ownerId !== undefined && item.ownerId !== player.id) ||
-      pointDistance(player, item) > LOOT_PICKUP_RANGE
+      // Pickup is a distance across the GROUND. This line read `pointDistance(player, item)`
+      // until the runtimes gained three axes, at which point it silently began comparing the
+      // hero's ground `x` against its own ELEVATION — no compiler error, no `.y` to grep for, and
+      // a loot radius that quietly became meaningless. `groundDistance` is the only reason it
+      // cannot happen again here.
+      groundDistance(player, item) > LOOT_PICKUP_RANGE
     )
       continue;
     if (item.kind === "potion") player.inventory.potions += item.amount;

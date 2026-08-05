@@ -166,9 +166,13 @@ describe("prediction against a non-default zone's geometry", () => {
   // parameter precisely so this cannot be omitted by accident (see prediction.ts).
   const arrivalSpawn: Vec2 = { x: 160, y: 160 };
 
+  // One tick of travel, stated as the rule rather than as a number: `PLAYER_SPEED` is tiles per
+  // second now, and a hard-coded 13 was only ever "260 px/s at 20 Hz" written out.
+  const oneTick = PLAYER_SPEED * TICK_DT;
+
   it("predictStep moves in mmo-test-zone when given that zone's geometry explicitly", () => {
     const moved = predictStep(arrivalSpawn, command(1, { right: true }), TEST_ZONE_TERRAIN);
-    expect(moved).toEqual({ x: 173, y: 160 });
+    expect(moved).toEqual({ x: 160 + oneTick, y: 160 });
   });
 
   it("reconcile replays pending commands against the zone geometry it is given", () => {
@@ -178,7 +182,7 @@ describe("prediction against a non-default zone's geometry", () => {
       step(arrivalSpawn, input({ right: true }), TICK_DT),
       TEST_ZONE_TERRAIN,
     );
-    expect(server).toEqual({ x: 173, y: 160 });
+    expect(server).toEqual({ x: 160 + oneTick, y: 160 });
     expect(reconcile(arrivalSpawn, pending, TEST_ZONE_TERRAIN, "alive")).toEqual(server);
   });
 });
@@ -222,7 +226,14 @@ describe("prediction against a sub-cell collider", () => {
   };
   // Start on the collider's own y-band so a rightward run walks straight into its left edge.
   const start: Vec2 = { x: TILE_SIZE, y: 2 * TILE_SIZE + 24 };
-  const commands = Array.from({ length: 12 }, (_, index) => command(index + 1, { right: true }));
+  // Enough commands to actually reach the rect and a few to spare, derived rather than written
+  // out: the count used to be 12, which was "twelve ticks at 260 px/s". At the tile-unit speed the
+  // same twelve ticks stop two pixels from the start and the collider never enters the picture —
+  // the test would still pass, and prove nothing.
+  const commandCount = Math.ceil((rect.x - start.x) / (PLAYER_SPEED * TICK_DT)) + 4;
+  const commands = Array.from({ length: commandCount }, (_, index) =>
+    command(index + 1, { right: true }),
+  );
 
   it("replays commands identically against a sub-cell collider", () => {
     // The server, applying one command per tick from the same starting point and geometry.

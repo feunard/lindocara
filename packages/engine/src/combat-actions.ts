@@ -1,5 +1,6 @@
 import type { MonsterAttackProfile, MonsterSpecies, PlayerClass } from "./game.js";
 import type { ProjectileKind } from "./protocol.js";
+import { TILE_SIZE } from "./tilemap.js";
 
 export type DirectionalActionShape =
   | "arc"
@@ -236,10 +237,21 @@ export function actionForClassSlot(playerClass: PlayerClass, slot: number): Play
   return action;
 }
 
+/**
+ * Everything from here down is the MONSTER half of the tables, and its `range` fields — the reach
+ * the AI asks about before it decides to strike — are TILE UNITS: the exact quotient of each former
+ * pixel value by `TILE_SIZE`.
+ *
+ * `hitboxRadius`, every `projectile` (`speed`, `radius`) and `MAX_PROJECTILE_RANGE` above are
+ * deliberately still PIXELS: they are combat-resolution and projectile geometry, converted with
+ * `projectile-system.ts` and the player tables in the next task. `PLAYER_ACTIONS` above is
+ * untouched for the same reason. This file is a mixed-unit file until then, and this comment is the
+ * seam.
+ */
 const STANDARD_MONSTER_ACTION: MonsterActionDefinition = {
   anticipationMs: 450,
   recoveryMs: 500,
-  range: 42,
+  range: 42 / TILE_SIZE,
   hitboxRadius: 18,
 };
 
@@ -257,7 +269,7 @@ export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefin
     ...STANDARD_MONSTER_ACTION,
     anticipationMs: 400,
     recoveryMs: 620,
-    range: 34,
+    range: 34 / TILE_SIZE,
     hitboxRadius: 14,
   },
   pig_rider: { ...STANDARD_MONSTER_ACTION, anticipationMs: 400, range: 52, hitboxRadius: 20 },
@@ -269,21 +281,21 @@ export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefin
     ...STANDARD_MONSTER_ACTION,
     anticipationMs: 600,
     recoveryMs: 650,
-    range: 56,
+    range: 56 / TILE_SIZE,
     hitboxRadius: 24,
   },
   mire_troll: {
     ...STANDARD_MONSTER_ACTION,
     anticipationMs: 650,
     recoveryMs: 700,
-    range: 58,
+    range: 58 / TILE_SIZE,
     hitboxRadius: 25,
   },
   gate_troll: {
     ...STANDARD_MONSTER_ACTION,
     anticipationMs: 650,
     recoveryMs: 700,
-    range: 58,
+    range: 58 / TILE_SIZE,
     hitboxRadius: 25,
   },
 };
@@ -294,28 +306,28 @@ const MONSTER_RANGED_ACTIONS = {
   arrow: {
     anticipationMs: 0,
     recoveryMs: 620,
-    range: 300,
+    range: 300 / TILE_SIZE,
     hitboxRadius: 0,
     projectile: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
   },
   hex: {
     anticipationMs: 0,
     recoveryMs: 640,
-    range: 280,
+    range: 280 / TILE_SIZE,
     hitboxRadius: 0,
     projectile: { kind: "hex_orb", speed: 390, radius: 9, pierce: 0 },
   },
   harpoon: {
     anticipationMs: 0,
     recoveryMs: 680,
-    range: 290,
+    range: 290 / TILE_SIZE,
     hitboxRadius: 0,
     projectile: { kind: "enemy_harpoon", speed: 470, radius: 6, pierce: 0 },
   },
   bomb: {
     anticipationMs: 0,
     recoveryMs: 760,
-    range: 240,
+    range: 240 / TILE_SIZE,
     hitboxRadius: 0,
     projectile: { kind: "enemy_bomb", speed: 330, radius: 10, pierce: 0 },
   },
@@ -371,7 +383,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 850,
     recoveryMs: 900,
     cooldownMs: 7_000,
-    range: 112,
+    range: 112 / TILE_SIZE,
     damageMultiplier: 1.45,
     shape: "circle",
   },
@@ -379,7 +391,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 720,
     recoveryMs: 780,
     cooldownMs: 6_000,
-    range: 168,
+    range: 168 / TILE_SIZE,
     damageMultiplier: 1.3,
     shape: "cone",
     halfAngleRadians: Math.PI / 3,
@@ -388,7 +400,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 950,
     recoveryMs: 1_000,
     cooldownMs: 8_500,
-    range: 128,
+    range: 128 / TILE_SIZE,
     damageMultiplier: 1.05,
     shape: "circle",
     healRatio: 0.65,
@@ -397,7 +409,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 620,
     recoveryMs: 680,
     cooldownMs: 5_500,
-    range: 160,
+    range: 160 / TILE_SIZE,
     damageMultiplier: 1.2,
     shape: "cone",
     halfAngleRadians: Math.PI / 4,
@@ -406,7 +418,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 760,
     recoveryMs: 820,
     cooldownMs: 6_500,
-    range: 120,
+    range: 120 / TILE_SIZE,
     damageMultiplier: 1.35,
     shape: "circle",
   },
@@ -414,7 +426,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 680,
     recoveryMs: 900,
     cooldownMs: 7_000,
-    range: 145,
+    range: 145 / TILE_SIZE,
     damageMultiplier: 1.55,
     shape: "cone",
     halfAngleRadians: Math.PI / 3,
@@ -423,7 +435,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 740,
     recoveryMs: 820,
     cooldownMs: 6_400,
-    range: 170,
+    range: 170 / TILE_SIZE,
     damageMultiplier: 1.45,
     shape: "cone",
     halfAngleRadians: Math.PI / 3,
@@ -432,7 +444,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 980,
     recoveryMs: 1_050,
     cooldownMs: 8_800,
-    range: 140,
+    range: 140 / TILE_SIZE,
     damageMultiplier: 1.1,
     shape: "circle",
     healRatio: 0.5,
@@ -441,7 +453,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 720,
     recoveryMs: 1_000,
     cooldownMs: 7_500,
-    range: 220,
+    range: 220 / TILE_SIZE,
     damageMultiplier: 1.65,
     shape: "cone",
     halfAngleRadians: Math.PI / 7,
@@ -450,7 +462,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 960,
     recoveryMs: 1_100,
     cooldownMs: 8_200,
-    range: 155,
+    range: 155 / TILE_SIZE,
     damageMultiplier: 1.5,
     shape: "circle",
   },
@@ -458,7 +470,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 1_100,
     recoveryMs: 1_200,
     cooldownMs: 9_500,
-    range: 180,
+    range: 180 / TILE_SIZE,
     damageMultiplier: 1.7,
     shape: "circle",
   },
@@ -466,7 +478,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 880,
     recoveryMs: 1_050,
     cooldownMs: 8_000,
-    range: 200,
+    range: 200 / TILE_SIZE,
     damageMultiplier: 1.45,
     shape: "cone",
     halfAngleRadians: Math.PI / 2.5,
@@ -475,7 +487,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 900,
     recoveryMs: 920,
     cooldownMs: 7_200,
-    range: 170,
+    range: 170 / TILE_SIZE,
     damageMultiplier: 1.25,
     shape: "circle",
   },
@@ -483,7 +495,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 650,
     recoveryMs: 950,
     cooldownMs: 6_800,
-    range: 175,
+    range: 175 / TILE_SIZE,
     damageMultiplier: 1.5,
     shape: "cone",
     halfAngleRadians: Math.PI / 7,
@@ -492,7 +504,7 @@ export const MONSTER_SPECIAL_ACTIONS = {
     anticipationMs: 700,
     recoveryMs: 980,
     cooldownMs: 7_000,
-    range: 190,
+    range: 190 / TILE_SIZE,
     damageMultiplier: 1.55,
     shape: "cone",
     halfAngleRadians: Math.PI / 5,

@@ -8,10 +8,10 @@
  */
 
 import { npcMovementIntervalTicks } from "@lindocara/engine/event-movement.js";
-import { isWalkable, type TerrainGeometry } from "@lindocara/engine/game.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MoveType, NpcRoutineStep } from "@lindocara/engine/map-events.js";
-import { PLAYER_SIZE, TICK_MS } from "@lindocara/engine/simulation.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { TICK_MS } from "@lindocara/engine/simulation.js";
+import { BODY_RADIUS, canStand, groundUnder, type ZoneTerrain } from "./terrain-access.js";
 import type { ActiveWorldEvent, PlayerRuntime } from "./world-runtime.js";
 
 export interface NpcMovementDefinition {
@@ -22,6 +22,14 @@ export interface NpcMovementDefinition {
   moveSpeed: number;
   moveFreq: number;
   through: boolean;
+  /**
+   * The leash, in TILES — which is also cells, now that the grid is the tile grid. It used to be
+   * pixels and was divided by `TILE_SIZE` at every use.
+   *
+   * CARRY FORWARD: its producer (`worldEvents.ts`, `event.patrolRadius ?? TILE_SIZE * 2`) still
+   * emits pixels, and converting it there is the next task's, at the definition rather than here
+   * at the use.
+   */
   patrolRadius: number;
   route?: readonly NpcRoutineStep[];
 }
@@ -83,11 +91,21 @@ export function reconcileNpcMovement(
   return next;
 }
 
-function playerCell(player: Pick<PlayerRuntime, "x" | "y">): { col: number; row: number } {
-  return {
-    col: Math.floor((player.x + PLAYER_SIZE / 2) / TILE_SIZE),
-    row: Math.floor((player.y + PLAYER_SIZE / 2) / TILE_SIZE),
-  };
+/**
+ * The cell a body stands in. This is `TerrainQuery`'s own `toCell` (`floor(w + size / 2)`) and must
+ * stay that arithmetic: an NPC deciding it stands in one cell while collision says another is the
+ * silent half-cell drift the grid-centred origin exists to make impossible.
+ */
+function cellOf(terrain: ZoneTerrain, x: number, z: number): { col: number; row: number } {
+  const half = terrain.size / 2;
+  return { col: Math.floor(x + half), row: Math.floor(z + half) };
+}
+
+function playerCell(
+  terrain: ZoneTerrain,
+  player: Pick<PlayerRuntime, "x" | "z">,
+): { col: number; row: number } {
+  return cellOf(terrain, player.x, player.z);
 }
 
 function stepToward(
@@ -106,7 +124,8 @@ function stepToward(
 function candidateFor(
   event: ActiveWorldEvent,
   runtime: NpcMovementRuntime,
-  players: readonly Pick<PlayerRuntime, "x" | "y" | "authorized" | "life">[],
+  players: readonly Pick<PlayerRuntime, "x" | "z" | "authorized" | "life">[],
+  terrain: ZoneTerrain,
   tick: number,
 ): { cell: { col: number; row: number }; routeStep: number } {
   const current = { col: event.col, row: event.row };
@@ -115,7 +134,7 @@ function candidateFor(
   if (runtime.moveType === "approach") {
     const nearest = players
       .filter((player) => player.authorized && player.life === "alive")
-      .map((player) => playerCell(player))
+      .map((player) => playerCell(terrain, player))
       .sort(
         (left, right) =>
           Math.abs(left.col - current.col) +
@@ -179,7 +198,7 @@ function candidateFor(
   const direction =
     DIRECTIONS[stableHash(`${runtime.id}:${runtime.routeStep}`) % DIRECTIONS.length] ??
     DIRECTIONS[0];
-  const radius = Math.max(1, Math.floor(runtime.patrolRadius / TILE_SIZE));
+  const radius = Math.max(1, Math.floor(runtime.patrolRadius));
   const candidate = {
     col: current.col + direction.col,
     row: current.row + direction.row,
@@ -195,36 +214,43 @@ function candidateFor(
   };
 }
 
+/** World centre of a cell — `TerrainQuery.cellCenter`, written out because this module needs the
+ *  point and not the query object. */
+function cellCentre(terrain: ZoneTerrain, cell: { col: number; row: number }): GroundVector {
+  const half = terrain.size / 2;
+  return { x: cell.col + 0.5 - half, z: cell.row + 0.5 - half };
+}
+
+/**
+ * An NPC steps between whole cells, so its destination is tested at the cell's CENTRE.
+ *
+ * `groundY` is the ground under the NPC RIGHT NOW, not under the destination. Passing the
+ * destination's own ground would self-satisfy `canStand`'s ceiling and let an NPC walk up a cliff
+ * one cell at a time — an authored villager climbing a plateau the hero has to jump onto. NPCs
+ * obey the same rule as monsters: they walk on terrain height and do not jump.
+ *
+ * `through` NPCs (the authored "walk through anything" flag) still bypass collision, and still
+ * cannot leave the grid.
+ */
 function cellWalkable(
   cell: { col: number; row: number },
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
   through: boolean,
+  groundY: number,
 ): boolean {
-  if (
-    cell.col < 0 ||
-    cell.row < 0 ||
-    cell.col >= terrain.tiles.cols ||
-    cell.row >= terrain.tiles.rows
-  ) {
+  if (cell.col < 0 || cell.row < 0 || cell.col >= terrain.size || cell.row >= terrain.size) {
     return false;
   }
   if (through) return true;
-  const inset = (TILE_SIZE - PLAYER_SIZE) / 2;
-  return isWalkable(
-    {
-      x: cell.col * TILE_SIZE + inset,
-      y: cell.row * TILE_SIZE + inset,
-    },
-    PLAYER_SIZE,
-    terrain,
-  );
+  const centre = cellCentre(terrain, cell);
+  return canStand(terrain, centre.x, centre.z, BODY_RADIUS, groundY);
 }
 
 export function advanceNpcEvents(params: {
   events: readonly ActiveWorldEvent[];
   movement: Map<string, NpcMovementRuntime>;
-  players: readonly Pick<PlayerRuntime, "x" | "y" | "authorized" | "life">[];
-  terrain: TerrainGeometry;
+  players: readonly Pick<PlayerRuntime, "x" | "z" | "authorized" | "life">[];
+  terrain: ZoneTerrain;
   tick: number;
   pausedEventIds: ReadonlySet<string>;
 }): ActiveWorldEvent[] {
@@ -241,12 +267,12 @@ export function advanceNpcEvents(params: {
     }
     runtime.nextMoveTick =
       params.tick + npcMovementIntervalTicks(runtime.moveSpeed, runtime.moveFreq);
-    const proposed = candidateFor(event, runtime, params.players, params.tick);
+    const proposed = candidateFor(event, runtime, params.players, params.terrain, params.tick);
     const distanceFromHome = Math.hypot(
       proposed.cell.col - runtime.homeCol,
       proposed.cell.row - runtime.homeRow,
     );
-    const radiusInCells = Math.max(1, runtime.patrolRadius / TILE_SIZE);
+    const radiusInCells = Math.max(1, runtime.patrolRadius);
     const candidate =
       distanceFromHome <= radiusInCells
         ? proposed
@@ -258,10 +284,16 @@ export function advanceNpcEvents(params: {
             routeStep: proposed.routeStep,
           };
     runtime.routeStep = candidate.routeStep;
+    const here = cellCentre(params.terrain, event);
     if (
       (candidate.cell.col === event.col && candidate.cell.row === event.row) ||
       occupied.has(`${candidate.cell.col}:${candidate.cell.row}`) ||
-      !cellWalkable(candidate.cell, params.terrain, runtime.through)
+      !cellWalkable(
+        candidate.cell,
+        params.terrain,
+        runtime.through,
+        groundUnder(params.terrain, here.x, here.z),
+      )
     ) {
       return event;
     }

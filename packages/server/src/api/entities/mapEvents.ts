@@ -45,7 +45,14 @@ export const mapEvents = $entity({
     monsterRank: z.string().optional(),
     monsterMaxHp: z.integer().optional(),
     monsterDamage: z.integer().optional(),
-    monsterSpeed: z.integer().optional(),
+    /**
+     * Tiles per second, and therefore NOT an integer any more: the bestiary's speeds are exact
+     * quotients of the former pixel values (105/64, 88/64, ...). Its stored column stays SQLite
+     * `integer`, which is a type affinity rather than a constraint — a real is stored and read back
+     * as a real — so this widening needs no migration. Every other tuning column beside it is still
+     * a whole number.
+     */
+    monsterSpeed: z.number().optional(),
     monsterXp: z.integer().optional(),
     monsterWeakness: z.string().optional(),
     monsterWeaknessPercent: z.integer().optional(),

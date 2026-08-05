@@ -452,6 +452,23 @@ function boundedMonsterInteger(
   return numeric >= limits.min && numeric <= limits.max ? numeric : null;
 }
 
+/**
+ * `monsterSpeed` alone is not an integer field any more: it is TILES per second, so the whole
+ * bestiary's speeds (105/64, 88/64, ...) are fractions. Every other authored tuning value — hit
+ * points, damage, experience, weakness percentage — is still a whole number and still parsed by
+ * `boundedMonsterInteger`. A non-finite value is still refused; only the integer requirement is
+ * dropped, and only here.
+ */
+function boundedMonsterSpeed(
+  value: unknown,
+  fallback: number,
+  limits: { readonly min: number; readonly max: number },
+): number | null {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value >= limits.min && value <= limits.max ? value : null;
+}
+
 function parseEventPage(raw: unknown): MapEventPage | null {
   if (typeof raw !== "object" || raw === null) return null;
   const record = raw as Record<string, unknown>;
@@ -691,7 +708,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         defaults.damage,
         MONSTER_TUNING_LIMITS.damage,
       );
-      monsterSpeed = boundedMonsterInteger(
+      monsterSpeed = boundedMonsterSpeed(
         record.monsterSpeed,
         defaults.speed,
         MONSTER_TUNING_LIMITS.speed,

@@ -1,23 +1,39 @@
-import { emptyColliderIndex } from "@lindocara/engine/collider.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { describe, expect, it } from "vitest";
 import { advanceNpcEvents, reconcileNpcMovement } from "../src/world/npc-movement-system.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "../src/world/terrain-access.js";
 import type { ActiveWorldEvent } from "../src/world/world-runtime.js";
 
-const terrain: TerrainGeometry = {
-  width: 12 * TILE_SIZE,
-  height: 10 * TILE_SIZE,
-  obstacles: [],
-  spawnPoints: [],
-  safeZone: null,
-  tiles: {
-    cols: 12,
-    rows: 10,
-    kinds: Array.from({ length: 120 }, () => "grass"),
-  },
-  colliders: emptyColliderIndex(12, 10),
-};
+const SIZE = 12;
+
+/**
+ * A flat 12x12 heightfield, grid centre as origin. `patrolRadius` is tiles now — which is also
+ * cells — rather than pixels divided by `TILE_SIZE` at every use.
+ */
+function terrainWith(raised: readonly number[] = []): ZoneTerrain {
+  const levels: (number | null)[] = new Array(SIZE * SIZE).fill(0);
+  for (const index of raised) levels[index] = 1;
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels,
+    materials: new Array(SIZE * SIZE).fill("herbe"),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
+const terrain = terrainWith();
+
+/** The world point at the centre of cell `(col, row)`, in tile units. */
+function atCell(col: number, row: number): { x: number; z: number } {
+  return { x: col + 0.5 - SIZE / 2, z: row + 0.5 - SIZE / 2 };
+}
 
 function event(id: string, col: number, row: number): ActiveWorldEvent {
   return {
@@ -46,7 +62,7 @@ describe("authoritative NPC movement", () => {
           moveSpeed: 4,
           moveFreq: 4,
           through: false,
-          patrolRadius: 4 * TILE_SIZE,
+          patrolRadius: 4,
         },
       ],
       0,
@@ -65,13 +81,9 @@ describe("authoritative NPC movement", () => {
     expect(events[0]).toMatchObject({ col: 5, row: 3 });
 
     movement = reconcileNpcMovement(new Map(), [...movement.values()], 16);
-    const blockedTerrain: TerrainGeometry = {
-      ...terrain,
-      tiles: {
-        ...terrain.tiles,
-        kinds: terrain.tiles.kinds.map((kind, index) => (index === 53 ? "forest" : kind)),
-      },
-    };
+    // Cell (col 5, row 4) is raised one level. A cliff refuses a grounded body exactly as a solid
+    // tile used to: `maxStep` is 0 and an NPC does not jump.
+    const blockedTerrain = terrainWith([4 * SIZE + 5]);
     const blocked = advanceNpcEvents({
       events: [event("worker", 5, 5)],
       movement,
@@ -95,7 +107,7 @@ describe("authoritative NPC movement", () => {
           moveSpeed: 4,
           moveFreq: 4,
           through: false,
-          patrolRadius: 4 * TILE_SIZE,
+          patrolRadius: 4,
           route: [
             { offsetCol: 2, offsetRow: 0, waitMs: 1_000 },
             { offsetCol: 0, offsetRow: 0, waitMs: 0 },
@@ -140,14 +152,12 @@ describe("authoritative NPC movement", () => {
           moveSpeed: 4,
           moveFreq: 4,
           through: false,
-          patrolRadius: 4 * TILE_SIZE,
+          patrolRadius: 4,
         },
       ],
       0,
     );
-    const players = [
-      { x: 6 * TILE_SIZE, y: 3 * TILE_SIZE, authorized: true, life: "alive" as const },
-    ];
+    const players = [{ ...atCell(6, 3), authorized: true, life: "alive" as const }];
     const moved = advanceNpcEvents({
       events: [event("guard", 3, 3)],
       movement,
@@ -181,14 +191,12 @@ describe("authoritative NPC movement", () => {
           moveSpeed: 4,
           moveFreq: 4,
           through: false,
-          patrolRadius: TILE_SIZE,
+          patrolRadius: 1,
         },
       ],
       0,
     );
-    const players = [
-      { x: 7 * TILE_SIZE, y: 3 * TILE_SIZE, authorized: true, life: "alive" as const },
-    ];
+    const players = [{ ...atCell(7, 3), authorized: true, life: "alive" as const }];
     let events: ActiveWorldEvent[] = [event("villager", 3, 3)];
     for (const tick of [8, 16, 24, 32]) {
       events = advanceNpcEvents({

@@ -2,7 +2,7 @@ import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAX_PENDING_COMMANDS } from "@lindocara/engine/prediction.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
-import { TICK_DT } from "@lindocara/engine/simulation.js";
+import { PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 class FakeWebSocket extends EventTarget {
@@ -198,7 +198,8 @@ describe("WorldClient lifecycle", () => {
     const socket = FakeWebSocket.instances[0];
 
     const mapASettings = defaultMapHeroSettings();
-    mapASettings.classes.priest.stats.movementSpeed = 100;
+    // Tiles per second, inside `MAP_HERO_STAT_LIMITS.movementSpeed`, which is tile units now.
+    mapASettings.classes.priest.stats.movementSpeed = 100 / 64;
     socket?.message({
       ...WELCOME,
       world: { ...WELCOME.world, zoneId: "map-a", heroSettings: mapASettings },
@@ -206,10 +207,10 @@ describe("WorldClient lifecycle", () => {
     client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
     expect(
       client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
-    ).toBe(32 + 100 * TICK_DT);
+    ).toBe(32 + (100 / 64) * TICK_DT);
 
     const mapBSettings = defaultMapHeroSettings();
-    mapBSettings.classes.priest.stats.movementSpeed = 400;
+    mapBSettings.classes.priest.stats.movementSpeed = 400 / 64;
     mapBSettings.classes.priest.disabledSkills = [2];
     socket?.message({
       ...WELCOME,
@@ -228,7 +229,7 @@ describe("WorldClient lifecycle", () => {
     );
     expect(
       client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
-    ).toBe(32 + 400 * TICK_DT);
+    ).toBe(32 + (400 / 64) * TICK_DT);
   });
 
   it("updates predicted harvest collision on welcome, depletion delta and intact resync", async () => {
@@ -261,7 +262,10 @@ describe("WorldClient lifecycle", () => {
         exhaustionBehavior: "hide" as const,
         exhaustedAssetId: null,
         fadeDurationMs: 250,
-        collider: [72, 32, 24, 32] as const,
+        // Nudged from 72 to 68 so the hero can still reach it: prediction replays at most
+        // `MAX_PENDING_COMMANDS` commands, which at the tile-unit speed is ~7px of travel, and a
+        // collider the square cannot reach is a collider the test never exercises.
+        collider: [68, 32, 24, 32] as const,
       },
     };
     socket?.message({
@@ -270,10 +274,20 @@ describe("WorldClient lifecycle", () => {
     });
 
     const right = { up: false, down: false, left: false, right: true };
-    client.update(right, TICK_DT);
-    expect(client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x).toBe(
-      32,
-    );
+    // The hero's 32px body starts at x = 32 and the tree's collider begins at x = 68, so it takes
+    // 4px of travel to press against it. That used to be a single tick at 260 px/s; at the
+    // tile-unit speed it is many, and one tick would leave the square in open ground with the
+    // collider never consulted — a test that passes while proving nothing.
+    const blockedAt = 68 - 32;
+    const pressTicks = Math.ceil((blockedAt - 32) / (PLAYER_SPEED * TICK_DT)) + 2;
+    const pressRight = () => {
+      for (let tick = 0; tick < pressTicks; tick++) client.update(right, TICK_DT);
+    };
+    const predictedX = () =>
+      client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x ?? 0;
+
+    pressRight();
+    expect(predictedX()).toBeLessThanOrEqual(blockedAt);
 
     const authoritative = { ...welcomePlayer, ack: 1 };
     const emptyDelta = { upsert: [], remove: [] };
@@ -300,10 +314,8 @@ describe("WorldClient lifecycle", () => {
       projectiles: emptyDelta,
       events: { upsert: [depleted], remove: [] },
     });
-    client.update(right, TICK_DT);
-    expect(
-      client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x,
-    ).toBeGreaterThan(32);
+    pressRight();
+    expect(predictedX()).toBeGreaterThan(blockedAt);
 
     socket?.message({
       t: "world.resync",
@@ -316,10 +328,8 @@ describe("WorldClient lifecycle", () => {
       projectiles: [],
       events: [{ ...intact, harvest: { ...intact.harvest, generation: 1 } }],
     });
-    client.update(right, TICK_DT);
-    expect(client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x).toBe(
-      32,
-    );
+    pressRight();
+    expect(predictedX()).toBeLessThanOrEqual(blockedAt);
   });
 
   it("forwards the complete authoritative Shadow Dance result without deriving targets", async () => {

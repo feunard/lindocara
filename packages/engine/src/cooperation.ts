@@ -1,6 +1,7 @@
 export const MAX_THREAT_ENTRIES = 16;
 export const THREAT_EXPIRES_MS = 15_000;
-export const THREAT_LEASH_DISTANCE = 1_100;
+/** Tile units: the exact quotient of the former 1100 px. */
+export const THREAT_LEASH_DISTANCE = 1_100 / 64;
 export const PROXIMITY_THREAT = 5;
 export const HEAL_THREAT_FACTOR = 0.5;
 export const TAUNT_MARGIN = 25;

@@ -620,31 +620,31 @@ describe("class rules", () => {
       attackBase: 27,
       attackPerLevel: 4,
       attackRange: 60,
-      movementSpeed: 260,
+      movementSpeed: 260 / 64,
     });
     expect(CLASS_STATS.ranger).toMatchObject({
       attackBase: 16,
       attackPerLevel: 2,
       attackRange: 382.5,
-      movementSpeed: 286,
+      movementSpeed: 286 / 64,
     });
     expect(CLASS_STATS.priest).toMatchObject({
       attackBase: 14,
       attackPerLevel: 2,
       attackRange: 337.5,
-      movementSpeed: 234,
+      movementSpeed: 234 / 64,
     });
     expect(CLASS_STATS.rogue).toEqual({
       attackBase: 22,
       attackPerLevel: 3,
       attackRange: 58,
-      movementSpeed: 312,
+      movementSpeed: 312 / 64,
     });
     expect(CLASS_STATS.peasant).toEqual({
       attackBase: 8,
       attackPerLevel: 1,
       attackRange: 54,
-      movementSpeed: 247,
+      movementSpeed: 247 / 64,
     });
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
@@ -745,12 +745,15 @@ describe("the death state machine", () => {
   });
 
   it("reclaims only your own body, and only within arm's reach", () => {
-    const corpse = { x: 1000, y: 1000 };
+    // Tile units, ground axes: `x`/`z`. A `{x, y}` literal here would have compiled against the
+    // old `Vec2` signature and compared the ghost's ground `x` against its own elevation.
+    const corpse = { x: 10, z: 10 };
+    const inside = CORPSE_RECLAIM_RANGE * 0.9;
+    const outside = CORPSE_RECLAIM_RANGE * 1.1;
     expect(canReclaim("ghost", corpse, corpse)).toBe(true);
-    expect(canReclaim("ghost", { x: 1000 + CORPSE_RECLAIM_RANGE - 1, y: 1000 }, corpse)).toBe(true);
-    expect(canReclaim("ghost", { x: 1000 + CORPSE_RECLAIM_RANGE + 1, y: 1000 }, corpse)).toBe(
-      false,
-    );
+    expect(canReclaim("ghost", { x: 10 + inside, z: 10 }, corpse)).toBe(true);
+    expect(canReclaim("ghost", { x: 10 + outside, z: 10 }, corpse)).toBe(false);
+    expect(canReclaim("ghost", { x: 10, z: 10 + outside }, corpse)).toBe(false);
     // The living do not reclaim, and a body with no ghost has nobody to reclaim it.
     expect(canReclaim("alive", corpse, corpse)).toBe(false);
     expect(canReclaim("corpse", corpse, corpse)).toBe(false);
@@ -762,11 +765,13 @@ describe("the death state machine", () => {
 // tiers are unchanged — only their names move onto the art.
 describe("the Tiny Swords bestiary", () => {
   it("keeps the five stat tiers exactly as they were", () => {
-    expect(MONSTER_STATS.goblin).toEqual({ maxHp: 48, damage: 7, speed: 105, xp: 28 });
-    expect(MONSTER_STATS.gnoll).toEqual({ maxHp: 72, damage: 10, speed: 88, xp: 42 });
-    expect(MONSTER_STATS.skull).toEqual({ maxHp: 78, damage: 11, speed: 82, xp: 48 });
-    expect(MONSTER_STATS.minotaur).toEqual({ maxHp: 110, damage: 14, speed: 65, xp: 62 });
-    expect(MONSTER_STATS.troll).toEqual({ maxHp: 145, damage: 16, speed: 60, xp: 78 });
+    // `speed` is tiles per second now; every other number is unchanged. Kept as the quotient so
+    // the tier each species belongs to stays readable against the pixel values it replaced.
+    expect(MONSTER_STATS.goblin).toEqual({ maxHp: 48, damage: 7, speed: 105 / 64, xp: 28 });
+    expect(MONSTER_STATS.gnoll).toEqual({ maxHp: 72, damage: 10, speed: 88 / 64, xp: 42 });
+    expect(MONSTER_STATS.skull).toEqual({ maxHp: 78, damage: 11, speed: 82 / 64, xp: 48 });
+    expect(MONSTER_STATS.minotaur).toEqual({ maxHp: 110, damage: 14, speed: 65 / 64, xp: 62 });
+    expect(MONSTER_STATS.troll).toEqual({ maxHp: 145, damage: 16, speed: 60 / 64, xp: 78 });
   });
 
   it("gives every spawned species a stat tier that exists", () => {

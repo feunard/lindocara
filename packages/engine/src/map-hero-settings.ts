@@ -1,12 +1,19 @@
 import { CLASS_STATS, PLAYER_CLASSES, type PlayerClass } from "./game.js";
 import { SKILL_SLOTS, type SkillSlot } from "./skills.js";
 
-/** Bounds shared by the editor and the authoritative map parser. */
+/**
+ * Bounds shared by the editor and the authoritative map parser.
+ *
+ * `movementSpeed` is TILES per second, so its bounds are the exact quotients of the former 80 and
+ * 520 px/s. The attack/heal ranges are still pixels and still belong to the skill tables the next
+ * task converts — leaving them here as pixels while the speed is tiles is the visible seam, not an
+ * oversight.
+ */
 export const MAP_HERO_STAT_LIMITS = {
   attackBase: { min: 1, max: 500 },
   attackPerLevel: { min: 0, max: 100 },
   attackRange: { min: 16, max: 1_024 },
-  movementSpeed: { min: 80, max: 520 },
+  movementSpeed: { min: 80 / 64, max: 520 / 64 },
   healBase: { min: 1, max: 500 },
   healPerLevel: { min: 0, max: 100 },
   healRange: { min: 16, max: 1_024 },

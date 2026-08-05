@@ -15,7 +15,8 @@
  */
 
 import { CLASS_STATS, maxHpForLevel, type PlayerClass } from "./game.js";
-import { PLAYER_SPEED, type Vec2 } from "./simulation.js";
+import { type GroundVector, groundDistance } from "./ground.js";
+import { PLAYER_SPEED } from "./simulation.js";
 
 export const LIFE_STATES = ["alive", "corpse", "ghost"] as const;
 export type LifeState = (typeof LIFE_STATES)[number];
@@ -28,7 +29,7 @@ export const GHOST_SPEED = PLAYER_SPEED * GHOST_SPEED_MULTIPLIER;
  * Reclaiming is automatic within this radius, like loot. A corpse run that ends in one more
  * keypress ends in a keypress you forgot about.
  */
-export const CORPSE_RECLAIM_RANGE = 44;
+export const CORPSE_RECLAIM_RANGE = 44 / 64;
 
 /** Coming back at full health is what makes the current death free. Both routes leave a mark. */
 export const RESURRECT_HP_RATIO = 0.4;
@@ -77,7 +78,16 @@ export function canBeResurrected(life: LifeState): boolean {
   return life === "corpse";
 }
 
-export function canReclaim(life: LifeState, position: Vec2, corpse: Vec2 | null): boolean {
+/**
+ * The reclaim check measures across the GROUND. A `Vec2` here would have compiled and silently
+ * compared the ghost's ground `x` against its own elevation, so the parameter is a `GroundVector`
+ * on purpose — a body that is exactly above its corpse has not reached it.
+ */
+export function canReclaim(
+  life: LifeState,
+  position: GroundVector,
+  corpse: GroundVector | null,
+): boolean {
   if (life !== "ghost" || corpse === null) return false;
-  return Math.hypot(position.x - corpse.x, position.y - corpse.y) <= CORPSE_RECLAIM_RANGE;
+  return groundDistance(position, corpse) <= CORPSE_RECLAIM_RANGE;
 }

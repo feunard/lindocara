@@ -32,12 +32,25 @@
  * is likewise the caller's: this function takes the point to test, not a point to adjust.
  */
 
+import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import { createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import { type MapData, mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { ZoneTerrain } from "@lindocara/engine/zones.js";
 
 export type { ZoneTerrain };
+
+/**
+ * The collision disc every server-simulated body is tested with, in tile units: half of the pixel
+ * world's 32 px square body. A disc rather than a box because that is what `TerrainQuery` and
+ * `ColliderIndex` answer for, and because a rotating box would have made the two disagree.
+ *
+ * One radius for players, monsters, guards and NPCs, exactly as `PLAYER_SIZE` was one size for all
+ * four. `MONSTER_BODY_HITBOX` is a COMBAT body, not a navigation one, and stays out of this.
+ */
+export const BODY_RADIUS = PLAYER_SIZE / 2 / TILE_SIZE;
 
 /**
  * Levels a grounded body may climb by walking, as a multiple of `levelHeight`. **Zero**, and that
@@ -96,4 +109,200 @@ export function canStand(
   if (terrain.query.maxHeightAround(x, z, radius) > ceiling) return false;
 
   return !terrain.colliders.blocked(x, z, radius);
+}
+
+/**
+ * The ground a body standing at `(x, z)` is on. `heightAt` is the whole answer; the fallback is
+ * only for a body that is over water or off the grid, where there is no ground to read and the
+ * elevation it already carries is the least wrong thing to keep.
+ *
+ * Every caller that moves a grounded body reads this BEFORE testing a destination, so `groundY` is
+ * the ground actually underfoot rather than a value carried from wherever the body last was. That
+ * is what "monsters read `heightAt` for the ground under them" means in practice, and it is also
+ * what stops a body whose elevation drifted from being refused every move it makes.
+ */
+export function groundUnder(terrain: ZoneTerrain, x: number, z: number, fallback = 0): number {
+  return terrain.query.heightAt(x, z) ?? fallback;
+}
+
+/**
+ * `canStand`, plus the escape hatch its docblock hands to the caller.
+ *
+ * `canStand` is deliberately positional and therefore has no way to notice that the body is
+ * ALREADY overlapping geometry — restored inside a plateau's disc, dropped there by a mobility
+ * skill, or left there by a terrain edit. With no hatch such a body is refused every destination
+ * in every direction and is cemented in place forever, with no diagnostic: it simply stops moving.
+ * `canEnter` (`hd2d/hero-step.ts:87-88` and `:93`) carries exactly this, and this is its
+ * server-side counterpart, written once for the three systems that move bodies rather than pasted
+ * into each.
+ *
+ * The rule is "no worse, and never into the sea": a stuck body may move to a destination whose
+ * relief is no higher than the relief it is already inside, and may leave a prop it is inside, but
+ * may never step off the grid or into water — that would trade being stuck for drowning.
+ */
+export function canStandOrEscape(
+  terrain: ZoneTerrain,
+  from: GroundVector,
+  x: number,
+  z: number,
+  radius: number,
+  groundY: number,
+): boolean {
+  if (canStand(terrain, x, z, radius, groundY)) return true;
+  // Not stuck: an ordinary refusal, which is the whole point of collision.
+  if (canStand(terrain, from.x, from.z, radius, groundY)) return false;
+  if (terrain.query.heightAt(x, z) === null) return false;
+  const reliefHere = terrain.query.maxHeightAround(from.x, from.z, radius);
+  const reliefThere = terrain.query.maxHeightAround(x, z, radius);
+  if (reliefThere > reliefHere + HEIGHT_EPSILON) return false;
+  return (
+    !terrain.colliders.blocked(x, z, radius) || terrain.colliders.blocked(from.x, from.z, radius)
+  );
+}
+
+/**
+ * Samples along a segment, endpoints included, at a stride fine enough that no cell between them
+ * is skipped. `count` is bounded so a caller cannot turn a long segment into an unbounded loop —
+ * a tick budget is not a suggestion.
+ */
+function sampleSegment(
+  from: GroundVector,
+  to: GroundVector,
+  stride: number,
+  visit: (x: number, z: number) => boolean,
+): boolean {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const length = Math.hypot(dx, dz);
+  const steps = Math.min(512, Math.max(1, Math.ceil(length / Math.max(stride, 1e-3))));
+  for (let index = 0; index <= steps; index++) {
+    const ratio = index / steps;
+    if (!visit(from.x + dx * ratio, from.z + dz * ratio)) return false;
+  }
+  return true;
+}
+
+/**
+ * Can a strike or a shot reach from `from` to `to` — the heightfield's replacement for the pixel
+ * `hasLineOfSight`, which asked the tile grid whether the centre-to-centre segment crossed a solid
+ * cell.
+ *
+ * Relief is what blocks: a plateau standing between the two ends. Water does NOT block, because a
+ * water cell is a surface below the shooter, not a wall — the same reading `canStand` takes. Props
+ * do not block either, exactly as the pixel version consulted `tiles` and never `colliders`: an
+ * arrow may pass over a tree's trunk collider.
+ *
+ * The ceiling is the HIGHER of the two ends' ground, so a monster on a plateau can strike down at
+ * a hero below it and vice versa; only ground higher than both interrupts.
+ */
+export function groundLineOfSight(
+  terrain: ZoneTerrain,
+  from: GroundVector,
+  to: GroundVector,
+): boolean {
+  const ceiling =
+    Math.max(groundUnder(terrain, from.x, from.z), groundUnder(terrain, to.x, to.z)) +
+    HEIGHT_EPSILON;
+  return sampleSegment(from, to, 0.5, (x, z) => {
+    const surface = terrain.query.heightAt(x, z);
+    return surface === null || surface <= ceiling;
+  });
+}
+
+/**
+ * Can a body of `radius` walk the straight line from `from` to `to` without collision refusing it
+ * anywhere along the way — the heightfield's replacement for `isPathWalkable`.
+ *
+ * Deliberately NOT `groundLineOfSight`, and for the reason `monster-system.ts` already records:
+ * that check reads the two ends' centres and is right for deciding whether an already-resolved
+ * attack shape has contact, and wrong for deciding whether a BODY can walk between them. A body
+ * can clip a corner over a stretch too short for its centre line to ever cross it, and a monster
+ * that keeps re-deciding "clear" near that corner ping-pongs there forever.
+ *
+ * `groundY` is re-read at every sample rather than carried from the start: a straight walk down a
+ * slope of level tiers is legal even though `maxStep` is 0, because each step down re-grounds the
+ * body. Carrying the start's `groundY` the whole way would refuse it.
+ */
+export function groundPathClear(
+  terrain: ZoneTerrain,
+  from: GroundVector,
+  to: GroundVector,
+  radius: number,
+): boolean {
+  return sampleSegment(from, to, Math.max(radius, 0.125), (x, z) =>
+    canStand(terrain, x, z, radius, groundUnder(terrain, x, z)),
+  );
+}
+
+/**
+ * Axis-separated collision resolution, in tile units — the successor of `engine/game.ts`'s
+ * `resolveTerrain`, and its behaviour rather than a fresh idea. Shared by every system that walks
+ * a body across the ground: heroes, monsters, guards.
+ *
+ * The axis separation IS the wall slide: a body moving diagonally into a wall is refused on the
+ * blocked axis and keeps the other, so it slides along the wall instead of stopping dead against
+ * it. `stepHero` resolves the two axes one at a time for exactly the same reason
+ * (`hd2d/hero-step.ts:242-247`); losing it here would be an invisible feel regression, because
+ * nothing would fail — movement would simply turn sticky.
+ *
+ * Two differences from the pixel resolver, both deliberate:
+ *
+ * - the world-rectangle clamp is gone. A tile grid is centred on the origin, so a rectangle
+ *   anchored at 0 would fence off its whole western and northern halves. `canStand` already
+ *   refuses ground off the grid, and refuses the sea too, which the clamp never did.
+ * - `groundY` is read from under the CANDIDATE point rather than carried from the start, so a body
+ *   walks DOWN a tier freely (nothing on the server falls in this phase) and never UP: `MAX_STEP`
+ *   is 0, and high ground is reached by jumping.
+ */
+export function resolveGroundMovement(
+  terrain: ZoneTerrain,
+  from: GroundVector,
+  desired: GroundVector,
+  radius = BODY_RADIUS,
+): GroundVector {
+  let x = from.x;
+  let z = from.z;
+  if (canStandOrEscape(terrain, from, desired.x, z, radius, groundUnder(terrain, desired.x, z))) {
+    x = desired.x;
+  }
+  if (canStandOrEscape(terrain, from, x, desired.z, radius, groundUnder(terrain, x, desired.z))) {
+    z = desired.z;
+  }
+  return { x, z };
+}
+
+/**
+ * Where a body restored from storage actually enters the world — the tile-unit successor of
+ * `clampRestoredPosition`, which lived in `engine/game.ts` because it needed a pixel
+ * `TerrainGeometry` and a `spawnPoints` list. It lives here instead because the two things it now
+ * needs are `canStand` and the map's authored spawn, and only the server has either.
+ *
+ * This is the FIRST line of defence against a cemented body, and the cheap one: a stored position
+ * that is no longer standable — the map was re-authored, a plateau grew over it, the row predates
+ * the units — never becomes a live hero at all. The escape hatch in `canStandOrEscape` is the
+ * second line, for the body that gets there some other way.
+ *
+ * All three axes travel: the returned `y` is the ground the body lands on, never a value dropped
+ * on the floor because `WorldPosition` happened to satisfy a two-axis type.
+ */
+export function restoreStandablePosition(
+  terrain: ZoneTerrain | undefined,
+  position: WorldPosition,
+  spawn: GroundVector,
+  radius = BODY_RADIUS,
+): WorldPosition {
+  const finite =
+    Number.isFinite(position.x) && Number.isFinite(position.y) && Number.isFinite(position.z);
+  if (!terrain) {
+    // No room geometry to check against (the caller has none yet). Keep a finite position as it
+    // is and fall back to the spawn otherwise; there is nothing here to validate it with.
+    return finite ? { x: position.x, y: position.y, z: position.z } : { ...spawn, y: 0 };
+  }
+  if (
+    finite &&
+    canStand(terrain, position.x, position.z, radius, groundUnder(terrain, position.x, position.z))
+  ) {
+    return { x: position.x, y: groundUnder(terrain, position.x, position.z), z: position.z };
+  }
+  return { x: spawn.x, y: groundUnder(terrain, spawn.x, spawn.z), z: spawn.z };
 }

@@ -15,7 +15,6 @@ import type { CombatContribution, ThreatEntry } from "@lindocara/engine/cooperat
 import { type LifeState, RESURRECT_COOLDOWN_MS } from "@lindocara/engine/death.js";
 import {
   CLASS_STATS,
-  clampRestoredPosition,
   defaultMonsterTuning,
   GUARD_MAX_HP,
   type GuardDefinition,
@@ -29,9 +28,8 @@ import {
   type MonsterSpecies,
   type MonsterWeakness,
   maxHpForLevel,
-  spawnPosition,
-  type TerrainGeometry,
 } from "@lindocara/engine/game.js";
+import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import type { PeasantCarryKind } from "@lindocara/engine/harvest.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import type { MonsterNavigationState } from "@lindocara/engine/navigation.js";
@@ -52,6 +50,7 @@ import { createWorldCache, type WorldCache } from "@lindocara/engine/world-delta
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { PlayerProfile, SaveableProfile } from "../profile-types.js";
 import { SpatialGrid } from "./spatial-grid.js";
+import { restoreStandablePosition, type ZoneTerrain } from "./terrain-access.js";
 
 /**
  * Copied verbatim from `../character-presence.ts`'s `PRESENCE_HEARTBEAT_MS` rather than imported:
@@ -93,32 +92,12 @@ export const MAX_STARVED_TICKS = 5;
 export const RESYNC_COOLDOWN_MS = 1_000;
 
 /**
- * A two-component quantity on the GROUND PLANE, in tile units: a heading, a facing, a velocity, a
- * navigation waypoint. The ground axes are `x` and `z` — there is no ground `y` any more.
- *
- * Deliberately NOT `@lindocara/engine`'s `Vec2`, whose `y` IS a ground axis. The two are
- * structurally different by exactly one field name, which is the only reason a half-finished
- * conversion cannot compile: keeping `Vec2` here would let the pixel plane survive inside a world
- * that has moved on, and nothing at runtime would say so.
+ * The ground-plane vocabulary now lives in `@lindocara/engine/ground.js`, beside the
+ * `groundDistance` helper that measures in it: the server, the wire and (from Phase B) the client
+ * all speak it, and one declaration is what keeps two of them from drifting. Re-exported here so
+ * every world system keeps importing it from the module that owns the runtimes.
  */
-export interface GroundVector {
-  x: number;
-  z: number;
-}
-
-/**
- * A world position in tile units with the grid centre as the origin: `x` and `z` are the two
- * GROUND axes and `y` is ELEVATION. This is `HeroState`'s convention
- * (`@lindocara/engine/hd2d/hero-state.js`), now the whole game's.
- *
- * **`y` is 0 for every entity at this point in the increment** — nothing leaves the ground until
- * jumping and gliding arrive in Phase B. It is not dead weight and must not be dropped as
- * "unused": the axis is carried now so that the thirteen world systems are converted once against
- * the final shape rather than twice.
- */
-export interface WorldPosition extends GroundVector {
-  y: number;
-}
+export type { GroundVector, WorldPosition };
 
 export interface Attachment extends WorldPosition {
   id: string;
@@ -787,16 +766,22 @@ export function combatCooldownsFromPlayer(
   );
 }
 
+/**
+ * `spawn` is where the body lands when its stored position is not standable — the map's authored
+ * spawn, which only the caller knows. It defaults to the grid centre because that is the origin of
+ * the tile-unit world and the only point every map has; a room that knows better should say so.
+ */
 export function profileFromAttachment(
   attachment: Attachment,
-  terrain?: TerrainGeometry,
+  terrain?: ZoneTerrain,
+  spawn: GroundVector = { x: 0, z: 0 },
 ): PlayerProfile {
   const level = attachment.level ?? 1;
   const playerClass = attachment.class ?? "warrior";
   return {
     id: attachment.id,
     nick: attachment.nick,
-    ...clampRestoredPosition(attachment, attachment.id, terrain),
+    ...restoreStandablePosition(terrain, attachment, spawn),
     level,
     xp: attachment.xp ?? 0,
     appearance: normalizeAppearance(attachment.appearance),
@@ -845,8 +830,14 @@ function lifeFromAttachment(attachment: Attachment): {
   return { life, corpse: { ...corpse } };
 }
 
-export function positionFromAttachment(attachment: Attachment | null): WorldPosition {
-  return attachment === null ? spawnPosition() : clampRestoredPosition(attachment, attachment.id);
+export function positionFromAttachment(
+  attachment: Attachment | null,
+  terrain?: ZoneTerrain,
+  spawn: GroundVector = { x: 0, z: 0 },
+): WorldPosition {
+  return attachment === null
+    ? { x: spawn.x, y: 0, z: spawn.z }
+    : restoreStandablePosition(terrain, attachment, spawn);
 }
 
 export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[] {

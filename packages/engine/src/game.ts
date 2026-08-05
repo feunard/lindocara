@@ -232,6 +232,14 @@ export const MONSTER_RESPAWN_DELAY_LIMITS = {
 export const MONSTER_TUNING_LIMITS = {
   maxHp: { min: 0, max: 100_000 },
   damage: { min: 0, max: 1_000 },
+  /**
+   * Deliberately still the authored PIXEL range, unlike `MONSTER_STATS.speed` above, which is now
+   * tiles per second. Stored maps — including the parked legacy adventures — carry pixel speeds in
+   * this field, and narrowing the bound to the tile range would refuse every one of them at parse
+   * time. Authored monster tuning is converted at the map boundary with the rest of the authored
+   * geometry, not here. The bound is wide enough to admit both readings meanwhile, which is why it
+   * is a seam rather than a break.
+   */
   speed: { min: 0, max: 300 },
   xp: { min: 0, max: 100_000 },
   weaknessPercent: { min: 0, max: 400 },
@@ -454,11 +462,12 @@ export const CITY_GUARDS: readonly GuardDefinition[] = [
   { id: "guard-south", x: 1040, y: 1120, patrolRadius: 190 },
 ] as const;
 
-export const GUARD_DETECTION_RANGE = 360;
-export const GUARD_ATTACK_RANGE = 54;
+/** The three geometric guard constants are tile units — exact quotients of 360/54/235 px. */
+export const GUARD_DETECTION_RANGE = 360 / TILE_SIZE;
+export const GUARD_ATTACK_RANGE = 54 / TILE_SIZE;
 export const GUARD_ATTACK_COOLDOWN_MS = 260;
 export const GUARD_DAMAGE = 500;
-export const GUARD_SPEED = 235;
+export const GUARD_SPEED = 235 / TILE_SIZE;
 export const GUARD_MAX_HP = 220;
 
 export interface Cemetery extends Vec2 {
@@ -901,18 +910,22 @@ export interface MonsterStats {
   xp: number;
 }
 
+/**
+ * `speed` is **tiles per second** — the exact quotient of each former pixel value by `TILE_SIZE`,
+ * so every species covers the same ground per second it always did.
+ */
 export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
-  goblin: { maxHp: 48, damage: 7, speed: 105, xp: 28 },
-  gnoll: { maxHp: 72, damage: 10, speed: 88, xp: 42 },
-  minotaur: { maxHp: 110, damage: 14, speed: 65, xp: 62 },
-  skull: { maxHp: 78, damage: 11, speed: 82, xp: 48 },
-  troll: { maxHp: 145, damage: 16, speed: 60, xp: 78 },
+  goblin: { maxHp: 48, damage: 7, speed: 105 / TILE_SIZE, xp: 28 },
+  gnoll: { maxHp: 72, damage: 10, speed: 88 / TILE_SIZE, xp: 42 },
+  minotaur: { maxHp: 110, damage: 14, speed: 65 / TILE_SIZE, xp: 62 },
+  skull: { maxHp: 78, damage: 11, speed: 82 / TILE_SIZE, xp: 48 },
+  troll: { maxHp: 145, damage: 16, speed: 60 / TILE_SIZE, xp: 78 },
   // A caster: frail, slow, and the hardest hitter per blow of anything goblin-sized.
-  shaman: { maxHp: 54, damage: 15, speed: 74, xp: 55 },
+  shaman: { maxHp: 54, damage: 15, speed: 74 / TILE_SIZE, xp: 55 },
   // Livestock that panics forward. Fast and weak — dangerous only in a drove.
-  boar: { maxHp: 40, damage: 6, speed: 128, xp: 22 },
+  boar: { maxHp: 40, damage: 6, speed: 128 / TILE_SIZE, xp: 22 },
   // The warband's elite: a spear goblin with a mount under it.
-  pig_rider: { maxHp: 96, damage: 13, speed: 118, xp: 66 },
+  pig_rider: { maxHp: 96, damage: 13, speed: 118 / TILE_SIZE, xp: 66 },
 };
 
 export function defaultMonsterTuning(species: MonsterSpecies): MonsterTuning {
@@ -992,12 +1005,15 @@ export const PLAYER_HP_PER_LEVEL = 12;
 
 /** Slot-one attack cadence shared by all three class kits. */
 export const ATTACK_COOLDOWN_MS = 325;
-export const MONSTER_AGGRO_RANGE = 210;
-export const MONSTER_ATTACK_RANGE = 42;
+/** Tile units: the exact quotient of the former 210 px. */
+export const MONSTER_AGGRO_RANGE = 210 / TILE_SIZE;
+/** Tile units: the exact quotient of the former 42 px. */
+export const MONSTER_ATTACK_RANGE = 42 / TILE_SIZE;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;
 export const INTERACTION_RANGE = 92;
-export const LOOT_PICKUP_RANGE = 46;
+/** Tile units: the exact quotient of the former 46 px. */
+export const LOOT_PICKUP_RANGE = 46 / TILE_SIZE;
 /** How long a dropped stack waits on the ground before `loot-system` sweeps it away. */
 export const LOOT_EXPIRY_MS = 30_000;
 export const QUEST_KILL_TARGET = 3;
@@ -1244,7 +1260,7 @@ export interface ClassStats {
   attackBase: number;
   attackPerLevel: number;
   attackRange: number;
-  /** Authoritative walking speed in world units per second. Shared by server and prediction. */
+  /** Authoritative walking speed in TILES per second. Shared by server and prediction. */
   movementSpeed: number;
   heal?: { base: number; perLevel: number; range: number; cooldownMs: number };
 }
@@ -1255,26 +1271,26 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
     attackBase: 16,
     attackPerLevel: 2,
     attackRange: 382.5,
-    movementSpeed: 286, // +10% versus Warrior.
+    movementSpeed: 286 / TILE_SIZE, // +10% versus Warrior.
   },
   priest: {
     attackBase: 14,
     attackPerLevel: 2,
     attackRange: 337.5,
-    movementSpeed: 234, // -10% versus Warrior.
+    movementSpeed: 234 / TILE_SIZE, // -10% versus Warrior.
     heal: { base: 35, perLevel: 3, range: 390, cooldownMs: 1_500 },
   },
   rogue: {
     attackBase: ROGUE_BALANCE.attack.base,
     attackPerLevel: ROGUE_BALANCE.attack.perLevel,
     attackRange: ROGUE_BALANCE.attack.range,
-    movementSpeed: 312, // +20% versus Warrior.
+    movementSpeed: 312 / TILE_SIZE, // +20% versus Warrior.
   },
   peasant: {
     attackBase: 8,
     attackPerLevel: 1,
     attackRange: 54,
-    movementSpeed: 247, // -5% versus Warrior: deliberate utility-over-combat tradeoff.
+    movementSpeed: 247 / TILE_SIZE, // -5% versus Warrior: deliberate utility-over-combat tradeoff.
   },
 };
 

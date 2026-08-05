@@ -25,19 +25,20 @@ import {
 } from "@lindocara/engine/consumables.js";
 import { emptyCombatCooldowns, normalizeCombatCooldowns } from "@lindocara/engine/cooldowns.js";
 import { isLifeState, type LifeState } from "@lindocara/engine/death.js";
-import {
-  clampRestoredPosition,
-  isWalkable,
-  maxHpForLevel,
-  type QuestChapter,
-  questDefinition,
-  type TerrainGeometry,
-} from "@lindocara/engine/game.js";
+import { maxHpForLevel, type QuestChapter, questDefinition } from "@lindocara/engine/game.js";
+import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
 import { initialResource } from "@lindocara/engine/resources.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  restoreStandablePosition,
+  type ZoneTerrain,
+} from "@lindocara/server/world/terrain-access.js";
 import { $inject } from "alepha";
 import { $repository } from "alepha/orm";
 // Pure item catalogue reused as-is from the legacy source tree (same-package sibling — the same
@@ -128,15 +129,31 @@ function safeDeadline(value: number): number {
  *  repairs to alive rather than stranding a ghost with nothing to walk back to. */
 function restoredLife(
   row: Hero,
-  terrain: TerrainGeometry | undefined,
-): { life: LifeState; corpse: Vec2 | null } {
+  terrain: ZoneTerrain | undefined,
+): { life: LifeState; corpse: WorldPosition | null } {
   const life = isLifeState(row.life) ? row.life : "alive";
   if (life === "alive" || row.corpseX === undefined || row.corpseY === undefined) {
     return { life: "alive", corpse: null };
   }
-  const corpse = { x: row.corpseX, y: row.corpseY };
-  if (!isWalkable(corpse, undefined, terrain)) return { life: "alive", corpse: null };
-  return { life, corpse };
+  const corpse = storedGroundPosition(row.corpseX, row.corpseY);
+  if (!terrain) return { life, corpse };
+  if (!canStand(terrain, corpse.x, corpse.z, BODY_RADIUS, groundUnder(terrain, corpse.x, corpse.z)))
+    return { life: "alive", corpse: null };
+  return { life, corpse: { ...corpse, y: groundUnder(terrain, corpse.x, corpse.z) } };
+}
+
+/**
+ * Reads a stored pair of ground coordinates into the three-axis world.
+ *
+ * The `hero` row still has exactly two position columns, both of which were GROUND axes in the
+ * pixel world, so the second one becomes `z` and elevation starts at 0. CARRY FORWARD: the wire
+ * and storage task adds the third column and resets all three, at which point this helper reads
+ * the row directly and disappears. Until then a stored pixel pair lands far off the grid, which
+ * `restoreStandablePosition` refuses — the hero enters at the spawn instead of at a coordinate
+ * 64 times too large, which is the behaviour we want anyway.
+ */
+function storedGroundPosition(x: number, groundY: number): WorldPosition {
+  return { x, y: 0, z: groundY };
 }
 
 export class AdmissionService {
@@ -230,7 +247,8 @@ export class AdmissionService {
    */
   async loadHeroProfile(
     heroId: string,
-    terrain: TerrainGeometry | undefined,
+    terrain: ZoneTerrain | undefined,
+    spawn: GroundVector = { x: 0, z: 0 },
   ): Promise<PlayerProfile | null> {
     const row = await this.heroes.findById(heroId);
     if (!row) return null;
@@ -270,7 +288,7 @@ export class AdmissionService {
     const selected = selectPrimaryQuest(questRows);
     const chapter = isQuestChapter(selected?.questId) ? selected.questId : "three_offerings";
 
-    const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id, terrain);
+    const position = restoreStandablePosition(terrain, storedGroundPosition(row.x, row.y), spawn);
     const level = Math.max(1, row.level);
     const life = restoredLife(row, terrain);
 

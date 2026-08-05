@@ -179,11 +179,11 @@ describe("directional class kit contract", () => {
 
   it("uses natural species attacks and only explicit authored profile overrides", () => {
     expect(monsterActionDefinition("hex_shaman", null)).toMatchObject({
-      range: 280,
+      range: 280 / 64,
       projectile: { kind: "hex_orb" },
     });
     expect(monsterActionDefinition("spear_goblin", "arrow")).toMatchObject({
-      range: 300,
+      range: 300 / 64,
       projectile: { kind: "arrow" },
     });
     expect(monsterActionDefinition("spear_goblin", "harpoon")).toMatchObject({
