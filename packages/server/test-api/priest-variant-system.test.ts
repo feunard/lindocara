@@ -1,5 +1,6 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { talentEffect } from "@lindocara/engine/talents.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advancePolarityOrbs,
   advanceSanctuaries,
@@ -29,6 +30,9 @@ import {
 import { newPlayer, type PlayerRuntime, toProfile } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it, vi } from "vitest";
 
+/** Original PIXEL geometry over `TILE_SIZE`, so each case stays readable in the units it was designed in. */
+const t = (pixels: number): number => pixels / TILE_SIZE;
+
 function priest(id = "priest"): PlayerRuntime {
   return newPlayer(
     {
@@ -36,6 +40,7 @@ function priest(id = "priest"): PlayerRuntime {
       nick: id,
       x: 0,
       y: 0,
+      z: 0,
       level: 10,
       xp: 0,
       hp: 100,
@@ -81,8 +86,8 @@ describe("authoritative priest evolution systems", () => {
     const portals: LumenPortalRuntime[] = [];
     const portal = startLumenPortal(portals, {
       ownerId: "priest",
-      from: { x: 10, y: 20 },
-      to: { x: 90, y: 20 },
+      from: { x: t(10), y: 0, z: t(20) },
+      to: { x: t(90), y: 0, z: t(20) },
       effect,
       now: 1_000,
       transfiguration: true,
@@ -101,28 +106,29 @@ describe("authoritative priest evolution systems", () => {
     const trail = startLumenTrail(trails, {
       id: "trail-1",
       ownerId: "priest",
-      origin: { x: 16, y: 16 },
+      origin: { x: t(16), z: t(16) },
       effect,
       power: 27,
       now: 1_000,
     });
-    appendLumenTrailPoint(trail, { x: 96, y: 16 });
-    appendLumenTrailPoint(trail, { x: 96, y: 96 });
+    appendLumenTrailPoint(trail, { x: t(96), z: t(16) });
+    appendLumenTrailPoint(trail, { x: t(96), z: t(96) });
     finishLumenTrail(trail, 2_000, effect.durationMs);
 
     expect(trail).toMatchObject({ startedAt: 2_000, expiresAt: 8_000, power: 27 });
-    expect(lumenTrailTouches(trail, { x: 72, y: 0 })).toBe(true);
-    expect(lumenTrailTouches(trail, { x: 80, y: 72 })).toBe(true);
-    expect(lumenTrailTouches(trail, { x: 180, y: 180 })).toBe(false);
+    // Positions are body CENTRES now, so each probe is the old top-left plus half a body.
+    expect(lumenTrailTouches(trail, { x: t(72 + 16), z: t(0 + 16) })).toBe(true);
+    expect(lumenTrailTouches(trail, { x: t(80 + 16), z: t(72 + 16) })).toBe(true);
+    expect(lumenTrailTouches(trail, { x: t(180), z: t(180) })).toBe(false);
   });
 
   it("advances Polarity Orb outward and back exactly once per phase", () => {
     const effect = talentEffect("priest", ["priest.divine_nova.polarity_orb"], "polarity_orb", 5);
     if (!effect) throw new Error("missing Polarity Orb effect");
     const orbs: PolarityOrbRuntime[] = [];
-    const orb = startPolarityOrb(orbs, "priest", { x: 0, y: 0 }, 100, effect, 1_000);
-    expect(polarityOrbRadius(orb, 1_450)).toBe(50);
-    expect(polarityOrbRadius(orb, 2_350)).toBe(50);
+    const orb = startPolarityOrb(orbs, "priest", { x: 0, y: 0, z: 0 }, t(100), effect, 1_000);
+    expect(polarityOrbRadius(orb, 1_450)).toBe(t(50));
+    expect(polarityOrbRadius(orb, 2_350)).toBe(t(50));
     const phases: boolean[] = [];
     advancePolarityOrbs(orbs, 1_450, (_orb, _from, _to, returning) => phases.push(returning));
     advancePolarityOrbs(orbs, 1_900, (_orb, _from, _to, returning) => phases.push(returning));
@@ -154,9 +160,10 @@ describe("authoritative priest evolution systems", () => {
     const sanctuaries: SanctuaryRuntime[] = [];
     const sanctuary = startSanctuary(sanctuaries, {
       ownerId: "priest",
-      x: 40,
-      y: 80,
-      radius: 120,
+      x: t(40),
+      y: 0,
+      z: t(80),
+      radius: t(120),
       power: 32,
       effect,
       now: 1_000,
@@ -168,14 +175,14 @@ describe("authoritative priest evolution systems", () => {
 
     expect(tick).toHaveBeenCalledTimes(3);
     expect(tick.mock.calls.every((call) => call[0] === sanctuary)).toBe(true);
-    expect(sanctuary).toMatchObject({ x: 40, y: 80, radius: 120, power: 11 });
+    expect(sanctuary).toMatchObject({ x: t(40), y: 0, z: t(80), radius: t(120), power: 11 });
     expect(sanctuaries).toEqual([]);
   });
 
   it("turns Luminous Transfiguration into a level-scaled endpoint group heal", () => {
     const effect = talentEffect("priest", ["priest.blink.mastery"], "luminous_transfiguration", 3);
     if (!effect) throw new Error("missing Luminous Transfiguration effect");
-    expect(effect.radius).toBe(95);
+    expect(effect.radius).toBe(t(95));
     expect(luminousTransfigurationPower(1, effect)).toBe(16);
     expect(luminousTransfigurationPower(10, effect)).toBe(25);
   });

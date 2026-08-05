@@ -1,6 +1,8 @@
 import { sweptProjectileEntityImpact } from "@lindocara/engine/directional-combat.js";
-import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
+import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import type { TalentEffect } from "@lindocara/engine/talents.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { BODY_RADIUS } from "./terrain-access.js";
 import type {
   CleanseableNegativeEffect,
   NegativeEffectRuntime,
@@ -17,11 +19,9 @@ type LumenGateEffect = Extract<TalentEffect, { kind: "lumen_gate" }>;
 type PolarityOrbEffect = Extract<TalentEffect, { kind: "polarity_orb" }>;
 type SacredPassageEffect = Extract<TalentEffect, { kind: "sacred_passage" }>;
 
-export interface SanctuaryRuntime {
+export interface SanctuaryRuntime extends WorldPosition {
   id: string;
   ownerId: string;
-  x: number;
-  y: number;
   radius: number;
   power: number;
   nextTickAt: number;
@@ -32,8 +32,8 @@ export interface SanctuaryRuntime {
 export interface LumenPortalRuntime {
   id: string;
   ownerId: string;
-  from: { x: number; y: number };
-  to: { x: number; y: number };
+  from: WorldPosition;
+  to: WorldPosition;
   startedAt: number;
   expiresAt: number;
   triggerRadius: number;
@@ -46,7 +46,8 @@ export interface LumenPortalRuntime {
 export interface LumenTrailRuntime {
   id: string;
   ownerId: string;
-  points: Vec2[];
+  /** The swept path on the GROUND plane; a trail has no elevation of its own. */
+  points: GroundVector[];
   width: number;
   power: number;
   startedAt: number;
@@ -54,11 +55,9 @@ export interface LumenTrailRuntime {
   healedPlayerIds: Set<string>;
 }
 
-export interface PolarityOrbRuntime {
+export interface PolarityOrbRuntime extends WorldPosition {
   id: string;
   ownerId: string;
-  x: number;
-  y: number;
   maximumRadius: number;
   startedAt: number;
   returnsAt: number;
@@ -108,8 +107,8 @@ export function startLumenPortal(
   portals: LumenPortalRuntime[],
   options: {
     ownerId: string;
-    from: { x: number; y: number };
-    to: { x: number; y: number };
+    from: WorldPosition;
+    to: WorldPosition;
     effect: LumenGateEffect;
     now: number;
     transfiguration: boolean;
@@ -141,7 +140,7 @@ export function startLumenTrail(
   options: {
     id: string;
     ownerId: string;
-    origin: Vec2;
+    origin: GroundVector;
     effect: SacredPassageEffect;
     power: number;
     now: number;
@@ -151,7 +150,7 @@ export function startLumenTrail(
   const trail: LumenTrailRuntime = {
     id: options.id,
     ownerId: options.ownerId,
-    points: [{ ...options.origin }],
+    points: [{ x: options.origin.x, z: options.origin.z }],
     width: Math.max(1, options.effect.width),
     power: Math.max(0, Math.round(options.power)),
     startedAt: options.now,
@@ -162,10 +161,13 @@ export function startLumenTrail(
   return trail;
 }
 
-export function appendLumenTrailPoint(trail: LumenTrailRuntime, point: Vec2): void {
+/** The pixel version ignored a step under 1 px; this is the same distance in tile units. */
+const TRAIL_POINT_MINIMUM_STEP = 1 / TILE_SIZE;
+
+export function appendLumenTrailPoint(trail: LumenTrailRuntime, point: GroundVector): void {
   const last = trail.points.at(-1);
-  if (last && Math.hypot(point.x - last.x, point.y - last.y) < 1) return;
-  trail.points.push({ ...point });
+  if (last && Math.hypot(point.x - last.x, point.z - last.z) < TRAIL_POINT_MINIMUM_STEP) return;
+  trail.points.push({ x: point.x, z: point.z });
   // A held step is capped at 2.5 s / 20 Hz. This defensive bound also protects protocol replay if
   // the simulation rate ever changes without changing the visual contract.
   if (trail.points.length > 96) trail.points.splice(1, trail.points.length - 96);
@@ -176,8 +178,10 @@ export function finishLumenTrail(trail: LumenTrailRuntime, now: number, duration
   trail.expiresAt = now + Math.max(0, durationMs);
 }
 
-export function lumenTrailTouches(trail: LumenTrailRuntime, target: Vec2): boolean {
-  const center = { x: target.x + PLAYER_SIZE / 2, y: target.y + PLAYER_SIZE / 2 };
+export function lumenTrailTouches(trail: LumenTrailRuntime, target: GroundVector): boolean {
+  // A tile-unit position IS the body's centre; the pixel version's `+ PLAYER_SIZE / 2` recentred a
+  // top-left corner and would now offset the ally by half a body.
+  const center = { x: target.x, z: target.z };
   for (let index = 1; index < trail.points.length; index++) {
     const from = trail.points[index - 1];
     const to = trail.points[index];
@@ -188,7 +192,7 @@ export function lumenTrailTouches(trail: LumenTrailRuntime, target: Vec2): boole
         from,
         to,
         trail.width,
-        { center, radius: PLAYER_SIZE / 2 },
+        { center, radius: BODY_RADIUS },
         "lumen-trail-target",
       ) !== null
     )
@@ -224,7 +228,7 @@ export function removeLumenPortalsByOwner(portals: LumenPortalRuntime[], ownerId
 export function startPolarityOrb(
   orbs: PolarityOrbRuntime[],
   ownerId: string,
-  center: { x: number; y: number },
+  center: WorldPosition,
   maximumRadius: number,
   effect: PolarityOrbEffect,
   now: number,
@@ -235,7 +239,9 @@ export function startPolarityOrb(
   const orb: PolarityOrbRuntime = {
     id: crypto.randomUUID(),
     ownerId,
-    ...center,
+    x: center.x,
+    y: center.y,
+    z: center.z,
     maximumRadius: Math.max(0, maximumRadius),
     startedAt: now,
     returnsAt: now + outwardMs,
@@ -372,6 +378,7 @@ export function startSanctuary(
     ownerId: string;
     x: number;
     y: number;
+    z: number;
     radius: number;
     power: number;
     effect: SanctuaryEffect;
@@ -386,6 +393,7 @@ export function startSanctuary(
     ownerId: options.ownerId,
     x: options.x,
     y: options.y,
+    z: options.z,
     radius: Math.max(0, options.radius),
     power: Math.max(0, Math.round(options.power * Math.max(0, options.effect.tickPowerRatio))),
     nextTickAt: options.now + intervalMs,

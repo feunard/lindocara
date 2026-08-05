@@ -36,18 +36,23 @@ const WHIRLWIND_PREREQUISITES = [
   "warrior.whirlwind.readiness",
 ] as const;
 
+/**
+ * `x` is given in the PIXELS this suite was written in and converted here, once, so every case
+ * below keeps the spacing it was designed around while the system reads tile units.
+ */
 function runtime(
   id: string,
   playerClass: PlayerClass,
-  x: number,
+  xPixels: number,
   talents: readonly string[] = [],
 ): PlayerRuntime {
   return newPlayer(
     {
       id,
       nick: id,
-      x,
-      y: 20,
+      x: xPixels / 64,
+      y: 0,
+      z: 20 / 64,
       level: 10,
       xp: 0,
       hp: 100,
@@ -149,7 +154,8 @@ describe("authoritative warrior evolution systems", () => {
     const effect = talentEffect("warrior", caster.talents, "rallying_cry", 4);
     if (!effect) throw new Error("missing Rallying Cry effect");
     const radius = skillWithTalents("warrior", caster.talents, 4).radius ?? 0;
-    expect(radius).toBe(141.8);
+    // 118 px * 1.2 was 141.8 px; the tile-unit product at the finer rounding quantum.
+    expect(radius).toBe(2.214844);
 
     expect(
       applyRallyingCry(
@@ -317,12 +323,12 @@ describe("authoritative warrior evolution systems", () => {
     const effect = talentEffect("warrior", warrior.talents, "eye_of_the_storm", 5);
     if (!effect) throw new Error("missing Eye of the Storm effect");
     const pulse = vi.fn();
-    startWarriorVortex(warrior, { x: 10, y: 20 }, 100, effect, 1_000, true);
-    warrior.x = 40;
+    startWarriorVortex(warrior, { x: 10 / 64, y: 0, z: 20 / 64 }, 100 / 64, effect, 1_000, true);
+    warrior.x = 40 / 64;
     advanceWarriorVortices([warrior], 1_500, pulse);
 
     expect(pulse).toHaveBeenCalledTimes(3);
-    expect(pulse.mock.calls.every((call) => call[1].x === 40)).toBe(true);
+    expect(pulse.mock.calls.every((call) => call[1].x === 40 / 64)).toBe(true);
     advanceWarriorVortices([warrior], 5_000, pulse);
     expect(warrior.warriorVortex).toBeNull();
   });
@@ -345,8 +351,9 @@ describe("authoritative warrior evolution systems", () => {
     warrior.warriorCounterReserve = 50;
     warrior.warriorBannerPower.set("old", { multiplier: 0.15, expiresAt: 9_000 });
     warrior.warriorVortex = {
-      x: 10,
-      y: 20,
+      x: 10 / 64,
+      y: 0,
+      z: 20 / 64,
       expiresAt: 9_000,
       nextPulseAt: 8_000,
       pulseIntervalMs: 250,

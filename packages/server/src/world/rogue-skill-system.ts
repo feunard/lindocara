@@ -1,19 +1,23 @@
+import { normalizeGround } from "@lindocara/engine/directional-combat.js";
+import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
-  normalizeDirection,
-  sweptProjectileTerrainImpact,
-} from "@lindocara/engine/directional-combat.js";
-import { isWalkable, type TerrainGeometry } from "@lindocara/engine/game.js";
-import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  sweptGroundTerrainImpact,
+  type ZoneTerrain,
+} from "./terrain-access.js";
 
-export interface ShadowStepCandidate extends Vec2 {
+export interface ShadowStepCandidate extends GroundVector {
   id: string;
   deadUntil: number;
 }
 
 export interface ShadowStepPlan {
   targetId: string;
-  targetPosition: Vec2;
-  destination: Vec2;
+  targetPosition: GroundVector;
+  destination: WorldPosition;
 }
 
 export type ShadowStepPlanningResult =
@@ -25,60 +29,75 @@ export interface ShadowStepPlanningOptions {
   phaseThroughObstacles?: boolean;
 }
 
-export interface ShadowReturnPoint extends Vec2 {
+export interface ShadowReturnPoint extends WorldPosition {
   expiresAt: number;
 }
 
 export type ShadowReturnPlanningResult =
-  | { ok: true; destination: Vec2 }
+  | { ok: true; destination: WorldPosition }
   | { ok: false; reason: "expired" | "blocked" };
 
-const BODY_SWEEP_RADIUS = (PLAYER_SIZE - 1) / 2;
-const TARGET_CLEARANCE = 4;
-
-function centre(position: Vec2): Vec2 {
-  return { x: position.x + PLAYER_SIZE / 2, y: position.y + PLAYER_SIZE / 2 };
-}
+/**
+ * The body swept along a teleport route: one hair under the navigation body, exactly as the pixel
+ * version's `(PLAYER_SIZE - 1) / 2` was. The hair is what lets a rogue slip through a gap that is
+ * precisely body-wide instead of being refused by floating-point luck.
+ */
+const BODY_SWEEP_RADIUS = BODY_RADIUS - 0.5 / TILE_SIZE;
+/** Daylight left between the landing and the target's own body. Four pixels, as before. */
+const TARGET_CLEARANCE = 4 / TILE_SIZE;
 
 /**
- * Collision-aware sight for Rogue target acquisition. The historical tile-only helper is enough
- * for old combat arcs, but a teleport must also treat an authored tree trunk as opaque.
+ * Collision-aware sight for Rogue target acquisition. The historical relief-only helper is enough
+ * for old combat arcs, but a teleport must also treat an authored tree trunk as opaque — which is
+ * why this asks `sweptGroundTerrainImpact` (relief AND props) rather than `groundLineOfSight`
+ * (relief only).
+ *
+ * `groundY` is the rogue's own ground: relief at or below the rogue's level does not block sight,
+ * and anything above it does.
+ *
+ * The `+ PLAYER_SIZE / 2` that used to recentre both ends is gone. A tile-unit position is already
+ * the body's centre; adding half a body would have aimed the sight line off the shoulder.
  */
-export function hasRogueLineOfSight(from: Vec2, to: Vec2, terrain: TerrainGeometry): boolean {
-  return (
-    sweptProjectileTerrainImpact(centre(from), centre(to), 0, terrain.tiles, terrain.colliders) ===
-    null
-  );
+export function hasRogueLineOfSight(
+  from: GroundVector,
+  to: GroundVector,
+  terrain: ZoneTerrain,
+  groundY: number,
+): boolean {
+  return sweptGroundTerrainImpact(terrain, from, to, 0, groundY) === null;
 }
 
 /** A teleport path is a swept player body, never a point jump through a narrow obstacle. */
 export function isShadowStepPathClear(
-  from: Vec2,
-  destination: Vec2,
-  terrain: TerrainGeometry,
+  from: GroundVector,
+  destination: GroundVector,
+  terrain: ZoneTerrain,
+  groundY: number,
 ): boolean {
-  if (!isShadowStepLandingValid(destination, terrain)) return false;
-  return (
-    sweptProjectileTerrainImpact(
-      centre(from),
-      centre(destination),
-      BODY_SWEEP_RADIUS,
-      terrain.tiles,
-      terrain.colliders,
-    ) === null
-  );
+  if (!isShadowStepLandingValid(destination, terrain, groundY)) return false;
+  return sweptGroundTerrainImpact(terrain, from, destination, BODY_SWEEP_RADIUS, groundY) === null;
 }
 
-export function isShadowStepLandingValid(destination: Vec2, terrain: TerrainGeometry): boolean {
-  return isWalkable(destination, PLAYER_SIZE, terrain);
+/**
+ * A landing must be somewhere the rogue could be STANDING — `canStand`, the one walkability
+ * question the server has. Grounded on the rogue's own level, so a shadow step is no more a way up
+ * a cliff than walking is (`MAX_STEP` is 0).
+ */
+export function isShadowStepLandingValid(
+  destination: GroundVector,
+  terrain: ZoneTerrain,
+  groundY: number,
+): boolean {
+  return canStand(terrain, destination.x, destination.z, BODY_RADIUS, groundY);
 }
 
 function nearestShadowStepTarget<T extends ShadowStepCandidate>(
-  origin: Vec2,
+  origin: GroundVector,
   candidates: Iterable<T>,
   range: number,
   now: number,
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
+  groundY: number,
   options: ShadowStepPlanningOptions,
 ): T | null {
   let selected: T | null = null;
@@ -86,10 +105,10 @@ function nearestShadowStepTarget<T extends ShadowStepCandidate>(
   for (const candidate of candidates) {
     if (
       candidate.deadUntil > now ||
-      (!options.phaseThroughObstacles && !hasRogueLineOfSight(origin, candidate, terrain))
+      (!options.phaseThroughObstacles && !hasRogueLineOfSight(origin, candidate, terrain, groundY))
     )
       continue;
-    const distance = Math.hypot(candidate.x - origin.x, candidate.y - origin.y);
+    const distance = groundDistance(candidate, origin);
     if (distance > range) continue;
     if (
       distance < selectedDistance ||
@@ -109,29 +128,34 @@ function nearestShadowStepTarget<T extends ShadowStepCandidate>(
  * clockwise then counter-clockwise lateral points are attempted in a stable order.
  */
 export function shadowStepDestination(
-  origin: Vec2,
-  target: Vec2,
+  origin: GroundVector,
+  target: GroundVector,
   targetBodyRadius: number,
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
+  groundY: number,
   options: ShadowStepPlanningOptions = {},
-): Vec2 | null {
-  const axis = normalizeDirection(
-    { x: target.x - origin.x, y: target.y - origin.y },
-    { x: 1, y: 0 },
-  );
-  const lateralClockwise = { x: -axis.y, y: axis.x };
-  const lateralCounterClockwise = { x: axis.y, y: -axis.x };
-  const clearance = PLAYER_SIZE / 2 + Math.max(0, targetBodyRadius) + TARGET_CLEARANCE;
-  const targetCentre = centre(target);
+): WorldPosition | null {
+  const axis = normalizeGround({ x: target.x - origin.x, z: target.z - origin.z }, { x: 1, z: 0 });
+  const lateralClockwise = { x: -axis.z, z: axis.x };
+  const lateralCounterClockwise = { x: axis.z, z: -axis.x };
+  const clearance = BODY_RADIUS + Math.max(0, targetBodyRadius) + TARGET_CLEARANCE;
   for (const direction of [axis, lateralClockwise, lateralCounterClockwise]) {
     const destination = {
-      x: targetCentre.x + direction.x * clearance - PLAYER_SIZE / 2,
-      y: targetCentre.y + direction.y * clearance - PLAYER_SIZE / 2,
+      x: target.x + direction.x * clearance,
+      z: target.z + direction.z * clearance,
     };
     const valid = options.phaseThroughObstacles
-      ? isShadowStepLandingValid(destination, terrain)
-      : isShadowStepPathClear(origin, destination, terrain);
-    if (valid) return destination;
+      ? isShadowStepLandingValid(destination, terrain, groundY)
+      : isShadowStepPathClear(origin, destination, terrain, groundY);
+    // All three axes travel out of here: the landing's elevation is the ground it lands on, never
+    // a value dropped because a two-axis type happened to be satisfied.
+    if (valid) {
+      return {
+        x: destination.x,
+        y: groundUnder(terrain, destination.x, destination.z, groundY),
+        z: destination.z,
+      };
+    }
   }
   return null;
 }
@@ -142,23 +166,31 @@ export function shadowStepDestination(
  * deterministic landing either succeeds or fails cleanly.
  */
 export function planShadowStep<T extends ShadowStepCandidate>(
-  origin: Vec2,
+  origin: WorldPosition,
   candidates: Iterable<T>,
   range: number,
   now: number,
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
   bodyRadius: (candidate: T) => number,
   options: ShadowStepPlanningOptions = {},
 ): ShadowStepPlanningResult {
-  const target = nearestShadowStepTarget(origin, candidates, range, now, terrain, options);
+  const groundY = groundUnder(terrain, origin.x, origin.z, origin.y);
+  const target = nearestShadowStepTarget(origin, candidates, range, now, terrain, groundY, options);
   if (!target) return { ok: false, reason: "no_target" };
-  const destination = shadowStepDestination(origin, target, bodyRadius(target), terrain, options);
+  const destination = shadowStepDestination(
+    origin,
+    target,
+    bodyRadius(target),
+    terrain,
+    groundY,
+    options,
+  );
   return destination
     ? {
         ok: true,
         plan: {
           targetId: target.id,
-          targetPosition: { x: target.x, y: target.y },
+          targetPosition: { x: target.x, z: target.z },
           destination,
         },
       }
@@ -169,11 +201,19 @@ export function planShadowStep<T extends ShadowStepCandidate>(
 export function planShadowReturn(
   point: ShadowReturnPoint,
   now: number,
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
 ): ShadowReturnPlanningResult {
   if (point.expiresAt <= now) return { ok: false, reason: "expired" };
-  const destination = { x: point.x, y: point.y };
-  return isShadowStepLandingValid(destination, terrain)
-    ? { ok: true, destination }
+  // The remembered elevation is what the rogue left from; the landing is re-validated against it
+  // and its own `y` re-derived from the terrain rather than replayed from the memory.
+  return isShadowStepLandingValid(point, terrain, point.y)
+    ? {
+        ok: true,
+        destination: {
+          x: point.x,
+          y: groundUnder(terrain, point.x, point.z, point.y),
+          z: point.z,
+        },
+      }
     : { ok: false, reason: "blocked" };
 }

@@ -1,4 +1,5 @@
 import { maxHpForLevel } from "@lindocara/engine/game.js";
+import { groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import type { SkillDefinition } from "@lindocara/engine/skills.js";
 import { type TalentEffect, talentEffect } from "@lindocara/engine/talents.js";
 import type { PlayerRuntime } from "./world-runtime.js";
@@ -21,8 +22,9 @@ function cycloneTiming(effect: CycloneEffect): { ticks: number; intervalMs: numb
   };
 }
 
+/** Ground distance, never `Math.hypot(x, y)`: `y` is elevation now. */
 function distance(left: PlayerRuntime, right: PlayerRuntime): number {
-  return Math.hypot(left.x - right.x, left.y - right.y);
+  return groundDistance(left, right);
 }
 
 /**
@@ -173,7 +175,7 @@ export function applyWarBanner(
 
 export function startWarriorVortex(
   player: PlayerRuntime,
-  center: { x: number; y: number },
+  center: WorldPosition,
   radius: number,
   effect: EyeOfTheStormEffect,
   now: number,
@@ -195,11 +197,7 @@ export function startWarriorVortex(
 export function advanceWarriorVortices(
   players: Iterable<PlayerRuntime>,
   now: number,
-  pulse: (
-    player: PlayerRuntime,
-    center: { x: number; y: number },
-    effect: EyeOfTheStormEffect,
-  ) => void,
+  pulse: (player: PlayerRuntime, center: WorldPosition, effect: EyeOfTheStormEffect) => void,
 ): void {
   for (const player of players) {
     const vortex = player.warriorVortex;
@@ -216,6 +214,7 @@ export function advanceWarriorVortices(
     if (vortex.followsOwner) {
       vortex.x = player.x;
       vortex.y = player.y;
+      vortex.z = player.z;
     }
     while (vortex.nextPulseAt <= now && vortex.nextPulseAt < vortex.expiresAt) {
       pulse(player, vortex, {

@@ -28,6 +28,7 @@ function ranger(id: string, talents: readonly string[]): PlayerRuntime {
       nick: id,
       x: 0,
       y: 0,
+      z: 0,
       level: 10,
       xp: 0,
       hp: 100,
@@ -77,9 +78,9 @@ describe("authoritative ranger evolution systems", () => {
     const retreat = ranger("retreat", [...DASH_PREREQUISITES, "ranger.dash.retreat_shot"]);
     const effect = talentEffect("ranger", retreat.talents, "retreat_shot", 4);
     if (!effect) throw new Error("missing Retreat Shot effect");
-    const directions = retreatShotDirections({ x: 1, y: 0 }, effect);
+    const directions = retreatShotDirections({ x: 1, z: 0 }, effect);
     expect(directions).toHaveLength(3);
-    expect(directions[1]).toEqual({ x: 1, y: 0 });
+    expect(directions[1]).toEqual({ x: 1, z: 0 });
     expect(directions.every((direction) => direction.x > 0)).toBe(true);
 
     const windstep = ranger("windstep", [...DASH_PREREQUISITES, "ranger.dash.mastery"]);
@@ -159,8 +160,8 @@ describe("authoritative ranger evolution systems", () => {
 
   it("locks Sworn Prey in the facing cone using distance then id deterministically", () => {
     const actor = ranger("sworn", []);
-    actor.facing = { x: 1, y: 0 };
-    const candidate = (id: string, x: number) => ({ id, x, y: 0, deadUntil: 0 });
+    actor.facing = { x: 1, z: 0 };
+    const candidate = (id: string, x: number) => ({ id, x, y: 0, z: 0, deadUntil: 0 });
     const result = swornPreyTarget(
       actor,
       [candidate("behind", -10), candidate("z", 80), candidate("a", 80)] as never,

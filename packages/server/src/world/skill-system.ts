@@ -1,28 +1,33 @@
 import {
   movementDirectionFromInput,
-  normalizeDirection,
+  normalizeGround,
 } from "@lindocara/engine/directional-combat.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
-import { resolveTerrain, resolveTerrainForLumen } from "@lindocara/engine/game.js";
-import type { Input, Vec2 } from "@lindocara/engine/simulation.js";
-import type { SpatialGrid } from "./spatial-grid.js";
-import type { PlayerRuntime } from "./world-runtime.js";
+import { type GroundVector, groundDistance, groundOf } from "@lindocara/engine/ground.js";
+import type { Input } from "@lindocara/engine/simulation.js";
+import {
+  BODY_RADIUS,
+  clampToGrid,
+  groundUnder,
+  resolveGroundMovement,
+  type ZoneTerrain,
+} from "./terrain-access.js";
+import type { GroundIndexUpdate, PlayerRuntime } from "./world-runtime.js";
 
-export interface ChargeCandidate extends Vec2 {
+export interface ChargeCandidate extends GroundVector {
   id: string;
   deadUntil: number;
 }
 
 /** Current held movement, not historical facing. Null means a mobility cast stays in place. */
-export function heldMovementDirection(input: Input): Vec2 | null {
-  const direction = movementDirectionFromInput(input);
-  if (direction.x === 0 && direction.y === 0) return null;
-  return normalizeDirection(direction);
+export function heldMovementDirection(input: Input): GroundVector | null {
+  const direction = groundOf(movementDirectionFromInput(input));
+  if (direction.x === 0 && direction.z === 0) return null;
+  return normalizeGround(direction);
 }
 
 /** Selects a deterministic living target without ever accepting a client-provided entity id. */
 export function nearestChargeTarget<T extends ChargeCandidate>(
-  origin: Vec2,
+  origin: GroundVector,
   candidates: Iterable<T>,
   maxRange: number,
   now: number,
@@ -32,7 +37,7 @@ export function nearestChargeTarget<T extends ChargeCandidate>(
   let nearestDistance = Number.POSITIVE_INFINITY;
   for (const candidate of candidates) {
     if (candidate.deadUntil > now || !isVisible(candidate)) continue;
-    const distance = Math.hypot(candidate.x - origin.x, candidate.y - origin.y);
+    const distance = groundDistance(candidate, origin);
     if (distance > maxRange) continue;
     if (
       distance < nearestDistance ||
@@ -47,32 +52,62 @@ export function nearestChargeTarget<T extends ChargeCandidate>(
   return nearest;
 }
 
-/** Resolves mobility skills in short segments; Pas de Lumen deliberately phases when allowed. */
+/**
+ * How far one segment of a mobility skill advances before collision is consulted again. It was
+ * 12 px; the tile-unit value is the same distance, and it must stay well under `BODY_RADIUS` so a
+ * charge cannot step over an obstacle thinner than the body that is charging.
+ */
+const MOBILITY_SEGMENT = 12 / 64;
+
+/**
+ * Resolves mobility skills in short segments; Pas de Lumen deliberately phases when allowed.
+ *
+ * The two resolutions are genuinely different questions, which is why they are not one call with a
+ * flag any more:
+ *
+ * - the ordinary one is `resolveGroundMovement`, the same axis-separated resolver the walking hero
+ *   uses, grounded on where the body IS. A charge slides along a wall rather than sticking to it,
+ *   and — because `MAX_STEP` is 0 — cannot be used to climb a cliff.
+ * - the phasing one (Pas de Lumen) ignores relief, water and props by design and is bounded only
+ *   by the grid's edge, which is what `clampToGrid` is. Off the grid `heightAt` is `null` and there
+ *   is no ground to rematerialise onto at all.
+ *
+ * `player.y` is re-read from the ground under the body after every accepted segment, exactly as
+ * `movement-system.ts` does: it is the elevation axis, never a second ground axis.
+ */
 export function movePlayerInDirection(
   player: PlayerRuntime,
-  direction: Vec2,
+  direction: GroundVector,
   distance: number,
-  terrain: TerrainGeometry,
-  grid: SpatialGrid<PlayerRuntime>,
+  terrain: ZoneTerrain,
+  grid: GroundIndexUpdate<PlayerRuntime>,
   allowWater = false,
 ): boolean {
-  const resolve = allowWater ? resolveTerrainForLumen : resolveTerrain;
-  const length = Math.hypot(direction.x, direction.y);
+  const length = Math.hypot(direction.x, direction.z);
   if (length === 0 || distance <= 0) return false;
-  const unit = { x: direction.x / length, y: direction.y / length };
+  const unit = { x: direction.x / length, z: direction.z / length };
   let remaining = distance;
   let movedAny = false;
   while (remaining > 0) {
-    const stepDistance = Math.min(12, remaining);
-    const moved = resolve(
-      player,
-      { x: player.x + unit.x * stepDistance, y: player.y + unit.y * stepDistance },
-      terrain,
-    );
-    if (moved.x === player.x && moved.y === player.y) break;
-    const previousPosition = { x: player.x, y: player.y };
+    const stepDistance = Math.min(MOBILITY_SEGMENT, remaining);
+    const desired = {
+      x: player.x + unit.x * stepDistance,
+      z: player.z + unit.z * stepDistance,
+    };
+    const moved = allowWater
+      ? clampToGrid(terrain, desired)
+      : resolveGroundMovement(
+          terrain,
+          player,
+          desired,
+          groundUnder(terrain, player.x, player.z, player.y),
+          BODY_RADIUS,
+        );
+    if (moved.x === player.x && moved.z === player.z) break;
+    const previousPosition = { x: player.x, z: player.z };
     player.x = moved.x;
-    player.y = moved.y;
+    player.z = moved.z;
+    player.y = groundUnder(terrain, player.x, player.z, player.y);
     grid.update(player, previousPosition);
     movedAny = true;
     remaining -= stepDistance;

@@ -1,5 +1,5 @@
-import { colliderIndexFrom } from "@lindocara/engine/collider.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import {
   hasRogueLineOfSight,
   isShadowStepLandingValid,
@@ -9,168 +9,193 @@ import {
   type ShadowStepCandidate,
   shadowStepDestination,
 } from "@lindocara/server/world/rogue-skill-system.js";
-import { noColliders } from "@lindocara/testing/tiles.js";
+import {
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/server/world/terrain-access.js";
 import { describe, expect, it } from "vitest";
 
-const OPEN_TILES = {
-  cols: 8,
-  rows: 6,
-  kinds: Array.from({ length: 48 }, () => "grass" as const),
-};
+/**
+ * Everything here is TILE UNITS on a grid centred at the origin, and every position is a body
+ * CENTRE — the two conversions that matter for this suite. The pixel version added `PLAYER_SIZE/2`
+ * to both ends of every sight line because a position was a top-left corner; that offset is gone,
+ * so a collider aimed at a sight line must now straddle the line itself.
+ */
+const SIZE = 16;
+const LEVEL_HEIGHT = 0.5;
 
-function terrain(
-  colliders: readonly { x: number; y: number; width: number; height: number }[] = [],
-): TerrainGeometry {
-  return {
-    width: OPEN_TILES.cols * 64,
-    height: OPEN_TILES.rows * 64,
-    spawnPoints: [{ x: 32, y: 128 }],
-    safeZone: null,
-    obstacles: [],
-    tiles: OPEN_TILES,
-    colliders:
-      colliders.length > 0
-        ? colliderIndexFrom(colliders, OPEN_TILES.cols, OPEN_TILES.rows)
-        : noColliders(OPEN_TILES),
+function heightfield(options: {
+  colliders?: readonly ColliderRect[];
+  raisedColumn?: number;
+}): ZoneTerrain {
+  const levels: (number | null)[] = [];
+  for (let j = 0; j < SIZE; j++) {
+    for (let i = 0; i < SIZE; i++) levels.push(i === options.raisedColumn ? 1 : 0);
+  }
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.25,
+    levels,
+    materials: new Array(SIZE * SIZE).fill("herbe"),
+    colliders: [...(options.colliders ?? [])],
+    spawns: [],
+    elements: [],
+    events: [],
   };
+  return zoneTerrainFromHeightfield(map);
 }
 
-function waterBarrierTerrain(): TerrainGeometry {
-  const open = terrain();
-  return {
-    ...open,
-    tiles: {
-      ...OPEN_TILES,
-      kinds: OPEN_TILES.kinds.map((kind, index) =>
-        index % OPEN_TILES.cols === 2 ? ("water" as const) : kind,
-      ),
-    },
-  };
+function terrain(colliders: readonly ColliderRect[] = []): ZoneTerrain {
+  return heightfield({ colliders });
 }
 
-const BODY_RADIUS = 14;
-const bodyRadius = () => BODY_RADIUS;
+/**
+ * A wall of level-1 ground filling the cells `x ∈ [2, 3)`, standing between the rogue in the west
+ * and anything east of it. Relief, not water: water is a surface BELOW a sight line rather than a
+ * wall, so it stops nothing — a cliff does.
+ */
+function walledTerrain(): ZoneTerrain {
+  return heightfield({ raisedColumn: 10 });
+}
+
+/** The target's own combat body — a fifth of a tile, the tile-unit twin of the old 14 px. */
+const TARGET_BODY_RADIUS = 14 / 64;
+const bodyRadius = () => TARGET_BODY_RADIUS;
+
+/** The rogue, standing on level-0 ground. */
+const origin = { x: 1, y: 0, z: 2 };
 
 describe("authoritative Shadow Step planning", () => {
   it("selects the nearest living visible enemy with an id-stable tie break", () => {
-    const origin = { x: 64, y: 128 };
     const candidates: ShadowStepCandidate[] = [
-      { id: "dead", x: 70, y: 128, deadUntil: 2_000 },
-      { id: "far", x: 260, y: 128, deadUntil: 0 },
-      { id: "z-tie", x: 128, y: 96, deadUntil: 0 },
-      { id: "a-tie", x: 128, y: 160, deadUntil: 0 },
+      { id: "dead", x: 1.1, z: 2, deadUntil: 2_000 },
+      { id: "far", x: 4.1, z: 2, deadUntil: 0 },
+      { id: "z-tie", x: 2, z: 1.5, deadUntil: 0 },
+      { id: "a-tie", x: 2, z: 2.5, deadUntil: 0 },
     ];
-    const result = planShadowStep(origin, candidates, 260, 1_000, terrain(), bodyRadius);
+    const result = planShadowStep(origin, candidates, 4.0625, 1_000, terrain(), bodyRadius);
     expect(result).toMatchObject({ ok: true, plan: { targetId: "a-tie" } });
   });
 
   it("treats a sub-cell collider as opaque during target selection", () => {
-    const origin = { x: 32, y: 128 };
-    const blocked = { id: "blocked", x: 96, y: 128, deadUntil: 0 };
-    const visible = { id: "visible", x: 32, y: 240, deadUntil: 0 };
-    const geometry = terrain([{ x: 78, y: 140, width: 8, height: 8 }]);
+    const blocked = { id: "blocked", x: 1.5, z: 2, deadUntil: 0 };
+    const visible = { id: "visible", x: 1, z: 3.75, deadUntil: 0 };
+    // An eighth-of-a-tile post straddling the sight line at z = 2. It sits far enough east that
+    // the rogue's own swept body does not already overlap it — otherwise every plan would be
+    // "blocked" and the test would prove nothing about sight.
+    const geometry = terrain([{ x: 1.32, z: 1.94, w: 0.125, h: 0.125 }]);
 
-    expect(hasRogueLineOfSight(origin, blocked, geometry)).toBe(false);
+    expect(hasRogueLineOfSight(origin, blocked, geometry, 0)).toBe(false);
     expect(
-      planShadowStep(origin, [blocked, visible], 260, 1_000, geometry, bodyRadius),
+      planShadowStep(origin, [blocked, visible], 4.0625, 1_000, geometry, bodyRadius),
     ).toMatchObject({ ok: true, plan: { targetId: "visible" } });
   });
 
   it("lands behind the target, then uses deterministic lateral fallback", () => {
-    const origin = { x: 64, y: 128 };
-    const target = { x: 160, y: 128 };
-    expect(shadowStepDestination(origin, target, BODY_RADIUS, terrain())).toEqual({
-      x: 194,
-      y: 128,
+    const target = { x: 2.5, z: 2 };
+    // 0.25 (the rogue's body) + 0.21875 (the target's) + 0.0625 (clearance) = 0.53125 behind.
+    expect(shadowStepDestination(origin, target, TARGET_BODY_RADIUS, terrain(), 0)).toEqual({
+      x: 3.03125,
+      y: 0,
+      z: 2,
     });
 
-    const behindBlocked = terrain([{ x: 205, y: 140, width: 8, height: 8 }]);
-    expect(shadowStepDestination(origin, target, BODY_RADIUS, behindBlocked)).toEqual({
-      x: 160,
-      y: 162,
+    const behindBlocked = terrain([{ x: 2.98, z: 1.94, w: 0.125, h: 0.125 }]);
+    expect(shadowStepDestination(origin, target, TARGET_BODY_RADIUS, behindBlocked, 0)).toEqual({
+      x: 2.5,
+      y: 0,
+      z: 2.53125,
     });
   });
 
   it("fails cleanly when behind and both lateral positions are occupied", () => {
-    const origin = { x: 64, y: 128 };
-    const target = { id: "sealed", x: 160, y: 128, deadUntil: 0 };
+    const target = { id: "sealed", x: 2.5, z: 2, deadUntil: 0 };
     const geometry = terrain([
-      { x: 205, y: 140, width: 8, height: 8 },
-      { x: 174, y: 176, width: 8, height: 8 },
-      { x: 174, y: 104, width: 8, height: 8 },
+      { x: 2.98, z: 1.94, w: 0.125, h: 0.125 },
+      { x: 2.44, z: 2.48, w: 0.125, h: 0.125 },
+      { x: 2.44, z: 1.4, w: 0.125, h: 0.125 },
     ]);
-    expect(planShadowStep(origin, [target], 260, 1_000, geometry, bodyRadius)).toEqual({
+    expect(planShadowStep(origin, [target], 4.0625, 1_000, geometry, bodyRadius)).toEqual({
       ok: false,
       reason: "blocked",
     });
     expect(
-      planShadowStep(origin, [target], 260, 1_000, geometry, bodyRadius, {
+      planShadowStep(origin, [target], 4.0625, 1_000, geometry, bodyRadius, {
         phaseThroughObstacles: true,
       }),
     ).toEqual({ ok: false, reason: "blocked" });
   });
 
   it("sweeps the whole Rogue body and never teleports through an obstacle", () => {
-    const geometry = terrain([{ x: 145, y: 64, width: 12, height: 192 }]);
-    expect(isShadowStepPathClear({ x: 64, y: 128 }, { x: 220, y: 128 }, geometry)).toBe(false);
+    const geometry = terrain([{ x: 2.26, z: 1, w: 0.1875, h: 3 }]);
+    expect(isShadowStepPathClear(origin, { x: 3.4375, z: 2 }, geometry, 0)).toBe(false);
   });
 
-  it("phases through baked wall, water and elevation collision but keeps a valid landing", () => {
-    const origin = { x: 64, y: 128 };
-    const target = { id: "hidden", x: 256, y: 128, deadUntil: 0 };
-    const geometry = waterBarrierTerrain();
+  it("phases through relief that blocks sight, but never onto a landing it could not stand on", () => {
+    const target = { id: "hidden", x: 4, z: 2, deadUntil: 0 };
+    const geometry = walledTerrain();
 
-    expect(planShadowStep(origin, [target], 260, 1_000, geometry, bodyRadius)).toEqual({
+    expect(planShadowStep(origin, [target], 4.0625, 1_000, geometry, bodyRadius)).toEqual({
       ok: false,
       reason: "no_target",
     });
     expect(
-      planShadowStep(origin, [target], 260, 1_000, geometry, bodyRadius, {
+      planShadowStep(origin, [target], 4.0625, 1_000, geometry, bodyRadius, {
         phaseThroughObstacles: true,
       }),
     ).toMatchObject({
       ok: true,
       plan: {
         targetId: "hidden",
-        destination: { x: 290, y: 128 },
+        destination: { x: 4.53125, y: 0, z: 2 },
       },
     });
-    expect(isShadowStepLandingValid({ x: 128, y: 128 }, geometry)).toBe(false);
+    // On top of the wall is not a landing: `MAX_STEP` is 0, so a rogue standing at level 0 may no
+    // more shadow-step up a cliff than walk up it.
+    expect(isShadowStepLandingValid({ x: 2.5, z: 2 }, geometry, 0)).toBe(false);
+    // ...and from up there it would be, which is what makes the line above a statement about the
+    // rogue's own level rather than about the cell.
+    expect(isShadowStepLandingValid({ x: 2.5, z: 2 }, geometry, LEVEL_HEIGHT)).toBe(true);
   });
 
   it("validates Shadow Return against expiry and its landing while crossing intervening obstacles", () => {
-    const point = { x: 64, y: 128, expiresAt: 2_000 };
+    const point = { x: 1, y: 0, z: 2, expiresAt: 2_000 };
     expect(planShadowReturn(point, 1_999, terrain())).toEqual({
       ok: true,
-      destination: { x: 64, y: 128 },
+      destination: { x: 1, y: 0, z: 2 },
     });
     expect(planShadowReturn(point, 2_000, terrain())).toEqual({
       ok: false,
       reason: "expired",
     });
-    expect(
-      planShadowReturn(point, 1_999, terrain([{ x: 145, y: 64, width: 12, height: 192 }])),
-    ).toEqual({ ok: true, destination: { x: 64, y: 128 } });
+    // A wall between the rogue and the remembered point does not invalidate the return: only the
+    // landing itself is re-validated.
+    expect(planShadowReturn(point, 1_999, terrain([{ x: 2.26, z: 1, w: 0.1875, h: 3 }]))).toEqual({
+      ok: true,
+      destination: { x: 1, y: 0, z: 2 },
+    });
+    // A remembered point now standing inside a prop is refused.
     expect(
       planShadowReturn(
-        { x: 145, y: 128, expiresAt: 2_000 },
+        { x: 2.3, y: 0, z: 2, expiresAt: 2_000 },
         1_999,
-        terrain([{ x: 145, y: 64, width: 12, height: 192 }]),
+        terrain([{ x: 2.26, z: 1, w: 0.1875, h: 3 }]),
       ),
     ).toEqual({ ok: false, reason: "blocked" });
   });
 
   it("reports no target when every living enemy is out of range or out of sight", () => {
-    const origin = { x: 32, y: 128 };
-    const geometry = terrain([{ x: 78, y: 120, width: 8, height: 48 }]);
+    const geometry = terrain([{ x: 1.2, z: 1.7, w: 0.125, h: 0.75 }]);
     expect(
       planShadowStep(
         origin,
         [
-          { id: "hidden", x: 96, y: 128, deadUntil: 0 },
-          { id: "distant", x: 400, y: 128, deadUntil: 0 },
+          { id: "hidden", x: 1.5, z: 2, deadUntil: 0 },
+          { id: "distant", x: 6.25, z: 2, deadUntil: 0 },
         ],
-        260,
+        4.0625,
         1_000,
         geometry,
         bodyRadius,

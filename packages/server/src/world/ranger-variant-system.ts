@@ -1,4 +1,5 @@
-import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import { normalizeDirection, normalizeGround } from "@lindocara/engine/directional-combat.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { TalentEffect } from "@lindocara/engine/talents.js";
 import type {
@@ -29,21 +30,21 @@ export function swornPreyTarget(
   now: number,
   visible: (monster: MonsterRuntime) => boolean,
 ): MonsterRuntime | null {
-  const facing = normalizeDirection(player.facing);
+  const facing = normalizeGround(player.facing);
   return (
     [...monsters]
       .filter((monster) => {
         if (monster.deadUntil > now || !visible(monster)) return false;
         const dx = monster.x - player.x;
-        const dy = monster.y - player.y;
-        const distance = Math.hypot(dx, dy);
+        const dz = monster.z - player.z;
+        const distance = Math.hypot(dx, dz);
         if (distance <= 0 || distance > range) return false;
-        const direction = { x: dx / distance, y: dy / distance };
-        return direction.x * facing.x + direction.y * facing.y >= Math.cos(Math.PI / 3);
+        const direction = { x: dx / distance, z: dz / distance };
+        return direction.x * facing.x + direction.z * facing.z >= Math.cos(Math.PI / 3);
       })
       .sort((left, right) => {
-        const leftDistance = Math.hypot(left.x - player.x, left.y - player.y);
-        const rightDistance = Math.hypot(right.x - player.x, right.y - player.y);
+        const leftDistance = groundDistance(left, player);
+        const rightDistance = groundDistance(right, player);
         return leftDistance - rightDistance || left.id.localeCompare(right.id);
       })[0] ?? null
   );
@@ -130,19 +131,22 @@ export function focusedVolleyPowerRatio(
 }
 
 /** Returns a deterministic forward fan; the dash itself still travels backward on the server. */
-export function retreatShotDirections(direction: Vec2, effect: RetreatShotEffect): Vec2[] {
-  const facing = normalizeDirection(direction);
+export function retreatShotDirections(
+  direction: GroundVector,
+  effect: RetreatShotEffect,
+): GroundVector[] {
+  const facing = normalizeGround(direction);
   const count = Math.max(1, Math.min(5, Math.floor(effect.projectiles)));
   const spread = Math.max(0, Math.min(Math.PI / 2, effect.spreadRadians));
-  const result: Vec2[] = [];
+  const result: GroundVector[] = [];
   for (let index = 0; index < count; index++) {
     const offset = count === 1 ? 0 : -spread / 2 + (spread * index) / (count - 1);
     const cosine = Math.cos(offset);
     const sine = Math.sin(offset);
     result.push(
-      normalizeDirection({
-        x: facing.x * cosine - facing.y * sine,
-        y: facing.x * sine + facing.y * cosine,
+      normalizeGround({
+        x: facing.x * cosine - facing.z * sine,
+        z: facing.x * sine + facing.z * cosine,
       }),
     );
   }
