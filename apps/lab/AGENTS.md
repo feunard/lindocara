@@ -363,11 +363,38 @@ LAB_SFX_PACK=/path/to/pack apps/lab/scripts/sync-assets.sh
 - **Depends on:** `@lindocara/engine` (its `hd2d/` subfolder only), `@lindocara/hd2d`, `three`.
   Nothing else — see "witness, not a frozen copy" above.
 
+## Deployed as a static site
+
+The lab ships to [lab.bay.alepha.dev](https://lab.bay.alepha.dev) as **files, not a process**. Bay
+hosts a site with no server behind it: no port, no `.env`, no database, no health probe. Three
+pieces make that work, and each is easy to undo by accident:
+
+- `alepha.config.ts` declares `build: { target: "static", static: { source: "dist-client" } }`.
+  `dist-client` lives **outside** `dist/` on purpose — `alepha build` cleans `dist/` before any task
+  runs, so a client built there is deleted before the static target can adopt it. That is also why
+  the vite half writes there rather than to `dist/public` directly.
+- `src/boot.ts` is the browser entry, and **must not be called `main.ts`**: that name matches both
+  the server and the browser entry conventions, so the CLI picked it up as the SERVER entry and
+  died evaluating `document` under Node.
+- `src/main.server.ts` is a five-line stub the CLI boots to analyze the workspace. Nothing of it
+  ships — the static target keeps only `dist/public/` and the manifest.
+
+Dev is unchanged: `vite` with this package's own `index.html`. Alepha is only in the shipping path,
+which is why the hand-written shell (HUD markup, inline CSS, the cursor `image-set`) survives
+verbatim — `static.source` copies it as written instead of generating a `<div id="root">` shell over
+it.
+
+The deploy needs `LORE_API_KEY` in the environment (it is a repository secret for the game's
+workflow). `npm run deploy -w @lindocara/lab` builds the client, builds the artifact and uploads the
+release to Lore; the machine picks it up on its own outbound channel.
+
 ## Commands
 
 ```bash
 npm run lab                  # (root) vite dev — http://localhost:5174
-npm run build -w @lindocara/lab
+npm run build -w @lindocara/lab      # client + static artifact into dist/
+npm run build:client -w @lindocara/lab   # just the vite half, into dist-client/
+npm run deploy -w @lindocara/lab     # needs LORE_API_KEY
 npm run build:map -w @lindocara/lab  # regenerate public/maps/ile.json — required after editing
                               # `world/island.ts`/`world/props.ts`'s placement rules, or anything
                               # else `scripts/build-map.ts` bakes into the map: the file is

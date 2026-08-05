@@ -51,7 +51,7 @@
     "typecheck": "npm run typecheck:engine && npm run typecheck:hd2d && npm run typecheck:lab && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:ui && npm run typecheck:testing && npm run typecheck:catalog && npm run typecheck:main && tsc -p tsconfig.tooling.json && tsc -p tsconfig.tooling.api.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",
     "typecheck:hd2d": "tsc -p packages/hd2d/tsconfig.json",
-    "typecheck:lab": "tsc -p apps/lab/tsconfig.json",
+    "typecheck:lab": "tsc -p apps/lab/tsconfig.json && tsc -p apps/lab/tsconfig.api.json",
     "typecheck:server": "tsc -p packages/server/tsconfig.json",
     "typecheck:renderer": "tsc -p packages/renderer/tsconfig.json",
     "typecheck:client": "tsc -p packages/client/tsconfig.json && tsc -p packages/client/tsconfig.api.json",

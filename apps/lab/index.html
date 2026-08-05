@@ -260,6 +260,9 @@
       <button id="play" type="button">JOUER</button>
     </div>
 
-    <script type="module" src="/src/main.ts"></script>
+    <!-- `boot.ts`, not `main.ts`: Alepha's CLI treats `src/main.ts` as the SERVER entry (it matches
+         both conventions), so the name alone was enough to hand this browser file to Node during
+         `alepha build` — see `src/main.server.ts`. -->
+    <script type="module" src="/src/boot.ts"></script>
   </body>
 </html>

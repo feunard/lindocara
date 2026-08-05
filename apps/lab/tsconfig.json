@@ -4,5 +4,12 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"]
   },
-  "include": ["src", "test", "scripts", "vite.config.ts"]
+  "include": ["src", "test", "scripts", "vite.config.ts"],
+  // `src/main.server.ts` imports `alepha`, whose package.json points its "types" condition at raw
+  // framework source — so it would drag the whole tree into this program and be checked under this
+  // repo's stricter-than-alepha base, failing by the hundreds. It has its own program,
+  // `tsconfig.api.json`, which `npm run typecheck:lab` runs beside this one; excluded here so it is
+  // never checked under two incompatible regimes. Same split as `packages/client/tsconfig.api.json`
+  // and `apps/main/tsconfig.json`.
+  "exclude": ["src/main.server.ts"]
 }

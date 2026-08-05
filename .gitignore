@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# The lab's client build. It lives outside `dist/` on purpose — `alepha build` cleans `dist/`
+# before any task runs, so a client written there would be deleted before the static target could
+# adopt it (see `apps/lab/alepha.config.ts`).
+dist-client/
 *.tsbuildinfo
 .dev.vars*
 .wrangler/

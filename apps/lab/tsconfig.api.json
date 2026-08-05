@@ -1,0 +1,19 @@
+{
+  // The lab's one alepha-flavoured file, in its own program — the same split
+  // `packages/client/tsconfig.api.json` and `apps/main/tsconfig.json` already carry, and for the
+  // same reason: `alepha`'s "types" condition resolves to raw source, so any file importing it
+  // pulls the framework's whole tree into whichever program does the resolving, checked under THAT
+  // program's options. The repo base is stricter than alepha's own, so that source fails it by the
+  // hundreds — none of it code this repo owns.
+  //
+  // `alepha.config.ts` is deliberately NOT here, matching `apps/main`, whose config is in no
+  // program either: it would pull the entire CLI source tree in behind `alepha/cli/*` to check
+  // twenty lines of literal, and the CLI validates that object against a zod schema at boot anyway.
+  "extends": "../../.vendor/alepha/tsconfig.base.json",
+  "compilerOptions": {
+    // No `lib` override: alepha's internals use ES2024 Iterator Helpers, so `lib` defaults from the
+    // base's `target: "esnext"` — same as every other `tsconfig.api.json` in the repo.
+    "types": ["node", "bun"]
+  },
+  "include": ["src/main.server.ts"]
+}
