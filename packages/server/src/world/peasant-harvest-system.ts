@@ -261,6 +261,12 @@ export function hasPeasantHarvestLineOfSight(
   from: GroundVector,
   target: PeasantHarvestTarget,
   view: PeasantHarvestView,
+  /**
+   * The harvester's own ground. Relief at or below it does not block sight; anything above it
+   * does. Every caller inside this module passes `player.y` — the elevation the movement system
+   * keeps under the body — never the ground under the TARGET, which would make the test
+   * self-satisfying in exactly the way `resolveGroundMovement`'s docblock describes.
+   */
   groundY = 0,
 ): boolean {
   if (
@@ -310,7 +316,7 @@ function targetMatchesAction(
     circleIntersectsArc(
       { center: target.position, radius: target.radius },
       frontalArc(center, direction, range, halfAngleRadians),
-    ) && hasPeasantHarvestLineOfSight(center, target, view)
+    ) && hasPeasantHarvestLineOfSight(center, target, view, player.y)
   );
 }
 

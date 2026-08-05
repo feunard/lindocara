@@ -4,6 +4,7 @@ import {
 } from "@lindocara/engine/directional-combat.js";
 import { type GroundVector, groundDistance, groundOf } from "@lindocara/engine/ground.js";
 import type { Input } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   BODY_RADIUS,
   clampToGrid,
@@ -57,7 +58,7 @@ export function nearestChargeTarget<T extends ChargeCandidate>(
  * 12 px; the tile-unit value is the same distance, and it must stay well under `BODY_RADIUS` so a
  * charge cannot step over an obstacle thinner than the body that is charging.
  */
-const MOBILITY_SEGMENT = 12 / 64;
+const MOBILITY_SEGMENT = 12 / TILE_SIZE;
 
 /**
  * Resolves mobility skills in short segments; Pas de Lumen deliberately phases when allowed.

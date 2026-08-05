@@ -69,6 +69,7 @@ describe("cooperative combat rules", () => {
         zone: "route",
         x: 0,
         y: 0,
+        z: 0,
         patrolRadius: 10,
       },
     ])[0];
@@ -86,6 +87,7 @@ describe("cooperative combat rules", () => {
         zone: "route",
         x: 0,
         y: 0,
+        z: 0,
         patrolRadius: 10,
       },
     ])[0];
@@ -106,6 +108,7 @@ describe("cooperative combat rules", () => {
         zone: "route",
         x: 0,
         y: 0,
+        z: 0,
         patrolRadius: 10,
       },
     ])[0];
@@ -127,6 +130,7 @@ describe("cooperative combat rules", () => {
         zone: "route",
         x: 900,
         y: 0,
+        z: 0,
         patrolRadius: 10,
       },
     ])[0];
