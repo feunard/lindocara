@@ -28,6 +28,14 @@ const WALL_X = 0;
 const WALL_DEPTH = 0.5;
 
 /**
+ * A second wall's western face, one tile east of where a single three-tile grant lands (see
+ * `doubleWalledTerrain`). Used only by the re-arm test: it turns "did a second grant get spent"
+ * into a geometry question — crossed the wall or didn't — instead of a distance comparison that
+ * has to out-guess `stepHero`'s own friction ramp-up to stay discriminating.
+ */
+const SECOND_WALL_X = 2;
+
+/**
  * A flat, entirely walkable grid with one solid wall standing across it — a prop, not relief, so
  * the ordinary movement rule is stopped by its collider while a phased traversal ignores it and the
  * ground on both sides is the same level. Relief would have muddied the assertion: `MAX_STEP` is 0,
@@ -43,6 +51,31 @@ function walledTerrain(): ZoneTerrain {
     levels: Array.from({ length: SIZE * SIZE }, () => 0),
     materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
     colliders: [{ x: WALL_X, z: -SIZE / 2, w: WALL_DEPTH, h: SIZE }],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
+/**
+ * `walledTerrain` plus a second wall one tile past where a spent three-tile grant lands. Ordinary
+ * walking (the correct, non-re-armed path) collides with it like any other prop; `phase()` ignores
+ * every collider by design, so a re-armed second grant crosses it — a fact true regardless of how
+ * fast `stepHero`'s friction ramps a walking hero up to full speed.
+ */
+function doubleWalledTerrain(): ZoneTerrain {
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: Array.from({ length: SIZE * SIZE }, () => 0),
+    materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
+    colliders: [
+      { x: WALL_X, z: -SIZE / 2, w: WALL_DEPTH, h: SIZE },
+      { x: SECOND_WALL_X, z: -SIZE / 2, w: WALL_DEPTH, h: SIZE },
+    ],
     spawns: [],
     elements: [],
     events: [],
@@ -99,17 +132,25 @@ describe("a granted mobility skill", () => {
   });
 
   it("does not re-arm a grant it has already spent", () => {
-    const hero = controller();
+    const hero = controller(doubleWalledTerrain());
     const start = hero.state.x;
     hero.setMobility(grant(3));
     for (let frame = 0; frame < 30; frame++) hero.step(press({ x: 1 }), FRAME);
+    // The first grant's exact budget, same as the first test in this file — lands one tile short of
+    // the second wall, so what follows tests the second grant alone.
+    expect(hero.state.x - start).toBeCloseTo(3, 6);
 
-    // The same action, repeated: every `state` frame during the hold carries the live grant, and a
-    // controller that re-armed on each one would phase for as long as the server kept talking.
+    // The same action, repeated: every `state` frame during a hold carries the live grant again, and
+    // a controller that re-armed on each one would phase for as long as the server kept talking. A
+    // distance bound here would have to out-guess `stepHero`'s own friction ramp-up to stay
+    // discriminating (a walking hero at full analog input reaches near-full speed almost
+    // immediately), so instead this asks a geometry question: the second wall sits one tile past
+    // where the hero now stands. Ordinary walking cannot cross it — it is a collider like any other
+    // prop. `phase()` ignores every collider by design, so only a re-armed grant crosses it.
     hero.setMobility(grant(3));
     for (let frame = 0; frame < 30; frame++) hero.step(press({ x: 1 }), FRAME);
 
-    expect(hero.state.x - start).toBeLessThan(3 + SPEED * 0.5 + 1e-6);
+    expect(hero.state.x).toBeLessThan(SECOND_WALL_X);
   });
 
   it("lapses when its own window runs out", () => {
