@@ -423,6 +423,12 @@ export class WorldClient {
       },
       Math.min(Math.max(dt, 0), MAX_FRAME_SECONDS),
     );
+    // The movement rule ran out of breath. It is REPORTED, never acted on: the hero stays where it
+    // went under and the room decides what drowning costs (see `hero-controller.ts`'s `noyade`
+    // note). The controller emits at most one per breath, so this cannot flood the rate window.
+    for (const event of events) {
+      if (event.t === "noyade") this.#send({ t: "drowned" });
+    }
     this.#report();
     return events;
   }
@@ -557,6 +563,9 @@ export class WorldClient {
         this.#lastReport = null;
         this.#reportedAt = 0;
       }
+      // A welcome carries the same self state a `state` frame does, so a hero readmitted mid-hold
+      // resumes its grant on the new controller instead of standing in a channel it cannot spend.
+      this.#applyMobilityGrant(message.self);
       handlers.onWelcome(message.selfId, message.world, message.self);
       return;
     }
@@ -616,6 +625,7 @@ export class WorldClient {
       return;
     }
     if (message.t === "state") {
+      this.#applyMobilityGrant(message.self);
       handlers.onState(message.self);
       return;
     }
@@ -794,6 +804,31 @@ export class WorldClient {
     // before the snap. `#reportedAt` is deliberately NOT reset: the throttle is unconditional, so
     // an adopt can never buy an extra frame inside a window and the ceiling below stays a ceiling.
     this.#lastReport = null;
+  }
+
+  /**
+   * Hands the server's mobility grant to the hero, or withdraws it (the S3 spec, decision 6).
+   *
+   * `selfState` derives the field from the live action every time it is built, so its ABSENCE is
+   * the withdrawal — there is no revoke message and there does not need to be one. The controller
+   * arms a given `actionId` once, which is what makes it safe to call this on every `state` frame.
+   *
+   * The deadline is server clock; the controller has none. `serverNow` is sampled in the same
+   * frame for exactly this conversion, the way every other deadline in `SelfState` is read.
+   */
+  #applyMobilityGrant(self: SelfState): void {
+    const hero = this.#hero;
+    if (!hero) return;
+    const grant = self.mobility;
+    if (!grant) {
+      hero.setMobility(null);
+      return;
+    }
+    hero.setMobility({
+      actionId: grant.actionId,
+      distance: grant.distance,
+      duration: Math.max(0, grant.until - (self.serverNow ?? Date.now())) / 1_000,
+    });
   }
 
   #rememberReportedFromHero(): void {

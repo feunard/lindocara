@@ -67,7 +67,28 @@ function flatHeightfield(size = WORLD_SIZE): string {
   });
 }
 
-const WELCOME: ServerMessage = {
+/** The same grid with a solid prop wall across `x in [0.5, 1)` and its eastern third flooded: one
+ *  thing the ordinary movement rule cannot pass, and one thing it can drown in. */
+function walledAndFloodedHeightfield(size = WORLD_SIZE): string {
+  const levels: (number | null)[] = [];
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) levels.push(i >= 12 ? null : 0);
+  }
+  return encodeMap({
+    version: 1,
+    size,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels,
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [{ x: 0.5, z: -size / 2, w: 0.5, h: size }],
+    spawns: [{ name: "default", x: 0, z: 0 }],
+    elements: [],
+    events: [],
+  });
+}
+
+const WELCOME: Extract<ServerMessage, { t: "welcome" }> = {
   t: "welcome",
   tick: 1,
   selfId: "hero-1",
@@ -327,5 +348,99 @@ describe("WorldClient on the alepha wire", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const secondSocket = FakeWebSocket.instances[1];
     expect(secondSocket?.url.searchParams.get("roomId")).toBe("party-1:mapB");
+  });
+});
+
+/**
+ * The two client-owned rules that talk to the room without ever deciding anything: a granted
+ * mobility displacement (the S3 spec, decision 6) and the drowning REPORT that replaced the lab's
+ * teleport-home. Driven through the real socket, because both are plumbing — a grant that never
+ * reaches the hero and an event that never reaches the wire both fail silently.
+ */
+describe("WorldClient movement that the room grants or answers", () => {
+  const FRAME = 1 / 60;
+  const EAST = { up: false, down: false, left: false, right: true };
+
+  beforeEach(() => {
+    FakeWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", FakeWebSocket);
+  });
+
+  /** Welcomes onto the walled, part-flooded grid; the socket is the room, the client is the hero. */
+  async function joined(): Promise<{ socket: FakeWebSocket; client: WorldClient }> {
+    stubJoin([{ roomId: "party-1:verdant-reach", channelPath: "/ws/world" }]);
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    if (!socket) throw new Error("no socket");
+    socket.message({
+      ...WELCOME,
+      world: { ...WELCOME.world, heightfield: walledAndFloodedHeightfield() },
+    });
+    return { socket, client };
+  }
+
+  /** Where the hero itself is — the sample draws your own square in the present, from its state. */
+  function selfX(client: WorldClient): number {
+    const self = client.sample(0).players.find((player) => player.id === "hero-1");
+    if (!self) throw new Error("no self in the sample");
+    return self.x;
+  }
+
+  function sentMessages(socket: FakeWebSocket): { t?: string }[] {
+    return socket.sent.map((raw) => (JSON.parse(raw) as { message: { t?: string } }).message);
+  }
+
+  it("spends a mobility grant the room put on the self state", async () => {
+    const { socket, client } = await joined();
+
+    // Ungranted, the wall at x = 0.5 is the end of the road.
+    for (let frame = 0; frame < 60; frame++) client.update(EAST, FRAME);
+    expect(selfX(client)).toBeLessThan(0.5);
+
+    // The grant arrives the way it always does — on the self state the room already sends the
+    // actor, with a server deadline read against `serverNow`.
+    socket.message({
+      t: "state",
+      self: {
+        ...WELCOME.self,
+        serverNow: 10_000,
+        mobility: {
+          actionId: "8b1f4c62-0000-4000-8000-000000000001",
+          distance: 3,
+          until: 12_500,
+        },
+      },
+    });
+    for (let frame = 0; frame < 60; frame++) client.update(EAST, FRAME);
+
+    expect(selfX(client)).toBeGreaterThan(1);
+  });
+
+  it("reports drowning to the room and decides nothing itself", async () => {
+    const { socket, client } = await joined();
+
+    // Phase east past the wall and into the flooded third, then hold under for the breath's own
+    // eleven seconds. Nothing about the hero changes here — the room answers the report.
+    socket.message({
+      t: "state",
+      self: {
+        ...WELCOME.self,
+        serverNow: 10_000,
+        mobility: {
+          actionId: "8b1f4c62-0000-4000-8000-000000000002",
+          distance: 5,
+          until: 12_500,
+        },
+      },
+    });
+    for (let frame = 0; frame < 15 * 60; frame++) client.update(EAST, FRAME);
+
+    expect(
+      sentMessages(socket).filter((message) => message.t === "drowned").length,
+    ).toBeGreaterThan(0);
+    // Still out at sea, east of the wall: the lab's `place(spawn)` would have put it back at 0.
+    expect(selfX(client)).toBeGreaterThan(1);
   });
 });

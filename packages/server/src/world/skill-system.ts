@@ -6,7 +6,6 @@ import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import type { Input } from "@lindocara/engine/simulation.js";
 import {
   BODY_RADIUS,
-  clampToGrid,
   groundUnder,
   resolveGroundMovement,
   type ZoneTerrain,
@@ -61,20 +60,20 @@ export function nearestChargeTarget<T extends ChargeCandidate>(
 const MOBILITY_SEGMENT = 12 / TILE_SIZE;
 
 /**
- * Resolves mobility skills in short segments; Pas de Lumen deliberately phases when allowed.
+ * Resolves a server-authored mobility displacement in short segments.
  *
- * The two resolutions are genuinely different questions, which is why they are not one call with a
- * flag any more:
+ * One resolution, `resolveGroundMovement` — the same axis-separated resolver the walking hero uses,
+ * grounded on where the body IS. A charge slides along a wall rather than sticking to it and,
+ * because `MAX_STEP` is 0, cannot be used to climb a cliff.
  *
- * - the ordinary one is `resolveGroundMovement`, the same axis-separated resolver the walking hero
- *   uses, grounded on where the body IS. A charge slides along a wall rather than sticking to it,
- *   and — because `MAX_STEP` is 0 — cannot be used to climb a cliff.
- * - the phasing one (Pas de Lumen) ignores relief, water and props by design and is bounded only
- *   by the grid's edge, which is what `clampToGrid` is. Off the grid `heightAt` is `null` and there
- *   is no ground to rematerialise onto at all.
+ * **The phasing arm is gone with its caller.** It existed for Pas de Lumen's held traversal, which
+ * the CLIENT now performs (the S3 spec, decision 6): `createHeroController`'s `phase`
+ * (`packages/client/src/game/hero-controller.ts`) is its successor, ignoring relief, water and
+ * props exactly the same way and bounded by the same `clampToGrid`. Keeping an unreachable copy
+ * here would read as the live rule to the next agent that opens this file.
  *
- * `player.y` is re-read from the ground under the body after every accepted segment, exactly as
- * `movement-system.ts` does: it is the elevation axis, never a second ground axis.
+ * `player.y` is re-read from the ground under the body after every accepted segment: it is the
+ * elevation axis, never a second ground axis.
  */
 export function movePlayerInDirection(
   player: PlayerRuntime,
@@ -82,7 +81,6 @@ export function movePlayerInDirection(
   distance: number,
   terrain: ZoneTerrain,
   grid: GroundIndexUpdate<PlayerRuntime>,
-  allowWater = false,
 ): boolean {
   const length = Math.hypot(direction.x, direction.z);
   if (length === 0 || distance <= 0) return false;
@@ -95,15 +93,13 @@ export function movePlayerInDirection(
       x: player.x + unit.x * stepDistance,
       z: player.z + unit.z * stepDistance,
     };
-    const moved = allowWater
-      ? clampToGrid(terrain, desired)
-      : resolveGroundMovement(
-          terrain,
-          player,
-          desired,
-          groundUnder(terrain, player.x, player.z, player.y),
-          BODY_RADIUS,
-        );
+    const moved = resolveGroundMovement(
+      terrain,
+      player,
+      desired,
+      groundUnder(terrain, player.x, player.z, player.y),
+      BODY_RADIUS,
+    );
     if (moved.x === player.x && moved.z === player.z) break;
     const previousPosition = { x: player.x, z: player.z };
     player.x = moved.x;

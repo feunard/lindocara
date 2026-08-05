@@ -5,6 +5,7 @@ import type {
 import { type QuestChapter, xpForNextLevel } from "@lindocara/engine/game.js";
 import type { PartyMaterials } from "@lindocara/engine/party-harvest-state.js";
 import type {
+  MobilityGrant,
   SelfState,
   ServerMessage,
   WorldEventSnapshot,
@@ -28,6 +29,29 @@ import { combatCooldownsFromPlayer, type PlayerRuntime } from "./world-runtime.j
 export type SendMessage<TSocket = WebSocket> = (socket: TSocket, message: ServerMessage) => void;
 export type ViewForPlayer = (player: PlayerRuntime) => WorldView;
 
+/**
+ * The displacement this hero's client is currently allowed to perform on itself (the S3 spec,
+ * decision 6) — the only thing on this whole state a client answers by MOVING.
+ *
+ * It is derived from the live held action every time the state is built, never stored, which makes
+ * the field's ABSENCE the withdrawal: the first state frame after the channel is released, capped
+ * or cancelled simply has no grant in it, and no revoke message has to exist. A spent budget is not
+ * a grant either — the tick ends the channel on the same beat (`worldTick.ts`) and a zero-distance
+ * grant would only tell a client to phase by nothing.
+ *
+ * What is NOT here is the rest of the skill: the cooldown, the resource, the invulnerability window
+ * and every effect were all spent server-side before this appeared, and stay there.
+ */
+function mobilityGrant(player: PlayerRuntime): MobilityGrant | undefined {
+  const action = player.action;
+  if (!action || action.channelMaxEndsAt === undefined || action.channelEndsAt !== undefined) {
+    return undefined;
+  }
+  const distance = action.mobilityDistance;
+  if (distance === undefined || distance <= 0) return undefined;
+  return { actionId: action.id, distance, until: action.channelMaxEndsAt };
+}
+
 export function selfState(
   player: PlayerRuntime,
   questTarget?: number,
@@ -36,6 +60,7 @@ export function selfState(
   materials?: PartyMaterials,
 ): SelfState {
   const serverNow = Date.now();
+  const mobility = mobilityGrant(player);
   const chapter = player.quest.chapter ?? "three_offerings";
   const timerEndsAt =
     chapter === "ward_run" && player.quest.status === "active" && player.wardRunExpiresAt !== null
@@ -88,6 +113,7 @@ export function selfState(
       ? { ranger: { afterimageUntil: player.rangerAfterimage?.expiresAt ?? 0 } }
       : {}),
     ...(player.resource ? { resource: { ...player.resource } } : {}),
+    ...(mobility ? { mobility } : {}),
   };
 }
 

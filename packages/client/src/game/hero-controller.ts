@@ -10,6 +10,12 @@
  * position this controller reports and relays it to the rest of the party. Everything else — damage,
  * loot, XP, quests, resurrection — stays server-decided, so this file must never grow an outcome.
  *
+ * The one addition to that, and the spec's second and last exception (decision 6): a **granted**
+ * mobility skill's displacement is performed here (`setMobility`). The grant itself is not — the
+ * server spent the cooldown and the resource and can withdraw it at any beat; this only spends
+ * what it was handed. Drowning is the counter-example on the same boundary: the rule below decides
+ * that the hero ran out of breath, and the server alone decides what that costs.
+ *
  * Two obligations `stepHero` cannot enforce and that live here:
  *
  * - **`stepHero` mutates `HeroState` in place** and returns events. It is not `next = step(prev)`.
@@ -20,6 +26,7 @@
 
 import { orientationFromMovement } from "@lindocara/engine/directional-combat.js";
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
+import { groundDistance } from "@lindocara/engine/ground.js";
 import {
   createHeroState,
   type HeroEvent,
@@ -33,8 +40,11 @@ import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { createThinIce, type ThinIceOptions } from "@lindocara/engine/hd2d/thin-ice.js";
 import {
   BODY_RADIUS,
+  canStand,
+  clampToGrid,
   groundUnder,
   MAX_STEP,
+  nearestStandableCell,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
 
@@ -85,6 +95,21 @@ export interface HeroControllerInput {
   jump: boolean;
 }
 
+/**
+ * A live mobility grant, as this controller consumes it. `SelfState.mobility` is its wire form; the
+ * only difference is the window, which arrives as a server deadline and is converted by the caller
+ * into a duration in SECONDS — this controller has no clock, and reading one here would be the same
+ * mistake `@lindocara/engine/hd2d/`'s purity rule forbids one import away.
+ */
+export interface HeroMobilityGrant {
+  /** The granting action. Identity, not decoration: the same id is applied exactly once. */
+  actionId: string;
+  /** Ground distance the grant is worth, in TILES. */
+  distance: number;
+  /** How long it stays live, in SECONDS, spent against the same `dt` the movement rule reads. */
+  duration: number;
+}
+
 export interface HeroControllerOptions {
   terrain: ZoneTerrain;
   /** Where the hero enters, all three axes; `y` is ELEVATION. */
@@ -117,6 +142,20 @@ export interface HeroController {
    * carried into a teleport means nothing on the other side.
    */
   teleport(position: WorldPosition): void;
+  /**
+   * Installs, keeps or withdraws the server's mobility grant (the S3 spec, decision 6).
+   *
+   * Three rules, each of which the skill stops being bounded without:
+   *
+   * - **A grant is armed once per `actionId`.** Every `state` frame during a hold carries the live
+   *   grant again, and re-arming on each would make a 2.5-second channel an unlimited one.
+   * - **`null` ends it**, which is how the server withdraws one: `selfState` derives the field from
+   *   the live action, so the first frame after the action ends simply has no grant in it.
+   * - **Ending resolves a landing.** A phased hero can be standing inside a cliff or a tree, where
+   *   the ordinary rule refuses every direction and cements it there — the same landing search the
+   *   server runs (`safeLumenLanding`) runs here, off the same terrain.
+   */
+  setMobility(grant: HeroMobilityGrant | null): void;
 }
 
 export function createHeroController(options: HeroControllerOptions): HeroController {
@@ -144,6 +183,11 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
   // the very first `move` frame carries a valid unit heading rather than a zero the parser drops.
   let facing: GroundVector = orientationFromMovement(options.facing ?? { x: 1, z: 0 });
 
+  /** What is left of the live grant. `null` whenever the hero moves by its own rule. */
+  let mobility: { remaining: number; window: number } | null = null;
+  /** The last action a grant was armed from, live or spent. See `setMobility`'s once-per-id rule. */
+  let armedActionId: string | null = null;
+
   function place(position: WorldPosition): void {
     state.x = position.x;
     state.z = position.z;
@@ -158,6 +202,73 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     state.breath = hero.swim.breath;
   }
 
+  /**
+   * Ends a phased traversal on ground a body could actually be standing on.
+   *
+   * This is `safeLumenLanding` (`worldTick.ts`) minus the live bodies it also avoids, run off the
+   * same terrain with the same helpers, so the two agree about where the skill ends without either
+   * having to tell the other. Grounded on where the body IS — after phasing, that is the landing —
+   * which is what "could a body be standing here" means and what `nearestStandableCell`'s own
+   * candidates ask of themselves.
+   */
+  function land(): void {
+    const groundY = groundUnder(terrain, state.x, state.z, state.y);
+    if (canStand(terrain, state.x, state.z, hero.radius, groundY)) {
+      state.y = groundY;
+      state.groundY = groundY;
+      return;
+    }
+    const landing = nearestStandableCell(terrain, state, hero.radius, groundY);
+    // No standable cell at all is a map with no ground on the hero's level; leaving the body where
+    // it is beats teleporting it somewhere invented.
+    if (landing) place(landing);
+  }
+
+  function endMobility(): void {
+    if (!mobility) return;
+    mobility = null;
+    land();
+  }
+
+  /**
+   * One frame of a granted traversal, in place of the ordinary rule.
+   *
+   * Relief, water and props are all ignored — that IS Pas de Lumen, and it is what the retired
+   * server branch did (`movement-system.ts`'s `clampToGrid` arm). The grid's edge is the one bound
+   * that survives, because off it there is no ground to rematerialise onto.
+   */
+  function phase(input: HeroControllerInput, dt: number): void {
+    const grant = mobility;
+    if (!grant) return;
+    grant.window -= dt;
+    const length = Math.hypot(input.x, input.z);
+    if (length > 0 && grant.remaining > 0) {
+      const travel = Math.min(hero.speed * dt, grant.remaining);
+      const desired = clampToGrid(terrain, {
+        x: state.x + (input.x / length) * travel,
+        z: state.z + (input.z / length) * travel,
+      });
+      // What the grid actually allowed, not what was asked for: a traversal held against the
+      // eastern edge would otherwise spend its whole budget standing still.
+      grant.remaining -= groundDistance(desired, state);
+      state.x = desired.x;
+      state.z = desired.z;
+      // Elevation is re-read from the ground under the body, exactly as the retired server branch
+      // did after every accepted segment: `y` is elevation, never a second ground axis.
+      state.y = groundUnder(terrain, state.x, state.z, state.y);
+      state.groundY = state.y;
+    }
+    // The traversal owns the body: nothing falls, swims or glides through a Pas de Lumen, and the
+    // elan it started with means nothing on the other side.
+    state.vx = 0;
+    state.vz = 0;
+    state.vy = 0;
+    state.airborne = false;
+    state.swimming = false;
+    state.gliding = false;
+    if (grant.remaining <= 0 || grant.window <= 0) endMobility();
+  }
+
   return {
     state,
     get facing() {
@@ -167,12 +278,38 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
       hero.speed = speed;
     },
     teleport(position) {
+      // A server-authored position ends any traversal in flight: whatever the grant was for, the
+      // hero is no longer where it was being spent.
+      mobility = null;
       place(position);
+    },
+    setMobility(grant) {
+      if (!grant) {
+        endMobility();
+        return;
+      }
+      if (grant.actionId === armedActionId) return;
+      armedActionId = grant.actionId;
+      // A grant with nothing left to spend is not one. It reaches here when a `state` frame is
+      // built in the same millisecond its channel lapses, and arming it would end a traversal that
+      // never started — which, through `land()`, could move a hero standing inside geometry for
+      // reasons that have nothing to do with this skill.
+      if (grant.distance <= 0 || grant.duration <= 0) return;
+      mobility = { remaining: grant.distance, window: grant.duration };
     },
     step(input, dt) {
       // Unconditional, before the step and independent of where the hero is: a released cell only
       // refreezes on real elapsed time (see `StepDeps.glace`).
       glace.update(dt);
+      if (mobility) {
+        phase(input, dt);
+        // Same two heading writes as below, from the same input: a phased hero still faces where
+        // it is going, and a heading that stopped updating would freeze the sprite mid-traversal.
+        facing = orientationFromMovement({ x: input.x, z: input.z }, facing);
+        if (input.x !== 0) state.facing = input.x > 0 ? 1 : -1;
+        // The traversal is not the movement rule; it narrates nothing (no footstep, no splash).
+        return [];
+      }
       const heroInput: HeroInput = {
         x: input.x,
         z: input.z,
@@ -182,13 +319,15 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
         haleineVisible: false,
       };
       const events = stepHero(state, heroInput, dt, deps);
-      for (const event of events) {
-        if (event.t !== "noyade") continue;
-        // Drowning returns the hero to where it entered the map. `stepHero` never receives the
-        // spawn (see its `drown`), so the adapter is the only thing that can answer this — the lab
-        // does exactly the same, in the same place.
-        place(spawn);
-      }
+      // **Nothing happens here on `noyade`, and that is the decision.** The lab answers it with
+      // `place(spawn)`, where `spawn` is a debug reset. In the game it is where the welcome
+      // admitted this hero, so the same line lets a player swim out, hold under for the breath's
+      // eleven seconds and ride home past cliffs and monsters, at no cost and with no server event
+      // — and the landing is in bounds, so `applyReportedMove` accepts it as a legitimate move.
+      // Drowning is an OUTCOME, so it is the server's: the event is reported (`net.ts` sends
+      // `{t:"drowned"}`) and the room decides what it costs, exactly as it does for every other way
+      // a hero dies. Deciding here that the hero died would be a third authority exception, and the
+      // spec allows exactly two.
       // Driven by the INPUT rather than by `state.vx`/`vz`: on ice, speed keeps its sign long after
       // the player has turned, and a heading derived from it would turn late. Same call the server
       // used to make on a dequeued command, so the facing rule itself did not change owner.

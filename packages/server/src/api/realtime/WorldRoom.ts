@@ -131,6 +131,7 @@ import {
 import {
   activatePeasantSupportRequest,
   advanceWorldTick,
+  applyDrowning,
   applyReportedMove,
   cancelPeasantSupportRequest,
   finishHeldPlayerAction,
@@ -642,6 +643,13 @@ export class WorldRoom {
       // A corpse's frames and a hero mid-handoff are dropped inside `applyReportedMove`, along with
       // any position that describes no point on this map.
       applyReportedMove(w, connectionId, player, message);
+      return;
+    }
+    if (message.t === "drowned") {
+      // A report about the movement rule the client owns, never an outcome: `applyDrowning` decides
+      // what it costs and refuses the claim outright unless this client's own position stream says
+      // the hero is in the water.
+      applyDrowning(w, connectionId, player);
       return;
     }
     if (message.t === "release") {

@@ -306,6 +306,39 @@ describe("world room movement (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("drowning is decided by the room, and only for a hero the position stream has in water", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("drowned");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    const socket = fakeSocket(userId, heroId);
+    await engine.join(socket);
+    const start = lastSelfSnapshot(socket, heroId);
+    expect(start?.life).toBe("alive");
+
+    // On dry land the claim contradicts the position stream that carried it, and is dropped.
+    await engine.message(socket.id, { t: "drowned" });
+    clock.advance(TICK_MS);
+    clock.advance(TICK_MS);
+    expect(lastSelfSnapshot(socket, heroId)?.life).toBe("alive");
+
+    // In the water it is answered — by the room, with the death state machine, leaving the body
+    // where the hero went under. The client teleports nobody: it only reported the event.
+    await engine.message(socket.id, {
+      ...move(start?.x ?? 0, start?.y ?? 0, start?.z ?? 0),
+      swimming: true,
+    });
+    await engine.message(socket.id, { t: "drowned" });
+    clock.advance(TICK_MS);
+    clock.advance(TICK_MS);
+
+    const drowned = lastSelfSnapshot(socket, heroId);
+    expect(drowned?.life).toBe("corpse");
+    expect(drowned?.x).toBeCloseTo(start?.x ?? Number.NaN, 6);
+    expect(drowned?.z).toBeCloseTo(start?.z ?? Number.NaN, 6);
+    expect(socket.closed).toBeUndefined();
+    engine.dispose();
+  });
+
   test("an oversized frame closes 1009", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("oversize");
     const clock = new FakeClock();

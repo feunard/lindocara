@@ -40,6 +40,27 @@ function controller() {
   });
 }
 
+/** The same grid with its eastern half flooded: cells from column 5 have no ground at all. */
+function floodedTerrain(): ZoneTerrain {
+  const levels: (number | null)[] = [];
+  for (let j = 0; j < SIZE; j++) {
+    for (let i = 0; i < SIZE; i++) levels.push(i >= 5 ? null : 0);
+  }
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.05,
+    levels,
+    materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
 function press(overrides: Partial<HeroControllerInput> = {}): HeroControllerInput {
   return { x: 0, z: 0, jump: false, ...overrides };
 }
@@ -107,6 +128,33 @@ describe("the hero controller", () => {
     // Standing still preserves the last heading rather than collapsing it to zero.
     hero.step(press(), FRAME);
     expect(Math.hypot(hero.facing.x, hero.facing.z)).toBeCloseTo(1, 6);
+  });
+
+  it("reports drowning where it happened instead of teleporting home", () => {
+    const spawn = { x: -1, y: 0, z: 0 };
+    const hero = createHeroController({ terrain: floodedTerrain(), spawn, speed: 4.2 });
+
+    // Swim east until the breath the rule holds (`HERO_PHYSICS.swim.breath`) runs out. Fourteen
+    // seconds is comfortably past it and nowhere near the eastern edge at swimming speed.
+    let drowned = 0;
+    let whereItWentUnder: number | null = null;
+    for (let frame = 0; frame < 14 * 60; frame++) {
+      for (const event of hero.step(press({ x: 1 }), FRAME)) {
+        if (event.t !== "noyade") continue;
+        drowned += 1;
+        whereItWentUnder ??= hero.state.x;
+      }
+    }
+
+    expect(drowned).toBeGreaterThan(0);
+    // The flooded half starts at world x = 1, and the spawn is at -1. The lab teleports the hero
+    // back to `spawn` here, because there it is a debug reset; in the game `spawn` is where the
+    // welcome admitted this hero, so the same line is a free ride home past cliffs and monsters —
+    // and the landing is in bounds, so nothing downstream refuses it. Drowning is the server's
+    // outcome to apply: the client stays exactly where it went under.
+    expect(whereItWentUnder).toBeGreaterThan(1);
+    expect(hero.state.x).toBeGreaterThan(1);
+    expect(hero.state.z).toBe(spawn.z);
   });
 
   it("snaps to a server-authored position, cutting momentum", () => {

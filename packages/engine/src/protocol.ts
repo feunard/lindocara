@@ -10,6 +10,17 @@
  * Nothing else moved: damage, health, loot, XP, quest progression and every other outcome remain
  * the server's alone, and the position itself is still parsed defensively (finite, bounded, all
  * three axes) before anything reads it.
+ *
+ * Two messages sit close enough to that line to be worth naming here, because both look like an
+ * outcome and neither is one:
+ *
+ * - `SelfState.mobility` travels the other way. It is the server GRANTING a displacement — cost,
+ *   cooldown and resource already spent server-side — which the client then performs and reports
+ *   like any other movement (the S3 spec, decision 6).
+ * - `{ t: "drowned" }` reports that the movement rule the client owns ran out of breath. It carries
+ *   no consequence: the server decides what drowning does, exactly as it decides every other way a
+ *   hero dies. A client that reports it cannot say what it costs, and a client that never reports
+ *   it has done no more than a client that never reports a position.
  */
 
 import {
@@ -268,6 +279,31 @@ export interface RangerSelfState {
   afterimageUntil: number;
 }
 
+/**
+ * The server's standing permission for a held mobility skill — the one displacement a client
+ * applies to its own hero without having computed it (the S3 spec, decision 6).
+ *
+ * The GRANT stays server-decided, and that is the whole point: class, unlock level, cooldown and
+ * resource were all spent before this appeared, and it disappears the instant the action ends.
+ * What the client owns is the displacement itself, reported back as an ordinary `move`.
+ */
+export interface MobilityGrant {
+  /** The held action carrying the grant. It is applied ONCE per action id: a later `state` frame
+   *  repeats the same grant, and re-arming a spent budget from it would make the skill unbounded. */
+  actionId: string;
+  /** Ground distance the grant is worth, in TILE units. */
+  distance: number;
+  /** Server deadline the grant lapses at, read against `serverNow` like every other deadline here. */
+  until: number;
+}
+
+/**
+ * The wire's sanity bound on a granted displacement, in tile units. The longest one authored today
+ * is Pas de Lumen's 247.5 px, under four tiles; this is two orders above it and still far below a
+ * value that could read as a position.
+ */
+export const MAX_MOBILITY_DISTANCE = 64;
+
 export interface SelfState {
   xp: number;
   xpToNext: number;
@@ -301,6 +337,8 @@ export interface SelfState {
   rogue?: RogueSelfState;
   /** Present only for the Ranger; the swap window is room-local. */
   ranger?: RangerSelfState;
+  /** Present only while a held mobility skill is granting this hero a displacement to perform. */
+  mobility?: MobilityGrant;
 }
 
 export interface PartyMemberState {
@@ -648,6 +686,13 @@ export type ClientMessage =
       amount: number;
     }
   | { t: "release" }
+  /**
+   * The movement rule the client owns ran out of breath (`stepHero`'s `noyade`). It is a REPORT,
+   * not an outcome: it names no damage, no death and no position, and the room decides what
+   * drowning costs — the same boundary every other way of dying already crosses. The room drops it
+   * unless the position stream this same client is sending says the hero is in the water.
+   */
+  | { t: "drowned" }
   | { t: "skill"; slot: SkillSlot; direction?: GroundVector }
   | { t: "skill.release"; slot: SkillSlot }
   | { t: "talent.unlock"; nodeId: string }
@@ -1550,6 +1595,22 @@ function isSelfState(value: unknown): value is SelfState {
     (!isRecord(value.ranger) || !isFiniteNumber(value.ranger.afterimageUntil))
   )
     return false;
+  if (value.mobility !== undefined) {
+    const mobility = value.mobility;
+    // A grant is the one field here a client acts on by MOVING, so a malformed one is refused with
+    // the same rigor as a reported position: a real action id, a positive bounded distance, and a
+    // finite deadline. Zero or less is not a grant, it is a spent one, and the server omits it.
+    if (
+      !isRecord(mobility) ||
+      !isWireId(mobility.actionId) ||
+      !isFiniteNumber(mobility.distance) ||
+      mobility.distance <= 0 ||
+      mobility.distance > MAX_MOBILITY_DISTANCE ||
+      !isFiniteNumber(mobility.until)
+    ) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -1807,7 +1868,10 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (!isRecord(value) || typeof value.t !== "string") return null;
   if (value.t === "move") return parseMove(value);
   if (value.t === "attack" && hasOnlyKeys(value, ["t"])) return { t: "attack" };
-  if ((value.t === "interact" || value.t === "release") && hasOnlyKeys(value, ["t"]))
+  if (
+    (value.t === "interact" || value.t === "release" || value.t === "drowned") &&
+    hasOnlyKeys(value, ["t"])
+  )
     return { t: value.t };
   if (
     value.t === "peasant.camp_gold" &&

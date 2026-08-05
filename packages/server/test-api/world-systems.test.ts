@@ -21,6 +21,7 @@ import {
   movePlayerInDirection,
   nearestChargeTarget,
 } from "@lindocara/server/world/skill-system.js";
+import { selfState } from "@lindocara/server/world/snapshot-system.js";
 import {
   createGuards,
   type GroundIndexUpdate,
@@ -326,52 +327,107 @@ describe("isolated directional combat systems", () => {
   });
 });
 
-describe("lumen mobility terrain rules", () => {
-  it("moves through water when Lumen is allowed but not with regular terrain resolution", () => {
-    // Cells `i = 1, 2` are water: world `x ∈ [-7, -5)`. The hero starts on the shore at x = -7.4.
+describe("server-authored mobility terrain rules", () => {
+  /**
+   * The phasing arm these two used to compare against is gone with its caller: Pas de Lumen's held
+   * traversal is performed by the client now (the S3 spec, decision 6), and
+   * `packages/client/test/hero-mobility.test.ts` is where phasing is proven. What survives here is
+   * the arm a charge and a dash still use — and the thing that must stay true of it, which is that
+   * it phases through nothing at all.
+   */
+  it("stops a server-authored displacement at the water's edge", () => {
+    // Cells `i = 1, 2` are water: world `x in [-7, -5)`. The hero starts on the shore at x = -7.4.
     const shore = -7.4;
     const actor = player();
     actor.x = shore;
     actor.z = 0;
-    const grid = recordingIndex();
 
-    movePlayerInDirection(actor, { x: 1, z: 0 }, 3, lumenTerrain, grid, true);
-    const lumenPosition = actor.x;
-    expect(lumenPosition).toBeGreaterThan(-5);
+    movePlayerInDirection(actor, { x: 1, z: 0 }, 3, lumenTerrain, recordingIndex());
 
-    actor.x = shore;
-    movePlayerInDirection(actor, { x: 1, z: 0 }, 3, lumenTerrain, grid, false);
     expect(actor.x).toBeGreaterThan(shore);
     expect(actor.x).toBeLessThan(-7);
   });
 
-  it("phases through building obstacles during Lumen movement", () => {
-    // The prop wall fills `x ∈ [-6, -5)`; both heroes start two tiles west of it.
+  it("stops a server-authored displacement at a prop wall", () => {
+    // The prop wall fills `x in [-6, -5)`; the hero starts two tiles west of it.
     const start = -8;
-    const blockedWithLumen = player();
-    blockedWithLumen.x = start;
-    blockedWithLumen.z = 0;
-    movePlayerInDirection(
-      blockedWithLumen,
-      { x: 1, z: 0 },
-      3,
-      buildingWallTerrain,
-      recordingIndex(),
-      true,
-    );
+    const actor = player();
+    actor.x = start;
+    actor.z = 0;
 
-    const blockedNormally = player();
-    blockedNormally.x = start;
-    blockedNormally.z = 0;
-    movePlayerInDirection(
-      blockedNormally,
-      { x: 1, z: 0 },
-      3,
-      buildingWallTerrain,
-      recordingIndex(),
-      false,
-    );
-    expect(blockedWithLumen.x).toBeCloseTo(start + 3, 5);
-    expect(blockedWithLumen.x).toBeGreaterThan(blockedNormally.x);
+    movePlayerInDirection(actor, { x: 1, z: 0 }, 3, buildingWallTerrain, recordingIndex());
+
+    expect(actor.x).toBeGreaterThan(start);
+    expect(actor.x).toBeLessThan(-6);
+  });
+});
+
+/**
+ * The grant half of "mobility skills are applied by the client" (the S3 spec, decision 6). What the
+ * server hands over is a distance and a deadline on the self state it already sends the actor; what
+ * it keeps is everything else, which is why nothing here can be asked for by a client.
+ */
+describe("the mobility grant on the self state", () => {
+  function heldBlink(actor: PlayerRuntime, now = 1_000) {
+    return startCombatAction(actor, {
+      kind: "skill",
+      skillId: "blink",
+      slot: 3,
+      direction: { x: 1, z: 0 },
+      now,
+      anticipationMs: 180,
+      recoveryMs: 420,
+      mobilityDistance: t(247.5),
+      channelDurationMs: 2_500,
+    });
+  }
+
+  it("grants the held action's distance and its own deadline", () => {
+    const actor = player();
+    const action = heldBlink(actor);
+
+    expect(selfState(actor).mobility).toEqual({
+      actionId: action?.id,
+      distance: t(247.5),
+      until: 3_500,
+    });
+  });
+
+  it("grants nothing while no held mobility action is running", () => {
+    const actor = player();
+    expect(selfState(actor).mobility).toBeUndefined();
+
+    // An ordinary attack is an action, not a grant: no channel, no distance.
+    startCombatAction(actor, {
+      kind: "basic",
+      skillId: "smite",
+      slot: 1,
+      direction: { x: 1, z: 0 },
+      now: 1_000,
+      anticipationMs: 100,
+      recoveryMs: 200,
+    });
+    expect(selfState(actor).mobility).toBeUndefined();
+  });
+
+  it("withdraws the grant on release, which is how the client learns the traversal is over", () => {
+    const actor = player();
+    heldBlink(actor);
+    expect(selfState(actor).mobility).toBeDefined();
+
+    expect(finishHeldCombatAction(actor, 1_600, 3)).toBe(true);
+    expect(selfState(actor).mobility).toBeUndefined();
+  });
+
+  it("withdraws the grant once the granted distance has been spent", () => {
+    const actor = player();
+    const action = heldBlink(actor);
+    if (!action) throw new Error("the held action was refused");
+
+    action.mobilityDistance = 0;
+
+    // Zero is not a grant to phase by nothing; it is a spent one, and the tick ends the channel on
+    // the same beat.
+    expect(selfState(actor).mobility).toBeUndefined();
   });
 });

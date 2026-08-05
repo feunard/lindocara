@@ -998,12 +998,64 @@ export function applyReportedMove(
   if (!moved) return;
 
   w.state.playerGrid.update(player, previousPosition);
+  debitHeldMobility(player, previousPosition);
   // Harvest channels require a stationary actor; the completion path also revalidates after its
   // coordinator await, so movement cannot race a delayed credit.
   cancelPeasantHarvestJob(w.state.harvestJobs, player.id);
   detectPlayerTouch(w.state, player, previousPosition);
   extendSacredPassage(w, player);
   applyLumenPortal(w, connectionId, player, w.deps.now());
+}
+
+/**
+ * What a held mobility grant has been spent on, measured from the reported positions.
+ *
+ * The DISPLACEMENT is the client's (the S3 spec, decision 6) and this does not second-guess it: it
+ * refuses nothing, corrects nothing and moves nobody. It keeps the one thing the grant is measured
+ * in, so the tick's own bound (`mobilityDistance <= 0` -> `finishHeldPlayerAction`) still ends the
+ * channel where it always did — the instant the granted distance runs out, rather than 2.5 seconds
+ * later. Without it the priest walks out the rest of the hold with an empty budget and no
+ * rematerialisation, which is not the skill.
+ *
+ * A report is a straight line between two 20 Hz samples, so this can only ever under-count the path
+ * actually walked. That direction is the safe one: the channel may end a hair late, never early.
+ */
+function debitHeldMobility(player: PlayerRuntime, from: GroundVector): void {
+  const action = player.action;
+  if (
+    action?.skillId !== "blink" ||
+    action.channelMaxEndsAt === undefined ||
+    action.channelEndsAt !== undefined ||
+    action.mobilityDistance === undefined
+  ) {
+    return;
+  }
+  action.mobilityDistance = Math.max(0, action.mobilityDistance - groundDistance(player, from));
+}
+
+/**
+ * Drowning: the client REPORTS that the movement rule it owns ran out of breath, and the room
+ * decides what that costs.
+ *
+ * The cost is death, in place — the state machine `death.ts` already owns (`alive -> corpse ->
+ * ghost -> alive`), with the body left where it went under and `RESURRECT_HP_RATIO` on the way
+ * back. It replaces the client-side teleport to the map's entry point that came over from the lab,
+ * where the same line is a debug reset: in the game that landing is in bounds and indistinguishable
+ * from an ordinary move, so it was a free ride home past any cliff, any monster, at any distance.
+ *
+ * The claim itself is worth nothing. It names no damage and no position, and it is refused unless
+ * the position stream this same client is sending says the hero is in the water and alive. A
+ * modified client that fabricates one drowns itself; a modified client that never sends one has
+ * done no more than one that never reports a position at all (decision 4's accepted cost).
+ */
+export function applyDrowning(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
+  if (!player.authorized || player.transitioning || player.disconnecting) return;
+  // Only a living swimmer drowns. `swimming` is the flag from this client's own last accepted
+  // `move`, so the report has to agree with the position stream that carried it.
+  if (player.life !== "alive" || !player.swimming) return;
+  player.hp = 0;
+  killPlayer(w, connectionId, player);
+  sendStateTo(w, connectionId, player);
 }
 
 // -------------------------------------------------------------------------------------------------
