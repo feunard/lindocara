@@ -1,7 +1,9 @@
 import { CEMETERIES } from "@lindocara/engine/game.js";
 import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import { isPathWalkable, isWalkableBox, type TileMap } from "@lindocara/engine/tilemap.js";
-import { ZONES, type ZoneDefinition, zoneDefinition } from "@lindocara/engine/zones.js";
+// `LegacyZoneDefinition`, not `ZoneDefinition`: this suite walks the compile-time catalogue, whose
+// terrain is still the pixel geometry a live room no longer has (see the type's own docblock).
+import { type LegacyZoneDefinition, ZONES, zoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
 
 const STEP = PLAYER_SIZE;
@@ -77,7 +79,7 @@ function targetIsReachable(tiles: TileMap, visited: ReadonlySet<number>, target:
   });
 }
 
-function targetsFor(zone: ZoneDefinition): ConnectivityTarget[] {
+function targetsFor(zone: LegacyZoneDefinition): ConnectivityTarget[] {
   const arrivals = Object.values(ZONES).flatMap((source) =>
     source.portals.flatMap((portal): ConnectivityTarget[] =>
       portal.destination.zoneId === zone.id
@@ -104,7 +106,7 @@ function targetsFor(zone: ZoneDefinition): ConnectivityTarget[] {
   ];
 }
 
-function expectConnected(zone: ZoneDefinition): void {
+function expectConnected(zone: LegacyZoneDefinition): void {
   const targets = targetsFor(zone);
   expect(zone.terrain.spawnPoints.length, `${zone.id} needs a connectivity origin`).toBeGreaterThan(
     0,

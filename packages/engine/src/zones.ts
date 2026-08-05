@@ -13,6 +13,8 @@ import {
   type TerrainGeometry,
   VERDANT_REACH_TERRAIN,
 } from "./game.js";
+import type { ColliderIndex } from "./hd2d/collider-index.js";
+import type { TerrainQuery } from "./hd2d/terrain-query.js";
 import type { MapElement, MapMarkers } from "./map-data.js";
 import type { MapEvent } from "./map-events.js";
 import type { MapHeroSettings } from "./map-hero-settings.js";
@@ -35,13 +37,37 @@ import { SUNKEN_ISLES_TERRAIN } from "./zones/sunken-isles.js";
 export type ZoneId = string;
 export type ZoneKind = "open_world" | "town" | "dungeon";
 
+/**
+ * A room's collision, as the heightfield describes it: tile units, grid centre as origin, and a
+ * third axis. This replaces the pixel `TerrainGeometry` on a live zone — `query` answers relief
+ * (`heightAt`, and `maxHeightAround` over a body's DISC, which is what keeps a body from sinking
+ * half of itself into a cliff), `colliders` answers props, and the three scalars are the scale the
+ * two are expressed in.
+ *
+ * Deliberately NOT a bag of everything the old geometry carried: there is no `width`/`height` (the
+ * grid is `size` square and centred, so the world runs `-size/2`..`+size/2`), no `tiles` (relief is
+ * not a tile kind) and no baked spawn list (`MapData.spawns` is where those live, and a zone that
+ * needs one reads the heightfield rather than a second copy of it). The single question a system
+ * asks of this is `canStand` (`server/world/terrain-access.ts`).
+ */
+export interface ZoneTerrain {
+  query: TerrainQuery;
+  colliders: ColliderIndex;
+  /** Grid side, in cells. */
+  size: number;
+  /** World height of one level tier. */
+  levelHeight: number;
+  /** World height of the water plane. */
+  waterLevel: number;
+}
+
 export interface ZoneDefinition {
   id: ZoneId;
   nameKey: string;
   type: ZoneKind;
   defaultInstanceId: "main";
   maxPlayers: number;
-  terrain: TerrainGeometry;
+  terrain: ZoneTerrain;
   quests: readonly QuestDefinition[];
   questSites: readonly QuestSite[];
   monsters: readonly MonsterSpawn[];
@@ -59,6 +85,16 @@ export interface ZoneDefinition {
    * per tick; nothing here moves, triggers or executes a command this tranche.
    */
   readonly events?: readonly MapEvent[];
+  /**
+   * The map's authored spawn points, in tile units with the grid centre as origin — the
+   * heightfield's own `spawns`, carried through verbatim.
+   *
+   * They live here rather than on `ZoneTerrain` because they are authored CONTENT, not collision:
+   * `ZoneTerrain` answers where a body fits, and a room that wants to know where a hero enters
+   * should not have to ask the collision index. Undefined for every catalogue zone, whose spawns
+   * are still `terrain.spawnPoints` on their pixel geometry.
+   */
+  readonly spawns?: readonly { name: string; x: number; z: number }[];
   /** Authored map cache identity. Catalogue zones use 0. */
   readonly revision?: number;
   /**
@@ -104,6 +140,25 @@ export interface ZoneLocation {
   definition: ZoneDefinition;
 }
 
+/**
+ * The compile-time catalogue's shape: everything a `ZoneDefinition` is, except that its terrain is
+ * still the dying PIXEL geometry.
+ *
+ * The three zones below predate the heightfield and no heightfield exists for them. Fabricating a
+ * flat one would be worse than keeping the old type: every test that reads them — connectivity,
+ * navigation grids, monster patrols — would silently start measuring a world with no relief and no
+ * obstacles, and still pass. So the catalogue keeps the geometry it was authored in, under a name
+ * that says what it is, while every LIVE room's terrain — the only terrain the game actually
+ * collides against, built by `zoneFromMapPayload` — is a `ZoneTerrain`. Retiring the catalogue is
+ * its own piece of work; this type is the fence until then.
+ */
+export type LegacyZoneDefinition = Omit<ZoneDefinition, "terrain"> & { terrain: TerrainGeometry };
+
+/** A `ZoneLocation` naming a catalogue zone, and so carrying a `LegacyZoneDefinition`. */
+export type LegacyZoneLocation = Omit<ZoneLocation, "definition"> & {
+  definition: LegacyZoneDefinition;
+};
+
 export const DEFAULT_ZONE_ID: ZoneId = "verdant-reach";
 export const DEFAULT_INSTANCE_ID = "main";
 export const INSTANCE_ID_MAX_LENGTH = 32;
@@ -127,7 +182,7 @@ export const TEST_ZONE_TERRAIN: TerrainGeometry = {
   colliders: emptyColliderIndex(MMO_TEST_ZONE_TILES.cols, MMO_TEST_ZONE_TILES.rows),
 };
 
-export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
+export const ZONES: Readonly<Record<ZoneId, LegacyZoneDefinition>> = {
   "verdant-reach": {
     id: "verdant-reach",
     nameKey: "zone.verdant_reach.name",
@@ -261,7 +316,7 @@ export function isValidInstanceId(value: unknown): value is string {
  * an unknown id resolves (to the default definition) rather than being refused — only a
  * structurally invalid id (empty, oversize, non-string) is rejected, upstream, by `isZoneId`.
  */
-export function zoneDefinition(zoneId: ZoneId): ZoneDefinition {
+export function zoneDefinition(zoneId: ZoneId): LegacyZoneDefinition {
   const known = ZONES[zoneId] ?? ZONES[DEFAULT_ZONE_ID];
   // `ZONES` is a plain record and `ZoneId` is now any string, so the compiler is right that this
   // could be undefined — but DEFAULT_ZONE_ID indexes a literal in this very file. Throwing beats a
@@ -275,7 +330,7 @@ export function buildRoomKey(zoneId: ZoneId, instanceId: string): string {
   return `${zoneId}:${instanceId}`;
 }
 
-export function parseRoomKey(roomKey: string): ZoneLocation | null {
+export function parseRoomKey(roomKey: string): LegacyZoneLocation | null {
   const separator = roomKey.indexOf(":");
   if (separator <= 0 || separator !== roomKey.lastIndexOf(":")) return null;
   return resolveZoneLocation(roomKey.slice(0, separator), roomKey.slice(separator + 1));
@@ -284,7 +339,10 @@ export function parseRoomKey(roomKey: string): ZoneLocation | null {
 /** D1 owns location. Any structurally valid id resolves — an unknown one falls back to the default
  *  zone's definition via `zoneDefinition`, not to a refusal; only empty/oversize/non-string ids (and
  *  malformed instance ids) are rejected, by `isZoneId`/`isValidInstanceId`. */
-export function resolveZoneLocation(zoneId: unknown, instanceId: unknown): ZoneLocation | null {
+export function resolveZoneLocation(
+  zoneId: unknown,
+  instanceId: unknown,
+): LegacyZoneLocation | null {
   if (!isZoneId(zoneId) || !isValidInstanceId(instanceId)) return null;
   return {
     zoneId,

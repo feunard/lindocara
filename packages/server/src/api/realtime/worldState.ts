@@ -1,9 +1,10 @@
 /**
  * The world room's in-memory state container and its map-to-zone assembly — the Alepha-side port
  * of legacy `world/map-zone.ts` (`zoneFromMap`/`locationFromMap`) plus the room-runtime collections
- * `World` kept as private fields. Reimplemented against `MapService`'s `MapPayload` (layers arrive
- * RLE-encoded) instead of legacy `StoredMap` (layers already decoded); the geometry rules are the
- * shared engine's (`terrainFromMap`), so the two hosts cannot bake different collision.
+ * `World` kept as private fields. Reimplemented against `MapService`'s `MapPayload` instead of
+ * legacy `StoredMap`; the geometry comes from the map's own heightfield through
+ * `zoneTerrainFromHeightfield` (`world/terrain-access.ts`), the single place a stored map becomes
+ * collision, so no two hosts can bake different terrain from the same row.
  */
 
 import {
@@ -15,26 +16,19 @@ import {
 import { type AdventureAudioConfig, resolveMapAudio } from "@lindocara/engine/audio-catalog.js";
 import {
   type ColliderIndex,
-  emptyColliderIndex,
-  flattenColliderIndex,
-} from "@lindocara/engine/collider.js";
-import type { Rect } from "@lindocara/engine/game.js";
+  type ColliderRect,
+  createColliderIndex,
+} from "@lindocara/engine/hd2d/collider-index.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
-import { MAP_LAYERS, terrainFromMap } from "@lindocara/engine/map-data.js";
+import { MAP_LAYERS } from "@lindocara/engine/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import type { QuestEventReference } from "@lindocara/engine/quests.js";
-import {
-  emptyLayer,
-  encodeTileLayer,
-  parseTileLayer,
-  type TileLayer,
-} from "@lindocara/engine/tile-layer-codec.js";
+import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
 import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
-import { pixelTerrainFromHeightfield } from "../../world/heightfield-pixel-bridge.js";
 import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
 import type { NpcMovementRuntime } from "../../world/npc-movement-system.js";
 import type { PeasantHarvestJob } from "../../world/peasant-harvest-system.js";
@@ -49,6 +43,7 @@ import type {
   SanctuaryRuntime,
 } from "../../world/priest-variant-system.js";
 import { SpatialGrid } from "../../world/spatial-grid.js";
+import { zoneTerrainFromHeightfield } from "../../world/terrain-access.js";
 import {
   type ActiveWorldEvent,
   createGuards,
@@ -108,51 +103,41 @@ function blankAppearance(size: number): { layers: string[] } {
 
 /**
  * A stored map (as the Alepha API round-trips it) into the `ZoneDefinition` the world systems run
- * on. Port of `zoneFromMap`; the RLE layer strings pass through verbatim as the zone's appearance
- * layers (legacy re-encoded its decoded layers — same bytes either way) and are decoded once here
- * for `terrainFromMap`'s collision bake — except on a heightfield map, whose appearance comes from
- * `blankAppearance` above so it cannot contradict the heightfield-baked `tiles`.
+ * on. Port of `zoneFromMap`, with its terrain rebuilt: collision is the map's own heightfield,
+ * queried in tile units with the grid centre as origin, and the tile path that used to bake it
+ * (`terrainFromMap` over the decoded RLE layers, then the pixel bridge) is gone.
+ *
+ * **A map with no usable heightfield can no longer produce a zone at all**, and this throws naming
+ * it rather than falling back. There is nothing left to fall back TO — the pixel geometry every
+ * system collided against does not exist anymore — so a fallback would mean a room whose collision
+ * is empty, silently. `WorldRoom.createState` catches this into a `location: null` state, which is
+ * already the shape a map that cannot load takes: every join is refused 4007, with the close-code
+ * vocabulary intact. The five authored adventures are tile maps and are parked in `scripts/legacy/`
+ * for exactly this reason.
  */
 export function zoneFromMapPayload(
   payload: MapPayload,
   adventureAudio: AdventureAudioConfig,
 ): ZoneDefinition {
-  const layers: TileLayer[] = [];
-  for (let index = 0; index < MAP_LAYERS; index += 1) {
-    const layer = parseTileLayer(payload.layers[index], payload.cols, payload.rows);
-    if (layer === null) throw new Error(`map ${payload.id} layer ${index} failed to decode`);
-    layers.push(layer);
-  }
-  const data = {
-    tilesetId: payload.tilesetId,
-    cols: payload.cols,
-    rows: payload.rows,
-    layers,
-    elements: payload.elements,
-    spawn: payload.spawn,
-    markers: payload.markers,
-  };
   const heightfield = payload.heightfield === null ? null : decodeMap(payload.heightfield);
-  if (payload.heightfield !== null && heightfield === null) {
-    // A stored heightfield that fails to decode must NOT silently fall back to the tile path: that
-    // would be a corrupt map presenting as a working one, on a room whose collision then disagrees
-    // with what the client is told to render. The room stays honestly heightfield-less instead.
-    console.warn(
-      JSON.stringify({ event: "map_heightfield_corrupt", mapId: payload.id, reason: "decode" }),
-    );
+  if (heightfield === null) {
+    // Absent and corrupt are distinguished in the message because they need different answers: one
+    // map was never given a heightfield, the other has one the server refuses to parse — and a
+    // corrupt one must never present as a working map on a room whose collision disagrees with what
+    // the client is told to render.
+    const reason = payload.heightfield === null ? "absent" : "failed to decode";
+    throw new Error(`map ${payload.id} has no usable heightfield (${reason})`);
   }
-  // TILE→PIXEL BRIDGE — see packages/engine/src/hd2d/tile-pixel-bridge.ts
-  const terrain =
-    heightfield === null ? terrainFromMap(data) : pixelTerrainFromHeightfield(heightfield);
+  const terrain = zoneTerrainFromHeightfield(heightfield);
   // A heightfield room's APPEARANCE must not contradict its own collision, and the contradiction
   // is not cosmetic: `isWorldInfo` (`engine/protocol.ts`) validates every appearance collection
   // against `tiles.cols/rows`, so an authored 20x15 tile layer beside an 8x8 heightfield makes
   // `parseServerMessage` drop the whole `welcome` and the room becomes UNJOINABLE. The tile layers,
   // the authored elements and the authored events are all expressed in the other coordinate space,
   // so a heightfield room ships none of them: blank layers sized to its own grid, and nothing else.
-  // Task 8 is what gives a heightfield its own decoration and events; until then, absent beats
+  // Giving a heightfield its own decoration and events is a later task; until then, absent beats
   // misplaced.
-  const appearance = heightfield === null ? null : blankAppearance(heightfield.size);
+  const appearance = blankAppearance(heightfield.size);
   return {
     id: payload.id,
     // The name is authored content rather than an i18n key. The client prints unknown keys
@@ -169,18 +154,20 @@ export function zoneFromMapPayload(
     guards: [],
     portals: [],
     navigation: { ...DEFAULT_ZONE_NAVIGATION },
-    elements: appearance === null ? payload.elements : [],
+    elements: [],
     markers: payload.markers,
+    // Straight from the heightfield: the tile map's own `spawn` is authored in the other
+    // coordinate space and means nothing here.
+    spawns: heightfield.spawns,
     revision: payload.revision,
     tilesetId: payload.tilesetId,
-    layers: appearance === null ? payload.layers : appearance.layers,
-    events: appearance === null ? payload.events : [],
+    layers: appearance.layers,
+    events: [],
     audio: resolveMapAudio(adventureAudio, payload.audio),
     heroSettings: payload.heroSettings,
-    // Only a heightfield the room actually baked its terrain from travels on: shipping a stored
-    // string the server itself refused to decode would hand the client a map the two sides
-    // disagree about.
-    heightfield: heightfield === null ? null : payload.heightfield,
+    // The heightfield the room actually baked its terrain from — reaching this line at all means it
+    // decoded, so the string and the collision the two sides run cannot disagree.
+    heightfield: payload.heightfield,
   };
 }
 
@@ -244,12 +231,13 @@ export interface WorldRoomState {
   heroPartyBroadcasts: Map<string, string>;
   /** Authored events whose page currently holds. Always empty until Task 7 evaluates pages. */
   activeEvents: readonly ActiveWorldEvent[];
-  /** Static map/element collision, kept separate so dynamic harvest footprints can be rebuilt. */
-  staticColliders: readonly Rect[];
+  /** Static map/element collision, kept separate so dynamic harvest footprints can be rebuilt. In
+   *  tile units, grid centre as origin — the heightfield's own authored rects. */
+  staticColliders: readonly ColliderRect[];
   /** Immutable map/element index reused by provenance-aware line-of-sight checks. */
   staticColliderIndex: ColliderIndex;
   /** Current harvest-only collision projected from `activeEvents`. */
-  harvestColliders: readonly Rect[];
+  harvestColliders: readonly ColliderRect[];
   /** At most one server-timed harvest channel per hero. Movement/leave/transition removes it. */
   harvestJobs: Map<string, PeasantHarvestJob>;
   /** Autonomous NPC movement runtimes keyed by event id (Task 7 populates via reconcile). */
@@ -312,15 +300,13 @@ export function createWorldRoomState(
   const guards = definition ? createGuards(definition.guards) : [];
   const monsterGrid = new SpatialGrid<MonsterRuntime>(SPATIAL_CELL_SIZE);
   for (const monster of monsters) monsterGrid.insert(monster);
-  const staticColliders = definition
-    ? flattenColliderIndex(definition.terrain.colliders).map(([x, y, width, height]) => ({
-        x,
-        y,
-        width,
-        height,
-      }))
+  // The heightfield's collider index already holds its rects as a flat list, so there is nothing to
+  // flatten out of buckets the way the pixel index needed: the two collections are the same rects,
+  // one indexed for disc queries and one enumerable for the harvest rebuild.
+  const staticColliders: readonly ColliderRect[] = definition
+    ? [...definition.terrain.colliders.all]
     : [];
-  const staticColliderIndex = definition?.terrain.colliders ?? emptyColliderIndex(1, 1);
+  const staticColliderIndex = definition?.terrain.colliders ?? createColliderIndex();
   return {
     partyId: parsed?.partyId ?? "",
     mapId: parsed?.mapId ?? "",
