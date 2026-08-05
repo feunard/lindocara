@@ -49,9 +49,9 @@ via `@lindocara/hd2d`, Vitest, Biome.
 
 ## The gate between phases is load-bearing
 
-The author chose one increment over two, knowing the attribution cost. Task 8 is the mitigation:
+The author chose one increment over two, knowing the attribution cost. Task 9 is the mitigation:
 **Phase A must be green and played before any Phase B task starts.** A regression found later that
-reproduces at Task 8 is a unit bug; one that does not is a movement bug. Interleaving Phase B work
+reproduces at Task 9 is a unit bug; one that does not is a movement bug. Interleaving Phase B work
 into Phase A tasks throws that away and is the one deviation from this plan that is not allowed.
 
 At the gate, cliffs are solid and high ground is unreachable. That is expected and temporary —
@@ -476,7 +476,78 @@ git commit -am "feat(server): navigation refuses to path up a cliff"
 
 ---
 
-### Task 7: The wire, storage and the bridges
+### Task 7: The tick composition
+
+Added after Task 5, which found that `worldTick.ts` belonged to no task while carrying 136
+typecheck errors — the single largest remaining block, and one the gate cannot pass around. It gets
+its own task because it is the file where every system meets: it composes the readable tick order,
+owns the trigger detection and effect dispatch the event runs need, and holds 45 of the 49 silent
+`Vec2` call sites.
+
+**Files:**
+- Modify: `packages/server/src/api/realtime/worldTick.ts`
+- Modify: `packages/server/src/api/realtime/worldEvents.ts`
+- Test: extend the existing tick and event suites in `packages/server/test-api/`
+
+**Interfaces:**
+- Consumes: `canStand`, `resolveGroundMovement`, `groundPathClear`, `groundUnder`,
+  `groundDistance`, `clampToGrid` (Task 4, `packages/server/src/world/terrain-access.ts`);
+  three-axis runtimes (Task 2); the converted balance tables (Task 5).
+- Produces: no new exports. The tick order itself is unchanged — this is a units conversion of the
+  composition, not a re-ordering of it.
+
+- [ ] **Step 1: Do not reorder the tick**
+
+`worldTick.ts` composes the order the room runs its systems in, and that order is load-bearing
+(movement before combat resolution before snapshots, and so on). Converting units must not become
+an opportunity to tidy it. If a conversion seems to require moving a step, stop and report — that
+is a design change wearing a refactor's clothes.
+
+- [ ] **Step 2: Close the silent `Vec2` sites, and count them**
+
+45 of the 49 remaining sites are here. `WorldPosition` is still structurally assignable to `Vec2`,
+so `pointDistance(a, b)` compiles while measuring ground-x against elevation-y. These produce no
+compiler error and no `.y` read, so **the only way to find them is to read every call that passes a
+runtime entity into an engine helper**. Use Task 4's `groundDistance`/`groundUnder` rather than
+writing a third set.
+
+Report the count you closed and the count remaining. That number reaching zero is a precondition of
+the gate.
+
+- [ ] **Step 3: Ground every step test on the mover, not the destination**
+
+This trap has now appeared three times — `resolveGroundMovement`, `groundPathClear`, and the
+harvest sight test. It is self-satisfying: `canStand(dest, groundUnder(dest))` can never fail, so a
+body climbs a cliff whenever its stride exceeds its body radius. If you write any movement or sweep
+here, ground it on where the body **is**. Prefer calling Task 4's helpers over writing a fourth
+instance.
+
+- [ ] **Step 4: Verify**
+
+```bash
+npm run test:server && npm run typecheck:server
+```
+
+`worldTick.ts`'s errors go to zero. The branch is still red overall (Task 8's files remain) and
+that is expected.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -am "refactor(server): the tick composition in tile units"
+```
+
+---
+
+### Task 8: The wire, storage and the bridges
+
+**Added to this task after execution found them (they were in no task's list):**
+- **Give the nine test fixtures a heightfield.** Since Task 3, a map with no heightfield cannot
+  produce a zone, so nine suites that join tile maps now close with 4007. They cannot go green
+  until their fixtures carry one. This is a precondition of the gate.
+- **Convert the engine `Vec2` helpers** (`pointDistance`, `withinRange`). Task 4 deliberately
+  deferred this because converting the signatures reddens packages no task owned; by this point
+  those packages are converted, so it can land. The grep recipe is in `task-4-report.md`.
 
 Everything left in Phase A: snapshot positions gain `z`, `WorldInfo` loses its pixel projection,
 the hero row gains an elevation column and loses its stored positions, and both bridge files are
@@ -542,7 +613,7 @@ git add -A && git commit -m "feat: tile units on the wire and in storage, bridge
 
 ---
 
-### Task 8: THE GATE — Phase A is green and played
+### Task 9: THE GATE — Phase A is green and played
 
 Not a code task. It is the checkpoint that makes the two phases attributable, and no Phase B task
 may start before it passes.
@@ -572,7 +643,7 @@ stopped; monsters move and do not path up cliffs.
 - [ ] **Step 3: Record the expected temporary state**
 
 High ground is unreachable at this point. Note it in the report as expected, not as a defect —
-jumping arrives in Task 10.
+jumping arrives in Task 11.
 
 - [ ] **Step 4: Commit the gate**
 
@@ -584,7 +655,7 @@ An empty commit is deliberate: it puts a named point in history that a later bis
 
 ---
 
-### Task 9: The wire's movement half inverts
+### Task 10: The wire's movement half inverts
 
 **Files:**
 - Modify: `packages/engine/src/protocol.ts`
@@ -620,7 +691,7 @@ git commit -am "feat(protocol): the client reports its position"
 
 ---
 
-### Task 10: The client owns the hero
+### Task 11: The client owns the hero
 
 The heart of Phase B.
 
@@ -679,7 +750,7 @@ git add -A && git commit -m "feat(client): the hero runs stepHero and reports wh
 
 ---
 
-### Task 11: Mobility skills, applied by the client
+### Task 12: Mobility skills, applied by the client
 
 Per spec decision 6, chosen over the server-displacement alternative with the exposure accepted.
 
@@ -711,7 +782,7 @@ git commit -am "feat(client): mobility skills displace the hero locally"
 
 ---
 
-### Task 12: Remote heroes are drawn in their real state, and the docs catch up
+### Task 13: Remote heroes are drawn in their real state, and the docs catch up
 
 **Files:**
 - Modify: `packages/renderer/src/hd2d/billboards.ts`, `game-renderer.ts`
