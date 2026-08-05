@@ -31,7 +31,9 @@ const player = (overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot => ({
   x: 2,
   y: 0,
   z: 2,
-  ack: 1,
+  airborne: false,
+  swimming: false,
+  gliding: false,
   hp: 100,
   maxHp: 100,
   level: 1,
@@ -111,7 +113,7 @@ describe("differential world state", () => {
   it("applies valid deltas and rejects an impossible removal for resynchronization", () => {
     const serverCache = createWorldCache(view());
     const clientCache = createWorldCache(view());
-    const next = view({ players: [player({ x: 2.5, ack: 3 })], monsters: [] });
+    const next = view({ players: [player({ x: 2.5, airborne: true })], monsters: [] });
     const delta = buildWorldDelta(serverCache, next);
     expect(applyWorldDelta(clientCache, delta)).toEqual(next);
     expect(worldViewFromCache(clientCache)).toEqual(next);

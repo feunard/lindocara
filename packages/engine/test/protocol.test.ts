@@ -13,19 +13,20 @@ describe("client protocol", () => {
   const targetId = "33333333-3333-4333-8333-333333333333";
 
   it("accepts movement and action intents without accepting outcomes", () => {
-    expect(
-      parseClientMessage(
-        JSON.stringify({
-          t: "input",
-          seq: 7,
-          input: { up: true, down: false, left: false, right: true },
-        }),
-      ),
-    ).toEqual({
-      t: "input",
-      seq: 7,
-      input: { up: true, down: false, left: false, right: true },
-    });
+    // Movement is the one FACT a client supplies now — its own hero's position, in tile units.
+    // Everything else below is still intent, and every outcome is still refused. `protocol-move`
+    // owns the full parsing contract; this asserts only that the message reaches the union.
+    const move = {
+      t: "move",
+      x: 1,
+      y: 0,
+      z: -1,
+      facing: { x: 0, z: 1 },
+      airborne: false,
+      swimming: false,
+      gliding: false,
+    };
+    expect(parseClientMessage(JSON.stringify(move))).toEqual(move);
     expect(parseClientMessage(JSON.stringify({ t: "attack" }))).toEqual({ t: "attack" });
     expect(parseClientMessage(JSON.stringify({ t: "attack", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "interact", targetId }))).toBeNull();
@@ -90,13 +91,11 @@ describe("client protocol", () => {
     JSON.stringify({ t: "teleport", x: 1, y: 1 }),
     JSON.stringify({ t: "damage", amount: 999 }),
     JSON.stringify({ t: "use", item: "admin_sword" }),
+    // The retired sequenced command. It is not a "move" the parser can charitably read: it is an
+    // older sender, and an older sender is refused.
     JSON.stringify({ t: "input", input: { up: true, down: false, left: false, right: false } }),
-    JSON.stringify({
-      t: "input",
-      seq: 0,
-      input: { up: true, down: false, left: false, right: false },
-    }),
-    JSON.stringify({ t: "input", input: { up: "yes" } }),
+    // A ground `{x, y}` pair — the half-converted sender the third axis exists to catch.
+    JSON.stringify({ t: "move", x: 1, y: 1, facing: { x: 1, z: 0 } }),
     JSON.stringify({ t: "chat", text: 42 }),
   ])("rejects untrusted frame %s", (raw) => {
     expect(parseClientMessage(raw)).toBeNull();
@@ -211,7 +210,9 @@ describe("server protocol", () => {
     x: 0.5,
     y: 0,
     z: 0.5,
-    ack: 0,
+    airborne: false,
+    swimming: false,
+    gliding: false,
     hp: 100,
     maxHp: 100,
     level: 1,

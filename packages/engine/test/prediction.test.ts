@@ -3,8 +3,12 @@ import { CLASS_STATS } from "@lindocara/engine/game.js";
 import { groundOf, planarOf, type WorldPosition } from "@lindocara/engine/ground.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
-import { predictStep, prunePending, reconcile } from "@lindocara/engine/prediction.js";
-import type { Command } from "@lindocara/engine/protocol.js";
+import {
+  type Command,
+  predictStep,
+  prunePending,
+  reconcile,
+} from "@lindocara/engine/prediction.js";
 import { type Input, NO_INPUT, PLAYER_SPEED, step, TICK_DT } from "@lindocara/engine/simulation.js";
 import {
   groundUnder,

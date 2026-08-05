@@ -1,8 +1,15 @@
 /**
  * The wire format between browser and Durable Object.
  *
- * Clients send intent, never position or outcomes. Movement input is sequenced so the
- * server can acknowledge exactly what it applied; actions are still just intent.
+ * Clients send intent, never outcomes — with exactly one exception, and it is a deliberate one:
+ * WHERE A HERO IS. The movement rule (`hd2d/hero-step.ts`) runs on the client, so a client reports
+ * its own position (`{ t: "move" }`, tile units, grid centre as origin) and the server relays it
+ * rather than re-simulating it. The sequenced `{ t: "input", seq }` command and the `ack` that
+ * acknowledged it are gone with the reconciliation they existed for.
+ *
+ * Nothing else moved: damage, health, loot, XP, quest progression and every other outcome remain
+ * the server's alone, and the position itself is still parsed defensively (finite, bounded, all
+ * three axes) before anything reads it.
  */
 
 import {
@@ -68,11 +75,11 @@ import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import { parseMapHeroSettings } from "./map-hero-settings.js";
+import { MAP_MAX_COLS } from "./map-limits.js";
 import type { MerchantDefinition } from "./merchant.js";
 import { isPartyMaterials, MAX_HARVEST_HITS, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
-import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { isTalentId, type TalentState } from "./talents.js";
 import { parseTileLayer } from "./tile-layer-codec.js";
@@ -80,10 +87,36 @@ import { tilesetById } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
 import { isZoneId, type ZoneId } from "./zones.js";
 
-/** One tick's worth of movement intent, stamped so the server can acknowledge it. */
-export interface Command {
-  seq: number;
-  input: Input;
+/**
+ * The wire's absolute bound on a reported position, in TILE units. A heightfield is square and
+ * centred on the origin, so no authored map can place a hero further than half its side from the
+ * centre, and no map may exceed `MAP_MAX_COLS` cells a side. Elevation shares the bound: a stack of
+ * levels tall enough to leave it is not a map any editor can author.
+ *
+ * This is a wire sanity bound, not the authority: the room still resolves every reported position
+ * against the terrain it actually owns. It exists so a frame that could never describe any map is
+ * dropped before anything reads it.
+ */
+export const MOVE_COORDINATE_LIMIT = MAP_MAX_COLS / 2;
+
+/**
+ * Where the client says its own hero now is. The one place a client supplies a fact rather than an
+ * intent — the movement rule runs there (see this file's header) — and therefore the one message
+ * whose parsing carries the whole weight: all three axes finite and bounded, a real unit heading,
+ * and the three locomotion flags present rather than defaulted.
+ *
+ * `x`/`z` are the GROUND axes and `y` is ELEVATION. A payload carrying an `{x, y}` ground pair is a
+ * half-converted sender, and it must be refused rather than read as a world on its side.
+ */
+export interface MoveMessage {
+  t: "move";
+  x: number;
+  y: number;
+  z: number;
+  facing: GroundVector;
+  airborne: boolean;
+  swimming: boolean;
+  gliding: boolean;
 }
 
 /** @deprecated Transitional alias for the original one-field appearance model. */
@@ -117,8 +150,15 @@ export interface PlayerSnapshot {
   y: number;
   /** The second GROUND axis. A snapshot with no `z` is a half-converted world on its side. */
   z: number;
-  /** Highest movement command sequence the server has applied for this player. */
-  ack: number;
+  /**
+   * The three locomotion flags, relayed from whoever owns this hero's movement rule. They are what
+   * a remote renderer needs to draw the difference between a hero mid-jump, a hero swimming and a
+   * hero under an open canopy; they are never re-derived from the position stream, which cannot
+   * tell those three apart. All three are REQUIRED — see `parseMove`'s absent-key rule.
+   */
+  airborne: boolean;
+  swimming: boolean;
+  gliding: boolean;
   hp: number;
   maxHp: number;
   level: number;
@@ -590,9 +630,12 @@ export interface QuestDialogueEntry {
   rewardChoices: readonly { id: string; label: string }[];
 }
 
-/** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
+/**
+ * Sent by the browser. Actions contain intent only; every outcome is validated by the server. The
+ * sole fact a client supplies is its own hero's position (`MoveMessage`).
+ */
 export type ClientMessage =
-  | { t: "input"; seq: number; input: Input }
+  | MoveMessage
   | { t: "attack" }
   | { t: "interact" }
   | {
@@ -1124,7 +1167,9 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     isWireId(value.id) &&
     isBoundedString(value.nick, 32) &&
     isWorldPosition(value) &&
-    isNonNegativeInteger(value.ack) &&
+    typeof value.airborne === "boolean" &&
+    typeof value.swimming === "boolean" &&
+    typeof value.gliding === "boolean" &&
     isFiniteNumber(value.hp) &&
     value.hp >= 0 &&
     isFiniteNumber(value.maxHp) &&
@@ -1706,35 +1751,43 @@ function isEntityDelta<T extends { id: string }>(
   return value.upsert.every(validate) && value.remove.every((id) => isWireId(id));
 }
 
-function parseInput(value: unknown): Input | null {
-  if (!isRecord(value)) return null;
-  const { up, down, left, right } = value;
+/** A single reported coordinate: finite, and inside the largest world any map could describe. */
+function isMoveCoordinate(value: unknown): value is number {
+  return isFiniteNumber(value) && Math.abs(value) <= MOVE_COORDINATE_LIMIT;
+}
+
+/**
+ * The client's report of its own hero's position. Authority moved; the parser did not relax.
+ *
+ * Every field is REQUIRED, including the three locomotion booleans. An absent key is malformed, not
+ * a default — the rule `WorldInfo.heightfield` already follows, and the reason the map-events wire
+ * makes a client emit an explicit `null` rather than omit a condition. Defaulting `swimming` to
+ * `false` because the key was missing would draw a drowning hero walking on water, with nothing
+ * anywhere saying the frame was wrong.
+ */
+function parseMove(value: Record<string, unknown>): MoveMessage | null {
   if (
-    typeof up !== "boolean" ||
-    typeof down !== "boolean" ||
-    typeof left !== "boolean" ||
-    typeof right !== "boolean"
+    !hasOnlyKeys(value, ["t", "x", "y", "z", "facing", "airborne", "swimming", "gliding"]) ||
+    !isMoveCoordinate(value.x) ||
+    !isMoveCoordinate(value.y) ||
+    !isMoveCoordinate(value.z) ||
+    !isDirection(value.facing) ||
+    typeof value.airborne !== "boolean" ||
+    typeof value.swimming !== "boolean" ||
+    typeof value.gliding !== "boolean"
   ) {
     return null;
   }
-  const axisX = value.axisX;
-  const axisY = value.axisY;
-  const parsedAxisX =
-    axisX === undefined
-      ? undefined
-      : typeof axisX === "number" && Number.isFinite(axisX)
-        ? Math.max(-1, Math.min(1, axisX))
-        : null;
-  const parsedAxisY =
-    axisY === undefined
-      ? undefined
-      : typeof axisY === "number" && Number.isFinite(axisY)
-        ? Math.max(-1, Math.min(1, axisY))
-        : null;
-  if (parsedAxisX === null || parsedAxisY === null) return null;
-  const base: Input = { up, down, left, right };
-  if (parsedAxisX === undefined && parsedAxisY === undefined) return base;
-  return { ...base, axisX: parsedAxisX ?? 0, axisY: parsedAxisY ?? 0 };
+  return {
+    t: "move",
+    x: value.x,
+    y: value.y,
+    z: value.z,
+    facing: { x: value.facing.x, z: value.facing.z },
+    airborne: value.airborne,
+    swimming: value.swimming,
+    gliding: value.gliding,
+  };
 }
 
 /** Returns `null` for anything that is not a well-formed client message. */
@@ -1749,12 +1802,7 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   }
 
   if (!isRecord(value) || typeof value.t !== "string") return null;
-  if (value.t === "input") {
-    const { seq } = value;
-    if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 1) return null;
-    const input = parseInput(value.input);
-    return input === null ? null : { t: "input", seq, input };
-  }
+  if (value.t === "move") return parseMove(value);
   if (value.t === "attack" && hasOnlyKeys(value, ["t"])) return { t: "attack" };
   if ((value.t === "interact" || value.t === "release") && hasOnlyKeys(value, ["t"]))
     return { t: value.t };

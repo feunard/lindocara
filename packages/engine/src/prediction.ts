@@ -14,8 +14,7 @@
 import { type LifeState, speedForLife } from "./death.js";
 import type { PlayerClass } from "./game.js";
 import { groundOf, planarOf, type WorldPosition } from "./ground.js";
-import type { Command } from "./protocol.js";
-import { PLAYER_SPEED, step, TICK_DT } from "./simulation.js";
+import { type Input, PLAYER_SPEED, step, TICK_DT } from "./simulation.js";
 import {
   clampToGrid,
   groundUnder,
@@ -43,6 +42,19 @@ export const SNAP_THRESHOLD = 96 / 64;
 
 /** How long a small correction is smeared across, so it reads as drift rather than a pop. */
 export const CORRECTION_SMOOTHING_MS = 100;
+
+/**
+ * One tick's worth of movement intent, stamped so the server can acknowledge it.
+ *
+ * It lived on `protocol.ts` while it WAS the wire. It is not any more: the client reports its own
+ * position (`MoveMessage`) and the server relays it, so nothing sequenced crosses the wire and
+ * nothing acknowledges it. The type stays here, beside the only rules that still read it, until
+ * this whole module retires with the reconciliation it exists for.
+ */
+export interface Command {
+  seq: number;
+  input: Input;
+}
 
 /** Discard commands the server has already applied; they are accounted for in its position. */
 export function prunePending(pending: readonly Command[], ack: number): Command[] {
