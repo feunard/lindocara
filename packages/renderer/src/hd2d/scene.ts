@@ -221,12 +221,13 @@ const MAX_FRAME_SECONDS = 0.05;
 export interface Hd2dScene {
   render(now: number): void;
   /**
-   * Ask the camera to follow a point — the local player, in practice. `x`/`y` are the snapshot's
-   * own GAME PIXELS, top-left origin, exactly as `ActorView` carries them: the caller never
-   * converts, so the bridge keeps one call site per file. Recorded here and consumed by the next
-   * `render`, which is the only place that knows the frame's `dt` and can therefore damp towards it.
+   * Ask the camera to follow a point — the local player, in practice. `x`/`z` are the two GROUND
+   * axes in tile units, exactly as `ActorView` carries them; there is no conversion left on either
+   * side. Passing the snapshot's `y` as the second argument hands the camera an ELEVATION and parks
+   * it on the horizon. Recorded here and consumed by the next `render`, which is the only place
+   * that knows the frame's `dt` and can therefore damp towards it.
    */
-  focusOn(x: number, y: number): void;
+  focusOn(x: number, z: number): void;
   resize(): void;
   dispose(): void;
   ctx: Hd2dContext;

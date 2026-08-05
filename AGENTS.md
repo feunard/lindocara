@@ -97,6 +97,18 @@ sync is its own commit. `npx alepha vendor diff` shows any local patches; keep i
 > **no in-band way to seed one**: `MapService.saveHeightfield` is reachable from no controller, and
 > `scripts/build-proving-map.ts` writes to a local SQLite path while production's database lives
 > inside the Bay process. Regenerating the adventures as heightfields is what closes this.
+>
+> **And a heightfield room runs no authored events at all (since 2026-08-05).** `zoneFromMapPayload`
+> (`packages/server/src/api/realtime/worldState.ts`) bakes `events: []` deliberately: an authored
+> event's `col`/`row` is a TILE-EDITOR cell, a heightfield room's grid is its own, and shipping one
+> inside the other makes `isWorldInfo` refuse the whole `welcome` — which does not draw the event
+> wrong, it makes the room UNJOINABLE. Absent beats misplaced. The cost is that **exits, cross-map
+> teleporters, authored monsters and harvest nodes are invisible to every running room**, so
+> multi-map travel is dead in production until authored content is expressed in a heightfield's own
+> coordinates. Also this increment's accepted cost, not a regression to hunt. Two suites keep
+> testing the choreography around it through an explicit `installAuthoredEvents` stand-in
+> (`world-room-transition.test.ts`, `world-room-events.test.ts`), each documented as the thing to
+> delete on the day the real path exists.
 
 **The game's render path IS `hd2d`** since S3's first increment (2026-08-04). `packages/renderer`
 no longer contains a PixiJS renderer at all: `renderer.ts`, `stage-application.ts`,

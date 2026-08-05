@@ -417,7 +417,9 @@ export class Hd2dRenderer implements RendererLike {
 
   /**
    * The frame's actors, in the one shape the registry understands. Positions ride across in the
-   * snapshot's own PIXELS — the conversion lives inside `sync`.
+   * snapshot's own TILE units, `x`/`z` on the ground — the same frame the scene draws in, so there
+   * is no conversion anywhere in this package. The billboard's elevation is the TERRAIN's
+   * (`heightAt`), never the snapshot's `y`, so `ActorView` carries no `y` at all.
    *
    * Two skips, and one thing still owed for each:
    *

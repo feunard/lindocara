@@ -93,8 +93,9 @@ export function parseWorldRoomId(roomId: string): ParsedWorldRoomId | null {
 /**
  * The appearance a heightfield room ships instead of the map's tile-space one: `MAP_LAYERS` empty
  * layers sized to the heightfield's own grid, so `isWorldInfo`'s per-layer
- * `parseTileLayer(layer, tiles.cols, tiles.rows)` check agrees with the baked `tiles` rather than
- * rejecting the welcome outright.
+ * `parseTileLayer(layer, size, size)` check agrees with the heightfield the same welcome carries
+ * rather than rejecting the frame outright — and a rejected `welcome` is an unjoinable room, not a
+ * mis-drawn one.
  */
 function blankAppearance(size: number): { layers: string[] } {
   const encoded = encodeTileLayer(emptyLayer(size, size));

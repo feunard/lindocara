@@ -36,12 +36,15 @@
  * **Validation happens before replacement**, exactly like legacy: a broken draft must never destroy
  * the account's currently running test session.
  */
+
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import {
   ADVENTURE_TEST_SESSION_TTL_MS,
   type CreateAdventureTestSessionInput,
 } from "@lindocara/engine/adventure-test.js";
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
+import type { WorldPosition } from "@lindocara/engine/ground.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { PARTY_COLORS } from "@lindocara/engine/party.js";
 import {
   collectQuestCommandBindings,
@@ -49,7 +52,6 @@ import {
   type QuestValidationContext,
   validateAuthoredQuests,
 } from "@lindocara/engine/quests.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { $inject } from "alepha";
 import { $repository } from "alepha/orm";
 import { adventureTestSessions } from "../entities/adventureTestSessions.ts";
@@ -76,12 +78,24 @@ export type CreateAdventureTestSessionResult =
   | { readonly ok: false; readonly diagnostics: readonly QuestDiagnostic[] }
   | { readonly ok: true; readonly session: AdventureTestSessionPayload };
 
-/** The `spawnCol`/`spawnRow -> {x,y}` arithmetic every other tile-center helper in this codebase
- *  encodes (`@lindocara/engine/map-data.js`'s `mapSpawnPoint`, `HeroService`'s own
- *  `mapDefaultSpawn`), applied to a `MapPayload.spawn` (already `{col,row}`) instead of a bare map
- *  row or a full `MapData`. Same formula, same `TILE_SIZE`, by construction. */
-function tileCenter(spawn: { col: number; row: number }): { x: number; y: number } {
-  return { x: spawn.col * TILE_SIZE + TILE_SIZE / 2, y: spawn.row * TILE_SIZE + TILE_SIZE / 2 };
+/**
+ * Where a playtest hero starts on the map the tester asked for.
+ *
+ * It used to be `tileCenter(map.spawn)` — the tile-editor cell's PIXEL centre, written straight into
+ * `heroes.x`/`heroes.y`. Both of those meant something else after the tile-unit conversion (`y` is
+ * the ELEVATION column now, and the ground `z` was never written at all), so this was the one write
+ * path that undid the migration for every playtest hero. It stayed invisible because
+ * `restoreStandablePosition` refuses a position 34 grids off the map and falls back to the spawn:
+ * the session worked, and the row was nonsense.
+ *
+ * The map's own heightfield spawn is the only anchor stated in the map's own units, exactly as
+ * `HeroService.resolveHeroStart` resolves an ordinary hero's start. The grid ORIGIN is the fallback
+ * — admission's `mapEntryPosition` seats the body on real ground from there.
+ */
+function playtestStart(map: MapPayload): WorldPosition {
+  const decoded = map.heightfield === null ? null : decodeMap(map.heightfield);
+  const spawn = decoded?.spawns[0];
+  return spawn ? { x: spawn.x, y: 0, z: spawn.z } : { x: 0, y: 0, z: 0 };
 }
 
 /** Ported from `adventure-test-sessions.ts`'s own `questContext`, re-typed against `MapPayload`
@@ -242,10 +256,18 @@ export class TestSessionService {
         class: input.heroClass,
       });
       if (requestedMap) {
-        const start = { mapId: requestedMap.id, ...tileCenter(requestedMap.spawn) };
-        if (hero.mapId !== start.mapId || hero.x !== start.x || hero.y !== start.y) {
-          await this.heroes.updateById(hero.id, { mapId: start.mapId, x: start.x, y: start.y });
-          hero = { ...hero, mapId: start.mapId, x: start.x, y: start.y };
+        const at = playtestStart(requestedMap);
+        // All three axes on both sides of the comparison. Checking two of them would let a hero
+        // whose ground `z` alone is wrong pass for already-placed, which is the same half-a-position
+        // bug in its read form.
+        if (
+          hero.mapId !== requestedMap.id ||
+          hero.x !== at.x ||
+          hero.y !== at.y ||
+          hero.z !== at.z
+        ) {
+          await this.heroes.updateById(hero.id, { mapId: requestedMap.id, ...at });
+          hero = { ...hero, mapId: requestedMap.id, ...at };
         }
       }
     } catch (error) {

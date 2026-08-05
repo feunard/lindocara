@@ -148,7 +148,7 @@ function restoredLife(
   ) {
     return { life: "alive", corpse: null };
   }
-  const corpse: WorldPosition = { x: row.corpseX, y: row.corpseY, z: row.corpseZ ?? 0 };
+  const corpse: WorldPosition = { x: row.corpseX, y: row.corpseY, z: row.corpseZ };
   if (!terrain) return { life, corpse };
   if (!canStand(terrain, corpse.x, corpse.z, BODY_RADIUS, groundUnder(terrain, corpse.x, corpse.z)))
     return { life: "alive", corpse: null };

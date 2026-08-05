@@ -372,10 +372,14 @@ export function advanceMonsters<TSocket>(
       } else {
         const patrolStep = Math.floor(context.tick / 60);
         const angle = patrolStep * 1.13 + index * 1.7;
-        // CARRY FORWARD: `patrolRadius` still arrives in PIXELS, from `MONSTER_SPAWNS` and from
-        // `worldEvents.ts`'s authored spawns — both of which the next task converts at the
-        // producer. Dividing it here instead would be the "half a conversion hiding at a call
-        // site" the plan warns about, so it is left loud in this comment rather than papered over.
+        // `patrolRadius` arrives in TILE units from every AUTHORED producer:
+        // `authored-monster-system`, `authored-guard-system` and `worldEvents.ts` all cross through
+        // `authoredPatrolRadius` (`engine/map-events.ts`), which is deliberately the single
+        // producer-side conversion — dividing here instead would be the "half a conversion hiding
+        // at a call site" the plan warns about. The compiled catalogue's `MONSTER_SPAWNS` and
+        // `GUARD_DEFINITIONS` (`engine/game.ts`) still hold PIXEL radii, and stay that way: they
+        // are test content that `zoneFromMapPayload` never produces (`monsters: []`, `guards: []`),
+        // and they die with `game.ts`'s pixel half rather than with this file.
         const patrolDestination = monster.mayEnterSafeZone
           ? {
               x: monster.spawnX + RAIDER_PATROL_OFFSET.x,

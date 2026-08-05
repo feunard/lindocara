@@ -52,11 +52,11 @@ import {
 import {
   addThreat,
   isMeaningfulContribution,
-  REWARD_DISTANCE,
   recordContribution,
   splitExperience,
   tauntThreat,
   usefulHealingThreat,
+  withinRewardDistance,
 } from "@lindocara/engine/cooperation.js";
 import {
   CORPSE_RECLAIM_RANGE,
@@ -1337,7 +1337,7 @@ function defeatMonster(
       return (
         candidate?.authorized === true &&
         candidate.life === "alive" &&
-        groundDistance(candidate, monster) <= REWARD_DISTANCE &&
+        withinRewardDistance(candidate, monster) &&
         isMeaningfulContribution(contribution)
       );
     })
@@ -1345,7 +1345,7 @@ function defeatMonster(
   if (
     !directlyEligible.includes(player.id) &&
     player.authorized &&
-    (persistentOwnerCredit || groundDistance(player, monster) <= REWARD_DISTANCE)
+    (persistentOwnerCredit || withinRewardDistance(player, monster))
   )
     directlyEligible.push(player.id);
 
@@ -1353,11 +1353,7 @@ function defeatMonster(
   for (const contributorId of directlyEligible) {
     for (const memberId of rewardPartyMemberIds(w, contributorId)) {
       const member = playerById(w.state, memberId);
-      if (
-        member?.authorized &&
-        member.life === "alive" &&
-        groundDistance(member, monster) <= REWARD_DISTANCE
-      )
+      if (member?.authorized && member.life === "alive" && withinRewardDistance(member, monster))
         eligible.add(memberId);
     }
   }

@@ -26,7 +26,8 @@ import { adventures } from "../src/api/entities/adventures.ts";
 import { adventureTestSessions } from "../src/api/entities/adventureTestSessions.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
 import { parties } from "../src/api/entities/parties.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 
@@ -83,14 +84,20 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
   });
 }
 
-/** `POST /api/adventures` creates its adventure AND an atomic default map ("Map1") in one call. A
- *  second map ("Sous-sol") is added so `startMapId` selection has somewhere else to point. */
+/**
+ * `POST /api/adventures` creates its adventure AND an atomic default map ("Map1") in one call. A
+ * second map ("Sous-sol") is added so `startMapId` selection has somewhere else to point, and it is
+ * given a heightfield whose spawn is deliberately OFF-CENTRE — that spawn is where a playtest hero
+ * must land, and a spawn at the grid origin would be satisfied by a hero placed at `0,0,0` for any
+ * reason at all, including the reason this fixture exists to rule out.
+ */
+const SECOND_MAP_SPAWN = { x: 2, z: -3 };
+
 async function newAdventureWithTwoMaps(token: string): Promise<{
   id: string;
   title: string;
   firstMapId: string;
   secondMapId: string;
-  secondSpawn: { col: number; row: number };
 }> {
   const response = await authedFetch("/api/adventures", token, {
     method: "POST",
@@ -108,12 +115,14 @@ async function newAdventureWithTwoMaps(token: string): Promise<{
   });
   expect(second.status).toBe(201);
   const secondMap = (await second.json()) as { id: string; spawn: { col: number; row: number } };
+  await alepha
+    .inject(MapService)
+    .saveHeightfield(secondMap.id, provingHeightfield(PROVING_SIZE, SECOND_MAP_SPAWN));
   return {
     id: adventure.id,
     title: adventure.title,
     firstMapId: adventure.defaultMap.id,
     secondMapId: secondMap.id,
-    secondSpawn: secondMap.spawn,
   };
 }
 
@@ -165,7 +174,7 @@ describe("createTestSession", () => {
       startMapId: string | null;
       expiresAt: number;
       party: { id: string; mine: boolean; maxPlayers: number; hostUserId: string };
-      hero: { id: string; mapId: string; class: string; x: number; y: number };
+      hero: { id: string; mapId: string; class: string; x: number; y: number; z: number };
       diagnostics: unknown[];
     };
     expect(created.adventureId).toBe(adventure.id);
@@ -177,8 +186,16 @@ describe("createTestSession", () => {
       hostUserId: owner.userId,
     });
     expect(created.hero).toMatchObject({ mapId: adventure.secondMapId, class: "ranger" });
-    expect(created.hero.x).toBe((adventure.secondSpawn.col + 0.5) * 64);
-    expect(created.hero.y).toBe((adventure.secondSpawn.row + 0.5) * 64);
+    // The chosen map's OWN heightfield spawn, in tile units, on all three axes. This used to be the
+    // tile-editor cell's pixel centre written into `x`/`y` — and after the conversion `y` was the
+    // ELEVATION column while the ground `z` was never written at all, so every playtest hero's row
+    // was nonsense. Nothing caught it: `restoreStandablePosition` refuses a position thirty-four
+    // grids off the map and quietly falls back, so the session still worked.
+    expect({ x: created.hero.x, y: created.hero.y, z: created.hero.z }).toEqual({
+      x: SECOND_MAP_SPAWN.x,
+      y: 0,
+      z: SECOND_MAP_SPAWN.z,
+    });
     expect(created.diagnostics).toEqual([]);
 
     // The hidden party is never visible to anyone's public listing, author included — see

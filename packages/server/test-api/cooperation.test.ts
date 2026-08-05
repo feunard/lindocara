@@ -2,10 +2,12 @@ import {
   addThreat,
   highestThreat,
   isMeaningfulContribution,
+  REWARD_DISTANCE,
   recordContribution,
   splitExperience,
   tauntThreat,
   usefulHealingThreat,
+  withinRewardDistance,
 } from "@lindocara/engine/cooperation.js";
 import {
   canSpendResource,
@@ -34,6 +36,29 @@ describe("cooperative combat rules", () => {
     addThreat(table, "high", 30, 2);
     expect(highestThreat(table, () => true)?.playerId).toBe("high");
     expect(highestThreat(table, (id) => id !== "high")?.playerId).toBe("low");
+  });
+
+  it("gates reward eligibility on real ground proximity, and can actually refuse", () => {
+    // The distance half of eligibility. `REWARD_DISTANCE` spent an entire increment at its pixel
+    // value (900) while the three gates reading it had moved to `groundDistance` — 900 TILES is
+    // ~14x the widest grid a map can have, so every gate was permanently true and every alive
+    // player on the map earned from every kill. The rule existed only as three inline comparisons
+    // inside `worldTick.ts`, where nothing could reach it; it is a named function now, and this is
+    // the test that could not have been written before.
+    const body = { x: 0, z: 0 };
+    expect(withinRewardDistance({ x: 0, z: 0 }, body)).toBe(true);
+    expect(withinRewardDistance({ x: REWARD_DISTANCE - 0.01, z: 0 }, body)).toBe(true);
+
+    // The half that matters: it must REFUSE. Asserted at a distance that is a real place on a real
+    // grid — 32 tiles is the eastern edge of the largest (64-cell) map, measured from its centre —
+    // rather than at `REWARD_DISTANCE + 1`, which would keep meaning "just out of range" whatever
+    // the unit and is therefore blind to the bug this exists for.
+    expect(withinRewardDistance({ x: 32, z: 0 }, body)).toBe(false);
+    expect(withinRewardDistance({ x: 0, z: -32 }, body)).toBe(false);
+
+    // Across the GROUND: a hero on the plateau above a kill is still in range, because the two
+    // ground axes are `x` and `z` and elevation is not part of the question.
+    expect(withinRewardDistance({ x: 1, z: 1 }, body)).toBe(true);
   });
 
   it("records useful healing but rejects zero-effect contribution", () => {
