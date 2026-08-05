@@ -12,6 +12,7 @@
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
@@ -28,8 +29,6 @@ import type {
   RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
-import type { TileMap } from "@lindocara/engine/tilemap.js";
 import type { MonsterImpactSound } from "./combat-art.js";
 import type { HealthBarMode } from "./display-settings.js";
 import type { SceneSample } from "./scene-sample.js";
@@ -60,10 +59,9 @@ export interface RendererLike {
    */
   configureMapTerrain(
     zoneId: string,
-    tiles: TileMap,
     elements: readonly MapElement[],
     revision: number,
-    heightfield: MapData | null,
+    heightfield: MapData,
     appearance?: { tilesetId: string; layers: readonly string[] },
   ): void;
   configureMerchant(merchant: MerchantDefinition | null): void;
@@ -108,10 +106,10 @@ export interface RendererLike {
    * answer, and an invented direction is a lie the server acts on. The session's rule for `null` is
    * to send nothing at all.
    */
-  screenToWorld(clientX: number, clientY: number): Vec2 | null;
+  screenToWorld(clientX: number, clientY: number): GroundVector | null;
   setAuthoredQuestMarkers(markers: readonly AuthoredQuestMarker[]): void;
   setSelfId(id: string): void;
-  showPeasantBombAim(origin: Vec2, direction: Vec2, range: number): void;
+  showPeasantBombAim(origin: GroundVector, direction: GroundVector, range: number): void;
   showPeasantCamp(camp: PeasantCampVisual): void;
   showWorldEvent(text: string, tone: "info" | "good" | "bad", x?: number, y?: number): void;
 }

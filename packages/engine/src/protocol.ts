@@ -60,23 +60,22 @@ import {
   QUEST_CHAPTERS,
   type QuestChapter,
   type QuestSite,
-  type Rect,
 } from "./game.js";
+import type { GroundVector } from "./ground.js";
 import { HARVEST_PROFILE_LIMITS, isPeasantCarryKind, type PeasantCarryKind } from "./harvest.js";
 import { decodeMap } from "./hd2d/map-data.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
-import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
+import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import { parseMapHeroSettings } from "./map-hero-settings.js";
 import type { MerchantDefinition } from "./merchant.js";
 import { isPartyMaterials, MAX_HARVEST_HITS, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
-import type { Input, Vec2 } from "./simulation.js";
+import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { isTalentId, type TalentState } from "./talents.js";
 import { parseTileLayer } from "./tile-layer-codec.js";
-import { parseTileMap } from "./tilemap-codec.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
 import { isZoneId, type ZoneId } from "./zones.js";
@@ -112,8 +111,12 @@ export interface QuestState {
 export interface PlayerSnapshot {
   id: string;
   nick: string;
+  /** Ground axis. Tile units, grid centre as origin. */
   x: number;
+  /** ELEVATION, not a ground axis — the trap this whole increment turns on. */
   y: number;
+  /** The second GROUND axis. A snapshot with no `z` is a half-converted world on its side. */
+  z: number;
   /** Highest movement command sequence the server has applied for this player. */
   ack: number;
   hp: number;
@@ -125,13 +128,13 @@ export interface PlayerSnapshot {
   /** Replaces the old `dead` boolean: death has three states, not two. */
   life: LifeState;
   /** Last non-zero movement accepted by the authority. Standing still preserves this direction. */
-  facing: Vec2;
+  facing: GroundVector;
   /** True while the warrior has deliberately toggled Iron Guard on. */
   guarding?: boolean;
   /** True while enemies cannot perceive this player. */
   invisible?: boolean;
   /** Ranger decoy authored by the room; appearance only on recipients. */
-  afterimage?: { x: number; y: number; expiresAt: number };
+  afterimage?: { x: number; y: number; z: number; expiresAt: number };
   /** A departure decoy; its coordinates replace the hidden Rogue's real position for recipients. */
   silhouette?: boolean;
   /** Short server-authored success flourish; shared stock remains authoritative elsewhere. */
@@ -149,6 +152,7 @@ export interface CorpseSnapshot {
   appearance: CharacterAppearance;
   x: number;
   y: number;
+  z: number;
 }
 
 export interface MonsterSnapshot {
@@ -160,6 +164,7 @@ export interface MonsterSnapshot {
   specialTechnique: MonsterSpecialTechnique;
   x: number;
   y: number;
+  z: number;
   hp: number;
   maxHp: number;
   dead: boolean;
@@ -171,15 +176,15 @@ export interface MonsterSnapshot {
    */
   threatening?: boolean;
   revealed?: boolean;
-  facing: Vec2;
+  facing: GroundVector;
   action: CombatActionSnapshot | null;
   navigationDebug?: NavigationDebugSnapshot;
 }
 
 export interface NavigationDebugSnapshot {
   state: import("./navigation.js").MonsterNavigationState;
-  path: { x: number; y: number }[];
-  destination: { x: number; y: number } | null;
+  path: GroundVector[];
+  destination: GroundVector | null;
   reason: string | null;
 }
 
@@ -187,10 +192,11 @@ export interface GuardSnapshot {
   id: string;
   x: number;
   y: number;
+  z: number;
   hp: number;
   maxHp: number;
   homeX: number;
-  homeY: number;
+  homeZ: number;
   fighting: boolean;
   graphicAssetId?: string | null;
   graphicTint?: number;
@@ -202,6 +208,7 @@ export interface LootSnapshot {
   amount: number;
   x: number;
   y: number;
+  z: number;
 }
 
 /** Local-only Rogue combat windows. Other recipients never need these authoritative deadlines. */
@@ -231,7 +238,7 @@ export interface SelfState {
   materials?: PartyMaterials;
   life: LifeState;
   /** Where your body lies, so the HUD can point you at it. Null unless you are dead. */
-  corpse: { x: number; y: number } | null;
+  corpse: { x: number; y: number; z: number } | null;
   resource?: ClassResourceState;
   /** Unix milliseconds sampled with `cooldowns`, so clients never depend on wall-clock sync. */
   serverNow?: number;
@@ -273,7 +280,7 @@ export interface CombatActionSnapshot {
   id: string;
   kind: CombatActionKind;
   skillId?: string;
-  direction: Vec2;
+  direction: GroundVector;
   startedAt: number;
   impactAt: number;
   recoveryEndsAt: number;
@@ -306,7 +313,8 @@ export interface ProjectileSnapshot {
   kind: ProjectileKind;
   x: number;
   y: number;
-  direction: Vec2;
+  z: number;
+  direction: GroundVector;
   radius: number;
   spawnedAt: number;
   expiresAt: number;
@@ -323,7 +331,7 @@ export interface CombatAnimation {
   talented?: true;
   /** Server-authored: the branch's named final technique is active for this cast. */
   evolved?: true;
-  direction: Vec2;
+  direction: GroundVector;
   startedAt: number;
   impactAt: number;
   /**
@@ -343,17 +351,17 @@ export interface MonsterSpecialImpact {
   technique: Exclude<MonsterSpecialTechnique, "none">;
   /** World-space centre of the authoritative action at resolution. */
   x: number;
-  y: number;
-  direction: Vec2;
+  z: number;
+  direction: GroundVector;
   /** Actual server tick that resolved the action, not a client-estimated deadline. */
   impactAt: number;
 }
 
 export interface RogueShadowDanceStrike {
   targetId: string;
-  from: Vec2;
-  targetPosition: Vec2;
-  landing: Vec2;
+  from: GroundVector;
+  targetPosition: GroundVector;
+  landing: GroundVector;
   impactAt: number;
   damage: number;
   killed: boolean;
@@ -372,15 +380,15 @@ export interface RogueShadowDanceSequence {
   startedAt: number;
   endsAt: number;
   strikes: RogueShadowDanceStrike[];
-  finalPosition: Vec2;
+  finalPosition: GroundVector;
 }
 
 export interface PriestLumenPortalVisual {
   t: "priest.lumen_portal";
   id: string;
   actorId: string;
-  from: Vec2;
-  to: Vec2;
+  from: GroundVector;
+  to: GroundVector;
   startedAt: number;
   endsAt: number;
 }
@@ -390,7 +398,7 @@ export interface PriestLumenTrailVisual {
   id: string;
   actorId: string;
   /** World-space centre points following every turn of the authoritative held movement. */
-  points: Vec2[];
+  points: GroundVector[];
   width: number;
   startedAt: number;
   endsAt: number;
@@ -401,7 +409,7 @@ export interface PriestPolarityOrbVisual {
   id: string;
   actorId: string;
   x: number;
-  y: number;
+  z: number;
   maximumRadius: number;
   startedAt: number;
   returnsAt: number;
@@ -414,7 +422,7 @@ export interface PeasantCampVisual {
   id: string;
   actorId: string;
   x: number;
-  y: number;
+  z: number;
   radius: number;
   startedAt: number;
   expiresAt: number;
@@ -503,60 +511,33 @@ export interface WorldInfo {
   revision: number;
   zoneNameKey: string;
   /**
-   * The terrain itself, one character per cell, already baked.
+   * The terrain, and the ONLY terrain: the encoded `MapData` (`hd2d/map-data.ts`), in TILE units
+   * with the grid centre as origin. The client decodes exactly these bytes, draws them, and
+   * collides its own prediction against them.
    *
-   * The server bakes its map — ground plus everything solid standing on it — and ships the result.
-   * The client decodes exactly these bytes and collides against them. That is deliberately stronger
-   * than both sides deriving collision from a shared payload: there is only ever one baking, and it
-   * happens on the authority. A client cannot disagree with a map it did not compute.
+   * `tiles` and `colliders` — the pixel projection that used to travel beside this — are gone, and
+   * with them the whole TILE→PIXEL BRIDGE. There is no second geometry to disagree with: the
+   * server bakes its `ZoneTerrain` from this string (`zoneTerrainFromHeightfield`,
+   * `engine/terrain-access.ts`) and the client bakes its own from the same string with the same
+   * function. That is deliberately stronger than shipping a baked projection — a client cannot
+   * disagree with a map it did not compute, and now it cannot disagree about the UNITS either.
+   *
+   * Not nullable: a map with no usable heightfield cannot produce a zone at all
+   * (`zoneFromMapPayload` throws and every join is refused 4007), so a room that is sending a
+   * welcome has one by construction.
    */
-  tiles: string[];
+  heightfield: string;
   /**
-   * Static sub-cell collision truth: rectangles in world pixels, `[x, y, w, h]`.
-   *
-   * Dynamic harvest footprints are carried by `events[].harvest.collider`, allowing their
-   * lifecycle to ride ordinary event deltas. Both structures are server-authored collision;
-   * `elements`, graphic ids and asset paths remain appearance only.
-   */
-  colliders: readonly (readonly [number, number, number, number])[];
-  /**
-   * The terrain as a heightfield — the encoded `MapData` (`hd2d/map-data.ts`), in TILE units,
-   * grid-centred. This is what the client DRAWS.
-   *
-   * `tiles`/`colliders` above stay the collision truth for as long as the server simulates in
-   * pixels: one stored source, projected into pixels by the one authority, and projected back into
-   * tile units by the renderer that draws it — one shared conversion for both directions (see the
-   * TILE→PIXEL BRIDGE in `packages/engine/src/hd2d/tile-pixel-bridge.ts`). All of it dies together
-   * when the game's own geometry migrates.
-   *
-   * **The pixel projection is LOSSY in elevation, and knowing it is load-bearing.** One stored
-   * source, yes — but the two projections do not carry the same world. `tiles` is a flat grid of
-   * whole cells: `pixelTerrainFromHeightfield` (`server/world/heightfield-pixel-bridge.ts`) bakes
-   * every non-water cell as `grass` regardless of its level, because in the heightfield model a
-   * level change is a climb the movement rule decides, not a cell you cannot enter — and that rule
-   * (`hero-step.ts`) is not wired into the authoritative tick yet. So the DRAWN world has cliffs
-   * the COLLIDED world does not: a hero walks through a cliff face and pops to the plateau top,
-   * because the renderer snaps actors to the heightfield's own surface. That is a deliberate,
-   * temporary gap, not a bug in either projection — do not "fix" it by baking elevation into
-   * `tiles` (a cliff is not a wall) nor by deriving collision from this field on the client.
-   *
-   * `null` means the room has no heightfield and nothing HD-2D can be drawn for it.
-   */
-  heightfield: string | null;
-  /**
-   * What to draw on the ground. Appearance only — collision is already in `tiles` and `colliders`
-   * above, the same rule `layers` and `events` below follow.
-   *
-   * A tree blocks its trunk, not its cell, so its solidity cannot be expressed in the tile grid at
-   * all — that is what `colliders` is for. A client deriving colliders from THIS list instead would
-   * be a second, disagreeing bake of the same rectangles the server already baked into `colliders`.
+   * What to draw on the ground. Appearance only — collision comes from `heightfield` above, the
+   * same rule `layers` and `events` below follow. A client baking colliders from THIS list would
+   * be a second, disagreeing bake of the rectangles the heightfield already carries.
    */
   elements: readonly MapElement[];
   /** Which tileset `layers` index into. */
   tilesetId: string;
   /**
-   * Appearance only. Collision is already in `tiles` and `colliders` above — exactly the rule
-   * `elements` follows, and the reason adding layers to the wire introduces no new invariant.
+   * Appearance only. Collision is already in `heightfield` above — exactly the rule `elements`
+   * follows, and the reason adding layers to the wire introduces no new invariant.
    */
   layers: readonly string[];
   /**
@@ -569,12 +550,18 @@ export interface WorldInfo {
   audio?: AdventureAudioConfig;
   /** Server-authored class balance and ability availability for this map. */
   heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
-  width: number;
-  height: number;
-  playerSize: number;
-  obstacles: Rect[];
-  /** `null` on an authored map, which has no place monsters are forbidden to enter. */
-  safeZone: Rect | null;
+  /**
+   * The grid's side, in cells — the whole extent of the world, because a heightfield is square and
+   * centred on the origin. Coordinates therefore run `-size/2`..`+size/2` on both ground axes.
+   *
+   * It replaces the old pixel `width`/`height` pair, and the replacement is not cosmetic: a
+   * consumer that divides a position by `width` to place it on a minimap gets the right answer only
+   * if it also shifts the origin, and a single `size` is what makes that shift impossible to
+   * forget. `playerSize`, `obstacles` and `safeZone` went with them — the first was a pixel body
+   * nothing on the client read, and the last two had no source left once `ZoneTerrain` replaced the
+   * pixel geometry (`safeZone` was already baked `null` on every authored map).
+   */
+  size: number;
   questNpc: NpcDefinition;
   questNpcs: NpcDefinition[];
   questSites: QuestSite[];
@@ -614,7 +601,7 @@ export type ClientMessage =
       amount: number;
     }
   | { t: "release" }
-  | { t: "skill"; slot: SkillSlot; direction?: Vec2 }
+  | { t: "skill"; slot: SkillSlot; direction?: GroundVector }
   | { t: "skill.release"; slot: SkillSlot }
   | { t: "talent.unlock"; nodeId: string }
   | { t: "talent.reset" }
@@ -876,8 +863,21 @@ function isBoundedString(value: unknown, maximum: number, allowEmpty = false): v
   return typeof value === "string" && value.length <= maximum && (allowEmpty || value.length > 0);
 }
 
-function isPosition(value: unknown): value is Vec2 {
-  return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
+/**
+ * A point on the GROUND PLANE: `x` and `z`. There is no ground `y` any more — a payload carrying
+ * one is either an older build or a half-converted sender, and both must be refused rather than
+ * read as a world on its side.
+ */
+function isPosition(value: unknown): value is GroundVector {
+  return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.z);
+}
+
+/**
+ * A full world position: the two ground axes plus ELEVATION. Every actor snapshot carries all
+ * three, so a missing `z` drops the frame instead of collapsing the world onto one axis.
+ */
+function isWorldPosition(value: Record<string, unknown>): boolean {
+  return isFiniteNumber(value.x) && isFiniteNumber(value.y) && isFiniteNumber(value.z);
 }
 
 function isCombatImpactTimes(
@@ -936,7 +936,7 @@ function isRogueShadowDanceSequence(value: unknown): value is RogueShadowDanceSe
   }
   const last = value.strikes.at(-1);
   return Boolean(
-    last && last.landing.x === value.finalPosition.x && last.landing.y === value.finalPosition.y,
+    last && last.landing.x === value.finalPosition.x && last.landing.z === value.finalPosition.z,
   );
 }
 
@@ -1052,18 +1052,6 @@ function isPeasantBombImpactVisual(value: unknown): value is PeasantBombImpactVi
   );
 }
 
-function isRect(value: unknown): value is Rect {
-  return (
-    isRecord(value) &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
-    isFiniteNumber(value.width) &&
-    value.width > 0 &&
-    isFiniteNumber(value.height) &&
-    value.height > 0
-  );
-}
-
 function isEquipment(value: unknown): value is Equipment {
   return (
     isRecord(value) &&
@@ -1075,9 +1063,10 @@ function isEquipment(value: unknown): value is Equipment {
   );
 }
 
-function isDirection(value: unknown): value is Vec2 {
-  if (!isRecord(value) || !isFiniteNumber(value.x) || !isFiniteNumber(value.y)) return false;
-  const length = Math.hypot(value.x, value.y);
+/** A unit heading across the ground. Same axes as `isPosition`: `x` and `z`. */
+function isDirection(value: unknown): value is GroundVector {
+  if (!isRecord(value) || !isFiniteNumber(value.x) || !isFiniteNumber(value.z)) return false;
+  const length = Math.hypot(value.x, value.z);
   return length >= 0.999 && length <= 1.001;
 }
 
@@ -1124,8 +1113,7 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     isRecord(value) &&
     isWireId(value.id) &&
     isBoundedString(value.nick, 32) &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
+    isWorldPosition(value) &&
     isNonNegativeInteger(value.ack) &&
     isFiniteNumber(value.hp) &&
     value.hp >= 0 &&
@@ -1143,7 +1131,7 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     (value.invisible === undefined || typeof value.invisible === "boolean") &&
     (value.afterimage === undefined ||
       (isRecord(value.afterimage) &&
-        isPosition(value.afterimage) &&
+        isWorldPosition(value.afterimage) &&
         isFiniteNumber(value.afterimage.expiresAt))) &&
     (value.silhouette === undefined || typeof value.silhouette === "boolean") &&
     (value.peasantCarry === undefined ||
@@ -1166,8 +1154,7 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     value.kind === MONSTER_SPECIES_KIND[value.species] &&
     isMonsterRank(value.rank) &&
     isMonsterSpecialTechnique(value.specialTechnique) &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
+    isWorldPosition(value) &&
     isFiniteNumber(value.hp) &&
     value.hp >= 0 &&
     isFiniteNumber(value.maxHp) &&
@@ -1203,15 +1190,14 @@ function isGuardSnapshot(value: unknown): value is GuardSnapshot {
   return (
     isRecord(value) &&
     isWireId(value.id) &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
+    isWorldPosition(value) &&
     isFiniteNumber(value.hp) &&
     value.hp >= 0 &&
     isFiniteNumber(value.maxHp) &&
     value.maxHp > 0 &&
     value.hp <= value.maxHp &&
     isFiniteNumber(value.homeX) &&
-    isFiniteNumber(value.homeY) &&
+    isFiniteNumber(value.homeZ) &&
     typeof value.fighting === "boolean" &&
     (value.graphicAssetId === undefined ||
       value.graphicAssetId === null ||
@@ -1230,8 +1216,7 @@ function isLootSnapshot(value: unknown): value is LootSnapshot {
     (value.kind === "potion" || value.kind === "gold" || value.kind === "crystal") &&
     Number.isSafeInteger(value.amount) &&
     (value.amount as number) > 0 &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y)
+    isWorldPosition(value)
   );
 }
 
@@ -1242,8 +1227,7 @@ function isCorpseSnapshot(value: unknown): value is CorpseSnapshot {
     isBoundedString(value.nick, 32) &&
     isValidClass(value.class) &&
     isValidAppearance(value.appearance) &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y)
+    isWorldPosition(value)
   );
 }
 
@@ -1259,8 +1243,7 @@ function isProjectileSnapshot(value: unknown): value is ProjectileSnapshot {
       value.color === "violet") &&
     typeof value.kind === "string" &&
     (PROJECTILE_KINDS as readonly string[]).includes(value.kind) &&
-    isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
+    isWorldPosition(value) &&
     isDirection(value.direction) &&
     isFiniteNumber(value.radius) &&
     value.radius > 0 &&
@@ -1406,7 +1389,7 @@ function isSelfState(value: unknown): value is SelfState {
     !isInventory(value.inventory) ||
     !isQuestState(value.quest) ||
     !isLifeState(value.life) ||
-    !(value.corpse === null || isPosition(value.corpse))
+    !(value.corpse === null || (isRecord(value.corpse) && isWorldPosition(value.corpse)))
   ) {
     return false;
   }
@@ -1558,34 +1541,6 @@ function isQuestSite(value: unknown): value is QuestSite {
   );
 }
 
-/** Defensively parses the wire's flat `[x, y, w, h]` tuples into `Rect`s, the same discipline as
- *  every other wire structure: malformed input returns `null`, it never throws, and a payload
- *  larger than a map could legitimately hold is rejected outright. */
-export function parseWorldColliders(value: unknown): Rect[] | null {
-  if (!Array.isArray(value)) return null;
-  if (value.length > MAX_MAP_ELEMENTS) return null;
-  const parsed: Rect[] = [];
-  for (const raw of value) {
-    if (!Array.isArray(raw) || raw.length !== 4) return null;
-    const [x, y, width, height] = raw;
-    if (
-      !Number.isFinite(x) ||
-      !Number.isFinite(y) ||
-      !Number.isFinite(width) ||
-      !Number.isFinite(height)
-    ) {
-      return null;
-    }
-    parsed.push({
-      x: x as number,
-      y: y as number,
-      width: width as number,
-      height: height as number,
-    });
-  }
-  return parsed;
-}
-
 function isHarvestWorldCollider(value: unknown): boolean {
   if (value === null) return true;
   if (!Array.isArray(value) || value.length !== 4) return false;
@@ -1608,35 +1563,29 @@ function isWorldInfo(value: unknown): value is WorldInfo {
   if (!isRecord(value) || !isZoneId(value.zoneId) || !isNonNegativeInteger(value.revision)) {
     return false;
   }
-  const tiles = parseTileMap(value.tiles);
-  if (!tiles || parseMapElements(value.elements, tiles.cols, tiles.rows) === null) return false;
-  if (parseWorldColliders(value.colliders) === null) return false;
-  if (value.heightfield !== null) {
-    if (typeof value.heightfield !== "string" || decodeMap(value.heightfield) === null)
-      return false;
-  }
+  // The heightfield is now the room's ONLY geometry, so it is also the only thing the appearance
+  // collections can be sized against: an element or an event outside the grid the client is about
+  // to draw is a payload from a sender that does not agree with its own terrain, and the frame is
+  // dropped rather than half-rendered.
+  if (typeof value.heightfield !== "string") return false;
+  const heightfield = decodeMap(value.heightfield);
+  if (heightfield === null) return false;
+  const size = heightfield.size;
+  if (value.size !== size) return false;
+  if (parseMapElements(value.elements, size, size) === null) return false;
   return (
     isBoundedString(value.zoneNameKey, 128) &&
     typeof value.tilesetId === "string" &&
     tilesetById(value.tilesetId) !== null &&
     Array.isArray(value.layers) &&
     value.layers.length === MAP_LAYERS &&
-    value.layers.every((layer) => parseTileLayer(layer, tiles.cols, tiles.rows) !== null) &&
+    value.layers.every((layer) => parseTileLayer(layer, size, size) !== null) &&
     Array.isArray(value.events) &&
     value.events.every(
-      (event) => isWorldEventSnapshot(event) && event.col < tiles.cols && event.row < tiles.rows,
+      (event) => isWorldEventSnapshot(event) && event.col < size && event.row < size,
     ) &&
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
-    isFiniteNumber(value.width) &&
-    value.width > 0 &&
-    isFiniteNumber(value.height) &&
-    value.height > 0 &&
-    isFiniteNumber(value.playerSize) &&
-    value.playerSize > 0 &&
-    Array.isArray(value.obstacles) &&
-    value.obstacles.every(isRect) &&
-    (value.safeZone === null || isRect(value.safeZone)) &&
     isNpc(value.questNpc) &&
     Array.isArray(value.questNpcs) &&
     value.questNpcs.every(isNpc) &&

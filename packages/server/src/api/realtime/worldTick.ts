@@ -99,7 +99,6 @@ import {
   type GroundVector,
   groundDistance,
   groundOf,
-  planarOf,
   type WorldPosition,
   withinGroundRange,
 } from "@lindocara/engine/ground.js";
@@ -158,6 +157,15 @@ import {
   talentEffects,
   unlockTalent,
 } from "@lindocara/engine/talents.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundLineOfSight,
+  groundUnder,
+  nearestStandableCell,
+  resolveGroundMovement,
+  sweptGroundTerrainImpact,
+} from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
@@ -319,15 +327,6 @@ import {
   sendState,
   sendWorldResync,
 } from "../../world/snapshot-system.js";
-import {
-  BODY_RADIUS,
-  canStand,
-  groundLineOfSight,
-  groundUnder,
-  nearestStandableCell,
-  resolveGroundMovement,
-  sweptGroundTerrainImpact,
-} from "../../world/terrain-access.js";
 import {
   activeRallyPowerMultiplier,
   advanceWarriorCyclones,
@@ -627,7 +626,7 @@ export function sendPeasantCampsTo(w: WorldGlue, connectionId: string, now: numb
       id: camp.id,
       actorId: camp.ownerId,
       x: camp.x,
-      y: camp.y,
+      z: camp.z,
       radius: camp.radius,
       startedAt: camp.startedAt,
       expiresAt: camp.expiresAt,
@@ -643,7 +642,7 @@ export function sendPriestLumenEffectsTo(w: WorldGlue, connectionId: string, now
       t: "priest.lumen_trail",
       id: trail.id,
       actorId: trail.ownerId,
-      points: trail.points.map((point) => planarOf(point)),
+      points: trail.points.map((point) => ({ x: point.x, z: point.z })),
       width: trail.width,
       startedAt: trail.startedAt,
       endsAt: trail.expiresAt,
@@ -1822,7 +1821,7 @@ export function startMonsterAttack(
       actorId: monster.id,
       action: specialTechnique ? "skill" : "attack",
       ...(specialTechnique ? { skillId: specialTechnique } : {}),
-      direction: planarOf(action.direction),
+      direction: { x: action.direction.x, z: action.direction.z },
       startedAt: action.startedAt,
       impactAt: action.impactAt,
       recoveryEndsAt: action.recoveryEndsAt,
@@ -1889,8 +1888,8 @@ export function resolveMonsterAction(
         actorId: monster.id,
         technique: specialTechnique,
         x: origin.x,
-        y: origin.z,
-        direction: planarOf(action.direction),
+        z: origin.z,
+        direction: { x: action.direction.x, z: action.direction.z },
         impactAt: now,
       },
       origin,
@@ -2386,7 +2385,7 @@ export function finishHeldPlayerAction(
           t: "priest.lumen_trail",
           id: lumenTrail.id,
           actorId: player.id,
-          points: lumenTrail.points.map((point) => planarOf(point)),
+          points: lumenTrail.points.map((point) => ({ x: point.x, z: point.z })),
           width: lumenTrail.width,
           startedAt: lumenTrail.startedAt,
           endsAt: lumenTrail.expiresAt,
@@ -2562,7 +2561,7 @@ export function activatePeasantSupportRequest(
       ...(evolvedTalent(player.class, player.talents, request.slot)
         ? { evolved: true as const }
         : {}),
-      direction: planarOf(action.direction),
+      direction: { x: action.direction.x, z: action.direction.z },
       startedAt: action.startedAt,
       impactAt: action.impactAt,
       recoveryEndsAt: action.recoveryEndsAt,
@@ -2671,11 +2670,9 @@ export function startPlayerAction(
         skillId: skill.id,
         talented: true,
         evolved: true,
-        direction: planarOf(
-          normalizeGround(
-            { x: planning.destination.x - origin.x, z: planning.destination.z - origin.z },
-            player.facing,
-          ),
+        direction: normalizeGround(
+          { x: planning.destination.x - origin.x, z: planning.destination.z - origin.z },
+          player.facing,
         ),
         startedAt: now,
         impactAt: now,
@@ -2772,7 +2769,7 @@ export function startPlayerAction(
         skillId: skill.id,
         talented: true,
         evolved: true,
-        direction: planarOf(swapDirection),
+        direction: { x: swapDirection.x, z: swapDirection.z },
         startedAt: now,
         impactAt: now,
         recoveryEndsAt: now + 180,
@@ -2855,11 +2852,9 @@ export function startPlayerAction(
         skillId: skill.id,
         talented: true,
         evolved: true,
-        direction: planarOf(
-          normalizeGround(
-            { x: destination.x - origin.x, z: destination.z - origin.z },
-            player.facing,
-          ),
+        direction: normalizeGround(
+          { x: destination.x - origin.x, z: destination.z - origin.z },
+          player.facing,
         ),
         startedAt: now,
         impactAt: now,
@@ -3099,7 +3094,7 @@ export function startPlayerAction(
       ...(slot > 1 && evolvedTalent(player.class, player.talents, slot)
         ? { evolved: true as const }
         : {}),
-      direction: planarOf(action.direction),
+      direction: { x: action.direction.x, z: action.direction.z },
       startedAt: action.startedAt,
       impactAt: action.impactAt,
       ...(cyclone ? { impactTimes: cycloneImpactTimes(cyclone, action.impactAt) } : {}),
@@ -3214,9 +3209,9 @@ function resolveShadowDance(
     if (!result) continue;
     strikes.push({
       targetId: target.id,
-      from: planarOf(planned.from),
-      targetPosition: planarOf(planned.targetPosition),
-      landing: planarOf(planned.landing),
+      from: { x: planned.from.x, z: planned.from.z },
+      targetPosition: { x: planned.targetPosition.x, z: planned.targetPosition.z },
+      landing: { x: planned.landing.x, z: planned.landing.z },
       impactAt: now + strikes.length * ROGUE_BALANCE.shadowDance.strikeIntervalMs,
       damage: result.actualDamage,
       killed: result.killed,
@@ -3273,7 +3268,7 @@ function resolveShadowDance(
     startedAt: now,
     endsAt,
     strikes,
-    finalPosition: planarOf(player),
+    finalPosition: { x: player.x, z: player.z },
   };
   sendSpatialEventAcross(w, sequence, [
     origin,
@@ -3581,7 +3576,7 @@ export function resolvePlayerAction(
           id: camp.id,
           actorId: camp.ownerId,
           x: camp.x,
-          y: camp.y,
+          z: camp.z,
           radius: camp.radius,
           startedAt: camp.startedAt,
           expiresAt: camp.expiresAt,
@@ -3957,7 +3952,7 @@ export function resolvePlayerAction(
         id: orb.id,
         actorId: player.id,
         x: orb.x,
-        y: orb.y,
+        z: orb.z,
         maximumRadius: orb.maximumRadius,
         startedAt: orb.startedAt,
         returnsAt: orb.returnsAt,
@@ -4268,7 +4263,7 @@ function advanceRangerVolley(w: WorldGlue, player: PlayerRuntime, now: number): 
           skillId: "volley",
           talented: true,
           evolved: true,
-          direction: planarOf(sequence.direction),
+          direction: { x: sequence.direction.x, z: sequence.direction.z },
           startedAt: salvo.animationAt,
           impactAt: salvo.impactAt,
           recoveryEndsAt: salvo.recoveryEndsAt,
@@ -4348,7 +4343,7 @@ function releaseCounterOffensive(
       skillId: skill.id,
       talented: true,
       evolved: true,
-      direction: planarOf(player.facing),
+      direction: { x: player.facing.x, z: player.facing.z },
       startedAt: now,
       impactAt: now,
       recoveryEndsAt: now + 240,

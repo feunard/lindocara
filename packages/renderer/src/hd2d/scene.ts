@@ -26,7 +26,6 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import { pixelToTile } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
@@ -434,9 +433,8 @@ export function createHd2dScene(
     scene,
     camera,
     query,
-    // TILE→PIXEL BRIDGE — see `packages/engine/src/hd2d/tile-pixel-bridge.ts`. The camera follows a
-    // player, and a player's position arrives in the snapshot's pixels; this is the only place in
-    // this file that converts.
+    // The camera follows a player, and a player's position now arrives in the scene's own tile
+    // units — there is nothing to convert here any more.
     //
     // NOT YET DRAWN ON THE HD-2D PATH: camera bounds. This follows the point it is given, full stop
     // — no clamping to the map's extent, so a hero at an edge sees past it, and no snap on a large
@@ -447,8 +445,8 @@ export function createHd2dScene(
     // — the elevation rise is applied AFTER the map-bound clamp, never folded into the target, or a
     // stair near the north edge loses the whole effect. See `docs/hd2d-rendering.md`, "What
     // `renderer.ts` knew".
-    focusOn(x: number, y: number): void {
-      focus = { x: pixelToTile(x, map.size), z: pixelToTile(y, map.size) };
+    focusOn(x: number, z: number): void {
+      focus = { x, z };
     },
     render(now: number): void {
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);

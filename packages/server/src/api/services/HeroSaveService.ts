@@ -257,6 +257,7 @@ export class HeroSaveService {
         UPDATE ${table}
         SET ${sql.raw(table.x.name)} = ${profile.x},
             ${sql.raw(table.y.name)} = ${profile.y},
+            ${sql.raw(table.z.name)} = ${profile.z},
             ${sql.raw(table.level.name)} = ${profile.level},
             ${sql.raw(table.xp.name)} = ${profile.xp},
             ${sql.raw(table.hp.name)} = ${profile.hp},
@@ -273,6 +274,7 @@ export class HeroSaveService {
             ${sql.raw(table.life.name)} = ${profile.life},
             ${sql.raw(table.corpseX.name)} = ${profile.corpse?.x ?? null},
             ${sql.raw(table.corpseY.name)} = ${profile.corpse?.y ?? null},
+            ${sql.raw(table.corpseZ.name)} = ${profile.corpse?.z ?? null},
             ${sql.raw(table.updatedAt.name)} = ${nowIso}
         WHERE ${table.id} = ${profile.id} AND ${table.sessionEpoch} = ${sessionEpoch}
         RETURNING ${table.id}

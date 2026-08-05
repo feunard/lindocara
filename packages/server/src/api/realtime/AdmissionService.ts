@@ -30,7 +30,6 @@ import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
 import { initialResource } from "@lindocara/engine/resources.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
 import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
 import {
   BODY_RADIUS,
@@ -38,7 +37,7 @@ import {
   groundUnder,
   restoreStandablePosition,
   type ZoneTerrain,
-} from "@lindocara/server/world/terrain-access.js";
+} from "@lindocara/engine/terrain-access.js";
 import { $inject } from "alepha";
 import { $repository } from "alepha/orm";
 // Pure item catalogue reused as-is from the legacy source tree (same-package sibling — the same
@@ -69,7 +68,14 @@ export interface AdmittedJoin {
   adventure: StoredAdventure;
   /** Set exactly when the hero's stored map was unusable: the start position the room must
    *  epoch-fence-relocate them to after acquiring presence. */
-  fallback: Vec2 | null;
+  /**
+   * The hero's stored map was gone and the adventure's start was re-derived, so the row must be
+   * moved before it is read. There is no position beside it: the destination's authored spawn is
+   * expressed in the tile-editor's cell space, which a heightfield grid does not have, so the body
+   * is written to the grid ORIGIN and `mapEntryPosition` seats it on real ground at admission —
+   * the same path an ordinary reconnect takes.
+   */
+  relocated: boolean;
 }
 
 export type AdmissionResolution =
@@ -132,28 +138,19 @@ function restoredLife(
   terrain: ZoneTerrain | undefined,
 ): { life: LifeState; corpse: WorldPosition | null } {
   const life = isLifeState(row.life) ? row.life : "alive";
-  if (life === "alive" || row.corpseX === undefined || row.corpseY === undefined) {
+  if (
+    life === "alive" ||
+    row.corpseX === undefined ||
+    row.corpseY === undefined ||
+    row.corpseZ === undefined
+  ) {
     return { life: "alive", corpse: null };
   }
-  const corpse = storedGroundPosition(row.corpseX, row.corpseY);
+  const corpse: WorldPosition = { x: row.corpseX, y: row.corpseY, z: row.corpseZ ?? 0 };
   if (!terrain) return { life, corpse };
   if (!canStand(terrain, corpse.x, corpse.z, BODY_RADIUS, groundUnder(terrain, corpse.x, corpse.z)))
     return { life: "alive", corpse: null };
   return { life, corpse: { ...corpse, y: groundUnder(terrain, corpse.x, corpse.z) } };
-}
-
-/**
- * Reads a stored pair of ground coordinates into the three-axis world.
- *
- * The `hero` row still has exactly two position columns, both of which were GROUND axes in the
- * pixel world, so the second one becomes `z` and elevation starts at 0. CARRY FORWARD: the wire
- * and storage task adds the third column and resets all three, at which point this helper reads
- * the row directly and disappears. Until then a stored pixel pair lands far off the grid, which
- * `restoreStandablePosition` refuses — the hero enters at the spawn instead of at a coordinate
- * 64 times too large, which is the behaviour we want anyway.
- */
-function storedGroundPosition(x: number, groundY: number): WorldPosition {
-  return { x, y: 0, z: groundY };
 }
 
 export class AdmissionService {
@@ -225,7 +222,7 @@ export class AdmissionService {
     }
 
     let mapId = hero.mapId;
-    let fallback: Vec2 | null = null;
+    let relocated = false;
     const storedMap = adventure.mapIds.includes(mapId) ? await this.maps.findById(mapId) : null;
     if (!storedMap) {
       // The hero's stored map is gone (deleted, or never a member). Re-derive the adventure's
@@ -233,10 +230,10 @@ export class AdmissionService {
       const start = await this.heroService.resolveHeroStart(adventure.id);
       if (!start) return { ok: false, error: "not_found" };
       mapId = start.mapId;
-      fallback = { x: start.x, y: start.y };
+      relocated = true;
     }
 
-    return { ok: true, join: { partyId, heroId, mapId, adventure, fallback } };
+    return { ok: true, join: { partyId, heroId, mapId, adventure, relocated } };
   }
 
   /**
@@ -288,7 +285,7 @@ export class AdmissionService {
     const selected = selectPrimaryQuest(questRows);
     const chapter = isQuestChapter(selected?.questId) ? selected.questId : "three_offerings";
 
-    const position = restoreStandablePosition(terrain, storedGroundPosition(row.x, row.y), spawn);
+    const position = restoreStandablePosition(terrain, { x: row.x, y: row.y, z: row.z }, spawn);
     const level = Math.max(1, row.level);
     const life = restoredLife(row, terrain);
 

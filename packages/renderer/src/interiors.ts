@@ -1,4 +1,3 @@
-import { pointDistance } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
 import { DEFAULT_ZONE_ID, type ZoneId } from "@lindocara/engine/zones.js";
@@ -54,7 +53,12 @@ export function nearestInterior(
   let nearest: InteriorDoor | undefined;
   let nearestDistance = INTERIOR_RANGE;
   for (const door of INTERIORS) {
-    const distance = pointDistance(self, door);
+    // Verdant Reach's doors are pixel `Vec2` catalogue content and `self` now arrives in tile
+    // units, so this whole loop is dead on every live room — the guard above already refused any
+    // map that is not the compiled default, and no room is ever built from one. The hypotenuse is
+    // spelled out rather than borrowed from a ground helper precisely so it cannot be mistaken for
+    // a converted call site.
+    const distance = Math.hypot(self.x - door.x, self.y - door.y);
     if (distance > nearestDistance) continue;
     nearest = door;
     nearestDistance = distance;

@@ -11,7 +11,12 @@ import { npcMovementIntervalTicks } from "@lindocara/engine/event-movement.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MoveType, NpcRoutineStep } from "@lindocara/engine/map-events.js";
 import { TICK_MS } from "@lindocara/engine/simulation.js";
-import { BODY_RADIUS, canStand, groundUnder, type ZoneTerrain } from "./terrain-access.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  type ZoneTerrain,
+} from "@lindocara/engine/terrain-access.js";
 import type { ActiveWorldEvent, PlayerRuntime } from "./world-runtime.js";
 
 export interface NpcMovementDefinition {

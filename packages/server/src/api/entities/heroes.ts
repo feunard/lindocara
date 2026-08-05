@@ -33,8 +33,18 @@ export const heroes = $entity({
     class: db.default(z.enum(HERO_CLASSES), "warrior"),
     /** The D1 map the hero is on; starts at the adventure's start map. No FK — see docblock. */
     mapId: z.string(),
+    /**
+     * Where the hero stands, in TILE units with the grid centre as origin — the same three axes
+     * every runtime and the wire now use: `x` and `z` are the GROUND, `y` is ELEVATION.
+     *
+     * `y` was the second ground axis in the pixel world, and the migration that added `z` reset all
+     * three to `0` for every existing row rather than converting them: a stored `2176` read as
+     * tiles is 2176 TILES, which is 34 times the width of the largest grid. `0,0,0` is the grid
+     * centre, and admission places the body on real ground from there (`mapEntryPosition`).
+     */
     x: z.number(),
     y: z.number(),
+    z: db.default(z.number(), 0),
     level: db.default(z.integer(), 1),
     xp: db.default(z.integer(), 0),
     hp: db.default(z.integer(), 100),
@@ -51,10 +61,13 @@ export const heroes = $entity({
     /** JSON array of server-validated talent ids. Roots are derived and never stored. */
     talents: db.default(z.string(), "[]"),
     sessionEpoch: db.default(z.integer(), 0),
-    /** Death is persistent, mirroring `character`. `corpseX/Y` are set exactly when life is not alive. */
+    /** Death is persistent, mirroring `character`. The three corpse axes are set exactly when life
+     *  is not alive, and follow the same convention as the position above: `x`/`z` ground, `y`
+     *  elevation. */
     life: db.default(z.enum(LIFE_STATES), "alive"),
     corpseX: z.number().optional(),
     corpseY: z.number().optional(),
+    corpseZ: z.number().optional(),
   }),
   indexes: [{ columns: ["partyId", "userId"], name: "hero_party_account_idx" }],
 });

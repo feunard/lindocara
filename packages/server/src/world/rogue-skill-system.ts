@@ -1,13 +1,13 @@
 import { normalizeGround } from "@lindocara/engine/directional-combat.js";
 import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   BODY_RADIUS,
   canStand,
   groundUnder,
   sweptGroundTerrainImpact,
   type ZoneTerrain,
-} from "./terrain-access.js";
+} from "@lindocara/engine/terrain-access.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 
 export interface ShadowStepCandidate extends GroundVector {
   id: string;

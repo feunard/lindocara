@@ -1,8 +1,8 @@
 import { sweptProjectileEntityImpact } from "@lindocara/engine/directional-combat.js";
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import type { TalentEffect } from "@lindocara/engine/talents.js";
+import { BODY_RADIUS } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { BODY_RADIUS } from "./terrain-access.js";
 import type {
   CleanseableNegativeEffect,
   NegativeEffectRuntime,

@@ -1,13 +1,13 @@
-import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { canMove, type LifeState, speedForLife } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import {
-  movementSpeedAt,
-  type Rect,
-  resolveTerrain,
-  type TerrainGeometry,
-} from "@lindocara/engine/game.js";
+  type GroundVector,
+  groundOf,
+  planarOf,
+  type WorldPosition,
+} from "@lindocara/engine/ground.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import {
   defaultMapHeroSettings,
   type MapHeroSettings,
@@ -20,7 +20,7 @@ import {
   predictStep,
   prunePending,
   reconcile,
-  SNAP_THRESHOLD_PX,
+  SNAP_THRESHOLD,
 } from "@lindocara/engine/prediction.js";
 import {
   type ClientMessage,
@@ -45,7 +45,6 @@ import {
   type PriestPolarityOrbVisual,
   type ProjectileSnapshot,
   parseServerMessage,
-  parseWorldColliders,
   type RogueShadowDanceSequence,
   type SelfState,
   type ServerMessage,
@@ -58,10 +57,14 @@ import {
   NO_INPUT,
   step,
   TICK_DT,
-  type Vec2,
 } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
-import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
+import {
+  groundUnder,
+  resolveGroundMovement,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
 import {
   applyEventDelta,
   applyWorldDelta,
@@ -71,7 +74,6 @@ import {
   seedEventCache,
   type WorldCache,
 } from "@lindocara/engine/world-delta.js";
-import { DEFAULT_ZONE_ID, zoneDefinition } from "@lindocara/engine/zones.js";
 import { resolveJoin } from "../api.js";
 
 // A slightly deeper buffer covers short workerd/browser scheduling bursts, so AI movement stays
@@ -132,7 +134,7 @@ export interface Connection {
   useItem(item: ConsumableId): void;
   buyItem(item: ConsumableId): void;
   release(): void;
-  skill(slot: SkillSlot, direction?: Vec2): void;
+  skill(slot: SkillSlot, direction?: GroundVector): void;
   releaseSkill(slot: SkillSlot): void;
   unlockTalent(nodeId: string): void;
   resetTalents(): void;
@@ -202,43 +204,21 @@ export interface ConnectionHandlers {
   onClose(code: number, reason: string): void;
 }
 
+/**
+ * The sub-tick remainder of the current frame, applied on top of the last full predicted tick — the
+ * same three functions `predictStep` runs, so a partial tick and a whole one cannot disagree.
+ */
 function predictPartial(
-  position: Vec2,
+  position: WorldPosition,
   input: Input,
   dt: number,
-  geometry: TerrainGeometry,
+  terrain: ZoneTerrain,
   speed: number,
-): Vec2 {
-  return resolveTerrain(
-    position,
-    step(position, input, dt, movementSpeedAt(position, speed, geometry), geometry),
-    geometry,
-  );
-}
-
-/** Dynamic collision received as gameplay data; visual ids are deliberately never inspected. */
-export function harvestEventColliderRects(events: readonly WorldEventSnapshot[]): Rect[] {
-  return events.flatMap((event) => {
-    const collider = event.harvest?.collider;
-    return collider
-      ? [{ x: collider[0], y: collider[1], width: collider[2], height: collider[3] }]
-      : [];
-  });
-}
-
-export function terrainWithHarvestEventColliders(
-  terrain: TerrainGeometry,
-  staticColliders: readonly Rect[],
-  events: readonly WorldEventSnapshot[],
-): TerrainGeometry {
-  return {
-    ...terrain,
-    colliders: colliderIndexFrom(
-      [...staticColliders, ...harvestEventColliderRects(events)],
-      terrain.tiles.cols,
-      terrain.tiles.rows,
-    ),
-  };
+): WorldPosition {
+  const desired = groundOf(step(planarOf(position), input, dt, speed, null));
+  const groundY = groundUnder(terrain, position.x, position.z, position.y);
+  const moved = resolveGroundMovement(terrain, position, desired, groundY);
+  return { x: moved.x, y: groundUnder(terrain, moved.x, moved.z, position.y), z: moved.z };
 }
 
 export class WorldClient {
@@ -261,20 +241,27 @@ export class WorldClient {
    * as every other collection. Kept off the interpolation buffer: the renderer presents each
    * authoritative NPC step locally. */
   #events: readonly WorldEventSnapshot[] = [];
-  #staticColliders: readonly Rect[] = [];
-  #predicted: Vec2 | null = null;
+  #predicted: WorldPosition | null = null;
   #pending: Command[] = [];
   #seq = 0;
   #ack = 0;
-  // Defaults to Verdant Reach only so prediction has *something* to collide against before the
-  // first welcome lands. A welcome's `world.zoneId` overwrites this with the zone the player is
-  // actually in — without that, every zone but Verdant Reach would predict against its tilemap.
-  #geometry: TerrainGeometry = zoneDefinition(DEFAULT_ZONE_ID).terrain;
+  /**
+   * The terrain prediction collides against: the room's own, baked from the welcome's heightfield
+   * with `zoneTerrainFromHeightfield` — the very function the server called on the very same
+   * string. That is what makes reconciliation converge, and it is the same argument that keeps
+   * `step()` in the engine: one function, one copy, no drift.
+   *
+   * `null` until the first welcome. Prediction is skipped rather than run against a stand-in
+   * geometry: the old default (Verdant Reach's compiled tilemap) was a pixel world of the wrong
+   * size AND the wrong units, and colliding a tile-unit hero against it would cement it at the
+   * origin instead of simply not predicting.
+   */
+  #terrain: ZoneTerrain | null = null;
   #heroSettings: MapHeroSettings = defaultMapHeroSettings();
 
   #accumulator = 0;
   #input: Input = NO_INPUT;
-  #error: Vec2 = { x: 0, y: 0 };
+  #error: GroundVector = { x: 0, z: 0 };
   #errorAt = 0;
   /** Presentation lock matching the server-owned Shadow Dance sequence; inputs still carry seqs. */
   #shadowDanceMovementBlockedUntil = 0;
@@ -401,7 +388,7 @@ export class WorldClient {
   }
 
   update(input: Input, dt: number): void {
-    if (this.#predicted === null) return;
+    if (this.#predicted === null || this.#terrain === null) return;
     this.#input = input;
     // A corpse is frozen over its body; a ghost walks, and faster than the living.
     if (this.#selfSnapshot && !canMove(this.#selfSnapshot.life)) return;
@@ -429,7 +416,7 @@ export class WorldClient {
         this.#predicted = predictStep(
           this.#predicted,
           command,
-          this.#geometry,
+          this.#terrain,
           speed,
           this.#selfSnapshot?.action?.skillId === "blink" &&
             this.#selfSnapshot.action.channelEndsAt === undefined,
@@ -467,37 +454,19 @@ export class WorldClient {
   /**
    * The terrain the server actually sent, as the geometry prediction collides against.
    *
-   * `spawnPoints` is empty on purpose: only the server picks where anyone appears, and a client
-   * that carried a list of spawns would be carrying an opinion it is not entitled to have.
+   * The SAME function the server ran on the SAME string (`zoneTerrainFromHeightfield`), which is
+   * the whole reason a predicted position and an authoritative one converge. There is nothing here
+   * for the client to have an opinion about: no spawn list (only the server picks where anyone
+   * appears), and no collider bake of its own — the heightfield's `colliders` are the rectangles
+   * the server indexed, and re-deriving them from `elements` would be a second, disagreeing bake.
    *
-   * The collider index is rebuilt from `world.colliders` — the flat rects the server already
-   * baked — never re-derived from `world.elements`. `elements` is appearance only; a client that
-   * baked its own colliders from it would be a second, disagreeing bake of the same rectangles.
+   * `null` when the welcome's heightfield does not decode. `parseServerMessage` has already refused
+   * such a frame, so this is unreachable from a real socket; predicting nothing is still the honest
+   * answer to a map this build cannot read.
    */
-  static geometryFrom(world: WorldInfo): TerrainGeometry {
-    const tiles = decodeTileMap(world.tiles);
-    const staticColliders = parseWorldColliders(world.colliders) ?? [];
-    return terrainWithHarvestEventColliders(
-      {
-        width: world.width,
-        height: world.height,
-        obstacles: world.obstacles,
-        spawnPoints: [],
-        safeZone: world.safeZone,
-        tiles,
-        colliders: colliderIndexFrom(staticColliders, tiles.cols, tiles.rows),
-      },
-      staticColliders,
-      world.events,
-    );
-  }
-
-  #installEventColliders(events: readonly WorldEventSnapshot[]): void {
-    this.#geometry = terrainWithHarvestEventColliders(
-      this.#geometry,
-      this.#staticColliders,
-      events,
-    );
+  static terrainFrom(world: WorldInfo): ZoneTerrain | null {
+    const map = decodeMap(world.heightfield);
+    return map === null ? null : zoneTerrainFromHeightfield(map);
   }
 
   #handle(message: ServerMessage, handlers: ConnectionHandlers): void {
@@ -507,8 +476,7 @@ export class WorldClient {
       // Collide against the terrain the server sent, not a copy this build happens to have
       // compiled in. `parseServerMessage` has already checked it decodes, so these are the exact
       // bytes the authority baked — the client cannot disagree with a map it did not compute.
-      this.#staticColliders = parseWorldColliders(message.world.colliders) ?? [];
-      this.#geometry = WorldClient.geometryFrom(message.world);
+      this.#terrain = WorldClient.terrainFrom(message.world);
       this.#heroSettings = message.world.heroSettings ?? defaultMapHeroSettings();
       replaceWorldCache(this.#worldCache, message);
       // Events ride inside `world`, not the top-level view; seed their baseline from there.
@@ -529,7 +497,7 @@ export class WorldClient {
       const self = message.players.find((player) => player.id === message.selfId);
       if (self) {
         this.#selfSnapshot = self;
-        this.#predicted = { x: self.x, y: self.y };
+        this.#predicted = { x: self.x, y: self.y, z: self.z };
         this.#ack = self.ack;
       }
       handlers.onWelcome(message.selfId, message.world, message.self);
@@ -554,7 +522,6 @@ export class WorldClient {
         return;
       }
       this.#events = events;
-      this.#installEventColliders(events);
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = true;
       this.#corpses = view.corpses;
@@ -572,7 +539,6 @@ export class WorldClient {
       replaceWorldCache(this.#worldCache, message);
       seedEventCache(this.#worldCache, message.events);
       this.#events = message.events;
-      this.#installEventColliders(message.events);
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
@@ -623,8 +589,21 @@ export class WorldClient {
     }
     if (message.t === "rogue.shadow_dance") {
       if (message.actorId === this.#selfId) {
-        this.#predicted = { ...message.finalPosition };
-        this.#error = { x: 0, y: 0 };
+        this.#predicted = {
+          x: message.finalPosition.x,
+          // The sequence carries a GROUND landing; the elevation is whatever the terrain has under
+          // it, never a value invented here.
+          y: this.#terrain
+            ? groundUnder(
+                this.#terrain,
+                message.finalPosition.x,
+                message.finalPosition.z,
+                this.#predicted?.y ?? 0,
+              )
+            : (this.#predicted?.y ?? 0),
+          z: message.finalPosition.z,
+        };
+        this.#error = { x: 0, z: 0 };
         this.#shadowDanceMovementBlockedUntil =
           performance.now() + Math.max(0, message.endsAt - message.startedAt);
       }
@@ -726,21 +705,27 @@ export class WorldClient {
     // one. Replaying commands buffered under the old life state — at the old speed, from the
     // old place — is exactly the desync this whole mechanism exists to prevent. Snap instead.
     const transitioned = previousLife !== authoritative.life;
+    const authoritativePosition: WorldPosition = {
+      x: authoritative.x,
+      y: authoritative.y,
+      z: authoritative.z,
+    };
     if (
+      this.#terrain === null ||
       transitioned ||
       authoritative.life === "corpse" ||
       this.#pending.length > MAX_PENDING_COMMANDS
     ) {
       this.#pending = [];
-      this.#predicted = { x: authoritative.x, y: authoritative.y };
-      this.#error = { x: 0, y: 0 };
+      this.#predicted = authoritativePosition;
+      this.#error = { x: 0, z: 0 };
       return;
     }
 
     this.#predicted = reconcile(
-      { x: authoritative.x, y: authoritative.y },
+      authoritativePosition,
       this.#pending,
-      this.#geometry,
+      this.#terrain,
       authoritative.life,
       authoritative.class,
       mapHeroClassSettings(this.#heroSettings, authoritative.class).stats.movementSpeed,
@@ -748,10 +733,13 @@ export class WorldClient {
     );
 
     const drawnAfter = this.#samplePredictedPosition();
-    const error = { x: drawnBefore.x - drawnAfter.x, y: drawnBefore.y - drawnAfter.y };
+    // The correction is smeared across the GROUND only. Elevation is the terrain's own answer under
+    // the corrected point, so smearing it would draw the hero briefly sunk into the ground it is
+    // standing on.
+    const error = { x: drawnBefore.x - drawnAfter.x, z: drawnBefore.z - drawnAfter.z };
 
-    if (Math.hypot(error.x, error.y) > SNAP_THRESHOLD_PX) {
-      this.#error = { x: 0, y: 0 };
+    if (Math.hypot(error.x, error.z) > SNAP_THRESHOLD) {
+      this.#error = { x: 0, z: 0 };
       return;
     }
 
@@ -759,16 +747,16 @@ export class WorldClient {
     this.#errorAt = now;
   }
 
-  #samplePredictedPosition(): Vec2 {
+  #samplePredictedPosition(): WorldPosition {
     const life = this.#selfSnapshot?.life ?? "alive";
-    if (this.#predicted === null || !canMove(life)) {
-      return this.#predicted ?? { x: 0, y: 0 };
+    if (this.#predicted === null || this.#terrain === null || !canMove(life)) {
+      return this.#predicted ?? { x: 0, y: 0, z: 0 };
     }
     return predictPartial(
       this.#predicted,
       this.#input,
       this.#accumulator,
-      this.#geometry,
+      this.#terrain,
       speedForLife(
         life,
         this.#selfSnapshot?.class ?? "warrior",
@@ -795,7 +783,8 @@ export class WorldClient {
     return {
       ...this.#selfSnapshot,
       x: position.x + this.#error.x * decay,
-      y: position.y + this.#error.y * decay,
+      y: position.y,
+      z: position.z + this.#error.z * decay,
       ack: this.#ack,
       facing,
     };

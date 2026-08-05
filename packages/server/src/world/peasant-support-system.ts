@@ -19,10 +19,15 @@ import {
 import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
 import type { SkillDefinition, SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
+import {
+  canStand,
+  groundLineOfSight,
+  groundUnder,
+  type ZoneTerrain,
+} from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { startCombatAction } from "./combat-action-system.js";
 import { canSpawnProjectile, projectileOrigin, spawnProjectile } from "./projectile-system.js";
-import { canStand, groundLineOfSight, groundUnder, type ZoneTerrain } from "./terrain-access.js";
 import type {
   CombatActionRuntime,
   GroundIndexQuery,

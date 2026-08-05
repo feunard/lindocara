@@ -19,9 +19,13 @@ import {
 } from "@lindocara/engine/game.js";
 import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
+import {
+  BODY_RADIUS,
+  sweptGroundTerrainImpact,
+  type ZoneTerrain,
+} from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { isRogueStealthed } from "./rogue-state-system.js";
-import { BODY_RADIUS, sweptGroundTerrainImpact, type ZoneTerrain } from "./terrain-access.js";
 import type {
   GroundIndexQuery,
   GuardRuntime,

@@ -11,7 +11,7 @@ import {
   THREAT_EXPIRES_MS,
   THREAT_LEASH_DISTANCE,
 } from "@lindocara/engine/cooperation.js";
-import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import { normalizeGround } from "@lindocara/engine/directional-combat.js";
 import {
   GUARD_ATTACK_COOLDOWN_MS,
   GUARD_ATTACK_RANGE,
@@ -22,8 +22,17 @@ import {
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_RESPAWN_MS,
 } from "@lindocara/engine/game.js";
-import { type GroundVector, groundDistance, groundOf, planarOf } from "@lindocara/engine/ground.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
+import {
+  BODY_RADIUS,
+  groundLineOfSight,
+  groundPathClear,
+  groundUnder,
+  resolveGroundMovement,
+  standingCeiling,
+  type ZoneTerrain,
+} from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import {
   advanceWaypoint,
@@ -35,15 +44,6 @@ import {
 } from "./navigation-system.js";
 import { isRogueStealthed } from "./rogue-state-system.js";
 import type { SpatialGrid } from "./spatial-grid.js";
-import {
-  BODY_RADIUS,
-  groundLineOfSight,
-  groundPathClear,
-  groundUnder,
-  resolveGroundMovement,
-  standingCeiling,
-  type ZoneTerrain,
-} from "./terrain-access.js";
 import type { GuardRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 /**
@@ -98,11 +98,9 @@ export function pushMonsterAwayFrom(
   terrain: ZoneTerrain,
   monsterGrid: SpatialGrid<MonsterRuntime>,
 ): void {
-  const direction = groundOf(
-    normalizeDirection(
-      { x: monster.x - center.x, y: monster.z - center.z },
-      planarOf(monster.facing),
-    ),
+  const direction = normalizeGround(
+    { x: monster.x - center.x, z: monster.z - center.z },
+    monster.facing,
   );
   const previous = { x: monster.x, z: monster.z };
   // A knockback is the case that made the destination-grounded version of this call dangerous: it

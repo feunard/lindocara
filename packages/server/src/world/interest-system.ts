@@ -1,4 +1,5 @@
-import { maxHpForLevel, pointDistance } from "@lindocara/engine/game.js";
+import { maxHpForLevel } from "@lindocara/engine/game.js";
+import { groundDistance } from "@lindocara/engine/ground.js";
 import {
   CORPSE_VISIBILITY_RADIUS,
   GUARD_VISIBILITY_RADIUS,
@@ -28,6 +29,19 @@ import type {
   ProjectileRuntime,
 } from "./world-runtime.js";
 
+/**
+ * Wire precision for a position, in TILE units.
+ *
+ * The pixel wire rounded to 1/100 of a pixel; carrying that literal `* 100` into tile units would
+ * quantise every position to 1/100 of a TILE, i.e. 0.64 px — coarser than the pixel wire was, and
+ * coarse enough to make a hero's own predicted position visibly disagree with the authority it is
+ * reconciling against. A tile is 64 px, so 1/6400 of a tile is the same 1/100 px the wire always
+ * carried.
+ */
+function round(value: number): number {
+  return Math.round(value * 6400) / 6400;
+}
+
 function combatActionSnapshot(
   action: PlayerRuntime["action"] | MonsterRuntime["action"],
 ): CombatActionSnapshot | null {
@@ -36,7 +50,7 @@ function combatActionSnapshot(
     id: action.id,
     kind: action.kind,
     ...(action.skillId === undefined ? {} : { skillId: action.skillId }),
-    direction: { ...action.direction },
+    direction: { x: action.direction.x, z: action.direction.z },
     startedAt: action.startedAt,
     impactAt: action.impactAt,
     recoveryEndsAt: action.recoveryEndsAt,
@@ -81,8 +95,9 @@ export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerS
   return {
     id: player.id,
     nick: player.nick,
-    x: Math.round(player.x * 100) / 100,
-    y: Math.round(player.y * 100) / 100,
+    x: round(player.x),
+    y: round(player.y),
+    z: round(player.z),
     ack: player.ack,
     hp: player.hp,
     maxHp: maxHpForLevel(player.level),
@@ -91,7 +106,7 @@ export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerS
     class: player.class,
     equipment: { ...player.equipment },
     life: player.life,
-    facing: { ...player.facing },
+    facing: { x: player.facing.x, z: player.facing.z },
     guarding: player.guarding,
     invisible: player.invisibleUntil > now || isRogueStealthed(player, now),
     ...(player.rangerAfterimage && player.rangerAfterimage.expiresAt > now
@@ -132,7 +147,7 @@ function visiblePlayerSnapshots<TSocket>(
       isRogueStealthed(player, now) &&
       silhouette &&
       silhouette.expiresAt > now &&
-      pointDistance(viewer, silhouette) <= PLAYER_VISIBILITY_RADIUS + INTEREST_HYSTERESIS
+      groundDistance(viewer, silhouette) <= PLAYER_VISIBILITY_RADIUS + INTEREST_HYSTERESIS
     ) {
       entitiesById.set(player.id, player);
       viewer.interest.players.add(player.id);
@@ -145,7 +160,7 @@ function visiblePlayerSnapshots<TSocket>(
         (player.id === viewer.id ||
           !isRogueStealthed(player, now) ||
           ((player.rogueSilhouette?.expiresAt ?? 0) > now &&
-            pointDistance(viewer, player.rogueSilhouette ?? player) <=
+            groundDistance(viewer, player.rogueSilhouette ?? player) <=
               PLAYER_VISIBILITY_RADIUS + INTEREST_HYSTERESIS)),
     )
     .map((player) => {
@@ -157,6 +172,7 @@ function visiblePlayerSnapshots<TSocket>(
             ...snapshot,
             x: silhouette.x,
             y: silhouette.y,
+            z: silhouette.z,
             invisible: false,
             silhouette: true,
             action: null,
@@ -173,9 +189,12 @@ function corpseSnapshots<TSocket>(
   const radiusSquared = CORPSE_VISIBILITY_RADIUS * CORPSE_VISIBILITY_RADIUS;
   for (const player of context.players.values()) {
     if (player.corpse === null) continue;
+    // Across the GROUND: `x` and `z`. Reading `y` here would compare a corpse's elevation with
+    // the viewer's, which is 0 against 0 on flat ground and therefore looks correct until the
+    // first plateau.
     const dx = player.corpse.x - viewer.x;
-    const dy = player.corpse.y - viewer.y;
-    if (player.id !== viewer.id && dx * dx + dy * dy > radiusSquared) continue;
+    const dz = player.corpse.z - viewer.z;
+    if (player.id !== viewer.id && dx * dx + dz * dz > radiusSquared) continue;
     corpses.push({
       id: player.id,
       nick: player.nick,
@@ -183,6 +202,7 @@ function corpseSnapshots<TSocket>(
       appearance: player.appearance,
       x: player.corpse.x,
       y: player.corpse.y,
+      z: player.corpse.z,
     });
   }
   return corpses;
@@ -209,15 +229,16 @@ function visibleMonsterSnapshots<TSocket>(
     species: monster.species,
     rank: monster.rank,
     specialTechnique: monster.specialTechnique,
-    x: Math.round(monster.x * 100) / 100,
-    y: Math.round(monster.y * 100) / 100,
+    x: round(monster.x),
+    y: round(monster.y),
+    z: round(monster.z),
     hp: monster.hp,
     maxHp: monster.maxHp,
     dead: monster.deadUntil > now,
     graphicAssetId: monster.graphicAssetId,
     threatening: monsterThreatensViewer(monster, viewer.id, now),
     ...(monster.revealedUntil > now ? { revealed: true as const } : {}),
-    facing: { ...monster.facing },
+    facing: { x: monster.facing.x, z: monster.facing.z },
     action: combatActionSnapshot(monster.action),
     ...(context.navigationDebugAvailable && viewer.navigationDebug
       ? { navigationDebug: navigationDebugSnapshot(monster) }
@@ -258,16 +279,17 @@ export function guardSnapshots<TSocket>(
 ): GuardSnapshot[] {
   const now = context.now();
   const guards = viewer
-    ? context.guards.filter((guard) => pointDistance(viewer, guard) <= GUARD_VISIBILITY_RADIUS)
+    ? context.guards.filter((guard) => groundDistance(viewer, guard) <= GUARD_VISIBILITY_RADIUS)
     : context.guards;
   return guards.map((guard) => ({
     id: guard.id,
-    x: Math.round(guard.x * 100) / 100,
-    y: Math.round(guard.y * 100) / 100,
+    x: round(guard.x),
+    y: round(guard.y),
+    z: round(guard.z),
     hp: guard.hp,
     maxHp: guard.maxHp,
     homeX: guard.homeX,
-    homeY: guard.homeY,
+    homeZ: guard.homeZ,
     fighting: guard.fightingUntil > now,
     graphicAssetId: guard.graphicAssetId,
     graphicTint: guard.graphicTint,
@@ -287,7 +309,7 @@ function visibleLootSnapshots<TSocket>(
   );
   const visible = selection.entities.filter((loot) => canSeeLoot(loot, viewer.id));
   viewer.interest.loot = new Set(visible.map((loot) => loot.id));
-  return visible.map(({ id, kind, amount, x, y }) => ({ id, kind, amount, x, y }));
+  return visible.map(({ id, kind, amount, x, y, z }) => ({ id, kind, amount, x, y, z }));
 }
 
 export function canSeeLoot(loot: GroundLoot, viewerId: string): boolean {
@@ -301,9 +323,10 @@ function projectileSnapshots(projectiles: readonly ProjectileRuntime[]): Project
     ownerId: projectile.ownerId,
     color: projectile.color,
     kind: projectile.kind,
-    x: Math.round(projectile.x * 100) / 100,
-    y: Math.round(projectile.y * 100) / 100,
-    direction: { ...projectile.direction },
+    x: round(projectile.x),
+    y: round(projectile.y),
+    z: round(projectile.z),
+    direction: { x: projectile.direction.x, z: projectile.direction.z },
     radius: projectile.radius,
     spawnedAt: projectile.spawnedAt,
     expiresAt: projectile.expiresAt,

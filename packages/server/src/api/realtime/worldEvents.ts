@@ -33,6 +33,7 @@ import {
 import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js";
 import { refreshHarvestNode } from "@lindocara/engine/party-harvest-state.js";
 import { TICK_MS } from "@lindocara/engine/simulation.js";
+import { BODY_RADIUS, canStand, groundUnder } from "@lindocara/engine/terrain-access.js";
 import type { ZoneTerrain } from "@lindocara/engine/zones.js";
 import {
   activeAuthoredGuardDefinitions,
@@ -47,7 +48,6 @@ import { abortRunForEvent, startRun } from "../../world/event-run-system.js";
 import { resetMonsterNavigation } from "../../world/monster-system.js";
 import { createNavigationRuntime } from "../../world/navigation-system.js";
 import { reconcileNpcMovement } from "../../world/npc-movement-system.js";
-import { BODY_RADIUS, canStand, groundUnder } from "../../world/terrain-access.js";
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "../../world/world-runtime.js";
 import type { WorldRoomState } from "./worldState.ts";
 

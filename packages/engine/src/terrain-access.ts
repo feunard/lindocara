@@ -1,8 +1,16 @@
 /**
- * The server's terrain junction: a stored heightfield becomes the room's `ZoneTerrain`, and every
- * "can something stand here" question in the world systems becomes exactly one call to `canStand`.
+ * The terrain junction: a stored heightfield becomes a room's `ZoneTerrain`, and every "can
+ * something stand here" question becomes exactly one call to `canStand`.
  *
- * `canStand` mirrors `canEnter` (`packages/engine/src/hd2d/hero-step.ts`), the rule `apps/lab` has
+ * **It lives in `engine`, not in `server`, for the same reason `step()` does.** Task 4 wrote it
+ * under `packages/server/src/world/` because only the server collided against anything; the client
+ * predicts its own hero against the terrain the welcome carries, so both sides now ask this
+ * question and there must be exactly one function answering it. Two hand-synchronised copies of a
+ * collision rule is precisely the drift client-side prediction exists to expose. Nothing in here
+ * touches the DOM, Workers or Node — it was already pure, which is why the move cost no
+ * dependency.
+ *
+ * `canStand` mirrors `canEnter` (`./hd2d/hero-step.ts`), the rule `apps/lab` has
  * been running at 60 Hz, restricted to what the server simulates in this increment: a GROUNDED body
  * that neither swims, jumps nor walks indoors. What it keeps from `canEnter` is what a naive port
  * drops:
@@ -32,18 +40,14 @@
  * is likewise the caller's: this function takes the point to test, not a point to adjust.
  */
 
-import {
-  type SegmentImpact,
-  segmentBoxEntry,
-  sweptRectEntry,
-} from "@lindocara/engine/directional-combat.js";
-import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
-import { createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
-import { type MapData, mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
-import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import type { ZoneTerrain } from "@lindocara/engine/zones.js";
+import { type SegmentImpact, segmentBoxEntry, sweptRectEntry } from "./directional-combat.js";
+import type { GroundVector, WorldPosition } from "./ground.js";
+import { createColliderIndex } from "./hd2d/collider-index.js";
+import { type MapData, mapToQuerySource } from "./hd2d/map-data.js";
+import { createTerrainQuery } from "./hd2d/terrain-query.js";
+import { PLAYER_SIZE } from "./simulation.js";
+import { TILE_SIZE } from "./tilemap.js";
+import type { ZoneTerrain } from "./zones.js";
 
 export type { ZoneTerrain };
 
@@ -447,6 +451,45 @@ export function nearestStandableCell(
     }
   }
   return nearest;
+}
+
+/**
+ * Where a hero enters a map: its first authored spawn if a body fits there, otherwise the standable
+ * cell nearest to it (or, with no authored spawn at all, nearest the grid's centre).
+ *
+ * The fallback is not decoration. The wire-and-storage task resets every stored hero position to
+ * `0,0,0`, and `0,0,0` is the grid CENTRE — which on an island heightfield is as likely to be open
+ * sea as land. Without a search, `restoreStandablePosition` would hand back the unchecked spawn and
+ * seat the hero in the water, looking correct to every test that only asserts a position came back.
+ *
+ * Each candidate is grounded on ITSELF, which would be a cliff-climbing bug in
+ * `resolveGroundMovement` and is the right question here for the same reason
+ * `restoreStandablePosition` grounds its own: nobody is stepping anywhere. The question is "could a
+ * body be standing here", so the ground under it is by definition the ground it stands on, and only
+ * the disc's relief and the props may refuse it.
+ */
+export function mapEntryPosition(terrain: ZoneTerrain, authored?: GroundVector): WorldPosition {
+  const near: GroundVector = authored ?? { x: 0, z: 0 };
+  const standable = (x: number, z: number) =>
+    canStand(terrain, x, z, BODY_RADIUS, groundUnder(terrain, x, z));
+  if (standable(near.x, near.z)) {
+    return { x: near.x, y: groundUnder(terrain, near.x, near.z), z: near.z };
+  }
+  let nearest: WorldPosition | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let j = 0; j < terrain.size; j++) {
+    for (let i = 0; i < terrain.size; i++) {
+      const [x, z] = terrain.query.cellCenter(i, j);
+      if (!standable(x, z)) continue;
+      const distance = Math.hypot(near.x - x, near.z - z);
+      if (distance >= bestDistance) continue;
+      bestDistance = distance;
+      nearest = { x, y: groundUnder(terrain, x, z), z };
+    }
+  }
+  // A grid with nowhere at all to stand is a map that cannot be played; the authored point is then
+  // the least arbitrary answer left, and it is wrong by construction rather than by oversight.
+  return nearest ?? { x: near.x, y: 0, z: near.z };
 }
 
 /**

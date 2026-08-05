@@ -45,12 +45,12 @@ import { type ClassResourceState, initialResource } from "@lindocara/engine/reso
 import { type Input, NO_INPUT, TICK_HZ } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { normalizeTalentSelection, skillWithTalents } from "@lindocara/engine/talents.js";
+import { restoreStandablePosition, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { createWorldCache, type WorldCache } from "@lindocara/engine/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { PlayerProfile, SaveableProfile } from "../profile-types.js";
 import { SpatialGrid } from "./spatial-grid.js";
-import { restoreStandablePosition, type ZoneTerrain } from "./terrain-access.js";
 
 /**
  * Copied verbatim from `../character-presence.ts`'s `PRESENCE_HEARTBEAT_MS` rather than imported:

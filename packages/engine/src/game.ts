@@ -1131,13 +1131,20 @@ export function entityBox(position: Vec2, size: number = PLAYER_SIZE): Rect {
   return { x: position.x, y: position.y, width: size, height: size };
 }
 
-export function pointDistance(a: Vec2, b: Vec2): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-export function withinRange(a: Vec2, b: Vec2, range: number): boolean {
-  return Number.isFinite(range) && range >= 0 && pointDistance(a, b) <= range;
-}
+/**
+ * `pointDistance` and `withinRange` USED to live here, taking the pixel `Vec2` whose two fields
+ * were both ground axes. They are gone, and their absence is deliberate rather than a tidy-up.
+ *
+ * In tile units `y` is ELEVATION, so a converted runtime entity handed to a `Vec2` distance
+ * measured its ground `x` against its height — silently, with a clean typecheck, because
+ * `WorldPosition` is still structurally assignable to `Vec2`. Deleting the two functions is what
+ * turns every such site into a compiler error instead of a wrong number.
+ *
+ * The replacements are `groundDistance` and `withinGroundRange` (`ground.ts`), which take a
+ * `GroundVector` and therefore cannot be fed an elevation by accident. The two pixel-world callers
+ * left in this file measure a genuine pixel `Vec2` and spell the hypotenuse out inline, so nothing
+ * re-exports a `Vec2` distance for a ground question to find.
+ */
 
 function centerOf(position: Vec2, size: number): Vec2 {
   return { x: position.x + size / 2, y: position.y + size / 2 };
@@ -1293,7 +1300,7 @@ export function nearestLumenLanding(
     for (let col = 0; col < geometry.tiles.cols; col++) {
       const candidate = { x: col * TILE_SIZE, y: row * TILE_SIZE };
       if (!isWalkable(candidate, size, geometry) || !accepts(candidate)) continue;
-      const distance = pointDistance(position, candidate);
+      const distance = Math.hypot(position.x - candidate.x, position.y - candidate.y);
       if (distance >= bestDistance) continue;
       nearest = candidate;
       bestDistance = distance;
@@ -1347,7 +1354,7 @@ export function nearestCemetery(from: Vec2): Cemetery {
   let nearest = CEMETERIES[0] ?? { id: "hollowrest", ...spawnPosition() };
   let best = Number.POSITIVE_INFINITY;
   for (const cemetery of CEMETERIES) {
-    const distance = pointDistance(from, cemetery);
+    const distance = Math.hypot(from.x - cemetery.x, from.y - cemetery.y);
     if (distance < best) {
       best = distance;
       nearest = cemetery;

@@ -15,9 +15,6 @@
  */
 
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-// TILE→PIXEL BRIDGE — see `packages/engine/src/hd2d/tile-pixel-bridge.ts`. An `ActorView` carries
-// the snapshot's own pixels and `sync` is the only place in this file that converts them.
-import { pixelToTile } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { Billboard, Facing } from "@lindocara/hd2d/billboard.js";
 import { makeBillboard } from "@lindocara/hd2d/billboard.js";
@@ -34,8 +31,12 @@ export type ActorKind = "player" | "monster" | "guard";
 export interface ActorView {
   id: string;
   kind: ActorKind;
+  /** GROUND axis, in tile units with the grid centre as origin — the snapshot's own coordinate,
+   *  with no conversion left between the wire and the scene. */
   x: number;
-  y: number;
+  /** The other GROUND axis. The elevation the billboard is placed at is the TERRAIN's
+   *  (`heightAt`), never the snapshot's `y`: a sprite stands on the ground under it. */
+  z: number;
   /** Which way the actor is turned. The Tiny Swords units are drawn in profile only, so `north`
    *  and `south` deliberately leave the current profile alone (`facingToFlip`). */
   facing: Facing;
@@ -155,8 +156,7 @@ export function createBillboardRegistry(
           entry = create(actor);
           entries.set(actor.id, entry);
         }
-        const x = pixelToTile(actor.x, scene.size);
-        const z = pixelToTile(actor.y, scene.size);
+        const { x, z } = actor;
         entry.billboard.placeAt(x, scene.query.heightAt(x, z) ?? scene.waterLevel, z);
         entry.billboard.setFacing(actor.facing);
       }

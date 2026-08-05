@@ -3,7 +3,7 @@
  * of legacy `world/map-zone.ts` (`zoneFromMap`/`locationFromMap`) plus the room-runtime collections
  * `World` kept as private fields. Reimplemented against `MapService`'s `MapPayload` instead of
  * legacy `StoredMap`; the geometry comes from the map's own heightfield through
- * `zoneTerrainFromHeightfield` (`world/terrain-access.ts`), the single place a stored map becomes
+ * `zoneTerrainFromHeightfield` (`@lindocara/engine/terrain-access.ts`), the single place a stored map becomes
  * collision, so no two hosts can bake different terrain from the same row.
  */
 
@@ -25,6 +25,7 @@ import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import { MAP_LAYERS } from "@lindocara/engine/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import type { QuestEventReference } from "@lindocara/engine/quests.js";
+import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
@@ -43,7 +44,6 @@ import type {
   SanctuaryRuntime,
 } from "../../world/priest-variant-system.js";
 import { SpatialGrid } from "../../world/spatial-grid.js";
-import { zoneTerrainFromHeightfield } from "../../world/terrain-access.js";
 import {
   type ActiveWorldEvent,
   createGuards,

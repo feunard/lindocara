@@ -7,9 +7,13 @@ import { groundDistance, groundOf, planarOf } from "@lindocara/engine/ground.js"
 import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
+import {
+  clampToGrid,
+  groundUnder,
+  resolveGroundMovement,
+} from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import type { SpatialGrid } from "./spatial-grid.js";
-import { clampToGrid, groundUnder, resolveGroundMovement } from "./terrain-access.js";
 import {
   type GroundVector,
   MAX_STARVED_TICKS,
@@ -61,7 +65,7 @@ export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>)
       const command = player.queue.shift();
       if (command) {
         player.lastInput = command.input;
-        player.facing = groundOf(facingFromInput(command.input, planarOf(player.facing)));
+        player.facing = facingFromInput(command.input, player.facing);
         player.ack = command.seq;
         player.starvedTicks = 0;
       } else if (++player.starvedTicks > MAX_STARVED_TICKS) {
@@ -138,7 +142,7 @@ export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>)
           action.channelEndsAt === undefined
         ) {
           action.mobilityDistance = Math.max(0, (action.mobilityDistance ?? 0) - movementDistance);
-          const movementDirection = groundOf(movementDirectionFromInput(player.lastInput));
+          const movementDirection = movementDirectionFromInput(player.lastInput);
           const directionLength = Math.hypot(movementDirection.x, movementDirection.z);
           if (directionLength > 0) {
             action.direction = {

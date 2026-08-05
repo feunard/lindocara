@@ -5,15 +5,13 @@
  * All geometry lives in minimap.ts, which is pure and tested; this file is the part that
  * touches the DOM, so it is deliberately thin.
  */
+import type { GroundVector } from "@lindocara/engine/ground.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { PlayerSnapshot, WorldInfo } from "@lindocara/engine/protocol.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
-import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
-import { isKnownZone } from "@lindocara/engine/zones.js";
 import {
   bakeTerrain,
-  bakeZoneTerrain,
   clampToRing,
-  MINIMAP_TEXTURE_SCALE,
+  MINIMAP_TEXELS_PER_TILE,
   MINIMAP_WORLD_RADIUS,
   projectToMinimap,
   projectToWorldMap,
@@ -93,13 +91,13 @@ export class MapSurface {
     this.#worldMap = canvas;
   }
 
-  draw(sample: SceneSample, self: PlayerSnapshot | undefined, corpse: Vec2 | null): void {
+  draw(sample: SceneSample, self: PlayerSnapshot | undefined, corpse: GroundVector | null): void {
     if (!self) return;
     this.#drawMinimap(sample, self, corpse);
     this.#drawWorldMap(sample, self, corpse);
   }
 
-  #drawMinimap(sample: SceneSample, self: PlayerSnapshot, corpse: Vec2 | null): void {
+  #drawMinimap(sample: SceneSample, self: PlayerSnapshot, corpse: GroundVector | null): void {
     const canvas = this.#minimap;
     if (!canvas || !ensureCanvasSize(canvas)) return;
     const context = canvas.getContext("2d");
@@ -113,14 +111,16 @@ export class MapSurface {
     context.arc(half, half, half, 0, Math.PI * 2);
     context.clip();
 
-    // The texture is 1/8 world scale; the minimap shows MINIMAP_WORLD_RADIUS either side of
-    // the viewer, so blit exactly that window of it, stretched to the widget. Near a world
-    // edge the source window runs off the texture; the uncovered part stays the dark backdrop,
-    // which reads correctly as "there is no world there".
-    const texelsPerWorld = 1 / MINIMAP_TEXTURE_SCALE;
-    const windowTexels = MINIMAP_WORLD_RADIUS * 2 * texelsPerWorld;
-    const sourceX = (self.x - MINIMAP_WORLD_RADIUS) * texelsPerWorld;
-    const sourceY = (self.y - MINIMAP_WORLD_RADIUS) * texelsPerWorld;
+    // The minimap shows MINIMAP_WORLD_RADIUS tiles either side of the viewer, so blit exactly
+    // that window of the texture, stretched to the widget. The `+ size / 2` is the origin shift a
+    // grid-centred coordinate needs before it indexes a top-left texture; without it the window
+    // sits a half-map north-west of the hero. Near a world edge the source window runs off the
+    // texture and the uncovered part stays the dark backdrop, which reads correctly as "there is
+    // no world there".
+    const halfGrid = this.#world.size / 2;
+    const windowTexels = MINIMAP_WORLD_RADIUS * 2 * MINIMAP_TEXELS_PER_TILE;
+    const sourceX = (self.x + halfGrid - MINIMAP_WORLD_RADIUS) * MINIMAP_TEXELS_PER_TILE;
+    const sourceY = (self.z + halfGrid - MINIMAP_WORLD_RADIUS) * MINIMAP_TEXELS_PER_TILE;
     context.drawImage(
       this.#texture,
       sourceX,
@@ -133,13 +133,9 @@ export class MapSurface {
       size,
     );
 
-    for (const npc of this.#world.questNpcs) {
-      const point = projectToMinimap(npc, self, size);
-      if (point.inside) dot(context, point.x, point.y, BLIP_RADIUS, QUEST_NPC_COLOR);
-    }
-    for (const site of this.#world.questSites) {
-      const point = projectToMinimap(site, self, size);
-      if (point.inside) dot(context, point.x, point.y, BLIP_RADIUS, QUEST_SITE_COLOR);
+    for (const marker of catalogueMarkers(this.#world)) {
+      const point = projectToMinimap(marker.at, self, size);
+      if (point.inside) dot(context, point.x, point.y, BLIP_RADIUS, marker.color);
     }
     for (const player of sample.players) {
       if (player.id === self.id) continue;
@@ -155,7 +151,7 @@ export class MapSurface {
   /** Inside the radius: a skull where the body lies. Outside: an arrow on the ring pointing at it. */
   #drawCorpseMarker(
     context: CanvasRenderingContext2D,
-    corpse: Vec2,
+    corpse: GroundVector,
     self: PlayerSnapshot,
     size: number,
   ): void {
@@ -177,7 +173,7 @@ export class MapSurface {
     context.restore();
   }
 
-  #drawWorldMap(sample: SceneSample, self: PlayerSnapshot, corpse: Vec2 | null): void {
+  #drawWorldMap(sample: SceneSample, self: PlayerSnapshot, corpse: GroundVector | null): void {
     const canvas = this.#worldMap;
     if (!canvas || !ensureCanvasSize(canvas)) return;
     const context = canvas.getContext("2d");
@@ -187,13 +183,9 @@ export class MapSurface {
     context.clearRect(0, 0, size.width, size.height);
     context.drawImage(this.#texture, 0, 0, size.width, size.height);
 
-    for (const npc of this.#world.questNpcs) {
-      const point = projectToWorldMap(npc, this.#world, size);
-      dot(context, point.x, point.y, BLIP_RADIUS, QUEST_NPC_COLOR);
-    }
-    for (const site of this.#world.questSites) {
-      const point = projectToWorldMap(site, this.#world, size);
-      dot(context, point.x, point.y, BLIP_RADIUS, QUEST_SITE_COLOR);
+    for (const marker of catalogueMarkers(this.#world)) {
+      const point = projectToWorldMap(marker.at, this.#world, size);
+      dot(context, point.x, point.y, BLIP_RADIUS, marker.color);
     }
     for (const player of sample.players) {
       if (player.id === self.id) continue;
@@ -210,24 +202,41 @@ export class MapSurface {
 }
 
 /**
- * Once per zone, not once per connection — MapSurface#matches lets the caller skip this for a
- * reconnect into the same zone. 4800x2700 becomes a 600x338 canvas; the loop runs ~202,800 times,
- * each iteration one tile lookup (`kindAtPoint`) plus a `colorForKind` switch — no sampling, no
- * obstacle-rect scan, no zone special-case. Still not free at that iteration count, and running
- * it on every welcome would cost dropped frames at the worst possible moment: the instant control
- * returns to the player after a zone transition.
+ * The compiled catalogue's quest markers, in the ONE place their unit system is decided.
  *
- * A catalogue zone bakes from its own compiled-in `TileMap`, resolved by `world.zoneId` (never
- * `zoneNameKey`, which is prose). A D1 map has no compiled-in tiles to look up, so it bakes from the
- * tiles the welcome carried — decoded from `world.tiles`. Falling back to the default zone's tiles
- * for an unknown id (what `bakeZoneTerrain` does on its own) is exactly the bug this guards against:
- * it would paint Verdant Reach's rivers over a user map, stretched to that map's dimensions.
+ * `questNpcs`/`questSites` are pixel `Vec2` authored content and are EMPTY on every live room —
+ * `zoneFromMapPayload` bakes `quests: []` and `questSites: []` for an authored map, and an authored
+ * map is the only thing a room is ever built from. They are read through this seam rather than
+ * inline so the pixel-to-ground reinterpretation is stated once, and so the day a heightfield map
+ * authors its own markers there is a single site to point at real data.
+ */
+function catalogueMarkers(world: WorldInfo): { at: GroundVector; color: string }[] {
+  return [
+    ...world.questNpcs.map((npc) => ({ at: { x: npc.x, z: npc.y }, color: QUEST_NPC_COLOR })),
+    ...world.questSites.map((site) => ({ at: { x: site.x, z: site.y }, color: QUEST_SITE_COLOR })),
+  ];
+}
+
+/**
+ * Once per map, not once per connection — MapSurface#matches lets the caller skip this for a
+ * reconnect into the same map. A 64-cell grid bakes to a 512x512 canvas: the loop runs ~262,000
+ * times, each iteration one array lookup plus a colour blend. Not free at that count, and running
+ * it on every welcome would cost dropped frames at the worst possible moment: the instant control
+ * returns to the player after a map transition.
+ *
+ * It bakes from the room's OWN heightfield — the exact string the server baked its collision from —
+ * so what is painted and what is walkable cannot disagree. There is no compiled-in fallback to fall
+ * back to any more, which is the point: painting one map's terrain over another's is precisely the
+ * bug the old `zoneId` lookup had to be guarded against.
  */
 function bakeWorldTexture(world: WorldInfo): HTMLCanvasElement {
-  const terrain = isKnownZone(world.zoneId)
-    ? bakeZoneTerrain(world.zoneId, world.width, world.height)
-    : bakeTerrain(decodeTileMap(world.tiles), world.width, world.height);
+  const map = decodeMap(world.heightfield);
   const canvas = document.createElement("canvas");
+  // `parseServerMessage` already refused any welcome whose heightfield does not decode, so this is
+  // unreachable from a real socket; a blank canvas is still the honest answer for a map that
+  // cannot be read, rather than another map's terrain.
+  if (!map) return canvas;
+  const terrain = bakeTerrain(map);
   canvas.width = terrain.width;
   canvas.height = terrain.height;
   const context = canvas.getContext("2d");

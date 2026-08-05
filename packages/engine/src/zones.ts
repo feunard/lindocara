@@ -48,7 +48,7 @@ export type ZoneKind = "open_world" | "town" | "dungeon";
  * grid is `size` square and centred, so the world runs `-size/2`..`+size/2`), no `tiles` (relief is
  * not a tile kind) and no baked spawn list (`MapData.spawns` is where those live, and a zone that
  * needs one reads the heightfield rather than a second copy of it). The single question a system
- * asks of this is `canStand` (`server/world/terrain-access.ts`).
+ * asks of this is `canStand` (`engine/terrain-access.ts`).
  */
 export interface ZoneTerrain {
   query: TerrainQuery;

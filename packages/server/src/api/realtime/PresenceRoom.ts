@@ -33,8 +33,10 @@ export interface HandoffPresenceRequest {
   connectionId: string;
   sessionEpoch: number;
   mapId: string;
+  /** Tile units: `x`/`z` ground, `y` elevation. All three travel or none do. */
   x: number;
   y: number;
+  z: number;
 }
 
 interface StoredCooldowns {
@@ -194,7 +196,8 @@ export class PresenceRoom {
       lease.connectionId !== request.connectionId ||
       lease.sessionEpoch !== request.sessionEpoch ||
       !Number.isFinite(request.x) ||
-      !Number.isFinite(request.y)
+      !Number.isFinite(request.y) ||
+      !Number.isFinite(request.z)
     ) {
       return null;
     }
@@ -202,8 +205,7 @@ export class PresenceRoom {
       heroId,
       sessionEpoch: lease.sessionEpoch,
       mapId: request.mapId,
-      x: request.x,
-      y: request.y,
+      position: { x: request.x, y: request.y, z: request.z },
     });
     if (nextEpoch === null) return null;
     state.lease = { ...lease, sessionEpoch: nextEpoch, expiresAt: this.now() + PRESENCE_TTL_MS };

@@ -46,15 +46,9 @@ import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
 import { canAct } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import {
-  applyExperience,
-  CEMETERIES,
-  clampRestoredPosition,
-  isWalkable,
-  maxHpForLevel,
-} from "@lindocara/engine/game.js";
+import { applyExperience, CEMETERIES, maxHpForLevel } from "@lindocara/engine/game.js";
+import type { WorldPosition } from "@lindocara/engine/ground.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
-import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
 import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
 import {
@@ -63,12 +57,11 @@ import {
   type ServerMessage,
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
-import { NO_INPUT, PLAYER_SIZE, TICK_HZ } from "@lindocara/engine/simulation.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
+import { NO_INPUT, TICK_HZ } from "@lindocara/engine/simulation.js";
+import { mapEntryPosition } from "@lindocara/engine/terrain-access.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
-import type { ZoneLocation } from "@lindocara/engine/zones.js";
+import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import { $env, $hook, $inject, z } from "alepha";
 import { $repository, sql } from "alepha/orm";
 import {
@@ -395,13 +388,14 @@ export class WorldRoom {
       }
     }
 
-    if (join.fallback) {
+    if (join.relocated) {
       const moved = await this.heroEpochService.relocate({
         heroId: join.heroId,
         sessionEpoch: acquired.sessionEpoch,
         mapId: join.mapId,
-        x: join.fallback.x,
-        y: join.fallback.y,
+        // The grid origin, not a converted coordinate: `mapEntryPosition` below seats the body on
+        // ground the destination actually has.
+        position: { x: 0, y: 0, z: 0 },
       });
       if (!moved) {
         room.close(conn.id, WS_CLOSE.PRESENCE_ERROR, "relocation lost the lease");
@@ -438,7 +432,13 @@ export class WorldRoom {
       ...roomTerrain,
       colliders: state.staticColliderIndex,
     };
-    const profile = await this.admissionService.loadHeroProfile(join.heroId, admissionTerrain);
+    // The map's own entry point, not the grid origin: stored positions were reset to `0,0,0` by
+    // this increment's migration, and `0,0,0` is the grid CENTRE — open sea on an island map.
+    const profile = await this.admissionService.loadHeroProfile(
+      join.heroId,
+      admissionTerrain,
+      mapEntryPosition(admissionTerrain, state.location.definition.spawns?.[0]),
+    );
     if (profile) {
       // Personal authored-quest progress rides the hero, loaded beside the profile (legacy
       // `world.ts:614`); a failed read degrades to an empty journal, never a refused join.
@@ -1478,28 +1478,22 @@ export class WorldRoom {
       }
       // Audio does not affect terrain: a default config is enough to bake the destination's
       // collision for the arrival clamp, without an extra adventure-audio read per transition.
-      const destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
-      // TILE→PIXEL BRIDGE — see packages/engine/src/hd2d/tile-pixel-bridge.ts
-      // The entry marker below is authored in the map's TILE-EDITOR cell space, while a
-      // heightfield destination's terrain is baked from the heightfield's own grid. Placing one
-      // inside the other would land the hero at an arbitrary point of a map nobody authored that
-      // way — so the transition is refused, loudly, instead of silently arriving somewhere wrong.
-      // Unreachable today (nothing authors both), and it must stay unreachable rather than
-      // becoming a quiet mis-placement the day something does.
-      if (destination.heightfield != null) {
-        console.warn(
-          JSON.stringify({
-            event: "zone_transition_refused",
-            reason: "heightfield_destination",
-            mapId: destinationMap.id,
-            entryId: destinationAnchor.entryId,
-          }),
-        );
+      let destination: ZoneDefinition;
+      try {
+        destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
+      } catch {
+        // A destination with no usable heightfield has no collision at all, so there is nowhere to
+        // arrive; the same refusal every join of that map already gets.
         this.send(room, connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
         return;
       }
-      const terrain = destination.terrain;
-      const spawn = clampRestoredPosition(eventCellCentre(entry), player.id, terrain);
+      // The `entry` event above is authored in the map's TILE-EDITOR cell space, and a heightfield
+      // room's grid is not that space — an entry cell cannot address it at all. So the entry is
+      // still what the LINK is validated against (an exit must lead somewhere authored), while
+      // where the hero actually lands is the destination's own authored spawn, the one anchor that
+      // exists in the destination's own coordinates. Placing the tile cell inside the heightfield
+      // grid instead would drop the hero at an arbitrary point of a map nobody authored that way.
+      const spawn = mapEntryPosition(destination.terrain, destination.spawns?.[0]);
 
       claimedAuthorization = true;
       player.authorized = false;
@@ -1509,8 +1503,7 @@ export class WorldRoom {
         connectionId,
         player,
         destinationMap.id,
-        spawn.x,
-        spawn.y,
+        spawn,
         { t: "event", code: "zone.transition", tone: "good" },
         "adventure map transition",
       );
@@ -1566,47 +1559,26 @@ export class WorldRoom {
         this.send(room, connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
         return;
       }
-      const destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
-      // TILE→PIXEL BRIDGE — see packages/engine/src/hd2d/tile-pixel-bridge.ts
+      let destination: ZoneDefinition;
+      try {
+        destination = zoneFromMapPayload(destinationMap, DEFAULT_ADVENTURE_AUDIO);
+      } catch {
+        if (logTeleportRefusedOnce(state, eventId, "no_heightfield", { mapId, col, row })) {
+          this.send(room, connectionId, {
+            t: "event",
+            code: "zone.transition_failed",
+            tone: "bad",
+          });
+        }
+        return;
+      }
       // Same split source as the authored-entry transition above: the authored `col`/`row` is a
-      // tile-editor cell, the destination's terrain would be the heightfield's grid, and the bounds
-      // check below would validate one against the other. Refused rather than silently mis-placed.
-      if (destination.heightfield != null) {
-        if (
-          logTeleportRefusedOnce(state, eventId, "heightfield_destination", { mapId, col, row })
-        ) {
-          this.send(room, connectionId, {
-            t: "event",
-            code: "zone.transition_failed",
-            tone: "bad",
-          });
-        }
-        return;
-      }
-      const terrain = destination.terrain;
-      const inBounds =
-        col >= 0 && row >= 0 && col < terrain.width / TILE_SIZE && row < terrain.height / TILE_SIZE;
-      if (!inBounds) {
-        if (logTeleportRefusedOnce(state, eventId, "out_of_bounds", { mapId, col, row })) {
-          this.send(room, connectionId, {
-            t: "event",
-            code: "zone.transition_failed",
-            tone: "bad",
-          });
-        }
-        return;
-      }
-      const spawn = eventCellCentre({ col, row });
-      if (!isWalkable(spawn, PLAYER_SIZE, terrain)) {
-        if (logTeleportRefusedOnce(state, eventId, "unwalkable", { mapId, col, row })) {
-          this.send(room, connectionId, {
-            t: "event",
-            code: "zone.transition_failed",
-            tone: "bad",
-          });
-        }
-        return;
-      }
+      // tile-editor cell and the destination's grid is the heightfield's, so the cell cannot
+      // address it. The command still decides WHICH map (that part is authored in a space the
+      // destination has), and the destination's own spawn decides where — validated standable by
+      // `mapEntryPosition` exactly as an ordinary admission is, rather than by a bounds check of
+      // one coordinate space against another.
+      const spawn = mapEntryPosition(destination.terrain, destination.spawns?.[0]);
 
       player.lastTransitionAt = now;
       player.lastInput = NO_INPUT;
@@ -1617,23 +1589,23 @@ export class WorldRoom {
       claimedAuthorization = true;
       player.authorized = false;
 
-      const fromX = player.x + PLAYER_SIZE / 2;
-      const fromY = player.y + PLAYER_SIZE / 2;
       await this.performHandoff(
         room,
         state,
         connectionId,
         player,
         destinationMap.id,
-        spawn.x,
-        spawn.y,
+        spawn,
         {
           t: "event",
           code: "zone.transition",
           params: { teleport: 1 },
           tone: "good",
-          x: fromX,
-          y: fromY,
+          // The departure point, for the client's teleport flourish. A body's own centre IS its
+          // position in tile units; the pixel world had to add half a body because its coordinate
+          // was a top-left corner.
+          x: player.x,
+          y: player.z,
         },
         "event teleport",
       );
@@ -1658,8 +1630,7 @@ export class WorldRoom {
     connectionId: string,
     player: PlayerRuntime,
     destinationMapId: string,
-    x: number,
-    y: number,
+    destination: WorldPosition,
     successMessage: ServerMessage,
     closeReason: string,
   ): Promise<void> {
@@ -1679,8 +1650,12 @@ export class WorldRoom {
         connectionId: player.connectionId,
         sessionEpoch: player.sessionEpoch,
         mapId: destinationMapId,
-        x,
-        y,
+        // All three axes travel. The teleports this increment already had to fix wrote `x` and the
+        // elevation and dropped the ground `z`, landing the body at a point nothing validated —
+        // which typechecks perfectly, because every one of them is a `number`.
+        x: destination.x,
+        y: destination.y,
+        z: destination.z,
       })) as { sessionEpoch: number } | null;
     } catch (error) {
       this.logError("hero_presence_handoff_failed", error, { heroId: player.id });
@@ -1875,17 +1850,11 @@ export class WorldRoom {
       zoneId: location.zoneId,
       revision: definition.revision ?? 0,
       zoneNameKey: definition.nameKey,
-      // Static baked collision truth. Harvest footprints travel explicitly on their event state so
-      // deltas can remove/restore them without ever deriving gameplay from an appearance asset.
-      tiles: encodeTileMap(definition.terrain.tiles),
-      colliders: state.staticColliders.map(
-        ({ x, y, width, height }) => [x, y, width, height] as const,
-      ),
-      // The terrain the room's own collision was baked from, when this map stores one: the same
-      // single source, projected twice by the one authority (`zoneFromMapPayload`). `null` here
-      // means the map has none, or that its stored one failed to decode — never that the server
-      // kept a heightfield to itself.
-      heightfield: definition.heightfield ?? null,
+      // The room's ONE geometry: the exact bytes its own `ZoneTerrain` was baked from
+      // (`zoneFromMapPayload`), which is why reaching this line at all means the string decodes.
+      // The pixel projection that used to travel beside it — `tiles` and `colliders` — is gone, and
+      // with it the last way for the drawn world and the collided world to disagree.
+      heightfield: definition.heightfield ?? "",
       elements: definition.elements ?? [],
       tilesetId: definition.tilesetId ?? TINY_SWORDS_TILESET_ID,
       layers: definition.layers ?? [],
@@ -1893,11 +1862,7 @@ export class WorldRoom {
       events: [...state.activeEvents],
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
       ...(definition.heroSettings === undefined ? {} : { heroSettings: definition.heroSettings }),
-      width: definition.terrain.width,
-      height: definition.terrain.height,
-      playerSize: PLAYER_SIZE,
-      obstacles: [...definition.terrain.obstacles],
-      safeZone: definition.terrain.safeZone,
+      size: definition.terrain.size,
       questNpc: definition.quests[0]?.giver ?? { id: "none", x: 0, y: 0 },
       questNpcs: definition.quests.map((quest) => quest.giver),
       questSites: [...definition.questSites],

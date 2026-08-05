@@ -59,9 +59,7 @@ import { type AdventureGraph, parseAdventureGraph } from "@lindocara/engine/adve
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
 import { type CreateHeroInput, MAX_HEROES_PER_PARTY } from "@lindocara/engine/hero.js";
-import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { z } from "alepha";
 import { $repository, sql } from "alepha/orm";
 // Pure, D1-free catalogue reused as-is from the legacy source tree (same-package sibling, not
@@ -93,6 +91,7 @@ export interface StoredHero {
   mapId: string;
   x: number;
   y: number;
+  z: number;
   level: number;
   xp: number;
   hp: number;
@@ -112,20 +111,11 @@ function toStored(row: Hero): StoredHero {
     mapId: row.mapId,
     x: row.x,
     y: row.y,
+    z: row.z,
     level: row.level,
     xp: row.xp,
     hp: row.hp,
     life: row.life,
-  };
-}
-
-/** The `spawnCol`/`spawnRow -> {x,y}` arithmetic `@lindocara/engine/map-data.js`'s `mapSpawnPoint`
- *  encodes, applied to a bare map row instead of a full `MapData` (this service never materializes
- *  one). Kept in lock-step with that function by construction — same formula, same `TILE_SIZE`. */
-function mapDefaultSpawn(row: { spawnCol: number; spawnRow: number }): { x: number; y: number } {
-  return {
-    x: row.spawnCol * TILE_SIZE + TILE_SIZE / 2,
-    y: row.spawnRow * TILE_SIZE + TILE_SIZE / 2,
   };
 }
 
@@ -195,9 +185,9 @@ export class HeroService {
       (table) => sql`
         INSERT INTO ${table}
           (${sql.raw(table.id.name)}, ${sql.raw(table.partyId.name)}, ${sql.raw(table.userId.name)},
-           name, class, ${sql.raw(table.mapId.name)}, x, y)
+           name, class, ${sql.raw(table.mapId.name)}, x, y, z)
         SELECT ${id}, ${partyId}, ${userId}, ${input.name}, ${input.class},
-               ${start.mapId}, ${start.x}, ${start.y}
+               ${start.mapId}, 0, 0, 0
         WHERE (SELECT count(*) FROM ${table}
                WHERE ${table.partyId} = ${partyId} AND ${table.userId} = ${userId}) < ${MAX_HEROES_PER_PARTY}
         RETURNING ${table.id}
@@ -298,9 +288,7 @@ export class HeroService {
    * exactly this resolution when a hero's stored map is gone, the same way legacy `handleJoinHero`
    * called `resolveAdventureStart` directly.
    */
-  async resolveHeroStart(
-    adventureId: string,
-  ): Promise<{ mapId: string; x: number; y: number } | null> {
+  async resolveHeroStart(adventureId: string): Promise<{ mapId: string } | null> {
     const memberMaps = await this.maps.findMany({
       where: { adventureId: { eq: adventureId } },
       orderBy: "createdAt",
@@ -318,7 +306,7 @@ export class HeroService {
         const chosen = spawnRows
           .filter((row) => row.mapId === mapId)
           .sort((a, b) => a.row - b.row || a.col - b.col)[0];
-        if (chosen) return { mapId, ...eventCellCentre(chosen) };
+        if (chosen) return { mapId };
       }
     }
 
@@ -330,21 +318,13 @@ export class HeroService {
     const start = graph?.start;
     if (start && mapIds.includes(start.mapId)) {
       const startMap = memberMaps.find((row) => row.id === start.mapId);
-      if (startMap) {
-        const entry = await this.mapEvents.findOne({
-          where: { id: { eq: start.entryId }, mapId: { eq: start.mapId }, kind: { eq: "entry" } },
-        });
-        return {
-          mapId: startMap.id,
-          ...(entry ? eventCellCentre(entry) : mapDefaultSpawn(startMap)),
-        };
-      }
+      if (startMap) return { mapId: startMap.id };
     }
 
     // Tier 3: the first member map at its own authored spawn point.
     const firstMap = memberMaps[0];
     if (!firstMap) return null;
-    return { mapId: firstMap.id, ...mapDefaultSpawn(firstMap) };
+    return { mapId: firstMap.id };
   }
 
   /** Ported from `character-persistence.ts::ensureNormalizedCharacter`'s `item_definition` seeding

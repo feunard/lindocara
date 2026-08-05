@@ -12,15 +12,16 @@
  */
 
 import { type LifeState, speedForLife } from "./death.js";
-import {
-  movementSpeedAt,
-  type PlayerClass,
-  resolveTerrain,
-  resolveTerrainForLumen,
-  type TerrainGeometry,
-} from "./game.js";
+import type { PlayerClass } from "./game.js";
+import { groundOf, planarOf, type WorldPosition } from "./ground.js";
 import type { Command } from "./protocol.js";
-import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "./simulation.js";
+import { PLAYER_SPEED, step, TICK_DT } from "./simulation.js";
+import {
+  clampToGrid,
+  groundUnder,
+  resolveGroundMovement,
+  type ZoneTerrain,
+} from "./terrain-access.js";
 
 /**
  * A frame can be arbitrarily long — a backgrounded tab resumes with a multi-second delta.
@@ -36,8 +37,9 @@ export const MAX_ACCUMULATED_SECONDS = 5 * TICK_DT;
  */
 export const MAX_PENDING_COMMANDS = 40;
 
-/** A correction larger than this is a teleport, not a misprediction. Snap; do not glide. */
-export const SNAP_THRESHOLD_PX = 96;
+/** A correction larger than this is a teleport, not a misprediction. Snap; do not glide.
+ *  Tile units — the exact quotient of the former 96 px, so the threshold covers the same ground. */
+export const SNAP_THRESHOLD = 96 / 64;
 
 /** How long a small correction is smeared across, so it reads as drift rather than a pop. */
 export const CORRECTION_SMOOTHING_MS = 100;
@@ -48,26 +50,35 @@ export function prunePending(pending: readonly Command[], ack: number): Command[
 }
 
 /**
- * `geometry` is required, not defaulted, on purpose: the one time it defaulted to Verdant Reach
+ * `terrain` is required, not defaulted, on purpose: the one time it defaulted to Verdant Reach
  * (so a caller could "genuinely never leave it"), the only caller that ever relied on the
  * default was `client/game/net.ts` forgetting to pass it — silently, since a stray test with the
- * same gap kept compiling and passing. `zoneId` is on the wire precisely so a real caller can
- * always supply the current zone's own `TerrainGeometry`; making it unrepresentable to omit is
- * what actually stops that mistake from shipping again.
+ * same gap kept compiling and passing. The welcome carries the room's own heightfield precisely so
+ * a real caller can always bake the current room's `ZoneTerrain`; making it unrepresentable to
+ * omit is what actually stops that mistake from shipping again.
+ *
+ * **This is the same three lines `movement-system.ts` runs on the server, through the same
+ * functions**, which is the entire reason reconciliation converges: `step` for the intent,
+ * `resolveGroundMovement` for the collision, `groundUnder` for the ground landed on. `clampToGrid`
+ * replaces the resolution for a held Pas de Lumen, exactly as the server swaps it.
+ *
+ * `groundY` is read from where the body IS, never from under the destination — feeding the
+ * candidate's own ground back in makes `canStand`'s ceiling test self-satisfying and predicts a
+ * hero straight up a cliff the server will refuse (see `resolveGroundMovement`).
  */
 export function predictStep(
-  position: Vec2,
+  position: WorldPosition,
   command: Command,
-  geometry: TerrainGeometry,
+  terrain: ZoneTerrain,
   speed: number = PLAYER_SPEED,
   lumenPhase = false,
-): Vec2 {
-  const resolve = lumenPhase ? resolveTerrainForLumen : resolveTerrain;
-  return resolve(
-    position,
-    step(position, command.input, TICK_DT, movementSpeedAt(position, speed, geometry), geometry),
-    geometry,
-  );
+): WorldPosition {
+  const desired = groundOf(step(planarOf(position), command.input, TICK_DT, speed, null));
+  const groundY = groundUnder(terrain, position.x, position.z, position.y);
+  const moved = lumenPhase
+    ? clampToGrid(terrain, desired)
+    : resolveGroundMovement(terrain, position, desired, groundY);
+  return { x: moved.x, y: groundUnder(terrain, moved.x, moved.z, position.y), z: moved.z };
 }
 
 /**
@@ -80,18 +91,18 @@ export function predictStep(
  * two life states.
  */
 export function reconcile(
-  authoritative: Vec2,
+  authoritative: WorldPosition,
   pending: readonly Command[],
-  geometry: TerrainGeometry,
+  terrain: ZoneTerrain,
   life: LifeState = "alive",
   playerClass: PlayerClass = "warrior",
   movementSpeed?: number,
   lumenPhase = false,
-): Vec2 {
+): WorldPosition {
   const speed = speedForLife(life, playerClass, movementSpeed);
-  let position: Vec2 = authoritative;
+  let position: WorldPosition = authoritative;
   for (const command of pending) {
-    position = predictStep(position, command, geometry, speed, lumenPhase);
+    position = predictStep(position, command, terrain, speed, lumenPhase);
   }
   return position;
 }

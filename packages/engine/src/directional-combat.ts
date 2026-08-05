@@ -1,17 +1,18 @@
 /**
  * Two vocabularies live in this file, deliberately and visibly:
  *
- * - **directions**, still `Vec2`. `normalizeDirection`, `orientationFromMovement`,
- *   `movementDirectionFromInput` and `facingFromInput` are shared with the client's pixel
- *   prediction path, which has not moved yet; they are pure angle arithmetic and mean the same
- *   thing in either unit system. `normalizeGround` below is their ground-typed door.
+ * - **directions**. `normalizeDirection` alone is still `Vec2` — pure angle arithmetic that means
+ *   the same thing in either unit system, and the one place the bridge is crossed.
+ *   `normalizeGround` is its ground-typed door, and `orientationFromMovement`,
+ *   `movementDirectionFromInput` and `facingFromInput` all speak `GroundVector` now: a facing has
+ *   never had an elevation, so a caller writing one onto a runtime needs no conversion at all.
  * - **geometry**, now `GroundVector`. Every shape, point and impact is a position on the GROUND
  *   PLANE in tile units, `x`/`z`. That is what makes a converted runtime entity — whose `y` is
  *   ELEVATION — fail to compile here instead of silently being measured across the wrong plane.
  *
  * The one exception is `sweptProjectileTerrainImpact` at the bottom, which still indexes a PIXEL
  * `TileMap` and therefore still speaks `Vec2`. It is the pixel path's own function and dies with
- * it; `sweptGroundTerrainImpact` (`packages/server/src/world/terrain-access.ts`) is its heightfield
+ * it; `sweptGroundTerrainImpact` (`packages/engine/src/terrain-access.ts`) is its heightfield
  * successor and the one every converted system calls.
  */
 
@@ -142,15 +143,25 @@ export function normalizeGround(
 }
 
 /** The last non-zero authoritative movement becomes facing; standing still preserves it. */
-export function orientationFromMovement(movement: Vec2, current: Vec2 = DEFAULT_FACING): Vec2 {
-  if (!finiteVec(movement) || Math.hypot(movement.x, movement.y) <= DIRECTION_EPSILON) {
-    return normalizeDirection(current);
+export function orientationFromMovement(
+  movement: GroundVector,
+  current: GroundVector = DEFAULT_GROUND_FACING,
+): GroundVector {
+  if (!finiteVec(planarOf(movement)) || Math.hypot(movement.x, movement.z) <= DIRECTION_EPSILON) {
+    return normalizeGround(current);
   }
-  return normalizeDirection(movement, current);
+  return normalizeGround(movement, current);
 }
 
-/** Builds movement direction from digital booleans, with analogue fallback when available. */
-export function movementDirectionFromInput(input: Input): Vec2 {
+/**
+ * Builds movement direction from digital booleans, with analogue fallback when available.
+ *
+ * `Input`'s `up`/`down` and `axisY` are SCREEN axes: they name the second GROUND axis, which is
+ * `z` now and was `y` in the pixel world. Nothing about an input has an elevation, so returning a
+ * `GroundVector` is not a conversion — it is the type this always meant, finally spelled out, and
+ * it is what lets a caller assign the result straight onto a runtime's `facing` without a bridge.
+ */
+export function movementDirectionFromInput(input: Input): GroundVector {
   const axisX = Number(input.axisX);
   const axisY = Number(input.axisY);
   const useAxisX = Number.isFinite(axisX) && Math.abs(axisX) > ANALOG_DIRECTION_EPSILON;
@@ -158,12 +169,12 @@ export function movementDirectionFromInput(input: Input): Vec2 {
   if (useAxisX || useAxisY) {
     return {
       x: Number.isFinite(axisX) ? axisX : 0,
-      y: Number.isFinite(axisY) ? axisY : 0,
+      z: Number.isFinite(axisY) ? axisY : 0,
     };
   }
   return {
     x: Number(input.right) - Number(input.left),
-    y: Number(input.down) - Number(input.up),
+    z: Number(input.down) - Number(input.up),
   };
 }
 
@@ -173,7 +184,10 @@ export function movementDirectionFromInput(input: Input): Vec2 {
  * and the map-preview sandbox applies to its locally-polled input every tick — same function, so
  * a builder walking the preview turns exactly like a player would in the real room.
  */
-export function facingFromInput(input: Input, current: Vec2 = DEFAULT_FACING): Vec2 {
+export function facingFromInput(
+  input: Input,
+  current: GroundVector = DEFAULT_GROUND_FACING,
+): GroundVector {
   return orientationFromMovement(movementDirectionFromInput(input), current);
 }
 
@@ -463,7 +477,7 @@ export function sweptRectEntry(
  *
  * **The PIXEL path's function**, and the only `Vec2` geometry left in this file. Its `TileMap` is
  * pixel-indexed from a top-left origin, so it cannot answer for a grid-centred heightfield at all.
- * `sweptGroundTerrainImpact` (`packages/server/src/world/terrain-access.ts`) is its successor and
+ * `sweptGroundTerrainImpact` (`packages/engine/src/terrain-access.ts`) is its successor and
  * carries the identical sweep against relief and the tile-unit collider index.
  */
 export function sweptProjectileTerrainImpact(

@@ -2,16 +2,16 @@ import {
   movementDirectionFromInput,
   normalizeGround,
 } from "@lindocara/engine/directional-combat.js";
-import { type GroundVector, groundDistance, groundOf } from "@lindocara/engine/ground.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import type { Input } from "@lindocara/engine/simulation.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   BODY_RADIUS,
   clampToGrid,
   groundUnder,
   resolveGroundMovement,
   type ZoneTerrain,
-} from "./terrain-access.js";
+} from "@lindocara/engine/terrain-access.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { GroundIndexUpdate, PlayerRuntime } from "./world-runtime.js";
 
 export interface ChargeCandidate extends GroundVector {
@@ -21,7 +21,7 @@ export interface ChargeCandidate extends GroundVector {
 
 /** Current held movement, not historical facing. Null means a mobility cast stays in place. */
 export function heldMovementDirection(input: Input): GroundVector | null {
-  const direction = groundOf(movementDirectionFromInput(input));
+  const direction = movementDirectionFromInput(input);
   if (direction.x === 0 && direction.z === 0) return null;
   return normalizeGround(direction);
 }

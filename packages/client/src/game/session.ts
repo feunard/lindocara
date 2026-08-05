@@ -2,13 +2,13 @@ import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { isSpirit } from "@lindocara/engine/death.js";
-import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import { normalizeGround } from "@lindocara/engine/directional-combat.js";
 import {
   INTERACTION_RANGE,
   isMonsterSpecialTechnique,
   isMonsterSpecies,
-  pointDistance,
 } from "@lindocara/engine/game.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
@@ -29,9 +29,8 @@ import type {
   RogueShadowDanceSequence,
   SelfState,
 } from "@lindocara/engine/protocol.js";
-import { NO_INPUT, PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
+import { NO_INPUT } from "@lindocara/engine/simulation.js";
 import { type SkillSlot, skillFor } from "@lindocara/engine/skills.js";
-import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import {
   DEFAULT_ZONE_ID,
   isKnownZone,
@@ -172,7 +171,7 @@ function closeInterior(): void {
   useUiStore.getState().setInteriorDoorId(null);
 }
 
-function renderPlayer(player: PlayerSnapshot | undefined, corpse: Vec2 | null): void {
+function renderPlayer(player: PlayerSnapshot | undefined, corpse: GroundVector | null): void {
   useUiStore.getState().setSelf(
     player
       ? {
@@ -184,7 +183,7 @@ function renderPlayer(player: PlayerSnapshot | undefined, corpse: Vec2 | null): 
           life: player.life,
           // Rounded, so a walking ghost does not re-render the HUD every frame.
           corpseDistance:
-            player.life === "ghost" && corpse ? Math.round(pointDistance(player, corpse)) : null,
+            player.life === "ghost" && corpse ? Math.round(groundDistance(player, corpse)) : null,
           class: player.class,
           appearance: { ...player.appearance },
           equipment: { ...player.equipment },
@@ -239,6 +238,21 @@ function healingSkillId(value: unknown): "mend" | "prayer" | "divine_nova" {
   return value === "prayer" || value === "divine_nova" ? value : "mend";
 }
 
+/**
+ * Distance from a hero to a piece of COMPILED CATALOGUE content — a quest giver, a quest site, the
+ * merchant. Their coordinates are pixel `Vec2`s whose `y` is a ground axis; a hero is now a tile-
+ * unit `{x, y, z}` whose `y` is elevation, so the two cannot be compared at all.
+ *
+ * Every call site is behind `isKnownZone(zoneId)` (or a `merchant` that
+ * `merchantForRuntimeRoom()` always returns `null` for), and no live room is ever built from a
+ * catalogue zone — `WorldRoom` builds its world with `zoneFromMapPayload`, always. So this measures
+ * nothing on any reachable path, and it exists as ONE named seam saying so rather than as five
+ * inline hypotenuses that each look like a converted call site.
+ */
+function catalogueDistance(self: GroundVector, marker: { x: number; y: number }): number {
+  return Math.hypot(self.x - marker.x, self.z - marker.y);
+}
+
 function updatePrompt(
   self: PlayerSnapshot | undefined,
   quest: QuestState,
@@ -253,7 +267,7 @@ function updatePrompt(
   // allowed to conjure a phantom quest prompt over a user map.
   if (interiorOpen() || !self || isSpirit(self.life)) {
     result = null;
-  } else if (merchant && pointDistance(self, merchant) <= INTERACTION_RANGE) {
+  } else if (merchant && catalogueDistance(self, merchant) <= INTERACTION_RANGE) {
     result = { key: "prompt.merchant" };
   } else if (!isKnownZone(zoneId)) {
     result = null;
@@ -266,10 +280,10 @@ function updatePrompt(
       return;
     }
     const giver = definition.giver;
-    const nearNpc = pointDistance(self, giver) <= INTERACTION_RANGE;
+    const nearNpc = catalogueDistance(self, giver) <= INTERACTION_RANGE;
     const site = zone.questSites.find(
       (candidate) =>
-        candidate.chapter === chapter && pointDistance(self, candidate) <= INTERACTION_RANGE,
+        candidate.chapter === chapter && catalogueDistance(self, candidate) <= INTERACTION_RANGE,
     );
     if (interiorDoor && !nearNpc) {
       result = { key: "prompt.look_inside", params: { name: t(interiorDoor.nameKey) } };
@@ -293,16 +307,12 @@ function updatePrompt(
     } else if (quest.status === "active") {
       // "Go hunt outside the walls" only means something where there are walls. A world with no
       // safe zone has no hub to be standing in, so the prompt never applies.
-      const safeZone = zone.terrain.safeZone;
-      const inHub =
-        safeZone !== null &&
-        self.x >= safeZone.x &&
-        self.x <= safeZone.x + safeZone.width &&
-        self.y >= safeZone.y &&
-        self.y <= safeZone.y + safeZone.height;
-      result = nearNpc || !inHub ? null : { key: "prompt.hunt" };
+      // `ZoneTerrain` carries no safe zone any more — a stored heightfield has no way to declare
+      // one — so there is no hub to be standing in and this prompt never applies. Unreachable
+      // regardless, since the whole branch is behind `isKnownZone`.
+      result = nearNpc ? null : null;
     } else if (quest.status === "available") {
-      result = pointDistance(self, giver) > 420 ? null : { key: "prompt.approach" };
+      result = catalogueDistance(self, giver) > 420 ? null : { key: "prompt.approach" };
     }
   }
   useUiStore.getState().setPrompt(result);
@@ -389,7 +399,7 @@ async function startGameIdentity(
   };
   let welcomed = false;
   let currentSelf: PlayerSnapshot | undefined;
-  let selfCorpse: Vec2 | null = null;
+  let selfCorpse: GroundVector | null = null;
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
   let currentMerchant: MerchantDefinition | null = null;
@@ -431,7 +441,7 @@ async function startGameIdentity(
    * fallback, it is a bomb thrown somewhere the player never aimed. Sending nothing is the honest
    * option until the screen ray exists.
    */
-  let bombDirection: Vec2 | null = null;
+  let bombDirection: GroundVector | null = null;
   const bombRange = skillFor("peasant", 5).range;
   const cancelBombAim = () => {
     bombAiming = false;
@@ -441,11 +451,7 @@ async function startGameIdentity(
   };
   const drawBombAim = () => {
     if (!bombAiming || !currentSelf || !bombDirection) return;
-    renderer.showPeasantBombAim(
-      { x: currentSelf.x + PLAYER_SIZE / 2, y: currentSelf.y + PLAYER_SIZE / 2 },
-      bombDirection,
-      bombRange,
-    );
+    renderer.showPeasantBombAim({ x: currentSelf.x, z: currentSelf.z }, bombDirection, bombRange);
   };
   const aimBombAt = (clientX: number, clientY: number) => {
     if (!bombAiming || !currentSelf) return;
@@ -454,11 +460,10 @@ async function startGameIdentity(
     // at all) rather than manufacture one from the origin, which would aim every throw at the
     // map's north-west corner.
     if (target === null) return;
-    bombDirection = normalizeDirection(
-      {
-        x: target.x - (currentSelf.x + PLAYER_SIZE / 2),
-        y: target.y - (currentSelf.y + PLAYER_SIZE / 2),
-      },
+    // A body's own centre IS its position in tile units; the pixel world had to add half a body
+    // because its coordinate was a top-left corner.
+    bombDirection = normalizeGround(
+      { x: target.x - currentSelf.x, z: target.z - currentSelf.z },
       currentSelf.facing,
     );
     drawBombAim();
@@ -511,17 +516,16 @@ async function startGameIdentity(
       // `configureZone` was routing that no snapshot could reach. It went with the PixiJS path,
       // which was the only renderer that could draw a compiled zone. The remaining `isKnownZone`
       // guards in this file are about catalogue QUESTS and interiors, not terrain, and still hold.
-      renderer.configureMapTerrain(
-        world.zoneId,
-        decodeTileMap(world.tiles),
-        world.elements,
-        world.revision,
-        // `null` covers both "the room has no heightfield" and "the room sent one this client could
-        // not parse" — the renderer draws nothing either way, which is the honest outcome for a map
-        // it cannot read.
-        world.heightfield !== null ? decodeMap(world.heightfield) : null,
-        { tilesetId: world.tilesetId, layers: world.layers },
-      );
+      // `parseServerMessage` refused the welcome outright if its heightfield did not decode, so
+      // `heightfield` here is the terrain the server itself baked from — never a stand-in, and
+      // never `null`.
+      const heightfield = decodeMap(world.heightfield);
+      if (heightfield) {
+        renderer.configureMapTerrain(world.zoneId, world.elements, world.revision, heightfield, {
+          tilesetId: world.tilesetId,
+          layers: world.layers,
+        });
+      }
       activeZoneId = world.zoneId;
       currentMerchant = world.merchant;
       renderer.configureMerchant(world.merchant);
@@ -543,13 +547,10 @@ async function startGameIdentity(
         const arrival = client
           .sample(performance.now())
           .players.find((player) => player.id === selfId);
-        renderer.playTeleportEffect(
-          arrival ? arrival.x + PLAYER_SIZE / 2 : undefined,
-          arrival ? arrival.y + PLAYER_SIZE / 2 : undefined,
-        );
+        renderer.playTeleportEffect(arrival?.x, arrival?.z);
       }
       useUiStore.getState().setZoneNameKey(world.zoneNameKey as MessageKey);
-      useUiStore.getState().setWorldSize({ width: world.width, height: world.height });
+      useUiStore.getState().setWorldSize({ size: world.size });
       useUiStore.getState().setMapHeroSettings(world.heroSettings ?? null);
       setStatus("status.connected_zone", { zone: t(world.zoneNameKey as MessageKey) });
       if (!welcomed) {
@@ -940,7 +941,8 @@ async function startGameIdentity(
     const giver = isKnownZone(activeZoneId)
       ? zoneDefinition(activeZoneId).quests.find((candidate) => candidate.id === chapter)?.giver
       : undefined;
-    const nearNpc = currentSelf && giver && pointDistance(currentSelf, giver) <= INTERACTION_RANGE;
+    const nearNpc =
+      currentSelf && giver && catalogueDistance(currentSelf, giver) <= INTERACTION_RANGE;
     if (door && !nearNpc) {
       sound.interact();
       input.reset();

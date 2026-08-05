@@ -24,8 +24,8 @@ import {
 import { type PeasantHarvestPlan, resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
+import { sweptGroundTerrainImpact, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { sweptGroundTerrainImpact, type ZoneTerrain } from "./terrain-access.js";
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 /**

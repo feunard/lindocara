@@ -6,6 +6,7 @@ import {
   PLAYER_CLASSES,
   type PlayerClass,
 } from "@lindocara/engine/game.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MonsterSpecialImpact, ProjectileKind } from "@lindocara/engine/protocol.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
@@ -372,12 +373,12 @@ export function monsterSpecialImpactArt(
 }
 
 export function monsterSpecialImpactPosition(
-  impact: Pick<MonsterSpecialImpact, "x" | "y" | "direction" | "technique">,
-): { x: number; y: number } {
+  impact: Pick<MonsterSpecialImpact, "x" | "z" | "direction" | "technique">,
+): GroundVector {
   const profile = monsterSpecialImpactArt(impact.technique);
   return {
     x: impact.x + impact.direction.x * profile.forwardOffset,
-    y: impact.y + impact.direction.y * profile.forwardOffset,
+    z: impact.z + impact.direction.z * profile.forwardOffset,
   };
 }
 

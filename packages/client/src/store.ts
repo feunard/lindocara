@@ -183,7 +183,8 @@ interface UiState {
    *  transition (not per frame, so it does not run afoul of the no-world-position rule below):
    *  it lets the world map apply the true aspect ratio instead of assuming every zone is
    *  Verdant Reach's 16:9. */
-  worldSize: { width: number; height: number } | null;
+  /** The world's extent in TILE units — a square, grid-centred heightfield. */
+  worldSize: { size: number } | null;
   mapHeroSettings: MapHeroSettings | null;
   reconnect: ReconnectState | null;
   heroLoading: HeroLoadingState | null;
@@ -226,7 +227,9 @@ interface UiState {
   setQuestJournalOpen(open: boolean): void;
   setMerchantOpen(open: boolean): void;
   setZoneNameKey(key: MessageKey): void;
-  setWorldSize(size: { width: number; height: number } | null): void;
+  /** The world's extent, in TILE units: a heightfield grid is square and centred on the origin,
+   *  so one number describes it. */
+  setWorldSize(size: { size: number } | null): void;
   setMapHeroSettings(settings: MapHeroSettings | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setHeroLoading(heroLoading: HeroLoadingState | null): void;

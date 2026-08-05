@@ -1,3 +1,4 @@
+import type { WorldPosition } from "@lindocara/engine/ground.js";
 import { $repository, DbEntityNotFoundError, sql } from "alepha/orm";
 import { heroes } from "../entities/heroes.ts";
 
@@ -55,13 +56,17 @@ export class HeroEpochService {
     heroId: string;
     sessionEpoch: number;
     mapId: string;
-    x: number;
-    y: number;
+    position: WorldPosition;
   }): Promise<boolean> {
     try {
       await this.heroes.updateOne(
         { id: { eq: fenced.heroId }, sessionEpoch: { eq: fenced.sessionEpoch } },
-        { mapId: fenced.mapId, x: fenced.x, y: fenced.y },
+        {
+          mapId: fenced.mapId,
+          x: fenced.position.x,
+          y: fenced.position.y,
+          z: fenced.position.z,
+        },
       );
       return true;
     } catch (error) {
@@ -74,16 +79,18 @@ export class HeroEpochService {
     heroId: string;
     sessionEpoch: number;
     mapId: string;
-    x: number;
-    y: number;
+    position: WorldPosition;
   }): Promise<number | null> {
     try {
       const updated = await this.heroes.updateOne(
         { id: { eq: fenced.heroId }, sessionEpoch: { eq: fenced.sessionEpoch } },
         {
           mapId: fenced.mapId,
-          x: fenced.x,
-          y: fenced.y,
+          // All THREE axes, always together. A move that writes two of them lands the body at a
+          // point nothing validated, and typechecks, because every axis is a `number`.
+          x: fenced.position.x,
+          y: fenced.position.y,
+          z: fenced.position.z,
           sessionEpoch: sql`session_epoch + 1`,
         },
       );

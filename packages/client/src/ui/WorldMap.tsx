@@ -1,4 +1,3 @@
-import { WORLD_HEIGHT, WORLD_WIDTH } from "@lindocara/engine/simulation.js";
 import type { CSSProperties } from "react";
 import { useEffect, useRef } from "react";
 import { t, useLocale } from "../i18n.js";
@@ -17,18 +16,16 @@ export function WorldMap() {
   // The welcome message carries the real zone; falling back to the generic title covers only
   // the narrow race where M is pressed before the first welcome has landed.
   const zoneNameKey = useUiStore((s) => s.zoneNameKey);
-  // Same welcome message carries the zone's true terrain size. Falling back to Verdant Reach's
-  // dimensions (the default zone) covers that same narrow pre-welcome race; every zone after
-  // that reports its own shape, so a 4:3 zone stops being stretched to 16:9.
-  const worldSize = useUiStore((s) => s.worldSize);
-  const width = worldSize?.width ?? WORLD_WIDTH;
-  const height = worldSize?.height ?? WORLD_HEIGHT;
-  const aspectRatio = `${width} / ${height}`;
+  // The welcome carries the map's own grid side. A heightfield is SQUARE, so the panel is square
+  // too and the old width/height pair — and the stretched-to-16:9 bug it existed to fix — is gone
+  // with the pixel world. The value is only read for the pre-welcome frame's sake; the ratio is 1
+  // either way.
+  useUiStore((s) => s.worldSize);
+  const aspectRatio = "1 / 1";
   // The CSS width formula (.world-map-canvas) needs the ratio as a plain number to multiply
   // against a viewport-derived height budget — aspect-ratio's "W / H" syntax isn't usable in a
-  // calc(). Both describe the same ratio; keeping them derived from the same width/height here
-  // is what keeps them from ever disagreeing.
-  const mapRatio = width / height;
+  // calc().
+  const mapRatio = 1;
 
   useEffect(() => {
     const canvas = canvasRef.current;

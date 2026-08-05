@@ -16,6 +16,7 @@
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import { PRIMARY_COLORS, type PrimaryColor } from "@lindocara/engine/character.js";
 import { type MonsterSpecies, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
@@ -33,8 +34,7 @@ import type {
   RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
-import { TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { editorAsset, guardPrimaryColorForAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
@@ -84,10 +84,12 @@ function monsterTextureKey(monster: MonsterSnapshot): string {
  * it already was — where `"east"` would snap a westward hero around the instant the server ever
  * sent a zeroed facing.
  */
-function facingOf(vector: Vec2): Facing {
-  if (vector.x === 0 && vector.y === 0) return "north";
-  if (Math.abs(vector.x) >= Math.abs(vector.y)) return vector.x < 0 ? "west" : "east";
-  return vector.y < 0 ? "north" : "south";
+/** `z` is the screen-down ground axis, so a negative `z` faces north exactly as a negative pixel
+ *  `y` used to. */
+function facingOf(vector: GroundVector): Facing {
+  if (vector.x === 0 && vector.z === 0) return "north";
+  if (Math.abs(vector.x) >= Math.abs(vector.z)) return vector.x < 0 ? "west" : "east";
+  return vector.z < 0 ? "north" : "south";
 }
 
 /** A guard is a Tiny Swords unit like any other — the same warrior sheet the deleted PixiJS path
@@ -289,10 +291,9 @@ export class Hd2dRenderer implements RendererLike {
    */
   configureMapTerrain(
     zoneId: string,
-    _tiles: TileMap,
     _elements: readonly MapElement[],
     revision: number,
-    heightfield: MapData | null,
+    heightfield: MapData,
     _appearance?: { tilesetId: string; layers: readonly string[] },
   ): void {
     if (
@@ -306,7 +307,6 @@ export class Hd2dRenderer implements RendererLike {
     this.#currentMapId = zoneId;
     this.#currentMapRevision = revision;
     this.#disposeScene();
-    if (!heightfield) return;
     const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
     this.#scene = scene;
     this.#actors = createBillboardRegistry(
@@ -439,7 +439,7 @@ export class Hd2dRenderer implements RendererLike {
         id: player.id,
         kind: "player",
         x: player.x,
-        y: player.y,
+        z: player.z,
         facing: facingOf(player.facing),
         textureKey: playerTextureKey(player),
       });
@@ -450,7 +450,7 @@ export class Hd2dRenderer implements RendererLike {
         id: monster.id,
         kind: "monster",
         x: monster.x,
-        y: monster.y,
+        z: monster.z,
         facing: facingOf(monster.facing),
         textureKey: monsterTextureKey(monster),
       });
@@ -460,7 +460,7 @@ export class Hd2dRenderer implements RendererLike {
         id: guard.id,
         kind: "guard",
         x: guard.x,
-        y: guard.y,
+        z: guard.z,
         // A guard carries no facing on the wire. `"north"` is `facingToFlip`'s no-op, so it keeps
         // whichever profile the guard already had rather than snapping it east every frame.
         facing: "north",
@@ -614,7 +614,7 @@ export class Hd2dRenderer implements RendererLike {
    * (`billboards.ts` carries the pixel->tile half, the direction actors need); until then, nothing
    * is sent at all, which is the only honest option.
    */
-  screenToWorld(_clientX: number, _clientY: number): Vec2 | null {
+  screenToWorld(_clientX: number, _clientY: number): GroundVector | null {
     return null;
   }
 
@@ -622,7 +622,7 @@ export class Hd2dRenderer implements RendererLike {
   setAuthoredQuestMarkers(_markers: readonly AuthoredQuestMarker[]): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  showPeasantBombAim(_origin: Vec2, _direction: Vec2, _range: number): void {}
+  showPeasantBombAim(_origin: GroundVector, _direction: GroundVector, _range: number): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
   showPeasantCamp(_camp: PeasantCampVisual): void {}
