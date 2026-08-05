@@ -1605,7 +1605,7 @@ export class WorldRoom {
           // position in tile units; the pixel world had to add half a body because its coordinate
           // was a top-left corner.
           x: player.x,
-          y: player.z,
+          z: player.z,
         },
         "event teleport",
       );

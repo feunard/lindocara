@@ -71,33 +71,34 @@ export interface RendererLike {
   hideQuestSite(id: string, durationMs: number): void;
   onFrame(callback: (nowMs: number, deltaSeconds: number) => void): void;
   playCombatAnimation(animation: CombatAnimation): void;
+  /** Every world-space effect below is anchored on the GROUND: `x` and `z`, tile units. */
   playCombatImpact(
     playerId: string,
     skillId: string,
     x: number,
-    y: number,
+    z: number,
   ): PlayerClass | undefined;
   playHealingImpact(
     color: PrimaryColor,
     skillId?: "mend" | "prayer" | "divine_nova",
     x?: number,
-    y?: number,
+    z?: number,
   ): void;
   playInteraction(): void;
   playLumenPortal(portal: PriestLumenPortalVisual): void;
   playLumenTrail(trail: PriestLumenTrailVisual): void;
-  playMonsterImpact(species: MonsterSpecies, x?: number, y?: number): void;
+  playMonsterImpact(species: MonsterSpecies, x?: number, z?: number): void;
   playMonsterSpecialImpact(impact: MonsterSpecialImpact): MonsterImpactSound | undefined;
   playPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   playPolarityOrb(orb: PriestPolarityOrbVisual): void;
-  playRoguePoisonImpact(x: number, y: number, rupture: boolean): PlayerClass;
+  playRoguePoisonImpact(x: number, z: number, rupture: boolean): PlayerClass;
   playShadowDance(sequence: RogueShadowDanceSequence): void;
-  playTeleportEffect(x?: number, y?: number): void;
+  playTeleportEffect(x?: number, z?: number): void;
   preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void;
   removePeasantCamp(id: string): void;
   render(sample: SceneSample, context: RenderContext): void;
   /**
-   * The world-pixel point under a screen coordinate, or `null` when this renderer cannot answer.
+   * The world GROUND point under a screen coordinate, or `null` when this renderer cannot answer.
    *
    * `null` is not a rendering detail: this is the ONE member of the contract whose return value
    * leaves the client — the session turns it into the peasant's bomb direction and sends that as an
@@ -111,5 +112,5 @@ export interface RendererLike {
   setSelfId(id: string): void;
   showPeasantBombAim(origin: GroundVector, direction: GroundVector, range: number): void;
   showPeasantCamp(camp: PeasantCampVisual): void;
-  showWorldEvent(text: string, tone: "info" | "good" | "bad", x?: number, y?: number): void;
+  showWorldEvent(text: string, tone: "info" | "good" | "bad", x?: number, z?: number): void;
 }

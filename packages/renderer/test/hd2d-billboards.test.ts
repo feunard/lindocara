@@ -2,10 +2,6 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-// Both directions of the bridge, from the ONE module that owns the arithmetic — the same
-// `tileToPixel` the server calls to put these pixels on the wire. Asserting against a local copy of
-// its formula would assert nothing at all.
-import { pixelToTile, tileToPixel } from "@lindocara/engine/hd2d/tile-pixel-bridge.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { billboardHeight } from "@lindocara/hd2d/billboard.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
@@ -72,16 +68,17 @@ function meshes(root: THREE.Object3D): THREE.Mesh[] {
   return root.children.filter((child): child is THREE.Mesh => child instanceof THREE.Mesh);
 }
 
-/** The world-space centre of cell `(i, j)` expressed the way a SNAPSHOT expresses it: game pixels,
- *  top-left origin, through the very `tileToPixel` the server uses to write them. */
-function pixelCentre(map: MapData, i: number, j: number): { x: number; y: number } {
+/** The centre of cell `(i, j)` in the very units a SNAPSHOT now carries: tile units, grid centre as
+ *  origin — the scene's own coordinates, read from the scene's own query so an actor and the
+ *  terrain under it cannot be measured against two different rulers. */
+function cellCentre(map: MapData, i: number, j: number): { x: number; z: number } {
   const query = createTerrainQuery(mapToQuerySource(map));
   const [cx, cz] = query.cellCenter(i, j);
-  return { x: tileToPixel(cx, map.size), y: tileToPixel(cz, map.size) };
+  return { x: cx, z: cz };
 }
 
-function actor(id: string, x: number, y: number): ActorView {
-  return { id, kind: "player", x, y, facing: "east", textureKey: "warrior-idle" };
+function actor(id: string, x: number, z: number): ActorView {
+  return { id, kind: "player", x, z, facing: "east", textureKey: "warrior-idle" };
 }
 
 describe("the billboard registry", () => {
@@ -90,12 +87,12 @@ describe("the billboard registry", () => {
     const scene = sceneFor(map);
     const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());
 
-    registry.sync([actor("a", 64, 64), actor("b", 128, 128)]);
+    registry.sync([actor("a", -1, -1), actor("b", 0, 0)]);
     expect(meshes(scene.root)).toHaveLength(2);
     const first = meshes(scene.root);
 
     // A second frame with the same two actors, moved: the same two meshes, moved — not two more.
-    registry.sync([actor("a", 96, 64), actor("b", 128, 160)]);
+    registry.sync([actor("a", -0.5, -1), actor("b", 0, 0.5)]);
     expect(meshes(scene.root)).toHaveLength(2);
     expect(new Set(meshes(scene.root))).toEqual(new Set(first));
   });
@@ -106,12 +103,12 @@ describe("the billboard registry", () => {
     const ctx = createHd2dContext();
     const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
 
-    registry.sync([actor("a", 64, 64), actor("b", 128, 128)]);
+    const leaverX = 0;
+    const survivorX = -1;
+    registry.sync([actor("a", survivorX, -1), actor("b", leaverX, 0)]);
     // Identify the LEAVER before it leaves, by the position only it has, and watch its geometry:
     // `THREE.BufferGeometry.dispose()` dispatches a `dispose` event, so this observes the real call
     // rather than trusting that removal implies it.
-    const leaverX = pixelToTile(128, 4);
-    const survivorX = pixelToTile(64, 4);
     const leaver = meshes(scene.root).find((mesh) => Math.abs(mesh.position.x - leaverX) < 1e-6);
     if (!leaver) throw new Error("expected actor b's billboard");
     let geometryDisposed = false;
@@ -119,7 +116,7 @@ describe("the billboard registry", () => {
       geometryDisposed = true;
     });
 
-    registry.sync([actor("a", 64, 64)]);
+    registry.sync([actor("a", survivorX, -1)]);
 
     // Gone from the scene AND given back. A departed actor that keeps its geometry is a leak the
     // scene graph would never show — and one still sitting in the context's registry is worse:
@@ -151,15 +148,16 @@ describe("the billboard registry", () => {
     const ctx = createHd2dContext();
     const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
 
-    const low = pixelCentre(map, 0, 0);
-    const high = pixelCentre(map, 2, 1);
-    registry.sync([actor("low", low.x, low.y), actor("high", high.x, high.y)]);
+    const low = cellCentre(map, 0, 0);
+    const high = cellCentre(map, 2, 1);
+    registry.sync([actor("low", low.x, low.z), actor("high", high.x, high.z)]);
 
     const [lowMesh, highMesh] = meshes(scene.root);
     if (!lowMesh || !highMesh) throw new Error("expected two billboards");
 
-    // The horizontal placement is the pixel->tile conversion, and it is the whole point: the grid
-    // is centred on the origin, the snapshot's pixels are not.
+    // The horizontal placement is the snapshot's own coordinate, straight through: the grid is
+    // centred on the origin and so is the wire, so a cell centre is a cell centre with nothing
+    // converted between them.
     expect(lowMesh.position.x).toBeCloseTo(-1.5);
     expect(lowMesh.position.z).toBeCloseTo(-1.5);
     expect(highMesh.position.x).toBeCloseTo(0.5);
@@ -190,34 +188,18 @@ describe("the billboard registry", () => {
       return (material.map?.repeat.x ?? 0) < 0;
     };
 
-    registry.sync([{ ...actor("a", 64, 64), facing: "east" }]);
+    registry.sync([{ ...actor("a", -1, -1), facing: "east" }]);
     expect(flipped()).toBe(false);
 
-    registry.sync([{ ...actor("a", 64, 64), facing: "west" }]);
+    registry.sync([{ ...actor("a", -1, -1), facing: "west" }]);
     expect(flipped()).toBe(true);
 
     // The Tiny Swords units are profile-only: `north`/`south` have no frames of their own, so they
     // must LEAVE the current profile alone rather than snap the sprite back to east. This is also
     // what makes `facingOf`'s zero-vector answer safe.
-    registry.sync([{ ...actor("a", 64, 64), facing: "north" }]);
+    registry.sync([{ ...actor("a", -1, -1), facing: "north" }]);
     expect(flipped()).toBe(true);
-    registry.sync([{ ...actor("a", 64, 64), facing: "south" }]);
+    registry.sync([{ ...actor("a", -1, -1), facing: "south" }]);
     expect(flipped()).toBe(true);
-  });
-
-  it("round-trips pixelToTile against tileToPixel", () => {
-    // Not just the scale: the ORIGIN. `tileToPixel` shifts a grid-centred coordinate to a top-left
-    // one; an inverse that only divided by TILE_SIZE would typecheck, pass a scale-only assertion,
-    // and put every actor half a map from the ground under its feet.
-    for (const size of [1, 4, 33, 64]) {
-      for (const tile of [-size / 2, -1.5, 0, 0.25, size / 2]) {
-        expect(pixelToTile(tileToPixel(tile, size), size)).toBeCloseTo(tile);
-      }
-    }
-    // The half-map shift, spelled out once rather than only implied by the round trip: the grid's
-    // own origin is the CENTRE of the pixel world, never its corner.
-    expect(pixelToTile(0, 64)).toBe(-32);
-    expect(pixelToTile(64 * TILE_SIZE, 64)).toBe(32);
-    expect(pixelToTile(32 * TILE_SIZE, 64)).toBe(0);
   });
 });

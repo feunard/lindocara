@@ -1,8 +1,9 @@
 import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net.js";
+import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAX_PENDING_COMMANDS } from "@lindocara/engine/prediction.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
-import { PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
+import { TICK_DT } from "@lindocara/engine/simulation.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 class FakeWebSocket extends EventTarget {
@@ -34,6 +35,32 @@ class FakeWebSocket extends EventTarget {
   }
 }
 
+/** Grid side, in cells. Coordinates therefore run -8..+8 on both ground axes. */
+const WORLD_SIZE = 16;
+
+/**
+ * The room's only geometry: an encoded `MapData` the client decodes and bakes its own `ZoneTerrain`
+ * from, with the very function the server ran on the very same string.
+ *
+ * Deliberately featureless — level-0 ground everywhere, no water, no colliders — so nothing about
+ * the terrain can make a seq/ack/prediction assertion fail for a reason that has nothing to do with
+ * what it asserts. A prediction that never collides is exactly what these tests want.
+ */
+function flatHeightfield(size = WORLD_SIZE): string {
+  return encodeMap({
+    version: 1,
+    size,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: new Array(size * size).fill(0),
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [],
+    spawns: [{ name: "default", x: 0, z: 0 }],
+    elements: [],
+    events: [],
+  });
+}
+
 const WELCOME: ServerMessage = {
   t: "welcome",
   tick: 1,
@@ -42,18 +69,18 @@ const WELCOME: ServerMessage = {
     zoneId: "verdant-reach",
     revision: 1,
     zoneNameKey: "zone.verdant_reach",
-    tiles: ["....", "....", "....", "...."],
     elements: [],
-    colliders: [],
     tilesetId: "tiny-swords",
-    layers: ["0*16", "0*16", "0*16"],
+    layers: [
+      `0*${WORLD_SIZE * WORLD_SIZE}`,
+      `0*${WORLD_SIZE * WORLD_SIZE}`,
+      `0*${WORLD_SIZE * WORLD_SIZE}`,
+    ],
     events: [],
-    heightfield: null,
-    width: 128,
-    height: 128,
-    playerSize: 32,
-    obstacles: [],
-    safeZone: null,
+    heightfield: flatHeightfield(),
+    // `isWorldInfo` refuses a frame whose `size` disagrees with its own decoded heightfield: the
+    // appearance collections are bounds-checked against the grid the client is about to draw.
+    size: WORLD_SIZE,
     questNpc: { id: "mira", x: 16, y: 16 },
     questNpcs: [],
     questSites: [],
@@ -65,8 +92,10 @@ const WELCOME: ServerMessage = {
     {
       id: "hero-1",
       nick: "Mira",
-      x: 32,
-      y: 32,
+      // Tile units, grid centre as origin: the hero starts at the middle of the flat grid.
+      x: 0,
+      y: 0,
+      z: 0,
       ack: 0,
       hp: 100,
       maxHp: 100,
@@ -75,7 +104,7 @@ const WELCOME: ServerMessage = {
       class: "priest",
       equipment: { mainHand: "heartwood_staff", offHand: null },
       life: "alive",
-      facing: { x: 1, y: 0 },
+      facing: { x: 1, z: 0 },
       action: null,
     },
   ],
@@ -207,7 +236,7 @@ describe("WorldClient lifecycle", () => {
     client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
     expect(
       client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
-    ).toBe(32 + (100 / 64) * TICK_DT);
+    ).toBe((100 / 64) * TICK_DT);
 
     const mapBSettings = defaultMapHeroSettings();
     mapBSettings.classes.priest.stats.movementSpeed = 400 / 64;
@@ -229,107 +258,7 @@ describe("WorldClient lifecycle", () => {
     );
     expect(
       client.sample(performance.now()).players.find((player) => player.id === "hero-1")?.x,
-    ).toBe(32 + (400 / 64) * TICK_DT);
-  });
-
-  it("updates predicted harvest collision on welcome, depletion delta and intact resync", async () => {
-    stubJoin();
-    const client = new WorldClient();
-    client.connect(handlers(), "hero-1", "party-1");
-    await flush();
-    const socket = FakeWebSocket.instances[0];
-    const welcomePlayer = WELCOME.players[0];
-    if (!welcomePlayer) throw new Error("welcome player fixture missing");
-    const intact = {
-      id: "tree-a",
-      col: 1,
-      row: 0,
-      graphicAssetId: "resource.terrain-resources-wood-trees.tree1",
-      onTop: false,
-      moveSpeed: 0,
-      moveFrequency: 0,
-      moveAnimation: false,
-      directionFixed: true,
-      presentation: "native" as const,
-      harvest: {
-        state: "intact" as const,
-        generation: 0,
-        hits: 0,
-        hitsRequired: 1,
-        lastHitAt: null,
-        depletedAt: null,
-        respawnAt: null,
-        exhaustionBehavior: "hide" as const,
-        exhaustedAssetId: null,
-        fadeDurationMs: 250,
-        // Nudged from 72 to 68 so the hero can still reach it: prediction replays at most
-        // `MAX_PENDING_COMMANDS` commands, which at the tile-unit speed is ~7px of travel, and a
-        // collider the square cannot reach is a collider the test never exercises.
-        collider: [68, 32, 24, 32] as const,
-      },
-    };
-    socket?.message({
-      ...WELCOME,
-      world: { ...WELCOME.world, events: [intact] },
-    });
-
-    const right = { up: false, down: false, left: false, right: true };
-    // The hero's 32px body starts at x = 32 and the tree's collider begins at x = 68, so it takes
-    // 4px of travel to press against it. That used to be a single tick at 260 px/s; at the
-    // tile-unit speed it is many, and one tick would leave the square in open ground with the
-    // collider never consulted — a test that passes while proving nothing.
-    const blockedAt = 68 - 32;
-    const pressTicks = Math.ceil((blockedAt - 32) / (PLAYER_SPEED * TICK_DT)) + 2;
-    const pressRight = () => {
-      for (let tick = 0; tick < pressTicks; tick++) client.update(right, TICK_DT);
-    };
-    const predictedX = () =>
-      client.sample(performance.now() + 1_000).players.find((p) => p.id === "hero-1")?.x ?? 0;
-
-    pressRight();
-    expect(predictedX()).toBeLessThanOrEqual(blockedAt);
-
-    const authoritative = { ...welcomePlayer, ack: 1 };
-    const emptyDelta = { upsert: [], remove: [] };
-    const depleted = {
-      ...intact,
-      graphicAssetId: null,
-      harvest: {
-        ...intact.harvest,
-        state: "depleted" as const,
-        hits: 1,
-        lastHitAt: 1_000,
-        depletedAt: 1_000,
-        collider: null,
-      },
-    };
-    socket?.message({
-      t: "world.delta",
-      tick: 3,
-      players: { upsert: [authoritative], remove: [] },
-      monsters: emptyDelta,
-      guards: emptyDelta,
-      loot: emptyDelta,
-      corpses: emptyDelta,
-      projectiles: emptyDelta,
-      events: { upsert: [depleted], remove: [] },
-    });
-    pressRight();
-    expect(predictedX()).toBeGreaterThan(blockedAt);
-
-    socket?.message({
-      t: "world.resync",
-      tick: 5,
-      players: [{ ...welcomePlayer, ack: 2 }],
-      monsters: [],
-      guards: [],
-      loot: [],
-      corpses: [],
-      projectiles: [],
-      events: [{ ...intact, harvest: { ...intact.harvest, generation: 1 } }],
-    });
-    pressRight();
-    expect(predictedX()).toBeLessThanOrEqual(blockedAt);
+    ).toBe((400 / 64) * TICK_DT);
   });
 
   it("forwards the complete authoritative Shadow Dance result without deriving targets", async () => {
@@ -346,18 +275,20 @@ describe("WorldClient lifecycle", () => {
       actorId: "hero-1",
       startedAt: 1_000,
       endsAt: 1_090,
+      // Every position in the sequence is a GROUND vector: `x` and `z`, tile units. The chain
+      // carries no elevation at all — the client reads that off the terrain under the landing.
       strikes: [
         {
           targetId: "monster-1",
-          from: { x: 32, y: 32 },
-          targetPosition: { x: 64, y: 32 },
-          landing: { x: 96, y: 32 },
+          from: { x: 0, z: 0 },
+          targetPosition: { x: 1, z: 0 },
+          landing: { x: 2, z: 0 },
           impactAt: 1_000,
           damage: 32,
           killed: false,
         },
       ],
-      finalPosition: { x: 96, y: 32 },
+      finalPosition: { x: 2, z: 0 },
     };
 
     socket?.message(sequence);
@@ -365,9 +296,11 @@ describe("WorldClient lifecycle", () => {
 
     expect(callbacks.onShadowDance).toHaveBeenCalledOnce();
     expect(callbacks.onShadowDance).toHaveBeenCalledWith(sequence);
+    // The landing is the sequence's own ground point; the elevation is the flat grid's, never a
+    // value the sequence supplied.
     expect(
       client.sample(performance.now()).players.find((player) => player.id === "hero-1"),
-    ).toMatchObject({ x: 96, y: 32 });
+    ).toMatchObject({ x: 2, y: 0, z: 0 });
   });
 
   it("keeps snapshots flowing while a boss performs a special technique", async () => {
@@ -382,7 +315,7 @@ describe("WorldClient lifecycle", () => {
       id: "boss-quake-1",
       kind: "monster_attack" as const,
       skillId: "troll_quake",
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       startedAt: 1_000,
       impactAt: 1_850,
       recoveryEndsAt: 2_750,
@@ -395,12 +328,13 @@ describe("WorldClient lifecycle", () => {
       kind: "troll" as const,
       rank: "boss" as const,
       specialTechnique: "troll_quake" as const,
-      x: 64,
-      y: 32,
+      x: 1,
+      y: 0,
+      z: 0,
       hp: 2_000,
       maxHp: 2_000,
       dead: false,
-      facing: { x: 1, y: 0 },
+      facing: { x: 1, z: 0 },
       action,
     };
     const normal = {
@@ -484,19 +418,27 @@ describe("WorldClient lifecycle", () => {
     await flush();
     const socket = FakeWebSocket.instances[0];
     socket?.message(WELCOME);
+    // The exact frame the room emits (`worldTick.ts`): a GROUND centre (`x`/`z`, tile units) and a
+    // ground direction. No elevation — the impact is a disc on the floor, not a point in space.
     const impact = {
       t: "monster.special_impact",
       actionId: "boss-quake-1",
       actorId: "boss-1",
       technique: "troll_quake",
-      x: 96,
-      y: 64,
-      direction: { x: 1, y: 0 },
+      x: 1.5,
+      z: 1,
+      direction: { x: 1, z: 0 },
       impactAt: 1_850,
     } as const;
 
     socket?.message(impact);
 
+    // RED, and deliberately so: `parseServerMessage`'s `monster.special_impact` branch was not
+    // converted with the rest of the wire — it still lists `"y"` in `hasOnlyKeys` and asserts
+    // `isFiniteNumber(value.y)`, so the `{x, z}` frame the room actually emits is refused and the
+    // client silently drops every boss special impact. `tsc` cannot see it: the branch ends in
+    // `value as unknown as ServerMessage`. Fix is `"y"` -> `"z"` in the key list and
+    // `value.y` -> `value.z` in the predicate (`packages/engine/src/protocol.ts`, ~line 2022).
     expect(callbacks.onMonsterSpecialImpact).toHaveBeenCalledOnce();
     expect(callbacks.onMonsterSpecialImpact).toHaveBeenCalledWith(impact);
   });

@@ -1,3 +1,4 @@
+import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { parseServerMessage, type WorldEventSnapshot } from "@lindocara/engine/protocol.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -23,7 +24,26 @@ function event(overrides: Partial<Record<keyof WorldEventSnapshot, unknown>> = {
   };
 }
 
-const layer = encodeTileLayer(emptyLayer(2, 2));
+/**
+ * The grid the whole welcome is sized against. `WorldInfo` carries the encoded heightfield and its
+ * `size`, and every event's `col`/`row` must fall inside it — an event outside the grid the client
+ * is about to draw comes from a sender that disagrees with its own terrain, and the frame is
+ * dropped rather than half-rendered.
+ */
+const SIZE = 2;
+const heightfield: MapData = {
+  version: 1,
+  size: SIZE,
+  levelHeight: 0.5,
+  waterLevel: -0.25,
+  levels: new Array(SIZE * SIZE).fill(0),
+  materials: new Array(SIZE * SIZE).fill("herbe"),
+  colliders: [],
+  spawns: [],
+  elements: [],
+  events: [],
+};
+const layer = encodeTileLayer(emptyLayer(SIZE, SIZE));
 
 function welcome(events: unknown) {
   return {
@@ -34,18 +54,12 @@ function welcome(events: unknown) {
       zoneId: "verdant-reach",
       revision: 0,
       zoneNameKey: "zone.verdant_reach.name",
-      tiles: ["..", "##"],
       elements: [],
-      colliders: [],
       tilesetId: TINY_SWORDS_TILESET_ID,
       layers: [layer, layer, layer],
       events,
-      heightfield: null,
-      width: 64,
-      height: 64,
-      playerSize: 32,
-      obstacles: [],
-      safeZone: null,
+      heightfield: encodeMap(heightfield),
+      size: SIZE,
       questNpc: { id: "none", x: 0, y: 0 },
       questNpcs: [],
       questSites: [],
@@ -57,8 +71,10 @@ function welcome(events: unknown) {
       {
         id: "p1",
         nick: "Mira",
-        x: 16,
-        y: 16,
+        // Tile units, grid centre as origin: `x`/`z` are the ground axes and `y` is elevation.
+        x: 0,
+        y: 0,
+        z: 0,
         ack: 0,
         hp: 100,
         maxHp: 100,
@@ -67,7 +83,7 @@ function welcome(events: unknown) {
         class: "priest",
         equipment: { mainHand: "heartwood_staff", offHand: null },
         life: "alive",
-        facing: { x: 1, y: 0 },
+        facing: { x: 1, z: 0 },
         action: null,
       },
     ],

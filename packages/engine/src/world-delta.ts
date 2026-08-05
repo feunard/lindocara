@@ -10,7 +10,12 @@ import type {
   WorldView,
 } from "./protocol.js";
 
-export const WORLD_POSITION_DELTA_THRESHOLD = 0.5;
+/**
+ * The smallest movement worth spending a delta on, in TILE units — the exact quotient of the former
+ * half-pixel by `TILE_SIZE`, so it suppresses exactly the same jitter it always did. Written as a
+ * literal division rather than an import so this file keeps its place near the bottom of the graph.
+ */
+export const WORLD_POSITION_DELTA_THRESHOLD = 0.5 / 64;
 
 export interface WorldCache {
   players: Map<string, PlayerSnapshot>;
@@ -108,7 +113,16 @@ export function countDeltaEntities(delta: WorldDeltaPayload): number {
   ].reduce((total, part) => total + part.upsert.length + part.remove.length, 0);
 }
 
-export function interpolateSnapshots<T extends { id: string; x: number; y: number }>(
+/**
+ * All THREE axes are interpolated, and the third is the one that gets forgotten.
+ *
+ * `x` and `z` are the ground; interpolating only `x` and `y` would leave every remote actor
+ * sliding smoothly along one ground axis and STEPPING along the other at the 10 Hz snapshot rate —
+ * a jerk on exactly half the compass, with nothing failing and no error anywhere. `y` is elevation
+ * and is interpolated too, so a body walking down a tier descends over the frame rather than
+ * dropping in one snapshot.
+ */
+export function interpolateSnapshots<T extends { id: string; x: number; y: number; z: number }>(
   older: readonly T[],
   newer: readonly T[],
   alpha: number,
@@ -121,6 +135,7 @@ export function interpolateSnapshots<T extends { id: string; x: number; y: numbe
       ...entity,
       x: before.x + (entity.x - before.x) * alpha,
       y: before.y + (entity.y - before.y) * alpha,
+      z: before.z + (entity.z - before.z) * alpha,
     };
   });
 }
@@ -193,7 +208,7 @@ function replaceMap<T extends { id: string }>(
   for (const entity of entities) target.set(entity.id, entity);
 }
 
-function diffMap<T extends { id: string; x: number; y: number }>(
+function diffMap<T extends { id: string; x: number; y: number; z: number }>(
   known: Map<string, T>,
   current: readonly T[],
 ): EntityDelta<T> {
@@ -212,14 +227,30 @@ function diffMap<T extends { id: string; x: number; y: number }>(
   return { upsert, remove };
 }
 
-function visiblyChanged<T extends { x: number; y: number }>(previous: T, current: T): boolean {
+/**
+ * All three axes are thresholded, and all three are zeroed before the structural comparison.
+ *
+ * The zeroing is what makes the threshold mean anything: any axis left out of it falls through to
+ * the `JSON.stringify` compare, where a movement of a thousandth of a tile is a different string
+ * and every sub-threshold twitch ships a full snapshot. Leaving `z` out would therefore not lose a
+ * position — it would silently defeat the bandwidth guard for the ground axis actors move along
+ * most.
+ */
+function visiblyChanged<T extends { x: number; y: number; z: number }>(
+  previous: T,
+  current: T,
+): boolean {
   if (
     Math.abs(previous.x - current.x) >= WORLD_POSITION_DELTA_THRESHOLD ||
-    Math.abs(previous.y - current.y) >= WORLD_POSITION_DELTA_THRESHOLD
+    Math.abs(previous.y - current.y) >= WORLD_POSITION_DELTA_THRESHOLD ||
+    Math.abs(previous.z - current.z) >= WORLD_POSITION_DELTA_THRESHOLD
   ) {
     return true;
   }
-  return JSON.stringify({ ...previous, x: 0, y: 0 }) !== JSON.stringify({ ...current, x: 0, y: 0 });
+  return (
+    JSON.stringify({ ...previous, x: 0, y: 0, z: 0 }) !==
+    JSON.stringify({ ...current, x: 0, y: 0, z: 0 })
+  );
 }
 
 function applyEntityDelta<T extends { id: string }>(

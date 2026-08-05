@@ -46,7 +46,6 @@ import {
   nearestShore,
   OBSTACLES,
   PLAYER_CLASSES,
-  pointDistance,
   QUEST_DEFINITIONS,
   QUEST_NPC,
   QUEST_SITES,
@@ -60,10 +59,9 @@ import {
   type TerrainGeometry,
   WORLD_BOUNDARY_DEPTH,
   WORLD_LANDMARKS,
-  withinRange,
   xpForNextLevel,
 } from "@lindocara/engine/game.js";
-import { groundDistance } from "@lindocara/engine/ground.js";
+import { groundDistance, withinGroundRange } from "@lindocara/engine/ground.js";
 import {
   PLAYER_SIZE,
   PLAYER_SPEED,
@@ -178,7 +176,15 @@ function hasReachableSample(
         x: centerX + xOffset * REACHABILITY_STEP,
         y: centerY + yOffset * REACHABILITY_STEP,
       };
-      if (pointDistance(sample, target) <= 128 && visited.has(sampleKey(sample))) return true;
+      // Pixel-world content: `sample` and `target` are both points on the Verdant Reach
+      // catalogue's legacy pixel plane, so the hypotenuse is spelled out rather than routed
+      // through `groundDistance`, which measures the tile-unit ground axes `x`/`z`.
+      if (
+        Math.hypot(sample.x - target.x, sample.y - target.y) <= 128 &&
+        visited.has(sampleKey(sample))
+      ) {
+        return true;
+      }
     }
   }
   return false;
@@ -346,7 +352,9 @@ describe("authoritative world geometry", () => {
       for (let otherIndex = index + 1; otherIndex < SPAWN_POINTS.length; otherIndex++) {
         const other = SPAWN_POINTS[otherIndex];
         if (!other) throw new Error("spawn grid unexpectedly sparse");
-        expect(pointDistance(position, other)).toBeGreaterThanOrEqual(96);
+        // Pixel-world content: `SPAWN_POINTS` is the Verdant Reach catalogue's pixel plaza grid,
+        // and 96 is a pixel separation.
+        expect(Math.hypot(position.x - other.x, position.y - other.y)).toBeGreaterThanOrEqual(96);
       }
     }
 
@@ -367,9 +375,15 @@ describe("authoritative world geometry", () => {
     expect(QUEST_NPC.y).toBeGreaterThanOrEqual(SAFE_ZONE.y);
     expect(QUEST_NPC.x + PLAYER_SIZE).toBeLessThanOrEqual(SAFE_ZONE.x + SAFE_ZONE.width);
     expect(QUEST_NPC.y + PLAYER_SIZE).toBeLessThanOrEqual(SAFE_ZONE.y + SAFE_ZONE.height);
+    // Pixel-world content on both sides of the comparison: `SPAWN_POINTS` and `QUEST_NPC` are
+    // catalogue points on the legacy pixel plane, so `INTERACTION_RANGE` — tile units now — is
+    // multiplied back up to the 92 px it still means. Comparing a pixel gap against 1.4 tiles
+    // would keep the test green while asserting nothing.
     expect(
-      Math.min(...SPAWN_POINTS.map((spawn) => pointDistance(spawn, QUEST_NPC))),
-    ).toBeGreaterThan(INTERACTION_RANGE);
+      Math.min(
+        ...SPAWN_POINTS.map((spawn) => Math.hypot(spawn.x - QUEST_NPC.x, spawn.y - QUEST_NPC.y)),
+      ),
+    ).toBeGreaterThan(INTERACTION_RANGE * TILE_SIZE);
   });
 
   it("places every quest giver and guard on walkable city ground", () => {
@@ -403,8 +417,10 @@ describe("authoritative world geometry", () => {
           spawn.patrolRadius,
         );
       } else {
+        // `distanceToRect` and `patrolRadius` are both pixel-world catalogue magnitudes, so the
+        // now tile-unit `MONSTER_AGGRO_RANGE` is scaled back to the 210 px it still describes.
         expect(distanceToRect(legacyPlane(spawn), SAFE_ZONE)).toBeGreaterThan(
-          MONSTER_AGGRO_RANGE + spawn.patrolRadius,
+          MONSTER_AGGRO_RANGE * TILE_SIZE + spawn.patrolRadius,
         );
       }
       for (let sample = 0; sample < 16; sample++) {
@@ -548,9 +564,14 @@ describe("authoritative combat and progression rules", () => {
     expect(applyDamage(50, -100)).toEqual({ hp: 50, killed: false });
   });
 
+  /**
+   * `withinRange` is gone; `withinGroundRange` is what every range check now calls. The claim is
+   * unchanged — a 3-4-5 triangle is inside a range of exactly its hypotenuse and outside one a
+   * hair shorter — only the second axis it reads moved from `y` to the ground axis `z`.
+   */
   it("validates combat and interaction range geometrically", () => {
-    expect(withinRange({ x: 0, y: 0 }, { x: 30, y: 40 }, 50)).toBe(true);
-    expect(withinRange({ x: 0, y: 0 }, { x: 30, y: 40 }, 49)).toBe(false);
+    expect(withinGroundRange({ x: 0, z: 0 }, { x: 30, z: 40 }, 50)).toBe(true);
+    expect(withinGroundRange({ x: 0, z: 0 }, { x: 30, z: 40 }, 49)).toBe(false);
   });
 
   it("checks line of sight from entity centers against blocking tiles", () => {

@@ -8,6 +8,7 @@
  * reconnect, the same way `session.ts`'s 4008 immediate-reconnect path does).
  */
 import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net.js";
+import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -46,6 +47,26 @@ class FakeWebSocket extends EventTarget {
   }
 }
 
+/** Grid side, in cells. Coordinates therefore run -8..+8 on both ground axes. */
+const WORLD_SIZE = 16;
+
+/** A flat, entirely walkable heightfield — the room's only geometry now, and the string
+ *  `isWorldInfo` decodes to bounds-check every appearance collection in the same frame. */
+function flatHeightfield(size = WORLD_SIZE): string {
+  return encodeMap({
+    version: 1,
+    size,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: new Array(size * size).fill(0),
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [],
+    spawns: [{ name: "default", x: 0, z: 0 }],
+    elements: [],
+    events: [],
+  });
+}
+
 const WELCOME: ServerMessage = {
   t: "welcome",
   tick: 1,
@@ -54,18 +75,16 @@ const WELCOME: ServerMessage = {
     zoneId: "verdant-reach",
     revision: 1,
     zoneNameKey: "zone.verdant_reach",
-    tiles: ["....", "....", "....", "...."],
     elements: [],
-    colliders: [],
     tilesetId: "tiny-swords",
-    layers: ["0*16", "0*16", "0*16"],
+    layers: [
+      `0*${WORLD_SIZE * WORLD_SIZE}`,
+      `0*${WORLD_SIZE * WORLD_SIZE}`,
+      `0*${WORLD_SIZE * WORLD_SIZE}`,
+    ],
     events: [],
-    heightfield: null,
-    width: 128,
-    height: 128,
-    playerSize: 32,
-    obstacles: [],
-    safeZone: null,
+    heightfield: flatHeightfield(),
+    size: WORLD_SIZE,
     questNpc: { id: "mira", x: 16, y: 16 },
     questNpcs: [],
     questSites: [],
@@ -77,8 +96,10 @@ const WELCOME: ServerMessage = {
     {
       id: "hero-1",
       nick: "Mira",
-      x: 32,
-      y: 32,
+      // Tile units, grid centre as origin.
+      x: 0,
+      y: 0,
+      z: 0,
       ack: 0,
       hp: 100,
       maxHp: 100,
@@ -87,7 +108,7 @@ const WELCOME: ServerMessage = {
       class: "priest",
       equipment: { mainHand: "heartwood_staff", offHand: null },
       life: "alive",
-      facing: { x: 1, y: 0 },
+      facing: { x: 1, z: 0 },
       action: null,
     },
   ],
@@ -208,10 +229,11 @@ describe("WorldClient on the alepha wire", () => {
       message: { t: "attack" },
     });
 
-    connection.skill(5, { x: 0.6, y: 0.8 });
+    // A skill direction is a GROUND vector: `x` and `z`, the two ground axes.
+    connection.skill(5, { x: 0.6, z: 0.8 });
     expect(JSON.parse(socket?.sent[1] ?? "")).toEqual({
       roomId: "party-1:verdant-reach",
-      message: { t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } },
+      message: { t: "skill", slot: 5, direction: { x: 0.6, z: 0.8 } },
     });
   });
 
@@ -235,13 +257,14 @@ describe("WorldClient on the alepha wire", () => {
     new WorldClient().connect(callbacks, "hero-1", "party-1");
     await flush();
     const socket = FakeWebSocket.instances[0];
+    // The exact frame the room emits (`worldTick.ts`): a GROUND centre, `x` and `z`, in tile units.
     const camp = {
       t: "peasant.camp" as const,
       id: "camp-1",
       actorId: "hero-1",
-      x: 64,
-      y: 96,
-      radius: 96,
+      x: 1,
+      z: 1.5,
+      radius: 1.5,
       startedAt: 1_000,
       expiresAt: 13_000,
     };
@@ -250,17 +273,24 @@ describe("WorldClient on the alepha wire", () => {
     const bank = { t: "peasant.camp_bank" as const, id: camp.id, gold: 75, opened: true };
     socket?.message(bank);
     socket?.message({ t: "peasant.camp_removed", id: camp.id });
+    // The blast's GROUND point, `x` and `z`. It used to be `x` beside the projectile's ELEVATION,
+    // which typechecked and drew the explosion on the horizon.
     const impact = {
       t: "peasant.bomb_impact" as const,
       actionId: "bomb-1",
       actorId: "hero-1",
-      x: 80,
-      y: 96,
-      radius: 110,
+      x: 1.25,
+      z: -0.5,
+      radius: 1.7,
       impactAt: 2_000,
     };
     socket?.message(impact);
 
+    // Both frames go through `parseServerMessage`, which is the point: `isPeasantCampVisual`'s
+    // `hasOnlyKeys` list and `isPeasantBombImpactVisual`'s are string-keyed and both branches end in
+    // a cast, so a stale `"y"` in either compiles perfectly and DROPS every frame of that kind at
+    // runtime — no camp, no blast, no error. Only a test that drives a real `{x, z}` frame through
+    // the parser catches it.
     expect(callbacks.onPeasantCamp).toHaveBeenCalledTimes(2);
     expect(callbacks.onPeasantCamp).toHaveBeenLastCalledWith(camp);
     expect(callbacks.onPeasantCampBank).toHaveBeenCalledWith(bank);

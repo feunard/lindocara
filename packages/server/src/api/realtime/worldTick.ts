@@ -1015,7 +1015,7 @@ export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRun
       params: { name: player.nick },
       tone: "bad",
       x: player.x,
-      y: player.y,
+      z: player.z,
     },
     player,
   );
@@ -1024,7 +1024,7 @@ export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRun
     code: "death.fallen",
     tone: "bad",
     x: player.x,
-    y: player.y,
+    z: player.z,
   });
 }
 
@@ -1083,7 +1083,7 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
     code: "death.released",
     tone: "info",
     x: player.x,
-    y: player.y,
+    z: player.z,
   });
   sendStateTo(w, connectionId, player);
 }
@@ -1101,7 +1101,7 @@ export function reclaimCorpse(w: WorldGlue, connectionId: string, player: Player
     code: "death.reclaimed",
     tone: "good",
     x: player.x,
-    y: player.y,
+    z: player.z,
   });
   sendStateTo(w, connectionId, player);
 }
@@ -1535,7 +1535,7 @@ function damageMonster(
         },
         tone: "info",
         x: target.x,
-        y: target.y,
+        z: target.z,
       },
       target,
     );
@@ -1576,7 +1576,7 @@ function healPlayer(
       },
       tone: "good",
       x: target.x,
-      y: target.y,
+      z: target.z,
     });
   }
   w.deps.send(targetConnectionId, {
@@ -1590,7 +1590,7 @@ function healPlayer(
     },
     tone: "good",
     x: target.x,
-    y: target.y,
+    z: target.z,
   });
   sendStateTo(w, targetConnectionId, target);
   if (!mirrored) mirrorLifeLinks(w, target, actualAmount, now);
@@ -1696,7 +1696,7 @@ function damagePlayer(
       code: "talent.perfect_parry",
       tone: "good",
       x: player.x,
-      y: player.y,
+      z: player.z,
     });
     const attacker = w.state.monsters.find(
       (monster) => monster.id === monsterId && monster.deadUntil <= now,
@@ -1755,7 +1755,7 @@ function damagePlayer(
         },
         tone: "bad",
         x: player.x,
-        y: player.y,
+        z: player.z,
       });
       sendStateTo(w, connectionId, player);
       return;
@@ -1771,7 +1771,7 @@ function damagePlayer(
     params: { species, damage: appliedDamage, monsterId, ...(technique ? { technique } : {}) },
     tone: "bad",
     x: player.x,
-    y: player.y,
+    z: player.z,
   });
   if (result.killed) killPlayer(w, connectionId, player);
   sendStateTo(w, connectionId, player);
@@ -2191,7 +2191,7 @@ function projectileBlocked(w: WorldGlue, projectile: ProjectileRuntime, point: G
     params: { skill: projectile.sourceSkillId },
     tone: "info",
     x: point.x,
-    y: point.z,
+    z: point.z,
   });
 }
 
@@ -2522,7 +2522,7 @@ export function preparePeasantSupportRequest(
       params: { skill: skill.id },
       tone: "info",
       x: player.x,
-      y: player.y,
+      z: player.z,
     });
   }
   return null;
@@ -2544,7 +2544,7 @@ export function activatePeasantSupportRequest(
     params: { skill: request.skill.id, slot: request.slot },
     tone: "good",
     x: player.x,
-    y: player.y,
+    z: player.z,
   });
   sendSpatialEvent(
     w,
@@ -2631,7 +2631,7 @@ export function startPlayerAction(
           params: { skill: skill.id },
           tone: "info",
           x: player.x,
-          y: player.y,
+          z: player.z,
         });
       }
       return false;
@@ -2657,7 +2657,7 @@ export function startPlayerAction(
       params: { skill: skill.id, slot },
       tone: "good",
       x: player.x,
-      y: player.y,
+      z: player.z,
     });
     sendSpatialEvent(
       w,
@@ -2726,7 +2726,7 @@ export function startPlayerAction(
         params: { skill: skill.id },
         tone: "info",
         x: destination.x,
-        y: destination.z,
+        z: destination.z,
       });
       return false;
     }
@@ -2910,7 +2910,7 @@ export function startPlayerAction(
       params: { skill: skill.id },
       tone: "info",
       x: player.x,
-      y: player.y,
+      z: player.z,
     });
     return false;
   }
@@ -2938,7 +2938,7 @@ export function startPlayerAction(
       params: { skill: skill.id },
       tone: "info",
       x: player.x,
-      y: player.y,
+      z: player.z,
     });
     return false;
   }
@@ -3077,7 +3077,7 @@ export function startPlayerAction(
     params: { skill: skill.id, slot },
     tone: "good",
     x: player.x,
-    y: player.y,
+    z: player.z,
   });
   sendSpatialEvent(
     w,
@@ -3167,7 +3167,7 @@ function resolveShadowDance(
       params: { skill: skill.id },
       tone: "info",
       x: player.x,
-      y: player.y,
+      z: player.z,
     });
     return;
   }
@@ -3372,7 +3372,7 @@ function resolveShieldBash(
         params: { skill: skill.id },
         tone: "info",
         x: terrainImpact.point.x,
-        y: terrainImpact.point.z,
+        z: terrainImpact.point.z,
       });
     }
     return;
@@ -3406,7 +3406,7 @@ function resolveShieldBash(
       params: { skill: skill.id },
       tone: "info",
       x: first.point.x,
-      y: first.point.z,
+      z: first.point.z,
     });
   }
   const seismic = talentEffect(player.class, player.talents, "seismic_impact", skill.slot);
@@ -3650,7 +3650,7 @@ export function resolvePlayerAction(
         params: { skill: skill.id },
         tone: "info",
         x: player.x,
-        y: player.y,
+        z: player.z,
       });
       return;
     }
@@ -4670,7 +4670,7 @@ function revivePlayerByPriest(
     params: { name: target.nick },
     tone: "good",
     x: target.x,
-    y: target.y,
+    z: target.z,
   });
   w.deps.send(targetConnectionId, {
     t: "event",
@@ -4678,7 +4678,7 @@ function revivePlayerByPriest(
     params: { name: caster.nick },
     tone: "good",
     x: target.x,
-    y: target.y,
+    z: target.z,
   });
   sendStateTo(w, targetConnectionId, target);
 }
@@ -4778,8 +4778,10 @@ function interactQuestSite(
         code: "quest.site_harvested",
         params: { site: site.id, seconds: QUEST_SITE_RESPAWN_MS / 1_000 },
         tone: "good",
-        x: site.x,
-        y: site.y,
+        // A `QuestSite` is compiled CATALOGUE content and still a pixel `Vec2` whose `y` is a
+        // ground axis, so `groundOf` is the conversion — the same one the spatial anchor below
+        // already uses. Unreachable on any live room: `zoneFromMapPayload` bakes `questSites: []`.
+        ...groundOf(site),
       },
       groundOf(site),
     );
@@ -5349,7 +5351,7 @@ export function handleCheatCommand(
     teleportSameMap(w, player, result.teleport.col, result.teleport.row, "cheat");
   }
   if (result.stateChanged) sendStateTo(w, connectionId, player);
-  w.deps.send(connectionId, { t: "event", ...result.event, x: player.x, y: player.y });
+  w.deps.send(connectionId, { t: "event", ...result.event, x: player.x, z: player.z });
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -5603,17 +5605,20 @@ function dispatchTeleport(
       w.deps.send(connectionId, {
         t: "event",
         code: "zone.transition",
+        // The two GROUND points, departure and arrival. `EventParams` is an untyped bag of
+        // numbers, so these names are the only thing saying which axis each one is — `fromY`/`toY`
+        // would read as the elevation the client must not draw the flourish at.
         params: {
           teleport: 1,
           sameMap: 1,
           fromX,
-          fromY: fromZ,
+          fromZ,
           toX: player.x,
-          toY: player.z,
+          toZ: player.z,
         },
         tone: "good",
         x: fromX,
-        y: fromZ,
+        z: fromZ,
       });
     }
     return;
@@ -6187,7 +6192,7 @@ function advanceConsumableEffects(w: WorldGlue, now: number): void {
       code: "item.resurrected",
       tone: "good",
       x: player.x,
-      y: player.y,
+      z: player.z,
     });
     sendStateTo(w, connectionId, player);
   }
@@ -6542,8 +6547,10 @@ export function advanceWorldTick(w: WorldGlue): void {
             t: "peasant.bomb_impact",
             actionId: explosion.actionId,
             actorId: explosion.ownerId,
+            // The GROUND point. `explosion.y` beside it would be the ELEVATION, and shipping it as
+            // the second wire axis is exactly the half-conversion this increment keeps finding.
             x: explosion.x,
-            y: explosion.y,
+            z: explosion.z,
             radius: explosion.radius,
             impactAt,
           },

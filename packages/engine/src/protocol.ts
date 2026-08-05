@@ -446,8 +446,9 @@ export interface PeasantBombImpactVisual {
   t: "peasant.bomb_impact";
   actionId: string;
   actorId: string;
+  /** The GROUND point the bomb went off over: `x` and `z`, never an elevation. */
   x: number;
-  y: number;
+  z: number;
   radius: number;
   impactAt: number;
 }
@@ -798,7 +799,13 @@ export type ServerMessage =
   | PeasantCampRemovedVisual
   | PeasantCampBankVisual
   | PeasantBombImpactVisual
-  | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
+  /**
+   * A machine event code, optionally anchored at a GROUND point so the client can float it in the
+   * world rather than only logging it. `x`/`z`, like every other position on this wire — the second
+   * axis was `y` in the pixel world, and renaming it is what turned two dozen emit sites that had
+   * quietly started shipping the actor's ELEVATION into compiler errors.
+   */
+  | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; z?: number }
   // The three dialogue beats pushed to the run's TRIGGERER only (spec Decision 4: dialogue is a
   // per-player panel). `text`/`name`/`prompt`/`options` are AUTHORED PROSE — see `isAuthoredText`:
   // the one sanctioned exception to codes-not-sentences, because the author wrote it and no dictionary
@@ -982,7 +989,7 @@ function isPriestPolarityOrbVisual(value: unknown): value is PriestPolarityOrbVi
     isWireId(value.id) &&
     isWireId(value.actorId) &&
     isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.z) &&
     isFiniteNumber(value.maximumRadius) &&
     value.maximumRadius >= 0 &&
     isFiniteNumber(value.startedAt) &&
@@ -997,12 +1004,15 @@ function isPriestPolarityOrbVisual(value: unknown): value is PriestPolarityOrbVi
 function isPeasantCampVisual(value: unknown): value is PeasantCampVisual {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["t", "id", "actorId", "x", "y", "radius", "startedAt", "expiresAt"]) &&
+    // `x`/`z`, and the key list is the half that a type change cannot reach: `hasOnlyKeys` is
+    // string-keyed and the branch ends in a cast, so a stale `"y"` here compiles clean and DROPS
+    // every frame of this kind at runtime — silently, with no camp ever appearing.
+    hasOnlyKeys(value, ["t", "id", "actorId", "x", "z", "radius", "startedAt", "expiresAt"]) &&
     value.t === "peasant.camp" &&
     isWireId(value.id) &&
     isWireId(value.actorId) &&
     isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.z) &&
     isFiniteNumber(value.radius) &&
     value.radius > 0 &&
     value.radius <= 512 &&
@@ -1039,12 +1049,12 @@ function isPeasantCampBankVisual(value: unknown): value is PeasantCampBankVisual
 function isPeasantBombImpactVisual(value: unknown): value is PeasantBombImpactVisual {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["t", "actionId", "actorId", "x", "y", "radius", "impactAt"]) &&
+    hasOnlyKeys(value, ["t", "actionId", "actorId", "x", "z", "radius", "impactAt"]) &&
     value.t === "peasant.bomb_impact" &&
     isWireId(value.actionId) &&
     isWireId(value.actorId) &&
     isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.z) &&
     isFiniteNumber(value.radius) &&
     value.radius > 0 &&
     value.radius <= 512 &&
@@ -2025,7 +2035,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
         "actorId",
         "technique",
         "x",
-        "y",
+        "z",
         "direction",
         "impactAt",
       ]) &&
@@ -2034,7 +2044,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       isMonsterSpecialTechnique(value.technique) &&
       value.technique !== "none" &&
       isFiniteNumber(value.x) &&
-      isFiniteNumber(value.y) &&
+      isFiniteNumber(value.z) &&
       isDirection(value.direction) &&
       isFiniteNumber(value.impactAt)
     ) {
@@ -2069,7 +2079,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
           ))) &&
       (value.tone === "info" || value.tone === "good" || value.tone === "bad") &&
       (value.x === undefined || isFiniteNumber(value.x)) &&
-      (value.y === undefined || isFiniteNumber(value.y))
+      (value.z === undefined || isFiniteNumber(value.z))
     ) {
       return value as unknown as ServerMessage;
     }

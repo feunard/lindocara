@@ -1,3 +1,4 @@
+import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
 import {
   encodeServerMessage,
   parseClientMessage,
@@ -119,11 +120,16 @@ describe("client protocol", () => {
       t: "skill",
       slot: 3,
     });
+    // A heading is on the GROUND PLANE (`x`/`z`); a `{x, y}` direction is an older or
+    // half-converted sender and is refused outright rather than read as a world on its side.
+    expect(
+      parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 0.6, z: 0.8 } })),
+    ).toEqual({ t: "skill", slot: 5, direction: { x: 0.6, z: 0.8 } });
     expect(
       parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } })),
-    ).toEqual({ t: "skill", slot: 5, direction: { x: 0.6, y: 0.8 } });
+    ).toBeNull();
     expect(
-      parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 2, y: 0 } })),
+      parseClientMessage(JSON.stringify({ t: "skill", slot: 5, direction: { x: 2, z: 0 } })),
     ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId }))).toBeNull();
     expect(
@@ -194,11 +200,17 @@ describe("server protocol", () => {
     expect(parseServerMessage("broken")).toBeNull();
   });
 
+  /**
+   * Every position below is in TILE units with the grid centre as the origin: `x` and `z` are the
+   * two GROUND axes and `y` is ELEVATION. An actor snapshot carries all three, so a payload with
+   * only `x`/`y` is refused rather than read as a world lying on its side.
+   */
   const player = {
     id: "p1",
     nick: "Mira",
-    x: 16,
-    y: 16,
+    x: 0.5,
+    y: 0,
+    z: 0.5,
     ack: 0,
     hp: 100,
     maxHp: 100,
@@ -207,7 +219,7 @@ describe("server protocol", () => {
     class: "priest",
     equipment: { mainHand: "heartwood_staff", offHand: null },
     life: "alive",
-    facing: { x: 1, y: 0 },
+    facing: { x: 1, z: 0 },
     action: null,
   };
   const self = {
@@ -230,25 +242,34 @@ describe("server protocol", () => {
     projectiles: [],
     self,
   };
-  /** A world the client can actually collide against: terrain now travels, so a welcome without it
-   *  is not a welcome. */
-  const layer = encodeTileLayer(emptyLayer(2, 2));
+  /** A world the client can actually collide against: the encoded heightfield IS the terrain now,
+   *  and it is the only thing there is — `tiles`, `colliders`, `obstacles`, `safeZone` and the
+   *  pixel `width`/`height`/`playerSize` are gone, replaced by `size`, the grid's side in cells.
+   *  A welcome without a decodable heightfield is not a welcome. */
+  const WORLD_SIZE = 2;
+  const layer = encodeTileLayer(emptyLayer(WORLD_SIZE, WORLD_SIZE));
+  const heightfield: MapData = {
+    version: 1,
+    size: WORLD_SIZE,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels: new Array(WORLD_SIZE * WORLD_SIZE).fill(0),
+    materials: new Array(WORLD_SIZE * WORLD_SIZE).fill("herbe"),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
   const world = {
     zoneId: "verdant-reach",
     revision: 0,
     zoneNameKey: "zone.verdant_reach.name",
-    tiles: ["..", "##"],
     elements: [],
-    colliders: [],
     tilesetId: TINY_SWORDS_TILESET_ID,
     layers: [layer, layer, layer],
     events: [],
-    heightfield: null,
-    width: 64,
-    height: 64,
-    playerSize: 32,
-    obstacles: [],
-    safeZone: null,
+    heightfield: encodeMap(heightfield),
+    size: WORLD_SIZE,
     questNpc: { id: "mira", x: 16, y: 16 },
     questNpcs: [],
     questSites: [],
@@ -396,7 +417,7 @@ describe("server protocol", () => {
       id: "boss-quake-1",
       kind: "monster_attack",
       skillId: "troll_quake",
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       startedAt: 1_000,
       impactAt: 1_850,
       recoveryEndsAt: 2_750,
@@ -409,14 +430,15 @@ describe("server protocol", () => {
       kind: "troll",
       rank: "boss",
       specialTechnique: "troll_quake",
-      x: 32,
-      y: 32,
+      x: 1,
+      y: 0,
+      z: 1,
       hp: 2_000,
       maxHp: 2_000,
       dead: false,
       graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID,
       threatening: true,
-      facing: { x: 1, y: 0 },
+      facing: { x: 1, z: 0 },
       action: quake,
     };
     const normal = {
@@ -525,15 +547,20 @@ describe("server protocol", () => {
   });
 
   // The terrain is data off a socket now, so it is checked like data. Every one of these would
-  // otherwise reach decodeTileMap and throw on the first paint — the client would not drop a bad
-  // frame, it would die on it.
+  // otherwise reach the terrain bake and throw on the first paint — the client would not drop a bad
+  // frame, it would die on it. The baked pixel `tiles` grid these cases used to poke at is gone:
+  // the encoded heightfield IS the terrain, and `size` is what everything else is measured against,
+  // so those are what a malformed sender gets wrong now.
   it("drops a welcome whose terrain is malformed instead of throwing", () => {
     const bad: unknown[] = [
-      { ...world, tiles: undefined },
-      { ...world, tiles: [] },
-      { ...world, tiles: ["..", "###"] }, // ragged
-      { ...world, tiles: ["xx", "xx"] }, // not a tile character
-      { ...world, tiles: "…" },
+      { ...world, heightfield: undefined },
+      { ...world, heightfield: "" },
+      { ...world, heightfield: "not json" },
+      { ...world, heightfield: '{"version":1,"size":-4}' },
+      { ...world, heightfield: 7 },
+      { ...world, size: undefined },
+      { ...world, size: WORLD_SIZE + 1 }, // disagrees with the grid travelling beside it
+      { ...world, layers: [layer, layer] }, // a layer count the map model does not have
       { ...world, elements: undefined },
       { ...world, revision: -1 },
       { ...world, revision: 1.5 },
@@ -704,8 +731,9 @@ describe("server protocol", () => {
       color: "violet",
       kind: "healing_light",
       x: 10,
-      y: 20,
-      direction: { x: 1, y: 0 },
+      y: 0,
+      z: 20,
+      direction: { x: 1, z: 0 },
       radius: 11,
       spawnedAt: 1_000,
       expiresAt: 2_000,
@@ -726,7 +754,8 @@ describe("server protocol", () => {
       ),
     ).toMatchObject({ t: "world.resync", projectiles: [projectile] });
     for (const malformed of [
-      { ...projectile, direction: { x: 0, y: 0 } },
+      { ...projectile, direction: { x: 0, z: 0 } },
+      { ...projectile, direction: { x: 1, y: 0 } }, // a ground heading with no `z` is refused
       { ...projectile, color: "green" },
       { ...projectile, radius: 0 },
       { ...projectile, expiresAt: 900 },
@@ -757,8 +786,9 @@ describe("event messages", () => {
       code: "combat.hit",
       params: { species: "spear_goblin", damage: 12 },
       tone: "info",
+      // The optional world-space anchor a floating notification is drawn at: the two GROUND axes.
       x: 1,
-      y: 2,
+      z: 2,
     });
     expect(parseServerMessage(encoded)).toMatchObject({ t: "event", code: "combat.hit" });
   });
@@ -794,7 +824,7 @@ describe("combat animation messages", () => {
       skillId: "prayer",
       talented: true,
       evolved: true,
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       startedAt: 100,
       impactAt: 300,
       recoveryEndsAt: 600,
@@ -805,7 +835,7 @@ describe("combat animation messages", () => {
       actorKind: "monster",
       actorId: "goblin-1",
       action: "attack",
-      direction: { x: 0, y: 1 },
+      direction: { x: 0, z: 1 },
       startedAt: 100,
       impactAt: 550,
       recoveryEndsAt: 1_050,
@@ -827,7 +857,7 @@ describe("combat animation messages", () => {
       actorId: "boss-1",
       action: "skill",
       skillId: "troll_quake",
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       startedAt: 100,
       impactAt: 950,
       recoveryEndsAt: 1_850,
@@ -847,9 +877,9 @@ describe("combat animation messages", () => {
       actionId: "action-monster-quake-1",
       actorId: "boss-1",
       technique: "troll_quake",
-      x: 320,
-      y: 192,
-      direction: { x: 1, y: 0 },
+      x: 5,
+      z: 3,
+      direction: { x: 1, z: 0 },
       impactAt: 950,
     } as const;
 
@@ -858,7 +888,8 @@ describe("combat animation messages", () => {
       { ...impact, technique: "none" },
       { ...impact, technique: "made_up" },
       { ...impact, x: Number.NaN },
-      { ...impact, direction: { x: 0, y: 0 } },
+      { ...impact, direction: { x: 0, z: 0 } },
+      { ...impact, direction: { x: 1, y: 0 } },
       { ...impact, clientDamage: 999 },
     ]) {
       expect(parseServerMessage(JSON.stringify(invalid))).toBeNull();
@@ -875,7 +906,7 @@ describe("combat animation messages", () => {
       skillId: "whirlwind",
       talented: true,
       evolved: true,
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       startedAt: 100,
       impactAt: 300,
       impactTimes: [300, 550, 800, 1_050],
@@ -974,24 +1005,24 @@ describe("Rogue Shadow Dance result messages", () => {
     strikes: [
       {
         targetId: "monster-a",
-        from: { x: 32, y: 64 },
-        targetPosition: { x: 128, y: 64 },
-        landing: { x: 160, y: 64 },
+        from: { x: 32, z: 64 },
+        targetPosition: { x: 128, z: 64 },
+        landing: { x: 160, z: 64 },
         impactAt: 1_000,
         damage: 32,
         killed: false,
       },
       {
         targetId: "monster-b",
-        from: { x: 160, y: 64 },
-        targetPosition: { x: 240, y: 64 },
-        landing: { x: 272, y: 64 },
+        from: { x: 160, z: 64 },
+        targetPosition: { x: 240, z: 64 },
+        landing: { x: 272, z: 64 },
         impactAt: 1_090,
         damage: 20,
         killed: true,
       },
     ],
-    finalPosition: { x: 272, y: 64 },
+    finalPosition: { x: 272, z: 64 },
   };
 
   it("round-trips the complete server-authored order and validated positions", () => {
@@ -1020,7 +1051,7 @@ describe("Rogue Shadow Dance result messages", () => {
       ),
     ).toBeNull();
     expect(
-      parseServerMessage(JSON.stringify({ ...sequence, finalPosition: { x: 0, y: 0 } })),
+      parseServerMessage(JSON.stringify({ ...sequence, finalPosition: { x: 0, z: 0 } })),
     ).toBeNull();
   });
 });
@@ -1033,8 +1064,8 @@ describe("Priest ultimate visual messages", () => {
           t: "priest.lumen_portal",
           id: "gate-1",
           actorId: "priest-1",
-          from: { x: 10, y: 20 },
-          to: { x: 90, y: 40 },
+          from: { x: 10, z: 20 },
+          to: { x: 90, z: 40 },
           startedAt: 1_000,
           endsAt: 5_000,
         }),
@@ -1047,7 +1078,7 @@ describe("Priest ultimate visual messages", () => {
           id: "orb-1",
           actorId: "priest-1",
           x: 20,
-          y: 30,
+          z: 30,
           maximumRadius: 160,
           startedAt: 1_000,
           returnsAt: 1_900,
@@ -1065,9 +1096,9 @@ describe("Priest ultimate visual messages", () => {
           id: "trail-1",
           actorId: "priest-1",
           points: [
-            { x: 16, y: 16 },
-            { x: 80, y: 16 },
-            { x: 80, y: 80 },
+            { x: 16, z: 16 },
+            { x: 80, z: 16 },
+            { x: 80, z: 80 },
           ],
           width: 22,
           startedAt: 1_000,
@@ -1081,7 +1112,7 @@ describe("Priest ultimate visual messages", () => {
           t: "priest.lumen_trail",
           id: "trail-1",
           actorId: "priest-1",
-          points: [{ x: 16, y: 16 }],
+          points: [{ x: 16, z: 16 }],
           width: 22,
           startedAt: 1_000,
           endsAt: 7_000,
@@ -1111,7 +1142,7 @@ describe("Priest ultimate visual messages", () => {
           id: "orb-1",
           actorId: "priest-1",
           x: 20,
-          y: 30,
+          z: 30,
           maximumRadius: 160,
           startedAt: 1_000,
           returnsAt: 900,
@@ -1128,7 +1159,7 @@ describe("Peasant support visual messages", () => {
     id: "camp-1",
     actorId: "peasant-1",
     x: 64,
-    y: 96,
+    z: 96,
     radius: 96,
     startedAt: 1_000,
     expiresAt: 13_000,
@@ -1152,7 +1183,7 @@ describe("Peasant support visual messages", () => {
           actionId: "bomb-1",
           actorId: "peasant-1",
           x: 80,
-          y: 96,
+          z: 96,
           radius: 72,
           impactAt: 2_000,
         }),

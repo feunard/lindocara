@@ -276,18 +276,18 @@ describe("Tiny Swords directional combat art", () => {
       monsterSpecialImpactPosition({
         technique: "shadow_cone",
         x: 100,
-        y: 200,
-        direction: { x: 0, y: -1 },
+        z: 200,
+        direction: { x: 0, z: -1 },
       }),
-    ).toEqual({ x: 100, y: 142 });
+    ).toEqual({ x: 100, z: 142 });
     expect(
       monsterSpecialImpactPosition({
         technique: "troll_quake",
         x: 100,
-        y: 200,
-        direction: { x: 1, y: 0 },
+        z: 200,
+        direction: { x: 1, z: 0 },
       }),
-    ).toEqual({ x: 100, y: 200 });
+    ).toEqual({ x: 100, z: 200 });
   });
 
   it("uses a green Radiant-Bolt-style projectile for ally-only Mend", () => {

@@ -53,12 +53,13 @@ export function nearestInterior(
   let nearest: InteriorDoor | undefined;
   let nearestDistance = INTERIOR_RANGE;
   for (const door of INTERIORS) {
-    // Verdant Reach's doors are pixel `Vec2` catalogue content and `self` now arrives in tile
-    // units, so this whole loop is dead on every live room — the guard above already refused any
-    // map that is not the compiled default, and no room is ever built from one. The hypotenuse is
-    // spelled out rather than borrowed from a ground helper precisely so it cannot be mistaken for
-    // a converted call site.
-    const distance = Math.hypot(self.x - door.x, self.y - door.y);
+    // Verdant Reach's doors are pixel `Vec2` catalogue content whose `y` is a GROUND axis, while
+    // `self` is a tile-unit body whose `y` is its ELEVATION — so the two ground axes are `self.z`
+    // and `door.y`, and reading `self.y` here would measure a height against a distance. The whole
+    // loop is dead on every live room (the guard above refuses any map that is not the compiled
+    // default, and no room is ever built from one); the hypotenuse is spelled out rather than
+    // borrowed from a ground helper precisely so it cannot be mistaken for a converted call site.
+    const distance = Math.hypot(self.x - door.x, self.z - door.y);
     if (distance > nearestDistance) continue;
     nearest = door;
     nearestDistance = distance;

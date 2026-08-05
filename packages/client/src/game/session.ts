@@ -305,12 +305,12 @@ function updatePrompt(
         params: { name: t(`quest.site.${site.id}` as MessageKey) },
       };
     } else if (quest.status === "active") {
-      // "Go hunt outside the walls" only means something where there are walls. A world with no
-      // safe zone has no hub to be standing in, so the prompt never applies.
-      // `ZoneTerrain` carries no safe zone any more — a stored heightfield has no way to declare
-      // one — so there is no hub to be standing in and this prompt never applies. Unreachable
-      // regardless, since the whole branch is behind `isKnownZone`.
-      result = nearNpc ? null : null;
+      // "Go hunt outside the walls" only means something where there are walls, and there is no
+      // longer a way to say where the walls are: `ZoneTerrain` carries no safe zone, because a
+      // stored heightfield has no way to declare one. So the hunt prompt never applies — which
+      // costs nothing on any reachable path, since the whole branch is behind `isKnownZone` and no
+      // live room is built from a catalogue zone.
+      result = null;
     } else if (quest.status === "available") {
       result = catalogueDistance(self, giver) > 420 ? null : { key: "prompt.approach" };
     }
@@ -672,7 +672,7 @@ async function startGameIdentity(
         store.setQuestDialogue(null);
       }
     },
-    onEvent: (code, params, tone, x, y) => {
+    onEvent: (code, params, tone, x, z) => {
       const text = eventText(code, params, currentSelf?.class ?? identity.class);
       if (shouldLogEvent(code)) addEvent(text, tone);
       if (code === "adventure.victory") {
@@ -688,7 +688,7 @@ async function startGameIdentity(
             : code === "heal.cast" || code === "heal.received"
               ? `+${String(params?.amount ?? "")}`
               : text;
-        renderer.showWorldEvent(compact, tone, x, y);
+        renderer.showWorldEvent(compact, tone, x, z);
       }
       if (code === "quest.site_harvested" && typeof params?.site === "string") {
         renderer.hideQuestSite(params.site, 15_000);
@@ -698,13 +698,13 @@ async function startGameIdentity(
       switch (code) {
         case "zone.transition":
           if (params?.teleport === 1) {
-            renderer.playTeleportEffect(x, y);
+            renderer.playTeleportEffect(x, z);
             if (
               params.sameMap === 1 &&
               typeof params.toX === "number" &&
-              typeof params.toY === "number"
+              typeof params.toZ === "number"
             ) {
-              renderer.playTeleportEffect(params.toX, params.toY);
+              renderer.playTeleportEffect(params.toX, params.toZ);
             } else {
               pendingTeleportArrival = true;
             }
@@ -719,7 +719,7 @@ async function startGameIdentity(
             healingEffectColor(params?.color),
             healingSkillId(params?.skill),
             x,
-            y,
+            z,
           );
           break;
         case "loot.picked":
@@ -735,7 +735,7 @@ async function startGameIdentity(
             healingEffectColor(params?.color),
             healingSkillId(params?.skill),
             x,
-            y,
+            z,
           );
           break;
         case "player.down":
@@ -752,20 +752,20 @@ async function startGameIdentity(
           break;
         case "combat.hit":
           combatAudio.confirmedEvent(code);
-          if (typeof params?.skill === "string" && typeof x === "number" && typeof y === "number") {
+          if (typeof params?.skill === "string" && typeof x === "number" && typeof z === "number") {
             const actorId = typeof params.actorId === "string" ? params.actorId : client.selfId;
             const poisonOutcome = params.poisonTick === 1 || params.poisonRupture === 1;
             const impactClass = poisonOutcome
-              ? renderer.playRoguePoisonImpact(x, y, params.poisonRupture === 1)
+              ? renderer.playRoguePoisonImpact(x, z, params.poisonRupture === 1)
               : actorId
-                ? renderer.playCombatImpact(actorId, params.skill, x, y)
+                ? renderer.playCombatImpact(actorId, params.skill, x, z)
                 : undefined;
             sound.combatImpact(impactClass ?? playerClass());
           }
           break;
         case "skill.blocked":
-          if (typeof params?.skill === "string" && typeof x === "number" && typeof y === "number")
-            if (client.selfId) renderer.playCombatImpact(client.selfId, params.skill, x, y);
+          if (typeof params?.skill === "string" && typeof x === "number" && typeof z === "number")
+            if (client.selfId) renderer.playCombatImpact(client.selfId, params.skill, x, z);
           break;
         case "combat.hurt":
           combatAudio.confirmedEvent(code);
@@ -779,7 +779,7 @@ async function startGameIdentity(
               params.technique !== "none"
             )
           ) {
-            renderer.playMonsterImpact(params.species, x, y);
+            renderer.playMonsterImpact(params.species, x, z);
           }
           break;
         default:

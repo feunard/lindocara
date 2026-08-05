@@ -1,4 +1,5 @@
-import { INTERACTION_RANGE, pointDistance } from "@lindocara/engine/game.js";
+import { INTERACTION_RANGE } from "@lindocara/engine/game.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   buildRoomKey,
   DEFAULT_INSTANCE_ID,
@@ -104,7 +105,16 @@ describe("the Sunken Isles", () => {
     expect(back.destination.zoneId).toBe("verdant-reach");
     // Arriving within INTERACTION_RANGE of the gate you just came out of makes the two a revolving
     // door: `#interact` takes the first portal in range, so you would bounce straight back.
-    expect(pointDistance(back.destination.spawn, gate)).toBeGreaterThan(INTERACTION_RANGE);
-    expect(pointDistance(gate.destination.spawn, back)).toBeGreaterThan(INTERACTION_RANGE);
+    //
+    // Pixel-world content: a `PortalDefinition` and its `destination.spawn` are catalogue `Vec2`s
+    // on the legacy pixel plane, so the hypotenuse is spelled out and `INTERACTION_RANGE` — tile
+    // units now — is scaled back to the 92 px it still describes. Comparing a pixel gap against
+    // 1.4 tiles would pass on any two portals whatsoever.
+    expect(
+      Math.hypot(back.destination.spawn.x - gate.x, back.destination.spawn.y - gate.y),
+    ).toBeGreaterThan(INTERACTION_RANGE * TILE_SIZE);
+    expect(
+      Math.hypot(gate.destination.spawn.x - back.x, gate.destination.spawn.y - back.y),
+    ).toBeGreaterThan(INTERACTION_RANGE * TILE_SIZE);
   });
 });

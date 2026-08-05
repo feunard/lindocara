@@ -1,31 +1,94 @@
-import { colliderIndexFrom, emptyColliderIndex } from "@lindocara/engine/collider.js";
 import { speedForLife } from "@lindocara/engine/death.js";
-import {
-  CLASS_STATS,
-  RAMP_SPEED_MULTIPLIER,
-  resolveTerrain,
-  type TerrainGeometry,
-  VERDANT_REACH_TERRAIN,
-} from "@lindocara/engine/game.js";
+import { CLASS_STATS } from "@lindocara/engine/game.js";
+import { groundOf, planarOf, type WorldPosition } from "@lindocara/engine/ground.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { predictStep, prunePending, reconcile } from "@lindocara/engine/prediction.js";
 import type { Command } from "@lindocara/engine/protocol.js";
+import { type Input, NO_INPUT, PLAYER_SPEED, step, TICK_DT } from "@lindocara/engine/simulation.js";
 import {
-  type Input,
-  NO_INPUT,
-  PLAYER_SIZE,
-  PLAYER_SPEED,
-  step,
-  TICK_DT,
-  type Vec2,
-  WORLD_HEIGHT,
-  WORLD_WIDTH,
-} from "@lindocara/engine/simulation.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { TEST_ZONE_TERRAIN } from "@lindocara/engine/zones.js";
+  groundUnder,
+  resolveGroundMovement,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
 import { describe, expect, it } from "vitest";
 
 const input = (partial: Partial<Input>): Input => ({ ...NO_INPUT, ...partial });
 const command = (seq: number, partial: Partial<Input>): Command => ({ seq, input: input(partial) });
+
+const SIZE = 16;
+const LEVEL_HEIGHT = 0.5;
+const HALF = SIZE / 2;
+
+/**
+ * A heightfield, in TILE units with the grid centre as the origin — the only terrain there is now.
+ *
+ * `levelAt` decides each cell's tier: `null` is water (and off-grid ground a body may not stand
+ * on), a number is a tier `levelHeight` tall. `toCell = floor(w + size/2)`, so cell row `j` covers
+ * `z ∈ [j - size/2, j - size/2 + 1)`.
+ */
+function terrain(
+  options: {
+    levelAt?: (col: number, row: number) => number | null;
+    colliders?: readonly ColliderRect[];
+    size?: number;
+  } = {},
+): ZoneTerrain {
+  const size = options.size ?? SIZE;
+  const levelAt = options.levelAt ?? (() => 0);
+  const levels: (number | null)[] = [];
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) levels.push(levelAt(col, row));
+  }
+  const map: MapData = {
+    version: 1,
+    size,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.25,
+    levels,
+    materials: new Array(size * size).fill("herbe"),
+    colliders: options.colliders ?? [],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
+/** Flat, entirely walkable level-0 ground. Nothing here can stop a square except the grid's edge. */
+const FLAT = terrain();
+
+/**
+ * The server's own movement, for exactly one command — copied from `advancePlayers`
+ * (`packages/server/src/world/movement-system.ts`) rather than from `predictStep`, because a
+ * reference implementation that called the function under test would prove nothing.
+ *
+ * It is the same four calls in the same order: `step` with `bounds: null` (a tile grid is centred
+ * on the origin, so the pixel world's rectangle clamp would fence off its whole western and
+ * northern halves), `groundUnder` read from where the body IS, `resolveGroundMovement` for the
+ * collision, then `groundUnder` again under where it landed. If this helper and `predictStep` ever
+ * stop agreeing, the client and the server disagree about motion — which is the entire property
+ * this suite exists to pin.
+ */
+function serverStep(position: WorldPosition, one: Command, built: ZoneTerrain, speed: number) {
+  const desired = groundOf(step(planarOf(position), one.input, TICK_DT, speed, null));
+  const groundY = groundUnder(built, position.x, position.z, position.y);
+  const moved = resolveGroundMovement(built, position, desired, groundY);
+  return { x: moved.x, y: groundUnder(built, moved.x, moved.z, position.y), z: moved.z };
+}
+
+/** The server applying one command per tick, from `origin`, against `built`. */
+function serverRun(
+  origin: WorldPosition,
+  commands: readonly Command[],
+  built: ZoneTerrain,
+  speed: number = PLAYER_SPEED,
+): WorldPosition {
+  let position = origin;
+  for (const one of commands) position = serverStep(position, one, built, speed);
+  return position;
+}
 
 describe("prunePending", () => {
   const pending = [command(1, {}), command(2, {}), command(3, {}), command(4, {})];
@@ -49,17 +112,15 @@ describe("prunePending", () => {
 });
 
 describe("reconcile", () => {
-  const origin: Vec2 = { x: 400, y: 400 };
+  const origin: WorldPosition = { x: 0, y: 0, z: 0 };
 
   it("returns the authoritative position when nothing is in flight", () => {
-    expect(reconcile(origin, [], VERDANT_REACH_TERRAIN)).toEqual(origin);
+    expect(reconcile(origin, [], FLAT)).toEqual(origin);
   });
 
   it("replays a single pending command", () => {
     const pending = [command(1, { right: true })];
-    expect(reconcile(origin, pending, VERDANT_REACH_TERRAIN)).toEqual(
-      resolveTerrain(origin, step(origin, input({ right: true }), TICK_DT)),
-    );
+    expect(reconcile(origin, pending, FLAT)).toEqual(serverRun(origin, pending, FLAT));
   });
 
   /**
@@ -76,12 +137,12 @@ describe("reconcile", () => {
       command(5, {}),
     ];
 
-    // The server, applying one command per tick from the same starting point.
-    let server: Vec2 = origin;
-    for (const c of commands) server = resolveTerrain(server, step(server, c.input, TICK_DT));
+    const server = serverRun(origin, commands, FLAT);
+    // …and the square actually travelled, or the equality below holds on a hero that never moved.
+    expect(server).not.toEqual(origin);
 
     // The client, reconciling from a server position that predates all of them.
-    expect(reconcile(origin, commands, VERDANT_REACH_TERRAIN)).toEqual(server);
+    expect(reconcile(origin, commands, FLAT)).toEqual(server);
   });
 
   /**
@@ -97,15 +158,11 @@ describe("reconcile", () => {
       command(3, { down: true }),
     ];
     const ghostSpeed = speedForLife("ghost");
+    const server = serverRun(origin, commands, FLAT, ghostSpeed);
 
-    let server: Vec2 = origin;
-    for (const c of commands) {
-      server = resolveTerrain(server, step(server, c.input, TICK_DT, ghostSpeed));
-    }
-
-    expect(reconcile(origin, commands, VERDANT_REACH_TERRAIN, "ghost")).toEqual(server);
+    expect(reconcile(origin, commands, FLAT, "ghost")).toEqual(server);
     // And the living replay must NOT land there — otherwise this test proves nothing.
-    expect(reconcile(origin, commands, VERDANT_REACH_TERRAIN, "alive")).not.toEqual(server);
+    expect(reconcile(origin, commands, FLAT, "alive")).not.toEqual(server);
   });
 
   it.each([
@@ -115,187 +172,133 @@ describe("reconcile", () => {
     "rogue",
   ] as const)("replays %s movement at the same class speed as the server", (playerClass) => {
     const commands = [command(1, { right: true }), command(2, { right: true })];
-    let server: Vec2 = origin;
-    for (const pending of commands) {
-      server = resolveTerrain(
-        server,
-        step(server, pending.input, TICK_DT, CLASS_STATS[playerClass].movementSpeed),
-      );
-    }
-    expect(reconcile(origin, commands, VERDANT_REACH_TERRAIN, "alive", playerClass)).toEqual(
-      server,
-    );
+    const server = serverRun(origin, commands, FLAT, CLASS_STATS[playerClass].movementSpeed);
+    expect(reconcile(origin, commands, FLAT, "alive", playerClass)).toEqual(server);
   });
 
-  it("respects the world walls while replaying", () => {
-    const atWall: Vec2 = { x: 0, y: 0 };
+  /**
+   * The grid's edge replaces the pixel world's rectangle walls: a heightfield is `size` cells
+   * square and centred on the origin, so its north-west corner is at `(-8, -8)` and `heightAt` is
+   * `null` beyond it. `canStand` refuses that ground, so a square pressed into the corner stays
+   * put — and it must stay put on BOTH sides, at exactly the same coordinate.
+   */
+  it("respects the grid's edge while replaying", () => {
+    const atCorner: WorldPosition = { x: -HALF, y: 0, z: -HALF };
     const commands = [command(1, { left: true }), command(2, { up: true })];
 
-    expect(reconcile(atWall, commands, VERDANT_REACH_TERRAIN)).toEqual({ x: 0, y: 0 });
+    expect(reconcile(atCorner, commands, FLAT)).toEqual(serverRun(atCorner, commands, FLAT));
+    expect(reconcile(atCorner, commands, FLAT)).toEqual(atCorner);
   });
 
   it("chains multiple replays the same way the server applies one command per tick", () => {
-    let position: Vec2 = { x: 500, y: 400 };
+    const start: WorldPosition = { x: 1, y: 0, z: 0 };
     const batches = [
       [command(1, { right: true })],
       [command(2, { right: true }), command(3, { down: true })],
     ];
-    for (const batch of batches) {
-      position = reconcile(position, batch, VERDANT_REACH_TERRAIN);
-    }
-    let server: Vec2 = { x: 500, y: 400 };
-    for (const batch of batches) {
-      for (const c of batch) server = resolveTerrain(server, step(server, c.input, TICK_DT));
-    }
+    let position: WorldPosition = start;
+    for (const batch of batches) position = reconcile(position, batch, FLAT);
+
+    let server: WorldPosition = start;
+    for (const batch of batches) server = serverRun(server, batch, FLAT);
     expect(position).toEqual(server);
   });
 
   it("does not mutate the authoritative position it is handed", () => {
-    const authoritative = { x: 100, y: 100 };
-    reconcile(authoritative, [command(1, { right: true })], VERDANT_REACH_TERRAIN);
-    expect(authoritative).toEqual({ x: 100, y: 100 });
+    const authoritative: WorldPosition = { x: 1, y: 0, z: 1 };
+    reconcile(authoritative, [command(1, { right: true })], FLAT);
+    expect(authoritative).toEqual({ x: 1, y: 0, z: 1 });
   });
 });
 
-describe("prediction against a non-default zone's geometry", () => {
-  // (160, 160) is mmo-test-zone's arrival spawn (see zones.ts's TEST_ZONE_SPAWNS). It is open
-  // grass there in MMO_TEST_ZONE_TILES. The identically numbered cell in Verdant Reach's own
-  // tilemap — VERDANT_REACH_TERRAIN — is `forest`, which is solid. A caller that predicts in
-  // mmo-test-zone without passing that zone's own geometry collides against Verdant Reach's
-  // tilemap instead of the room the player is actually standing in. `geometry` is a required
-  // parameter precisely so this cannot be omitted by accident (see prediction.ts).
-  const arrivalSpawn: Vec2 = { x: 160, y: 160 };
-
-  // One tick of travel, stated as the rule rather than as a number: `PLAYER_SPEED` is tiles per
-  // second now, and a hard-coded 13 was only ever "260 px/s at 20 Hz" written out.
+describe("prediction against the terrain it is handed", () => {
+  // `terrain` is a required parameter of both `predictStep` and `reconcile` precisely so a caller
+  // cannot predict against a room it is not standing in (see prediction.ts). These two grids differ
+  // in exactly one cell — the one immediately east of the origin — so a prediction that quietly
+  // used the wrong one lands somewhere the other refuses. In the pixel world this pinned "don't
+  // default to Verdant Reach"; a heightfield has no default at all, and what is left to prove is
+  // that the terrain handed in is the terrain collided against.
+  const open = terrain();
+  const walled = terrain({ levelAt: (col) => (col === HALF ? 2 : 0) });
   const oneTick = PLAYER_SPEED * TICK_DT;
+  // Just west of the raised cell — which covers `x ∈ [0, 1)` — and far enough out that the body's
+  // 0.25 disc is clear of it before the step, so the refusal below is the cliff and not the escape
+  // hatch a body already overlapping geometry gets.
+  const origin: WorldPosition = { x: -0.3, y: 0, z: 0.5 };
 
-  it("predictStep moves in mmo-test-zone when given that zone's geometry explicitly", () => {
-    const moved = predictStep(arrivalSpawn, command(1, { right: true }), TEST_ZONE_TERRAIN);
-    expect(moved).toEqual({ x: 160 + oneTick, y: 160 });
+  it("predictStep advances on open ground and is refused by the same cell raised", () => {
+    expect(predictStep(origin, command(1, { right: true }), open)).toEqual({
+      x: -0.3 + oneTick,
+      y: 0,
+      z: 0.5,
+    });
+    // The cliff is two tiers up and `MAX_STEP` is 0: the eastward half is refused outright.
+    expect(predictStep(origin, command(1, { right: true }), walled)).toEqual(origin);
   });
 
-  it("reconcile replays pending commands against the zone geometry it is given", () => {
+  it("reconcile replays pending commands against the terrain it is given", () => {
     const pending = [command(1, { right: true })];
-    const server = resolveTerrain(
-      arrivalSpawn,
-      step(arrivalSpawn, input({ right: true }), TICK_DT),
-      TEST_ZONE_TERRAIN,
+    expect(reconcile(origin, pending, open, "alive")).toEqual(serverRun(origin, pending, open));
+    expect(reconcile(origin, pending, walled, "alive")).toEqual(serverRun(origin, pending, walled));
+    expect(reconcile(origin, pending, open, "alive")).not.toEqual(
+      reconcile(origin, pending, walled, "alive"),
     );
-    expect(server).toEqual({ x: 160 + oneTick, y: 160 });
-    expect(reconcile(arrivalSpawn, pending, TEST_ZONE_TERRAIN, "alive")).toEqual(server);
-  });
-});
-
-describe("prediction on a staircase", () => {
-  const terrain: TerrainGeometry = {
-    width: 3 * TILE_SIZE,
-    height: TILE_SIZE,
-    obstacles: [],
-    spawnPoints: [],
-    safeZone: null,
-    tiles: { cols: 3, rows: 1, kinds: ["grass", "ramp", "grass"] },
-    colliders: emptyColliderIndex(3, 1),
-  };
-
-  it("applies the same subtle ramp slowdown encoded in the baked terrain", () => {
-    const origin = { x: TILE_SIZE, y: 16 };
-    const moved = predictStep(origin, command(1, { right: true }), terrain);
-    expect(moved.x - origin.x).toBeCloseTo(PLAYER_SPEED * RAMP_SPEED_MULTIPLIER * TICK_DT);
-    expect(moved.y).toBe(origin.y);
   });
 });
 
 describe("prediction against a sub-cell collider", () => {
-  // All grass, one 16x16 rect sitting in the middle of cell (2,2): nothing in `tiles` blocks
-  // anything, so if the client and server land in different places it can ONLY be about the
-  // collider. This is the sub-cell sibling of "lands exactly where the server will": elements are
-  // collision now, and a collider one side applies and the other does not is a silent desync that
-  // draws the square short of the server forever, with nothing in the protocol to complain.
-  const cols = 5;
-  const rows = 5;
-  const rect = { x: 2 * TILE_SIZE + 24, y: 2 * TILE_SIZE + 24, width: 16, height: 16 };
-  const grass: TerrainGeometry = {
-    width: cols * TILE_SIZE,
-    height: rows * TILE_SIZE,
-    obstacles: [],
-    spawnPoints: [{ x: 0, y: 0 }],
-    safeZone: { x: 0, y: 0, width: 0, height: 0 },
-    tiles: { cols, rows, kinds: new Array(cols * rows).fill("grass") },
-    colliders: colliderIndexFrom([rect], cols, rows),
-  };
-  // Start on the collider's own y-band so a rightward run walks straight into its left edge.
-  const start: Vec2 = { x: TILE_SIZE, y: 2 * TILE_SIZE + 24 };
-  // Enough commands to actually reach the rect and a few to spare, derived rather than written
-  // out: the count used to be 12, which was "twelve ticks at 260 px/s". At the tile-unit speed the
-  // same twelve ticks stop two pixels from the start and the collider never enters the picture —
-  // the test would still pass, and prove nothing.
+  // Flat level-0 ground everywhere, one half-tile prop east of the origin: nothing in the relief
+  // blocks anything, so if the client and server land in different places it can ONLY be about the
+  // collider. This is the sub-cell sibling of "lands exactly where the server will": props are
+  // collision, and a collider one side applies and the other does not is a silent desync that draws
+  // the square short of the server forever, with nothing in the protocol to complain.
+  const rect: ColliderRect = { x: 3, z: -0.5, w: 0.5, h: 1 };
+  const propped = terrain({ colliders: [rect] });
+  const open = terrain();
+  // Start on the prop's own z-band so a rightward run walks straight into its western face.
+  const start: WorldPosition = { x: 0, y: 0, z: 0 };
+  // Enough commands to actually reach the rect and a few to spare, derived rather than written out
+  // so a change to `PLAYER_SPEED` cannot silently stop the run short of the prop — the test would
+  // still pass, and prove nothing.
   const commandCount = Math.ceil((rect.x - start.x) / (PLAYER_SPEED * TICK_DT)) + 4;
   const commands = Array.from({ length: commandCount }, (_, index) =>
     command(index + 1, { right: true }),
   );
 
   it("replays commands identically against a sub-cell collider", () => {
-    // The server, applying one command per tick from the same starting point and geometry.
-    let server: Vec2 = start;
-    for (const c of commands) {
-      server = resolveTerrain(server, step(server, c.input, TICK_DT, PLAYER_SPEED, grass), grass);
-    }
+    const server = serverRun(start, commands, propped);
+    const client = reconcile(start, commands, propped, "alive");
 
-    // The client, reconciling from the stale start and replaying the same pending commands.
-    const client = reconcile(start, commands, grass, "alive");
-
-    expect(client.x).toBeCloseTo(server.x, 6);
-    expect(client.y).toBeCloseTo(server.y, 6);
+    expect(client.x).toBeCloseTo(server.x, 10);
+    expect(client.z).toBeCloseTo(server.z, 10);
+    expect(client.y).toBe(server.y);
 
     // …and the collider actually stopped the square, or the equality above proves nothing: it
     // would hold just as well on an empty world where both sides walk clean through. The server
-    // must land short of the collider's left edge, and an identical run on an EMPTY index (same
-    // tiles, no rect) must reach further right — that gap IS the collider doing its job.
-    const open: TerrainGeometry = { ...grass, colliders: emptyColliderIndex(cols, rows) };
-    let unobstructed: Vec2 = start;
-    for (const c of commands) {
-      unobstructed = resolveTerrain(
-        unobstructed,
-        step(unobstructed, c.input, TICK_DT, PLAYER_SPEED, open),
-        open,
-      );
-    }
+    // must land short of the collider's western face, and an identical run on the SAME relief with
+    // no prop must reach further east — that gap IS the collider doing its job.
+    const unobstructed = serverRun(start, commands, open);
     expect(server.x).toBeLessThan(rect.x);
     expect(unobstructed.x).toBeGreaterThan(server.x);
     expect(unobstructed.x).toBeGreaterThan(rect.x);
   });
 });
 
-describe("predictStep against a zone wider than Verdant Reach", () => {
-  // step()'s own `bounds` parameter defaults to VERDANT_REACH_BOUNDS (packages/engine/src/simulation.ts).
-  // predictStep passes `geometry` straight to `resolveTerrain`, but until it *also* forwards it
-  // as `step()`'s fifth argument, `step()`'s internal clamp silently uses Verdant Reach's extent
-  // no matter which zone's geometry the caller supplied. This only happened not to matter because
-  // every real zone today is smaller than Verdant Reach (4800x2700) — a zone larger than that
-  // exposes it directly, which is why this constructs one instead of reusing TEST_ZONE_TERRAIN.
-  const WIDE_ZONE_WIDTH = WORLD_WIDTH + 1600; // 6400 — bigger than Verdant Reach on purpose
-  const WIDE_ZONE_HEIGHT = WORLD_HEIGHT + 500; // 3200 — ditto
-  const cols = WIDE_ZONE_WIDTH / TILE_SIZE;
-  const rows = WIDE_ZONE_HEIGHT / TILE_SIZE;
-  const WIDE_ZONE_TERRAIN: TerrainGeometry = {
-    width: WIDE_ZONE_WIDTH,
-    height: WIDE_ZONE_HEIGHT,
-    obstacles: [],
-    spawnPoints: [{ x: 0, y: 0 }],
-    safeZone: { x: 0, y: 0, width: 0, height: 0 },
-    // Fully open grass: only the outer bound can stop this square, never a tile.
-    tiles: { cols, rows, kinds: new Array(cols * rows).fill("grass") },
-    colliders: emptyColliderIndex(cols, rows),
-  };
+describe("predictStep west and north of the origin", () => {
+  // `step()`'s own `bounds` parameter defaults to `VERDANT_REACH_BOUNDS` (packages/engine/src/
+  // simulation.ts), whose clamp pins both axes to `>= 0`. A tile grid is CENTRED on the origin, so
+  // half of every map is negative — a `predictStep` that forgot to pass `bounds: null` would jam
+  // any square at `x = 0` or `z = 0` and refuse to let it walk into the western or northern half of
+  // the world at all. That is the same bug the pixel-world version of this test pinned with a zone
+  // wider than Verdant Reach; centring the grid just made it far cheaper to expose.
+  const oneTick = PLAYER_SPEED * TICK_DT;
 
-  // Exactly Verdant Reach's own right-edge clamp (WORLD_WIDTH - PLAYER_SIZE). A client that
-  // (bug) clamps `step()`'s output to VERDANT_REACH_BOUNDS regardless of the geometry it was
-  // handed cannot move this square past here, even though the wider zone loaded here allows it.
-  const atVerdantRightEdge: Vec2 = { x: WORLD_WIDTH - PLAYER_SIZE, y: 100 };
+  it("keeps walking into the negative half of the grid", () => {
+    const nearOrigin: WorldPosition = { x: 0.5 * oneTick, y: 0, z: 0.5 * oneTick };
+    const moved = predictStep(nearOrigin, command(1, { left: true, up: true }), FLAT);
 
-  it("keeps advancing past Verdant Reach's right edge when the loaded zone is wider", () => {
-    const moved = predictStep(atVerdantRightEdge, command(1, { right: true }), WIDE_ZONE_TERRAIN);
-    expect(moved).toEqual({ x: atVerdantRightEdge.x + PLAYER_SPEED * TICK_DT, y: 100 });
+    expect(moved.x).toBeLessThan(0);
+    expect(moved.z).toBeLessThan(0);
+    expect(moved).toEqual(serverRun(nearOrigin, [command(1, { left: true, up: true })], FLAT));
   });
 });

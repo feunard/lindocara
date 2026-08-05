@@ -1,10 +1,31 @@
+import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { parseServerMessage } from "@lindocara/engine/protocol.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
 
+/**
+ * The heightfield is the room's only geometry now, and it is what every other collection on a
+ * `WorldInfo` is sized against: `size`, the three tile layers and any element or event must all
+ * agree with the grid the client is about to draw. A square grid replaces the old 4x3 pixel
+ * rectangle for exactly that reason — a heightfield has one side, not a width and a height.
+ */
+const SIZE = 4;
+const heightfield: MapData = {
+  version: 1,
+  size: SIZE,
+  levelHeight: 0.5,
+  waterLevel: -0.25,
+  levels: new Array(SIZE * SIZE).fill(0),
+  materials: new Array(SIZE * SIZE).fill("herbe"),
+  colliders: [],
+  spawns: [],
+  elements: [],
+  events: [],
+};
+
 function welcome(overrides: Record<string, unknown>) {
-  const layer = encodeTileLayer(emptyLayer(4, 3));
+  const layer = encodeTileLayer(emptyLayer(SIZE, SIZE));
   return {
     t: "welcome",
     tick: 0,
@@ -13,18 +34,12 @@ function welcome(overrides: Record<string, unknown>) {
       zoneId: "verdant-reach",
       revision: 1,
       zoneNameKey: "zone.verdant",
-      tiles: ["....", "....", "...."],
       elements: [],
-      colliders: [],
       tilesetId: TINY_SWORDS_TILESET_ID,
       layers: [layer, layer, layer],
       events: [],
-      heightfield: null,
-      width: 256,
-      height: 192,
-      playerSize: 32,
-      obstacles: [],
-      safeZone: null,
+      heightfield: encodeMap(heightfield),
+      size: SIZE,
       questNpc: { id: "none", x: 0, y: 0 },
       questNpcs: [],
       questSites: [],
@@ -37,8 +52,10 @@ function welcome(overrides: Record<string, unknown>) {
       {
         id: "a",
         nick: "Mira",
-        x: 16,
-        y: 16,
+        // Tile units, grid centre as origin: `x`/`z` are the ground axes and `y` is elevation.
+        x: 0,
+        y: 0,
+        z: 0,
         ack: 0,
         hp: 100,
         maxHp: 100,
@@ -47,7 +64,7 @@ function welcome(overrides: Record<string, unknown>) {
         class: "priest",
         equipment: { mainHand: "heartwood_staff", offHand: null },
         life: "alive",
-        facing: { x: 1, y: 0 },
+        facing: { x: 1, z: 0 },
         action: null,
       },
     ],

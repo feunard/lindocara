@@ -402,11 +402,13 @@ export class Hd2dRenderer implements RendererLike {
     this.#actors?.sync(this.#collectActors(sample));
 
     // The camera follows the local player, and only it: every other actor is drawn where the
-    // interpolated view puts it. `focusOn` takes the snapshot's own pixels and converts them
-    // itself, so this renderer never touches the TILE→PIXEL bridge. A player the view has not sent
-    // yet leaves the camera wherever it last was, which is the map's spawn on the very first frames.
+    // interpolated view puts it. `focusOn` takes a GROUND point — `x` and `z` — and the snapshot is
+    // already in the scene's own tile units, so nothing is converted here. `self.y` is the
+    // ELEVATION; handing it over as the second ground axis parks the camera on the horizon.
+    // A player the view has not sent yet leaves the camera wherever it last was, which is the map's
+    // spawn on the very first frames.
     const self = sample.players.find((player) => player.id === this.#selfId);
-    if (self) scene.focusOn(self.x, self.y);
+    if (self) scene.focusOn(self.x, self.z);
 
     // `context.now` rather than a clock read of our own: it is the very `now` this frame's callback
     // was handed, so the scene's animations advance on the same timeline as everything else in it.
@@ -527,7 +529,7 @@ export class Hd2dRenderer implements RendererLike {
     _playerId: string,
     _skillId: string,
     _x: number,
-    _y: number,
+    _z: number,
   ): PlayerClass | undefined {
     return undefined;
   }
@@ -550,7 +552,7 @@ export class Hd2dRenderer implements RendererLike {
   playLumenTrail(_trail: PriestLumenTrailVisual): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playMonsterImpact(_species: MonsterSpecies, _x?: number, _y?: number): void {}
+  playMonsterImpact(_species: MonsterSpecies, _x?: number, _z?: number): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
   playMonsterSpecialImpact(_impact: MonsterSpecialImpact): MonsterImpactSound | undefined {
@@ -569,7 +571,7 @@ export class Hd2dRenderer implements RendererLike {
    * The one no-op that cannot return nothing: its caller uses the answer to pick an impact SOUND,
    * and poison is the rogue's, on this path as on the other.
    */
-  playRoguePoisonImpact(_x: number, _y: number, _rupture: boolean): PlayerClass {
+  playRoguePoisonImpact(_x: number, _z: number, _rupture: boolean): PlayerClass {
     return "rogue";
   }
 
@@ -577,7 +579,7 @@ export class Hd2dRenderer implements RendererLike {
   playShadowDance(_sequence: RogueShadowDanceSequence): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playTeleportEffect(_x?: number, _y?: number): void {}
+  playTeleportEffect(_x?: number, _z?: number): void {}
 
   /**
    * NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece.
@@ -628,5 +630,5 @@ export class Hd2dRenderer implements RendererLike {
   showPeasantCamp(_camp: PeasantCampVisual): void {}
 
   /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  showWorldEvent(_text: string, _tone: "info" | "good" | "bad", _x?: number, _y?: number): void {}
+  showWorldEvent(_text: string, _tone: "info" | "good" | "bad", _x?: number, _z?: number): void {}
 }

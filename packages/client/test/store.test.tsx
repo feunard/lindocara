@@ -108,7 +108,7 @@ describe("ui store", () => {
         inventory: { potions: 2, gold: 3, crystals: 4 },
         quest: { status: "active", progress: 1, target: 3 },
         life: "ghost",
-        corpse: { x: 10, y: 20 },
+        corpse: { x: 1, y: 0, z: 2 },
       },
       questStatus: "active",
       prompt: { key: "prompt.hunt" },
@@ -121,7 +121,7 @@ describe("ui store", () => {
       healCooldownUntil: 20,
       skillCooldowns: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 },
       zoneNameKey: "zone.verdant_reach.name",
-      worldSize: { width: 100, height: 200 },
+      worldSize: { size: 16 },
       mapHeroSettings: defaultMapHeroSettings(),
     });
 

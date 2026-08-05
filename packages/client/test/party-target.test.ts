@@ -6,8 +6,11 @@ function player(id: string, nick: string): PlayerSnapshot {
   return {
     id,
     nick,
+    // Ground axes are `x`/`z`; `y` is elevation. Nothing here reads a position, but a snapshot
+    // that omits `z` is a world on its side.
     x: 0,
     y: 0,
+    z: 0,
     ack: 0,
     hp: 100,
     maxHp: 100,
@@ -16,7 +19,7 @@ function player(id: string, nick: string): PlayerSnapshot {
     class: "warrior",
     equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
     life: "alive",
-    facing: { x: 1, y: 0 },
+    facing: { x: 1, z: 0 },
     action: null,
   };
 }

@@ -194,12 +194,13 @@ export interface ConnectionHandlers {
     outcome: "accepted" | "refused" | "completed" | "failed",
   ): void;
   onQuestClose(conversationId: string): void;
+  /** `x`/`z` — the GROUND point the event is anchored at, when it has one. */
   onEvent(
     code: EventCode,
     params: EventParams | undefined,
     tone: EventTone,
     x?: number,
-    y?: number,
+    z?: number,
   ): void;
   onClose(code: number, reason: string): void;
 }
@@ -669,7 +670,7 @@ export class WorldClient {
       handlers.onQuestClose(message.conversationId);
       return;
     }
-    handlers.onEvent(message.code, message.params, message.tone, message.x, message.y);
+    handlers.onEvent(message.code, message.params, message.tone, message.x, message.z);
   }
 
   #push(

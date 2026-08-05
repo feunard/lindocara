@@ -103,49 +103,32 @@ describe("WorldMap", () => {
     expect(screen.getByRole("heading")).toHaveTextContent("Verdant Reach");
   });
 
-  it("sizes the canvas to Verdant Reach's 16:9 world", () => {
+  // A heightfield is SQUARE and the welcome carries one grid side, not a width/height pair, so the
+  // panel can no longer be stretched to a world's aspect — and the old bug these two tests were
+  // written against (assuming 16:9 and squashing a 4:3 map into it) is unrepresentable. What is
+  // still worth pinning is that the canvas never inherits some other ratio, welcome or no welcome.
+  it("keeps the canvas square, because a heightfield's grid is square", () => {
     useUiStore.setState({
       game: mockGame(),
       mapOpen: true,
-      worldSize: { width: 4800, height: 2700 },
+      worldSize: { size: 64 },
     });
 
     const view = render(<WorldMap />);
     const canvas = view.container.querySelector(".world-map-canvas");
 
     expect(canvas).toBeInstanceOf(HTMLCanvasElement);
-    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("4800 / 2700");
-    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe(
-      String(4800 / 2700),
-    );
+    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("1 / 1");
+    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe("1");
   });
 
-  it("sizes the canvas to mmo-test-zone's 4:3 world instead of assuming 16:9", () => {
-    useUiStore.setState({
-      game: mockGame(),
-      mapOpen: true,
-      worldSize: { width: 640, height: 480 },
-    });
-
-    const view = render(<WorldMap />);
-    const canvas = view.container.querySelector(".world-map-canvas");
-
-    expect(canvas).toBeInstanceOf(HTMLCanvasElement);
-    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("640 / 480");
-    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe(
-      String(640 / 480),
-    );
-  });
-
-  it("falls back to Verdant Reach's aspect before any welcome has set the world size", () => {
+  it("stays square before any welcome has set the world size", () => {
     useUiStore.setState({ game: mockGame(), mapOpen: true, worldSize: null });
 
     const view = render(<WorldMap />);
     const canvas = view.container.querySelector(".world-map-canvas");
 
-    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("4800 / 2700");
-    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe(
-      String(4800 / 2700),
-    );
+    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("1 / 1");
+    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe("1");
   });
 });
