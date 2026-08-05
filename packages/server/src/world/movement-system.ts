@@ -9,7 +9,7 @@ import { regenerateResource } from "@lindocara/engine/resources.js";
 import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import type { SpatialGrid } from "./spatial-grid.js";
-import { groundUnder, resolveGroundMovement } from "./terrain-access.js";
+import { clampToGrid, groundUnder, resolveGroundMovement } from "./terrain-access.js";
 import {
   type GroundVector,
   MAX_STARVED_TICKS,
@@ -107,11 +107,22 @@ export function advancePlayers<TSocket>(context: MovementSystemContext<TSocket>)
           z: player.z + (desired.z - player.z) * ratio,
         };
       }
-      // Pas de Lumen ignores terrain for the whole held traversal — that is the skill. In the
-      // pixel world `resolveTerrainForLumen` still clamped it to the world rectangle; here the
-      // grid has no rectangle and the priest simply goes where the intent says. The safe landing
-      // is still validated on rematerialisation, which is where it always was.
-      const moved = heldBlink ? desired : resolveGroundMovement(terrain, previousPosition, desired);
+      // Pas de Lumen ignores terrain for the whole held traversal — that is the skill, and it is
+      // what `resolveTerrainForLumen` did too. What that function ALSO did was keep the priest
+      // inside the world, and `clampToGrid` is its tile-unit successor: relief, water and props
+      // stay ignored, but the grid's edge still holds. Without it a held traversal walks off the
+      // map, where `heightAt` is `null` and there is no ground to rematerialise onto.
+      //
+      // CARRY FORWARD: the rematerialisation check itself (`safeLumenLanding`, `worldTick.ts`) is
+      // unconverted and writes its landing's ground coordinate into `player.y`, the ELEVATION
+      // field. Until that call site converts, the landing is the weak half of this skill.
+      // The ground the hero is standing on RIGHT NOW is what decides where it may step. Reading
+      // it from under the destination instead makes the ceiling test self-satisfying and lets any
+      // body whose stride exceeds its own radius walk up a cliff — see `resolveGroundMovement`.
+      const groundY = groundUnder(terrain, previousPosition.x, previousPosition.z, player.y);
+      const moved = heldBlink
+        ? clampToGrid(terrain, desired)
+        : resolveGroundMovement(terrain, previousPosition, desired, groundY);
       if (moved.x !== player.x || moved.z !== player.z) {
         const movementDistance = groundDistance(moved, player);
         player.x = moved.x;

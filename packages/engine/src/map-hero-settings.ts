@@ -4,16 +4,26 @@ import { SKILL_SLOTS, type SkillSlot } from "./skills.js";
 /**
  * Bounds shared by the editor and the authoritative map parser.
  *
- * `movementSpeed` is TILES per second, so its bounds are the exact quotients of the former 80 and
- * 520 px/s. The attack/heal ranges are still pixels and still belong to the skill tables the next
- * task converts — leaving them here as pixels while the speed is tiles is the visible seam, not an
- * oversight.
+ * `movementSpeed` is now read in TILES per second by the server, but its bound deliberately keeps
+ * the old PIXEL ceiling and only drops its floor to the tile equivalent, so it admits both
+ * readings. This is the same call `MONSTER_TUNING_LIMITS.speed` makes, for the same reason:
+ * authored maps stored a pixel speed, and narrowing this to `520/64` refuses every one of them —
+ * `parseMapHeroSettings` returns `null` for the whole record, so a read silently substitutes the
+ * defaults and a re-save of an untouched map is rejected. Converting authored hero stats belongs
+ * at the map boundary, with the rest of the authored geometry, not here.
+ *
+ * The consequence while the seam is open, and it is not a small one: a map that authored a speed
+ * in pixels moves its hero 64x too fast. It is recorded as a carry-forward rather than traded for
+ * silent data loss.
+ *
+ * The attack/heal ranges are still pixels and still belong to the skill tables the next task
+ * converts.
  */
 export const MAP_HERO_STAT_LIMITS = {
   attackBase: { min: 1, max: 500 },
   attackPerLevel: { min: 0, max: 100 },
   attackRange: { min: 16, max: 1_024 },
-  movementSpeed: { min: 80 / 64, max: 520 / 64 },
+  movementSpeed: { min: 80 / 64, max: 520 },
   healBase: { min: 1, max: 500 },
   healPerLevel: { min: 0, max: 100 },
   healRange: { min: 16, max: 1_024 },

@@ -701,8 +701,10 @@ describe("list, get, update, delete", () => {
     const adventureId = await newAdventure(userId);
     const id = await newMapId(adventureId, token);
     const heroSettings = defaultMapHeroSettings();
-    // Tiles per second: `MAP_HERO_STAT_LIMITS.movementSpeed` is tile units now.
-    heroSettings.classes.rogue.stats.movementSpeed = 350 / 64;
+    // A PIXEL speed, as every stored map authored before this increment holds. It must survive a
+    // round-trip untouched: `parseMapHeroSettings` refusing it would take the whole hero-settings
+    // record down with it, and a read would silently hand back the defaults instead.
+    heroSettings.classes.rogue.stats.movementSpeed = 350;
     heroSettings.classes.rogue.disabledSkills = [3, 5];
 
     const updated = await putMap(id, token, mapBody({ heroSettings }));
@@ -710,7 +712,7 @@ describe("list, get, update, delete", () => {
     expect(await updated.json()).toMatchObject({
       heroSettings: {
         classes: {
-          rogue: { stats: { movementSpeed: 350 / 64 }, disabledSkills: [3, 5] },
+          rogue: { stats: { movementSpeed: 350 }, disabledSkills: [3, 5] },
         },
       },
     });
@@ -720,7 +722,7 @@ describe("list, get, update, delete", () => {
     expect(await fetched.json()).toMatchObject({
       heroSettings: {
         classes: {
-          rogue: { stats: { movementSpeed: 350 / 64 }, disabledSkills: [3, 5] },
+          rogue: { stats: { movementSpeed: 350 }, disabledSkills: [3, 5] },
         },
       },
     });
@@ -735,7 +737,7 @@ describe("list, get, update, delete", () => {
     const rogue = legacy.classes.rogue as ReturnType<
       typeof defaultMapHeroSettings
     >["classes"]["rogue"];
-    rogue.stats.movementSpeed = 341 / 64;
+    rogue.stats.movementSpeed = 341;
     rogue.disabledSkills = [2, 5];
     delete legacy.classes.peasant;
     await probe.maps.updateById(id, { heroSettings: JSON.stringify(legacy) });
@@ -744,7 +746,7 @@ describe("list, get, update, delete", () => {
       heroSettings: ReturnType<typeof defaultMapHeroSettings>;
     };
     expect(loaded.heroSettings.classes.rogue).toMatchObject({
-      stats: { movementSpeed: 341 / 64 },
+      stats: { movementSpeed: 341 },
       disabledSkills: [2, 5],
     });
     expect(loaded.heroSettings.classes.peasant).toEqual(defaultMapHeroSettings().classes.peasant);
@@ -754,7 +756,7 @@ describe("list, get, update, delete", () => {
     expect(await resaved.json()).toMatchObject({
       heroSettings: {
         classes: {
-          rogue: { stats: { movementSpeed: 341 / 64 }, disabledSkills: [2, 5] },
+          rogue: { stats: { movementSpeed: 341 }, disabledSkills: [2, 5] },
           peasant: { stats: { movementSpeed: 247 / 64 }, disabledSkills: [] },
         },
       },

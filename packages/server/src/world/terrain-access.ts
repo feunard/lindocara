@@ -149,6 +149,12 @@ export function groundUnder(terrain: ZoneTerrain, x: number, z: number, fallback
  * The rule is "no worse, and never into the sea": a stuck body may move to a destination whose
  * relief is no higher than the relief it is already inside, and may leave a prop it is inside, but
  * may never step off the grid or into water — that would trade being stuck for drowning.
+ *
+ * `groundY` is the ground under the body NOW (see `resolveGroundMovement`), so the "is it stuck?"
+ * test below can only ever fail on the disc's relief or on a prop — the centre clause is
+ * necessarily satisfied where the body is already standing. That is not a weakness of the test,
+ * it is what "stuck" means, and it is exactly the pair of conditions `canEnter`'s two hatches
+ * examine (`hd2d/hero-step.ts:87-88`, `:93`).
  */
 export function canStandOrEscape(
   terrain: ZoneTerrain,
@@ -229,19 +235,25 @@ export function groundLineOfSight(
  * can clip a corner over a stretch too short for its centre line to ever cross it, and a monster
  * that keeps re-deciding "clear" near that corner ping-pongs there forever.
  *
- * `groundY` is re-read at every sample rather than carried from the start: a straight walk down a
- * slope of level tiers is legal even though `maxStep` is 0, because each step down re-grounds the
- * body. Carrying the start's `groundY` the whole way would refuse it.
+ * The ground is CARRIED FORWARD along the walk, not re-read from under each sample: it starts at
+ * `groundY` and drops to whatever the body just stepped onto. Re-reading it at each sample would
+ * make `canStand`'s centre test self-satisfying (see `resolveGroundMovement`) and this function
+ * would happily report a straight line up a cliff as walkable. Descending still works, because a
+ * step down re-grounds the body at the lower tier before the next sample is tested.
  */
 export function groundPathClear(
   terrain: ZoneTerrain,
   from: GroundVector,
   to: GroundVector,
   radius: number,
+  groundY: number,
 ): boolean {
-  return sampleSegment(from, to, Math.max(radius, 0.125), (x, z) =>
-    canStand(terrain, x, z, radius, groundUnder(terrain, x, z)),
-  );
+  let carried = groundY;
+  return sampleSegment(from, to, Math.max(radius, 0.125), (x, z) => {
+    if (!canStand(terrain, x, z, radius, carried)) return false;
+    carried = groundUnder(terrain, x, z, carried);
+    return true;
+  });
 }
 
 /**
@@ -255,30 +267,49 @@ export function groundPathClear(
  * (`hd2d/hero-step.ts:242-247`); losing it here would be an invisible feel regression, because
  * nothing would fail — movement would simply turn sticky.
  *
+ * **`groundY` is the ground under the body NOW, and passing the candidate's own ground instead is
+ * a cliff-climbing bug that hides.** `canStand`'s centre test is `heightAt(candidate) > groundY +
+ * MAX_STEP * levelHeight + ε`; feed it `heightAt(candidate)` as `groundY` and the comparison is
+ * self-satisfying and can never fail, leaving only the disc test to refuse anything. That happens
+ * to hold for a walking hero — one tick of travel (0.203 tiles) is shorter than the body's radius
+ * (0.25), so the disc bites the cliff before the centre reaches it — and that is a coincidence of
+ * two unrelated numbers, not a rule: a ghost moves 0.264 tiles a tick and climbs, and any
+ * knockback of a quarter tile or more climbs deterministically. `canEnter` reads `state.groundY`
+ * (`hd2d/hero-step.ts:71`,`:82`) for precisely this reason.
+ *
  * Two differences from the pixel resolver, both deliberate:
  *
  * - the world-rectangle clamp is gone. A tile grid is centred on the origin, so a rectangle
  *   anchored at 0 would fence off its whole western and northern halves. `canStand` already
  *   refuses ground off the grid, and refuses the sea too, which the clamp never did.
- * - `groundY` is read from under the CANDIDATE point rather than carried from the start, so a body
- *   walks DOWN a tier freely (nothing on the server falls in this phase) and never UP: `MAX_STEP`
- *   is 0, and high ground is reached by jumping.
+ * - a body walks DOWN a tier freely (nothing on the server falls in this phase) and never UP:
+ *   `MAX_STEP` is 0, and high ground is reached by jumping. Descending works because the caller
+ *   re-reads `groundY` from under the body after each accepted move.
  */
 export function resolveGroundMovement(
   terrain: ZoneTerrain,
   from: GroundVector,
   desired: GroundVector,
+  groundY: number,
   radius = BODY_RADIUS,
 ): GroundVector {
   let x = from.x;
   let z = from.z;
-  if (canStandOrEscape(terrain, from, desired.x, z, radius, groundUnder(terrain, desired.x, z))) {
-    x = desired.x;
-  }
-  if (canStandOrEscape(terrain, from, x, desired.z, radius, groundUnder(terrain, x, desired.z))) {
-    z = desired.z;
-  }
+  if (canStandOrEscape(terrain, from, desired.x, z, radius, groundY)) x = desired.x;
+  if (canStandOrEscape(terrain, from, x, desired.z, radius, groundY)) z = desired.z;
   return { x, z };
+}
+
+/**
+ * Keeps a point inside the grid without asking anything else of it — the tile-unit successor of
+ * `resolveTerrainForLumen`'s `clampToWorld`, and the only bound a terrain-ignoring traversal still
+ * has. Relief, water and props are deliberately not consulted; the grid's edge is, because off it
+ * `heightAt` is `null` and there is no ground to come back to.
+ */
+export function clampToGrid(terrain: ZoneTerrain, point: GroundVector): GroundVector {
+  const half = terrain.size / 2;
+  const bound = (value: number) => Math.min(half - 1e-3, Math.max(-half, value));
+  return { x: bound(point.x), z: bound(point.z) };
 }
 
 /**
@@ -294,6 +325,11 @@ export function resolveGroundMovement(
  *
  * All three axes travel: the returned `y` is the ground the body lands on, never a value dropped
  * on the floor because `WorldPosition` happened to satisfy a two-axis type.
+ *
+ * This one DOES ground the candidate on its own terrain, unlike `resolveGroundMovement`, and that
+ * is the right question here rather than the bug it would be there: nobody is stepping anywhere.
+ * The question is "is this a place a body could be standing", so the ground under it is by
+ * definition the ground it stands on, and only the disc's relief and the props can refuse it.
  */
 export function restoreStandablePosition(
   terrain: ZoneTerrain | undefined,

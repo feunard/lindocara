@@ -15,6 +15,7 @@
  */
 
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { GHOST_SPEED } from "@lindocara/engine/death.js";
 import { CLASS_STATS } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
@@ -23,7 +24,11 @@ import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 import { collectLoot } from "../src/world/loot-system.js";
-import { advanceMonsters, type MonsterSystemContext } from "../src/world/monster-system.js";
+import {
+  advanceMonsters,
+  type MonsterSystemContext,
+  pushMonsterAwayFrom,
+} from "../src/world/monster-system.js";
 import { advancePlayers } from "../src/world/movement-system.js";
 import { createNavigationRuntime } from "../src/world/navigation-system.js";
 import { SpatialGrid } from "../src/world/spatial-grid.js";
@@ -31,6 +36,7 @@ import {
   BODY_RADIUS,
   canStand,
   canStandOrEscape,
+  groundPathClear,
   groundUnder,
   restoreStandablePosition,
   type ZoneTerrain,
@@ -188,23 +194,87 @@ describe("hero movement in tile units", () => {
     expect(player.y).toBe(0);
   });
 
-  it("walks off a plateau but never up one", () => {
+  // Two speeds, because ONE of them hides the bug the other exposes. A living hero covers 0.203
+  // tiles a tick, less than its own 0.25 collision radius, so its disc always bites a cliff before
+  // its centre reaches it — a coincidence of two unrelated numbers. A ghost covers 0.264
+  // (`GHOST_SPEED = PLAYER_SPEED * 1.3`), more than the radius, and walks its centre straight into
+  // ground the disc never got to refuse. Any resolver that grounds the ceiling test on the
+  // DESTINATION passes the first case and climbs in the second.
+  const CLIMBERS = [
+    { life: "alive" as const, step: CLASS_STATS.warrior.movementSpeed * TICK_DT },
+    { life: "ghost" as const, step: GHOST_SPEED * TICK_DT },
+  ];
+
+  it("has one speed under the body's radius and one over it, or the pair proves nothing", () => {
+    // The premise of the two cases below, asserted rather than assumed. If a ghost ever became
+    // slower than its own collision radius, the pair would silently stop discriminating and the
+    // cliff-climbing regression could come back green.
+    expect(CLASS_STATS.warrior.movementSpeed * TICK_DT).toBeLessThan(BODY_RADIUS);
+    expect(GHOST_SPEED * TICK_DT).toBeGreaterThan(BODY_RADIUS);
+  });
+
+  for (const climber of CLIMBERS) {
+    it(`walks off a plateau but never up one (${climber.life}, ${climber.step} tiles/tick)`, () => {
+      const built = terrain();
+      const player = hero(0, PLATEAU_EDGE + 1);
+      player.life = climber.life;
+      player.y = LEVEL_HEIGHT;
+      const harness = movementHarness(built, player);
+
+      // Northward, off the plateau and onto the flat ground below: falling is free, climbing is not.
+      press(harness, { up: true }, 60);
+      expect(player.z).toBeLessThan(PLATEAU_EDGE);
+      expect(player.y).toBe(0);
+
+      // And back south, into the face it just came down: refused, because `MAX_STEP` is 0.
+      const beforeClimb = player.z;
+      press(harness, { down: true }, 200);
+      expect(player.z).toBeLessThan(PLATEAU_EDGE);
+      expect(player.z).toBeGreaterThanOrEqual(beforeClimb);
+      expect(player.y).toBe(0);
+    });
+
+    it(`cannot climb the cliff from any approach phase (${climber.life})`, () => {
+      // A single fixed starting point is NOT enough for the fast case. A body whose stride exceeds
+      // its radius only climbs when a step happens to jump the whole gap between "the disc bites"
+      // and "the centre is on top" — a window one stride minus one radius wide, about 5% of
+      // approach phases for a ghost. One start lands where it lands; twenty-five sub-stride
+      // offsets cover every phase, and every one of them must be refused.
+      const built = terrain();
+      for (let phase = 0; phase < 25; phase++) {
+        const player = hero(0, PLATEAU_EDGE - 3 - (climber.step * phase) / 25);
+        player.life = climber.life;
+        const harness = movementHarness(built, player);
+        press(harness, { down: true }, 40);
+        expect(player.z, `phase ${phase}`).toBeLessThan(PLATEAU_EDGE);
+        expect(player.y, `phase ${phase}`).toBe(0);
+      }
+    });
+  }
+
+  it("refuses a straight walk up a cliff even when every cell along it is standable", () => {
     const built = terrain();
-    const player = hero(0, PLATEAU_EDGE + 1);
-    player.y = LEVEL_HEIGHT;
-    const harness = movementHarness(built, player);
+    const from = { x: 0, z: PLATEAU_EDGE - 2 };
+    const onto = { x: 0, z: PLATEAU_EDGE + 2 };
+    const along = { x: 4, z: PLATEAU_EDGE - 2 };
 
-    // Northward, off the plateau and onto the flat ground below: falling is free, climbing is not.
-    press(harness, { up: true }, 60);
-    expect(player.z).toBeLessThan(PLATEAU_EDGE);
-    expect(player.y).toBe(0);
-
-    // And back south, into the face it just came down: refused, because `MAX_STEP` is 0.
-    const beforeClimb = player.z;
-    press(harness, { down: true }, 60);
-    expect(player.z).toBeLessThan(PLATEAU_EDGE);
-    expect(player.z).toBeGreaterThanOrEqual(beforeClimb);
-    expect(player.y).toBe(0);
+    // Deliberately a SMALL radius, not `BODY_RADIUS`. At the body's own radius the disc test
+    // refuses this line at the cliff's foot anyway, so it would pass whether or not the sweep
+    // carries its ground forward — the disc masks the rule the same way a hero's short stride
+    // masks it in `resolveGroundMovement`. A thin body has no disc to hide behind, and the only
+    // thing left refusing the climb is the carried ground.
+    const thin = 0.05;
+    expect(groundPathClear(built, from, onto, thin, groundUnder(built, from.x, from.z))).toBe(
+      false,
+    );
+    // The same walk on level ground is clear, so the refusal is the cliff and not the function.
+    expect(groundPathClear(built, from, along, thin, groundUnder(built, from.x, from.z))).toBe(
+      true,
+    );
+    // And a fat body is refused too, one line earlier, by the disc.
+    expect(
+      groundPathClear(built, from, onto, BODY_RADIUS, groundUnder(built, from.x, from.z)),
+    ).toBe(false);
   });
 
   it("keeps every non-movement duty `advancePlayers` owns", () => {
@@ -291,6 +361,29 @@ describe("a restored position", () => {
     expect(restored).toEqual({ x: 1.5, y: 0, z: -2.5 });
   });
 
+  it("re-derives the elevation from the ground, on a map where the ground is not zero", () => {
+    // The assertion above is on flat level-0 ground, where `y: 0` cannot tell "read from the
+    // terrain" apart from "hard-coded 0". Restoring onto the plateau can.
+    const built = terrain();
+    const restored = restoreStandablePosition(
+      built,
+      { x: 1.5, y: 99, z: PLATEAU_EDGE + 2 },
+      { x: 0, z: 0 },
+    );
+    expect(restored).toEqual({ x: 1.5, y: LEVEL_HEIGHT, z: PLATEAU_EDGE + 2 });
+
+    // …and so can the spawn leg, when the spawn itself is on high ground.
+    const toPlateau = restoreStandablePosition(
+      built,
+      { x: Number.NaN, y: 0, z: 0 },
+      {
+        x: 1.5,
+        z: PLATEAU_EDGE + 2,
+      },
+    );
+    expect(toPlateau).toEqual({ x: 1.5, y: LEVEL_HEIGHT, z: PLATEAU_EDGE + 2 });
+  });
+
   it("sends a hero whose stored ground is no longer standable to the map spawn", () => {
     const built = terrain();
     // Inside the plateau's disc — the cemented case, refused before it can become a live hero.
@@ -369,22 +462,9 @@ describe("a monster and a hero on high ground", () => {
         tiles,
         colliders: noColliders(tiles),
       },
-      TILE_UNIT_NAVIGATION,
+      DEFAULT_ZONE_NAVIGATION,
     );
   }
-
-  /**
-   * `DEFAULT_ZONE_NAVIGATION`'s two geometric fields are still PIXELS — they belong to the A*
-   * conversion in a later task, which owns `navigation-system.ts`. Left as they are, a 10px
-   * waypoint tolerance reads as ten TILES and every destination looks already reached, so a
-   * monster stops before it starts. Overriding them here keeps this suite about elevation instead
-   * of about that seam; the seam itself is carried forward, not hidden.
-   */
-  const TILE_UNIT_NAVIGATION = {
-    ...DEFAULT_ZONE_NAVIGATION,
-    waypointTolerance: 10 / 64,
-    targetMoveThreshold: 72 / 64,
-  };
 
   function goblinAt(x: number, z: number): MonsterRuntime {
     const monster = createMonsters([
@@ -462,6 +542,23 @@ describe("a monster and a hero on high ground", () => {
 
     expect(monster.threat.has(target.id)).toBe(false);
     expect(monster.navigation.unreachableTargetId).toBe(target.id);
+  });
+
+  it("cannot be knocked back onto a plateau", () => {
+    const built = terrain();
+    // A single displacement of a whole tile — four times the body's radius — aimed straight at the
+    // cliff. Nothing about a knockback is bounded by a tick of walking speed, so this is the case
+    // where a resolver that grounds its ceiling test on the destination climbs every single time
+    // rather than 4% of the time.
+    const monster = goblinAt(0, PLATEAU_EDGE - 0.5);
+    monster.y = 0;
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(4);
+    monsterGrid.insert(monster);
+
+    pushMonsterAwayFrom(monster, { x: 0, z: PLATEAU_EDGE - 2 }, 1, built, monsterGrid);
+
+    expect(monster.z).toBeLessThan(PLATEAU_EDGE);
+    expect(monster.y).toBe(0);
   });
 
   it("still chases a hero standing on its own level", () => {

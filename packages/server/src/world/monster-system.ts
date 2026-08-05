@@ -105,10 +105,18 @@ export function pushMonsterAwayFrom(
     ),
   );
   const previous = { x: monster.x, z: monster.z };
-  const moved = resolveGroundMovement(terrain, previous, {
-    x: monster.x + direction.x * Math.max(0, distance),
-    z: monster.z + direction.z * Math.max(0, distance),
-  });
+  // A knockback is the case that made the destination-grounded version of this call dangerous: it
+  // is a single displacement of a whole tile or more, far past the body's radius, so the disc test
+  // never gets the chance to refuse the cliff the centre test would have waved through.
+  const moved = resolveGroundMovement(
+    terrain,
+    previous,
+    {
+      x: monster.x + direction.x * Math.max(0, distance),
+      z: monster.z + direction.z * Math.max(0, distance),
+    },
+    groundUnder(terrain, monster.x, monster.z, monster.y),
+  );
   monster.x = moved.x;
   monster.z = moved.z;
   monster.y = groundUnder(terrain, moved.x, moved.z, monster.y);
@@ -418,7 +426,13 @@ function navigateMonster<TSocket>(
   // only to be shoved back by real collision each time — ping-pongs there forever.
   const lineClear =
     monster.navigation.directBlockedDestination === null &&
-    groundPathClear(context.zone.terrain, monster, destination, BODY_RADIUS);
+    groundPathClear(
+      context.zone.terrain,
+      monster,
+      destination,
+      BODY_RADIUS,
+      groundUnder(context.zone.terrain, monster.x, monster.z, monster.y),
+    );
   if (lineClear) {
     if (monster.navigation.requestPending || monster.navigation.path.length > 0)
       invalidateMonsterPath(monster, "direct_path");
@@ -480,10 +494,15 @@ function moveMonsterDirect<TSocket>(
   monster.vz = (dz / length) * speed;
   monster.facing = { x: dx / length, z: dz / length };
   const travel = Math.min(speed * TICK_DT, length);
-  const moved = resolveGroundMovement(terrain, previousPosition, {
-    x: monster.x + (dx / length) * travel,
-    z: monster.z + (dz / length) * travel,
-  });
+  const moved = resolveGroundMovement(
+    terrain,
+    previousPosition,
+    {
+      x: monster.x + (dx / length) * travel,
+      z: monster.z + (dz / length) * travel,
+    },
+    groundUnder(terrain, monster.x, monster.z, monster.y),
+  );
   if (moved.x === monster.x) monster.vx = 0;
   if (moved.z === monster.z) monster.vz = 0;
   monster.x = moved.x;
@@ -593,7 +612,12 @@ function moveGuardToward<TSocket>(
     desired.x = guard.homeX + ((desired.x - guard.homeX) / fromHome) * guard.patrolRadius;
     desired.z = guard.homeZ + ((desired.z - guard.homeZ) / fromHome) * guard.patrolRadius;
   }
-  const moved = resolveGroundMovement(terrain, { x: guard.x, z: guard.z }, desired);
+  const moved = resolveGroundMovement(
+    terrain,
+    { x: guard.x, z: guard.z },
+    desired,
+    groundUnder(terrain, guard.x, guard.z, guard.y),
+  );
   guard.x = moved.x;
   guard.z = moved.z;
   guard.y = groundUnder(terrain, moved.x, moved.z, guard.y);
