@@ -1,13 +1,13 @@
-import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import { normalizeGround } from "@lindocara/engine/directional-combat.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { CombatActionKind } from "@lindocara/engine/protocol.js";
-import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { CombatActionRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 export interface StartCombatActionOptions {
   kind: CombatActionKind;
   skillId?: string;
   slot?: number;
-  direction: Vec2;
+  direction: GroundVector;
   now: number;
   anticipationMs: number;
   recoveryMs: number;
@@ -29,7 +29,7 @@ export function startCombatAction(
     kind: options.kind,
     ...(options.skillId ? { skillId: options.skillId } : {}),
     ...(options.slot === undefined ? {} : { slot: options.slot }),
-    direction: normalizeDirection(options.direction),
+    direction: normalizeGround(options.direction),
     startedAt: options.now,
     impactAt,
     recoveryEndsAt:

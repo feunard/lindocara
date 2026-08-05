@@ -747,10 +747,17 @@ building collider, quest-keeper coordinate, spawn, and guard home; `client/game/
 owns only visual roads, districts, signs and decor density. Keep those two descriptions aligned.
 All quest keepers must remain inside `SAFE_ZONE` on walkable ground.
 
-Guards are simulated by the world room and emitted in snapshots. They target only live monsters already
-inside the safe zone, cannot leave their home patrol radius, and never attack players. A guard
+Guards are simulated by the world room and emitted in snapshots. They target only live monsters
+inside **their own patrol ring**, cannot leave that ring, and never attack players. A guard
 kill sets the monster respawn state directly: it must never call the player reward path, create
 loot, grant XP, or advance a kill quest.
+
+**The safe zone did not survive the heightfield.** `ZoneTerrain` carries no `safeZone` and a stored
+heightfield has no way to declare one, so the "monsters may not touch a player inside Heartroot's
+walls" rule is gone and the patrol ring above replaces it. That is the branch every authored map
+already took — `safeZone` was baked `null` for all of them — so the only loser is the Verdant Reach
+catalogue, which no live party is routed to. `safeZoneShelters` (`engine/game.ts`) still exists for
+the catalogue's own tests and dies with the pixel `TerrainGeometry`; no converted system calls it.
 
 Guards themselves are durable service NPCs rather than defeat objectives. Hostile melee,
 techniques and projectiles all pass through `world/combat-system.ts`'s `applyGuardDamage`, which

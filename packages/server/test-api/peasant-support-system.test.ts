@@ -1,7 +1,10 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { actionForClassSlot } from "@lindocara/engine/combat-actions.js";
-import { maxHpForLevel, type TerrainGeometry } from "@lindocara/engine/game.js";
+import { maxHpForLevel } from "@lindocara/engine/game.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advancePeasantCamps,
   beginPeasantSupportRequest,
@@ -21,29 +24,60 @@ import {
   advanceProjectiles,
   type ProjectileSystemContext,
 } from "@lindocara/server/world/projectile-system.js";
-import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
+import {
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/server/world/terrain-access.js";
 import {
   createMonsters,
+  type GroundIndexQuery,
   type MonsterRuntime,
   newPlayer,
   type PlayerRuntime,
   type ProjectileRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
+
 import { describe, expect, it, vi } from "vitest";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
 import { sendPeasantCampsTo, type WorldGlue } from "../src/api/realtime/worldTick.ts";
 
-function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
-  const tiles = tileMapFromRects(400, 240, obstacles);
+/**
+ * Coordinates here are the suite's original PIXEL values over `TILE_SIZE`, on a flat 32x32
+ * heightfield. Positions are body CENTRES now, so nothing adds half a body anywhere.
+ */
+const t = (pixels: number): number => pixels / TILE_SIZE;
+
+function terrain(obstacles: readonly ColliderRect[] = []): ZoneTerrain {
+  const size = 32;
+  const map: MapData = {
+    version: 1,
+    size,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels: new Array(size * size).fill(0),
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [...obstacles],
+    spawns: [],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
+
+/**
+ * The broad phase these functions ask for, done exactly. The room's spatial grid still indexes
+ * ground `x` against ELEVATION `y` and is Task 6's to convert; a suite about blast geometry must
+ * not wait on it to measure the right plane.
+ */
+function groundIndex<T extends { id: string; x: number; z: number }>(
+  entities: readonly T[],
+): GroundIndexQuery<T> {
   return {
-    width: 400,
-    height: 240,
-    spawnPoints: [{ x: 0, y: 0 }],
-    obstacles,
-    safeZone: null,
-    tiles,
-    colliders: noColliders(tiles),
+    queryRadius(position, radius) {
+      return entities.filter(
+        (entity) => Math.hypot(entity.x - position.x, entity.z - position.z) <= radius,
+      );
+    },
   };
 }
 
@@ -53,7 +87,8 @@ function player(id: string, x = 0, partyId = "party-a"): PlayerRuntime {
       id,
       nick: id,
       x,
-      y: 32,
+      y: 0,
+      z: t(32),
       level: 20,
       xp: 0,
       hp: 100,
@@ -74,13 +109,22 @@ function player(id: string, x = 0, partyId = "party-a"): PlayerRuntime {
   );
   result.identityKind = "hero";
   result.partyId = partyId;
-  result.facing = { x: 1, y: 0 };
+  result.facing = { x: 1, z: 0 };
   return result;
 }
 
 function monster(id: string, x: number): MonsterRuntime {
   const result = createMonsters([
-    { id, kind: "goblin", species: "spear_goblin", zone: "route", x, y: 32, patrolRadius: 20 },
+    {
+      id,
+      kind: "goblin",
+      species: "spear_goblin",
+      zone: "route",
+      x,
+      y: 0,
+      z: t(32),
+      patrolRadius: t(20),
+    },
   ])[0];
   if (!result) throw new Error("monster fixture missing");
   return result;
@@ -127,12 +171,12 @@ describe("authoritative Peasant support", () => {
         projectiles: [],
       });
     expect(valid()).toBe(true);
-    owner.x += 1;
+    owner.x += t(1);
     expect(valid()).toBe(false);
-    owner.x -= 1;
-    owner.facing = { x: 0, y: 1 };
+    owner.x -= t(1);
+    owner.facing = { x: 0, z: 1 };
     expect(valid()).toBe(false);
-    owner.facing = { x: 1, y: 0 };
+    owner.facing = { x: 1, z: 0 };
     owner.authorized = false;
     expect(valid()).toBe(false);
     owner.authorized = true;
@@ -143,16 +187,23 @@ describe("authoritative Peasant support", () => {
   it("keeps one camp per owner, pulses allies and applies only the strongest protection", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");
-    const ally = player("ally", 48);
-    const outsider = player("outsider", 48, "party-b");
+    const ally = player("ally", t(48));
+    const outsider = player("outsider", t(48), "party-b");
     const world = terrain();
     const plans = supportPlans();
-    const first = placePeasantCamp(runtime, owner, "camp-a", { x: 48, y: 48 }, plans.camp, 1_000);
+    const first = placePeasantCamp(
+      runtime,
+      owner,
+      "camp-a",
+      { x: t(48), y: 0, z: t(48) },
+      plans.camp,
+      1_000,
+    );
     const second = placePeasantCamp(
       runtime,
       owner,
       "camp-b",
-      { x: 52, y: 48 },
+      { x: t(52), y: 0, z: t(48) },
       {
         ...plans.camp,
         construction: { ...plans.camp.construction, protectionRatio: 0.08 },
@@ -205,8 +256,8 @@ describe("authoritative Peasant support", () => {
   it("lets any nearby ally deposit and withdraw gold without trusting a resulting balance", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");
-    const ally = player("ally", 32);
-    const outsider = player("outsider", 32, "party-b");
+    const ally = player("ally", t(32));
+    const outsider = player("outsider", t(32), "party-b");
     ally.inventory.gold = 80;
     outsider.inventory.gold = 80;
     const world = terrain();
@@ -214,7 +265,7 @@ describe("authoritative Peasant support", () => {
       runtime,
       owner,
       "camp-bank",
-      { x: 48, y: 48 },
+      { x: t(48), y: 0, z: t(48) },
       supportPlans().camp,
       1_000,
     )?.camp;
@@ -285,7 +336,7 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.makeshift_camp.stockade",
         expected: {
           cost: { wood: 3, stone: 2, meat: 2 },
-          radius: 96,
+          radius: t(96),
           durationMs: 61_250,
           protectionRatio: 0.27,
           slowRatio: 0.2,
@@ -295,7 +346,7 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.makeshift_camp.campfire",
         expected: {
           cost: { wood: 4, stone: 2, meat: 2 },
-          radius: 120,
+          radius: t(120),
           durationMs: 43_750,
           protectionRatio: 0.2,
           slowRatio: 0,
@@ -305,7 +356,7 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.makeshift_camp.complete_encampment",
         expected: {
           cost: { wood: 2, stone: 1, meat: 1 },
-          radius: 144,
+          radius: t(144),
           durationMs: 80_000,
           protectionRatio: 0.22,
           slowRatio: 0.2,
@@ -319,7 +370,7 @@ describe("authoritative Peasant support", () => {
         runtime,
         owner,
         value.talent,
-        { x: 48, y: 48 },
+        { x: t(48), y: 0, z: t(48) },
         plan,
         1_000,
       );
@@ -339,11 +390,11 @@ describe("authoritative Peasant support", () => {
       },
       {
         talent: "peasant.butchers_cut.field_feast",
-        expected: { healing: 12, portions: 1, radius: 120, durationMs: 6_000, bonus: 0.1 },
+        expected: { healing: 12, portions: 1, radius: t(120), durationMs: 6_000, bonus: 0.1 },
       },
       {
         talent: "peasant.butchers_cut.grand_feast",
-        expected: { healing: 21, portions: 4, radius: 180, durationMs: 10_000, bonus: 0.15 },
+        expected: { healing: 21, portions: 4, radius: t(180), durationMs: 10_000, bonus: 0.15 },
       },
     ] as const;
     for (const value of rationCases) {
@@ -352,7 +403,7 @@ describe("authoritative Peasant support", () => {
         runtime,
         owner,
         value.talent,
-        { x: 48, y: 48 },
+        { x: t(48), y: 0, z: t(48) },
         supportPlans([value.talent]).camp,
         1_000,
       );
@@ -370,22 +421,22 @@ describe("authoritative Peasant support", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");
     const allies = [
-      player("ally-a", 40),
-      player("ally-b", 56),
-      player("ally-c", 72),
-      player("ally-d", 88),
+      player("ally-a", t(40)),
+      player("ally-b", t(56)),
+      player("ally-c", t(72)),
+      player("ally-d", t(88)),
     ];
     owner.hp = 90;
     allies.forEach((ally, index) => {
       ally.hp = 10 + index * 10;
     });
-    const slowed = monster("slowed", 64);
-    const far = monster("far", 360);
+    const slowed = monster("slowed", t(64));
+    const far = monster("far", t(360));
     const camp = placePeasantCamp(
       runtime,
       owner,
       "camp-feast",
-      { x: 48, y: 48 },
+      { x: t(48), y: 0, z: t(48) },
       supportPlans([
         "peasant.butchers_cut.grand_feast",
         "peasant.makeshift_camp.complete_encampment",
@@ -427,7 +478,7 @@ describe("authoritative Peasant support", () => {
       runtime,
       owner,
       "camp-ration",
-      { x: 48, y: 48 },
+      { x: t(48), y: 0, z: t(48) },
       supportPlans().camp,
       1_000,
     )?.camp;
@@ -476,7 +527,7 @@ describe("authoritative Peasant support", () => {
       runtime,
       owner,
       "camp-feast",
-      { x: 48, y: 48 },
+      { x: t(48), y: 0, z: t(48) },
       supportPlans(["peasant.butchers_cut.field_feast"]).camp,
       1_000,
     )?.camp;
@@ -514,7 +565,7 @@ describe("authoritative Peasant support", () => {
       state.peasantSupport,
       owner,
       "camp-a",
-      { x: 48, y: 48 },
+      { x: t(48), y: 0, z: t(48) },
       plan,
       1_000,
     );
@@ -542,7 +593,7 @@ describe("authoritative Peasant support", () => {
         expected: {
           cost: { iron: 2, stone: 2 },
           power: 85,
-          radius: 121,
+          radius: t(121),
           fragments: 4,
           fragmentPower: 21,
           slowRatio: 0,
@@ -555,12 +606,12 @@ describe("authoritative Peasant support", () => {
         expected: {
           cost: { iron: 2, stone: 2 },
           power: 77,
-          radius: 132,
+          radius: t(132),
           fragments: 0,
           fragmentPower: 0,
           slowRatio: 0.35,
           slowDurationMs: 3_000,
-          knockbackDistance: 48,
+          knockbackDistance: t(48),
         },
       },
       {
@@ -568,12 +619,13 @@ describe("authoritative Peasant support", () => {
         expected: {
           cost: { iron: 1, stone: 1 },
           power: 115,
-          radius: 148.5,
+          // 110 px * 1.35; tile units keep the exact product where the pixel table rounded.
+          radius: 2.320313,
           fragments: 6,
           fragmentPower: 35,
           slowRatio: 0.25,
           slowDurationMs: 3_000,
-          knockbackDistance: 36,
+          knockbackDistance: t(36),
         },
       },
     ] as const;
@@ -637,22 +689,22 @@ describe("authoritative Peasant support", () => {
     const projectile = projectiles[0];
     if (!projectile) throw new Error("bomb projectile missing");
     const targets = [
-      monster("target-a", 64),
-      monster("target-b", 72),
-      monster("target-c", 80),
-      monster("target-d", 88),
-      monster("target-e", 96),
+      monster("target-a", t(64)),
+      monster("target-b", t(72)),
+      monster("target-c", t(80)),
+      monster("target-d", t(88)),
+      monster("target-e", t(96)),
     ];
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    targets.forEach((target) => {
-      monsterGrid.insert(target);
-    });
+    const monsterGrid = groundIndex(targets);
     const damage: Array<[string, number]> = [];
     const explode = () =>
       resolvePeasantBombImpact({
         runtime,
         projectile,
-        point: { x: 80, y: 48 },
+        // Due west of the row of targets, so "nearest first" is unambiguous. The pixel version
+        // put the blast north of them and relied on each monster's combat disc sitting ~50 px
+        // north of its feet; that offset left the ground plane with MONSTER_BODY_HITBOX.
+        point: { x: t(0), z: t(32) },
         monsterGrid,
         terrain: terrain(),
         now: 2_100,
@@ -677,8 +729,8 @@ describe("authoritative Peasant support", () => {
   it("creates one non-piercing bomb and resolves its authoritative AoE exactly once", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");
-    const target = monster("target", 48);
-    target.y = 64;
+    const target = monster("target", t(48));
+    target.z = t(64);
     const world = terrain();
     const { camp, bomb } = supportSkills();
     const plans = peasantSupportPlans({ camp, bomb, selectedTalents: [] });
@@ -693,7 +745,7 @@ describe("authoritative Peasant support", () => {
       terrain: world,
       projectiles: [],
       now: 2_000,
-      direction: { x: 0.6, y: 0.8 },
+      direction: { x: 0.6, z: 0.8 },
     });
     if (!requested.ok) throw new Error(`request rejected: ${requested.reason}`);
     const action = commitPeasantSupportRequest(runtime, requested.request, owner, 2_000);
@@ -713,13 +765,11 @@ describe("authoritative Peasant support", () => {
       kind: "homemade_bomb",
       pierceRemaining: 0,
       power: 0,
-      direction: { x: 0.6, y: 0.8 },
+      direction: { x: 0.6, z: 0.8 },
     });
 
-    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
-    monsterGrid.insert(target);
-    const playerGrid = new SpatialGrid<PlayerRuntime>(64);
-    playerGrid.insert(owner);
+    const monsterGrid = groundIndex([target]);
+    const playerGrid = groundIndex([owner]);
     const directDamage = vi.fn();
     const explosionDamage = vi.fn();
     const impacts: string[] = [];

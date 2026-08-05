@@ -1,12 +1,11 @@
 import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
-import type { ColliderIndex } from "@lindocara/engine/collider.js";
 import {
   circleIntersectsArc,
   frontalArc,
   segmentIntersectsRect,
-  sweptProjectileTerrainImpact,
 } from "@lindocara/engine/directional-combat.js";
-import { monsterBodyHitbox, type Rect, type TerrainGeometry } from "@lindocara/engine/game.js";
+import { monsterBodyHitbox } from "@lindocara/engine/game.js";
+import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import {
   animalCarcassHarvestProfile,
   type HarvestProfile,
@@ -14,6 +13,7 @@ import {
   PEASANT_CARRY_DURATION_MS,
   type PeasantCarryKind,
 } from "@lindocara/engine/harvest.js";
+import type { ColliderIndex, ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { eventCellFoot, harvestableEvents, type MapEvent } from "@lindocara/engine/map-events.js";
 import {
@@ -22,11 +22,41 @@ import {
   refreshHarvestNode,
 } from "@lindocara/engine/party-harvest-state.js";
 import { type PeasantHarvestPlan, resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
-import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { sweptGroundTerrainImpact, type ZoneTerrain } from "./terrain-access.js";
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
+
+/**
+ * **CARRY FORWARD — authored harvest geometry is still PIXELS.** A map event's `harvest.collider`
+ * tuple and its cell foot are authored, stored and parsed in the pixel, top-left-origin space the
+ * editor writes, exactly like authored monster speed and `patrolRadius`. Converting them at the
+ * MAP BOUNDARY belongs with the rest of the authored content (Task 7); until then the two helpers
+ * below are the single place this system crosses from that space into tile units, so the crossing
+ * is countable rather than smeared across every call site.
+ *
+ * A pixel rectangle's top-left corner maps to the tile grid's TOP-LEFT ORIGIN, so the grid-centre
+ * shift is `- size / 2` on both ground axes.
+ */
+function authoredRect(
+  tuple: readonly [number, number, number, number],
+  gridSize: number,
+): ColliderRect {
+  const half = gridSize / 2;
+  return {
+    x: tuple[0] / TILE_SIZE - half,
+    z: tuple[1] / TILE_SIZE - half,
+    w: tuple[2] / TILE_SIZE,
+    h: tuple[3] / TILE_SIZE,
+  };
+}
+
+/** The authored cell's foot, on the grid-centred ground plane. */
+function authoredCellFoot(event: { col: number; row: number }, gridSize: number): GroundVector {
+  const half = gridSize / 2;
+  return { x: event.col + 0.5 - half, z: event.row + 1 - half };
+}
 
 const PEASANT_TOOL_BY_SLOT: Readonly<Partial<Record<SkillSlot, HarvestTool>>> = {
   1: "axe",
@@ -41,10 +71,10 @@ export interface PeasantHarvestTarget {
   runtimeId: string;
   nodeId: string;
   generation: number;
-  position: Vec2;
+  position: GroundVector;
   radius: number;
   /** Explicit gameplay footprint for authored nodes; animal bodies use their combat radius. */
-  collider: Rect | null;
+  collider: ColliderRect | null;
   /** Absolute corpse deadline; map resources keep their authored relative respawn delay. */
   respawnAt: number | null;
   profile: HarvestProfile;
@@ -70,8 +100,8 @@ export interface PeasantHarvestJob {
   connectionId: string;
   slot: SkillSlot;
   tool: HarvestTool;
-  direction: Vec2;
-  areaCenter: Vec2;
+  direction: GroundVector;
+  areaCenter: GroundVector;
   areaRadius: number;
   targets: PeasantHarvestJobTarget[];
   startedAt: number;
@@ -85,7 +115,7 @@ export interface PeasantHarvestView {
   activeEvents: readonly ActiveWorldEvent[];
   adventureState: PartyAdventureState;
   monsters: readonly MonsterRuntime[];
-  terrain: TerrainGeometry;
+  terrain: ZoneTerrain;
   /** Prebuilt immutable map/element index; never rebuilt per harvest candidate. */
   staticColliderIndex: ColliderIndex;
 }
@@ -173,13 +203,8 @@ function mapTargets(view: PeasantHarvestView, now: number): PeasantHarvestTarget
     ) {
       return [];
     }
-    const collider: Rect = {
-      x: activeCollider[0],
-      y: activeCollider[1],
-      width: activeCollider[2],
-      height: activeCollider[3],
-    };
-    const foot = eventCellFoot(active);
+    const collider = authoredRect(activeCollider, view.terrain.size);
+    const foot = authoredCellFoot(active, view.terrain.size);
     return [
       {
         kind: "map_event" as const,
@@ -187,9 +212,9 @@ function mapTargets(view: PeasantHarvestView, now: number): PeasantHarvestTarget
         nodeId: event.id,
         generation: node.generation,
         position: collider
-          ? { x: collider.x + collider.width / 2, y: collider.y + collider.height / 2 }
+          ? { x: collider.x + collider.w / 2, z: collider.z + collider.h / 2 }
           : foot,
-        radius: collider ? Math.hypot(collider.width, collider.height) / 2 : TILE_SIZE / 2,
+        radius: collider ? Math.hypot(collider.w, collider.h) / 2 : 0.5,
         collider,
         respawnAt: null,
         profile: event.harvestProfile,
@@ -233,17 +258,18 @@ function carcassTargets(view: PeasantHarvestView, now: number): PeasantHarvestTa
  * dynamic footprint; a static or second event collider with identical geometry remains opaque.
  */
 export function hasPeasantHarvestLineOfSight(
-  from: Vec2,
+  from: GroundVector,
   target: PeasantHarvestTarget,
   view: PeasantHarvestView,
+  groundY = 0,
 ): boolean {
   if (
-    sweptProjectileTerrainImpact(
+    sweptGroundTerrainImpact(
+      { ...view.terrain, colliders: view.staticColliderIndex },
       from,
       target.position,
       0,
-      view.terrain.tiles,
-      view.staticColliderIndex,
+      groundY,
     ) !== null
   ) {
     return false;
@@ -252,12 +278,7 @@ export function hasPeasantHarvestLineOfSight(
     if (target.kind === "map_event" && event.id === target.runtimeId) return false;
     const tuple = event.harvest?.collider;
     return tuple
-      ? segmentIntersectsRect(from, target.position, {
-          x: tuple[0],
-          y: tuple[1],
-          width: tuple[2],
-          height: tuple[3],
-        })
+      ? segmentIntersectsRect(from, target.position, authoredRect(tuple, view.terrain.size))
       : false;
   });
 }
@@ -271,7 +292,7 @@ export function peasantHarvestTargets(
 
 function targetMatchesAction(
   player: PlayerRuntime,
-  direction: Vec2,
+  direction: GroundVector,
   tool: HarvestTool,
   skillRange: number,
   halfAngleRadians: number,
@@ -279,7 +300,11 @@ function targetMatchesAction(
   view: PeasantHarvestView,
 ): boolean {
   if (target.profile.tool !== tool) return false;
-  const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
+  // A tile-unit position IS the body's centre; the old `+ PLAYER_SIZE / 2` recentred a corner.
+  const center = { x: player.x, z: player.z };
+  // CARRY FORWARD: `target.profile.range` is authored in PIXELS (see the header). Taking the
+  // minimum of a tile reach and a pixel one always yields the tile reach, so an authored node's
+  // own shorter range currently has no effect. Converting authored harvest profiles is Task 7's.
   const range = Math.min(skillRange, target.profile.range);
   return (
     circleIntersectsArc(
@@ -292,7 +317,7 @@ function targetMatchesAction(
 export function selectPeasantHarvestTarget(input: {
   player: PlayerRuntime;
   slot: SkillSlot;
-  direction: Vec2;
+  direction: GroundVector;
   skillRange: number;
   halfAngleRadians: number;
   view: PeasantHarvestView;
@@ -320,14 +345,8 @@ export function selectPeasantHarvestTarget(input: {
       ),
     )
     .sort((left, right) => {
-      const leftDistance = Math.hypot(
-        left.position.x - input.player.x,
-        left.position.y - input.player.y,
-      );
-      const rightDistance = Math.hypot(
-        right.position.x - input.player.x,
-        right.position.y - input.player.y,
-      );
+      const leftDistance = groundDistance(left.position, input.player);
+      const rightDistance = groundDistance(right.position, input.player);
       return leftDistance - rightDistance || left.nodeId.localeCompare(right.nodeId);
     });
   return candidates[0] ?? null;
@@ -342,7 +361,7 @@ export function selectPeasantHarvestTarget(input: {
 export function selectPeasantHarvestTargets(input: {
   player: PlayerRuntime;
   slot: SkillSlot;
-  direction: Vec2;
+  direction: GroundVector;
   skillRange: number;
   halfAngleRadians: number;
   view: PeasantHarvestView;
@@ -361,30 +380,17 @@ export function selectPeasantHarvestTargets(input: {
   };
   if (primaryPlan.areaRadius <= 0 || primaryPlan.maximumTargets <= 1) return [plannedPrimary];
 
-  const playerCenter = {
-    x: input.player.x + PLAYER_SIZE / 2,
-    y: input.player.y + PLAYER_SIZE / 2,
-  };
   const additional = peasantHarvestTargets(input.view, input.now)
     .filter(
       (target) =>
         target.nodeId !== primary.nodeId &&
         target.profile.tool === tool &&
-        Math.hypot(
-          target.position.x - primary.position.x,
-          target.position.y - primary.position.y,
-        ) <= primaryPlan.areaRadius &&
-        hasPeasantHarvestLineOfSight(playerCenter, target, input.view),
+        groundDistance(target.position, primary.position) <= primaryPlan.areaRadius &&
+        hasPeasantHarvestLineOfSight(input.player, target, input.view, input.player.y),
     )
     .sort((left, right) => {
-      const leftDistance = Math.hypot(
-        left.position.x - primary.position.x,
-        left.position.y - primary.position.y,
-      );
-      const rightDistance = Math.hypot(
-        right.position.x - primary.position.x,
-        right.position.y - primary.position.y,
-      );
+      const leftDistance = groundDistance(left.position, primary.position);
+      const rightDistance = groundDistance(right.position, primary.position);
       return leftDistance - rightDistance || left.nodeId.localeCompare(right.nodeId);
     })
     .slice(0, primaryPlan.maximumTargets - 1)
@@ -402,10 +408,10 @@ export function selectPeasantHarvestTargets(input: {
 export function revalidatePeasantHarvestTarget(input: {
   player: PlayerRuntime;
   slot: SkillSlot;
-  direction: Vec2;
+  direction: GroundVector;
   skillRange: number;
   halfAngleRadians: number;
-  areaCenter: Vec2;
+  areaCenter: GroundVector;
   areaRadius: number;
   target: PeasantHarvestJobTarget;
   view: PeasantHarvestView;
@@ -441,14 +447,8 @@ export function revalidatePeasantHarvestTarget(input: {
       ? target
       : null;
   }
-  const playerCenter = {
-    x: input.player.x + PLAYER_SIZE / 2,
-    y: input.player.y + PLAYER_SIZE / 2,
-  };
-  return Math.hypot(
-    target.position.x - input.areaCenter.x,
-    target.position.y - input.areaCenter.y,
-  ) <= input.areaRadius && hasPeasantHarvestLineOfSight(playerCenter, target, input.view)
+  return groundDistance(target.position, input.areaCenter) <= input.areaRadius &&
+    hasPeasantHarvestLineOfSight(input.player, target, input.view, input.player.y)
     ? target
     : null;
 }
@@ -457,7 +457,7 @@ export function createPeasantHarvestJob(input: {
   player: PlayerRuntime;
   connectionId: string;
   slot: SkillSlot;
-  direction: Vec2;
+  direction: GroundVector;
   target?: PeasantHarvestTarget;
   targets?: readonly PlannedPeasantHarvestTarget[];
   now: number;
@@ -486,8 +486,8 @@ export function createPeasantHarvestJob(input: {
     connectionId: input.connectionId,
     slot: input.slot,
     tool,
-    direction: { ...input.direction },
-    areaCenter: { ...primary.position },
+    direction: { x: input.direction.x, z: input.direction.z },
+    areaCenter: { x: primary.position.x, z: primary.position.z },
     areaRadius: primary.plan.areaRadius,
     targets: plannedTargets.map((target) => ({
       primary: target.primary,

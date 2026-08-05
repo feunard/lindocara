@@ -1206,6 +1206,17 @@ export function inRect(position: Vec2, rect: Rect, size: number = PLAYER_SIZE): 
 /**
  * "Is this position inside a place monsters are not allowed to touch?" — the single question every
  * caller of `terrain.safeZone` was really asking, asked once.
+ *
+ * **The safe zone did not survive the heightfield, and this function has no production caller
+ * left.** `ZoneTerrain` carries no `safeZone`, because a stored heightfield has no way to declare
+ * one: `safeZone` was baked `null` for every authored map already, so the only world that ever had
+ * one is the Verdant Reach catalogue, and no live party is routed to a catalogue zone any more.
+ * The rule it enforced is replaced, not dropped — `monster-system.ts` bounds each guard by its own
+ * patrol ring, which is the branch every authored map already took.
+ *
+ * It remains exported for the catalogue's own tests (`monster-system.test.ts`) and dies with the
+ * pixel `TerrainGeometry`. Do NOT reach for it from a converted system: there is nothing there to
+ * answer.
  */
 export function safeZoneShelters(
   position: Vec2,

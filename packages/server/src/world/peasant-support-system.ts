@@ -1,14 +1,12 @@
 import type { PlayerActionDefinition } from "@lindocara/engine/combat-actions.js";
-import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import { normalizeGround } from "@lindocara/engine/directional-combat.js";
 import {
-  hasLineOfSight,
   INTERACTION_RANGE,
-  isWalkable,
   MAX_MONSTER_BODY_REACH,
   maxHpForLevel,
   monsterBodyHitbox,
-  type TerrainGeometry,
 } from "@lindocara/engine/game.js";
+import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import type { PartyMaterialAmounts } from "@lindocara/engine/party-harvest-state.js";
 import {
   type PeasantBombPlan as EnginePeasantBombPlan,
@@ -19,25 +17,26 @@ import {
   resolvePeasantRationPlan,
 } from "@lindocara/engine/peasant.js";
 import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
-import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { SkillDefinition, SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { startCombatAction } from "./combat-action-system.js";
 import { canSpawnProjectile, projectileOrigin, spawnProjectile } from "./projectile-system.js";
-import type { SpatialGrid } from "./spatial-grid.js";
+import { canStand, groundLineOfSight, groundUnder, type ZoneTerrain } from "./terrain-access.js";
 import type {
   CombatActionRuntime,
+  GroundIndexQuery,
   MonsterRuntime,
   PlayerRuntime,
   ProjectileRuntime,
 } from "./world-runtime.js";
 
-export const PEASANT_CAMP_SIZE = 24;
+export const PEASANT_CAMP_SIZE = 24 / TILE_SIZE;
 export const PEASANT_CAMP_PULSE_INTERVAL_MS = 2_000;
 export const PEASANT_CAMP_PROTECTION_RATIO = 0.12;
 export const PEASANT_CAMP_MANA_RATIO = 0.6;
 export const PEASANT_CAMP_GOLD_LIMIT = 999_999_999;
-export const PEASANT_BOMB_SPEED = 520;
+export const PEASANT_BOMB_SPEED = 520 / TILE_SIZE;
 
 export interface PeasantCampPlan {
   readonly kind: "camp";
@@ -99,13 +98,13 @@ export function peasantSupportPlans(skills: {
       cost: bomb.cost,
       range: Math.max(0, skills.bomb.range),
       projectileSpeed: PEASANT_BOMB_SPEED,
-      projectileRadius: 9,
+      projectileRadius: 9 / TILE_SIZE,
       bomb,
     },
   };
 }
 
-export interface PeasantCampRuntime extends Vec2 {
+export interface PeasantCampRuntime extends WorldPosition {
   readonly id: string;
   readonly ownerId: string;
   readonly ownerPartyId: string;
@@ -147,20 +146,20 @@ export interface PeasantSupportRequest {
   readonly sessionEpoch: number;
   readonly roomKey: string;
   readonly partyId: string;
-  readonly actorPosition: Vec2;
-  readonly actorFacing: Vec2;
+  readonly actorPosition: WorldPosition;
+  readonly actorFacing: GroundVector;
   readonly slot: 4 | 5;
   readonly skill: SkillDefinition;
   readonly definition: PlayerActionDefinition;
-  readonly direction: Vec2;
+  readonly direction: GroundVector;
   readonly plan: PeasantSupportPlan;
-  readonly campPosition?: Vec2;
+  readonly campPosition?: WorldPosition;
 }
 
 export interface PeasantSupportActionPlan {
   readonly ownerId: string;
   readonly plan: PeasantSupportPlan;
-  readonly campPosition?: Vec2;
+  readonly campPosition?: WorldPosition;
 }
 
 export interface PeasantSupportRuntime {
@@ -179,30 +178,33 @@ export function createPeasantSupportRuntime(): PeasantSupportRuntime {
   };
 }
 
-function centerOfPlayer(player: Vec2): Vec2 {
-  return { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
-}
+/**
+ * The camp's collision disc. `PEASANT_CAMP_SIZE` was a square SIDE in the pixel world and
+ * `isWalkable` took it as a box; `canStand` answers for a disc, so half the side is the radius —
+ * the same footprint, in the shape the heightfield collision speaks.
+ */
+const CAMP_RADIUS = PEASANT_CAMP_SIZE / 2;
 
-function campTopLeft(center: Vec2): Vec2 {
-  return { x: center.x - PEASANT_CAMP_SIZE / 2, y: center.y - PEASANT_CAMP_SIZE / 2 };
-}
-
+/**
+ * `centerOfPlayer` is gone: a tile-unit position IS the body's centre. Every site that used to add
+ * `PLAYER_SIZE / 2` now reads the position directly, and adding it back would place a camp,
+ * a sight line or a blast measurement half a body off.
+ */
 export function peasantCampPosition(
   player: PlayerRuntime,
-  direction: Vec2,
+  direction: GroundVector,
   plan: PeasantCampPlan,
-  terrain: TerrainGeometry,
-): Vec2 | null {
-  const facing = normalizeDirection(direction, player.facing);
-  const origin = centerOfPlayer(player);
+  terrain: ZoneTerrain,
+): WorldPosition | null {
+  const facing = normalizeGround(direction, player.facing);
   const center = {
-    x: origin.x + facing.x * Math.max(0, plan.placementDistance),
-    y: origin.y + facing.y * Math.max(0, plan.placementDistance),
+    x: player.x + facing.x * Math.max(0, plan.placementDistance),
+    z: player.z + facing.z * Math.max(0, plan.placementDistance),
   };
-  const topLeft = campTopLeft(center);
-  if (!isWalkable(topLeft, PEASANT_CAMP_SIZE, terrain)) return null;
-  if (!hasLineOfSight(origin, center, terrain.tiles, 0)) return null;
-  return center;
+  const groundY = groundUnder(terrain, player.x, player.z, player.y);
+  if (!canStand(terrain, center.x, center.z, CAMP_RADIUS, groundY)) return null;
+  if (!groundLineOfSight(terrain, player, center)) return null;
+  return { x: center.x, y: groundUnder(terrain, center.x, center.z, groundY), z: center.z };
 }
 
 export type BeginPeasantSupportResult =
@@ -220,10 +222,10 @@ export function beginPeasantSupportRequest(options: {
   readonly skill: SkillDefinition;
   readonly definition: PlayerActionDefinition;
   readonly plan: PeasantSupportPlan;
-  readonly terrain: TerrainGeometry;
+  readonly terrain: ZoneTerrain;
   readonly projectiles: readonly ProjectileRuntime[];
   readonly now: number;
-  readonly direction?: Vec2;
+  readonly direction?: GroundVector;
 }): BeginPeasantSupportResult {
   const { runtime, player, slot, skill, definition, plan, now } = options;
   if (
@@ -242,8 +244,8 @@ export function beginPeasantSupportRequest(options: {
 
   const direction =
     plan.kind === "bomb" && options.direction
-      ? normalizeDirection(options.direction, player.facing)
-      : normalizeDirection(player.facing);
+      ? normalizeGround(options.direction, player.facing)
+      : normalizeGround(player.facing);
   const campPosition =
     plan.kind === "camp"
       ? peasantCampPosition(player, direction, plan, options.terrain)
@@ -257,8 +259,8 @@ export function beginPeasantSupportRequest(options: {
     sessionEpoch: player.sessionEpoch,
     roomKey: player.roomKey,
     partyId: player.partyId ?? "",
-    actorPosition: { x: player.x, y: player.y },
-    actorFacing: { ...player.facing },
+    actorPosition: { x: player.x, y: player.y, z: player.z },
+    actorFacing: { x: player.facing.x, z: player.facing.z },
     slot,
     skill,
     definition,
@@ -283,7 +285,7 @@ export function canActivatePeasantSupportRequest(options: {
   readonly request: PeasantSupportRequest;
   readonly connectionId: string;
   readonly player: PlayerRuntime;
-  readonly terrain: TerrainGeometry;
+  readonly terrain: ZoneTerrain;
   readonly projectiles: readonly ProjectileRuntime[];
 }): boolean {
   const { runtime, request, connectionId, player } = options;
@@ -299,9 +301,9 @@ export function canActivatePeasantSupportRequest(options: {
     player.transitioning ||
     player.life !== "alive" ||
     player.x !== request.actorPosition.x ||
-    player.y !== request.actorPosition.y ||
+    player.z !== request.actorPosition.z ||
     player.facing.x !== request.actorFacing.x ||
-    player.facing.y !== request.actorFacing.y ||
+    player.facing.z !== request.actorFacing.z ||
     player.action !== null
   )
     return false;
@@ -311,7 +313,7 @@ export function canActivatePeasantSupportRequest(options: {
     placement !== null &&
     request.campPosition !== undefined &&
     placement.x === request.campPosition.x &&
-    placement.y === request.campPosition.y
+    placement.z === request.campPosition.z
   );
 }
 
@@ -362,7 +364,7 @@ export function placePeasantCamp(
   runtime: PeasantSupportRuntime,
   owner: PlayerRuntime,
   actionId: string,
-  position: Vec2,
+  position: WorldPosition,
   plan: PeasantCampPlan,
   now: number,
 ): PeasantCampPlacementResult | null {
@@ -381,7 +383,9 @@ export function placePeasantCamp(
     ownerPartyId: owner.partyId,
     x: position.x,
     y: position.y,
-    radius: Math.max(1, plan.construction.radius),
+    z: position.z,
+    // The floor was 1 PIXEL — "a camp has some extent" — not one whole tile.
+    radius: Math.max(1 / TILE_SIZE, plan.construction.radius),
     healPower: Math.max(0, Math.ceil(plan.construction.power / pulses)),
     manaPower: Math.max(0, Math.ceil((plan.construction.power * PEASANT_CAMP_MANA_RATIO) / pulses)),
     protectionRatio: Math.min(
@@ -424,11 +428,11 @@ export function spawnPeasantBomb(
     direction: action.direction,
     definition: {
       kind: "homemade_bomb",
-      speed: Math.max(1, plan.projectileSpeed),
-      radius: Math.max(1, plan.projectileRadius),
+      speed: Math.max(1 / TILE_SIZE, plan.projectileSpeed),
+      radius: Math.max(1 / TILE_SIZE, plan.projectileRadius),
       pierce: 0,
     },
-    range: Math.max(1, plan.range),
+    range: Math.max(1 / TILE_SIZE, plan.range),
     power: 0,
     targetFilter: "monsters",
     sourceSkillId: "homemade_bomb",
@@ -444,7 +448,7 @@ export function spawnPeasantBomb(
     projectileId: projectile.id,
     actionId: action.id,
     ownerId: owner.id,
-    radius: Math.max(1, plan.bomb.radius),
+    radius: Math.max(1 / TILE_SIZE, plan.bomb.radius),
     power: Math.max(0, Math.round(plan.bomb.power)),
     fragments: Math.max(0, Math.floor(plan.bomb.fragments)),
     fragmentPower: Math.max(
@@ -489,19 +493,18 @@ export function resolvePeasantSupportAction(
   };
 }
 
-function playerCenterDistance(point: Vec2, player: Vec2): number {
-  const center = centerOfPlayer(player);
-  return Math.hypot(point.x - center.x, point.y - center.y);
+function playerCenterDistance(point: GroundVector, player: GroundVector): number {
+  return groundDistance(point, player);
 }
 
-function campSeesPlayer(camp: PeasantCampRuntime, player: PlayerRuntime, terrain: TerrainGeometry) {
-  return hasLineOfSight(camp, centerOfPlayer(player), terrain.tiles, 0);
+function campSeesPlayer(camp: PeasantCampRuntime, player: PlayerRuntime, terrain: ZoneTerrain) {
+  return groundLineOfSight(terrain, camp, player);
 }
 
 export function nearbyAlliedPeasantCamp(
   runtime: PeasantSupportRuntime,
   player: PlayerRuntime,
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
   now: number,
 ): PeasantCampRuntime | null {
   if (!player.partyId || player.life !== "alive" || !player.authorized) return null;
@@ -534,7 +537,7 @@ export type PeasantCampGoldResult =
 export function transferPeasantCampGold(options: {
   readonly runtime: PeasantSupportRuntime;
   readonly player: PlayerRuntime;
-  readonly terrain: TerrainGeometry;
+  readonly terrain: ZoneTerrain;
   readonly campId: string;
   readonly operation: PeasantCampGoldOperation;
   readonly amount: number;
@@ -580,19 +583,15 @@ export function refundPeasantCampGold(camp: PeasantCampRuntime, owner: PlayerRun
   return refunded;
 }
 
-function campSeesMonster(
-  camp: PeasantCampRuntime,
-  monster: MonsterRuntime,
-  terrain: TerrainGeometry,
-) {
-  return hasLineOfSight(camp, centerOfPlayer(monster), terrain.tiles, 0);
+function campSeesMonster(camp: PeasantCampRuntime, monster: MonsterRuntime, terrain: ZoneTerrain) {
+  return groundLineOfSight(terrain, camp, monster);
 }
 
 function rationTargets(
   camp: PeasantCampRuntime,
   owner: PlayerRuntime,
   players: readonly PlayerRuntime[],
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
   areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean,
   now: number,
 ): PlayerRuntime[] {
@@ -633,7 +632,7 @@ export function advancePeasantCamps(options: {
   readonly runtime: PeasantSupportRuntime;
   readonly players: Iterable<PlayerRuntime>;
   readonly monsters: Iterable<MonsterRuntime>;
-  readonly terrain: TerrainGeometry;
+  readonly terrain: ZoneTerrain;
   readonly now: number;
   readonly isOwnerActive: (ownerId: string) => boolean;
   readonly areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean;
@@ -697,8 +696,7 @@ export function advancePeasantCamps(options: {
         const hitbox = monsterBodyHitbox(monster.species, monster);
         if (
           monster.deadUntil > options.now ||
-          Math.hypot(hitbox.center.x - camp.x, hitbox.center.y - camp.y) >
-            camp.radius + hitbox.radius ||
+          groundDistance(hitbox.center, camp) > camp.radius + hitbox.radius ||
           !campSeesMonster(camp, monster, options.terrain)
         )
           continue;
@@ -713,7 +711,7 @@ export function damageAfterPeasantCampProtection(
   target: PlayerRuntime,
   rawDamage: number,
   camps: readonly PeasantCampRuntime[],
-  terrain: TerrainGeometry,
+  terrain: ZoneTerrain,
   now: number,
 ): number {
   if (rawDamage <= 0) return 0;
@@ -732,11 +730,9 @@ export function damageAfterPeasantCampProtection(
   return Math.max(1, Math.ceil(Math.max(0, rawDamage) * (1 - Math.min(0.5, reduction))));
 }
 
-export interface PeasantBombExplosion {
+export interface PeasantBombExplosion extends WorldPosition {
   readonly actionId: string;
   readonly ownerId: string;
-  readonly x: number;
-  readonly y: number;
   readonly radius: number;
   readonly power: number;
 }
@@ -744,9 +740,10 @@ export interface PeasantBombExplosion {
 export function resolvePeasantBombImpact(options: {
   readonly runtime: PeasantSupportRuntime;
   readonly projectile: ProjectileRuntime;
-  readonly point: Vec2;
-  readonly monsterGrid: SpatialGrid<MonsterRuntime>;
-  readonly terrain: TerrainGeometry;
+  /** Where the fuse ran out, on the GROUND plane; the blast's elevation is the bomb's own. */
+  readonly point: GroundVector;
+  readonly monsterGrid: GroundIndexQuery<MonsterRuntime>;
+  readonly terrain: ZoneTerrain;
   readonly now: number;
   readonly damage: (
     monster: MonsterRuntime,
@@ -766,22 +763,15 @@ export function resolvePeasantBombImpact(options: {
     .filter((monster) => {
       const hitbox = monsterBodyHitbox(monster.species, monster);
       return (
-        Math.hypot(hitbox.center.x - options.point.x, hitbox.center.y - options.point.y) <=
-          bomb.radius + hitbox.radius &&
-        hasLineOfSight(options.point, centerOfPlayer(monster), options.terrain.tiles, 0)
+        groundDistance(hitbox.center, options.point) <= bomb.radius + hitbox.radius &&
+        groundLineOfSight(options.terrain, options.point, monster)
       );
     })
     .sort((left, right) => {
       const leftCenter = monsterBodyHitbox(left.species, left).center;
       const rightCenter = monsterBodyHitbox(right.species, right).center;
-      const leftDistance = Math.hypot(
-        leftCenter.x - options.point.x,
-        leftCenter.y - options.point.y,
-      );
-      const rightDistance = Math.hypot(
-        rightCenter.x - options.point.x,
-        rightCenter.y - options.point.y,
-      );
+      const leftDistance = groundDistance(leftCenter, options.point);
+      const rightDistance = groundDistance(rightCenter, options.point);
       return leftDistance - rightDistance || left.id.localeCompare(right.id);
     });
   const fragmentTargetIds = new Set(
@@ -796,7 +786,8 @@ export function resolvePeasantBombImpact(options: {
     actionId: bomb.actionId,
     ownerId: bomb.ownerId,
     x: options.point.x,
-    y: options.point.y,
+    y: options.projectile.y,
+    z: options.point.z,
     radius: bomb.radius,
     power: bomb.power,
   };

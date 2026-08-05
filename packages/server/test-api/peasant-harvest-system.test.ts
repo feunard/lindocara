@@ -1,14 +1,14 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
-import { colliderIndexFrom } from "@lindocara/engine/collider.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   type HarvestProfile,
   harvestColliderAt,
   PEASANT_CARRY_DURATION_MS,
 } from "@lindocara/engine/harvest.js";
+import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 import { playerSnapshot } from "../src/world/interest-system.ts";
 import {
@@ -22,6 +22,7 @@ import {
   selectPeasantHarvestTarget,
   selectPeasantHarvestTargets,
 } from "../src/world/peasant-harvest-system.ts";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "../src/world/terrain-access.ts";
 import { type ActiveWorldEvent, createMonsters, newPlayer } from "../src/world/world-runtime.ts";
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -43,17 +44,35 @@ const WOOD: HarvestProfile = {
   fadeDurationMs: 250,
 };
 
-function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
-  const tiles = tileMapFromRects(320, 192, obstacles);
-  return {
-    width: 320,
-    height: 192,
-    obstacles,
-    spawnPoints: [],
-    safeZone: null,
-    tiles,
-    colliders: noColliders(tiles),
+/**
+ * The grid this suite runs on. Authored map content (cells, harvest colliders) is still written in
+ * the editor's PIXEL, top-left-origin space and shifted onto the grid-centred tile plane by
+ * `peasant-harvest-system`'s own `authoredRect`/`authoredCellFoot` — see its header. `a()` applies
+ * the same shift to every position and obstacle this suite authors, so the fixture and the system
+ * agree about where cell (1, 0) is.
+ */
+const SIZE = 16;
+const a = (pixels: number): number => pixels / TILE_SIZE - SIZE / 2;
+
+function terrain(obstacles: readonly ColliderRect[] = []): ZoneTerrain {
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels: new Array(SIZE * SIZE).fill(0),
+    materials: new Array(SIZE * SIZE).fill("herbe"),
+    colliders: [...obstacles],
+    spawns: [],
+    elements: [],
+    events: [],
   };
+  return zoneTerrainFromHeightfield(map);
+}
+
+/** An obstacle written in the authored pixel frame. */
+function obstacle(x: number, y: number, width: number, height: number): ColliderRect {
+  return { x: a(x), z: a(y), w: width / TILE_SIZE, h: height / TILE_SIZE };
 }
 
 function player(playerClass: "peasant" | "ranger" = "peasant") {
@@ -61,8 +80,10 @@ function player(playerClass: "peasant" | "ranger" = "peasant") {
     {
       id: `${playerClass}-hero`,
       nick: "Mira",
-      x: 48,
-      y: 32,
+      // The old pixel top-left (48, 32) plus half a body: a tile-unit position IS the centre.
+      x: a(48 + 16),
+      y: 0,
+      z: a(32 + 16),
       level: 10,
       xp: 0,
       hp: 100,
@@ -149,14 +170,14 @@ describe("Peasant harvest target selection", () => {
     const target = selectPeasantHarvestTarget({
       player: player(),
       slot: 1,
-      direction: { x: 1, y: 0 },
-      skillRange: 54,
+      direction: { x: 1, z: 0 },
+      skillRange: 54 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
       view: open,
       now: NOW,
     });
     if (!target?.collider) throw new Error("authored target collider missing");
-    const origin = { x: 64, y: 48 };
+    const origin = { x: a(64), z: a(48) };
     expect(hasPeasantHarvestLineOfSight(origin, target, open)).toBe(true);
 
     const exactDuplicate = {
@@ -171,15 +192,9 @@ describe("Peasant harvest target selection", () => {
     };
     expect(hasPeasantHarvestLineOfSight(origin, target, exactDuplicate)).toBe(false);
 
-    const blocker = { x: 69, y: 42, width: 4, height: 12 };
-    const withThirdParty = {
-      ...open,
-      staticColliderIndex: colliderIndexFrom(
-        [blocker],
-        open.terrain.tiles.cols,
-        open.terrain.tiles.rows,
-      ),
-    };
+    const thirdParty = createColliderIndex();
+    thirdParty.add(obstacle(69, 42, 4, 12));
+    const withThirdParty = { ...open, staticColliderIndex: thirdParty };
     expect(hasPeasantHarvestLineOfSight(origin, target, withThirdParty)).toBe(false);
   });
 
@@ -188,8 +203,8 @@ describe("Peasant harvest target selection", () => {
     const input = {
       player: peasant,
       slot: 1 as const,
-      direction: { x: 1, y: 0 },
-      skillRange: 54,
+      direction: { x: 1, z: 0 },
+      skillRange: 54 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
       view: mapView(),
       now: NOW,
@@ -210,13 +225,15 @@ describe("Peasant harvest target selection", () => {
       }),
     ).toBeNull();
     const distant = player();
-    distant.x = 0;
-    expect(selectPeasantHarvestTarget({ ...input, player: distant, skillRange: 20 })).toBeNull();
-    expect(selectPeasantHarvestTarget({ ...input, direction: { x: -1, y: 0 } })).toBeNull();
+    distant.x = a(0 + 16);
+    expect(
+      selectPeasantHarvestTarget({ ...input, player: distant, skillRange: 20 / TILE_SIZE }),
+    ).toBeNull();
+    expect(selectPeasantHarvestTarget({ ...input, direction: { x: -1, z: 0 } })).toBeNull();
     expect(
       selectPeasantHarvestTarget({
         ...input,
-        view: mapView(WOOD, terrain([{ x: 64, y: 0, width: 64, height: 64 }])),
+        view: mapView(WOOD, terrain([obstacle(64, 0, 64, 64)])),
       }),
     ).toBeNull();
   });
@@ -226,8 +243,8 @@ describe("Peasant harvest target selection", () => {
     const target = selectPeasantHarvestTarget({
       player: player(),
       slot: 3,
-      direction: { x: 1, y: 0 },
-      skillRange: 50,
+      direction: { x: 1, z: 0 },
+      skillRange: 50 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
       view: mapView(meat),
       now: NOW,
@@ -242,18 +259,20 @@ describe("Peasant harvest target selection", () => {
         kind: "boar",
         species: "war_pig",
         zone: "farm",
-        patrolRadius: 20,
-        x: 96,
-        y: 32,
+        patrolRadius: 20 / TILE_SIZE,
+        x: a(96),
+        y: 0,
+        z: a(32),
       },
       {
         id: "dead-goblin",
         kind: "goblin",
         species: "spear_goblin",
         zone: "farm",
-        patrolRadius: 20,
-        x: 82,
-        y: 32,
+        patrolRadius: 20 / TILE_SIZE,
+        x: a(82),
+        y: 0,
+        z: a(32),
       },
     ]);
     for (const monster of monsters) {
@@ -263,8 +282,8 @@ describe("Peasant harvest target selection", () => {
     const target = selectPeasantHarvestTarget({
       player: player(),
       slot: 3,
-      direction: { x: 1, y: 0 },
-      skillRange: 50,
+      direction: { x: 1, z: 0 },
+      skillRange: 50 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
       view: {
         zoneId: "verdant-reach",
@@ -307,8 +326,8 @@ describe("Peasant harvest target selection", () => {
     );
     const activeEvents = nodes.map(([id, col, row]) => activeEvent(id, col, row));
     const peasant = player();
-    peasant.x = 112;
-    peasant.y = 96;
+    peasant.x = a(112 + 16);
+    peasant.z = a(96 + 16);
     peasant.talents = [
       "peasant.woodcutters_swing.bounty",
       "peasant.woodcutters_swing.readiness",
@@ -320,8 +339,8 @@ describe("Peasant harvest target selection", () => {
       selectPeasantHarvestTargets({
         player: peasant,
         slot: 1,
-        direction: { x: 1, y: 0 },
-        skillRange: 54,
+        direction: { x: 1, z: 0 },
+        skillRange: 54 / TILE_SIZE,
         halfAngleRadians: Math.PI / 3,
         view: {
           zoneId: "verdant-reach",
@@ -341,7 +360,7 @@ describe("Peasant harvest target selection", () => {
     expect(select(false)).toHaveLength(6);
     expect(select(false)[0]).toMatchObject({
       primary: true,
-      plan: { areaRadius: 128, maximumTargets: 6 },
+      plan: { areaRadius: 128 / TILE_SIZE, maximumTargets: 6 },
     });
     expect(select(false).some((target) => target.nodeId === nodes[6][0])).toBe(false);
     expect(select(false).some((target) => target.nodeId === nodes[7][0])).toBe(false);
@@ -383,14 +402,14 @@ describe("Peasant harvest target selection", () => {
       staticColliderIndex: worldTerrain.colliders,
     });
     const peasant = player();
-    peasant.x = 112;
-    peasant.y = 96;
+    peasant.x = a(112 + 16);
+    peasant.z = a(96 + 16);
     peasant.talents = ["peasant.woodcutters_swing.sweeping_fell"];
     const selected = selectPeasantHarvestTargets({
       player: peasant,
       slot: 1,
-      direction: { x: 1, y: 0 },
-      skillRange: 54,
+      direction: { x: 1, z: 0 },
+      skillRange: 54 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
       view: view(),
       now: NOW,
@@ -412,8 +431,8 @@ describe("Peasant harvest target selection", () => {
       revalidatePeasantHarvestTarget({
         player: peasant,
         slot: 1,
-        direction: { x: 1, y: 0 },
-        skillRange: 54,
+        direction: { x: 1, z: 0 },
+        skillRange: 54 / TILE_SIZE,
         halfAngleRadians: Math.PI / 3,
         areaCenter: primary.position,
         areaRadius: primary.plan.areaRadius,
@@ -452,9 +471,7 @@ describe("Peasant harvest target selection", () => {
     ).toBeNull();
     expect(revalidate(view({ ...WOOD, resource: "stone", tool: "pickaxe" }))).toBeNull();
     expect(
-      revalidate(
-        view(WOOD, EMPTY_ADVENTURE_STATE, terrain([{ x: 128, y: 0, width: 64, height: 64 }])),
-      ),
+      revalidate(view(WOOD, EMPTY_ADVENTURE_STATE, terrain([obstacle(128, 0, 64, 64)]))),
     ).toBeNull();
   });
 
@@ -463,8 +480,8 @@ describe("Peasant harvest target selection", () => {
     const target = selectPeasantHarvestTarget({
       player: peasant,
       slot: 1,
-      direction: { x: 1, y: 0 },
-      skillRange: 54,
+      direction: { x: 1, z: 0 },
+      skillRange: 54 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
       view: mapView(),
       now: NOW,
@@ -475,7 +492,7 @@ describe("Peasant harvest target selection", () => {
         player: peasant,
         connectionId: "connection",
         slot: 1,
-        direction: { x: 1, y: 0 },
+        direction: { x: 1, z: 0 },
         target,
         now: NOW,
       }),
