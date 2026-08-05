@@ -216,6 +216,103 @@ describe("WorldClient lifecycle", () => {
     expect(moves.length).toBeLessThan(60);
   });
 
+  /** A `world.resync` carrying one self snapshot — the shortest path to driving `#reconcile` with
+   *  an authoritative position of the test's choosing. */
+  function resync(tick: number, self: Record<string, unknown>): ServerMessage {
+    return {
+      t: "world.resync",
+      tick,
+      players: [
+        { ...(WELCOME as unknown as { players: Record<string, unknown>[] }).players[0], ...self },
+      ],
+      monsters: [],
+      guards: [],
+      loot: [],
+      corpses: [],
+      projectiles: [],
+      events: [],
+    } as unknown as ServerMessage;
+  }
+
+  /** One second of animation frames, with `run(frame)` given the chance to deliver a snapshot. */
+  function animate(client: WorldClient, run?: (frame: number) => void): void {
+    vi.useFakeTimers();
+    try {
+      for (let frame = 0; frame < 60; frame++) {
+        run?.(frame);
+        client.update({ up: false, down: false, left: false, right: true }, 1 / 60);
+        vi.advanceTimersByTime(1_000 / 60);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  function movesOf(socket: FakeWebSocket | undefined): { t: string; x: number; z: number }[] {
+    return (socket?.sent ?? [])
+      .map((raw) => (JSON.parse(raw) as { message: { t: string; x: number; z: number } }).message)
+      .filter((message) => message.t === "move");
+  }
+
+  it("ignores an authoritative elevation it did not report, however long the server relays it", async () => {
+    // A hero that dies mid-jump freezes AIRBORNE, and the room drops every frame a corpse sends, so
+    // it relays that elevation for as long as the body lies there — which is indefinitely. An echo
+    // test that compared `y` would never match it again: every snapshot would re-adopt, re-cut the
+    // hero's momentum and spend the rate window the player needs to ask for a resurrection.
+    stubJoin();
+    const stormed = new WorldClient();
+    stormed.connect(handlers(), "hero-1", "party-1");
+    const quiet = new WorldClient();
+    quiet.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const stormedSocket = FakeWebSocket.instances[0];
+    const quietSocket = FakeWebSocket.instances[1];
+    stormedSocket?.message(WELCOME);
+    quietSocket?.message(WELCOME);
+
+    // Both walk east for a second. One of them is told, ten times a second, that it is four units in
+    // the air at the very ground point it LAST REPORTED — which is exactly what a room relaying a
+    // corpse's frozen position sends back, snapshot after snapshot.
+    let tick = 2;
+    animate(stormed, (frame) => {
+      if (frame % 6 !== 0) return;
+      const reported = movesOf(stormedSocket).at(-1);
+      if (!reported) return;
+      tick += 2;
+      stormedSocket?.message(resync(tick, { x: reported.x, y: 4, z: reported.z }));
+    });
+    animate(quiet);
+
+    const stormedX = stormed.sample(0).players.find((player) => player.id === "hero-1")?.x;
+    const quietX = quiet.sample(0).players.find((player) => player.id === "hero-1")?.x;
+    // Identical distance covered: the elevation-only disagreement changed nothing at all. Adopting
+    // would have cut momentum ten times and left the stormed hero measurably behind.
+    expect(stormedX).toBeCloseTo(quietX ?? Number.NaN, 10);
+    expect(movesOf(stormedSocket).length).toBe(movesOf(quietSocket).length);
+  });
+
+  it("throttles its reports no matter how often the server moves it", async () => {
+    stubJoin();
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME);
+
+    // A genuine displacement on EVERY frame — each carries a ground position this client never
+    // reported, so each one is adopted. The rate is deliberately faster than any real snapshot
+    // stream: what is being pinned is that the throttle is UNCONDITIONAL, not that 10 Hz happens to
+    // stay under it. An adopt that reset the throttle's clock would report on every frame it landed
+    // on, and the ceiling this whole constant exists to guarantee would not be one.
+    let tick = 2;
+    animate(client, (frame) => {
+      tick += 2;
+      socket?.message(resync(tick, { x: -3 + frame / 60, y: 0, z: 2 }));
+    });
+
+    expect(movesOf(socket).length).toBeLessThanOrEqual(1_000 / TICK_MS);
+  });
+
   it("reports a unit heading, so the room never silently drops a frame", async () => {
     stubJoin();
     const client = new WorldClient();

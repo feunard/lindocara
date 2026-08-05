@@ -1,8 +1,6 @@
 import { canReclaim } from "@lindocara/engine/death.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
-import type { ZoneDefinition } from "@lindocara/engine/zones.js";
-import type { SpatialGrid } from "./spatial-grid.js";
 import { type PlayerRuntime, toAttachment } from "./world-runtime.js";
 
 /**
@@ -14,8 +12,6 @@ import { type PlayerRuntime, toAttachment } from "./world-runtime.js";
  */
 export interface MovementSystemContext<TSocket = WebSocket> {
   players: Map<TSocket, PlayerRuntime>;
-  playerGrid: SpatialGrid<PlayerRuntime>;
-  zone: ZoneDefinition;
   now: number;
   /** The room's lease heartbeat interval. Owned by `World`, which reads it once from `Env`. */
   presenceHeartbeatMs: number;

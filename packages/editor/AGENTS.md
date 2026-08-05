@@ -18,7 +18,24 @@
 > - `packages/client/src/dev/preview-route.ts` (`?preview`) is quarantined the same way, for the same
 >   reason — it drew through this package's `startMapPreview`.
 >
-> Restoring the package means rebuilding the stage on `@lindocara/hd2d` and then undoing all five.
+> **A second wave of debt landed on 2026-08-05** (S3, client-owned movement), invisible to every
+> check because this package typechecks nowhere. `game/map-preview.ts` is the whole of it, and it
+> needs rebuilding rather than patching:
+>
+> - it imported `@lindocara/engine/prediction.js`, which was **deleted** — `MAX_ACCUMULATED_SECONDS`
+>   is now inlined at the top of the file under a banner, purely so the reference does not point at a
+>   file that no longer exists;
+> - its frame loop runs `step()` and `movementSpeedAt()`, both **retired**, and collides through the
+>   pixel `resolveTerrain`. The replacement is `packages/client/src/game/hero-controller.ts`, which
+>   owns a `HeroState` and runs `stepHero` against a `ZoneTerrain` baked from a heightfield;
+> - its `PlayerSnapshot` literal (`map-preview.ts:339`) still sets `ack: 0`, a field the wire no
+>   longer has, and is missing the three required locomotion flags
+>   (`airborne`/`swimming`/`gliding`);
+> - its positions are pixel `Vec2` with a `{x, y}` facing; the world is tile units, `x`/`z` on the
+>   ground and `y` for elevation.
+>
+> Restoring the package means rebuilding the stage on `@lindocara/hd2d`, rebuilding the preview loop
+> on `hero-controller.ts`, and then undoing all five exclusions above.
 > The prose below still describes the PixiJS stage, because that is what has to be replaced.
 
 The creator tools: the adventure/map editor UI and its PixiJS authoring stage. Browser + React. It

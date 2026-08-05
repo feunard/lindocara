@@ -190,6 +190,12 @@ export interface ConnectionHandlers {
  * `{t:"input"}` command stream ran at, so it is already proven to sit inside the window with room
  * for chat, actions and resyncs beside it.
  *
+ * **It is a hard ceiling of 20 reports a second, and nothing may be allowed to lift it.** Adopting a
+ * server-authored position clears the deduplication latch but deliberately leaves the throttle's
+ * clock alone (`#adoptServerPosition`); resetting it there would let a snapshot buy an extra frame,
+ * and at the 10 Hz snapshot rate that is 30/s rather than 20 — most of the headroom the hazard
+ * exists to protect, spent silently.
+ *
  * The hero still STEPS every animation frame — only the report is throttled. Between two reports
  * every other client draws it interpolated, which is what `INTERPOLATION_DELAY_MS` has always been
  * for.
@@ -752,13 +758,31 @@ export class WorldClient {
     this.#adoptServerPosition(authoritative);
   }
 
+  /**
+   * **The echo is compared on the GROUND axes only, and that is load-bearing.**
+   *
+   * Adopting re-grounds elevation from the terrain under the landing (`place()`,
+   * `hero-controller.ts`) rather than storing the `y` the server sent, because that is the right
+   * answer for every displacement the server actually produces. Comparing `y` here would therefore
+   * make an adopt PERMANENT whenever the two disagree: the client would remember its own grounded
+   * `y`, the server would keep relaying its own, and every snapshot would re-adopt forever.
+   *
+   * There is a real case, not a hypothetical one. A hero that dies mid-jump freezes airborne, and
+   * `applyReportedMove` drops every frame a corpse sends — so the server relays that airborne `y`
+   * for as long as the body lies there, which by design is indefinitely. On a `y` comparison that is
+   * a teleport-and-report loop at snapshot rate for the whole death, cutting momentum each time and
+   * burning the rate window a player needs to ask for a resurrection.
+   *
+   * Nothing is lost by ignoring elevation: every server-authored displacement there is — an authored
+   * teleport, a Pas de Lumen landing, a spawn — moves the hero across the GROUND, and a
+   * displacement that changed only `y` is not a thing any server path produces.
+   */
   #adoptServerPosition(authoritative: PlayerSnapshot): void {
     const hero = this.#hero;
     if (!hero) return;
     const echoed = this.#reported.some(
       (reported) =>
         Math.abs(reported.x - authoritative.x) <= ECHO_EPSILON &&
-        Math.abs(reported.y - authoritative.y) <= ECHO_EPSILON &&
         Math.abs(reported.z - authoritative.z) <= ECHO_EPSILON,
     );
     if (echoed) return;
@@ -766,10 +790,10 @@ export class WorldClient {
     hero.teleport({ x: authoritative.x, y: authoritative.y, z: authoritative.z });
     this.#reported = [];
     this.#rememberReportedFromHero();
-    // The next frame must actually report the adopted position, even if the encoded frame happens
-    // to match the one before the snap.
+    // The next report must actually go out, even if the encoded frame happens to match the one
+    // before the snap. `#reportedAt` is deliberately NOT reset: the throttle is unconditional, so
+    // an adopt can never buy an extra frame inside a window and the ceiling below stays a ceiling.
     this.#lastReport = null;
-    this.#reportedAt = 0;
   }
 
   #rememberReportedFromHero(): void {

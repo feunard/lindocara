@@ -42,7 +42,6 @@ import {
 } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
-import { MAX_ACCUMULATED_SECONDS } from "@lindocara/engine/prediction.js";
 import type {
   MonsterSnapshot,
   PlayerSnapshot,
@@ -105,6 +104,19 @@ export interface MapPreviewOptions {
   /** Bind the wheel and `-`/`+`/`0` to pull the camera back, push it in and reset it. Default `false`. */
   zoomControls?: boolean;
 }
+
+/**
+ * QUARANTINE DEBT (S3, 2026-08-05). Inlined because `@lindocara/engine/prediction.js` — where this
+ * came from — was DELETED with client-side prediction: the hero's movement rule is `stepHero`, it
+ * runs on the client, and `packages/client/src/game/hero-controller.ts` is the adapter this preview
+ * has to be rebuilt on. Keeping the import would have pointed the next reader at a file that no
+ * longer exists, which is worse than a stale local constant.
+ *
+ * The rest of this loop is stale in the same way and cannot be fixed by an import: it runs `step()`
+ * and `movementSpeedAt()` (both retired), collides through the pixel `resolveTerrain`, and carries
+ * pixel `Vec2` positions with a `{x, y}` facing. See `packages/editor/AGENTS.md`.
+ */
+const MAX_ACCUMULATED_SECONDS = 5 * TICK_DT;
 
 /** One notch of zoom, as a ratio — geometric, so pulling out and back in returns to where it was. */
 const ZOOM_STEP = 1.25;

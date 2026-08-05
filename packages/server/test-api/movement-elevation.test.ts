@@ -132,7 +132,6 @@ function hero(x: number, z: number, id = "hero-1"): PlayerRuntime {
 
 /** `advancePlayers` does far more than move: the harness keeps every other duty observable. */
 function movementHarness(built: ZoneTerrain, player: PlayerRuntime) {
-  const playerGrid = new SpatialGrid<PlayerRuntime>(4);
   const socket = `socket-${player.id}`;
   const players = new Map([[socket, player]]);
   // Due immediately, so the very first tick shows the heartbeat firing.
@@ -143,8 +142,6 @@ function movementHarness(built: ZoneTerrain, player: PlayerRuntime) {
   const renewPresence = vi.fn(async () => undefined);
   const context = {
     players,
-    playerGrid,
-    zone: zoneWith(built),
     now: 1_000,
     presenceHeartbeatMs: 10_000,
     writeAttachment: false,
@@ -155,7 +152,19 @@ function movementHarness(built: ZoneTerrain, player: PlayerRuntime) {
     collectLoot: collect,
     savePlayer,
   };
-  return { context, socket, player, reclaimCorpse, collect, savePlayer, renewPresence };
+  // The terrain rides on the harness, not on the context: `advancePlayers` stopped moving anyone,
+  // so its context no longer carries a zone or the player grid — `press` below collides through the
+  // engine rule directly.
+  return {
+    context,
+    terrain: built,
+    socket,
+    player,
+    reclaimCorpse,
+    collect,
+    savePlayer,
+    renewPresence,
+  };
 }
 
 const HELD = { up: false, down: false, left: false, right: false };
@@ -180,7 +189,7 @@ function press(
   ticks: number,
 ): void {
   const held = { ...HELD, ...input };
-  const terrain = harness.context.zone.terrain;
+  const terrain = harness.terrain;
   for (let tick = 0; tick < ticks; tick++) {
     const player = harness.player;
     let dx = (held.right ? 1 : 0) - (held.left ? 1 : 0);

@@ -6381,8 +6381,6 @@ export function advanceWorldTick(w: WorldGlue): void {
 
   advancePlayers<string>({
     players: state.players,
-    playerGrid: state.playerGrid,
-    zone: zone(state),
     now,
     presenceHeartbeatMs: deps.presenceHeartbeatMs,
     writeAttachment: false,
