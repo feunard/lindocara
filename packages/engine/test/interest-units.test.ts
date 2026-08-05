@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DIALOGUE_CLOSE_RADIUS } from "../src/event-commands.js";
 import {
   CORPSE_VISIBILITY_RADIUS,
   GUARD_VISIBILITY_RADIUS,
@@ -23,6 +24,20 @@ describe("interest radii, in tile units", () => {
     expect(LOCAL_CHAT_RADIUS).toBe(700 / TILE_SIZE);
     expect(LOOT_VISIBILITY_RADIUS).toBe(650 / TILE_SIZE);
     expect(INTEREST_HYSTERESIS).toBe(96 / TILE_SIZE);
+  });
+
+  it("pins the dialogue walk-away radius absolutely, not against itself", () => {
+    // Three TILES. It was `3 * TILE_SIZE` — a pixel length — long after the two comparisons that
+    // read it (`worldTick.ts`'s `groundDistance` calls) had moved to tile units, so the walk-away
+    // close could never fire: a hero would have had to travel 192 tiles, past the edge of any grid,
+    // and nothing failed.
+    //
+    // The end-to-end test of that behaviour cannot catch this, and the distinction is worth naming:
+    // it walks the hero `DIALOGUE_CLOSE_RADIUS + 1` so that it keeps meaning "one unit beyond the
+    // radius" whatever the radius is — which makes it blind to the radius's UNIT by construction.
+    // Only an absolute number pins that, which is exactly what this file is for.
+    expect(DIALOGUE_CLOSE_RADIUS).toBe(3);
+    expect(DIALOGUE_CLOSE_RADIUS).toBeLessThan(LOOT_VISIBILITY_RADIUS);
   });
 
   it("keeps the ordering the AOI design depends on", () => {

@@ -52,6 +52,13 @@ import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundLineOfSight,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import {
   advanceGuards,
@@ -61,13 +68,6 @@ import {
 } from "@lindocara/server/world/monster-system.js";
 import { createNavigationRuntime } from "@lindocara/server/world/navigation-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
-import {
-  BODY_RADIUS,
-  canStand,
-  groundLineOfSight,
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "@lindocara/server/world/terrain-access.js";
 import {
   createGuards,
   createMonsters,

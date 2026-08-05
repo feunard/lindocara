@@ -19,11 +19,12 @@ const map: MapData = {
 };
 
 /**
- * Built here rather than pulled from `@lindocara/testing`'s `welcomeFixture`: that fixture still
- * describes the pixel world (`tiles`, `colliders`, `width`/`height`, `playerSize`, `obstacles`,
- * `safeZone`, a nullable `heightfield`) and no longer parses at all, which would make every
- * rejection below pass for the wrong reason — the frame would be dropped over the fixture, not over
- * the heightfield each case is actually about.
+ * Built here rather than in `@lindocara/testing`. Its `welcomeFixture` described the pixel world
+ * (`tiles`, `colliders`, `width`/`height`, `playerSize`, `obstacles`, `safeZone`, a nullable
+ * `heightfield`), stopped parsing at all when the wire moved, and had no consumer left once this
+ * file stopped using it — so it was deleted rather than repaired. A shared fixture that no longer
+ * parses would make every rejection below pass for the wrong reason: the frame would be dropped
+ * over the fixture, not over the heightfield each case is actually about.
  */
 function welcomeFixture(worldOverrides: Record<string, unknown> = {}) {
   const layer = encodeTileLayer(emptyLayer(SIZE, SIZE));

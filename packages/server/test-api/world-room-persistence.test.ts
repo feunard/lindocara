@@ -29,7 +29,11 @@
 
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { normalizeConsumables } from "@lindocara/engine/consumables.js";
-import type { PlayerSnapshot, ServerMessage } from "@lindocara/engine/protocol.js";
+import {
+  type PlayerSnapshot,
+  parseServerMessage,
+  type ServerMessage,
+} from "@lindocara/engine/protocol.js";
 import { D1_SAVE_EVERY_TICKS, type PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
@@ -47,7 +51,8 @@ import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { AdventureStateService } from "../src/api/services/AdventureStateService.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 const TICK_MS = 50;
@@ -178,6 +183,9 @@ async function newPlayableHero(prefix: string): Promise<Fixture> {
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
+  // Without a heightfield the map produces no zone at all and every join closes 4007, so nothing
+  // this file measures — a save beat, a stale-epoch fence, a disconnect flush — would ever run.
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, provingHeightfield());
   return { userId, roomId: `${partyId}:${adventure.defaultMap.id}`, heroId };
 }
 
@@ -205,8 +213,18 @@ function playerOf(state: WorldRoomState, heroId: string): PlayerRuntime {
   return player;
 }
 
+/** Every frame through `parseServerMessage`, the single wire truth — never a bare `JSON.parse`, or
+ *  a welcome the real client would drop would read here as a delivered admission. */
 function parsedMessages(socket: FakeSocket): ServerMessage[] {
-  return socket.sent.map((raw) => JSON.parse(raw) as ServerMessage);
+  return socket.sent.map((raw) => {
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      throw new Error(
+        `the wire refused a '${String((JSON.parse(raw) as { t?: unknown }).t)}' frame`,
+      );
+    }
+    return message;
+  });
 }
 
 function welcomeSelf(socket: FakeSocket, heroId: string): PlayerSnapshot | undefined {

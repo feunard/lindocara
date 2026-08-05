@@ -25,7 +25,6 @@ import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
@@ -37,6 +36,7 @@ import { heroItems } from "../src/api/entities/heroItems.ts";
 import { heroQuests } from "../src/api/entities/heroQuests.ts";
 import { heroSkills } from "../src/api/entities/heroSkills.ts";
 import { itemDefinitions } from "../src/api/entities/itemDefinitions.ts";
+import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -130,6 +130,37 @@ async function newPlayableAdventureWithMap(
   return { adventureId: created.id, mapId: created.defaultMap.id };
 }
 
+/** A second member map on the same adventure, so a start tier has something to choose between. */
+async function newMap(token: string, adventureId: string, name: string): Promise<string> {
+  const response = await authedFetch("/api/maps", token, {
+    method: "POST",
+    body: JSON.stringify({ adventureId, name }),
+  });
+  expect(response.status).toBe(201);
+  return ((await response.json()) as { id: string }).id;
+}
+
+/** The heightfield spawn `newMap`'s map carries, well away from the grid centre a heightfield-less
+ *  map falls back to, so the two cannot be confused. Tile units, grid centre as origin. */
+const BEYOND_SPAWN = { x: 3, z: -2 };
+
+/** A minimal flat heightfield whose single spawn sits at `spawn`. */
+function spawnAt(spawn: { x: number; z: number }): string {
+  const size = 8;
+  return JSON.stringify({
+    version: 1,
+    size,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: new Array(size * size).fill(0),
+    materials: new Array(size * size).fill("herbe"),
+    colliders: [],
+    spawns: [{ name: "default", x: spawn.x, z: spawn.z }],
+    elements: [],
+    events: [],
+  });
+}
+
 async function newParty(token: string, adventureId: string): Promise<string> {
   const response = await authedFetch("/api/parties", token, {
     method: "POST",
@@ -159,7 +190,7 @@ describe("session gate", () => {
 });
 
 describe("createHero", () => {
-  test("Tier 3 fallback: spawns at the map's own default spawn point when no graph.start or spawn event exists", async () => {
+  test("Tier 3 fallback: starts on the first member map when no graph.start or spawn event exists", async () => {
     const { token, userId } = await registerAndLogin("herospawn");
     const adventureId = await newPlayableAdventure(token);
     const adventureRes = await authedFetch(`/api/adventures/${adventureId}`, token);
@@ -179,12 +210,11 @@ describe("createHero", () => {
       mapId: string;
       x: number;
       y: number;
+      z: number;
       level: number;
       hp: number;
       life: string;
     };
-    const expectedSpawnCol = Math.floor(MAP_MIN_COLS / 2);
-    const expectedSpawnRow = Math.floor(MAP_MIN_ROWS / 2);
     expect(hero).toMatchObject({
       partyId,
       // The legacy wire calls this `accountId` (heroes.ts `StoredHero`), and the client's resume
@@ -194,30 +224,42 @@ describe("createHero", () => {
       name: "Mira",
       class: "priest",
       mapId: adventure.mapIds[0],
-      x: expectedSpawnCol * TILE_SIZE + TILE_SIZE / 2,
-      y: expectedSpawnRow * TILE_SIZE + TILE_SIZE / 2,
+      // The default map carries no heightfield, so there is no anchor stated in its own units and
+      // the hero is created at the grid centre. Admission's `mapEntryPosition` is what seats it on
+      // real ground; a hero row is no longer where a standing position is decided.
+      x: 0,
+      y: 0,
+      z: 0,
       level: 1,
       hp: 100,
       life: "alive",
     });
   });
 
-  test("Tier 2: spawns at the graph.start entry's cell when set and no spawn event exists", async () => {
+  test("Tier 2: starts on the graph.start map, at that map's own heightfield spawn", async () => {
     const { token } = await registerAndLogin("herograph");
     const { adventureId, mapId } = await newPlayableAdventureWithMap(token);
+    // A SECOND map, so the tier actually chooses: the default map is the earliest-created one and
+    // would win by Tier 3 alone. Everything the three tiers read is tile-editor content, which can
+    // still name a MAP and can no longer name a position at all — an editor cell is expressed in a
+    // coordinate space a heightfield grid does not have.
+    const other = await newMap(token, adventureId, "Beyond");
     const entryId = crypto.randomUUID();
     const entry = functionalEvent({ id: entryId, col: 5, row: 5, ordinal: 1, kind: "entry" });
-    const authored = await authedFetch(`/api/maps/${mapId}`, token, {
+    const authored = await authedFetch(`/api/maps/${other}`, token, {
       method: "PUT",
-      body: JSON.stringify(mapBody("A", [entry])),
+      body: JSON.stringify(mapBody("Beyond", [entry])),
     });
     expect(authored.status).toBe(200);
+    // The destination's OWN heightfield spawn is the only anchor left in the destination's own
+    // units, and it is what the hero row is seeded from.
+    await alepha.inject(MapService).saveHeightfield(other, spawnAt(BEYOND_SPAWN));
     const graphed = await authedFetch(`/api/adventures/${adventureId}`, token, {
       method: "PUT",
       body: JSON.stringify({
         title: "Donjon",
         maxPlayers: 4,
-        graph: { start: { mapId, entryId }, links: [] },
+        graph: { start: { mapId: other, entryId }, links: [] },
       }),
     });
     expect(graphed.status).toBe(200);
@@ -228,34 +270,40 @@ describe("createHero", () => {
       body: JSON.stringify({ name: "Trailblazer", class: "warrior" }),
     });
     expect(response.status).toBe(201);
-    const hero = (await response.json()) as { mapId: string; x: number; y: number };
-    expect(hero).toMatchObject({
-      mapId,
-      x: 5 * TILE_SIZE + TILE_SIZE / 2,
-      y: 5 * TILE_SIZE + TILE_SIZE / 2,
-    });
+    const hero = (await response.json()) as { mapId: string; x: number; y: number; z: number };
+    expect(hero.mapId).not.toBe(mapId);
+    expect(hero).toMatchObject({ mapId: other, x: BEYOND_SPAWN.x, y: 0, z: BEYOND_SPAWN.z });
   });
 
   test("Tier 1: a spawn event wins over graph.start when both exist", async () => {
     const { token } = await registerAndLogin("herospevt");
     const { adventureId, mapId } = await newPlayableAdventureWithMap(token);
+    const other = await newMap(token, adventureId, "Beyond");
     const entryId = crypto.randomUUID();
     const entry = functionalEvent({ id: entryId, col: 5, row: 5, ordinal: 1, kind: "entry" });
-    const spawnEventId = crypto.randomUUID();
+    const entryAuthored = await authedFetch(`/api/maps/${mapId}`, token, {
+      method: "PUT",
+      body: JSON.stringify(mapBody("A", [entry])),
+    });
+    expect(entryAuthored.status).toBe(200);
+    // The spawn event sits on the OTHER map — the two tiers now name different maps, which is the
+    // only way their precedence is still observable. Position no longer distinguishes them: both
+    // tiers seat the hero at the chosen map's own heightfield spawn, whichever tier chose it.
     const spawnEvent = functionalEvent({
-      id: spawnEventId,
+      id: crypto.randomUUID(),
       col: 8,
       row: 3,
-      ordinal: 2,
+      ordinal: 1,
       kind: "spawn",
     });
-    const authored = await authedFetch(`/api/maps/${mapId}`, token, {
+    const spawnAuthored = await authedFetch(`/api/maps/${other}`, token, {
       method: "PUT",
-      body: JSON.stringify(mapBody("A", [entry, spawnEvent])),
+      body: JSON.stringify(mapBody("Beyond", [spawnEvent])),
     });
-    expect(authored.status).toBe(200);
-    // A graph.start is ALSO set, pointing at the entry — if Tier 1 (spawn event) did not win over
-    // Tier 2 (graph start), the hero would land on the entry's cell (5,5) instead of (8,3).
+    expect(spawnAuthored.status).toBe(200);
+    await alepha.inject(MapService).saveHeightfield(other, spawnAt(BEYOND_SPAWN));
+    // A graph.start is ALSO set, pointing at the entry on the FIRST map — if Tier 1 (spawn event)
+    // did not win over Tier 2 (graph start), the hero would start there instead.
     const graphed = await authedFetch(`/api/adventures/${adventureId}`, token, {
       method: "PUT",
       body: JSON.stringify({
@@ -272,12 +320,9 @@ describe("createHero", () => {
       body: JSON.stringify({ name: "Bornhere", class: "warrior" }),
     });
     expect(response.status).toBe(201);
-    const hero = (await response.json()) as { mapId: string; x: number; y: number };
-    expect(hero).toMatchObject({
-      mapId,
-      x: 8 * TILE_SIZE + TILE_SIZE / 2,
-      y: 3 * TILE_SIZE + TILE_SIZE / 2,
-    });
+    const hero = (await response.json()) as { mapId: string; x: number; y: number; z: number };
+    expect(hero.mapId).not.toBe(mapId);
+    expect(hero).toMatchObject({ mapId: other, x: BEYOND_SPAWN.x, y: 0, z: BEYOND_SPAWN.z });
   });
 
   test("creates a hero with resolvable starter items, equipment, quest and skills", async () => {

@@ -8,6 +8,7 @@ import {
 import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 import { playerSnapshot } from "../src/world/interest-system.ts";
@@ -22,7 +23,6 @@ import {
   selectPeasantHarvestTarget,
   selectPeasantHarvestTargets,
 } from "../src/world/peasant-harvest-system.ts";
-import { type ZoneTerrain, zoneTerrainFromHeightfield } from "../src/world/terrain-access.ts";
 import { type ActiveWorldEvent, createMonsters, newPlayer } from "../src/world/world-runtime.ts";
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";

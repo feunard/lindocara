@@ -20,6 +20,16 @@ import { CLASS_STATS } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import { TICK_DT, TICK_MS } from "@lindocara/engine/simulation.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  canStandOrEscape,
+  groundPathClear,
+  groundUnder,
+  restoreStandablePosition,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it, vi } from "vitest";
 import { collectLoot } from "../src/world/loot-system.js";
@@ -31,16 +41,6 @@ import {
 import { advancePlayers } from "../src/world/movement-system.js";
 import { createNavigationRuntime } from "../src/world/navigation-system.js";
 import { SpatialGrid } from "../src/world/spatial-grid.js";
-import {
-  BODY_RADIUS,
-  canStand,
-  canStandOrEscape,
-  groundPathClear,
-  groundUnder,
-  restoreStandablePosition,
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "../src/world/terrain-access.js";
 import {
   createMonsters,
   type GroundLoot,

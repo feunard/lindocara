@@ -16,6 +16,12 @@
  * 5. personal loot is omitted from another player's delta (AOI + ownerId);
  * 6. local chat reaches only in-AOI players; oversized chat is dropped;
  * 7. one tick advances players before monsters before guards (composed-state probe, no mocks).
+ *
+ * Everything here runs in TILE units, grid centre as origin: `x` and `z` are the two GROUND axes
+ * and `y` is elevation. Every length below is the exact quotient of its former pixel value by
+ * `TILE_SIZE`, written as the division rather than as a decimal so a fixture stays readable against
+ * the balance table it was tuned from. Each fixture map stores a flat `provingHeightfield`, without
+ * which no zone can be built at all and every join is refused 4007.
  */
 
 import {
@@ -25,20 +31,29 @@ import {
 } from "@lindocara/engine/combat-actions.js";
 import {
   ATTACK_COOLDOWN_MS,
-  isWalkable,
+  CLASS_STATS,
   MONSTER_AGGRO_RANGE,
   MONSTER_RESPAWN_MS,
   type MonsterSpawn,
   maxHpForLevel,
   monsterBodyHitbox,
-  pointDistance,
 } from "@lindocara/engine/game.js";
+import { groundDistance } from "@lindocara/engine/ground.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import {
   encodeServerMessage,
   parseServerMessage,
   type ServerMessage,
 } from "@lindocara/engine/protocol.js";
-import { PLAYER_SIZE, PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
+import { TICK_DT } from "@lindocara/engine/simulation.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { advanceCombatActions } from "@lindocara/server/world/combat-action-system.js";
 import { projectileOrigin, spawnProjectile } from "@lindocara/server/world/projectile-system.js";
 import {
@@ -48,7 +63,6 @@ import {
   createMonsters,
   type PlayerRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
 import {
@@ -71,10 +85,70 @@ import {
   type WorldGlue,
   type WorldTickDeps,
 } from "../src/api/realtime/worldTick.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 const TICK_MS = 50;
+
+/**
+ * The side of every fixture map's heightfield, in cells — wider than {@link PROVING_SIZE}'s 16 on
+ * purpose. Every length in this file is the exact quotient of its former pixel value by
+ * `TILE_SIZE`, and the widest of them (a listener pushed 2 000 px out of local-chat range) is 31.25
+ * tiles. The grid is centred on the origin, so a 64-cell side spans `-32..32` and every converted
+ * fixture still lands on real ground rather than in the void off the map's edge.
+ */
+const GRID_SIZE = 64;
+
+/** Half the grid, i.e. the world coordinate of its western/northern edge, negated. */
+const GRID_HALF = GRID_SIZE / 2;
+
+/** The flat, entirely walkable proving grid every fixture map in this file is stored with. */
+function heightfield(): string {
+  return provingHeightfield(GRID_SIZE);
+}
+
+/** The world height of one level tier on {@link heightfield}'s grid. */
+const LEVEL_HEIGHT = 0.9;
+
+/**
+ * The proving grid with one raised column of cells — the heightfield's replacement for the pixel
+ * fixture's `obstacles` rectangle.
+ *
+ * It has to be RELIEF and not a collider: `groundLineOfSight` (what a blast asks before it damages
+ * anything) is interrupted by ground higher than both of its ends and deliberately ignores props,
+ * exactly as the pixel version consulted `tiles` and never the collider index. `cells` names the
+ * raised cells by their grid indices, so the caller reads the wall in the same space the terrain
+ * query buckets it into.
+ */
+function terrainWithWall(cells: {
+  minCol: number;
+  maxCol: number;
+  minRow: number;
+  maxRow: number;
+}): ZoneTerrain {
+  const levels: (number | null)[] = [];
+  for (let row = 0; row < GRID_SIZE; row++) {
+    for (let col = 0; col < GRID_SIZE; col++) {
+      const raised =
+        col >= cells.minCol && col <= cells.maxCol && row >= cells.minRow && row <= cells.maxRow;
+      levels.push(raised ? 1 : 0);
+    }
+  }
+  const map: MapData = {
+    version: 1,
+    size: GRID_SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.05,
+    levels,
+    materials: new Array(GRID_SIZE * GRID_SIZE).fill("herbe"),
+    colliders: [],
+    spawns: [{ name: "default", x: 0, z: 0 }],
+    elements: [],
+    events: [],
+  };
+  return zoneTerrainFromHeightfield(map);
+}
 
 /** The RoomEngine.spec FakeClock: intervals fire once per `advance` of their period. */
 class FakeClock implements RoomClock {
@@ -193,6 +267,10 @@ async function newPlayableHero(prefix: string, heroClass = "warrior"): Promise<F
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
+  // A map with no heightfield produces no zone at all, so every join of this room would be refused
+  // 4007 before a single combat invariant could be observed. `POST /api/adventures` seeds a tile
+  // map and nothing else, so the room's collision has to be stored here.
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, heightfield());
   return { userId, roomId: `${partyId}:${adventure.defaultMap.id}`, partyId, heroId };
 }
 
@@ -329,11 +407,12 @@ function sentTo(sent: Map<string, ServerMessage[]>, heroId: string): ServerMessa
   return sent.get(`c-${heroId}`) ?? [];
 }
 
+/** `x`/`z` are the two GROUND axes; a seeded body always starts on the flat grid's level-0 ground. */
 function seedMonster(
   state: WorldRoomState,
   id: string,
   x: number,
-  y: number,
+  z: number,
   overrides: Partial<Pick<MonsterSpawn, "maxHp" | "species" | "kind" | "attackProfile">> = {},
 ) {
   const [monster] = createMonsters([
@@ -343,7 +422,8 @@ function seedMonster(
       species: "torch_goblin",
       zone: "route",
       x,
-      y,
+      y: 0,
+      z,
       patrolRadius: 0,
       ...overrides,
     },
@@ -354,8 +434,8 @@ function seedMonster(
   return monster;
 }
 
-function seedGuard(state: WorldRoomState, id: string, x: number, y: number) {
-  const [guard] = createGuards([{ id, x, y, patrolRadius: 120 }]);
+function seedGuard(state: WorldRoomState, id: string, x: number, z: number) {
+  const [guard] = createGuards([{ id, x, y: 0, z, patrolRadius: 120 / TILE_SIZE }]);
   if (!guard) throw new Error("seed produced no guard");
   state.guards.push(guard);
   return guard;
@@ -375,8 +455,8 @@ describe("world room combat (FakeClock)", () => {
       connectionId: socket.id,
       slot: 1,
       tool: "axe",
-      direction: { x: 1, y: 0 },
-      areaCenter: { x: 96, y: 32 },
+      direction: { x: 1, z: 0 },
+      areaCenter: { x: 96 / TILE_SIZE, z: 32 / TILE_SIZE },
       areaRadius: 0,
       targets: [
         {
@@ -434,10 +514,14 @@ describe("world room combat (FakeClock)", () => {
       meat: 2,
     });
     const stocked = await partyMaterials(host.partyId);
-    const previous = { x: peasant.x, y: peasant.y };
-    peasant.x = 0;
-    peasant.y = 32;
-    peasant.facing = { x: -1, y: 0 };
+    const previous = { x: peasant.x, z: peasant.z };
+    // Hard against the grid's western edge, facing off it: whatever the camp's placement distance,
+    // its centre lands where `heightAt` answers `null` and `canStand` refuses it. The pixel fixture
+    // said the same thing by standing on the map's left border — a rectangle anchored at zero the
+    // centred grid no longer has.
+    peasant.x = -GRID_HALF + 0.1;
+    peasant.z = 0;
+    peasant.facing = { x: -1, z: 0 };
     state.playerGrid.update(peasant, previous);
 
     await engine.message(socket.id, { t: "skill", slot: 4 });
@@ -445,17 +529,22 @@ describe("world room combat (FakeClock)", () => {
     expect(peasant.skillCooldowns[3]).toBe(0);
     expect(await partyMaterials(host.partyId)).toEqual(stocked);
 
-    peasant.x = 32;
-    peasant.facing = { x: 1, y: 0 };
+    peasant.x = 0;
+    peasant.facing = { x: 1, z: 0 };
     for (let index = 0; index < MAX_PROJECTILES_PER_PLAYER; index++) {
       const projectile = spawnProjectile(state.projectiles, {
         actionId: crypto.randomUUID(),
         owner: peasant,
         roomKey: peasant.roomKey,
-        origin: projectileOrigin(peasant, peasant.facing, 2),
+        origin: projectileOrigin(peasant, peasant.facing, 2 / TILE_SIZE),
         direction: peasant.facing,
-        definition: { kind: "arrow", speed: 1, radius: 2, pierce: 0 },
-        range: 100,
+        definition: {
+          kind: "arrow",
+          speed: 1 / TILE_SIZE,
+          radius: 2 / TILE_SIZE,
+          pierce: 0,
+        },
+        range: 100 / TILE_SIZE,
         power: 1,
         targetFilter: "monsters",
         sourceSkillId: "test_cap",
@@ -482,7 +571,7 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const peasant = playerOf(state, host.heroId);
     peasant.level = 20;
-    peasant.facing = { x: 1, y: 0 };
+    peasant.facing = { x: 1, z: 0 };
 
     const partyRoom = alepha.inject(PartyRoom);
     const service = partyRoom.adventureStateService;
@@ -531,12 +620,12 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const peasant = playerOf(state, host.heroId);
     peasant.level = 20;
-    peasant.facing = { x: 1, y: 0 };
+    peasant.facing = { x: 1, z: 0 };
     peasant.talents = [
       "peasant.butchers_cut.grand_feast",
       "peasant.makeshift_camp.complete_encampment",
     ];
-    const slowed = seedMonster(state, "camp-slowed", peasant.x + 80, peasant.y);
+    const slowed = seedMonster(state, "camp-slowed", peasant.x + 80 / TILE_SIZE, peasant.z);
 
     await engine.message(hostSocket.id, { t: "skill", slot: 4 });
     const action = peasant.action;
@@ -550,13 +639,15 @@ describe("world room combat (FakeClock)", () => {
     expect(state.peasantSupport.camps).toHaveLength(1);
     const camp = state.peasantSupport.camps[0];
     if (!camp) throw new Error("camp did not resolve");
+    // Both radii are the exact quotients of the pixel table's 144 and 180 by `TILE_SIZE`: the same
+    // ground covered, measured with the tile ruler the whole world now uses.
     expect(camp).toMatchObject({
-      radius: 144,
+      radius: 144 / TILE_SIZE,
       protectionRatio: 0.22,
       slowRatio: 0.2,
       rationHealing: 21,
       rationPortionsRemaining: 3,
-      rationRadius: 180,
+      rationRadius: 180 / TILE_SIZE,
       rationBuffDurationMs: 10_000,
       rationPowerBonusRatio: 0.15,
       expiresAt: camp.startedAt + 80_000,
@@ -617,32 +708,36 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const peasant = playerOf(state, host.heroId);
     peasant.level = 20;
-    const previous = { x: peasant.x, y: peasant.y };
-    peasant.x = 32;
-    peasant.y = 32;
-    peasant.facing = { x: 1, y: 0 };
+    const previous = { x: peasant.x, z: peasant.z };
+    peasant.x = -2.5;
+    peasant.z = 0;
+    peasant.facing = { x: 1, z: 0 };
     peasant.talents = ["peasant.homemade_bomb.powder_keg"];
     state.playerGrid.update(peasant, previous);
     const location = state.location;
     if (!location) throw new Error("room terrain missing");
-    const currentTerrain = location.definition.terrain;
-    const wall = { x: 128, y: 0, width: 64, height: 192 };
-    const tiles = tileMapFromRects(currentTerrain.width, currentTerrain.height, [wall]);
-    location.definition.terrain = {
-      ...currentTerrain,
-      obstacles: [wall],
-      tiles,
-      colliders: noColliders(tiles),
-    };
-    const target = seedMonster(state, "bomb-target", 96, 32, { maxHp: 500 });
-    const sideTarget = seedMonster(state, "bomb-side", 80, 96, { maxHp: 500 });
-    const hidden = seedMonster(state, "bomb-hidden", 192, 32, {
+    // One raised column of cells covering `x ∈ [-1, 0)` and `z ∈ [-2, 3)` in world tiles — cell `i`
+    // covers `[i - GRID_HALF, i - GRID_HALF + 1)`. The bomb flies east into its west face and the
+    // troll waits on the far side of it.
+    location.definition.terrain = terrainWithWall({
+      minCol: GRID_HALF - 1,
+      maxCol: GRID_HALF - 1,
+      minRow: GRID_HALF - 2,
+      maxRow: GRID_HALF + 2,
+    });
+    // Both goblins stand well off the bomb's flight line (0.7 tiles, against a projectile radius
+    // plus a body radius of ~0.4) so the blast is the wall's face rather than a body it clipped,
+    // and both are comfortably inside the Powder Keg radius of `110 * 1.35 / TILE_SIZE`.
+    const target = seedMonster(state, "bomb-target", -1.5, 0.7, { maxHp: 500 });
+    const sideTarget = seedMonster(state, "bomb-side", -1.5, -0.7, { maxHp: 500 });
+    // Inside the blast radius, and behind the wall: only the sight line can spare it.
+    const hidden = seedMonster(state, "bomb-hidden", 0.5, 0, {
       maxHp: 500,
       kind: "troll",
       species: "gate_troll",
     });
     for (const monster of [target, sideTarget, hidden]) monster.weakness = "warrior";
-    const sidePosition = { x: sideTarget.x, y: sideTarget.y };
+    const sidePosition = { x: sideTarget.x, z: sideTarget.z };
 
     await engine.message(socket.id, { t: "skill", slot: 5 });
     const action = peasant.action;
@@ -664,7 +759,7 @@ describe("world room combat (FakeClock)", () => {
     expect(hidden.hp).toBe(hiddenHpBefore);
     expect(sideTarget.slowMultiplier).toBe(0.75);
     expect(sideTarget.slowUntil).toBe(action.impactAt + 3_000);
-    expect({ x: sideTarget.x, y: sideTarget.y }).not.toEqual(sidePosition);
+    expect({ x: sideTarget.x, z: sideTarget.z }).not.toEqual(sidePosition);
     expect(state.projectiles).toEqual([]);
     expect(state.peasantSupport.bombs.size).toBe(0);
     expect(
@@ -683,7 +778,7 @@ describe("world room combat (FakeClock)", () => {
     const rogue = playerOf(state, host.heroId);
     rogue.level = 20;
     rogue.talents = ["rogue.vanish.left_silhouette"];
-    const monster = seedMonster(state, "decoy-hunter", rogue.x + 60, rogue.y);
+    const monster = seedMonster(state, "decoy-hunter", rogue.x + 60 / TILE_SIZE, rogue.z);
     monster.threat.set("another-hero", {
       playerId: "another-hero",
       amount: 500,
@@ -703,12 +798,13 @@ describe("world room combat (FakeClock)", () => {
 
     const beforeHp = rogue.hp;
     decoy.hp = 1;
-    const previousMonsterPosition = { x: monster.x, y: monster.y };
-    monster.x = decoy.x - 18;
+    const previousMonsterPosition = { x: monster.x, z: monster.z };
+    monster.x = decoy.x - 18 / TILE_SIZE;
+    monster.z = decoy.z;
     monster.y = decoy.y;
     state.monsterGrid.update(monster, previousMonsterPosition);
-    rogue.x += 180;
-    startMonsterAttack(w, monster, { ...rogue, x: decoy.x, y: decoy.y }, now);
+    rogue.x += 180 / TILE_SIZE;
+    startMonsterAttack(w, monster, { ...rogue, x: decoy.x, y: decoy.y, z: decoy.z }, now);
     const strike = monster.action;
     if (!strike) throw new Error("decoy strike missing");
     resolveMonsterAction(w, monster, strike, strike.impactAt);
@@ -758,8 +854,8 @@ describe("world room combat (FakeClock)", () => {
       "rogue.shadow_dance.dark_harvest",
       "rogue.shadow_dance.dance_master",
     ];
-    player.facing = { x: 1, y: 0 };
-    seedMonster(state, "dance-mark", player.x + 120, player.y, { maxHp: 5_000 });
+    player.facing = { x: 1, z: 0 };
+    seedMonster(state, "dance-mark", player.x + 120 / TILE_SIZE, player.z, { maxHp: 5_000 });
     let t = Date.now() + 1_000;
     const { w } = testGlue(state, () => t);
     expect(startPlayerAction(w, `c-${heroId}`, player, 5)).toBe(true);
@@ -773,10 +869,10 @@ describe("world room combat (FakeClock)", () => {
     expect(mark.availableAt).toBe(player.rogueShadowDanceInvulnerableUntil);
     expect(mark.expiresAt).toBe(mark.availableAt + 2_000);
 
-    const danceLanding = { x: player.x, y: player.y };
-    player.x -= 100;
+    const danceLanding = { x: player.x, z: player.z };
+    player.x -= 100 / TILE_SIZE;
     state.playerGrid.update(player, danceLanding);
-    const repositionOrigin = { x: player.x, y: player.y };
+    const repositionOrigin = { x: player.x, z: player.z };
 
     expect(startPlayerAction(w, `c-${heroId}`, player, 5)).toBe(false);
     expect(player).toMatchObject(repositionOrigin);
@@ -784,7 +880,7 @@ describe("world room combat (FakeClock)", () => {
 
     t = mark.availableAt;
     expect(startPlayerAction(w, `c-${heroId}`, player, 5)).toBe(true);
-    expect(pointDistance(player, repositionOrigin)).toBeGreaterThan(20);
+    expect(groundDistance(player, repositionOrigin)).toBeGreaterThan(20 / TILE_SIZE);
     expect(player.rogueDanceMarks).toEqual([]);
     expect(player.skillCooldowns[4]).toBe(cooldownUntil);
     engine.dispose();
@@ -804,9 +900,9 @@ describe("world room combat (FakeClock)", () => {
     priest.talents = ["priest.divine_nova.mercy", "priest.divine_nova.polarity_orb"];
     corpse.life = "corpse";
     corpse.hp = 0;
-    corpse.x = priest.x + 20;
-    corpse.y = priest.y;
-    corpse.corpse = { x: corpse.x, y: corpse.y };
+    corpse.x = priest.x + 20 / TILE_SIZE;
+    corpse.z = priest.z;
+    corpse.corpse = { x: corpse.x, y: corpse.y, z: corpse.z };
 
     let t = Date.now() + 1_000;
     const { w } = testGlue(state, () => t);
@@ -834,12 +930,15 @@ describe("world room combat (FakeClock)", () => {
     const terrain = state.location?.definition.terrain;
     if (!terrain) throw new Error("missing test terrain");
     const connectionId = `c-${host.heroId}`;
-    const origin = { x: priest.x, y: priest.y };
-    const destination = [64, 128, 192, 256]
-      .map((offset) => ({ x: origin.x + offset, y: origin.y }))
-      .find((candidate) => isWalkable(candidate, PLAYER_SIZE, terrain));
+    const origin = { x: priest.x, z: priest.z };
+    // Grounded on where the PRIEST is, never on the candidate itself: `canStand(dest,
+    // groundUnder(dest))` is self-satisfying and would accept a destination on top of a cliff.
+    const originGround = groundUnder(terrain, origin.x, origin.z);
+    const destination = [1, 2, 3, 4]
+      .map((offset) => ({ x: origin.x + offset, z: origin.z }))
+      .find((candidate) => canStand(terrain, candidate.x, candidate.z, BODY_RADIUS, originGround));
     if (!destination) throw new Error("missing open Lumen destination");
-    const blocker = seedMonster(state, "lumen-blocker", destination.x, destination.y, {
+    const blocker = seedMonster(state, "lumen-blocker", destination.x, destination.z, {
       species: "mire_troll",
       kind: "troll",
     });
@@ -847,21 +946,20 @@ describe("world room combat (FakeClock)", () => {
     let now = Date.now() + 1_000;
     const { w } = testGlue(state, () => now);
     expect(startPlayerAction(w, connectionId, priest, 3)).toBe(true);
-    const beforePhase = { x: priest.x, y: priest.y };
+    const beforePhase = { x: priest.x, z: priest.z };
     priest.x = destination.x;
-    priest.y = destination.y;
+    priest.z = destination.z;
     state.playerGrid.update(priest, beforePhase);
     now += 250;
     expect(finishHeldPlayerAction(w, connectionId, priest, now, 3)).toBe(true);
 
-    expect(isWalkable(priest, PLAYER_SIZE, terrain)).toBe(true);
+    expect(canStand(terrain, priest.x, priest.z, BODY_RADIUS, originGround)).toBe(true);
     const blockerHitbox = monsterBodyHitbox(blocker.species, blocker);
-    expect(
-      pointDistance(
-        { x: priest.x + PLAYER_SIZE / 2, y: priest.y + PLAYER_SIZE / 2 },
-        blockerHitbox.center,
-      ),
-    ).toBeGreaterThanOrEqual(PLAYER_SIZE / 2 + blockerHitbox.radius);
+    // A tile-unit position IS the body's centre, so the pixel version's `+ PLAYER_SIZE / 2` shift
+    // from a top-left corner is gone; the clearance itself is the same half-body plus the hitbox.
+    expect(groundDistance(priest, blockerHitbox.center)).toBeGreaterThanOrEqual(
+      BODY_RADIUS + blockerHitbox.radius,
+    );
     expect(priest).not.toMatchObject(destination);
     engine.dispose();
   });
@@ -920,20 +1018,20 @@ describe("world room combat (FakeClock)", () => {
     const { w, sent } = testGlue(state, () => t);
 
     // The monster winds up eastward at the target standing inside its reach.
-    const monster = seedMonster(state, "freeze-1", target.x - 40, target.y);
+    const monster = seedMonster(state, "freeze-1", target.x - 40 / TILE_SIZE, target.z);
     bystander.x = monster.x;
-    bystander.y = monster.y - 400; // far north: outside the capsule at wind-up
+    bystander.z = monster.z - 400 / TILE_SIZE; // far north: outside the capsule at wind-up
     startMonsterAttack(w, monster, target, t);
     const action = monster.action;
     if (!action) throw new Error("wind-up did not start an action");
     const frozenDirection = { ...action.direction };
     expect(frozenDirection.x).toBeCloseTo(1);
-    expect(frozenDirection.y).toBeCloseTo(0);
+    expect(frozenDirection.z).toBeCloseTo(0);
 
     // During anticipation the TARGET escapes and the BYSTANDER walks into the frozen capsule.
-    target.x = monster.x + 500;
-    bystander.x = monster.x + 40;
-    bystander.y = monster.y;
+    target.x = monster.x + 500 / TILE_SIZE;
+    bystander.x = monster.x + 40 / TILE_SIZE;
+    bystander.z = monster.z;
     const maxHp = maxHpForLevel(1);
     expect(target.hp).toBe(maxHp);
     expect(bystander.hp).toBe(maxHp);
@@ -967,7 +1065,7 @@ describe("world room combat (FakeClock)", () => {
     const target = playerOf(state, heroId);
     const t = Date.now() + 1_000;
     const { w } = testGlue(state, () => t);
-    const monster = seedMonster(state, "shaman-ranged", target.x - 180, target.y, {
+    const monster = seedMonster(state, "shaman-ranged", target.x - 180 / TILE_SIZE, target.z, {
       species: "hex_shaman",
       kind: "shaman",
     });
@@ -997,7 +1095,7 @@ describe("world room combat (FakeClock)", () => {
     const target = playerOf(state, heroId);
     const now = Date.now() + 1_000;
     const { w, sent } = testGlue(state, () => now);
-    const monster = seedMonster(state, "explicit-archer", target.x - 180, target.y, {
+    const monster = seedMonster(state, "explicit-archer", target.x - 180 / TILE_SIZE, target.z, {
       species: "spear_goblin",
       attackProfile: "arrow",
     });
@@ -1046,8 +1144,8 @@ describe("world room combat (FakeClock)", () => {
     const observer = playerOf(state, heroId);
     const now = Date.now() + 1_000;
     const { w } = testGlue(state, () => now);
-    const guard = seedGuard(state, "ranged-target-guard", observer.x + 120, observer.y);
-    const monster = seedMonster(state, "guard-archer", guard.x - 180, guard.y, {
+    const guard = seedGuard(state, "ranged-target-guard", observer.x + 120 / TILE_SIZE, observer.z);
+    const monster = seedMonster(state, "guard-archer", guard.x - 180 / TILE_SIZE, guard.z, {
       species: "spear_goblin",
       attackProfile: "arrow",
     });
@@ -1077,10 +1175,15 @@ describe("world room combat (FakeClock)", () => {
     await engine.join(fakeSocket(userId, heroId));
     const state = roomState(engine);
     const player = playerOf(state, heroId);
-    const combatOrigin = { x: player.x, y: player.y };
-    player.x += 600;
-    const monster = seedMonster(state, "guard-projectile-owner", combatOrigin.x, combatOrigin.y);
-    const guard = seedGuard(state, "projectile-target-guard", combatOrigin.x + 40, combatOrigin.y);
+    const combatOrigin = { x: player.x, z: player.z };
+    player.x += 600 / TILE_SIZE;
+    const monster = seedMonster(state, "guard-projectile-owner", combatOrigin.x, combatOrigin.z);
+    const guard = seedGuard(
+      state,
+      "projectile-target-guard",
+      combatOrigin.x + 40 / TILE_SIZE,
+      combatOrigin.z,
+    );
     let now = Date.now() + 1_000;
     const { w } = testGlue(state, () => now);
 
@@ -1089,10 +1192,15 @@ describe("world room combat (FakeClock)", () => {
         actionId: crypto.randomUUID(),
         owner: monster,
         roomKey: state.roomKey,
-        origin: projectileOrigin(monster, { x: 1, y: 0 }, 5),
-        direction: { x: 1, y: 0 },
-        definition: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
-        range: 300,
+        origin: projectileOrigin(monster, { x: 1, z: 0 }, 5 / TILE_SIZE),
+        direction: { x: 1, z: 0 },
+        definition: {
+          kind: "arrow",
+          speed: 540 / TILE_SIZE,
+          radius: 5 / TILE_SIZE,
+          pierce: 0,
+        },
+        range: 300 / TILE_SIZE,
         power,
         targetFilter: "players_and_guards",
         sourceSkillId: "monster_ranged_attack",
@@ -1143,13 +1251,14 @@ describe("world room combat (FakeClock)", () => {
         kind: "troll",
         species: "gate_troll",
         zone: "gate",
-        x: target.x - 40,
-        y: target.y,
-        patrolRadius: 10,
+        x: target.x - 40 / TILE_SIZE,
+        y: 0,
+        z: target.z,
+        patrolRadius: 10 / TILE_SIZE,
         rank: "elite",
         maxHp: 900,
         damage: 45,
-        speed: 120,
+        speed: 120 / TILE_SIZE,
         xp: 900,
         weakness: "none",
         weaknessPercent: 150,
@@ -1161,13 +1270,14 @@ describe("world room combat (FakeClock)", () => {
         kind: "troll",
         species: "gate_troll",
         zone: "gate",
-        x: target.x - 40,
-        y: target.y,
-        patrolRadius: 10,
+        x: target.x - 40 / TILE_SIZE,
+        y: 0,
+        z: target.z,
+        patrolRadius: 10 / TILE_SIZE,
         rank: "boss",
         maxHp: 2_000,
         damage: 70,
-        speed: 150,
+        speed: 150 / TILE_SIZE,
         xp: 2_000,
         weakness: "none",
         weaknessPercent: 150,
@@ -1215,7 +1325,7 @@ describe("world room combat (FakeClock)", () => {
     await engine.join(fakeSocket(userId, heroId));
     const state = roomState(engine);
     const target = playerOf(state, heroId);
-    const monster = seedMonster(state, "quake-impact-1", target.x - 40, target.y, {
+    const monster = seedMonster(state, "quake-impact-1", target.x - 40 / TILE_SIZE, target.z, {
       species: "gate_troll",
       kind: "troll",
     });
@@ -1250,8 +1360,10 @@ describe("world room combat (FakeClock)", () => {
         actionId: action.id,
         actorId: monster.id,
         technique: "troll_quake",
-        x: monster.x + 16,
-        y: monster.y + 16,
+        // A tile-unit position IS the body's centre, so the pixel path's half-body recentring is
+        // gone: the quake's origin is the monster's own ground point.
+        x: monster.x,
+        z: monster.z,
         direction: action.direction,
         impactAt: now,
       },
@@ -1291,10 +1403,10 @@ describe("world room combat (FakeClock)", () => {
     const xpBefore = player.xp;
 
     // Monster and guard together, the hero far outside aggro range: only the guard can kill.
-    const monster = seedMonster(state, "guarded-1", player.x - 600, player.y);
+    const monster = seedMonster(state, "guarded-1", player.x - 600 / TILE_SIZE, player.z);
     monster.respawnDelayMs = 42_000;
-    seedGuard(state, "guard-1", monster.x, monster.y + 40);
-    expect(pointDistance(monster, player)).toBeGreaterThan(MONSTER_AGGRO_RANGE);
+    seedGuard(state, "guard-1", monster.x, monster.z + 40 / TILE_SIZE);
+    expect(groundDistance(monster, player)).toBeGreaterThan(MONSTER_AGGRO_RANGE);
 
     const t = Date.now() + 1_000;
     const { w, sent } = testGlue(state, () => t);
@@ -1324,9 +1436,9 @@ describe("world room combat (FakeClock)", () => {
     const player = playerOf(state, heroId);
 
     // A monster parked right on top of a corpse: close enough to strike anything alive.
-    const monster = seedMonster(state, "camper-1", player.x + 30, player.y);
+    const monster = seedMonster(state, "camper-1", player.x + 30 / TILE_SIZE, player.z);
     player.life = "corpse";
-    player.corpse = { x: player.x, y: player.y };
+    player.corpse = { x: player.x, y: player.y, z: player.z };
     const hpBefore = player.hp;
 
     let t = Date.now() + 1_000;
@@ -1362,14 +1474,16 @@ describe("world room combat (FakeClock)", () => {
     const state = roomState(engine);
     const owner = playerOf(state, host.heroId);
 
-    // Personal loot inside BOTH players' loot AOI (650px) but outside pickup range (46px).
+    // Personal loot inside BOTH players' loot AOI (`LOOT_VISIBILITY_RADIUS`, 650 px worth of
+    // ground) but outside pickup range (`LOOT_PICKUP_RANGE`, 46 px worth) — both tile units now.
     const lootId = "personal-loot-1";
     const item = {
       id: lootId,
       kind: "gold" as const,
       amount: 4,
-      x: owner.x + 200,
+      x: owner.x + 200 / TILE_SIZE,
       y: owner.y,
+      z: owner.z,
       expiresAt: Date.now() + 60_000,
       ownerId: owner.id,
     };
@@ -1403,9 +1517,10 @@ describe("world room combat (FakeClock)", () => {
     expect(hostSocket.sent.some((raw) => raw.includes("par ici"))).toBe(true);
     expect(guestSocket.sent.some((raw) => raw.includes("par ici"))).toBe(true);
 
-    // Move the listener beyond LOCAL_CHAT_RADIUS (700px): the next line no longer reaches them.
-    const previous = { x: listener.x, y: listener.y };
-    listener.x = speaker.x - 2_000;
+    // Move the listener beyond `LOCAL_CHAT_RADIUS` (700 px worth of ground, in tile units now):
+    // the next line no longer reaches them.
+    const previous = { x: listener.x, z: listener.z };
+    listener.x = speaker.x - 2_000 / TILE_SIZE;
     state.playerGrid.update(listener, previous);
     await engine.message(hostSocket.id, { t: "chat", channel: "local", text: "trop loin" });
     expect(hostSocket.sent.some((raw) => raw.includes("trop loin"))).toBe(true);
@@ -1429,14 +1544,14 @@ describe("world room combat (FakeClock)", () => {
     // Probe A (players → monsters): the hero starts just OUTSIDE M1's aggro radius and has one
     // queued eastward command whose movement lands INSIDE it. M1 acquires threat this very tick
     // only if movement was applied before the monster pass read positions.
-    const moved = PLAYER_SPEED * TICK_DT;
+    const moved = CLASS_STATS.warrior.movementSpeed * TICK_DT;
     const m1 = seedMonster(
       state,
       "order-aggro",
       player.x + MONSTER_AGGRO_RANGE + moved / 2,
-      player.y,
+      player.z,
     );
-    expect(pointDistance(m1, player)).toBeGreaterThan(MONSTER_AGGRO_RANGE);
+    expect(groundDistance(m1, player)).toBeGreaterThan(MONSTER_AGGRO_RANGE);
     player.queue.push({
       seq: player.lastSeq + 1,
       input: { up: false, down: false, left: false, right: true },
@@ -1447,8 +1562,8 @@ describe("world room combat (FakeClock)", () => {
     // The monster pass starts M2's wind-up (an `animation` broadcast); the guard pass then kills
     // M2 in the same tick, cancelling the action. Had guards run first, M2 would already be dead
     // when the monster pass ran and no wind-up could ever have been observed.
-    const m2 = seedMonster(state, "order-victim", player.x - 30, player.y);
-    seedGuard(state, "order-guard", m2.x, m2.y + 40);
+    const m2 = seedMonster(state, "order-victim", player.x - 30 / TILE_SIZE, player.z);
+    seedGuard(state, "order-guard", m2.x, m2.z + 40 / TILE_SIZE);
 
     const t = Date.now() + 1_000;
     const { w, sent } = testGlue(state, () => t);
@@ -1456,7 +1571,7 @@ describe("world room combat (FakeClock)", () => {
     advanceWorldTick(w);
 
     // Players before monsters: this tick's movement is what put the hero inside M1's aggro ring.
-    expect(pointDistance(m1, player)).toBeLessThan(MONSTER_AGGRO_RANGE);
+    expect(groundDistance(m1, player)).toBeLessThan(MONSTER_AGGRO_RANGE);
     expect(m1.threat.has(heroId)).toBe(true);
 
     // Monsters before guards: the wind-up happened (broadcast while M2 was alive), THEN the guard

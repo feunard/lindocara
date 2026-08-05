@@ -1,5 +1,6 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { talentEffect } from "@lindocara/engine/talents.js";
+import { BODY_RADIUS } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advancePolarityOrbs,
@@ -27,7 +28,6 @@ import {
   startPolarityOrb,
   startSanctuary,
 } from "@lindocara/server/world/priest-variant-system.js";
-import { BODY_RADIUS } from "@lindocara/server/world/terrain-access.js";
 import { newPlayer, type PlayerRuntime, toProfile } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it, vi } from "vitest";
 

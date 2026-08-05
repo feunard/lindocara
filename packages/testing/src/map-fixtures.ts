@@ -10,7 +10,7 @@
  */
 import type { MapData, MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
-import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 
 /** The size and terrain half of a `MapInput`, ready to spread. */
@@ -48,75 +48,4 @@ export function mapDataFromBlocks(input: {
     spawn: input.spawn,
   };
   return input.markers ? { ...base, markers: input.markers } : base;
-}
-
-/**
- * A minimal, valid `welcome` server message — the shape `isWorldInfo`/`parseServerMessage` accept
- * — with `worldOverrides` shallow-merged onto `world`. Shared by engine/server tests so each one
- * asserts on the one field it cares about instead of re-typing the whole message by hand. Left
- * untyped on purpose: a test overriding a field with a deliberately invalid value (to prove a
- * frame gets rejected) must still be able to pass it through.
- */
-export function welcomeFixture(worldOverrides: Record<string, unknown> = {}) {
-  const layer = encodeTileLayer(emptyLayer(4, 3));
-  return {
-    t: "welcome",
-    tick: 0,
-    selfId: "a",
-    world: {
-      zoneId: "verdant-reach",
-      revision: 1,
-      zoneNameKey: "zone.verdant",
-      tiles: ["....", "....", "...."],
-      elements: [],
-      colliders: [],
-      tilesetId: TINY_SWORDS_TILESET_ID,
-      layers: [layer, layer, layer],
-      events: [],
-      heightfield: null,
-      width: 256,
-      height: 192,
-      playerSize: 32,
-      obstacles: [],
-      safeZone: null,
-      questNpc: { id: "none", x: 0, y: 0 },
-      questNpcs: [],
-      questSites: [],
-      cemeteries: [],
-      portals: [],
-      merchant: null,
-      ...worldOverrides,
-    },
-    players: [
-      {
-        id: "a",
-        nick: "Mira",
-        x: 16,
-        y: 16,
-        ack: 0,
-        hp: 100,
-        maxHp: 100,
-        level: 1,
-        appearance: { body: "wayfarer", primaryColor: "azure" },
-        class: "priest",
-        equipment: { mainHand: "heartwood_staff", offHand: null },
-        life: "alive",
-        facing: { x: 1, y: 0 },
-        action: null,
-      },
-    ],
-    monsters: [],
-    guards: [],
-    loot: [],
-    corpses: [],
-    projectiles: [],
-    self: {
-      xp: 0,
-      xpToNext: 100,
-      inventory: { potions: 0, gold: 0, crystals: 0 },
-      quest: { status: "available", progress: 0, target: 3 },
-      life: "alive",
-      corpse: null,
-    },
-  };
 }

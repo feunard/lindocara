@@ -20,6 +20,12 @@
  * 8. an event grant of gold+items lands in D1 through the epoch-fenced save — and a stale epoch
  *    changes nothing.
  *
+ * Everything here runs in TILE units, grid centre as origin: `x` and `z` are the two GROUND axes
+ * and `y` is elevation. Each fixture map therefore stores a flat `provingHeightfield`, without
+ * which no zone can be built at all and every join is refused 4007 — and, because a heightfield
+ * room ships `events: []` on purpose, its authored events are handed back to the room through
+ * `installAuthoredEventSeam` below. Read that docblock before touching a fixture.
+ *
  * The FakeClock engines are NOT the `$room`-managed engines the production `pushToRoom` targets
  * (`this.room.call` routes to the provider's own registry, keyed by channelPath:roomId), so these
  * tests re-route the three PartyRoom seams into the bare engines under test — the same
@@ -33,15 +39,17 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
-import { isWalkable, maxHpForLevel, rectsOverlap, xpForNextLevel } from "@lindocara/engine/game.js";
-import { type HarvestProfile, harvestColliderAt } from "@lindocara/engine/harvest.js";
+import { maxHpForLevel, xpForNextLevel } from "@lindocara/engine/game.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
+import { type HarvestProfile, harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import {
   type HarvestPresetId,
   harvestPreset,
   harvestProfileFromPreset,
 } from "@lindocara/engine/harvest-presets.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import {
-  eventCellCentre,
+  authoredCellCentreGround,
   functionalEvent,
   type MapEvent,
   type MapEventPage,
@@ -49,7 +57,12 @@ import {
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
-import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  type ZoneTerrain,
+} from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { requestMonsterPath } from "@lindocara/server/world/navigation-system.js";
 import {
@@ -71,16 +84,66 @@ import { parties } from "../src/api/entities/parties.ts";
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
-import { refreshHarvestEventVisuals } from "../src/api/realtime/worldEvents.ts";
+import {
+  evaluateActiveEvents,
+  refreshHarvestEventVisuals,
+} from "../src/api/realtime/worldEvents.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
+import { MapService } from "../src/api/services/MapService.ts";
 import {
   hasPeasantHarvestLineOfSight,
   peasantHarvestTargets,
 } from "../src/world/peasant-harvest-system.ts";
-import { createTestApp } from "./helpers.ts";
+import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 const TICK_MS = 50;
+
+/**
+ * The side of every fixture map's heightfield, in cells — deliberately the tile map's own minimum
+ * width, so an authored cell index lands in the same neighbourhood of the grid it always did:
+ * `authoredCellCentreGround` reads cell `(col, row)` as `(col + 0.5 - GRID_SIZE / 2, row + 0.5 -
+ * GRID_SIZE / 2)`, and every fixture event here is authored inside `0..13`.
+ */
+const GRID_SIZE = MAP_MIN_COLS;
+
+/**
+ * The authored cell a hero enters the map standing in.
+ *
+ * `provingHeightfield` puts its only spawn at the grid's origin, and the origin is the centre of
+ * cell `(GRID_SIZE / 2, GRID_SIZE / 2)`. Every fixture event a test interacts with straight after
+ * admission is authored there, which is what the pixel suite said by authoring the event on the
+ * map's own `spawn` cell — the same statement, in the frame the room now reads.
+ */
+const SPAWN_COL = GRID_SIZE / 2;
+const SPAWN_ROW = GRID_SIZE / 2;
+
+/**
+ * The room's collision at one point — the tile-unit successor of this suite's former
+ * `isWalkable(point, 1, terrain)` probe. A one-pixel box becomes a disc of one pixel's worth of
+ * tile, and the collider index is the half of `canStand` these assertions are about: every fixture
+ * grid here is flat, so only a harvest footprint can refuse a point.
+ */
+const PROBE_RADIUS = 1 / TILE_SIZE;
+
+function colliderBlocks(terrain: ZoneTerrain, point: GroundVector): boolean {
+  return terrain.colliders.blocked(point.x, point.z, PROBE_RADIUS);
+}
+
+/** Axis-aligned overlap on the ground plane — `rectsOverlap`'s `{x, z, w, h}` counterpart. */
+function groundRectsOverlap(a: ColliderRect, b: ColliderRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.h && a.z + a.h > b.z;
+}
+
+/** A body's occupancy box: a tile-unit position is its CENTRE, not a 32 px box's top-left corner. */
+function bodyBox(position: GroundVector): ColliderRect {
+  return {
+    x: position.x - BODY_RADIUS,
+    z: position.z - BODY_RADIUS,
+    w: BODY_RADIUS * 2,
+    h: BODY_RADIUS * 2,
+  };
+}
 const PAGE1_GRAPHIC = "building.buildings-black-buildings.archery";
 const PAGE2_GRAPHIC = "resource.terrain-resources-wood-trees.tree3";
 const HARVEST_PROFILE: HarvestProfile = {
@@ -192,14 +255,53 @@ let userCount = 0;
 let openSockets: WebSocket[];
 let savedCheatsEnabled: string | undefined;
 
+/** The authored events each fixture room is built with, keyed by `partyId:mapId`. */
+const authoredEventsByRoom = new Map<string, readonly MapEvent[]>();
+
+/**
+ * Hands a room the events its map was authored with.
+ *
+ * **A heightfield map ships none of its own.** `zoneFromMapPayload` bakes `events: []` for every
+ * heightfield room, deliberately: the authored events, elements and tile layers are all expressed
+ * in the editor's PIXEL, top-left-origin space, and shipping one of those beside a grid-centred
+ * heightfield would make the room's appearance contradict its own collision (`isWorldInfo`
+ * validates the appearance collections against the grid and would drop the whole `welcome`).
+ * Re-authoring the five adventures as heightfields is what restores the delivery path.
+ *
+ * Everything below this line is untouched by that gap — the run lock, the command budget, the
+ * dialogue close, the coordinator round trip, the page selection — so this seam puts the events
+ * back on the room's own `ZoneDefinition`, exactly where `createState` would have found them, and
+ * re-runs the room's real `evaluateActiveEvents` over them. It wraps the `$room` options object
+ * that `RoomPrimitive.onInit` registered, so it covers both the bare `RoomEngine`s below and the
+ * provider-managed engines the real-socket test at the bottom of the file drives.
+ */
+function installAuthoredEventSeam(): void {
+  const worldRoom = alepha.inject(WorldRoom);
+  const createState = worldRoom.roomOptions.state;
+  if (!createState) throw new Error("WorldRoom has no state factory");
+  worldRoom.roomOptions.state = async (input) => {
+    const state = await createState(input);
+    const events = authoredEventsByRoom.get(input.roomId);
+    if (!events || !state.location) return state;
+    state.location = {
+      ...state.location,
+      definition: { ...state.location.definition, events },
+    };
+    evaluateActiveEvents(state);
+    return state;
+  };
+}
+
 beforeEach(async () => {
   alepha = createTestApp();
   probe = alepha.inject(Probe);
   partyRoom = alepha.inject(PartyRoom);
   presenceRoom = alepha.inject(PresenceRoom);
   openSockets = [];
+  authoredEventsByRoom.clear();
   savedCheatsEnabled = process.env.CHEATS_ENABLED;
   await alepha.start();
+  installAuthoredEventSeam();
   hostname = alepha.inject(ServerProvider).hostname;
 });
 
@@ -232,6 +334,7 @@ async function bootAppWithCheats(): Promise<void> {
   partyRoom = alepha.inject(PartyRoom);
   presenceRoom = alepha.inject(PresenceRoom);
   await alepha.start();
+  installAuthoredEventSeam();
   hostname = alepha.inject(ServerProvider).hostname;
 }
 
@@ -461,7 +564,7 @@ async function newPlayableParty(
       ...grassTerrain(),
       elements: [],
       events,
-      spawn: { col: 1, row: 1 },
+      spawn: { col: SPAWN_COL, row: SPAWN_ROW },
     }),
   });
   expect(putResponse.status).toBe(200);
@@ -477,6 +580,10 @@ async function newPlayableParty(
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
+  const roomId = `${partyId}:${mapId}`;
+  // A map with no heightfield produces no zone at all, so every join below would be refused 4007.
+  await alepha.inject(MapService).saveHeightfield(mapId, provingHeightfield(GRID_SIZE));
+  authoredEventsByRoom.set(roomId, events);
   return {
     token,
     userId,
@@ -484,7 +591,7 @@ async function newPlayableParty(
     mapId,
     partyId,
     heroId,
-    roomId: `${partyId}:${mapId}`,
+    roomId,
   };
 }
 
@@ -545,18 +652,34 @@ function playerOf(state: WorldRoomState, heroId: string): PlayerRuntime {
   return player;
 }
 
+/** The map's grid side, which is what turns an authored cell index into a grid-centred point. */
+function gridSizeOf(state: WorldRoomState): number {
+  const size = state.location?.definition.terrain.size;
+  if (size === undefined) throw new Error("room terrain missing");
+  return size;
+}
+
+/** An authored harvest node's footprint on the ground plane the room actually collides in. */
+function harvestGround(state: WorldRoomState, event: MapEvent, at = event): ColliderRect {
+  const profile = event.harvestProfile;
+  const rect = profile
+    ? harvestGroundColliderAt(profile, at.col, at.row, "intact", gridSizeOf(state))
+    : null;
+  if (!rect) throw new Error(`harvest event ${event.id} has no intact collider`);
+  return rect;
+}
+
 function placeHarvester(state: WorldRoomState, heroId: string, event: MapEvent): PlayerRuntime {
   const player = playerOf(state, heroId);
-  const previous = { x: player.x, y: player.y };
-  const profile = event.harvestProfile;
-  const target = profile ? harvestColliderAt(profile, event.col, event.row, "intact") : null;
-  if (!target) throw new Error(`harvest event ${event.id} has no intact collider`);
-  // Stand one pixel outside the explicit footprint, vertically aligned with its gameplay centre.
-  // This works for every authored tree/ore/cache size and never places the fixture inside the
-  // collider it is trying to hit.
-  player.x = target.x - PLAYER_SIZE - 1;
-  player.y = target.y + target.height / 2 - PLAYER_SIZE / 2;
-  player.facing = { x: 1, y: 0 };
+  const previous = { x: player.x, z: player.z };
+  const target = harvestGround(state, event);
+  // Stand one pixel's worth of tile outside the explicit footprint, aligned with its gameplay
+  // centre. A tile-unit position is the body's CENTRE, so the clearance is one body radius rather
+  // than a whole 32 px box. This works for every authored tree/ore/cache size and never places the
+  // fixture inside the collider it is trying to hit.
+  player.x = target.x - BODY_RADIUS - PROBE_RADIUS;
+  player.z = target.z + target.h / 2;
+  player.facing = { x: 1, z: 0 };
   player.level = 10;
   state.playerGrid.update(player, previous);
   return player;
@@ -613,10 +736,10 @@ async function completeWarPigCarcassHit(input: {
   const player = playerOf(state, socket.query.hero ?? "");
   const location = state.location;
   if (!location) throw new Error("world location missing");
-  const previous = { x: player.x, y: player.y };
-  player.x = monster.x - 32;
-  player.y = monster.y;
-  player.facing = { x: 1, y: 0 };
+  const previous = { x: player.x, z: player.z };
+  player.x = monster.x - 32 / TILE_SIZE;
+  player.z = monster.z;
+  player.facing = { x: 1, z: 0 };
   player.level = 10;
   state.playerGrid.update(player, previous);
   const before = state.adventureState.state.harvestNodes?.[event.id];
@@ -636,9 +759,13 @@ async function completeWarPigCarcassHit(input: {
   if (!carcassTarget) throw new Error("war pig carcass target missing");
   expect(
     hasPeasantHarvestLineOfSight(
-      { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+      // A tile-unit position IS the body's centre, so the pixel path's half-body recentring is
+      // gone. The sight line is grounded on the ground under the HARVESTER — never under the
+      // target, which would make the test self-satisfying.
+      { x: player.x, z: player.z },
       carcassTarget,
       harvestView,
+      groundUnder(location.definition.terrain, player.x, player.z),
     ),
   ).toBe(true);
 
@@ -757,13 +884,15 @@ describe("world room events (FakeClock)", () => {
     const intactCollider = state.activeEvents.find((event) => event.id === resource.id)?.harvest
       ?.collider;
     if (!intactCollider) throw new Error("intact harvest collider missing");
+    // The wire keeps the authored PIXEL tuple; the room collides on the grid-centred ground plane,
+    // so the assertion probes the footprint the collider index actually holds.
+    const resourceGround = harvestGround(state, resource);
     expect(
-      isWalkable(
-        { x: intactCollider[0] + 1, y: intactCollider[1] + 1 },
-        1,
-        location.definition.terrain,
-      ),
-    ).toBe(false);
+      colliderBlocks(location.definition.terrain, {
+        x: resourceGround.x + PROBE_RADIUS,
+        z: resourceGround.z + PROBE_RADIUS,
+      }),
+    ).toBe(true);
     expect(state.npcMovement.has(resource.id)).toBe(false);
     expect(state.npcMovement.get(sheep.id)).toMatchObject({
       moveType: "random",
@@ -784,25 +913,27 @@ describe("world room events (FakeClock)", () => {
         kind: "goblin",
         species: "spear_goblin",
         zone: "route",
-        x: 64,
-        y: 64,
-        patrolRadius: 64,
+        x: 1,
+        y: 0,
+        z: 1,
+        patrolRadius: 1,
       },
       {
         id: "stale-harvest-navigation",
         kind: "goblin",
         species: "spear_goblin",
         zone: "route",
-        x: 64,
-        y: 128,
-        patrolRadius: 64,
+        x: 1,
+        y: 0,
+        z: 2,
+        patrolRadius: 1,
       },
     ]);
     if (!pendingMonster || !pathMonster) throw new Error("navigation monsters missing");
     state.monsters.push(pendingMonster, pathMonster);
     state.monsterGrid.insert(pendingMonster);
     state.monsterGrid.insert(pathMonster);
-    const destination = { x: 256, y: 64 };
+    const destination = { x: 4, z: 1 };
     expect(
       requestMonsterPath(
         previousNavigation,
@@ -814,11 +945,11 @@ describe("world room events (FakeClock)", () => {
       ),
     ).toBe("queued");
     pathMonster.navigation.state = "chase";
-    pathMonster.navigation.path = [{ x: 192, y: 128 }];
-    pathMonster.navigation.destination = { x: 256, y: 128 };
-    pathMonster.navigation.requestedDestination = { x: 256, y: 128 };
+    pathMonster.navigation.path = [{ x: 3, z: 2 }];
+    pathMonster.navigation.destination = { x: 4, z: 2 };
+    pathMonster.navigation.requestedDestination = { x: 4, z: 2 };
     pathMonster.navigation.targetId = "target-hero";
-    pathMonster.navigation.directBlockedDestination = { x: 256, y: 128 };
+    pathMonster.navigation.directBlockedDestination = { x: 4, z: 2 };
 
     const stable = state.activeEvents.find((event) => event.id === resource.id);
     refreshHarvestEventVisuals(state, clock.now());
@@ -889,17 +1020,13 @@ describe("world room events (FakeClock)", () => {
         clock.now(),
       ),
     ).toBe("queued");
-    const hiddenProfile = hidden.harvestProfile;
-    if (!hiddenProfile) throw new Error("hidden resource profile missing");
-    const hiddenIntactCollider = harvestColliderAt(hiddenProfile, hidden.col, hidden.row, "intact");
-    if (!hiddenIntactCollider) throw new Error("hidden resource collider missing");
-    expect(
-      isWalkable(
-        { x: hiddenIntactCollider.x + 1, y: hiddenIntactCollider.y + 1 },
-        1,
-        location.definition.terrain,
-      ),
-    ).toBe(true);
+    const hiddenGround = harvestGround(state, hidden);
+    /** A point one pixel's worth of tile inside the hidden node's own footprint. */
+    const insideHidden = {
+      x: hiddenGround.x + PROBE_RADIUS,
+      z: hiddenGround.z + PROBE_RADIUS,
+    };
+    expect(colliderBlocks(location.definition.terrain, insideHidden)).toBe(false);
 
     const activeNpc = state.activeEvents.find((event) => event.id === npc.id);
     if (!activeNpc || !state.npcMovement.has(npc.id)) throw new Error("fixture NPC missing");
@@ -916,10 +1043,10 @@ describe("world room events (FakeClock)", () => {
       harvest: { state: "intact", collider: expect.any(Array) },
     });
 
-    pendingMonster.x = 64;
-    pendingMonster.y = 64;
-    pendingMonster.spawnX = hiddenIntactCollider.x + 1;
-    pendingMonster.spawnY = hiddenIntactCollider.y + 1;
+    pendingMonster.x = 1;
+    pendingMonster.z = 1;
+    pendingMonster.spawnX = insideHidden.x;
+    pendingMonster.spawnZ = insideHidden.z;
     pendingMonster.hp = 0;
     pendingMonster.deadUntil = clock.now() + 1_000;
     refreshHarvestEventVisuals(state, clock.now() + 1_000);
@@ -929,19 +1056,19 @@ describe("world room events (FakeClock)", () => {
 
     pendingMonster.hp = pendingMonster.maxHp;
     pendingMonster.deadUntil = 0;
-    pendingMonster.x = 64;
-    pendingMonster.y = 64;
-    pendingMonster.spawnX = 64;
-    pendingMonster.spawnY = 64;
+    pendingMonster.x = 1;
+    pendingMonster.z = 1;
+    pendingMonster.spawnX = 1;
+    pendingMonster.spawnZ = 1;
     refreshHarvestEventVisuals(state, clock.now() + 1_000);
     expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
       harvest: { state: "intact", collider: expect.any(Array) },
     });
 
     const occupyingPlayer = playerOf(state, fixture.heroId);
-    const beforeOccupying = { x: occupyingPlayer.x, y: occupyingPlayer.y };
-    occupyingPlayer.x = hiddenIntactCollider.x + 1;
-    occupyingPlayer.y = hiddenIntactCollider.y + 1;
+    const beforeOccupying = { x: occupyingPlayer.x, z: occupyingPlayer.z };
+    occupyingPlayer.x = insideHidden.x;
+    occupyingPlayer.z = insideHidden.z;
     state.playerGrid.update(occupyingPlayer, beforeOccupying);
     refreshHarvestEventVisuals(state, clock.now() + 1_000);
     expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
@@ -953,17 +1080,11 @@ describe("world room events (FakeClock)", () => {
         collider: null,
       },
     });
-    expect(
-      isWalkable(
-        { x: hiddenIntactCollider.x + 1, y: hiddenIntactCollider.y + 1 },
-        1,
-        location.definition.terrain,
-      ),
-    ).toBe(true);
+    expect(colliderBlocks(location.definition.terrain, insideHidden)).toBe(false);
 
-    const beforeClearing = { x: occupyingPlayer.x, y: occupyingPlayer.y };
-    occupyingPlayer.x = 64;
-    occupyingPlayer.y = 64;
+    const beforeClearing = { x: occupyingPlayer.x, z: occupyingPlayer.z };
+    occupyingPlayer.x = 1;
+    occupyingPlayer.z = 1;
     state.playerGrid.update(occupyingPlayer, beforeClearing);
     refreshHarvestEventVisuals(state, clock.now() + 1_000);
     expect(state.activeEvents.find((event) => event.id === hidden.id)).toMatchObject({
@@ -974,13 +1095,7 @@ describe("world room events (FakeClock)", () => {
         collider: expect.any(Array),
       },
     });
-    expect(
-      isWalkable(
-        { x: hiddenIntactCollider.x + 1, y: hiddenIntactCollider.y + 1 },
-        1,
-        location.definition.terrain,
-      ),
-    ).toBe(false);
+    expect(colliderBlocks(location.definition.terrain, insideHidden)).toBe(true);
     refreshHarvestEventVisuals(state, clock.now());
     expect(state.activeEvents.find((event) => event.id === resource.id)).toBe(depleted);
     engine.dispose();
@@ -1024,14 +1139,21 @@ describe("world room events (FakeClock)", () => {
     const fixture = await newPlayableParty("harvestspawn", [restoredTree], "peasant");
     const profile = restoredTree.harvestProfile;
     if (!profile) throw new Error("restored tree profile is missing");
-    const authoredCollider = harvestColliderAt(
+    const authoredCollider = harvestGroundColliderAt(
       profile,
       restoredTree.col,
       restoredTree.row,
       "intact",
+      GRID_SIZE,
     );
     if (!authoredCollider) throw new Error("restored tree collider missing");
-    const savedPosition = { x: authoredCollider.x + 8, y: authoredCollider.y + 8 };
+    // Inside the footprint on both GROUND axes, on the map's flat level-0 ground. A saved position
+    // that dropped `z` would land the hero a whole footprint away and prove nothing.
+    const savedPosition = {
+      x: authoredCollider.x + 8 / TILE_SIZE,
+      y: 0,
+      z: authoredCollider.z + 8 / TILE_SIZE,
+    };
     await probe.heroes.updateById(fixture.heroId, { ...savedPosition });
     const clock = new FakeClock();
     const engine = createEngine(fixture.roomId, clock);
@@ -1041,15 +1163,8 @@ describe("world room events (FakeClock)", () => {
     const player = playerOf(state, fixture.heroId);
     const location = state.location;
     if (!location) throw new Error("restored tree fixture is incomplete");
-    expect({ x: player.x, y: player.y }).toEqual(savedPosition);
-    expect(
-      rectsOverlap(authoredCollider, {
-        x: player.x,
-        y: player.y,
-        width: PLAYER_SIZE,
-        height: PLAYER_SIZE,
-      }),
-    ).toBe(true);
+    expect({ x: player.x, y: player.y, z: player.z }).toEqual(savedPosition);
+    expect(groundRectsOverlap(authoredCollider, bodyBox(player))).toBe(true);
     expect(state.activeEvents.find((event) => event.id === restoredTree.id)?.harvest).toMatchObject(
       {
         state: "intact",
@@ -1057,11 +1172,15 @@ describe("world room events (FakeClock)", () => {
         collider: null,
       },
     );
-    expect(isWalkable(player, PLAYER_SIZE, location.definition.terrain)).toBe(true);
+    // Grounded on the elevation admission gave the body, never on the destination under it.
+    expect(canStand(location.definition.terrain, player.x, player.z, BODY_RADIUS, player.y)).toBe(
+      true,
+    );
 
-    const previous = { x: player.x, y: player.y };
-    player.x = 3 * TILE_SIZE;
-    player.y = TILE_SIZE;
+    const previous = { x: player.x, z: player.z };
+    // Two tiles north of the footprint: far enough that the body's disc no longer overlaps it.
+    player.x = authoredCollider.x;
+    player.z = authoredCollider.z - 2;
     state.playerGrid.update(player, previous);
     refreshHarvestEventVisuals(state, clock.now());
     expect(state.activeEvents.find((event) => event.id === restoredTree.id)?.harvest).toMatchObject(
@@ -1071,12 +1190,11 @@ describe("world room events (FakeClock)", () => {
       },
     );
     expect(
-      isWalkable(
-        { x: authoredCollider.x + 1, y: authoredCollider.y + 1 },
-        1,
-        location.definition.terrain,
-      ),
-    ).toBe(false);
+      colliderBlocks(location.definition.terrain, {
+        x: authoredCollider.x + PROBE_RADIUS,
+        z: authoredCollider.z + PROBE_RADIUS,
+      }),
+    ).toBe(true);
     engine.dispose();
   });
 
@@ -1469,10 +1587,10 @@ describe("world room events (FakeClock)", () => {
 
     // The guard has patrolled two cells away from its authored cell. Interaction must follow the
     // moving authoritative entity instead of opening dialogue at the stale map coordinate.
-    runtimeGuard.x += 2 * TILE_SIZE;
+    runtimeGuard.x += 2;
     const player = playerOf(state, fixture.heroId);
-    player.x = runtimeGuard.x - 40;
-    player.y = runtimeGuard.y;
+    player.x = runtimeGuard.x - 40 / TILE_SIZE;
+    player.z = runtimeGuard.z;
 
     await engine.message(socket.id, { t: "interact" });
     await advanceTickSettled(clock);
@@ -1486,7 +1604,7 @@ describe("world room events (FakeClock)", () => {
 
   test("two heroes triggering one gold chest the same tick yield exactly ONE grant", async () => {
     const eventId = crypto.randomUUID();
-    const chest = scriptEvent(eventId, 1, 1, "action", [
+    const chest = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [
       { t: "changeGold", amount: 25 },
       { t: "setSelfSwitch", selfSwitch: "A", value: true },
     ]);
@@ -1502,11 +1620,11 @@ describe("world room events (FakeClock)", () => {
     const p1 = playerOf(state, host.heroId);
     const p2 = playerOf(state, guest.heroId);
     // Both bodies beside the chest cell, inside INTERACTION_RANGE.
-    const centre = eventCellCentre(chest);
-    p1.x = centre.x - 40;
-    p1.y = centre.y;
-    p2.x = centre.x + 20;
-    p2.y = centre.y;
+    const centre = authoredCellCentreGround(chest, gridSizeOf(state));
+    p1.x = centre.x - 40 / TILE_SIZE;
+    p1.z = centre.z;
+    p2.x = centre.x + 20 / TILE_SIZE;
+    p2.z = centre.z;
     const gold1 = p1.inventory.gold;
     const gold2 = p2.inventory.gold;
 
@@ -1527,7 +1645,7 @@ describe("world room events (FakeClock)", () => {
 
   test("an authored infinite loop consumes at most its 16-command slice per drain; the room keeps ticking", async () => {
     const eventId = crypto.randomUUID();
-    const runaway = scriptEvent(eventId, 1, 1, "action", [
+    const runaway = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [
       { t: "loop", body: [{ t: "setVariable", variableId: "0001", op: "add", value: 1 }] },
     ]);
     const fixture = await newPlayableParty("runaway", [runaway]);
@@ -1557,7 +1675,7 @@ describe("world room events (FakeClock)", () => {
 
   test("walk-away beyond DIALOGUE_CLOSE_RADIUS abandons the remainder without rolling back", async () => {
     const eventId = crypto.randomUUID();
-    const talker = scriptEvent(eventId, 1, 1, "action", [
+    const talker = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [
       { t: "setSwitch", switchId: "0001", value: true },
       { t: "say", text: "Bienvenue, voyageuse.", name: "Mira" },
       { t: "setSwitch", switchId: "0002", value: true },
@@ -1578,7 +1696,9 @@ describe("world room events (FakeClock)", () => {
 
     // Walk beyond the close radius; the next drain ends the conversation (WoW's rule).
     const player = playerOf(state, fixture.heroId);
-    player.x += DIALOGUE_CLOSE_RADIUS + 64;
+    // One unit past the close radius on a ground axis, expressed against the constant itself so the
+    // fixture keeps meaning "beyond the radius" whatever that radius is worth.
+    player.x += DIALOGUE_CLOSE_RADIUS + 1;
     await advanceTickSettled(clock);
 
     expect(messagesOf(socket).some((message) => message.t === "event.close")).toBe(true);
@@ -1591,7 +1711,7 @@ describe("world room events (FakeClock)", () => {
 
   test("a run reads its own same-tick write through the drain-local working copy", async () => {
     const eventId = crypto.randomUUID();
-    const counter = scriptEvent(eventId, 1, 1, "action", [
+    const counter = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [
       { t: "setVariable", variableId: "0001", op: "add", value: 1 },
       {
         t: "if",
@@ -1656,11 +1776,12 @@ describe("world room events (FakeClock)", () => {
     await engine.join(socket);
     const state = roomState(engine);
     const player = playerOf(state, fixture.heroId);
-    const before = { x: player.x, y: player.y };
+    const before = { x: player.x, y: player.y, z: player.z };
 
     await engine.message(socket.id, { t: "chat", text: "/tp 5 3" });
     expect(player.x).toBe(before.x);
     expect(player.y).toBe(before.y);
+    expect(player.z).toBe(before.z);
     expect(
       messagesOf(socket).some(
         (message) => message.t === "event" && message.code === "cheat.disabled",
@@ -1680,9 +1801,12 @@ describe("world room events (FakeClock)", () => {
     const player = playerOf(state, fixture.heroId);
 
     await engine.message(socket.id, { t: "chat", text: "/tp 5 3" });
-    const destination = eventCellCentre({ col: 5, row: 3 });
+    // The grid-centred centre of cell (5, 3), not the editor's pixel one: a hero snapped to the
+    // latter would land hundreds of tiles off the map.
+    const destination = authoredCellCentreGround({ col: 5, row: 3 }, gridSizeOf(state));
     expect(player.x).toBe(destination.x);
-    expect(player.y).toBe(destination.y);
+    expect(player.z).toBe(destination.z);
+    expect(player.y).toBe(0);
     expect(
       messagesOf(socket).some((message) => message.t === "event" && message.code === "cheat.tp"),
     ).toBe(true);
@@ -1691,7 +1815,7 @@ describe("world room events (FakeClock)", () => {
 
   test("an event grant of gold+items lands in D1 through the fenced save; a stale epoch doesn't", async () => {
     const eventId = crypto.randomUUID();
-    const chest = scriptEvent(eventId, 1, 1, "action", [
+    const chest = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [
       { t: "changeGold", amount: 25 },
       { t: "changeItems", itemId: "health_potion", count: 2 },
     ]);
@@ -1740,7 +1864,9 @@ describe("world room events (FakeClock)", () => {
   });
 
   test("an authored endAdventure completes the party save once and broadcasts victory", async () => {
-    const shrine = scriptEvent(crypto.randomUUID(), 1, 1, "action", [{ t: "endAdventure" }]);
+    const shrine = scriptEvent(crypto.randomUUID(), SPAWN_COL, SPAWN_ROW, "action", [
+      { t: "endAdventure" },
+    ]);
     const fixture = await newPlayableParty("endadv", [shrine]);
     const clock = new FakeClock();
     const engine = createEngine(fixture.roomId, clock);
@@ -1763,7 +1889,7 @@ describe("world room events (FakeClock)", () => {
   });
 
   test("drinking a potion runs the fenced save-then-decrement chain against D1", async () => {
-    const chest = scriptEvent(crypto.randomUUID(), 1, 1, "action", [
+    const chest = scriptEvent(crypto.randomUUID(), SPAWN_COL, SPAWN_ROW, "action", [
       { t: "changeItems", itemId: "health_potion", count: 2 },
     ]);
     const fixture = await newPlayableParty("potion", [chest]);
@@ -1883,7 +2009,7 @@ describe("cross-room adventure-state flip (real sockets)", () => {
     // Map A carries the lever; map B carries the two-page gate.
     const leverId = crypto.randomUUID();
     const gateId = crypto.randomUUID();
-    const lever = scriptEvent(leverId, 1, 1, "action", [
+    const lever = scriptEvent(leverId, SPAWN_COL, SPAWN_ROW, "action", [
       { t: "setSwitch", switchId: "0001", value: true },
     ]);
     const host = await newPlayableParty("flipA", [lever]);
@@ -1903,17 +2029,26 @@ describe("cross-room adventure-state flip (real sockets)", () => {
         ...grassTerrain(),
         elements: [],
         events: [gateEvent(gateId, 4, 4)],
-        spawn: { col: 1, row: 1 },
+        spawn: { col: SPAWN_COL, row: SPAWN_ROW },
       }),
     });
     expect(putB.status).toBe(200);
+    const roomBId = `${host.partyId}:${mapBId}`;
+    await alepha.inject(MapService).saveHeightfield(mapBId, provingHeightfield(GRID_SIZE));
+    authoredEventsByRoom.set(roomBId, [gateEvent(gateId, 4, 4)]);
 
-    // Seed the guest hero onto map B directly in D1 (map transitions are Task 8's flow).
-    const spawn = eventCellCentre({ col: 1, row: 1 });
-    await probe.heroes.updateById(guest.heroId, { mapId: mapBId, x: spawn.x, y: spawn.y });
+    // Seed the guest hero onto map B directly in D1 (map transitions are Task 8's flow). All three
+    // axes travel: `x`/`z` are the ground pair and `y` is the elevation the flat grid reports.
+    const spawn = authoredCellCentreGround({ col: SPAWN_COL, row: SPAWN_ROW }, GRID_SIZE);
+    await probe.heroes.updateById(guest.heroId, {
+      mapId: mapBId,
+      x: spawn.x,
+      y: spawn.y,
+      z: spawn.z,
+    });
 
     const roomA = openWorldSocket(`${host.partyId}:${host.mapId}`, host.heroId, host.token);
-    const roomB = openWorldSocket(`${host.partyId}:${mapBId}`, guest.heroId, guest.token);
+    const roomB = openWorldSocket(roomBId, guest.heroId, guest.token);
     const welcomeB = await roomB.waitFor((message) => message.t === "welcome", "room B welcome");
     if (welcomeB.t !== "welcome") throw new Error("unreachable");
     expect(welcomeB.world.events[0]?.graphicAssetId).toBe(PAGE1_GRAPHIC);

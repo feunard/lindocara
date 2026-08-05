@@ -11,8 +11,11 @@ function profile(playerClass: PlayerClass): PlayerProfile {
   return {
     id: `cheat-${playerClass}`,
     nick: playerClass,
-    x: 12,
-    y: 34,
+    // Tile units, grid centre as origin: `x`/`z` are the ground axes and `y` is elevation. No
+    // cheat command reads a position; the pair is here only because `PlayerProfile` demands it.
+    x: 1,
+    y: 0,
+    z: 2,
     level: 1,
     xp: 25,
     hp: 10,

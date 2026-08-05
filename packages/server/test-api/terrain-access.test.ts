@@ -14,13 +14,13 @@
  */
 
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
-import { describe, expect, it } from "vitest";
 import {
   canStand,
   sweptGroundTerrainImpact,
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
-} from "../src/world/terrain-access.js";
+} from "@lindocara/engine/terrain-access.js";
+import { describe, expect, it } from "vitest";
 
 const LEVEL_HEIGHT = 0.5;
 const WATER_LEVEL = -0.25;

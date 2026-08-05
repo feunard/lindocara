@@ -11,8 +11,11 @@ function profile() {
   return {
     id: "cooldown-player",
     nick: "Mira",
-    x: 100,
-    y: 100,
+    // Tile units, grid centre as origin: `x`/`z` are the ground axes and `y` is elevation. This
+    // suite asserts about time, never about position.
+    x: 1,
+    y: 0,
+    z: 1,
     level: 10,
     xp: 0,
     hp: 100,

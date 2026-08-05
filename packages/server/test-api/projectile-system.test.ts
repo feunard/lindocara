@@ -7,6 +7,7 @@ import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { ProjectileKind } from "@lindocara/engine/protocol.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceProjectiles,
@@ -14,10 +15,6 @@ import {
   removeProjectilesByOwner,
   spawnProjectile,
 } from "@lindocara/server/world/projectile-system.js";
-import {
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "@lindocara/server/world/terrain-access.js";
 import {
   createGuards,
   createMonsters,

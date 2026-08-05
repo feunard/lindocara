@@ -149,6 +149,7 @@ describe("cooperative combat rules", () => {
       amount: 1,
       x: 0,
       y: 0,
+      z: 0,
       expiresAt: 2,
       ownerId: "owner",
     } satisfies GroundLoot;

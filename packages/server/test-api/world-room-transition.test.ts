@@ -6,9 +6,12 @@
  * `world.ts:3616-3739` (`#transitionAdventureExit`) and `:5112-5218` (`#teleportCrossMap`).
  *
  * Pinned here:
- * 1. a hero walking onto an exit closes 4008; D1 shows the destination map + entry position +
- *    epoch N+1; a fresh `GET /api/join` + a real reconnect lands in the destination room at the
- *    saved position — two rooms, one hero, end-to-end over real sockets;
+ * 1. a hero walking onto an exit closes 4008; the database shows the destination map + the
+ *    DESTINATION'S OWN authored spawn + epoch N+1; a fresh `GET /api/join` + a real reconnect lands
+ *    in the destination room at the saved position — two rooms, one hero, end-to-end over real
+ *    sockets. The landing is the destination's spawn and not the entry event's cell because an
+ *    entry is authored in the tile editor's cell space, which a heightfield grid does not have: the
+ *    entry still validates the LINK, the heightfield states the position;
  * 2. a stale handoff (the epoch races via a second `PresenceRoom.acquire` before the transition
  *    fires) aborts without corrupting D1 — the same `rejectStaleSave`/4003 path every other
  *    epoch-loss in this codebase uses (not 4008: a lease that already moved to a different
@@ -21,6 +24,11 @@
  * 5. the source room's state drops the player immediately (no ghost entry), and the empty room
  *    reports `roomEmptied` to `PartyRoom` once its last socket actually disconnects.
  *
+ * **Every room here is handed its authored events by hand** (`installAuthoredEvents`): a heightfield
+ * room ships none of its own yet, so the exits, teleporters and harvest nodes stored on the map rows
+ * are otherwise invisible to it. The handoff choreography every assertion reads is fully live; only
+ * the trigger is on loan. See that helper's docblock.
+ *
  * Tests 2-5 use the `RoomEngine`/`FakeClock` idiom (`world-room-persistence.test.ts`,
  * `world-room-events.test.ts`): the REAL `WorldRoom.roomOptions` hosted in a bare engine, so
  * `detectAdventureExits`/`drainEventRuns` tick deterministically without sleeping. Test 1 is the
@@ -32,25 +40,27 @@
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { harvestColliderAt } from "@lindocara/engine/harvest.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
-import {
-  eventCellCentre,
-  functionalEvent,
-  type MapEvent,
-  type MapEventPage,
-} from "@lindocara/engine/map-events.js";
+import { functionalEvent, type MapEvent, type MapEventPage } from "@lindocara/engine/map-events.js";
 import {
   defaultMapHeroSettings,
   type MapHeroSettings,
 } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
-import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import { BODY_RADIUS } from "@lindocara/engine/terrain-access.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
-import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
+import {
+  NodeWebSocketServerProvider,
+  type RoomClock,
+  RoomEngine,
+  type RoomSocket,
+} from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { heroes } from "../src/api/entities/heroes.ts";
@@ -61,8 +71,10 @@ import {
 } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
+import { activeEventCentre, evaluateActiveEvents } from "../src/api/realtime/worldEvents.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 const TICK_MS = 50;
@@ -126,15 +138,80 @@ function channelledTree(id: string, col: number, row: number): MapEvent {
   return { ...event, pages: [page({ graphicAssetId: preset.intactAssetId })] };
 }
 
+/**
+ * Stands the hero just west of a harvest node's authored collider, facing east.
+ *
+ * A harvest collider is authored in the editor's PIXEL, top-left-origin space, and
+ * `peasant-harvest-system` is the one place that shifts it onto the grid-centred tile plane
+ * (`authoredRect`, see its header). `authoredPixel` applies exactly that shift, against the room's
+ * OWN grid size, so this fixture and the system agree about where the node is. Everything below is
+ * tile units: `x`/`z` are the ground axes, `y` is elevation.
+ */
 function placeHarvester(state: WorldRoomState, player: PlayerRuntime, event: MapEvent): void {
   const profile = event.harvestProfile;
   const collider = profile ? harvestColliderAt(profile, event.col, event.row, "intact") : null;
   if (!collider) throw new Error("transition harvest collider missing");
-  const previous = { x: player.x, y: player.y };
-  player.x = collider.x - PLAYER_SIZE - 1;
-  player.y = collider.y + collider.height / 2 - PLAYER_SIZE / 2;
-  player.facing = { x: 1, y: 0 };
+  const size = zoneTerrainOf(state).size;
+  const authoredPixel = (pixels: number) => pixels / TILE_SIZE - size / 2;
+  const previous = { x: player.x, z: player.z };
+  // A whole body plus its radius clear of the collider's west edge, and level with its middle —
+  // the old `collider.x - PLAYER_SIZE - 1` gap, in tile units. A tile-unit position IS the body's
+  // centre, so nothing recentres a corner here.
+  player.x = authoredPixel(collider.x) - BODY_RADIUS - PLAYER_SIZE / TILE_SIZE;
+  player.z = authoredPixel(collider.y + collider.height / 2);
+  player.facing = { x: 1, z: 0 };
   state.playerGrid.update(player, previous);
+}
+
+/**
+ * Installs authored events on a live room's zone definition, then re-derives the active pages.
+ *
+ * **A heightfield room ships no authored events of its own.** `zoneFromMapPayload` bakes
+ * `events: []` on purpose (see its comment: a tile-editor cell cannot address a heightfield grid,
+ * so "absent beats misplaced" until a later task gives a heightfield its own events), while the
+ * `exit`/`teleport`/`harvestable` events these tests trigger are stored on the MAP ROW — real,
+ * authored, and currently unreachable from the room. Handing them to the room here is the stand-in
+ * for the wiring that task will add.
+ *
+ * What is under test is unaffected by that: the handoff CHOREOGRAPHY — freeze, checkpoint, forced
+ * save, epoch-fenced `PresenceRoom.handoff`, drop, close 4008, destination read from the database —
+ * is fully live, and it is the only thing every assertion below reads. Only the trigger is on loan.
+ */
+function installAuthoredEvents(state: WorldRoomState, events: readonly MapEvent[]): void {
+  const location = state.location;
+  if (!location) throw new Error("the room has no location: its map has no usable heightfield");
+  state.location = {
+    ...location,
+    definition: { ...location.definition, events },
+  };
+  // Page selection runs on state install and join, never per tick, so a freshly installed event is
+  // dormant until this re-derives the active set.
+  evaluateActiveEvents(state);
+}
+
+/**
+ * Puts the hero exactly on an authored event's cell, on all three axes.
+ *
+ * `activeEventCentre`, never `eventCellCentre`: the latter answers in the editor's pixel,
+ * top-left-origin space, so a hero placed with it lands hundreds of tiles off a 16-cell grid and
+ * every proximity clause measuring against it silently stops rejecting anything. Writing only `x`
+ * and the elevation `y` — the shape a mechanical rename produces — typechecks perfectly and leaves
+ * the body a whole map away on the OTHER ground axis, which is why `z` is written here too.
+ */
+function standOn(state: WorldRoomState, player: PlayerRuntime, event: MapEvent): void {
+  const centre = activeEventCentre(state, event);
+  const previous = { x: player.x, z: player.z };
+  player.x = centre.x;
+  player.y = centre.y;
+  player.z = centre.z;
+  state.playerGrid.update(player, previous);
+}
+
+/** The room's baked collision — the one place this file reads the zone's terrain. */
+function zoneTerrainOf(state: WorldRoomState) {
+  const terrain = state.location?.definition.terrain;
+  if (!terrain) throw new Error("the room has no terrain: its map has no usable heightfield");
+  return terrain;
 }
 
 let alepha: ReturnType<typeof createTestApp>;
@@ -227,6 +304,32 @@ function authed(token: string) {
     });
 }
 
+/**
+ * The grid both maps in this file are given, and map B's own authored spawn.
+ *
+ * A map with no heightfield produces no zone at all, so without these every room here would refuse
+ * every join with 4007. Map B's spawn is deliberately away from the centre map A falls back to:
+ * both cross-map transitions land the hero at the DESTINATION's own authored spawn, and a spawn at
+ * the origin could not be told apart from a hero that never moved.
+ */
+const MAP_B_SPAWN = { x: 3, z: -2 };
+
+/** A flat, fully walkable grid whose single spawn sits at `spawn`. Tile units, grid centre origin. */
+function heightfieldSpawningAt(spawn: { x: number; z: number }): string {
+  return JSON.stringify({
+    version: 1,
+    size: PROVING_SIZE,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: new Array(PROVING_SIZE * PROVING_SIZE).fill(0),
+    materials: new Array(PROVING_SIZE * PROVING_SIZE).fill("herbe"),
+    colliders: [],
+    spawns: [{ name: "default", x: spawn.x, z: spawn.z }],
+    elements: [],
+    events: [],
+  });
+}
+
 interface TwoMapFixture {
   token: string;
   userId: string;
@@ -240,6 +343,10 @@ interface TwoMapFixture {
   entryA: MapEvent;
   exitA: MapEvent;
   entryB: MapEvent;
+  /** Everything authored on each map, in the order it was saved — what `installAuthoredEvents`
+   *  hands the live room, since a heightfield room ships none of it by itself. */
+  eventsA: readonly MapEvent[];
+  eventsB: readonly MapEvent[];
 }
 
 /** One account, an adventure whose default map (A) carries an entry+exit pair bound by the graph
@@ -326,6 +433,10 @@ async function twoMapAdventure(
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
 
+  const mapService = alepha.inject(MapService);
+  await mapService.saveHeightfield(mapAId, provingHeightfield());
+  await mapService.saveHeightfield(mapBId, heightfieldSpawningAt(MAP_B_SPAWN));
+
   return {
     token,
     userId,
@@ -339,6 +450,8 @@ async function twoMapAdventure(
     entryA,
     exitA,
     entryB,
+    eventsA: [entryA, exitA, ...(heroSettings.mapAEvents ?? [])],
+    eventsB: [entryB, ...(heroSettings.mapBEvents ?? [])],
   };
 }
 
@@ -351,6 +464,7 @@ interface TeleportFixture {
   roomAId: string;
   teleporter: MapEvent;
   destination: { col: number; row: number };
+  eventsA: readonly MapEvent[];
 }
 
 /** A member map B with nothing but walkable grass, and map A carrying a scripted `action` event
@@ -446,6 +560,10 @@ async function teleportAdventure(prefix: string): Promise<TeleportFixture> {
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
 
+  const mapService = alepha.inject(MapService);
+  await mapService.saveHeightfield(mapAId, provingHeightfield());
+  await mapService.saveHeightfield(mapBId, heightfieldSpawningAt(MAP_B_SPAWN));
+
   return {
     userId,
     mapAId,
@@ -455,6 +573,7 @@ async function teleportAdventure(prefix: string): Promise<TeleportFixture> {
     roomAId: `${partyId}:${mapAId}`,
     teleporter,
     destination,
+    eventsA: [entryA, teleporter],
   };
 }
 
@@ -541,8 +660,18 @@ function playerOf(state: WorldRoomState, heroId: string): PlayerRuntime {
   return player;
 }
 
+/** Every frame through `parseServerMessage`, the single wire truth — never a bare `JSON.parse`, or
+ *  a welcome the real client would drop would read here as a delivered admission. */
 function messagesOf(socket: FakeSocket): ServerMessage[] {
-  return socket.sent.map((raw) => JSON.parse(raw) as ServerMessage);
+  return socket.sent.map((raw) => {
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      throw new Error(
+        `the wire refused a '${String((JSON.parse(raw) as { t?: unknown }).t)}' frame`,
+      );
+    }
+    return message;
+  });
 }
 
 function welcomeSelfState(socket: FakeSocket) {
@@ -583,7 +712,15 @@ function openWorldSocket(roomId: string, heroId: string, token: string): SocketP
     resolve: (message: ServerMessage) => void;
   }[] = [];
   socket.on("message", (data) => {
-    const message = JSON.parse(data.toString()) as ServerMessage;
+    const raw = data.toString();
+    // The single wire truth, never a bare `JSON.parse`: a frame `parseServerMessage` refuses is a
+    // frame the real client drops, so an unjoinable room would otherwise read as a good one.
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      throw new Error(
+        `the wire refused a '${String((JSON.parse(raw) as { t?: unknown }).t)}' frame`,
+      );
+    }
     messages.push(message);
     for (let index = waiters.length - 1; index >= 0; index -= 1) {
       const waiter = waiters[index];
@@ -616,6 +753,22 @@ function openWorldSocket(roomId: string, heroId: string, token: string): SocketP
   };
 }
 
+/**
+ * The state of a room the PRODUCTION websocket provider is hosting, rather than one this file put
+ * in a bare engine.
+ *
+ * `getRoomEngine` is protected at compile time only — the same escape hatch `roomState` above takes
+ * on a bare engine, and the only way to hand a live room the authored events a heightfield map
+ * cannot yet carry (see `installAuthoredEvents`). The engine already exists by the time this is
+ * called: the room came to life on the first socket's join.
+ */
+function liveRoomState(roomId: string): WorldRoomState {
+  const provider = alepha.inject(NodeWebSocketServerProvider) as unknown as {
+    getRoomEngine(channelPath: string, roomId: string): { state: WorldRoomState };
+  };
+  return provider.getRoomEngine("/ws/world", roomId).state;
+}
+
 // -------------------------------------------------------------------------------------------------
 // 1. Real end-to-end: exit -> 4008 -> D1 -> resolveJoin -> destination room welcome
 // -------------------------------------------------------------------------------------------------
@@ -629,6 +782,7 @@ describe("adventure exit, end-to-end over real sockets", () => {
 
     const roomA = openWorldSocket(fixture.roomAId, fixture.heroId, fixture.token);
     await roomA.waitFor((message) => message.t === "welcome", "room A welcome");
+    installAuthoredEvents(liveRoomState(fixture.roomAId), fixture.eventsA);
 
     // Walk exactly onto the exit tile via the dev cheat (deterministic; real WASD timing is not
     // what this test is about) and let the real 20Hz tick detect + transition.
@@ -640,9 +794,13 @@ describe("adventure exit, end-to-end over real sockets", () => {
 
     const afterRow = await probe.heroes.findById(fixture.heroId);
     expect(afterRow?.mapId).toBe(fixture.mapBId);
-    const entryCentre = eventCellCentre(fixture.entryB);
-    expect(afterRow?.x).toBe(entryCentre.x);
-    expect(afterRow?.y).toBe(entryCentre.y);
+    // The hero lands at the DESTINATION MAP'S OWN authored spawn, not at the entry event's cell:
+    // an entry is authored in the tile editor's cell space, which a heightfield grid does not have,
+    // so the link is still validated against the entry while the landing comes from map B's own
+    // heightfield — the one anchor stated in map B's own units.
+    expect(afterRow?.x).toBe(MAP_B_SPAWN.x);
+    expect(afterRow?.y).toBe(0);
+    expect(afterRow?.z).toBe(MAP_B_SPAWN.z);
     expect(afterRow?.sessionEpoch ?? 0).toBeGreaterThan(beforeRow.sessionEpoch);
 
     // A fresh `resolveJoin` now reads the NEW map from D1 — never anything the client claims.
@@ -658,8 +816,9 @@ describe("adventure exit, end-to-end over real sockets", () => {
     if (welcomeB.t !== "welcome") throw new Error("unreachable");
     expect(welcomeB.world.zoneId).toBe(fixture.mapBId);
     const self = welcomeB.players.find((candidate) => candidate.id === fixture.heroId);
-    expect(self?.x).toBe(entryCentre.x);
-    expect(self?.y).toBe(entryCentre.y);
+    expect(self?.x).toBe(MAP_B_SPAWN.x);
+    expect(self?.y).toBe(0);
+    expect(self?.z).toBe(MAP_B_SPAWN.z);
   }, 20_000);
 });
 
@@ -704,6 +863,7 @@ describe("world room transitions (FakeClock)", () => {
     const socketA = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-a");
     await engineA.join(socketA);
     const stateA = roomState(engineA);
+    installAuthoredEvents(stateA, fixture.eventsA);
     const playerA = playerOf(stateA, fixture.heroId);
     playerA.level = 10;
     placeHarvester(stateA, playerA, resourceA);
@@ -718,9 +878,7 @@ describe("world room transitions (FakeClock)", () => {
       nodeId: resourceA.id,
     });
 
-    const exitCentre = eventCellCentre(fixture.exitA);
-    playerA.x = exitCentre.x;
-    playerA.y = exitCentre.y;
+    standOn(stateA, playerA, fixture.exitA);
     clock.advanceTicks(1);
     await vi.waitFor(() => {
       expect(socketA.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION);
@@ -741,6 +899,7 @@ describe("world room transitions (FakeClock)", () => {
     const socketB = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-b");
     await engineB.join(socketB);
     const stateB = roomState(engineB);
+    installAuthoredEvents(stateB, fixture.eventsB);
     const playerB = playerOf(stateB, fixture.heroId);
     placeHarvester(stateB, playerB, resourceB);
 
@@ -764,6 +923,7 @@ describe("world room transitions (FakeClock)", () => {
     const reconnectSocket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-b-reconnect");
     await reconnectB.join(reconnectSocket);
     const reconnectState = roomState(reconnectB);
+    installAuthoredEvents(reconnectState, fixture.eventsB);
     expect(reconnectState.activeEvents).toHaveLength(1);
     expect(reconnectState.activeEvents[0]).toMatchObject({
       id: resourceB.id,
@@ -781,7 +941,11 @@ describe("world room transitions (FakeClock)", () => {
 
   test("refreshes map hero rules on transition and a direct destination reconnect", async () => {
     const mapASettings = defaultMapHeroSettings();
-    mapASettings.classes.warrior.stats.movementSpeed = 100;
+    // Tile units per second: `MapHeroClassStats` reads the same units `CLASS_STATS` does now, so a
+    // bare 100 would be a hundred TILES a second and would carry the hero off a 16-cell grid in
+    // under two ticks.
+    const mapASpeed = 100 / TILE_SIZE;
+    mapASettings.classes.warrior.stats.movementSpeed = mapASpeed;
     mapASettings.classes.warrior.disabledSkills = [1];
     const fixture = await twoMapAdventure("herorules", { mapA: mapASettings });
     const clockA = new FakeClock();
@@ -789,22 +953,24 @@ describe("world room transitions (FakeClock)", () => {
     const socketA = fakeSocket(fixture.userId, fixture.heroId, "c-rules-a");
     await engineA.join(socketA);
 
+    const stateA = roomState(engineA);
+    installAuthoredEvents(stateA, fixture.eventsA);
     const welcomeA = welcomeMessage(socketA);
     expect(welcomeA.world.heroSettings?.classes.warrior).toMatchObject({
-      stats: { movementSpeed: 100 },
+      stats: { movementSpeed: mapASpeed },
       disabledSkills: [1],
     });
-    const stateA = roomState(engineA);
     const playerA = playerOf(stateA, fixture.heroId);
-    const startA = { x: playerA.x, y: playerA.y };
+    const startA = { x: playerA.x, z: playerA.z };
     await engineA.message(socketA.id, {
       t: "input",
       seq: 1,
       input: { up: false, down: false, left: false, right: true },
     });
     clockA.advanceTicks(1);
-    expect(playerA.x - startA.x).toBeCloseTo(100 * (TICK_MS / 1_000));
-    expect(playerA.y).toBe(startA.y);
+    expect(playerA.x - startA.x).toBeCloseTo(mapASpeed * (TICK_MS / 1_000));
+    // The OTHER ground axis, not the elevation one: pressing east must not drift the hero north.
+    expect(playerA.z).toBe(startA.z);
 
     await engineA.message(socketA.id, { t: "attack" });
     expect(playerA.lastAttackAt).toBe(0);
@@ -815,9 +981,7 @@ describe("world room transitions (FakeClock)", () => {
       tone: "info",
     });
 
-    const exitCentre = eventCellCentre(fixture.exitA);
-    playerA.x = exitCentre.x;
-    playerA.y = exitCentre.y;
+    standOn(stateA, playerA, fixture.exitA);
     clockA.advanceTicks(1);
     await vi.waitFor(() => {
       expect(socketA.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION);
@@ -835,7 +999,7 @@ describe("world room transitions (FakeClock)", () => {
 
     const stateB = roomState(engineB);
     const playerB = playerOf(stateB, fixture.heroId);
-    const startB = { x: playerB.x, y: playerB.y };
+    const startB = { x: playerB.x, z: playerB.z };
     await engineB.message(socketB.id, {
       t: "input",
       seq: 2,
@@ -866,12 +1030,11 @@ describe("world room transitions (FakeClock)", () => {
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engine.join(socket);
     const state = roomState(engine);
+    installAuthoredEvents(state, fixture.eventsA);
     clock.advanceTicks(20); // clears the exit's 750ms re-trigger guard against `lastTransitionAt=0`
 
     const player = playerOf(state, fixture.heroId);
-    const exitCentre = eventCellCentre(fixture.exitA);
-    player.x = exitCentre.x;
-    player.y = exitCentre.y;
+    standOn(state, player, fixture.exitA);
 
     // A competing acquire (a second session for the same hero, exactly like a reconnect racing
     // ahead of this room) bumps the D1 epoch AND replaces the in-memory presence lease out from
@@ -910,6 +1073,7 @@ describe("world room transitions (FakeClock)", () => {
     const socketA = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engineA.join(socketA);
     const stateA = roomState(engineA);
+    installAuthoredEvents(stateA, fixture.eventsA);
 
     await engineA.message(socketA.id, { t: "attack" });
     const playerBefore = playerOf(stateA, fixture.heroId);
@@ -923,9 +1087,7 @@ describe("world room transitions (FakeClock)", () => {
 
     clock.advanceTicks(20);
     const player = playerOf(stateA, fixture.heroId);
-    const exitCentre = eventCellCentre(fixture.exitA);
-    player.x = exitCentre.x;
-    player.y = exitCentre.y;
+    standOn(stateA, player, fixture.exitA);
     clock.advanceTicks(1);
     await vi.waitFor(() => {
       expect(socketA.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION);
@@ -954,12 +1116,17 @@ describe("world room transitions (FakeClock)", () => {
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engine.join(socket);
     const state = roomState(engine);
+    installAuthoredEvents(state, fixture.eventsA);
     clock.advanceTicks(20);
 
     const player = playerOf(state, fixture.heroId);
-    const teleporterCentre = eventCellCentre(fixture.teleporter);
-    player.x = teleporterCentre.x - 20;
+    // Inside `INTERACTION_RANGE` of the portal, a third of a tile west of it — the old 20 px.
+    const teleporterCentre = activeEventCentre(state, fixture.teleporter);
+    const previous = { x: player.x, z: player.z };
+    player.x = teleporterCentre.x - 20 / TILE_SIZE;
     player.y = teleporterCentre.y;
+    player.z = teleporterCentre.z;
+    state.playerGrid.update(player, previous);
 
     await engine.message(socket.id, { t: "interact" });
     clock.advanceTicks(1);
@@ -969,9 +1136,11 @@ describe("world room transitions (FakeClock)", () => {
     });
     const row = await probe.heroes.findById(fixture.heroId);
     expect(row?.mapId).toBe(fixture.mapBId);
-    const destinationCentre = eventCellCentre(fixture.destination);
-    expect(row?.x).toBe(destinationCentre.x);
-    expect(row?.y).toBe(destinationCentre.y);
+    // Same rule as an exit: the authored `teleport` command names a tile-editor cell, which cannot
+    // address a heightfield grid, so the landing is map B's own authored spawn.
+    expect(row?.x).toBe(MAP_B_SPAWN.x);
+    expect(row?.y).toBe(0);
+    expect(row?.z).toBe(MAP_B_SPAWN.z);
     engine.dispose();
   });
 
@@ -982,12 +1151,11 @@ describe("world room transitions (FakeClock)", () => {
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engine.join(socket);
     const state = roomState(engine);
+    installAuthoredEvents(state, fixture.eventsA);
     clock.advanceTicks(20);
 
     const player = playerOf(state, fixture.heroId);
-    const exitCentre = eventCellCentre(fixture.exitA);
-    player.x = exitCentre.x;
-    player.y = exitCentre.y;
+    standOn(state, player, fixture.exitA);
     clock.advanceTicks(1);
     await vi.waitFor(() => {
       expect(socket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION);

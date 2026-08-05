@@ -1,16 +1,16 @@
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import {
-  planShadowDance,
-  type ShadowDanceCandidate,
-} from "@lindocara/server/world/rogue-shadow-dance-system.js";
 import {
   BODY_RADIUS,
   canStand,
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
-} from "@lindocara/server/world/terrain-access.js";
+} from "@lindocara/engine/terrain-access.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import {
+  planShadowDance,
+  type ShadowDanceCandidate,
+} from "@lindocara/server/world/rogue-shadow-dance-system.js";
 import { describe, expect, it } from "vitest";
 
 /** The suite's original PIXEL geometry over `TILE_SIZE`; positions are body centres. */

@@ -1,17 +1,19 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
-import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   HARVEST_PROFILE_LIMITS,
   type HarvestProfile,
   harvestColliderAt,
   PEASANT_CARRY_DURATION_MS,
 } from "@lindocara/engine/harvest.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { zoneDefinition } from "@lindocara/engine/zones.js";
-import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it } from "vitest";
 import { evaluateActiveEvents } from "../src/api/realtime/worldEvents.ts";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
@@ -43,17 +45,51 @@ const AREA_TERTIARY_COLLISION = {
   depleted: null,
 } as const;
 
-function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
-  const tiles = tileMapFromRects(320, 192, obstacles);
-  return {
-    width: 320,
-    height: 192,
-    obstacles,
-    spawnPoints: [{ x: 48, y: 32 }],
-    safeZone: null,
-    tiles,
-    colliders: noColliders(tiles),
+/**
+ * The grid this suite runs on, and the frame its fixtures are written in.
+ *
+ * Authored map content — a harvest event's cell, its collider tuple and its `HarvestProfile.range` —
+ * is still written in the editor's PIXEL, top-left-origin space, and `peasant-harvest-system` is the
+ * single place that shifts it onto the grid-centred tile plane (`authoredRect`/`authoredCellFoot`/
+ * `authoredReach`, see its header). `a()` applies exactly that shift, so every position this suite
+ * authors in pixels lands where the system expects cell (1, 0) to be. `SIZE` must stay the terrain's
+ * own size: the shift is `- size / 2`, so a fixture built against a different grid would be offset
+ * against the system by half the difference and every range clause would quietly stop rejecting.
+ */
+const SIZE = 16;
+const a = (pixels: number): number => pixels / TILE_SIZE - SIZE / 2;
+
+/** Half a 32 px body: an authored pixel top-left plus this is the tile-unit CENTRE the runtime uses. */
+const BODY_HALF = 16;
+
+/** The smallest movement that is still a movement — one pixel's worth of a tile. */
+const ONE_PIXEL = 1 / TILE_SIZE;
+
+/**
+ * The map-authored basic reach the axe-reach test runs against, in TILE units — `MapHeroClassStats`
+ * reads the same units `CLASS_STATS` does now.
+ *
+ * It has to sit BELOW the node's nearest edge and the reach talent has to lift it above: the
+ * effective range is `min(skillRange, authoredReach(profile.range))`, so a reach wider than the
+ * node's own 120 px would make both runs take the node's cap and the talent would stop being
+ * observable at all.
+ */
+const BASIC_REACH = 80 / TILE_SIZE;
+
+function terrain(obstacles: readonly ColliderRect[] = []): ZoneTerrain {
+  const map: MapData = {
+    version: 1,
+    size: SIZE,
+    levelHeight: 0.5,
+    waterLevel: -0.25,
+    levels: new Array(SIZE * SIZE).fill(0),
+    materials: new Array(SIZE * SIZE).fill("herbe"),
+    colliders: [...obstacles],
+    spawns: [],
+    elements: [],
+    events: [],
   };
+  return zoneTerrainFromHeightfield(map);
 }
 
 function profile(overrides: Partial<HarvestProfile> = {}): HarvestProfile {
@@ -84,7 +120,8 @@ interface HarvestFixtureNode {
 interface RuntimeOptions {
   talents?: readonly string[];
   nodes?: readonly HarvestFixtureNode[];
-  obstacles?: TerrainGeometry["obstacles"];
+  obstacles?: readonly ColliderRect[];
+  /** In the AUTHORED pixel frame, like the node cells beside it — `runtime` applies `a()` itself. */
   playerX?: number;
   peasantAttackRange?: number;
 }
@@ -131,8 +168,10 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
     {
       id: HERO_ID,
       nick: "Mira",
-      x: options.playerX ?? 48,
-      y: 32,
+      // The old pixel top-left plus half a body: a tile-unit position IS the body's centre.
+      x: a((options.playerX ?? 48) + BODY_HALF),
+      y: 0,
+      z: a(32 + BODY_HALF),
       level: 10,
       xp: 0,
       hp: 100,
@@ -265,7 +304,7 @@ function resolveTool(
       kind: slot === 1 ? "basic" : "skill",
       skillId: skill.id,
       slot,
-      direction: { x: 1, y: 0 },
+      direction: { x: 1, z: 0 },
       startedAt: now,
       impactAt: now,
       recoveryEndsAt: now + 300,
@@ -336,9 +375,12 @@ describe("tick-driven Peasant harvest jobs", () => {
     expect(value.w.state.harvestJobs.get(HERO_ID)).toMatchObject({
       slot: expectedSlot,
       tool,
+      // The authored pixel rectangle's centre, shifted onto the grid-centred tile plane exactly
+      // as `authoredRect` shifts it: `a()` on the corner (an origin moves), a plain divide on the
+      // extent (a length carries no origin).
       areaCenter: {
-        x: collider.x + collider.width / 2,
-        y: collider.y + collider.height / 2,
+        x: a(collider.x) + collider.width / TILE_SIZE / 2,
+        z: a(collider.y) + collider.height / TILE_SIZE / 2,
       },
     });
   });
@@ -388,7 +430,7 @@ describe("tick-driven Peasant harvest jobs", () => {
   it("revalidates range and page state at completion and leaves no residual job", () => {
     const moved = runtime();
     resolveAxe(moved.w);
-    moved.player.x = 250;
+    moved.player.x = a(250 + BODY_HALF);
     advancePeasantHarvestJobs(moved.w, NOW + 750);
     expect(moved.w.state.harvestJobs.size).toBe(0);
     expect(moved.calls.reserve).toBe(0);
@@ -410,7 +452,7 @@ describe("tick-driven Peasant harvest jobs", () => {
     resolveAxe(value.w);
     advancePeasantHarvestJobs(value.w, NOW + 750);
     expect(value.w.state.harvestJobs.get(HERO_ID)?.committing).toBe(true);
-    value.player.x += 1;
+    value.player.x += ONE_PIXEL;
     expect(cancelPeasantHarvestJob(value.w.state.harvestJobs, HERO_ID)).toBe(true);
     release({
       ok: true,
@@ -489,7 +531,8 @@ describe("tick-driven Peasant harvest jobs", () => {
     const job = value.w.state.harvestJobs.get(HERO_ID);
     expect(job).toMatchObject({
       completesAt: NOW + 638,
-      areaRadius: 128,
+      // Tile units: the talent's own radius is `128 / TILE_SIZE` since the balance tables converted.
+      areaRadius: 128 / TILE_SIZE,
       targets: [
         {
           plan: {
@@ -528,7 +571,7 @@ describe("tick-driven Peasant harvest jobs", () => {
     const withoutReach = runtime(750, {
       nodes: [node],
       playerX: 32,
-      peasantAttackRange: 80,
+      peasantAttackRange: BASIC_REACH,
     });
     resolveAxe(withoutReach.w);
     expect(withoutReach.w.state.harvestJobs.size).toBe(0);
@@ -541,7 +584,7 @@ describe("tick-driven Peasant harvest jobs", () => {
       ],
       nodes: [node],
       playerX: 32,
-      peasantAttackRange: 80,
+      peasantAttackRange: BASIC_REACH,
     });
     resolveAxe(withReach.w);
     expect(withReach.w.state.harvestJobs.get(HERO_ID)?.targets).toHaveLength(1);
@@ -686,7 +729,7 @@ describe("tick-driven Peasant harvest jobs", () => {
       const result = await originalHit(request, resource);
       if (!interrupted) {
         interrupted = true;
-        if (interruption === "movement") value.player.x += 1;
+        if (interruption === "movement") value.player.x += ONE_PIXEL;
         else {
           value.w.state.players.delete("connection");
           value.w.state.connectionIdByHeroId.delete(HERO_ID);

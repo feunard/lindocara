@@ -3,6 +3,7 @@ import { PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceCombatActions,
@@ -20,10 +21,6 @@ import {
   movePlayerInDirection,
   nearestChargeTarget,
 } from "@lindocara/server/world/skill-system.js";
-import {
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "@lindocara/server/world/terrain-access.js";
 import {
   createGuards,
   type GroundIndexUpdate,

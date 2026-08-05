@@ -12,6 +12,7 @@
  * `world-room-admission.test.ts` — because "the server ships the heightfield" is a claim about the
  * running app, not about a function.
  */
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { UserController } from "alepha/api/users";
@@ -21,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { MapService } from "../src/api/services/MapService.ts";
-import { createTestApp } from "./helpers.ts";
+import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 // Meets the realm's default password policy — mirrors `auth.test.ts`.
 const PASSWORD = "Sup3rSecret";
@@ -120,22 +121,6 @@ describe("map heightfield storage", () => {
   });
 });
 
-/** An 8x8 grid of level-0 ground with one spawn — small, entirely walkable, and nothing about it
- *  can make admission fail for a reason unrelated to the heightfield. */
-const PROVING_SIZE = 8;
-const PROVING_HEIGHTFIELD = JSON.stringify({
-  version: 1,
-  size: PROVING_SIZE,
-  levelHeight: 0.9,
-  waterLevel: -0.05,
-  levels: new Array(PROVING_SIZE * PROVING_SIZE).fill(0),
-  materials: new Array(PROVING_SIZE * PROVING_SIZE).fill("herbe"),
-  colliders: [],
-  spawns: [{ name: "default", x: 0, z: 0 }],
-  elements: [],
-  events: [],
-});
-
 async function registerAndLogin(prefix: string): Promise<string> {
   userCount += 1;
   const username = `${prefix}${userCount}`;
@@ -190,22 +175,28 @@ async function newPlayableHero(
   return { token, mapId: adventure.defaultMap.id, partyId, heroId };
 }
 
-/**
- * Opens a real `/ws/world` socket and resolves with the first `welcome` it receives — read through
- * `parseServerMessage`, NOT a bare `JSON.parse`.
- *
- * That distinction is the whole point of this harness. `parseServerMessage` is the single wire
- * truth (`realtime-wire.test.ts`, `packages/server/AGENTS.md`), and it is what the real client runs
- * (`packages/client/src/game/net.ts`): a frame it refuses is a frame the client never sees, so a
- * `welcome` whose appearance layers do not decode against its own `tiles` grid does not merely draw
- * wrong — the room is unjoinable. A `JSON.parse` here would let exactly that pass unnoticed.
- */
-function waitForWelcome(roomId: string, heroId: string, token: string): Promise<ServerMessage> {
+/** A real `/ws/world` socket, registered for teardown. */
+function openWorldSocket(roomId: string, heroId: string, token: string): WebSocket {
   const socket = new WebSocket(
     `${hostname.replace(/^http/, "ws")}/ws/world?roomId=${roomId}&hero=${heroId}`,
     { headers: { authorization: `Bearer ${token}` } },
   );
   openSockets.push(socket);
+  return socket;
+}
+
+/**
+ * Resolves with the first `welcome` the socket receives — read through `parseServerMessage`, NOT a
+ * bare `JSON.parse`.
+ *
+ * That distinction is the whole point of this harness. `parseServerMessage` is the single wire
+ * truth (`realtime-wire.test.ts`, `packages/server/AGENTS.md`), and it is what the real client runs
+ * (`packages/client/src/game/net.ts`): a frame it refuses is a frame the client never sees, so a
+ * `welcome` whose appearance layers do not decode against its own grid does not merely draw wrong —
+ * the room is unjoinable. A `JSON.parse` here would let exactly that pass unnoticed.
+ */
+function waitForWelcome(roomId: string, heroId: string, token: string): Promise<ServerMessage> {
+  const socket = openWorldSocket(roomId, heroId, token);
   return new Promise<ServerMessage>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("timed out waiting for 'welcome'")), 5_000);
     socket.on("message", (data) => {
@@ -228,41 +219,66 @@ function waitForWelcome(roomId: string, heroId: string, token: string): Promise<
   });
 }
 
+/**
+ * Opens the same socket and resolves with the close code instead — the only observable a room with
+ * no usable terrain produces, because it never sends a `welcome` at all. A `welcome` arriving here
+ * is itself the failure: it would mean a room admitted a hero onto collision it could not bake.
+ */
+function waitForClose(roomId: string, heroId: string, token: string): Promise<number> {
+  const socket = openWorldSocket(roomId, heroId, token);
+  return new Promise<number>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timed out waiting for a close")), 5_000);
+    socket.on("message", (data) => {
+      const message = parseServerMessage(data.toString());
+      if (message?.t !== "welcome") return;
+      clearTimeout(timer);
+      reject(new Error("the room welcomed a hero onto terrain it cannot have baked"));
+    });
+    socket.on("close", (code) => {
+      clearTimeout(timer);
+      resolve(code);
+    });
+  });
+}
+
 describe("the heightfield on the wire", () => {
   test("a joining hero's welcome carries the stored heightfield, decodable", async () => {
     const { token, mapId, partyId, heroId } = await newPlayableHero("hfwire");
-    await mapService.saveHeightfield(mapId, PROVING_HEIGHTFIELD);
+    await mapService.saveHeightfield(mapId, provingHeightfield());
 
     const welcome = await waitForWelcome(`${partyId}:${mapId}`, heroId, token);
     if (welcome.t !== "welcome") throw new Error("unreachable");
 
-    expect(welcome.world.heightfield).not.toBeNull();
-    // Decoded, not merely non-null: what the wire carries has to survive the format's own parser,
+    // Decoded, not merely present: what the wire carries has to survive the format's own parser,
     // or the client would receive a string it cannot use.
-    const decoded =
-      welcome.world.heightfield === null ? null : decodeMap(welcome.world.heightfield);
+    const decoded = decodeMap(welcome.world.heightfield);
     expect(decoded?.size).toBe(PROVING_SIZE);
     expect(decoded?.spawns).toEqual([{ name: "default", x: 0, z: 0 }]);
-    // And the room baked its own collision from that same heightfield: 8 cells of 64px, not the
-    // default tile map's dimensions.
-    expect(welcome.world.width).toBe(PROVING_SIZE * 64);
-    expect(welcome.world.tiles.length).toBe(PROVING_SIZE);
+    // And the room's own extent is that same grid — in CELLS now, not pixels. `size` replaced the
+    // `width`/`height` pair with the heightfield's side, so the wire cannot describe a world in one
+    // unit system and collide in another.
+    expect(welcome.world.size).toBe(PROVING_SIZE);
     // The appearance agrees with that grid instead of contradicting it: blank layers sized to the
     // heightfield, and none of the map's tile-space elements. Reaching this line at all already
     // proves it — `parseServerMessage` would have refused the frame otherwise — but assert the
     // shape too, so a future change that keeps the frame legal by some other route still has to
     // say so out loud.
-    expect(welcome.world.layers).toEqual(["0*64", "0*64", "0*64"]);
+    const blank = `0*${PROVING_SIZE * PROVING_SIZE}`;
+    expect(welcome.world.layers).toEqual([blank, blank, blank]);
     expect(welcome.world.elements).toEqual([]);
   });
 
-  test("a map with no heightfield still welcomes with null", async () => {
+  test("a map with no heightfield is unjoinable, never welcomed onto empty collision", async () => {
     const { token, mapId, partyId, heroId } = await newPlayableHero("hfnone");
 
-    const welcome = await waitForWelcome(`${partyId}:${mapId}`, heroId, token);
-    if (welcome.t !== "welcome") throw new Error("unreachable");
-
-    expect(welcome.world.heightfield).toBeNull();
+    // `POST /api/adventures` seeds a tile map and no heightfield, so this is the untouched default:
+    // `zoneFromMapPayload` throws, `createState` keeps `location: null` and admission refuses. The
+    // old behaviour — welcome with a null heightfield and the tile path's terrain — has no terrain
+    // left to fall back to, and a room whose collision is silently empty is the failure this
+    // replaces.
+    expect(await waitForClose(`${partyId}:${mapId}`, heroId, token)).toBe(
+      WS_CLOSE.INVALID_LOCATION,
+    );
   });
 
   test("a corrupt stored heightfield is refused, never silently ignored", async () => {
@@ -273,11 +289,11 @@ describe("the heightfield on the wire", () => {
       '{"version":1,"size":2,"levelHeight":1,"waterLevel":0,"levels":[0,0,0],"materials":["herbe","herbe","herbe","herbe"],"colliders":[],"spawns":[],"elements":[],"events":[]}',
     );
 
-    const welcome = await waitForWelcome(`${partyId}:${mapId}`, heroId, token);
-    if (welcome.t !== "welcome") throw new Error("unreachable");
-
-    // Honestly heightfield-less, and the terrain is the tile path's — never a half-applied map.
-    expect(welcome.world.heightfield).toBeNull();
-    expect(welcome.world.width).not.toBe(2 * 64);
+    // Same refusal as the absent case, and that is the point: a heightfield the server cannot parse
+    // must never present as a working map on a room whose collision disagrees with what the client
+    // was told to render.
+    expect(await waitForClose(`${partyId}:${mapId}`, heroId, token)).toBe(
+      WS_CLOSE.INVALID_LOCATION,
+    );
   });
 });

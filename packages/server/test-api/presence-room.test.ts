@@ -222,8 +222,11 @@ describe("renew", () => {
   });
 });
 
+/** Tile units, grid centre as origin: `x`/`z` ground, `y` elevation. All three travel or none do. */
+const HANDOFF_POSITION = { x: 11, y: 2, z: 22 };
+
 describe("handoff", () => {
-  test("moves map/x/y and returns sessionEpoch + 1 under the correct fence", async () => {
+  test("moves the map and all three axes, returning sessionEpoch + 1 under the correct fence", async () => {
     const { heroId, mapId } = await newHero("handoffok");
     const acquired = (await presenceRoom.room.call(heroId, "acquire", {
       connectionId: "conn-1",
@@ -236,8 +239,10 @@ describe("handoff", () => {
       connectionId: "conn-1",
       sessionEpoch: acquired.sessionEpoch,
       mapId: "next-map",
-      x: 111,
-      y: 222,
+      // Three distinct values, one per axis: `x`/`z` are the two GROUND axes and `y` is elevation.
+      // A handoff that dropped or swapped one would still typecheck — every axis is a `number` —
+      // so the fixture has to make each one individually identifiable.
+      ...HANDOFF_POSITION,
     })) as { sessionEpoch: number } | null;
 
     expect(result).toEqual({ sessionEpoch: acquired.sessionEpoch + 1 });
@@ -245,8 +250,7 @@ describe("handoff", () => {
     const row = await probe.heroes.findById(heroId);
     expect(row).toMatchObject({
       mapId: "next-map",
-      x: 111,
-      y: 222,
+      ...HANDOFF_POSITION,
       sessionEpoch: acquired.sessionEpoch + 1,
     });
   });
@@ -267,8 +271,7 @@ describe("handoff", () => {
       connectionId: "conn-1",
       sessionEpoch: staleEpoch,
       mapId: "next-map",
-      x: 111,
-      y: 222,
+      ...HANDOFF_POSITION,
     });
 
     expect(result).toBeNull();
@@ -430,8 +433,7 @@ describe("cooldown promotion", () => {
       connectionId: "conn-1",
       sessionEpoch: acquired.sessionEpoch,
       mapId: "next-map",
-      x: 10,
-      y: 20,
+      ...HANDOFF_POSITION,
     })) as { sessionEpoch: number };
     expect(handedOff.sessionEpoch).toBe(acquired.sessionEpoch + 1);
 

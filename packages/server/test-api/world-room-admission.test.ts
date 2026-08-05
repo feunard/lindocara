@@ -8,14 +8,15 @@
  * first socket when the same hero joins the same room twice.
  */
 
-import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 
@@ -58,8 +59,18 @@ function fakeSocket(userId: string, heroId: string): FakeSocket {
   return socket;
 }
 
+/** Same wire rule as `openWorldSocket` below: every frame goes through `parseServerMessage`, so a
+ *  frame the real client would drop cannot read here as a delivered message. */
 function messagesOf(socket: FakeSocket): ServerMessage[] {
-  return socket.sent.map((raw) => JSON.parse(raw) as ServerMessage);
+  return socket.sent.map((raw) => {
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      throw new Error(
+        `the wire refused a '${String((JSON.parse(raw) as { t?: unknown }).t)}' frame`,
+      );
+    }
+    return message;
+  });
 }
 
 function createEngine(roomId: string) {
@@ -140,7 +151,15 @@ interface Playable {
   heroId: string;
 }
 
-/** One fresh account with an adventure, a party on it and one hero, end-to-end over HTTP. */
+/**
+ * One fresh account with an adventure, a party on it and one hero, end-to-end over HTTP, with a
+ * heightfield stored on the adventure's default map.
+ *
+ * That last step is what makes the room joinable: `POST /api/adventures` seeds a tile map and no
+ * heightfield, and a map without one produces no zone at all (`zoneFromMapPayload` throws,
+ * `createState` keeps `location: null`), so every join would close 4007. Every admission outcome
+ * this file asserts — welcome, cookie auth, 4001 replacement — needs a room that CAN admit.
+ */
 async function newPlayableHero(prefix: string): Promise<Playable> {
   const { token, cookie, userId } = await registerAndLogin(prefix);
   const adventureResponse = await authedFetch("/api/adventures", token, {
@@ -161,6 +180,7 @@ async function newPlayableHero(prefix: string): Promise<Playable> {
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, provingHeightfield());
   return {
     token,
     cookie,
@@ -194,9 +214,19 @@ function openWorldSocket(
   });
   openSockets.push(socket);
   const messages: ServerMessage[] = [];
+  const refused: string[] = [];
   const waiters: { type: string; resolve: (message: ServerMessage) => void }[] = [];
   socket.on("message", (data) => {
-    const message = JSON.parse(data.toString()) as ServerMessage;
+    const raw = data.toString();
+    // `parseServerMessage`, never a bare `JSON.parse`: it is the single wire truth and it is what
+    // the real client runs, so a frame it refuses is a frame the client never sees. A `welcome`
+    // whose world does not validate makes the room unjoinable in practice while a `JSON.parse`
+    // here would report it as a perfectly good admission.
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      refused.push(String((JSON.parse(raw) as { t?: unknown }).t));
+      return;
+    }
     messages.push(message);
     for (let index = waiters.length - 1; index >= 0; index -= 1) {
       const waiter = waiters[index];
@@ -217,15 +247,16 @@ function openWorldSocket(
       new Promise<ServerMessage>((resolve, reject) => {
         const existing = messages.find((message) => message.t === type);
         if (existing) return resolve(existing);
-        const timer = setTimeout(
-          () =>
-            reject(
-              new Error(
-                `timed out waiting for '${type}' (saw: ${messages.map((m) => m.t).join(", ") || "nothing"})`,
-              ),
+        const timer = setTimeout(() => {
+          const seen = messages.map((m) => m.t).join(", ") || "nothing";
+          reject(
+            new Error(
+              refused.length === 0
+                ? `timed out waiting for '${type}' (saw: ${seen})`
+                : `the wire refused ${refused.length} frame(s) [${refused.join(", ")}]: a client would drop them`,
             ),
-          timeoutMs,
-        );
+          );
+        }, timeoutMs);
         waiters.push({
           type,
           resolve: (message) => {
@@ -279,8 +310,11 @@ describe("world room admission", () => {
     if (welcome.t !== "welcome") throw new Error("unreachable");
     expect(welcome.selfId).toBe(heroId);
     expect(welcome.world.zoneId).toBe(mapId);
-    // Baked collision truth travels in the welcome: the tile grid rows and the authored layers.
-    expect(welcome.world.tiles.length).toBeGreaterThan(0);
+    // The terrain travels in the welcome as the encoded heightfield, and its grid's side comes with
+    // it: the client bakes its own collision from exactly that string. `size` is in CELLS — it
+    // replaced the pixel `width`/`height`/`tiles` trio the pixel world shipped.
+    expect(welcome.world.heightfield).not.toBe("");
+    expect(welcome.world.size).toBe(PROVING_SIZE);
     expect(welcome.world.layers.length).toBe(3);
     expect(welcome.players.some((player) => player.id === heroId)).toBe(true);
     expect(welcome.self.cooldowns).toBeDefined();
@@ -309,6 +343,10 @@ describe("world room admission", () => {
     });
     expect(created.status).toBe(201);
     const otherMapId = ((await created.json()) as { id: string }).id;
+    // The other map gets a heightfield too, so the refusal below is the MEMBERSHIP check and not
+    // simply a map that cannot produce a zone — both refusals are 4007 and would be
+    // indistinguishable otherwise.
+    await alepha.inject(MapService).saveHeightfield(otherMapId, provingHeightfield());
 
     const probe = openWorldSocket(`${partyId}:${otherMapId}`, heroId, token);
     await expect(probe.closed).resolves.toBe(4007);

@@ -20,8 +20,11 @@ function profile(id: string): PlayerProfile {
   return {
     id,
     nick: id,
+    // Tile units, grid centre as origin: `x`/`z` are the ground axes and `y` is elevation. The
+    // party mechanics under test never read a position.
     x: 0,
     y: 0,
+    z: 0,
     level: 1,
     xp: 0,
     hp: 100,

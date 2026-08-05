@@ -9,7 +9,11 @@
  * window (close 1008) and the 2 KiB frame cap (close 1009).
  */
 
-import type { PlayerSnapshot, ServerMessage } from "@lindocara/engine/protocol.js";
+import {
+  type PlayerSnapshot,
+  parseServerMessage,
+  type ServerMessage,
+} from "@lindocara/engine/protocol.js";
 import type { Input } from "@lindocara/engine/simulation.js";
 import { MAX_STARVED_TICKS, RATE_MAX_MESSAGES } from "@lindocara/server/world/world-runtime.js";
 import { UserController } from "alepha/api/users";
@@ -17,7 +21,8 @@ import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 const TICK_MS = 50;
@@ -114,6 +119,12 @@ interface Fixture {
   heroId: string;
 }
 
+/**
+ * The heightfield is what makes the room joinable: `POST /api/adventures` seeds a tile map and no
+ * heightfield, and a map without one produces no zone at all, so every join closes 4007 and the
+ * simulation this file measures never runs. It is flat and fully walkable, so nothing about the
+ * terrain can stop the square this suite keeps pushing east.
+ */
 async function newPlayableHero(prefix: string): Promise<Fixture> {
   const { token, userId } = await registerAndLogin(prefix);
   const authed = (path: string, body: unknown) =>
@@ -134,6 +145,7 @@ async function newPlayableHero(prefix: string): Promise<Fixture> {
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, provingHeightfield());
   return { userId, roomId: `${partyId}:${adventure.defaultMap.id}`, heroId };
 }
 
@@ -148,8 +160,19 @@ function createEngine(roomId: string, clock: FakeClock) {
   });
 }
 
+/** Every frame through `parseServerMessage`, the single wire truth — never a bare `JSON.parse`. A
+ *  frame it refuses is a frame the real client drops, so counting it as delivered here would hide
+ *  exactly the kind of unjoinable room this harness exists to catch. */
 function parsedMessages(socket: FakeSocket): ServerMessage[] {
-  return socket.sent.map((raw) => JSON.parse(raw) as ServerMessage);
+  return socket.sent.map((raw) => {
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      throw new Error(
+        `the wire refused a '${String((JSON.parse(raw) as { t?: unknown }).t)}' frame`,
+      );
+    }
+    return message;
+  });
 }
 
 function lastSelfSnapshot(socket: FakeSocket, heroId: string): PlayerSnapshot | undefined {

@@ -21,7 +21,8 @@ import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { WebSocket } from "ws";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 // Comfortably above the app's seeded 16 KiB `maxPayload`
@@ -79,8 +80,15 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
   });
 }
 
-/** One fresh account with an adventure, a party on it and one hero, end-to-end over HTTP —
- *  trimmed from `world-room-admission.test.ts`'s fixture to what this file needs. */
+/**
+ * One fresh account with an adventure, a party on it and one hero, end-to-end over HTTP — trimmed
+ * from `world-room-admission.test.ts`'s fixture to what this file needs.
+ *
+ * The heightfield is not decoration. `POST /api/adventures` seeds a tile map and no heightfield, and
+ * a map with no heightfield can no longer produce a zone at all: the room would refuse the join with
+ * 4007 and close the socket before this file's oversized frame was ever sent, so the transport cap
+ * would go untested while the test still "passed" on a close code.
+ */
 async function newPlayableHero(prefix: string): Promise<{
   token: string;
   roomId: string;
@@ -105,6 +113,7 @@ async function newPlayableHero(prefix: string): Promise<{
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, provingHeightfield());
   return { token, roomId: `${partyId}:${adventure.defaultMap.id}`, heroId };
 }
 

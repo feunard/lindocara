@@ -4,6 +4,7 @@ import { maxHpForLevel } from "@lindocara/engine/game.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advancePeasantCamps,
@@ -24,10 +25,6 @@ import {
   advanceProjectiles,
   type ProjectileSystemContext,
 } from "@lindocara/server/world/projectile-system.js";
-import {
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "@lindocara/server/world/terrain-access.js";
 import {
   createMonsters,
   type GroundIndexQuery,

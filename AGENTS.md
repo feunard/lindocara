@@ -420,7 +420,8 @@ Three consequences, each easy to break:
 - **A body is broadcast for as long as its owner has one** — while they lie over it *and* while
   their ghost walks back to it. Emitting corpses only for the `corpse` state makes your body
   vanish at the exact moment you start needing to find it.
-- **`life` and the corpse position are persisted** (`character.life`, `corpse_x`, `corpse_y`).
+- **`life` and the corpse position are persisted** (`hero.life`, `corpse_x`, `corpse_y`,
+  `corpse_z` — three axes, `x`/`z` ground and `y` elevation, like every other position).
   Death that lives only in memory turns logging out into a free resurrection.
 
 A ghost moves at `GHOST_SPEED`, so `step()` takes a speed and `reconcile()` takes a `LifeState`.

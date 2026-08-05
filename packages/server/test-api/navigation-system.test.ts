@@ -28,6 +28,13 @@ import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
+import {
   advanceWaypoint,
   createNavigationGrid,
   createNavigationRuntime,
@@ -36,13 +43,6 @@ import {
   processNavigationBudget,
   requestMonsterPath,
 } from "@lindocara/server/world/navigation-system.js";
-import {
-  BODY_RADIUS,
-  canStand,
-  groundUnder,
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "@lindocara/server/world/terrain-access.js";
 import { createMonsters, type MonsterRuntime } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it } from "vitest";
 

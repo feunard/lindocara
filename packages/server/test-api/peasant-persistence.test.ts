@@ -5,7 +5,7 @@
  */
 
 import { emptyCombatCooldowns } from "@lindocara/engine/cooldowns.js";
-import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { skillWithTalents } from "@lindocara/engine/talents.js";
 import type { PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
@@ -21,7 +21,8 @@ import { heroSkills } from "../src/api/entities/heroSkills.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 
@@ -86,8 +87,18 @@ function fakeSocket(userId: string, heroId: string, connectionId: string): FakeS
   return socket;
 }
 
+/** Every frame through `parseServerMessage`, the single wire truth — never a bare `JSON.parse`, or
+ *  a welcome the real client would drop would read here as a delivered admission. */
 function messages(socket: FakeSocket, offset = 0): ServerMessage[] {
-  return socket.sent.slice(offset).map((raw) => JSON.parse(raw) as ServerMessage);
+  return socket.sent.slice(offset).map((raw) => {
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      throw new Error(
+        `the wire refused a '${String((JSON.parse(raw) as { t?: unknown }).t)}' frame`,
+      );
+    }
+    return message;
+  });
 }
 
 function welcome(socket: FakeSocket): Extract<ServerMessage, { t: "welcome" }> {
@@ -205,6 +216,9 @@ async function newPeasant(prefix: string): Promise<PeasantFixture> {
   expect(heroResponse.status).toBe(201);
   const hero = (await heroResponse.json()) as { id: string; class: string };
   expect(hero.class).toBe("peasant");
+  // Without a heightfield the map produces no zone and every join closes 4007 — no welcome, so
+  // none of the loadout/talent restoration below would ever be observed.
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, provingHeightfield());
   return {
     token,
     userId,

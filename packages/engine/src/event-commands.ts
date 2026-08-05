@@ -17,7 +17,6 @@
  */
 import { isUuid } from "./identifiers.js";
 import { CONDITION_ID_PATTERN, isSelfSwitch, type SelfSwitch } from "./map-events.js";
-import { TILE_SIZE } from "./tilemap.js";
 
 /**
  * The command-model limits, the single source for every consumer (the parser here, the interpreter,
@@ -60,10 +59,17 @@ export function isTransitionCategory(value: unknown): value is TransitionCategor
   return typeof value === "string" && (TRANSITION_CATEGORIES as readonly string[]).includes(value);
 }
 
-/** How far the triggerer may drift from a running dialogue before the server closes it and ends the
- *  run (WoW closes the panel on walk-away). Exported here as the single source; the distance-close
- *  that consumes it lands in a later task. */
-export const DIALOGUE_CLOSE_RADIUS = 3 * TILE_SIZE;
+/**
+ * How far the triggerer may drift from a running dialogue before the server closes it and ends the
+ * run (WoW closes the panel on walk-away). Exported here as the single source; `worldTick.ts`
+ * consumes it in `groundDistance` terms.
+ *
+ * **Three TILES, not three tiles' worth of pixels.** It was `3 * TILE_SIZE` — a pixel length — and
+ * the two comparisons that read it moved to tile units without it: a hero would have had to walk
+ * 192 tiles, well past the edge of any grid, so the walk-away close could never fire and nothing
+ * failed. A distance constant that outlives its unit system is the quietest kind of regression.
+ */
+export const DIALOGUE_CLOSE_RADIUS = 3;
 
 /** `wait` is authored in frames at the 20Hz tick — 1 frame (50ms) to 600 (30s). Zero would be a
  *  no-op better written as no command; a longer pause is a design smell, not a primitive. */

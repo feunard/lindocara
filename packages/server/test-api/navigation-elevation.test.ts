@@ -18,6 +18,11 @@
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
+import {
+  groundUnder,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
 import { describe, expect, it } from "vitest";
 import {
   createNavigationRuntime,
@@ -25,11 +30,6 @@ import {
   processNavigationBudget,
   requestMonsterPath,
 } from "../src/world/navigation-system.js";
-import {
-  groundUnder,
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "../src/world/terrain-access.js";
 import { createMonsters, type MonsterRuntime } from "../src/world/world-runtime.js";
 
 const SIZE = 16;

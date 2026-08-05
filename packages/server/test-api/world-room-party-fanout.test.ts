@@ -27,7 +27,8 @@ import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
-import { createTestApp } from "./helpers.ts";
+import { MapService } from "../src/api/services/MapService.ts";
+import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
 
@@ -116,7 +117,14 @@ async function registerAndLogin(prefix: string): Promise<{ token: string; userId
   return { token: tokens.access_token, userId: me.id };
 }
 
-/** One fresh account, one fresh adventure/party/hero, end-to-end over HTTP. */
+/**
+ * One fresh account, one fresh adventure/party/hero, end-to-end over HTTP.
+ *
+ * The heightfield is what makes the room joinable at all: `POST /api/adventures` seeds a tile map
+ * and no heightfield, and a map without one produces no zone (`zoneFromMapPayload` throws,
+ * `createState` keeps `location: null`), so even the LEGITIMATE socket below would be refused and
+ * the test would compare two refusals instead of an admission against a refusal.
+ */
 async function newPlayableHero(prefix: string): Promise<{
   userId: string;
   roomId: string;
@@ -141,6 +149,7 @@ async function newPlayableHero(prefix: string): Promise<{
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, provingHeightfield());
   return { userId, roomId: `${partyId}:${adventure.defaultMap.id}`, heroId };
 }
 

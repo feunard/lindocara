@@ -1,5 +1,6 @@
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import {
   hasRogueLineOfSight,
   isShadowStepLandingValid,
@@ -9,10 +10,6 @@ import {
   type ShadowStepCandidate,
   shadowStepDestination,
 } from "@lindocara/server/world/rogue-skill-system.js";
-import {
-  type ZoneTerrain,
-  zoneTerrainFromHeightfield,
-} from "@lindocara/server/world/terrain-access.js";
 import { describe, expect, it } from "vitest";
 
 /**
