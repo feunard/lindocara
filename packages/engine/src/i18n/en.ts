@@ -1040,7 +1040,7 @@ export const en = {
   "event.cheat.ghost": "Forced ghost state.",
   "event.cheat.revive": "Revived on the spot at full health.",
   "event.cheat.reset": "Test state reset: alive, full health/resource, cooldowns ready.",
-  "event.cheat.where": "Server position — map {map}, x {x}, y {y}.",
+  "event.cheat.where": "Server position — map {map}, x {x}, z {z} (ground), y {y} (elevation).",
   "event.cheat.tp": "Teleported to cell ({col}, {row}).",
   "event.cheat.tp_blocked": "Target cell is unreachable: out of the map or not walkable.",
   "event.cheat.alive_only": "This command requires a living hero.",

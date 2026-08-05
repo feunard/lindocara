@@ -1052,7 +1052,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.cheat.ghost": "État fantôme forcé.",
   "event.cheat.revive": "Résurrection sur place avec tous les PV.",
   "event.cheat.reset": "État de test réinitialisé : vivant, PV/ressource pleins, délais prêts.",
-  "event.cheat.where": "Position serveur — carte {map}, x {x}, y {y}.",
+  "event.cheat.where": "Position serveur — carte {map}, x {x}, z {z} (sol), y {y} (élévation).",
   "event.cheat.tp": "Téléporté en case ({col}, {row}).",
   "event.cheat.tp_blocked": "Case cible inaccessible : hors carte ou non marchable.",
   "event.cheat.alive_only": "Cette commande exige un héros vivant.",

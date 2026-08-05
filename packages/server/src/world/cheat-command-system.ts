@@ -121,10 +121,14 @@ export function executeCheatCommand(
   }
   if (command.kind === "where") {
     return {
+      // All three axes, in TILE units, to two decimals: `Math.round` was whole PIXELS and is whole
+      // TILES now, which would round a hero's position to the nearest 64 px and make the command
+      // useless for the thing it exists for. `y` is the ELEVATION; `x`/`z` are the ground.
       event: event("cheat.where", "info", {
         map: player.zoneId,
-        x: Math.round(player.x),
-        y: Math.round(player.y),
+        x: Math.round(player.x * 100) / 100,
+        y: Math.round(player.y * 100) / 100,
+        z: Math.round(player.z * 100) / 100,
       }),
       stateChanged: false,
     };
