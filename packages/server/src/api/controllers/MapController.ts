@@ -196,10 +196,11 @@ export class MapController {
    * Owner-fenced, unlike the collaborative routes above — `MapService.saveHeightfieldForUser`
    * carries the reasoning and the machine code (404 `map_not_found`).
    *
-   * Bounded twice, because one bound cannot do it: 2 MiB of body
-   * (`MAX_HEIGHTFIELD_JSON_BYTES`) and, inside that, no more colliders/spawns/props/events than the
-   * grid has cells (`parseHeightfieldBody`). What is stored here is re-sent verbatim in every
-   * `welcome`, so an unbounded write is not one map's problem — it is every joining client's.
+   * Bounded on the STRING, not on the request: `MAX_HEIGHTFIELD_BYTES` (1.5 MiB of decoded
+   * heightfield) and no more colliders/spawns/props/events than the grid has cells — both in
+   * `parseHeightfieldBody`, because a header cap describes a compressed wire while the framework
+   * inflates before this runs. What is stored here is re-sent verbatim in every `welcome`, so an
+   * unbounded write is not one map's problem — it is every joining client's.
    */
   saveHeightfield = $action({
     method: "PUT",
@@ -207,11 +208,13 @@ export class MapController {
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any() },
     handler: async ({ params, body, headers, user }) => {
-      // `MAX_HEIGHTFIELD_JSON_BYTES`, NOT `MAX_MAP_JSON_BYTES`: the latter equals Alepha's global
-      // parser ceiling, so passing it here would make this line a documented no-op and leave the
-      // route's real bound at 4 MiB — roughly four times the largest honest heightfield. See that
-      // constant's docblock for the arithmetic, and `parseHeightfieldBody` for the count bound
-      // that byte size cannot express.
+      // An early exit, NOT the bound. `MAX_HEIGHTFIELD_JSON_BYTES` rather than
+      // `MAX_MAP_JSON_BYTES` because the latter equals Alepha's global parser ceiling and would
+      // make this line a documented no-op — but this reads `content-length`, which for a
+      // `Content-Encoding: gzip` request describes the COMPRESSED wire while the framework inflates
+      // before this handler runs. A few KB of gzip therefore satisfies it and still carries
+      // megabytes. The real bound is `MAX_HEIGHTFIELD_BYTES`, measured by `parseHeightfieldBody`
+      // on the decoded string; this only spares the parse for a large uncompressed body.
       enforceBodySizeCap(headers, body, MAX_HEIGHTFIELD_JSON_BYTES);
       // Validated HERE, before the service, for the same reason `updateMap` above parses its own
       // body: this is the wire boundary, and the exact `map_*` code a malformed payload answers
@@ -219,7 +222,11 @@ export class MapController {
       // and lives with the other parsers in `mapAuthoring.ts`.
       const parsed = parseHeightfieldBody(body);
       if (!parsed.ok) {
-        throw new HttpError({ status: 400, error: parsed.error, message: parsed.message });
+        throw new HttpError({
+          status: parsed.status,
+          error: parsed.error,
+          message: parsed.message,
+        });
       }
       try {
         await this.mapService.saveHeightfieldForUser(user.id, params.id, parsed.heightfield);

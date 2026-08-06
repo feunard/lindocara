@@ -16,6 +16,7 @@
  * `world-room-admission.test.ts` — because "the server ships the heightfield" is a claim about the
  * running app, not about a function.
  */
+import { gzipSync } from "node:zlib";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { decodeMap, MAX_HEIGHTFIELD_SIZE } from "@lindocara/engine/hd2d/map-data.js";
 import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
@@ -27,6 +28,7 @@ import { WebSocket } from "ws";
 import { MAX_HEIGHTFIELD_JSON_BYTES, MAX_MAP_JSON_BYTES } from "../src/api/bodySizeCap.ts";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { MapService } from "../src/api/services/MapService.ts";
+import { MAX_HEIGHTFIELD_BYTES } from "../src/api/services/mapAuthoring.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 // Meets the realm's default password policy — mirrors `auth.test.ts`.
@@ -329,6 +331,74 @@ describe("the heightfield route", () => {
     // (`enforceBodySizeCap`), while the global parser answers its own `PayloadTooLargeError`.
     expect(await response.json()).toMatchObject({ error: "request_too_large" });
     expect((await mapService.getMap(mapId)).heightfield).toBeNull();
+  });
+
+  test("a gzipped body cannot smuggle a heightfield past the size bound", async () => {
+    const { token, mapId } = await newOwnedMap("hfgzip");
+    // A single cell carrying a single element — the count bound is satisfied with room to spare —
+    // whose `assetId` is two megabytes of text. `decodeMap` bounds no string it reads, so this
+    // decodes perfectly; only its SIZE is wrong.
+    const smuggled = JSON.stringify({
+      version: 1,
+      size: 1,
+      levelHeight: 1,
+      waterLevel: -0.05,
+      levels: [0],
+      materials: ["herbe"],
+      colliders: [],
+      spawns: [{ name: "default", x: 0, z: 0 }],
+      elements: [{ assetId: "x".repeat(2 * 1024 * 1024), x: 0, z: 0 }],
+      events: [],
+    });
+    const payload = gzipSync(Buffer.from(JSON.stringify({ heightfield: smuggled })));
+
+    const response = await fetch(`${hostname}/api/maps/${mapId}/heightfield`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+        authorization: `Bearer ${token}`,
+      },
+      body: payload,
+    });
+
+    // The point of the test, asserted rather than assumed: the wire is tiny and every
+    // `content-length`-shaped check is therefore satisfied. `bodyParserOptions.inflate` is on, so
+    // the framework hands the handler the full 2 MB — which is why the bound has to be measured on
+    // the decoded string, and why removing that measurement lets this land in the column.
+    expect(payload.byteLength).toBeLessThan(MAX_HEIGHTFIELD_JSON_BYTES);
+    expect(smuggled.length).toBeGreaterThan(MAX_HEIGHTFIELD_BYTES);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ error: "request_too_large" });
+    expect((await mapService.getMap(mapId)).heightfield).toBeNull();
+  });
+
+  test("the largest honest 256² grid is still accepted", async () => {
+    const { token, mapId } = await newOwnedMap("hfhonest");
+    const side = MAX_HEIGHTFIELD_SIZE;
+    const cells = side * side;
+    // The worst legitimate encoding, not a typical one: every level `null` (`"null,"`, the longest
+    // level token) and every material `"glace-fine"` (the longest name). ~1.18 MB of grid that no
+    // author can avoid — if the bound refused this, it would be refusing terrain the format itself
+    // permits, and the number would be wrong rather than strict.
+    const honest = JSON.stringify({
+      version: 1,
+      size: side,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels: new Array(cells).fill(null),
+      materials: new Array(cells).fill("glace-fine"),
+      colliders: [],
+      spawns: [{ name: "default", x: 0, z: 0 }],
+      elements: [],
+      events: [],
+    });
+
+    const response = await putHeightfield(mapId, token, { heightfield: honest });
+
+    expect(honest.length).toBeGreaterThan(1_000_000);
+    expect(response.status).toBe(204);
+    expect((await mapService.getMap(mapId)).heightfield).toBe(honest);
   });
 });
 

@@ -264,25 +264,78 @@ export function parseMapBody(body: unknown): MapInput | null {
  */
 export type HeightfieldBodyResult =
   | { ok: true; heightfield: string }
-  | { ok: false; error: "map_invalid" | "map_size"; message: string };
+  | {
+      ok: false;
+      status: 400 | 413;
+      error: "map_invalid" | "map_size" | "request_too_large";
+      message: string;
+    };
+
+/**
+ * 1.5 MiB — the largest heightfield STRING this app will store, measured in UTF-8 bytes on the
+ * value itself.
+ *
+ * **Measured here, on the string, because every wire-level measure is bypassable.**
+ * `enforceBodySizeCap` reads `content-length`, which describes the COMPRESSED request:
+ * `bodyParserOptions.inflate` is on, so a 8 KB gzip body inflating to 8 MiB satisfies every header
+ * check and lands in the column anyway (the framework's only remaining ceiling is
+ * `decompressBuffer`'s `limit * 10`, 40 MiB). Bounding the decoded string closes gzip, deflate and
+ * br in one place, and needs nothing from the framework.
+ *
+ * **The value is derived from the honest worst case, not picked round.** `MAX_HEIGHTFIELD_SIZE`
+ * caps a grid at 256² = 65 536 cells, so the largest legitimate encoding is every level `null`
+ * (`"null,"`, 5 B → 327 680) plus every material the longest name (`"glace-fine",`, 13 B →
+ * 851 968), about **1.18 MB** of unavoidable grid. 1.5 MiB leaves ~390 KB over it — room for some
+ * 5 500 decoration entries at ~70 B each, roughly nine times the density of the proving map
+ * (48 elements over 5 184 cells), on a grid twelve times its size. Real terrain is nowhere near:
+ * the 72² proving heightfield is 67 816 B.
+ *
+ * **It is the bound that actually binds**, and the count bound below cannot replace it: a single
+ * cell may carry one element whose `assetId` is two megabytes of text, because `decodeMap` bounds
+ * no string it reads (`assetId`, `spawns[].name`, an event's `id`/`graphicAssetId`). Counts bound
+ * how MANY entries; only this bounds how BIG.
+ *
+ * What is stored is re-sent verbatim in every `welcome`, and `isWorldInfo` asks only that it
+ * decodes — so this number is also the ceiling on what one authored map costs every client that
+ * ever joins it.
+ */
+export const MAX_HEIGHTFIELD_BYTES = 1_572_864;
 
 export function parseHeightfieldBody(body: unknown): HeightfieldBodyResult {
   const refuse = (message: string): HeightfieldBodyResult => ({
     ok: false,
+    status: 400,
     error: "map_invalid",
     message,
   });
   if (typeof body !== "object" || body === null) return refuse("invalid heightfield body");
   const { heightfield } = body as Record<string, unknown>;
   if (typeof heightfield !== "string") return refuse("invalid heightfield");
+
+  // Before `decodeMap`, deliberately: this is the only bound a compressed request cannot walk
+  // past, so it has to run before anything expensive touches the string. UTF-8 bytes rather than
+  // `.length` — the column and the `welcome` frame carry bytes, and a code-unit count is up to
+  // three times short of them.
+  if (new TextEncoder().encode(heightfield).length > MAX_HEIGHTFIELD_BYTES) {
+    // 413 and `request_too_large`, the same answer `enforceBodySizeCap` gives an uncompressed body
+    // of the same size: whether a caller gzipped the request must not change what it is told.
+    return {
+      ok: false,
+      status: 413,
+      error: "request_too_large",
+      message: "heightfield size limit exceeded",
+    };
+  }
+
   const decoded = decodeMap(heightfield);
   if (!decoded) return refuse("invalid heightfield");
 
-  // One entry per cell, per collection. `decodeMap` bounds the GRID (`size` <= 256, both cell
-  // arrays exactly `size * size`) and nothing else: `colliders`, `spawns`, `elements` and `events`
-  // are unbounded arrays there, so a `size: 1` map declaring 160 000 colliders decodes happily in
-  // milliseconds. Bytes alone cannot separate that from a legitimately dense 256² map — only the
-  // ratio to the grid can, which is why this bound is derived from `size` rather than flat.
+  // One entry per cell, per collection — the OTHER half of the bound, and not a substitute for the
+  // byte check above (nor it for this one: bytes cannot tell 160 000 tiny colliders from a dense
+  // 256² map, and counts cannot tell one element from one element carrying two megabytes of
+  // `assetId`). `decodeMap` bounds the GRID (`size` <= 256, both cell arrays exactly
+  // `size * size`) and nothing else: `colliders`, `spawns`, `elements` and `events` are unbounded
+  // arrays there, so a `size: 1` map declaring 160 000 colliders decodes happily in milliseconds.
   //
   // The unit is deliberate: every one of these four attaches to a place on the grid — a collider
   // rect, a decoration billboard, an authored event's cell, an entry point — so "more of them than
@@ -299,7 +352,12 @@ export function parseHeightfieldBody(body: unknown): HeightfieldBodyResult {
     // the `size` it declared, so the family's own "this map is too big" code (`editor.error.size`,
     // `packages/client/src/api.ts`) is the honest one — and a seeding CLI printing `map_size`
     // rather than `map_invalid` tells its author which of the two things went wrong.
-    return { ok: false, error: "map_size", message: "heightfield carries more entries than cells" };
+    return {
+      ok: false,
+      status: 400,
+      error: "map_size",
+      message: "heightfield carries more entries than cells",
+    };
   }
   return { ok: true, heightfield };
 }
