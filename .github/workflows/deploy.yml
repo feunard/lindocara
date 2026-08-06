@@ -1,16 +1,9 @@
 name: Deploy
 
 on:
-  # DISABLED on 2026-08-06: the `push` trigger is deliberately gone, so landing on `main` no
-  # longer deploys. Two things broke at once and neither is in this repo's gift to fix from a
-  # runner: Lore refused the app artifact (413, cap 10_000_000 bytes — ours packs well past it,
-  # 24 MB of it music), and the lab's upload 404'd on a `releases` storage that no longer exists.
-  # The deploy path is moving to Bay directly, and the runner needs a new secret before it can
-  # take part. Until then a push must not paint `main` red with a failure nobody can act on.
-  #
-  # This file is kept whole, not deleted: everything below is still the intended pipeline, and
-  # restoring automatic deploys is re-adding the two `push` lines above once Bay is configured
-  # and the secret is set. `workflow_dispatch` stays so a deploy can still be run on purpose.
+  push:
+    branches: [main]
+  # Lets you redeploy the current main without pushing an empty commit.
   workflow_dispatch:
 
 concurrency:
@@ -33,20 +26,16 @@ jobs:
       name: production
       url: https://lindocara.bay.alepha.dev
     env:
-      # A Lore API key (`alepha/api/keys`), minted under a robot account that is
-      # a member of the Lindocara campaign and nothing else. A key carries its
-      # owner's powers in Lore, so minting it under a human account would hand
-      # this runner everything that human can do.
+      # Bay is reached over SSH and nothing else — there is no admin panel and no
+      # inbound control port. `alepha platform` drives this runner's own `ssh`
+      # binary against Bay's unix control socket on the far side.
       #
-      # A key rather than the device flow because a device flow wants a human,
-      # and there is nobody at the keyboard here.
-      LORE_API_KEY: ${{ secrets.LORE_API_KEY }}
-      #
-      # `APP_SECRET` is deliberately absent. It is a Bay-owned variable
-      # (`bayOwnedKeys` in apps/bay/internal/deploy/deploy.go): Bay generates
-      # and manages it, and the user-owned keys already in the instance's `.env`
-      # survive every redeploy. Passing it from here entertained the illusion
-      # that CI pushes secrets — it never did.
+      # `BAY_HOST` is set here rather than read from `apps/main/alepha.config.ts`
+      # because that file names `ovh-bay`, a `~/.ssh/config` alias that exists on
+      # the author's laptop and nowhere else. A runner has no such file, so the
+      # alias would not resolve. The adapter prefers `$BAY_HOST` over the config
+      # for exactly this case.
+      BAY_HOST: ${{ vars.BAY_HOST }}
     steps:
       - uses: actions/checkout@v5
 
@@ -57,30 +46,57 @@ jobs:
 
       - run: npm ci
 
-      # `alepha platform up` is the whole pipeline: build (`--target=bare`,
-      # because a workerd bundle has no node-runnable entry and Bay refuses
-      # it), pack the artifact with its migrations, upload it to Lore, register
-      # a release, and then WAIT — the step stays red until the machine reports
-      # the release serving, or reports why it failed.
+      # The deploy key and the host's public keys. Both are required:
       #
-      # Bay's control API is a unix socket and nothing else, and stays that way.
-      # Nothing here reaches the host: the machine hosting this app polls Lore
-      # on its own outbound channel and pulls the artifact when it sees one.
+      # - without the key the runner cannot authenticate at all;
+      # - without `known_hosts` ssh refuses the connection on host-key
+      #   verification. `StrictHostKeyChecking=no` would also "work", and would
+      #   mean this runner hands its deploy key to whatever answers on that
+      #   address. Pinning the host key is the whole point.
+      #
+      # Written with `printf`, not `echo`: the key is multi-line and must keep
+      # its trailing newline, or ssh rejects it as malformed.
+      - name: Configure SSH
+        env:
+          BAY_SSH_KEY: ${{ secrets.BAY_SSH_KEY }}
+          BAY_KNOWN_HOSTS: ${{ secrets.BAY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$BAY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$BAY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # `alepha platform up` is the whole pipeline: build (`--target=bare`,
+      # because a workerd bundle has no node-runnable entry and Bay refuses it),
+      # pack the artifact with its migrations, stage the app's declared secrets
+      # to a 0600 file on the host, hand `bay deploy` both, and WAIT — the step
+      # stays red until the release is serving or has reported why it failed.
       #
       # Migrations run at app boot, not from here.
+      #
+      # Secrets: every key the app declares via `$env` is collected from
+      # `.env.production` if present and otherwise from this job's environment,
+      # which is why they are listed below. `APP_SECRET` is deliberately absent —
+      # it is Bay-owned (`bayOwnedKeys`), generated and preserved per instance,
+      # and Bay refuses to let a caller overwrite it.
       - name: Deploy to Bay
+        env:
+          CHEATS_ENABLED: ${{ vars.CHEATS_ENABLED }}
+          NAVIGATION_DEBUG: ${{ vars.NAVIGATION_DEBUG }}
+          WEBSOCKET_MAX_PAYLOAD: ${{ vars.WEBSOCKET_MAX_PAYLOAD }}
         run: npm run deploy -w @lindocara/main
 
   # The HD-2D witness, deployed beside the game as a SITE rather than a service:
   # `target: "static"` produces files and a manifest declaring `runtime: "static"`, and Bay
   # hosts it with no process behind it — no port, no .env, no database, no health probe.
+  # It therefore has no secrets step at all: Bay refuses `--secrets-file` on a static site,
+  # because there is no process to read them and no `.env` to put them in.
   #
   # Its own job rather than a second step in `deploy`, because the two apps are independent:
   # a failed game deploy should not withhold the lab, and neither should wait on the other.
   # Both still hang off `check`, so nothing ships without the same suite a PR runs.
-  #
-  # Same `LORE_API_KEY` — a Lore key is scoped to its owner's projects, and both apps live in
-  # the same Lindocara project (63), keyed apart by app name and environment.
   deploy-lab:
     if: github.ref == 'refs/heads/main'
     needs: check
@@ -90,7 +106,7 @@ jobs:
       name: production
       url: https://lindocara-lab.bay.alepha.dev
     env:
-      LORE_API_KEY: ${{ secrets.LORE_API_KEY }}
+      BAY_HOST: ${{ vars.BAY_HOST }}
     steps:
       - uses: actions/checkout@v5
 
@@ -100,6 +116,18 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Configure SSH
+        env:
+          BAY_SSH_KEY: ${{ secrets.BAY_SSH_KEY }}
+          BAY_KNOWN_HOSTS: ${{ secrets.BAY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$BAY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$BAY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       # `npm run deploy -w @lindocara/lab` is two halves: `vite build` fills `dist-client/`,
       # then `alepha platform up` builds the static artifact around it, packs, uploads and waits
