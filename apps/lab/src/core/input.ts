@@ -1,4 +1,4 @@
-﻿// Clavier AZERTY + QWERTY + flèches, plus la molette pour le zoom et le clic droit pour la
+// Clavier AZERTY + QWERTY + flèches, plus la molette pour le zoom et le clic droit pour la
 // rotation de caméra.
 
 // ~170 px de glissé pour parcourir toute la plage de rotation.
@@ -35,7 +35,6 @@ export interface InputSample {
   z: number;
   zoom: number;
   jump: boolean;
-  jumpHold: boolean;
   attack: boolean;
   /** `F` : parler / faire avancer le dialogue. */
   action: boolean;
@@ -67,7 +66,7 @@ export function createInput(canvas: HTMLCanvasElement, handlers: InputHandlers =
     if (e.code === "KeyH") handlers.onToggleHud?.();
     if (e.code === "KeyM") handlers.onToggleMusic?.();
     if (e.code === "KeyF") handlers.onInteract?.();
-    if (e.code === "Space" || e.code === "KeyE" || e.code === "Digit2") jumpQueued = true;
+    if (e.code === "Space") jumpQueued = true;
     // `Digit1` est le code de la touche PHYSIQUE : la même sous l'index gauche en AZERTY comme
     // en QWERTY, sans avoir à traiter le `&` de l'un.
     if (e.code === "Digit1") attackQueued = true;
@@ -131,7 +130,6 @@ export function createInput(canvas: HTMLCanvasElement, handlers: InputHandlers =
       // Saut et attaque se consomment : un appui = un geste, même si la frame traîne. Maintenir
       // la touche ne les répète pas (`e.repeat` est filtré).
       const jump = jumpQueued;
-      const jumpHold = down.has("Space") || down.has("KeyE") || down.has("Digit2");
       jumpQueued = false;
       const attack = attackQueued;
       attackQueued = false;
@@ -141,18 +139,7 @@ export function createInput(canvas: HTMLCanvasElement, handlers: InputHandlers =
       cancelQueued = false;
       const yaw = yawPixels * YAW_PER_PIXEL;
       yawPixels = 0;
-      return {
-        x,
-        z,
-        zoom,
-        jump,
-        jumpHold,
-        attack,
-        action,
-        cancel,
-        yaw,
-        orbiting: state.orbiting,
-      };
+      return { x, z, zoom, jump, attack, action, cancel, yaw, orbiting: state.orbiting };
     },
   };
 }
