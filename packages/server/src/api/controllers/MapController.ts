@@ -26,7 +26,11 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
-import { enforceBodySizeCap, MAX_MAP_JSON_BYTES } from "../bodySizeCap.ts";
+import {
+  enforceBodySizeCap,
+  MAX_HEIGHTFIELD_JSON_BYTES,
+  MAX_MAP_JSON_BYTES,
+} from "../bodySizeCap.ts";
 import { MapService } from "../services/MapService.ts";
 import {
   parseCreateMapBody,
@@ -190,7 +194,12 @@ export class MapController {
    * drawing the previous terrain forever.
    *
    * Owner-fenced, unlike the collaborative routes above — `MapService.saveHeightfieldForUser`
-   * carries the reasoning and the machine code (404 `map_not_found`, ownership as invisibility).
+   * carries the reasoning and the machine code (404 `map_not_found`).
+   *
+   * Bounded twice, because one bound cannot do it: 2 MiB of body
+   * (`MAX_HEIGHTFIELD_JSON_BYTES`) and, inside that, no more colliders/spawns/props/events than the
+   * grid has cells (`parseHeightfieldBody`). What is stored here is re-sent verbatim in every
+   * `welcome`, so an unbounded write is not one map's problem — it is every joining client's.
    */
   saveHeightfield = $action({
     method: "PUT",
@@ -198,17 +207,22 @@ export class MapController {
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any() },
     handler: async ({ params, body, headers, user }) => {
-      enforceBodySizeCap(headers, body, MAX_MAP_JSON_BYTES);
+      // `MAX_HEIGHTFIELD_JSON_BYTES`, NOT `MAX_MAP_JSON_BYTES`: the latter equals Alepha's global
+      // parser ceiling, so passing it here would make this line a documented no-op and leave the
+      // route's real bound at 4 MiB — roughly four times the largest honest heightfield. See that
+      // constant's docblock for the arithmetic, and `parseHeightfieldBody` for the count bound
+      // that byte size cannot express.
+      enforceBodySizeCap(headers, body, MAX_HEIGHTFIELD_JSON_BYTES);
       // Validated HERE, before the service, for the same reason `updateMap` above parses its own
       // body: this is the wire boundary, and the exact `map_*` code a malformed payload answers
       // with is part of the route's contract (see this file's docblock). The check itself is pure
       // and lives with the other parsers in `mapAuthoring.ts`.
-      const heightfield = parseHeightfieldBody(body);
-      if (heightfield === null) {
-        throw new HttpError({ status: 400, error: "map_invalid", message: "invalid heightfield" });
+      const parsed = parseHeightfieldBody(body);
+      if (!parsed.ok) {
+        throw new HttpError({ status: 400, error: parsed.error, message: parsed.message });
       }
       try {
-        await this.mapService.saveHeightfieldForUser(user.id, params.id, heightfield);
+        await this.mapService.saveHeightfieldForUser(user.id, params.id, parsed.heightfield);
       } catch (error) {
         rethrowAsMapError(error);
       }

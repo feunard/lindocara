@@ -24,7 +24,7 @@ import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
-import { MAX_MAP_JSON_BYTES } from "../src/api/bodySizeCap.ts";
+import { MAX_HEIGHTFIELD_JSON_BYTES, MAX_MAP_JSON_BYTES } from "../src/api/bodySizeCap.ts";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
@@ -278,18 +278,56 @@ describe("the heightfield route", () => {
     expect((await mapService.getMap(mapId)).heightfield).toBeNull();
   });
 
-  test("an oversize body is refused by the cap, not buffered into the column", async () => {
+  test("a heightfield may carry no more entries than its grid has cells", async () => {
+    const { token, mapId } = await newOwnedMap("hfcrowd");
+    const side = 4;
+    const cells = side * side;
+    const grid = (colliders: number) =>
+      JSON.stringify({
+        version: 1,
+        size: side,
+        levelHeight: 1,
+        waterLevel: -0.05,
+        levels: new Array(cells).fill(0),
+        materials: new Array(cells).fill("herbe"),
+        colliders: new Array(colliders).fill({ x: 0, z: 0, w: 0.1, h: 0.1 }),
+        spawns: [{ name: "default", x: 0, z: 0 }],
+        elements: [],
+        events: [],
+      });
+
+    // One over the grid's own cell count. `decodeMap` accepts this happily — it bounds `size` and
+    // the two cell arrays and nothing else — which is how a `size: 1` map padded with 160 000
+    // colliders reached 4 MB and decoded in 24 ms. Byte size cannot separate that from a
+    // legitimately dense 256² map; the ratio to the grid can.
+    const crowded = await putHeightfield(mapId, token, { heightfield: grid(cells + 1) });
+    expect(crowded.status).toBe(400);
+    expect(await crowded.json()).toMatchObject({ error: "map_size" });
+    expect((await mapService.getMap(mapId)).heightfield).toBeNull();
+
+    // And exactly at the bound it passes — otherwise this would pass just as well against a route
+    // that refused every collider, or every payload, and prove nothing about where the line is.
+    const dense = await putHeightfield(mapId, token, { heightfield: grid(cells) });
+    expect(dense.status).toBe(204);
+    expect((await mapService.getMap(mapId)).heightfield).toBe(grid(cells));
+  });
+
+  test("a body over THIS route's cap is refused by it, below the global parser's ceiling", async () => {
     const { token, mapId } = await newOwnedMap("hfbig");
 
-    const response = await putHeightfield(mapId, token, {
-      heightfield: "x".repeat(MAX_MAP_JSON_BYTES + 1_024),
-    });
+    // Deliberately BETWEEN the two: over `MAX_HEIGHTFIELD_JSON_BYTES` (2 MiB, this route's own)
+    // and under `MAX_MAP_JSON_BYTES` (4 MiB, which equals the global parser ceiling). A payload
+    // past the ceiling would be answered 413 by Alepha's body parser before this app ran a line,
+    // so it would prove nothing about this route — deleting `enforceBodySizeCap` from the handler
+    // left such a test passing, which is why this one sits under the ceiling instead.
+    const size = MAX_HEIGHTFIELD_JSON_BYTES + 64 * 1024;
+    expect(size).toBeLessThan(MAX_MAP_JSON_BYTES);
+    const response = await putHeightfield(mapId, token, { heightfield: "x".repeat(size) });
 
-    // 413 either way: over the 4 MiB ceiling Alepha's own body parser answers first with its
-    // generic code, and `enforceBodySizeCap` catches everything between a narrower cap and that
-    // ceiling (see `bodySizeCap.ts`'s docblock — the map routes are its documented degenerate
-    // case). What matters here is that nothing that large ever reaches the column.
     expect(response.status).toBe(413);
+    // The machine code is the discriminator, not the status: `request_too_large` is this app's
+    // (`enforceBodySizeCap`), while the global parser answers its own `PayloadTooLargeError`.
+    expect(await response.json()).toMatchObject({ error: "request_too_large" });
     expect((await mapService.getMap(mapId)).heightfield).toBeNull();
   });
 });

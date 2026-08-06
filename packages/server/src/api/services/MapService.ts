@@ -453,14 +453,15 @@ export class MapService {
    * plumbing. The editor gains its own authoring path in a later piece.
    *
    * **UNFENCED, and the only unfenced write on this service.** It answers to a map id and nothing
-   * else, so it must never be reached from HTTP: every caller here is an IN-PROCESS one that has
-   * no caller identity to check in the first place — `scripts/build-proving-map.ts` and
-   * `scripts/seed-proving-adventure.ts`'s local path (both boot the app themselves and open the
-   * database directly) and the `test-api/` fixtures that stamp terrain on a map they just created.
-   * Making them supply a `userId` would mean each first reading the owner off the very row it is
-   * about to write, which checks a value against itself — the same dead weight this service's own
-   * docblock records legacy's `deleteMap(accountId)` option as having been. The HTTP surface goes
-   * through {@link saveHeightfieldForUser} below, which is where the fence lives.
+   * else, so it must never be reached from HTTP. Exactly two kinds of caller remain, both
+   * IN-PROCESS and neither with a caller identity to check in the first place:
+   * `scripts/build-proving-map.ts` (boots the app itself against a local SQLite file) and the
+   * `test-api/` fixtures that stamp terrain on a map they just created. Making them supply a
+   * `userId` would mean each first reading the owner off the very row it is about to write, which
+   * checks a value against itself — the same dead weight this service's own docblock records
+   * legacy's `deleteMap(accountId)` option as having been. Everything that travels over HTTP,
+   * including `scripts/seed-proving-adventure.ts` (which no longer touches this service at all —
+   * it PUTs the route), goes through {@link saveHeightfieldForUser} below, where the fence lives.
    *
    * It does NOT bypass the revision bump, and must not. `revision` is the map's cache identity
    * (`(mapId, revision)`, see the `maps` entity) and the client early-returns from
@@ -489,8 +490,10 @@ export class MapService {
    * **`not_found`, deliberately, and with the identical message a missing row throws.** The map
    * family has no forbidden code (`rethrowAsMapError`: `not_found` -> 404 `map_not_found`), and
    * inventing one would put a machine code on the wire that no dictionary key answers
-   * (`packages/client/src/api.ts`). A distinguishable message would be worse than useless here:
-   * it would answer "does map X exist" to an account that may not touch it.
+   * (`packages/client/src/api.ts`). The identical message is for CONSISTENCY, not secrecy — this
+   * route hides nothing, because `GET /api/maps/:id` is unfenced and hands the whole payload of any
+   * map to any account. One refusal with one wording is simply what a caller can act on: a seeding
+   * CLI seeing `map_not_found` retries the same way whether the id is wrong or the account is.
    *
    * This is the ONE map route that is owner-fenced, and that asymmetry is deliberate. The rest of
    * the surface is collaboratively open by ported design (this service's docblock, and the

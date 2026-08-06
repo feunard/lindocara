@@ -245,9 +245,9 @@ export function parseMapBody(body: unknown): MapInput | null {
 
 /**
  * The `{ heightfield }` body of a heightfield write (`PUT /api/maps/:id/heightfield`): the encoded
- * `MapData` string `encodeMap` produces, returned VERBATIM when it decodes and `null` when it does
- * not. Pure, like everything else in this file — the route's own `HttpError` mapping stays in the
- * controller.
+ * `MapData` string `encodeMap` produces, returned VERBATIM when it passes and carrying the machine
+ * code to answer with when it does not. Pure, like everything else in this file — building the
+ * `HttpError` around that code stays in the controller.
  *
  * **The decode is the gate, not a formality.** A heightfield the server cannot parse does not
  * degrade a map, it makes the room UNJOINABLE — `zoneFromMapPayload` throws, `WorldRoom.createState`
@@ -262,11 +262,46 @@ export function parseMapBody(body: unknown): MapInput | null {
  * stored terrain differ from the terrain the author verified locally for no gain — `decodeMap`
  * has already proven it parses.
  */
-export function parseHeightfieldBody(body: unknown): string | null {
-  if (typeof body !== "object" || body === null) return null;
+export type HeightfieldBodyResult =
+  | { ok: true; heightfield: string }
+  | { ok: false; error: "map_invalid" | "map_size"; message: string };
+
+export function parseHeightfieldBody(body: unknown): HeightfieldBodyResult {
+  const refuse = (message: string): HeightfieldBodyResult => ({
+    ok: false,
+    error: "map_invalid",
+    message,
+  });
+  if (typeof body !== "object" || body === null) return refuse("invalid heightfield body");
   const { heightfield } = body as Record<string, unknown>;
-  if (typeof heightfield !== "string") return null;
-  return decodeMap(heightfield) ? heightfield : null;
+  if (typeof heightfield !== "string") return refuse("invalid heightfield");
+  const decoded = decodeMap(heightfield);
+  if (!decoded) return refuse("invalid heightfield");
+
+  // One entry per cell, per collection. `decodeMap` bounds the GRID (`size` <= 256, both cell
+  // arrays exactly `size * size`) and nothing else: `colliders`, `spawns`, `elements` and `events`
+  // are unbounded arrays there, so a `size: 1` map declaring 160 000 colliders decodes happily in
+  // milliseconds. Bytes alone cannot separate that from a legitimately dense 256² map — only the
+  // ratio to the grid can, which is why this bound is derived from `size` rather than flat.
+  //
+  // The unit is deliberate: every one of these four attaches to a place on the grid — a collider
+  // rect, a decoration billboard, an authored event's cell, an entry point — so "more of them than
+  // there are cells to put them on" is nonsense in every case, whatever the map. Nothing legitimate
+  // approaches it (the proving map: 5 184 cells, 48 elements, 1 event, 1 spawn, 0 colliders).
+  const cells = decoded.size * decoded.size;
+  const overflow =
+    decoded.colliders.length > cells ||
+    decoded.spawns.length > cells ||
+    decoded.elements.length > cells ||
+    decoded.events.length > cells;
+  if (overflow) {
+    // `map_size`, not `map_invalid`: the payload is well formed and the refusal is a function of
+    // the `size` it declared, so the family's own "this map is too big" code (`editor.error.size`,
+    // `packages/client/src/api.ts`) is the honest one — and a seeding CLI printing `map_size`
+    // rather than `map_invalid` tells its author which of the two things went wrong.
+    return { ok: false, error: "map_size", message: "heightfield carries more entries than cells" };
+  }
+  return { ok: true, heightfield };
 }
 
 /** The `{ adventureId, name, cols, rows }` body of a new-map request. Ported from

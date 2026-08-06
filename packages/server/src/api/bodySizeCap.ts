@@ -41,6 +41,24 @@ import { HttpError } from "alepha/server";
 
 /** 4 MiB — map create/save. Matches legacy `MAX_MAP_JSON_BYTES`. */
 export const MAX_MAP_JSON_BYTES = 4 * 1024 * 1024;
+/**
+ * 2 MiB — a heightfield write (`PUT /api/maps/:id/heightfield`). Narrower than
+ * `MAX_MAP_JSON_BYTES` on purpose: that constant equals the global parser ceiling (see this file's
+ * "degenerate case" paragraph above), so on that route `enforceBodySizeCap` never fires and the
+ * effective bound is Alepha's, not this app's. Here it fires.
+ *
+ * Derived from the largest LEGITIMATE payload rather than picked round. A heightfield's own size is
+ * bounded by `MAX_HEIGHTFIELD_SIZE` (256), so the worst honest grid is 256² = 65 536 cells with
+ * every level `null` (`"null,"`, 5 bytes) and every material the longest name (`"glace-fine",`,
+ * 13 bytes, 15 once escaped inside the JSON body that carries it): ~1.31 MB. 2 MiB leaves ~780 KB
+ * over that for colliders, spawns, props and events — whose COUNTS are bounded separately and
+ * relative to the same `size` (`parseHeightfieldBody`), because bytes alone cannot tell a dense
+ * 256² map from a 1×1 one padded with 160 000 colliders.
+ *
+ * The stored string is re-sent VERBATIM in every `welcome`, so this cap is not only a write bound:
+ * it is the ceiling on what one authored map can cost every client that joins it.
+ */
+export const MAX_HEIGHTFIELD_JSON_BYTES = 2 * 1024 * 1024;
 /** 64 KiB — adventure create/update. Matches legacy `MAX_ADVENTURE_JSON_BYTES`. */
 export const MAX_ADVENTURE_JSON_BYTES = 65_536;
 /** 4 KiB — every other authenticated body (party/hero/test-session creates). Matches legacy
