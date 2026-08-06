@@ -1,6 +1,7 @@
 import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
 import {
   encodeServerMessage,
+  type PriestLumenTrailVisual,
   parseClientMessage,
   parseServerMessage,
 } from "@lindocara/engine/protocol.js";
@@ -1114,36 +1115,35 @@ describe("Priest ultimate visual messages", () => {
   });
 
   it("accepts only bounded persistent Lumen trails", () => {
+    const serverFrame = {
+      t: "priest.lumen_trail",
+      id: "trail-1",
+      actorId: "priest-1",
+      points: [
+        { x: 16 / 64, z: 16 / 64 },
+        { x: 80 / 64, z: 16 / 64 },
+        { x: 80 / 64, z: 80 / 64 },
+      ],
+      // `talents.ts` authors this exact tile-scaled width and the server relays it unchanged.
+      width: 22 / 64,
+      startedAt: 1_000,
+      endsAt: 7_000,
+    } satisfies PriestLumenTrailVisual;
+    expect(parseServerMessage(encodeServerMessage(serverFrame))).toEqual(serverFrame);
     expect(
       parseServerMessage(
         JSON.stringify({
           t: "priest.lumen_trail",
           id: "trail-1",
           actorId: "priest-1",
-          points: [
-            { x: 16, z: 16 },
-            { x: 80, z: 16 },
-            { x: 80, z: 80 },
-          ],
-          width: 22,
-          startedAt: 1_000,
-          endsAt: 7_000,
-        }),
-      ),
-    ).toMatchObject({ t: "priest.lumen_trail", id: "trail-1" });
-    expect(
-      parseServerMessage(
-        JSON.stringify({
-          t: "priest.lumen_trail",
-          id: "trail-1",
-          actorId: "priest-1",
-          points: [{ x: 16, z: 16 }],
-          width: 22,
+          points: [{ x: 16 / 64, z: 16 / 64 }],
+          width: 22 / 64,
           startedAt: 1_000,
           endsAt: 7_000,
         }),
       ),
     ).toBeNull();
+    expect(parseServerMessage(encodeServerMessage({ ...serverFrame, width: 0 }))).toBeNull();
   });
 
   it("rejects invalid timelines and unbounded portal lifetimes", () => {

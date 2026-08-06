@@ -95,6 +95,14 @@ interface BufferedSnapshot {
   projectiles: ProjectileSnapshot[];
 }
 
+export interface LocalMovementStatus {
+  breath: number;
+  maxBreath: number;
+  swimming: boolean;
+  /** Local vertical velocity, exposed for diagnostics and the future animation owner. */
+  vy: number;
+}
+
 // SceneSample now lives in the renderer package (both the renderer and the minimap consume it,
 // and it is built from engine snapshot types). Imported for internal use and re-exported so
 // existing `from "./net"` importers are unaffected; the package edge is client -> renderer.
@@ -407,6 +415,17 @@ export class WorldClient {
    *
    * The step runs every frame; only the report is throttled (see `MOVE_REPORT_MS`).
    */
+  movementStatus(): LocalMovementStatus | null {
+    const hero = this.#hero;
+    if (!hero) return null;
+    return {
+      breath: hero.state.breath,
+      maxBreath: hero.maxBreath,
+      swimming: hero.state.swimming,
+      vy: hero.state.vy,
+    };
+  }
+
   update(input: Input, dt: number): HeroEvent[] {
     const hero = this.#hero;
     if (!hero) return [];

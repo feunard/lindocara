@@ -24,7 +24,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { MapService } from "../src/api/services/MapService.ts";
-import { displacePlayer } from "../src/world/world-runtime.ts";
+import { type CombatActionRuntime, displacePlayer } from "../src/world/world-runtime.ts";
 import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -155,6 +155,15 @@ function createEngine(roomId: string, clock: FakeClock) {
   });
 }
 
+function runtimePlayer(engine: ReturnType<typeof createEngine>, heroId: string) {
+  const state = (engine as unknown as { state: WorldRoomState }).state;
+  const connectionId = state.connectionIdByHeroId.get(heroId);
+  if (connectionId === undefined) throw new Error("hero has no connection");
+  const player = state.players.get(connectionId);
+  if (!player) throw new Error("hero has no runtime");
+  return player;
+}
+
 function lastSelfSnapshot(socket: FakeSocket, heroId: string): PlayerSnapshot | undefined {
   let last: PlayerSnapshot | undefined;
   for (const raw of socket.sent) {
@@ -244,6 +253,84 @@ function clock(): FakeClock {
 }
 
 describe("server displacement vs. in-flight client reports", () => {
+  test("a held mobility grant is debited by each accepted reported segment", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("mobility");
+    activeClock = new FakeClock();
+    const engine = createEngine(roomId, activeClock);
+    const socket = fakeSocket(userId, heroId);
+    await engine.join(socket);
+    const player = runtimePlayer(engine, heroId);
+    const now = activeClock.now();
+    const action: CombatActionRuntime = {
+      id: crypto.randomUUID(),
+      kind: "skill",
+      skillId: "blink",
+      slot: 4,
+      direction: { x: 1, z: 0 },
+      startedAt: now,
+      impactAt: now,
+      recoveryEndsAt: now + 3_000,
+      channelMaxEndsAt: now + 2_500,
+      channelRecoveryMs: 500,
+      resolved: true,
+      mobilityDistance: 3,
+    };
+    player.action = action;
+
+    await engine.message(
+      socket.id,
+      move(player.x + 0.75, player.y, player.z, currentStamp(socket).seq),
+    );
+
+    expect(action.mobilityDistance).toBeCloseTo(2.25, 6);
+    engine.dispose();
+  });
+
+  test("a corpse cannot overwrite its body position with a current move frame", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("corpse");
+    activeClock = new FakeClock();
+    const engine = createEngine(roomId, activeClock);
+    const socket = fakeSocket(userId, heroId);
+    await engine.join(socket);
+    const player = runtimePlayer(engine, heroId);
+
+    await engine.message(socket.id, {
+      ...move(player.x, player.y, player.z, currentStamp(socket).seq),
+      swimming: true,
+    });
+    await engine.message(socket.id, { t: "drowned" });
+    expect(player.life).toBe("corpse");
+    const body = { x: player.x, y: player.y, z: player.z };
+
+    await engine.message(socket.id, move(body.x + 1, body.y, body.z, currentStamp(socket).seq));
+
+    expect({ x: player.x, y: player.y, z: player.z }).toEqual(body);
+    engine.dispose();
+  });
+
+  test.each([
+    "transitioning",
+    "disconnecting",
+  ] as const)("a hero that is %s cannot overwrite the position already chosen by the room", async (flag) => {
+    const prefix = flag === "transitioning" ? "transit" : "disconn";
+    const { userId, roomId, heroId } = await newPlayableHero(prefix);
+    activeClock = new FakeClock();
+    const engine = createEngine(roomId, activeClock);
+    const socket = fakeSocket(userId, heroId);
+    await engine.join(socket);
+    const player = runtimePlayer(engine, heroId);
+    const before = { x: player.x, y: player.y, z: player.z };
+    player[flag] = true;
+
+    await engine.message(
+      socket.id,
+      move(before.x + 1, before.y, before.z, currentStamp(socket).seq),
+    );
+
+    expect({ x: player.x, y: player.y, z: player.z }).toEqual(before);
+    engine.dispose();
+  });
+
   test("a ghost release is not undone by a move frame that predates it", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("release");
     activeClock = new FakeClock();
@@ -296,11 +383,7 @@ describe("server displacement vs. in-flight client reports", () => {
     const engine = createEngine(roomId, activeClock);
     const socket = fakeSocket(userId, heroId);
     await engine.join(socket);
-    const state = (engine as unknown as { state: WorldRoomState }).state;
-    const connectionId = state.connectionIdByHeroId.get(heroId);
-    if (connectionId === undefined) throw new Error("hero has no connection");
-    const player = state.players.get(connectionId);
-    if (!player) throw new Error("hero has no runtime");
+    const player = runtimePlayer(engine, heroId);
     const before = currentStamp(socket).seq;
     const sentBefore = socket.sent.length;
 

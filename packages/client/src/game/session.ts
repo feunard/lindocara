@@ -171,7 +171,11 @@ function closeInterior(): void {
   useUiStore.getState().setInteriorDoorId(null);
 }
 
-function renderPlayer(player: PlayerSnapshot | undefined, corpse: GroundVector | null): void {
+function renderPlayer(
+  player: PlayerSnapshot | undefined,
+  corpse: GroundVector | null,
+  movement: { breath: number; maxBreath: number; swimming: boolean } | null,
+): void {
   useUiStore.getState().setSelf(
     player
       ? {
@@ -180,6 +184,13 @@ function renderPlayer(player: PlayerSnapshot | undefined, corpse: GroundVector |
           level: player.level,
           hp: player.hp,
           maxHp: player.maxHp,
+          breath: movement?.swimming
+            ? {
+                // One React update per elapsed second, not one per animation frame.
+                current: Math.ceil(Math.max(0, movement.breath)),
+                max: Math.ceil(movement.maxBreath),
+              }
+            : null,
           life: player.life,
           // Rounded, so a walking ghost does not re-render the HUD every frame.
           corpseDistance:
@@ -1247,7 +1258,7 @@ async function startGameIdentity(
     };
     renderer.render(sample, context);
     mapSurface?.draw(sample, self, selfCorpse);
-    renderPlayer(self, selfCorpse);
+    renderPlayer(self, selfCorpse, client.movementStatus());
     updatePrompt(self, questState, door, activeZoneId, currentMerchant);
   });
   window.addEventListener("beforeunload", beforeUnload);
@@ -1256,7 +1267,17 @@ async function startGameIdentity(
   if (import.meta.env.DEV) {
     (window as unknown as Record<string, unknown>).__lindocara = {
       all: () => client.sample(performance.now()),
-      self: () => client.sample(performance.now()).players.find((p) => p.id === client.selfId),
+      self: () => {
+        const player = client.sample(performance.now()).players.find((p) => p.id === client.selfId);
+        if (!player) return undefined;
+        const movement = client.movementStatus();
+        return {
+          ...player,
+          breath: movement?.breath ?? null,
+          maxBreath: movement?.maxBreath ?? null,
+          vy: movement?.vy ?? 0,
+        };
+      },
       attack: () => attack(),
       renderStats: () => renderer.diagnostics(),
     };

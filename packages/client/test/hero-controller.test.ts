@@ -71,6 +71,7 @@ describe("the hero controller", () => {
     expect(hero.state.x).toBe(-1);
     expect(hero.state.y).toBe(0);
     expect(hero.state.z).toBe(0);
+    expect(hero.maxBreath).toBeGreaterThan(0);
 
     for (let frame = 0; frame < 10; frame++) hero.step(press({ x: 1 }), FRAME);
 

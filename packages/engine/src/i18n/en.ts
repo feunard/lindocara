@@ -281,6 +281,7 @@ export const en = {
   "hud.level": "Level {level}",
   "hud.lv": "Lv {level}",
   "hud.vit": "HP",
+  "hud.breath": "Breath",
   "hud.spark": "SPARK",
   "hud.oath": "Active Oath",
   "hud.strike": "Strike",

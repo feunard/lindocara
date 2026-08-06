@@ -33,6 +33,7 @@ describe("Hud", () => {
         level: 3,
         hp: 80,
         maxHp: 124,
+        breath: { current: 7, max: 11 },
         life: "alive",
         corpseDistance: null,
         class: "warrior",
@@ -55,6 +56,8 @@ describe("Hud", () => {
     expect(screen.getByText("Hero")).toBeInTheDocument();
     expect(screen.getByText("Level 3")).toBeInTheDocument();
     expect(screen.getByText("80/124")).toBeInTheDocument();
+    expect(screen.getByText("Breath")).toBeInTheDocument();
+    expect(screen.getByText("7/11")).toBeInTheDocument();
     expect(screen.getByText("40/220")).toBeInTheDocument();
     expect(
       screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),

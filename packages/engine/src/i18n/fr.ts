@@ -284,6 +284,7 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.level": "Niveau {level}",
   "hud.lv": "Niv {level}",
   "hud.vit": "HP",
+  "hud.breath": "Souffle",
   "hud.spark": "XP",
   "hud.oath": "Serment actif",
   "hud.strike": "Frappe",

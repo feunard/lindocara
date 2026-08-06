@@ -134,6 +134,16 @@ export function Hud() {
               </span>
             </label>
           )}
+          {self.breath && (
+            // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching HP.
+            <label>
+              <span>{t("hud.breath")}</span>
+              <Bar value={self.breath.current} max={self.breath.max} variant="mana" />
+              <span>
+                {self.breath.current}/{self.breath.max}
+              </span>
+            </label>
+          )}
           {/* biome-ignore lint/a11y/noLabelWithoutControl: see above. */}
           <label>
             <span>{t("hud.spark")}</span>

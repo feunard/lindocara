@@ -87,6 +87,8 @@ export interface SelfHud {
   level: number;
   hp: number;
   maxHp: number;
+  /** Client-owned swim breath, shown only while swimming and rounded by the frame-loop writer. */
+  breath?: { current: number; max: number } | null;
   life: LifeState;
   /** How far your ghost still has to walk. Null unless you are one. */
   corpseDistance: number | null;
@@ -261,6 +263,8 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
     a.level === b.level &&
     a.hp === b.hp &&
     a.maxHp === b.maxHp &&
+    a.breath?.current === b.breath?.current &&
+    a.breath?.max === b.breath?.max &&
     a.life === b.life &&
     // Rounded to the metre by the writer, so a walking ghost re-renders the HUD ~1x/step.
     a.corpseDistance === b.corpseDistance &&

@@ -123,6 +123,20 @@ describe("a granted mobility skill", () => {
     expect(hero.state.x - start).toBeCloseTo(3, 6);
   });
 
+  it("ends and rematerialises as soon as the granted distance is spent", () => {
+    const hero = controller();
+    // After 21 frames the body is inside the wall with one tenth of a tile left to spend. That is
+    // valid while phased and deliberately invalid as a final position.
+    hero.setMobility(grant(2.2));
+    for (let frame = 0; frame < 21; frame++) hero.step(press({ x: 1 }), FRAME);
+    expect(standable(hero.state)).toBe(false);
+
+    // Spending the last segment must end the grant and call `land()`. A traversal whose remaining
+    // bound stopped being enforced would leave the body embedded in the collider here.
+    hero.step(press({ x: 1 }), FRAME);
+    expect(standable(hero.state)).toBe(true);
+  });
+
   it("ignores a displacement the server never granted", () => {
     const hero = controller();
     for (let frame = 0; frame < 120; frame++) hero.step(press({ x: 1 }), FRAME);
@@ -160,7 +174,10 @@ describe("a granted mobility skill", () => {
     hero.setMobility(grant(3, 10 * FRAME));
     for (let frame = 0; frame < 30; frame++) hero.step(press({ x: 1 }), FRAME);
 
-    expect(hero.state.x - start).toBeLessThan(3);
+    // Once the window expires this is ordinary walking again, so the wall's western face stops it.
+    // Checking only `< 3` let an unbounded phase reach 2.999999... and still pass.
+    expect(hero.state.x).toBeLessThan(WALL_X);
+    expect(hero.state.x - start).toBeLessThan(2);
   });
 
   it("rematerialises somewhere the hero can stand", () => {

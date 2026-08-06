@@ -132,6 +132,8 @@ export interface HeroController {
    * lets go rather than collapsing to `{x: 0, z: 0}`.
    */
   readonly facing: Readonly<GroundVector>;
+  /** Full breath reserve for this map/class tuning. The live remainder is `state.breath`. */
+  readonly maxBreath: number;
   /** Advances one frame and returns what happened, in the order the rule emitted it. */
   step(input: HeroControllerInput, dt: number): HeroEvent[];
   /** Re-resolves the full-tilt speed (a class change, a life transition, a new map's hero rules). */
@@ -273,6 +275,9 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     state,
     get facing() {
       return facing;
+    },
+    get maxBreath() {
+      return hero.swim.breath;
     },
     setSpeed(speed) {
       hero.speed = speed;

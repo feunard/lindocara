@@ -1101,7 +1101,7 @@ function isPriestLumenTrailVisual(value: unknown): value is PriestLumenTrailVisu
     value.points.length <= 96 &&
     value.points.every(isPosition) &&
     isFiniteNumber(value.width) &&
-    value.width >= 1 &&
+    value.width > 0 &&
     value.width <= 64 &&
     isFiniteNumber(value.startedAt) &&
     isFiniteNumber(value.endsAt) &&
