@@ -31,7 +31,11 @@ trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo root, i.e.
 - `src/api/controllers/*.ts` — one `$action`-based controller per surface (`MapController`,
   `AdventureController`, `PartyController`, `HeroController`, `TestSessionController`,
   `MeController`, `HealthController`, `JoinController`), each a thin HTTP shape around its
-  service. `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`).
+  service. `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`). The map surface is
+  collaboratively open by ported design, with ONE owner-fenced route:
+  `PUT /api/maps/:id/heightfield` (`MapService.saveHeightfieldForUser`, 404 `map_not_found` to
+  anyone else) — it is how terrain reaches a DEPLOYED instance, whose database no script can open,
+  and the column it writes decides whether a room is joinable at all.
 - `src/api/providers/AppSecurityProvider.ts` — registers the app's `$realm()` (username+password
   credentials only, no email/OAuth) and MUST stay listed in `LindocaraApi`'s `services[]` —
   nothing else injects it, so omitting it silently falls back to the framework's email-required
@@ -145,6 +149,12 @@ npm run check:migrations -w @lindocara/main    # entity/migration drift check
 # encoded `MapData` to a file; `--database` overrides the dev SQLite file.
 npm run map:proving -- --map=<mapId>
 npm run map:proving -- --dry-run --out=/tmp/proving.json
+
+# A whole playable heightfield adventure, over HTTP only — the one path that also works against a
+# deployed instance, whose database no local process can open. Needs the app running at --target.
+npm run adventure:proving
+SEED_PASSWORD=... npm run adventure:proving -- --target=https://lindocara.bay.alepha.dev \
+  --allow-remote=true --allow-production=true
 ```
 
 ## Tests and typechecking

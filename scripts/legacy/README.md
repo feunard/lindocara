@@ -33,15 +33,18 @@ Each adventure's maps have to be regenerated as heightfields — `MapData` in
 `paintElevation`, so they already express their terrain as height; binding that to a heightfield is
 closer to what they say than the tile layers they currently compute.
 
-Two things are missing before that is worth starting:
+Both things that were missing are now in place:
 
-- **A seeding path that reaches a deployed instance.** `MapService.saveHeightfield` is reachable
-  from no controller, and the generator writes to a local SQLite file — production's database lives
-  inside the Bay process. Locally there is no problem; remotely there is no way in at all.
+- **A seeding path that reaches a deployed instance.** RESOLVED: `PUT /api/maps/:id/heightfield`
+  (`MapController.saveHeightfield`) writes the column over HTTP, owner-fenced and validated through
+  `decodeMap`, so terrain no longer has to travel through a database file this process can open —
+  which production's, living inside the Bay process, never was.
+  [`scripts/seed-proving-adventure.ts`](../seed-proving-adventure.ts) walks that route against any
+  target, under the usual `--allow-remote`/`--allow-production` + `SEED_PASSWORD` gating.
 - **Elevation collision.** RESOLVED as of S3's tile-units increment: the server simulates in tile
   units against the heightfield itself (`canStand`, `packages/engine/src/terrain-access.ts`), so a
-  cliff is solid on both sides of the wire. High ground is unreachable until jumping lands —
-  `MAX_STEP` is 0 — which is a gameplay state, not a collision gap.
+  cliff is solid on both sides of the wire. High ground is reachable too — `MAX_STEP` is still 0, so
+  nothing CLIMBS while grounded, but the client runs `stepHero` and a hero jumps onto a plateau.
 
 For a heightfield adventure you can actually play right now, see
 [`scripts/seed-proving-adventure.ts`](../seed-proving-adventure.ts).

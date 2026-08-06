@@ -1,7 +1,8 @@
 /**
- * The maps CRUD API on Alepha: create, list, read, update, delete and flip the front-door flag.
- * Ported from the `/api/maps*` routes in `packages/server/src/index.ts` (see `:1141`-`:1167` for the
- * route table this mirrors).
+ * The maps CRUD API on Alepha: create, list, read, update, delete, flip the front-door flag and
+ * write the heightfield. Ported from the `/api/maps*` routes in `packages/server/src/index.ts` (see
+ * `:1141`-`:1167` for the route table this mirrors) — every route but the last, which is new: it is
+ * the only way terrain reaches an instance whose database this process cannot open.
  *
  * Every body/query/params schema below is deliberately LOOSE (`z.any()`/plain optional
  * `z.string()`), never the tight shape a client actually sends. Two reasons, both load-bearing:
@@ -27,7 +28,12 @@ import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
 import { enforceBodySizeCap, MAX_MAP_JSON_BYTES } from "../bodySizeCap.ts";
 import { MapService } from "../services/MapService.ts";
-import { parseCreateMapBody, parseMapBody, rethrowAsMapError } from "../services/mapAuthoring.ts";
+import {
+  parseCreateMapBody,
+  parseHeightfieldBody,
+  parseMapBody,
+  rethrowAsMapError,
+} from "../services/mapAuthoring.ts";
 
 const mapSummarySchema = z.object({
   id: z.string(),
@@ -164,6 +170,45 @@ export class MapController {
     handler: async ({ params, query }) => {
       try {
         await this.mapService.deleteMap(params.id, { force: query.force === "true" });
+      } catch (error) {
+        rethrowAsMapError(error);
+      }
+    },
+  });
+
+  /**
+   * `PUT /api/maps/:id/heightfield` body `{heightfield}` -> 204
+   *
+   * The way a heightfield reaches a DEPLOYED instance. Everything else that writes one boots the
+   * app and opens the database itself (`scripts/build-proving-map.ts`), which works locally and
+   * cannot work at all against Bay, where the database lives inside the running process.
+   *
+   * `PUT`, not `POST`: the body IS the resource's whole new state and re-sending it converges on
+   * that same state — which is exactly how the seed script is used (regenerate, re-stamp, reload).
+   * The map's `revision` still moves on every write, deliberately; see
+   * `MapService.saveHeightfield`'s docblock for why skipping that bump would leave a live session
+   * drawing the previous terrain forever.
+   *
+   * Owner-fenced, unlike the collaborative routes above — `MapService.saveHeightfieldForUser`
+   * carries the reasoning and the machine code (404 `map_not_found`, ownership as invisibility).
+   */
+  saveHeightfield = $action({
+    method: "PUT",
+    path: "/maps/:id/heightfield",
+    use: [$secure({}), $transactional()],
+    schema: { params: z.object({ id: z.string() }), body: z.any() },
+    handler: async ({ params, body, headers, user }) => {
+      enforceBodySizeCap(headers, body, MAX_MAP_JSON_BYTES);
+      // Validated HERE, before the service, for the same reason `updateMap` above parses its own
+      // body: this is the wire boundary, and the exact `map_*` code a malformed payload answers
+      // with is part of the route's contract (see this file's docblock). The check itself is pure
+      // and lives with the other parsers in `mapAuthoring.ts`.
+      const heightfield = parseHeightfieldBody(body);
+      if (heightfield === null) {
+        throw new HttpError({ status: 400, error: "map_invalid", message: "invalid heightfield" });
+      }
+      try {
+        await this.mapService.saveHeightfieldForUser(user.id, params.id, heightfield);
       } catch (error) {
         rethrowAsMapError(error);
       }

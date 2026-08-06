@@ -16,6 +16,13 @@
  * script-only edge. `apps/lab` sits outside the package dependency graph (see the root
  * `AGENTS.md`); no package's own source may reach for it.
  *
+ * LOCAL ONLY, and that is now a choice rather than a limitation. It boots the app and writes the
+ * column itself (`MapService.saveHeightfield`, the unfenced in-process writer), so it needs a
+ * database file this process can open — which a deployed instance does not have, its database
+ * living inside the Bay process. Terrain reaches one of those over HTTP instead, through
+ * `PUT /api/maps/:id/heightfield`: see `scripts/seed-proving-adventure.ts`, which generates the
+ * same map with the same `buildProvingMap` below and stamps it through that route.
+ *
  * Run (from the repo root):
  *   npm run map:proving -- --map=<mapId>
  *   npm run map:proving -- --dry-run --out=/tmp/proving.json

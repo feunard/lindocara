@@ -104,10 +104,11 @@ sync is its own commit. `npx alepha vendor diff` shows any local patches; keep i
 > renderer builds no scene without one (`packages/renderer/src/hd2d/game-renderer.ts`), and all five
 > authored adventures are still tile maps whose `heightfield` column is empty — so every existing
 > party renders a blank screen in production. This is the increment's accepted cost, not a
-> regression to hunt: the spec put porting the adventures in a later piece. Note there is currently
-> **no in-band way to seed one**: `MapService.saveHeightfield` is reachable from no controller, and
-> `scripts/build-proving-map.ts` writes to a local SQLite path while production's database lives
-> inside the Bay process. Regenerating the adventures as heightfields is what closes this. **Since
+> regression to hunt: the spec put porting the adventures in a later piece. There IS now a way in:
+> `PUT /api/maps/:id/heightfield` (`MapController.saveHeightfield`, owner-fenced, `decodeMap`-validated)
+> writes the column over HTTP, so `npm run adventure:proving -- --target=… --allow-remote=true` seeds
+> terrain into a deployed instance whose database no other process can open. What remains is content,
+> not plumbing: regenerating the five authored adventures as heightfields is what closes this. **Since
 > 2026-08-06 the stakes are higher, not lower:** the client runs the movement rule against the
 > heightfield it was sent, so a map without one is not merely unlit — nobody in it can move at all.
 >

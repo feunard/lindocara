@@ -16,6 +16,12 @@
  * The only genuine 404 boundaries are: an id that matches no row (never existed, wrong table, or a
  * plain string like the retired `BUILTIN_MAP_ID` sentinel, which is not a uuid and so can never match
  * a real row), and a row whose owning adventure has vanished.
+ *
+ * **One exception, added rather than ported: {@link MapService.saveHeightfieldForUser}.** Nothing
+ * above changes — every method ported from `maps.ts` stays collaboratively open, and none of them
+ * grew a caller id. The heightfield write is not a ported method: it is the seeding path into a
+ * DEPLOYED instance, and the column it writes is the one that decides whether a room can be joined
+ * at all. See its own docblock for the fence and why it answers 404 rather than a new code.
  */
 import {
   type AdventureGraph,
@@ -444,9 +450,17 @@ export class MapService {
 
   /**
    * Writes the map's heightfield column, deliberately bypassing `updateMap`'s graph/authoring
-   * plumbing. The heightfield is not yet part of the collaborative map-authoring surface (no
-   * controller route calls this): today the only writer is `scripts/build-proving-map.ts` (Task 5),
-   * and the editor gains its own authoring path in a later piece.
+   * plumbing. The editor gains its own authoring path in a later piece.
+   *
+   * **UNFENCED, and the only unfenced write on this service.** It answers to a map id and nothing
+   * else, so it must never be reached from HTTP: every caller here is an IN-PROCESS one that has
+   * no caller identity to check in the first place — `scripts/build-proving-map.ts` and
+   * `scripts/seed-proving-adventure.ts`'s local path (both boot the app themselves and open the
+   * database directly) and the `test-api/` fixtures that stamp terrain on a map they just created.
+   * Making them supply a `userId` would mean each first reading the owner off the very row it is
+   * about to write, which checks a value against itself — the same dead weight this service's own
+   * docblock records legacy's `deleteMap(accountId)` option as having been. The HTTP surface goes
+   * through {@link saveHeightfieldForUser} below, which is where the fence lives.
    *
    * It does NOT bypass the revision bump, and must not. `revision` is the map's cache identity
    * (`(mapId, revision)`, see the `maps` entity) and the client early-returns from
@@ -458,6 +472,36 @@ export class MapService {
   async saveHeightfield(id: string, heightfield: string): Promise<void> {
     const row = await this.maps.findById(id);
     if (!row) throw new Error("not_found: no such map");
+    await this.maps.updateById(id, { heightfield, revision: sql`revision + 1` });
+  }
+
+  /**
+   * The heightfield write an HTTP caller reaches (`PUT /api/maps/:id/heightfield`,
+   * `MapController.saveHeightfield`): the same column write as above, behind an owner fence.
+   *
+   * **The fence is this package's existing ownership idiom, not a new one.** `PartyService`'s
+   * `deleteParty(userId, partyId)` is the shape being copied line for line — the controller hands
+   * down `user.id`, the service loads the row, compares it to the row's own owner column and
+   * throws `not_found` when they differ (`HeroService.deleteHero` and `TestSessionService` pass the
+   * caller down the same way). The owner column is `userId`, the one `createMap` stamps from the
+   * owning adventure's author, so "the map's author" needs no second lookup.
+   *
+   * **`not_found`, deliberately, and with the identical message a missing row throws.** The map
+   * family has no forbidden code (`rethrowAsMapError`: `not_found` -> 404 `map_not_found`), and
+   * inventing one would put a machine code on the wire that no dictionary key answers
+   * (`packages/client/src/api.ts`). A distinguishable message would be worse than useless here:
+   * it would answer "does map X exist" to an account that may not touch it.
+   *
+   * This is the ONE map route that is owner-fenced, and that asymmetry is deliberate. The rest of
+   * the surface is collaboratively open by ported design (this service's docblock, and the
+   * `maps.test.ts` blocks literally named "collaborative editing is open"); this route is new, is
+   * the seeding path into a DEPLOYED instance, and writes the one column that decides whether a
+   * room is joinable at all — an unfenced version of it would let any account with a login make
+   * every other author's adventure unenterable.
+   */
+  async saveHeightfieldForUser(userId: string, id: string, heightfield: string): Promise<void> {
+    const row = await this.maps.findById(id);
+    if (!row || row.userId !== userId) throw new Error("not_found: no such map");
     await this.maps.updateById(id, { heightfield, revision: sql`revision + 1` });
   }
 

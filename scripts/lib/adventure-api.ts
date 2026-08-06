@@ -43,13 +43,24 @@ export function resolveTarget(args: Map<string, string>): URL {
   return target;
 }
 
+/**
+ * The single credential path for every seeding CLI: the username may come from a flag, the password
+ * may only come from `SEED_PASSWORD`, and against production it MUST.
+ *
+ * `defaultPassword` is the dev fallback for the local account this particular script owns — a
+ * different tool seeds under a different name and that account already exists with its own
+ * passphrase (`seed-proving-adventure.ts`'s `proving-pilot`), so the fallback is per-caller while
+ * the rule is not. It is deliberately NOT reachable from a flag or from the environment: it applies
+ * only where no `SEED_PASSWORD` is set, which the production branch below makes impossible.
+ */
 export function resolveCredentials(
   args: Map<string, string>,
   target: URL,
   defaultUsername: string,
+  defaultPassword = "Brumeval-Local-2026",
 ): { username: string; password: string } {
   const username = args.get("username") ?? defaultUsername;
-  const password = process.env.SEED_PASSWORD ?? "Brumeval-Local-2026";
+  const password = process.env.SEED_PASSWORD ?? defaultPassword;
   if (PRODUCTION_HOSTS.has(target.hostname) && !process.env.SEED_PASSWORD) {
     throw new Error("production access requires SEED_PASSWORD");
   }
@@ -120,8 +131,17 @@ export class ApiClient {
     console.log(`session ok (${this.config.username} @ ${this.config.target.origin})`);
   }
 
-  async findAdventureByTitle(title: string): Promise<string | null> {
-    const result = await this.request("/api/adventures?scope=all", { method: "GET" });
+  /**
+   * `scope` picks WHICH listing is searched, and it matters as soon as a caller intends to WRITE
+   * what it finds: `"all"` is the collaborative listing (every account's adventures, what the
+   * import/export tooling wants), `"mine"` is the owner-scoped editor listing. A tool that reuses a
+   * found adventure and then writes through an owner-fenced route — `seed-proving-adventure.ts` and
+   * `PUT /api/maps/:id/heightfield` — must ask for `"mine"`, or a title collision with another
+   * account hands it a map it will be refused on.
+   */
+  async findAdventureByTitle(title: string, scope: "all" | "mine" = "all"): Promise<string | null> {
+    const path = scope === "mine" ? "/api/adventures" : "/api/adventures?scope=all";
+    const result = await this.request(path, { method: "GET" });
     if (!result.response.ok || !Array.isArray(result.body)) {
       throw this.failure("adventure list", result);
     }

@@ -21,6 +21,7 @@ import {
   type MapAudioConfig,
   parseMapAudioConfig,
 } from "@lindocara/engine/audio-catalog.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import {
   bakeCollision,
@@ -240,6 +241,32 @@ export function parseMapBody(body: unknown): MapInput | null {
     ...(audio ? { audio } : {}),
     ...(heroSettings ? { heroSettings } : {}),
   };
+}
+
+/**
+ * The `{ heightfield }` body of a heightfield write (`PUT /api/maps/:id/heightfield`): the encoded
+ * `MapData` string `encodeMap` produces, returned VERBATIM when it decodes and `null` when it does
+ * not. Pure, like everything else in this file — the route's own `HttpError` mapping stays in the
+ * controller.
+ *
+ * **The decode is the gate, not a formality.** A heightfield the server cannot parse does not
+ * degrade a map, it makes the room UNJOINABLE — `zoneFromMapPayload` throws, `WorldRoom.createState`
+ * keeps `location: null` and admission answers 4007 (`map-heightfield.test.ts`, "a corrupt stored
+ * heightfield is refused"). Stored, that failure is silent and durable: nothing else on the write
+ * path would ever look at the string again. So the same `decodeMap` a joining room runs is run
+ * here, first — which is also what enforces `MAX_HEIGHTFIELD_SIZE`, and with it the honesty of
+ * `MOVE_COORDINATE_LIMIT` (see `MAX_HEIGHTFIELD_SIZE`'s own docblock).
+ *
+ * The accepted string is stored byte for byte rather than re-encoded from the decoded value: the
+ * column is the wire format, `welcome` ships it unchanged, and a re-encode here would make the
+ * stored terrain differ from the terrain the author verified locally for no gain — `decodeMap`
+ * has already proven it parses.
+ */
+export function parseHeightfieldBody(body: unknown): string | null {
+  if (typeof body !== "object" || body === null) return null;
+  const { heightfield } = body as Record<string, unknown>;
+  if (typeof heightfield !== "string") return null;
+  return decodeMap(heightfield) ? heightfield : null;
 }
 
 /** The `{ adventureId, name, cols, rows }` body of a new-map request. Ported from

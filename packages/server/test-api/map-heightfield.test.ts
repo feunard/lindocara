@@ -1,25 +1,30 @@
 /**
- * The `maps.heightfield` column: stored through `MapService`, and — the increment's central claim —
- * carried to a joining client in the authoritative `welcome`.
+ * The `maps.heightfield` column, in three halves: stored through `MapService`, written over HTTP by
+ * its author, and — the increment's central claim — carried to a joining client in the
+ * authoritative `welcome`.
  *
  * The storage half uses `MapService` directly (`alepha.inject`), the same unauthenticated-probe
- * idiom `entities-authoring.test.ts` established for entity-level coverage ahead of a controller
- * route: no controller writes a heightfield yet (see `MapService.saveHeightfield`'s docblock), so
- * `MapController`'s HTTP surface has nothing to exercise here.
+ * idiom `entities-authoring.test.ts` established: `saveHeightfield` is the unfenced in-process
+ * writer the dev scripts and these fixtures use, and it has no HTTP surface of its own.
  *
- * The wire half deliberately does not: it registers, creates an adventure/party/hero over real
- * HTTP and opens a real WebSocket against `/ws/world` — the same harness shape as
+ * The route half does the opposite, and must: `PUT /api/maps/:id/heightfield` is an authorization
+ * boundary, so it is driven over real HTTP with real tokens — a 401 and an owner fence are claims
+ * about the running app that no direct service call can make.
+ *
+ * The wire half is the same shape for the same reason: it registers, creates an adventure/party/hero
+ * over real HTTP and opens a real WebSocket against `/ws/world` — the same harness as
  * `world-room-admission.test.ts` — because "the server ships the heightfield" is a claim about the
  * running app, not about a function.
  */
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
-import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
+import { decodeMap, MAX_HEIGHTFIELD_SIZE } from "@lindocara/engine/hd2d/map-data.js";
 import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
+import { MAX_MAP_JSON_BYTES } from "../src/api/bodySizeCap.ts";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
@@ -147,6 +152,147 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
     },
   });
 }
+
+/** One account and the default map of one adventure it authored — the smallest thing the
+ *  heightfield route can be pointed at, provisioned entirely over real HTTP. */
+async function newOwnedMap(prefix: string): Promise<{ token: string; mapId: string }> {
+  const token = await registerAndLogin(prefix);
+  const response = await authedFetch("/api/adventures", token, {
+    method: "POST",
+    body: JSON.stringify({ title: "Proving", maxPlayers: 4 }),
+  });
+  expect(response.status).toBe(201);
+  const adventure = (await response.json()) as { defaultMap: { id: string } };
+  return { token, mapId: adventure.defaultMap.id };
+}
+
+function putHeightfield(mapId: string, token: string, body: unknown): Promise<Response> {
+  return authedFetch(`/api/maps/${mapId}/heightfield`, token, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * `PUT /api/maps/:id/heightfield` — the route that lets a heightfield reach an instance whose
+ * database this process cannot open (Bay's, in production).
+ *
+ * Real HTTP against `ServerProvider.hostname`, not the typed `.fetch()` client, for the reason
+ * `maps.test.ts` gives: the controller's schemas are deliberately loose, so only a real round trip
+ * proves the hand-written validation answers with the exact machine codes — and only a real round
+ * trip can observe the 401 that the loose schema exists to preserve.
+ */
+describe("the heightfield route", () => {
+  test("an author seeds their own map, and the revision moves with it", async () => {
+    const { token, mapId } = await newOwnedMap("hfroute");
+    const before = (await mapService.getMap(mapId)).revision;
+    const encoded = provingHeightfield();
+
+    const response = await putHeightfield(mapId, token, { heightfield: encoded });
+
+    expect(response.status).toBe(204);
+    const after = await mapService.getMap(mapId);
+    expect(after.heightfield).toBe(encoded);
+    // The bump is the point, not a side effect: `(mapId, revision)` is the client's cache identity
+    // and `configureMapTerrain` early-returns on an unchanged pair, so terrain re-seeded under a
+    // stale revision would leave a live session drawing the map it replaced.
+    expect(after.revision).toBe(before + 1);
+  });
+
+  test("an unauthenticated caller is refused before anything is parsed", async () => {
+    const { mapId } = await newOwnedMap("hfanon");
+
+    // A body no tight schema would accept, sent by nobody. That combination is the whole test:
+    // Alepha validates a route's schema BEFORE `$secure({})` runs (see `MapController`'s docblock),
+    // so a `body: z.object({ heightfield: z.string() })` here would answer this anonymous caller
+    // 400 instead of 401 — a refusal that leaks nothing, but also proves nothing about auth, and a
+    // route whose fence had been dropped entirely would answer exactly the same way.
+    const response = await fetch(`${hostname}/api/maps/${mapId}/heightfield`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ nothing: "useful" }),
+    });
+
+    expect(response.status).toBe(401);
+    expect((await mapService.getMap(mapId)).heightfield).toBeNull();
+  });
+
+  test("a non-owner is refused and the map keeps the terrain its author gave it", async () => {
+    const { token: owner, mapId } = await newOwnedMap("hfowner");
+    const authored = provingHeightfield();
+    expect((await putHeightfield(mapId, owner, { heightfield: authored })).status).toBe(204);
+    const sealed = await mapService.getMap(mapId);
+
+    const intruder = await registerAndLogin("hfintruder");
+    const response = await putHeightfield(mapId, intruder, {
+      heightfield: provingHeightfield(PROVING_SIZE, { x: 3, z: -2 }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: "map_not_found" });
+    // The status alone would pass against a route that refused AFTER writing. What has to hold is
+    // that the row never moved: same terrain, same revision — an account that cannot touch a map
+    // cannot cost it its cache identity either.
+    const after = await mapService.getMap(mapId);
+    expect(after.heightfield).toBe(authored);
+    expect(after.revision).toBe(sealed.revision);
+  });
+
+  test("a payload `decodeMap` refuses is rejected, and stores nothing", async () => {
+    const { token, mapId } = await newOwnedMap("hfbadbody");
+    // Valid JSON, invalid map: `levels` is one cell short of `size * size` — the same corruption
+    // `map-heightfield.test.ts`'s wire half proves makes a room unjoinable. Stored, that failure is
+    // silent and permanent, which is why it is refused at the boundary rather than on join.
+    const corrupt =
+      '{"version":1,"size":2,"levelHeight":1,"waterLevel":0,"levels":[0,0,0],"materials":["herbe","herbe","herbe","herbe"],"colliders":[],"spawns":[],"elements":[],"events":[]}';
+
+    const response = await putHeightfield(mapId, token, { heightfield: corrupt });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "map_invalid" });
+    expect((await mapService.getMap(mapId)).heightfield).toBeNull();
+  });
+
+  test("a grid wider than `MAX_HEIGHTFIELD_SIZE` is refused with everything else `decodeMap` bounds", async () => {
+    const { token, mapId } = await newOwnedMap("hfoversize");
+    const side = MAX_HEIGHTFIELD_SIZE + 1;
+    // Declared, not materialised: `decodeMap` bounds `size` before it ever looks at the cell
+    // arrays, and that bound is what keeps `MOVE_COORDINATE_LIMIT`'s refusal honest — a hero on a
+    // grid wider than this would have every movement frame silently dropped past ±128 tiles.
+    const oversize = JSON.stringify({
+      version: 1,
+      size: side,
+      levelHeight: 1,
+      waterLevel: 0,
+      levels: [0],
+      materials: ["herbe"],
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+    });
+
+    const response = await putHeightfield(mapId, token, { heightfield: oversize });
+
+    expect(response.status).toBe(400);
+    expect((await mapService.getMap(mapId)).heightfield).toBeNull();
+  });
+
+  test("an oversize body is refused by the cap, not buffered into the column", async () => {
+    const { token, mapId } = await newOwnedMap("hfbig");
+
+    const response = await putHeightfield(mapId, token, {
+      heightfield: "x".repeat(MAX_MAP_JSON_BYTES + 1_024),
+    });
+
+    // 413 either way: over the 4 MiB ceiling Alepha's own body parser answers first with its
+    // generic code, and `enforceBodySizeCap` catches everything between a narrower cap and that
+    // ceiling (see `bodySizeCap.ts`'s docblock — the map routes are its documented degenerate
+    // case). What matters here is that nothing that large ever reaches the column.
+    expect(response.status).toBe(413);
+    expect((await mapService.getMap(mapId)).heightfield).toBeNull();
+  });
+});
 
 /** One account with an adventure, a party on it and one hero — the ordinary HTTP flow, exactly as
  *  `world-room-admission.test.ts` provisions it. */
