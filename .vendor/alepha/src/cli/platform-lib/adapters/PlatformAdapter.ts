@@ -90,19 +90,6 @@ export interface PlatformContext {
    * per-tenant overrides.
    */
   prebuilt?: boolean;
-
-  /**
-   * Artifact tag for registry-backed adapters, Docker-style.
-   *
-   * `latest` when unset, and `latest` is the only tag that may be replaced —
-   * pushing any other tag twice is refused, which is what lets a deploy to
-   * production claim it is shipping the bytes staging tested rather than a
-   * rebuild that happens to carry the same label.
-   *
-   * Per-invocation rather than part of `envConfig`: it is a property of *this
-   * deploy*, not of how the environment is configured.
-   */
-  tag?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,10 +190,10 @@ export abstract class PlatformAdapter {
    *
    * Cloudflare attaches it as a route and Bay registers it with the app, so for
    * both the config is the CAUSE of the host, and reporting it back is stating
-   * something the deploy made true. The `lore` path has no channel for it — the
-   * machine composes the host from the app name, and the manifest it reads does
-   * not carry `environments` at all — so the same line there is a claim about a
-   * decision taken somewhere else.
+   * something the deploy made true. An adapter that leaves host composition to
+   * something else instead — a machine that names itself from the app — has no
+   * channel for it, so the same line there would be a claim about a decision
+   * taken somewhere else.
    *
    * It was wrong exactly once and that was enough: `up` finished green and
    * printed a link to an address answering 404 with no certificate, while the
@@ -236,24 +223,6 @@ export abstract class PlatformAdapter {
   ): Promise<void> {
     throw new AlephaError(
       `Database export is not supported by the '${this.constructor.name}' adapter.`,
-    );
-  }
-
-  /**
-   * Build an artifact into the registry without deploying it.
-   *
-   * Only meaningful for an adapter that *has* a registry — pushing means
-   * putting bytes somewhere they can be deployed from later, and an adapter
-   * that deploys straight to a provider has nowhere to put them. The default
-   * refuses rather than silently deploying, because "push then promote" and
-   * "deploy now" are different intentions and quietly turning one into the
-   * other is how a staging tag reaches production.
-   *
-   * @returns the artifact id, for a caller that wants to deploy it next.
-   */
-  async push(_ctx: PlatformContext, _run: RunnerMethod): Promise<string> {
-    throw new AlephaError(
-      `push is not supported by the '${this.constructor.name}' adapter — it has no artifact registry.`,
     );
   }
 

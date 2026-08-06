@@ -86,29 +86,44 @@ export const platformOptions = $atom({
             "Environment name (e.g. 'production', 'staging', 'preview'). Used in resource naming and selected via --env.",
         }),
         z.object({
-          adapter: z.enum(["cloudflare", "bay", "lore"]),
+          adapter: z.enum(["cloudflare", "bay"]),
           /**
-           * Base URL of the Bay control panel this environment deploys to,
-           * e.g. `"https://admin.bay.alepha.dev"`. Only read by the `bay`
-           * adapter.
+           * SSH destination of the Bay this environment deploys to, e.g.
+           * `"deploy@bay.example.com"`. Only read by the `bay` adapter, where
+           * it is **required**.
            *
-           * A Bay is a machine someone owns, so unlike Cloudflare there is no
-           * global endpoint to assume. Committing it is fine — it is a public
-           * hostname, and the credential is what protects it.
+           * Passed to the machine's own `ssh` binary verbatim, so it may be an
+           * alias defined in `~/.ssh/config` (`"bay-prod"`). That is the point
+           * of shelling out rather than speaking the protocol: `ProxyJump`,
+           * `IdentityAgent`, `ControlMaster` and a per-host `User` are already
+           * configured there, and stay in one place.
            *
-           * `$BAY_ENDPOINT` overrides, so a fork or a second Bay needs no edit.
+           * There is deliberately no port, identity-file or extra-flags field
+           * for the same reason. Committing this is fine — it is a hostname,
+           * and the SSH key is what protects it.
+           *
+           * `$BAY_HOST` overrides, so CI needs no edit to a committed config.
            */
-          endpoint: z.text().optional(),
+          host: z.text().optional(),
           /**
-           * Lore project a release is written into (`adapter: "lore"`).
+           * Absolute path to Bay's control socket on the host, e.g.
+           * `"/var/lib/bay/control.sock"`. Only read by the `bay` adapter.
            *
-           * Required by that adapter and deliberately not derived from this
-           * config's own `name` (the deploying app's project name): Lore
-           * project ids and this app's project name are separate namespaces,
-           * and guessing a mapping between them would silently deploy into
-           * whichever Lore project happened to match.
+           * Bay's default root is the *relative* path `./bay-data`, and an ssh
+           * command runs non-interactively with cwd `$HOME` — so on any host
+           * whose Bay root is not `$HOME/bay-data` (every `--root
+           * /var/lib/bay` install, for one), Bay's own guess at the socket
+           * path misses and every command this adapter sends fails to find
+           * it. `$BAY_SOCKET` on the Bay host is Bay's own escape hatch for
+           * this, but it cannot be relied on here: a non-interactive ssh
+           * command reads neither `~/.profile` nor, on Debian/Ubuntu's
+           * default, `~/.bashrc`, so there is nowhere reliable to export it
+           * from.
+           *
+           * `$BAY_SOCKET` in the CLI's own environment overrides this value,
+           * the same way `$BAY_HOST` overrides `host`.
            */
-          projectId: z.integer().optional(),
+          socket: z.text().optional(),
           /**
            * Custom domain for the deployed worker (e.g. "api.example.com").
            *
@@ -119,13 +134,6 @@ export const platformOptions = $atom({
            * `"*.club.alepha.dev"` routes every subdomain to the worker.
            * Wildcard patterns require `zone` to be set, and the wildcard DNS
            * record must already exist (proxied) in the Cloudflare zone.
-           *
-           * **The `lore` adapter does not read it.** There the machine composes
-           * the host from the app name — `<app>[-<env>].<base>`, bare name in
-           * production — and the artifact it reads carries no environments at
-           * all. So a domain here NAMES that host, it does not choose it, and
-           * `up` will not report it as the address it deployed to. Moving a
-           * `lore` app to a different host means renaming the app.
            */
           domain: z.text().optional(),
           /**
@@ -187,21 +195,20 @@ export type PlatformOptions = Infer<typeof platformOptions.schema>;
  * Configuration for a single named environment.
  */
 export interface EnvironmentConfig {
-  adapter: "cloudflare" | "bay" | "lore";
+  adapter: "cloudflare" | "bay";
   /**
-   * Base URL of the deploy gateway — the Bay control panel for `bay`, the Lore
-   * instance for `lore`.
+   * SSH destination of the Bay this environment deploys to (`bay` adapter).
+   * May be an alias from `~/.ssh/config`. `$BAY_HOST` overrides.
    */
-  endpoint?: string;
+  host?: string;
   /**
-   * Lore project a release is written into (`lore` adapter only).
-   *
-   * Required by that adapter, and deliberately not derived from this
-   * config's own project name: Lore project ids and this app's project name
-   * are separate namespaces, so guessing a mapping between them would
-   * silently deploy into whichever Lore project happened to match.
+   * Absolute path to Bay's control socket on the host (`bay` adapter only).
+   * Needed because Bay's default root is relative and an ssh command's cwd is
+   * `$HOME`; `$BAY_SOCKET` on the host is the alternative but is unreliable
+   * for non-interactive shells. `$BAY_SOCKET` in the CLI's own environment
+   * overrides.
    */
-  projectId?: number;
+  socket?: string;
   domain?: string;
   zone?: string;
   vars?: Record<string, string>;
