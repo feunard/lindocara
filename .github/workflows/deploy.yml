@@ -83,9 +83,12 @@ jobs:
       # and Bay refuses to let a caller overwrite it.
       - name: Deploy to Bay
         env:
-          CHEATS_ENABLED: ${{ vars.CHEATS_ENABLED }}
-          NAVIGATION_DEBUG: ${{ vars.NAVIGATION_DEBUG }}
-          WEBSOCKET_MAX_PAYLOAD: ${{ vars.WEBSOCKET_MAX_PAYLOAD }}
+          # An undefined repository variable expands to the empty string. `$env` can coerce the
+          # explicit values below, but an empty string is neither a boolean nor an integer and
+          # prevents Alepha from booting before the deploy even starts.
+          CHEATS_ENABLED: ${{ vars.CHEATS_ENABLED || 'false' }}
+          NAVIGATION_DEBUG: ${{ vars.NAVIGATION_DEBUG || 'false' }}
+          WEBSOCKET_MAX_PAYLOAD: ${{ vars.WEBSOCKET_MAX_PAYLOAD || '16384' }}
         run: npm run deploy -w @lindocara/main
 
   # The HD-2D witness, deployed beside the game as a SITE rather than a service:
