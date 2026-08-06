@@ -18,30 +18,37 @@ export default defineConfig({
          * SQLite file on disk. Same code, one runtime instead of two, and the
          * `build.cloudflare` block that used to live here is gone with it.
          *
-         * `adapter: "lore"`, not `"bay"`. Bay's control API is a unix socket
-         * and nothing else, so a CI runner cannot reach it — it used to go
-         * through bay-admin, which no longer exists. Instead the artifact goes
-         * to Lore, which writes a release row, and the machine hosting this app
-         * asks for work on its own outbound channel. Nothing reaches in: no
-         * port is opened, no address is known, and `up` still blocks until the
-         * release is serving or has failed.
+         * `adapter: "bay"`, over SSH. The artifact used to go to Lore, which
+         * wrote a release row for the machine to pull on its own outbound
+         * channel; that route is gone (`refactor(bay): remove the Lore
+         * connector — SSH is the only remote surface`), and it had stopped
+         * working anyway — Lore refuses an artifact over 10_000_000 bytes and
+         * ours packs well past that, 24 MB of it music.
          *
-         * `projectId` is the Lore project the release is written into. Not
-         * derived from the app name on purpose — Lore project ids and app
-         * names are separate namespaces, and guessing a mapping would silently
-         * deploy into whichever project happened to match.
+         * `host` is an alias from `~/.ssh/config`, NOT `bay.alepha.dev`. That
+         * name resolves to Cloudflare (104.21.x / 172.67.x), which proxies HTTP
+         * and not SSH, so using it here fails to connect. The alias points at
+         * the machine itself. `$BAY_HOST` overrides it, which is how anything
+         * that is not this laptop — CI, a second Bay — supplies its own.
          *
-         * Was `campaignId` until Lore's 2026-08 rename (campaign → project),
-         * which also moved the endpoint from `/api/campaigns/*` to
-         * `/api/projects/*`. Both halves have to move together: the old adapter
-         * reads `campaignId` and the new one reads `projectId`, so a
-         * half-update throws instead of deploying somewhere unintended.
+         * `socket` is required here because Bay on this host does not run with
+         * the default root. It serves with `--root /opt/bay/data
+         * --control-socket /run/bay/control.sock`, and the adapter's guess is
+         * `<root>/control.sock` resolved from `$HOME` — a non-interactive SSH
+         * shell starts there, so the guess misses every install whose root is
+         * not `./bay-data` under the deploy user's home. Absolute path, passed
+         * straight through as `--control-socket`.
+         *
+         * `domain` stays explicit. Bay can compose `<app>.<base-domain>` itself
+         * (its `--base-domain` here is `bay.alepha.dev`, which would produce the
+         * same name), but naming it keeps the served host a property of this
+         * file rather than of whichever Bay the artifact lands on.
          */
         production: {
-          adapter: "lore",
+          adapter: "bay",
           domain: "lindocara.bay.alepha.dev",
-          endpoint: "https://lore.alepha.dev",
-          projectId: 63,
+          host: "ovh-bay",
+          socket: "/run/bay/control.sock",
         },
       },
     }),

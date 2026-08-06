@@ -29,31 +29,27 @@ export default defineConfig({
         /**
          * Same machine as the game, second app on it.
          *
-         * `adapter: "lore"` for the same reason `apps/main` uses it: Bay's
-         * control API is a unix socket, so nothing can dial it — the artifact
-         * goes to Lore, a release row is written, and the machine asks for work
-         * on its own outbound channel.
-         *
-         * `projectId` is the Lore project the release is written into, and it
-         * is the same 63 the game deploys to: a project holds many apps, keyed
-         * by name and environment, so `lindocara-lab/production` and
-         * `lindocara-main/production` coexist without touching each other.
+         * `adapter: "bay"` over SSH, for the same reason `apps/main` moved:
+         * Lore's connector is gone, and the lab's own upload had already
+         * started failing separately — 404, `Storage 'releases' not found`.
+         * `host` and `socket` carry the same values and the same reasoning as
+         * the game's config; read that one for why the alias is not
+         * `bay.alepha.dev` and why the socket path has to be spelled out.
          *
          * `domain` NAMES the host, it does not choose it. Bay composes the host
          * from the app name — `<name>[-<env>].<base>`, bare name in production —
          * and that is deliberate on its side: the name is a property of the
-         * artifact, not a deployment choice. The `bay` adapter can override it
-         * when it registers the app; the `lore` path has no such channel, and
-         * Bay's Go manifest does not parse `environments` at all. So this must
-         * match what Bay composes. It said `lab.bay.alepha.dev` once, and the
-         * result was a deploy that reported success against a host that 404'd
-         * with no certificate. Renaming the app to `lab` is what would move it.
+         * artifact, not a deployment choice. Unlike the retired `lore` path, the
+         * `bay` adapter DOES have a channel to override it when it registers the
+         * app, so this value is now load-bearing rather than merely descriptive.
+         * It said `lab.bay.alepha.dev` once, and the result was a deploy that
+         * reported success against a host that 404'd with no certificate.
          */
         production: {
-          adapter: "lore",
+          adapter: "bay",
           domain: "lindocara-lab.bay.alepha.dev",
-          endpoint: "https://lore.alepha.dev",
-          projectId: 63,
+          host: "ovh-bay",
+          socket: "/run/bay/control.sock",
         },
       },
     }),
