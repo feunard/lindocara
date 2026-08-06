@@ -1,9 +1,16 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
-  # Lets you redeploy the current main without pushing an empty commit.
+  # DISABLED on 2026-08-06: the `push` trigger is deliberately gone, so landing on `main` no
+  # longer deploys. Two things broke at once and neither is in this repo's gift to fix from a
+  # runner: Lore refused the app artifact (413, cap 10_000_000 bytes — ours packs well past it,
+  # 24 MB of it music), and the lab's upload 404'd on a `releases` storage that no longer exists.
+  # The deploy path is moving to Bay directly, and the runner needs a new secret before it can
+  # take part. Until then a push must not paint `main` red with a failure nobody can act on.
+  #
+  # This file is kept whole, not deleted: everything below is still the intended pipeline, and
+  # restoring automatic deploys is re-adding the two `push` lines above once Bay is configured
+  # and the secret is set. `workflow_dispatch` stays so a deploy can still be run on purpose.
   workflow_dispatch:
 
 concurrency:
