@@ -101,6 +101,7 @@ function welcome(events: unknown) {
       quest: { status: "available", progress: 0, target: 3 },
       life: "alive",
       corpse: null,
+      displacement: { seq: 0, x: 0, y: 0, z: 0 },
     },
   };
 }

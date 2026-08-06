@@ -208,6 +208,9 @@ function move(x: number, y: number, z: number) {
     airborne: false,
     swimming: false,
     gliding: false,
+    // The stamp of a hero the room has never displaced. `world-room-displacement.test.ts` owns the
+    // staleness rule; every frame here is current, so none of these assertions rides on it.
+    displacement: 0,
   };
 }
 

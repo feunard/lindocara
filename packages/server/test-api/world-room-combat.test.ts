@@ -1574,6 +1574,7 @@ describe("world room combat (FakeClock)", () => {
       airborne: false,
       swimming: false,
       gliding: false,
+      displacement: player.displacement,
     });
     expect(m1.threat.has(heroId)).toBe(false);
     advanceWorldTick(w);

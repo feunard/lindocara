@@ -5,6 +5,7 @@ import type {
 import { type QuestChapter, xpForNextLevel } from "@lindocara/engine/game.js";
 import type { PartyMaterials } from "@lindocara/engine/party-harvest-state.js";
 import type {
+  DisplacementStamp,
   MobilityGrant,
   SelfState,
   ServerMessage,
@@ -52,6 +53,23 @@ function mobilityGrant(player: PlayerRuntime): MobilityGrant | undefined {
   return { actionId: action.id, distance, until: action.channelMaxEndsAt };
 }
 
+/**
+ * The room's own copy of this hero's position, stamped with the displacement counter it belongs to.
+ *
+ * Building it IS the announcement, which is why the counter is marked here rather than at the send:
+ * every `SelfState` this module produces is on its way to the hero that owns it, and
+ * `announceDisplacements` (`worldTick.ts`) reads the gap to decide who is still owed one before the
+ * next snapshot goes out.
+ *
+ * The CURRENT position is the right one to stamp, not a remembered landing: while a stamp is
+ * unannounced the client's own frames are all being dropped, so nothing but another displacement can
+ * have moved this hero since — and another displacement raises the stamp again.
+ */
+function displacementStamp(player: PlayerRuntime): DisplacementStamp {
+  player.displacementAnnounced = player.displacement;
+  return { seq: player.displacement, x: player.x, y: player.y, z: player.z };
+}
+
 export function selfState(
   player: PlayerRuntime,
   questTarget?: number,
@@ -61,6 +79,7 @@ export function selfState(
 ): SelfState {
   const serverNow = Date.now();
   const mobility = mobilityGrant(player);
+  const displacement = displacementStamp(player);
   const chapter = player.quest.chapter ?? "three_offerings";
   const timerEndsAt =
     chapter === "ward_run" && player.quest.status === "active" && player.wardRunExpiresAt !== null
@@ -84,6 +103,7 @@ export function selfState(
     ...(materials ? { materials: { ...materials } } : {}),
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
+    displacement,
     serverNow,
     cooldowns: combatCooldownsFromPlayer(player, serverNow),
     talents: talentState(player.class, player.level, player.talents),

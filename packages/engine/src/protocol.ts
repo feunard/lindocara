@@ -131,6 +131,16 @@ export interface MoveMessage {
   airborne: boolean;
   swimming: boolean;
   gliding: boolean;
+  /**
+   * The `DisplacementStamp.seq` this client has adopted — see {@link DisplacementStamp}. The room
+   * drops any frame whose stamp is not the one it currently holds, which is what stops a report
+   * computed before a server-authored displacement from silently undoing it.
+   *
+   * **It adds no authority.** A client cannot raise this: it only repeats a number the server sent
+   * it, and a value the server never issued matches nothing and is dropped like every other invalid
+   * frame.
+   */
+  displacement: number;
 }
 
 /** @deprecated Transitional alias for the original one-field appearance model. */
@@ -304,6 +314,30 @@ export interface MobilityGrant {
  */
 export const MAX_MOBILITY_DISTANCE = 64;
 
+/**
+ * Where the ROOM last put this hero, and the stamp that says which displacement that was.
+ *
+ * The client owns where its hero is (the S3 spec, decision 4), but the server still MOVES one: a
+ * ghost release, a Pas de Lumen landing, an authored teleport, a charge. Between the room deciding
+ * and the client hearing, the client is still reporting positions computed from where it used to be
+ * — so the room drops every frame whose {@link MoveMessage.displacement} is not `seq`, and the
+ * client is unstuck by adopting the position below and echoing the new `seq` back.
+ *
+ * **The position travels WITH the stamp, in one frame, and that pairing is the whole design.** Split
+ * across two messages — the stamp here, the position in the next `world.delta` — a client could
+ * learn the new stamp first and immediately echo it under its OLD position, which the room would
+ * then accept: the displacement undone by the very mechanism meant to protect it.
+ *
+ * `x`/`z` are the GROUND axes and `y` is ELEVATION, like everywhere else.
+ */
+export interface DisplacementStamp {
+  /** Monotone, room-local, and reset by a cross-map handoff — the destination's welcome re-seeds it. */
+  seq: number;
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface SelfState {
   xp: number;
   xpToNext: number;
@@ -339,6 +373,9 @@ export interface SelfState {
   ranger?: RangerSelfState;
   /** Present only while a held mobility skill is granting this hero a displacement to perform. */
   mobility?: MobilityGrant;
+  /** Where the room last moved this hero, stamped. Always present: a hero the room has never moved
+   *  carries `seq: 0` at the position it was admitted on. */
+  displacement: DisplacementStamp;
 }
 
 export interface PartyMemberState {
@@ -1492,7 +1529,13 @@ function isSelfState(value: unknown): value is SelfState {
     !isInventory(value.inventory) ||
     !isQuestState(value.quest) ||
     !isLifeState(value.life) ||
-    !(value.corpse === null || (isRecord(value.corpse) && isWorldPosition(value.corpse)))
+    !(value.corpse === null || (isRecord(value.corpse) && isWorldPosition(value.corpse))) ||
+    // Required, and parsed as strictly as a reported position: this is the field a client answers by
+    // TELEPORTING, and the number it must echo back to keep being allowed to move at all. A missing
+    // or malformed stamp read as zero would pin the client's echo below the room's counter forever.
+    !isRecord(value.displacement) ||
+    !isNonNegativeInteger(value.displacement.seq) ||
+    !isWorldPosition(value.displacement)
   ) {
     return false;
   }
@@ -1831,14 +1874,28 @@ function isMoveCoordinate(value: unknown): value is number {
  */
 function parseMove(value: Record<string, unknown>): MoveMessage | null {
   if (
-    !hasOnlyKeys(value, ["t", "x", "y", "z", "facing", "airborne", "swimming", "gliding"]) ||
+    !hasOnlyKeys(value, [
+      "t",
+      "x",
+      "y",
+      "z",
+      "facing",
+      "airborne",
+      "swimming",
+      "gliding",
+      "displacement",
+    ]) ||
     !isMoveCoordinate(value.x) ||
     !isMoveCoordinate(value.y) ||
     !isMoveCoordinate(value.z) ||
     !isDirection(value.facing) ||
     typeof value.airborne !== "boolean" ||
     typeof value.swimming !== "boolean" ||
-    typeof value.gliding !== "boolean"
+    typeof value.gliding !== "boolean" ||
+    // The echoed stamp is under the same absent-key rule as the flags above: a frame that omits it
+    // is malformed, never a frame that means "zero". Defaulting it would make every client that
+    // forgot the field permanently exempt from the staleness check it exists to feed.
+    !isNonNegativeInteger(value.displacement)
   ) {
     return null;
   }
@@ -1851,6 +1908,7 @@ function parseMove(value: Record<string, unknown>): MoveMessage | null {
     airborne: value.airborne,
     swimming: value.swimming,
     gliding: value.gliding,
+    displacement: value.displacement,
   };
 }
 

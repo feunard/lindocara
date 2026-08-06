@@ -46,6 +46,7 @@ describe("TalentTree", () => {
         xpToNext: 100,
         life: "alive",
         corpse: null,
+        displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 2, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
         talents: { selected: [], pointsSpent: 0, pointsAvailable: 10 },

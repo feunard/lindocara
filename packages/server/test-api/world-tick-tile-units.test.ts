@@ -255,6 +255,9 @@ describe("an authored teleport, in tile units", () => {
       airborne: false,
       swimming: false,
       gliding: false,
+      // The stamp the room currently holds: this test is about the BOUNDS, so its frames must be
+      // current — a stale echo would be dropped by the other guard and prove nothing here.
+      displacement: player.displacement,
     };
 
     // Inside the wire's own ±128-tile bound (`MOVE_COORDINATE_LIMIT`) and far off THIS 16-cell
@@ -453,6 +456,7 @@ describe("a server-authored teleport writes both ground axes", () => {
       airborne: false,
       swimming: false,
       gliding: false,
+      displacement: player.displacement,
     });
 
     expect(player.x).toBeCloseTo(to.x, 10);

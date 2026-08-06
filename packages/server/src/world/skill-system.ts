@@ -11,7 +11,7 @@ import {
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import type { GroundIndexUpdate, PlayerRuntime } from "./world-runtime.js";
+import { displacePlayer, type GroundIndexUpdate, type PlayerRuntime } from "./world-runtime.js";
 
 export interface ChargeCandidate extends GroundVector {
   id: string;
@@ -102,13 +102,17 @@ export function movePlayerInDirection(
     );
     if (moved.x === player.x && moved.z === player.z) break;
     const previousPosition = { x: player.x, z: player.z };
-    player.x = moved.x;
-    player.z = moved.z;
-    player.y = groundUnder(terrain, player.x, player.z, player.y);
+    // One segment, one stamp. The counter is monotone and only its final value is ever announced —
+    // no snapshot leaves the room between two iterations of this loop — so a charge that resolves in
+    // twelve segments costs the client exactly one adoption, of the point it actually stopped at.
+    displacePlayer(player, {
+      x: moved.x,
+      y: groundUnder(terrain, moved.x, moved.z, player.y),
+      z: moved.z,
+    });
     grid.update(player, previousPosition);
     movedAny = true;
     remaining -= stepDistance;
   }
-  if (movedAny) player.dirty = true;
   return movedAny;
 }

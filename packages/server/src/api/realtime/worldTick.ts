@@ -351,6 +351,7 @@ import {
   CHAT_MAX_LENGTH,
   type CombatActionRuntime,
   D1_SAVE_EVERY_TICKS,
+  displacePlayer,
   type GroundLoot,
   type GuardRuntime,
   type MonsterRuntime,
@@ -616,6 +617,29 @@ export function sendStateTo(w: WorldGlue, connectionId: string, player: PlayerRu
     playerQuestMarkers(w.state, player),
     w.state.adventureState.state.materials ?? EMPTY_PARTY_MATERIALS,
   );
+}
+
+/**
+ * Tells every hero the room has moved that the room moved it — an obligation, not an optimisation.
+ *
+ * `SelfState.displacement` is the only carrier of a server-authored displacement, and until it
+ * arrives the client's every `move` frame is dropped (`knowsCurrentDisplacement`). A displacement
+ * nobody announced therefore does not merely go unnoticed: it locks its hero out of the position
+ * stream for as long as the silence lasts. Most sites already send a state frame of their own and
+ * `selfState` marks the stamp as it builds one, so this normally sends nothing at all — it exists so
+ * that a site which does not, and the fifteenth site added tomorrow, cannot cost a hero its
+ * movement.
+ *
+ * Run immediately before the snapshot flush, and THAT ORDER IS THE CONTRACT: both frames leave on
+ * one ordered socket, so the stamp is always in the client's hands before the `world.delta` carrying
+ * the displaced position — and a client can never adopt the position of a displacement it has not
+ * been told about.
+ */
+function announceDisplacements(w: WorldGlue): void {
+  for (const [connectionId, player] of w.state.players) {
+    if (!player.authorized || player.displacement === player.displacementAnnounced) continue;
+    sendStateTo(w, connectionId, player);
+  }
 }
 
 /** Idempotent camp replay for admission and the slow AOI catch-up heartbeat. */
@@ -964,6 +988,29 @@ function withinRoomBounds(terrain: ZoneDefinition["terrain"], move: MoveMessage)
 }
 
 /**
+ * Does this reported position know about every displacement the room has performed?
+ *
+ * The client owns where its hero is, but the room still MOVES one — a ghost release, a Pas de Lumen
+ * landing, an authored teleport, a charge. For one round trip after it does, the client is still
+ * computing and sending positions from where the hero used to be, and a room that stored them would
+ * see the displacement quietly undone by the last stale frame: nothing throws, nothing logs, the
+ * hero is simply back where it was.
+ *
+ * `displacePlayer` stamps every such write with a monotone counter, `SelfState.displacement` ships
+ * it to the owner together with the position it stamps, and a frame echoes the stamp it was computed
+ * under. A mismatch means the sender has not seen the room's newest displacement yet.
+ *
+ * Like {@link withinRoomBounds}, this is VALIDITY and not authority. It grants a client nothing: the
+ * echo can only ever repeat a number the room issued, so a stamp AHEAD of the room's — a value it
+ * never sent — mismatches exactly as a stale one does, and is dropped the same silent way. What the
+ * client decides remains where it is; this decides only which of its claims are still about the
+ * present.
+ */
+function knowsCurrentDisplacement(player: PlayerRuntime, move: MoveMessage): boolean {
+  return move.displacement === player.displacement;
+}
+
+/**
  * The client's report of where its own hero now is — the one fact a client supplies rather than an
  * intent (the S3 spec, decision 4). The room stores it and relays it; it never recomputes it.
  *
@@ -973,6 +1020,8 @@ function withinRoomBounds(terrain: ZoneDefinition["terrain"], move: MoveMessage)
  *
  * A corpse does not move, and a hero mid-handoff has had its position decided by the transition
  * itself — both drop the frame rather than answering it, exactly as the retired command path did.
+ * A frame that predates a displacement the room performed is dropped for the same reason and in the
+ * same silent way — see {@link knowsCurrentDisplacement}.
  */
 export function applyReportedMove(
   w: WorldGlue,
@@ -982,6 +1031,7 @@ export function applyReportedMove(
 ): void {
   if (player.life === "corpse" || player.transitioning || player.disconnecting) return;
   if (!withinRoomBounds(zone(w.state).terrain, move)) return;
+  if (!knowsCurrentDisplacement(player, move)) return;
 
   const previousPosition = { x: player.x, z: player.z };
   const moved = move.x !== player.x || move.z !== player.z;
@@ -1204,9 +1254,11 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
     if (landing) releasePosition = landing;
   }
   player.life = "ghost";
-  player.x = releasePosition.x;
-  player.z = releasePosition.z;
-  player.y = groundUnder(terrain, releasePosition.x, releasePosition.z, player.y);
+  displacePlayer(player, {
+    x: releasePosition.x,
+    y: groundUnder(terrain, releasePosition.x, releasePosition.z, player.y),
+    z: releasePosition.z,
+  });
   w.state.playerGrid.update(player, previousPosition);
   freeze(w, player);
   w.deps.send(connectionId, {
@@ -1859,9 +1911,11 @@ function damagePlayer(
       const terrain = zone(w.state).terrain;
       const previous = { x: player.x, y: player.y, z: player.z };
       player.hp = 1;
-      player.x = soulAnchor.x;
-      player.z = soulAnchor.z;
-      player.y = groundUnder(terrain, soulAnchor.x, soulAnchor.z, soulAnchor.y);
+      displacePlayer(player, {
+        x: soulAnchor.x,
+        y: groundUnder(terrain, soulAnchor.x, soulAnchor.z, soulAnchor.y),
+        z: soulAnchor.z,
+      });
       player.priestSoulAnchor = null;
       if (soulAnchor.cleansePoison) {
         cleanseNegativeEffect(player, "poison");
@@ -2447,12 +2501,9 @@ export function finishHeldPlayerAction(
     const landing = safeLumenLanding(w, player, player, now);
     if (landing && (landing.x !== player.x || landing.z !== player.z)) {
       const previous = { x: player.x, z: player.z };
-      player.x = landing.x;
       // The GROUND pair is `x`/`z`; `y` is the elevation the terrain reports under the landing.
-      player.z = landing.z;
-      player.y = landing.y;
+      displacePlayer(player, landing);
       w.state.playerGrid.update(player, previous);
-      player.dirty = true;
     }
     const renewal = talentEffect(player.class, player.talents, "blink_heal", 3);
     if (renewal) {
@@ -2771,11 +2822,8 @@ export function startPlayerAction(
     });
     if (stealthExited && predator) armRoguePredatorShiv(player, now, predator);
     cancelCombatAction(player);
-    player.x = planning.destination.x;
-    player.y = planning.destination.y;
-    player.z = planning.destination.z;
+    displacePlayer(player, planning.destination);
     player.rogueShadowReturn = null;
-    player.dirty = true;
     w.state.playerGrid.update(player, origin);
     sendStateTo(w, connectionId, player);
     deps.send(connectionId, {
@@ -2859,11 +2907,12 @@ export function startPlayerAction(
     }
     const origin = { x: player.x, y: player.y, z: player.z };
     cancelCombatAction(player);
-    player.x = destination.x;
-    player.z = destination.z;
-    player.y = groundUnder(terrain, destination.x, destination.z, destination.y);
+    displacePlayer(player, {
+      x: destination.x,
+      y: groundUnder(terrain, destination.x, destination.z, destination.y),
+      z: destination.z,
+    });
     player.rangerAfterimage = null;
-    player.dirty = true;
     w.state.playerGrid.update(player, origin);
     const swapDirection = normalizeGround(
       { x: destination.x - origin.x, z: destination.z - origin.z },
@@ -2961,11 +3010,8 @@ export function startPlayerAction(
     }
     const origin = { x: player.x, y: player.y, z: player.z };
     cancelCombatAction(player);
-    player.x = destination.x;
-    player.y = destination.y;
-    player.z = destination.z;
+    displacePlayer(player, destination);
     player.rogueDanceMarks = [];
-    player.dirty = true;
     w.state.playerGrid.update(player, origin);
     sendStateTo(w, connectionId, player);
     sendSpatialEvent(
@@ -3308,9 +3354,7 @@ function resolveShadowDance(
   for (const planned of planning.plan.strikes) {
     const target = w.state.monsters.find((monster) => monster.id === planned.targetId);
     if (!target || target.deadUntil > now) continue;
-    player.x = planned.landing.x;
-    player.y = planned.landing.y;
-    player.z = planned.landing.z;
+    displacePlayer(player, planned.landing);
     const repeatedPower =
       planned.repeated && thousandCuts
         ? Math.max(
@@ -3348,15 +3392,11 @@ function resolveShadowDance(
   }
   const last = landed.at(-1);
   if (!last) {
-    player.x = origin.x;
-    player.y = origin.y;
-    player.z = origin.z;
+    displacePlayer(player, origin);
     return;
   }
 
-  player.x = last.landing.x;
-  player.y = last.landing.y;
-  player.z = last.landing.z;
+  displacePlayer(player, last.landing);
   player.facing = normalizeGround(
     { x: last.targetPosition.x - player.x, z: last.targetPosition.z - player.z },
     action.direction,
@@ -3789,9 +3829,7 @@ export function resolvePlayerAction(
         expiresAt: now + Math.max(0, shadowReturn.windowMs),
       };
     }
-    player.x = planned.destination.x;
-    player.y = planned.destination.y;
-    player.z = planned.destination.z;
+    displacePlayer(player, planned.destination);
     player.facing = normalizeGround(
       { x: target.x - player.x, z: target.z - player.z },
       action.direction,
@@ -4587,10 +4625,7 @@ function applyLumenPortal(
     if (!destination) continue;
     portal.usedPlayerIds.add(player.id);
     const previous = { x: player.x, y: player.y, z: player.z };
-    player.x = destination.x;
-    player.y = destination.y;
-    player.z = destination.z;
-    player.dirty = true;
+    displacePlayer(player, destination);
     w.state.playerGrid.update(player, previous);
     if (portal.healingPower > 0)
       healPlayer(
@@ -5422,11 +5457,8 @@ export function teleportSameMap(
     return first ? "first-refusal" : "repeat-refusal";
   }
   const previousPosition = { x: player.x, y: player.y, z: player.z };
-  player.x = destination.x;
-  player.z = destination.z;
-  player.y = landing;
+  displacePlayer(player, { x: destination.x, y: landing, z: destination.z });
   w.state.playerGrid.update(player, previousPosition);
-  player.dirty = true;
   return "teleported";
 }
 
@@ -6706,6 +6738,7 @@ export function advanceWorldTick(w: WorldGlue): void {
   // BEFORE the network flush: a run's teleport acts on final positions and rides out THIS tick's
   // snapshot, and the budget guarantees the drain returns so the tick never hangs.
   drainEventRuns(w, now);
+  announceDisplacements(w);
   if (state.tick % NETWORK_TICKS_PER_SNAPSHOT === 0) {
     broadcastNetworkUpdates(
       state.players,

@@ -109,6 +109,7 @@ describe("ui store", () => {
         quest: { status: "active", progress: 1, target: 3 },
         life: "ghost",
         corpse: { x: 1, y: 0, z: 2 },
+        displacement: { seq: 0, x: 0, y: 0, z: 0 },
       },
       questStatus: "active",
       prompt: { key: "prompt.hunt" },

@@ -21,6 +21,7 @@ const wellFormed = {
   airborne: false,
   swimming: false,
   gliding: false,
+  displacement: 4,
 } as const;
 
 describe("the move message", () => {
@@ -34,6 +35,7 @@ describe("the move message", () => {
       airborne: false,
       swimming: false,
       gliding: false,
+      displacement: 4,
     });
   });
 
@@ -42,7 +44,9 @@ describe("the move message", () => {
     // `null`, so the raw text is the only honest way to state this case.
     const raw = '{"t":"move","x":1e999,"y":0,"z":0,"facing":{"x":1,"z":0},';
     expect(
-      parseClientMessage(`${raw}"airborne":false,"swimming":false,"gliding":false}`),
+      parseClientMessage(
+        `${raw}"airborne":false,"swimming":false,"gliding":false,"displacement":0}`,
+      ),
     ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ ...wellFormed, z: Number.NaN }))).toBeNull();
   });
@@ -107,6 +111,28 @@ describe("the move message", () => {
       expect(parseClientMessage(JSON.stringify(withoutFlag))).toBeNull();
       expect(parseClientMessage(JSON.stringify({ ...wellFormed, [flag]: "yes" }))).toBeNull();
     }
+  });
+
+  /**
+   * The echoed displacement stamp (`SelfState.displacement`) is what tells a report computed before
+   * a server-authored displacement from one computed after it. It is under the same absent-key rule
+   * as the flags above, and for a sharper reason: read as zero, a client that never sends it would
+   * be permanently below the room's counter and permanently unable to move — or, on a hero the room
+   * has never displaced, permanently exempt from the check.
+   *
+   * It grants no authority either. Only the room raises the counter; a client can echo a value it
+   * was never given, and the room's equality check refuses it (`world-room-displacement.test.ts`).
+   * The parser's job is only to insist the field is a real count.
+   */
+  it("drops a frame missing the displacement stamp rather than defaulting it", () => {
+    const { displacement: _omitted, ...withoutStamp } = wellFormed;
+    expect(parseClientMessage(JSON.stringify(withoutStamp))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, displacement: null }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, displacement: "4" }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, displacement: -1 }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, displacement: 1.5 }))).toBeNull();
+    // Zero is a real count — the stamp of a hero the room has not moved — and must survive.
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, displacement: 0 }))).not.toBeNull();
   });
 
   it("no longer accepts the retired sequenced input intent", () => {

@@ -55,6 +55,7 @@ describe("merchant and inventory", () => {
         xpToNext: 100,
         life: "alive",
         corpse: null,
+        displacement: { seq: 0, x: 0, y: 0, z: 0 },
         serverNow: 1_000,
         consumableCooldownUntil: 0,
         inventory: {

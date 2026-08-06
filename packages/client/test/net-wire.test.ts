@@ -147,6 +147,8 @@ const WELCOME: Extract<ServerMessage, { t: "welcome" }> = {
     quest: { status: "available", progress: 0, target: 3 },
     life: "alive",
     corpse: null,
+    // The room has moved nobody yet, at the position it admitted this hero on.
+    displacement: { seq: 0, x: 0, y: 0, z: 0 },
   },
 };
 

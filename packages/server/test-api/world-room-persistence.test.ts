@@ -255,6 +255,8 @@ const reportEast = (from: { x: number; y: number; z: number }) => ({
   airborne: false,
   swimming: false,
   gliding: false,
+  // A fresh hero the room has never displaced: its stamp is the welcome's own zero.
+  displacement: 0,
 });
 
 describe("world room persistence (FakeClock)", () => {

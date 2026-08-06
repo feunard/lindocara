@@ -121,6 +121,8 @@ const WELCOME: ServerMessage = {
     quest: { status: "available", progress: 0, target: 3 },
     life: "alive",
     corpse: null,
+    // The room has moved nobody yet, at the position it admitted this hero on.
+    displacement: { seq: 0, x: 0, y: 0, z: 0 },
   },
 };
 
@@ -248,9 +250,18 @@ describe("WorldClient lifecycle", () => {
     }
   }
 
-  function movesOf(socket: FakeWebSocket | undefined): { t: string; x: number; z: number }[] {
+  function movesOf(
+    socket: FakeWebSocket | undefined,
+  ): { t: string; x: number; z: number; displacement: number }[] {
     return (socket?.sent ?? [])
-      .map((raw) => (JSON.parse(raw) as { message: { t: string; x: number; z: number } }).message)
+      .map(
+        (raw) =>
+          (
+            JSON.parse(raw) as {
+              message: { t: string; x: number; z: number; displacement: number };
+            }
+          ).message,
+      )
       .filter((message) => message.t === "move");
   }
 
@@ -289,6 +300,53 @@ describe("WorldClient lifecycle", () => {
     // would have cut momentum ten times and left the stormed hero measurably behind.
     expect(stormedX).toBeCloseTo(quietX ?? Number.NaN, 10);
     expect(movesOf(stormedSocket).length).toBe(movesOf(quietSocket).length);
+  });
+
+  /**
+   * A server-authored displacement reaches this client as one `SelfState.displacement` — the
+   * position AND the stamp that authorises it, in a single frame.
+   *
+   * The pairing is the point. The room drops every report whose stamp is not its own current one, so
+   * a client that raised its echo before it had adopted the position would spend that window
+   * reporting where the hero USED to be, under a stamp the room accepts — which is precisely the
+   * displacement-undone bug the stamp exists to prevent, reintroduced from the other side.
+   */
+  it("adopts a displacement's position and its stamp out of the same frame", async () => {
+    stubJoin();
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME);
+
+    // Half a second of walking east, then the room moves the hero west and says so, then the walk
+    // continues. One run, because the report throttle reads a clock the harness only advances here.
+    animate(client, (frame) => {
+      if (frame !== 30) return;
+      socket?.message({
+        t: "state",
+        self: {
+          ...(WELCOME as unknown as { self: Record<string, unknown> }).self,
+          displacement: { seq: 3, x: -5, y: 0, z: 4 },
+        },
+      } as unknown as ServerMessage);
+      const adopted = client.sample(0).players.find((player) => player.id === "hero-1");
+      expect(adopted?.x).toBeCloseTo(-5, 10);
+      expect(adopted?.z).toBeCloseTo(4, 10);
+    });
+
+    const moves = movesOf(socket);
+    // Before the displacement the echo is the welcome's own stamp, and the hero had walked east.
+    const walked = moves.filter((message) => message.displacement === 0);
+    expect(walked.length).toBeGreaterThan(0);
+    expect(walked.at(-1)?.x ?? 0).toBeGreaterThan(0);
+    // After it, every report echoes the stamp that came WITH the position — a report still carrying
+    // `0` would be dropped by the room and this hero would never move again — and the walk resumes
+    // from where the room put it rather than from where it had walked to.
+    const after = moves.filter((message) => message.displacement === 3);
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.at(-1)?.x ?? 0).toBeLessThan(0);
+    expect(moves.at(-1)?.displacement).toBe(3);
   });
 
   it("throttles its reports no matter how often the server moves it", async () => {

@@ -86,6 +86,7 @@ const SELF_STATE_FIXTURE: SelfState = {
   xpToNext: 220,
   life: "alive",
   corpse: null,
+  displacement: { seq: 0, x: 0, y: 0, z: 0 },
   inventory: { potions: 2, gold: 9, crystals: 1 },
   quest: { status: "active", progress: 1, target: 3 },
 };

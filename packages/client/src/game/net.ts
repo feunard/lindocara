@@ -12,6 +12,7 @@ import {
   type ClientMessage,
   type CombatAnimation,
   type CorpseSnapshot,
+  type DisplacementStamp,
   type EventCode,
   type EventParams,
   type EventTone,
@@ -258,6 +259,16 @@ export class WorldClient {
   #terrain: ZoneTerrain | null = null;
   #heroSettings: MapHeroSettings = defaultMapHeroSettings();
 
+  /**
+   * The room's displacement stamp, as last adopted (`SelfState.displacement`). Echoed on every
+   * report: the room drops any frame carrying anything else, which is what stops a position this
+   * client computed before a server-authored displacement from undoing it.
+   *
+   * Seeded from the welcome — a new room's counter starts at its own zero, so this is ASSIGNED there
+   * rather than raised.
+   */
+  #displacement = 0;
+
   /** Positions already reported, newest last — see `REPORT_HISTORY`. */
   #reported: WorldPosition[] = [];
   #reportedAt = 0;
@@ -455,6 +466,11 @@ export class WorldClient {
       airborne: state.airborne,
       swimming: state.swimming,
       gliding: state.gliding,
+      // Repeated, never chosen: the room issued this number and drops any frame that echoes another.
+      // It rides on the frame rather than being remembered per connection because that is what makes
+      // a report self-describing — the room can tell which of its own displacements this position
+      // was computed under.
+      displacement: this.#displacement,
     };
     const encoded = JSON.stringify(message);
     if (encoded === this.#lastReport) return;
@@ -563,6 +579,11 @@ export class WorldClient {
         this.#lastReport = null;
         this.#reportedAt = 0;
       }
+      // ASSIGNED, not raised: a welcome is a new room with its own counter, and a cross-map handoff
+      // routinely lands on one lower than the room just left. Taking the maximum would leave this
+      // client echoing a stamp the destination never issued, and every frame it sent would be
+      // dropped. The hero is already standing where the stamp says, so nothing is adopted here.
+      this.#displacement = message.self.displacement.seq;
       // A welcome carries the same self state a `state` frame does, so a hero readmitted mid-hold
       // resumes its grant on the new controller instead of standing in a channel it cannot spend.
       this.#applyMobilityGrant(message.self);
@@ -625,6 +646,7 @@ export class WorldClient {
       return;
     }
     if (message.t === "state") {
+      this.#adoptDisplacement(message.self.displacement);
       this.#applyMobilityGrant(message.self);
       handlers.onState(message.self);
       return;
@@ -803,6 +825,38 @@ export class WorldClient {
     // The next report must actually go out, even if the encoded frame happens to match the one
     // before the snap. `#reportedAt` is deliberately NOT reset: the throttle is unconditional, so
     // an adopt can never buy an extra frame inside a window and the ceiling below stays a ceiling.
+    this.#lastReport = null;
+  }
+
+  /**
+   * The room moved this hero, and says so with the position it moved it to (`DisplacementStamp`).
+   *
+   * **Position and stamp are adopted together, out of one frame, and that is the whole point.** The
+   * hero goes where the room put it and the echo rises to the stamp that authorises it, in one step:
+   * echoing the new stamp a moment earlier would let this client's next report — still computed from
+   * where the hero used to be — be accepted, undoing the very displacement the stamp exists to
+   * protect. That is why the stamp does not ride the `world.delta` beside the position: it would
+   * arrive later than the `state` frame that carries the rest of the news, and the gap is the bug.
+   *
+   * `seq` is monotone within a room, so a repeat is a no-op — every later `state` frame carries the
+   * same stamp again, and re-teleporting on each would cut the hero's momentum twenty times a
+   * second. It never DECREASES here either: only a welcome resets the counter, and a welcome assigns.
+   *
+   * A stamp is not lost by going unnoticed. Every `SelfState` is rebuilt from the live player, so the
+   * next state frame carries the same `seq` and the same position; nothing has to be re-requested.
+   */
+  #adoptDisplacement(stamp: DisplacementStamp): void {
+    if (stamp.seq <= this.#displacement) return;
+    this.#displacement = stamp.seq;
+    const hero = this.#hero;
+    if (!hero) return;
+    // All three axes, and momentum cut: a hero the room moved did not walk there.
+    hero.teleport({ x: stamp.x, y: stamp.y, z: stamp.z });
+    this.#reported = [];
+    this.#rememberReportedFromHero();
+    // The next report must actually go out even if it encodes identically to the one before the
+    // snap. `#reportedAt` stays untouched for the same reason `#adoptServerPosition` leaves it: the
+    // throttle is unconditional, so an adopt can never buy a frame inside its window.
     this.#lastReport = null;
   }
 

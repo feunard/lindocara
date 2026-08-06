@@ -25,6 +25,7 @@ describe("client protocol", () => {
       airborne: false,
       swimming: false,
       gliding: false,
+      displacement: 0,
     };
     expect(parseClientMessage(JSON.stringify(move))).toEqual(move);
     expect(parseClientMessage(JSON.stringify({ t: "attack" }))).toEqual({ t: "attack" });
@@ -230,6 +231,7 @@ describe("server protocol", () => {
     quest: { status: "available", progress: 0, target: 3 },
     life: "alive",
     corpse: null,
+    displacement: { seq: 0, x: 0, y: 0, z: 0 },
   };
   const welcomeBase = {
     t: "welcome",

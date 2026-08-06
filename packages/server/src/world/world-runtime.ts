@@ -414,6 +414,24 @@ export interface PlayerRuntime extends PlayerProfile {
    * carry several traders and what stops a hero buying from across the map after walking away.
    */
   shopAnchor: WorldPosition | null;
+  /**
+   * How many times the ROOM has moved this hero — a ghost release, a Pas de Lumen landing, an
+   * authored teleport, a charge.
+   *
+   * The client owns where its hero is (the S3 spec, decision 4) and reports it at 20 Hz, so a
+   * server-authored displacement races the frames already in flight: those were computed from where
+   * the hero used to be, and a room that stored them would let the last stale one undo the
+   * displacement. This counter is what tells the two apart. It ships to its owner inside
+   * `SelfState.displacement` together with the position it stamps, comes back on every `MoveMessage`,
+   * and a frame whose stamp is not the current one is dropped (`applyReportedMove`).
+   *
+   * Monotone and room-local: never persisted, never read from a client, and reset by the fresh
+   * runtime a cross-map handoff builds — the destination's welcome re-seeds the client from it.
+   */
+  displacement: number;
+  /** The last `displacement` value actually shipped in a `SelfState`. The gap between the two is
+   *  what `announceDisplacements` (`worldTick.ts`) owes the client before the next snapshot. */
+  displacementAnnounced: number;
 }
 
 export interface MonsterRuntime extends WorldPosition {
@@ -618,6 +636,38 @@ export function toAttachment(player: PlayerRuntime): Attachment {
   };
 }
 
+/**
+ * The room moves a hero. **Every server-authored position write goes through here, and there is no
+ * second way to do it** — `applyReportedMove` (`worldTick.ts`), which stores what the CLIENT
+ * reports, is the only other place in this package that assigns `player.x`.
+ *
+ * Two things it exists to make impossible at once:
+ *
+ * - **A half-written position.** `x` and `z` are the two GROUND axes and `y` is ELEVATION; a write
+ *   that carries two of the three typechecks fine and puts the world on its side. This branch has
+ *   already shipped that twice. One writer, all three axes.
+ * - **A displacement silently undone.** Bumping {@link PlayerRuntime.displacement} is what makes the
+ *   client frames still in flight — computed from where the hero used to be — droppable. Sprinkling
+ *   the increment across fourteen call sites is the same trap with a second face: the fifteenth
+ *   would forget it, and nothing would fail.
+ *
+ * A write that changes nothing is not a displacement and does not stamp one: there is no in-flight
+ * frame that could undo a move to where the hero already stands, and stamping it would spend a
+ * client round trip re-adopting a position it already holds.
+ *
+ * It updates no spatial index and sends nothing. Callers keep both, because the index update needs
+ * the previous position they already hold and the send needs their connection id.
+ */
+export function displacePlayer(player: PlayerRuntime, position: WorldPosition): boolean {
+  if (player.x === position.x && player.y === position.y && player.z === position.z) return false;
+  player.x = position.x;
+  player.y = position.y;
+  player.z = position.z;
+  player.displacement += 1;
+  player.dirty = true;
+  return true;
+}
+
 export function newPlayer(
   profile: PlayerProfile,
   connectionId: string,
@@ -667,6 +717,10 @@ export function newPlayer(
     airborne: false,
     swimming: false,
     gliding: false,
+    // Nobody has been moved by the room yet, and the welcome ships this same zero: the client's
+    // first report echoes it back and is accepted.
+    displacement: 0,
+    displacementAnnounced: 0,
     dirty: false,
     lastAttackAt:
       cooldowns.attackUntil === 0
