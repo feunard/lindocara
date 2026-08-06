@@ -102,10 +102,11 @@ under the 35/s window for chat, actions and resyncs. `onTick` stays SYNCHRONOUS:
 beats.
 
 **Volatile-state caveats (accepted, documented in the room docblocks)**: room state is
-memory-only — Node sweeps idle rooms after 5 minutes and a CF isolate eviction loses it. The tick
-stops when a room empties and state is recreated on the next join (temporary monsters/loot
-reset); a lost presence lease degrades to a 4003 kick and the epoch fence keeps writes safe
-regardless.
+memory-only — Node sweeps idle rooms after 5 minutes, and so does a restart of the Bay process
+itself (a redeploy or a crash), since production is one plain Node process, not a pool of
+Cloudflare isolates. The tick stops when a room empties and state is recreated on the next join
+(temporary monsters/loot reset); a lost presence lease degrades to a 4003 kick and the epoch fence
+keeps writes safe regardless.
 
 **D1 discipline**, both load-bearing and easy to violate:
 - `LindocaraApi` globally substitutes `CacheProvider` with `DatabaseCacheProvider`. This is the

@@ -324,7 +324,7 @@ export function advanceMonsters<TSocket>(
             monster,
             targetPosition === player
               ? player
-              : { ...player, x: targetPosition.x, z: targetPosition.z },
+              : { ...player, x: targetPosition.x, y: targetPosition.y, z: targetPosition.z },
             now,
           );
         }

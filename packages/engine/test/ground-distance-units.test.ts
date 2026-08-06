@@ -29,6 +29,7 @@ import {
   MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_RANGE,
 } from "../src/game.js";
+import { MAX_HEIGHTFIELD_SIZE } from "../src/hd2d/map-data.js";
 import {
   CORPSE_VISIBILITY_RADIUS,
   GUARD_VISIBILITY_RADIUS,
@@ -75,35 +76,37 @@ describe("interest radii, in tile units", () => {
     expect(CORPSE_RECLAIM_RANGE).toBe(44 / TILE_SIZE);
   });
 
-  it("keeps every ground-distance constant inside a grid a map could actually have", () => {
-    // The cheap catch-all, and the one that would have caught `REWARD_DISTANCE` without anybody
-    // knowing its pixel original: the largest heightfield an author can build is 64 cells a side,
-    // so a distance bound larger than that describes no reachable pair of points and is a gate
-    // that cannot gate. Elevation-free by construction — these are all ground distances.
-    const LARGEST_GRID = 64;
-    for (const [name, value] of [
-      ["REWARD_DISTANCE", REWARD_DISTANCE],
-      ["THREAT_LEASH_DISTANCE", THREAT_LEASH_DISTANCE],
-      ["DIALOGUE_CLOSE_RADIUS", DIALOGUE_CLOSE_RADIUS],
-      ["PLAYER_VISIBILITY_RADIUS", PLAYER_VISIBILITY_RADIUS],
-      ["MONSTER_VISIBILITY_RADIUS", MONSTER_VISIBILITY_RADIUS],
-      ["GUARD_VISIBILITY_RADIUS", GUARD_VISIBILITY_RADIUS],
-      ["CORPSE_VISIBILITY_RADIUS", CORPSE_VISIBILITY_RADIUS],
-      ["LOOT_VISIBILITY_RADIUS", LOOT_VISIBILITY_RADIUS],
-      ["LOCAL_CHAT_RADIUS", LOCAL_CHAT_RADIUS],
-      ["SPATIAL_EVENT_RADIUS", SPATIAL_EVENT_RADIUS],
-      ["MONSTER_AGGRO_RANGE", MONSTER_AGGRO_RANGE],
-      ["MONSTER_ATTACK_RANGE", MONSTER_ATTACK_RANGE],
-      ["GUARD_DETECTION_RANGE", GUARD_DETECTION_RANGE],
-      ["GUARD_ATTACK_RANGE", GUARD_ATTACK_RANGE],
-      ["INTERACTION_RANGE", INTERACTION_RANGE],
-      ["LOOT_PICKUP_RANGE", LOOT_PICKUP_RANGE],
-      ["CORPSE_RECLAIM_RANGE", CORPSE_RECLAIM_RANGE],
-    ] as const) {
-      expect(`${name}=${value}`).toBe(`${name}=${value}`);
-      expect(value).toBeLessThanOrEqual(LARGEST_GRID);
-      expect(value).toBeGreaterThan(0);
-    }
+  // The cheap catch-all, and the one that would have caught `REWARD_DISTANCE` without anybody
+  // knowing its pixel original: `MAX_HEIGHTFIELD_SIZE` (`hd2d/map-data.ts`) is the largest
+  // heightfield an author can build a side, so a distance bound larger than that describes no
+  // reachable pair of points and is a gate that cannot gate. Elevation-free by construction —
+  // these are all ground distances. `test.each` (rather than a loop with one shared assertion)
+  // is what makes a failing constant's NAME appear in the test output instead of a bare number.
+  const GROUND_DISTANCE_CONSTANTS = [
+    ["REWARD_DISTANCE", REWARD_DISTANCE],
+    ["THREAT_LEASH_DISTANCE", THREAT_LEASH_DISTANCE],
+    ["DIALOGUE_CLOSE_RADIUS", DIALOGUE_CLOSE_RADIUS],
+    ["PLAYER_VISIBILITY_RADIUS", PLAYER_VISIBILITY_RADIUS],
+    ["MONSTER_VISIBILITY_RADIUS", MONSTER_VISIBILITY_RADIUS],
+    ["GUARD_VISIBILITY_RADIUS", GUARD_VISIBILITY_RADIUS],
+    ["CORPSE_VISIBILITY_RADIUS", CORPSE_VISIBILITY_RADIUS],
+    ["LOOT_VISIBILITY_RADIUS", LOOT_VISIBILITY_RADIUS],
+    ["LOCAL_CHAT_RADIUS", LOCAL_CHAT_RADIUS],
+    ["SPATIAL_EVENT_RADIUS", SPATIAL_EVENT_RADIUS],
+    ["MONSTER_AGGRO_RANGE", MONSTER_AGGRO_RANGE],
+    ["MONSTER_ATTACK_RANGE", MONSTER_ATTACK_RANGE],
+    ["GUARD_DETECTION_RANGE", GUARD_DETECTION_RANGE],
+    ["GUARD_ATTACK_RANGE", GUARD_ATTACK_RANGE],
+    ["INTERACTION_RANGE", INTERACTION_RANGE],
+    ["LOOT_PICKUP_RANGE", LOOT_PICKUP_RANGE],
+    ["CORPSE_RECLAIM_RANGE", CORPSE_RECLAIM_RANGE],
+  ] as const;
+
+  it.each(
+    GROUND_DISTANCE_CONSTANTS,
+  )("keeps %s inside a grid a map could actually have", (_name, value) => {
+    expect(value).toBeLessThanOrEqual(MAX_HEIGHTFIELD_SIZE);
+    expect(value).toBeGreaterThan(0);
   });
 
   it("pins the dialogue walk-away radius absolutely, not against itself", () => {

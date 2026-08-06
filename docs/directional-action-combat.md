@@ -27,8 +27,9 @@ géométrie, des collisions, des dégâts, des soins, de la menace et des récom
 - Le message historique `heal` est rejeté ; Mend est la compétence 2 du Prêtre.
 - Le facing arrive maintenant explicitement sur la trame `move` du client (un `GroundVector`
   unitaire, `{x, z}` ; une trame dont le vecteur n'est pas unitaire est rejetée entière).
-  L'immobilité le conserve, et le serveur le fige au wind-up d'une action comme avant : le facing de
-  COMBAT reste sa décision, pas celle du client.
+  L'immobilité le conserve, et le serveur le fige au wind-up d'une action comme avant : c'est le
+  *moment* de ce gel qui reste la décision du serveur, pas le vecteur lui-même — celui-ci arrive du
+  client sur sa propre trame `move`, et le serveur se contente de le mémoriser.
 - Les snapshots diffusent ce facing pour orienter les autres héros, sans le persister dans D1.
 - Les messages `animation` transportent un `actionId`, l'acteur, l'action/compétence, la direction
   figée et les instants serveur de début, impact et fin. Ces champs sont exclusivement visuels.
