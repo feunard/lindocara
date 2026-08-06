@@ -20,6 +20,11 @@ import { FileSystemProvider, ShellProvider } from "alepha/system";
 import { S3mini } from "s3mini";
 import { platformOptions } from "../atoms/platformOptions.ts";
 import { PlatformCacheProvider } from "../providers/PlatformCacheProvider.ts";
+import {
+  readManifestEnvKeys,
+  EXCLUDED_SECRET_KEYS as SHARED_EXCLUDED_SECRET_KEYS,
+  selectSecrets,
+} from "../secretKeys.ts";
 import { CloudflareApi } from "../services/CloudflareApi.ts";
 import { tenantDomain } from "../services/NamingService.ts";
 import { WranglerApi } from "../services/WranglerApi.ts";
@@ -428,47 +433,27 @@ export class CloudflareAdapter extends PlatformAdapter {
   /**
    * Vars that are handled by wrangler bindings or build config.
    * These should not be pushed as secrets.
+   *
+   * The list itself moved to `../secretKeys.ts` when {@link BayAdapter} needed
+   * the same answer; this alias stays because it is what every existing caller
+   * names (`platform.ts`'s plan output among them). Same Set, so nothing about
+   * this adapter's behaviour changed.
    */
-  static readonly EXCLUDED_SECRET_KEYS = new Set([
-    "DATABASE_URL",
-    "R2_BUCKET_NAME",
-    "CLOUDFLARE_DOMAIN",
-    "CLOUDFLARE_ZONE",
-    "CLOUDFLARE_JURISDICTION",
-    "HYPERDRIVE_ID",
-    "POSTGRES_SCHEMA",
-    "NODE_ENV",
-    // Framework infra knobs (have defaults, never worker secrets). The
-    // manifest's `env` auto-list surfaces every declared `$env` key, so
-    // exclude these here to keep them out of the secret push even when a CI
-    // runner happens to set them (LOG_LEVEL, DEBUG, etc.).
-    "LOG_LEVEL",
-    "LOG_FORMAT",
-    "SERVER_HOST",
-    "SERVER_PORT",
-    "TRUST_PROXY",
-    "REACT_SSR_ENABLED",
-    "DATABASE_SYNC",
-    "DEBUG",
-  ]);
+  static readonly EXCLUDED_SECRET_KEYS = SHARED_EXCLUDED_SECRET_KEYS;
 
   /**
    * Read the build manifest's `env` list (every key the app declares via
    * `$env`) from `dist/manifest.json`. Used as the default worker-secret
    * allowlist. Returns `undefined` when the manifest is absent or predates
    * the `env` field, so the caller falls back to the `.env` file keys.
+   *
+   * The body moved to `../secretKeys.ts` when `BayAdapter` needed the same
+   * allowlist; this stays as the adapter-shaped way in.
    */
   protected async readManifestEnvKeys(
     root: string,
   ): Promise<string[] | undefined> {
-    try {
-      const manifest = await this.fs.readJsonFile<Partial<BuildManifest>>(
-        this.fs.join(root, "dist", "manifest.json"),
-      );
-      return Array.isArray(manifest.env) ? manifest.env : undefined;
-    } catch {
-      return undefined;
-    }
+    return await readManifestEnvKeys(this.fs, root);
   }
 
   override async secrets(
@@ -506,15 +491,15 @@ export class CloudflareAdapter extends PlatformAdapter {
         new Set([...(manifestKeys ?? Object.keys(envVars)), ...localKeys]),
       );
 
-    // Filter out binding/build vars, VITE_* vars, and empty values
-    const secrets: Record<string, string> = {};
-    for (const key of keys) {
-      if (CloudflareAdapter.EXCLUDED_SECRET_KEYS.has(key)) continue;
-      if (key.startsWith("VITE_")) continue;
-      const value = envVars[key] ?? process.env[key];
-      if (!value) continue;
-      secrets[key] = value;
-    }
+    // Filter out binding/build vars, VITE_* vars, and empty values. Shared
+    // with `BayAdapter` (`../secretKeys.ts`) because it is the security
+    // boundary of both: `process.env` is consulted only for a key already on
+    // `keys`, so ambient runner vars can never leak.
+    const { secrets } = selectSecrets({
+      keys,
+      envVars,
+      excluded: CloudflareAdapter.EXCLUDED_SECRET_KEYS,
+    });
 
     // Auto-derive PUBLIC_URL from the configured domain so absolute links
     // (emails, OAuth callbacks, sitemap) resolve at runtime — the Worker
