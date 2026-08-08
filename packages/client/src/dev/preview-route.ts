@@ -1,62 +1,27 @@
-/**
- * `?preview` — walk a map on the bare canvas, with no login, no party and no server.
- *
- * **QUARANTINED WITH THE EDITOR (S3, 2026-08-04).** The route's whole body was one call into the
- * editor's `startMapPreview`, which is built on the PixiJS renderer S3 deleted. It deliberately
- * reused that preview rather than growing a second walk loop — that one already runs the shared
- * `step()` + `resolveTerrain()` on the real `terrainFromMap` bake, and a second copy of movement is
- * the exact fork this codebase refuses everywhere else. That reasoning still holds, so the route
- * waits for the editor's HD-2D rebuild instead of forking. Until then it says so on screen.
- *
- * What it did, and must do again:
- *
- *   /?preview=1                 the étalon map
- *   /?preview=1&palette=color1  the same map on another of the pack's five ground palettes
- *
- * ```ts
- * const palette = request.palette;
- * const paletteApplied = palette === null ? true : setGroundPalette(palette);
- * const { map, stairsPlaced, stairsRequested } = buildReferenceMapBuild();
- * const { startMapPreview } = await import("@lindocara/editor/game/map-preview.js");
- * await startMapPreview(map, [], { playerChrome: false, ambience: …, zoom: …, zoomControls: true });
- * ```
- *
- * The import was dynamic on purpose: a static `client -> editor` edge would be a cycle. Keep that
- * when restoring it.
- *
- * Dev only. `main.tsx` gates the whole route on `import.meta.env.DEV`, so it leaves production
- * builds entirely.
- */
+/** `?preview` walks the deterministic reference map through the shipped HD-2D preview client. */
 
-/**
- * **Every field here is parsed and then IGNORED** for as long as the route is quarantined (see the
- * file docblock): nothing reads them, because nothing draws. They are kept — parsed, validated and
- * defaulted — as one half of the restore package, so bringing the route back is re-wiring
- * `startPreviewRoute` rather than re-deriving what `?palette`/`?ambience`/`?zoom` meant.
- */
+import { AMBIENCE_FULL, AMBIENCE_NONE } from "@lindocara/renderer/ambience.js";
+import { setHd2dGroundPalette } from "@lindocara/renderer/hd2d/scene.js";
+import { buildReferenceMapBuild } from "./reference-map.js";
+
 export interface PreviewRequest {
   palette: string | null;
   ambience: boolean;
-  /** Starting camera multiplier. Below 1 pulls back; the renderer used to clamp the extremes. */
+  /** Starting camera multiplier. Below 1 pulls back. */
   zoom: number;
 }
 
-/** The `?preview` request in the current URL, or `null` when this is an ordinary app boot. */
 export function previewRequest(search: string): PreviewRequest | null {
   const params = new URLSearchParams(search);
   if (!params.has("preview")) return null;
-  // Ambience on by default here — this route exists to show the map at its best. `?ambience=0` is
-  // the A/B, and the caption says which side you are looking at so a screenshot is never ambiguous.
   const zoom = Number.parseFloat(params.get("zoom") ?? "");
   return {
     palette: params.get("palette"),
     ambience: params.get("ambience") !== "0",
-    // A URL is untrusted input even from yourself: a typo must not black the screen with NaN.
     zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
   };
 }
 
-/** A corner caption, in plain DOM: React never mounts on this route, and the canvas is not React's. */
 function captionInto(root: Element, lines: readonly string[]): void {
   const box = document.createElement("div");
   box.style.cssText = [
@@ -76,12 +41,24 @@ function captionInto(root: Element, lines: readonly string[]): void {
   root.appendChild(box);
 }
 
-export async function startPreviewRoute(_request: PreviewRequest): Promise<void> {
+export async function startPreviewRoute(request: PreviewRequest): Promise<void> {
+  const palette = request.palette;
+  const paletteApplied = palette === null ? true : setHd2dGroundPalette(palette);
+  const { map, stairsPlaced, stairsRequested } = buildReferenceMapBuild();
+  const { startMapPreview } = await import("@lindocara/editor/game/map-preview.js");
+  await startMapPreview(map, [], {
+    playerChrome: false,
+    ambience: request.ambience ? AMBIENCE_FULL : AMBIENCE_NONE,
+    zoom: request.zoom,
+    zoomControls: true,
+  });
+
   const root = document.querySelector("#root");
   if (!root) return;
   captionInto(root, [
-    "?preview is out of order — it drew through the editor's map preview, and the editor is",
-    "quarantined while it is rebuilt on @lindocara/hd2d (S3, 2026-08-04).",
-    "You did not break this. See packages/editor/AGENTS.md.",
+    `HD-2D reference  ${map.cols}x${map.rows}  ${map.elements.length} elements  stairs ${stairsPlaced}/${stairsRequested}`,
+    `palette ${palette ?? "altitude"}${paletteApplied ? "" : "  (unknown - ignored)"}   ambience ${request.ambience ? "on" : "off"}`,
+    "WASD / arrows to walk    wheel or - / + to zoom, 0 resets",
+    "?palette=color1..color5    ?ambience=0    ?zoom=0.5",
   ]);
 }

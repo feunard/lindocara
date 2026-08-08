@@ -13,17 +13,8 @@ import { defineConfig } from "vitest/config";
 // runtime-neutral Alepha API tests that already lived there, retiring the config's old
 // explicit-path special case now that `packages/server/vitest.config.ts` sits at the same
 // conventional path as every other package's.
-// The `packages/*` glob is spelled out with one exclusion since S3 retired the PixiJS render path
-// (2026-08-04): `@lindocara/editor`'s stage imports four modules that deletion removed, so its suite
-// cannot even resolve its imports. The package is quarantined rather than kept alive by a second
-// render path — see `packages/editor/AGENTS.md`. Restore the plain glob (and `typecheck:editor` in
-// the root package.json) with the S3 piece that rebuilds the editor stage on `@lindocara/hd2d`.
 export default defineConfig({
   test: {
-    projects: [
-      "packages/*/vitest.config.ts",
-      "!packages/editor/vitest.config.ts",
-      "apps/*/vitest.config.ts",
-    ],
+    projects: ["packages/*/vitest.config.ts", "apps/*/vitest.config.ts"],
   },
 });

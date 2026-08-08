@@ -63,6 +63,7 @@ const TERRAIN_ROOT = "/assets/lindocara/tiny-swords/terrain";
  */
 export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${TERRAIN_ROOT}/Tilemap_color1.png`, atlas: true },
+  { url: `${TERRAIN_ROOT}/Tilemap_color2.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Tilemap_color3.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Tilemap_color4.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Tilemap_color5.png`, atlas: true },
@@ -70,6 +71,16 @@ export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${TERRAIN_ROOT}/Water.png` },
   { url: `${TERRAIN_ROOT}/Foam.png`, atlas: true },
 ];
+
+const HD2D_GROUND_PALETTES = ["color1", "color2", "color3", "color4", "color5"] as const;
+let groundPaletteOverride: (typeof HD2D_GROUND_PALETTES)[number] | null = null;
+
+/** Development witness hook. Call before creating a renderer; production keeps altitude palettes. */
+export function setHd2dGroundPalette(palette: string): boolean {
+  if (!(HD2D_GROUND_PALETTES as readonly string[]).includes(palette)) return false;
+  groundPaletteOverride = palette as (typeof HD2D_GROUND_PALETTES)[number];
+  return true;
+}
 
 /**
  * Material + level -> atlas key. Art direction, which is why `heightFieldFromGrid` takes it as a
@@ -111,10 +122,11 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
     wallRow: 4,
     tilePx: 64,
   });
+  const palette = groundPaletteOverride ? `Tilemap_${groundPaletteOverride}.png` : null;
   return {
-    lvl0: sheet("Tilemap_color1.png", "water-edge", 9, 6),
-    lvl1: sheet("Tilemap_color3.png", "cliff-edge", 9, 6),
-    lvl2: sheet("Tilemap_color4.png", "cliff-edge", 9, 6),
+    lvl0: sheet(palette ?? "Tilemap_color1.png", "water-edge", 9, 6),
+    lvl1: sheet(palette ?? "Tilemap_color3.png", "cliff-edge", 9, 6),
+    lvl2: sheet(palette ?? "Tilemap_color4.png", "cliff-edge", 9, 6),
     // Never a wall for sand (always at level 0): `wallRow` is never read here, kept at 4 out of
     // consistency with the others rather than out of necessity.
     sable: sheet("Tilemap_Flat.png", "cliff-edge", 10, 4),

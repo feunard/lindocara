@@ -24,7 +24,6 @@
  * directly, since that event never fires for them.
  */
 
-import { Button } from "@lindocara/ui/components/button.js";
 import { $hook, $inject, Alepha } from "alepha";
 import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
@@ -41,7 +40,7 @@ import {
 import { menuAudio } from "../game/menu-audio.js";
 import { stopActiveGameSession } from "../game/session.js";
 import { continueAsGuest } from "../guest.js";
-import { t, useLocale } from "../i18n.js";
+import { useLocale } from "../i18n.js";
 import { activePartyAtom, adventureTestSessionAtom, quickItemsAtom } from "../state/atoms.js";
 import type { GameNavigation } from "../state/navigation.js";
 import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/navigation.js";
@@ -130,41 +129,6 @@ function GameScreen() {
       <VictoryOverlay />
       <AdventureTestOverlay />
     </>
-  );
-}
-
-/**
- * What `/editor` renders while `@lindocara/editor` is quarantined — see the `editor` field below for
- * why, and for what to put back.
- *
- * Stock shadcn rather than the Tiny Swords tree, because this stands in for a creator surface. It is
- * `position: fixed` at the same `z-index` the editor shell used (`legacy.css`'s `.editor-root`): the
- * `#stage` canvas is a full-viewport fixed sibling of `#root`, so anything meant to be read — and
- * clicked — over it has to say so.
- */
-function EditorRebuildingNotice() {
-  const router = useRouter<AppRouter>();
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 20,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "16px",
-        padding: "24px",
-        textAlign: "center",
-        background: "var(--background)",
-        color: "var(--foreground)",
-      }}
-    >
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>{t("editor.rebuilding.title")}</h1>
-      <p style={{ maxWidth: "48ch", opacity: 0.8 }}>{t("editor.rebuilding.body")}</p>
-      <Button onClick={() => void router.push("menu")}>{t("editor.rebuilding.back")}</Button>
-    </div>
   );
 }
 
@@ -471,6 +435,9 @@ export class AppRouter {
    */
   editor = $page({
     path: "/editor",
-    component: () => <EditorRebuildingNotice />,
+    lazy: async () => {
+      const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
+      return { default: module.AdventureEditorScreen };
+    },
   });
 }
