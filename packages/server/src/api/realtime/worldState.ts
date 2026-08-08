@@ -134,10 +134,10 @@ export function zoneFromMapPayload(
   // is not cosmetic: `isWorldInfo` (`engine/protocol.ts`) validates every appearance collection
   // against `tiles.cols/rows`, so an authored 20x15 tile layer beside an 8x8 heightfield makes
   // `parseServerMessage` drop the whole `welcome` and the room becomes UNJOINABLE. The tile layers,
-  // the authored elements and the authored events are all expressed in the other coordinate space,
-  // so a heightfield room ships none of them: blank layers sized to its own grid, and nothing else.
-  // Giving a heightfield its own decoration and events is a later task; until then, absent beats
-  // misplaced.
+  // and authored elements are expressed in the old pixel coordinate space, so a heightfield room
+  // ships blank layers sized to its own grid. Events use authored cells and the heightfield compiler
+  // preserves those cell coordinates inside a square grid, so their full executable definitions can
+  // be loaded from the map row without contradicting terrain collision.
   const appearance = blankAppearance(heightfield.size);
   return {
     id: payload.id,
@@ -163,7 +163,7 @@ export function zoneFromMapPayload(
     revision: payload.revision,
     tilesetId: payload.tilesetId,
     layers: appearance.layers,
-    events: [],
+    events: payload.events,
     audio: resolveMapAudio(adventureAudio, payload.audio),
     heroSettings: payload.heroSettings,
     // The heightfield the room actually baked its terrain from — reaching this line at all means it

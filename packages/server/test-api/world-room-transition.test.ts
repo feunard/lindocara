@@ -24,10 +24,8 @@
  * 5. the source room's state drops the player immediately (no ghost entry), and the empty room
  *    reports `roomEmptied` to `PartyRoom` once its last socket actually disconnects.
  *
- * **Every room here is handed its authored events by hand** (`installAuthoredEvents`): a heightfield
- * room ships none of its own yet, so the exits, teleporters and harvest nodes stored on the map rows
- * are otherwise invisible to it. The handoff choreography every assertion reads is fully live; only
- * the trigger is on loan. See that helper's docblock.
+ * Every room loads its authored exits, teleporters and harvest nodes from the map row through the
+ * same `zoneFromMapPayload` path used in production.
  *
  * Tests 2-5 use the `RoomEngine`/`FakeClock` idiom (`world-room-persistence.test.ts`,
  * `world-room-events.test.ts`): the REAL `WorldRoom.roomOptions` hosted in a bare engine, so
@@ -71,7 +69,7 @@ import {
 } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
-import { activeEventCentre, evaluateActiveEvents } from "../src/api/realtime/worldEvents.ts";
+import { activeEventCentre } from "../src/api/realtime/worldEvents.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
@@ -161,32 +159,6 @@ function placeHarvester(state: WorldRoomState, player: PlayerRuntime, event: Map
   player.z = authoredPixel(collider.y + collider.height / 2);
   player.facing = { x: 1, z: 0 };
   state.playerGrid.update(player, previous);
-}
-
-/**
- * Installs authored events on a live room's zone definition, then re-derives the active pages.
- *
- * **A heightfield room ships no authored events of its own.** `zoneFromMapPayload` bakes
- * `events: []` on purpose (see its comment: a tile-editor cell cannot address a heightfield grid,
- * so "absent beats misplaced" until a later task gives a heightfield its own events), while the
- * `exit`/`teleport`/`harvestable` events these tests trigger are stored on the MAP ROW — real,
- * authored, and currently unreachable from the room. Handing them to the room here is the stand-in
- * for the wiring that task will add.
- *
- * What is under test is unaffected by that: the handoff CHOREOGRAPHY — freeze, checkpoint, forced
- * save, epoch-fenced `PresenceRoom.handoff`, drop, close 4008, destination read from the database —
- * is fully live, and it is the only thing every assertion below reads. Only the trigger is on loan.
- */
-function installAuthoredEvents(state: WorldRoomState, events: readonly MapEvent[]): void {
-  const location = state.location;
-  if (!location) throw new Error("the room has no location: its map has no usable heightfield");
-  state.location = {
-    ...location,
-    definition: { ...location.definition, events },
-  };
-  // Page selection runs on state install and join, never per tick, so a freshly installed event is
-  // dormant until this re-derives the active set.
-  evaluateActiveEvents(state);
 }
 
 /**
@@ -343,8 +315,6 @@ interface TwoMapFixture {
   entryA: MapEvent;
   exitA: MapEvent;
   entryB: MapEvent;
-  /** Everything authored on each map, in the order it was saved — what `installAuthoredEvents`
-   *  hands the live room, since a heightfield room ships none of it by itself. */
   eventsA: readonly MapEvent[];
   eventsB: readonly MapEvent[];
 }
@@ -758,9 +728,8 @@ function openWorldSocket(roomId: string, heroId: string, token: string): SocketP
  * in a bare engine.
  *
  * `getRoomEngine` is protected at compile time only — the same escape hatch `roomState` above takes
- * on a bare engine, and the only way to hand a live room the authored events a heightfield map
- * cannot yet carry (see `installAuthoredEvents`). The engine already exists by the time this is
- * called: the room came to life on the first socket's join.
+ * on a bare engine. The engine already exists by the time this is called: the room came to life on
+ * the first socket's join.
  */
 function liveRoomState(roomId: string): WorldRoomState {
   const provider = alepha.inject(NodeWebSocketServerProvider) as unknown as {
@@ -782,8 +751,6 @@ describe("adventure exit, end-to-end over real sockets", () => {
 
     const roomA = openWorldSocket(fixture.roomAId, fixture.heroId, fixture.token);
     await roomA.waitFor((message) => message.t === "welcome", "room A welcome");
-    installAuthoredEvents(liveRoomState(fixture.roomAId), fixture.eventsA);
-
     // Walk exactly onto the exit tile via the dev cheat (deterministic; real WASD timing is not
     // what this test is about) and let the real 20Hz tick detect + transition.
     roomA.socket.send(
@@ -863,7 +830,6 @@ describe("world room transitions (FakeClock)", () => {
     const socketA = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-a");
     await engineA.join(socketA);
     const stateA = roomState(engineA);
-    installAuthoredEvents(stateA, fixture.eventsA);
     const playerA = playerOf(stateA, fixture.heroId);
     playerA.level = 10;
     placeHarvester(stateA, playerA, resourceA);
@@ -899,7 +865,6 @@ describe("world room transitions (FakeClock)", () => {
     const socketB = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-b");
     await engineB.join(socketB);
     const stateB = roomState(engineB);
-    installAuthoredEvents(stateB, fixture.eventsB);
     const playerB = playerOf(stateB, fixture.heroId);
     placeHarvester(stateB, playerB, resourceB);
 
@@ -923,7 +888,6 @@ describe("world room transitions (FakeClock)", () => {
     const reconnectSocket = fakeSocket(fixture.userId, fixture.heroId, "c-harvest-b-reconnect");
     await reconnectB.join(reconnectSocket);
     const reconnectState = roomState(reconnectB);
-    installAuthoredEvents(reconnectState, fixture.eventsB);
     expect(reconnectState.activeEvents).toHaveLength(1);
     expect(reconnectState.activeEvents[0]).toMatchObject({
       id: resourceB.id,
@@ -954,7 +918,6 @@ describe("world room transitions (FakeClock)", () => {
     await engineA.join(socketA);
 
     const stateA = roomState(engineA);
-    installAuthoredEvents(stateA, fixture.eventsA);
     const welcomeA = welcomeMessage(socketA);
     expect(welcomeA.world.heroSettings?.classes.warrior).toMatchObject({
       stats: { movementSpeed: mapASpeed },
@@ -1013,7 +976,6 @@ describe("world room transitions (FakeClock)", () => {
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engine.join(socket);
     const state = roomState(engine);
-    installAuthoredEvents(state, fixture.eventsA);
     clock.advanceTicks(20); // clears the exit's 750ms re-trigger guard against `lastTransitionAt=0`
 
     const player = playerOf(state, fixture.heroId);
@@ -1056,7 +1018,6 @@ describe("world room transitions (FakeClock)", () => {
     const socketA = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engineA.join(socketA);
     const stateA = roomState(engineA);
-    installAuthoredEvents(stateA, fixture.eventsA);
 
     await engineA.message(socketA.id, { t: "attack" });
     const playerBefore = playerOf(stateA, fixture.heroId);
@@ -1099,7 +1060,6 @@ describe("world room transitions (FakeClock)", () => {
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engine.join(socket);
     const state = roomState(engine);
-    installAuthoredEvents(state, fixture.eventsA);
     clock.advanceTicks(20);
 
     const player = playerOf(state, fixture.heroId);
@@ -1134,7 +1094,6 @@ describe("world room transitions (FakeClock)", () => {
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
     await engine.join(socket);
     const state = roomState(engine);
-    installAuthoredEvents(state, fixture.eventsA);
     clock.advanceTicks(20);
 
     const player = playerOf(state, fixture.heroId);

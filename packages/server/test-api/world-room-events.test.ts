@@ -22,9 +22,8 @@
  *
  * Everything here runs in TILE units, grid centre as origin: `x` and `z` are the two GROUND axes
  * and `y` is elevation. Each fixture map therefore stores a flat `provingHeightfield`, without
- * which no zone can be built at all and every join is refused 4007 — and, because a heightfield
- * room ships `events: []` on purpose, its authored events are handed back to the room through
- * `installAuthoredEventSeam` below. Read that docblock before touching a fixture.
+ * which no zone can be built at all and every join is refused 4007. The room loads each map's
+ * authored events through the same `zoneFromMapPayload` path used in production.
  *
  * The FakeClock engines are NOT the `$room`-managed engines the production `pushToRoom` targets
  * (`this.room.call` routes to the provider's own registry, keyed by channelPath:roomId), so these
@@ -84,10 +83,7 @@ import { parties } from "../src/api/entities/parties.ts";
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
-import {
-  evaluateActiveEvents,
-  refreshHarvestEventVisuals,
-} from "../src/api/realtime/worldEvents.ts";
+import { refreshHarvestEventVisuals } from "../src/api/realtime/worldEvents.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import {
@@ -255,53 +251,14 @@ let userCount = 0;
 let openSockets: WebSocket[];
 let savedCheatsEnabled: string | undefined;
 
-/** The authored events each fixture room is built with, keyed by `partyId:mapId`. */
-const authoredEventsByRoom = new Map<string, readonly MapEvent[]>();
-
-/**
- * Hands a room the events its map was authored with.
- *
- * **A heightfield map ships none of its own.** `zoneFromMapPayload` bakes `events: []` for every
- * heightfield room, deliberately: the authored events, elements and tile layers are all expressed
- * in the editor's PIXEL, top-left-origin space, and shipping one of those beside a grid-centred
- * heightfield would make the room's appearance contradict its own collision (`isWorldInfo`
- * validates the appearance collections against the grid and would drop the whole `welcome`).
- * Re-authoring the five adventures as heightfields is what restores the delivery path.
- *
- * Everything below this line is untouched by that gap — the run lock, the command budget, the
- * dialogue close, the coordinator round trip, the page selection — so this seam puts the events
- * back on the room's own `ZoneDefinition`, exactly where `createState` would have found them, and
- * re-runs the room's real `evaluateActiveEvents` over them. It wraps the `$room` options object
- * that `RoomPrimitive.onInit` registered, so it covers both the bare `RoomEngine`s below and the
- * provider-managed engines the real-socket test at the bottom of the file drives.
- */
-function installAuthoredEventSeam(): void {
-  const worldRoom = alepha.inject(WorldRoom);
-  const createState = worldRoom.roomOptions.state;
-  if (!createState) throw new Error("WorldRoom has no state factory");
-  worldRoom.roomOptions.state = async (input) => {
-    const state = await createState(input);
-    const events = authoredEventsByRoom.get(input.roomId);
-    if (!events || !state.location) return state;
-    state.location = {
-      ...state.location,
-      definition: { ...state.location.definition, events },
-    };
-    evaluateActiveEvents(state);
-    return state;
-  };
-}
-
 beforeEach(async () => {
   alepha = createTestApp();
   probe = alepha.inject(Probe);
   partyRoom = alepha.inject(PartyRoom);
   presenceRoom = alepha.inject(PresenceRoom);
   openSockets = [];
-  authoredEventsByRoom.clear();
   savedCheatsEnabled = process.env.CHEATS_ENABLED;
   await alepha.start();
-  installAuthoredEventSeam();
   hostname = alepha.inject(ServerProvider).hostname;
 });
 
@@ -334,7 +291,6 @@ async function bootAppWithCheats(): Promise<void> {
   partyRoom = alepha.inject(PartyRoom);
   presenceRoom = alepha.inject(PresenceRoom);
   await alepha.start();
-  installAuthoredEventSeam();
   hostname = alepha.inject(ServerProvider).hostname;
 }
 
@@ -583,7 +539,6 @@ async function newPlayableParty(
   const roomId = `${partyId}:${mapId}`;
   // A map with no heightfield produces no zone at all, so every join below would be refused 4007.
   await alepha.inject(MapService).saveHeightfield(mapId, provingHeightfield(GRID_SIZE));
-  authoredEventsByRoom.set(roomId, events);
   return {
     token,
     userId,
@@ -2035,7 +1990,6 @@ describe("cross-room adventure-state flip (real sockets)", () => {
     expect(putB.status).toBe(200);
     const roomBId = `${host.partyId}:${mapBId}`;
     await alepha.inject(MapService).saveHeightfield(mapBId, provingHeightfield(GRID_SIZE));
-    authoredEventsByRoom.set(roomBId, [gateEvent(gateId, 4, 4)]);
 
     // Seed the guest hero onto map B directly in D1 (map transitions are Task 8's flow). All three
     // axes travel: `x`/`z` are the ground pair and `y` is the elevation the flat grid reports.
