@@ -9,7 +9,7 @@
  */
 import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
-import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import type { ServerMessage, WorldEventSnapshot } from "@lindocara/engine/protocol.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 class FakeWebSocket extends EventTarget {
@@ -445,5 +445,60 @@ describe("WorldClient movement that the room grants or answers", () => {
     ).toBeGreaterThan(0);
     // Still out at sea, east of the wall: the lab's `place(spawn)` would have put it back at 0.
     expect(selfX(client)).toBeGreaterThan(1);
+  });
+
+  it("applies and withdraws authoritative harvest collision with event state", async () => {
+    const event: WorldEventSnapshot = {
+      id: "harvest-wall",
+      col: 9,
+      row: 8,
+      graphicAssetId: null,
+      onTop: false,
+      moveSpeed: 3,
+      moveFrequency: 3,
+      moveAnimation: false,
+      directionFixed: true,
+      presentation: "native",
+      harvest: {
+        state: "intact",
+        generation: 0,
+        hits: 0,
+        hitsRequired: 3,
+        lastHitAt: null,
+        depletedAt: null,
+        respawnAt: null,
+        exhaustionBehavior: "replace",
+        exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-1",
+        fadeDurationMs: 250,
+        collider: [(WORLD_SIZE / 2 + 1) * 64, (WORLD_SIZE / 2 - 1) * 64, 64, 128],
+      },
+    };
+    stubJoin([{ roomId: "party-1:verdant-reach", channelPath: "/ws/world" }]);
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    if (!socket) throw new Error("no socket");
+    socket.message({
+      ...WELCOME,
+      world: { ...WELCOME.world, heightfield: flatHeightfield(), events: [event] },
+    });
+
+    for (let frame = 0; frame < 120; frame += 1) client.update(EAST, FRAME);
+    expect(selfX(client)).toBeLessThan(1);
+
+    socket.message({
+      t: "world.resync",
+      tick: 2,
+      players: WELCOME.players,
+      monsters: [],
+      guards: [],
+      loot: [],
+      corpses: [],
+      projectiles: [],
+      events: [],
+    });
+    for (let frame = 0; frame < 120; frame += 1) client.update(EAST, FRAME);
+    expect(selfX(client)).toBeGreaterThan(1.5);
   });
 });

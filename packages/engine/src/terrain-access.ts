@@ -103,6 +103,35 @@ export function zoneTerrainFromHeightfield(map: MapData): ZoneTerrain {
   };
 }
 
+export interface WorldEventColliderView {
+  harvest?: { collider: readonly [number, number, number, number] | null };
+}
+
+/**
+ * Compose the static heightfield with the authoritative harvest footprints currently advertised
+ * on the wire. The tuple remains in authored pixel coordinates for editor tooling; this is the one
+ * crossing into the centred tile-unit ground plane used by both movement implementations.
+ */
+export function withWorldEventColliders(
+  terrain: ZoneTerrain,
+  events: readonly WorldEventColliderView[],
+): ZoneTerrain {
+  const colliders = createColliderIndex();
+  for (const collider of terrain.colliders.all) colliders.add(collider);
+  const half = terrain.size / 2;
+  for (const event of events) {
+    const tuple = event.harvest?.collider;
+    if (!tuple) continue;
+    colliders.add({
+      x: tuple[0] / TILE_SIZE - half,
+      z: tuple[1] / TILE_SIZE - half,
+      w: tuple[2] / TILE_SIZE,
+      h: tuple[3] / TILE_SIZE,
+    });
+  }
+  return { ...terrain, colliders };
+}
+
 /**
  * Can a body of radius `radius`, whose last ground was at height `groundY`, stand at `(x, z)`?
  *

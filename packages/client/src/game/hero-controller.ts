@@ -138,6 +138,8 @@ export interface HeroController {
   step(input: HeroControllerInput, dt: number): HeroEvent[];
   /** Re-resolves the full-tilt speed (a class change, a life transition, a new map's hero rules). */
   setSpeed(speed: number): void;
+  /** Replaces live collision/query data without resetting any hero-owned movement state. */
+  setTerrain(terrain: ZoneTerrain): void;
   /**
    * Adopts a position this controller did not compute — a spawn, an authored teleport, a
    * resurrection. Momentum is cut, exactly as the lab cuts it entering or leaving a room: the elan
@@ -161,7 +163,8 @@ export interface HeroController {
 }
 
 export function createHeroController(options: HeroControllerOptions): HeroController {
-  const { terrain, spawn } = options;
+  let { terrain } = options;
+  const { spawn } = options;
   const hero: HeroSettings = { ...HERO_PHYSICS, speed: options.speed };
   const world: WorldSettings = {
     size: terrain.size,
@@ -281,6 +284,14 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     },
     setSpeed(speed) {
       hero.speed = speed;
+    },
+    setTerrain(nextTerrain) {
+      terrain = nextTerrain;
+      deps.query = nextTerrain.query;
+      deps.colliders = nextTerrain.colliders;
+      world.size = nextTerrain.size;
+      world.levelHeight = nextTerrain.levelHeight;
+      world.waterLevel = nextTerrain.waterLevel;
     },
     teleport(position) {
       // A server-authored position ends any traversal in flight: whatever the grant was for, the

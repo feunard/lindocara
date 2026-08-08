@@ -39,7 +39,11 @@ import {
 } from "@lindocara/engine/protocol.js";
 import { type Input, NETWORK_TICKS_PER_SNAPSHOT, TICK_MS } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
-import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
+import {
+  withWorldEventColliders,
+  type ZoneTerrain,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
 import {
   applyEventDelta,
   applyWorldDelta,
@@ -550,6 +554,11 @@ export class WorldClient {
     return map === null ? null : zoneTerrainFromHeightfield(map);
   }
 
+  #syncEventTerrain(): void {
+    if (!this.#hero || !this.#terrain) return;
+    this.#hero.setTerrain(withWorldEventColliders(this.#terrain, this.#events));
+  }
+
   #handle(message: ServerMessage, handlers: ConnectionHandlers): void {
     if (message.t === "welcome") {
       this.#selfId = message.selfId;
@@ -582,7 +591,7 @@ export class WorldClient {
         // (`isDirection`), and the controller normalises it again anyway.
         this.#hero = this.#terrain
           ? createHeroController({
-              terrain: this.#terrain,
+              terrain: withWorldEventColliders(this.#terrain, this.#events),
               spawn: { x: self.x, y: self.y, z: self.z },
               speed: speedForLife(
                 self.life,
@@ -629,6 +638,7 @@ export class WorldClient {
         return;
       }
       this.#events = events;
+      this.#syncEventTerrain();
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = true;
       this.#corpses = view.corpses;
@@ -646,6 +656,7 @@ export class WorldClient {
       replaceWorldCache(this.#worldCache, message);
       seedEventCache(this.#worldCache, message.events);
       this.#events = message.events;
+      this.#syncEventTerrain();
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
