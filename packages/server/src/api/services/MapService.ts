@@ -32,6 +32,8 @@ import {
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import {
   defaultMonsterTuning,
   type MonsterAttackProfile,
@@ -217,6 +219,7 @@ export class MapService {
     }
     const input = defaultMapInput(name, cols, rows);
     const data = validateMapInput(input);
+    const heightfield = encodeMap(compileAuthoredMap(data, data.events));
     // NOT protected by `$transactional()` on this app's actual production target: Alepha's D1
     // provider reports `supportsTransactions: false`, so `$transactional()` degrades to a no-op
     // there and never opens a `BEGIN` (see `PartyService`'s own docblock for the same fact, verified
@@ -244,6 +247,7 @@ export class MapService {
       markers: markersJson(data.markers),
       audio: JSON.stringify(data.audio),
       heroSettings: JSON.stringify(data.heroSettings),
+      heightfield,
       isFirst: firstCountForAccount === 0,
     });
     // `defaultMapInput` always yields empty elements/events; writing them here keeps this in step
@@ -336,6 +340,7 @@ export class MapService {
           ...(input.heroSettings !== undefined
             ? { heroSettings: JSON.stringify(data.heroSettings) }
             : {}),
+          ...(input.heightfield !== undefined ? { heightfield: input.heightfield } : {}),
           revision: sql`revision + 1`,
         },
       );
@@ -390,10 +395,10 @@ export class MapService {
         input.heroSettings === undefined
           ? decodeMapHeroSettings(existing.heroSettings)
           : data.heroSettings,
-      // Not part of the authoring PUT (the editor gains this in its own later piece) — carried
-      // over from the existing row unconditionally, same as every other write in this method
-      // leaves it untouched.
-      heightfield: heightfieldOfRow(existing.heightfield),
+      heightfield:
+        input.heightfield === undefined
+          ? heightfieldOfRow(existing.heightfield)
+          : input.heightfield,
     };
   }
 

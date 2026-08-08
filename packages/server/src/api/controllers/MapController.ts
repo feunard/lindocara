@@ -125,6 +125,19 @@ export class MapController {
       if (!input) {
         throw new HttpError({ status: 400, error: "map_invalid", message: "invalid map body" });
       }
+      const rawHeightfield = (body as { heightfield?: unknown } | null)?.heightfield;
+      let heightfield: string | undefined;
+      if (rawHeightfield !== undefined) {
+        const parsed = parseHeightfieldBody({ heightfield: rawHeightfield });
+        if (!parsed.ok) {
+          throw new HttpError({
+            status: parsed.status,
+            error: parsed.error,
+            message: parsed.message,
+          });
+        }
+        heightfield = parsed.heightfield;
+      }
       const rawAdventure = (body as { adventure?: unknown } | null)?.adventure;
       let proposedAdventure: AdventureInput | undefined;
       if (rawAdventure !== undefined) {
@@ -154,7 +167,7 @@ export class MapController {
         return await this.mapService.updateMapForUser(
           user.id,
           params.id,
-          input,
+          heightfield === undefined ? input : { ...input, heightfield },
           expectedRevision,
           proposedAdventure,
         );

@@ -80,6 +80,8 @@ export interface MapInput {
   events?: readonly MapEvent[] | undefined;
   audio?: MapAudioConfig | undefined;
   heroSettings?: MapHeroSettings | undefined;
+  /** Encoded HD-2D terrain derived or authored by the editor. Omission preserves stored terrain. */
+  heightfield?: string | undefined;
 }
 
 /**

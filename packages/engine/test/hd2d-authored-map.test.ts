@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileAuthoredMap } from "../src/hd2d/authored-map.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
-import { defaultEventPage, functionalEvent } from "../src/map-events.js";
+import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId } from "../src/tileset.js";
 import { GRASS_SLOTS, TINY_SWORDS_TILESET_ID } from "../src/tilesets/tiny-swords.js";
@@ -37,14 +37,17 @@ function authored(): MapData {
 
 describe("compileAuthoredMap", () => {
   it("compiles rectangular terrain, content and event positions into one square heightfield", () => {
-    const page = { ...defaultEventPage(), graphicAssetId: "enemy.goblin-tnt.idle" as const };
-    const event = {
+    const page = {
+      ...defaultEventPage(),
+      graphicAssetId: "resource.terrain-resources-wood-trees.tree3" as const,
+    };
+    const event: MapEvent = {
       ...functionalEvent({
         id: "11111111-1111-4111-8111-111111111111",
         col: 2,
         row: 1,
         ordinal: 0,
-        kind: "normal",
+        kind: "npc",
       }),
       pages: [page],
     };
@@ -67,7 +70,7 @@ describe("compileAuthoredMap", () => {
         id: event.id,
         x: 1,
         z: 0,
-        graphicAssetId: "enemy.goblin-tnt.idle",
+        graphicAssetId: "resource.terrain-resources-wood-trees.tree3",
       },
     ]);
   });

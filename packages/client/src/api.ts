@@ -150,10 +150,14 @@ export interface MapPayload {
   /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
    *  events existed. Nothing here executes this tranche. */
   events: readonly MapEvent[];
+  /** Encoded HD-2D terrain. Legacy maps created before the migration may still return `null`. */
+  heightfield: string | null;
 }
 
-/** What create/update send: everything but the server-minted id. */
-export type MapSaveInput = Omit<MapPayload, "id" | "revision">;
+/** What create/update send. Omitting terrain preserves the currently stored heightfield. */
+export type MapSaveInput = Omit<MapPayload, "id" | "revision" | "heightfield"> & {
+  heightfield?: string;
+};
 
 export const fetchMaps = (adventureId: string) =>
   api<MapSummary[]>(`/api/maps?adventure=${adventureId}`);

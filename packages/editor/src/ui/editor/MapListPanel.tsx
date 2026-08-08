@@ -35,8 +35,8 @@ import { useEffect, useRef, useState } from "react";
 
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
 function saveInputFromPayload(payload: MapPayload): MapSaveInput {
-  const { id: _id, revision: _revision, ...rest } = payload;
-  return rest;
+  const { heightfield, id: _id, revision: _revision, ...rest } = payload;
+  return { ...rest, ...(heightfield === null ? {} : { heightfield }) };
 }
 
 interface MapListPanelProps {

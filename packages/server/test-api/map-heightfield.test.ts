@@ -27,8 +27,9 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
 import { MAX_HEIGHTFIELD_JSON_BYTES, MAX_MAP_JSON_BYTES } from "../src/api/bodySizeCap.ts";
 import { adventures } from "../src/api/entities/adventures.ts";
+import { maps } from "../src/api/entities/maps.ts";
 import { MapService } from "../src/api/services/MapService.ts";
-import { MAX_HEIGHTFIELD_BYTES } from "../src/api/services/mapAuthoring.ts";
+import { defaultMapInput, MAX_HEIGHTFIELD_BYTES } from "../src/api/services/mapAuthoring.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 // Meets the realm's default password policy — mirrors `auth.test.ts`.
@@ -36,6 +37,7 @@ const PASSWORD = "Sup3rSecret";
 
 class SeedProbe {
   adventures = $repository(adventures);
+  maps = $repository(maps);
 }
 
 let alepha: ReturnType<typeof createTestApp>;
@@ -119,12 +121,29 @@ describe("map heightfield storage", () => {
     expect(afterSecond).toBe(before + 2);
   });
 
-  test("reports no heightfield as null, not as an empty string", async () => {
-    const adventureId = await newAdventure("heightfieldnull");
+  test("creates every new map with playable HD-2D terrain", async () => {
+    const adventureId = await newAdventure("hfdef");
     const map = await mapService.createMap(adventureId, "Test Map");
 
     const payload = await mapService.getMap(map.id);
-    expect(payload.heightfield).toBeNull();
+    expect(payload.heightfield).not.toBeNull();
+    expect(decodeMap(payload.heightfield ?? "")?.size).toBe(20);
+  });
+
+  test("stores authored content and its heightfield under one revision", async () => {
+    const adventureId = await newAdventure("hfatomic");
+    const map = await mapService.createMap(adventureId, "Test Map");
+    const heightfield = provingHeightfield();
+
+    const updated = await mapService.updateMap(
+      map.id,
+      { ...defaultMapInput("Updated Map"), heightfield },
+      map.revision,
+    );
+
+    expect(updated.name).toBe("Updated Map");
+    expect(updated.heightfield).toBe(heightfield);
+    expect(updated.revision).toBe(map.revision + 1);
   });
 });
 
@@ -165,6 +184,9 @@ async function newOwnedMap(prefix: string): Promise<{ token: string; mapId: stri
   });
   expect(response.status).toBe(201);
   const adventure = (await response.json()) as { defaultMap: { id: string } };
+  // Route validation tests predate automatic terrain compilation and assert that a refused write
+  // stores nothing. Keep that exact baseline by emulating one legacy empty row explicitly.
+  await probe.maps.updateById(adventure.defaultMap.id, { heightfield: "" });
   return { token, mapId: adventure.defaultMap.id };
 }
 
@@ -525,11 +547,10 @@ describe("the heightfield on the wire", () => {
   test("a map with no heightfield is unjoinable, never welcomed onto empty collision", async () => {
     const { token, mapId, partyId, heroId } = await newPlayableHero("hfnone");
 
-    // `POST /api/adventures` seeds a tile map and no heightfield, so this is the untouched default:
-    // `zoneFromMapPayload` throws, `createState` keeps `location: null` and admission refuses. The
-    // old behaviour — welcome with a null heightfield and the tile path's terrain — has no terrain
-    // left to fall back to, and a room whose collision is silently empty is the failure this
-    // replaces.
+    // Simulate a map row created before automatic authoring compilation existed.
+    await probe.maps.updateById(mapId, { heightfield: "" });
+
+    // `zoneFromMapPayload` throws, `createState` keeps `location: null` and admission refuses.
     expect(await waitForClose(`${partyId}:${mapId}`, heroId, token)).toBe(
       WS_CLOSE.INVALID_LOCATION,
     );

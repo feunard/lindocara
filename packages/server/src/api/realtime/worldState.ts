@@ -129,6 +129,17 @@ export function zoneFromMapPayload(
     const reason = payload.heightfield === null ? "absent" : "failed to decode";
     throw new Error(`map ${payload.id} has no usable heightfield (${reason})`);
   }
+  if (
+    payload.events.some(
+      (event) =>
+        event.col < 0 ||
+        event.row < 0 ||
+        event.col >= heightfield.size ||
+        event.row >= heightfield.size,
+    )
+  ) {
+    throw new Error(`map ${payload.id} has an authored event outside its heightfield`);
+  }
   const terrain = zoneTerrainFromHeightfield(heightfield);
   // A heightfield room's APPEARANCE must not contradict its own collision, and the contradiction
   // is not cosmetic: `isWorldInfo` (`engine/protocol.ts`) validates every appearance collection

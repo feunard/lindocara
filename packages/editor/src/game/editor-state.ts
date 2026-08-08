@@ -16,6 +16,8 @@ import {
   harvestFootprintFitsMap,
   parseHarvestProfile,
 } from "@lindocara/engine/harvest.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import {
   bakeCollision,
   ELEMENT_OFFSET_STEPS,
@@ -861,6 +863,7 @@ export function toSaveInput(map: EditorMap): {
   events: readonly MapEvent[];
   audio: MapAudioConfig;
   heroSettings: MapHeroSettings;
+  heightfield: string;
 } {
   const data = toMapData(map);
   return {
@@ -880,6 +883,7 @@ export function toSaveInput(map: EditorMap): {
     // emits `"condSwitchId":null` rather than dropping the key. The wire parser rejects a page with
     // an ABSENT condition field, so this fullness is load-bearing, not cosmetic.
     events: map.events,
+    heightfield: encodeMap(compileAuthoredMap(data, map.events)),
   };
 }
 

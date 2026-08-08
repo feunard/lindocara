@@ -23,6 +23,9 @@ import {
   rewriteBundleIds,
 } from "@lindocara/engine/adventure-bundle.js";
 import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
+import { parseMapData } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { ApiClient, argumentsOf, resolveCredentials, resolveTarget } from "./lib/adventure-api.js";
 
@@ -47,7 +50,7 @@ function mapSaveBody(
   map: AdventureBundleMap,
   events: readonly MapEvent[],
 ): Record<string, unknown> {
-  return {
+  const body = {
     name: map.name,
     tilesetId: map.tilesetId,
     cols: map.cols,
@@ -58,6 +61,12 @@ function mapSaveBody(
     markers: { entries: [], exits: [], monsterSpawns: [] },
     events,
     ...(map.audio === undefined ? {} : { audio: map.audio }),
+  };
+  const authored = parseMapData(body);
+  if (!authored) throw new Error(`bundle map "${map.name}" cannot compile to HD-2D terrain`);
+  return {
+    ...body,
+    heightfield: encodeMap(compileAuthoredMap(authored, events)),
   };
 }
 
