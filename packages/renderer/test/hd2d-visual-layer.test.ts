@@ -1,0 +1,52 @@
+import * as THREE from "three";
+import { describe, expect, it, vi } from "vitest";
+import type { Hd2dScene } from "../src/hd2d/scene.js";
+import { Hd2dVisualLayer } from "../src/hd2d/visual-layer.js";
+
+function harness(size = 20): {
+  canvas: HTMLCanvasElement;
+  layer: Hd2dVisualLayer;
+} {
+  const canvas = document.createElement("canvas");
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+    bottom: 100,
+    height: 100,
+    left: 0,
+    right: 100,
+    top: 0,
+    width: 100,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  camera.position.set(0, 10, 10);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+  const root = new THREE.Scene();
+  const scene = {
+    camera,
+    query: { heightAt: () => 0 },
+    scene: root,
+  } as unknown as Hd2dScene;
+  return { canvas, layer: new Hd2dVisualLayer(scene, canvas, size) };
+}
+
+describe("Hd2dVisualLayer screen ray", () => {
+  it("projects the canvas centre onto the bounded world ground", () => {
+    const { layer } = harness();
+    const point = layer.screenToWorld(50, 50);
+
+    expect(point?.x).toBeCloseTo(0);
+    expect(point?.z).toBeCloseTo(0);
+    layer.dispose();
+  });
+
+  it("refuses a projected point outside the running map", () => {
+    const { layer } = harness(2);
+
+    expect(layer.screenToWorld(100, 0)).toBeNull();
+    layer.dispose();
+  });
+});

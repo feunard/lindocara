@@ -2,14 +2,12 @@
  * The game's renderer — the only one, since S3 retired the PixiJS path (2026-08-04).
  *
  * It draws the world's GROUND — terrain, sea, foam, sky and light, from the welcome's heightfield —
- * its ACTORS, as billboards the camera follows (`billboards.ts`), and the map's own SCENERY, the
- * heightfield's elements and authored events (`static-content.ts`). Nothing else. Every other
- * method of `RendererLike` is an explicit, marked no-op rather than a missing member: the session
- * calls all of them, and a silent partial implementation would be a renderer that looks finished.
- * Grep `NOT YET DRAWN ON THE HD-2D PATH` for the full list of what is still owed.
+ * its actors, scenery, runtime event appearances, secondary entities and combat/interaction
+ * presentation. `visual-layer.ts` owns transient geometry and screen projection while this adapter
+ * keeps game-domain choices out of `@lindocara/hd2d`.
  *
- * Actors still use frame zero of their idle sheet, but vertical motion is live: reported `vy`
- * drives stretch/squash and a gliding player carries a dedicated canopy billboard.
+ * Actors cycle their idle sheets; reported `vy` drives stretch/squash and a gliding player carries
+ * a dedicated canopy billboard.
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
@@ -34,12 +32,16 @@ import type {
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { editorAsset, guardPrimaryColorForAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  EDITOR_ASSETS,
+  editorAsset,
+  guardPrimaryColorForAsset,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
-import type { MonsterImpactSound } from "../combat-art.js";
+import { type MonsterImpactSound, monsterSpecialImpactArt } from "../combat-art.js";
 import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
 import type { RenderContext, RendererLike } from "../renderer-api.js";
@@ -53,6 +55,7 @@ import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
 import type { StaticContent, StaticSpriteArt } from "./static-content.js";
 import { placeStaticContent } from "./static-content.js";
+import { Hd2dVisualLayer } from "./visual-layer.js";
 
 // --- actor art direction --------------------------------------------------------------------------
 
@@ -110,7 +113,7 @@ const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
 
-export function playerActorView(player: PlayerSnapshot): ActorView {
+export function playerActorView(player: PlayerSnapshot, animationTimeMs = 0): ActorView {
   return {
     id: player.id,
     kind: "player",
@@ -124,6 +127,8 @@ export function playerActorView(player: PlayerSnapshot): ActorView {
     canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
     facing: facingOf(player.facing),
     textureKey: playerTextureKey(player),
+    animationTimeMs,
+    ...(player.life === "ghost" ? { pose: "ghost" as const } : {}),
   };
 }
 
@@ -180,18 +185,10 @@ export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture"> {
  * (an editor preview, which the spec anticipates) would have quietly framed a whole shared sheet as
  * one sprite. The refusals and the arithmetic now sit together, and every caller gets both.
  *
- * Four honest refusals. `placeStaticContent` turns each into one skipped sprite and a console
+ * Two honest refusals. `placeStaticContent` turns each into one skipped sprite and a console
  * warning, never a thrown error:
  *
  * - an id no catalogue entry answers to — a map authored against a newer pack;
- * - an entry whose art is a sub-RECTANGLE of a shared sheet (`editor.sourceRect`: the six Update-010
- *   trees all live in one 768x576 image). A billboard frames a regular `cols x rows` grid and
- *   nothing else, so cropping one of those would need a second framing path. NOT YET DRAWN ON THE
- *   HD-2D PATH: sub-rect crops — 9 of the catalogue's 144 placeable assets;
- * - an entry NOT anchored on the bottom of its frame. `foot` is measured up from the frame's bottom
- *   edge, which is only the sprite's ground line when `anchor.y === 1`. The deleted PixiJS path read
- *   the real anchor; this one cannot express it. No shipped asset has any
- *   other anchor today, so this guard costs nothing and stops the first one that does from floating;
  * - a file the Vite glob never bundled (`tinySwordsSourceUrl` throws on those, by design).
  *
  * `definition.width`/`height` are the FRAME's size, not the sheet's, so a frame count along its own
@@ -203,11 +200,24 @@ export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture"> {
  */
 export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   const definition = editorAsset(assetId);
-  if (!definition || definition.editor.sourceRect || definition.anchor.y !== 1) return null;
+  if (!definition) return null;
   const frame = definition.frame;
+  const crop = definition.editor.sourceRect;
+  const sourceExtent = crop
+    ? EDITOR_ASSETS.filter((asset) => asset.sourcePath === definition.sourcePath).reduce(
+        (extent, asset) => {
+          const rect = "sourceRect" in asset.editor ? asset.editor.sourceRect : undefined;
+          return {
+            width: Math.max(extent.width, rect ? rect.x + rect.width : asset.width),
+            height: Math.max(extent.height, rect ? rect.y + rect.height : asset.height),
+          };
+        },
+        { width: definition.width, height: definition.height },
+      )
+    : { width: definition.width, height: definition.height };
   const framePx = {
-    width: frame?.width ?? definition.width,
-    height: frame?.height ?? definition.height,
+    width: crop?.width ?? frame?.width ?? definition.width,
+    height: crop?.height ?? frame?.height ?? definition.height,
   };
   if (framePx.width <= 0 || framePx.height <= 0) return null;
   const count = Math.max(1, frame?.count ?? 1);
@@ -222,11 +232,21 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   }
   return {
     url,
-    cols: alongX ? count : 1,
-    rows: alongX ? 1 : count,
+    cols: crop ? 1 : alongX ? count : 1,
+    rows: crop ? 1 : alongX ? 1 : count,
     height: framePx.height / TILE_SIZE,
     aspect: framePx.width / framePx.height,
-    foot: definition.footOffset / framePx.height,
+    foot: definition.footOffset / framePx.height + (1 - definition.anchor.y),
+    ...(crop
+      ? {
+          uvRect: {
+            offsetX: crop.x / sourceExtent.width,
+            offsetY: 1 - (crop.y + crop.height) / sourceExtent.height,
+            repeatX: crop.width / sourceExtent.width,
+            repeatY: crop.height / sourceExtent.height,
+          },
+        }
+      : {}),
   };
 }
 
@@ -234,10 +254,43 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
 function staticAssetIds(map: MapData): string[] {
   const ids = new Set<string>();
   for (const element of map.elements) ids.add(element.assetId);
-  for (const event of map.events) {
-    if (event.graphicAssetId !== null) ids.add(event.graphicAssetId);
-  }
   return [...ids];
+}
+
+function worldEventAsset(event: WorldEventSnapshot): string | null {
+  const harvest = event.harvest;
+  if (!harvest || harvest.state === "intact") return event.graphicAssetId;
+  if (harvest.exhaustionBehavior === "replace") return harvest.exhaustedAssetId;
+  return null;
+}
+
+const CLASS_EFFECT_COLORS: Record<PlayerClass, number> = {
+  warrior: 0xffb45d,
+  ranger: 0x7edb84,
+  priest: 0xf6e28b,
+  rogue: 0xb995ff,
+  peasant: 0xe1ba75,
+};
+
+const PRIMARY_EFFECT_COLORS: Record<PrimaryColor, number> = {
+  azure: 0x74b8ff,
+  ember: 0xff7b68,
+  moss: 0x7ee29a,
+  violet: 0xb995ff,
+};
+
+function colorFromSkill(skillId: string): number {
+  const palette = [0x74b8ff, 0xffb45d, 0x7ee29a, 0xb995ff, 0xff7b68, 0xffdd70] as const;
+  let hash = 0;
+  for (let index = 0; index < skillId.length; index += 1) hash += skillId.charCodeAt(index);
+  return palette[hash % palette.length] ?? 0xffffff;
+}
+
+interface ActorPosition {
+  x: number;
+  z: number;
+  playerClass?: PlayerClass;
+  species?: MonsterSpecies;
 }
 
 export class Hd2dRenderer implements RendererLike {
@@ -254,6 +307,18 @@ export class Hd2dRenderer implements RendererLike {
    *  catalogue sheets a map needs is only known once that map has landed, and the actor/terrain
    *  registry is fixed at construction so the first frame can be correct. */
   #contentTextures: TextureRegistry | null = null;
+  #eventContent: StaticContent | null = null;
+  #eventTextures: TextureRegistry | null = null;
+  #eventToken = 0;
+  #eventAssetKey = "";
+  #eventVisualKey = "";
+  #worldEvents: readonly WorldEventSnapshot[] = [];
+  #map: MapData | null = null;
+  #visuals: Hd2dVisualLayer | null = null;
+  #merchant: MerchantDefinition | null = null;
+  #questMarkers: readonly AuthoredQuestMarker[] = [];
+  #actorPositions = new Map<string, ActorPosition>();
+  #serverClock: ServerClock;
   /** Bumped by every map change and every teardown, so a download still in flight for the previous
    *  map cannot land its scenery in the new one's scene. */
   #contentToken = 0;
@@ -269,9 +334,14 @@ export class Hd2dRenderer implements RendererLike {
   #currentMapRevision = -1;
   #onResize = (): void => this.#scene?.resize();
 
-  private constructor(canvas: HTMLCanvasElement, textures: TextureRegistry) {
+  private constructor(
+    canvas: HTMLCanvasElement,
+    textures: TextureRegistry,
+    serverClock: ServerClock,
+  ) {
     this.#canvas = canvas;
     this.#textures = textures;
+    this.#serverClock = serverClock;
     addEventListener("resize", this.#onResize);
     this.#startLoop();
   }
@@ -280,12 +350,11 @@ export class Hd2dRenderer implements RendererLike {
    * Downloads and decodes every texture BEFORE returning, exactly as the lab does: a scene built on
    * textures still decoding clones empty ones, and three complains once per frame about it.
    *
-   * `_serverClock` is accepted for signature parity with `Renderer.create` and is not read — it
-   * times combat visuals, and this path draws none of them yet.
+   * The session clock projects authoritative effect deadlines onto the local frame timeline.
    */
   static async create(
     canvas: HTMLCanvasElement,
-    _serverClock: ServerClock = new ServerClock(),
+    serverClock: ServerClock = new ServerClock(),
   ): Promise<Hd2dRenderer> {
     const specs = [...HD2D_TEXTURE_URLS, ...HD2D_ACTOR_TEXTURE_URLS];
     const blobs = await fetchAll(
@@ -294,7 +363,7 @@ export class Hd2dRenderer implements RendererLike {
     );
     const textures = createTextureRegistry(specs);
     await textures.decode(blobs, () => {});
-    return new Hd2dRenderer(canvas, textures);
+    return new Hd2dRenderer(canvas, textures, serverClock);
   }
 
   /**
@@ -345,6 +414,10 @@ export class Hd2dRenderer implements RendererLike {
     this.#disposeScene();
     const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
     this.#scene = scene;
+    this.#map = heightfield;
+    this.#visuals = new Hd2dVisualLayer(scene, this.#canvas, heightfield.size);
+    this.#visuals.setMerchant(this.#merchant);
+    this.#visuals.setQuestMarkers(this.#questMarkers);
     this.#actors = createBillboardRegistry(
       scene.ctx,
       this.#sceneFor(scene, heightfield),
@@ -355,6 +428,7 @@ export class Hd2dRenderer implements RendererLike {
     void this.#loadStaticContent(scene, heightfield).catch((error: unknown) => {
       console.warn("[hd2d] map scenery could not be loaded", error);
     });
+    this.#syncWorldEventContent(this.#worldEvents, true);
   }
 
   /** What `billboards.ts` and `static-content.ts` both need of the scene they draw into. */
@@ -420,7 +494,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#content = placeStaticContent(
       scene.ctx,
       this.#sceneFor(scene, heightfield),
-      heightfield,
+      { ...heightfield, events: [] },
       (assetId) => {
         const spec = specByAsset.get(assetId);
         if (!spec || !textures) return null;
@@ -430,12 +504,115 @@ export class Hd2dRenderer implements RendererLike {
     );
   }
 
+  #syncWorldEventContent(events: readonly WorldEventSnapshot[], force = false): void {
+    this.#worldEvents = events;
+    const visualKey = events
+      .map((event) => `${event.id}:${event.col}:${event.row}:${worldEventAsset(event) ?? ""}`)
+      .join("|");
+    const assetIds = [
+      ...new Set(
+        events.flatMap((event) =>
+          [event.graphicAssetId, event.harvest?.exhaustedAssetId ?? null].filter(
+            (assetId): assetId is string => assetId !== null,
+          ),
+        ),
+      ),
+    ].sort();
+    const assetKey = assetIds.join("|");
+    if (!force && visualKey === this.#eventVisualKey && assetKey === this.#eventAssetKey) return;
+    if (!this.#scene || !this.#map) return;
+    if (assetKey === this.#eventAssetKey && this.#eventTextures) {
+      this.#placeWorldEventContent(visualKey);
+      return;
+    }
+    this.#eventAssetKey = assetKey;
+    this.#eventVisualKey = "";
+    const token = ++this.#eventToken;
+    this.#eventContent?.dispose();
+    this.#eventContent = null;
+    this.#eventTextures?.dispose();
+    this.#eventTextures = null;
+    if (assetIds.length === 0) {
+      this.#eventVisualKey = visualKey;
+      return;
+    }
+    void this.#loadWorldEventTextures(assetIds, token, visualKey).catch((error: unknown) => {
+      console.warn("[hd2d] world-event art could not be loaded", error);
+    });
+  }
+
+  async #loadWorldEventTextures(
+    assetIds: readonly string[],
+    token: number,
+    visualKey: string,
+  ): Promise<void> {
+    const specsByAsset = new Map<string, StaticAssetSpec>();
+    for (const assetId of assetIds) {
+      const spec = staticAssetSpec(assetId);
+      if (spec) specsByAsset.set(assetId, spec);
+    }
+    const specs: TextureSpec[] = [
+      ...new Set([...specsByAsset.values()].map((spec) => spec.url)),
+    ].map((url) => ({ url }));
+    if (specs.length === 0) {
+      if (token === this.#eventToken) this.#eventVisualKey = visualKey;
+      return;
+    }
+    const blobs = await fetchAll(
+      specs.map((spec) => spec.url),
+      () => {},
+    );
+    const textures = createTextureRegistry(specs);
+    await textures.decode(blobs, () => {});
+    if (this.#destroyed || token !== this.#eventToken || !this.#scene || !this.#map) {
+      textures.dispose();
+      return;
+    }
+    this.#eventTextures = textures;
+    this.#placeWorldEventContent(visualKey);
+  }
+
+  #placeWorldEventContent(visualKey: string): void {
+    const scene = this.#scene;
+    const map = this.#map;
+    const textures = this.#eventTextures;
+    if (!scene || !map || !textures) return;
+    this.#eventContent?.dispose();
+    const events = this.#worldEvents.flatMap((event) => {
+      const assetId = worldEventAsset(event);
+      return assetId === null
+        ? []
+        : [
+            {
+              id: event.id,
+              x: event.col + 0.5 - map.size / 2,
+              z: event.row + 0.5 - map.size / 2,
+              graphicAssetId: assetId,
+            },
+          ];
+    });
+    this.#eventContent = placeStaticContent(
+      scene.ctx,
+      this.#sceneFor(scene, map),
+      { ...map, elements: [], events },
+      (assetId) => {
+        const spec = staticAssetSpec(assetId);
+        if (!spec) return null;
+        const { url, ...geometry } = spec;
+        return { texture: textures.get(url), ...geometry };
+      },
+    );
+    this.#eventVisualKey = visualKey;
+  }
+
   render(sample: SceneSample, context: RenderContext): void {
     if (this.#destroyed) return;
     const scene = this.#scene;
     if (!scene) return;
 
-    this.#actors?.sync(this.#collectActors(sample));
+    this.#actors?.sync(this.#collectActors(sample, context.now));
+    this.#syncWorldEventContent(sample.events);
+    this.#visuals?.sync(sample, context.now);
 
     // The camera follows the local player, and only it: every other actor is drawn where the
     // interpolated view puts it. `focusOn` takes a GROUND point — `x` and `z` — and the snapshot is
@@ -461,31 +638,27 @@ export class Hd2dRenderer implements RendererLike {
    * relayed. A monster or a guard is stepped by the room, on the ground and nowhere else, so all
    * three are false for them and the registry stands them on the terrain as it always did.
    *
-   * Two skips, and one thing still owed for each:
-   *
-   * - A **dead monster** is skipped. The deleted PixiJS path kept it for a death animation this one
-   *   does not play, so leaving it in would stand a corpse upright until the server swept it. NOT YET
-   *   DRAWN ON THE HD-2D PATH: the death animation itself.
-   * - A player in the **`corpse`** life state is skipped for the same reason — a body lies down,
-   *   and an idle billboard standing to attention over it is worse than nothing. Its body rides in
-   *   `sample.corpses`, which this path does not draw yet either. NOT YET DRAWN ON THE HD-2D PATH:
-   *   corpses.
-   * - A **`ghost`** is deliberately KEPT. Its pose is right (a ghost walks), it is very often the
-   *   local player mid-corpse-run, and skipping it would blank the one actor whose screen this is.
-   *   NOT YET DRAWN ON THE HD-2D PATH: the translucency that tells a ghost from the living.
+   * Dead monsters and corpse snapshots become flattened billboards; ghosts keep their walking pose
+   * with reduced opacity. A player whose life is `corpse` is omitted only because the dedicated
+   * `sample.corpses` entry is the single body source.
    */
-  #collectActors(sample: SceneSample): readonly ActorView[] {
+  #collectActors(sample: SceneSample, animationTimeMs: number): readonly ActorView[] {
     const views = this.#actorViews;
     views.length = 0;
+    this.#actorPositions.clear();
     for (const player of sample.players) {
       if (player.life === "corpse") continue;
-      views.push(playerActorView(player));
+      views.push(playerActorView(player, animationTimeMs));
+      this.#actorPositions.set(player.id, {
+        x: player.x,
+        z: player.z,
+        playerClass: player.class,
+      });
     }
     for (const monster of sample.monsters) {
-      if (monster.dead) continue;
       views.push({
         id: monster.id,
-        kind: "monster",
+        kind: monster.dead ? "corpse" : "monster",
         x: monster.x,
         y: monster.y,
         z: monster.z,
@@ -493,6 +666,13 @@ export class Hd2dRenderer implements RendererLike {
         vy: 0,
         facing: facingOf(monster.facing),
         textureKey: monsterTextureKey(monster),
+        animationTimeMs,
+        ...(monster.dead ? { pose: "fallen" as const } : {}),
+      });
+      this.#actorPositions.set(monster.id, {
+        x: monster.x,
+        z: monster.z,
+        species: monster.species,
       });
     }
     for (const guard of sample.guards)
@@ -508,7 +688,24 @@ export class Hd2dRenderer implements RendererLike {
         // whichever profile the guard already had rather than snapping it east every frame.
         facing: "north",
         textureKey: guardTextureKey(guard),
+        animationTimeMs,
       });
+    for (const guard of sample.guards)
+      this.#actorPositions.set(guard.id, { x: guard.x, z: guard.z });
+    for (const corpse of sample.corpses) {
+      views.push({
+        id: `corpse:${corpse.id}`,
+        kind: "corpse",
+        x: corpse.x,
+        y: corpse.y,
+        z: corpse.z,
+        ...GROUNDED,
+        vy: 0,
+        facing: "north",
+        textureKey: unitSheet(corpse.class, corpse.appearance, "idle").source,
+        pose: "fallen",
+      });
+    }
     return views;
   }
 
@@ -518,14 +715,24 @@ export class Hd2dRenderer implements RendererLike {
     // token bump is part of the same teardown — a scenery download still in flight belongs to a
     // scene that no longer exists.
     this.#contentToken += 1;
+    this.#eventToken += 1;
     this.#content?.dispose();
     this.#content = null;
     this.#contentTextures?.dispose();
     this.#contentTextures = null;
+    this.#eventContent?.dispose();
+    this.#eventContent = null;
+    this.#eventTextures?.dispose();
+    this.#eventTextures = null;
+    this.#eventAssetKey = "";
+    this.#eventVisualKey = "";
+    this.#visuals?.dispose();
+    this.#visuals = null;
     this.#actors?.dispose();
     this.#actors = null;
     this.#scene?.dispose();
     this.#scene = null;
+    this.#map = null;
   }
 
   destroy(): void {
@@ -545,85 +752,176 @@ export class Hd2dRenderer implements RendererLike {
     this.#selfId = id;
   }
 
-  // --- not yet drawn ------------------------------------------------------------------------------
-  // Everything below is an explicit no-op. Each carries the same marker so one grep finds them all.
+  #position(id: string): ActorPosition | null {
+    return this.#actorPositions.get(id) ?? null;
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  configureMerchant(_merchant: MerchantDefinition | null): void {}
+  #localDeadline(serverTimestamp: number, fallbackMs: number): number {
+    return this.#serverClock.toLocal(serverTimestamp) ?? performance.now() + fallbackMs;
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
+  configureMerchant(merchant: MerchantDefinition | null): void {
+    this.#merchant = merchant;
+    this.#visuals?.setMerchant(merchant);
+  }
+
   diagnostics(): Record<string, number> {
-    return {};
+    return {
+      mapLoaded: this.#scene ? 1 : 0,
+      trackedActors: this.#actorPositions.size,
+      ...this.#visuals?.diagnostics(),
+    };
   }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  hidePeasantBombAim(): void {}
+  hidePeasantBombAim(): void {
+    this.#visuals?.hideAim();
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  hideQuestSite(_id: string, _durationMs: number): void {}
+  hideQuestSite(id: string, durationMs: number): void {
+    this.#visuals?.hideQuestSite(id, durationMs);
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playCombatAnimation(_animation: CombatAnimation): void {}
+  playCombatAnimation(animation: CombatAnimation): void {
+    const position = this.#position(animation.actorId);
+    if (!position) return;
+    const now = performance.now();
+    const timeline = this.#serverClock.combatTimeline(animation, now);
+    const color = position.playerClass
+      ? CLASS_EFFECT_COLORS[position.playerClass]
+      : animation.actorKind === "monster"
+        ? 0xff745f
+        : 0xffffff;
+    this.#visuals?.beam(
+      { x: position.x, z: position.z },
+      {
+        x: position.x + animation.direction.x * 0.72,
+        z: position.z + animation.direction.z * 0.72,
+      },
+      0.12,
+      color,
+      Math.max(120, timeline.impactAt - timeline.startedAt),
+      timeline.startedAt,
+    );
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
   playCombatImpact(
-    _playerId: string,
-    _skillId: string,
-    _x: number,
-    _z: number,
+    playerId: string,
+    skillId: string,
+    x: number,
+    z: number,
   ): PlayerClass | undefined {
-    return undefined;
+    const playerClass = this.#position(playerId)?.playerClass;
+    const color = playerClass ? CLASS_EFFECT_COLORS[playerClass] : colorFromSkill(skillId);
+    this.#visuals?.pulse(x, z, color, skillId === "attack" ? 0.55 : 0.9);
+    return playerClass;
   }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
   playHealingImpact(
-    _color: PrimaryColor,
-    _skillId?: "mend" | "prayer" | "divine_nova",
-    _x?: number,
-    _y?: number,
-  ): void {}
-
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playInteraction(): void {}
-
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playLumenPortal(_portal: PriestLumenPortalVisual): void {}
-
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playLumenTrail(_trail: PriestLumenTrailVisual): void {}
-
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playMonsterImpact(_species: MonsterSpecies, _x?: number, _z?: number): void {}
-
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playMonsterSpecialImpact(_impact: MonsterSpecialImpact): MonsterImpactSound | undefined {
-    return undefined;
+    color: PrimaryColor,
+    skillId?: "mend" | "prayer" | "divine_nova",
+    x?: number,
+    z?: number,
+  ): void {
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    const atX = x ?? self?.x;
+    const atZ = z ?? self?.z;
+    if (atX === undefined || atZ === undefined) return;
+    this.#visuals?.pulse(
+      atX,
+      atZ,
+      PRIMARY_EFFECT_COLORS[color],
+      skillId === "divine_nova" ? 1.75 : skillId === "prayer" ? 1.2 : 0.75,
+      680,
+    );
   }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playPeasantBombImpact(_impact: PeasantBombImpactVisual): void {}
+  playInteraction(): void {
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    if (self) this.#visuals?.pulse(self.x, self.z, 0xffe29a, 0.48, 300);
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playPolarityOrb(_orb: PriestPolarityOrbVisual): void {}
+  playLumenPortal(portal: PriestLumenPortalVisual): void {
+    const now = performance.now();
+    const endsAt = this.#localDeadline(portal.endsAt, 700);
+    const duration = Math.max(120, endsAt - now);
+    this.#visuals?.pulse(portal.from.x, portal.from.z, 0xffe995, 0.85, duration, now);
+    this.#visuals?.pulse(portal.to.x, portal.to.z, 0xfff4be, 1.05, duration, now);
+    this.#visuals?.beam(portal.from, portal.to, 0.12, 0xffe995, duration, now);
+  }
 
-  /**
-   * NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece.
-   *
-   * The one no-op that cannot return nothing: its caller uses the answer to pick an impact SOUND,
-   * and poison is the rogue's, on this path as on the other.
-   */
-  playRoguePoisonImpact(_x: number, _z: number, _rupture: boolean): PlayerClass {
+  playLumenTrail(trail: PriestLumenTrailVisual): void {
+    const now = performance.now();
+    const duration = Math.max(120, this.#localDeadline(trail.endsAt, 650) - now);
+    for (let index = 1; index < trail.points.length; index += 1) {
+      const from = trail.points[index - 1];
+      const to = trail.points[index];
+      if (from && to) this.#visuals?.beam(from, to, trail.width, 0xffed9c, duration, now);
+    }
+  }
+
+  playMonsterImpact(species: MonsterSpecies, x?: number, z?: number): void {
+    const fallback = [...this.#actorPositions.values()].find((actor) => actor.species === species);
+    const atX = x ?? fallback?.x;
+    const atZ = z ?? fallback?.z;
+    if (atX !== undefined && atZ !== undefined) this.#visuals?.pulse(atX, atZ, 0xff755f, 0.72);
+  }
+
+  playMonsterSpecialImpact(impact: MonsterSpecialImpact): MonsterImpactSound | undefined {
+    const art = monsterSpecialImpactArt(impact.technique);
+    const x = impact.x + (impact.direction.x * art.forwardOffset) / TILE_SIZE;
+    const z = impact.z + (impact.direction.z * art.forwardOffset) / TILE_SIZE;
+    this.#visuals?.pulse(x, z, 0xff6b54, art.visualRadius / TILE_SIZE, 620);
+    return art.sound;
+  }
+
+  playPeasantBombImpact(impact: PeasantBombImpactVisual): void {
+    this.#visuals?.pulse(impact.x, impact.z, 0xff9f45, impact.radius, 720);
+  }
+
+  playPolarityOrb(orb: PriestPolarityOrbVisual): void {
+    const now = performance.now();
+    const duration = Math.max(120, this.#localDeadline(orb.endsAt, 900) - now);
+    this.#visuals?.orb(
+      orb.x,
+      orb.z,
+      0x8bcfff,
+      Math.min(0.45, orb.maximumRadius * 0.22),
+      duration,
+      now,
+    );
+    this.#visuals?.pulse(orb.x, orb.z, 0x8bcfff, orb.maximumRadius, duration, now);
+  }
+
+  playRoguePoisonImpact(x: number, z: number, rupture: boolean): PlayerClass {
+    this.#visuals?.pulse(x, z, rupture ? 0x8fff5f : 0x6bcf54, rupture ? 1.1 : 0.68, 560);
     return "rogue";
   }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playShadowDance(_sequence: RogueShadowDanceSequence): void {}
+  playShadowDance(sequence: RogueShadowDanceSequence): void {
+    const base = this.#serverClock.toLocal(sequence.startedAt) ?? performance.now();
+    for (const strike of sequence.strikes) {
+      const startedAt = this.#serverClock.toLocal(strike.impactAt) ?? base;
+      this.#visuals?.beam(strike.from, strike.targetPosition, 0.09, 0xb995ff, 280, startedAt);
+      this.#visuals?.pulse(
+        strike.targetPosition.x,
+        strike.targetPosition.z,
+        0xc8a8ff,
+        0.62,
+        360,
+        startedAt,
+      );
+    }
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  playTeleportEffect(_x?: number, _z?: number): void {}
+  playTeleportEffect(x?: number, z?: number): void {
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    const atX = x ?? self?.x;
+    const atZ = z ?? self?.z;
+    if (atX !== undefined && atZ !== undefined) this.#visuals?.pulse(atX, atZ, 0xb995ff, 1.15, 620);
+  }
 
   /**
-   * NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece.
+   * Preloads authored event art before its first playable frame.
    *
    * **The invariant this owes, rescued from the deleted `world-event-art.ts`:** collect ONLY the
    * explicit visual ids the authoritative snapshot carries — `event.graphicAssetId` and
@@ -636,40 +934,34 @@ export class Hd2dRenderer implements RendererLike {
    * The point of preloading here at all is that timing: queue every replacement before the first
    * playable frame, so the swap is a texture already in memory.
    */
-  preloadWorldEventAssets(_events: readonly WorldEventSnapshot[]): void {}
-
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  removePeasantCamp(_id: string): void {}
-
-  /**
-   * NOT YET WIRED ON THE HD-2D PATH — GAMEPLAY, NOT RENDERING — owed by a later S3 piece.
-   *
-   * Deliberately a different marker from the `NOT YET DRAWN` no-ops around it, because it is a
-   * different kind of gap and must not be triaged beside them: every other stub here withholds
-   * PIXELS, and the worst a missing bloom or camp sprite can do is look plain. This one withholds
-   * an ANSWER the session turns into an authoritative intent — `session.ts` builds the peasant's
-   * bomb direction from it and sends `skill(5, direction)` over the wire. A wrong value here is a
-   * wrong bomb throw, not a missing effect.
-   *
-   * So it returns `null` — the contract's word for "I cannot answer" (`renderer-api.ts`) — and the
-   * session refuses to aim or confirm rather than send a direction it invented. Implementing it
-   * means a ray cast through the ground for a tile position plus the tile->pixel half of the bridge
-   * (`billboards.ts` carries the pixel->tile half, the direction actors need); until then, nothing
-   * is sent at all, which is the only honest option.
-   */
-  screenToWorld(_clientX: number, _clientY: number): GroundVector | null {
-    return null;
+  preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void {
+    this.#syncWorldEventContent(events, true);
   }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  setAuthoredQuestMarkers(_markers: readonly AuthoredQuestMarker[]): void {}
+  removePeasantCamp(id: string): void {
+    this.#visuals?.removeCamp(id);
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  showPeasantBombAim(_origin: GroundVector, _direction: GroundVector, _range: number): void {}
+  /** Casts the pointer through the HD-2D camera onto the bounded world ground. */
+  screenToWorld(clientX: number, clientY: number): GroundVector | null {
+    return this.#visuals?.screenToWorld(clientX, clientY) ?? null;
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  showPeasantCamp(_camp: PeasantCampVisual): void {}
+  setAuthoredQuestMarkers(markers: readonly AuthoredQuestMarker[]): void {
+    this.#questMarkers = markers;
+    this.#visuals?.setQuestMarkers(markers);
+  }
 
-  /** NOT YET DRAWN ON THE HD-2D PATH — wired in a later S3 piece. */
-  showWorldEvent(_text: string, _tone: "info" | "good" | "bad", _x?: number, _z?: number): void {}
+  showPeasantBombAim(origin: GroundVector, direction: GroundVector, range: number): void {
+    this.#visuals?.setAim(origin, direction, range);
+  }
+
+  showPeasantCamp(camp: PeasantCampVisual): void {
+    this.#visuals?.showCamp(camp, this.#localDeadline(camp.expiresAt, 30_000));
+  }
+
+  showWorldEvent(text: string, tone: "info" | "good" | "bad", x?: number, z?: number): void {
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    this.#visuals?.showWorldEvent(text, tone, x ?? self?.x ?? 0, z ?? self?.z ?? 0);
+  }
 }

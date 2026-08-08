@@ -27,7 +27,7 @@
  */
 
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
-import type { Billboard } from "@lindocara/hd2d/billboard.js";
+import type { Billboard, TextureUvRect } from "@lindocara/hd2d/billboard.js";
 import { makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type * as THREE from "three";
@@ -59,6 +59,7 @@ export interface StaticSpriteArt {
   aspect?: number;
   /** Where the art's feet sit in its frame, as a fraction of frame height from the bottom. */
   foot?: number;
+  uvRect?: TextureUvRect;
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
@@ -106,6 +107,7 @@ export function placeStaticContent(
       height: sprite.height,
       aspect: sprite.aspect ?? 1,
       foot: sprite.foot ?? 0,
+      ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
       pitch: HD2D_CAMERA.pitch,
     });
     // The ground under the piece, or the sea when there is none: an offshore rock is authored on

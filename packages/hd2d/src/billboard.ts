@@ -80,15 +80,30 @@ export function billboardHeight({
  * Découpe une feuille de sprites en frames et pilote offset/repeat de la texture. Le flip se fait
  * par un repeat négatif ; les UV restent dans [0,1] donc un wrap ClampToEdge suffit.
  */
-function bindSheet(map: THREE.Texture, cols: number, rows: number) {
+export interface TextureUvRect {
+  offsetX: number;
+  offsetY: number;
+  repeatX: number;
+  repeatY: number;
+}
+
+function bindSheet(
+  map: THREE.Texture,
+  cols: number,
+  rows: number,
+  base: TextureUvRect = { offsetX: 0, offsetY: 0, repeatX: 1, repeatY: 1 },
+) {
   const uv = sheetUv({ cols, rows });
   let frame = -1;
   let flipped = false;
 
   function apply() {
     const rect = uv.frame(frame, { flipped });
-    map.offset.set(rect.offsetX, rect.offsetY);
-    map.repeat.set(rect.repeatX, rect.repeatY);
+    map.offset.set(
+      base.offsetX + rect.offsetX * base.repeatX,
+      base.offsetY + rect.offsetY * base.repeatY,
+    );
+    map.repeat.set(rect.repeatX * base.repeatX, rect.repeatY * base.repeatY);
   }
 
   const binding = {
@@ -196,8 +211,9 @@ function finishBillboard(
   cols: number,
   rows: number,
   footOffset: number,
+  uvRect?: TextureUvRect,
 ): Billboard {
-  const sheet = bindSheet(map, cols, rows);
+  const sheet = bindSheet(map, cols, rows, uvRect);
 
   return {
     mesh,
@@ -238,6 +254,8 @@ export interface BillboardOptions {
   /** Plongée de la caméra, pour calculer l'étirement. */
   pitch?: number;
   graftCloudShadow?: CloudShadowGraft;
+  /** Optional crop inside the source texture, expressed in normalized bottom-origin UVs. */
+  uvRect?: TextureUvRect;
 }
 
 /**
@@ -258,6 +276,7 @@ export function makeBillboard(ctx: Hd2dContext, opts: BillboardOptions): Billboa
     stretch = ctx.config.spriteStretch,
     pitch = 0,
     graftCloudShadow = (material, graftOpts) => applyCloudShadow(ctx, material, graftOpts),
+    uvRect,
   } = opts;
 
   const w = height * aspect;
@@ -280,13 +299,13 @@ export function makeBillboard(ctx: Hd2dContext, opts: BillboardOptions): Billboa
     mesh.receiveShadow = true;
     mesh.layers.enable(RIM_LAYER);
     ctx.registerBillboard(mesh, { lit: true, material, mid });
-    return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset);
+    return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset, uvRect);
   }
 
   const material = makeUnlitMaterial(map);
   const mesh = new THREE.Mesh(geo, material);
   ctx.registerBillboard(mesh, { lit: false });
-  return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset);
+  return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset, uvRect);
 }
 
 export interface FlatSpriteOptions {

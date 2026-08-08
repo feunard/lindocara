@@ -343,6 +343,9 @@ export function createHd2dScene(
   let focus: { x: number; z: number } | null = null;
   let focusReached = false;
   const wantedTarget = new THREE.Vector3();
+  const cameraInset = Math.min(4, Math.max(0, map.size / 2 - 0.5));
+  const cameraMin = -map.size / 2 + cameraInset;
+  const cameraMax = map.size / 2 - cameraInset;
 
   function frameCamera(): void {
     // How far back the camera sits. A constant while nothing can zoom; the variable it becomes the
@@ -437,17 +440,11 @@ export function createHd2dScene(
     // The camera follows a player, and a player's position now arrives in the scene's own tile
     // units — there is nothing to convert here any more.
     //
-    // NOT YET DRAWN ON THE HD-2D PATH: camera bounds. This follows the point it is given, full stop
-    // — no clamping to the map's extent, so a hero at an edge sees past it, and no snap on a large
-    // jump, so a teleport or a map handoff sweeps instead of cutting. The deleted PixiJS renderer
-    // did both, and the RULES survive as pure, tested functions with no callers left:
-    // `world-view.ts`'s `gameCameraScale`/`cameraAxisOffset`/`elevatedCameraAxisOffset` and
-    // `terrain-visuals.ts`'s `elevationCameraRise`. Whoever wires them in must keep their ordering
-    // — the elevation rise is applied AFTER the map-bound clamp, never folded into the target, or a
-    // stair near the north edge loses the whole effect. See `docs/hd2d-rendering.md`, "What
-    // `renderer.ts` knew".
     focusOn(x: number, z: number): void {
-      focus = { x, z };
+      focus = {
+        x: THREE.MathUtils.clamp(x, cameraMin, cameraMax),
+        z: THREE.MathUtils.clamp(z, cameraMin, cameraMax),
+      };
     },
     render(now: number): void {
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
@@ -463,8 +460,9 @@ export function createHd2dScene(
         // makes the same follow read as two different games. The FIRST focus snaps instead — the
         // camera starts parked over the map's spawn, and damping from there would be a one-second
         // fly-in every time a hero joins somewhere else.
-        if (focusReached) target.lerp(wantedTarget, 1 - Math.exp(-CAMERA.follow * dt));
-        else {
+        if (focusReached && target.distanceToSquared(wantedTarget) <= 25) {
+          target.lerp(wantedTarget, 1 - Math.exp(-CAMERA.follow * dt));
+        } else {
           target.copy(wantedTarget);
           focusReached = true;
         }

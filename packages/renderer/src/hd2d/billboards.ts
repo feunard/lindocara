@@ -23,7 +23,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { HD2D_CAMERA } from "./scene.js";
 
-export type ActorKind = "player" | "monster" | "guard";
+export type ActorKind = "player" | "monster" | "guard" | "corpse";
 
 /** One actor of one frame, as the renderer hands it over. Every coordinate is the snapshot's own —
  *  TILE units, grid centre as origin — so `sync` converts nothing. */
@@ -64,6 +64,8 @@ export interface ActorView {
   facing: Facing;
   /** A url in the `TextureRegistry` the registry was built with. */
   textureKey: string;
+  pose?: "standing" | "fallen" | "ghost";
+  animationTimeMs?: number;
 }
 
 /**
@@ -105,6 +107,7 @@ export const ACTOR_FOOT: Record<ActorKind, number> = {
   player: 56 / 192,
   guard: 56 / 192,
   monster: 0.3,
+  corpse: 56 / 192,
 };
 
 /** Every actor sheet this game ships is a single ROW of square frames — 1536x192 for eight warrior
@@ -150,6 +153,7 @@ interface Entry {
    *  keeping the old sheet forever. */
   textureKey: string;
   canopyTextureKey: string | undefined;
+  cols: number;
 }
 
 export const GLIDER_HEIGHT = 2.45;
@@ -190,6 +194,7 @@ export function createBillboardRegistry(
       canopy: null,
       textureKey: actor.textureKey,
       canopyTextureKey: actor.canopyTextureKey,
+      cols,
     };
   }
 
@@ -233,7 +238,18 @@ export function createBillboardRegistry(
           entries.set(actor.id, entry);
         }
         const stretch = THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
-        entry.billboard.mesh.scale.set(1 - stretch * 0.6, 1 + stretch, 1);
+        const fallen = actor.pose === "fallen";
+        entry.billboard.mesh.scale.set(1 - stretch * 0.6, fallen ? 0.24 : 1 + stretch, 1);
+        entry.billboard.mesh.rotation.z = fallen ? Math.PI / 2 : 0;
+        entry.billboard.setFrame(
+          fallen ? 0 : Math.floor((actor.animationTimeMs ?? 0) / 145) % entry.cols,
+        );
+        const material = entry.billboard.mesh.material;
+        const materials = Array.isArray(material) ? material : [material];
+        for (const current of materials) {
+          current.transparent = actor.pose === "ghost";
+          current.opacity = actor.pose === "ghost" ? 0.48 : 1;
+        }
         entry.billboard.placeAt(actor.x, elevationOf(actor, scene), actor.z);
         entry.billboard.setFacing(actor.facing);
         if (actor.gliding && actor.canopyTextureKey) {
