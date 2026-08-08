@@ -1040,6 +1040,7 @@ export function applyReportedMove(
   player.x = move.x;
   player.y = move.y;
   player.z = move.z;
+  player.vy = move.vy;
   player.facing = { x: move.facing.x, z: move.facing.z };
   player.airborne = move.airborne;
   player.swimming = move.swimming;

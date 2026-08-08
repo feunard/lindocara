@@ -251,6 +251,7 @@ const reportEast = (from: { x: number; y: number; z: number }) => ({
   x: from.x + 1,
   y: from.y,
   z: from.z,
+  vy: 0,
   facing: { x: 1, z: 0 },
   airborne: false,
   swimming: false,

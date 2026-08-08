@@ -98,6 +98,7 @@ export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerS
     x: round(player.x),
     y: round(player.y),
     z: round(player.z),
+    vy: round(player.vy),
     // Relayed, never derived: a position stream cannot tell a jump from a swim from an open canopy,
     // and those three are exactly what a remote renderer needs to draw one hero differently.
     airborne: player.airborne,

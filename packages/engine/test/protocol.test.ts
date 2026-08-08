@@ -22,6 +22,7 @@ describe("client protocol", () => {
       x: 1,
       y: 0,
       z: -1,
+      vy: 0,
       facing: { x: 0, z: 1 },
       airborne: false,
       swimming: false,

@@ -121,6 +121,7 @@ const WELCOME: Extract<ServerMessage, { t: "welcome" }> = {
       x: 0,
       y: 0,
       z: 0,
+      vy: 0,
       airborne: false,
       swimming: false,
       gliding: false,

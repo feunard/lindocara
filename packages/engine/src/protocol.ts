@@ -116,8 +116,8 @@ export const MOVE_COORDINATE_LIMIT = MAX_HEIGHTFIELD_SIZE / 2;
 /**
  * Where the client says its own hero now is. The one place a client supplies a fact rather than an
  * intent — the movement rule runs there (see this file's header) — and therefore the one message
- * whose parsing carries the whole weight: all three axes finite and bounded, a real unit heading,
- * and the three locomotion flags present rather than defaulted.
+ * whose parsing carries the whole weight: all three axes and vertical velocity finite and bounded,
+ * a real unit heading, and the three locomotion flags present rather than defaulted.
  *
  * `x`/`z` are the GROUND axes and `y` is ELEVATION. A payload carrying an `{x, y}` ground pair is a
  * half-converted sender, and it must be refused rather than read as a world on its side.
@@ -127,6 +127,8 @@ export interface MoveMessage {
   x: number;
   y: number;
   z: number;
+  /** Vertical velocity, visual state only. Bounded like a coordinate before it is relayed. */
+  vy: number;
   facing: GroundVector;
   airborne: boolean;
   swimming: boolean;
@@ -174,6 +176,9 @@ export interface PlayerSnapshot {
   y: number;
   /** The second GROUND axis. A snapshot with no `z` is a half-converted world on its side. */
   z: number;
+  /** Vertical velocity for remote stretch/squash. Older recorded frames may omit it; live rooms
+   *  always relay it and renderers treat absence as rest. */
+  vy?: number;
   /**
    * The three locomotion flags, relayed from whoever owns this hero's movement rule. They are what
    * a remote renderer needs to draw the difference between a hero mid-jump, a hero swimming and a
@@ -1252,6 +1257,7 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     isWireId(value.id) &&
     isBoundedString(value.nick, 32) &&
     isWorldPosition(value) &&
+    (value.vy === undefined || isMoveCoordinate(value.vy)) &&
     typeof value.airborne === "boolean" &&
     typeof value.swimming === "boolean" &&
     typeof value.gliding === "boolean" &&
@@ -1879,6 +1885,7 @@ function parseMove(value: Record<string, unknown>): MoveMessage | null {
       "x",
       "y",
       "z",
+      "vy",
       "facing",
       "airborne",
       "swimming",
@@ -1888,6 +1895,7 @@ function parseMove(value: Record<string, unknown>): MoveMessage | null {
     !isMoveCoordinate(value.x) ||
     !isMoveCoordinate(value.y) ||
     !isMoveCoordinate(value.z) ||
+    !isMoveCoordinate(value.vy) ||
     !isDirection(value.facing) ||
     typeof value.airborne !== "boolean" ||
     typeof value.swimming !== "boolean" ||
@@ -1904,6 +1912,7 @@ function parseMove(value: Record<string, unknown>): MoveMessage | null {
     x: value.x,
     y: value.y,
     z: value.z,
+    vy: value.vy,
     facing: { x: value.facing.x, z: value.facing.z },
     airborne: value.airborne,
     swimming: value.swimming,

@@ -1227,7 +1227,8 @@ async function startGameIdentity(
 
   renderer.onFrame((now, dt) => {
     sound.update(now);
-    client.update(isGameplayInputPaused() ? NO_INPUT : input.current(), dt);
+    const movementEvents = client.update(isGameplayInputPaused() ? NO_INPUT : input.current(), dt);
+    sound.movement(movementEvents);
     const sample = client.sample(now);
     combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);

@@ -186,6 +186,22 @@ export class MapService {
     }));
   }
 
+  /** HTTP-facing list: an adventure id is not a capability to enumerate another author's maps. */
+  async listMapsForUser(userId: string, adventureId: string): Promise<MapSummary[]> {
+    const rows = await this.maps.findMany({
+      where: { adventureId: { eq: adventureId }, userId: { eq: userId } },
+      orderBy: "createdAt",
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      revision: row.revision,
+      cols: row.cols,
+      rows: row.rows,
+      isFirst: row.isFirst,
+    }));
+  }
+
   /** Ported from `createMap`: always the trusted blank template, never client-authored terrain. */
   async createMap(
     adventureId: string,
@@ -237,10 +253,29 @@ export class MapService {
     return this.toPayload(row);
   }
 
+  /** HTTP-facing create: only the adventure author may add maps to their adventure. */
+  async createMapForUser(
+    userId: string,
+    adventureId: string,
+    name: string,
+    cols?: number,
+    rows?: number,
+  ): Promise<MapPayload> {
+    const adventure = await this.adventures.findById(adventureId);
+    if (!adventure || adventure.userId !== userId) throw new Error("not_found: no such adventure");
+    return this.createMap(adventureId, name, cols, rows);
+  }
+
   /** Ported from `loadMap`. */
   async getMap(id: string): Promise<MapPayload> {
     const row = await this.maps.findById(id);
     if (!row) throw new Error("not_found: no such map");
+    return this.toPayload(row);
+  }
+
+  /** HTTP-facing read. Missing and foreign rows deliberately share the same refusal. */
+  async getMapForUser(userId: string, id: string): Promise<MapPayload> {
+    const row = await this.requireOwnedMap(userId, id);
     return this.toPayload(row);
   }
 
@@ -362,6 +397,18 @@ export class MapService {
     };
   }
 
+  /** HTTP-facing update. The ownership check happens before graph or child-row mutation. */
+  async updateMapForUser(
+    userId: string,
+    id: string,
+    input: MapInput,
+    expectedRevision?: number,
+    proposedAdventure?: AdventureInput,
+  ): Promise<MapPayload> {
+    await this.requireOwnedMap(userId, id);
+    return this.updateMap(id, input, expectedRevision, proposedAdventure);
+  }
+
   /** Ported from `deleteMap`. */
   async deleteMap(id: string, options: { force?: boolean } = {}): Promise<void> {
     const row = await this.maps.findById(id);
@@ -422,6 +469,16 @@ export class MapService {
     await this.reassignFirstIfNeeded(row.userId);
   }
 
+  /** HTTP-facing delete. Force bypasses references, never ownership. */
+  async deleteMapForUser(
+    userId: string,
+    id: string,
+    options: { force?: boolean } = {},
+  ): Promise<void> {
+    await this.requireOwnedMap(userId, id);
+    await this.deleteMap(id, options);
+  }
+
   /**
    * Hand the front-door flag to a chosen map. Exactly one map carries it, before and after — clear
    * runs before set, so nothing ever observes two `isFirst` rows for the same account (the
@@ -446,6 +503,12 @@ export class MapService {
       { isFirst: false },
     );
     await this.maps.updateById(row.id, { isFirst: true });
+  }
+
+  /** HTTP-facing front-door selection. */
+  async setFirstMapForUser(userId: string, id: string): Promise<void> {
+    await this.requireOwnedMap(userId, id);
+    await this.setFirstMap(id);
   }
 
   /**
@@ -490,25 +553,22 @@ export class MapService {
    * **`not_found`, deliberately, and with the identical message a missing row throws.** The map
    * family has no forbidden code (`rethrowAsMapError`: `not_found` -> 404 `map_not_found`), and
    * inventing one would put a machine code on the wire that no dictionary key answers
-   * (`packages/client/src/api.ts`). The identical message is for CONSISTENCY, not secrecy — this
-   * route hides nothing, because `GET /api/maps/:id` is unfenced and hands the whole payload of any
-   * map to any account. One refusal with one wording is simply what a caller can act on: a seeding
-   * CLI seeing `map_not_found` retries the same way whether the id is wrong or the account is.
-   *
-   * This is the ONE map route that is owner-fenced, and that asymmetry is deliberate. The rest of
-   * the surface is collaboratively open by ported design (this service's docblock, and the
-   * `maps.test.ts` blocks literally named "collaborative editing is open"); this route is new, is
-   * the seeding path into a DEPLOYED instance, and writes the one column that decides whether a
-   * room is joinable at all — an unfenced version of it would let any account with a login make
-   * every other author's adventure unenterable.
+   * (`packages/client/src/api.ts`). The identical refusal is now the rule for every HTTP map
+   * operation: callers cannot distinguish a missing row from another author's row, and no force
+   * flag bypasses that ownership fence.
    */
   async saveHeightfieldForUser(userId: string, id: string, heightfield: string): Promise<void> {
-    const row = await this.maps.findById(id);
-    if (!row || row.userId !== userId) throw new Error("not_found: no such map");
+    await this.requireOwnedMap(userId, id);
     await this.maps.updateById(id, { heightfield, revision: sql`revision + 1` });
   }
 
   // ---------------------------------------------------------------------------------------------
+
+  private async requireOwnedMap(userId: string, id: string): Promise<MapRow> {
+    const row = await this.maps.findById(id);
+    if (!row || row.userId !== userId) throw new Error("not_found: no such map");
+    return row;
+  }
 
   private async reassignFirstIfNeeded(userId: string): Promise<void> {
     const stillFlagged = await this.maps.findOne({

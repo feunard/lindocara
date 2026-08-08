@@ -498,7 +498,12 @@ function boundedMonsterSpeed(
 ): number | null {
   if (value === undefined || value === null) return fallback;
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return value >= limits.min && value <= limits.max ? value : null;
+  if (value < limits.min || value > limits.max) return null;
+  // Rows predating tile units contain pixel speeds (for example 105). Modern values cannot exceed
+  // the old ceiling divided by one tile, so only that legacy band is normalized here. The already
+  // tile-scaled fallback and modern authored values pass through unchanged.
+  const tileCeiling = limits.max / TILE_SIZE;
+  return value > tileCeiling ? value / TILE_SIZE : value;
 }
 
 function parseEventPage(raw: unknown): MapEventPage | null {

@@ -65,7 +65,11 @@ reports itself walking is not believed") and the one stopping a mid-handoff hero
 destination the transition already decided. The client-side `frozen` flag *is* tested; that is the
 cooperative half, not the fence.
 
-## 4. Cross-tenant map access — a design decision, not a regression
+## 4. CLOSED — map access is owner-fenced
+
+Closed 2026-08-09: the product decision is private authoring. Every HTTP map route now scopes the
+row or adventure to the authenticated author. Foreign lists are empty; foreign reads, writes,
+front-door changes, forced deletes and creates under another adventure all answer the same 404.
 
 Any authenticated account can **read, rewrite, re-flag and delete another author's maps**. Executed
 against a real app with a freshly registered second account:
@@ -81,21 +85,21 @@ This is the ported "collaborative editing is open" behaviour and `maps.test.ts` 
 purpose**. It is not caused by recent work. It does bound what the new heightfield fence buys: an
 attacker cannot blank your terrain in place, but can delete the map holding it.
 
-`PUT /api/maps/:id/heightfield` is the one owner-fenced route on that surface
-(`MapService.saveHeightfieldForUser`, 404 to anyone else).
+`PUT /api/maps/:id/heightfield` was the first owner-fenced route on that surface; every map route
+now applies the same author boundary.
 
-**Someone has to decide** whether the map surface stays collaborative, now that production maps are
-worth attacking.
+**Decision recorded 2026-08-09:** the map surface is private to its author. The reproduction above
+is retained as the evidence for the fence, not as current behavior.
 
 ## 5. Smaller, recorded rather than fixed
 
-- **`game.ts`'s monster-speed comment claims a conversion that does not exist.**
+- **CLOSED: legacy authored monster speeds are normalized at parse time.**
   `authored-monster-system.ts` passes `event.monsterSpeed` through raw while its neighbour
   `patrolRadius` really does convert. A stored pixel speed of 105 would spawn a monster at 105
   *tiles*/second. Inert only because a heightfield room bakes `events: []`, so no authored monster
-  spawns — meaning **it fires the day that is closed**, which is the next planned work. The real fix
-  belongs in `map-events.ts`, where the defaulting branch lives; a blanket `/ TILE_SIZE` at the
-  consumer would divide every already-tile-scaled default by 64 again.
+  spawns — meaning **it would have fired the day that cost is closed**. The fix now lives in
+  `map-events.ts`: absent/defaulted and plausible tile values pass unchanged, while explicit
+  values in the legacy pixel-only band are divided once. The consumer remains a pass-through.
 - **CLOSED: `ground-distance-units.test.ts`'s catch-all was 4× coarser than it was.** Its bound is now the
   true `MAX_HEIGHTFIELD_SIZE` (256), which is correct but means every pixel original ≤ 256 slips
   past it — including `3 * TILE_SIZE` = 192, the `DIALOGUE_CLOSE_RADIUS` bug the file was written
@@ -103,10 +107,12 @@ worth attacking.
   *future* one. A second, tighter assertion beside the true bound now closes it.
 - **CLOSED: no breath signal anywhere.** The local movement controller now feeds a rounded countdown
   to the HUD while swimming, and `__lindocara.self()` exposes raw `breath`, `maxBreath` and `vy`.
-- **`stepHero`'s `HeroEvent[]` plays nothing** — footsteps, splashes, water entry/exit, canopy, skids
-  all narrated and silent. Audio has no owner.
-- **No vertical animation** — no stretch/squash (the lab drives those from `state.vy`, which never
-  crosses the wire) and no canopy sprite over a glider.
+- **CLOSED: `stepHero`'s audible `HeroEvent[]` is owned by `GameSound`.** Footsteps, swimming,
+  water transitions, jumps, landings, thin ice, canopy opening and held skids are synthesized from
+  the event stream; visual-only trace/breath events remain deliberately silent.
+- **CLOSED: vertical animation and canopy.** `vy` is bounded on the move wire, relayed for remote
+  players, and drives the lab's stretch/squash curve. A gliding actor carries the generated canopy
+  as a second billboard, lazily created and hidden again on close.
 
 ## Accepted costs — do not "fix" these by accident
 
@@ -123,9 +129,9 @@ seeds a playable one.
 
 ## Deploying
 
-Production is Alepha Bay, reached **over SSH**, deployed from a laptop — CI deploy on push is
-disabled (`.github/workflows/deploy.yml`, `workflow_dispatch` only). Re-enabling it means rewriting
-the job for an SSH key and `$BAY_HOST`; the current job still references the retired Lore route.
+Production is Alepha Bay, reached **over SSH**. `.github/workflows/deploy.yml` supports both pushes
+to `main` and manual dispatch, uses the Bay SSH host/key, and deploys the game plus the static lab.
+The retired Lore route is no longer referenced.
 
 `../alepha/apps/bay/INSTALL.md` documents the host setup, including the three prerequisites that
 silently block a first deploy.

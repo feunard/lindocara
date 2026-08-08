@@ -26,6 +26,7 @@ import {
   parseMapEvents,
   validateEventName,
 } from "@lindocara/engine/map-events.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   type EditorAssetId,
@@ -460,6 +461,17 @@ describe("parseMapEvents: authored monster tuning", () => {
     expect(parsed?.monsterAttackProfile).toBeUndefined();
   });
 
+  it("normalizes explicit legacy pixel speeds without dividing tile values or defaults twice", () => {
+    const base = { kind: "monster" as const, species: "spear_goblin" as const, patrolRadius: 64 };
+    const legacy = parseMapEvents([event({ ...base, monsterSpeed: 105 })], COLS, ROWS)?.[0];
+    const modern = parseMapEvents([event({ ...base, monsterSpeed: 2.25 })], COLS, ROWS)?.[0];
+    const defaulted = parseMapEvents([event(base)], COLS, ROWS)?.[0];
+
+    expect(legacy?.monsterSpeed).toBe(105 / TILE_SIZE);
+    expect(modern?.monsterSpeed).toBe(2.25);
+    expect(defaulted?.monsterSpeed).toBe(defaultMonsterTuning("spear_goblin").speed);
+  });
+
   it("accepts an explicit attack profile and rejects invalid or non-monster values", () => {
     const archer = event({
       kind: "monster",
@@ -524,7 +536,7 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterRank: "boss",
       monsterMaxHp: 4_000,
       monsterDamage: 85,
-      monsterSpeed: 72,
+      monsterSpeed: 72 / TILE_SIZE,
       monsterXp: 10_000,
       monsterWeakness: "priest",
       monsterWeaknessPercent: 175,

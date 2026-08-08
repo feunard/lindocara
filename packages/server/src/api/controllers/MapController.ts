@@ -59,7 +59,7 @@ export class MapController {
       query: z.object({ adventure: z.string().optional() }),
       response: z.array(mapSummarySchema),
     },
-    handler: async ({ query }) => {
+    handler: async ({ query, user }) => {
       if (!query.adventure || !isUuid(query.adventure)) {
         throw new HttpError({
           status: 400,
@@ -67,7 +67,7 @@ export class MapController {
           message: "adventure query param required",
         });
       }
-      return this.mapService.listMaps(query.adventure);
+      return this.mapService.listMapsForUser(user.id, query.adventure);
     },
   });
 
@@ -77,14 +77,15 @@ export class MapController {
     path: "/maps",
     use: [$secure({}), $transactional()],
     schema: { body: z.any(), response: z.any() },
-    handler: async ({ body, headers, reply }) => {
+    handler: async ({ body, headers, reply, user }) => {
       enforceBodySizeCap(headers, body, MAX_MAP_JSON_BYTES);
       const input = parseCreateMapBody(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "map_invalid", message: "invalid create body" });
       }
       try {
-        const created = await this.mapService.createMap(
+        const created = await this.mapService.createMapForUser(
+          user.id,
           input.adventureId,
           input.name,
           input.cols,
@@ -103,9 +104,9 @@ export class MapController {
     path: "/maps/:id",
     use: [$secure({})],
     schema: { params: z.object({ id: z.string() }), response: z.any() },
-    handler: async ({ params }) => {
+    handler: async ({ params, user }) => {
       try {
-        return await this.mapService.getMap(params.id);
+        return await this.mapService.getMapForUser(user.id, params.id);
       } catch (error) {
         rethrowAsMapError(error);
       }
@@ -118,7 +119,7 @@ export class MapController {
     path: "/maps/:id",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
-    handler: async ({ params, body, headers }) => {
+    handler: async ({ params, body, headers, user }) => {
       enforceBodySizeCap(headers, body, MAX_MAP_JSON_BYTES);
       const input = parseMapBody(body);
       if (!input) {
@@ -150,7 +151,8 @@ export class MapController {
         expectedRevision = rawExpectedRevision as number;
       }
       try {
-        return await this.mapService.updateMap(
+        return await this.mapService.updateMapForUser(
+          user.id,
           params.id,
           input,
           expectedRevision,
@@ -171,9 +173,11 @@ export class MapController {
       params: z.object({ id: z.string() }),
       query: z.object({ force: z.string().optional() }),
     },
-    handler: async ({ params, query }) => {
+    handler: async ({ params, query, user }) => {
       try {
-        await this.mapService.deleteMap(params.id, { force: query.force === "true" });
+        await this.mapService.deleteMapForUser(user.id, params.id, {
+          force: query.force === "true",
+        });
       } catch (error) {
         rethrowAsMapError(error);
       }
@@ -242,9 +246,9 @@ export class MapController {
     path: "/maps/:id/first",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }) },
-    handler: async ({ params }) => {
+    handler: async ({ params, user }) => {
       try {
-        await this.mapService.setFirstMap(params.id);
+        await this.mapService.setFirstMapForUser(user.id, params.id);
       } catch (error) {
         rethrowAsMapError(error);
       }

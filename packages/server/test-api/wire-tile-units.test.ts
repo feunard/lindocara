@@ -251,6 +251,7 @@ describe("the wire ships tile units and no pixel projection", () => {
       x: 0,
       y: 0,
       z: 0,
+      vy: -2.25,
       airborne: false,
       swimming: false,
       gliding: false,

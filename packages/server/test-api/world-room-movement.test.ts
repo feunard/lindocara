@@ -198,12 +198,13 @@ function lastSelfSnapshot(socket: FakeSocket, heroId: string): PlayerSnapshot | 
 /** A well-formed `move` frame. `facing` is unit-length on purpose: `isDirection` refuses anything
  *  else and the whole frame is dropped silently, which is exactly the trap a client must not fall
  *  into. */
-function move(x: number, y: number, z: number) {
+function move(x: number, y: number, z: number, vy = 0) {
   return {
     t: "move" as const,
     x,
     y,
     z,
+    vy,
     facing: { x: 1, z: 0 },
     airborne: false,
     swimming: false,
@@ -228,7 +229,7 @@ describe("world room movement (FakeClock)", () => {
     // Two tiles east and one south of where the room seated the hero — a jump's worth of elevation
     // with it, so all three axes have to survive the trip.
     await engine.message(socket.id, {
-      ...move(start.x + 2, start.y + 1.35, start.z + 1),
+      ...move(start.x + 2, start.y + 1.35, start.z + 1, 2.25),
       airborne: true,
     });
     clock.advance(TICK_MS);
@@ -238,6 +239,7 @@ describe("world room movement (FakeClock)", () => {
     expect(relayed?.x).toBeCloseTo(start.x + 2, 2);
     expect(relayed?.y).toBeCloseTo(start.y + 1.35, 2);
     expect(relayed?.z).toBeCloseTo(start.z + 1, 2);
+    expect(relayed?.vy).toBeCloseTo(2.25, 2);
     // The locomotion flags are relayed too: nothing downstream can re-derive a jump from a
     // position stream, and a remote renderer needs them to draw one.
     expect(relayed?.airborne).toBe(true);

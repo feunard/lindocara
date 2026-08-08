@@ -20,7 +20,7 @@ import type { Billboard, Facing } from "@lindocara/hd2d/billboard.js";
 import { makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
-import type * as THREE from "three";
+import * as THREE from "three";
 import { HD2D_CAMERA } from "./scene.js";
 
 export type ActorKind = "player" | "monster" | "guard";
@@ -55,6 +55,10 @@ export interface ActorView {
   airborne: boolean;
   swimming: boolean;
   gliding: boolean;
+  /** Vertical velocity, used only for stretch/squash. */
+  vy: number;
+  /** Optional canopy texture. Only player views provide one. */
+  canopyTextureKey?: string;
   /** Which way the actor is turned. The Tiny Swords units are drawn in profile only, so `north`
    *  and `south` deliberately leave the current profile alone (`facingToFlip`). */
   facing: Facing;
@@ -141,10 +145,16 @@ function elevationOf(actor: ActorView, scene: BillboardScene): number {
 
 interface Entry {
   billboard: Billboard;
+  canopy: Billboard | null;
   /** Kept so a texture change — a class swap, a recoloured guard — rebuilds rather than silently
    *  keeping the old sheet forever. */
   textureKey: string;
+  canopyTextureKey: string | undefined;
 }
+
+export const GLIDER_HEIGHT = 2.45;
+export const GLIDER_ASPECT = 0.938;
+export const GLIDER_LIFT = 1.05;
 
 /**
  * `ctx` is passed explicitly, and must be the very context that built `scene`: `makeBillboard`
@@ -175,12 +185,33 @@ export function createBillboardRegistry(
       pitch: HD2D_CAMERA.pitch,
     });
     scene.root.add(billboard.mesh);
-    return { billboard, textureKey: actor.textureKey };
+    return {
+      billboard,
+      canopy: null,
+      textureKey: actor.textureKey,
+      canopyTextureKey: actor.canopyTextureKey,
+    };
+  }
+
+  function createCanopy(textureKey: string): Billboard {
+    const canopy = makeBillboard(ctx, {
+      texture: textures.get(textureKey),
+      height: GLIDER_HEIGHT,
+      aspect: GLIDER_ASPECT,
+      foot: 0,
+      pitch: HD2D_CAMERA.pitch,
+    });
+    scene.root.add(canopy.mesh);
+    return canopy;
   }
 
   function drop(entry: Entry): void {
     scene.root.remove(entry.billboard.mesh);
     entry.billboard.dispose();
+    if (entry.canopy) {
+      scene.root.remove(entry.canopy.mesh);
+      entry.canopy.dispose();
+    }
   }
 
   return {
@@ -189,7 +220,11 @@ export function createBillboardRegistry(
       for (const actor of actors) {
         present.add(actor.id);
         let entry = entries.get(actor.id);
-        if (entry && entry.textureKey !== actor.textureKey) {
+        if (
+          entry &&
+          (entry.textureKey !== actor.textureKey ||
+            entry.canopyTextureKey !== actor.canopyTextureKey)
+        ) {
           drop(entry);
           entry = undefined;
         }
@@ -197,8 +232,18 @@ export function createBillboardRegistry(
           entry = create(actor);
           entries.set(actor.id, entry);
         }
+        const stretch = THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
+        entry.billboard.mesh.scale.set(1 - stretch * 0.6, 1 + stretch, 1);
         entry.billboard.placeAt(actor.x, elevationOf(actor, scene), actor.z);
         entry.billboard.setFacing(actor.facing);
+        if (actor.gliding && actor.canopyTextureKey) {
+          entry.canopy ??= createCanopy(actor.canopyTextureKey);
+          entry.canopy.mesh.visible = true;
+          entry.canopy.setFacing(actor.facing);
+          entry.canopy.placeAt(actor.x, elevationOf(actor, scene) + GLIDER_LIFT, actor.z);
+        } else if (entry.canopy) {
+          entry.canopy.mesh.visible = false;
+        }
       }
       for (const [id, entry] of entries) {
         if (present.has(id)) continue;

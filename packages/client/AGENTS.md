@@ -32,7 +32,8 @@ glue that binds the renderer to the network. Browser + React. This is the base t
   `hero-controller` (**the client's own `HeroState`**, stepped by `stepHero` every animation frame —
   the seam that replaced prediction when S3 moved movement here, and where a server-granted blink is
   spent), `session` (constructs the renderer,
-  owns store writes), `sound`/`audio-settings`/`combat-sounds`, `party`, `cooldown-sync`.
+  owns store writes), `sound`/`audio-settings`/`combat-sounds` (including the procedural
+  consumer of movement `HeroEvent`s), `party`, `cooldown-sync`.
 - `styles/` — `app.css` (Tailwind + the client sheets + `@lindocara/ui/globals.css` last), `legacy.css`
   (the Tiny Swords skin + the two-tree fence), `tokens.css`. `public/` — atlas/audio/served assets.
 

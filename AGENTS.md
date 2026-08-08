@@ -357,7 +357,8 @@ of a 10Hz delta stream, and it does not apply to your own hero — it never did,
 to the client changed nothing about that half.
 
 **A remote hero is drawn in its reported STATE, not just at its reported point.** `PlayerSnapshot`
-carries `airborne`, `swimming` and `gliding` beside the position, and the renderer reads them
+carries `airborne`, `swimming`, `gliding` and vertical velocity beside the position, and the
+renderer reads them
 (`packages/renderer/src/hd2d/billboards.ts`): a swimmer is drawn at the water line, an airborne or
 gliding hero at its own reported elevation, and only a walking one is stood on the terrain under it.
 The position stream cannot tell those three apart, so a renderer that ground-snapped everyone would
@@ -365,8 +366,8 @@ make every other player's jump invisible and never fail a test.
 
 ### The move report
 
-The client owns its hero's position and REPORTS it — `{t:"move"}`, carrying all three axes, the
-unit facing vector and the three locomotion flags. There is no command queue, no sequence number
+The client owns its hero's position and REPORTS it — `{t:"move"}`, carrying all three axes,
+vertical velocity, the unit facing vector and the three locomotion flags. There is no command queue, no sequence number
 and no `ack`; `{t:"input"}`, `MAX_STARVED_TICKS` and the starve branch are deleted.
 
 - **20 reports a second, deliberately** (`MOVE_REPORT_MS = TICK_MS`, `packages/client/src/game/net.ts`)

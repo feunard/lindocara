@@ -1570,6 +1570,7 @@ describe("world room combat (FakeClock)", () => {
       x: player.x + moved,
       y: player.y,
       z: player.z,
+      vy: 0,
       facing: { x: 1, z: 0 },
       airborne: false,
       swimming: false,

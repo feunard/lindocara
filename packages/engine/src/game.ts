@@ -232,32 +232,9 @@ export const MONSTER_RESPAWN_DELAY_LIMITS = {
 export const MONSTER_TUNING_LIMITS = {
   maxHp: { min: 0, max: 100_000 },
   damage: { min: 0, max: 1_000 },
-  /**
-   * Deliberately still the authored PIXEL range, unlike `MONSTER_STATS.speed` above, which is now
-   * tiles per second. Genuinely legacy stored rows — from before this field's values were ever
-   * tile-scaled — carry pixel speeds here, and narrowing the bound to the tile range would refuse
-   * every one of them at parse time.
-   *
-   * **No producer-side conversion exists for this field, unlike `patrolRadius`'s
-   * `authoredPatrolRadius` (`map-events.ts`), and adding one is not the simple mirror it looks
-   * like.** `authored-monster-system.ts` passes `event.monsterSpeed` straight through to
-   * `MonsterSpawn.speed`, which every reader treats as tiles per second — so a genuinely legacy,
-   * pixel-scaled row (e.g. a bare `105`) would spawn a monster moving 105 tiles a second. Unlike
-   * `patrolRadius`, which `parseMapEvents` always requires explicitly, `monsterSpeed` has a
-   * defaulting branch (`boundedMonsterSpeed`, `map-events.ts`) that falls back to
-   * `defaultMonsterTuning(species).speed` whenever an author leaves the field untouched — and that
-   * fallback reads `MONSTER_STATS.speed` above, which is already tile-scaled. The editor
-   * (`EventDialog.tsx`) pre-fills that same tile-scaled default into the very field an author
-   * edits, so a NEWLY authored value is already tile-scaled too; only a pre-tile-units row can
-   * still hold a raw pixel integer. A blind `speed / TILE_SIZE` at the map boundary, mirroring
-   * `authoredPatrolRadius` mechanically, would fix that one legacy row and silently divide every
-   * other authored or defaulted monster's speed by an extra `TILE_SIZE` — worse than today's bug,
-   * not a fix for it. The conversion this field is still owed belongs in `map-events.ts`, where a
-   * legacy pixel-scaled row can actually be told apart from an already-tile-scaled authored or
-   * defaulted one (by provenance or by a one-time migration), not as a mechanical pass-through
-   * here. It is inert today only because a heightfield room bakes `events: []`, so no authored
-   * monster spawns at all — which is also why nothing has forced this seam shut yet.
-   */
+  /** The legacy pixel ceiling remains accepted at storage boundaries. `map-events.ts` normalizes
+   *  only values above the equivalent tile ceiling; defaults and modern tile values are not divided
+   *  twice. Runtime consumers therefore see tiles per second exclusively. */
   speed: { min: 0, max: 300 },
   xp: { min: 0, max: 100_000 },
   weaknessPercent: { min: 0, max: 400 },

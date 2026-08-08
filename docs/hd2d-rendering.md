@@ -334,10 +334,8 @@ réapparition au point de départ.
 differs is who owns the consequence). Drowning is not a respawn at the starting point: the client
 reports a bare `{t:"drowned"}`, the room refuses it unless that client's own position stream has the
 hero alive and swimming, and then kills it IN PLACE — the body stays where it went under and the
-ordinary corpse run brings it back. And there is **no breath gauge in the game's HUD yet**: the
-reserve is counted by the same rule, but nothing draws it and nothing exposes it — `window.
-__lindocara.self()` hands back a `PlayerSnapshot`, which carries no breath — so the first and only
-signal a player gets is drowning itself. A meter is owed.
+ordinary corpse run brings it back. The game now shows a rounded breath countdown while swimming,
+and `window.__lindocara.self()` exposes the raw reserve, maximum and vertical velocity.
 
 ## Les moutons
 

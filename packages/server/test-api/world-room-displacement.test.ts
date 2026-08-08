@@ -188,6 +188,7 @@ function move(x: number, y: number, z: number, displacement: number) {
     x,
     y,
     z,
+    vy: 0,
     facing: { x: 1, z: 0 },
     airborne: false,
     swimming: false,

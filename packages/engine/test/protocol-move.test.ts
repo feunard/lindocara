@@ -17,6 +17,7 @@ const wellFormed = {
   x: 3.5,
   y: 1,
   z: -2.25,
+  vy: -2.5,
   facing: { x: 1, z: 0 },
   airborne: false,
   swimming: false,
@@ -31,6 +32,7 @@ describe("the move message", () => {
       x: 3.5,
       y: 1,
       z: -2.25,
+      vy: -2.5,
       facing: { x: 1, z: 0 },
       airborne: false,
       swimming: false,
@@ -45,10 +47,19 @@ describe("the move message", () => {
     const raw = '{"t":"move","x":1e999,"y":0,"z":0,"facing":{"x":1,"z":0},';
     expect(
       parseClientMessage(
-        `${raw}"airborne":false,"swimming":false,"gliding":false,"displacement":0}`,
+        `${raw}"vy":0,"airborne":false,"swimming":false,"gliding":false,"displacement":0}`,
       ),
     ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ ...wellFormed, z: Number.NaN }))).toBeNull();
+  });
+
+  it("drops a frame missing or corrupting its vertical velocity", () => {
+    const { vy: _omitted, ...withoutVelocity } = wellFormed;
+    expect(parseClientMessage(JSON.stringify(withoutVelocity))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ ...wellFormed, vy: Number.NaN }))).toBeNull();
+    expect(
+      parseClientMessage(JSON.stringify({ ...wellFormed, vy: MOVE_COORDINATE_LIMIT + 1 })),
+    ).toBeNull();
   });
 
   it("drops a frame whose position is off the map", () => {

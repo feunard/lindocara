@@ -95,6 +95,7 @@ const WELCOME: ServerMessage = {
       x: 0,
       y: 0,
       z: 0,
+      vy: 0,
       airborne: false,
       swimming: false,
       gliding: false,
@@ -252,13 +253,13 @@ describe("WorldClient lifecycle", () => {
 
   function movesOf(
     socket: FakeWebSocket | undefined,
-  ): { t: string; x: number; z: number; displacement: number }[] {
+  ): { t: string; x: number; z: number; vy: number; displacement: number }[] {
     return (socket?.sent ?? [])
       .map(
         (raw) =>
           (
             JSON.parse(raw) as {
-              message: { t: string; x: number; z: number; displacement: number };
+              message: { t: string; x: number; z: number; vy: number; displacement: number };
             }
           ).message,
       )

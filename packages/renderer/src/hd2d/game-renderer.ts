@@ -8,9 +8,8 @@
  * calls all of them, and a silent partial implementation would be a renderer that looks finished.
  * Grep `NOT YET DRAWN ON THE HD-2D PATH` for the full list of what is still owed.
  *
- * An actor is drawn AT REST: it faces the way the server says, but it does not animate. `sync` has
- * no clock and `ActorView` carries no clip, and giving it one is a later piece — a visible gap,
- * named here rather than left to be discovered.
+ * Actors still use frame zero of their idle sheet, but vertical motion is live: reported `vy`
+ * drives stretch/squash and a gliding player carries a dedicated canopy billboard.
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
@@ -109,6 +108,8 @@ function facingOf(vector: GroundVector): Facing {
  *  has to stop being a constant. */
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
+export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
+
 export function playerActorView(player: PlayerSnapshot): ActorView {
   return {
     id: player.id,
@@ -119,6 +120,8 @@ export function playerActorView(player: PlayerSnapshot): ActorView {
     airborne: player.airborne,
     swimming: player.swimming,
     gliding: player.gliding,
+    vy: player.vy ?? 0,
+    canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
     facing: facingOf(player.facing),
     textureKey: playerTextureKey(player),
   };
@@ -151,6 +154,7 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
       ),
     ),
     ...Object.values(TINY_SWORDS_ENEMIES).map((art) => art.idle.source),
+    HD2D_GLIDER_TEXTURE_URL,
   ]),
 ].map((url) => ({ url }));
 
@@ -486,6 +490,7 @@ export class Hd2dRenderer implements RendererLike {
         y: monster.y,
         z: monster.z,
         ...GROUNDED,
+        vy: 0,
         facing: facingOf(monster.facing),
         textureKey: monsterTextureKey(monster),
       });
@@ -498,6 +503,7 @@ export class Hd2dRenderer implements RendererLike {
         y: guard.y,
         z: guard.z,
         ...GROUNDED,
+        vy: 0,
         // A guard carries no facing on the wire. `"north"` is `facingToFlip`'s no-op, so it keeps
         // whichever profile the guard already had rather than snapping it east every frame.
         facing: "north",

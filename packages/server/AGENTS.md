@@ -31,11 +31,11 @@ trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo root, i.e.
 - `src/api/controllers/*.ts` — one `$action`-based controller per surface (`MapController`,
   `AdventureController`, `PartyController`, `HeroController`, `TestSessionController`,
   `MeController`, `HealthController`, `JoinController`), each a thin HTTP shape around its
-  service. `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`). The map surface is
-  collaboratively open by ported design, with ONE owner-fenced route:
-  `PUT /api/maps/:id/heightfield` (`MapService.saveHeightfieldForUser`, 404 `map_not_found` to
-  anyone else) — it is how terrain reaches a DEPLOYED instance, whose database no script can open,
-  and the column it writes decides whether a room is joinable at all.
+  service. `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`). Every map route is
+  owner-fenced: foreign lists are empty and foreign reads, writes, first-map changes, forced
+  deletes and creates under another adventure answer 404 `map_not_found`.
+  `PUT /api/maps/:id/heightfield` remains the terrain seeding route into a deployed instance
+  whose database no script can open.
 - `src/api/providers/AppSecurityProvider.ts` — registers the app's `$realm()` (username+password
   credentials only, no email/OAuth) and MUST stay listed in `LindocaraApi`'s `services[]` —
   nothing else injects it, so omitting it silently falls back to the framework's email-required

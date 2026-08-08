@@ -251,6 +251,7 @@ describe("an authored teleport, in tile units", () => {
     const report = {
       t: "move" as const,
       y: 0,
+      vy: 0,
       facing: { x: 1, z: 0 },
       airborne: false,
       swimming: false,
@@ -452,6 +453,7 @@ describe("a server-authored teleport writes both ground axes", () => {
       x: from.x + 0.25,
       y: from.y,
       z: from.z,
+      vy: 0,
       facing: { x: 1, z: 0 },
       airborne: false,
       swimming: false,

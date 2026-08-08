@@ -5,6 +5,7 @@ import {
   musicTrack,
 } from "@lindocara/engine/audio-catalog.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
+import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MonsterImpactSound } from "@lindocara/renderer/combat-art.js";
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 import {
@@ -18,6 +19,11 @@ import {
   type UiSampleKey,
   uniqueSampleSources,
 } from "./combat-sounds.js";
+import {
+  type MovementSoundCue,
+  movementSkidIntensity,
+  movementSoundCue,
+} from "./movement-sounds.js";
 
 const MUSIC_BASE = 0.32;
 const AMBIENCE_BASE = 0.1;
@@ -64,6 +70,10 @@ export class GameSound {
   #buffers = new Map<string, AudioBuffer>();
   #sampleLoad: Promise<void> | null = null;
   #lastCast: { skillId: string; at: number } | null = null;
+  #movementTake = 0;
+  #skidIntensity = 0;
+  #skidSource: AudioBufferSourceNode | null = null;
+  #skidGain: GainNode | null = null;
 
   unlock(): void {
     if (!this.#context) this.#context = new AudioContext();
@@ -127,6 +137,18 @@ export class GameSound {
     this.#applyMusicFade(now);
   }
 
+  /** Executes the decorative consequences narrated by the pure movement rule. */
+  movement(events: readonly HeroEvent[]): void {
+    for (const event of events) {
+      const cue = movementSoundCue(event, this.#movementTake);
+      if (cue) {
+        this.#movementTake += 1;
+        this.#playMovementCue(cue);
+      }
+    }
+    this.#setSkidIntensity(movementSkidIntensity(events));
+  }
+
   stopAmbient(): void {
     this.#stopElement(this.#explorationMusic);
     this.#stopElement(this.#combatMusic);
@@ -144,6 +166,12 @@ export class GameSound {
     this.#explorationWeight = 1;
     this.#combatWeight = 0;
     this.#musicFade = null;
+    this.#skidSource?.stop();
+    this.#skidSource?.disconnect();
+    this.#skidGain?.disconnect();
+    this.#skidSource = null;
+    this.#skidGain = null;
+    this.#skidIntensity = 0;
     this.#unlocked = false;
   }
 
@@ -289,6 +317,7 @@ export class GameSound {
     if (this.#ambience) {
       this.#ambience.volume = muted ? 0 : AMBIENCE_BASE * ambientVolume;
     }
+    this.#syncSkidVolume();
   }
 
   #syncPlayback(): void {
@@ -313,6 +342,80 @@ export class GameSound {
         if (this.#ambience.paused) void this.#ambience.play().catch(() => undefined);
       } else this.#ambience.pause();
     }
+    this.#syncSkidVolume();
+  }
+
+  #playMovementCue(cue: MovementSoundCue): void {
+    const { muted, sfxVolume } = getAudioSettings();
+    const context = this.#context;
+    if (muted || context?.state !== "running") return;
+    const now = context.currentTime;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(Math.max(0.0001, cue.volume * sfxVolume), now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + cue.duration);
+    gain.connect(context.destination);
+
+    if (cue.kind === "tone") {
+      const source = context.createOscillator();
+      source.type = "triangle";
+      source.frequency.setValueAtTime(cue.frequency, now);
+      source.frequency.exponentialRampToValueAtTime(cue.endFrequency, now + cue.duration);
+      source.connect(gain);
+      source.start(now);
+      source.stop(now + cue.duration);
+      return;
+    }
+
+    const source = context.createBufferSource();
+    source.buffer = this.#noiseBuffer(context, cue.duration);
+    const filter = context.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = cue.frequency;
+    filter.Q.value = cue.q;
+    source.connect(filter);
+    filter.connect(gain);
+    source.start(now);
+  }
+
+  #noiseBuffer(context: AudioContext, duration: number): AudioBuffer {
+    const frames = Math.max(1, Math.ceil(context.sampleRate * duration));
+    const buffer = context.createBuffer(1, frames, context.sampleRate);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < channel.length; i += 1) channel[i] = Math.random() * 2 - 1;
+    return buffer;
+  }
+
+  #setSkidIntensity(intensity: number): void {
+    this.#skidIntensity = intensity;
+    const context = this.#context;
+    if (intensity > 0 && context?.state === "running" && !this.#skidSource) {
+      const source = context.createBufferSource();
+      source.buffer = this.#noiseBuffer(context, 0.35);
+      source.loop = true;
+      const filter = context.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 1_600;
+      filter.Q.value = 1.4;
+      const gain = context.createGain();
+      gain.gain.value = 0;
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(context.destination);
+      source.start();
+      this.#skidSource = source;
+      this.#skidGain = gain;
+    }
+    this.#syncSkidVolume();
+  }
+
+  #syncSkidVolume(): void {
+    const context = this.#context;
+    const gain = this.#skidGain;
+    if (!context || !gain) return;
+    const { muted, sfxVolume } = getAudioSettings();
+    const audible = this.#unlocked && !document.hidden && !muted;
+    const target = audible ? this.#skidIntensity * sfxVolume * 0.035 : 0;
+    gain.gain.setTargetAtTime(target, context.currentTime, 0.025);
   }
 
   async #loadSamples(): Promise<void> {

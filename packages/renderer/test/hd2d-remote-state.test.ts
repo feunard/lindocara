@@ -21,8 +21,8 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
-import { ACTOR_FOOT, createBillboardRegistry } from "../src/hd2d/billboards.js";
-import { playerActorView } from "../src/hd2d/game-renderer.js";
+import { ACTOR_FOOT, createBillboardRegistry, GLIDER_LIFT } from "../src/hd2d/billboards.js";
+import { HD2D_GLIDER_TEXTURE_URL, playerActorView } from "../src/hd2d/game-renderer.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 
 /** A square map from a row-major list of levels — `null` is water. The billboard suite's `mapOf`,
@@ -101,6 +101,7 @@ function actor(overrides: Partial<ActorView> = {}): ActorView {
     airborne: false,
     swimming: false,
     gliding: false,
+    vy: 0,
     facing: "east",
     textureKey: "warrior-idle",
     ...overrides,
@@ -117,6 +118,7 @@ function snapshot(overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot {
     airborne: false,
     swimming: false,
     gliding: false,
+    vy: 0,
     hp: 100,
     maxHp: 100,
     level: 1,
@@ -160,6 +162,46 @@ describe("a remote hero's drawn state", () => {
     const mesh = meshes(scene.root)[0];
     if (!mesh) throw new Error("expected a billboard");
     expect(drawnElevation(mesh, ctx)).toBeCloseTo(1.8);
+  });
+
+  it("stretches on ascent, squashes on descent and restores its rest scale", () => {
+    const scene = sceneFor(flatMap(4));
+    const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());
+
+    registry.sync([actor({ airborne: true, vy: 8 })]);
+    const body = meshes(scene.root)[0];
+    if (!body) throw new Error("expected a billboard");
+    expect(body.scale.y).toBeGreaterThan(1);
+    expect(body.scale.x).toBeLessThan(1);
+
+    registry.sync([actor({ airborne: true, vy: -8 })]);
+    expect(body.scale.y).toBeLessThan(1);
+    expect(body.scale.x).toBeGreaterThan(1);
+
+    registry.sync([actor({ vy: 0 })]);
+    expect(body.scale.toArray()).toEqual([1, 1, 1]);
+  });
+
+  it("creates one canopy lazily, follows the glider and hides it on close", () => {
+    const scene = sceneFor(flatMap(4));
+    const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());
+    const glider = actor({
+      y: 2,
+      airborne: true,
+      gliding: true,
+      vy: -2.2,
+      canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
+    });
+
+    registry.sync([glider]);
+    const canopy = meshes(scene.root)[1];
+    if (!canopy) throw new Error("expected a canopy billboard");
+    expect(canopy.visible).toBe(true);
+    expect(canopy.position.y).toBeCloseTo(glider.y + GLIDER_LIFT);
+
+    registry.sync([{ ...glider, gliding: false, airborne: false, vy: 0 }]);
+    expect(canopy.visible).toBe(false);
+    expect(meshes(scene.root)).toHaveLength(2);
   });
 
   it("draws a swimmer at the water line rather than on the bed under it", () => {
@@ -230,6 +272,7 @@ describe("a remote hero's drawn state", () => {
       airborne: true,
       swimming: false,
       gliding: true,
+      vy: 0,
     });
 
     expect(playerActorView(snapshot({ y: -0.6, swimming: true }))).toMatchObject({

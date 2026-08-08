@@ -90,6 +90,7 @@ function actor(id: string, x: number, z: number): ActorView {
     airborne: false,
     swimming: false,
     gliding: false,
+    vy: 0,
     facing: "east",
     textureKey: "warrior-idle",
   };

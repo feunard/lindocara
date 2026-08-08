@@ -786,25 +786,38 @@ describe("list, get, update, delete", () => {
   });
 });
 
-describe("ownership: collaborative editing, not per-map fencing", () => {
-  // `maps.ts` and its own tests ("opens foreign maps to reading and editing — collaborative
-  // editing is open") establish that any authenticated account may act on any adventure's maps —
-  // there is no per-map ownership fence to preserve, so this is what "preserving every legacy
-  // behavior" actually means here. See `MapService`'s docblock for the full rationale.
-  test("a foreign account may list, read and edit any adventure's maps", async () => {
+describe("map ownership fence", () => {
+  // An id is not a capability: every route proves the authenticated author before touching a row.
+  test("a foreign account cannot enumerate, read, edit, re-flag, delete or extend an adventure", async () => {
     const owner = await registerAndLogin("mapowner");
     const adventureId = await newAdventure(owner.userId);
     const id = await newMapId(adventureId, owner.token, "Shared");
 
     const rival = await registerAndLogin("maprival");
-    const library = await listMaps(adventureId, rival.token);
-    expect(library.some((entry) => entry.id === id)).toBe(true);
-
-    expect((await authedFetch(`/api/maps/${id}`, rival.token)).status).toBe(200);
+    expect(await listMaps(adventureId, rival.token)).toEqual([]);
+    expect((await authedFetch(`/api/maps/${id}`, rival.token)).status).toBe(404);
 
     const edited = await putMap(id, rival.token, mapBody({ name: "Edited by rival" }));
-    expect(edited.status).toBe(200);
-    expect(await edited.json()).toMatchObject({ name: "Edited by rival", revision: 2 });
+    expect(edited.status).toBe(404);
+    expect(await edited.json()).toMatchObject({ error: "map_not_found" });
+
+    const flagged = await authedFetch(`/api/maps/${id}/first`, rival.token, { method: "POST" });
+    expect(flagged.status).toBe(404);
+
+    const removed = await authedFetch(`/api/maps/${id}?force=true`, rival.token, {
+      method: "DELETE",
+    });
+    expect(removed.status).toBe(404);
+
+    const created = await authedFetch("/api/maps", rival.token, {
+      method: "POST",
+      body: JSON.stringify({ adventureId, name: "Injected" }),
+    });
+    expect(created.status).toBe(404);
+
+    const preserved = await authedFetch(`/api/maps/${id}`, owner.token);
+    expect(preserved.status).toBe(200);
+    expect(await preserved.json()).toMatchObject({ name: "Shared", revision: 1 });
   });
 
   test("404s an id that matches no row", async () => {

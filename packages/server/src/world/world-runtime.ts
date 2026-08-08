@@ -338,6 +338,8 @@ export interface PlayerRuntime extends PlayerProfile {
   airborne: boolean;
   swimming: boolean;
   gliding: boolean;
+  /** Client-reported vertical velocity. Presentation only; never used for an outcome. */
+  vy: number;
   dirty: boolean;
   lastAttackAt: number;
   lastHealAt: number;
@@ -717,6 +719,7 @@ export function newPlayer(
     airborne: false,
     swimming: false,
     gliding: false,
+    vy: 0,
     // Nobody has been moved by the room yet, and the welcome ships this same zero: the client's
     // first report echoes it back and is accepted.
     displacement: 0,

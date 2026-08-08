@@ -39,10 +39,11 @@ authoring stage was built on those modules and is quarantined until it is rebuil
   no conversion anywhere in this package any more: the `tile-pixel-bridge` and its `TILE→PIXEL
   BRIDGE` markers are deleted, and a `pixelToTile` reappearing here would mean the wire went
   backwards. It draws terrain, sea, foam, sky and light from `WorldInfo.heightfield`,
-  the actors as billboards the camera follows — drawn at rest, since no clip crosses `ActorView`
-  yet, but in their real LOCOMOTION state: `ActorView` carries `airborne`/`swimming`/`gliding` and
+  the actors as billboards the camera follows — frame-zero idle art, but with vertical motion:
+  `ActorView` carries `airborne`/`swimming`/`gliding`, `vy` and
   the reported elevation, so a swimmer is drawn at the water line and an airborne or gliding hero at
-  its own `y` rather than snapped to the ground under it (`elevationOf`, `billboards.ts`). Since S3
+  its own `y` rather than snapped to the ground under it (`elevationOf`, `billboards.ts`).
+  `vy` drives bounded stretch/squash and `gliding` opens the generated canopy billboard. Since S3
   moved movement to the client, a remote hero's elevation is a fact only its owner computed, and
   ground-snapping it would make every other player's jump invisible without failing anything —
   `hd2d-remote-state.test.ts` is the guard. Monsters and guards are stepped by the room, on the
