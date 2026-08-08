@@ -130,6 +130,21 @@ describe("map heightfield storage", () => {
     expect(decodeMap(payload.heightfield ?? "")?.size).toBe(20);
   });
 
+  test("backfills legacy rows once without installing a runtime fallback", async () => {
+    const adventureId = await newAdventure("hfbackfill");
+    const map = await mapService.createMap(adventureId, "Legacy Map");
+    await probe.maps.updateById(map.id, { heightfield: "" });
+    const before = (await mapService.getMap(map.id)).revision;
+
+    expect(await mapService.backfillMissingHeightfields()).toBe(1);
+    const compiled = await mapService.getMap(map.id);
+    expect(decodeMap(compiled.heightfield ?? "")?.size).toBe(20);
+    expect(compiled.revision).toBe(before + 1);
+
+    expect(await mapService.backfillMissingHeightfields()).toBe(0);
+    expect((await mapService.getMap(map.id)).revision).toBe(compiled.revision);
+  });
+
   test("stores authored content and its heightfield under one revision", async () => {
     const adventureId = await newAdventure("hfatomic");
     const map = await mapService.createMap(adventureId, "Test Map");

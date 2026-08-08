@@ -32,15 +32,15 @@ import {
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
-import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
-import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import {
   defaultMonsterTuning,
   type MonsterAttackProfile,
   type MonsterSpecies,
 } from "@lindocara/engine/game.js";
 import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
-import { EMPTY_MARKERS, type MapElement } from "@lindocara/engine/map-data.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
+import { EMPTY_MARKERS, type MapElement, parseMapData } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
   exitEvents,
@@ -514,6 +514,28 @@ export class MapService {
   async setFirstMapForUser(userId: string, id: string): Promise<void> {
     await this.requireOwnedMap(userId, id);
     await this.setFirstMap(id);
+  }
+
+  /**
+   * One-time deployment bridge for maps created before the HD-2D column existed. This runs during
+   * application readiness, not room creation: the runtime still accepts exactly one terrain
+   * document and never compiles a fallback while a party is joining.
+   */
+  async backfillMissingHeightfields(): Promise<number> {
+    const missing = await this.maps.findMany({ where: { heightfield: { eq: "" } } });
+    let backfilled = 0;
+    for (const row of missing) {
+      const payload = await this.toPayload(row);
+      const authored = parseMapData(payload);
+      if (!authored) continue;
+      const heightfield = encodeMap(compileAuthoredMap(authored, payload.events));
+      await this.maps.updateMany(
+        { id: { eq: row.id }, heightfield: { eq: "" } },
+        { heightfield, revision: sql`revision + 1` },
+      );
+      backfilled += 1;
+    }
+    return backfilled;
   }
 
   /**
