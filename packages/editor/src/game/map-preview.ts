@@ -1,21 +1,6 @@
-/**
- * A sandbox walk through an unsaved map, with a throwaway level-1 warrior.
- *
- * The whole point of this module is one line, and it is deliberately the same line the live client
- * runs to predict its own square (`net.ts`'s `predictPartial`) and the same rules the server runs to
- * decide truth:
- *
- *   position = resolveTerrain(position, step(position, input, TICK_DT, classSpeed, geometry), geometry);
- *
- * Because the preview calls the exact shared `step()` + `resolveTerrain()` on the server's
- * `terrainFromMap` bake augmented with the same explicit intact harvest colliders, parity is not a
- * promise kept by hand. What a builder walks here is what a player will walk, collisions included.
- *
- * There is no React in here (game code never imports React). `MapEditor` disposes the painting stage,
- * calls `startMapPreview`, and on Esc calls the returned `stop()`, which tears the preview renderer
- * off the shared `#stage` app so the editor can be reopened on the same canvas with the edits intact.
- */
+/** A throwaway walk through an unsaved authored map, using the shipped movement and render paths. */
 
+import { createHeroController } from "@lindocara/client/game/hero-controller.js";
 import { t } from "@lindocara/client/i18n.js";
 import {
   BODY_VARIANTS,
@@ -23,19 +8,12 @@ import {
   PRIMARY_COLORS,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
-import { colliderIndexFrom, flattenColliderIndex } from "@lindocara/engine/collider.js";
-import { facingFromInput } from "@lindocara/engine/directional-combat.js";
+import { defaultMonsterTuning, MONSTER_SPECIES_KIND } from "@lindocara/engine/game.js";
+import { harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData } from "@lindocara/engine/map-data.js";
 import {
-  defaultMonsterTuning,
-  MONSTER_SPECIES_KIND,
-  movementSpeedAt,
-  type Rect,
-  rectsOverlap,
-  resolveTerrain,
-} from "@lindocara/engine/game.js";
-import { type MapData, mapSpawnPoint, terrainFromMap } from "@lindocara/engine/map-data.js";
-import {
-  eventCellCentre,
   isActiveWorldEventKind,
   type MapEvent,
   monsterEvents,
@@ -48,102 +26,92 @@ import type {
   QuestState,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import { PLAYER_SIZE, step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
-import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import { AMBIENCE_NONE, type AmbienceConfig } from "@lindocara/renderer/ambience.js";
+import { BODY_RADIUS, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
+import type { AmbienceConfig } from "@lindocara/renderer/ambience.js";
+import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { trackInput } from "@lindocara/renderer/input.js";
-import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
-import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
-import { intactHarvestCollider } from "./harvest-collision.js";
+import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
 
-/** The synthetic hero's id, echoed to `setSelfId` so the renderer follows it with the camera and
- *  draws its self ring — the same wiring a real session uses for the local player. */
 const SELF_ID = "map-preview-self";
-
-/** A benign, walkable quest state: the preview zone has no quest sites (empty visuals), so this only
- *  has to be a valid shape the overlay pass can read. Mirrors the constant `session.ts` starts with. */
 const PREVIEW_QUEST: QuestState = {
   chapter: "three_offerings",
   status: "available",
   progress: 0,
   target: 3,
 };
+const ZOOM_STEP = 1.25;
 
-/** A random level-1 warrior's look, drawn from the same catalogues character creation uses. */
 function randomAppearance(): CharacterAppearance {
   const body = BODY_VARIANTS[Math.floor(Math.random() * BODY_VARIANTS.length)] ?? "wayfarer";
   const primaryColor = PRIMARY_COLORS[Math.floor(Math.random() * PRIMARY_COLORS.length)] ?? "azure";
   return { body, primaryColor };
 }
 
-// Bumped by every start. A start superseded before its textures finished loading (React StrictMode's
-// throwaway first mount) tears down what it built and hands back an inert stop, so only the latest
-// preview ever keeps a renderer on the shared `#stage` app.
-let previewGeneration = 0;
-
-export interface MapPreviewOptions {
-  /** Map-authored hero balance; omitted callers inherit the standard Warrior speed. */
-  heroSettings?: MapHeroSettings;
-  /**
-   * Draw the per-player overlays (self ring, name/level plate, health bar). Default `true`.
-   *
-   * The editor's Test walk keeps them: a builder is checking whether the map plays, and the ring is
-   * how you find yourself. A visual reference shot turns them off — they sit in the middle of the
-   * frame and are the first thing the eye lands on, which is the opposite of the point.
-   */
-  playerChrome?: boolean;
-  /**
-   * Ambience passes (tufts, clouds, moving water). Default: none.
-   *
-   * Off by default because the editor's Test walk is a *check*, not a showcase: drifting shadows
-   * over the map you are trying to read are noise. The visual reference route turns them on.
-   */
-  ambience?: AmbienceConfig;
-  /** Starting camera multiplier. 1 is the game's framing; below 1 pulls back. Default 1. */
-  zoom?: number;
-  /** Bind the wheel and `-`/`+`/`0` to pull the camera back, push it in and reset it. Default `false`. */
-  zoomControls?: boolean;
-}
-
-/**
- * QUARANTINE DEBT (S3, 2026-08-05). Inlined because `@lindocara/engine/prediction.js` — where this
- * came from — was DELETED with client-side prediction: the hero's movement rule is `stepHero`, it
- * runs on the client, and `packages/client/src/game/hero-controller.ts` is the adapter this preview
- * has to be rebuilt on. Keeping the import would have pointed the next reader at a file that no
- * longer exists, which is worse than a stale local constant.
- *
- * The rest of this loop is stale in the same way and cannot be fixed by an import: it runs `step()`
- * and `movementSpeedAt()` (both retired), collides through the pixel `resolveTerrain`, and carries
- * pixel `Vec2` positions with a `{x, y}` facing. See `packages/editor/AGENTS.md`.
- */
-const MAX_ACCUMULATED_SECONDS = 5 * TICK_DT;
-
-/** One notch of zoom, as a ratio — geometric, so pulling out and back in returns to where it was. */
-const ZOOM_STEP = 1.25;
-
-/**
- * Wheel delta to zoom ratio.
- *
- * Exponential rather than a fixed notch per event, because a mouse wheel and a trackpad do not
- * speak the same units: a wheel sends one event of ~100, a trackpad a stream of ~3. A fixed notch
- * makes one of the two useless — either the wheel crawls or the trackpad flies across the range.
- * Scaling the exponent by the delta makes both feel the same and composes exactly (two half
- * scrolls equal one whole one).
- */
 function wheelZoomRatio(deltaY: number): number {
-  // Clamped because a single "page" scroll event can carry a delta in the thousands.
   return Math.exp(-Math.max(-240, Math.min(240, deltaY)) * 0.0016);
 }
 
-/**
- * Opens a throwaway warrior walk on the map `data`, on the shared `#stage` canvas the editor just
- * released. Returns a `stop()` that detaches the preview renderer so the editor can reopen on the
- * same canvas.
- *
- * The caller (the editor) must have disposed its painting stage first: one Pixi world on `#stage` at
- * a time. The editor's dispose pauses the shared ticker; `acquireStageApp` below hands back a running
- * one so this frame loop actually fires.
- */
+function bodyAt(x: number, z: number): ColliderRect {
+  return { x: x - BODY_RADIUS, z: z - BODY_RADIUS, w: BODY_RADIUS * 2, h: BODY_RADIUS * 2 };
+}
+
+function overlaps(a: ColliderRect, b: ColliderRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.h && a.z + a.h > b.z;
+}
+
+let previewGeneration = 0;
+
+export interface MapPreviewOptions {
+  heroSettings?: MapHeroSettings;
+  playerChrome?: boolean;
+  /** Retained for callers; HD-2D ambience is part of the scene rather than a preview-only switch. */
+  ambience?: AmbienceConfig;
+  /** Camera multiplier. 1 is the game framing, below 1 pulls back. */
+  zoom?: number;
+  zoomControls?: boolean;
+}
+
+function previewEventSnapshots(events: readonly MapEvent[]): WorldEventSnapshot[] {
+  return events.flatMap((event) => {
+    if (!isActiveWorldEventKind(event.kind)) return [];
+    const page = event.pages[0];
+    if (!page) return [];
+    const profile = event.kind === "harvestable" ? event.harvestProfile : undefined;
+    return [
+      {
+        id: event.id,
+        col: event.col,
+        row: event.row,
+        graphicAssetId: page.graphicAssetId ?? null,
+        graphicTint: page.graphicTint ?? 0xffffff,
+        onTop: page.optOnTop,
+        moveSpeed: page.moveSpeed,
+        moveFrequency: page.moveFreq,
+        moveAnimation: page.optMoveAnim,
+        directionFixed: page.optDirFix,
+        presentation: event.kind === "harvestable" ? "native" : "marker",
+        ...(profile
+          ? {
+              harvest: {
+                state: "intact" as const,
+                generation: 0,
+                hits: 0,
+                hitsRequired: profile.hitsRequired,
+                lastHitAt: null,
+                depletedAt: null,
+                respawnAt: null,
+                exhaustionBehavior: profile.exhaustionBehavior,
+                exhaustedAssetId: profile.exhaustedAssetId,
+                fadeDurationMs: profile.fadeDurationMs,
+                collider: null,
+              },
+            }
+          : {}),
+      },
+    ];
+  });
+}
+
 export async function startMapPreview(
   data: MapData,
   events: readonly MapEvent[] = [],
@@ -151,101 +119,58 @@ export async function startMapPreview(
 ): Promise<{ stop(): void }> {
   const generation = ++previewGeneration;
   const canvas = document.querySelector<HTMLCanvasElement>("#stage");
-  if (!canvas) throw new Error("index.html is missing #stage");
+  if (!canvas) throw new Error("The HD-2D preview requires the #stage canvas");
 
-  const spawn = mapSpawnPoint(data);
-  const harvestColliderByEvent = new Map<string, Rect>();
+  const heightfield = compileAuthoredMap(data, events);
+  const staticTerrain = zoneTerrainFromHeightfield(heightfield);
+  const spawn = heightfield.spawns.find((candidate) => candidate.name === "default") ??
+    heightfield.spawns[0] ?? { x: 0, z: 0 };
+  const spawnY = staticTerrain.query.heightAt(spawn.x, spawn.z) ?? heightfield.waterLevel;
+  const colliders = createColliderIndex();
+  for (const collider of staticTerrain.colliders.all) colliders.add(collider);
+  const pendingHarvestColliders = new Map<string, ColliderRect>();
   for (const event of events) {
-    const collider = intactHarvestCollider(event);
-    if (collider) harvestColliderByEvent.set(event.id, collider);
+    if (event.kind !== "harvestable" || !event.harvestProfile) continue;
+    const collider = harvestGroundColliderAt(
+      event.harvestProfile,
+      event.col,
+      event.row,
+      "intact",
+      heightfield.size,
+    );
+    if (!collider) continue;
+    if (overlaps(collider, bodyAt(spawn.x, spawn.z)))
+      pendingHarvestColliders.set(event.id, collider);
+    else colliders.add(collider);
   }
-  const collisionPending = new Set<string>();
-  const spawnBody = { x: spawn.x, y: spawn.y, width: PLAYER_SIZE, height: PLAYER_SIZE };
-  for (const [eventId, collider] of harvestColliderByEvent) {
-    if (rectsOverlap(collider, spawnBody)) collisionPending.add(eventId);
-  }
-
-  // The server's static geometry plus intact resource footprints that do not overlap the entering
-  // hero. A pending footprint activates on the first authoritative preview tick after the hero has
-  // fully left it, matching WorldRoom's admission/respawn guard.
-  const baseGeometry = terrainFromMap(data);
-  const staticColliders = flattenColliderIndex(baseGeometry.colliders).map(
-    ([x, y, width, height]) => ({ x, y, width, height }),
-  );
-  const buildGeometry = () => ({
-    ...baseGeometry,
-    colliders: colliderIndexFrom(
-      [
-        ...staticColliders,
-        ...[...harvestColliderByEvent].flatMap(([eventId, collider]) =>
-          collisionPending.has(eventId) ? [] : [collider],
-        ),
-      ],
-      baseGeometry.tiles.cols,
-      baseGeometry.tiles.rows,
-    ),
-  });
-  let geometry = buildGeometry();
-
-  const renderer = await Renderer.create(canvas);
-  // A newer start already superseded this one while textures loaded: undo the world this build added
-  // to the shared stage and return a no-op stop. This is StrictMode's throwaway half.
+  const terrain = { ...staticTerrain, colliders };
+  const renderer = await Hd2dRenderer.create(canvas);
   if (generation !== previewGeneration) {
     renderer.destroy();
     return { stop() {} };
   }
 
-  // A unique zone id every start, so `configureMapTerrain`'s same-zone short-circuit never skips a
-  // rebuild when a previous preview left `#currentZoneId` set to an earlier `preview:*`.
-  // Re-encoded rather than handed over parsed: the renderer owns the one degrade policy for a
-  // malformed layer, and a preview must exercise the same path a welcome does. Once per preview
-  // build, never per frame.
-  // `null` heightfield: the editor's preview is the tile path by construction — it draws through the
-  // PixiJS renderer, which ignores that parameter entirely.
-  renderer.configureMapTerrain(
-    `preview:${generation}`,
-    geometry.tiles,
-    data.elements,
-    generation,
-    null,
-    {
-      tilesetId: data.tilesetId,
-      layers: data.layers.map(encodeTileLayer),
-    },
-  );
+  renderer.configureMapTerrain(`preview:${generation}`, [], generation, heightfield);
   renderer.setSelfId(SELF_ID);
-  const playerChrome = options.playerChrome ?? true;
-  renderer.setPlayerChrome(playerChrome);
-  renderer.setAmbience(options.ambience ?? AMBIENCE_NONE);
-  const startingZoom = options.zoom ?? 1;
-  renderer.setCameraZoom(startingZoom);
 
-  /**
-   * `-`/`+` pull the camera back and push it in, `0` returns to the game's own framing.
-   *
-   * Its own listener rather than a `trackInput` control: those are MOVEMENT bindings the player
-   * remaps, and the camera is not movement. Removed by `stop()` below, or the editor would keep
-   * rezooming a renderer it has already torn down.
-   */
+  let zoom = Math.max(0.02, Math.min(2.5, options.zoom ?? 1));
+  const applyZoom = (): void => renderer.setCameraZoom(zoom * 100);
+  applyZoom();
+
   const onZoomKey = (event: KeyboardEvent): void => {
     if (event.target instanceof HTMLInputElement || event.metaKey || event.ctrlKey) return;
-    const zoom = renderer.cameraZoom();
-    if (event.key === "-" || event.key === "_") renderer.setCameraZoom(zoom / ZOOM_STEP);
-    else if (event.key === "+" || event.key === "=") renderer.setCameraZoom(zoom * ZOOM_STEP);
-    else if (event.key === "0") renderer.setCameraZoom(startingZoom);
+    if (event.key === "-" || event.key === "_") zoom /= ZOOM_STEP;
+    else if (event.key === "+" || event.key === "=") zoom *= ZOOM_STEP;
+    else if (event.key === "0") zoom = options.zoom ?? 1;
     else return;
+    zoom = Math.max(0.02, Math.min(2.5, zoom));
+    applyZoom();
     event.preventDefault();
   };
-  /**
-   * The wheel zooms the camera.
-   *
-   * `passive: false` and `preventDefault` are both required: without them the page scrolls (or the
-   * browser rubber-bands) underneath the canvas while the camera zooms. Ctrl+wheel is left alone —
-   * that is the OS pinch-zoom gesture, and stealing it traps someone who wants to magnify the page.
-   */
   const onWheel = (event: WheelEvent): void => {
     if (event.ctrlKey) return;
-    renderer.setCameraZoom(renderer.cameraZoom() * wheelZoomRatio(event.deltaY));
+    zoom = Math.max(0.02, Math.min(2.5, zoom * wheelZoomRatio(event.deltaY)));
+    applyZoom();
     event.preventDefault();
   };
   if (options.zoomControls) {
@@ -253,20 +178,32 @@ export async function startMapPreview(
     window.addEventListener("wheel", onWheel, { passive: false });
   }
 
-  /**
-   * The map's authored monsters and active NPCs, standing where the author put them.
-   *
-   * STATIC on purpose. Monster AI, aggro and combat are the server's, and a second copy of them here
-   * would be exactly the fork this codebase refuses everywhere else (`step()` has one copy for the
-   * same reason). What the preview owes an author is composition: how big a troll actually is beside
-   * the hero, whether an NPC is buried in a hedge, whether a patrol ring overlaps a doorway. Drawing
-   * them at rest answers all three; pretending to simulate them would answer none of them honestly.
-   */
+  const hero = createHeroController({
+    terrain,
+    spawn: { x: spawn.x, y: spawnY, z: spawn.z },
+    speed: mapHeroClassSettings(options.heroSettings, "warrior").stats.movementSpeed,
+  });
+  const appearance = randomAppearance();
+  const baseSelf: Omit<
+    PlayerSnapshot,
+    "x" | "y" | "z" | "vy" | "airborne" | "swimming" | "gliding" | "facing"
+  > = {
+    id: SELF_ID,
+    nick: t("editor.preview"),
+    hp: 100,
+    maxHp: 100,
+    level: 1,
+    appearance,
+    class: "warrior",
+    equipment: starterEquipmentFor("warrior"),
+    life: "alive",
+    action: null,
+  };
+
   const previewMonsters: MonsterSnapshot[] = monsterEvents(events).flatMap((event) => {
     const species = event.species;
     if (species === null) return [];
-    const kind = MONSTER_SPECIES_KIND[species];
-    const stats = {
+    const tuning = {
       ...defaultMonsterTuning(species),
       ...(event.monsterRank ? { rank: event.monsterRank } : {}),
       ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
@@ -274,160 +211,62 @@ export async function startMapPreview(
         : { maxHp: event.monsterMaxHp }),
       ...(event.monsterSpecialTechnique ? { specialTechnique: event.monsterSpecialTechnique } : {}),
     };
-    const at = eventCellCentre(event);
+    const x = event.col + 0.5 - heightfield.size / 2;
+    const z = event.row + 0.5 - heightfield.size / 2;
     return [
       {
         id: `preview-monster-${event.id}`,
         name: event.name,
-        kind,
+        kind: MONSTER_SPECIES_KIND[species],
         species,
-        rank: stats.rank,
-        specialTechnique: stats.specialTechnique,
-        x: at.x,
-        y: at.y,
-        hp: stats.maxHp,
-        maxHp: stats.maxHp,
+        rank: tuning.rank,
+        specialTechnique: tuning.specialTechnique,
+        x,
+        y: terrain.query.heightAt(x, z) ?? heightfield.waterLevel,
+        z,
+        hp: tuning.maxHp,
+        maxHp: tuning.maxHp,
         dead: false,
         graphicAssetId: event.pages[0]?.graphicAssetId ?? null,
-        facing: { x: 0, y: 1 },
+        facing: { x: 0, z: 1 },
         action: null,
       },
     ];
   });
-
-  // Page 1 is what the preview shows: the editor has no party state to select an active page against,
-  // and page 1 is the page an author is looking at while composing.
-  const previewEvents = (): WorldEventSnapshot[] =>
-    events.flatMap((event: MapEvent) => {
-      if (!isActiveWorldEventKind(event.kind)) return [];
-      const page = event.pages[0];
-      if (!page?.graphicAssetId) return [];
-      const profile = event.kind === "harvestable" ? event.harvestProfile : undefined;
-      const collider = profile ? (harvestColliderByEvent.get(event.id) ?? null) : null;
-      const pending = collisionPending.has(event.id);
-      return [
-        {
-          id: event.id,
-          col: event.col,
-          row: event.row,
-          graphicAssetId: page.graphicAssetId,
-          graphicTint: page.graphicTint ?? 0xffffff,
-          onTop: page.optOnTop,
-          moveSpeed: page.moveSpeed,
-          moveFrequency: page.moveFreq,
-          moveAnimation: page.optMoveAnim,
-          directionFixed: page.optDirFix,
-          presentation: event.kind === "harvestable" ? "native" : "marker",
-          ...(profile
-            ? {
-                harvest: {
-                  state: "intact" as const,
-                  generation: 0,
-                  hits: 0,
-                  hitsRequired: profile.hitsRequired,
-                  lastHitAt: null,
-                  depletedAt: null,
-                  respawnAt: null,
-                  exhaustionBehavior: profile.exhaustionBehavior,
-                  exhaustedAssetId: profile.exhaustedAssetId,
-                  fadeDurationMs: profile.fadeDurationMs,
-                  ...(pending ? { collisionPending: true as const } : {}),
-                  collider:
-                    collider && !pending
-                      ? ([collider.x, collider.y, collider.width, collider.height] as const)
-                      : null,
-                },
-              }
-            : {}),
-        },
-      ];
-    });
-
-  const self: PlayerSnapshot = {
-    id: SELF_ID,
-    nick: t("editor.preview"),
-    x: spawn.x,
-    y: spawn.y,
-    ack: 0,
-    hp: 100,
-    maxHp: 100,
-    level: 1,
-    appearance: randomAppearance(),
-    class: "warrior",
-    equipment: starterEquipmentFor("warrior"),
-    life: "alive",
-    facing: { x: 1, y: 0 },
-    action: null,
-  };
+  const worldEvents = previewEventSnapshots(events);
+  renderer.preloadWorldEventAssets(worldEvents);
 
   const tracker = trackInput();
-  let position: Vec2 = { x: spawn.x, y: spawn.y };
-  let facing: Vec2 = { ...self.facing };
-  let accumulator = 0;
-
+  const playerChrome = options.playerChrome ?? true;
   renderer.onFrame((now, dt) => {
     const input = tracker.current();
-    // The same fixed-step accumulator `net.ts` runs: one command's worth of movement per TICK_DT,
-    // capped so a slow frame cannot spiral. The tick rate is the speed limit, exactly as in game.
-    accumulator = Math.min(accumulator + dt, MAX_ACCUMULATED_SECONDS);
-    while (accumulator >= TICK_DT) {
-      accumulator -= TICK_DT;
-      // The one load-bearing line — byte-for-byte `net.ts`'s `predictPartial`, the shared movement
-      // truth the server and client prediction both run.
-      position = resolveTerrain(
-        position,
-        step(
-          position,
-          input,
-          TICK_DT,
-          movementSpeedAt(
-            position,
-            mapHeroClassSettings(options.heroSettings, "warrior").stats.movementSpeed,
-            geometry,
-          ),
-          geometry,
-        ),
-        geometry,
-      );
-      let collisionActivated = false;
-      const body = { x: position.x, y: position.y, width: PLAYER_SIZE, height: PLAYER_SIZE };
-      for (const eventId of collisionPending) {
-        const collider = harvestColliderByEvent.get(eventId);
-        if (collider && !rectsOverlap(collider, body)) {
-          collisionPending.delete(eventId);
-          collisionActivated = true;
-        }
-      }
-      if (collisionActivated) geometry = buildGeometry();
-      // Same conversion `movement-system.ts` applies to a dequeued command every tick: the last
-      // non-zero movement becomes facing, standing still preserves it. Without this the preview
-      // hero never turns, since nothing else in this local loop ever touches `facing`.
-      facing = facingFromInput(input, facing);
-    }
-    // The DRAWN position carries the leftover sub-tick time as a partial step, byte-for-byte
-    // `net.ts`'s `#samplePredictedPosition`: `position` above advances only in whole `TICK_DT` ticks
-    // (the 20Hz authoritative cadence), so drawing it raw makes the local hero jerk forward at 20Hz on
-    // a 60/120Hz screen (D22). Adding the leftover `accumulator` as one fractional `step()` — the same
-    // shared movement truth, not a second copy — draws the own square smoothly every frame, exactly as
-    // the live client predicts its own square between ticks.
-    const drawn = resolveTerrain(
-      position,
-      step(
-        position,
-        input,
-        accumulator,
-        movementSpeedAt(
-          position,
-          mapHeroClassSettings(options.heroSettings, "warrior").stats.movementSpeed,
-          geometry,
-        ),
-        geometry,
-      ),
-      geometry,
+    hero.step(
+      {
+        x: Number(input.right) - Number(input.left),
+        z: Number(input.down) - Number(input.up),
+        jump: input.jump ?? false,
+      },
+      dt,
     );
-    const moved: PlayerSnapshot = { ...self, x: drawn.x, y: drawn.y, facing };
+    const state = hero.state;
+    for (const [eventId, collider] of pendingHarvestColliders) {
+      if (overlaps(collider, bodyAt(state.x, state.z))) continue;
+      colliders.add(collider);
+      pendingHarvestColliders.delete(eventId);
+    }
+    const self: PlayerSnapshot = {
+      ...baseSelf,
+      x: state.x,
+      y: state.y,
+      z: state.z,
+      vy: state.vy,
+      airborne: state.airborne,
+      swimming: state.swimming,
+      gliding: state.gliding,
+      facing: hero.facing,
+    };
     const context: RenderContext = {
-      self: moved,
+      self,
       quest: PREVIEW_QUEST,
       now,
       healthBars: playerChrome ? "both" : "none",
@@ -435,28 +274,17 @@ export async function startMapPreview(
     };
     renderer.render(
       {
-        players: [moved],
+        players: [self],
         monsters: previewMonsters,
         guards: [],
         loot: [],
         corpses: [],
         projectiles: [],
-        events: previewEvents(),
+        events: worldEvents,
       },
       context,
     );
   });
-
-  // The editor's dispose (run just before this) paused the shared ticker; guarantee a running one so
-  // the frame loop above fires. Idempotent — `acquireStageApp` hands back the same, started app.
-  const app = await acquireStageApp(canvas);
-  app.ticker.start();
-  // Measured: on a high-refresh (ProMotion 120Hz) display the uncapped preview ticker ran at
-  // 120-145 fps, roughly doubling GPU fill-rate for zero visible gain over 60 — the dominant cost
-  // is the fullscreen animated water fill. Scoped to the preview only: this is the shared `#stage`
-  // app the game session's renderer also runs on, so `stop()` below puts the cap back to Pixi's
-  // default (uncapped) rather than leaving the game itself capped after the preview closes.
-  app.ticker.maxFPS = 60;
 
   let stopped = false;
   return {
@@ -468,9 +296,6 @@ export async function startMapPreview(
         window.removeEventListener("wheel", onWheel);
       }
       tracker.stop();
-      app.ticker.maxFPS = 0;
-      // Detaches only this preview's world and frame callbacks from the shared app (never destroys
-      // it — Pixi 8 cannot re-init the canvas), leaving a clean stage for the editor to reopen on.
       renderer.destroy();
     },
   };

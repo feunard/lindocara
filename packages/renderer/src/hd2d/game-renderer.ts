@@ -55,7 +55,7 @@ import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
 import type { StaticContent, StaticSpriteArt } from "./static-content.js";
 import { placeStaticContent } from "./static-content.js";
-import { Hd2dVisualLayer } from "./visual-layer.js";
+import { type Hd2dEditorOverlay, Hd2dVisualLayer } from "./visual-layer.js";
 
 // --- actor art direction --------------------------------------------------------------------------
 
@@ -326,6 +326,8 @@ export class Hd2dRenderer implements RendererLike {
    *  per frame is garbage for nothing. */
   #actorViews: ActorView[] = [];
   #selfId: string | null = null;
+  #manualFocus: GroundVector | null = null;
+  #cameraZoom = 100;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -414,6 +416,8 @@ export class Hd2dRenderer implements RendererLike {
     this.#disposeScene();
     const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
     this.#scene = scene;
+    scene.setZoom(this.#cameraZoom);
+    if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     this.#map = heightfield;
     this.#visuals = new Hd2dVisualLayer(scene, this.#canvas, heightfield.size);
     this.#visuals.setMerchant(this.#merchant);
@@ -622,6 +626,7 @@ export class Hd2dRenderer implements RendererLike {
     // spawn on the very first frames.
     const self = sample.players.find((player) => player.id === this.#selfId);
     if (self) scene.focusOn(self.x, self.z);
+    else if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
 
     // `context.now` rather than a clock read of our own: it is the very `now` this frame's callback
     // was handed, so the scene's animations advance on the same timeline as everything else in it.
@@ -945,6 +950,23 @@ export class Hd2dRenderer implements RendererLike {
   /** Casts the pointer through the HD-2D camera onto the bounded world ground. */
   screenToWorld(clientX: number, clientY: number): GroundVector | null {
     return this.#visuals?.screenToWorld(clientX, clientY) ?? null;
+  }
+
+  /** Moves the editor/preview camera without impersonating a local player. */
+  setCameraFocus(x: number, z: number): void {
+    this.#manualFocus = { x, z };
+    this.#scene?.focusOn(x, z);
+  }
+
+  /** Changes the editor/preview camera while preserving gameplay's 100% default. */
+  setCameraZoom(percent: number): void {
+    this.#cameraZoom = percent;
+    this.#scene?.setZoom(percent);
+  }
+
+  /** Draws creator-only grid/collision/selection guides in the real HD-2D scene. */
+  setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
+    this.#visuals?.setEditorOverlay(overlay);
   }
 
   setAuthoredQuestMarkers(markers: readonly AuthoredQuestMarker[]): void {

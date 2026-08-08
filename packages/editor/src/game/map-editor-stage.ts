@@ -1,67 +1,28 @@
 /**
- * The map editor's painting surface — Pixi on the `#stage` canvas, driven only through a handle.
+ * The creator's WYSIWYG HD-2D surface.
  *
- * This is the WYSIWYG twin of the world renderer: it draws a map the exact way `renderer.ts` draws
- * a wire zone (the same `bakeCollision` tilemap, the same `landTile`/`needsFoam` autotiling, the
- * same native-scale Tiny Swords props), so what a builder paints here is what a player will stand
- * on. It never decides a *rule*: every placement is answered by `applyTool` (editor-state.ts), which
- * shares bounds, spawn and collision rules with the server. A pointer here computes a cell, asks
- * `applyTool`, and only adopts a non-null, changed result.
- *
- * React never touches anything in this module but the returned `MapEditorStageHandle`: the toolbar
- * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
+ * React owns controls and dialogs; this module owns the shared `#stage` canvas. Every mutation is
+ * still delegated to `editor-state.ts`, while terrain and scenery are compiled and drawn through
+ * the exact engine/renderer path used by a running room.
  */
 
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
-import type { MonsterSpecies } from "@lindocara/engine/game.js";
-import {
-  bakeCollision,
-  ELEMENT_OFFSET_PX,
-  ELEMENT_OFFSET_STEPS,
-  elementWorldCollider,
-  type MapElement,
-  quarterCellAt,
-  sameElementSlot,
-} from "@lindocara/engine/map-data.js";
-import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
+import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
-import { stairsTilePlacements } from "@lindocara/engine/tile-brush.js";
-import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import { isSolidKind, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
-import { fixedId, type Tileset } from "@lindocara/engine/tileset.js";
-import {
-  TINY_SWORDS_SHEET_COLS,
-  TINY_SWORDS_SHEET_ROWS,
-  TINY_SWORDS_TILESET,
-} from "@lindocara/engine/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
-import { needsFoam } from "@lindocara/renderer/autotile.js";
-import {
-  catalogElementFrameAt,
-  createCatalogElementView,
-  createEventGraphicSprite,
-} from "@lindocara/renderer/catalog-element-render.js";
-import {
-  type EditorAssetArt,
-  loadEditorAssetArt,
-  loadEditorAssetArts,
-} from "@lindocara/renderer/editor-asset-art.js";
-import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
-import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
-import { foamFrameAt, foamPhaseAt } from "@lindocara/renderer/terrain-visuals.js";
-import { tileDrawAt } from "@lindocara/renderer/tile-draw.js";
-import {
-  sliceStrip,
-  sliceTilesetSheet,
-  TINY_SWORDS_FOAM_FRAME,
-  TINY_SWORDS_FOAM_FRAMES,
-  TINY_SWORDS_ROOT,
-  TINY_SWORDS_TERRAIN,
-  TINY_SWORDS_UNIT_FRAME,
-  unitSheet,
-} from "@lindocara/renderer/tiny-swords-art.js";
-import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
-import type { EditorMap, EditorMode, EditorSelection, EditorTool } from "./editor-state.js";
+import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
+import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
+import type { SceneSample } from "@lindocara/renderer/scene-sample.js";
+import type {
+  EditorMap,
+  EditorMode,
+  EditorSelection,
+  EditorTool,
+  ElementEventBinding,
+} from "./editor-state.js";
 import {
   applyTool,
   beginEventDraft,
@@ -70,12 +31,10 @@ import {
   convertElementToEvent,
   createEditorHistory,
   deleteSelection,
-  type ElementEventBinding,
   editorMapSize,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
-  placementLegalAt,
   redoEditorHistory,
   selectionAtMode,
   setActiveMode,
@@ -84,69 +43,32 @@ import {
   updateSelectedElementAsset,
   updateSelectedElementOffset,
 } from "./editor-state.js";
-import { intactHarvestColliders } from "./harvest-collision.js";
 
-/**
- * The one seam between React's toolbar and the Pixi stage. `current()` is a live snapshot the Save
- * button hands straight to the map API (an `EditorMap` is a `MapSaveInput` minus the server-minted
- * id); `setTool`/`setName` push toolbar state down; `dispose()` returns the `#stage` canvas.
- */
 export interface MapEditorStageHandle {
   setTool(tool: EditorTool): void;
-  /** Which of the three authored collections (terrain / elements / events) the editor is working in.
-   *  Routes the eraser, gates every other tool, and drives the dim overlay. Lives on `EditorHistory`,
-   *  survives undo/redo, and is threaded into every `applyTool` call from `paintAt`. React owns the
-   *  displayed value and pushes it down here. */
   setActiveMode(mode: EditorMode): void;
-  /** Editor-only "dim other modes": with it on, the two planes the active mode does NOT own drop to
-   *  `DIM_ALPHA`, so the author can see which collection a stroke lands on. Never touches the game
-   *  renderer. React owns the toggle and pushes it down here. */
   setDim(dim: boolean): void;
-  /** UX wave #8: toggle the cell grid overlay. On by default so a fresh editor shows the grid; React
-   *  owns the displayed value and pushes it down here. */
   setGrid(show: boolean): void;
-  /** D18: toggle the collision-visualisation overlay — shades every solid baked tile and outlines
-   *  element colliders plus explicit intact harvest colliders, so sub-cell collision (a tree's
-   *  trunk, not its canopy) is visible to the author. Off by default; React owns the
-   *  displayed value and pushes it down here, exactly like `setGrid`/`setDim`. Never touches the game
-   *  renderer — it is an editor-only debug layer. */
   setCollisions(show: boolean): void;
-  /** Set the real Pixi camera scale from the React zoom controls. */
   setZoom(percent: number): void;
   current(): EditorMap;
   setName(name: string): void;
-  /** Replace map-level audio overrides as one undoable content edit. */
   setAudio(audio: MapAudioConfig): void;
-  /** Replace the map-specific hero balance as one undoable content edit. */
   setHeroSettings(settings: MapHeroSettings): void;
   undo(): void;
   redo(): void;
-  /** Mark the exact map snapshot acknowledged by the server as saved. Passing the request snapshot
-   * keeps edits made while that request was in flight dirty instead of falsely clearing them. */
   markSaved(saved?: EditorMap): void;
   selected(): EditorSelection | null;
-  /** Clear the inspector selection without mutating authored content. */
   clearSelection(): void;
   moveSelected(col: number, row: number): boolean;
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
-  /** Re-place the selected element at a new quarter-cell offset (0..3 per axis) as one history entry;
-   *  a no-op for any non-element selection. */
   setSelectedElementOffset(offsetX: number, offsetY: number): boolean;
   deleteSelected(): boolean;
-  /** A detached draft copy of one event for the dialog to edit, or `null` if the id names no live
-   *  event. Reads the live map; writes nothing. */
   beginEventDraft(id: string): MapEvent | null;
-  /** Commit an edited event draft back onto the map as ONE history entry (the dialog's Save). */
   commitEventDraft(draft: MapEvent): void;
-  /** Delete an event by id as its own history entry (the dialog's delete-event). */
   deleteEvent(id: string): void;
-  /** Turn the selected scenery into a normal event, preserving its real graphic. */
   bindSelectedElement(binding: ElementEventBinding): string | null;
-  /** D14: emphasise the event with this id on the canvas (the sidebar list's hover), or clear the
-   *  emphasis with `null`. Purely visual — it never changes the selection or the map. */
   highlightEvent(id: string | null): void;
-  /** D14: select the event with this id as if it were clicked on the canvas — updates the inspector
-   *  selection, no dialog. A no-op if the id names no live event. */
   selectEvent(id: string): void;
   dispose(): void;
 }
@@ -156,805 +78,56 @@ export interface MapEditorStageState {
   canRedo: boolean;
   dirty: boolean;
   selection: EditorSelection | null;
-  /**
-   * A monotone counter (C7), bumped every time a real element/event placement click is refused —
-   * e.g. scenery over the spawn, an event on an occupied cell. The hover-illegal red fill (UX wave #9,
-   * `paintHoverCell`) already warns BEFORE the click; this is the click itself, which otherwise does
-   * nothing observable at all (the placed-count simply stays put). `null` until the first rejection
-   * this session. A counter, not a boolean, so the screen can show its transient hint again even if
-   * the previous one is still fading and the author immediately retries the same illegal cell.
-   */
   placementRejectedAt: number | null;
 }
 
-/** Camera zoom is allowed to pull back far enough for the largest authored map to fit in the centre
- *  pane. The former 0.5 floor cut every map that needed a wider overview, including legal 256×256
- *  maps. Authors can still zoom back in for pixel-accurate edits, then pan to either edge. */
-const MIN_ZOOM = 0.01;
-const MAX_ZOOM = 2;
-
-/** How far the two non-active planes fade when "dim other modes" is on. Editor-only; the game
- *  renderer never applies it. Deliberately strong (D12): the RPG-Maker-XP intent is that the active
- *  plane clearly *pops*, so the inactive planes drop to a faint context wash — visible enough to keep
- *  your bearings, dim enough that the active layer's content is unmistakably the foreground. */
-const DIM_ALPHA = 0.2;
-
-/**
- * D12: the default "dim other modes" state for a given mode. Entering Element or Event mode turns the
- * dim ON by default so the active plane pops the moment you switch; Field mode leaves every plane
- * fully opaque (there is no "other layer" worth fading when you are painting terrain). The manual
- * toggle still overrides this within a mode — this only decides the default reapplied on each mode
- * CHANGE. Pure so the screen's per-mode default is pinned by a unit test rather than by hand.
- */
 export function defaultDimForMode(mode: EditorMode): boolean {
   return mode !== "field";
 }
 
-/**
- * Apply "dim other modes" across the three authored planes: the tile layers (Field), the element
- * containers (Element) and the event overlay (Event). With `dim` on, the two planes the active mode
- * does NOT own drop to `DIM_ALPHA`; the active plane — and every plane when `dim` is off — stays fully
- * opaque. Pure and Pixi-object-only (a `Container`'s `alpha` needs no renderer), so it pins the dim
- * rule without the rest of the stage, exactly like `paintLandCell`.
- */
-export function applyModeDim(
-  tileLayers: readonly Container[],
-  elementContainers: readonly Container[],
-  eventOverlay: Container,
-  mode: EditorMode,
-  dim: boolean,
-): void {
-  const tileAlpha = dim && mode !== "field" ? DIM_ALPHA : 1;
-  const elementAlpha = dim && mode !== "element" ? DIM_ALPHA : 1;
-  const eventAlpha = dim && mode !== "event" ? DIM_ALPHA : 1;
-  for (const container of tileLayers) container.alpha = tileAlpha;
-  for (const container of elementContainers) container.alpha = elementAlpha;
-  eventOverlay.alpha = eventAlpha;
-}
-
-/** The wireframe's `EV{ordinal}` chip text: the creation ordinal zero-padded to three digits, so the
- *  first event on a map reads `EV001`. Display only — the uuid is identity, never this. */
-export function eventChipLabel(ordinal: number): string {
-  return `EV${String(ordinal).padStart(3, "0")}`;
-}
-
-/** RPG objects stay visible in every editing mode, so changing terrain layers never makes authored
- * events appear to vanish. Kept pure because stage tests pin this visibility contract. */
-export function shouldShowEventOverlay(_tool: EditorTool): boolean {
-  return true;
-}
-
-/** Compatibility predicate for the stage visibility contract. Events are now always visible, so a
- * tool switch never flips the overlay and never needs a full-map redraw. */
-export function eventOverlayToggled(prev: EditorTool, next: EditorTool): boolean {
-  return shouldShowEventOverlay(prev) !== shouldShowEventOverlay(next);
-}
-
-/** UX wave #9: the hover preview shows for placement tools, but never for select/pan — those tools
- *  point at existing content rather than propose a placement, so a "can I place here?" outline would
- *  be noise. Pure so the visibility gate pins without the stage, exactly like `shouldShowEventOverlay`. */
-export function shouldShowHoverPreview(tool: EditorTool): boolean {
-  return tool.kind !== "select" && tool.kind !== "pan";
-}
-
-const HOVER_OUTLINE_COLOR = 0xffffff;
-/** The "wider cell border" the user asked for: a 3px preview outline, versus the map's 1px grid. */
-const HOVER_OUTLINE_WIDTH = 3;
-const HOVER_ILLEGAL_COLOR = 0xd41f1f;
-const HOVER_GHOST_ALPHA = 0.68;
-const HOVER_ILLEGAL_GHOST_ALPHA = 0.48;
-const HOVER_ILLEGAL_FILL_ALPHA = 0.28;
-
-/** The cells a tool's stamp will touch, anchored at its low entrance `(col,row)`. Both supported
- *  side ramps use Tiny Swords' native vertical pair. */
-export function stampFootprintCells(
-  tool: EditorTool,
-  col: number,
-  row: number,
-): { col: number; row: number }[] {
-  if (tool.kind !== "stairs") return [{ col, row }];
-  return stairsTilePlacements(tool.direction, tool.lowLevel).map((placement) => ({
-    col: col + placement.col,
-    row: row + placement.row,
-  }));
-}
-
-/** The already-loaded art the under-cursor placement ghost may use. Optional semantic textures keep
- * the pure Pixi helper easy to exercise in jsdom while the live stage always supplies all of them. */
-export interface PlacementPreviewTextures {
-  editorAssets: ReadonlyMap<EditorAssetId, EditorAssetArt>;
-  spawn?: Texture;
-  eventSign?: Texture;
-  monsters?: ReadonlyMap<MonsterSpecies, Texture>;
-  tileset?: readonly (readonly Texture[])[];
-}
-
-/**
- * Draw the thing the next click will place, at its real anchor and scale.
- *
- * Elements reuse `createCatalogElementView`, events reuse `createEventGraphicSprite`, and stairs
- * reuse their two frozen fixed ids through `tileDrawAt`. This is deliberately the same rendering
- * path as committed content: a building, decoration, monster, spawn point or ramp can no longer be
- * represented by an anonymous square while it follows the pointer.
- */
-export function paintPlacementAssetPreview(
-  tool: EditorTool,
-  col: number,
-  row: number,
-  offsetX: number,
-  offsetY: number,
-  illegal: boolean,
-  container: Container,
-  textures: PlacementPreviewTextures,
-): boolean {
-  const alpha = illegal ? HOVER_ILLEGAL_GHOST_ALPHA : HOVER_GHOST_ALPHA;
-
-  if (tool.kind === "element") {
-    const art = textures.editorAssets.get(tool.assetId);
-    if (!art) return false;
-    const view = createCatalogElementView(
-      { col, row, offsetX, offsetY, assetId: tool.assetId },
-      art,
-    );
-    if (!view) return false;
-    view.container.alpha = alpha;
-    container.addChild(view.container);
-    return true;
-  }
-
-  if (tool.kind === "stairs" && textures.tileset) {
-    let drew = false;
-    for (const placement of stairsTilePlacements(tool.direction, tool.lowLevel)) {
-      const layer: TileLayer = {
-        cols: 1,
-        rows: 1,
-        ids: [fixedId(placement.fixedIndex)],
-      };
-      const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, 0, 0);
-      if (!draw) continue;
-      const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
-      if (!texture) continue;
-      const targetCol = col + placement.col;
-      const targetRow = row + placement.row;
-      const sprite = new Sprite(texture);
-      sprite.anchor.set(0.5);
-      sprite.position.set(
-        targetCol * TILE_SIZE + TILE_SIZE / 2,
-        targetRow * TILE_SIZE + TILE_SIZE / 2,
-      );
-      sprite.width = TILE_SIZE;
-      sprite.height = TILE_SIZE;
-      sprite.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
-      sprite.tint = draw.tint;
-      sprite.alpha = alpha;
-      container.addChild(sprite);
-      drew = true;
-    }
-    return drew;
-  }
-
-  let frame: Texture | undefined;
-  let patrolRadius: number | undefined;
-  // Carried alongside `frame` so a catalogue graphic previews at the SAME scale the game draws it:
-  // a unit sheet stands at native size, anything else stays a one-cell marker.
-  let definition: EditorAssetArt["definition"] | undefined;
-  if (tool.kind === "spawn") {
-    frame = textures.spawn;
-  } else if (tool.kind === "event") {
-    if (tool.graphic) {
-      const art = textures.editorAssets.get(tool.graphic);
-      frame = art?.frames[0];
-      definition = art?.definition;
-    }
-    if (!frame) {
-      if (tool.eventKind === "monster" && tool.species) {
-        frame = textures.monsters?.get(tool.species);
-        patrolRadius = tool.patrolRadius;
-      } else if (tool.eventKind === "spawn" || tool.eventKind === "entry") {
-        frame = textures.spawn;
-      } else if (tool.eventKind === "exit" || tool.preset === "sign") {
-        frame = textures.eventSign;
-      }
-    }
-  }
-  if (!frame) return false;
-
-  if (patrolRadius !== undefined) {
-    const ring = new Graphics();
-    ring
-      .circle(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2, patrolRadius)
-      .stroke({ width: 2, color: EVENT_KIND_PLACEHOLDER_COLOR.monster, alpha: alpha * 0.6 });
-    container.addChild(ring);
-  }
-  const sprite = createEventGraphicSprite(col, row, frame, definition);
-  sprite.alpha = alpha;
-  container.addChild(sprite);
-  return true;
-}
-
-/**
- * Draws the UX wave #9 hover feedback into `container`: a thick preview outline over every cell the
- * active tool's stamp will touch (one cell for every current placement tool), plus a
- * translucent red cell fill UNDER those outlines when `placementLegalAt` says the tool cannot place
- * here. The fill stays translucent so the real asset ghost beneath it remains identifiable.
- * Returns whether it drew the illegal fill, which is the render decision the stage test pins.
- *
- * Exported and kept Pixi-object-only like `paintEventCell`/`paintLandCell` — `Graphics` constructs
- * without a live renderer — so the red-vs-clear decision can be pinned without the WebGL context the
- * rest of the stage needs. Rendering only: it never mutates the map and nothing here runs in the game.
- */
-export function paintHoverCell(
-  tool: EditorTool,
-  map: EditorMap,
-  col: number,
-  row: number,
-  mode: EditorMode,
-  container: Container,
-  offsetX = 0,
-  offsetY = 0,
-): { illegal: boolean } {
-  const illegal = !placementLegalAt(tool, map, col, row, mode);
-  const inset = HOVER_OUTLINE_WIDTH / 2;
-  for (const cell of stampFootprintCells(tool, col, row)) {
-    const x = cell.col * TILE_SIZE + offsetX * ELEMENT_OFFSET_PX;
-    const y = cell.row * TILE_SIZE + offsetY * ELEMENT_OFFSET_PX;
-    if (illegal) {
-      const fill = new Graphics();
-      fill
-        .rect(x, y, TILE_SIZE, TILE_SIZE)
-        .fill({ color: HOVER_ILLEGAL_COLOR, alpha: HOVER_ILLEGAL_FILL_ALPHA });
-      container.addChild(fill);
-    }
-    const outline = new Graphics();
-    outline
-      .rect(x + inset, y + inset, TILE_SIZE - HOVER_OUTLINE_WIDTH, TILE_SIZE - HOVER_OUTLINE_WIDTH)
-      .stroke({
-        width: HOVER_OUTLINE_WIDTH,
-        color: illegal ? HOVER_ILLEGAL_COLOR : HOVER_OUTLINE_COLOR,
-        alpha: 1,
-      });
-    container.addChild(outline);
-  }
-  return { illegal };
-}
-
-/** The 1px cell grid overlay (UX wave #8), one Graphics of lines for the whole map. Pure and
- *  Pixi-object-only so it needs no live renderer; `gridLayer.visible` toggles it without a rebuild. */
-const GRID_COLOR = 0x0e1a12;
-const GRID_COORDINATE_COLOR = 0xffffff;
-const GRID_COORDINATE_STROKE = 0x0e1a12;
-
-/**
- * Number every whole cell along all four map edges. Labels are deliberately one-based because they
- * are author-facing coordinates: the teleport form performs the matching one-based display ↔
- * zero-based storage conversion. Painting both opposite edges keeps the axes readable while the
- * author is working near any corner of a large map.
- */
-export function paintGridCoordinates(container: Container, cols: number, rows: number): void {
-  const style = {
-    fontFamily: "Arial, sans-serif",
-    fontSize: 11,
-    fontWeight: "bold" as const,
-    fill: GRID_COORDINATE_COLOR,
-    stroke: { color: GRID_COORDINATE_STROKE, width: 3 },
-  };
-  const mapWidth = cols * TILE_SIZE;
-  const mapHeight = rows * TILE_SIZE;
-  for (let col = 0; col < cols; col++) {
-    const x = col * TILE_SIZE + TILE_SIZE / 2;
-    const top = new Text({ text: String(col + 1), style });
-    top.anchor.set(0.5, 0);
-    top.position.set(x, 3);
-    const bottom = new Text({ text: String(col + 1), style });
-    bottom.anchor.set(0.5, 1);
-    bottom.position.set(x, mapHeight - 3);
-    container.addChild(top, bottom);
-  }
-  for (let row = 0; row < rows; row++) {
-    const y = row * TILE_SIZE + TILE_SIZE / 2;
-    const left = new Text({ text: String(row + 1), style });
-    left.anchor.set(0, 0.5);
-    left.position.set(3, y);
-    const right = new Text({ text: String(row + 1), style });
-    right.anchor.set(1, 0.5);
-    right.position.set(mapWidth - 3, y);
-    container.addChild(left, right);
-  }
-}
-
-const EVENT_BOX_COLOR = 0x27272a;
-const EVENT_CHIP_BG_COLOR = 0x18181b;
-const EVENT_CHIP_TEXT_COLOR = 0xfafafa;
-/** D2: the same selection outline treatment for a selected element as an event already gets below —
- *  one colour, so "this is what's selected" reads identically whichever plane it is on. */
-const SELECTION_OUTLINE_COLOR = 0xffffff;
-/** D14: the hover-highlight ring drawn when the sidebar event list points at this event — a distinct
- *  amber, so "this list row is that event on the canvas" reads apart from the white selection outline
- *  even when the highlighted event is also the selected one. */
-const EVENT_HIGHLIGHT_COLOR = 0xf59e0b;
-
-/**
- * The placeholder swatch colour per event kind, so the four kinds read apart at a glance on the EV
- * overlay: `normal` is the wireframe's violet, and entry/exit/monster inherit the old marker palette
- * they replace (green arrival, violet-blue departure, red spawn). A `normal` event with a page-1
- * graphic draws that sprite instead of the swatch; the functional kinds never carry a graphic, so
- * their swatch is always their identity on the overlay.
- */
-const EVENT_KIND_PLACEHOLDER_COLOR: Record<EventKind, number> = {
-  normal: 0x7c3aed,
-  npc: 0x0d9488,
-  entry: 0x6fd44c,
-  exit: 0x9a6cf0,
-  monster: 0xd9484a,
-  guard: 0x3b82f6,
-  harvestable: 0xb7791f,
-  spawn: 0x2563eb,
+const EMPTY_SAMPLE: SceneSample = {
+  players: [],
+  monsters: [],
+  guards: [],
+  loot: [],
+  projectiles: [],
+  corpses: [],
+  events: [],
 };
 
-/** What `paintEventCell` decided and drew for one event: the chip text, whether it drew the page-1
- *  graphic (vs the blank placeholder), and whether it drew the selection outline. */
-export interface EventCellDraw {
-  chipText: string;
-  hasGraphic: boolean;
-  selected: boolean;
+function selectionPoint(map: EditorMap, selection: EditorSelection | null) {
+  if (!selection) return null;
+  const { cols, rows } = editorMapSize(map);
+  const size = Math.max(cols, rows);
+  if (selection.kind === "event") {
+    const event = map.events.find((candidate) => candidate.id === selection.id);
+    return event ? { x: event.col + 0.5 - size / 2, z: event.row + 0.5 - size / 2 } : null;
+  }
+  if (selection.kind === "spawn") {
+    return { x: map.spawn.col + 0.5 - size / 2, z: map.spawn.row + 0.5 - size / 2 };
+  }
+  return {
+    x: selection.col + (selection.offsetX + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
+    z: selection.row + (selection.offsetY + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
+  };
 }
 
-/**
- * Draws one authored event into the overlay container: the wireframe's faint bounding box, then
- * either its page-1 catalogue graphic (when that art is loaded) or the blank placeholder square, an
- * `EV{ordinal}` chip, and a selection outline when it is selected.
- *
- * Exported and kept Pixi-object-only like `paintLandCell` — `Container`/`Sprite`/`Graphics`/`Text`
- * all construct without a live renderer — so the per-event draw decision (graphic vs placeholder,
- * chip text, selection) can be pinned without the WebGL context the rest of the stage needs.
- *
- * Rendering only: it never mutates the map and nothing here runs in the game.
- */
-export function paintEventCell(
-  event: MapEvent,
-  art: EditorAssetArt | undefined,
-  selected: boolean,
-  container: Container,
-  semanticFrame?: Texture,
-  highlighted = false,
-): EventCellDraw {
-  const x = event.col * TILE_SIZE;
-  const y = event.row * TILE_SIZE;
-
-  const box = new Graphics();
-  box
-    .rect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2)
-    .fill({ color: EVENT_BOX_COLOR, alpha: 0.04 })
-    .stroke({ width: 1, color: EVENT_BOX_COLOR, alpha: 0.55 });
-  container.addChild(box);
-
-  // The graphic branch needs both a page-1 graphic AND its art loaded; a graphic whose art has not
-  // arrived yet falls back to the placeholder until the next redraw, exactly like an element's art.
-  const graphicId = event.pages[0]?.graphicAssetId ?? null;
-  const frame = (graphicId === null ? undefined : art?.frames[0]) ?? semanticFrame;
-  const hasGraphic = frame !== undefined;
-  if (frame) {
-    // The shared event crop (`createEventGraphicSprite`), so the overlay and the game renderer draw a
-    // page graphic identically — a fixed one-cell marker anchored bottom-centre and fit into ~1.6
-    // tiles, deliberately NOT `createCatalogElementView`'s per-asset footprint. Same catalogue art,
-    // one event placement contract for both trees.
-    const sprite = createEventGraphicSprite(
-      event.col,
-      event.row,
-      frame,
-      graphicId === null ? undefined : art?.definition,
-      event.kind === "harvestable" ? "native" : "marker",
-    );
-    sprite.tint = event.pages[0]?.graphicTint ?? 0xffffff;
-    container.addChild(sprite);
-  } else {
-    // The blank placeholder, coloured by kind so entry/exit/monster events (which never carry a
-    // graphic) read apart from each other and from a scripted `normal` event.
-    const placeholder = new Graphics();
-    placeholder
-      .roundRect(x + TILE_SIZE * 0.2, y + TILE_SIZE * 0.2, TILE_SIZE * 0.6, TILE_SIZE * 0.6, 4)
-      .fill({ color: EVENT_KIND_PLACEHOLDER_COLOR[event.kind], alpha: 0.85 });
-    container.addChild(placeholder);
-  }
-
-  // Monsters and allied guards carry authoritative patrol radii, shown on the EV plane.
-  if (
-    (event.kind === "monster" || event.kind === "guard" || event.kind === "npc") &&
-    event.patrolRadius !== null
-  ) {
-    const ring = new Graphics();
-    ring
-      .circle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, event.patrolRadius)
-      .stroke({ width: 2, color: EVENT_KIND_PLACEHOLDER_COLOR[event.kind], alpha: 0.35 });
-    container.addChild(ring);
-  }
-
-  const chipText = eventChipLabel(event.ordinal);
-  // Chip width derived from the text length rather than measured, so the backing plate is stable
-  // without a canvas 2D context (jsdom has none, which is where this function is pinned).
-  const chipBg = new Graphics();
-  chipBg.rect(x, y, chipText.length * 6 + 4, 12).fill({ color: EVENT_CHIP_BG_COLOR, alpha: 0.9 });
-  container.addChild(chipBg);
-  const chip = new Text({
-    text: chipText,
-    style: { fontFamily: "monospace", fontSize: 9, fill: EVENT_CHIP_TEXT_COLOR },
-  });
-  chip.position.set(x + 2, y + 1);
-  container.addChild(chip);
-
-  if (highlighted) {
-    // D14: a slightly inset amber ring, drawn UNDER the white selection outline so a highlighted +
-    // selected event shows both cues rather than the amber hiding the selection.
-    const ring = new Graphics();
-    ring
-      .rect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4)
-      .stroke({ width: 3, color: EVENT_HIGHLIGHT_COLOR, alpha: 0.95 });
-    container.addChild(ring);
-  }
-
-  if (selected) {
-    const outline = new Graphics();
-    outline
-      .rect(x, y, TILE_SIZE, TILE_SIZE)
-      .stroke({ width: 2, color: SELECTION_OUTLINE_COLOR, alpha: 0.95 });
-    container.addChild(outline);
-  }
-
-  return { chipText, hasGraphic, selected };
-}
-
-/**
- * D2: the element twin of the selection outline drawn above for a selected event — same stroke
- * weight and colour, so "this is the selected thing" reads identically whichever plane it is on.
- * Positioned at the element's quarter-cell anchor (the same `col*TILE_SIZE + offsetX*ELEMENT_OFFSET_PX`
- * arithmetic `paintHoverCell` already uses for an Element-mode preview), one cell wide/tall, so a
- * stack of decorations at distinct offsets in one cell each get a distinguishable outline rather than
- * all four sharing one whole-cell box.
- *
- * Exported and Pixi-object-only like `paintEventCell` — `Graphics` constructs without a live
- * renderer — so the outline's position can be pinned without the WebGL context the rest of the stage
- * needs. Rendering only: it never mutates the map.
- */
-export function paintElementSelectionOutline(
-  selection: { col: number; row: number; offsetX: number; offsetY: number },
-  container: Container,
-): void {
-  const x = selection.col * TILE_SIZE + selection.offsetX * ELEMENT_OFFSET_PX;
-  const y = selection.row * TILE_SIZE + selection.offsetY * ELEMENT_OFFSET_PX;
-  const outline = new Graphics();
-  outline
-    .rect(x, y, TILE_SIZE, TILE_SIZE)
-    .stroke({ width: 2, color: SELECTION_OUTLINE_COLOR, alpha: 0.95 });
-  container.addChild(outline);
-}
-
-/** D18: the shading colour for a solid baked tile (water/forest/building — `isSolidKind`) when the
- *  collision overlay is on. A separate, brighter colour marks an object's own sub-cell collider
- *  rect, so "the whole cell blocks" and "only this rect of the cell blocks" read apart at a glance —
- *  the exact distinction a tree's trunk-only collider needs to communicate. */
-const COLLISION_TILE_COLOR = 0xef4444;
-const COLLISION_TILE_ALPHA = 0.28;
-const COLLISION_ELEMENT_COLOR = 0xf59e0b;
-const COLLISION_ELEMENT_FILL_ALPHA = 0.45;
-const COLLISION_ELEMENT_STROKE_ALPHA = 0.9;
-
-/** What `paintCollisionOverlay` drew: solid tiles and element/harvest-event collider rectangles. */
-export interface CollisionOverlayDraw {
-  solidCells: number;
-  colliderRects: number;
-}
-
-/**
- * D18: draws the collision-visualisation overlay into `container` — a translucent shade over every
- * solid baked tile (read through `isSolidKind`, the same authority `isWalkableBox` collides against),
- * plus an outlined rect over every element collider and explicit intact harvest-event collider.
- * Both paths reuse shared geometry rules, so the overlay never derives gameplay from artwork.
- *
- * Exported and Pixi-object-only like `paintLandCell`/`paintEventCell` — `Graphics` constructs without
- * a live renderer — so the shade/outline counts can be pinned without the WebGL context the rest of
- * the stage needs. Rendering only: it never mutates the map and nothing here runs in the game.
- */
-export function paintCollisionOverlay(
-  tiles: TileMap,
-  elements: readonly MapElement[],
-  container: Container,
-  events: readonly MapEvent[] = [],
-): CollisionOverlayDraw {
-  let solidCells = 0;
-  for (let row = 0; row < tiles.rows; row++) {
-    for (let col = 0; col < tiles.cols; col++) {
-      const kind = tiles.kinds[row * tiles.cols + col];
-      if (kind === undefined || !isSolidKind(kind)) continue;
-      const shade = new Graphics();
-      shade
-        .rect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-        .fill({ color: COLLISION_TILE_COLOR, alpha: COLLISION_TILE_ALPHA });
-      container.addChild(shade);
-      solidCells += 1;
+function blockedCells(map: EditorMap, levels: readonly (number | null)[]): ColliderRect[] {
+  const { cols, rows } = editorMapSize(map);
+  const size = Math.max(cols, rows);
+  const cells: ColliderRect[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      if (levels[row * size + col] !== null) continue;
+      cells.push({ x: col - size / 2, z: row - size / 2, w: 1, h: 1 });
     }
   }
-  let colliderRects = 0;
-  for (const element of elements) {
-    const rect = elementWorldCollider(element);
-    if (!rect) continue;
-    const box = new Graphics();
-    box
-      .rect(rect.x, rect.y, rect.width, rect.height)
-      .fill({ color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_FILL_ALPHA })
-      .stroke({ width: 1, color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_STROKE_ALPHA });
-    container.addChild(box);
-    colliderRects += 1;
-  }
-  for (const rect of intactHarvestColliders(events)) {
-    const box = new Graphics();
-    box
-      .rect(rect.x, rect.y, rect.width, rect.height)
-      .fill({ color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_FILL_ALPHA })
-      .stroke({ width: 1, color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_STROKE_ALPHA });
-    container.addChild(box);
-    colliderRects += 1;
-  }
-  return { solidCells, colliderRects };
+  return cells;
 }
 
-/** The page-1 graphic ids across a set of events, deduplicated by the caller's loader. Only page 1
- *  renders on the overlay, so only its graphic needs preloading. */
-function eventGraphicAssetIds(events: readonly MapEvent[]): EditorAssetId[] {
-  const ids: EditorAssetId[] = [];
-  for (const event of events) {
-    const graphicId = event.pages[0]?.graphicAssetId ?? null;
-    if (graphicId !== null) ids.push(graphicId);
-  }
-  return ids;
-}
+let activeStage: MapEditorStageHandle | null = null;
+let openQueue: Promise<void> = Promise.resolve();
 
-const SPAWN_MARKER_COLOR = 0xffd54a;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-const KEYBOARD_PAN_STEP = TILE_SIZE;
-
-/** Screen-space camera movement for one arrow press. Moving the map left reveals its right edge. */
-export function keyboardCameraPanDelta(
-  key: string,
-  accelerated = false,
-): { x: number; y: number } | null {
-  const step = KEYBOARD_PAN_STEP * (accelerated ? 4 : 1);
-  switch (key) {
-    case "ArrowLeft":
-      return { x: step, y: 0 };
-    case "ArrowRight":
-      return { x: -step, y: 0 };
-    case "ArrowUp":
-      return { x: 0, y: step };
-    case "ArrowDown":
-      return { x: 0, y: -step };
-    default:
-      return null;
-  }
-}
-
-/** Clamp one camera axis against the editor's real centre pane, not the full-window canvas. */
-export function clampCameraAxis(
-  current: number,
-  contentSize: number,
-  viewportStart: number,
-  viewportSize: number,
-): number {
-  return contentSize <= viewportSize
-    ? viewportStart + (viewportSize - contentSize) / 2
-    : clamp(current, viewportStart + viewportSize - contentSize, viewportStart);
-}
-
-/** Scale a whole map into the editor's actual centre pane, with a small breathing margin. */
-export function fitCameraScale(
-  contentWidth: number,
-  contentHeight: number,
-  viewportWidth: number,
-  viewportHeight: number,
-): number {
-  const fit = Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight) * 0.92;
-  return clamp(fit, MIN_ZOOM, MAX_ZOOM);
-}
-
-/**
- * Draws one cell's worth of layers, routing each resolved tile into the container its own tileset
- * entry's `priority` selects — `land` for "below", `above` for "above". Mirrors `renderer.ts`'s
- * `#tilesBelow`/`#tilesAbove` split so the editor never draws a priority-"above" tile (a treetop, an
- * upper cliff lip) on the wrong side of a prop from the game it is previewing.
- *
- * Exported and kept free of the Application/canvas the rest of this module needs, because
- * `Container`/`Sprite` construct and accept children without a live renderer — a fixture tileset can
- * pin the routing directly, which is not true of `openMapEditorStage` as a whole.
- *
- * Returns whether anything was drawn, which callers use to decide whether the cell needs foam.
- */
-export function paintLandCell(
-  tileset: Tileset,
-  layers: readonly TileLayer[],
-  sheet: Texture[][],
-  col: number,
-  row: number,
-  land: Container,
-  above: Container,
-): boolean {
-  let drewAnything = false;
-  for (const layer of layers) {
-    const draw = tileDrawAt(tileset, layer, col, row);
-    if (!draw) continue;
-    const texture = sheet[draw.cell.row]?.[draw.cell.col];
-    if (!texture) continue;
-    const tile = new Sprite(texture);
-    tile.anchor.set(0.5);
-    tile.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2);
-    tile.width = TILE_SIZE;
-    tile.height = TILE_SIZE;
-    tile.tint = draw.tint;
-    tile.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
-    (draw.priority === "above" ? above : land).addChild(tile);
-    drewAnything = true;
-  }
-  return drewAnything;
-}
-
-/** A stored `variant` folded into `[0, length)`, sign-safe — the same fold `renderer.ts` applies to
- *  a wire element, so the editor previews the sprite the world will draw. */
-interface StageTextures {
-  /** The whole extended Tiny Swords grid, `[row][col]` — the same slice the world renderer
-   *  indexes a frozen tile id into, so both draw an authored map from one sheet layout. */
-  tileset: Texture[][];
-  water: Texture;
-  foam: Texture[];
-  shadow: Texture;
-  editorAssets: Map<EditorAssetId, EditorAssetArt>;
-  spawn: Texture;
-  eventSign: Texture;
-  monsters: Map<MonsterSpecies, Texture>;
-}
-
-async function loadStageTextures(assetIds: Iterable<EditorAssetId>): Promise<StageTextures> {
-  const heroSheet = unitSheet("warrior", { body: "wayfarer", primaryColor: "azure" }, "idle");
-  const monsterSheets = new Map(
-    Object.entries(TINY_SWORDS_ENEMIES).map(([species, art]) => [
-      species as MonsterSpecies,
-      art.idle,
-    ]),
-  );
-  const uniqueMonsterSources = [
-    ...new Set([...monsterSheets.values()].map((sheet) => sheet.source)),
-  ];
-  const [
-    tilesetSheet,
-    waterTexture,
-    foamSheet,
-    shadowTexture,
-    heroTexture,
-    eventSign,
-    ...monsterTextures
-  ] = await Promise.all([
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.shadow),
-    Assets.load<Texture>(heroSheet.source),
-    Assets.load<Texture>(`${TINY_SWORDS_ROOT}/deco/17.png`),
-    ...uniqueMonsterSources.map((source) => Assets.load<Texture>(source)),
-  ]);
-  // Pixel art, every one: nearest keeps the tiles square exactly as the world renderer does.
-  tilesetSheet.source.style.scaleMode = "nearest";
-  waterTexture.source.style.scaleMode = "nearest";
-  foamSheet.source.style.scaleMode = "nearest";
-  shadowTexture.source.style.scaleMode = "nearest";
-  heroTexture.source.style.scaleMode = "nearest";
-  eventSign.source.style.scaleMode = "nearest";
-  for (const texture of monsterTextures) texture.source.style.scaleMode = "nearest";
-
-  const monsterTextureBySource = new Map(
-    uniqueMonsterSources.map((source, index) => [source, monsterTextures[index]]),
-  );
-  const monsters = new Map<MonsterSpecies, Texture>();
-  for (const [species, sheet] of monsterSheets) {
-    const source = monsterTextureBySource.get(sheet.source);
-    const firstFrame = source ? sliceStrip(source, sheet.frame, sheet.frames)[0] : undefined;
-    if (firstFrame) monsters.set(species, firstFrame);
-  }
-
-  return {
-    tileset: sliceTilesetSheet(tilesetSheet, TINY_SWORDS_SHEET_COLS, TINY_SWORDS_SHEET_ROWS),
-    water: waterTexture,
-    foam: sliceStrip(foamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES),
-    shadow: shadowTexture,
-    editorAssets: await loadEditorAssetArts(assetIds),
-    spawn: sliceStrip(heroTexture, TINY_SWORDS_UNIT_FRAME, heroSheet.frames)[0] ?? heroTexture,
-    eventSign,
-    monsters,
-  };
-}
-
-/** One editor session's teardown, tracked at module scope so at most one Pixi Application is ever
- *  bound to the single shared `#stage` canvas. */
-interface StageSession {
-  destroy(): void;
-}
-
-// Every open and dispose is serialized onto one lifecycle chain so a session's teardown can never
-// race the next session's build for the shared app's stage (React StrictMode fires the open/dispose
-// effect twice on mount; a reopen races the previous teardown). Combined with `openGeneration`
-// below, this guarantees exactly one map is mounted at a time on the one persistent Application.
-let stageLifecycle: Promise<unknown> = Promise.resolve();
-let activeSession: StageSession | null = null;
-// Bumped by every open. A queued build whose generation is stale was superseded before it ran (the
-// classic StrictMode mount→cleanup→mount, where the first open is abandoned instantly), so it skips
-// building entirely: only the latest open ever creates an Application, and never on a canvas a
-// throwaway app just churned. This is what keeps a single, cleanly-initialized renderer on #stage.
-let openGeneration = 0;
-
-function enqueue<T>(job: () => Promise<T> | T): Promise<T> {
-  const run = stageLifecycle.then(job);
-  // Keep the chain alive whether the job resolves or rejects, so one failed open cannot wedge every
-  // later open and dispose behind a rejected promise.
-  stageLifecycle = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-/** A superseded open resolves to this: the effect that requested it has already been cleaned up, so
- *  its methods must be harmless no-ops. It never touched the canvas, so there is nothing to undo. */
-function inertHandle(map: EditorMap): MapEditorStageHandle {
-  return {
-    setTool() {},
-    setActiveMode() {},
-    setDim() {},
-    setGrid() {},
-    setCollisions() {},
-    setZoom() {},
-    current: () => map,
-    setName() {},
-    setAudio() {},
-    setHeroSettings() {},
-    undo() {},
-    redo() {},
-    markSaved() {},
-    selected: () => null,
-    clearSelection() {},
-    moveSelected: () => false,
-    setSelectedElementAsset: () => false,
-    setSelectedElementOffset: () => false,
-    deleteSelected: () => false,
-    beginEventDraft: () => null,
-    commitEventDraft() {},
-    deleteEvent() {},
-    bindSelectedElement: () => null,
-    highlightEvent() {},
-    selectEvent() {},
-    dispose() {},
-  };
-}
-
-// The single Pixi Application bound to #stage now lives in stage-application.ts, created once and
-// shared with the world renderer: playing the game after visiting the editor (no reload) reuses that
-// one app instead of racing a second one onto the canvas. This stays a thin delegate so the build
-// and dispose serialization below reads exactly as before.
-function ensureStageApp(canvas: HTMLCanvasElement): Promise<Application> {
-  return acquireStageApp(canvas);
-}
-
-/**
- * Opens the painting stage on `#stage` and returns the handle React drives it with. Opens are
- * serialized so only one map is ever mounted on the shared Application at a time, and StrictMode's
- * throwaway first mount builds nothing. `dispose()` tears down the painted world but leaves the
- * shared Application on the canvas for the next consumer, because Pixi 8 cannot re-init a destroyed
- * canvas.
- *
- * The Application is the page-wide singleton owned by stage-application.ts, so leaving the editor and
- * playing the game (no reload) hands that same app to the world renderer rather than putting a second
- * renderer on the canvas. This stage owns only its own root container, listeners and ticker callback
- * and removes exactly those in `destroy()`, which is what makes that handoff clean.
- */
 export function openMapEditorStage(
   initial: EditorMap,
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
@@ -962,1003 +135,502 @@ export function openMapEditorStage(
   onOpenSelection?: (selection: EditorSelection) => void,
   onZoomChange?: (percent: number) => void,
 ): Promise<MapEditorStageHandle> {
-  const generation = ++openGeneration;
-  return enqueue(() =>
-    buildSession(initial, onChange, generation, onCursorCell, onOpenSelection, onZoomChange),
-  );
-}
+  const opening = openQueue.then(async () => {
+    activeStage?.dispose();
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("The HD-2D editor requires the #stage canvas");
 
-async function buildSession(
-  initial: EditorMap,
-  onChange: (map: EditorMap, state: MapEditorStageState) => void,
-  generation: number,
-  onCursorCell?: (col: number | null, row: number | null) => void,
-  onOpenSelection?: (selection: EditorSelection) => void,
-  onZoomChange?: (percent: number) => void,
-): Promise<MapEditorStageHandle> {
-  // A newer open already superseded this one before the chain reached it: build nothing, bind no
-  // Application. This is the throwaway half of a StrictMode double-mount.
-  if (generation !== openGeneration) return inertHandle(initial);
+    const renderer = await Hd2dRenderer.create(canvas);
+    let history = createEditorHistory(initial);
+    let map = initial;
+    let tool: EditorTool = { kind: "select" };
+    let selected: EditorSelection | null = null;
+    let highlightedEventId: string | null = null;
+    let dim = defaultDimForMode(history.activeMode);
+    let gridVisible = true;
+    let collisionsVisible = false;
+    let zoom = 100;
+    let revision = 0;
+    let placementRejections = 0;
+    let hover: { col: number; row: number; offsetX: number; offsetY: number } | null = null;
+    let painting = false;
+    let panning = false;
+    let spaceHeld = false;
+    let strokeStart: EditorMap | null = null;
+    let dragSelection: EditorSelection | null = null;
+    let lastPaintedKey = "";
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+    let cameraX = 0;
+    let cameraZ = 0;
+    let disposed = false;
+    let lastCursorKey = "";
 
-  const found = document.querySelector<HTMLCanvasElement>("#stage");
-  if (!found) throw new Error("index.html is missing #stage");
-  // Explicitly typed so the non-null narrowing survives into the deferred handles (dispose et al.)
-  // that capture it, which control-flow narrowing alone does not carry across a closure boundary.
-  const canvas: HTMLCanvasElement = found;
-  canvas.dataset.cursor = "paint";
+    const dimensions = () => editorMapSize(map);
+    const centreCamera = (): void => {
+      const { cols, rows } = dimensions();
+      const size = Math.max(cols, rows);
+      cameraX = cols / 2 - size / 2;
+      cameraZ = rows / 2 - size / 2;
+      renderer.setCameraFocus(cameraX, cameraZ);
+    };
 
-  // Tear down the previous session's world before building this one — this runs inside the
-  // serialized chain, so only ever one map is mounted on the shared app's stage at a time.
-  if (activeSession) {
-    activeSession.destroy();
-    activeSession = null;
-  }
+    const compiled = () => compileAuthoredMap(toMapData(map), map.events);
 
-  const app = await ensureStageApp(canvas);
-  app.ticker.start();
+    const drawOverlay = (heightfield = compiled()): void => {
+      const { cols, rows } = dimensions();
+      const focusSelection = highlightedEventId
+        ? selectionPoint(map, { kind: "event", id: highlightedEventId })
+        : selectionPoint(map, selected);
+      const size = Math.max(cols, rows);
+      renderer.setEditorOverlay({
+        cols,
+        rows,
+        showGrid: gridVisible,
+        showCollisions: collisionsVisible,
+        dim,
+        colliders: [...heightfield.colliders, ...blockedCells(map, heightfield.levels)],
+        hover: hover
+          ? {
+              x: hover.col + (hover.offsetX + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
+              z: hover.row + (hover.offsetY + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
+            }
+          : null,
+        selection: focusSelection,
+      });
+    };
 
-  const textures = await loadStageTextures([
-    ...initial.elements.map((element) => element.assetId),
-    ...eventGraphicAssetIds(initial.events),
-  ]);
+    const redraw = (): void => {
+      const heightfield = compiled();
+      renderer.configureMapTerrain("editor", [], ++revision, heightfield);
+      renderer.setCameraFocus(cameraX, cameraZ);
+      renderer.setCameraZoom(zoom);
+      drawOverlay(heightfield);
+    };
 
-  let map = initial;
-  let history = createEditorHistory(initial);
-  let selected: EditorSelection | null = null;
-  // D14: the event the sidebar list is hovering, emphasised on the overlay. Purely visual — never the
-  // selection — so hovering a list row never disturbs what is actually selected.
-  let highlightedEventId: string | null = null;
-  let tool: EditorTool = { kind: "block", block: "grass" };
-  let dim = false;
-  // C7: counts refused element/event placement clicks, so the screen can flash a "can't place here"
-  // hint even though the map itself never changes. See `MapEditorStageState.placementRejectedAt`.
-  let placementRejections = 0;
+    const notify = (): void => {
+      onChange(map, {
+        canUndo: history.past.length > 0,
+        canRedo: history.future.length > 0,
+        dirty: isEditorHistoryDirty(history, map),
+        selection: selected,
+        placementRejectedAt: placementRejections > 0 ? placementRejections : null,
+      });
+    };
 
-  const notify = (): void => {
-    onChange(map, {
-      canUndo: history.past.length > 0,
-      canRedo: history.future.length > 0,
-      dirty: isEditorHistoryDirty(history, map),
-      selection: selected,
-      placementRejectedAt: placementRejections > 0 ? placementRejections : null,
-    });
-  };
+    const reportCursor = (col: number | null, row: number | null): void => {
+      const key = col === null || row === null ? "none" : `${col},${row}`;
+      if (key === lastCursorKey) return;
+      lastCursorKey = key;
+      onCursorCell?.(col, row);
+    };
 
-  // Back-to-front: flat water, then foam bleeding out from the shore, then the opaque land tiles
-  // that hide the water and the middle of each foam blob, then props, then any tile whose priority
-  // is "above" (mirrors renderer.ts's `#tilesAbove`, which paints after `#groundDecor`/`#structures`/
-  // `#actors` — a treetop or an upper cliff lip a character walks *behind*), then the editor's own
-  // spawn/marker icons on top of everything, same as the renderer keeps its labels/overlays above
-  // `#tilesAbove`.
-  const world = new Container();
-  const waterLayer = new Container();
-  const foamLayer = new Container();
-  // One below-priority land container per logical tile layer, stacked in layer order in the same
-  // z-slot the single `landLayer` used to occupy — so the composite is visually identical, but each
-  // logical layer's tiles are now separable, which is what "dim other layers" fades independently.
-  // Pixel Frog's documented terrain order: level 0, shadow 1, level 1, shadow 2, level 2.
-  const terrainLevelLayers = [new Container(), new Container(), new Container()] as const;
-  const elevationShadowLayers = [new Container(), new Container()] as const;
-  const tileLayers: Container[] = [
-    terrainLevelLayers[0],
-    elevationShadowLayers[0],
-    terrainLevelLayers[1],
-    elevationShadowLayers[1],
-    terrainLevelLayers[2],
-  ];
-  const groundElementLayer = new Container();
-  const objectElementLayer = new Container();
-  const canopyElementLayer = new Container();
-  const skyElementLayer = new Container();
-  // The three prop containers as one group, so `applyModeDim` can fade the whole Element plane at
-  // once (Field/Event modes dim it together).
-  const elementContainers = [
-    groundElementLayer,
-    objectElementLayer,
-    canopyElementLayer,
-    skyElementLayer,
-  ];
-  const aboveLandLayer = new Container();
-  // D18: the collision-visualisation overlay, above terrain/props (it shades solid tiles and outlines
-  // element colliders that sit among them) but below the grid lines, so the grid stays legible drawn
-  // over the shading. Rebuilt every `redraw()` like the terrain itself — content depends on the baked
-  // tiles and the element list — but toggled by `.visible` exactly like `gridLayer`, off by default.
-  const collisionLayer = new Container();
-  let collisionsVisible = false;
-  // The cell grid (UX wave #8), above the terrain/props so it reads over both land and sea, below the
-  // markers so a spawn/entry diamond still sits clearly on top. Built once (map size is fixed for a
-  // session) and toggled by `.visible`, not rebuilt per stroke.
-  const gridLayer = new Container();
-  let gridVisible = true;
-  const markerLayer = new Container();
-  // Events are the topmost plane, above markers and props, and stay visible in every mode so authors
-  // keep the RPG context while painting terrain or arranging scenery.
-  const eventLayer = new Container();
-  eventLayer.visible = shouldShowEventOverlay(tool);
-  // The hover preview overlay sits above everything: the real semi-transparent placement asset,
-  // then its outline and (when refused) a translucent red wash. Managed on pointer move, never in
-  // `redraw()`.
-  const hoverLayer = new Container();
-  world.addChild(
-    waterLayer,
-    foamLayer,
-    ...tileLayers,
-    groundElementLayer,
-    objectElementLayer,
-    canopyElementLayer,
-    aboveLandLayer,
-    skyElementLayer,
-    collisionLayer,
-    gridLayer,
-    markerLayer,
-    eventLayer,
-    hoverLayer,
-  );
-  app.stage.addChild(world);
-
-  // Rebuilt every redraw; the ticker retextures these in place so the coastline and the trees are
-  // alive while you paint, not only after.
-  let foamSprites: Array<{ sprite: Sprite; phase: number }> = [];
-  let swaySprites: { sprite: Sprite; frames: Texture[]; durationMs: number }[] = [];
-
-  const mapCols = (): number => editorMapSize(map).cols;
-  const mapRows = (): number => editorMapSize(map).rows;
-
-  function viewportRect(): {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-    right: number;
-    bottom: number;
-  } {
-    const element = document.querySelector<HTMLElement>("[data-editor-stage-viewport]");
-    const rect = element?.getBoundingClientRect();
-    if (!rect || rect.width <= 0 || rect.height <= 0) {
+    const placementAt = (
+      clientX: number,
+      clientY: number,
+    ): { col: number; row: number; offsetX: number; offsetY: number } | null => {
+      const point = renderer.screenToWorld(clientX, clientY);
+      if (!point) return null;
+      const { cols, rows } = dimensions();
+      const size = Math.max(cols, rows);
+      const localX = point.x + size / 2;
+      const localZ = point.z + size / 2;
+      const col = Math.floor(localX);
+      const row = Math.floor(localZ);
+      if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+      if (history.activeMode !== "element") return { col, row, offsetX: 0, offsetY: 0 };
       return {
-        left: 0,
-        top: 0,
-        width: app.screen.width,
-        height: app.screen.height,
-        right: app.screen.width,
-        bottom: app.screen.height,
+        col,
+        row,
+        offsetX: Math.min(
+          ELEMENT_OFFSET_STEPS - 1,
+          Math.floor((localX - col) * ELEMENT_OFFSET_STEPS),
+        ),
+        offsetY: Math.min(
+          ELEMENT_OFFSET_STEPS - 1,
+          Math.floor((localZ - row) * ELEMENT_OFFSET_STEPS),
+        ),
       };
-    }
-    const left = clamp(rect.left, 0, app.screen.width);
-    const top = clamp(rect.top, 0, app.screen.height);
-    const right = clamp(rect.right, left, app.screen.width);
-    const bottom = clamp(rect.bottom, top, app.screen.height);
-    return { left, top, width: right - left, height: bottom - top, right, bottom };
-  }
-
-  function clampCamera(): void {
-    const scale = world.scale.x;
-    const mapW = mapCols() * TILE_SIZE * scale;
-    const mapH = mapRows() * TILE_SIZE * scale;
-    const viewport = viewportRect();
-    // Smaller than the viewport on an axis: centre it. Larger: pin so neither edge pulls inside
-    // the view, which is what keeps the map from drifting into the void.
-    world.x = clampCameraAxis(world.x, mapW, viewport.left, viewport.width);
-    world.y = clampCameraAxis(world.y, mapH, viewport.top, viewport.height);
-  }
-
-  function fitCamera(): void {
-    const mapW = mapCols() * TILE_SIZE;
-    const mapH = mapRows() * TILE_SIZE;
-    const viewport = viewportRect();
-    world.scale.set(fitCameraScale(mapW, mapH, viewport.width, viewport.height));
-    clampCamera();
-    onZoomChange?.(Math.round(world.scale.x * 100));
-  }
-
-  function setCameraZoom(percent: number): void {
-    const scale = clamp(percent / 100, MIN_ZOOM, MAX_ZOOM);
-    const viewport = viewportRect();
-    const centreX = viewport.left + viewport.width / 2;
-    const centreY = viewport.top + viewport.height / 2;
-    const worldX = (centreX - world.x) / world.scale.x;
-    const worldY = (centreY - world.y) / world.scale.y;
-    world.scale.set(scale);
-    world.x = centreX - worldX * scale;
-    world.y = centreY - worldY * scale;
-    clampCamera();
-    onZoomChange?.(Math.round(scale * 100));
-  }
-
-  const viewportElement = document.querySelector<HTMLElement>("[data-editor-stage-viewport]");
-  const viewportObserver =
-    viewportElement && typeof ResizeObserver !== "undefined"
-      ? new ResizeObserver(() => clampCamera())
-      : null;
-  if (viewportElement && viewportObserver) viewportObserver.observe(viewportElement);
-
-  function redraw(): void {
-    for (const layer of [
-      waterLayer,
-      foamLayer,
-      ...tileLayers,
-      groundElementLayer,
-      objectElementLayer,
-      canopyElementLayer,
-      skyElementLayer,
-      aboveLandLayer,
-      collisionLayer,
-      markerLayer,
-      eventLayer,
-    ]) {
-      for (const child of layer.removeChildren()) child.destroy({ children: true });
-    }
-    foamSprites = [];
-    swaySprites = [];
-
-    const tiles: TileMap = bakeCollision(toMapData(map));
-    const cols = tiles.cols;
-    const rows = tiles.rows;
-
-    // The sea is one flat teal sheet (see TINY_SWORDS_TERRAIN.water): a single stretched sprite is
-    // indistinguishable from tiling it and far cheaper. Land tiles paint over it.
-    const water = new Sprite(textures.water);
-    water.width = cols * TILE_SIZE;
-    water.height = rows * TILE_SIZE;
-    waterLayer.addChild(water);
-
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const x = col * TILE_SIZE;
-        const y = row * TILE_SIZE;
-        // Every layer that has something to say about this cell, in order, through the same
-        // `tileDrawAt` the world renderer paints with — the editor cannot resolve a tile id
-        // differently from the game it is previewing. Each logical layer draws its below-priority
-        // tiles into its own container (so dim can fade them one layer at a time) and its rare
-        // above-priority tiles into the shared `aboveLandLayer`, keeping the renderer's z-split.
-        const ground = map.layers[0];
-        const groundDraw = ground ? tileDrawAt(TINY_SWORDS_TILESET, ground, col, row) : null;
-        if (groundDraw && (groundDraw.renderLevel === 1 || groundDraw.renderLevel === 2)) {
-          const shadow = new Sprite(textures.shadow);
-          shadow.anchor.set(0.5);
-          shadow.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2 + TILE_SIZE);
-          elevationShadowLayers[groundDraw.renderLevel === 1 ? 0 : 1].addChild(shadow);
-        }
-
-        let drewAnything = false;
-        for (let layerIndex = 0; layerIndex < map.layers.length; layerIndex++) {
-          const layer = map.layers[layerIndex];
-          if (!layer) continue;
-          const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, col, row);
-          if (!draw) continue;
-          const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
-          if (!texture) continue;
-          const tile = new Sprite(texture);
-          tile.anchor.set(0.5);
-          tile.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
-          tile.width = TILE_SIZE;
-          tile.height = TILE_SIZE;
-          tile.tint = draw.tint;
-          tile.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
-          (draw.priority === "above"
-            ? aboveLandLayer
-            : terrainLevelLayers[draw.renderLevel]
-          ).addChild(tile);
-          drewAnything = true;
-        }
-
-        // Foam reads the baked tilemap, not the layers: a cliff face meeting the sea is not ground,
-        // but it is still where the water meets something, and that is where the rim belongs.
-        if (drewAnything && needsFoam(tiles, col, row)) {
-          // Native 192px frame centred on the 64px cell: the ~82px blob bleeds ~9px past the tile,
-          // and that bleed IS the shoreline. Scaling it to the tile would erase the shore.
-          const blob = new Sprite(textures.foam[0] ?? textures.water);
-          blob.anchor.set(0.5);
-          blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
-          foamLayer.addChild(blob);
-          foamSprites.push({
-            sprite: blob,
-            phase: foamPhaseAt(col, row, textures.foam.length),
-          });
-        }
-      }
-    }
-
-    drawElements();
-    drawSpawnMarker();
-    drawEvents();
-    drawCollisions(tiles);
-  }
-
-  /** D18: rebuild from baked tiles, elements and the initial intact harvest-event state. */
-  function drawCollisions(tiles: TileMap): void {
-    paintCollisionOverlay(tiles, map.elements, collisionLayer, map.events);
-    collisionLayer.visible = collisionsVisible;
-  }
-
-  /** Every authored event on the event overlay: its page-1 graphic or the blank placeholder, its
-   * chip, a selection outline on the selected one and an amber highlight ring on the list-hovered one. */
-  function drawEvents(): void {
-    eventLayer.visible = shouldShowEventOverlay(tool);
-    for (const event of map.events) {
-      const graphicId = event.pages[0]?.graphicAssetId ?? null;
-      const art = graphicId === null ? undefined : textures.editorAssets.get(graphicId);
-      const isSelected = selected?.kind === "event" && selected.id === event.id;
-      const isHighlighted = highlightedEventId === event.id;
-      const semanticFrame =
-        event.kind === "monster" && event.species
-          ? textures.monsters.get(event.species)
-          : event.kind === "entry" || event.kind === "spawn" || event.kind === "guard"
-            ? textures.spawn
-            : event.kind === "exit"
-              ? textures.eventSign
-              : undefined;
-      paintEventCell(event, art, isSelected, eventLayer, semanticFrame, isHighlighted);
-    }
-  }
-
-  /** D14: rebuild ONLY the event overlay — the sidebar hover changes an emphasis ring, nothing else on
-   *  the map — so a mouse sweep across the event list never triggers a full terrain/prop redraw. */
-  function redrawEvents(): void {
-    for (const child of eventLayer.removeChildren()) child.destroy({ children: true });
-    drawEvents();
-  }
-
-  /** Props, painted the way `renderer.ts`'s `#buildMapElements` does: y-sorted so a lower tree
-   *  overlaps a higher one, anchored bottom-centre and pushed down by each sheet's empty footer so
-   *  the object stands on its cell rather than floating over it. D2: the selected element (if any)
-   *  gets the same outline treatment `drawEvents` already gives a selected event, added to the exact
-   *  container the element itself drew into so it dims/hides in lockstep with the prop. */
-  function drawElements(): void {
-    const ordered = [...map.elements].sort((a, b) => a.row - b.row || a.col - b.col);
-    for (const element of ordered) {
-      const art = textures.editorAssets.get(element.assetId);
-      if (!art) continue;
-      const view = createCatalogElementView(element, art);
-      if (!view) continue;
-      const layer =
-        view.layer === "ground"
-          ? groundElementLayer
-          : view.layer === "canopy"
-            ? canopyElementLayer
-            : view.layer === "sky"
-              ? skyElementLayer
-              : objectElementLayer;
-      layer.addChild(view.container);
-      if (view.frames.length > 1)
-        swaySprites.push({
-          sprite: view.sprite,
-          frames: [...view.frames],
-          durationMs: view.durationMs,
-        });
-      if (selected?.kind === "element" && sameElementSlot(selected, element)) {
-        paintElementSelectionOutline(selected, layer);
-      }
-    }
-  }
-
-  /** A gold diamond on the spawn cell — the hero spawn, the one always-on editor marker (entries,
-   *  exits and monster spawns are events now, drawn on the EV overlay). Chosen to read clearly over
-   *  both grass and water without hiding what is under it. */
-  function drawSpawnMarker(): void {
-    const cx = map.spawn.col * TILE_SIZE + TILE_SIZE / 2;
-    const cy = map.spawn.row * TILE_SIZE + TILE_SIZE / 2;
-    markerLayer.addChild(createEventGraphicSprite(map.spawn.col, map.spawn.row, textures.spawn));
-    const ring = new Graphics();
-    ring.ellipse(cx, cy - 5, 18, 8).stroke({ width: 2, color: SPAWN_MARKER_COLOR, alpha: 0.9 });
-    markerLayer.addChild(ring);
-  }
-
-  /** The 1px cell grid across the whole map, built once and toggled by `gridLayer.visible`. In
-   *  Element mode it also draws the quarter-cell sub-divisions at a lower alpha, so the author sees
-   *  where a decoration will snap; Field and Event modes stay whole-cell. */
-  function drawGrid(): void {
-    for (const child of gridLayer.removeChildren()) child.destroy();
-    const { cols, rows } = editorMapSize(map);
-    if (history.activeMode === "element") {
-      const subGrid = new Graphics();
-      const mapW = cols * TILE_SIZE;
-      const mapH = rows * TILE_SIZE;
-      for (let col = 0; col < cols; col++) {
-        for (let step = 1; step < ELEMENT_OFFSET_STEPS; step++) {
-          const x = col * TILE_SIZE + step * ELEMENT_OFFSET_PX;
-          subGrid.moveTo(x, 0).lineTo(x, mapH);
-        }
-      }
-      for (let row = 0; row < rows; row++) {
-        for (let step = 1; step < ELEMENT_OFFSET_STEPS; step++) {
-          const y = row * TILE_SIZE + step * ELEMENT_OFFSET_PX;
-          subGrid.moveTo(0, y).lineTo(mapW, y);
-        }
-      }
-      subGrid.stroke({ width: 1, color: GRID_COLOR, alpha: 0.14 });
-      gridLayer.addChild(subGrid);
-    }
-    const grid = new Graphics();
-    for (let col = 0; col <= cols; col++) {
-      grid.moveTo(col * TILE_SIZE, 0).lineTo(col * TILE_SIZE, rows * TILE_SIZE);
-    }
-    for (let row = 0; row <= rows; row++) {
-      grid.moveTo(0, row * TILE_SIZE).lineTo(cols * TILE_SIZE, row * TILE_SIZE);
-    }
-    grid.stroke({ width: 1, color: GRID_COLOR, alpha: 0.35 });
-    gridLayer.addChild(grid);
-    paintGridCoordinates(gridLayer, cols, rows);
-    gridLayer.visible = gridVisible;
-  }
-
-  // The cell the pointer is currently over, so the hover overlay redraws only when it changes cell (or
-  // when the tool/map under it changes), never per pixel. `NaN` is the off-canvas state. In Element
-  // mode `hoverOffsetX`/`hoverOffsetY` carry the quarter-step within that cell so the preview snaps to
-  // the same pixel a placement would.
-  let hoverCol = Number.NaN;
-  let hoverRow = Number.NaN;
-  let hoverOffsetX = 0;
-  let hoverOffsetY = 0;
-
-  /** Repaint the hover preview for the current cell/tool/map: cleared when off-canvas, out of bounds,
-   *  or the active tool has no placement to preview (select/pan). Element mode shifts the preview by
-   *  the quarter-cell offset; Field and Event modes stay whole-cell. */
-  function drawHover(): void {
-    for (const child of hoverLayer.removeChildren()) child.destroy({ children: true });
-    if (!shouldShowHoverPreview(tool)) return;
-    if (Number.isNaN(hoverCol) || Number.isNaN(hoverRow)) return;
-    const { cols, rows } = editorMapSize(map);
-    if (hoverCol < 0 || hoverRow < 0 || hoverCol >= cols || hoverRow >= rows) return;
-    const inElementMode = history.activeMode === "element";
-    const offsetX = inElementMode ? hoverOffsetX : 0;
-    const offsetY = inElementMode ? hoverOffsetY : 0;
-    const illegal = !placementLegalAt(tool, map, hoverCol, hoverRow, history.activeMode);
-    paintPlacementAssetPreview(
-      tool,
-      hoverCol,
-      hoverRow,
-      offsetX,
-      offsetY,
-      illegal,
-      hoverLayer,
-      textures,
-    );
-    paintHoverCell(tool, map, hoverCol, hoverRow, history.activeMode, hoverLayer, offsetX, offsetY);
-  }
-
-  // ── Pointer: paint, or pan the camera ─────────────────────────────────────────────────────────
-  let painting = false;
-  let panning = false;
-  let spaceHeld = false;
-  let panLastX = 0;
-  let panLastY = 0;
-  // The last placement this stroke painted, so dragging within one cell (or one quarter-cell, in
-  // Element mode) rebuilds the scene once, not on every pointermove event. `""` is the pre-stroke
-  // state, distinct from any real placement key.
-  let lastPaintedKey = "";
-  let strokeStart: EditorMap | null = null;
-  let dragSelection: EditorSelection | null = null;
-
-  // The last cell handed to `onCursorCell`, so a pointer sliding within one cell reports once, not
-  // per pixel. `"none"` is the off-canvas state, distinct from any real cell.
-  let lastCursorKey = "";
-  const reportCursor = (col: number | null, row: number | null): void => {
-    if (!onCursorCell) return;
-    const key = col === null || row === null ? "none" : `${col},${row}`;
-    if (key === lastCursorKey) return;
-    lastCursorKey = key;
-    onCursorCell(col, row);
-  };
-
-  function worldAt(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left - world.x) / world.scale.x,
-      y: (clientY - rect.top - world.y) / world.scale.y,
     };
-  }
 
-  /** The placement the pointer resolves to under the active mode: whole-cell for Field/Event (offsets
-   *  stay 0, those modes are grid-forced), quarter-cell for Element mode. */
-  function placementAt(
-    clientX: number,
-    clientY: number,
-  ): { col: number; row: number; offsetX: number; offsetY: number } {
-    const point = worldAt(clientX, clientY);
-    if (history.activeMode === "element") return quarterCellAt(point.x, point.y);
-    return {
-      col: Math.floor(point.x / TILE_SIZE),
-      row: Math.floor(point.y / TILE_SIZE),
-      offsetX: 0,
-      offsetY: 0,
-    };
-  }
-
-  const commitInspectorChange = (
-    next: EditorMap | null,
-    nextSelection: EditorSelection | null = selected,
-  ): boolean => {
-    if (!next || next === map) return false;
-    history = commitEditorHistory({ ...history, present: map }, next);
-    map = next;
-    selected = nextSelection;
-    redraw();
-    notify();
-    return true;
-  };
-
-  function paintAt(clientX: number, clientY: number, isStrokeStart: boolean): void {
-    const { col, row, offsetX, offsetY } = placementAt(clientX, clientY);
-    const paintKey = `${col},${row},${offsetX},${offsetY}`;
-    if (paintKey === lastPaintedKey) return;
-    lastPaintedKey = paintKey;
-    if (tool.kind === "select") {
-      if (isStrokeStart) {
-        dragSelection = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
-        selected = dragSelection;
-        canvas.dataset.cursor = selected ? "grabbing" : "select";
-        redraw();
-        notify();
-        return;
-      }
-      // A drag only moves the object captured on pointer-down. Sweeping from an empty cell must not
-      // accidentally grab the first prop/event crossed by the pointer.
-      if (!dragSelection) return;
-      const previous = dragSelection;
-      const next = moveSelection(map, previous, col, row, offsetX, offsetY);
-      if (!next || next === map) return;
-      const nextSelection: EditorSelection =
-        previous.kind === "element" ? { ...previous, col, row, offsetX, offsetY } : previous;
+    const commitInspectorChange = (
+      next: EditorMap | null,
+      nextSelection: EditorSelection | null = selected,
+    ): boolean => {
+      if (!next || next === map) return false;
+      history = commitEditorHistory({ ...history, present: map }, next);
       map = next;
-      dragSelection = nextSelection;
       selected = nextSelection;
       redraw();
       notify();
-      return;
-    }
-    // Re-clicking an occupied quarter-slot selects it instead of needlessly replacing it. Empty
-    // slots in the same cell remain placeable, preserving main's stacked-decoration contract.
-    const existingElement =
-      isStrokeStart && tool.kind === "element"
-        ? map.elements.find(
-            (candidate) =>
-              candidate.col === col &&
-              candidate.row === row &&
-              candidate.offsetX === offsetX &&
-              candidate.offsetY === offsetY,
-          )
-        : undefined;
-    if (existingElement) {
-      selected = { kind: "element", col, row, offsetX, offsetY };
-      redraw();
-      notify();
-      return;
-    }
-    // Event tool on a cell that already holds an event: placement is refused, so the click reads as
-    // "select that event instead" (its double-click then opens the dialog), keeping place and select
-    // cleanly separate on one tool the way the wireframe does.
-    if (tool.kind === "event") {
-      const existing = map.events.find((event) => event.col === col && event.row === row);
-      if (existing) {
-        selected = { kind: "event", id: existing.id };
+      return true;
+    };
+
+    const paintAt = (clientX: number, clientY: number, isStrokeStart: boolean): void => {
+      const placement = placementAt(clientX, clientY);
+      if (!placement) return;
+      const { col, row, offsetX, offsetY } = placement;
+      const key = `${col},${row},${offsetX},${offsetY}`;
+      if (key === lastPaintedKey) return;
+      lastPaintedKey = key;
+
+      if (tool.kind === "select") {
+        if (isStrokeStart) {
+          dragSelection = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
+          selected = dragSelection;
+          drawOverlay();
+          notify();
+          return;
+        }
+        if (!dragSelection) return;
+        const previous = dragSelection;
+        const next = moveSelection(map, previous, col, row, offsetX, offsetY);
+        if (!next || next === map) return;
+        const nextSelection: EditorSelection =
+          previous.kind === "element" ? { ...previous, col, row, offsetX, offsetY } : previous;
+        map = next;
+        dragSelection = nextSelection;
+        selected = nextSelection;
         redraw();
         notify();
         return;
       }
-    }
-    const next = applyTool(
-      map,
-      tool,
-      col,
-      row,
-      isStrokeStart,
-      history.activeMode,
-      offsetX,
-      offsetY,
-    );
-    // null → refused; same reference → a no-op edit (eraser on empty cell) — neither changes the map.
-    if (next === null) {
-      // Only the element/event tools "place something", so only their refusal is the C7 "tried to
-      // place and couldn't" case (scenery over the spawn, an event over the spawn). Field/fill/stairs
-      // returning null are terrain rules with their own reasons (out of bounds, no fill slot) that
-      // already read clearly from the tool itself, not a silent no-op worth flashing a hint over.
-      if (tool.kind === "element" || tool.kind === "event") {
-        placementRejections += 1;
-        notify();
-      }
-      return;
-    }
-    if (next === map) return;
-    map = next;
-    // A freshly placed event is selected so it reads as active and its double-click has a target.
-    if (tool.kind === "event") {
-      const placed = next.events.find((event) => event.col === col && event.row === row);
-      if (placed) selected = { kind: "event", id: placed.id };
-    }
-    redraw();
-    notify();
-    // The map under the cursor just changed, so refresh the shared hover decision too.
-    hoverCol = col;
-    hoverRow = row;
-    hoverOffsetX = offsetX;
-    hoverOffsetY = offsetY;
-    drawHover();
-  }
 
-  function isPanTrigger(event: PointerEvent): boolean {
-    return (
+      if (isStrokeStart && tool.kind === "element") {
+        const exists = map.elements.some(
+          (candidate) =>
+            candidate.col === col &&
+            candidate.row === row &&
+            candidate.offsetX === offsetX &&
+            candidate.offsetY === offsetY,
+        );
+        if (exists) {
+          selected = { kind: "element", col, row, offsetX, offsetY };
+          drawOverlay();
+          notify();
+          return;
+        }
+      }
+      if (tool.kind === "event") {
+        const exists = map.events.find((event) => event.col === col && event.row === row);
+        if (exists) {
+          selected = { kind: "event", id: exists.id };
+          drawOverlay();
+          notify();
+          return;
+        }
+      }
+
+      const next = applyTool(
+        map,
+        tool,
+        col,
+        row,
+        isStrokeStart,
+        history.activeMode,
+        offsetX,
+        offsetY,
+      );
+      if (next === null) {
+        if (tool.kind === "element" || tool.kind === "event") {
+          placementRejections += 1;
+          notify();
+        }
+        return;
+      }
+      if (next === map) return;
+      map = next;
+      if (tool.kind === "event") {
+        const placed = map.events.find((event) => event.col === col && event.row === row);
+        if (placed) selected = { kind: "event", id: placed.id };
+      }
+      redraw();
+      notify();
+    };
+
+    const panTrigger = (event: PointerEvent): boolean =>
       event.button === 1 ||
       event.button === 2 ||
-      (event.button === 0 && (spaceHeld || tool.kind === "pan"))
-    );
-  }
+      (event.button === 0 && (spaceHeld || tool.kind === "pan"));
 
-  const onPointerDown = (event: PointerEvent): void => {
-    if (isPanTrigger(event)) {
-      panning = true;
-      canvas.dataset.cursor = "move";
-      panLastX = event.clientX;
-      panLastY = event.clientY;
-      return;
-    }
-    if (event.button !== 0) return;
-    painting = true;
-    strokeStart = map;
-    lastPaintedKey = "";
-    paintAt(event.clientX, event.clientY, true);
-  };
+    const onPointerDown = (event: PointerEvent): void => {
+      canvas.focus();
+      if (panTrigger(event)) {
+        panning = true;
+        lastPointerX = event.clientX;
+        lastPointerY = event.clientY;
+        canvas.dataset.cursor = "move";
+        return;
+      }
+      if (event.button !== 0) return;
+      painting = true;
+      strokeStart = map;
+      lastPaintedKey = "";
+      paintAt(event.clientX, event.clientY, true);
+    };
 
-  const onPointerMove = (event: PointerEvent): void => {
-    const hovered = placementAt(event.clientX, event.clientY);
-    reportCursor(hovered.col, hovered.row);
-    if (panning) {
-      world.x += event.clientX - panLastX;
-      world.y += event.clientY - panLastY;
-      panLastX = event.clientX;
-      panLastY = event.clientY;
-      clampCamera();
-      return;
-    }
-    if (
-      hovered.col !== hoverCol ||
-      hovered.row !== hoverRow ||
-      hovered.offsetX !== hoverOffsetX ||
-      hovered.offsetY !== hoverOffsetY
-    ) {
-      hoverCol = hovered.col;
-      hoverRow = hovered.row;
-      hoverOffsetX = hovered.offsetX;
-      hoverOffsetY = hovered.offsetY;
-      drawHover();
-    }
-    if (painting) paintAt(event.clientX, event.clientY, false);
-  };
+    const onPointerMove = (event: PointerEvent): void => {
+      if (panning) {
+        const scale = (100 / zoom) * 0.035;
+        cameraX -= (event.clientX - lastPointerX) * scale;
+        cameraZ -= (event.clientY - lastPointerY) * scale;
+        lastPointerX = event.clientX;
+        lastPointerY = event.clientY;
+        renderer.setCameraFocus(cameraX, cameraZ);
+        return;
+      }
+      const placement = placementAt(event.clientX, event.clientY);
+      hover = placement;
+      reportCursor(placement?.col ?? null, placement?.row ?? null);
+      drawOverlay();
+      if (painting) paintAt(event.clientX, event.clientY, false);
+    };
 
-  const onPointerLeave = (): void => {
-    reportCursor(null, null);
-    hoverCol = Number.NaN;
-    hoverRow = Number.NaN;
-    hoverOffsetX = 0;
-    hoverOffsetY = 0;
-    drawHover();
-  };
-
-  const stopStroke = (): void => {
-    if (strokeStart && strokeStart !== map) {
-      history = commitEditorHistory({ ...history, present: strokeStart }, map);
-      notify();
-    }
-    strokeStart = null;
-    dragSelection = null;
-    painting = false;
-    panning = false;
-    canvas.dataset.cursor =
-      tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
-  };
-
-  const onWheel = (event: WheelEvent): void => {
-    event.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const screenX = event.clientX - rect.left;
-    const screenY = event.clientY - rect.top;
-    // Keep the cell under the cursor fixed while zooming, the way every map tool does.
-    const worldX = (screenX - world.x) / world.scale.x;
-    const worldY = (screenY - world.y) / world.scale.y;
-    const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
-    const scale = clamp(world.scale.x * factor, MIN_ZOOM, MAX_ZOOM);
-    world.scale.set(scale);
-    world.x = screenX - worldX * scale;
-    world.y = screenY - worldY * scale;
-    clampCamera();
-    onZoomChange?.(Math.round(scale * 100));
-  };
-
-  // Double-click opens an existing event or the friendly scenery-to-RPG binding dialog. Threaded to
-  // React through `onOpenSelection`; the stage itself owns no dialog.
-  const onDoubleClick = (event: MouseEvent): void => {
-    if (!onOpenSelection) return;
-    const { col, row, offsetX, offsetY } = placementAt(event.clientX, event.clientY);
-    const target = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
-    if (!target) return;
-    selected = target;
-    redraw();
-    notify();
-    onOpenSelection(target);
-  };
-
-  const onContextMenu = (event: Event): void => event.preventDefault();
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.code === "Space") {
-      spaceHeld = true;
-      return;
-    }
-    const target = event.target instanceof HTMLElement ? event.target : null;
-    if (
-      target?.closest(
-        'input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="dialog"]',
-      )
-    )
-      return;
-    if (
-      tool.kind === "select" &&
-      selected &&
-      selected.kind !== "spawn" &&
-      (event.key === "Delete" || event.key === "Backspace")
-    ) {
-      event.preventDefault();
-      commitInspectorChange(deleteSelection(map, selected), null);
-      return;
-    }
-    const delta = keyboardCameraPanDelta(event.key, event.shiftKey);
-    if (!delta) return;
-    event.preventDefault();
-    world.x += delta.x;
-    world.y += delta.y;
-    clampCamera();
-  };
-  const onKeyUp = (event: KeyboardEvent): void => {
-    if (event.code === "Space") spaceHeld = false;
-  };
-
-  canvas.addEventListener("pointerdown", onPointerDown);
-  canvas.addEventListener("pointermove", onPointerMove);
-  canvas.addEventListener("pointerleave", onPointerLeave);
-  canvas.addEventListener("dblclick", onDoubleClick);
-  canvas.addEventListener("wheel", onWheel, { passive: false });
-  canvas.addEventListener("contextmenu", onContextMenu);
-  // On window, so releasing or moving off the canvas mid-stroke still ends the stroke cleanly.
-  window.addEventListener("pointerup", stopStroke);
-  window.addEventListener("keydown", onKeyDown);
-  window.addEventListener("keyup", onKeyUp);
-
-  const animate = (): void => {
-    const now = performance.now();
-    for (const foam of foamSprites) {
-      const foamFrame = textures.foam[foamFrameAt(now, textures.foam.length, foam.phase)];
-      if (foamFrame) foam.sprite.texture = foamFrame;
-    }
-    for (const { sprite, frames, durationMs } of swaySprites) {
-      const frame = catalogElementFrameAt(now, frames, durationMs);
-      if (frame) sprite.texture = frame;
-    }
-  };
-  app.ticker.add(animate);
-
-  fitCamera();
-  redraw();
-  drawGrid();
-
-  let destroyed = false;
-  const destroy = (): void => {
-    if (destroyed) return;
-    destroyed = true;
-    app.ticker.remove(animate);
-    // The shared app is not destroyed (Pixi 8 cannot re-init the canvas afterwards); its ticker is
-    // paused so an idle editor costs nothing, and it restarts on the next open.
-    app.ticker.stop();
-    canvas.removeEventListener("pointerdown", onPointerDown);
-    canvas.removeEventListener("pointermove", onPointerMove);
-    canvas.removeEventListener("pointerleave", onPointerLeave);
-    canvas.removeEventListener("dblclick", onDoubleClick);
-    canvas.removeEventListener("wheel", onWheel);
-    canvas.removeEventListener("contextmenu", onContextMenu);
-    window.removeEventListener("pointerup", stopStroke);
-    window.removeEventListener("keydown", onKeyDown);
-    window.removeEventListener("keyup", onKeyUp);
-    viewportObserver?.disconnect();
-    delete canvas.dataset.cursor;
-    // Only this map's display tree goes; the Application, its canvas and the Assets-cached textures
-    // (shared with the world renderer) stay, so the next open reuses them instead of re-initializing.
-    app.stage.removeChild(world);
-    world.destroy({ children: true });
-    if (activeSession === session) activeSession = null;
-  };
-  const session: StageSession = { destroy };
-  activeSession = session;
-
-  const ensureAsset = (assetId: EditorAssetId): void => {
-    if (textures.editorAssets.has(assetId)) return;
-    void loadEditorAssetArt(assetId).then((art) => {
-      if (destroyed) return;
-      textures.editorAssets.set(assetId, art);
-      redraw();
-      // The pointer may already be over the canvas while this lazy asset finishes loading. Repaint
-      // the ghost immediately; waiting for another mouse move would leave the old square visible.
-      drawHover();
-    });
-  };
-
-  return {
-    setTool(next) {
-      tool = next;
-      if (next.kind === "element") ensureAsset(next.assetId);
-      // A pending event graphic is what a freshly placed event will draw with, so its art must be
-      // loaded before the first placement, not only after the overlay's next spontaneous redraw.
-      if (next.kind === "event" && next.graphic != null) ensureAsset(next.graphic);
-      eventLayer.visible = shouldShowEventOverlay(next);
-      // Events are always visible, so changing tools does not require a full-map redraw.
-      // The hovered cell's legality/preview depends on the tool, so re-evaluate it for the new tool
-      // (and hide it entirely when switching to select/pan).
-      drawHover();
+    const stopStroke = (): void => {
+      if (strokeStart && strokeStart !== map) {
+        history = commitEditorHistory({ ...history, present: strokeStart }, map);
+        notify();
+      }
+      strokeStart = null;
+      dragSelection = null;
+      painting = false;
+      panning = false;
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
-    },
-    setActiveMode(mode) {
-      history = setActiveMode(history, mode);
-      const selectionMatchesMode =
-        (mode === "field" && selected?.kind === "spawn") ||
-        (mode === "element" && selected?.kind === "element") ||
-        (mode === "event" && selected?.kind === "event");
-      if (selected && !selectionMatchesMode) {
+    };
+
+    const onPointerLeave = (): void => {
+      hover = null;
+      reportCursor(null, null);
+      drawOverlay();
+    };
+
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+      zoom = Math.max(2, Math.min(250, zoom * factor));
+      renderer.setCameraZoom(zoom);
+      onZoomChange?.(Math.round(zoom));
+    };
+
+    const onDoubleClick = (event: MouseEvent): void => {
+      const placement = placementAt(event.clientX, event.clientY);
+      if (!placement) return;
+      const eventAtCell = map.events.find(
+        (candidate) => candidate.col === placement.col && candidate.row === placement.row,
+      );
+      const nextSelection = eventAtCell
+        ? ({ kind: "event", id: eventAtCell.id } satisfies EditorSelection)
+        : selectionAtMode(
+            map,
+            placement.col,
+            placement.row,
+            history.activeMode,
+            placement.offsetX,
+            placement.offsetY,
+          );
+      if (!nextSelection) return;
+      selected = nextSelection;
+      drawOverlay();
+      notify();
+      onOpenSelection?.(nextSelection);
+    };
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.code === "Space") spaceHeld = true;
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.code === "Space") spaceHeld = false;
+    };
+    const preventContext = (event: Event): void => event.preventDefault();
+
+    canvas.tabIndex = 0;
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerleave", onPointerLeave);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("dblclick", onDoubleClick);
+    canvas.addEventListener("contextmenu", preventContext);
+    window.addEventListener("pointerup", stopStroke);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+
+    renderer.onFrame((now) => {
+      renderer.render(EMPTY_SAMPLE, { now } as RenderContext);
+    });
+    centreCamera();
+    redraw();
+    notify();
+
+    const handle: MapEditorStageHandle = {
+      setTool(next) {
+        tool = next;
+        canvas.dataset.cursor =
+          tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
+      },
+      setActiveMode(mode) {
+        history = setActiveMode(history, mode);
+        const matches =
+          (mode === "field" && selected?.kind === "spawn") ||
+          (mode === "element" && selected?.kind === "element") ||
+          (mode === "event" && selected?.kind === "event");
+        if (selected && !matches) selected = null;
+        drawOverlay();
+        notify();
+      },
+      setDim(next) {
+        dim = next;
+        drawOverlay();
+      },
+      setGrid(next) {
+        gridVisible = next;
+        drawOverlay();
+      },
+      setCollisions(next) {
+        collisionsVisible = next;
+        drawOverlay();
+      },
+      setZoom(percent) {
+        zoom = Math.max(2, Math.min(250, percent));
+        renderer.setCameraZoom(zoom);
+      },
+      current: () => map,
+      setName(name) {
+        if (name === map.name) return;
+        map = { ...map, name };
+        notify();
+      },
+      setAudio(audio) {
+        if (JSON.stringify(audio) === JSON.stringify(map.audio)) return;
+        const next = { ...map, audio };
+        history = commitEditorHistory({ ...history, present: map }, next);
+        map = next;
+        notify();
+      },
+      setHeroSettings(heroSettings) {
+        if (JSON.stringify(heroSettings) === JSON.stringify(map.heroSettings)) return;
+        const next = { ...map, heroSettings };
+        history = commitEditorHistory({ ...history, present: map }, next);
+        map = next;
+        notify();
+      },
+      undo() {
+        stopStroke();
+        const next = undoEditorHistory(history);
+        if (next === history) return;
+        history = next;
+        map = { ...history.present, name: map.name };
+        history = { ...history, present: map };
         selected = null;
         redraw();
         notify();
-      }
-      applyModeDim(tileLayers, elementContainers, eventLayer, mode, dim);
-      // The quarter-cell sub-grid and the hover snap belong to Element mode only, so both are rebuilt
-      // when the active mode changes.
-      drawGrid();
-      drawHover();
-    },
-    setDim(next) {
-      dim = next;
-      applyModeDim(tileLayers, elementContainers, eventLayer, history.activeMode, dim);
-    },
-    setGrid(next) {
-      gridVisible = next;
-      gridLayer.visible = next;
-    },
-    setCollisions(next) {
-      collisionsVisible = next;
-      collisionLayer.visible = next;
-    },
-    setZoom(percent) {
-      setCameraZoom(percent);
-    },
-    current() {
-      return map;
-    },
-    setName(name) {
-      if (name === map.name) return;
-      map = { ...map, name };
-      notify();
-    },
-    setAudio(audio) {
-      if (JSON.stringify(audio) === JSON.stringify(map.audio)) return;
-      const next = { ...map, audio };
-      history = commitEditorHistory({ ...history, present: map }, next);
-      map = next;
-      notify();
-    },
-    setHeroSettings(heroSettings) {
-      if (JSON.stringify(heroSettings) === JSON.stringify(map.heroSettings)) return;
-      const next = { ...map, heroSettings };
-      history = commitEditorHistory({ ...history, present: map }, next);
-      map = next;
-      notify();
-    },
-    undo() {
-      stopStroke();
-      const next = undoEditorHistory(history);
-      if (next === history) return;
-      history = next;
-      map = { ...history.present, name: map.name };
-      history = { ...history, present: map };
-      selected = null;
-      redraw();
-      notify();
-    },
-    redo() {
-      stopStroke();
-      const next = redoEditorHistory(history);
-      if (next === history) return;
-      history = next;
-      map = { ...history.present, name: map.name };
-      history = { ...history, present: map };
-      selected = null;
-      redraw();
-      notify();
-    },
-    markSaved(saved = map) {
-      history = markEditorHistorySaved(history, saved);
-      notify();
-    },
-    selected() {
-      return selected;
-    },
-    clearSelection() {
-      if (!selected) return;
-      selected = null;
-      redraw();
-      notify();
-    },
-    moveSelected(col, row) {
-      if (!selected) return false;
-      const previous = selected;
-      // Only an element selection is keyed by cell, so only it re-anchors on a move; an event is
-      // keyed by uuid and a spawn is singular, so both keep their existing selection identity.
-      const nextSelection: EditorSelection =
-        previous.kind === "element" ? { ...previous, col, row } : previous;
-      return commitInspectorChange(moveSelection(map, previous, col, row), nextSelection);
-    },
-    setSelectedElementAsset(assetId) {
-      if (selected?.kind !== "element") return false;
-      ensureAsset(assetId);
-      return commitInspectorChange(updateSelectedElementAsset(map, selected, assetId));
-    },
-    setSelectedElementOffset(offsetX, offsetY) {
-      if (selected?.kind !== "element") return false;
-      // Identity is the full 4-tuple, and this edit MOVES the element within its cell, so the
-      // descriptor must follow to the element's NEW sub-position — clamped exactly as
-      // `updateSelectedElementOffset` clamps it — or the inspector detaches from the element it is
-      // editing on the next commit.
-      const clamp = (value: number): number =>
-        Math.max(0, Math.min(ELEMENT_OFFSET_STEPS - 1, Math.trunc(value)));
-      const nextSelection: EditorSelection = {
-        ...selected,
-        offsetX: clamp(offsetX),
-        offsetY: clamp(offsetY),
-      };
-      return commitInspectorChange(
-        updateSelectedElementOffset(map, selected, offsetX, offsetY),
-        nextSelection,
-      );
-    },
-    deleteSelected() {
-      if (!selected || selected.kind === "spawn") return false;
-      const next = deleteSelection(map, selected);
-      return commitInspectorChange(next, null);
-    },
-    beginEventDraft(id) {
-      return beginEventDraft(map, id);
-    },
-    commitEventDraft(draft) {
-      // Sync `present` to the live map first (so an uncommitted name edit is not lost), then let the
-      // editor-state API fold the draft in as one entry. `commitEditorHistory` inside it collapses a
-      // no-op save, so re-saving an unchanged event adds nothing to the undo stack.
-      history = commitEventDraft({ ...history, present: map }, draft);
-      map = history.present;
-      selected = { kind: "event", id: draft.id };
-      redraw();
-      notify();
-    },
-    deleteEvent(id) {
-      commitInspectorChange(deleteSelection(map, { kind: "event", id }), null);
-    },
-    bindSelectedElement(binding) {
-      if (selected?.kind !== "element") return null;
-      const converted = convertElementToEvent(map, selected, binding);
-      if (!converted) return null;
-      commitInspectorChange(converted.map, { kind: "event", id: converted.eventId });
-      return converted.eventId;
-    },
-    highlightEvent(id) {
-      if (id === highlightedEventId) return;
-      highlightedEventId = id;
-      redrawEvents();
-    },
-    selectEvent(id) {
-      const event = map.events.find((candidate) => candidate.id === id);
-      if (!event) return;
-      selected = { kind: "event", id };
-      redraw();
-      notify();
-    },
-    dispose() {
-      // Serialized like open: a dispose must not race a queued open onto the shared canvas. Idempotent
-      // via `destroyed`, so a superseded session already torn down by the next open is a no-op here.
-      enqueue(destroy);
-    },
-  };
+      },
+      redo() {
+        stopStroke();
+        const next = redoEditorHistory(history);
+        if (next === history) return;
+        history = next;
+        map = { ...history.present, name: map.name };
+        history = { ...history, present: map };
+        selected = null;
+        redraw();
+        notify();
+      },
+      markSaved(saved = map) {
+        history = markEditorHistorySaved(history, saved);
+        notify();
+      },
+      selected: () => selected,
+      clearSelection() {
+        if (!selected) return;
+        selected = null;
+        drawOverlay();
+        notify();
+      },
+      moveSelected(col, row) {
+        if (!selected) return false;
+        const previous = selected;
+        const nextSelection: EditorSelection =
+          previous.kind === "element" ? { ...previous, col, row } : previous;
+        return commitInspectorChange(moveSelection(map, previous, col, row), nextSelection);
+      },
+      setSelectedElementAsset(assetId) {
+        if (selected?.kind !== "element") return false;
+        return commitInspectorChange(updateSelectedElementAsset(map, selected, assetId));
+      },
+      setSelectedElementOffset(offsetX, offsetY) {
+        if (selected?.kind !== "element") return false;
+        const clamp = (value: number): number =>
+          Math.max(0, Math.min(ELEMENT_OFFSET_STEPS - 1, Math.trunc(value)));
+        const nextSelection: EditorSelection = {
+          ...selected,
+          offsetX: clamp(offsetX),
+          offsetY: clamp(offsetY),
+        };
+        return commitInspectorChange(
+          updateSelectedElementOffset(map, selected, offsetX, offsetY),
+          nextSelection,
+        );
+      },
+      deleteSelected() {
+        if (!selected || selected.kind === "spawn") return false;
+        return commitInspectorChange(deleteSelection(map, selected), null);
+      },
+      beginEventDraft(id) {
+        return beginEventDraft(map, id);
+      },
+      commitEventDraft(draft) {
+        history = commitEventDraft({ ...history, present: map }, draft);
+        map = history.present;
+        selected = { kind: "event", id: draft.id };
+        redraw();
+        notify();
+      },
+      deleteEvent(id) {
+        commitInspectorChange(deleteSelection(map, { kind: "event", id }), null);
+      },
+      bindSelectedElement(binding) {
+        if (selected?.kind !== "element") return null;
+        const converted = convertElementToEvent(map, selected, binding);
+        if (!converted) return null;
+        commitInspectorChange(converted.map, { kind: "event", id: converted.eventId });
+        return converted.eventId;
+      },
+      highlightEvent(id) {
+        if (id === highlightedEventId) return;
+        highlightedEventId = id;
+        drawOverlay();
+      },
+      selectEvent(id) {
+        if (!map.events.some((event) => event.id === id)) return;
+        selected = { kind: "event", id };
+        drawOverlay();
+        notify();
+      },
+      dispose() {
+        if (disposed) return;
+        disposed = true;
+        canvas.removeEventListener("pointerdown", onPointerDown);
+        canvas.removeEventListener("pointermove", onPointerMove);
+        canvas.removeEventListener("pointerleave", onPointerLeave);
+        canvas.removeEventListener("wheel", onWheel);
+        canvas.removeEventListener("dblclick", onDoubleClick);
+        canvas.removeEventListener("contextmenu", preventContext);
+        window.removeEventListener("pointerup", stopStroke);
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("keyup", onKeyUp);
+        onCursorCell?.(null, null);
+        renderer.destroy();
+        if (activeStage === handle) activeStage = null;
+      },
+    };
+    activeStage = handle;
+    return handle;
+  });
+
+  openQueue = opening.then(
+    () => undefined,
+    () => undefined,
+  );
+  return opening;
 }

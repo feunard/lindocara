@@ -228,6 +228,8 @@ export interface Hd2dScene {
    * that knows the frame's `dt` and can therefore damp towards it.
    */
   focusOn(x: number, z: number): void;
+  /** Sets the diorama zoom as a percentage. 100 is the gameplay camera. */
+  setZoom(percent: number): void;
   resize(): void;
   dispose(): void;
   ctx: Hd2dContext;
@@ -242,7 +244,7 @@ export function createHd2dScene(
   textures: TextureRegistry,
 ): Hd2dScene {
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 220);
+  const camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 5000);
 
   const ctx = createHd2dContext();
 
@@ -342,6 +344,7 @@ export function createHd2dScene(
    *  Reused every frame rather than reallocated: `render` runs 60 times a second. */
   let focus: { x: number; z: number } | null = null;
   let focusReached = false;
+  let cameraDistance = CAMERA.distance;
   const wantedTarget = new THREE.Vector3();
   const cameraInset = Math.min(4, Math.max(0, map.size / 2 - 0.5));
   const cameraMin = -map.size / 2 + cameraInset;
@@ -350,7 +353,7 @@ export function createHd2dScene(
   function frameCamera(): void {
     // How far back the camera sits. A constant while nothing can zoom; the variable it becomes the
     // day a wheel is wired is what makes the two zoom couplings below mean anything.
-    const distance = CAMERA.distance;
+    const distance = cameraDistance;
     const horizontal = Math.cos(CAMERA.pitch) * distance;
     camera.position.set(
       target.x,
@@ -445,6 +448,11 @@ export function createHd2dScene(
         x: THREE.MathUtils.clamp(x, cameraMin, cameraMax),
         z: THREE.MathUtils.clamp(z, cameraMin, cameraMax),
       };
+    },
+    setZoom(percent: number): void {
+      const safePercent = THREE.MathUtils.clamp(percent, 2, 250);
+      cameraDistance = (CAMERA.distance * 100) / safePercent;
+      frameCamera();
     },
     render(now: number): void {
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);

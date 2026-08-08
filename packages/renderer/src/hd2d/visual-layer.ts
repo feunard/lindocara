@@ -1,5 +1,6 @@
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
+import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type { PeasantCampVisual, WorldEventSnapshot } from "@lindocara/engine/protocol.js";
 import * as THREE from "three";
@@ -24,9 +25,20 @@ interface CampEntry {
   endsAt: number;
 }
 
+export interface Hd2dEditorOverlay {
+  cols: number;
+  rows: number;
+  showGrid: boolean;
+  showCollisions: boolean;
+  dim: boolean;
+  colliders: readonly ColliderRect[];
+  hover?: GroundVector | null;
+  selection?: GroundVector | null;
+}
+
 function disposeObject(object: THREE.Object3D): void {
   object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
+    if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.Line)) return;
     child.geometry.dispose();
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of materials) material.dispose();
@@ -73,6 +85,7 @@ export class Hd2dVisualLayer {
   readonly #canvas: HTMLCanvasElement;
   readonly #size: number;
   readonly #root = new THREE.Group();
+  readonly #editorRoot = new THREE.Group();
   readonly #effects: TimedVisual[] = [];
   readonly #loot = new Map<string, THREE.Object3D>();
   readonly #projectiles = new Map<string, THREE.Object3D>();
@@ -95,6 +108,8 @@ export class Hd2dVisualLayer {
     this.#canvas = canvas;
     this.#size = size;
     this.#root.name = "game-presentation";
+    this.#editorRoot.name = "editor-overlay";
+    this.#root.add(this.#editorRoot);
     scene.scene.add(this.#root);
   }
 
@@ -437,6 +452,71 @@ export class Hd2dVisualLayer {
       return null;
     }
     return { x: this.#rayPoint.x, z: this.#rayPoint.z };
+  }
+
+  setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
+    for (const child of [...this.#editorRoot.children]) disposeObject(child);
+    this.#editorRoot.clear();
+    if (!overlay) return;
+
+    const half = this.#size / 2;
+    const lift = overlay.dim ? 0.085 : 0.06;
+    if (overlay.showGrid) {
+      const positions: number[] = [];
+      const point = (x: number, z: number): void => {
+        positions.push(x, this.#groundY(x, z, lift), z);
+      };
+      for (let col = 0; col <= overlay.cols; col += 1) {
+        const x = col - half;
+        for (let row = 0; row < overlay.rows; row += 1) {
+          point(x, row - half);
+          point(x, row + 1 - half);
+        }
+      }
+      for (let row = 0; row <= overlay.rows; row += 1) {
+        const z = row - half;
+        for (let col = 0; col < overlay.cols; col += 1) {
+          point(col - half, z);
+          point(col + 1 - half, z);
+        }
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      const material = new THREE.LineBasicMaterial({
+        color: overlay.dim ? 0x9fc4c0 : 0xdce8cb,
+        transparent: true,
+        opacity: overlay.dim ? 0.5 : 0.3,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      this.#editorRoot.add(new THREE.LineSegments(geometry, material));
+    }
+
+    if (overlay.showCollisions) {
+      for (const collider of overlay.colliders) {
+        const x = collider.x + collider.w / 2;
+        const z = collider.z + collider.h / 2;
+        const mesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(collider.w, collider.h),
+          transparentMaterial(0xd84b3e, 0.38),
+        );
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(x, this.#groundY(x, z, 0.1), z);
+        this.#editorRoot.add(mesh);
+      }
+    }
+
+    const addCursor = (point: GroundVector, color: number, scale: number): void => {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.42 * scale, 0.5 * scale, 4),
+        transparentMaterial(color, 0.92),
+      );
+      ring.rotation.set(-Math.PI / 2, 0, Math.PI / 4);
+      ring.position.set(point.x, this.#groundY(point.x, point.z, 0.13), point.z);
+      this.#editorRoot.add(ring);
+    };
+    if (overlay.hover) addCursor(overlay.hover, 0xffd66b, 1);
+    if (overlay.selection) addCursor(overlay.selection, 0x57d6ff, 1.12);
   }
 
   update(now: number): void {

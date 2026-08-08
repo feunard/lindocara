@@ -29,7 +29,7 @@ describe("MapHeroSettingsDialog", () => {
     expect(screen.getByRole("tablist")).toHaveClass("grid-cols-5");
     await userEvent.click(screen.getByRole("tab", { name: t("class.peasant") }));
 
-    expect(screen.getByLabelText(t("editor.heroSettings.movementSpeed"))).toHaveValue(247);
+    expect(screen.getByLabelText(t("editor.heroSettings.movementSpeed"))).toHaveValue(247 / 64);
     expect(
       screen.getByRole("checkbox", {
         name: `4. ${t("skill.peasant.makeshift_camp.name")}`,
