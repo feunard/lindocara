@@ -21,7 +21,10 @@ export class ChestFeedbackTracker {
     for (const event of events) {
       const current = event.graphicAssetId;
       const previous = this.#state.get(event.id);
-      if (current !== LINDOCARA_CHEST_CLOSED_ASSET_ID && current !== LINDOCARA_CHEST_OPEN_ASSET_ID) {
+      if (
+        current !== LINDOCARA_CHEST_CLOSED_ASSET_ID &&
+        current !== LINDOCARA_CHEST_OPEN_ASSET_ID
+      ) {
         continue;
       }
       present.add(event.id);

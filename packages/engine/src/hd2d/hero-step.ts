@@ -50,7 +50,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const climb = world.levelHeight * hero.swim.climb;
   const maxStep = world.maxStep * world.levelHeight + 1e-3;
   const surfaceAt = (xx: number, zz: number) =>
-    (query.surfaceAt?.(xx, zz, state.y + 0.02) ?? query.heightAt(xx, zz)) ?? world.waterLevel;
+    query.surfaceAt?.(xx, zz, state.y + 0.02) ?? query.heightAt(xx, zz) ?? world.waterLevel;
   const footprintZ = empreinte(z, hero);
   const currentFootprintZ = empreinte(state.z, hero);
   const traversingRamp = query.canTraverseRamp(

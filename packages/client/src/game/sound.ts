@@ -31,9 +31,7 @@ const CHARGE_IMPACT_WINDOW_MS = 900;
 const COMBAT_MUSIC_HOLD_MS = 8_000;
 const COMBAT_THREAT_RELEASE_MS = 500;
 const MUSIC_CROSSFADE_MS = 650;
-const SHEEP_BLEATS = [1, 2, 3, 4].map(
-  (index) => `/assets/lindocara/sfx/bleat-${index}.ogg`,
-);
+const SHEEP_BLEATS = [1, 2, 3, 4].map((index) => `/assets/lindocara/sfx/bleat-${index}.ogg`);
 const SHEEP_POPS = [1, 2, 3].map((index) => `/assets/lindocara/sfx/pop-${index}.ogg`);
 const CHEST_OPEN = [1, 2].map((index) => `/assets/lindocara/sfx/chest-${index}.ogg`);
 const CHEST_CLOSE = [1, 2].map((index) => `/assets/lindocara/sfx/chest-close-${index}.ogg`);

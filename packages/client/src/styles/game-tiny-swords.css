@@ -5,16 +5,17 @@
   cursor: var(--tiny-cursor-default, default);
 }
 
-.game-ui :is(
-  .panel,
-  .world-map-panel,
-  .connection-overlay__panel,
-  .victory-overlay__panel,
-  .talent-panel,
-  .quest-journal__panel,
-  .item-overlay,
-  .death-overlay
-) {
+.game-ui
+  :is(
+    .panel,
+    .world-map-panel,
+    .connection-overlay__panel,
+    .victory-overlay__panel,
+    .talent-panel,
+    .quest-journal__panel,
+    .item-overlay,
+    .death-overlay
+  ) {
   border: 12px solid transparent;
   border-image-source: var(--tiny-panel-carved);
   border-image-slice: 64 fill;

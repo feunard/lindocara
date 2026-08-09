@@ -55,6 +55,7 @@ import { t } from "../i18n.js";
 import { questTrackerNotifications } from "../quest-presentation.js";
 import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
+import { ChestFeedbackTracker } from "./chest-feedback.js";
 import {
   activeReactivationDeadline,
   clientCooldownDeadlines,
@@ -64,9 +65,8 @@ import {
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { SessionCombatAudio } from "./session-combat-audio.js";
-import { GameSound } from "./sound.js";
 import { SheepFeedbackTracker } from "./sheep-feedback.js";
-import { ChestFeedbackTracker } from "./chest-feedback.js";
+import { GameSound } from "./sound.js";
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -79,9 +79,9 @@ function required<T extends Element>(selector: string): T {
  *  `returnFromGameSession`'s docblock). Defaults to `true` everywhere else. */
 type StopOptions = { navigate?: boolean };
 
-  const sound = new GameSound();
-  const sheepFeedback = new SheepFeedbackTracker();
-  const chestFeedback = new ChestFeedbackTracker();
+const sound = new GameSound();
+const sheepFeedback = new SheepFeedbackTracker();
+const chestFeedback = new ChestFeedbackTracker();
 let activeLaunchId = 0;
 let stopActiveSession: ((options?: StopOptions) => void) | null = null;
 

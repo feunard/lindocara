@@ -27,7 +27,9 @@ describe("meshStairs", () => {
     expect(Math.min(...steps.map((step) => step.position.x))).toBeGreaterThan(-1);
     expect(Math.max(...steps.map((step) => step.position.x))).toBeLessThan(0);
     expect(Math.max(...steps.map((step) => step.position.y + 0.45))).toBeGreaterThan(1.7);
-    const topMaterial = (steps[0]?.material as THREE.Material[])[2];
+    const firstStep = steps[0];
+    if (!firstStep) throw new Error("expected authored stair meshes");
+    const topMaterial = (firstStep.material as THREE.Material[])[2];
     expect(topMaterial).toBeInstanceOf(THREE.MeshLambertMaterial);
     expect((topMaterial as THREE.MeshLambertMaterial).map).toBe(texture);
     built.dispose();

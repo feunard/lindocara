@@ -1020,7 +1020,9 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
         3,
       ),
     ).not.toBeNull();
-    expect(place(wet, { kind: "event", eventKind: "guard", patrolRadius: 96 }, 3, 3)).not.toBeNull();
+    expect(
+      place(wet, { kind: "event", eventKind: "guard", patrolRadius: 96 }, 3, 3),
+    ).not.toBeNull();
     expect(place(wet, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 3, 3)).not.toBeNull();
     expect(place(wet, { kind: "event", eventKind: "normal" }, 3, 3)).not.toBeNull();
   });

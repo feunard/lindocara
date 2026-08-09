@@ -123,9 +123,7 @@ describe("compileAuthoredMap", () => {
     const building = EDITOR_ASSETS.find((asset) => asset.editor.category === "buildings");
     if (!building) throw new Error("building fixture missing");
     const source = authored();
-    source.elements = [
-      { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: building.id },
-    ];
+    source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: building.id }];
     const compiled = compileAuthoredMap(source);
     expect(compiled.colliders).toHaveLength(1);
     expect(compiled.colliders[0]?.top).toBe(AUTHORED_LEVEL_HEIGHT);

@@ -20,13 +20,12 @@ import type { SceneSample } from "../scene-sample.js";
 import { HD2D_CAMERA, type Hd2dScene, terrainAtlases } from "./scene.js";
 import {
   isColdBiomeMaterial,
-  staticAnimationFrame,
   type StaticSpriteArt,
+  staticAnimationFrame,
 } from "./static-content.js";
 
 export const HD2D_SPLASH_TEXTURE_URL = "/assets/lindocara/hd2d/splash.png";
-export const HD2D_SHEEP_EXPLOSION_TEXTURE_URL =
-  "/assets/lindocara/hd2d/sheep-explosion.png";
+export const HD2D_SHEEP_EXPLOSION_TEXTURE_URL = "/assets/lindocara/hd2d/sheep-explosion.png";
 
 interface TimedVisual {
   object: THREE.Object3D;

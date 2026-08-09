@@ -255,10 +255,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
   },
 ] as const satisfies readonly EditorAssetDefinition[];
 
-export const EDITOR_ASSETS = [
-  ...GENERATED_EDITOR_ASSETS,
-  ...LINDOCARA_LAB_EDITOR_ASSETS,
-] as const;
+export const EDITOR_ASSETS = [...GENERATED_EDITOR_ASSETS, ...LINDOCARA_LAB_EDITOR_ASSETS] as const;
 export type EditorAssetId = (typeof EDITOR_ASSETS)[number]["id"];
 
 const EDITOR_ASSET_BY_ID = new Map<string, EditorAssetDefinition>(

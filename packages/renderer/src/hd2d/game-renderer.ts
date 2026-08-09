@@ -347,13 +347,9 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
       ],
     };
   }
-  if (
-    assetId === LINDOCARA_CHEST_CLOSED_ASSET_ID ||
-    assetId === LINDOCARA_CHEST_OPEN_ASSET_ID
-  ) {
+  if (assetId === LINDOCARA_CHEST_CLOSED_ASSET_ID || assetId === LINDOCARA_CHEST_OPEN_ASSET_ID) {
     return {
-      url:
-        assetId === LINDOCARA_CHEST_OPEN_ASSET_ID ? LAB_CHEST_OPEN_URL : LAB_CHEST_CLOSED_URL,
+      url: assetId === LINDOCARA_CHEST_OPEN_ASSET_ID ? LAB_CHEST_OPEN_URL : LAB_CHEST_CLOSED_URL,
       height: 1.15,
       aspect: 1,
       foot: 0.02,
@@ -425,9 +421,7 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
         fireLight: { color: 0xff9a45, lift: 0.55, distance: 18, decay: 2, glow: false },
       }
     : spec;
-  return NATIVE_TREE_ASSET_IDS.has(assetId)
-    ? { ...litSpec, coldVariant: snowTreeSpec() }
-    : litSpec;
+  return NATIVE_TREE_ASSET_IDS.has(assetId) ? { ...litSpec, coldVariant: snowTreeSpec() } : litSpec;
 }
 
 function staticSpecUrls(spec: StaticAssetSpec): string[] {

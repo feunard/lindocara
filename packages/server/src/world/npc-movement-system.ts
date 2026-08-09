@@ -10,11 +10,7 @@
 import { npcMovementIntervalTicks } from "@lindocara/engine/event-movement.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MoveType, NpcRoutineStep } from "@lindocara/engine/map-events.js";
-import {
-  SHEEP_IDLE_SECONDS,
-  SHEEP_SPEED,
-  SHEEP_WALK_SECONDS,
-} from "@lindocara/engine/sheep.js";
+import { SHEEP_IDLE_SECONDS, SHEEP_SPEED, SHEEP_WALK_SECONDS } from "@lindocara/engine/sheep.js";
 import { TICK_MS } from "@lindocara/engine/simulation.js";
 import {
   BODY_RADIUS,

@@ -14,7 +14,6 @@ import {
   elementWorldCollider,
 } from "../map-data.js";
 import type { MapEvent } from "../map-events.js";
-import { editorAsset } from "../tiny-swords-catalog.js";
 import {
   type StairsDirection,
   type StairsLowLevel,
@@ -24,6 +23,7 @@ import {
 import { TILE_SIZE } from "../tilemap.js";
 import { decodeTileId, fixedId } from "../tileset.js";
 import { elevationOfSlot, materialOfSlot } from "../tilesets/tiny-swords.js";
+import { editorAsset } from "../tiny-swords-catalog.js";
 import type { MapData } from "./map-data.js";
 import type { TerrainMaterial, TerrainRamp } from "./terrain-query.js";
 

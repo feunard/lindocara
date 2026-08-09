@@ -27,7 +27,9 @@ describe("MapData content", () => {
   it("round-trips an optional walkable collider top", () => {
     const map: MapData = { ...base, colliders: [{ x: -1, z: -1, w: 2, h: 2, top: 0.9 }] };
     expect(decodeMap(encodeMap(map))).toEqual(map);
-    expect(decodeMap(JSON.stringify({ ...map, colliders: [{ ...map.colliders[0], top: "high" }] }))).toBeNull();
+    expect(
+      decodeMap(JSON.stringify({ ...map, colliders: [{ ...map.colliders[0], top: "high" }] })),
+    ).toBeNull();
   });
 
   it("defaults both collections to empty for a map that predates them", () => {

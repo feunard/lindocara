@@ -8,11 +8,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
-import {
-  ACTOR_FOOT,
-  createBillboardRegistry,
-  LAB_UNIT_HEIGHT,
-} from "../src/hd2d/billboards.js";
+import { ACTOR_FOOT, createBillboardRegistry, LAB_UNIT_HEIGHT } from "../src/hd2d/billboards.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 
 /** A square map from a row-major list of levels — `null` is water. Same shape as the terrain
