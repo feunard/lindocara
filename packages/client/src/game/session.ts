@@ -1275,7 +1275,16 @@ async function startGameIdentity(
       healthBars: getDisplaySettings().healthBars,
       grid: getDisplaySettings().grid,
       ...(self ? { self } : {}),
-      ...(movementStatus ? { movement: { iceCrack: movementStatus.iceCrack } } : {}),
+      ...(movementStatus
+        ? {
+            movement: {
+              iceCrack: movementStatus.iceCrack,
+              breath: movementStatus.breath,
+              maxBreath: movementStatus.maxBreath,
+              swimming: movementStatus.swimming,
+            },
+          }
+        : {}),
     };
     renderer.render(sample, context);
     mapSurface?.draw(sample, self, selfCorpse);

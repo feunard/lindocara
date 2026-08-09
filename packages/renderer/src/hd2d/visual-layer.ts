@@ -209,6 +209,8 @@ export class Hd2dVisualLayer {
   readonly #labels: LabelVisual[] = [];
   readonly #raycaster = new THREE.Raycaster();
   readonly #swimDisc: THREE.Mesh;
+  readonly #breathBar = new THREE.Group();
+  readonly #breathFill: THREE.Mesh;
   readonly #crackDisc: THREE.Group;
   readonly #skid: THREE.Mesh;
   #events: readonly WorldEventSnapshot[] = [];
@@ -248,6 +250,33 @@ export class Hd2dVisualLayer {
     this.#swimDisc.visible = false;
     this.#swimDisc.renderOrder = 2;
     this.#root.add(this.#swimDisc);
+
+    const breathBackground = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.04, 0.16),
+      new THREE.MeshBasicMaterial({
+        color: 0x102938,
+        transparent: true,
+        opacity: 0.88,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    breathBackground.renderOrder = 20;
+    this.#breathFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.94, 0.09),
+      new THREE.MeshBasicMaterial({
+        color: 0x73ddf2,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    this.#breathFill.position.z = 0.006;
+    this.#breathFill.renderOrder = 21;
+    this.#breathBar.add(breathBackground, this.#breathFill);
+    this.#breathBar.visible = false;
+    this.#root.add(this.#breathBar);
 
     this.#crackDisc = new THREE.Group();
     const crackPositions: number[] = [];
@@ -512,6 +541,19 @@ export class Hd2dVisualLayer {
         this.#nextRippleAt = now + 550;
       }
     } else this.#nextRippleAt = now;
+
+    const maxBreath = movement?.maxBreath ?? 0;
+    const showBreath = hero !== null && movement?.swimming === true && maxBreath > 0;
+    this.#breathBar.visible = showBreath;
+    if (showBreath && hero && movement) {
+      const ratio = THREE.MathUtils.clamp(movement.breath / maxBreath, 0, 1);
+      this.#breathBar.position.set(hero.x, Math.max(hero.y, this.#waterLevel) + 1.82, hero.z);
+      this.#breathBar.rotation.y = this.#scene.ctx.yaw();
+      this.#breathFill.scale.x = Math.max(0.001, ratio);
+      this.#breathFill.position.x = -(1 - ratio) * 0.47;
+      const material = this.#breathFill.material as THREE.MeshBasicMaterial;
+      material.color.setHex(ratio <= 0.25 ? 0xf06b5d : ratio <= 0.5 ? 0xf2bd56 : 0x73ddf2);
+    }
 
     const crack = movement?.iceCrack ?? null;
     this.#crackDisc.visible = crack !== null;
@@ -990,6 +1032,7 @@ export class Hd2dVisualLayer {
       effects: this.#effects.length,
       movementSurfaces:
         Number(this.#swimDisc.visible) +
+        Number(this.#breathBar.visible) +
         Number(this.#crackDisc.visible) +
         Number(this.#skid.visible),
       eventMarkers: this.#eventMarkers.size,
