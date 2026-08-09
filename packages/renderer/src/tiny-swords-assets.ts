@@ -30,6 +30,14 @@ function cursorValue(asset: CatalogAssetRef, fallback: string): string {
   return `${cssUrl(asset)} ${hotspot.x} ${hotspot.y}, ${fallback}`;
 }
 
+function doubledCursorValue(
+  publicPath: string,
+  hotspot: Readonly<{ x: number; y: number }>,
+  fallback: string,
+): string {
+  return `image-set(url("${publicPath}") 2x) ${hotspot.x} ${hotspot.y}, ${fallback}`;
+}
+
 /** Installs the small set of semantic UI assets as CSS variables once, before React mounts. */
 export function applyTinySwordsTheme(root: HTMLElement = document.documentElement): void {
   const set = (name: string, value: string): void => root.style.setProperty(name, value);
@@ -62,10 +70,34 @@ export function applyTinySwordsTheme(root: HTMLElement = document.documentElemen
   set("--tiny-bar-large-fill", cssUrl(TINY_SWORDS_UI.bar.largeFill));
   set("--tiny-bar-small-base", cssUrl(TINY_SWORDS_UI.bar.smallBase));
   set("--tiny-bar-small-fill", cssUrl(TINY_SWORDS_UI.bar.smallFill));
-  set("--tiny-cursor-default", cursorValue(TINY_SWORDS_UI.cursor.default, "default"));
-  set("--tiny-cursor-link", cursorValue(TINY_SWORDS_UI.cursor.link, "pointer"));
-  set("--tiny-cursor-interact", cursorValue(TINY_SWORDS_UI.cursor.interact, "pointer"));
-  set("--tiny-cursor-move", cursorValue(TINY_SWORDS_UI.cursor.move, "grab"));
+  set(
+    "--tiny-cursor-default",
+    doubledCursorValue("/assets/lindocara/tiny-swords/ui/cursor.png", { x: 22, y: 17 }, "default"),
+  );
+  set(
+    "--tiny-cursor-link",
+    doubledCursorValue(
+      "/assets/lindocara/tiny-swords/ui/cursor-hand.png",
+      { x: 23, y: 17 },
+      "pointer",
+    ),
+  );
+  set(
+    "--tiny-cursor-interact",
+    doubledCursorValue(
+      "/assets/lindocara/tiny-swords/ui/cursor-hand.png",
+      { x: 23, y: 17 },
+      "pointer",
+    ),
+  );
+  set(
+    "--tiny-cursor-move",
+    doubledCursorValue(
+      "/assets/lindocara/tiny-swords/ui/cursor-hand.png",
+      { x: 23, y: 17 },
+      "grab",
+    ),
+  );
   set("--tiny-cursor-paint", cursorValue(TINY_SWORDS_UI.cursor.paint, "crosshair"));
   set("--tiny-cursor-unavailable", cursorValue(TINY_SWORDS_UI.cursor.unavailable, "not-allowed"));
 }

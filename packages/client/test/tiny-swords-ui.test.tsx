@@ -77,8 +77,12 @@ describe("Tiny Swords UI foundation", () => {
   it("publishes cursor fallbacks and an extensible panel slice", () => {
     const root = document.createElement("div");
     applyTinySwordsTheme(root);
-    expect(root.style.getPropertyValue("--tiny-cursor-default")).toMatch(/, default$/);
-    expect(root.style.getPropertyValue("--tiny-cursor-link")).toMatch(/, pointer$/);
+    expect(root.style.getPropertyValue("--tiny-cursor-default")).toBe(
+      'image-set(url("/assets/lindocara/tiny-swords/ui/cursor.png") 2x) 22 17, default',
+    );
+    expect(root.style.getPropertyValue("--tiny-cursor-link")).toBe(
+      'image-set(url("/assets/lindocara/tiny-swords/ui/cursor-hand.png") 2x) 23 17, pointer',
+    );
     expect(root.style.getPropertyValue("--tiny-cursor-interact")).toMatch(/, pointer$/);
     expect(root.style.getPropertyValue("--tiny-cursor-move")).toMatch(/, grab$/);
     expect(root.style.getPropertyValue("--tiny-cursor-unavailable")).toMatch(/, not-allowed$/);
