@@ -1,5 +1,6 @@
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
+import { TinyButton } from "../tiny-swords/TinyButton.js";
 
 /**
  * The two faces of death. Over your body: a choice — wait for a priest, or let go. As a ghost:
@@ -17,9 +18,9 @@ export function DeathOverlay() {
       <div className="death-overlay" role="status">
         <p className="death-title">{t("death.fallen_title")}</p>
         <p className="death-copy">{t("death.fallen_copy")}</p>
-        <button type="button" className="death-release" onClick={() => game?.release()}>
+        <TinyButton type="button" className="death-release" onClick={() => game?.release()}>
           {t("death.release")}
-        </button>
+        </TinyButton>
       </div>
     );
   }

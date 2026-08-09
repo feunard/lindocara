@@ -1,0 +1,56 @@
+/* Runtime-only Tiny Swords skin. This file loads after legacy.css so old generic borders cannot
+   silently replace the authored panel slices. Creator tools never mount .game-ui. */
+.game-ui {
+  display: contents;
+  cursor: var(--tiny-cursor-default, default);
+}
+
+.game-ui :is(
+  .panel,
+  .world-map-panel,
+  .connection-overlay__panel,
+  .victory-overlay__panel,
+  .talent-panel,
+  .quest-journal__panel,
+  .item-overlay,
+  .death-overlay
+) {
+  border: 12px solid transparent;
+  border-image-source: var(--tiny-panel-carved);
+  border-image-slice: 64 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  background-clip: padding-box;
+  image-rendering: pixelated;
+}
+
+.game-ui :is(.world-map-panel, .victory-overlay__panel, .talent-panel, .quest-journal__panel) {
+  border-width: 18px;
+  border-image-width: 18px;
+}
+
+.game-ui #hud .panel,
+.game-ui .skill-bar.panel,
+.game-ui .quick-item-bar.panel,
+.game-ui .peasant-resources.panel {
+  border-width: 10px;
+  border-image-width: 10px;
+  backdrop-filter: none;
+}
+
+.game-ui :is(button, a, summary, label:has(input), select, input[type="range"]) {
+  cursor: var(--tiny-cursor-link, pointer);
+}
+
+.game-ui :is(button, input, select):disabled {
+  cursor: var(--tiny-cursor-unavailable, not-allowed);
+}
+
+.game-ui :is(.tiny-button, button):active:not(:disabled) {
+  cursor: var(--tiny-cursor-interact, pointer);
+}
+
+#stage:active:not([data-cursor]) {
+  cursor: var(--tiny-cursor-move, grabbing);
+}

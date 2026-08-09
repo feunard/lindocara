@@ -79,6 +79,9 @@ describe("Tiny Swords UI foundation", () => {
     applyTinySwordsTheme(root);
     expect(root.style.getPropertyValue("--tiny-cursor-default")).toMatch(/, default$/);
     expect(root.style.getPropertyValue("--tiny-cursor-link")).toMatch(/, pointer$/);
+    expect(root.style.getPropertyValue("--tiny-cursor-interact")).toMatch(/, pointer$/);
+    expect(root.style.getPropertyValue("--tiny-cursor-move")).toMatch(/, grab$/);
+    expect(root.style.getPropertyValue("--tiny-cursor-unavailable")).toMatch(/, not-allowed$/);
     render(<TinyPanel data-testid="panel" />);
     expect(screen.getByTestId("panel")).toHaveAttribute("data-tiny-slice", "64 64 64 64");
   });

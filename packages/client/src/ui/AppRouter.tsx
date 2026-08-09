@@ -110,7 +110,7 @@ const IMMERSIVE_PATHS = new Set<string>([
  */
 function GameScreen() {
   return (
-    <>
+    <div className="game-ui" data-ui-skin="tiny-swords">
       <Hud />
       <Minimap />
       <Chat />
@@ -129,7 +129,7 @@ function GameScreen() {
       <ConnectionOverlay />
       <VictoryOverlay />
       <AdventureTestOverlay />
-    </>
+    </div>
   );
 }
 

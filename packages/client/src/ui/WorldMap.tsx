@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useRef } from "react";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
+import { TinyButton } from "./tiny-swords/TinyButton.js";
 
 /**
  * The full world on M. Same baked texture as the minimap, blitted whole. Mounted only while
@@ -41,9 +42,9 @@ export function WorldMap() {
       <div className="world-map-panel">
         <header className="world-map-header">
           <h2>{zoneNameKey ? t(zoneNameKey) : t("hud.map.title")}</h2>
-          <button type="button" onClick={() => setMapOpen(false)}>
+          <TinyButton type="button" size="sm" onClick={() => setMapOpen(false)}>
             {t("hud.map.close")}
-          </button>
+          </TinyButton>
         </header>
         <canvas
           ref={canvasRef}

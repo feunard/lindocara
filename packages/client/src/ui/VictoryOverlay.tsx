@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
+import { TinyButton } from "./tiny-swords/TinyButton.js";
 
 export function VictoryOverlay() {
   useLocale();
@@ -21,9 +22,9 @@ export function VictoryOverlay() {
       <div className="victory-overlay__panel">
         <h2 id="victory-title">{t("adventure.victory.title")}</h2>
         <p>{t("adventure.victory.copy")}</p>
-        <button ref={continueRef} type="button" onClick={() => setVisible(false)}>
+        <TinyButton ref={continueRef} type="button" onClick={() => setVisible(false)}>
           {t("adventure.victory.continue")}
-        </button>
+        </TinyButton>
       </div>
     </section>
   );
