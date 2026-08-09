@@ -2,12 +2,10 @@ import { describe, expect, it } from "vitest";
 import { compileAuthoredMap } from "../src/hd2d/authored-map.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
+import { stairsFixedIndex, stairsTilePlacements } from "../src/tile-brush.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
-import { autotileId } from "../src/tileset.js";
-import {
-  TERRAIN_MATERIAL_SLOTS,
-  TINY_SWORDS_TILESET_ID,
-} from "../src/tilesets/tiny-swords.js";
+import { autotileId, fixedId } from "../src/tileset.js";
+import { TERRAIN_MATERIAL_SLOTS, TINY_SWORDS_TILESET_ID } from "../src/tilesets/tiny-swords.js";
 
 function authored(): MapData {
   const ground = emptyLayer(3, 2);
@@ -86,6 +84,35 @@ describe("compileAuthoredMap", () => {
         z: 0,
         graphicAssetId: "resource.terrain-resources-wood-trees.tree3",
       },
+    ]);
+  });
+
+  it("compiles a complete two-half stair stamp into one world-space ramp", () => {
+    const cols = 4;
+    const rows = 3;
+    const ground = emptyLayer(cols, rows);
+    const walls = emptyLayer(cols, rows);
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const level = col >= 2 ? 1 : 0;
+        ground.ids[row * cols + col] = autotileId(TERRAIN_MATERIAL_SLOTS.herbe[level], 0);
+      }
+    }
+    const anchor = { col: 1, row: 2 };
+    for (const part of stairsTilePlacements("east", 0)) {
+      walls.ids[(anchor.row + part.row) * cols + anchor.col + part.col] = fixedId(part.fixedIndex);
+    }
+    const source: MapData = {
+      ...authored(),
+      cols,
+      rows,
+      layers: [ground, walls, emptyLayer(cols, rows)],
+      elements: [],
+      spawn: { col: 0, row: 0 },
+    };
+    expect(stairsFixedIndex("east", 0, "low")).toBe(2);
+    expect(compileAuthoredMap(source).ramps).toEqual([
+      { x: -1, z: -1, width: 1, depth: 2, direction: "east", lowLevel: 0 },
     ]);
   });
 });

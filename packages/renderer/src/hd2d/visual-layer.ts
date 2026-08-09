@@ -1,8 +1,10 @@
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type { PeasantCampVisual, WorldEventSnapshot } from "@lindocara/engine/protocol.js";
+import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import * as THREE from "three";
 import type { SceneSample } from "../scene-sample.js";
 import type { Hd2dScene } from "./scene.js";
@@ -34,6 +36,7 @@ export interface Hd2dEditorOverlay {
   colliders: readonly ColliderRect[];
   hover?: GroundVector | null;
   selection?: GroundVector | null;
+  stairsPreview?: { ramp: TerrainRamp; valid: boolean; levelHeight: number } | null;
 }
 
 function disposeObject(object: THREE.Object3D): void {
@@ -517,6 +520,15 @@ export class Hd2dVisualLayer {
     };
     if (overlay.hover) addCursor(overlay.hover, 0xffd66b, 1);
     if (overlay.selection) addCursor(overlay.selection, 0x57d6ff, 1.12);
+    if (overlay.stairsPreview) {
+      const preview = meshStairs([overlay.stairsPreview.ramp], {
+        levelHeight: overlay.stairsPreview.levelHeight,
+        color: overlay.stairsPreview.valid ? 0xffd66b : 0xe34d42,
+        opacity: 0.58,
+        lift: 0.03,
+      });
+      this.#editorRoot.add(preview.group);
+    }
   }
 
   update(now: number): void {

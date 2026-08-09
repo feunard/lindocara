@@ -10,7 +10,7 @@
 // `@lindocara/engine` in Task 11, alongside `terrain-query.ts`, which got there first.
 
 import type { ColliderRect } from "./collider-index.js";
-import type { TerrainMaterial, TerrainQuerySource } from "./terrain-query.js";
+import type { TerrainMaterial, TerrainQuerySource, TerrainRamp } from "./terrain-query.js";
 
 /** The five materials of `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
  *  enough to validate a string coming from the network, it vanishes at compile time. */
@@ -51,6 +51,8 @@ export interface MapData {
   levels: readonly (number | null)[];
   /** `size * size`. Meaningless wherever `levels` is `null`. */
   materials: readonly TerrainMaterial[];
+  /** Optional for backward compatibility with heightfields written before authored stairs. */
+  ramps?: readonly TerrainRamp[];
   colliders: readonly ColliderRect[];
   spawns: readonly { name: string; x: number; z: number }[];
   /** Decoration. Appearance only. */
@@ -149,6 +151,31 @@ function toEvent(value: unknown): HeightfieldEvent | null {
   return { id: value.id, x: value.x, z: value.z, graphicAssetId: value.graphicAssetId };
 }
 
+function toRamp(value: unknown): TerrainRamp | null {
+  if (
+    !isRecord(value) ||
+    !isFiniteNumber(value.x) ||
+    !isFiniteNumber(value.z) ||
+    !isFiniteNumber(value.width) ||
+    value.width <= 0 ||
+    !isFiniteNumber(value.depth) ||
+    value.depth <= 0 ||
+    (value.direction !== "east" && value.direction !== "west") ||
+    !Number.isSafeInteger(value.lowLevel) ||
+    (value.lowLevel as number) < 0
+  ) {
+    return null;
+  }
+  return {
+    x: value.x,
+    z: value.z,
+    width: value.width,
+    depth: value.depth,
+    direction: value.direction,
+    lowLevel: value.lowLevel as number,
+  };
+}
+
 /**
  * REALLY validates a map before making it usable: version, positive integer size, both grids at
  * exactly `size * size` entries, every material within the union, every number finite. The
@@ -181,6 +208,11 @@ export function decodeMap(s: string): MapData | null {
     if (!isTerrainMaterial(material)) return null;
   }
 
+  if (value.ramps !== undefined && !Array.isArray(value.ramps)) return null;
+  const rawRamps = Array.isArray(value.ramps) ? value.ramps : [];
+  const decodedRamps = rawRamps.map(toRamp);
+  if (decodedRamps.some((ramp) => ramp === null)) return null;
+
   if (!Array.isArray(colliders)) return null;
   const decodedColliders = colliders.map(toCollider);
   if (decodedColliders.some((c) => c === null)) return null;
@@ -209,6 +241,7 @@ export function decodeMap(s: string): MapData | null {
     waterLevel,
     levels: levels as (number | null)[],
     materials: materials as TerrainMaterial[],
+    ...(value.ramps === undefined ? {} : { ramps: decodedRamps as TerrainRamp[] }),
     colliders: decodedColliders as ColliderRect[],
     spawns: decodedSpawns as { name: string; x: number; z: number }[],
     elements: decodedElements as HeightfieldElement[],
@@ -236,5 +269,6 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
       if (m.levels[j * m.size + i] === null) return null;
       return m.materials[j * m.size + i] ?? null;
     },
+    ramps: m.ramps ?? [],
   };
 }

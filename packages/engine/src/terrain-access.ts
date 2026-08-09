@@ -150,11 +150,12 @@ export function canStand(
   if (surface === null) return false;
 
   const ceiling = standingCeiling(terrain, groundY);
+  const onRamp = terrain.query.rampAt(x, z) !== null;
   // The ground under the CENTRE decides where a foot lands, and it is a hard rule in `canEnter`
   // too: relax it and a body climbs a cliff by leaning into it.
-  if (surface > ceiling) return false;
+  if (surface > ceiling && !onRamp) return false;
   // Then the body's whole footprint, so a cliff stops it at its edge rather than at its middle.
-  if (terrain.query.maxHeightAround(x, z, radius) > ceiling) return false;
+  if (terrain.query.maxHeightAround(x, z, radius) > ceiling && !onRamp) return false;
 
   return !terrain.colliders.blocked(x, z, radius);
 }
@@ -202,6 +203,13 @@ export function canStandOrEscape(
   radius: number,
   groundY: number,
 ): boolean {
+  if (
+    terrain.query.canTraverseRamp(from.x, from.z, x, z, radius) &&
+    terrain.query.heightAt(x, z) !== null &&
+    !terrain.colliders.blocked(x, z, radius)
+  ) {
+    return true;
+  }
   if (canStand(terrain, x, z, radius, groundY)) return true;
   // Not stuck: an ordinary refusal, which is the whole point of collision.
   if (canStand(terrain, from.x, from.z, radius, groundY)) return false;

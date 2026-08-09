@@ -1,13 +1,13 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
+import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
 import type { RectFillContent } from "../../game/editor-state.js";
 
 const ELEVATION_LEVELS: (0 | 1 | 2 | 3)[] = [0, 1, 2, 3];
 const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["east", "west"];
-const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1];
+const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1, 2];
 const MATERIAL_OPTIONS: readonly TerrainMaterial[] = [
   "herbe",
   "sable",
@@ -119,9 +119,7 @@ export function TerrainPalette({
               }
               active={terrainActive && selectedMaterial === material}
               preview={<TerrainMaterialPreview material={material} level={selectedLevel} />}
-              onClick={() =>
-                onPickContent({ kind: "elevation", material, level: selectedLevel })
-              }
+              onClick={() => onPickContent({ kind: "elevation", material, level: selectedLevel })}
             />
           ))}
           <SwatchButton
@@ -140,8 +138,7 @@ export function TerrainPalette({
           </span>
           <div className="grid grid-cols-4 gap-1">
             {ELEVATION_LEVELS.map((level) => {
-              const active =
-                terrainActive && selectedMaterial !== null && selectedLevel === level;
+              const active = terrainActive && selectedMaterial !== null && selectedLevel === level;
               return (
                 <button
                   key={level}

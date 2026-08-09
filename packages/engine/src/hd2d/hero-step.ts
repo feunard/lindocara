@@ -50,6 +50,15 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const climb = world.levelHeight * hero.swim.climb;
   const maxStep = world.maxStep * world.levelHeight + 1e-3;
   const surfaceAt = (xx: number, zz: number) => query.heightAt(xx, zz) ?? world.waterLevel;
+  const footprintZ = empreinte(z, hero);
+  const currentFootprintZ = empreinte(state.z, hero);
+  const traversingRamp = query.canTraverseRamp(
+    state.x,
+    currentFootprintZ,
+    x,
+    footprintZ,
+    hero.radius,
+  );
 
   // Indoors, terrain relief and props no longer apply: the room is a plain rectangle, sitting
   // outside the terrain grid.
@@ -68,7 +77,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const centreOk = (xx: number, zz: number): boolean => {
     const h = surfaceAt(xx, empreinte(zz, hero));
     if (state.swimming) return h - world.waterLevel <= climb;
-    return state.airborne ? h <= state.y + 0.02 : h - state.groundY <= maxStep;
+    return state.airborne ? h <= state.y + 0.02 : traversingRamp || h - state.groundY <= maxStep;
   };
   if (!centreOk(x, z)) return false;
 
@@ -80,7 +89,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     : state.airborne
       ? state.y + 0.02
       : state.groundY + maxStep;
-  if (h > plafond) {
+  if (h > plafond && !traversingRamp) {
     // Already overlapping something too tall — the case right after falling at the foot of a
     // cliff, the disc still biting into the cell above. Without this escape hatch, NO movement at
     // all is allowed, not even to move away from it, and the hero stays cemented in place.

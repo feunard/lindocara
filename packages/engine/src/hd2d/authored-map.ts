@@ -14,11 +14,17 @@ import {
   elementWorldCollider,
 } from "../map-data.js";
 import type { MapEvent } from "../map-events.js";
+import {
+  type StairsDirection,
+  type StairsLowLevel,
+  stairsDescriptor,
+  stairsTilePlacements,
+} from "../tile-brush.js";
 import { TILE_SIZE } from "../tilemap.js";
-import { decodeTileId } from "../tileset.js";
+import { decodeTileId, fixedId } from "../tileset.js";
 import { elevationOfSlot, materialOfSlot } from "../tilesets/tiny-swords.js";
 import type { MapData } from "./map-data.js";
-import type { TerrainMaterial } from "./terrain-query.js";
+import type { TerrainMaterial, TerrainRamp } from "./terrain-query.js";
 
 export const AUTHORED_LEVEL_HEIGHT = 0.9;
 export const AUTHORED_WATER_LEVEL = -0.05;
@@ -42,6 +48,50 @@ function authoredLevel(id: number): number | null {
 function authoredMaterial(id: number): TerrainMaterial {
   const tile = decodeTileId(id);
   return tile.kind === "autotile" ? materialOfSlot(tile.slot) : "herbe";
+}
+
+/** The world-space ramp both committed stairs and the editor's pointer ghost use. */
+export function authoredStairsRamp(
+  col: number,
+  row: number,
+  size: number,
+  direction: StairsDirection,
+  lowLevel: StairsLowLevel,
+): TerrainRamp {
+  const parts = stairsTilePlacements(direction, lowLevel);
+  const minCol = Math.min(...parts.map((part) => col + part.col));
+  const maxCol = Math.max(...parts.map((part) => col + part.col));
+  const minRow = Math.min(...parts.map((part) => row + part.row));
+  const maxRow = Math.max(...parts.map((part) => row + part.row));
+  return {
+    x: minCol - size / 2,
+    z: minRow - size / 2,
+    width: maxCol - minCol + 1,
+    depth: maxRow - minRow + 1,
+    direction,
+    lowLevel,
+  };
+}
+
+function authoredRamps(authored: AuthoredMapData, size: number): TerrainRamp[] {
+  const walls = authored.layers[1];
+  if (!walls) return [];
+  const ramps: TerrainRamp[] = [];
+  for (let row = 0; row < authored.rows; row += 1) {
+    for (let col = 0; col < authored.cols; col += 1) {
+      const ref = decodeTileId(walls.ids[row * authored.cols + col] ?? 0);
+      if (ref.kind !== "fixed") continue;
+      const descriptor = stairsDescriptor(ref.index);
+      if (descriptor?.part !== "low") continue;
+      const complete = stairsTilePlacements(descriptor.direction, descriptor.lowLevel).every(
+        (part) =>
+          walls.ids[(row + part.row) * authored.cols + col + part.col] === fixedId(part.fixedIndex),
+      );
+      if (!complete) continue;
+      ramps.push(authoredStairsRamp(col, row, size, descriptor.direction, descriptor.lowLevel));
+    }
+  }
+  return ramps;
 }
 
 /** Compile one validated editor map and its full authored event documents into heightfield bytes. */
@@ -93,6 +143,7 @@ export function compileAuthoredMap(
     waterLevel: AUTHORED_WATER_LEVEL,
     levels,
     materials,
+    ramps: authoredRamps(authored, size),
     colliders,
     spawns: [
       {

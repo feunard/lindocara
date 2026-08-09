@@ -7,7 +7,7 @@
  */
 
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
-import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { authoredStairsRamp, compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
@@ -35,6 +35,7 @@ import {
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
+  placementLegalAt,
   redoEditorHistory,
   selectionAtMode,
   setActiveMode,
@@ -197,6 +198,14 @@ export function openMapEditorStage(
             }
           : null,
         selection: focusSelection,
+        stairsPreview:
+          hover && tool.kind === "stairs"
+            ? {
+                ramp: authoredStairsRamp(hover.col, hover.row, size, tool.direction, tool.lowLevel),
+                valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
+                levelHeight: heightfield.levelHeight,
+              }
+            : null,
       });
     };
 
@@ -467,6 +476,7 @@ export function openMapEditorStage(
         tool = next;
         canvas.dataset.cursor =
           tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
+        drawOverlay();
       },
       setActiveMode(mode) {
         history = setActiveMode(history, mode);

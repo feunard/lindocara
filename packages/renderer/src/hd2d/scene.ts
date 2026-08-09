@@ -38,6 +38,7 @@ import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { createFoam, FOAM_SPREAD } from "@lindocara/hd2d/terrain/foam.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
 import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
+import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
@@ -270,6 +271,8 @@ export function createHd2dScene(
 
   const terrain = terrainGroupFor(ctx, map, terrainAtlases(textures));
   scene.add(terrain.group);
+  const stairs = meshStairs(map.ramps ?? [], { levelHeight: map.levelHeight });
+  scene.add(stairs.group);
 
   // A plane three times wider than the grid: enough that the sea loses itself in the fog before its
   // own edge does, at every zoom.
@@ -519,6 +522,7 @@ export function createHd2dScene(
      */
     dispose(): void {
       terrain.dispose();
+      stairs.dispose();
       water.dispose();
       foam.dispose();
       sky.dispose();

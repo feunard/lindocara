@@ -2,6 +2,7 @@ import {
   createTerrainQuery,
   type TerrainMaterial,
   type TerrainQuery,
+  type TerrainRamp,
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import { describe, expect, it } from "vitest";
 
@@ -14,7 +15,7 @@ import { describe, expect, it } from "vitest";
  */
 function makeQuery(
   levels: readonly (number | null)[][],
-  opts: { levelHeight?: number; waterLevel?: number } = {},
+  opts: { levelHeight?: number; waterLevel?: number; ramps?: readonly TerrainRamp[] } = {},
 ): TerrainQuery {
   const size = levels.length;
   const at = (i: number, j: number): number | null => {
@@ -32,6 +33,7 @@ function makeQuery(
     waterLevel: opts.waterLevel ?? -1,
     at,
     kindAt,
+    ramps: opts.ramps,
   });
 }
 
@@ -187,6 +189,32 @@ describe("maxHeightAround", () => {
     ];
     const q = makeQuery(levels, { levelHeight: 1, waterLevel: -0.5 });
     expect(q.maxHeightAround(0, 0, 0)).toBe(-0.5);
+  });
+});
+
+describe("authored stair ramps", () => {
+  const ramp: TerrainRamp = {
+    x: -1,
+    z: -1,
+    width: 1,
+    depth: 2,
+    direction: "east",
+    lowLevel: 1,
+  };
+  const levels = Array.from({ length: 4 }, () => [1, 1, 2, 2]);
+  const query = makeQuery(levels, { levelHeight: 0.9, ramps: [ramp] });
+
+  it("samples a continuous low-to-high slope over the authored footprint", () => {
+    expect(query.heightAt(-1, 0)).toBeCloseTo(0.9);
+    expect(query.heightAt(-0.5, 0)).toBeCloseTo(1.35);
+    expect(query.heightAt(0, 0)).toBeCloseTo(1.8);
+  });
+
+  it("accepts the corridor and both endpoints but rejects leaving through a side", () => {
+    expect(query.canTraverseRamp(-1.05, 0, -0.95, 0, 0.2)).toBe(true);
+    expect(query.canTraverseRamp(-0.6, 0, -0.4, 0, 0.2)).toBe(true);
+    expect(query.canTraverseRamp(-0.05, 0, 0.05, 0, 0.2)).toBe(true);
+    expect(query.canTraverseRamp(-0.5, 0.85, -0.5, 1.05, 0.2)).toBe(false);
   });
 });
 

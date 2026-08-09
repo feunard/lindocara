@@ -69,9 +69,9 @@ import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
 import { autotileId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
-  terrainSlot,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
+  terrainSlot,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 

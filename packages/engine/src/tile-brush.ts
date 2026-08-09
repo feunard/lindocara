@@ -24,6 +24,7 @@ import {
   CLIFF_WATER_SLOT,
   elevationOfSlot,
   RAMP_FIXED_TILE_COUNT,
+  RAMP_LEVEL_3_FIXED_BASE,
   terrainSlot,
 } from "./tilesets/tiny-swords.js";
 
@@ -406,7 +407,7 @@ function ambientCliffAutotile(slot: number): boolean {
 
 export const STAIRS_DIRECTIONS = ["east", "west"] as const;
 export type StairsDirection = (typeof STAIRS_DIRECTIONS)[number];
-export type StairsLowLevel = 0 | 1;
+export type StairsLowLevel = 0 | 1 | 2;
 
 export type StairsPart = "high" | "low";
 
@@ -427,6 +428,11 @@ export function stairsFixedIndex(
   lowLevel: StairsLowLevel,
   part: StairsPart,
 ): number {
+  if (lowLevel === 2) {
+    return (
+      RAMP_LEVEL_3_FIXED_BASE + STAIRS_DIRECTIONS.indexOf(direction) * 2 + (part === "low" ? 1 : 0)
+    );
+  }
   return STAIRS_DIRECTIONS.indexOf(direction) * 4 + (part === "low" ? 2 : 0) + lowLevel;
 }
 
@@ -464,7 +470,14 @@ export interface StairsDescriptor {
 
 /** Decode one stair half from the stable eight-id side-ramp band. */
 export function stairsDescriptor(index: number): StairsDescriptor | null {
-  if (!Number.isInteger(index) || index < 0 || index >= RAMP_FIXED_TILE_COUNT) return null;
+  if (!Number.isInteger(index) || index < 0) return null;
+  if (index >= RAMP_LEVEL_3_FIXED_BASE && index < RAMP_LEVEL_3_FIXED_BASE + 4) {
+    const offset = index - RAMP_LEVEL_3_FIXED_BASE;
+    const direction = STAIRS_DIRECTIONS[Math.floor(offset / 2)];
+    if (!direction) return null;
+    return { direction, lowLevel: 2, part: offset % 2 === 0 ? "high" : "low" };
+  }
+  if (index >= RAMP_FIXED_TILE_COUNT) return null;
   const direction = STAIRS_DIRECTIONS[Math.floor(index / 4)];
   if (!direction) return null;
   return {
@@ -654,7 +667,9 @@ export function paintStairs(
 ): TileLayer[] {
   const ground = layers[0];
   const walls = layers[1];
-  if (!ground || !walls || (lowLevel !== 0 && lowLevel !== 1)) return layers as TileLayer[];
+  if (!ground || !walls || (lowLevel !== 0 && lowLevel !== 1 && lowLevel !== 2)) {
+    return layers as TileLayer[];
+  }
   if (STAIRS_HIGH_SIDE_OFFSET[direction] === undefined || !inBounds(walls, col, row)) {
     return layers as TileLayer[];
   }

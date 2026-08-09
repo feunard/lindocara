@@ -74,7 +74,7 @@ function highCellFor(direction: StairsDirection): { col: number; row: number } {
 }
 
 /** Low terrain beside a straight two-cell cliff edge, matching the native side-ramp composition. */
-function fieldForDirection(direction: StairsDirection, lowLevel: 0 | 1 = 0): TileLayer[] {
+function fieldForDirection(direction: StairsDirection, lowLevel: 0 | 1 | 2 = 0): TileLayer[] {
   let layers = blank();
   for (let row = 0; row < ROWS; row += 1) {
     for (let col = 0; col < COLS; col += 1) {
@@ -183,6 +183,29 @@ describe("the official two-cell stairs stamp", () => {
         kind: "fixed",
         index: fixedIndex,
       });
+    }
+  });
+
+  it("appends a complete 2↔3 transition without moving the historical ids", () => {
+    const stamped = paintStairs(
+      fieldForDirection("east", 2),
+      set,
+      anchor.col,
+      anchor.row,
+      "east",
+      2,
+    );
+    expect(stairsFixedIndex("east", 0, "high")).toBe(0);
+    expect(stairsFixedIndex("west", 1, "low")).toBe(7);
+    for (const part of ["high", "low"] as const) {
+      const fixedIndex = stairsFixedIndex("east", 2, part);
+      expect(fixedIndex).toBe(part === "high" ? 16 : 17);
+      const cell = partCell("east", part);
+      expect(decodeTileId(idAt(layerAt(stamped, 1), cell.col, cell.row))).toEqual({
+        kind: "fixed",
+        index: fixedIndex,
+      });
+      expect(set.fixed[fixedIndex]?.renderLevel).toBe(3);
     }
   });
 

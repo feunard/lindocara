@@ -10,6 +10,25 @@
  *  it its own cracked-ice visual — see `main.ts`, `atlases`. */
 export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace" | "glace-fine";
 
+/** A two-cell authored staircase. Its rectangle covers the low bank; `direction` names the edge
+ * that meets the immediately higher plateau. Collision samples it as a continuous slope while the
+ * renderer turns the same rectangle into discrete visible steps. */
+export interface TerrainRamp {
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+  direction: "east" | "west";
+  lowLevel: number;
+}
+
+export interface TerrainRampSample extends TerrainRamp {
+  height: number;
+  progress: number;
+  lowHeight: number;
+  highHeight: number;
+}
+
 export interface TerrainQuery {
   /** World height of the ground under a point, or `null` if it is water / off the map. */
   heightAt(wx: number, wz: number): number | null;
@@ -25,6 +44,10 @@ export interface TerrainQuery {
   levelAt(wx: number, wz: number): number | null;
   /** Ground material under a point, or `null` if it is water / off the map. */
   kindAt(wx: number, wz: number): TerrainMaterial | null;
+  /** Stair slope under a point, if any. */
+  rampAt(wx: number, wz: number): TerrainRampSample | null;
+  /** Whether one grounded movement segment follows a stair corridor or crosses one endpoint. */
+  canTraverseRamp(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): boolean;
   /** World center of a cell. */
   cellCenter(i: number, j: number): [number, number];
 }
@@ -43,7 +66,41 @@ export interface TerrainQuerySource {
   at(i: number, j: number): number | null;
   /** Material of cell (i, j), or `null` off-grid / water. */
   kindAt(i: number, j: number): TerrainMaterial | null;
+  ramps?: readonly TerrainRamp[];
 }
+
+function rampSampleAt(
+  ramps: readonly TerrainRamp[],
+  levelHeight: number,
+  wx: number,
+  wz: number,
+): TerrainRampSample | null {
+  const epsilon = 1e-6;
+  for (const ramp of ramps) {
+    if (
+      wx < ramp.x - epsilon ||
+      wx > ramp.x + ramp.width + epsilon ||
+      wz < ramp.z - epsilon ||
+      wz > ramp.z + ramp.depth + epsilon
+    ) {
+      continue;
+    }
+    const along = THREELESS_CLAMP((wx - ramp.x) / ramp.width);
+    const progress = ramp.direction === "east" ? along : 1 - along;
+    const lowHeight = ramp.lowLevel * levelHeight;
+    const highHeight = (ramp.lowLevel + 1) * levelHeight;
+    return {
+      ...ramp,
+      progress,
+      lowHeight,
+      highHeight,
+      height: lowHeight + progress * levelHeight,
+    };
+  }
+  return null;
+}
+
+const THREELESS_CLAMP = (value: number): number => Math.max(0, Math.min(1, value));
 
 /**
  * Port of the query methods from the PoC's `terrain.js` (`heightAt`, `maxHeightAround`,
@@ -51,12 +108,14 @@ export interface TerrainQuerySource {
  * the cell-indexed accessors, this function only converts them into WORLD-coordinate queries.
  */
 export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
-  const { size, levelHeight, waterLevel, at, kindAt } = source;
+  const { size, levelHeight, waterLevel, at, kindAt, ramps = [] } = source;
   const c = size / 2;
   const toCell = (w: number) => Math.floor(w + c);
 
   return {
     heightAt(wx, wz) {
+      const ramp = rampSampleAt(ramps, levelHeight, wx, wz);
+      if (ramp) return ramp.height;
       const h = at(toCell(wx), toCell(wz));
       return h === null ? null : h * levelHeight;
     },
@@ -85,6 +144,31 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     },
     kindAt(wx, wz) {
       return kindAt(toCell(wx), toCell(wz));
+    },
+    rampAt(wx, wz) {
+      return rampSampleAt(ramps, levelHeight, wx, wz);
+    },
+    canTraverseRamp(fromX, fromZ, toX, toZ, radius) {
+      const from = rampSampleAt(ramps, levelHeight, fromX, fromZ);
+      const to = rampSampleAt(ramps, levelHeight, toX, toZ);
+      const ramp = to ?? from;
+      if (!ramp) return false;
+      const corridorMin = ramp.z + radius;
+      const corridorMax = ramp.z + ramp.depth - radius;
+      if (fromZ < corridorMin || fromZ > corridorMax || toZ < corridorMin || toZ > corridorMax) {
+        return false;
+      }
+      if (from && to && from.x === to.x && from.z === to.z) return true;
+      const lowEdge = ramp.direction === "east" ? ramp.x : ramp.x + ramp.width;
+      const highEdge = ramp.direction === "east" ? ramp.x + ramp.width : ramp.x;
+      const near = Math.max(0.08, radius);
+      if (to && !from) {
+        return Math.abs(fromX - lowEdge) <= near || Math.abs(fromX - highEdge) <= near;
+      }
+      if (from && !to) {
+        return Math.abs(toX - lowEdge) <= near || Math.abs(toX - highEdge) <= near;
+      }
+      return false;
     },
     cellCenter(i, j) {
       return [i + 0.5 - c, j + 0.5 - c];

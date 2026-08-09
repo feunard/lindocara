@@ -95,7 +95,10 @@ export function pipelineViewport(input: PipelineViewportInput): {
     Number.isFinite(value) && value > 0 ? value : null;
   return {
     width: Math.max(1, Math.round(finitePositive(input.clientWidth) ?? input.fallbackWidth ?? 1)),
-    height: Math.max(1, Math.round(finitePositive(input.clientHeight) ?? input.fallbackHeight ?? 1)),
+    height: Math.max(
+      1,
+      Math.round(finitePositive(input.clientHeight) ?? input.fallbackHeight ?? 1),
+    ),
     pixelRatio: Math.min(2, Math.max(1, finitePositive(input.devicePixelRatio) ?? 1)),
   };
 }

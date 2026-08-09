@@ -78,10 +78,15 @@ const RAMP_GROUPS = [
 const RAMP_PARTS = [{ row: 4 }, { row: 5 }] as const;
 const RAMP_LEVELS = [0, 1] as const;
 export const RAMP_FIXED_TILE_COUNT = RAMP_PARTS.length * RAMP_LEVELS.length * RAMP_GROUPS.length;
+export const RAMP_LEVEL_3_FIXED_BASE = 16;
 
 /** Stored fixed ids in this stable leading band are passable staircase cells. */
 export function isRampFixedIndex(index: number): boolean {
-  return Number.isSafeInteger(index) && index >= 0 && index < RAMP_FIXED_TILE_COUNT;
+  return (
+    Number.isSafeInteger(index) &&
+    ((index >= 0 && index < RAMP_FIXED_TILE_COUNT) ||
+      (index >= RAMP_LEVEL_3_FIXED_BASE && index < RAMP_LEVEL_3_FIXED_BASE + 4))
+  );
 }
 
 /** A middle cliff-face cell repeated along an edge. The source faces south (high ground north);
@@ -236,6 +241,19 @@ export const TINY_SWORDS_TILESET: Tileset = {
         rotationQuarterTurns,
         // Every blocking elevation boundary must stay visible. Hiding the side/back rotations left
         // a full authored cell of apparently empty ground that collision correctly refused.
+      })),
+    ),
+    // Appended after the stable cliff band: east high/low, then west high/low, for 2↔3 stairs.
+    ...RAMP_GROUPS.flatMap((group) =>
+      RAMP_PARTS.map((part) => ({
+        atlas: ATLAS,
+        col: group.sourceCol,
+        row: part.row,
+        passable: true,
+        priority: "below" as const,
+        renderLevel: 3 as const,
+        tint: RAISED_2_TINT,
+        rotationQuarterTurns: group.rotationQuarterTurns,
       })),
     ),
   ],

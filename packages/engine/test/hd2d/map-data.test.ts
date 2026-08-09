@@ -30,6 +30,7 @@ const map: MapData = {
     "herbe",
     "herbe",
   ],
+  ramps: [{ x: -1, z: -1, width: 1, depth: 2, direction: "east", lowLevel: 0 }],
   colliders: [{ x: 1, z: 1, w: 0.4, h: 0.4 }],
   spawns: [{ name: "depart", x: 0, z: 0 }],
   elements: [{ assetId: "tree_01", x: 2, z: 2 }],
@@ -66,6 +67,14 @@ describe("the map codec", () => {
 
     const spawnWithoutName = { ...map, spawns: [{ name: 42, x: 0, z: 0 }] };
     expect(decodeMap(JSON.stringify(spawnWithoutName))).toBeNull();
+  });
+
+  it("keeps pre-stairs heightfields backward compatible and rejects malformed ramps", () => {
+    const { ramps: _ramps, ...legacy } = map;
+    expect(decodeMap(JSON.stringify(legacy))).toEqual(legacy);
+    expect(
+      decodeMap(JSON.stringify({ ...map, ramps: [{ ...map.ramps?.[0], direction: "north" }] })),
+    ).toBeNull();
   });
 
   it("rejects a zero or fractional size", () => {
