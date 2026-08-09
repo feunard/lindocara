@@ -1,7 +1,4 @@
-import {
-  npcMovementDurationMs,
-  sampleNpcMovementTween,
-} from "@lindocara/engine/event-movement.js";
+import { npcMovementDurationMs, sampleNpcMovementTween } from "@lindocara/engine/event-movement.js";
 import type { WorldEventSnapshot } from "@lindocara/engine/protocol.js";
 
 interface EventMotionState {

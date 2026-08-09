@@ -1,12 +1,8 @@
-import { NPC_MODEL_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import { NPC_MODEL_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 import { TINY_SWORDS_ENEMIES } from "../src/enemy-art.js";
-import {
-  authoredActorSheet,
-  guardSheet,
-  monsterActorSheet,
-} from "../src/hd2d/game-renderer.js";
+import { authoredActorSheet, guardSheet, monsterActorSheet } from "../src/hd2d/game-renderer.js";
 import { tinySwordsSourceUrl } from "../src/tiny-swords-assets.js";
 
 describe("authored HD-2D actor art", () => {
