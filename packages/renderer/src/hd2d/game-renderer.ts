@@ -37,6 +37,7 @@ import {
   EDITOR_ASSETS,
   editorAsset,
   guardPrimaryColorForAsset,
+  NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
@@ -96,8 +97,55 @@ export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): U
  *  authored monster, and preloading a set that only the running adventure knows is a later piece.
  *  The species is the authoritative combat model, so it is never a wrong answer, only a plainer
  *  one — the deleted PixiJS path drew the authored art on top of the same species model. */
-export function monsterActorSheet(species: MonsterSpecies, motion: ActorMotion) {
-  return TINY_SWORDS_ENEMIES[species][motion];
+export interface BillboardActorSheet {
+  source: string;
+  frames: number;
+  frameWidth?: number;
+  frameHeight?: number;
+  footOffset?: number;
+  axis?: "x" | "y";
+}
+
+const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
+
+export function authoredActorSheet(
+  graphicAssetId: string | null | undefined,
+  motion: ActorMotion,
+): BillboardActorSheet | null {
+  if (!graphicAssetId || !NPC_MODEL_ASSET_IDS.has(graphicAssetId)) return null;
+  const asset = editorAsset(graphicAssetId);
+  if (!asset) return null;
+  const selected = motion === "run" && asset.motions?.run ? asset.motions.run : asset;
+  if (!selected.frame) return null;
+  return {
+    source: tinySwordsSourceUrl(selected.sourcePath),
+    frames: selected.frame.count,
+    frameWidth: selected.frame.width,
+    frameHeight: selected.frame.height,
+    footOffset: asset.footOffset,
+    axis: selected.frame.axis,
+  };
+}
+
+export function monsterActorSheet(
+  species: MonsterSpecies,
+  motion: ActorMotion,
+  graphicAssetId?: string | null,
+): BillboardActorSheet {
+  return authoredActorSheet(graphicAssetId, motion) ?? TINY_SWORDS_ENEMIES[species][motion];
+}
+
+function actorSheetView(sheet: BillboardActorSheet) {
+  return {
+    textureKey: sheet.source,
+    frames: sheet.frames,
+    ...(sheet.frameWidth === undefined ? {} : { frameWidth: sheet.frameWidth }),
+    ...(sheet.frameHeight === undefined ? {} : { frameHeight: sheet.frameHeight }),
+    frameAxis: sheet.axis ?? ("x" as const),
+    ...(sheet.footOffset === undefined || sheet.frameHeight === undefined
+      ? {}
+      : { foot: sheet.footOffset / sheet.frameHeight }),
+  };
 }
 
 /**
@@ -154,8 +202,7 @@ export function playerActorView(
     vy: player.vy ?? 0,
     canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
     facing: facingOf(player.facing),
-    textureKey: sheet.source,
-    foot: sheet.footOffset / sheet.frameHeight,
+    ...actorSheetView(sheet),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
     animationLoop: motion !== "attack",
@@ -185,6 +232,10 @@ function guardSheet(guard: GuardSnapshot, motion: ActorMotion): UnitSheet {
 export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
   ...new Set([
     ...allUnitSheets().map((sheet) => sheet.source),
+    ...NPC_MODEL_ASSETS.flatMap((asset) => [
+      tinySwordsSourceUrl(asset.sourcePath),
+      ...(asset.motions?.run ? [tinySwordsSourceUrl(asset.motions.run.sourcePath)] : []),
+    ]),
     ...Object.values(TINY_SWORDS_ENEMIES).flatMap((art) => [
       art.idle.source,
       art.run.source,
@@ -894,7 +945,11 @@ export class Hd2dRenderer implements RendererLike {
       const timing = monster.action
         ? this.#actorAnimationTiming(monster.action, animationTimeMs)
         : null;
-      const sheet = monsterActorSheet(monster.species, monster.dead ? "idle" : motion.motion);
+      const sheet = monsterActorSheet(
+        monster.species,
+        monster.dead ? "idle" : motion.motion,
+        monster.graphicAssetId,
+      );
       views.push({
         id: monster.id,
         kind: monster.dead ? "corpse" : "monster",
@@ -904,7 +959,7 @@ export class Hd2dRenderer implements RendererLike {
         ...GROUNDED,
         vy: 0,
         facing: facingOf(monster.facing),
-        textureKey: sheet.source,
+        ...actorSheetView(sheet),
         animationTimeMs: timing?.elapsed ?? animationTimeMs,
         ...(timing ? { animationDurationMs: timing.duration } : {}),
         animationLoop: motion.motion !== "attack",
@@ -937,8 +992,7 @@ export class Hd2dRenderer implements RendererLike {
         // A guard carries no facing on the wire. `"north"` is `facingToFlip`'s no-op, so it keeps
         // whichever profile the guard already had rather than snapping it east every frame.
         facing: motion.direction ? facingOf(motion.direction) : "north",
-        textureKey: sheet.source,
-        foot: sheet.footOffset / sheet.frameHeight,
+        ...actorSheetView(sheet),
         animationTimeMs,
         animationLoop: true,
       });
@@ -956,8 +1010,7 @@ export class Hd2dRenderer implements RendererLike {
         ...GROUNDED,
         vy: 0,
         facing: "north",
-        textureKey: sheet.source,
-        foot: sheet.footOffset / sheet.frameHeight,
+        ...actorSheetView(sheet),
         pose: "fallen",
       });
     }

@@ -64,6 +64,11 @@ export interface ActorView {
   facing: Facing;
   /** A url in the `TextureRegistry` the registry was built with. */
   textureKey: string;
+  /** Authored sheets can run vertically and need not use square frames. */
+  frames?: number;
+  frameWidth?: number;
+  frameHeight?: number;
+  frameAxis?: "x" | "y";
   /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
   foot?: number;
   pose?: "standing" | "fallen" | "ghost";
@@ -159,7 +164,7 @@ interface Entry {
    *  keeping the old sheet forever. */
   textureKey: string;
   canopyTextureKey: string | undefined;
-  cols: number;
+  frames: number;
 }
 
 export const GLIDER_HEIGHT = 2.45;
@@ -181,16 +186,22 @@ export function createBillboardRegistry(
 
   function create(actor: ActorView): Entry {
     const texture = textures.get(actor.textureKey);
-    const { cols, framePx } = sheetOf(texture);
+    const inferred = sheetOf(texture);
+    const frames = Math.max(1, actor.frames ?? inferred.cols);
+    const frameWidth = actor.frameWidth ?? inferred.framePx;
+    const frameHeight = actor.frameHeight ?? inferred.framePx;
+    const vertical = actor.frameAxis === "y";
+    const cols = vertical ? 1 : frames;
+    const rows = vertical ? frames : 1;
     const billboard = makeBillboard(ctx, {
       texture,
       cols,
-      rows: 1,
+      rows,
       // The pack's own scale system, and the same one the deleted PixiJS path drew with: a frame is worth
       // its native pixels at 64 to the tile, so a 192px goblin and a 384px troll stay in proportion
       // with each other and with the heroes rather than each being scaled to taste.
-      height: framePx / TILE_SIZE,
-      aspect: 1,
+      height: frameHeight / TILE_SIZE,
+      aspect: frameWidth / frameHeight,
       foot: actor.foot ?? ACTOR_FOOT[actor.kind],
       pitch: HD2D_CAMERA.pitch,
     });
@@ -200,7 +211,7 @@ export function createBillboardRegistry(
       canopy: null,
       textureKey: actor.textureKey,
       canopyTextureKey: actor.canopyTextureKey,
-      cols,
+      frames,
     };
   }
 
@@ -252,9 +263,9 @@ export function createBillboardRegistry(
         const animatedFrame =
           duration && duration > 0
             ? actor.animationLoop === false
-              ? Math.min(entry.cols - 1, Math.floor((elapsed / duration) * entry.cols))
-              : Math.floor((elapsed / duration) * entry.cols) % entry.cols
-            : Math.floor(elapsed / 145) % entry.cols;
+              ? Math.min(entry.frames - 1, Math.floor((elapsed / duration) * entry.frames))
+              : Math.floor((elapsed / duration) * entry.frames) % entry.frames
+            : Math.floor(elapsed / 145) % entry.frames;
         entry.billboard.setFrame(fallen ? 0 : animatedFrame);
         const material = entry.billboard.mesh.material;
         const materials = Array.isArray(material) ? material : [material];
