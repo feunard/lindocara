@@ -142,6 +142,7 @@ export function openMapEditorStage(
     if (!canvas) throw new Error("The HD-2D editor requires the #stage canvas");
 
     const renderer = await Hd2dRenderer.create(canvas);
+    renderer.setTiltShiftEnabled(false);
     let history = createEditorHistory(initial);
     let map = initial;
     let tool: EditorTool = { kind: "select" };

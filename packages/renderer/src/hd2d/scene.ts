@@ -244,6 +244,8 @@ export interface Hd2dScene {
   focusOn(x: number, z: number): void;
   /** Sets the diorama zoom as a percentage. 100 is the gameplay camera. */
   setZoom(percent: number): void;
+  /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
+  setTiltShiftEnabled(enabled: boolean): void;
   resize(): void;
   dispose(): void;
   ctx: Hd2dContext;
@@ -469,6 +471,9 @@ export function createHd2dScene(
       const safePercent = THREE.MathUtils.clamp(percent, 2, 250);
       cameraDistance = (CAMERA.distance * 100) / safePercent;
       frameCamera();
+    },
+    setTiltShiftEnabled(enabled: boolean): void {
+      pipeline.setTiltShiftEnabled(enabled);
     },
     render(now: number): void {
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);

@@ -51,6 +51,7 @@ export interface Pipeline {
   render(): void;
   resize(): void;
   setTiltShiftZoom(k: number): void;
+  setTiltShiftEnabled(enabled: boolean): void;
   setFocusY(y: number): void;
   /**
    * Pousse une ambiance dans la passe d'étalonnage. Sort `grade: ShaderPass` du package évitait
@@ -244,6 +245,12 @@ export function createPipeline(
     for (const p of [blurH, blurV]) tiltShiftUniforms(p).uRadius.value = r;
   }
 
+  /** Creator tooling needs every authored cell sharp; gameplay keeps the diorama signature. */
+  function setTiltShiftEnabled(enabled: boolean) {
+    blurH.enabled = enabled;
+    blurV.enabled = enabled;
+  }
+
   /**
    * Le PoC laissait `main.js` fouiller `composer.passes` à chaque frame en cherchant un
    * uniforme `uFocusY` — le pipeline tient déjà ses deux passes de flou, il n'y a aucune
@@ -303,6 +310,7 @@ export function createPipeline(
     render,
     resize,
     setTiltShiftZoom,
+    setTiltShiftEnabled,
     setFocusY,
     setGrade,
     dispose,

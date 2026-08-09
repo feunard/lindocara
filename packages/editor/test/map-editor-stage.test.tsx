@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => {
     setCameraFocus: vi.fn(),
     setCameraZoom: vi.fn(),
     setEditorOverlay: vi.fn(),
+    setTiltShiftEnabled: vi.fn(),
   };
   return {
     renderer,
@@ -32,6 +33,9 @@ describe("HD-2D map editor stage", () => {
   it("uses the compiled authored map as its render document", async () => {
     const map = blankMap("Map", 20, 15);
     const stage = await openMapEditorStage(map, vi.fn());
+
+    expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledOnce();
+    expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledWith(false);
 
     expect(mock.renderer.configureMapTerrain).toHaveBeenCalledWith(
       "editor",

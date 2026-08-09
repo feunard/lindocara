@@ -327,6 +327,7 @@ export class Hd2dRenderer implements RendererLike {
   #actorViews: ActorView[] = [];
   #selfId: string | null = null;
   #manualFocus: GroundVector | null = null;
+  #tiltShiftEnabled = true;
   #cameraZoom = 100;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
@@ -417,6 +418,7 @@ export class Hd2dRenderer implements RendererLike {
     const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
     this.#scene = scene;
     scene.setZoom(this.#cameraZoom);
+    scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
     if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     this.#map = heightfield;
     this.#visuals = new Hd2dVisualLayer(scene, this.#canvas, heightfield.size);
@@ -962,6 +964,12 @@ export class Hd2dRenderer implements RendererLike {
   setCameraZoom(percent: number): void {
     this.#cameraZoom = percent;
     this.#scene?.setZoom(percent);
+  }
+
+  /** Keeps gameplay's tilt-shift by default while allowing the authoring stage to stay crisp. */
+  setTiltShiftEnabled(enabled: boolean): void {
+    this.#tiltShiftEnabled = enabled;
+    this.#scene?.setTiltShiftEnabled(enabled);
   }
 
   /** Draws creator-only grid/collision/selection guides in the real HD-2D scene. */
