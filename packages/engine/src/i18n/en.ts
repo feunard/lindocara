@@ -1195,6 +1195,7 @@ export const en = {
   "editor.palette.category.atmosphere": "Clouds and atmosphere",
   "editor.palette.category.bridges": "Bridges",
   "editor.palette.category.buildings": "Buildings",
+  "editor.palette.category.camp-and-treasure": "Camp and treasure",
   "editor.palette.category.farm-and-village": "Farm and village",
   "editor.palette.category.resources": "Resources",
   "editor.palette.category.rocks": "Rocks",

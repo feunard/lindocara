@@ -1,5 +1,9 @@
 import { blankMap } from "@lindocara/editor/game/editor-state.js";
-import { defaultDimForMode, openMapEditorStage } from "@lindocara/editor/game/map-editor-stage.js";
+import {
+  defaultDimForMode,
+  editorToolPreviewAssetId,
+  openMapEditorStage,
+} from "@lindocara/editor/game/map-editor-stage.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -148,5 +152,11 @@ describe("editor mode emphasis", () => {
     expect(defaultDimForMode("field")).toBe(false);
     expect(defaultDimForMode("element")).toBe(true);
     expect(defaultDimForMode("event")).toBe(true);
+  });
+
+  it("previews the closed chest asset for the default chest event", () => {
+    expect(editorToolPreviewAssetId({ kind: "event", eventKind: "normal", preset: "chest" })).toBe(
+      "resource.lindocara-lab.chest-closed",
+    );
   });
 });

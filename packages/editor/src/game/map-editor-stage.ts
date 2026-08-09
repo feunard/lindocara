@@ -12,7 +12,11 @@ import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
-import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  type EditorAssetId,
+  editorAsset,
+  LINDOCARA_CHEST_CLOSED_ASSET_ID,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { authoredSkyAltitude } from "@lindocara/renderer/hd2d/static-content.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
@@ -90,7 +94,12 @@ export function defaultDimForMode(mode: EditorMode): boolean {
 
 export function editorToolPreviewAssetId(tool: EditorTool): EditorAssetId | null {
   if (tool.kind === "element") return tool.assetId;
-  if (tool.kind === "event") return tool.graphic ?? null;
+  if (tool.kind === "event") {
+    if (tool.graphic) return tool.graphic;
+    if (tool.eventKind === "normal" && tool.preset === "chest") {
+      return LINDOCARA_CHEST_CLOSED_ASSET_ID;
+    }
+  }
   return null;
 }
 

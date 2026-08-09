@@ -1209,6 +1209,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.palette.category.atmosphere": "Nuages et atmosphère",
   "editor.palette.category.bridges": "Ponts",
   "editor.palette.category.buildings": "Bâtiments",
+  "editor.palette.category.camp-and-treasure": "Camp et trésors",
   "editor.palette.category.farm-and-village": "Ferme et village",
   "editor.palette.category.resources": "Ressources",
   "editor.palette.category.rocks": "Rochers",
