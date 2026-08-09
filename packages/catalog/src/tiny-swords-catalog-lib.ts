@@ -927,6 +927,34 @@ function runMotion(
   };
 }
 
+function attackMotion(
+  catalog: TinySwordsCatalogFile,
+  entry: TinySwordsCatalogEntry,
+): NonNullable<EditorAssetDefinition["motions"]>["attack"] | undefined {
+  if ((entry.domain !== "character" && entry.domain !== "enemy") || !/idle/i.test(entry.sourcePath))
+    return undefined;
+  const slash = entry.sourcePath.lastIndexOf("/");
+  const directory = entry.sourcePath.slice(0, slash + 1);
+  const idleName = entry.sourcePath.slice(slash + 1);
+  const stem = idleName.replace(/(?:_Idle|Idle)(?= |\.png$)/i, "").replace(/\.png$/i, "");
+  const attack = catalog.entries
+    .filter(
+      (candidate) =>
+        candidate.domain === entry.domain &&
+        candidate.sourcePath.startsWith(directory) &&
+        /attack/i.test(candidate.sourcePath.slice(directory.length)) &&
+        candidate.sourcePath.slice(directory.length).toLowerCase().startsWith(stem.toLowerCase()),
+    )
+    .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))[0];
+  if (!attack?.frame) return undefined;
+  return {
+    sourcePath: attack.sourcePath,
+    frame: attack.frame,
+    anchor: attack.anchor,
+    footOffset: attack.footOffset,
+  };
+}
+
 /** Every catalogue character/enemy animation is a valid event appearance, even when it was not
  * manually annotated as scenery. The one-cell, non-colliding placement is deliberately conservative:
  * an NPC's collision remains authoritative event geometry, never inferred from its chosen picture. */
@@ -968,6 +996,8 @@ export function editorDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDe
     const editor = entry.editor ?? inferredActorPlacement(entry);
     if (!editor) return [];
     const run = runMotion(catalog, entry);
+    const attack = attackMotion(catalog, entry);
+    const motions = { ...(run ? { run } : {}), ...(attack ? { attack } : {}) };
     return [
       {
         id: entry.id,
@@ -983,7 +1013,7 @@ export function editorDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDe
         ...(entry.frame ? { frame: entry.frame } : {}),
         anchor: entry.anchor,
         footOffset: entry.footOffset,
-        ...(run ? { motions: { run } } : {}),
+        ...(run || attack ? { motions } : {}),
         editor,
       },
     ];

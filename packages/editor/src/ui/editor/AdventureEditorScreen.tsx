@@ -43,6 +43,7 @@ import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
+  DEFAULT_MONSTER_APPEARANCE_ASSET_ID,
   DEFAULT_NPC_MODEL_ASSET_ID,
   type EditorAssetId,
   editorAsset,
@@ -371,7 +372,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [markerSpecies, setMarkerSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [markerRadius, setMarkerRadius] = useState(96);
   const [npcGraphic, setNpcGraphic] = useState<EditorAssetId>(DEFAULT_NPC_MODEL_ASSET_ID);
-  const [enemyGraphic, setEnemyGraphic] = useState<EditorAssetId | null>(null);
+  const [enemyGraphic, setEnemyGraphic] = useState<EditorAssetId | null>(
+    DEFAULT_MONSTER_APPEARANCE_ASSET_ID,
+  );
   const [guardGraphic, setGuardGraphic] = useState<EditorAssetId>(
     DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   );

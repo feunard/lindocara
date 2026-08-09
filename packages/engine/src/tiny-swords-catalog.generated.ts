@@ -7104,6 +7104,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 117
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Down_Attack.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 3,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 18
       }
     },
     "editor": {
@@ -9223,6 +9238,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 55
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Attack1.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 36
       }
     },
     "editor": {
@@ -9758,6 +9788,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 117
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Down_Attack.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 3,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 18
       }
     },
     "editor": {
@@ -11877,6 +11922,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 55
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Attack1.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 36
       }
     },
     "editor": {
@@ -12412,6 +12472,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 117
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Down_Attack.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 3,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 18
       }
     },
     "editor": {
@@ -14531,6 +14606,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 55
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Attack1.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 36
       }
     },
     "editor": {
@@ -15066,6 +15156,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 117
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Down_Attack.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 3,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 18
       }
     },
     "editor": {
@@ -17185,6 +17290,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 55
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Attack1.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 36
       }
     },
     "editor": {
@@ -17720,6 +17840,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 117
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Down_Attack.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 3,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 18
       }
     },
     "editor": {
@@ -19839,6 +19974,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 55
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Attack1.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 36
       }
     },
     "editor": {
@@ -22969,6 +23119,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 76
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Bear/Bear_Attack.png",
+        "frame": {
+          "width": 209,
+          "height": 256,
+          "count": 11,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 59
       }
     },
     "editor": {
@@ -23238,6 +23403,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 40
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Attack.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 9,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 30
       }
     },
     "editor": {
@@ -23419,6 +23599,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 69
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Snake/Snake_Attack.png",
+        "frame": {
+          "width": 144,
+          "height": 192,
+          "count": 8,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 42
       }
     },
     "editor": {
@@ -23594,6 +23789,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "count": 5,
           "axis": "x",
           "durationMs": 450
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Spider/Spider_Attack.png",
+        "frame": {
+          "width": 153,
+          "height": 192,
+          "count": 10,
+          "axis": "x",
+          "durationMs": 1400
         },
         "anchor": {
           "x": 0.5,
@@ -23856,6 +24066,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 112,
+    "motions": {
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Turtle/Turtle_Attack.png",
+        "frame": {
+          "width": 290,
+          "height": 320,
+          "count": 11,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 112
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -24344,6 +24571,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 65
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Attack.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 7,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 62
       }
     },
     "editor": {
@@ -24615,6 +24857,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "count": 4,
           "axis": "x",
           "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Attack.png",
+        "frame": {
+          "width": 120,
+          "height": 192,
+          "count": 16,
+          "axis": "x",
+          "durationMs": 1400
         },
         "anchor": {
           "x": 0.5,
@@ -24903,6 +25160,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 90
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin/Pig Rider_Attack.png",
+        "frame": {
+          "width": 137,
+          "height": 256,
+          "count": 13,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 88
       }
     },
     "editor": {
@@ -25319,6 +25591,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 85
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Spear Goblin/Spear Goblin_Attack Fast.png",
+        "frame": {
+          "width": 137,
+          "height": 256,
+          "count": 13,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 59
       }
     },
     "editor": {
@@ -25541,6 +25828,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "count": 6,
           "axis": "x",
           "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 59
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Torch Goblin/Torch Goblin_Attack.png",
+        "frame": {
+          "width": 85,
+          "height": 192,
+          "count": 18,
+          "axis": "x",
+          "durationMs": 1400
         },
         "anchor": {
           "x": 0.5,
@@ -25795,6 +26097,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 106,
+    "motions": {
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Minotaur/Minotaur_Attack.png",
+        "frame": {
+          "width": 274,
+          "height": 320,
+          "count": 14,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 64
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -26078,6 +26397,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 84
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Panda/Panda_Attack.png",
+        "frame": {
+          "width": 175,
+          "height": 256,
+          "count": 19,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 52
       }
     },
     "editor": {
@@ -26863,6 +27197,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 56
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Paddle Shark/Paddle Shark_Attack.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 58
       }
     },
     "editor": {
@@ -27363,6 +27712,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 62
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Skull/Skull_Attack.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 7,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 62
       }
     },
     "editor": {
@@ -27541,6 +27905,21 @@ export const GENERATED_EDITOR_ASSETS = [
           "y": 1
         },
         "footOffset": 59
+      },
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Attack.png",
+        "frame": {
+          "width": 128,
+          "height": 192,
+          "count": 9,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 56
       }
     },
     "editor": {
@@ -27833,6 +28212,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 87,
+    "motions": {
+      "attack": {
+        "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Attack.png",
+        "frame": {
+          "width": 384,
+          "height": 384,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 1400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 81
+      }
+    },
     "editor": {
       "visualFootprint": [
         {

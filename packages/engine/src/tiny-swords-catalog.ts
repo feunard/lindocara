@@ -109,6 +109,7 @@ export interface EditorAssetDefinition {
   footOffset: number;
   motions?: {
     run?: EditorAssetMotionDefinition;
+    attack?: EditorAssetMotionDefinition;
   };
   editor: EditorPlacementMetadata;
 }
@@ -288,6 +289,8 @@ export const GUARD_APPEARANCE_ASSETS: readonly EditorAssetDefinition[] = Object.
 export const DEFAULT_NPC_MODEL_ASSET_ID =
   "character.units-blue-units-pawn.pawn-idle" as EditorAssetId;
 export const DEFAULT_GUARD_APPEARANCE_ASSET_ID = GUARD_ASSET_BY_COLOR.moss;
+export const DEFAULT_MONSTER_APPEARANCE_ASSET_ID =
+  "enemy.enemy-pack-enemies-goblin-raiders-spear-goblin.spear-goblin-idle" as EditorAssetId;
 
 export function isGuardAppearanceAssetId(value: unknown): value is EditorAssetId {
   return typeof value === "string" && GUARD_COLOR_BY_ASSET.has(value);

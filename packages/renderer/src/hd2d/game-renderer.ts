@@ -116,14 +116,19 @@ export function authoredActorSheet(
   if (!graphicAssetId || !NPC_MODEL_ASSET_IDS.has(graphicAssetId)) return null;
   const asset = editorAsset(graphicAssetId);
   if (!asset) return null;
-  const selected = motion === "run" && asset.motions?.run ? asset.motions.run : asset;
+  const selected =
+    motion === "run" && asset.motions?.run
+      ? asset.motions.run
+      : motion === "attack" && asset.motions?.attack
+        ? asset.motions.attack
+        : asset;
   if (!selected.frame) return null;
   return {
     source: tinySwordsSourceUrl(selected.sourcePath),
     frames: selected.frame.count,
     frameWidth: selected.frame.width,
     frameHeight: selected.frame.height,
-    footOffset: asset.footOffset,
+    footOffset: selected.footOffset,
     axis: selected.frame.axis,
   };
 }
@@ -242,6 +247,7 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
     ...NPC_MODEL_ASSETS.flatMap((asset) => [
       tinySwordsSourceUrl(asset.sourcePath),
       ...(asset.motions?.run ? [tinySwordsSourceUrl(asset.motions.run.sourcePath)] : []),
+      ...(asset.motions?.attack ? [tinySwordsSourceUrl(asset.motions.attack.sourcePath)] : []),
     ]),
     ...Object.values(TINY_SWORDS_ENEMIES).flatMap((art) => [
       art.idle.source,

@@ -6,11 +6,12 @@ import { authoredActorSheet, guardSheet, monsterActorSheet } from "../src/hd2d/g
 import { tinySwordsSourceUrl } from "../src/tiny-swords-assets.js";
 
 describe("authored HD-2D actor art", () => {
-  it("uses the authored idle and run strips with their exact geometry", () => {
-    const asset = NPC_MODEL_ASSETS.find((entry) => entry.motions?.run);
+  it("uses the authored idle, run and attack strips with their exact geometry", () => {
+    const asset = NPC_MODEL_ASSETS.find((entry) => entry.motions?.run && entry.motions.attack);
     expect(asset?.frame).toBeDefined();
     expect(asset?.motions?.run?.frame).toBeDefined();
-    if (!asset?.frame || !asset.motions?.run?.frame) return;
+    expect(asset?.motions?.attack?.frame).toBeDefined();
+    if (!asset?.frame || !asset.motions?.run?.frame || !asset.motions.attack?.frame) return;
 
     expect(authoredActorSheet(asset.id, "idle")).toEqual({
       source: tinySwordsSourceUrl(asset.sourcePath),
@@ -25,8 +26,16 @@ describe("authored HD-2D actor art", () => {
       frames: asset.motions.run.frame.count,
       frameWidth: asset.motions.run.frame.width,
       frameHeight: asset.motions.run.frame.height,
-      footOffset: asset.footOffset,
+      footOffset: asset.motions.run.footOffset,
       axis: asset.motions.run.frame.axis,
+    });
+    expect(authoredActorSheet(asset.id, "attack")).toEqual({
+      source: tinySwordsSourceUrl(asset.motions.attack.sourcePath),
+      frames: asset.motions.attack.frame.count,
+      frameWidth: asset.motions.attack.frame.width,
+      frameHeight: asset.motions.attack.frame.height,
+      footOffset: asset.motions.attack.footOffset,
+      axis: asset.motions.attack.frame.axis,
     });
   });
 
@@ -45,6 +54,15 @@ describe("authored HD-2D actor art", () => {
     if (!asset) return;
     expect(guardSheet({ graphicAssetId: asset.id }, "idle")).toEqual(
       authoredActorSheet(asset.id, "idle"),
+    );
+  });
+
+  it("uses a selected guard model's native attack instead of freezing its idle strip", () => {
+    const asset = NPC_MODEL_ASSETS.find((entry) => entry.motions?.attack);
+    expect(asset?.motions?.attack).toBeDefined();
+    if (!asset?.motions?.attack) return;
+    expect(guardSheet({ graphicAssetId: asset.id }, "attack")).toEqual(
+      authoredActorSheet(asset.id, "attack"),
     );
   });
 });
