@@ -39,7 +39,7 @@ import {
   parseMapMarkers,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
-import { type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
+import { MAX_EVENTS_PER_MAP, type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
   defaultMapHeroSettings,
   type MapHeroSettings,
@@ -332,23 +332,18 @@ export function parseHeightfieldBody(body: unknown): HeightfieldBodyResult {
   const decoded = decodeMap(heightfield);
   if (!decoded) return refuse("invalid heightfield");
 
-  // One entry per cell, per collection — the OTHER half of the bound, and not a substitute for the
-  // byte check above (nor it for this one: bytes cannot tell 160 000 tiny colliders from a dense
-  // 256² map, and counts cannot tell one element from one element carrying two megabytes of
-  // `assetId`). `decodeMap` bounds the GRID (`size` <= 256, both cell arrays exactly
-  // `size * size`) and nothing else: `colliders`, `spawns`, `elements` and `events` are unbounded
-  // arrays there, so a `size: 1` map declaring 160 000 colliders decodes happily in milliseconds.
-  //
-  // The unit is deliberate: every one of these four attaches to a place on the grid — a collider
-  // rect, a decoration billboard, an authored event's cell, an entry point — so "more of them than
-  // there are cells to put them on" is nonsense in every case, whatever the map. Nothing legitimate
-  // approaches it (the proving map: 5 184 cells, 48 elements, 1 event, 1 spawn, 0 colliders).
+  // Collection counts are the OTHER half of the bound, and not a substitute for the byte check
+  // above. They follow the accepted producers rather than `cells`: editor elements have sixteen
+  // quarter-cell slots, so a valid 20x20 authoring document may legitimately exceed 400 elements.
+  // One element contributes at most one collider; events use their own authoring cap; named spawns
+  // remain cell-addressed. `decodeMap` intentionally stays a shape decoder, so this write boundary
+  // is where those resource limits belong.
   const cells = decoded.size * decoded.size;
   const overflow =
-    decoded.colliders.length > cells ||
+    decoded.colliders.length > MAX_MAP_ELEMENTS ||
     decoded.spawns.length > cells ||
-    decoded.elements.length > cells ||
-    decoded.events.length > cells;
+    decoded.elements.length > MAX_MAP_ELEMENTS ||
+    decoded.events.length > MAX_EVENTS_PER_MAP;
   if (overflow) {
     // `map_size`, not `map_invalid`: the payload is well formed and the refusal is a function of
     // the `size` it declared, so the family's own "this map is too big" code (`editor.error.size`,
@@ -358,7 +353,7 @@ export function parseHeightfieldBody(body: unknown): HeightfieldBodyResult {
       ok: false,
       status: 400,
       error: "map_size",
-      message: "heightfield carries more entries than cells",
+      message: "heightfield collection limit exceeded",
     };
   }
   return { ok: true, heightfield };

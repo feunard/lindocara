@@ -19,6 +19,7 @@
 import { gzipSync } from "node:zlib";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { decodeMap, MAX_HEIGHTFIELD_SIZE } from "@lindocara/engine/hd2d/map-data.js";
+import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
 import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
@@ -329,7 +330,7 @@ describe("the heightfield route", () => {
     expect((await mapService.getMap(mapId)).heightfield).toBeNull();
   });
 
-  test("a heightfield may carry no more entries than its grid has cells", async () => {
+  test("a heightfield may carry no more colliders than the authoring surface", async () => {
     const { token, mapId } = await newOwnedMap("hfcrowd");
     const side = 4;
     const cells = side * side;
@@ -347,20 +348,21 @@ describe("the heightfield route", () => {
         events: [],
       });
 
-    // One over the grid's own cell count. `decodeMap` accepts this happily — it bounds `size` and
-    // the two cell arrays and nothing else — which is how a `size: 1` map padded with 160 000
-    // colliders reached 4 MB and decoded in 24 ms. Byte size cannot separate that from a
-    // legitimately dense 256² map; the ratio to the grid can.
-    const crowded = await putHeightfield(mapId, token, { heightfield: grid(cells + 1) });
+    // One over the editor's global element cap. A valid authored map can use sixteen quarter-cell
+    // slots and therefore exceed its cell count, but it can never produce more colliders than
+    // elements. `decodeMap` accepts larger arrays, so the HTTP resource boundary pins the limit.
+    const crowded = await putHeightfield(mapId, token, {
+      heightfield: grid(MAX_MAP_ELEMENTS + 1),
+    });
     expect(crowded.status).toBe(400);
     expect(await crowded.json()).toMatchObject({ error: "map_size" });
     expect((await mapService.getMap(mapId)).heightfield).toBeNull();
 
     // And exactly at the bound it passes — otherwise this would pass just as well against a route
     // that refused every collider, or every payload, and prove nothing about where the line is.
-    const dense = await putHeightfield(mapId, token, { heightfield: grid(cells) });
+    const dense = await putHeightfield(mapId, token, { heightfield: grid(MAX_MAP_ELEMENTS) });
     expect(dense.status).toBe(204);
-    expect((await mapService.getMap(mapId)).heightfield).toBe(grid(cells));
+    expect((await mapService.getMap(mapId)).heightfield).toBe(grid(MAX_MAP_ELEMENTS));
   });
 
   test("a body over THIS route's cap is refused by it, below the global parser's ceiling", async () => {
