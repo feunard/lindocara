@@ -252,6 +252,7 @@ describe("harvest profile", () => {
       }),
     ).toMatchObject({
       actorBehavior: "wander",
+      hitsRequired: 4,
       exhaustionBehavior: "hide",
       exhaustedAssetId: null,
       collision: { depleted: null },

@@ -116,7 +116,10 @@ import {
   EMPTY_PARTY_MATERIALS,
   type PartyMaterialAmounts,
 } from "@lindocara/engine/party-harvest-state.js";
-import { mergePeasantMaterialRewards } from "@lindocara/engine/peasant.js";
+import {
+  mergePeasantMaterialRewards,
+  resolvePeasantHarvestPlan,
+} from "@lindocara/engine/peasant.js";
 import type {
   ClientMessage,
   MoveMessage,
@@ -224,6 +227,7 @@ import {
   type PeasantHarvestJobTarget,
   revalidatePeasantHarvestTarget,
   selectPeasantHarvestTargets,
+  sheepHarvestTargetForClick,
 } from "../../world/peasant-harvest-system.js";
 import {
   advancePeasantCamps,
@@ -4380,6 +4384,70 @@ export function advancePeasantHarvestJobs(w: WorldGlue, now: number): void {
     }
     job.committing = true;
     w.deps.waitUntil(commitPeasantHarvestJob(w, job));
+  }
+}
+
+/** Warcraft-style critter poke: four individually validated clicks, with the existing durable
+ * harvest transition owning the final disappearance, reward and client feedback. */
+export async function handleSheepHit(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  eventId: string,
+): Promise<void> {
+  const now = w.deps.now();
+  const view = {
+    zoneId: w.state.location?.zoneId ?? zone(w.state).id,
+    events: zone(w.state).events ?? [],
+    activeEvents: w.state.activeEvents,
+    adventureState: w.state.adventureState.state,
+    monsters: w.state.monsters,
+    terrain: zone(w.state).terrain,
+    staticColliderIndex: w.state.staticColliderIndex,
+  };
+  const target = sheepHarvestTargetForClick({ player, eventId, view, now });
+  if (!target) return;
+  const plan = resolvePeasantHarvestPlan(target.profile, []);
+  const reserved = await w.deps.reserveHarvestNode({
+    heroId: player.id,
+    sessionEpoch: player.sessionEpoch,
+    eventId: target.nodeId,
+    generation: target.generation,
+    requiredHits: plan.hitsRequired,
+    reward: plan.materialReward,
+    goldValue: plan.goldValue,
+    respawnDelayMs:
+      target.profile.respawn === "timed" && target.respawnAt === null
+        ? target.profile.respawnDelayMs
+        : null,
+    respawnAt: target.profile.respawn === "timed" ? target.respawnAt : null,
+  });
+  if (!reserved.ok) return;
+  let reservationId: string | null = reserved.reservationId;
+  try {
+    const current = sheepHarvestTargetForClick({
+      player,
+      eventId,
+      view: {
+        ...view,
+        activeEvents: w.state.activeEvents,
+        adventureState: w.state.adventureState.state,
+      },
+      now: w.deps.now(),
+    });
+    if (!current || current.generation !== target.generation) return;
+    await w.deps.hitHarvestNode(
+      { heroId: player.id, eventId: target.nodeId, reservationId },
+      plan.resource,
+    );
+    reservationId = null;
+  } finally {
+    if (reservationId) {
+      await w.deps.cancelHarvestNode({
+        heroId: player.id,
+        eventId: target.nodeId,
+        reservationId,
+      });
+    }
   }
 }
 

@@ -1056,6 +1056,38 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("a non-Peasant can click a live sheep four times to bleat and explode", async () => {
+    const sheep = harvestPresetEvent(crypto.randomUUID(), 8, 8, "sheep");
+    const fixture = await newPlayableParty("sheepclick", [sheep], "warrior");
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-sheep-click");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const active = state.activeEvents.find((event) => event.id === sheep.id);
+    if (!active) throw new Error("active sheep missing");
+    placeHarvester(state, fixture.heroId, { ...sheep, col: active.col, row: active.row });
+    const movement = state.npcMovement.get(sheep.id);
+    if (movement) movement.nextMoveTick = state.tick + 100;
+
+    for (let hit = 1; hit <= 4; hit += 1) {
+      await engine.message(socket.id, { t: "sheep.hit", eventId: sheep.id });
+      await vi.waitFor(() => {
+        expect(state.adventureState.state.harvestNodes?.[sheep.id]?.hits).toBe(hit);
+      });
+    }
+
+    expect(state.adventureState.state.harvestNodes?.[sheep.id]).toMatchObject({
+      hits: 4,
+      depleted: true,
+    });
+    expect(state.activeEvents.find((event) => event.id === sheep.id)).toMatchObject({
+      graphicAssetId: null,
+      harvest: { state: "depleted", hits: 4, hitsRequired: 4 },
+    });
+    engine.dispose();
+  });
+
   test("event evaluation defers a resource collider under a newly reconciled NPC", async () => {
     const resource = harvestPresetEvent(crypto.randomUUID(), 6, 6, "meat_cache", {
       collision: {

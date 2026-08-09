@@ -145,6 +145,7 @@ import {
   handleQuestAction,
   handleQuestChanges,
   handleRelease,
+  handleSheepHit,
   handleTalentReset,
   handleTalentUnlock,
   handleUseConsumable,
@@ -689,6 +690,9 @@ export class WorldRoom {
         return this.checkpointCooldownsOrReject(room, state, connectionId, player);
       }
       return;
+    }
+    if (message.t === "sheep.hit") {
+      return handleSheepHit(w, player, message.eventId);
     }
     if (message.t === "interact") {
       return handleInteract(w, connectionId, player).then(({ cooldownStarted }) => {

@@ -599,7 +599,9 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     tool,
     yieldAmount: parsedYield,
     goldValue: parsedGold,
-    hitsRequired: parsedHits,
+    // The lab's critter contract is four clicks. Normalize the one shipped three-hit sheep profile
+    // while it is already being identified for its movement/exhaustion compatibility repair.
+    hitsRequired: legacySheep ? 4 : parsedHits,
     range: parsedRange,
     harvestDurationMs: normalizedDuration,
     exhaustedAssetId: legacySheep ? null : (exhaustedAssetId as EditorAssetId | null),

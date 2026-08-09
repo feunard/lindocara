@@ -119,6 +119,7 @@ export type { SceneSample };
 export interface Connection {
   attack(): void;
   interact(): void;
+  sheepHit(eventId: string): void;
   campGold(id: string, operation: "deposit" | "withdraw", amount: number): void;
   usePotion(): void;
   useItem(item: ConsumableId): void;
@@ -375,6 +376,7 @@ export class WorldClient {
     return {
       attack: () => this.#send({ t: "attack" }),
       interact: () => this.#send({ t: "interact" }),
+      sheepHit: (eventId) => this.#send({ t: "sheep.hit", eventId }),
       campGold: (id, operation, amount) =>
         this.#send({ t: "peasant.camp_gold", id, operation, amount }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),

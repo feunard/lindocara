@@ -104,6 +104,9 @@ describe("the billboard registry", () => {
     registry.sync([actor("a", -1, -1), actor("b", 0, 0)]);
     expect(meshes(scene.root)).toHaveLength(2);
     const first = meshes(scene.root);
+    expect(registry.objectsFor(["b", "missing", "a"])).toEqual([first[1], first[0]]);
+    expect(first[0]?.userData.actorId).toBe("a");
+    expect(first[1]?.userData.actorId).toBe("b");
 
     // A second frame with the same two actors, moved: the same two meshes, moved — not two more.
     registry.sync([actor("a", -0.5, -1), actor("b", 0, 0.5)]);

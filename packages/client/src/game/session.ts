@@ -497,15 +497,28 @@ async function startGameIdentity(
     if (direction === null) return;
     connection?.skill(5, direction);
   };
-  const onBombPointerMove = (event: PointerEvent) => aimBombAt(event.clientX, event.clientY);
-  const onBombPointerDown = (event: PointerEvent) => {
-    if (!bombAiming || event.button !== 0 || isGameplayInputPaused()) return;
-    event.preventDefault();
+  const onWorldPointerMove = (event: PointerEvent) => {
     aimBombAt(event.clientX, event.clientY);
-    confirmBombAim();
+    const sheepId = bombAiming ? null : renderer.pickSheep?.(event.clientX, event.clientY);
+    canvas.classList.toggle("sheep-hover", sheepId !== null && sheepId !== undefined);
   };
-  canvas.addEventListener("pointermove", onBombPointerMove);
-  canvas.addEventListener("pointerdown", onBombPointerDown);
+  const onWorldPointerLeave = () => canvas.classList.remove("sheep-hover");
+  const onWorldPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0 || isGameplayInputPaused()) return;
+    if (bombAiming) {
+      event.preventDefault();
+      aimBombAt(event.clientX, event.clientY);
+      confirmBombAim();
+      return;
+    }
+    const sheepId = renderer.pickSheep?.(event.clientX, event.clientY);
+    if (!sheepId) return;
+    event.preventDefault();
+    connection?.sheepHit(sheepId);
+  };
+  canvas.addEventListener("pointermove", onWorldPointerMove);
+  canvas.addEventListener("pointerleave", onWorldPointerLeave);
+  canvas.addEventListener("pointerdown", onWorldPointerDown);
 
   const unlockAudio = () => sound.unlock();
   window.addEventListener("pointerdown", unlockAudio);
@@ -830,8 +843,10 @@ async function startGameIdentity(
     window.removeEventListener("pointerdown", unlockAudio);
     window.removeEventListener("keydown", unlockAudio);
     window.removeEventListener("beforeunload", beforeUnload);
-    canvas.removeEventListener("pointermove", onBombPointerMove);
-    canvas.removeEventListener("pointerdown", onBombPointerDown);
+    canvas.removeEventListener("pointermove", onWorldPointerMove);
+    canvas.removeEventListener("pointerleave", onWorldPointerLeave);
+    canvas.removeEventListener("pointerdown", onWorldPointerDown);
+    canvas.classList.remove("sheep-hover");
     cancelBombAim();
     sound.stopAmbient();
     renderer.destroy();

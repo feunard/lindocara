@@ -721,6 +721,7 @@ export type ClientMessage =
   | MoveMessage
   | { t: "attack" }
   | { t: "interact" }
+  | { t: "sheep.hit"; eventId: string }
   | {
       t: "peasant.camp_gold";
       id: string;
@@ -1935,6 +1936,9 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (!isRecord(value) || typeof value.t !== "string") return null;
   if (value.t === "move") return parseMove(value);
   if (value.t === "attack" && hasOnlyKeys(value, ["t"])) return { t: "attack" };
+  if (value.t === "sheep.hit" && isWireId(value.eventId) && hasOnlyKeys(value, ["t", "eventId"])) {
+    return { t: "sheep.hit", eventId: value.eventId };
+  }
   if (
     (value.t === "interact" || value.t === "release" || value.t === "drowned") &&
     hasOnlyKeys(value, ["t"])

@@ -28,6 +28,7 @@ describe("semantic harvest presets", () => {
       profile: {
         resource: "meat",
         tool: "knife",
+        hitsRequired: 4,
         actorBehavior: "wander",
         exhaustionBehavior: "hide",
         exhaustedAssetId: null,
@@ -38,6 +39,7 @@ describe("semantic harvest presets", () => {
       profile: {
         resource: "meat",
         tool: "knife",
+        hitsRequired: 4,
         actorBehavior: "wander",
         exhaustionBehavior: "hide",
         exhaustedAssetId: null,

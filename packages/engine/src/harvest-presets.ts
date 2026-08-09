@@ -272,7 +272,7 @@ export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
       tool: "knife",
       yieldAmount: 6,
       goldValue: 0,
-      hitsRequired: 3,
+      hitsRequired: 4,
       range: 80,
       harvestDurationMs: 0,
       exhaustedAssetId: null,

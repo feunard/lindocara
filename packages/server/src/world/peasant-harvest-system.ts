@@ -22,6 +22,7 @@ import {
   refreshHarvestNode,
 } from "@lindocara/engine/party-harvest-state.js";
 import { type PeasantHarvestPlan, resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
+import { isSheepAssetId } from "@lindocara/engine/sheep.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
 import { sweptGroundTerrainImpact, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
@@ -308,6 +309,40 @@ export function peasantHarvestTargets(
   now: number,
 ): PeasantHarvestTarget[] {
   return [...mapTargets(view, now), ...carcassTargets(view, now)];
+}
+
+/** Re-derives a clicked critter from live authored state. The client supplies only the event id it
+ * raycasted; asset identity, generation, reach and sight all remain server-owned. */
+export function sheepHarvestTargetForClick(input: {
+  player: PlayerRuntime;
+  eventId: string;
+  view: PeasantHarvestView;
+  now: number;
+}): PeasantHarvestTarget | null {
+  if (
+    !input.player.authorized ||
+    input.player.transitioning ||
+    input.player.disconnecting ||
+    input.player.life !== "alive"
+  ) {
+    return null;
+  }
+  const active = input.view.activeEvents.find((event) => event.id === input.eventId);
+  if (!active || !isSheepAssetId(active.graphicAssetId)) return null;
+  const target = mapTargets(input.view, input.now).find(
+    (candidate) => candidate.runtimeId === input.eventId,
+  );
+  if (!target) return null;
+  const playerGround = { x: input.player.x, z: input.player.z };
+  if (
+    groundDistance(playerGround, target.position) >
+    authoredReach(target.profile.range) + target.radius
+  ) {
+    return null;
+  }
+  return hasPeasantHarvestLineOfSight(input.player, target, input.view, input.player.y)
+    ? target
+    : null;
 }
 
 function targetMatchesAction(

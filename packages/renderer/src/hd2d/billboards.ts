@@ -103,6 +103,8 @@ export interface BillboardScene {
 export interface BillboardRegistry {
   /** The frame's complete actor list. Anything absent from it is removed. */
   sync(actors: readonly ActorView[]): void;
+  /** Live billboard meshes for a narrow picking set, in caller order. */
+  objectsFor(actorIds: readonly string[]): readonly THREE.Object3D[];
   dispose(): void;
 }
 
@@ -220,6 +222,7 @@ export function createBillboardRegistry(
       foot: actor.foot ?? ACTOR_FOOT[actor.kind],
       pitch: HD2D_CAMERA.pitch,
     });
+    billboard.mesh.userData.actorId = actor.id;
     scene.root.add(billboard.mesh);
     return {
       billboard,
@@ -252,6 +255,12 @@ export function createBillboardRegistry(
   }
 
   return {
+    objectsFor(actorIds) {
+      return actorIds.flatMap((id) => {
+        const object = entries.get(id)?.billboard.mesh;
+        return object ? [object] : [];
+      });
+    },
     sync(actors) {
       const present = new Set<string>();
       for (const actor of actors) {

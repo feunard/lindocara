@@ -55,3 +55,7 @@
 #stage:active:not([data-cursor]) {
   cursor: var(--tiny-cursor-move, grabbing);
 }
+
+#stage.sheep-hover:not([data-cursor]) {
+  cursor: var(--tiny-cursor-interact, pointer);
+}

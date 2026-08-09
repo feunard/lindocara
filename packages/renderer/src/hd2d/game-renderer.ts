@@ -47,6 +47,7 @@ import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
+import * as THREE from "three";
 import { type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
 import {
   allCombatSheets,
@@ -694,6 +695,7 @@ export class Hd2dRenderer implements RendererLike {
   #actorPositions = new Map<string, ActorPosition>();
   #actorMotion = new ActorMotionTracker();
   #eventMotion = new WorldEventMotionTracker();
+  #pointerRaycaster = new THREE.Raycaster();
   #serverClock: ServerClock;
   /** Bumped by every map change and every teardown, so a download still in flight for the previous
    *  map cannot land its scenery in the new one's scene. */
@@ -1539,6 +1541,33 @@ export class Hd2dRenderer implements RendererLike {
 
   removePeasantCamp(id: string): void {
     this.#visuals?.removeCamp(id);
+  }
+
+  /** Exact sprite picking, matching the lab: only an intact sheep billboard can answer. */
+  pickSheep(clientX: number, clientY: number): string | null {
+    if (!this.#scene || !this.#actors) return null;
+    const rect = this.#canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const actorIds = this.#worldEvents.flatMap((event) => {
+      const assetId = worldEventAsset(event);
+      return event.harvest?.state === "intact" && isSheepAssetId(assetId)
+        ? [`event:${event.id}`]
+        : [];
+    });
+    const objects = this.#actors.objectsFor(actorIds);
+    if (objects.length === 0) return null;
+    this.#pointerRaycaster.setFromCamera(
+      new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      ),
+      this.#scene.camera,
+    );
+    const hit = this.#pointerRaycaster.intersectObjects([...objects], false)[0];
+    const actorId = hit?.object.userData.actorId;
+    return typeof actorId === "string" && actorId.startsWith("event:")
+      ? actorId.slice("event:".length)
+      : null;
   }
 
   /** Casts the pointer through the HD-2D camera onto the bounded world ground. */

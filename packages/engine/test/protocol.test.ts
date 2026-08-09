@@ -35,6 +35,14 @@ describe("client protocol", () => {
     expect(parseClientMessage(JSON.stringify({ t: "interact", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "interact" }))).toEqual({ t: "interact" });
+    expect(parseClientMessage(JSON.stringify({ t: "sheep.hit", eventId: targetId }))).toEqual({
+      t: "sheep.hit",
+      eventId: targetId,
+    });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "sheep.hit", eventId: targetId, hits: 4 })),
+    ).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "sheep.hit", eventId: "" }))).toBeNull();
     expect(
       parseClientMessage(
         JSON.stringify({

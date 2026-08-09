@@ -104,6 +104,8 @@ export interface RendererLike {
   playPolarityOrb(orb: PriestPolarityOrbVisual): void;
   playRoguePoisonImpact(x: number, z: number, rupture: boolean): PlayerClass;
   playSheepExplosion(x: number, z: number): void;
+  /** Raycasts only live authored sheep billboards; no ground approximation or client outcome. */
+  pickSheep?(clientX: number, clientY: number): string | null;
   playShadowDance(sequence: RogueShadowDanceSequence): void;
   playTeleportEffect(x?: number, z?: number): void;
   preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void;
