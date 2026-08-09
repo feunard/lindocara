@@ -27,8 +27,8 @@
  */
 
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
-import type { Billboard, TextureUvRect } from "@lindocara/hd2d/billboard.js";
-import { makeBillboard } from "@lindocara/hd2d/billboard.js";
+import type { Billboard, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
+import { makeBillboard, makeFlatSprite } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type * as THREE from "three";
 import type { BillboardScene } from "./billboards.js";
@@ -63,6 +63,8 @@ export interface StaticSpriteArt {
   /** Full-loop duration for a catalogue entry explicitly classified as `animated`. Technical
    * multi-state sheets omit it and remain pinned to frame zero. */
   animationDurationMs?: number;
+  /** Sky art is a horizontal world-space plane, never a camera-facing billboard. */
+  renderLayer?: "object" | "canopy" | "sky";
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
@@ -95,6 +97,22 @@ function placementPhase(assetId: string, x: number, z: number, durationMs: numbe
   return (hash >>> 0) % Math.max(1, durationMs);
 }
 
+export function authoredSkyAltitude(map: MapData): number {
+  const highestLevel = map.levels.reduce<number>(
+    (highest, level) => (level === null ? highest : Math.max(highest, level)),
+    0,
+  );
+  return Math.max(map.waterLevel, highestLevel * map.levelHeight) + map.levelHeight * 2.25;
+}
+
+export function authoredCloudWind(nowMs: number, phaseMs: number): { x: number; z: number } {
+  const phase = (nowMs + phaseMs) * 0.00022;
+  return {
+    x: Math.sin(phase) * 0.42,
+    z: Math.sin(phase * 0.61 + 1.7) * 0.18,
+  };
+}
+
 /**
  * Places every element and every graphic-bearing event of `map` into `scene`, once.
  *
@@ -113,10 +131,14 @@ export function placeStaticContent(
   resolve: StaticArtResolver,
 ): StaticContent {
   const placed: {
-    billboard: Billboard;
+    sprite: Billboard | Sprite;
     frames: number;
     durationMs: number;
     phaseMs: number;
+    anchorX: number;
+    anchorY: number;
+    anchorZ: number;
+    wind: boolean;
   }[] = [];
   /** Unresolved ids, counted rather than reported one by one. A map dressed entirely out of assets
    *  this build cannot draw — the sub-rect crops are a real such family — would otherwise emit one
@@ -134,23 +156,38 @@ export function placeStaticContent(
       skipped.set(assetId, (skipped.get(assetId) ?? 0) + 1);
       return;
     }
-    const billboard = makeBillboard(ctx, {
-      texture: sprite.texture,
-      cols: sprite.cols ?? 1,
-      rows: sprite.rows ?? 1,
-      height: sprite.height,
-      aspect: sprite.aspect ?? 1,
-      foot: sprite.foot ?? 0,
-      ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
-      pitch: HD2D_CAMERA.pitch,
-    });
+    const sky = sprite.renderLayer === "sky";
+    const billboard = sky
+      ? makeFlatSprite(ctx, {
+          texture: sprite.texture,
+          cols: sprite.cols ?? 1,
+          rows: sprite.rows ?? 1,
+          size: sprite.height * (sprite.aspect ?? 1),
+          aspect: 1 / (sprite.aspect ?? 1),
+          alphaTest: 0.5,
+          graftCloudShadow: () => undefined,
+        })
+      : makeBillboard(ctx, {
+          texture: sprite.texture,
+          cols: sprite.cols ?? 1,
+          rows: sprite.rows ?? 1,
+          height: sprite.height,
+          aspect: sprite.aspect ?? 1,
+          foot: sprite.foot ?? 0,
+          ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
+          pitch: HD2D_CAMERA.pitch,
+        });
     // The ground under the piece, or the sea when there is none: an offshore rock is authored on
     // water on purpose, and dropping it would be worse than floating it at sea level.
-    billboard.placeAt(x, scene.query.heightAt(x, z) ?? scene.waterLevel, z);
+    const anchorY = sky
+      ? authoredSkyAltitude(map)
+      : (scene.query.heightAt(x, z) ?? scene.waterLevel);
+    if (sky) billboard.mesh.position.set(x, anchorY, z);
+    else (billboard as Billboard).placeAt(x, anchorY, z);
     const depthKey = z.toFixed(6);
     const depthLayer = depthLayers.get(depthKey) ?? 0;
     depthLayers.set(depthKey, depthLayer + 1);
-    if (depthLayer > 0) {
+    if (!sky && depthLayer > 0) {
       const materials = Array.isArray(billboard.mesh.material)
         ? billboard.mesh.material
         : [billboard.mesh.material];
@@ -163,12 +200,16 @@ export function placeStaticContent(
     }
     scene.root.add(billboard.mesh);
     placed.push({
-      billboard,
+      sprite: billboard,
       frames: (sprite.cols ?? 1) * (sprite.rows ?? 1),
       durationMs: sprite.animationDurationMs ?? 0,
       phaseMs: sprite.animationDurationMs
         ? placementPhase(assetId, x, z, sprite.animationDurationMs)
         : 0,
+      anchorX: x,
+      anchorY,
+      anchorZ: z,
+      wind: sky,
     });
   }
 
@@ -186,15 +227,23 @@ export function placeStaticContent(
   return {
     update(now) {
       for (const placement of placed) {
-        placement.billboard.setFrame(
+        placement.sprite.setFrame(
           staticAnimationFrame(now, placement.durationMs, placement.frames, placement.phaseMs),
         );
+        if (placement.wind) {
+          const wind = authoredCloudWind(now, placement.phaseMs);
+          placement.sprite.mesh.position.set(
+            placement.anchorX + wind.x,
+            placement.anchorY,
+            placement.anchorZ + wind.z,
+          );
+        }
       }
     },
     dispose() {
       for (const placement of placed) {
-        scene.root.remove(placement.billboard.mesh);
-        placement.billboard.dispose();
+        scene.root.remove(placement.sprite.mesh);
+        placement.sprite.dispose();
       }
       placed.length = 0;
     },

@@ -311,6 +311,9 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   };
   if (framePx.width <= 0 || framePx.height <= 0) return null;
   const count = Math.max(1, frame?.count ?? 1);
+  const nativeTreeStrip = /\/Trees\/Tree[1-3]\.png$/.test(
+    definition.sourcePath.replaceAll("\\", "/"),
+  );
   const alongX = (frame?.axis ?? "x") === "x";
   let url: string;
   try {
@@ -327,8 +330,9 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     height: framePx.height / TILE_SIZE,
     aspect: framePx.width / framePx.height,
     foot: definition.footOffset / framePx.height + (1 - definition.anchor.y),
+    renderLayer: definition.editor.renderLayer,
     ...(definition.nature === "animated" && !crop && count > 1
-      ? { animationDurationMs: frame?.durationMs ?? count * 145 }
+      ? { animationDurationMs: nativeTreeStrip ? 960 : (frame?.durationMs ?? count * 145) }
       : {}),
     ...(crop
       ? {

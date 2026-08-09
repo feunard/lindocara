@@ -295,8 +295,27 @@ describe("staticAssetSpec", () => {
       height: 3,
       aspect: 1,
       foot: 22 / 192,
+      animationDurationMs: 960,
+      renderLayer: "canopy",
     });
     expect(spec?.url).toContain("Tree3");
+  });
+
+  it("keeps all three native tree wind strips animated", () => {
+    for (const tree of ["tree1", "tree2", "tree3"]) {
+      expect(staticAssetSpec(`resource.terrain-resources-wood-trees.${tree}`)).toMatchObject({
+        cols: 8,
+        rows: 1,
+        animationDurationMs: 960,
+        renderLayer: "canopy",
+      });
+    }
+  });
+
+  it("classifies authored clouds as camera-independent sky art", () => {
+    expect(staticAssetSpec("decoration.terrain-decorations-clouds.clouds-01")).toMatchObject({
+      renderLayer: "sky",
+    });
   });
 
   it("frames an asset cropped out of a shared sheet", () => {
