@@ -14,6 +14,7 @@ import { makeBillboard, makeFlatSprite } from "@lindocara/hd2d/billboard.js";
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+import type { CombatSheetArt } from "../combat-art.js";
 import { type ProjectileVisualDefinition, projectileVisual } from "../projectile-visuals.js";
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
@@ -412,6 +413,57 @@ export class Hd2dVisualLayer {
         const breathe = 1 + Math.sin(progress * Math.PI * 6) * 0.16;
         mesh.scale.setScalar(breathe);
         materialOpacity(mesh, Math.min(0.82, (1 - progress) * 1.5));
+      },
+    });
+  }
+
+  /** Animate one authored Tiny Swords effect sheet as a camera-facing world sprite. */
+  playSheet(
+    art: CombatSheetArt,
+    x: number,
+    z: number,
+    durationMs = art.durationMs,
+    startedAt = performance.now(),
+    heightScale = 1,
+  ): void {
+    if (!this.#textures) {
+      this.pulse(x, z, art.tint ?? 0xffffff, Math.max(0.45, art.scale ?? 1), durationMs, startedAt);
+      return;
+    }
+    const height = Math.max(0.42, (art.frameHeight / 192) * 2.6 * (art.scale ?? 1)) * heightScale;
+    const billboard = makeBillboard(this.#scene.ctx, {
+      texture: this.#textures.get(art.source),
+      cols: art.frames,
+      rows: 1,
+      height,
+      aspect: art.frameWidth / art.frameHeight,
+      foot: 0.08,
+      lit: false,
+      pitch: HD2D_CAMERA.pitch,
+    });
+    const material = billboard.mesh.material;
+    if (material instanceof THREE.MeshLambertMaterial) {
+      material.color.setHex(art.tint ?? 0xffffff);
+      material.transparent = true;
+      material.depthWrite = false;
+    }
+    billboard.placeAt(x, this.#groundY(x, z, 0.035), z);
+    billboard.mesh.visible = startedAt <= performance.now();
+    this.#root.add(billboard.mesh);
+    const authoredDuration = Math.max(1, durationMs);
+    this.#effects.push({
+      object: billboard.mesh,
+      startedAt,
+      endsAt: startedAt + authoredDuration,
+      update(progress) {
+        billboard.setFrame(Math.min(art.frames - 1, Math.floor(progress * art.frames)));
+        if (material instanceof THREE.MeshLambertMaterial) {
+          material.opacity = Math.min(1, (1 - progress) * 4);
+        }
+      },
+      dispose() {
+        billboard.mesh.removeFromParent();
+        billboard.dispose();
       },
     });
   }

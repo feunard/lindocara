@@ -359,7 +359,8 @@ describe("Tiny Swords directional combat art", () => {
   it("maps ultimate and mobility icons to the assets now used in-world", () => {
     expect(skillIconArt("warrior", 4).source).toContain("Explosion_02.png");
     expect(skillIconArt("warrior", 5).source).toContain("Explosion_02.png");
-    expect(skillIconArt("priest", 3).source).toContain("Dust_02.png");
+    expect(skillIconArt("priest", 2).source).toContain("Heal_Effect.png");
+    expect(skillIconArt("priest", 3).source).toContain("Clouds_01.png");
     expect(skillIconArt("priest", 5).source).toContain("Heal_Effect.png");
     expect(skillIconArt("rogue", 1)).toMatchObject({
       source: expect.stringContaining("Thief_Attack"),
@@ -396,6 +397,16 @@ describe("Tiny Swords directional combat art", () => {
       "makeshift-camp",
       "homemade-bomb",
     ]);
+  });
+
+  it("uses the Tiny Swords cloud for Lumen traversal", () => {
+    const blink = combatArt("priest", "blink", "azure");
+    expect(blink.impact).toMatchObject({
+      source: expect.stringContaining("Clouds_01.png"),
+      frames: 1,
+      tint: 0xb48cff,
+    });
+    expect(new Set(allCombatSheets().map((entry) => entry.source))).toContain(blink.impact?.source);
   });
 
   it("uses the exact Hex Shaman magic projectile for Radiant Bolt", () => {

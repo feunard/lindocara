@@ -68,6 +68,15 @@ describe("actor animation art", () => {
     expect(view.animationDurationMs).toBe(400);
     expect(view.foot).toBeCloseTo(sheet.footOffset / sheet.frameHeight);
   });
+
+  it("uses each skill's authored caster strip", () => {
+    const guarding = {
+      ...player,
+      action: { skillId: "iron_guard" },
+    } as PlayerSnapshot;
+
+    expect(playerActorSheet(guarding, "attack").source).toContain("Warrior_Guard.png");
+  });
 });
 
 describe("one-shot billboard strips", () => {

@@ -15,6 +15,7 @@ import {
   isPeasantSkillId,
   peasantCasterSheet,
   peasantSkillActiveFrame,
+  TINY_SWORDS_LUMEN_CLOUD,
   TINY_SWORDS_PEASANT_BOMB_SHEETS,
   TINY_SWORDS_ROGUE_SHEETS,
   TINY_SWORDS_ROOT,
@@ -617,7 +618,22 @@ export function combatArt(
       impact: styled(MAGIC_IMPACT, GREEN_MAGIC, 0.86),
       fallback: "Le projectile magique est teinté en vert pour former la lumière de soin.",
     };
-  if (skillId === "blink") return { caster, impact: styled(DUST, 0xb48cff, 1.35) };
+  if (skillId === "blink")
+    return {
+      caster,
+      impact: {
+        ...sheet(
+          TINY_SWORDS_LUMEN_CLOUD.source,
+          TINY_SWORDS_LUMEN_CLOUD.frameWidth,
+          TINY_SWORDS_LUMEN_CLOUD.frameHeight,
+          1,
+          680,
+          0,
+        ),
+        tint: 0xb48cff,
+        scale: 0.24,
+      },
+    };
   return {
     caster,
     zone: {

@@ -48,7 +48,12 @@ import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import { type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
-import { type MonsterImpactSound, monsterSpecialImpactArt } from "../combat-art.js";
+import {
+  allCombatSheets,
+  combatArt,
+  type MonsterImpactSound,
+  monsterSpecialImpactArt,
+} from "../combat-art.js";
 import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
 import type { RenderContext, RendererLike } from "../renderer-api.js";
@@ -95,6 +100,21 @@ export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): U
     if (motion !== "attack" && player.peasantCarry) {
       return peasantCarrySheet(player.appearance.primaryColor, player.peasantCarry.kind, motion);
     }
+  }
+  if (motion === "attack" && player.action?.skillId) {
+    const base = unitSheet(player.class, player.appearance, motion);
+    const caster = combatArt(
+      player.class,
+      player.action.skillId,
+      player.appearance.primaryColor,
+    ).caster;
+    return {
+      ...base,
+      source: caster.source,
+      frames: caster.frames,
+      frameWidth: caster.frameWidth,
+      frameHeight: caster.frameHeight,
+    };
   }
   return unitSheet(player.class, player.appearance, motion);
 }
@@ -249,6 +269,7 @@ export function guardSheet(
 export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
   ...new Set([
     ...allUnitSheets().map((sheet) => sheet.source),
+    ...allCombatSheets().map((sheet) => sheet.source),
     ...NPC_MODEL_ASSETS.flatMap((asset) => [
       tinySwordsSourceUrl(asset.sourcePath),
       ...(asset.motions?.run ? [tinySwordsSourceUrl(asset.motions.run.sourcePath)] : []),
@@ -638,6 +659,7 @@ interface ActorPosition {
   x: number;
   z: number;
   playerClass?: PlayerClass;
+  primaryColor?: PrimaryColor;
   species?: MonsterSpecies;
 }
 
@@ -1069,6 +1091,7 @@ export class Hd2dRenderer implements RendererLike {
         x: player.x,
         z: player.z,
         playerClass: player.class,
+        primaryColor: player.appearance.primaryColor,
       });
     }
     for (const monster of sample.monsters) {
@@ -1289,6 +1312,17 @@ export class Hd2dRenderer implements RendererLike {
         duration,
         timeline.startedAt,
       );
+      if (position.playerClass && position.primaryColor) {
+        const art = combatArt(
+          position.playerClass,
+          animation.skillId ?? "attack",
+          position.primaryColor,
+        );
+        for (const sheet of [art.zone, art.accent]) {
+          if (sheet)
+            this.#visuals.playSheet(sheet, position.x, position.z, duration, timeline.startedAt);
+        }
+      }
       return;
     }
     const color = position.playerClass
@@ -1315,7 +1349,8 @@ export class Hd2dRenderer implements RendererLike {
     x: number,
     z: number,
   ): PlayerClass | undefined {
-    const playerClass = this.#position(playerId)?.playerClass;
+    const position = this.#position(playerId);
+    const playerClass = position?.playerClass;
     const profile = skillVisual(skillId);
     const color =
       profile?.color ?? (playerClass ? CLASS_EFFECT_COLORS[playerClass] : colorFromSkill(skillId));
@@ -1334,6 +1369,10 @@ export class Hd2dRenderer implements RendererLike {
         Math.max(0.1, profile.impactRadius * 0.16),
         profile.impactDurationMs,
       );
+    }
+    if (playerClass && position?.primaryColor) {
+      const art = combatArt(playerClass, skillId, position.primaryColor);
+      if (art.impact) this.#visuals?.playSheet(art.impact, x, z);
     }
     return playerClass;
   }
@@ -1363,6 +1402,10 @@ export class Hd2dRenderer implements RendererLike {
       Math.max(0.12, (profile?.impactRadius ?? 0.75) * 0.18),
       profile?.impactDurationMs ?? 680,
     );
+    if (skillId) {
+      const impact = combatArt("priest", skillId, color).impact;
+      if (impact) this.#visuals?.playSheet(impact, atX, atZ);
+    }
   }
 
   playInteraction(): void {
@@ -1378,18 +1421,36 @@ export class Hd2dRenderer implements RendererLike {
     const now = performance.now();
     const endsAt = this.#localDeadline(portal.endsAt, 700);
     const duration = Math.max(120, endsAt - now);
-    this.#visuals?.pulse(portal.from.x, portal.from.z, 0xffe995, 0.85, duration, now);
-    this.#visuals?.pulse(portal.to.x, portal.to.z, 0xfff4be, 1.05, duration, now);
-    this.#visuals?.beam(portal.from, portal.to, 0.12, 0xffe995, duration, now);
+    const color = this.#position(portal.actorId)?.primaryColor ?? "azure";
+    const cloud = combatArt("priest", "blink", color).impact;
+    if (!cloud) return;
+    this.#visuals?.playSheet(cloud, portal.from.x, portal.from.z, duration, now, 1.05);
+    this.#visuals?.playSheet(cloud, portal.to.x, portal.to.z, duration, now, 1.18);
   }
 
   playLumenTrail(trail: PriestLumenTrailVisual): void {
     const now = performance.now();
     const duration = Math.max(120, this.#localDeadline(trail.endsAt, 650) - now);
+    const color = this.#position(trail.actorId)?.primaryColor ?? "azure";
+    const cloud = combatArt("priest", "blink", color).impact;
+    if (!cloud) return;
     for (let index = 1; index < trail.points.length; index += 1) {
       const from = trail.points[index - 1];
       const to = trail.points[index];
-      if (from && to) this.#visuals?.beam(from, to, trail.width, 0xffed9c, duration, now);
+      if (!from || !to) continue;
+      const distance = Math.hypot(to.x - from.x, to.z - from.z);
+      const steps = Math.max(1, Math.ceil(distance / 0.65));
+      for (let step = 0; step <= steps; step += 1) {
+        const progress = step / steps;
+        this.#visuals?.playSheet(
+          cloud,
+          from.x + (to.x - from.x) * progress,
+          from.z + (to.z - from.z) * progress,
+          duration,
+          now,
+          0.72 + ((index + step) % 3) * 0.08,
+        );
+      }
     }
   }
 
