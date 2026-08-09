@@ -93,6 +93,10 @@ export function placeStaticContent(
    *  line per PLACEMENT, hundreds of them, and bury whatever else the console had to say. The same
    *  care the graphicless-event skip below takes, applied to the case that actually is a warning. */
   const skipped = new Map<string, number>();
+  // Every vertical billboard with the same z shares the same plane after the context applies its
+  // common yaw. Overlapping pixels on that plane otherwise write identical depth and alternate
+  // between both textures. Only coplanar siblings receive a bias: different rows keep real depth.
+  const depthLayers = new Map<string, number>();
 
   function place(assetId: string, x: number, z: number): void {
     const sprite = resolve(assetId);
@@ -113,6 +117,20 @@ export function placeStaticContent(
     // The ground under the piece, or the sea when there is none: an offshore rock is authored on
     // water on purpose, and dropping it would be worse than floating it at sea level.
     billboard.placeAt(x, scene.query.heightAt(x, z) ?? scene.waterLevel, z);
+    const depthKey = z.toFixed(6);
+    const depthLayer = depthLayers.get(depthKey) ?? 0;
+    depthLayers.set(depthKey, depthLayer + 1);
+    if (depthLayer > 0) {
+      const materials = Array.isArray(billboard.mesh.material)
+        ? billboard.mesh.material
+        : [billboard.mesh.material];
+      for (const material of materials) {
+        material.polygonOffset = true;
+        material.polygonOffsetFactor = -depthLayer;
+        material.polygonOffsetUnits = -depthLayer;
+        material.needsUpdate = true;
+      }
+    }
     scene.root.add(billboard.mesh);
     placed.push(billboard);
   }

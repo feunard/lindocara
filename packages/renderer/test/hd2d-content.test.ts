@@ -186,6 +186,29 @@ describe("static map content", () => {
     expect(placed.map((mesh) => mesh.position.x)).toEqual([-1.5, 0.5]);
   });
 
+  it("gives coplanar overlapping scenery a stable depth order without biasing other rows", () => {
+    const map = flatMap(4, {
+      elements: [
+        { assetId: "tree", x: -0.25, z: 0.5 },
+        { assetId: "tree", x: 0.25, z: 0.5 },
+        { assetId: "tree", x: 0, z: 1.5 },
+      ],
+    });
+    const scene = sceneFor(map);
+    placeStaticContent(createHd2dContext(), scene, map, resolverFor({ tree: art() }));
+    const [first, overlapping, otherRow] = meshes(scene.root);
+    if (!first || !overlapping || !otherRow) throw new Error("expected three scenery billboards");
+    const materialOf = (mesh: THREE.Mesh): THREE.Material =>
+      Array.isArray(mesh.material) ? (mesh.material[0] as THREE.Material) : mesh.material;
+    expect(materialOf(first).polygonOffset).toBe(false);
+    expect(materialOf(overlapping)).toMatchObject({
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    expect(materialOf(otherRow).polygonOffset).toBe(false);
+  });
+
   it("adds no collider — collision comes only from the terrain", () => {
     const authored = {
       elements: [
