@@ -12,6 +12,7 @@ import type {
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+import { type ProjectileVisualDefinition, projectileVisual } from "../projectile-visuals.js";
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import type { Hd2dScene } from "./scene.js";
@@ -95,6 +96,88 @@ function colorFromText(value: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return new THREE.Color().setHSL(((hash >>> 0) % 360) / 360, 0.62, 0.58).getHex();
+}
+
+function projectileMaterial(color: number, opacity = 0.96): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    toneMapped: false,
+  });
+}
+
+function projectileMesh(
+  definition: ProjectileVisualDefinition,
+  radius: number,
+  factionColor: number,
+): THREE.Group {
+  const root = new THREE.Group();
+  const spinRoot = new THREE.Group();
+  root.add(spinRoot);
+  const color = definition.color === "faction" ? factionColor : definition.color;
+  const body = projectileMaterial(color);
+  const accent = projectileMaterial(definition.accent, 0.9);
+  const size = Math.max(0.08, radius) * definition.scale;
+
+  if (definition.shape === "arrow" || definition.shape === "harpoon") {
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(size * 0.18, size * 0.18, size * 3.2, 8),
+      body,
+    );
+    shaft.rotation.x = Math.PI / 2;
+    spinRoot.add(shaft);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(size * 0.72, size * 1.35, 8), accent);
+    tip.rotation.x = Math.PI / 2;
+    tip.position.z = size * 2.1;
+    spinRoot.add(tip);
+    if (definition.shape === "harpoon") {
+      for (const side of [-1, 1]) {
+        const barb = new THREE.Mesh(new THREE.ConeGeometry(size * 0.32, size * 0.9, 6), accent);
+        barb.rotation.x = Math.PI / 2;
+        barb.rotation.z = side * 0.7;
+        barb.position.set(side * size * 0.5, 0, size * 1.35);
+        spinRoot.add(barb);
+      }
+    }
+  } else if (definition.shape === "orb") {
+    spinRoot.add(new THREE.Mesh(new THREE.IcosahedronGeometry(size, 1), body));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(size * 1.35, size * 0.12, 8, 24), accent);
+    ring.rotation.x = Math.PI / 2;
+    spinRoot.add(ring);
+  } else if (definition.shape === "heart") {
+    for (const side of [-1, 1]) {
+      const lobe = new THREE.Mesh(new THREE.SphereGeometry(size * 0.65, 12, 8), body);
+      lobe.position.set(side * size * 0.5, size * 0.38, 0);
+      spinRoot.add(lobe);
+    }
+    const point = new THREE.Mesh(new THREE.ConeGeometry(size, size * 1.8, 12), accent);
+    point.rotation.z = Math.PI;
+    point.position.y = -size * 0.55;
+    spinRoot.add(point);
+  } else {
+    spinRoot.add(new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), body));
+    const fuse = new THREE.Mesh(
+      new THREE.TorusGeometry(size * 0.48, size * 0.12, 6, 12, Math.PI),
+      accent,
+    );
+    fuse.position.y = size * 0.95;
+    fuse.rotation.z = -0.6;
+    spinRoot.add(fuse);
+  }
+
+  if (definition.trailLength > 0) {
+    const trail = new THREE.Mesh(
+      new THREE.ConeGeometry(size * 0.45, definition.trailLength, 8, 1, true),
+      projectileMaterial(color, 0.34),
+    );
+    trail.rotation.x = -Math.PI / 2;
+    trail.position.z = -definition.trailLength / 2 - size * 0.7;
+    root.add(trail);
+  }
+  root.userData.spinRoot = spinRoot;
+  return root;
 }
 
 /** Dynamic presentation parented to the same scene graph as terrain and billboards. */
@@ -526,7 +609,7 @@ export class Hd2dVisualLayer {
   sync(sample: SceneSample, now: number): void {
     this.#events = sample.events;
     this.#syncLoot(sample);
-    this.#syncProjectiles(sample);
+    this.#syncProjectiles(sample, now);
     this.#syncEventMarkers(sample.events);
     const eventById = new Map(sample.events.map((event) => [event.id, event]));
     const questVisualKey = this.#questState
@@ -568,20 +651,28 @@ export class Hd2dVisualLayer {
     }
   }
 
-  #syncProjectiles(sample: SceneSample): void {
+  #syncProjectiles(sample: SceneSample, now: number): void {
     const present = new Set<string>();
     for (const projectile of sample.projectiles) {
       present.add(projectile.id);
       let object = this.#projectiles.get(projectile.id);
       if (!object) {
-        object = new THREE.Mesh(
-          new THREE.SphereGeometry(Math.max(0.08, projectile.radius), 12, 8),
-          transparentMaterial(colorFromText(projectile.color), 0.92),
+        object = projectileMesh(
+          projectileVisual(projectile.kind),
+          projectile.radius,
+          colorFromText(projectile.color),
         );
         this.#root.add(object);
         this.#projectiles.set(projectile.id, object);
       }
       object.position.set(projectile.x, projectile.y, projectile.z);
+      object.rotation.y = Math.atan2(projectile.direction.x, projectile.direction.z);
+      const definition = projectileVisual(projectile.kind);
+      const age = Math.max(0, now - projectile.spawnedAt) / 1_000;
+      const pulse = 1 + Math.sin(age * 11) * definition.pulse;
+      object.scale.setScalar(pulse);
+      const spinRoot = object.userData.spinRoot;
+      if (spinRoot instanceof THREE.Object3D) spinRoot.rotation.z = age * definition.spin;
     }
     for (const [id, object] of this.#projectiles) {
       if (present.has(id)) continue;
