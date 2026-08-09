@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-// Browser components + PixiJS art. jsdom, React, css:false. The `@` alias is the client source
+// Browser components + HD-2D authoring. jsdom, React, css:false. The `@` alias is the client source
 // root (shared with the editor). Node's own webstorage is disabled so jsdom's Storage wins.
 export default defineConfig({
   plugins: [react()],

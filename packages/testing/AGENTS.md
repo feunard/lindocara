@@ -10,7 +10,7 @@ in one place instead of being duplicated or reached for across package boundarie
 - `src/tiles.ts` — tile/collider fixtures (`tileMapFromRects`, …) for engine + server tests.
 - `src/jsdom-setup.ts` — the jsdom setup (testing-library matchers, a `ResizeObserver` stub, per-test
   cleanup). Referenced as `setupFiles` by the renderer/client/editor `vitest.config.ts` (the editor
-  project is out of the root aggregator while that package is quarantined — see its `AGENTS.md`).
+  project is part of the root aggregator alongside the runtime packages).
 
 Single-package helpers do **not** live here — they sit with their package's tests (e.g. the server's
 `world-harness.ts`/`adventure-fixtures.ts`).

@@ -5,7 +5,7 @@
  * `title`/`menu`/`credits`/`auth`, the three launch
  * carousels (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own
  * docblock below), `game` (Task 5) and `editor`. `editor` was a lazy-loaded route rendering the real
- * `@lindocara/editor` shell; since S3 retired the PixiJS render path (2026-08-04) it renders a
+ * `@lindocara/editor` shell; since S3 retired the PixiJS render path it lazy-loads the rebuilt
  * notice instead, because that package no longer compiles. Its own field docblock has the whole
  * story and the exact code to restore.
  *
@@ -408,7 +408,7 @@ export class AppRouter {
   });
 
   /**
-   * The creator tools — **a stub since S3 retired the PixiJS render path (2026-08-04).**
+   * The creator tools, lazy-loaded to keep the game shell independent of the editor package.
    *
    * `@lindocara/editor`'s stage (`game/map-editor-stage.ts`, `game/map-preview.ts`) is built on
    * `renderer.ts`, `stage-application.ts`, `catalog-element-render.ts` and `editor-asset-art.ts`,

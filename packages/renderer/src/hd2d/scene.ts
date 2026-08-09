@@ -363,7 +363,7 @@ export function createHd2dScene(
   const cameraMax = map.size / 2 - cameraInset;
 
   function frameCamera(): void {
-    // How far back the camera sits. A constant while nothing can zoom; the variable it becomes the
+    // How far back the camera sits. Zoom updates this value while preserving the camera pitch and
     // day a wheel is wired is what makes the two zoom couplings below mean anything.
     const distance = cameraDistance;
     const horizontal = Math.cos(CAMERA.pitch) * distance;
@@ -385,7 +385,7 @@ export function createHd2dScene(
 
     // Fog and the tilt-shift radius BOTH follow the camera's zoom, and neither of them the same way
     // (`CAMERA.fogFar`): pulling back must tighten the band so the map dissolves at its edges,
-    // rather than showing the same picture smaller. This camera cannot zoom yet, so the factor is
+    // rather than showing the same picture smaller. Zoom changes the visible radius, so the factor is
     // exactly 1 and both are neutral — written out rather than folded away because a fog tuned in
     // absolutes drowns the whole map the day the camera does pull back, and this is where the day's
     // reader will look.

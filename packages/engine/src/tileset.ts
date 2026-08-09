@@ -1,8 +1,8 @@
-/**
+﻿/**
  * What a tile id means.
  *
- * A map cell stores an id; what the id *does* — whether you can walk on it, whether it draws in
- * front of a character — is a property of the tileset, authored once per tile. That indirection is
+ * A map cell stores an id; what the id *does* â€” whether you can walk on it, whether it draws in
+ * front of a character â€” is a property of the tileset, authored once per tile. That indirection is
  * the whole design: collision stays derivable from what you see (`id -> tileset -> passable`), so
  * `tilemap.ts`'s rule that a cell stores what it IS rather than how it looks moves one level down
  * instead of being abandoned.
@@ -13,7 +13,7 @@
  */
 import { autotileVariantCount } from "./autotile.js";
 
-/** An empty cell. On the ground layer this reads as water — the void — when collision is baked. */
+/** An empty cell. On the ground layer this reads as water â€” the void â€” when collision is baked. */
 export const EMPTY_TILE = 0;
 
 /** Every autotile reserves a full block, even `run4`, which uses only its first four. */
@@ -24,15 +24,15 @@ export const AUTOTILE_SLOTS = 64;
 export const FIXED_BASE = 1 + AUTOTILE_SLOTS * VARIANTS_PER_AUTOTILE;
 
 /** Growing either constant grows every id's digit width, which `MAX_MAP_JSON_BYTES`
- *  (server/index.ts) is sized against — see its comment before raising these. */
+ *  (server/index.ts) is sized against â€” see its comment before raising these. */
 
-/** Drawn behind characters, or in front of them — an XP tile priority, reduced to two values. */
+/** Drawn behind characters, or in front of them â€” an XP tile priority, reduced to two values. */
 export type TilePriority = "below" | "above";
 /** Visual elevation band used to interleave Tiny Swords shadows with terrain. */
 export type TileRenderLevel = 0 | 1 | 2;
 
 /**
- * `edge16` is the four-neighbour mask with sixteen variants — a full Wang set.
+ * `edge16` is the four-neighbour mask with sixteen variants â€” a full Wang set.
  * `run4` masks west and east only: cliff walls tile sideways and never vertically.
  */
 export type AutotileKind = "edge16" | "run4";
@@ -46,7 +46,7 @@ export interface Autotile {
   priority: TilePriority;
   /** Back-to-front terrain band. Defaults to the lowest ground level. */
   renderLevel?: TileRenderLevel;
-  /** Multiplicative colour, as PixiJS spends it. Carries elevation shading. */
+  /** Multiplicative renderer colour. Carries elevation shading. */
   tint?: number;
 }
 
@@ -110,11 +110,11 @@ export function decodeTileId(id: number): TileRef {
 /**
  * Whether a tileset actually declares this id, rather than merely being in-shape for the id space.
  *
- * `decodeTileId` alone cannot answer this — it has no tileset to check bounds against, which is
+ * `decodeTileId` alone cannot answer this â€” it has no tileset to check bounds against, which is
  * exactly why a slot or index past what a tileset declares used to reach `tileBlocks`
  * (`shared/map-data.ts`) and get baked as solid terrain: an id pointing at nothing was silently
- * treated as an obstacle instead of being refused. Callers that DO hold a resolved `Tileset` —
- * `parseMapData` and `validateMapInput` — use this to reject that id outright, at the one place
+ * treated as an obstacle instead of being refused. Callers that DO hold a resolved `Tileset` â€”
+ * `parseMapData` and `validateMapInput` â€” use this to reject that id outright, at the one place
  * both the wire parser and the write-path validator can name every id a map may legally contain.
  */
 export function tileIdInTileset(tileset: Tileset, id: number): boolean {
@@ -125,7 +125,7 @@ export function tileIdInTileset(tileset: Tileset, id: number): boolean {
     // A slot the tileset does not declare is rejected outright; a slot it does declare still needs
     // its variant checked against what that autotile's *kind* can produce. `run4` reserves a full
     // 16-wide block like every other autotile (see `VARIANTS_PER_AUTOTILE`) but only fills its first
-    // four — ids naming variant 4..15 of a `run4` slot are in-shape for the id space and pass every
+    // four â€” ids naming variant 4..15 of a `run4` slot are in-shape for the id space and pass every
     // other check on this path, yet have no entry in `RUN4_LUT` and throw inside `autotileOffset`.
     // Rejecting them here, at the one place both the wire parser and the write-path validator call,
     // is what makes them unrepresentable instead of merely unrendered.

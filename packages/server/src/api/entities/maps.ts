@@ -48,7 +48,8 @@ export const maps = $entity({
     /**
      * JSON-encoded `MapData` (`engine/hd2d/map-data.ts`) — the terrain as a heightfield, in tile
      * units. Empty string is the "no heightfield" sentinel, same convention as `audio` above.
-     * Written today only by `scripts/build-proving-map.ts`; the editor gains this in its own piece.
+     * Compiled by map create/update/import, backfilled at startup, and writable through the
+     * owner-fenced remote terrain endpoint.
      */
     heightfield: db.default(z.string(), ""),
     /** Monotone authored-content revision. Cache identity is `(mapId, revision)`. */

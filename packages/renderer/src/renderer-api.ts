@@ -1,11 +1,11 @@
-/**
- * The renderer contract `game/session.ts` consumes — every method it calls, and nothing else.
+﻿/**
+ * The renderer contract `game/session.ts` consumes â€” every method it calls, and nothing else.
  *
  * It was extracted so the PixiJS `Renderer` and the HD-2D `Hd2dRenderer` could satisfy ONE named
  * contract while both existed. The PixiJS path is gone (S3, 2026-08-04) and `Hd2dRenderer` is the
  * only implementation, but the interface stays: it is the seam `session.ts` is written against, and
  * an editor preview or a headless harness is expected to satisfy it next. Adding a method the
- * session calls means adding it here first — a member that exists only on the class is a method the
+ * session calls means adding it here first â€” a member that exists only on the class is a method the
  * session can call without the contract knowing.
  */
 
@@ -53,9 +53,9 @@ export interface RendererLike {
    * Install the map the room is running.
    *
    * `heightfield` is the welcome's decoded `MapData` (`WorldInfo.heightfield`), or `null` when the
-   * room has none — the only thing the HD-2D path draws its ground from. `tiles`/`elements`/
+   * room has none â€” the only thing the HD-2D path draws its ground from. `tiles`/`elements`/
    * `appearance` are the older wire terrain: still passed, still what the minimap and the movement
-   * rule read, and drawn by nothing since the PixiJS path was deleted.
+   * rule read, and consumed by the HD-2D renderer.
    */
   configureMapTerrain(
     zoneId: string,
@@ -101,7 +101,7 @@ export interface RendererLike {
    * The world GROUND point under a screen coordinate, or `null` when this renderer cannot answer.
    *
    * `null` is not a rendering detail: this is the ONE member of the contract whose return value
-   * leaves the client — the session turns it into the peasant's bomb direction and sends that as an
+   * leaves the client â€” the session turns it into the peasant's bomb direction and sends that as an
    * authoritative `skill(5, direction)` intent. A renderer that cannot cast a screen ray must say
    * so rather than return a placeholder point, because the caller cannot tell a placeholder from an
    * answer, and an invented direction is a lie the server acts on. The session's rule for `null` is

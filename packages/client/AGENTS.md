@@ -5,37 +5,37 @@ glue that binds the renderer to the network. Browser + React. This is the base t
 
 ## Responsibility
 
-- `main.tsx`/`ui/AppRouter.tsx` — bootstrap + routing. `main.tsx`'s `bootClient()` is the shared
-  pre-mount bootstrap (locale, theme, the `#stage` canvas, the DEV-only `?preview` route — itself
-  quarantined with the editor, since it drew through that package's map preview), run by
+- `main.tsx`/`ui/AppRouter.tsx` â€” bootstrap + routing. `main.tsx`'s `bootClient()` is the shared
+  pre-mount bootstrap (locale, theme, the `#stage` canvas, the DEV-only `?preview` route â€” itself
+  rebuilt with the editor on the shared HD-2D map preview), run by
   `apps/main/src/main.browser.ts` before it mounts `AppRouter` on Alepha's `$page` router (title
-  → login → resumable parties/saves; the `/editor` route lazy-`import()`ed the editor package until
-  the 2026-08-04 quarantine, and renders a notice meanwhile — see that route's docblock and
-  `packages/editor/AGENTS.md`). `ui/*` — screens
-  (`AuthScreen`, `PartiesScreen`, `PartyScreen`, …). `ui/hud/` — the in-game HUD.
-  `ui/tiny-swords/` — the game component tree (its own `--tiny-*` tokens).
-- `state/atoms.ts` — Alepha `$atom`s for the application state that used to live on the store but
+  â†’ login â†’ resumable parties/saves; the `/editor` route lazy-`import()`ed the editor package until
+  the rebuilt HD-2D package and lazy-loads the working editor â€” see that route's docblock and
+  `packages/editor/AGENTS.md`). `ui/*` â€” screens
+  (`AuthScreen`, `PartiesScreen`, `PartyScreen`, â€¦). `ui/hud/` â€” the in-game HUD.
+  `ui/tiny-swords/` â€” the game component tree (its own `--tiny-*` tokens).
+- `state/atoms.ts` â€” Alepha `$atom`s for the application state that used to live on the store but
   isn't part of the 60Hz game bridge: `activePartyAtom`, `adventureTestSessionAtom`,
   `adventureEditorSessionAtom`, `quickItemsAtom` (localStorage-persisted), `questTrackingAtom`.
-  React reads/writes them via `useStore`/`useSelector`. `state/navigation.ts` — the injected-
+  React reads/writes them via `useStore`/`useSelector`. `state/navigation.ts` â€” the injected-
   callback seam `game/session.ts` uses to reach the router and these atoms without importing React
   or `alepha`/`alepha/react` itself; `ui/AppRouter.tsx`'s root layout installs the real
   implementation on mount, a test installs a plain fake by reassignment.
-- `store.ts` — the zustand bridge, REDUCED to exactly the 60Hz game bridge (`self`, `selfState`,
+- `store.ts` â€” the zustand bridge, REDUCED to exactly the 60Hz game bridge (`self`, `selfState`,
   cooldowns, `party`, chat, `events`, dialogue/overlay flags, the `GameHandle`, the equality
-  helpers — text state is i18n keys + params, never rendered strings). Everything above moved to
+  helpers â€” text state is i18n keys + params, never rendered strings). Everything above moved to
   `state/atoms.ts` instead, because every atom write validates a zod schema and fires an
-  unfiltered global event bus — fine once per screen transition, disqualifying for anything
-  written 20-60x/s. `api.ts` — the fetch client (machine codes → dictionary keys). `i18n.ts`
-  — re-exports the renderer's locale core + the React `useLocale` hook and `setLocale` (flushSync).
+  unfiltered global event bus â€” fine once per screen transition, disqualifying for anything
+  written 20-60x/s. `api.ts` â€” the fetch client (machine codes â†’ dictionary keys). `i18n.ts`
+  â€” re-exports the renderer's locale core + the React `useLocale` hook and `setLocale` (flushSync).
 - `game/` glue: `net` (the WebSocket, the 20 Hz move report + re-exports `SceneSample`),
-  `hero-controller` (**the client's own `HeroState`**, stepped by `stepHero` every animation frame —
+  `hero-controller` (**the client's own `HeroState`**, stepped by `stepHero` every animation frame â€”
   the seam that replaced prediction when S3 moved movement here, and where a server-granted blink is
   spent), `session` (constructs the renderer,
   owns store writes), `sound`/`audio-settings`/`combat-sounds` (including the procedural
   consumer of movement `HeroEvent`s), `party`, `cooldown-sync`.
-- `styles/` — `app.css` (Tailwind + the client sheets + `@lindocara/ui/globals.css` last), `legacy.css`
-  (the Tiny Swords skin + the two-tree fence), `tokens.css`. `public/` — atlas/audio/served assets.
+- `styles/` â€” `app.css` (Tailwind + the client sheets + `@lindocara/ui/globals.css` last), `legacy.css`
+  (the Tiny Swords skin + the two-tree fence), `tokens.css`. `public/` â€” atlas/audio/served assets.
 
 ## Graph
 
@@ -46,7 +46,7 @@ glue that binds the renderer to the network. Browser + React. This is the base t
 
 ```bash
 npm run typecheck:client        # tsc, DOM + React
-npm test -w @lindocara/client   # or: npm run test:client — jsdom
+npm test -w @lindocara/client   # or: npm run test:client â€” jsdom
 ```
 
 ## Rules
@@ -54,16 +54,16 @@ npm test -w @lindocara/client   # or: npm run test:client — jsdom
 - Two component trees: game UI uses `ui/tiny-swords/`; creator/non-game surfaces use `@lindocara/ui`.
   Never mix them to "match the theme".
 - `game/` code must not import React OR any `alepha`/`alepha/react` module (`ReactRouter` pulls
-  React transitively) — the store is the bridge for the 60Hz game state (`GameHandle` is the
+  React transitively) â€” the store is the bridge for the 60Hz game state (`GameHandle` is the
   seam), and `state/navigation.ts` is the bridge for navigation/atom writes; `game/session.ts`
   reaches the router and the atoms in `state/atoms.ts` only through that seam, never directly.
 - Interpolation delay (150ms) buys smooth remote motion; do not "fix" it. Your own hero is drawn in
-  the present — it IS the present now, since this package runs the movement rule — and everyone else
+  the present â€” it IS the present now, since this package runs the movement rule â€” and everyone else
   `INTERPOLATION_DELAY_MS` in the past.
 - The move report is capped at 20/s (`MOVE_REPORT_MS`) and suppresses identical frames. The hero
   still steps every animation frame; only the report is throttled. Lifting that ceiling spends the
   rate window (`RATE_MAX_MESSAGES`, 35/s) that chat, actions and resyncs share.
-- CSS is not covered by tests (`css: false`) — verify skin changes in a browser. Fix game text colour
+- CSS is not covered by tests (`css: false`) â€” verify skin changes in a browser. Fix game text colour
   in `legacy.css`'s unlayered `html, body`, never in the generated token blocks.
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the two-players-two-rules and CSS-layering details.

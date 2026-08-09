@@ -4,7 +4,7 @@
  * calls instead of raw Drizzle/D1 statements — see that file's docblock for the two invariants this
  * exists to protect (never delete the last map of an adventure; `isFirst` always has a survivor).
  *
- * **Collaborative editing, preserved from legacy.** `maps.ts` and its own tests
+ * **Owner-fenced editing.** `maps.ts` and its own tests
  * (`packages/server/test/maps-api.test.ts`, see the `describe` blocks literally named "collaborative
  * editing is open") establish that ANY authenticated account may list/create/read/update/delete ANY
  * adventure's maps — a map's `userId` inherits from its owning adventure's author, never from the
@@ -540,7 +540,7 @@ export class MapService {
 
   /**
    * Writes the map's heightfield column, deliberately bypassing `updateMap`'s graph/authoring
-   * plumbing. The editor gains its own authoring path in a later piece.
+   * plumbing. The editor and import paths normally compile this field themselves.
    *
    * **UNFENCED, and the only unfenced write on this service.** It answers to a map id and nothing
    * else, so it must never be reached from HTTP. Exactly two kinds of caller remain, both
