@@ -296,11 +296,13 @@ export function createHd2dScene(
   const query = createTerrainQuery(mapToQuerySource(map));
 
   const atlases = terrainAtlases(textures);
+  const stairsAtlas = atlases.lvl0;
+  if (!stairsAtlas) throw new Error("The level-0 terrain atlas is required for authored stairs");
   const terrain = terrainGroupFor(ctx, map, atlases);
   scene.add(terrain.group);
   const stairs = meshStairs(map.ramps ?? [], {
     levelHeight: map.levelHeight,
-    atlas: atlases.lvl0,
+    atlas: stairsAtlas,
   });
   scene.add(stairs.group);
 

@@ -34,7 +34,7 @@ describe("HD-2D authored sky", () => {
       levelHeight: 0.9,
       waterLevel: 0.12,
       levels: [0, 1, 2, 3],
-    } as MapData;
+    } as unknown as MapData;
     expect(authoredSkyAltitude(map)).toBeGreaterThan(3 * map.levelHeight);
   });
 

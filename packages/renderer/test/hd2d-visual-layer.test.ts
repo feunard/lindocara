@@ -96,11 +96,19 @@ describe("Hd2dVisualLayer hero movement", () => {
 
   it("keeps swimming and cracked-ice surfaces synchronized with local state", () => {
     const { layer } = harness();
-    layer.syncLocalHero({ ...hero, swimming: true }, { iceCrack: { x: 0, z: 0 } }, 1_000);
+    layer.syncLocalHero(
+      { ...hero, swimming: true },
+      { iceCrack: { x: 0, z: 0 }, breath: 7, maxBreath: 10, swimming: true },
+      1_000,
+    );
 
-    expect(layer.diagnostics().movementSurfaces).toBe(2);
+    expect(layer.diagnostics().movementSurfaces).toBe(3);
     expect(layer.diagnostics().effects).toBe(1);
-    layer.syncLocalHero(hero, { iceCrack: null }, 1_100);
+    layer.syncLocalHero(
+      hero,
+      { iceCrack: null, breath: 10, maxBreath: 10, swimming: false },
+      1_100,
+    );
     expect(layer.diagnostics().movementSurfaces).toBe(0);
     layer.dispose();
   });

@@ -336,7 +336,8 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     height: framePx.height / TILE_SIZE,
     aspect: framePx.width / framePx.height,
     foot: definition.footOffset / framePx.height + (1 - definition.anchor.y),
-    renderLayer: definition.editor.renderLayer,
+    renderLayer:
+      definition.editor.renderLayer === "ground" ? "object" : definition.editor.renderLayer,
     ...(definition.nature === "animated" && !crop && count > 1
       ? { animationDurationMs: nativeTreeStrip ? 960 : (frame?.durationMs ?? count * 145) }
       : {}),
