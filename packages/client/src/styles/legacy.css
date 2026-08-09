@@ -37,10 +37,21 @@ body::after {
     radial-gradient(circle at center, transparent 55%, rgb(0 9 7 / 42%) 100%);
 }
 
+/* `width`/`height` are NOT redundant with `inset: 0`. A canvas is a REPLACED element: its used size
+   comes from its intrinsic 300x150 (the width/height attributes), and an over-constrained
+   `position: fixed` box with `width: auto` resolves by ignoring `right`/`bottom` rather than by
+   stretching. So `inset: 0` alone positioned this canvas at the top-left corner at 300x150 and
+   nothing more. PixiJS used to hide that: its `Application` wrote the CSS size itself. The HD-2D
+   pipeline deliberately does not (`renderer.setSize(w, h, false)` — updateStyle: false), and it
+   sizes the drawing buffer from `canvas.clientWidth` (`pipelineViewport`), so an unsized canvas
+   silently rendered the whole game into a 300x150 box behind the HUD. The UI suite runs with
+   `css: false` — no test can catch this; it is a browser check. */
 #stage {
   display: block;
   position: fixed;
   inset: 0;
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
   filter: saturate(0.94) contrast(1.04);
   touch-action: none;
