@@ -1237,7 +1237,7 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
   const spawn = definition.spawns?.[0];
   const anchor: GroundVector = spawn ? { x: spawn.x, z: spawn.z } : { x: 0, z: 0 };
   const previousPosition = { x: player.x, y: player.y, z: player.z };
-  let releasePosition: GroundVector = anchor;
+  let releasePosition: GroundVector | null = anchor;
   const anchorGround = groundUnder(terrain, anchor.x, anchor.z);
   // An authored map currently has one spirit anchor: its entry spawn. Two things disqualify it, and
   // BOTH have to send the ghost elsewhere: releasing on top of the corpse would reclaim the body on
@@ -1254,8 +1254,12 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
       anchorGround,
       (candidate) => groundDistance(candidate, corpse) > CORPSE_RECLAIM_RANGE,
     );
-    if (landing) releasePosition = landing;
+    releasePosition = landing;
   }
+  // A ghost placed on its corpse is reclaimed by `advancePlayers` on the next tick and appears to
+  // resurrect instantly. If this map offers no safe spirit landing, keep the body down instead of
+  // manufacturing that invalid transition; a priest can still revive it in place.
+  if (releasePosition === null) return;
   player.life = "ghost";
   displacePlayer(player, {
     x: releasePosition.x,

@@ -340,6 +340,8 @@ describe("world room movement (FakeClock)", () => {
     expect(drowned?.life).toBe("corpse");
     expect(drowned?.x).toBeCloseTo(start?.x ?? Number.NaN, 6);
     expect(drowned?.z).toBeCloseTo(start?.z ?? Number.NaN, 6);
+    for (let tick = 0; tick < 20; tick += 1) clock.advance(TICK_MS);
+    expect(lastSelfSnapshot(socket, heroId)?.life).toBe("corpse");
     expect(socket.closed).toBeUndefined();
     engine.dispose();
   });

@@ -89,6 +89,21 @@ function terrain(colliders: MapData["colliders"] = []): ZoneTerrain {
   return zoneTerrainFromHeightfield(map);
 }
 
+function singleCellTerrain(): ZoneTerrain {
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: 1,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.25,
+    levels: [0],
+    materials: ["herbe"],
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  });
+}
+
 function definitionWith(
   built: ZoneTerrain,
   spawn: { x: number; z: number } | null,
@@ -362,6 +377,19 @@ describe("releasing a spirit", () => {
       canStand(built, player.x, player.z, BODY_RADIUS, groundUnder(built, player.x, player.z)),
     ).toBe(true);
     expect(player.y).toBe(groundUnder(built, player.x, player.z));
+  });
+
+  it("keeps the hero down when the map has no safe spirit landing", () => {
+    const built = singleCellTerrain();
+    const spawn = { x: 0, z: 0 };
+    const player = hero(spawn.x, spawn.z);
+    const w = glue(built, player, spawn);
+
+    killPlayer(w, "connection", player);
+    handleRelease(w, "connection", player);
+
+    expect(player.life).toBe("corpse");
+    expect(player.corpse).toEqual({ x: 0, y: 0, z: 0 });
   });
 
   it("is one-way: a ghost cannot release again", () => {
