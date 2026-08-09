@@ -319,6 +319,17 @@ export class AppRouter {
   layout = $page({
     ssr: false,
     component: AppLayout,
+    // Without these the shell served the framework's placeholder `<title>App</title>` and no icon
+    // link at all, so every page load ended in a 404 on `/favicon.ico`. The asset itself has always
+    // been there and has always been served — `packages/client/public/favicon.svg`, reachable at
+    // `/favicon.svg` — but the framework's auto-detection looks in `<app root>/public`
+    // (`ViteDevServerProvider.detectFavicon`), which is `apps/main/public`, a directory this repo
+    // does not have. Declaring the link here keeps the asset where the rest of the client's public
+    // files live instead of duplicating it into the app just to be found.
+    head: {
+      title: "Lindocara",
+      link: [{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+    },
     children: () => [
       this.title,
       this.menu,
