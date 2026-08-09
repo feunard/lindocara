@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { TINY_SWORDS_ENEMIES } from "../src/enemy-art.js";
 import {
   authoredActorSheet,
+  guardSheet,
   monsterActorSheet,
 } from "../src/hd2d/game-renderer.js";
 import { tinySwordsSourceUrl } from "../src/tiny-swords-assets.js";
@@ -39,6 +40,15 @@ describe("authored HD-2D actor art", () => {
     if (!species) return;
     expect(monsterActorSheet(species, "attack", "missing-model")).toBe(
       TINY_SWORDS_ENEMIES[species].attack,
+    );
+  });
+
+  it("uses the guard model selected by the author", () => {
+    const asset = NPC_MODEL_ASSETS.find((entry) => entry.frame);
+    expect(asset).toBeDefined();
+    if (!asset) return;
+    expect(guardSheet({ graphicAssetId: asset.id }, "idle")).toEqual(
+      authoredActorSheet(asset.id, "idle"),
     );
   });
 });

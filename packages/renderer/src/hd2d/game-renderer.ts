@@ -212,11 +212,17 @@ export function playerActorView(
 
 /** A guard is a Tiny Swords unit like any other — the same warrior sheet the deleted PixiJS path
  *  gave it, in the faction colour its authored asset id implies. */
-function guardSheet(guard: GuardSnapshot, motion: ActorMotion): UnitSheet {
-  return unitSheet(
-    "warrior",
-    { body: "wayfarer", primaryColor: guardPrimaryColorForAsset(guard.graphicAssetId) },
-    motion,
+export function guardSheet(
+  guard: Pick<GuardSnapshot, "graphicAssetId">,
+  motion: ActorMotion,
+): BillboardActorSheet {
+  return (
+    authoredActorSheet(guard.graphicAssetId, motion) ??
+    unitSheet(
+      "warrior",
+      { body: "wayfarer", primaryColor: guardPrimaryColorForAsset(guard.graphicAssetId) },
+      motion,
+    )
   );
 }
 
