@@ -22,6 +22,7 @@ const mock = vi.hoisted(() => {
     setCameraZoom: vi.fn(),
     setEditorOverlay: vi.fn(),
     setEditorPreviewAsset: vi.fn(),
+    setDayCycleOverride: vi.fn(),
     setTiltShiftEnabled: vi.fn(),
   };
   return {
@@ -77,6 +78,8 @@ describe("HD-2D map editor stage", () => {
 
     expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledOnce();
     expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledWith(false);
+    expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledOnce();
+    expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledWith("day");
 
     expect(mock.renderer.configureMapTerrain).toHaveBeenCalledWith(
       "editor",

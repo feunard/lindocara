@@ -160,6 +160,9 @@ export function openMapEditorStage(
 
     const renderer = await Hd2dRenderer.create(canvas);
     renderer.setTiltShiftEnabled(false);
+    // L’auteur doit toujours distinguer matières, raccords et aperçus, quelle que soit la phase
+    // propre à la map. Seul le test complet peut ensuite choisir explicitement jour ou nuit.
+    renderer.setDayCycleOverride("day");
     let history = createEditorHistory(initial);
     let map = initial;
     let tool: EditorTool = { kind: "select" };
