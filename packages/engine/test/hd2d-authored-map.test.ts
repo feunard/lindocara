@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileAuthoredMap } from "../src/hd2d/authored-map.js";
+import { AUTHORED_LEVEL_HEIGHT, compileAuthoredMap } from "../src/hd2d/authored-map.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { stairsFixedIndex, stairsTilePlacements } from "../src/tile-brush.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId, fixedId } from "../src/tileset.js";
 import { TERRAIN_MATERIAL_SLOTS, TINY_SWORDS_TILESET_ID } from "../src/tilesets/tiny-swords.js";
+import { EDITOR_ASSETS } from "../src/tiny-swords-catalog.js";
 
 function authored(): MapData {
   const ground = emptyLayer(3, 2);
@@ -116,5 +117,17 @@ describe("compileAuthoredMap", () => {
     expect(compileAuthoredMap(source).ramps).toEqual([
       { x: -1, z: -1, width: 1, depth: 2, direction: "east", lowLevel: 0 },
     ]);
+  });
+
+  it("authors a one-level walkable top on building colliders only", () => {
+    const building = EDITOR_ASSETS.find((asset) => asset.editor.category === "buildings");
+    if (!building) throw new Error("building fixture missing");
+    const source = authored();
+    source.elements = [
+      { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: building.id },
+    ];
+    const compiled = compileAuthoredMap(source);
+    expect(compiled.colliders).toHaveLength(1);
+    expect(compiled.colliders[0]?.top).toBe(AUTHORED_LEVEL_HEIGHT);
   });
 });

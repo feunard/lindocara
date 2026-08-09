@@ -52,4 +52,12 @@ describe("createColliderIndex", () => {
     idx.add({ x: 99.5, z: 99.5, w: 1, h: 1 }); // centered at (100, 100)
     expect(idx.blocked(0, 0, 2)).toBe(false);
   });
+
+  it("blocks a building below its roof and releases the same footprint at roof height", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: -1, z: -1, w: 2, h: 2, top: 0.9 });
+    expect(idx.blocked(0, 0, 0.3, 0.89)).toBe(true);
+    expect(idx.blocked(0, 0, 0.3, 0.9)).toBe(false);
+    expect(idx.blocked(0, 0, 0.3)).toBe(true);
+  });
 });

@@ -3,9 +3,10 @@ import type { TerrainMaterial, TerrainQuery } from "@lindocara/engine/hd2d/terra
 
 interface Options {
   /** `true` where an obstacle blocks. Default: nowhere. */
-  bloque?: (x: number, z: number) => boolean;
+  bloque?: (x: number, z: number, y?: number) => boolean;
   /** Ground height, or `null` for water. Default: flat at 0. */
   hauteur?: (x: number, z: number) => number | null;
+  surface?: (x: number, z: number, ceilingY: number) => number | null;
   matiere?: (x: number, z: number) => TerrainMaterial | null;
 }
 
@@ -16,6 +17,7 @@ export function depsPlates(o: Options = {}): StepDeps {
   const matiere = o.matiere ?? (() => "herbe" as TerrainMaterial);
   const query: TerrainQuery = {
     heightAt: (x, z) => hauteur(x, z),
+    surfaceAt: (x, z, ceilingY) => o.surface?.(x, z, ceilingY) ?? hauteur(x, z),
     maxHeightAround: (x, z) => hauteur(x, z) ?? 0,
     levelAt: (x, z) => (hauteur(x, z) === null ? null : 0),
     kindAt: (x, z) => matiere(x, z),
@@ -23,7 +25,7 @@ export function depsPlates(o: Options = {}): StepDeps {
     canTraverseRamp: () => false,
     cellCenter: (i, j) => [i + 0.5, j + 0.5],
   };
-  const colliders: ColliderQuery = { blocked: (x, z) => o.bloque?.(x, z) ?? false };
+  const colliders: ColliderQuery = { blocked: (x, z, _r, y) => o.bloque?.(x, z, y) ?? false };
   return {
     query,
     colliders,

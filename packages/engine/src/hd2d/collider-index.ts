@@ -21,13 +21,15 @@ export interface ColliderRect {
   z: number;
   w: number;
   h: number;
+  /** Walkable top surface. Omitted for ordinary props and walls. */
+  top?: number;
 }
 
 export interface ColliderIndex {
   readonly all: readonly ColliderRect[];
   add(rect: ColliderRect): void;
   /** `true` if a disc of radius `r` centered at `(x, z)` overlaps a rectangle. */
-  blocked(x: number, z: number, r: number): boolean;
+  blocked(x: number, z: number, r: number, y?: number): boolean;
   /**
    * Broad phase for a SWEPT query: every distinct rectangle whose bucket the axis-aligned box
    * touches. It over-reports (a bucket is coarser than a rectangle) and never under-reports, so
@@ -47,6 +49,10 @@ function overlaps(rect: ColliderRect, x: number, z: number, r: number): boolean 
   const dx = x - px;
   const dz = z - pz;
   return dx * dx + dz * dz < r * r;
+}
+
+function blocksAt(rect: ColliderRect, y: number | undefined): boolean {
+  return y === undefined || rect.top === undefined || y < rect.top - 1e-3;
 }
 
 export function createColliderIndex(): ColliderIndex {
@@ -71,11 +77,11 @@ export function createColliderIndex(): ColliderIndex {
         }
       }
     },
-    blocked(x, z, r) {
+    blocked(x, z, r, y) {
       if (r <= QUERY_PAD) {
         const bucket = grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL)));
         if (!bucket) return false;
-        return bucket.some((rect) => overlaps(rect, x, z, r));
+        return bucket.some((rect) => blocksAt(rect, y) && overlaps(rect, x, z, r));
       }
       // Final review (point C2, inherited from `colliders.ts`): this function, promoted to
       // AUTHORITATIVE server-side collision in S2, will receive radii decided by ENTITY DATA, so a
@@ -90,7 +96,7 @@ export function createColliderIndex(): ColliderIndex {
           for (const rect of bucket) seen.add(rect);
         }
       }
-      for (const rect of seen) if (overlaps(rect, x, z, r)) return true;
+      for (const rect of seen) if (blocksAt(rect, y) && overlaps(rect, x, z, r)) return true;
       return false;
     },
     inBox(minX, minZ, maxX, maxZ) {

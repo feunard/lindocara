@@ -1,6 +1,7 @@
 import {
   createTerrainQuery,
   type TerrainMaterial,
+  type TerrainPlatform,
   type TerrainQuery,
   type TerrainRamp,
 } from "@lindocara/engine/hd2d/terrain-query.js";
@@ -15,7 +16,12 @@ import { describe, expect, it } from "vitest";
  */
 function makeQuery(
   levels: readonly (number | null)[][],
-  opts: { levelHeight?: number; waterLevel?: number; ramps?: readonly TerrainRamp[] } = {},
+  opts: {
+    levelHeight?: number;
+    waterLevel?: number;
+    ramps?: readonly TerrainRamp[];
+    platforms?: readonly TerrainPlatform[];
+  } = {},
 ): TerrainQuery {
   const size = levels.length;
   const at = (i: number, j: number): number | null => {
@@ -34,6 +40,7 @@ function makeQuery(
     at,
     kindAt,
     ...(opts.ramps === undefined ? {} : { ramps: opts.ramps }),
+    ...(opts.platforms === undefined ? {} : { platforms: opts.platforms }),
   });
 }
 
@@ -215,6 +222,27 @@ describe("authored stair ramps", () => {
     expect(query.canTraverseRamp(-0.6, 0, -0.4, 0, 0.2)).toBe(true);
     expect(query.canTraverseRamp(-0.05, 0, 0.05, 0, 0.2)).toBe(true);
     expect(query.canTraverseRamp(-0.5, 0.85, -0.5, 1.05, 0.2)).toBe(false);
+  });
+});
+
+describe("authored building platforms", () => {
+  const query = makeQuery(
+    [
+      [0, 0],
+      [0, 0],
+    ],
+    { platforms: [{ x: -0.8, z: -0.8, w: 1.6, h: 1.6, top: 0.9 }] },
+  );
+
+  it("exposes the roof only after the body has jumped high enough", () => {
+    expect(query.surfaceAt?.(0, 0, 0.89)).toBe(0);
+    expect(query.surfaceAt?.(0, 0, 0.9)).toBe(0.9);
+    expect(query.surfaceAt?.(0.9, 0, 2)).toBe(0);
+  });
+
+  it("includes the roof in the airborne footprint without changing ordinary ground queries", () => {
+    expect(query.maxHeightAround(0.9, 0, 0.2)).toBe(0);
+    expect(query.maxHeightAround(0.9, 0, 0.2, 1)).toBe(0.9);
   });
 });
 

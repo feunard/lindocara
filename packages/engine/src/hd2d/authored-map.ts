@@ -14,6 +14,7 @@ import {
   elementWorldCollider,
 } from "../map-data.js";
 import type { MapEvent } from "../map-events.js";
+import { editorAsset } from "../tiny-swords-catalog.js";
 import {
   type StairsDirection,
   type StairsLowLevel,
@@ -124,6 +125,9 @@ export function compileAuthoredMap(
 
   const colliders = authored.elements.flatMap((element) => {
     const rect = elementWorldCollider(element);
+    const asset = editorAsset(element.assetId);
+    const level = levels[element.row * size + element.col] ?? null;
+    const base = level === null ? AUTHORED_WATER_LEVEL : level * AUTHORED_LEVEL_HEIGHT;
     return rect
       ? [
           {
@@ -131,6 +135,9 @@ export function compileAuthoredMap(
             z: groundCoordinate(rect.y, size),
             w: rect.width / TILE_SIZE,
             h: rect.height / TILE_SIZE,
+            ...(asset?.editor.category === "buildings"
+              ? { top: base + AUTHORED_LEVEL_HEIGHT }
+              : {}),
           },
         ]
       : [];

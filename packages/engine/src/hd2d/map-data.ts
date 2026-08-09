@@ -114,7 +114,14 @@ function toCollider(value: unknown): ColliderRect | null {
     !isFiniteNumber(value.h)
   )
     return null;
-  return { x: value.x, z: value.z, w: value.w, h: value.h };
+  if (value.top !== undefined && !isFiniteNumber(value.top)) return null;
+  return {
+    x: value.x,
+    z: value.z,
+    w: value.w,
+    h: value.h,
+    ...(value.top === undefined ? {} : { top: value.top }),
+  };
 }
 
 function toSpawn(value: unknown): { name: string; x: number; z: number } | null {
@@ -270,5 +277,8 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
       return m.materials[j * m.size + i] ?? null;
     },
     ramps: m.ramps ?? [],
+    platforms: m.colliders.flatMap((collider) =>
+      collider.top === undefined ? [] : [{ ...collider, top: collider.top }],
+    ),
   };
 }

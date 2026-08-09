@@ -175,7 +175,7 @@ export interface WorldSettings {
  *  changed implementation (circles → rectangles) without the rule ever noticing. */
 export interface ColliderQuery {
   /** `true` if a disc of radius `r` centered at `(x, z)` overlaps an obstacle. */
-  blocked(x: number, z: number, r: number): boolean;
+  blocked(x: number, z: number, r: number, y?: number): boolean;
 }
 
 export interface StepDeps {

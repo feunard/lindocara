@@ -42,4 +42,23 @@ describe("stepHero — the vertical axis", () => {
     const evts = stepHero(s, { ...immobile, jump: true }, 1 / 60, deps);
     expect(evts.some((e) => e.t === "saut")).toBe(false);
   });
+
+  it("lands on a building roof after crossing it on the descending arc", () => {
+    const top = 0.9;
+    const deps = depsPlates({
+      surface: (x, _z, ceilingY) => (Math.abs(x) <= 0.8 && ceilingY >= top ? top : 0),
+      bloque: (x, _z, y) => Math.abs(x) <= 0.8 && (y ?? 0) < top,
+    });
+    const s = createHeroState(0, 0, 1.05, 10, 2.2);
+    s.airborne = true;
+    s.vy = -2;
+
+    let landed = false;
+    for (let i = 0; i < 20 && !landed; i++) {
+      landed = stepHero(s, immobile, 1 / 60, deps).some((event) => event.t === "reception");
+    }
+    expect(landed).toBe(true);
+    expect(s.airborne).toBe(false);
+    expect(s.y).toBeCloseTo(top, 6);
+  });
 });

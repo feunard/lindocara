@@ -49,7 +49,8 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const { query, colliders, hero, world } = deps;
   const climb = world.levelHeight * hero.swim.climb;
   const maxStep = world.maxStep * world.levelHeight + 1e-3;
-  const surfaceAt = (xx: number, zz: number) => query.heightAt(xx, zz) ?? world.waterLevel;
+  const surfaceAt = (xx: number, zz: number) =>
+    (query.surfaceAt?.(xx, zz, state.y + 0.02) ?? query.heightAt(xx, zz)) ?? world.waterLevel;
   const footprintZ = empreinte(z, hero);
   const currentFootprintZ = empreinte(state.z, hero);
   const traversingRamp = query.canTraverseRamp(
@@ -83,7 +84,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
 
   // Relief is tested against the hero's disc, not its center: otherwise it sinks half its body
   // into a wall before being stopped.
-  const h = query.maxHeightAround(x, empreinte(z, hero), hero.radius);
+  const h = query.maxHeightAround(x, empreinte(z, hero), hero.radius, state.y + 0.02);
   const plafond = state.swimming
     ? world.waterLevel + climb
     : state.airborne
@@ -93,13 +94,18 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     // Already overlapping something too tall — the case right after falling at the foot of a
     // cliff, the disc still biting into the cell above. Without this escape hatch, NO movement at
     // all is allowed, not even to move away from it, and the hero stays cemented in place.
-    const ici = query.maxHeightAround(state.x, empreinte(state.z, hero), hero.radius);
+    const ici = query.maxHeightAround(
+      state.x,
+      empreinte(state.z, hero),
+      hero.radius,
+      state.y + 0.02,
+    );
     if (!(ici > plafond && h <= ici)) return false;
   }
 
-  if (!colliders.blocked(x, empreinte(z, hero), hero.radius)) return true;
+  if (!colliders.blocked(x, empreinte(z, hero), hero.radius, state.y)) return true;
   // Same escape hatch against props (an unlucky spawn, a prop added underneath).
-  return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius);
+  return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius, state.y);
 }
 
 /** Key of the thin-ice cell under a world point — MOVED from the lab's `hero.ts`'s internal
@@ -270,7 +276,10 @@ export function stepHero(
     state.swimming = false;
     state.vy = 0;
   }
-  const sol = state.room ? state.room.y : query.heightAt(state.x, empreinteZ(state.z));
+  const sol = state.room
+    ? state.room.y
+    : (query.surfaceAt?.(state.x, empreinteZ(state.z), state.y + 0.02) ??
+      query.heightAt(state.x, empreinteZ(state.z)));
 
   // Indoors, the floor is flat: no gravity, no swimming, no jumping. The whole vertical block is
   // guarded by `!state.room` so none of these mechanics run indoors.

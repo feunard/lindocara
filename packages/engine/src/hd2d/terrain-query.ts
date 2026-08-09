@@ -29,9 +29,19 @@ export interface TerrainRampSample extends TerrainRamp {
   highHeight: number;
 }
 
+export interface TerrainPlatform {
+  x: number;
+  z: number;
+  w: number;
+  h: number;
+  top: number;
+}
+
 export interface TerrainQuery {
   /** World height of the ground under a point, or `null` if it is water / off the map. */
   heightAt(wx: number, wz: number): number | null;
+  /** Highest ground or authored platform not above the moving body's current ceiling. */
+  surfaceAt?(wx: number, wz: number, ceilingY: number): number | null;
   /**
    * Highest ground height under a DISC. Testing a single point would let the character's body
    * sink into cliffs by its half-width — it is a volume that moves, not a point. Water counts as
@@ -39,7 +49,7 @@ export interface TerrainQuery {
    * swim out to open water, it is your breath that brings you back. Never `-Infinity`, including
    * for `r = 0` (a disc degenerated to a point is still a point to test).
    */
-  maxHeightAround(wx: number, wz: number, r: number): number;
+  maxHeightAround(wx: number, wz: number, r: number, ceilingY?: number): number;
   /** Level tier (0, 1, 2, ...) under a point, or `null` if it is water / off the map. */
   levelAt(wx: number, wz: number): number | null;
   /** Ground material under a point, or `null` if it is water / off the map. */
@@ -67,6 +77,7 @@ export interface TerrainQuerySource {
   /** Material of cell (i, j), or `null` off-grid / water. */
   kindAt(i: number, j: number): TerrainMaterial | null;
   ramps?: readonly TerrainRamp[];
+  platforms?: readonly TerrainPlatform[];
 }
 
 function rampSampleAt(
@@ -108,18 +119,42 @@ const THREELESS_CLAMP = (value: number): number => Math.max(0, Math.min(1, value
  * the cell-indexed accessors, this function only converts them into WORLD-coordinate queries.
  */
 export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
-  const { size, levelHeight, waterLevel, at, kindAt, ramps = [] } = source;
+  const { size, levelHeight, waterLevel, at, kindAt, ramps = [], platforms = [] } = source;
   const c = size / 2;
   const toCell = (w: number) => Math.floor(w + c);
+  const groundHeightAt = (wx: number, wz: number): number | null => {
+    const ramp = rampSampleAt(ramps, levelHeight, wx, wz);
+    if (ramp) return ramp.height;
+    const h = at(toCell(wx), toCell(wz));
+    return h === null ? null : h * levelHeight;
+  };
+  const platformAt = (wx: number, wz: number, ceilingY: number): number | null => {
+    let top: number | null = null;
+    for (const platform of platforms) {
+      if (
+        platform.top <= ceilingY + 1e-3 &&
+        wx >= platform.x &&
+        wx <= platform.x + platform.w &&
+        wz >= platform.z &&
+        wz <= platform.z + platform.h
+      ) {
+        top = top === null ? platform.top : Math.max(top, platform.top);
+      }
+    }
+    return top;
+  };
 
   return {
     heightAt(wx, wz) {
-      const ramp = rampSampleAt(ramps, levelHeight, wx, wz);
-      if (ramp) return ramp.height;
-      const h = at(toCell(wx), toCell(wz));
-      return h === null ? null : h * levelHeight;
+      return groundHeightAt(wx, wz);
     },
-    maxHeightAround(wx, wz, r) {
+    surfaceAt(wx, wz, ceilingY) {
+      const ground = groundHeightAt(wx, wz);
+      const platform = platformAt(wx, wz, ceilingY);
+      if (platform === null) return ground;
+      return ground === null ? platform : Math.max(ground, platform);
+    },
+    maxHeightAround(wx, wz, r, ceilingY) {
       let max = Number.NEGATIVE_INFINITY;
       for (let j = toCell(wz - r); j <= toCell(wz + r); j++) {
         for (let i = toCell(wx - r); i <= toCell(wx + r); i++) {
@@ -135,6 +170,14 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
           if ((nx - wx) ** 2 + (nz - wz) ** 2 > r * r) continue;
           const h = at(i, j);
           max = Math.max(max, h === null ? waterLevel : h * levelHeight);
+        }
+      }
+      if (ceilingY !== undefined) {
+        for (const platform of platforms) {
+          if (platform.top > ceilingY + 1e-3) continue;
+          const nx = Math.min(Math.max(wx, platform.x), platform.x + platform.w);
+          const nz = Math.min(Math.max(wz, platform.z), platform.z + platform.h);
+          if ((nx - wx) ** 2 + (nz - wz) ** 2 <= r * r) max = Math.max(max, platform.top);
         }
       }
       return max;
