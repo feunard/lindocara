@@ -24,6 +24,8 @@ function makeQuery(land: (x: number, z: number) => boolean): TerrainQuery {
     maxHeightAround: () => 0,
     levelAt: (x, z) => (land(x, z) ? 0 : null),
     kindAt: () => "herbe",
+    rampAt: () => null,
+    canTraverseRamp: () => false,
     cellCenter: (i, j) => [i, j],
   };
 }
@@ -216,6 +218,8 @@ describe("scatterOnLand, centered the way main.ts actually centers it", () => {
       maxHeightAround: () => 0,
       levelAt: () => 0, // toute la carte est de la terre : isole la géométrie du disque
       kindAt: () => "herbe",
+      rampAt: () => null,
+      canTraverseRamp: () => false,
       cellCenter: (i, j) => [i, j],
     };
     const footprint = cameraGroundFootprint(CAMERA, BENCH_REFERENCE_ASPECT);
