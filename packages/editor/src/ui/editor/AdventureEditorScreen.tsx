@@ -61,7 +61,6 @@ import { useRouter } from "alepha/react/router";
 import { XIcon } from "lucide-react";
 import {
   type FocusEvent as ReactFocusEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -1238,7 +1237,16 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   //   still cover the "focus never left the container" case this `closest()` cannot see.
   // - the stage has not finished opening (`stageStatus !== "ready"`), matching every other action in
   //   this file guarding on stage readiness.
-  function handleShortcutKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+  //
+  // It is bound on the WINDOW, not on this screen's container, and that is load-bearing. The HD-2D
+  // stage owns `#stage` — a sibling of `#root`, outside `.editor-root` entirely — and it makes that
+  // canvas focusable (`canvas.tabIndex = 0`) and focuses it on every `pointerdown`
+  // (`game/map-editor-stage.ts`). So from the first paint stroke onward the author's focus is on the
+  // canvas, and a container-bound listener would never see another keystroke: ⌘S, undo/redo, the
+  // mode digits, the tool letters and the grid toggle all went silently dead until some chrome was
+  // clicked by hand. The gates above are what make a window binding safe — reaching every keystroke
+  // is the point, ignoring the ones that belong to a field or a dialog is the discipline.
+  function handleShortcutKeyDown(event: KeyboardEvent): void {
     if (stageStatus !== "ready" || savingMap) return;
     if (
       newMapOpen ||
@@ -1327,6 +1335,20 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     }
   }
 
+  // The listener is installed once and reads the handler through a ref, because `handleShortcutKeyDown`
+  // closes over a dozen pieces of state (every dialog flag, the stage status, the selection) and a
+  // dependency-listed effect would either reinstall the listener on every keystroke-adjacent render
+  // or, worse, capture a stale set of gates and fire a shortcut through a dialog that is open.
+  const shortcutRef = useRef(handleShortcutKeyDown);
+  useEffect(() => {
+    shortcutRef.current = handleShortcutKeyDown;
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => shortcutRef.current(event);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // Painting on `#stage` — React's sibling canvas, never React's to touch — blurs this container in
   // a real browser: the canvas has no `tabindex` in `index.html`, so a click on it cannot receive
   // focus itself, but per standard browser behaviour it still steals focus away from whatever *was*
@@ -1404,11 +1426,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     // D16: one TooltipProvider for the whole shell, so every icon-only button's tooltip (toolbar,
     // menu bar, Cartes panel) shares the same hover/focus timing instead of each mounting its own.
     <TooltipProvider>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: shortcut-key host, not an interactive widget */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: focus host, not an interactive widget */}
       <div
         ref={containerRef}
         tabIndex={-1}
-        onKeyDown={handleShortcutKeyDown}
         onBlur={handleContainerBlur}
         className="editor-root flex h-screen flex-col overflow-hidden text-zinc-950 select-none outline-none"
       >

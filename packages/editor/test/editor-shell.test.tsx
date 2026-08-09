@@ -1365,6 +1365,42 @@ describe("AdventureEditorScreen shell", () => {
       expect(gridButton).toHaveAttribute("aria-pressed", "false");
     });
 
+    /**
+     * The HD-2D stage owns `#stage`, a SIBLING of `#root` — outside `.editor-root` entirely — and
+     * it makes that canvas focusable (`canvas.tabIndex = 0`) and focuses it on every `pointerdown`
+     * (`map-editor-stage.ts`). So after the very first paint stroke, a keystroke's target is the
+     * canvas, not the shell: a listener bound to the shell container never sees it, and EVERY
+     * chrome shortcut — ⌘S, undo/redo, the mode digits, the tool letters, the grid — goes silently
+     * dead until the author clicks some chrome by hand. Binding at the window is what makes the
+     * shortcut reachable from wherever focus actually is; the gates below (dialog flags, the
+     * INPUT/TEXTAREA/SELECT target check, the `[data-slot="dialog-content"]` check) are what keep
+     * that reach from being too wide.
+     *
+     * Every other test in this describe dispatches on the shell container, which bubbles to the
+     * window and so passed both before and after the fix — that is exactly why none of them caught
+     * this. This one dispatches from where the canvas actually puts focus.
+     */
+    it("fires shortcuts when focus sits on the #stage canvas, outside the shell", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady(alepha);
+      const stage = document.createElement("canvas");
+      stage.id = "stage";
+      stage.tabIndex = 0;
+      document.body.append(stage);
+      try {
+        fireEvent.keyDown(stage, { key: "r" });
+        expect(stageMock.setTool).toHaveBeenLastCalledWith({
+          kind: "rect",
+          content: { kind: "block", block: "grass" },
+        });
+
+        fireEvent.keyDown(stage, { key: "2" });
+        expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("element");
+      } finally {
+        stage.remove();
+      }
+    });
+
     it("re-selecting the current mode via its shortcut leaves the active tool untouched", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
       const rendered = await mountReady(alepha);
