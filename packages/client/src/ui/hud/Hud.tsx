@@ -158,7 +158,7 @@ export function Hud() {
           <div className="panel-title">
             <strong>{t("party.title")}</strong>
           </div>
-          {activeParty ? (
+          {activeParty && (
             <div className="party-save">
               <strong>{activeParty.name ?? activeParty.adventureTitle}</strong>
               <span>
@@ -172,21 +172,27 @@ export function Hud() {
                     })}
               </span>
             </div>
-          ) : party ? (
-            party.members.map((member) => (
-              <div key={member.id}>
-                <span>
-                  {member.nick}
-                  {member.id === party.leaderId ? " ★" : ""}
-                </span>
-                <Bar value={member.hp} max={member.maxHp} variant="hp" />
-              </div>
-            ))
-          ) : (
+          )}
+          {party ? (
+            <div className="party-members">
+              {party.members.map((member) => (
+                <div className="party-member" key={member.id}>
+                  <span className="party-member__sigil" aria-hidden="true">
+                    {member.nick.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="party-member__name">
+                    {member.nick}
+                    {member.id === party.leaderId ? " ★" : ""}
+                  </span>
+                  <Bar value={member.hp} max={member.maxHp} variant="hp" />
+                </div>
+              ))}
+            </div>
+          ) : !activeParty ? (
             <button type="button" onClick={() => game?.partyCreate?.()}>
               {t("party.create")}
             </button>
-          )}
+          ) : null}
           {!activeParty && party && (
             <button
               type="button"
