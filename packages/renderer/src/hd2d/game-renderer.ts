@@ -70,7 +70,7 @@ import { createBillboardRegistry } from "./billboards.js";
 import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
 import type { StaticContent, StaticSpriteArt } from "./static-content.js";
-import { placeStaticContent } from "./static-content.js";
+import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
 import {
   HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
   HD2D_SPLASH_TEXTURE_URL,
@@ -272,15 +272,32 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
  * `StaticSpriteArt` minus its texture, because the sheet has to be NAMED before it can be
  * downloaded and TEXTURED only afterwards — see `staticAssetSpec`.
  */
-export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture" | "companions"> {
+export interface StaticAssetSpec
+  extends Omit<StaticSpriteArt, "texture" | "companions" | "coldVariant"> {
   url: string;
   companions?: readonly StaticAssetSpec[];
+  coldVariant?: StaticAssetSpec;
 }
 
 const LAB_CAMPFIRE_BASE_URL = "/assets/lindocara/hd2d/campfire-base.png";
 const LAB_CAMPFIRE_FLAME_URL = "/assets/lindocara/hd2d/campfire-flame.png";
 const LAB_CHEST_CLOSED_URL = "/assets/lindocara/hd2d/chest-closed.png";
 const LAB_CHEST_OPEN_URL = "/assets/lindocara/hd2d/chest-open.png";
+const LAB_SNOW_TREE_URL = "/assets/lindocara/hd2d/snow-tree.png";
+const NATIVE_TREE_ASSET_IDS = new Set([
+  "resource.terrain-resources-wood-trees.tree1",
+  "resource.terrain-resources-wood-trees.tree2",
+  "resource.terrain-resources-wood-trees.tree3",
+]);
+
+function snowTreeSpec(): StaticAssetSpec {
+  return {
+    url: LAB_SNOW_TREE_URL,
+    height: 2.9,
+    aspect: 94 / 142,
+    foot: 0.03,
+  };
+}
 
 /**
  * A catalogue asset id, read as everything the HD-2D path needs to draw it — or `null` when this
@@ -375,7 +392,7 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     // A catalogue entry pointing at a file this build does not ship is one lost prop, not a crash.
     return null;
   }
-  return {
+  const spec: StaticAssetSpec = {
     url,
     cols: crop ? 1 : alongX ? count : 1,
     rows: crop ? 1 : alongX ? 1 : count,
@@ -398,20 +415,26 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
         }
       : {}),
   };
+  return NATIVE_TREE_ASSET_IDS.has(assetId) ? { ...spec, coldVariant: snowTreeSpec() } : spec;
 }
 
 function staticSpecUrls(spec: StaticAssetSpec): string[] {
-  return [spec.url, ...(spec.companions ?? []).flatMap(staticSpecUrls)];
+  return [
+    spec.url,
+    ...(spec.companions ?? []).flatMap(staticSpecUrls),
+    ...(spec.coldVariant ? staticSpecUrls(spec.coldVariant) : []),
+  ];
 }
 
 function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureRegistry): StaticSpriteArt {
-  const { url, companions, ...geometry } = spec;
+  const { url, companions, coldVariant, ...geometry } = spec;
   return {
     texture: textures.get(url),
     ...geometry,
     ...(companions
       ? { companions: companions.map((companion) => materializeStaticSpec(companion, textures)) }
       : {}),
+    ...(coldVariant ? { coldVariant: materializeStaticSpec(coldVariant, textures) } : {}),
   };
 }
 
@@ -754,6 +777,7 @@ export class Hd2dRenderer implements RendererLike {
       heightfield.size,
       heightfield.waterLevel,
       this.#textures,
+      (x, z) => authoredMaterialAt(heightfield, x, z),
     );
     this.#visuals.setEditorPreviewArt(this.#editorPreviewArt);
     this.#visuals.setMerchant(this.#merchant);

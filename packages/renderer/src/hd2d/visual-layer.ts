@@ -18,7 +18,11 @@ import { type ProjectileVisualDefinition, projectileVisual } from "../projectile
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { HD2D_CAMERA, type Hd2dScene, terrainAtlases } from "./scene.js";
-import { staticAnimationFrame, type StaticSpriteArt } from "./static-content.js";
+import {
+  isColdBiomeMaterial,
+  staticAnimationFrame,
+  type StaticSpriteArt,
+} from "./static-content.js";
 
 export const HD2D_SPLASH_TEXTURE_URL = "/assets/lindocara/hd2d/splash.png";
 export const HD2D_SHEEP_EXPLOSION_TEXTURE_URL =
@@ -198,6 +202,7 @@ export class Hd2dVisualLayer {
   readonly #size: number;
   readonly #waterLevel: number;
   readonly #textures: TextureRegistry | null;
+  readonly #materialAt: (x: number, z: number) => unknown;
   readonly #root = new THREE.Group();
   readonly #editorRoot = new THREE.Group();
   readonly #editorPreviewRoot = new THREE.Group();
@@ -222,7 +227,11 @@ export class Hd2dVisualLayer {
   #aim: THREE.Object3D | null = null;
   #nextRippleAt = 0;
   #editorOverlay: Hd2dEditorOverlay | null = null;
-  readonly #editorPreviews: { sprite: Billboard | Sprite; art: StaticSpriteArt }[] = [];
+  readonly #editorPreviews: {
+    sprite: Billboard | Sprite;
+    art: StaticSpriteArt;
+    cold: boolean;
+  }[] = [];
 
   constructor(
     scene: Hd2dScene,
@@ -230,12 +239,14 @@ export class Hd2dVisualLayer {
     size: number,
     waterLevel = 0,
     textures: TextureRegistry | null = null,
+    materialAt: (x: number, z: number) => unknown = () => null,
   ) {
     this.#scene = scene;
     this.#canvas = canvas;
     this.#size = size;
     this.#waterLevel = waterLevel;
     this.#textures = textures;
+    this.#materialAt = materialAt;
     this.#root.name = "game-presentation";
     this.#editorRoot.name = "editor-overlay";
     this.#editorPreviewRoot.name = "editor-asset-preview";
@@ -954,12 +965,17 @@ export class Hd2dVisualLayer {
     this.#editorPreviewRoot.clear();
     if (!art) return;
     const layers: StaticSpriteArt[] = [];
-    const collect = (layer: StaticSpriteArt): void => {
-      layers.push(layer);
-      for (const companion of layer.companions ?? []) collect(companion);
+    const coldLayers: StaticSpriteArt[] = [];
+    const collect = (layer: StaticSpriteArt, target: StaticSpriteArt[]): void => {
+      target.push(layer);
+      for (const companion of layer.companions ?? []) collect(companion, target);
     };
-    collect(art);
-    for (const layer of layers) {
+    collect(art, layers);
+    if (art.coldVariant) collect(art.coldVariant, coldLayers);
+    for (const [layer, cold] of [
+      ...layers.map((entry) => [entry, false] as const),
+      ...coldLayers.map((entry) => [entry, true] as const),
+    ]) {
       const sky = layer.renderLayer === "sky";
       const flat = sky || layer.renderMode === "flat";
       const preview = flat
@@ -990,7 +1006,7 @@ export class Hd2dVisualLayer {
         for (const material of materials) material.depthWrite = false;
       });
       preview.mesh.renderOrder = 8;
-      this.#editorPreviews.push({ sprite: preview, art: layer });
+      this.#editorPreviews.push({ sprite: preview, art: layer, cold });
       this.#editorPreviewRoot.add(preview.mesh);
     }
     this.#positionEditorPreview();
@@ -1002,8 +1018,12 @@ export class Hd2dVisualLayer {
       for (const preview of this.#editorPreviews) preview.sprite.mesh.visible = false;
       return;
     }
+    const coldMaterial = isColdBiomeMaterial(
+      this.#materialAt(placement.point.x, placement.point.z),
+    );
+    const hasColdVariant = this.#editorPreviews.some((preview) => preview.cold);
     for (const preview of this.#editorPreviews) {
-      preview.sprite.mesh.visible = true;
+      preview.sprite.mesh.visible = !hasColdVariant || preview.cold === coldMaterial;
       if (preview.art.renderLayer === "sky") {
         preview.sprite.mesh.position.set(
           placement.point.x,

@@ -48,6 +48,8 @@ export interface StaticSpriteArt {
   texture: THREE.Texture;
   /** Extra authored layers sharing this anchor (the lab campfire's flat base plus vertical flame). */
   companions?: readonly StaticSpriteArt[];
+  /** Exact lab replacement selected when the anchor cell belongs to a cold biome. */
+  coldVariant?: StaticSpriteArt;
   /** Frames across the sheet. The FIRST frame is what a static placement draws (a sheet is not an
    *  animation — see `docs/hd2d-rendering.md`: a tree's sheet also holds its felling and its
    *  stump). */
@@ -116,6 +118,17 @@ export function authoredCloudWind(nowMs: number, phaseMs: number): { x: number; 
     x: Math.sin(phase) * 0.42,
     z: Math.sin(phase * 0.61 + 1.7) * 0.18,
   };
+}
+
+export function isColdBiomeMaterial(material: unknown): boolean {
+  return material === "neige" || material === "glace" || material === "glace_fine";
+}
+
+export function authoredMaterialAt(map: MapData, x: number, z: number): unknown {
+  const col = Math.floor(x + map.size / 2);
+  const row = Math.floor(z + map.size / 2);
+  if (col < 0 || row < 0 || col >= map.size || row >= map.size) return null;
+  return map.materials[row * map.size + col];
 }
 
 /**
@@ -217,11 +230,15 @@ export function placeStaticContent(
   }
 
   function place(assetId: string, x: number, z: number): void {
-    const sprite = resolve(assetId);
-    if (!sprite) {
+    const resolved = resolve(assetId);
+    if (!resolved) {
       skipped.set(assetId, (skipped.get(assetId) ?? 0) + 1);
       return;
     }
+    const sprite =
+      isColdBiomeMaterial(authoredMaterialAt(map, x, z)) && resolved.coldVariant
+        ? resolved.coldVariant
+        : resolved;
     placeArt(assetId, sprite, x, z);
   }
 
