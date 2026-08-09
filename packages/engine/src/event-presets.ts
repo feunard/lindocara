@@ -20,6 +20,10 @@ import {
   type MapEvent,
   type MapEventPage,
 } from "./map-events.js";
+import {
+  LINDOCARA_CHEST_CLOSED_ASSET_ID,
+  LINDOCARA_CHEST_OPEN_ASSET_ID,
+} from "./tiny-swords-catalog.js";
 
 export const EVENT_PRESETS = ["raw", "teleporter", "sign", "chest", "endgame"] as const;
 export type EventPreset = (typeof EVENT_PRESETS)[number];
@@ -94,7 +98,25 @@ export function presetEvent(params: {
     params.selfMapId,
     params.selfSpawn,
   );
-  const page: MapEventPage = { ...defaultEventPage(), trigger, commands };
+  const chest = params.preset === "chest";
+  const page: MapEventPage = {
+    ...defaultEventPage(),
+    trigger,
+    graphicAssetId: chest ? LINDOCARA_CHEST_CLOSED_ASSET_ID : null,
+    commands: chest
+      ? [...commands, { t: "setSelfSwitch", selfSwitch: "A", value: true }]
+      : commands,
+  };
+  const pages: MapEventPage[] = chest
+    ? [
+        page,
+        {
+          ...defaultEventPage(),
+          graphicAssetId: LINDOCARA_CHEST_OPEN_ASSET_ID,
+          condSelfSwitch: "A",
+        },
+      ]
+    : [page];
   return {
     id: params.id,
     col: params.col,
@@ -104,6 +126,6 @@ export function presetEvent(params: {
     kind: "normal",
     species: null,
     patrolRadius: null,
-    pages: [page],
+    pages,
   };
 }

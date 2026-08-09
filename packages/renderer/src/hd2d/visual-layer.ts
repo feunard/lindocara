@@ -222,8 +222,7 @@ export class Hd2dVisualLayer {
   #aim: THREE.Object3D | null = null;
   #nextRippleAt = 0;
   #editorOverlay: Hd2dEditorOverlay | null = null;
-  #editorPreview: Billboard | Sprite | null = null;
-  #editorPreviewArt: StaticSpriteArt | null = null;
+  readonly #editorPreviews: { sprite: Billboard | Sprite; art: StaticSpriteArt }[] = [];
 
   constructor(
     scene: Hd2dScene,
@@ -947,75 +946,91 @@ export class Hd2dVisualLayer {
   }
 
   setEditorPreviewArt(art: StaticSpriteArt | null): void {
-    if (this.#editorPreview) {
-      this.#editorPreview.mesh.removeFromParent();
-      this.#editorPreview.dispose();
-      this.#editorPreview = null;
+    for (const preview of this.#editorPreviews) {
+      preview.sprite.mesh.removeFromParent();
+      preview.sprite.dispose();
     }
+    this.#editorPreviews.length = 0;
     this.#editorPreviewRoot.clear();
-    this.#editorPreviewArt = art;
     if (!art) return;
-    const sky = art.renderLayer === "sky";
-    const preview = sky
-      ? makeFlatSprite(this.#scene.ctx, {
-          texture: art.texture,
-          cols: art.cols ?? 1,
-          rows: art.rows ?? 1,
-          size: art.height * (art.aspect ?? 1),
-          aspect: 1 / (art.aspect ?? 1),
-          alphaTest: 0.5,
-          graftCloudShadow: () => undefined,
-        })
-      : makeBillboard(this.#scene.ctx, {
-          texture: art.texture,
-          cols: art.cols ?? 1,
-          rows: art.rows ?? 1,
-          height: art.height,
-          aspect: art.aspect ?? 1,
-          foot: art.foot ?? 0,
-          ...(art.uvRect ? { uvRect: art.uvRect } : {}),
-          pitch: HD2D_CAMERA.pitch,
-        });
-    materialOpacity(preview.mesh, 0.62);
-    preview.mesh.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return;
-      const materials = Array.isArray(child.material) ? child.material : [child.material];
-      for (const material of materials) material.depthWrite = false;
-    });
-    preview.mesh.renderOrder = 8;
-    this.#editorPreview = preview;
-    this.#editorPreviewRoot.add(preview.mesh);
+    const layers: StaticSpriteArt[] = [];
+    const collect = (layer: StaticSpriteArt): void => {
+      layers.push(layer);
+      for (const companion of layer.companions ?? []) collect(companion);
+    };
+    collect(art);
+    for (const layer of layers) {
+      const sky = layer.renderLayer === "sky";
+      const flat = sky || layer.renderMode === "flat";
+      const preview = flat
+        ? makeFlatSprite(this.#scene.ctx, {
+            texture: layer.texture,
+            cols: layer.cols ?? 1,
+            rows: layer.rows ?? 1,
+            size: layer.flatSize ?? layer.height * (layer.aspect ?? 1),
+            aspect: 1 / (layer.aspect ?? 1),
+            alphaTest: 0.5,
+            graftCloudShadow: () => undefined,
+          })
+        : makeBillboard(this.#scene.ctx, {
+            texture: layer.texture,
+            cols: layer.cols ?? 1,
+            rows: layer.rows ?? 1,
+            height: layer.height,
+            aspect: layer.aspect ?? 1,
+            foot: layer.foot ?? 0,
+            ...(layer.uvRect ? { uvRect: layer.uvRect } : {}),
+            ...(layer.lit === undefined ? {} : { lit: layer.lit }),
+            pitch: HD2D_CAMERA.pitch,
+          });
+      materialOpacity(preview.mesh, 0.62);
+      preview.mesh.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) material.depthWrite = false;
+      });
+      preview.mesh.renderOrder = 8;
+      this.#editorPreviews.push({ sprite: preview, art: layer });
+      this.#editorPreviewRoot.add(preview.mesh);
+    }
     this.#positionEditorPreview();
   }
 
   #positionEditorPreview(): void {
-    const preview = this.#editorPreview;
     const placement = this.#editorOverlay?.assetPreview;
-    if (!preview || !placement) {
-      if (preview) preview.mesh.visible = false;
+    if (!placement) {
+      for (const preview of this.#editorPreviews) preview.sprite.mesh.visible = false;
       return;
     }
-    preview.mesh.visible = true;
-    if (this.#editorPreviewArt?.renderLayer === "sky") {
-      preview.mesh.position.set(
-        placement.point.x,
-        placement.skyAltitude ?? this.#waterLevel + 2,
-        placement.point.z,
-      );
-    } else {
-      (preview as Billboard).placeAt(
-        placement.point.x,
-        this.#groundY(placement.point.x, placement.point.z, 0.025),
-        placement.point.z,
-      );
+    for (const preview of this.#editorPreviews) {
+      preview.sprite.mesh.visible = true;
+      if (preview.art.renderLayer === "sky") {
+        preview.sprite.mesh.position.set(
+          placement.point.x,
+          placement.skyAltitude ?? this.#waterLevel + 2,
+          placement.point.z,
+        );
+      } else if (preview.art.renderMode === "flat") {
+        preview.sprite.mesh.position.set(
+          placement.point.x,
+          this.#groundY(placement.point.x, placement.point.z, 0.055),
+          placement.point.z,
+        );
+      } else {
+        (preview.sprite as Billboard).placeAt(
+          placement.point.x,
+          this.#groundY(placement.point.x, placement.point.z, 0.025),
+          placement.point.z,
+        );
+      }
     }
   }
 
   update(now: number): void {
-    if (this.#editorPreview && this.#editorPreviewArt) {
-      const frames = (this.#editorPreviewArt.cols ?? 1) * (this.#editorPreviewArt.rows ?? 1);
-      this.#editorPreview.setFrame(
-        staticAnimationFrame(now, this.#editorPreviewArt.animationDurationMs ?? 0, frames),
+    for (const preview of this.#editorPreviews) {
+      const frames = (preview.art.cols ?? 1) * (preview.art.rows ?? 1);
+      preview.sprite.setFrame(
+        staticAnimationFrame(now, preview.art.animationDurationMs ?? 0, frames),
       );
     }
     for (let index = this.#effects.length - 1; index >= 0; index -= 1) {

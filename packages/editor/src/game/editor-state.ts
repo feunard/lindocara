@@ -72,7 +72,11 @@ import {
   TINY_SWORDS_TILESET_ID,
   terrainSlot,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
-import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  type EditorAssetId,
+  LINDOCARA_CHEST_CLOSED_ASSET_ID,
+  LINDOCARA_CHEST_OPEN_ASSET_ID,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 
 /**
  * A map open in the editor: the three tile layers themselves, exactly as they will be saved.
@@ -543,6 +547,9 @@ export function convertElementToEvent(
         firstPage,
         {
           ...defaultEventPage(),
+          ...(element.assetId === LINDOCARA_CHEST_CLOSED_ASSET_ID
+            ? { graphicAssetId: LINDOCARA_CHEST_OPEN_ASSET_ID }
+            : {}),
           condSelfSwitch: "A",
           optThrough: true,
         },

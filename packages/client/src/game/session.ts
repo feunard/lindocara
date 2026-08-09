@@ -66,6 +66,7 @@ import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { SessionCombatAudio } from "./session-combat-audio.js";
 import { GameSound } from "./sound.js";
 import { SheepFeedbackTracker } from "./sheep-feedback.js";
+import { ChestFeedbackTracker } from "./chest-feedback.js";
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -80,6 +81,7 @@ type StopOptions = { navigate?: boolean };
 
   const sound = new GameSound();
   const sheepFeedback = new SheepFeedbackTracker();
+  const chestFeedback = new ChestFeedbackTracker();
 let activeLaunchId = 0;
 let stopActiveSession: ((options?: StopOptions) => void) | null = null;
 
@@ -529,6 +531,7 @@ async function startGameIdentity(
       renderer.setSelfId(selfId);
       sound.configureScene(world.audio);
       sheepFeedback.reset(world.size, world.events);
+      chestFeedback.reset(world.events);
       // Harvest replacements are explicit appearance metadata in the welcome. Queue them before
       // the first playable frame so the last authoritative hit never initiates their texture load.
       renderer.preloadWorldEventAssets(world.events);
@@ -1258,6 +1261,7 @@ async function startGameIdentity(
         renderer.playSheepExplosion(feedback.x, feedback.z);
       }
     }
+    for (const feedback of chestFeedback.sync(sample.events)) sound.chest(feedback === "open");
     combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;

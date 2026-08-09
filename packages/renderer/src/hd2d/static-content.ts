@@ -46,6 +46,8 @@ import { HD2D_CAMERA } from "./scene.js";
  */
 export interface StaticSpriteArt {
   texture: THREE.Texture;
+  /** Extra authored layers sharing this anchor (the lab campfire's flat base plus vertical flame). */
+  companions?: readonly StaticSpriteArt[];
   /** Frames across the sheet. The FIRST frame is what a static placement draws (a sheet is not an
    *  animation — see `docs/hd2d-rendering.md`: a tree's sheet also holds its felling and its
    *  stump). */
@@ -65,6 +67,9 @@ export interface StaticSpriteArt {
   animationDurationMs?: number;
   /** Sky art is a horizontal world-space plane, never a camera-facing billboard. */
   renderLayer?: "object" | "canopy" | "sky";
+  renderMode?: "billboard" | "flat";
+  flatSize?: number;
+  lit?: boolean;
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
@@ -150,19 +155,15 @@ export function placeStaticContent(
   // between both textures. Only coplanar siblings receive a bias: different rows keep real depth.
   const depthLayers = new Map<string, number>();
 
-  function place(assetId: string, x: number, z: number): void {
-    const sprite = resolve(assetId);
-    if (!sprite) {
-      skipped.set(assetId, (skipped.get(assetId) ?? 0) + 1);
-      return;
-    }
+  function placeArt(assetId: string, sprite: StaticSpriteArt, x: number, z: number): void {
     const sky = sprite.renderLayer === "sky";
-    const billboard = sky
+    const flat = sky || sprite.renderMode === "flat";
+    const billboard = flat
       ? makeFlatSprite(ctx, {
           texture: sprite.texture,
           cols: sprite.cols ?? 1,
           rows: sprite.rows ?? 1,
-          size: sprite.height * (sprite.aspect ?? 1),
+          size: sprite.flatSize ?? sprite.height * (sprite.aspect ?? 1),
           aspect: 1 / (sprite.aspect ?? 1),
           alphaTest: 0.5,
           graftCloudShadow: () => undefined,
@@ -175,6 +176,7 @@ export function placeStaticContent(
           aspect: sprite.aspect ?? 1,
           foot: sprite.foot ?? 0,
           ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
+          ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
           pitch: HD2D_CAMERA.pitch,
         });
     // The ground under the piece, or the sea when there is none: an offshore rock is authored on
@@ -182,7 +184,7 @@ export function placeStaticContent(
     const anchorY = sky
       ? authoredSkyAltitude(map)
       : (scene.query.heightAt(x, z) ?? scene.waterLevel);
-    if (sky) billboard.mesh.position.set(x, anchorY, z);
+    if (flat) billboard.mesh.position.set(x, anchorY + (sky ? 0 : 0.03), z);
     else (billboard as Billboard).placeAt(x, anchorY, z);
     const depthKey = z.toFixed(6);
     const depthLayer = depthLayers.get(depthKey) ?? 0;
@@ -211,6 +213,16 @@ export function placeStaticContent(
       anchorZ: z,
       wind: sky,
     });
+    for (const companion of sprite.companions ?? []) placeArt(assetId, companion, x, z);
+  }
+
+  function place(assetId: string, x: number, z: number): void {
+    const sprite = resolve(assetId);
+    if (!sprite) {
+      skipped.set(assetId, (skipped.get(assetId) ?? 0) + 1);
+      return;
+    }
+    placeArt(assetId, sprite, x, z);
   }
 
   for (const element of map.elements) place(element.assetId, element.x, element.z);

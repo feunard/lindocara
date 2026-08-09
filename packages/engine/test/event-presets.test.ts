@@ -1,6 +1,10 @@
 import { EVENT_PRESETS, presetEvent, presetPageContent } from "@lindocara/engine/event-presets.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { parseMapEvents } from "@lindocara/engine/map-events.js";
+import {
+  LINDOCARA_CHEST_CLOSED_ASSET_ID,
+  LINDOCARA_CHEST_OPEN_ASSET_ID,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 const MAP_ID = "11111111-1111-4111-8111-111111111111";
@@ -69,6 +73,19 @@ describe("presetEvent", () => {
       name: "Téléporteur",
     });
     expect(named.name).toBe("Téléporteur");
+    expect(named.pages).toMatchObject([
+      {
+        graphicAssetId: LINDOCARA_CHEST_CLOSED_ASSET_ID,
+        commands: [
+          { t: "changeGold", amount: 10 },
+          { t: "setSelfSwitch", selfSwitch: "A", value: true },
+        ],
+      },
+      {
+        graphicAssetId: LINDOCARA_CHEST_OPEN_ASSET_ID,
+        condSelfSwitch: "A",
+      },
+    ]);
     expect(parseMapEvents([named], 20, 15)).not.toBeNull();
     // Omitted stays the historical unnamed event, so `raw` placements are unaffected.
     const anonymous = presetEvent({

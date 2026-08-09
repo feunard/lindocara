@@ -38,6 +38,9 @@ import {
   EDITOR_ASSETS,
   editorAsset,
   guardPrimaryColorForAsset,
+  LINDOCARA_CAMPFIRE_ASSET_ID,
+  LINDOCARA_CHEST_CLOSED_ASSET_ID,
+  LINDOCARA_CHEST_OPEN_ASSET_ID,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -269,9 +272,15 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
  * `StaticSpriteArt` minus its texture, because the sheet has to be NAMED before it can be
  * downloaded and TEXTURED only afterwards — see `staticAssetSpec`.
  */
-export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture"> {
+export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture" | "companions"> {
   url: string;
+  companions?: readonly StaticAssetSpec[];
 }
+
+const LAB_CAMPFIRE_BASE_URL = "/assets/lindocara/hd2d/campfire-base.png";
+const LAB_CAMPFIRE_FLAME_URL = "/assets/lindocara/hd2d/campfire-flame.png";
+const LAB_CHEST_CLOSED_URL = "/assets/lindocara/hd2d/chest-closed.png";
+const LAB_CHEST_OPEN_URL = "/assets/lindocara/hd2d/chest-open.png";
 
 /**
  * A catalogue asset id, read as everything the HD-2D path needs to draw it — or `null` when this
@@ -298,6 +307,40 @@ export interface StaticAssetSpec extends Omit<StaticSpriteArt, "texture"> {
  * the same number the deleted PixiJS path used to stand the very same sprite on the very same cell.
  */
 export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
+  if (assetId === LINDOCARA_CAMPFIRE_ASSET_ID) {
+    return {
+      url: LAB_CAMPFIRE_BASE_URL,
+      height: 66 / TILE_SIZE,
+      aspect: 57 / 66,
+      foot: 0,
+      renderMode: "flat",
+      flatSize: 1.25,
+      companions: [
+        {
+          url: LAB_CAMPFIRE_FLAME_URL,
+          cols: 7,
+          rows: 1,
+          height: 1.5,
+          aspect: 1,
+          foot: 0.12,
+          animationDurationMs: (7 / 12) * 1_000,
+          lit: false,
+        },
+      ],
+    };
+  }
+  if (
+    assetId === LINDOCARA_CHEST_CLOSED_ASSET_ID ||
+    assetId === LINDOCARA_CHEST_OPEN_ASSET_ID
+  ) {
+    return {
+      url:
+        assetId === LINDOCARA_CHEST_OPEN_ASSET_ID ? LAB_CHEST_OPEN_URL : LAB_CHEST_CLOSED_URL,
+      height: 1.15,
+      aspect: 1,
+      foot: 0.02,
+    };
+  }
   const definition = editorAsset(assetId);
   if (!definition) return null;
   const frame = definition.frame;
@@ -353,6 +396,21 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
             repeatY: crop.height / sourceExtent.height,
           },
         }
+      : {}),
+  };
+}
+
+function staticSpecUrls(spec: StaticAssetSpec): string[] {
+  return [spec.url, ...(spec.companions ?? []).flatMap(staticSpecUrls)];
+}
+
+function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureRegistry): StaticSpriteArt {
+  const { url, companions, ...geometry } = spec;
+  return {
+    texture: textures.get(url),
+    ...geometry,
+    ...(companions
+      ? { companions: companions.map((companion) => materializeStaticSpec(companion, textures)) }
       : {}),
   };
 }
@@ -753,9 +811,9 @@ export class Hd2dRenderer implements RendererLike {
     }
     // `atlas` stays false, as it does for every sprite sheet: a prop is seen at every distance, so
     // it keeps its mipmaps. Same reasoning as `HD2D_ACTOR_TEXTURE_URLS`.
-    const specs: TextureSpec[] = [...new Set([...specByAsset.values()].map((s) => s.url))].map(
-      (url) => ({ url }),
-    );
+    const specs: TextureSpec[] = [
+      ...new Set([...specByAsset.values()].flatMap(staticSpecUrls)),
+    ].map((url) => ({ url }));
 
     let textures: TextureRegistry | null = null;
     if (specs.length > 0) {
@@ -780,8 +838,7 @@ export class Hd2dRenderer implements RendererLike {
       (assetId) => {
         const spec = specByAsset.get(assetId);
         if (!spec || !textures) return null;
-        const { url, ...geometry } = spec;
-        return { texture: textures.get(url), ...geometry };
+        return materializeStaticSpec(spec, textures);
       },
     );
   }
@@ -789,17 +846,17 @@ export class Hd2dRenderer implements RendererLike {
   async #loadEditorPreviewAsset(assetId: string, token: number): Promise<void> {
     const spec = staticAssetSpec(assetId);
     if (!spec) return;
-    const textureSpec: TextureSpec = { url: spec.url };
-    const blobs = await fetchAll([spec.url], () => {});
-    const textures = createTextureRegistry([textureSpec]);
+    const urls = [...new Set(staticSpecUrls(spec))];
+    const textureSpecs: TextureSpec[] = urls.map((url) => ({ url }));
+    const blobs = await fetchAll(urls, () => {});
+    const textures = createTextureRegistry(textureSpecs);
     await textures.decode(blobs, () => {});
     if (this.#destroyed || token !== this.#editorPreviewToken) {
       textures.dispose();
       return;
     }
     this.#editorPreviewTextures = textures;
-    const { url, ...geometry } = spec;
-    this.#editorPreviewArt = { texture: textures.get(url), ...geometry };
+    this.#editorPreviewArt = materializeStaticSpec(spec, textures);
     this.#visuals?.setEditorPreviewArt(this.#editorPreviewArt);
   }
 
@@ -856,7 +913,7 @@ export class Hd2dRenderer implements RendererLike {
       if (spec) specsByAsset.set(assetId, spec);
     }
     const specs: TextureSpec[] = [
-      ...new Set([...specsByAsset.values()].map((spec) => spec.url)),
+      ...new Set([...specsByAsset.values()].flatMap(staticSpecUrls)),
     ].map((url) => ({ url }));
     if (specs.length === 0) {
       if (token === this.#eventToken) this.#eventVisualKey = visualKey;
@@ -902,8 +959,7 @@ export class Hd2dRenderer implements RendererLike {
       (assetId) => {
         const spec = staticAssetSpec(assetId);
         if (!spec) return null;
-        const { url, ...geometry } = spec;
-        return { texture: textures.get(url), ...geometry };
+        return materializeStaticSpec(spec, textures);
       },
     );
     this.#eventVisualKey = visualKey;

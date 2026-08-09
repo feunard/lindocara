@@ -35,6 +35,8 @@ const SHEEP_BLEATS = [1, 2, 3, 4].map(
   (index) => `/assets/lindocara/sfx/bleat-${index}.ogg`,
 );
 const SHEEP_POPS = [1, 2, 3].map((index) => `/assets/lindocara/sfx/pop-${index}.ogg`);
+const CHEST_OPEN = [1, 2].map((index) => `/assets/lindocara/sfx/chest-${index}.ogg`);
+const CHEST_CLOSE = [1, 2].map((index) => `/assets/lindocara/sfx/chest-close-${index}.ogg`);
 
 function stableHash(value: string): number {
   let hash = 2_166_136_261;
@@ -233,6 +235,12 @@ export class GameSound {
   sheepExplosion(eventId: string): void {
     const src = SHEEP_POPS[stableHash(eventId) % SHEEP_POPS.length];
     if (src) void this.#playSpec({ src, volume: 0.7 });
+  }
+
+  chest(open: boolean): void {
+    const variants = open ? CHEST_OPEN : CHEST_CLOSE;
+    const src = variants[Math.floor(Math.random() * variants.length)];
+    if (src) void this.#playSpec({ src, volume: 0.9 });
   }
 
   #bindVisibility(): void {
@@ -453,7 +461,15 @@ export class GameSound {
     const context = this.#context;
     if (!context) return;
     this.#sampleLoad = Promise.allSettled(
-      [...new Set([...uniqueSampleSources(), ...SHEEP_BLEATS, ...SHEEP_POPS])].map(async (src) => {
+      [
+        ...new Set([
+          ...uniqueSampleSources(),
+          ...SHEEP_BLEATS,
+          ...SHEEP_POPS,
+          ...CHEST_OPEN,
+          ...CHEST_CLOSE,
+        ]),
+      ].map(async (src) => {
         if (this.#buffers.has(src)) return;
         const response = await fetch(src);
         if (!response.ok) throw new Error(`missing combat sfx: ${src}`);

@@ -9,6 +9,7 @@ export const TINY_SWORDS_PACKS = [
   "Tiny Swords (Free Pack)",
   "Tiny Swords (Update 010)",
   "Tiny Swords (Enemy Pack)",
+  "LindoCara Lab",
 ] as const;
 
 export type TinySwordsPack = (typeof TINY_SWORDS_PACKS)[number];
@@ -184,7 +185,80 @@ export interface CatalogAssetRef {
   slice?: UiSlice;
 }
 
-export const EDITOR_ASSETS = GENERATED_EDITOR_ASSETS;
+export const LINDOCARA_CAMPFIRE_ASSET_ID = "decoration.lindocara-lab.campfire" as const;
+export const LINDOCARA_CHEST_CLOSED_ASSET_ID = "resource.lindocara-lab.chest-closed" as const;
+export const LINDOCARA_CHEST_OPEN_ASSET_ID = "resource.lindocara-lab.chest-open" as const;
+
+const LINDOCARA_LAB_EDITOR_ASSETS = [
+  {
+    id: LINDOCARA_CAMPFIRE_ASSET_ID,
+    sourcePath: "/assets/lindocara/hd2d/campfire-base.png",
+    pack: "LindoCara Lab",
+    domain: "decoration",
+    category: "Lab/Props",
+    role: "world-decoration",
+    tags: ["campfire", "fire", "animated", "lab"],
+    width: 57,
+    height: 66,
+    nature: "animated",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "camp-and-treasure",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      visualFootprint: [{ col: 0, row: 0 }],
+      collider: { x: -29, y: -29, width: 58, height: 58 },
+    },
+  },
+  {
+    id: LINDOCARA_CHEST_CLOSED_ASSET_ID,
+    sourcePath: "/assets/lindocara/hd2d/chest-closed.png",
+    pack: "LindoCara Lab",
+    domain: "resource",
+    category: "Lab/Props",
+    role: "world-resource",
+    tags: ["chest", "treasure", "closed", "lab"],
+    width: 80,
+    height: 80,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 2,
+    editor: {
+      category: "camp-and-treasure",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      visualFootprint: [{ col: 0, row: 0 }],
+      collider: { x: -27, y: -54, width: 54, height: 54 },
+    },
+  },
+  {
+    id: LINDOCARA_CHEST_OPEN_ASSET_ID,
+    sourcePath: "/assets/lindocara/hd2d/chest-open.png",
+    pack: "LindoCara Lab",
+    domain: "resource",
+    category: "Lab/Props",
+    role: "event-state",
+    tags: ["chest", "treasure", "open", "lab"],
+    width: 80,
+    height: 80,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 2,
+    editor: {
+      category: "camp-and-treasure",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      visualFootprint: [{ col: 0, row: 0 }],
+      collider: { x: -27, y: -54, width: 54, height: 54 },
+    },
+  },
+] as const satisfies readonly EditorAssetDefinition[];
+
+export const EDITOR_ASSETS = [
+  ...GENERATED_EDITOR_ASSETS,
+  ...LINDOCARA_LAB_EDITOR_ASSETS,
+] as const;
 export type EditorAssetId = (typeof EDITOR_ASSETS)[number]["id"];
 
 const EDITOR_ASSET_BY_ID = new Map<string, EditorAssetDefinition>(
@@ -227,6 +301,7 @@ function effectiveAssetSize(asset: EditorAssetDefinition): { width: number; heig
  * as placeable objects; an author sees only individually cropped props with bounded footprints. */
 export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
   (asset) => {
+    if (asset.role === "event-state") return false;
     if (asset.domain === "character" || asset.domain === "enemy") return false;
     // Raw tilemaps/foam/shadow stay automatic terrain sources, but the pack's dedicated animated
     // water rocks carry explicit placement metadata and are authored offshore decorations.
@@ -241,6 +316,7 @@ export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_
 export const EVENT_GRAPHIC_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
   (asset) =>
     PLACEABLE_EDITOR_ASSETS.includes(asset) ||
+    asset.role === "event-state" ||
     asset.domain === "character" ||
     asset.domain === "enemy",
 );

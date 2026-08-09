@@ -1278,7 +1278,11 @@ describe("applyTool: event placement", () => {
       7,
       7,
     ) as EditorMap;
-    expect(chest.events[0]?.pages[0]?.commands).toEqual([{ t: "changeGold", amount: 10 }]);
+    expect(chest.events[0]?.pages[0]?.commands).toEqual([
+      { t: "changeGold", amount: 10 },
+      { t: "setSelfSwitch", selfSwitch: "A", value: true },
+    ]);
+    expect(chest.events[0]?.pages).toHaveLength(2);
     const raw = place(base, { kind: "event", eventKind: "normal" }, 8, 8) as EditorMap;
     expect(raw.events[0]?.pages[0]?.commands).toEqual([]);
   });

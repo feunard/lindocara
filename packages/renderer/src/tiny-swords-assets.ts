@@ -10,6 +10,7 @@ const SOURCE_URLS = import.meta.glob<string>("../../catalog/assets/Tiny Swords*/
 /** Resolve a catalogued source path through Vite. The glob is the only client import boundary for
  * raw Tiny Swords files; components deal in stable ids or catalogue entries, never physical paths. */
 export function tinySwordsSourceUrl(sourcePath: string): string {
+  if (sourcePath.startsWith("/")) return sourcePath;
   const key = `../../catalog/assets/${sourcePath}`;
   const resolved = SOURCE_URLS[key];
   if (!resolved) throw new Error(`Missing bundled Tiny Swords source: ${sourcePath}`);
