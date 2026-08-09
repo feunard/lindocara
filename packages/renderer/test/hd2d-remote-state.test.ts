@@ -21,7 +21,12 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
-import { ACTOR_FOOT, createBillboardRegistry, GLIDER_LIFT } from "../src/hd2d/billboards.js";
+import {
+  ACTOR_FOOT,
+  createBillboardRegistry,
+  GLIDER_LIFT,
+  SWIM_DEPTH,
+} from "../src/hd2d/billboards.js";
 import { HD2D_GLIDER_TEXTURE_URL, playerActorView } from "../src/hd2d/game-renderer.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 
@@ -218,7 +223,7 @@ describe("a remote hero's drawn state", () => {
 
     const mesh = meshes(scene.root)[0];
     if (!mesh) throw new Error("expected a billboard");
-    expect(drawnElevation(mesh, ctx)).toBeCloseTo(map.waterLevel);
+    expect(drawnElevation(mesh, ctx)).toBeCloseTo(map.waterLevel - SWIM_DEPTH);
   });
 
   it("draws a swimmer at the water line even when a desynced client also reports airborne", () => {
@@ -235,7 +240,7 @@ describe("a remote hero's drawn state", () => {
 
     const mesh = meshes(scene.root)[0];
     if (!mesh) throw new Error("expected a billboard");
-    expect(drawnElevation(mesh, ctx)).toBeCloseTo(map.waterLevel);
+    expect(drawnElevation(mesh, ctx)).toBeCloseTo(map.waterLevel - SWIM_DEPTH);
   });
 
   it("still stands a walking hero on the terrain, whatever elevation rides with it", () => {

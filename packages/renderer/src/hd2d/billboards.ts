@@ -171,6 +171,8 @@ interface Entry {
 export const GLIDER_HEIGHT = 2.45;
 export const GLIDER_ASPECT = 0.938;
 export const GLIDER_LIFT = 1.05;
+/** Same presentation depth as the lab witness: the water plane masks the swimmer's lower body. */
+export const SWIM_DEPTH = 0.5;
 
 /**
  * `ctx` is passed explicitly, and must be the very context that built `scene`: `makeBillboard`
@@ -274,7 +276,11 @@ export function createBillboardRegistry(
           current.transparent = actor.pose === "ghost";
           current.opacity = actor.pose === "ghost" ? 0.48 : 1;
         }
-        entry.billboard.placeAt(actor.x, elevationOf(actor, scene), actor.z);
+        entry.billboard.placeAt(
+          actor.x,
+          elevationOf(actor, scene) - (actor.swimming ? SWIM_DEPTH : 0),
+          actor.z,
+        );
         entry.billboard.setFacing(actor.facing);
         if (actor.gliding && actor.canopyTextureKey) {
           entry.canopy ??= createCanopy(actor.canopyTextureKey);
