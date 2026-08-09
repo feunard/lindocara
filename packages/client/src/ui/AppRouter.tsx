@@ -31,12 +31,6 @@ import { $page, NestedView, Redirection, useRouter, useRouterState } from "aleph
 import { currentUserAtom } from "alepha/security";
 import { HttpError } from "alepha/server";
 import { useEffect, useRef } from "react";
-import {
-  type AdventureSummary,
-  fetchParties,
-  fetchPlayableAdventures,
-  type PartyListing,
-} from "../api.js";
 import { menuAudio } from "../game/menu-audio.js";
 import { stopActiveGameSession } from "../game/session.js";
 import { continueAsGuest } from "../guest.js";
@@ -58,7 +52,14 @@ import { Minimap } from "./hud/Minimap.js";
 import { QuestDialoguePanel } from "./hud/QuestDialoguePanel.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { InventoryOverlay } from "./InventoryOverlay.js";
-import { ContinueScreen, JoinScreen, NewGameScreen } from "./LaunchScreens.js";
+import {
+  ContinueScreen,
+  JoinScreen,
+  loadMyParties,
+  loadOpenParties,
+  loadPlayableAdventures,
+  NewGameScreen,
+} from "./LaunchScreens.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MainMenu } from "./MainMenu.js";
 import { MerchantOverlay } from "./MerchantOverlay.js";
@@ -134,6 +135,15 @@ function GameScreen() {
 
 /** Paths where the launch-menu music bed plays (was `App.tsx:71-72`). */
 const LAUNCH_MENU_PATHS = new Set<string>(["/menu", "/play/continue", "/play/new", "/play/join"]);
+
+/**
+ * Run a launch carousel's fetch where it can actually succeed — the browser — and report `null`
+ * ("not loaded") anywhere else, including when the fetch fails. Never `[]`: an empty array is a
+ * real answer the screen renders as "nothing here", and conflating it with a failure is precisely
+ * the bug this replaced. See the launch loaders' docblock below for the whole story.
+ */
+const launchList = async <T,>(load: () => Promise<T[]>): Promise<T[] | null> =>
+  typeof window === "undefined" ? null : load().catch(() => null);
 
 function AppLayout() {
   useLocale();
@@ -348,34 +358,35 @@ export class AppRouter {
    * (Alepha's own `HttpClient` for one loader, `api.ts`'s plain `fetch` for the other two) for no
    * behavioural gain was not worth the inconsistency. See the Task 4 report for the compiler
    * evidence both ways.
+   *
+   * What that reasoning missed: a `$page` loader runs on the SERVER too, and `api.ts` is a plain
+   * relative `fetch`. Node cannot even parse `/api/adventures?scope=play` into a URL, and the
+   * loader context (`PageLoader`) carries no request, so there is no cookie to forward and no
+   * origin to prepend — an SSR fetch could not be authenticated even if the URL were absolute.
+   * `ssr: false` would not help either: the framework still runs the loader on the server to
+   * serialize its result. The old `.catch(() => [])` then turned that failure into a perfectly
+   * plausible EMPTY LIST, which is why a hard load of `/play/new` served "No playable adventure
+   * yet" against a server full of them while client-side navigation to the same screen worked.
+   *
+   * So `launchList` below skips the fetch on the server rather than performing one that cannot
+   * succeed, and reports `null` — "not loaded" — instead of `[]`. The screens treat `null` as
+   * their cue to fetch on mount (`useLaunchList`, `ui/LaunchScreens.tsx`). The fast path is
+   * unchanged: on a client-side navigation the data is still ready before the component mounts.
    */
   playContinue = $page({
     path: "/play/continue",
     component: ContinueScreen,
-    loader: async () => {
-      const parties = await fetchParties().catch(() => [] as PartyListing[]);
-      return { parties: parties.filter((p) => p.mine) };
-    },
+    loader: async () => ({ parties: await launchList(loadMyParties) }),
   });
   playNew = $page({
     path: "/play/new",
     component: NewGameScreen,
-    loader: async () => {
-      const adventures = await fetchPlayableAdventures().catch(() => [] as AdventureSummary[]);
-      return { adventures };
-    },
+    loader: async () => ({ adventures: await launchList(loadPlayableAdventures) }),
   });
   playJoin = $page({
     path: "/play/join",
     component: JoinScreen,
-    loader: async () => {
-      const parties = await fetchParties().catch(() => [] as PartyListing[]);
-      return {
-        parties: parties.filter(
-          (p) => !p.mine && p.status === "open" && p.colors.length < p.maxPlayers,
-        ),
-      };
-    },
+    loader: async () => ({ parties: await launchList(loadOpenParties) }),
   });
 
   /**

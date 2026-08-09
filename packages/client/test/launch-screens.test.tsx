@@ -1,4 +1,4 @@
-import { setLocale } from "@lindocara/client/i18n.js";
+import { setLocale, t } from "@lindocara/client/i18n.js";
 import { getGameNavigation, setGameNavigation } from "@lindocara/client/state/navigation.js";
 import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { HeroCreate } from "@lindocara/client/ui/HeroCreate.js";
@@ -165,6 +165,46 @@ describe("launch screens (loader-driven routes)", () => {
     await waitFor(() => expect(screen.getByText("Grand Quest")).toBeTruthy());
     expect(screen.getByText(/3 maps/)).toBeTruthy();
     expect(screen.getByText(/by nico/)).toBeTruthy();
+  });
+
+  /**
+   * The loader cannot always produce its list: on the server it does not even try (a relative
+   * `fetch` has no URL to parse and no cookie to send), and in the browser a request can fail. Both
+   * arrive at the component the same way — `adventures: null`, meaning "not loaded", as distinct
+   * from `[]` meaning "none exist". Before this, both became `[]` and the screen confidently
+   * rendered "No playable adventure yet" against a server full of them.
+   *
+   * Failing the first `/api/adventures` call and serving the second is the browser-reachable way to
+   * drive that null: jsdom always has a `window`, so the server branch cannot be reached from here,
+   * but the recovery path under test is the same one.
+   */
+  it("playNew fetches its own list when the loader could not produce one", async () => {
+    let adventureCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.startsWith("/_auth/userinfo")) {
+          return jsonResponse(200, {
+            user: { id: "acc-1", username: "nico" },
+            api: { actions: {} },
+          });
+        }
+        if (path.startsWith("/api/adventures")) {
+          adventureCalls += 1;
+          if (adventureCalls === 1) throw new Error("loader offline");
+          return jsonResponse(200, ADVENTURES);
+        }
+        if (path.startsWith("/api/parties")) return jsonResponse(200, PARTIES.map(party));
+        throw new Error(`launch-screens.test.tsx: unexpected fetch ${path}`);
+      }),
+    );
+
+    ({ alepha } = await mountAt("/play/new"));
+
+    await waitFor(() => expect(screen.getByText("Grand Quest")).toBeTruthy());
+    expect(adventureCalls).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(t("new.empty"))).toBeNull();
   });
 
   it("playNew's back button routes to /menu", async () => {

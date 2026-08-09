@@ -13,8 +13,14 @@
  */
 import { useAuth } from "alepha/react/auth";
 import { useRouter } from "alepha/react/router";
-import { useState } from "react";
-import { type AdventureSummary, fetchHeroes, type PartyListing } from "../api.js";
+import { useEffect, useState } from "react";
+import {
+  type AdventureSummary,
+  fetchHeroes,
+  fetchParties,
+  fetchPlayableAdventures,
+  type PartyListing,
+} from "../api.js";
 import { t } from "../i18n.js";
 import type { AppRouter } from "./AppRouter.js";
 import { Carousel, type CarouselCard } from "./Carousel.js";
@@ -26,17 +32,72 @@ function accentFor(id: string): number {
   return h;
 }
 
+/**
+ * One function per carousel, shared by the route loader (`ui/AppRouter.tsx`) and by the
+ * in-component fallback below, so the two paths cannot drift on WHICH parties a screen shows —
+ * the filter is the screen's own definition of its list, not the loader's.
+ */
+export const loadMyParties = async (): Promise<PartyListing[]> =>
+  (await fetchParties()).filter((p) => p.mine);
+
+export const loadOpenParties = async (): Promise<PartyListing[]> =>
+  (await fetchParties()).filter(
+    (p) => !p.mine && p.status === "open" && p.colors.length < p.maxPlayers,
+  );
+
+export const loadPlayableAdventures = async (): Promise<AdventureSummary[]> =>
+  fetchPlayableAdventures();
+
+/**
+ * Resolve a carousel's list from the loader when it has one, and fetch it here when it does not.
+ *
+ * `null` means "the loader could not produce this", which is NOT the same as an empty list and is
+ * exactly the distinction that was missing: the loaders run on the server too, where a relative
+ * `fetch("/api/…")` cannot even be parsed into a URL (and could not carry the caller's session
+ * cookie if it could), so every hard load of `/play/new` served `adventures: []` and the screen
+ * rendered "No playable adventure yet" over a server full of them. Reaching the same screen by
+ * client-side navigation worked, which is what made it look like a data problem rather than a
+ * rendering one.
+ *
+ * So the loader stays the fast path — on a client-side navigation the list is ready before the
+ * component mounts, no flash, exactly as designed — and this covers the one case it cannot: the
+ * first paint after a hard load, a typed URL or a shared link.
+ */
+function useLaunchList<T>(
+  loaded: T[] | null,
+  load: () => Promise<T[]>,
+): { items: T[]; loading: boolean } {
+  const [fetched, setFetched] = useState<T[] | null>(null);
+  useEffect(() => {
+    if (loaded !== null) return;
+    let live = true;
+    void load()
+      .then((items) => {
+        if (live) setFetched(items);
+      })
+      .catch(() => {
+        if (live) setFetched([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, [loaded, load]);
+  const items = loaded ?? fetched;
+  return { items: items ?? [], loading: items === null };
+}
+
 /** CONTINUE — resume one of my saves straight into the game. */
-export function ContinueScreen({ parties }: { parties: PartyListing[] }) {
+export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) {
   const router = useRouter<AppRouter>();
   // Task 3: the store's `accountId` field died — every hero/party ownership check now reads the
   // Alepha-authenticated identity directly.
   const { user } = useAuth();
   const accountId = user?.id ?? null;
   const [pending, setPending] = useState<PartyListing | null>(null);
+  const { items, loading } = useLaunchList(parties, loadMyParties);
 
   async function enter(id: string) {
-    const party = parties.find((p) => p.id === id);
+    const party = items.find((p) => p.id === id);
     if (!party) return;
     const heroes = await fetchHeroes(party.id);
     const mine = heroes.find((h) => h.accountId === accountId);
@@ -50,7 +111,7 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] }) {
 
   if (pending) return <HeroCreate party={pending} onBack={() => setPending(null)} />;
 
-  const cards: CarouselCard[] = parties.map((p) => ({
+  const cards: CarouselCard[] = items.map((p) => ({
     id: p.id,
     title: p.adventureTitle,
     subtitle:
@@ -64,7 +125,7 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] }) {
     <Carousel
       title={t("menu.continue")}
       cards={cards}
-      emptyLabel={t("continue.empty")}
+      emptyLabel={loading ? t("common.loading") : t("continue.empty")}
       onSelect={(id) => void enter(id)}
       onBack={() => void router.push("menu")}
     />
@@ -72,13 +133,14 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] }) {
 }
 
 /** NEW — pick an adventure, then create a hero for a fresh party. */
-export function NewGameScreen({ adventures }: { adventures: AdventureSummary[] }) {
+export function NewGameScreen({ adventures }: { adventures: AdventureSummary[] | null }) {
   const router = useRouter<AppRouter>();
   const [pickedId, setPickedId] = useState<string | null>(null);
+  const { items, loading } = useLaunchList(adventures, loadPlayableAdventures);
 
   if (pickedId) return <HeroCreate adventureId={pickedId} onBack={() => setPickedId(null)} />;
 
-  const cards: CarouselCard[] = adventures.map((a) => ({
+  const cards: CarouselCard[] = items.map((a) => ({
     id: a.id,
     title: a.title,
     subtitle: a.author
@@ -91,7 +153,7 @@ export function NewGameScreen({ adventures }: { adventures: AdventureSummary[] }
     <Carousel
       title={t("menu.new")}
       cards={cards}
-      emptyLabel={t("new.empty")}
+      emptyLabel={loading ? t("common.loading") : t("new.empty")}
       onSelect={setPickedId}
       onBack={() => void router.push("menu")}
     />
@@ -99,13 +161,14 @@ export function NewGameScreen({ adventures }: { adventures: AdventureSummary[] }
 }
 
 /** JOIN — pick another player's open party, then create a hero in it. */
-export function JoinScreen({ parties }: { parties: PartyListing[] }) {
+export function JoinScreen({ parties }: { parties: PartyListing[] | null }) {
   const router = useRouter<AppRouter>();
   const [pending, setPending] = useState<PartyListing | null>(null);
+  const { items, loading } = useLaunchList(parties, loadOpenParties);
 
   if (pending) return <HeroCreate party={pending} onBack={() => setPending(null)} />;
 
-  const cards: CarouselCard[] = parties.map((p) => ({
+  const cards: CarouselCard[] = items.map((p) => ({
     id: p.id,
     title: p.adventureTitle,
     subtitle: t("parties.slots", { used: p.colors.length, max: p.maxPlayers }),
@@ -116,9 +179,9 @@ export function JoinScreen({ parties }: { parties: PartyListing[] }) {
     <Carousel
       title={t("menu.join")}
       cards={cards}
-      emptyLabel={t("join.empty")}
+      emptyLabel={loading ? t("common.loading") : t("join.empty")}
       onSelect={(id) => {
-        const party = parties.find((p) => p.id === id);
+        const party = items.find((p) => p.id === id);
         if (party) setPending(party);
       }}
       onBack={() => void router.push("menu")}
