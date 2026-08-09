@@ -49,6 +49,7 @@ import { sameRenderedMap } from "../map-render-cache.js";
 import type { RenderContext, RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
+import { type SkillVisualDefinition, skillVisual } from "../skill-visuals.js";
 import {
   allUnitSheets,
   isPeasantSkillId,
@@ -315,6 +316,160 @@ function colorFromSkill(skillId: string): number {
   let hash = 0;
   for (let index = 0; index < skillId.length; index += 1) hash += skillId.charCodeAt(index);
   return palette[hash % palette.length] ?? 0xffffff;
+}
+
+function rotatedDirection(direction: GroundVector, radians: number): GroundVector {
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return {
+    x: direction.x * cosine - direction.z * sine,
+    z: direction.x * sine + direction.z * cosine,
+  };
+}
+
+function castTarget(origin: GroundVector, direction: GroundVector, reach: number): GroundVector {
+  return { x: origin.x + direction.x * reach, z: origin.z + direction.z * reach };
+}
+
+function playSkillCast(
+  visuals: Hd2dVisualLayer,
+  origin: GroundVector,
+  direction: GroundVector,
+  profile: SkillVisualDefinition,
+  durationMs: number,
+  startedAt: number,
+): void {
+  const target = castTarget(origin, direction, profile.reach);
+  switch (profile.cast) {
+    case "slash": {
+      const left = castTarget(origin, rotatedDirection(direction, -0.24), profile.reach);
+      const right = castTarget(origin, rotatedDirection(direction, 0.24), profile.reach);
+      visuals.beam(origin, left, profile.width, profile.color, durationMs, startedAt);
+      visuals.beam(origin, right, profile.width, profile.accent, durationMs, startedAt);
+      return;
+    }
+    case "guard":
+      visuals.orb(origin.x, origin.z, profile.color, 0.48, durationMs, startedAt);
+      visuals.pulse(
+        origin.x,
+        origin.z,
+        profile.accent,
+        profile.impactRadius,
+        durationMs,
+        startedAt,
+      );
+      return;
+    case "charge":
+      visuals.beam(origin, target, profile.width, profile.color, durationMs, startedAt);
+      visuals.pulse(
+        target.x,
+        target.z,
+        profile.accent,
+        profile.impactRadius * 0.58,
+        durationMs,
+        startedAt,
+      );
+      return;
+    case "wave":
+      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
+      visuals.pulse(
+        origin.x,
+        origin.z,
+        profile.accent,
+        profile.impactRadius * 0.62,
+        durationMs,
+        startedAt,
+      );
+      return;
+    case "spin": {
+      const side = rotatedDirection(direction, Math.PI / 2);
+      visuals.beam(
+        castTarget(origin, direction, -profile.reach),
+        castTarget(origin, direction, profile.reach),
+        profile.width,
+        profile.color,
+        durationMs,
+        startedAt,
+      );
+      visuals.beam(
+        castTarget(origin, side, -profile.reach),
+        castTarget(origin, side, profile.reach),
+        profile.width,
+        profile.accent,
+        durationMs,
+        startedAt,
+      );
+      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
+      return;
+    }
+    case "projectile":
+      visuals.beam(origin, target, profile.width, profile.color, durationMs, startedAt);
+      visuals.orb(
+        target.x,
+        target.z,
+        profile.accent,
+        Math.max(0.09, profile.width),
+        durationMs,
+        startedAt,
+      );
+      return;
+    case "fan":
+      for (const angle of [-0.28, 0, 0.28]) {
+        visuals.beam(
+          origin,
+          castTarget(origin, rotatedDirection(direction, angle), profile.reach),
+          profile.width,
+          angle === 0 ? profile.accent : profile.color,
+          durationMs,
+          startedAt,
+        );
+      }
+      return;
+    case "heal":
+      visuals.orb(origin.x, origin.z, profile.color, 0.3, durationMs, startedAt);
+      visuals.pulse(
+        origin.x,
+        origin.z,
+        profile.accent,
+        profile.impactRadius,
+        durationMs,
+        startedAt,
+      );
+      return;
+    case "blink":
+      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
+      visuals.beam(origin, target, profile.width, profile.accent, durationMs, startedAt);
+      return;
+    case "stealth":
+      visuals.orb(origin.x, origin.z, profile.color, 0.55, durationMs, startedAt);
+      visuals.pulse(
+        origin.x,
+        origin.z,
+        profile.accent,
+        profile.impactRadius,
+        durationMs,
+        startedAt,
+      );
+      return;
+    case "harvest":
+      visuals.beam(origin, target, profile.width, profile.color, durationMs, startedAt);
+      visuals.pulse(
+        target.x,
+        target.z,
+        profile.accent,
+        profile.impactRadius * 0.55,
+        durationMs,
+        startedAt,
+      );
+      return;
+    case "construct":
+      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
+      visuals.orb(origin.x, origin.z, profile.accent, 0.2, durationMs, startedAt);
+      return;
+    case "bomb":
+      visuals.orb(target.x, target.z, profile.color, 0.24, durationMs, startedAt);
+      visuals.beam(origin, target, profile.width, profile.accent, durationMs, startedAt);
+  }
 }
 
 interface ActorPosition {
@@ -894,6 +1049,19 @@ export class Hd2dRenderer implements RendererLike {
     if (!position) return;
     const now = performance.now();
     const timeline = this.#serverClock.combatTimeline(animation, now);
+    const profile = animation.skillId ? skillVisual(animation.skillId) : null;
+    const duration = Math.max(120, timeline.impactAt - timeline.startedAt);
+    if (profile && animation.actorKind === "player" && this.#visuals) {
+      playSkillCast(
+        this.#visuals,
+        { x: position.x, z: position.z },
+        animation.direction,
+        profile,
+        duration,
+        timeline.startedAt,
+      );
+      return;
+    }
     const color = position.playerClass
       ? CLASS_EFFECT_COLORS[position.playerClass]
       : animation.actorKind === "monster"
@@ -907,7 +1075,7 @@ export class Hd2dRenderer implements RendererLike {
       },
       0.12,
       color,
-      Math.max(120, timeline.impactAt - timeline.startedAt),
+      duration,
       timeline.startedAt,
     );
   }
@@ -919,8 +1087,25 @@ export class Hd2dRenderer implements RendererLike {
     z: number,
   ): PlayerClass | undefined {
     const playerClass = this.#position(playerId)?.playerClass;
-    const color = playerClass ? CLASS_EFFECT_COLORS[playerClass] : colorFromSkill(skillId);
-    this.#visuals?.pulse(x, z, color, skillId === "attack" ? 0.55 : 0.9);
+    const profile = skillVisual(skillId);
+    const color =
+      profile?.color ?? (playerClass ? CLASS_EFFECT_COLORS[playerClass] : colorFromSkill(skillId));
+    this.#visuals?.pulse(
+      x,
+      z,
+      color,
+      profile?.impactRadius ?? (skillId === "attack" ? 0.55 : 0.9),
+      profile?.impactDurationMs,
+    );
+    if (profile) {
+      this.#visuals?.orb(
+        x,
+        z,
+        profile.accent,
+        Math.max(0.1, profile.impactRadius * 0.16),
+        profile.impactDurationMs,
+      );
+    }
     return playerClass;
   }
 
@@ -934,12 +1119,20 @@ export class Hd2dRenderer implements RendererLike {
     const atX = x ?? self?.x;
     const atZ = z ?? self?.z;
     if (atX === undefined || atZ === undefined) return;
+    const profile = skillId ? skillVisual(skillId) : null;
     this.#visuals?.pulse(
       atX,
       atZ,
-      PRIMARY_EFFECT_COLORS[color],
-      skillId === "divine_nova" ? 1.75 : skillId === "prayer" ? 1.2 : 0.75,
-      680,
+      profile?.color ?? PRIMARY_EFFECT_COLORS[color],
+      profile?.impactRadius ?? 0.75,
+      profile?.impactDurationMs ?? 680,
+    );
+    this.#visuals?.orb(
+      atX,
+      atZ,
+      profile?.accent ?? PRIMARY_EFFECT_COLORS[color],
+      Math.max(0.12, (profile?.impactRadius ?? 0.75) * 0.18),
+      profile?.impactDurationMs ?? 680,
     );
   }
 
