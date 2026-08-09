@@ -9,9 +9,9 @@
  */
 
 import {
+  type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
   elementWorldCollider,
-  type MapData as AuthoredMapData,
 } from "../map-data.js";
 import type { MapEvent } from "../map-events.js";
 import { TILE_SIZE } from "../tilemap.js";

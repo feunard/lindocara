@@ -53,12 +53,7 @@ import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
-import {
-  NodeWebSocketServerProvider,
-  type RoomClock,
-  RoomEngine,
-  type RoomSocket,
-} from "alepha/websocket";
+import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { heroes } from "../src/api/entities/heroes.ts";
@@ -721,21 +716,6 @@ function openWorldSocket(roomId: string, heroId: string, token: string): SocketP
         });
       }),
   };
-}
-
-/**
- * The state of a room the PRODUCTION websocket provider is hosting, rather than one this file put
- * in a bare engine.
- *
- * `getRoomEngine` is protected at compile time only — the same escape hatch `roomState` above takes
- * on a bare engine. The engine already exists by the time this is called: the room came to life on
- * the first socket's join.
- */
-function liveRoomState(roomId: string): WorldRoomState {
-  const provider = alepha.inject(NodeWebSocketServerProvider) as unknown as {
-    getRoomEngine(channelPath: string, roomId: string): { state: WorldRoomState };
-  };
-  return provider.getRoomEngine("/ws/world", roomId).state;
 }
 
 // -------------------------------------------------------------------------------------------------
