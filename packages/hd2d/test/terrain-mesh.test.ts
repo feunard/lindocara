@@ -129,6 +129,26 @@ describe("meshTerrain", () => {
     expect(Math.max(...allY(high.group))).toBeCloseTo(2.7);
   });
 
+  it("ferme les découpes transparentes des falaises avec une coque continue reculée", () => {
+    const ctx = createHd2dContext();
+    const { group } = meshTerrain(ctx, flat(1, 1, 3), {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    const meshes = group.children.filter(
+      (child): child is THREE.Mesh => child instanceof THREE.Mesh,
+    );
+    const shell = meshes.find((mesh) => (mesh.material as THREE.Material).polygonOffset);
+    expect(shell).toBeDefined();
+    if (!shell) throw new Error("expected a cliff shell mesh");
+    expect((shell.material as THREE.MeshLambertMaterial).alphaTest).toBe(0);
+    const positions = shell.geometry.getAttribute("position");
+    expect(positions.count).toBe(16);
+    const ys = Array.from({ length: positions.count }, (_, index) => positions.getY(index));
+    expect(Math.min(...ys)).toBe(0);
+    expect(Math.max(...ys)).toBeCloseTo(2.7);
+  });
+
   it("porte une couleur de sommet pour l'occlusion de contact", () => {
     const ctx = createHd2dContext();
     const { group } = meshTerrain(ctx, flat(2, 2, 0), {

@@ -165,6 +165,10 @@ export function meshTerrain(
   const cx = field.cols / 2;
   const cz = field.rows / 2;
   const geo = new Map<string, QuadBuilder>();
+  // Les pixels transparents aux extrémités des tuiles de falaise sont utiles pour le dessin, mais
+  // deux façades raccordées les laissaient voir le ciel à l’orbite. Cette coque ne contient QUE les
+  // parois et reste un cheveu derrière l’atlas : elle ferme le volume sans carrériser les dessus.
+  const wallShell = new Map<string, QuadBuilder>();
 
   for (let j = 0; j < field.rows; j++) {
     for (let i = 0; i < field.cols; i++) {
@@ -258,19 +262,36 @@ export function meshTerrain(
         // UV cell now stretches over the full drop, preserving a single tall-block silhouette.
         const w = tileUV(atlas, wallCol, atlas.wallRow);
         const [ab, ah] = [pied(bottomY), pied(y)];
-        into(geo, material).quad(
+        const vertices = [
           [p0[0], bottomY, p0[1]],
           [p1[0], bottomY, p1[1]],
           [p1[0], y, p1[1]],
           [p0[0], y, p0[1]],
+        ] as const;
+        const wallUvs = [
+          [w.u0, w.v0],
+          [w.u1, w.v0],
+          [w.u1, w.v1],
+          [w.u0, w.v1],
+        ] as const;
+        const wallAo = [ab, ab, ah, ah] as const;
+        into(geo, material).quad(
+          vertices[0],
+          vertices[1],
+          vertices[2],
+          vertices[3],
           [di, 0, dj],
-          [
-            [w.u0, w.v0],
-            [w.u1, w.v0],
-            [w.u1, w.v1],
-            [w.u0, w.v1],
-          ],
-          [ab, ab, ah, ah],
+          wallUvs,
+          wallAo,
+        );
+        into(wallShell, material).quad(
+          vertices[0],
+          vertices[1],
+          vertices[2],
+          vertices[3],
+          [di, 0, dj],
+          wallUvs,
+          wallAo,
         );
       }
     }
@@ -294,6 +315,26 @@ export function meshTerrain(
     // l'origine de l'objet (`atOrigin` sert aux billboards verticaux, voir `applyCloudShadow`).
     applyCloudShadow(ctx, material);
     const mesh = new THREE.Mesh(builder.build(), material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  for (const [key, builder] of wallShell) {
+    if (builder.empty) continue;
+    const atlas = opts.atlases[key];
+    if (!atlas) throw new Error(`Atlas de terrain "${key}" disparu avant la coque de falaise`);
+    const material = new THREE.MeshLambertMaterial({
+      map: atlas.texture,
+      side: THREE.DoubleSide,
+      shadowSide: THREE.DoubleSide,
+      vertexColors: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
+    applyCloudShadow(ctx, material);
+    const mesh = new THREE.Mesh(builder.build(), material);
+    mesh.renderOrder = -1;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
