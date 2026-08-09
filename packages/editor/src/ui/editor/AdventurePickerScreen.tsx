@@ -4,7 +4,7 @@ import {
   createAdventureApi,
   deleteAdventureApi,
   errorCode,
-  fetchAllAdventures,
+  fetchAdventures,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
@@ -52,7 +52,7 @@ export function AdventurePickerScreen() {
     let cancelled = false;
     void (async () => {
       try {
-        const loaded = await fetchAllAdventures();
+        const loaded = await fetchAdventures();
         if (!cancelled) setAdventures(loaded);
       } catch (caught) {
         if (cancelled) return;

@@ -66,7 +66,7 @@ describe("AdventureEditorScreen explicit picker", () => {
     localStorage.setItem("lindocara:editor:last-adventure:acct", "adv-remembered");
     const mock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
-      if (url === "/api/adventures?scope=all" && method === "GET") {
+      if (url === "/api/adventures" && method === "GET") {
         return Promise.resolve(
           jsonResponse([
             {
@@ -91,6 +91,7 @@ describe("AdventureEditorScreen explicit picker", () => {
 
     expect(await screen.findByRole("heading", { name: t("editor.picker.title") })).toBeVisible();
     expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
+    expect(mock.mock.calls.some(([url]) => url === "/api/adventures?scope=all")).toBe(false);
     expect(mock.mock.calls.some(([url]) => url === "/api/adventures/adv-remembered")).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.picker.open") }));
@@ -102,7 +103,7 @@ describe("AdventureEditorScreen explicit picker", () => {
   it("does not create anything until the new-adventure form is submitted", async () => {
     const mock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
-      if (url === "/api/adventures?scope=all" && method === "GET") {
+      if (url === "/api/adventures" && method === "GET") {
         return Promise.resolve(jsonResponse([]));
       }
       if (url === "/api/adventures" && method === "POST") {
@@ -146,7 +147,7 @@ describe("AdventureEditorScreen explicit picker", () => {
   it("deletes an adventure from the picker after the same forced-delete confirmation", async () => {
     const mock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
-      if (url === "/api/adventures?scope=all" && method === "GET") {
+      if (url === "/api/adventures" && method === "GET") {
         return Promise.resolve(
           jsonResponse([
             {

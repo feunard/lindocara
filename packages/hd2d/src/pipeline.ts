@@ -76,6 +76,30 @@ export function tiltShiftRadius(base: number, zoomBoost: number, k: number): num
   return Math.max(0, base * (1 + (k - 1) * zoomBoost));
 }
 
+export interface PipelineViewportInput {
+  clientWidth: number;
+  clientHeight: number;
+  fallbackWidth: number;
+  fallbackHeight: number;
+  devicePixelRatio: number;
+}
+
+/** Resolve the render size from the canvas, never from the global viewport. The fallback only
+ * covers a canvas before layout; an embedded editor canvas must retain its panel dimensions. */
+export function pipelineViewport(input: PipelineViewportInput): {
+  width: number;
+  height: number;
+  pixelRatio: number;
+} {
+  const finitePositive = (value: number): number | null =>
+    Number.isFinite(value) && value > 0 ? value : null;
+  return {
+    width: Math.max(1, Math.round(finitePositive(input.clientWidth) ?? input.fallbackWidth ?? 1)),
+    height: Math.max(1, Math.round(finitePositive(input.clientHeight) ?? input.fallbackHeight ?? 1)),
+    pixelRatio: Math.min(2, Math.max(1, finitePositive(input.devicePixelRatio) ?? 1)),
+  };
+}
+
 export function createPipeline(
   canvas: HTMLCanvasElement,
   scene: THREE.Scene,
@@ -85,8 +109,19 @@ export function createPipeline(
   const RENDER = ctx.config.render;
   const POSTFX = ctx.config.postfx;
 
+  const measureViewport = () => {
+    const view = canvas.ownerDocument.defaultView;
+    return pipelineViewport({
+      clientWidth: canvas.clientWidth,
+      clientHeight: canvas.clientHeight,
+      fallbackWidth: view?.innerWidth ?? canvas.width,
+      fallbackHeight: view?.innerHeight ?? canvas.height,
+      devicePixelRatio: view?.devicePixelRatio ?? 1,
+    });
+  };
+
   const renderer = new THREE.WebGLRenderer({ canvas });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2) * RENDER.pixelScale);
+  renderer.setPixelRatio(measureViewport().pixelRatio * RENDER.pixelScale);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoft est déprécié depuis r18x
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -169,9 +204,13 @@ export function createPipeline(
   let focusYCourant = POSTFX.tiltShift.focusY;
 
   function resize() {
-    const w = innerWidth;
-    const h = innerHeight;
-    renderer.setSize(w, h);
+    const viewport = measureViewport();
+    const w = viewport.width;
+    const h = viewport.height;
+    renderer.setPixelRatio(viewport.pixelRatio * RENDER.pixelScale);
+    // `false` preserves the caller-owned CSS dimensions. The editor embeds this canvas in a
+    // resizable panel; writing an inline viewport-sized width here would make it escape that pane.
+    renderer.setSize(w, h, false);
     composer.setSize(w, h);
     const dpr = renderer.getPixelRatio();
     sceneTarget.setSize(w * dpr, h * dpr);
@@ -184,6 +223,9 @@ export function createPipeline(
     gradeU.uResolution.value.set(w * dpr, h * dpr);
   }
   resize();
+  const ResizeObserverCtor = canvas.ownerDocument.defaultView?.ResizeObserver;
+  const resizeObserver = ResizeObserverCtor ? new ResizeObserverCtor(resize) : null;
+  resizeObserver?.observe(canvas);
 
   /** La scène va dans sa cible MSAA ; le composer enchaîne à partir de là. */
   function render() {
@@ -238,6 +280,7 @@ export function createPipeline(
   // répondait. Sans cet appel, le moteur suivant hérite d'un contexte VIVANT et fonctionne (à ses
   // attributs près : celui-ci n'a pas de stencil buffer). Ne pas le rajouter.
   function dispose() {
+    resizeObserver?.disconnect();
     source.dispose();
     bloom.dispose();
     blurH.dispose();

@@ -3,7 +3,7 @@ import {
   authErrorText,
   deleteAdventureApi,
   errorCode,
-  fetchAllAdventures,
+  fetchAdventures,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { Button } from "@lindocara/ui/components/button.js";
@@ -67,7 +67,7 @@ export function LoadAdventureDialog({
     setConfirmingDelete(null);
     void (async () => {
       try {
-        setAdventures(await fetchAllAdventures());
+        setAdventures(await fetchAdventures());
       } catch (caught) {
         const code = errorCode(caught);
         if (!isSessionError(code)) setError(code);
