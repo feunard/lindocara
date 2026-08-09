@@ -4,17 +4,20 @@ import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId } from "../src/tileset.js";
-import { GRASS_SLOTS, TINY_SWORDS_TILESET_ID } from "../src/tilesets/tiny-swords.js";
+import {
+  TERRAIN_MATERIAL_SLOTS,
+  TINY_SWORDS_TILESET_ID,
+} from "../src/tilesets/tiny-swords.js";
 
 function authored(): MapData {
   const ground = emptyLayer(3, 2);
   ground.ids = [
-    autotileId(GRASS_SLOTS[0], 0),
-    autotileId(GRASS_SLOTS[1], 0),
+    autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0),
+    autotileId(TERRAIN_MATERIAL_SLOTS.sable[1], 0),
     0,
-    autotileId(GRASS_SLOTS[2], 0),
-    autotileId(GRASS_SLOTS[0], 0),
-    autotileId(GRASS_SLOTS[0], 0),
+    autotileId(TERRAIN_MATERIAL_SLOTS.neige[2], 0),
+    autotileId(TERRAIN_MATERIAL_SLOTS.glace[0], 0),
+    autotileId(TERRAIN_MATERIAL_SLOTS["glace-fine"][0], 0),
   ];
   return {
     tilesetId: TINY_SWORDS_TILESET_ID,
@@ -56,6 +59,17 @@ describe("compileAuthoredMap", () => {
 
     expect(compiled.size).toBe(3);
     expect(compiled.levels).toEqual([0, 1, null, 2, 0, 0, null, null, null]);
+    expect(compiled.materials).toEqual([
+      "herbe",
+      "sable",
+      "herbe",
+      "neige",
+      "glace",
+      "glace-fine",
+      "herbe",
+      "herbe",
+      "herbe",
+    ]);
     expect(compiled.spawns).toEqual([{ name: "default", x: -1, z: -1 }]);
     expect(compiled.elements).toEqual([
       {

@@ -240,7 +240,11 @@ function paintToolFor(
       return { kind: "pan" };
     case "pencil":
       return content.kind === "elevation"
-        ? { kind: "elevation", level: content.level }
+        ? {
+            kind: "elevation",
+            level: content.level,
+            ...(content.material === undefined ? {} : { material: content.material }),
+          }
         : { kind: "block", block: content.block };
     case "rect":
       return { kind: "rect", content };

@@ -398,7 +398,11 @@ describe("AdventureEditorScreen shell", () => {
 
     // Picking grass back deselects the spawn tool and re-arms the pencil, so exactly one is pressed.
     await userEvent.click(grass());
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "elevation",
+      level: 0,
+      material: "herbe",
+    });
     expect(grass()).toHaveAttribute("aria-pressed", "true");
     expect(spawn()).toHaveAttribute("aria-pressed", "false");
   });
@@ -1204,10 +1208,27 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(
       screen.getByRole("button", { name: t("editor.shell.terrain.level", { level: 2 }) }),
     );
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "elevation", level: 2 });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "elevation",
+      level: 2,
+      material: "herbe",
+    });
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.tool.grass") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "elevation",
+      level: 2,
+      material: "herbe",
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: t("editor.palette.terrain.glace-fine") }),
+    );
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "elevation",
+      level: 2,
+      material: "glace-fine",
+    });
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.stairs") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({

@@ -9,6 +9,7 @@
  * `Tilemap_color1.png` is 576x384: a 9x6 grid of 64px cells holding the flat grass group at column
  * 0, the raised group at column 5, and the cliff wall band beneath the raised group.
  */
+import type { TerrainMaterial } from "../hd2d/terrain-query.js";
 import type { Tileset } from "../tileset.js";
 
 export const TINY_SWORDS_TILESET_ID = "tiny-swords";
@@ -36,6 +37,21 @@ const RAISED_2_TINT = 0xb8b8b8;
 
 /** Autotile slots, in declaration order. The indices are the contract; the array below matches. */
 export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
+export const AUTHORED_TERRAIN_MATERIALS = [
+  "herbe",
+  "sable",
+  "neige",
+  "glace",
+  "glace-fine",
+] as const satisfies readonly TerrainMaterial[];
+const EXTRA_TERRAIN_MATERIALS = AUTHORED_TERRAIN_MATERIALS.slice(1);
+export const TERRAIN_MATERIAL_SLOTS = {
+  herbe: GRASS_SLOTS,
+  sable: [7, 8, 9],
+  neige: [10, 11, 12],
+  glace: [13, 14, 15],
+  "glace-fine": [16, 17, 18],
+} as const satisfies Readonly<Record<TerrainMaterial, readonly [number, number, number]>>;
 export const CLIFF_WALL_SLOT = 3;
 export const CLIFF_WATER_SLOT = 4;
 export const CLIFF_WALL_HIGH_2_SLOT = 5;
@@ -139,6 +155,37 @@ export const TINY_SWORDS_TILESET: Tileset = {
       renderLevel: 2,
       tint: RAISED_1_TINT,
     },
+    // HD-2D terrain materials are encoded in the same stable tile-id space as elevation. The
+    // retired 2D path may show the shared grass source for these slots, but the shipped editor and
+    // game compile the material below and render their dedicated terrain atlas.
+    ...EXTRA_TERRAIN_MATERIALS.flatMap(() => [
+      {
+        atlas: ATLAS,
+        origin: { col: 0, row: 0 },
+        kind: "edge16" as const,
+        passable: true,
+        priority: "below" as const,
+        renderLevel: 0 as const,
+      },
+      {
+        atlas: ATLAS,
+        origin: { col: 5, row: 0 },
+        kind: "edge16" as const,
+        passable: true,
+        priority: "below" as const,
+        renderLevel: 1 as const,
+        tint: RAISED_1_TINT,
+      },
+      {
+        atlas: ATLAS,
+        origin: { col: 5, row: 0 },
+        kind: "edge16" as const,
+        passable: true,
+        priority: "below" as const,
+        renderLevel: 2 as const,
+        tint: RAISED_2_TINT,
+      },
+    ]),
     {
       atlas: ATLAS,
       origin: { col: 5, row: 5 },
@@ -190,6 +237,22 @@ export function tilesetById(id: string): Tileset | null {
 
 /** Which elevation level a ground slot stands at, or -1 for anything that is not grass. */
 export function elevationOfSlot(slot: number): number {
-  const level = GRASS_SLOTS.indexOf(slot);
-  return level;
+  for (const material of AUTHORED_TERRAIN_MATERIALS) {
+    const level = (TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).indexOf(slot);
+    if (level >= 0) return level;
+  }
+  return -1;
+}
+
+/** The physical/visual material encoded by an authored ground slot. Non-ground legacy slots keep
+ * the historical grass fallback; their elevation is still rejected separately above. */
+export function materialOfSlot(slot: number): TerrainMaterial {
+  for (const material of AUTHORED_TERRAIN_MATERIALS) {
+    if ((TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
+  }
+  return "herbe";
+}
+
+export function terrainSlot(material: TerrainMaterial, level: number): number | null {
+  return TERRAIN_MATERIAL_SLOTS[material][level as 0 | 1 | 2] ?? null;
 }

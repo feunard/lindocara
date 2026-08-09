@@ -16,8 +16,9 @@ import {
 import type { MapEvent } from "../map-events.js";
 import { TILE_SIZE } from "../tilemap.js";
 import { decodeTileId } from "../tileset.js";
-import { elevationOfSlot } from "../tilesets/tiny-swords.js";
+import { elevationOfSlot, materialOfSlot } from "../tilesets/tiny-swords.js";
 import type { MapData } from "./map-data.js";
+import type { TerrainMaterial } from "./terrain-query.js";
 
 export const AUTHORED_LEVEL_HEIGHT = 0.9;
 export const AUTHORED_WATER_LEVEL = -0.05;
@@ -38,6 +39,11 @@ function authoredLevel(id: number): number | null {
   return 0;
 }
 
+function authoredMaterial(id: number): TerrainMaterial {
+  const tile = decodeTileId(id);
+  return tile.kind === "autotile" ? materialOfSlot(tile.slot) : "herbe";
+}
+
 /** Compile one validated editor map and its full authored event documents into heightfield bytes. */
 export function compileAuthoredMap(
   authored: AuthoredMapData,
@@ -46,12 +52,15 @@ export function compileAuthoredMap(
   const size = Math.max(authored.cols, authored.rows);
   const cells = size * size;
   const levels: Array<number | null> = new Array<number | null>(cells).fill(null);
-  const materials = new Array<"herbe">(cells).fill("herbe");
+  const materials = new Array<TerrainMaterial>(cells).fill("herbe");
   const ground = authored.layers[0];
 
   for (let row = 0; row < authored.rows; row += 1) {
     for (let col = 0; col < authored.cols; col += 1) {
-      levels[row * size + col] = authoredLevel(ground?.ids[row * authored.cols + col] ?? 0);
+      const index = row * size + col;
+      const id = ground?.ids[row * authored.cols + col] ?? 0;
+      levels[index] = authoredLevel(id);
+      materials[index] = authoredMaterial(id);
     }
   }
 

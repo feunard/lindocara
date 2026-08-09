@@ -11,6 +11,7 @@
  * that the brush does not get to overrule it.
  */
 import { edge16Mask, run4Mask, type SameNeighbour } from "./autotile.js";
+import type { TerrainMaterial } from "./hd2d/terrain-query.js";
 import type { TileLayer } from "./tile-layer-codec.js";
 import { autotileId, decodeTileId, EMPTY_TILE, fixedId, type Tileset } from "./tileset.js";
 import {
@@ -22,8 +23,8 @@ import {
   CLIFF_WATER_HIGH_2_SLOT,
   CLIFF_WATER_SLOT,
   elevationOfSlot,
-  GRASS_SLOTS,
   RAMP_FIXED_TILE_COUNT,
+  terrainSlot,
 } from "./tilesets/tiny-swords.js";
 
 function indexOf(layer: TileLayer, col: number, row: number): number {
@@ -331,8 +332,20 @@ export function paintElevation(
   col: number,
   row: number,
 ): TileLayer[] {
-  const slot = GRASS_SLOTS[level];
-  if (slot === undefined) return [...layers];
+  return paintTerrain(layers, tileset, "herbe", level, col, row);
+}
+
+/** Paint one material at one elevation while keeping the existing cliff-wall maintenance rule. */
+export function paintTerrain(
+  layers: readonly TileLayer[],
+  tileset: Tileset,
+  material: TerrainMaterial,
+  level: number,
+  col: number,
+  row: number,
+): TileLayer[] {
+  const slot = terrainSlot(material, level);
+  if (slot === null) return [...layers];
   const ground = layers[0];
   const walls = layers[1];
   if (!ground || !walls) return [...layers];

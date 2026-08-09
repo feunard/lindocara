@@ -1,5 +1,6 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
+import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
 import type { RectFillContent } from "../../game/editor-state.js";
@@ -7,6 +8,19 @@ import type { RectFillContent } from "../../game/editor-state.js";
 const ELEVATION_LEVELS: (0 | 1 | 2)[] = [0, 1, 2];
 const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["east", "west"];
 const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1];
+const MATERIAL_OPTIONS: readonly TerrainMaterial[] = [
+  "herbe",
+  "sable",
+  "neige",
+  "glace",
+  "glace-fine",
+];
+const MATERIAL_BACKGROUNDS: Readonly<Record<Exclude<TerrainMaterial, "herbe">, string>> = {
+  sable: "linear-gradient(145deg, #e6c57a, #b98345)",
+  neige: "linear-gradient(145deg, #ffffff, #b9d7df)",
+  glace: "linear-gradient(145deg, #d8fbff, #69b9d1)",
+  "glace-fine": "repeating-linear-gradient(135deg, #c9f4fb 0 7px, #7fc9dc 7px 9px)",
+};
 
 /** Sprite-path previews for the editor's non-tile swatches. Exported so `EventPalette` draws its
  *  event-kind previews from the same source of truth (the "assets" repair — these exact paths). */
@@ -73,7 +87,13 @@ export function TerrainPalette({
   // Gated on `terrainActive` (UX wave #11): a terrain swatch is pressed only when a terrain tool is the
   // one active selection, never merely because `content` still remembers a grass/water pick made
   // before a spawn or decoration was selected.
-  const grassActive = terrainActive && content.kind === "block" && content.block === "grass";
+  const selectedMaterial: TerrainMaterial | null =
+    content.kind === "elevation"
+      ? (content.material ?? "herbe")
+      : content.block === "grass"
+        ? "herbe"
+        : null;
+  const selectedLevel = content.kind === "elevation" ? content.level : 0;
   const waterActive = terrainActive && content.kind === "block" && content.block === "water";
 
   return (
@@ -89,12 +109,21 @@ export function TerrainPalette({
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
         <div className="grid grid-cols-2 gap-1.5">
-          <SwatchButton
-            label={t("editor.tool.grass")}
-            active={grassActive}
-            preview={<TerrainTilePreview kind="grass" level={0} />}
-            onClick={() => onPickContent({ kind: "block", block: "grass" })}
-          />
+          {MATERIAL_OPTIONS.map((material) => (
+            <SwatchButton
+              key={material}
+              label={
+                material === "herbe"
+                  ? t("editor.tool.grass")
+                  : t(`editor.palette.terrain.${material}`)
+              }
+              active={terrainActive && selectedMaterial === material}
+              preview={<TerrainMaterialPreview material={material} level={selectedLevel} />}
+              onClick={() =>
+                onPickContent({ kind: "elevation", material, level: selectedLevel })
+              }
+            />
+          ))}
           <SwatchButton
             label={t("editor.tool.water")}
             active={waterActive}
@@ -112,21 +141,27 @@ export function TerrainPalette({
           <div className="grid grid-cols-3 gap-1">
             {ELEVATION_LEVELS.map((level) => {
               const active =
-                terrainActive && content.kind === "elevation" && content.level === level;
+                terrainActive && selectedMaterial !== null && selectedLevel === level;
               return (
                 <button
                   key={level}
                   type="button"
                   aria-label={t("editor.shell.terrain.level", { level })}
                   aria-pressed={active}
-                  onClick={() => onPickContent({ kind: "elevation", level })}
+                  onClick={() =>
+                    onPickContent({
+                      kind: "elevation",
+                      material: selectedMaterial ?? "herbe",
+                      level,
+                    })
+                  }
                   className={`flex min-w-0 flex-col items-center gap-1 rounded-md border p-1 text-[10px] font-medium ${
                     active
                       ? "border-zinc-900 bg-zinc-900 text-zinc-50"
                       : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"
                   }`}
                 >
-                  <TerrainTilePreview kind="grass" level={level} />
+                  <TerrainMaterialPreview material={selectedMaterial ?? "herbe"} level={level} />
                   <span className="w-full truncate">{t(`editor.shell.terrain.level${level}`)}</span>
                 </button>
               );
@@ -215,6 +250,26 @@ export function TerrainPalette({
         </p>
       </div>
     </aside>
+  );
+}
+
+function TerrainMaterialPreview({
+  material,
+  level,
+}: {
+  material: TerrainMaterial;
+  level: 0 | 1 | 2;
+}) {
+  if (material === "herbe") return <TerrainTilePreview kind="grass" level={level} />;
+  return (
+    <span
+      aria-hidden="true"
+      className="size-8 flex-none rounded border border-black/10 shadow-inner"
+      style={{
+        background: MATERIAL_BACKGROUNDS[material],
+        filter: level === 1 ? "brightness(.9)" : level === 2 ? "brightness(.8)" : undefined,
+      }}
+    />
   );
 }
 

@@ -18,6 +18,7 @@ import {
 } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
+import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   bakeCollision,
   ELEMENT_OFFSET_STEPS,
@@ -57,6 +58,7 @@ import {
   paintElevation,
   paintRectAutotile,
   paintStairs,
+  paintTerrain,
   resolveWholeLayer,
   type StairsDirection,
   type StairsLowLevel,
@@ -67,6 +69,7 @@ import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
 import { autotileId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
+  terrainSlot,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -130,7 +133,7 @@ const GROUND_LAYER = 0;
  */
 export type RectFillContent =
   | { kind: "block"; block: "grass" | "water" }
-  | { kind: "elevation"; level: 0 | 1 | 2 };
+  | { kind: "elevation"; level: 0 | 1 | 2; material?: TerrainMaterial };
 
 interface EditorEventToolBase {
   kind: "event";
@@ -158,7 +161,7 @@ export type EditorEventTool =
 
 export type EditorTool =
   | { kind: "block"; block: "grass" | "water" }
-  | { kind: "elevation"; level: 0 | 1 | 2 }
+  | { kind: "elevation"; level: 0 | 1 | 2; material?: TerrainMaterial }
   | { kind: "element"; assetId: EditorAssetId }
   | { kind: "eraser" }
   | { kind: "spawn" }
@@ -1098,7 +1101,7 @@ function changedBounds(
 /** The autotile slot a terrain selection paints with, or null for water — water has no slot, it
  *  erases instead, the same "empty ground is the sea" rule the single-cell block tool uses. */
 function contentSlot(content: RectFillContent): number | null {
-  if (content.kind === "elevation") return GRASS_SLOTS[content.level];
+  if (content.kind === "elevation") return terrainSlot(content.material ?? "herbe", content.level);
   return content.block === "grass" ? GRASS_SLOTS[0] : null;
 }
 
@@ -1164,7 +1167,14 @@ export function applyTool(
       return commitTerrain(map, layers);
     }
     case "elevation": {
-      const layers = paintElevation(map.layers, TINY_SWORDS_TILESET, tool.level, col, row);
+      const layers = paintTerrain(
+        map.layers,
+        TINY_SWORDS_TILESET,
+        tool.material ?? "herbe",
+        tool.level,
+        col,
+        row,
+      );
       return commitTerrain(map, layers);
     }
     /**
