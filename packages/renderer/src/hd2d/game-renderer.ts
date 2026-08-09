@@ -335,6 +335,7 @@ export class Hd2dRenderer implements RendererLike {
   #manualFocus: GroundVector | null = null;
   #tiltShiftEnabled = true;
   #cameraZoom = 100;
+  #cameraYaw = 0;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -424,6 +425,7 @@ export class Hd2dRenderer implements RendererLike {
     const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
     this.#scene = scene;
     scene.setZoom(this.#cameraZoom);
+    scene.setYaw(this.#cameraYaw);
     scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
     if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     this.#map = heightfield;
@@ -981,6 +983,15 @@ export class Hd2dRenderer implements RendererLike {
   setCameraZoom(percent: number): void {
     this.#cameraZoom = percent;
     this.#scene?.setZoom(percent);
+  }
+
+  rotateCamera(deltaRadians: number): void {
+    if (!Number.isFinite(deltaRadians) || deltaRadians === 0) return;
+    this.#cameraYaw = Math.atan2(
+      Math.sin(this.#cameraYaw + deltaRadians),
+      Math.cos(this.#cameraYaw + deltaRadians),
+    );
+    this.#scene?.setYaw(this.#cameraYaw);
   }
 
   /** Keeps gameplay's tilt-shift by default while allowing the authoring stage to stay crisp. */

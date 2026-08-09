@@ -244,6 +244,8 @@ export interface Hd2dScene {
   focusOn(x: number, z: number): void;
   /** Sets the diorama zoom as a percentage. 100 is the gameplay camera. */
   setZoom(percent: number): void;
+  /** Sets the horizontal orbit while keeping the same target, pitch and distance. */
+  setYaw(radians: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
   setTiltShiftEnabled(enabled: boolean): void;
   /** First visible horizontal terrain/stair/water surface under an editor pointer ray. */
@@ -254,6 +256,19 @@ export interface Hd2dScene {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   query: TerrainQuery;
+}
+
+export function cameraOrbitOffset(
+  yaw: number,
+  distance: number,
+  pitch: number,
+): { x: number; y: number; z: number } {
+  const horizontal = Math.cos(pitch) * distance;
+  return {
+    x: Math.sin(yaw) * horizontal,
+    y: Math.sin(pitch) * distance,
+    z: Math.cos(yaw) * horizontal,
+  };
 }
 
 export function createHd2dScene(
@@ -365,6 +380,7 @@ export function createHd2dScene(
   let focus: { x: number; z: number } | null = null;
   let focusReached = false;
   let cameraDistance = CAMERA.distance;
+  let cameraYaw = 0;
   const wantedTarget = new THREE.Vector3();
   const cameraInset = Math.min(4, Math.max(0, map.size / 2 - 0.5));
   const cameraMin = -map.size / 2 + cameraInset;
@@ -374,12 +390,8 @@ export function createHd2dScene(
     // How far back the camera sits. Zoom updates this value while preserving the camera pitch and
     // day a wheel is wired is what makes the two zoom couplings below mean anything.
     const distance = cameraDistance;
-    const horizontal = Math.cos(CAMERA.pitch) * distance;
-    camera.position.set(
-      target.x,
-      target.y + Math.sin(CAMERA.pitch) * distance,
-      target.z + horizontal,
-    );
+    const offset = cameraOrbitOffset(cameraYaw, distance, CAMERA.pitch);
+    camera.position.set(target.x + offset.x, target.y + offset.y, target.z + offset.z);
     camera.lookAt(target);
 
     // The lights travel with the target rather than sitting at fixed world points: the shadow map's
@@ -472,6 +484,12 @@ export function createHd2dScene(
     setZoom(percent: number): void {
       const safePercent = THREE.MathUtils.clamp(percent, 2, 250);
       cameraDistance = (CAMERA.distance * 100) / safePercent;
+      frameCamera();
+    },
+    setYaw(radians: number): void {
+      if (!Number.isFinite(radians)) return;
+      cameraYaw = Math.atan2(Math.sin(radians), Math.cos(radians));
+      ctx.setYaw(cameraYaw);
       frameCamera();
     },
     setTiltShiftEnabled(enabled: boolean): void {

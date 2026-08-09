@@ -105,6 +105,8 @@ export interface RendererLike {
   preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void;
   removePeasantCamp(id: string): void;
   render(sample: SceneSample, context: RenderContext): void;
+  /** Adds a local yaw delta around the followed hero. */
+  rotateCamera(deltaRadians: number): void;
   /**
    * The world GROUND point under a screen coordinate, or `null` when this renderer cannot answer.
    *

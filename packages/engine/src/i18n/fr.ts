@@ -518,9 +518,9 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.disconnected":
     "Aucune manette détectée — branchez-en une, puis appuyez sur un bouton.",
   "settings.controls.keyboard_hint":
-    "Choisissez une action, puis appuyez sur la touche que vous souhaitez utiliser.",
+    "Choisissez une action, puis appuyez sur la touche que vous souhaitez utiliser. En jeu, maintenez le clic droit et glissez pour tourner la caméra.",
   "settings.controls.gamepad_hint":
-    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
+    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick droit tourne la caméra. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
   "settings.controls.press_key": "Appuyez sur une touche…",
   "settings.controls.press_button": "Appuyez sur un bouton…",
   "settings.controls.group.movement": "Déplacements",

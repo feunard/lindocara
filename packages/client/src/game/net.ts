@@ -455,10 +455,18 @@ export class WorldClient {
     // duration — both feed the rule no input rather than skipping the step, so gravity, the water
     // and the thin ice keep running underneath.
     const frozen = !canMove(life) || performance.now() < this.#shadowDanceMovementBlockedUntil;
+    const movementAxis = (
+      axis: number | undefined,
+      negative: boolean,
+      positive: boolean,
+    ): number =>
+      Number.isFinite(axis) && Math.abs(axis ?? 0) > 0.0001
+        ? Math.max(-1, Math.min(1, axis ?? 0))
+        : Number(positive) - Number(negative);
     const events = hero.step(
       {
-        x: frozen ? 0 : Number(input.right) - Number(input.left),
-        z: frozen ? 0 : Number(input.down) - Number(input.up),
+        x: frozen ? 0 : movementAxis(input.axisX, input.left, input.right),
+        z: frozen ? 0 : movementAxis(input.axisY, input.up, input.down),
         jump: !frozen && (input.jump ?? false),
       },
       Math.min(Math.max(dt, 0), MAX_FRAME_SECONDS),

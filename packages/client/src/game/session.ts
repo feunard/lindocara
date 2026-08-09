@@ -40,7 +40,12 @@ import {
 import { getDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { healingEffectColor, shouldFloatEvent } from "@lindocara/renderer/feedback.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
-import { trackActions, trackInput } from "@lindocara/renderer/input.js";
+import {
+  rotateMovementInput,
+  trackActions,
+  trackCameraOrbit,
+  trackInput,
+} from "@lindocara/renderer/input.js";
 import { type InteriorDoor, nearestInterior } from "@lindocara/renderer/interiors.js";
 import { MapSurface } from "@lindocara/renderer/minimap-surface.js";
 import type { RenderContext, RendererLike } from "@lindocara/renderer/renderer-api.js";
@@ -401,6 +406,8 @@ async function startGameIdentity(
   let intentionallyClosed = false;
   let ended = false;
   const input = trackInput();
+  const cameraOrbit = trackCameraOrbit(canvas);
+  let cameraYaw = 0;
   let stopActions: (() => void) | null = null;
   let questState: QuestState = {
     chapter: "three_offerings",
@@ -812,6 +819,7 @@ async function startGameIdentity(
     reconnectTimer = null;
     loadingTimer = null;
     input.stop();
+    cameraOrbit.stop();
     stopActions?.();
     window.removeEventListener("pointerdown", unlockAudio);
     window.removeEventListener("keydown", unlockAudio);
@@ -1227,7 +1235,16 @@ async function startGameIdentity(
 
   renderer.onFrame((now, dt) => {
     sound.update(now);
-    const movementEvents = client.update(isGameplayInputPaused() ? NO_INPUT : input.current(), dt);
+    const paused = isGameplayInputPaused();
+    const cameraDelta = cameraOrbit.takeDelta(dt);
+    if (!paused && cameraDelta !== 0) {
+      cameraYaw = Math.atan2(Math.sin(cameraYaw + cameraDelta), Math.cos(cameraYaw + cameraDelta));
+      renderer.rotateCamera(cameraDelta);
+    }
+    const movementEvents = client.update(
+      paused ? NO_INPUT : rotateMovementInput(input.current(), cameraYaw),
+      dt,
+    );
     sound.movement(movementEvents);
     const movementStatus = client.movementStatus();
     const sample = client.sample(now);

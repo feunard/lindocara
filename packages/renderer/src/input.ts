@@ -15,6 +15,8 @@ import {
 } from "./input-settings.js";
 
 const GAMEPAD_AXIS_DEADZONE = 0.2;
+const CAMERA_MOUSE_RADIANS_PER_PIXEL = 0.006;
+const CAMERA_GAMEPAD_RADIANS_PER_SECOND = 1.8;
 
 const MOVEMENT_CONTROLS: Partial<Record<ControlId, keyof Input>> = {
   moveUp: "up",
@@ -53,6 +55,108 @@ function clampAxis(value: number): number {
   if (scaled <= -1) return -1;
   if (scaled >= 1) return 1;
   return scaled;
+}
+
+export function cameraOrbitDelta(mousePixels: number, gamepadAxis: number, dt: number): number {
+  const safeMouse = Number.isFinite(mousePixels) ? mousePixels : 0;
+  const safeDt = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.1)) : 0;
+  return (
+    safeMouse * CAMERA_MOUSE_RADIANS_PER_PIXEL +
+    clampAxis(gamepadAxis) * CAMERA_GAMEPAD_RADIANS_PER_SECOND * safeDt
+  );
+}
+
+/** Converts screen-relative movement into the world axes used by `stepHero`. */
+export function rotateMovementInput(input: Input, cameraYaw: number): Input {
+  const digitalX = Number(input.right) - Number(input.left);
+  const digitalZ = Number(input.down) - Number(input.up);
+  const sourceX =
+    Number.isFinite(input.axisX) && Math.abs(input.axisX ?? 0) > 0.0001
+      ? (input.axisX ?? 0)
+      : digitalX;
+  const sourceZ =
+    Number.isFinite(input.axisY) && Math.abs(input.axisY ?? 0) > 0.0001
+      ? (input.axisY ?? 0)
+      : digitalZ;
+  const yaw = Number.isFinite(cameraYaw) ? cameraYaw : 0;
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  const worldX = sourceX * cos + sourceZ * sin;
+  const worldZ = -sourceX * sin + sourceZ * cos;
+  const cleanX = Math.abs(worldX) < 1e-10 ? 0 : worldX;
+  const cleanZ = Math.abs(worldZ) < 1e-10 ? 0 : worldZ;
+  return {
+    ...input,
+    up: cleanZ < 0,
+    down: cleanZ > 0,
+    left: cleanX < 0,
+    right: cleanX > 0,
+    axisX: cleanX,
+    axisY: cleanZ,
+  };
+}
+
+export interface CameraOrbitTracker {
+  takeDelta(dt: number): number;
+  stop(): void;
+}
+
+/** Right-drag and the standard gamepad's right horizontal stick, scoped to the game canvas. */
+export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
+  let dragging = false;
+  let lastX = 0;
+  let mousePixels = 0;
+
+  const onPointerDown = (event: PointerEvent): void => {
+    if (event.button !== 2) return;
+    dragging = true;
+    lastX = event.clientX;
+    setInputMode("keyboard");
+    element.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  };
+  const onPointerMove = (event: PointerEvent): void => {
+    if (!dragging) return;
+    const fallback = event.clientX - lastX;
+    mousePixels +=
+      Number.isFinite(event.movementX) && event.movementX !== 0 ? event.movementX : fallback;
+    lastX = event.clientX;
+    event.preventDefault();
+  };
+  const stopDrag = (event?: PointerEvent): void => {
+    if (event && event.button !== 2) return;
+    dragging = false;
+  };
+  const onContextMenu = (event: MouseEvent): void => event.preventDefault();
+  const onBlur = (): void => {
+    dragging = false;
+    mousePixels = 0;
+  };
+
+  element.addEventListener("pointerdown", onPointerDown);
+  element.addEventListener("pointermove", onPointerMove);
+  element.addEventListener("pointerup", stopDrag);
+  element.addEventListener("pointercancel", stopDrag);
+  element.addEventListener("contextmenu", onContextMenu);
+  window.addEventListener("blur", onBlur);
+
+  return {
+    takeDelta(dt) {
+      const mouse = mousePixels;
+      mousePixels = 0;
+      const axis = firstConnectedGamepad()?.axes[2] ?? 0;
+      if (Math.abs(axis) > GAMEPAD_AXIS_DEADZONE) setInputMode("gamepad");
+      return cameraOrbitDelta(mouse, axis, dt);
+    },
+    stop() {
+      element.removeEventListener("pointerdown", onPointerDown);
+      element.removeEventListener("pointermove", onPointerMove);
+      element.removeEventListener("pointerup", stopDrag);
+      element.removeEventListener("pointercancel", stopDrag);
+      element.removeEventListener("contextmenu", onContextMenu);
+      window.removeEventListener("blur", onBlur);
+    },
+  };
 }
 
 function mergedInput(movement: Input, virtual: Input): Input {

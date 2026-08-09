@@ -512,9 +512,10 @@ export const en = {
   "settings.controls.layout.generic": "Other controller",
   "settings.controls.connected": "Connected: {name}",
   "settings.controls.disconnected": "No controller detected — connect one, then press a button.",
-  "settings.controls.keyboard_hint": "Choose an action, then press the key you want to use.",
+  "settings.controls.keyboard_hint":
+    "Choose an action, then press the key you want to use. Right-drag in game to rotate the camera.",
   "settings.controls.gamepad_hint":
-    "Choose an action, then press a button or move a stick. Standard Xbox, PS5, Switch and generic controllers are supported.",
+    "Choose an action, then press a button or move a stick. The right stick rotates the camera. Standard Xbox, PS5, Switch and generic controllers are supported.",
   "settings.controls.press_key": "Press a key…",
   "settings.controls.press_button": "Press a button…",
   "settings.controls.group.movement": "Movement",
