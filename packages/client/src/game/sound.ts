@@ -31,6 +31,19 @@ const CHARGE_IMPACT_WINDOW_MS = 900;
 const COMBAT_MUSIC_HOLD_MS = 8_000;
 const COMBAT_THREAT_RELEASE_MS = 500;
 const MUSIC_CROSSFADE_MS = 650;
+const SHEEP_BLEATS = [1, 2, 3, 4].map(
+  (index) => `/assets/lindocara/sfx/bleat-${index}.ogg`,
+);
+const SHEEP_POPS = [1, 2, 3].map((index) => `/assets/lindocara/sfx/pop-${index}.ogg`);
+
+function stableHash(value: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
 
 interface MusicFade {
   startedAt: number;
@@ -203,6 +216,23 @@ export class GameSound {
 
   monsterSpecialImpact(kind: MonsterImpactSound): void {
     void this.#playKey(monsterImpactSample(kind));
+  }
+
+  sheepBleat(eventId: string, hit: number): void {
+    const hash = stableHash(eventId);
+    const src = SHEEP_BLEATS[hash % SHEEP_BLEATS.length];
+    if (!src) return;
+    const ownPitch = ((hash >>> 8) % 700) / 100 - 3.5;
+    void this.#playSpec({
+      src,
+      volume: 0.5,
+      playbackRate: 2 ** ((ownPitch + hit * 1.5) / 12),
+    });
+  }
+
+  sheepExplosion(eventId: string): void {
+    const src = SHEEP_POPS[stableHash(eventId) % SHEEP_POPS.length];
+    if (src) void this.#playSpec({ src, volume: 0.7 });
   }
 
   #bindVisibility(): void {
@@ -423,7 +453,7 @@ export class GameSound {
     const context = this.#context;
     if (!context) return;
     this.#sampleLoad = Promise.allSettled(
-      uniqueSampleSources().map(async (src) => {
+      [...new Set([...uniqueSampleSources(), ...SHEEP_BLEATS, ...SHEEP_POPS])].map(async (src) => {
         if (this.#buffers.has(src)) return;
         const response = await fetch(src);
         if (!response.ok) throw new Error(`missing combat sfx: ${src}`);

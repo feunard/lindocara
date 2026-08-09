@@ -308,6 +308,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
         // cross into tile units. The default is two cells, which is two TILES here, not 128 px.
         patrolRadius: event.patrolRadius === null ? 2 : authoredPatrolRadius(event.patrolRadius),
         route: page.moveRoute ?? [],
+        ...(wanderingHarvest ? { movementStyle: "sheep" as const } : {}),
       });
     }
   }

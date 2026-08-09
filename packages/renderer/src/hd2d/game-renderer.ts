@@ -32,6 +32,7 @@ import type {
   RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
+import { isSheepAssetId, SHEEP_RENDER_HEIGHT } from "@lindocara/engine/sheep.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   EDITOR_ASSETS,
@@ -68,6 +69,7 @@ import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
 import type { StaticContent, StaticSpriteArt } from "./static-content.js";
 import { placeStaticContent } from "./static-content.js";
 import {
+  HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
   HD2D_SPLASH_TEXTURE_URL,
   type Hd2dEditorOverlay,
   Hd2dVisualLayer,
@@ -108,11 +110,6 @@ export interface BillboardActorSheet {
 }
 
 const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
-const LAB_SHEEP_HEIGHT = 1.5;
-const SHEEP_ASSET_IDS = new Set([
-  "resource.terrain-resources-meat-sheep.sheep-idle",
-  "resource.resources-sheep.happysheep-idle",
-]);
 
 export function authoredActorSheet(
   graphicAssetId: string | null | undefined,
@@ -261,6 +258,7 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
     ]),
     HD2D_GLIDER_TEXTURE_URL,
     HD2D_SPLASH_TEXTURE_URL,
+    HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
   ]),
 ].map((url) => ({ url, ...(url === HD2D_SPLASH_TEXTURE_URL ? { atlas: true } : {}) }));
 
@@ -1086,9 +1084,7 @@ export class Hd2dRenderer implements RendererLike {
         facing:
           !event.directionFixed && movement.direction ? facingOf(movement.direction) : "north",
         ...actorSheetView(sheet),
-        ...(assetId && SHEEP_ASSET_IDS.has(assetId)
-          ? { renderHeight: LAB_SHEEP_HEIGHT }
-          : {}),
+        ...(isSheepAssetId(assetId) ? { renderHeight: SHEEP_RENDER_HEIGHT } : {}),
         animationTimeMs,
         animationLoop: true,
       });
@@ -1324,6 +1320,10 @@ export class Hd2dRenderer implements RendererLike {
 
   playPeasantBombImpact(impact: PeasantBombImpactVisual): void {
     this.#visuals?.pulse(impact.x, impact.z, 0xff9f45, impact.radius, 720);
+  }
+
+  playSheepExplosion(x: number, z: number): void {
+    this.#visuals?.playSheepExplosion(x, z);
   }
 
   playPolarityOrb(orb: PriestPolarityOrbVisual): void {

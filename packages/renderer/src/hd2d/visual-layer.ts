@@ -21,6 +21,8 @@ import { HD2D_CAMERA, type Hd2dScene, terrainAtlases } from "./scene.js";
 import { staticAnimationFrame, type StaticSpriteArt } from "./static-content.js";
 
 export const HD2D_SPLASH_TEXTURE_URL = "/assets/lindocara/hd2d/splash.png";
+export const HD2D_SHEEP_EXPLOSION_TEXTURE_URL =
+  "/assets/lindocara/hd2d/sheep-explosion.png";
 
 interface TimedVisual {
   object: THREE.Object3D;
@@ -459,6 +461,38 @@ export class Hd2dVisualLayer {
         sprite.geometry.dispose();
         material.dispose();
         map.dispose();
+      },
+    });
+  }
+
+  /** Exact lab critter blast: the authored nine-frame, unlit sheet at 12 fps and 2.6 tiles high. */
+  playSheepExplosion(x: number, z: number, now = performance.now()): void {
+    if (!this.#textures) {
+      this.pulse(x, z, 0xff9f45, 1.2, 750, now);
+      return;
+    }
+    const billboard = makeBillboard(this.#scene.ctx, {
+      texture: this.#textures.get(HD2D_SHEEP_EXPLOSION_TEXTURE_URL),
+      cols: 9,
+      rows: 1,
+      height: 2.6,
+      aspect: 1,
+      foot: 0.3,
+      lit: false,
+    });
+    billboard.placeAt(x, this.#groundY(x, z, 0), z);
+    this.#root.add(billboard.mesh);
+    const duration = (9 / 12) * 1_000;
+    this.#effects.push({
+      object: billboard.mesh,
+      startedAt: now,
+      endsAt: now + duration,
+      update(progress) {
+        billboard.setFrame(Math.min(8, Math.floor(progress * 9)));
+      },
+      dispose() {
+        billboard.mesh.removeFromParent();
+        billboard.dispose();
       },
     });
   }

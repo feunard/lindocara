@@ -10,6 +10,11 @@
 import { npcMovementIntervalTicks } from "@lindocara/engine/event-movement.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MoveType, NpcRoutineStep } from "@lindocara/engine/map-events.js";
+import {
+  SHEEP_IDLE_SECONDS,
+  SHEEP_SPEED,
+  SHEEP_WALK_SECONDS,
+} from "@lindocara/engine/sheep.js";
 import { TICK_MS } from "@lindocara/engine/simulation.js";
 import {
   BODY_RADIUS,
@@ -37,12 +42,17 @@ export interface NpcMovementDefinition {
    */
   patrolRadius: number;
   route?: readonly NpcRoutineStep[];
+  /** The lab critter cadence: alternating bounded idle and walking phases instead of perpetual
+   * one-cell motion. Authored sheep opt into it; ordinary random NPCs keep the legacy cadence. */
+  movementStyle?: "sheep";
 }
 
 export interface NpcMovementRuntime extends NpcMovementDefinition {
   nextMoveTick: number;
   routeStep: number;
   waitUntilTick: number;
+  sheepPhase?: "idle" | "walk";
+  sheepStepsRemaining?: number;
 }
 
 const DIRECTIONS = [
@@ -72,6 +82,25 @@ function stableHash(value: string): number {
   return hash >>> 0;
 }
 
+const SHEEP_STEP_TICKS = Math.max(1, Math.round(1 / SHEEP_SPEED / (TICK_MS / 1_000)));
+
+function stableBetween(id: string, phase: string, cycle: number, range: readonly [number, number]) {
+  const unit = stableHash(`${id}:${phase}:${cycle}`) / 0xffffffff;
+  return range[0] + (range[1] - range[0]) * unit;
+}
+
+function sheepIdleTicks(id: string, cycle: number): number {
+  return Math.max(
+    1,
+    Math.round((stableBetween(id, "idle", cycle, SHEEP_IDLE_SECONDS) * 1_000) / TICK_MS),
+  );
+}
+
+function sheepWalkSteps(id: string, cycle: number): number {
+  const seconds = stableBetween(id, "walk", cycle, SHEEP_WALK_SECONDS);
+  return Math.max(1, Math.round((seconds * 1_000) / (SHEEP_STEP_TICKS * TICK_MS)));
+}
+
 export function reconcileNpcMovement(
   current: ReadonlyMap<string, NpcMovementRuntime>,
   definitions: readonly NpcMovementDefinition[],
@@ -83,13 +112,25 @@ export function reconcileNpcMovement(
     next.set(
       definition.id,
       existing
-        ? { ...existing, ...definition }
+        ? {
+            ...existing,
+            ...definition,
+            ...(definition.movementStyle === "sheep" && existing.sheepPhase === undefined
+              ? { sheepPhase: "idle" as const, sheepStepsRemaining: 0 }
+              : {}),
+          }
         : {
             ...definition,
             nextMoveTick:
-              tick + npcMovementIntervalTicks(definition.moveSpeed, definition.moveFreq),
+              tick +
+              (definition.movementStyle === "sheep"
+                ? sheepIdleTicks(definition.id, 0)
+                : npcMovementIntervalTicks(definition.moveSpeed, definition.moveFreq)),
             routeStep: 0,
             waitUntilTick: 0,
+            ...(definition.movementStyle === "sheep"
+              ? { sheepPhase: "idle" as const, sheepStepsRemaining: 0 }
+              : {}),
           },
     );
   }
@@ -270,8 +311,16 @@ export function advanceNpcEvents(params: {
     ) {
       return event;
     }
-    runtime.nextMoveTick =
-      params.tick + npcMovementIntervalTicks(runtime.moveSpeed, runtime.moveFreq);
+    if (runtime.movementStyle === "sheep") {
+      if (runtime.sheepPhase !== "walk") {
+        runtime.sheepPhase = "walk";
+        runtime.sheepStepsRemaining = sheepWalkSteps(runtime.id, runtime.routeStep);
+      }
+      runtime.nextMoveTick = params.tick + SHEEP_STEP_TICKS;
+    } else {
+      runtime.nextMoveTick =
+        params.tick + npcMovementIntervalTicks(runtime.moveSpeed, runtime.moveFreq);
+    }
     const proposed = candidateFor(event, runtime, params.players, params.terrain, params.tick);
     const distanceFromHome = Math.hypot(
       proposed.cell.col - runtime.homeCol,
@@ -290,6 +339,7 @@ export function advanceNpcEvents(params: {
           };
     runtime.routeStep = candidate.routeStep;
     const here = cellCentre(params.terrain, event);
+    let nextEvent = event;
     if (
       (candidate.cell.col === event.col && candidate.cell.row === event.row) ||
       occupied.has(`${candidate.cell.col}:${candidate.cell.row}`) ||
@@ -300,10 +350,19 @@ export function advanceNpcEvents(params: {
         groundUnder(params.terrain, here.x, here.z),
       )
     ) {
-      return event;
+      nextEvent = event;
+    } else {
+      occupied.delete(`${event.col}:${event.row}`);
+      occupied.add(`${candidate.cell.col}:${candidate.cell.row}`);
+      nextEvent = { ...event, ...candidate.cell };
     }
-    occupied.delete(`${event.col}:${event.row}`);
-    occupied.add(`${candidate.cell.col}:${candidate.cell.row}`);
-    return { ...event, ...candidate.cell };
+    if (runtime.movementStyle === "sheep") {
+      runtime.sheepStepsRemaining = Math.max(0, (runtime.sheepStepsRemaining ?? 1) - 1);
+      if (runtime.sheepStepsRemaining === 0) {
+        runtime.sheepPhase = "idle";
+        runtime.nextMoveTick = params.tick + sheepIdleTicks(runtime.id, runtime.routeStep);
+      }
+    }
+    return nextEvent;
   });
 }

@@ -65,6 +65,7 @@ import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js"
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { SessionCombatAudio } from "./session-combat-audio.js";
 import { GameSound } from "./sound.js";
+import { SheepFeedbackTracker } from "./sheep-feedback.js";
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -77,7 +78,8 @@ function required<T extends Element>(selector: string): T {
  *  `returnFromGameSession`'s docblock). Defaults to `true` everywhere else. */
 type StopOptions = { navigate?: boolean };
 
-const sound = new GameSound();
+  const sound = new GameSound();
+  const sheepFeedback = new SheepFeedbackTracker();
 let activeLaunchId = 0;
 let stopActiveSession: ((options?: StopOptions) => void) | null = null;
 
@@ -526,6 +528,7 @@ async function startGameIdentity(
       }
       renderer.setSelfId(selfId);
       sound.configureScene(world.audio);
+      sheepFeedback.reset(world.size, world.events);
       // Harvest replacements are explicit appearance metadata in the welcome. Queue them before
       // the first playable frame so the last authoritative hit never initiates their texture load.
       renderer.preloadWorldEventAssets(world.events);
@@ -1248,6 +1251,13 @@ async function startGameIdentity(
     sound.movement(movementEvents);
     const movementStatus = client.movementStatus();
     const sample = client.sample(now);
+    for (const feedback of sheepFeedback.sync(sample.events)) {
+      if (feedback.type === "bleat") sound.sheepBleat(feedback.eventId, feedback.hit);
+      else {
+        sound.sheepExplosion(feedback.eventId);
+        renderer.playSheepExplosion(feedback.x, feedback.z);
+      }
+    }
     combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;

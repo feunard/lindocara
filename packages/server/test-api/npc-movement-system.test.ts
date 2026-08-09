@@ -212,4 +212,42 @@ describe("authoritative NPC movement", () => {
       );
     }
   });
+
+  it("alternates lab sheep idle windows with bounded 0.85-tile-per-second walks", () => {
+    const movement = reconcileNpcMovement(
+      new Map(),
+      [
+        {
+          id: "lab-sheep",
+          homeCol: 5,
+          homeRow: 5,
+          moveType: "random",
+          moveSpeed: 2,
+          moveFreq: 2,
+          through: false,
+          patrolRadius: 3,
+          movementStyle: "sheep",
+        },
+      ],
+      0,
+    );
+    const runtime = movement.get("lab-sheep");
+    if (!runtime) throw new Error("expected sheep movement runtime");
+    expect(runtime.sheepPhase).toBe("idle");
+    expect(runtime.nextMoveTick).toBeGreaterThanOrEqual(24);
+    expect(runtime.nextMoveTick).toBeLessThanOrEqual(80);
+
+    const tick = runtime.nextMoveTick;
+    const moved = advanceNpcEvents({
+      events: [event("lab-sheep", 5, 5)],
+      movement,
+      players: [],
+      terrain,
+      tick,
+      pausedEventIds: new Set(),
+    });
+    expect(moved[0]).not.toMatchObject({ col: 5, row: 5 });
+    expect(runtime.nextMoveTick - tick).toBeGreaterThanOrEqual(24);
+    expect(runtime.nextMoveTick - tick).toBeLessThanOrEqual(80);
+  });
 });

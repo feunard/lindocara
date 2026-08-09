@@ -103,6 +103,7 @@ export interface RendererLike {
   playPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   playPolarityOrb(orb: PriestPolarityOrbVisual): void;
   playRoguePoisonImpact(x: number, z: number, rupture: boolean): PlayerClass;
+  playSheepExplosion(x: number, z: number): void;
   playShadowDance(sequence: RogueShadowDanceSequence): void;
   playTeleportEffect(x?: number, z?: number): void;
   preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void;
