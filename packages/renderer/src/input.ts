@@ -17,6 +17,8 @@ import {
 const GAMEPAD_AXIS_DEADZONE = 0.2;
 const CAMERA_MOUSE_RADIANS_PER_PIXEL = 0.006;
 const CAMERA_GAMEPAD_RADIANS_PER_SECOND = 1.8;
+export const CAMERA_YAW_RANGE = 20 * (Math.PI / 180);
+const CAMERA_YAW_RETURN = 6;
 
 const MOVEMENT_CONTROLS: Partial<Record<ControlId, keyof Input>> = {
   moveUp: "up",
@@ -66,6 +68,22 @@ export function cameraOrbitDelta(mousePixels: number, gamepadAxis: number, dt: n
   );
 }
 
+/** Applies the lab camera's bounded glance and exponential return to its default heading. */
+export function limitedCameraYaw(
+  currentYaw: number,
+  orbitDelta: number,
+  orbiting: boolean,
+  dt: number,
+): number {
+  const yaw = Number.isFinite(currentYaw) ? currentYaw : 0;
+  const delta = Number.isFinite(orbitDelta) ? orbitDelta : 0;
+  const safeDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+  if (orbiting) {
+    return Math.max(-CAMERA_YAW_RANGE, Math.min(CAMERA_YAW_RANGE, yaw + delta));
+  }
+  return yaw * Math.exp(-CAMERA_YAW_RETURN * safeDt);
+}
+
 /** Converts screen-relative movement into the world axes used by `stepHero`. */
 export function rotateMovementInput(input: Input, cameraYaw: number): Input {
   const digitalX = Number(input.right) - Number(input.left);
@@ -97,7 +115,7 @@ export function rotateMovementInput(input: Input, cameraYaw: number): Input {
 }
 
 export interface CameraOrbitTracker {
-  takeDelta(dt: number): number;
+  takeSample(dt: number): { delta: number; orbiting: boolean };
   stop(): void;
 }
 
@@ -141,12 +159,15 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   window.addEventListener("blur", onBlur);
 
   return {
-    takeDelta(dt) {
+    takeSample(dt) {
       const mouse = mousePixels;
       mousePixels = 0;
       const axis = firstConnectedGamepad()?.axes[2] ?? 0;
       if (Math.abs(axis) > GAMEPAD_AXIS_DEADZONE) setInputMode("gamepad");
-      return cameraOrbitDelta(mouse, axis, dt);
+      return {
+        delta: cameraOrbitDelta(mouse, axis, dt),
+        orbiting: dragging || mouse !== 0 || Math.abs(axis) > GAMEPAD_AXIS_DEADZONE,
+      };
     },
     stop() {
       element.removeEventListener("pointerdown", onPointerDown);

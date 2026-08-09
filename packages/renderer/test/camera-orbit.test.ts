@@ -1,7 +1,9 @@
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
 import { cameraOrbitOffset } from "@lindocara/renderer/hd2d/scene.js";
 import {
+  CAMERA_YAW_RANGE,
   cameraOrbitDelta,
+  limitedCameraYaw,
   rotateMovementInput,
   trackCameraOrbit,
 } from "@lindocara/renderer/input.js";
@@ -25,10 +27,20 @@ describe("camera orbit input", () => {
     const contextMenu = new MouseEvent("contextmenu", { cancelable: true });
     canvas.dispatchEvent(contextMenu);
 
-    expect(tracker.takeDelta(0)).toBeCloseTo(0.18);
-    expect(tracker.takeDelta(0)).toBe(0);
+    const drag = tracker.takeSample(0);
+    expect(drag.delta).toBeCloseTo(0.18);
+    expect(drag.orbiting).toBe(true);
+    expect(tracker.takeSample(0)).toEqual({ delta: 0, orbiting: false });
     expect(contextMenu.defaultPrevented).toBe(true);
     tracker.stop();
+  });
+
+  it("matches the lab's bounded glance and exponential return", () => {
+    expect(limitedCameraYaw(0, Math.PI, true, 1 / 60)).toBeCloseTo(CAMERA_YAW_RANGE);
+    expect(limitedCameraYaw(0, -Math.PI, true, 1 / 60)).toBeCloseTo(-CAMERA_YAW_RANGE);
+    expect(limitedCameraYaw(CAMERA_YAW_RANGE, 0, false, 0.5)).toBeCloseTo(
+      CAMERA_YAW_RANGE * Math.exp(-3),
+    );
   });
 });
 

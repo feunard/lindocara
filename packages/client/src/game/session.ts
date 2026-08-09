@@ -41,6 +41,7 @@ import { getDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { healingEffectColor, shouldFloatEvent } from "@lindocara/renderer/feedback.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import {
+  limitedCameraYaw,
   rotateMovementInput,
   trackActions,
   trackCameraOrbit,
@@ -1258,11 +1259,16 @@ async function startGameIdentity(
   renderer.onFrame((now, dt) => {
     sound.update(now);
     const paused = isGameplayInputPaused();
-    const cameraDelta = cameraOrbit.takeDelta(dt);
-    if (!paused && cameraDelta !== 0) {
-      cameraYaw = Math.atan2(Math.sin(cameraYaw + cameraDelta), Math.cos(cameraYaw + cameraDelta));
-      renderer.rotateCamera(cameraDelta);
-    }
+    const cameraSample = cameraOrbit.takeSample(dt);
+    const nextCameraYaw = limitedCameraYaw(
+      cameraYaw,
+      paused ? 0 : cameraSample.delta,
+      !paused && cameraSample.orbiting,
+      dt,
+    );
+    const cameraDelta = nextCameraYaw - cameraYaw;
+    cameraYaw = nextCameraYaw;
+    if (cameraDelta !== 0) renderer.rotateCamera(cameraDelta);
     const movementEvents = client.update(
       paused ? NO_INPUT : rotateMovementInput(input.current(), cameraYaw),
       dt,

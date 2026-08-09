@@ -315,14 +315,14 @@ describe("staticAssetSpec", () => {
   it("classifies authored clouds as camera-independent sky art", () => {
     expect(staticAssetSpec("decoration.terrain-decorations-clouds.clouds-01")).toMatchObject({
       renderLayer: "sky",
-      renderMode: "cloud-volume",
     });
+    expect(
+      staticAssetSpec("decoration.terrain-decorations-clouds.clouds-01")?.renderMode,
+    ).toBeUndefined();
   });
 
-  it("classifies Tiny Swords buildings as fixed world volumes", () => {
-    expect(staticAssetSpec("building.buildings-blue-buildings.house1")).toMatchObject({
-      renderMode: "fixed-volume",
-    });
+  it("classifies Tiny Swords buildings as ordinary billboards", () => {
+    expect(staticAssetSpec("building.buildings-blue-buildings.house1")?.renderMode).toBeUndefined();
   });
 
   it("places cloud art as a fixed three-card volume above the map", () => {

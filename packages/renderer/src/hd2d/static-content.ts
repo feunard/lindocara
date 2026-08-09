@@ -195,7 +195,7 @@ export function placeStaticContent(
 
   function placeArt(assetId: string, sprite: StaticSpriteArt, x: number, z: number): void {
     const sky = sprite.renderLayer === "sky";
-    const flat = sprite.renderMode === "flat";
+    const flat = sky || sprite.renderMode === "flat";
     const volume =
       sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume"
         ? makeCardVolume(ctx, {
