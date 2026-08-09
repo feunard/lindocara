@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { applyCloudShadow } from "./clouds.js";
 import type { Hd2dContext } from "./context.js";
 import { sheetUv } from "./sheet.js";
@@ -29,6 +30,11 @@ export interface Sprite {
 
 export interface Billboard extends Sprite {
   setFacing(f: Facing): void;
+  placeAt(x: number, y: number, z: number): void;
+  readonly footOffset: number;
+}
+
+export interface CardVolume extends Sprite {
   placeAt(x: number, y: number, z: number): void;
   readonly footOffset: number;
 }
@@ -370,6 +376,92 @@ export function makeFlatSprite(ctx: Hd2dContext, opts: FlatSpriteOptions): Sprit
     setFlip: sheet.setFlip,
     dispose() {
       mesh.geometry.dispose();
+      material.dispose();
+      map.dispose();
+    },
+  };
+}
+
+export interface CardVolumeOptions {
+  texture: THREE.Texture;
+  cols?: number;
+  rows?: number;
+  height: number;
+  aspect?: number;
+  foot?: number;
+  mode: "cloud" | "vertical";
+  graftCloudShadow?: CloudShadowGraft;
+}
+
+/**
+ * Plusieurs cartes FIXES fusionnées en un seul mesh : le décor garde le pixel art officiel mais
+ * ne dépend plus du yaw des billboards. Le croisement vertical évite la tranche de papier à 90° ;
+ * le nuage ajoute un dessus horizontal et une épaisseur courte, visible pendant tout l’orbite.
+ */
+export function makeCardVolume(ctx: Hd2dContext, opts: CardVolumeOptions): CardVolume {
+  const {
+    texture,
+    cols = 1,
+    rows = 1,
+    height,
+    aspect = 1,
+    foot = 0,
+    mode,
+    graftCloudShadow = (material, graftOpts) => applyCloudShadow(ctx, material, graftOpts),
+  } = opts;
+  const width = height * aspect;
+  const parts: THREE.BufferGeometry[] = [];
+
+  if (mode === "cloud") {
+    const thickness = Math.max(0.18, Math.min(width, height) * 0.32);
+    const top = new THREE.PlaneGeometry(width, height);
+    top.rotateX(-Math.PI / 2);
+    top.translate(0, thickness / 2, 0);
+    parts.push(top);
+
+    const front = new THREE.PlaneGeometry(width, thickness);
+    parts.push(front);
+    const side = new THREE.PlaneGeometry(height, thickness);
+    side.rotateY(Math.PI / 2);
+    parts.push(side);
+  } else {
+    const front = new THREE.PlaneGeometry(width, height);
+    front.translate(0, height / 2, 0);
+    parts.push(front);
+    const side = new THREE.PlaneGeometry(Math.min(width, height * 0.58), height);
+    side.rotateY(Math.PI / 2);
+    side.translate(0, height / 2, 0);
+    parts.push(side);
+  }
+
+  const geometry = mergeGeometries(parts, false);
+  for (const part of parts) part.dispose();
+  if (!geometry) throw new Error("Fusion impossible pour le volume de cartes");
+
+  const map = cloneSheetMap(texture, cols, rows);
+  const material = new THREE.MeshLambertMaterial({
+    map,
+    alphaTest: 0.5,
+    side: THREE.DoubleSide,
+    shadowSide: THREE.DoubleSide,
+  });
+  graftCloudShadow(material, { atOrigin: mode !== "cloud" });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = mode === "vertical";
+  mesh.receiveShadow = true;
+  const sheet = bindSheet(map, cols, rows);
+  const footOffset = foot * height;
+
+  return {
+    mesh,
+    setFrame: sheet.setFrame,
+    setFlip: sheet.setFlip,
+    placeAt(x, y, z) {
+      mesh.position.set(x, y - footOffset, z);
+    },
+    footOffset,
+    dispose() {
+      geometry.dispose();
       material.dispose();
       map.dispose();
     },

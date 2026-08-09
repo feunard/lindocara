@@ -315,7 +315,36 @@ describe("staticAssetSpec", () => {
   it("classifies authored clouds as camera-independent sky art", () => {
     expect(staticAssetSpec("decoration.terrain-decorations-clouds.clouds-01")).toMatchObject({
       renderLayer: "sky",
+      renderMode: "cloud-volume",
     });
+  });
+
+  it("places cloud art as a fixed three-card volume above the map", () => {
+    const cloud = art({
+      cols: 1,
+      height: 2,
+      aspect: 2,
+      foot: 0,
+      renderLayer: "sky",
+      renderMode: "cloud-volume",
+    });
+    const map = flatMap(4, {
+      elements: [{ assetId: "cloud", x: 0.5, z: -0.5 }],
+    });
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const content = placeStaticContent(ctx, scene, map, resolverFor({ cloud }));
+    const [mesh] = meshes(scene.root);
+    if (!mesh) throw new Error("expected one cloud volume");
+
+    expect(mesh.geometry.getAttribute("position").count).toBe(12);
+    expect(mesh.position.y).toBeGreaterThan(map.levelHeight);
+    expect(ctx.billboards()).toHaveLength(0);
+    const rotation = mesh.rotation.y;
+    ctx.setYaw(Math.PI / 2);
+    expect(mesh.rotation.y).toBe(rotation);
+    content.update(2_500);
+    expect(mesh.position.x).not.toBeCloseTo(0.5);
   });
 
   it("frames an asset cropped out of a shared sheet", () => {

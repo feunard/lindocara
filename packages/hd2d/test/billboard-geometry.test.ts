@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { Billboard } from "../src/billboard.js";
-import { billboardHeight, createAnimator, facingToFlip, makeBillboard } from "../src/billboard.js";
+import {
+  billboardHeight,
+  createAnimator,
+  facingToFlip,
+  makeBillboard,
+  makeCardVolume,
+} from "../src/billboard.js";
 import { createHd2dContext } from "../src/context.js";
 
 const PITCH = (38 * Math.PI) / 180;
@@ -103,5 +109,24 @@ describe("createAnimator — fps change", () => {
     // À l'ancien fps (4, bogué : `play()` ignoré) : t = 0.25*4 = 1 -> frame 1.
     // Au nouveau fps (12, corrigé) : t = 0.25*12 = 3 -> frame 3.
     expect(frames).toEqual([3]);
+  });
+});
+
+describe("makeCardVolume", () => {
+  it("construit un nuage en trois cartes fixes sans l’inscrire au yaw caméra", () => {
+    const ctx = createHd2dContext();
+    const volume = makeCardVolume(ctx, {
+      texture: new THREE.Texture(),
+      height: 2,
+      aspect: 2,
+      mode: "cloud",
+      graftCloudShadow: () => undefined,
+    });
+
+    expect(volume.mesh.geometry.getAttribute("position").count).toBe(12);
+    expect(ctx.billboards()).toHaveLength(0);
+    ctx.setYaw(Math.PI / 2);
+    expect(volume.mesh.rotation.y).toBe(0);
+    volume.dispose();
   });
 });

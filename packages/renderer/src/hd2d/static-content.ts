@@ -27,8 +27,13 @@
  */
 
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
-import type { Billboard, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
-import { makeBillboard, makeFlatSprite, makeGlow } from "@lindocara/hd2d/billboard.js";
+import type { Billboard, CardVolume, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
+import {
+  makeBillboard,
+  makeCardVolume,
+  makeFlatSprite,
+  makeGlow,
+} from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
 import type { BillboardScene } from "./billboards.js";
@@ -69,7 +74,7 @@ export interface StaticSpriteArt {
   animationDurationMs?: number;
   /** Sky art is a horizontal world-space plane, never a camera-facing billboard. */
   renderLayer?: "object" | "canopy" | "sky";
-  renderMode?: "billboard" | "flat";
+  renderMode?: "billboard" | "flat" | "cloud-volume" | "fixed-volume";
   flatSize?: number;
   lit?: boolean;
   fireLight?: {
@@ -157,7 +162,7 @@ export function placeStaticContent(
   resolve: StaticArtResolver,
 ): StaticContent {
   const placed: {
-    sprite: Billboard | Sprite;
+    sprite: Billboard | CardVolume | Sprite;
     frames: number;
     durationMs: number;
     phaseMs: number;
@@ -190,35 +195,51 @@ export function placeStaticContent(
 
   function placeArt(assetId: string, sprite: StaticSpriteArt, x: number, z: number): void {
     const sky = sprite.renderLayer === "sky";
-    const flat = sky || sprite.renderMode === "flat";
-    const billboard = flat
-      ? makeFlatSprite(ctx, {
-          texture: sprite.texture,
-          cols: sprite.cols ?? 1,
-          rows: sprite.rows ?? 1,
-          size: sprite.flatSize ?? sprite.height * (sprite.aspect ?? 1),
-          aspect: 1 / (sprite.aspect ?? 1),
-          alphaTest: 0.5,
-          graftCloudShadow: () => undefined,
-        })
-      : makeBillboard(ctx, {
-          texture: sprite.texture,
-          cols: sprite.cols ?? 1,
-          rows: sprite.rows ?? 1,
-          height: sprite.height,
-          aspect: sprite.aspect ?? 1,
-          foot: sprite.foot ?? 0,
-          ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
-          ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
-          pitch: HD2D_CAMERA.pitch,
-        });
+    const flat = sprite.renderMode === "flat";
+    const volume =
+      sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume"
+        ? makeCardVolume(ctx, {
+            texture: sprite.texture,
+            cols: sprite.cols ?? 1,
+            rows: sprite.rows ?? 1,
+            height: sprite.height,
+            aspect: sprite.aspect ?? 1,
+            foot: sprite.foot ?? 0,
+            mode: sprite.renderMode === "cloud-volume" ? "cloud" : "vertical",
+            ...(sky ? { graftCloudShadow: () => undefined } : {}),
+          })
+        : null;
+    const billboard =
+      volume ??
+      (flat
+        ? makeFlatSprite(ctx, {
+            texture: sprite.texture,
+            cols: sprite.cols ?? 1,
+            rows: sprite.rows ?? 1,
+            size: sprite.flatSize ?? sprite.height * (sprite.aspect ?? 1),
+            aspect: 1 / (sprite.aspect ?? 1),
+            alphaTest: 0.5,
+            graftCloudShadow: () => undefined,
+          })
+        : makeBillboard(ctx, {
+            texture: sprite.texture,
+            cols: sprite.cols ?? 1,
+            rows: sprite.rows ?? 1,
+            height: sprite.height,
+            aspect: sprite.aspect ?? 1,
+            foot: sprite.foot ?? 0,
+            ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
+            ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
+            pitch: HD2D_CAMERA.pitch,
+          }));
     // The ground under the piece, or the sea when there is none: an offshore rock is authored on
     // water on purpose, and dropping it would be worse than floating it at sea level.
     const anchorY = sky
       ? authoredSkyAltitude(map)
       : (scene.query.heightAt(x, z) ?? scene.waterLevel);
-    if (flat) billboard.mesh.position.set(x, anchorY + (sky ? 0 : 0.03), z);
-    else (billboard as Billboard).placeAt(x, anchorY, z);
+    if (flat || sprite.renderMode === "cloud-volume") {
+      billboard.mesh.position.set(x, anchorY + (sky ? 0 : 0.03), z);
+    } else (billboard as Billboard | CardVolume).placeAt(x, anchorY, z);
     const depthKey = z.toFixed(6);
     const depthLayer = depthLayers.get(depthKey) ?? 0;
     depthLayers.set(depthKey, depthLayer + 1);
