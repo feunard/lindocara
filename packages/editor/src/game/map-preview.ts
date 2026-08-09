@@ -8,12 +8,17 @@ import {
   PRIMARY_COLORS,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
-import { defaultMonsterTuning, MONSTER_SPECIES_KIND } from "@lindocara/engine/game.js";
+import {
+  defaultMonsterTuning,
+  GUARD_MAX_HP,
+  MONSTER_SPECIES_KIND,
+} from "@lindocara/engine/game.js";
 import { harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/map-data.js";
 import {
+  guardEvents,
   isActiveWorldEventKind,
   type MapEvent,
   monsterEvents,
@@ -21,6 +26,7 @@ import {
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import type {
+  GuardSnapshot,
   MonsterSnapshot,
   PlayerSnapshot,
   QuestState,
@@ -233,6 +239,27 @@ export async function startMapPreview(
       },
     ];
   });
+  const previewGuards: GuardSnapshot[] = guardEvents(events).flatMap((event) => {
+    const page = event.pages[0];
+    if (!page) return [];
+    const x = event.col + 0.5 - heightfield.size / 2;
+    const z = event.row + 0.5 - heightfield.size / 2;
+    return [
+      {
+        id: `preview-guard-${event.id}`,
+        x,
+        y: terrain.query.heightAt(x, z) ?? heightfield.waterLevel,
+        z,
+        hp: GUARD_MAX_HP,
+        maxHp: GUARD_MAX_HP,
+        homeX: x,
+        homeZ: z,
+        fighting: false,
+        graphicAssetId: page.graphicAssetId,
+        graphicTint: page.graphicTint ?? 0xffffff,
+      },
+    ];
+  });
   const worldEvents = previewEventSnapshots(events);
   renderer.preloadWorldEventAssets(worldEvents);
 
@@ -276,7 +303,7 @@ export async function startMapPreview(
       {
         players: [self],
         monsters: previewMonsters,
-        guards: [],
+        guards: previewGuards,
         loot: [],
         corpses: [],
         projectiles: [],

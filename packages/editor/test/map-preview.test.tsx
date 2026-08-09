@@ -15,13 +15,13 @@ const state = vi.hoisted(() => {
       state.frame = callback;
     }),
     preloadWorldEventAssets: vi.fn(),
-    render: vi.fn((sample: { players: readonly PreviewPlayer[] }) => state.renders.push(sample)),
+    render: vi.fn((sample: PreviewSample) => state.renders.push(sample)),
     setCameraZoom: vi.fn(),
     setSelfId: vi.fn(),
   };
   return {
     frame: null as ((now: number, dt: number) => void) | null,
-    renders: [] as { players: readonly PreviewPlayer[] }[],
+    renders: [] as PreviewSample[],
     input: { up: false, down: false, left: false, right: false, jump: false },
     renderer,
     create: vi.fn(async () => renderer),
@@ -34,6 +34,20 @@ interface PreviewPlayer {
   y: number;
   z: number;
   facing: { x: number; z: number };
+}
+
+interface PreviewSample {
+  players: readonly PreviewPlayer[];
+  guards: readonly {
+    id: string;
+    x: number;
+    y: number;
+    z: number;
+    hp: number;
+    maxHp: number;
+    graphicAssetId?: string | null;
+    graphicTint?: number;
+  }[];
 }
 
 vi.mock("@lindocara/renderer/hd2d/game-renderer.js", () => ({
@@ -66,6 +80,24 @@ const TREE_EVENT: MapEvent = {
   patrolRadius: null,
   harvestProfile: harvestProfileFromPreset("tree"),
   pages: [defaultEventPage()],
+};
+
+const GUARD_EVENT: MapEvent = {
+  id: "preview-guard",
+  col: 6,
+  row: 4,
+  name: "Sentinel",
+  ordinal: 2,
+  kind: "guard",
+  species: null,
+  patrolRadius: 64,
+  pages: [
+    {
+      ...defaultEventPage(),
+      graphicAssetId: "character.units-blue-units-warrior.warrior-idle",
+      graphicTint: 0x91c8ff,
+    },
+  ],
 };
 
 describe("HD-2D map preview", () => {
@@ -116,6 +148,23 @@ describe("HD-2D map preview", () => {
     preview.stop();
     expect(state.renderer.destroy).toHaveBeenCalledOnce();
     expect(state.stopInput).toHaveBeenCalledOnce();
+  });
+
+  it("renders authored guards as real HD-2D actors in the playable preview", async () => {
+    const preview = await startMapPreview(OPEN_ROOM, [GUARD_EVENT]);
+    if (!state.frame) throw new Error("frame callback missing");
+    state.frame(performance.now(), 1 / 60);
+
+    expect(state.renders.at(-1)?.guards).toEqual([
+      expect.objectContaining({
+        id: `preview-guard-${GUARD_EVENT.id}`,
+        hp: 220,
+        maxHp: 220,
+        graphicAssetId: GUARD_EVENT.pages[0]?.graphicAssetId,
+        graphicTint: 0x91c8ff,
+      }),
+    ]);
+    preview.stop();
   });
 
   it("blocks the local hero on an intact authored harvest footprint", async () => {
