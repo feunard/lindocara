@@ -19,6 +19,8 @@ export function depsPlates(o: Options = {}): StepDeps {
     maxHeightAround: (x, z) => hauteur(x, z) ?? 0,
     levelAt: (x, z) => (hauteur(x, z) === null ? null : 0),
     kindAt: (x, z) => matiere(x, z),
+    rampAt: () => null,
+    canTraverseRamp: () => false,
     cellCenter: (i, j) => [i + 0.5, j + 0.5],
   };
   const colliders: ColliderQuery = { blocked: (x, z) => o.bloque?.(x, z) ?? false };

@@ -33,7 +33,7 @@ function makeQuery(
     waterLevel: opts.waterLevel ?? -1,
     at,
     kindAt,
-    ramps: opts.ramps,
+    ...(opts.ramps === undefined ? {} : { ramps: opts.ramps }),
   });
 }
 

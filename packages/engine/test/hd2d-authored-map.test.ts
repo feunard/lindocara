@@ -90,8 +90,10 @@ describe("compileAuthoredMap", () => {
   it("compiles a complete two-half stair stamp into one world-space ramp", () => {
     const cols = 4;
     const rows = 3;
-    const ground = emptyLayer(cols, rows);
-    const walls = emptyLayer(cols, rows);
+    const groundBase = emptyLayer(cols, rows);
+    const wallsBase = emptyLayer(cols, rows);
+    const ground = { ...groundBase, ids: [...groundBase.ids] };
+    const walls = { ...wallsBase, ids: [...wallsBase.ids] };
     for (let row = 0; row < rows; row += 1) {
       for (let col = 0; col < cols; col += 1) {
         const level = col >= 2 ? 1 : 0;
