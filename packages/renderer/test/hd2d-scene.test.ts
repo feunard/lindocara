@@ -96,7 +96,14 @@ describe("the HD-2D scene's terrain", () => {
     expect(terrainAtlasKey("sable", 0)).toBe("sable");
 
     const { group } = terrainGroupFor(ctx, map, allAtlases());
-    expect(group.children.filter((c) => c instanceof THREE.Mesh)).toHaveLength(3);
+    const meshes = group.children.filter(
+      (child): child is THREE.Mesh => child instanceof THREE.Mesh,
+    );
+    const shells = meshes.filter((mesh) => (mesh.material as THREE.Material).polygonOffset);
+    expect(meshes.filter((mesh) => !(mesh.material as THREE.Material).polygonOffset)).toHaveLength(
+      3,
+    );
+    expect(shells).toHaveLength(1);
   });
 
   it("skips water cells rather than meshing them flat", () => {
