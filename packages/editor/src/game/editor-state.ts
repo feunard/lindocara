@@ -13,7 +13,6 @@ import {
 import {
   cloneHarvestProfile,
   type HarvestProfile,
-  harvestFootprintFitsMap,
   parseHarvestProfile,
 } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
@@ -934,9 +933,8 @@ function keepsSpawnClear(map: EditorMap): boolean {
  * May a functional (entry/exit/monster) event legally occupy `(col, row)` on `map`? A `normal` event
  * floats above collision, so it always may. A functional event is load-bearing — the adventure graph
  * binds entry/exit uuids and a monster spawns here — so it must stand on walkable ground, and an exit
- * may not share the spawn cell. These are exactly the per-kind rules `server/maps.ts` enforces, so the
- * editor never authors a map the server would reject; the entry-on-spawn case is deliberately allowed
- * (the born default map's entry sits on the spawn).
+ * may not share the spawn cell. Terrain is intentionally irrelevant: authors may stage actors and
+ * triggers in water, on ice or on any future material.
  */
 function functionalEventPlacementOk(
   map: EditorMap,
@@ -945,14 +943,13 @@ function functionalEventPlacementOk(
   row: number,
 ): boolean {
   if (kind === "normal") return true;
-  if (!isWalkableCell(map, col, row)) return false;
   if (kind === "exit" && col === map.spawn.col && row === map.spawn.row) return false;
   return true;
 }
 
-/** The editor-side use of the shared authoring rule; non-harvest events have no such footprint. */
+/** A harvest tool still needs a valid profile; its collider may overhang the authored map. */
 function harvestEventFootprintFitsMap(
-  map: EditorMap,
+  _map: EditorMap,
   event: Pick<MapEvent, "kind" | "harvestProfile">,
   col: number,
   row: number,
@@ -960,8 +957,7 @@ function harvestEventFootprintFitsMap(
   if (event.kind !== "harvestable") return true;
   const profile = parseHarvestProfile(event.harvestProfile);
   if (!profile) return false;
-  const { cols, rows } = editorMapSize(map);
-  return harvestFootprintFitsMap(profile, col, row, cols, rows);
+  return true;
 }
 
 function placementFitsMap(map: EditorMap, element: MapElement): boolean {
@@ -1294,10 +1290,8 @@ export function applyTool(
      * cell instead", keeping placement and selection cleanly separate. The id is a client-minted uuid
      * (stable across edits) and the ordinal is the next free display number.
      *
-     * A `normal` event floats above collision (no terrain rule), adopting the tool's pending graphic
-     * on page 1. A functional (entry/exit/monster) event is load-bearing: it must stand on walkable
-     * ground (`functionalEventPlacementOk`), and a monster carries a valid species + in-range patrol
-     * radius or the placement is refused — exactly what `server/maps.ts` would accept.
+     * Every event kind may be staged on every terrain material. Functional events still validate
+     * their own payload (species, patrol radius, profile) and the exit/spawn graph invariant.
      */
     case "event": {
       if (map.events.some((event) => event.col === col && event.row === row)) return null;

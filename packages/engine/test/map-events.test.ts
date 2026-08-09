@@ -842,7 +842,7 @@ describe("harvestable map events", () => {
     expect(parseMapEvents([event({ harvestProfile: HARVEST_PROFILE })], COLS, ROWS)).toBeNull();
   });
 
-  it("rejects a valid profile whose explicit footprint crosses the map boundary", () => {
+  it("accepts a valid profile whose explicit footprint crosses the map boundary", () => {
     const crossing = {
       ...harvestable(),
       col: 0,
@@ -854,7 +854,7 @@ describe("harvestable map events", () => {
         },
       },
     };
-    expect(parseMapEvents([crossing], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([crossing], COLS, ROWS)).not.toBeNull();
     expect(parseMapEvents([{ ...crossing, col: 1 }], COLS, ROWS)).not.toBeNull();
   });
 

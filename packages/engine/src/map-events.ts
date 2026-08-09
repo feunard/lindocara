@@ -36,7 +36,7 @@ import {
   type MonsterTuning,
   type MonsterWeakness,
 } from "./game.js";
-import { type HarvestProfile, harvestFootprintFitsMap, parseHarvestProfile } from "./harvest.js";
+import { type HarvestProfile, parseHarvestProfile } from "./harvest.js";
 import { migrateLegacyHarvestGraphicAsset } from "./harvest-presets.js";
 import { isUuid } from "./identifiers.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
@@ -678,7 +678,9 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         !Array.isArray(record.harvestProfile) &&
         !Object.hasOwn(record.harvestProfile, "collision");
       const parsedProfile = parseHarvestProfile(record.harvestProfile);
-      if (!parsedProfile || !harvestFootprintFitsMap(parsedProfile, c, r, cols, rows)) return null;
+      // Only the event anchor is map-bounded. A resource collider may overhang an edge just like
+      // authored scenery; the runtime's bounded terrain remains the authoritative world fence.
+      if (!parsedProfile) return null;
       harvestProfile = parsedProfile;
       if (legacyHarvestProfile) {
         const rawDuration = (record.harvestProfile as Record<string, unknown>).harvestDurationMs;

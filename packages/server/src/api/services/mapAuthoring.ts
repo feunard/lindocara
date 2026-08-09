@@ -186,12 +186,7 @@ export function validateMapInput(input: MapInput): MapData & {
   if (!events) {
     throw new Error("events: malformed, out of bounds, or too many events");
   }
-  const walkable = (col: number, row: number) => !isSolidKind(kindAt(baked, col, row));
   for (const event of events) {
-    if (event.kind === "normal") continue;
-    if (!walkable(event.col, event.row)) {
-      throw new Error(`events: ${event.kind} event must stand on walkable ground`);
-    }
     if (event.kind === "exit" && event.col === input.spawn.col && event.row === input.spawn.row) {
       throw new Error("events: an exit may not share the spawn cell");
     }

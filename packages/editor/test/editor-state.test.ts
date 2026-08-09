@@ -957,7 +957,7 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     expect(place(base, incomplete, 2, 2)).toBeNull();
   });
 
-  it("refuses placement and movement when the explicit harvest footprint leaves the map", () => {
+  it("allows placement and movement when a harvest footprint overhangs the map", () => {
     const preset = harvestPreset("tree");
     const tool: EditorTool = {
       kind: "event",
@@ -966,13 +966,13 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
       harvestProfile: boundaryCrossingTreeProfile(),
     };
 
-    expect(place(base, tool, 0, 2)).toBeNull();
-    expect(placementLegalAt(tool, base, 0, 2, "event")).toBe(false);
+    expect(place(base, tool, 0, 2)).not.toBeNull();
+    expect(placementLegalAt(tool, base, 0, 2, "event")).toBe(true);
 
     const placed = place(base, tool, 1, 2) as EditorMap;
     const id = placed.events[0]?.id ?? "";
     expect(placed.events).toHaveLength(1);
-    expect(moveSelection(placed, { kind: "event", id }, 0, 2)).toBeNull();
+    expect(moveSelection(placed, { kind: "event", id }, 0, 2)).not.toBeNull();
   });
 
   it("places an entry event as a functionalEvent-shaped MapEvent with a uuid", () => {
@@ -1008,10 +1008,10 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     expect(onSpawn.events[0]?.kind).toBe("entry");
   });
 
-  it("refuses a functional event on solid ground (walkable rule, per kind)", () => {
+  it("allows every functional event kind in water", () => {
     const wet = place(base, { kind: "block", block: "water" }, 3, 3) as EditorMap;
-    expect(place(wet, { kind: "event", eventKind: "entry" }, 3, 3)).toBeNull();
-    expect(place(wet, { kind: "event", eventKind: "exit" }, 3, 3)).toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "entry" }, 3, 3)).not.toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "exit" }, 3, 3)).not.toBeNull();
     expect(
       place(
         wet,
@@ -1019,10 +1019,9 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
         3,
         3,
       ),
-    ).toBeNull();
-    expect(place(wet, { kind: "event", eventKind: "guard", patrolRadius: 96 }, 3, 3)).toBeNull();
-    expect(place(wet, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 3, 3)).toBeNull();
-    // A `normal` event floats above collision, so water is fine.
+    ).not.toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "guard", patrolRadius: 96 }, 3, 3)).not.toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 3, 3)).not.toBeNull();
     expect(place(wet, { kind: "event", eventKind: "normal" }, 3, 3)).not.toBeNull();
   });
 
@@ -1420,7 +1419,7 @@ describe("event dialog draft", () => {
     expect(toSaveInput(committed.present).events[0]?.harvestProfile).toEqual(override);
   });
 
-  it("refuses a draft whose changed harvest footprint crosses the map boundary", () => {
+  it("accepts a draft whose changed harvest footprint crosses the map boundary", () => {
     const preset = harvestPreset("tree");
     const map = place(
       blankMap("m", 20, 15),
@@ -1444,10 +1443,10 @@ describe("event dialog draft", () => {
       },
     });
 
-    const refused = commitEventDraft(history, draft);
-    expect(refused).toBe(history);
-    expect(refused.past).toHaveLength(0);
-    expect(refused.present.events[0]?.harvestProfile).toEqual(harvestProfileFromPreset("tree"));
+    const committed = commitEventDraft(history, draft);
+    expect(committed).not.toBe(history);
+    expect(committed.past).toHaveLength(1);
+    expect(committed.present.events[0]?.harvestProfile).toEqual(draft.event.harvestProfile);
   });
 });
 
@@ -1507,10 +1506,17 @@ describe("placementLegalAt (UX wave #9 hover legality)", () => {
     expect(placementLegalAt(TREE_TOOL, map, 3, 4, "element")).toBe(true);
   });
 
-  it("legal: an entry event on grass, illegal on water", () => {
+  it("legal: a large decoration may overhang every map border", () => {
+    const map = blankMap("m", 20, 15);
+    expect(placementLegalAt(TREE_TOOL, map, 0, 0, "element")).toBe(true);
+    expect(placementLegalAt(TREE_TOOL, map, 19, 14, "element")).toBe(true);
+    expect(place(map, TREE_TOOL, 0, 0)).not.toBeNull();
+  });
+
+  it("legal: an entry event on grass and water", () => {
     const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
     expect(placementLegalAt({ kind: "event", eventKind: "entry" }, map, 5, 5, "event")).toBe(true);
-    expect(placementLegalAt({ kind: "event", eventKind: "entry" }, map, 3, 4, "event")).toBe(false);
+    expect(placementLegalAt({ kind: "event", eventKind: "entry" }, map, 3, 4, "event")).toBe(true);
   });
 
   it("legal: the spawn on empty grass, illegal onto a decorated cell", () => {

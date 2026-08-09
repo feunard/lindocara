@@ -584,6 +584,9 @@ export function createCatalogSource(index: RawIndex): TinySwordsCatalogFile {
     const role = roleOf(raw, domain);
     const ui = uiMetadata(raw, id);
     const editor = editorMetadata(raw, id, domain, frame);
+    const editorAnywhere = editor
+      ? { ...editor, allowedTerrain: ["grass", "water"] as const }
+      : undefined;
     return {
       id,
       sourcePath: raw.path,
@@ -599,7 +602,7 @@ export function createCatalogSource(index: RawIndex): TinySwordsCatalogFile {
       footOffset: footOffset(raw, domain),
       classification: classification(raw, role),
       ...(ui ? { ui } : {}),
-      ...(editor ? { editor } : {}),
+      ...(editorAnywhere ? { editor: editorAnywhere } : {}),
     };
   });
   return { version: 1, generatedFrom: "assets/index.json", entries };

@@ -492,7 +492,7 @@ describe("list, get, update, delete", () => {
     expect(await invisible.json()).toMatchObject({ error: "map_invalid" });
   });
 
-  test("rejects a harvest footprint crossing map bounds before persistence", async () => {
+  test("accepts a harvest footprint crossing map bounds", async () => {
     const { userId, token } = await registerAndLogin("maphbounds");
     const id = await newMapId(await newAdventure(userId), token, "Bounded Orchard");
     const crossing = {
@@ -512,9 +512,8 @@ describe("list, get, update, delete", () => {
       pages: [wirePage({ graphicAssetId: TREE_ASSET_ID })],
     };
 
-    const refused = await putMap(id, token, mapBody({ events: [crossing] }));
-    expect(refused.status).toBe(400);
-    expect(await refused.json()).toMatchObject({ error: "map_invalid" });
+    const overhanging = await putMap(id, token, mapBody({ events: [crossing] }));
+    expect(overhanging.status).toBe(200);
 
     const accepted = await putMap(id, token, mapBody({ events: [{ ...crossing, col: 1 }] }));
     expect(accepted.status).toBe(200);
@@ -901,12 +900,21 @@ describe("validation family reachable from the wire (on the authoring PUT)", () 
     expect(await response.json()).toMatchObject({ error: "map_placement" });
   });
 
+  test("accepts scenery anchored on a border even when its art overhangs", async () => {
+    const { userId, token } = await registerAndLogin("mapborderdecor");
+    const id = await newMapId(await newAdventure(userId), token);
+    const response = await putMap(
+      id,
+      token,
+      mapBody({ elements: [{ col: 0, row: 5, kind: "tree", variant: 0 }] }),
+    );
+    expect(response.status).toBe(200);
+  });
+
   test("400s map_spawn when scenery covers the spawn cell", async () => {
     const { userId, token } = await registerAndLogin("mapspawn");
     const id = await newMapId(await newAdventure(userId), token);
-    // Away from the edges (unlike col/row 0) so the tree's own multi-cell visual footprint stays
-    // in bounds — otherwise `map_placement` ("exceeds map bounds") fires first, before the
-    // spawn-coverage check ever runs.
+    // The spawn rule remains independent from the now-authorized visual overhang at map borders.
     const response = await putMap(
       id,
       token,
@@ -919,7 +927,7 @@ describe("validation family reachable from the wire (on the authoring PUT)", () 
     expect(await response.json()).toMatchObject({ error: "map_spawn" });
   });
 
-  test("400s map_events when a functional event stands on unwalkable ground", async () => {
+  test("accepts a functional event on water", async () => {
     const { userId, token } = await registerAndLogin("mapevents");
     const id = await newMapId(await newAdventure(userId), token);
     // validBlocks() row 1 is `.##...`: (1,1) and (2,1) are water/solid.
@@ -935,8 +943,7 @@ describe("validation family reachable from the wire (on the authoring PUT)", () 
       },
     ];
     const response = await putMap(id, token, mapBody({ events }));
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ error: "map_events" });
+    expect(response.status).toBe(200);
   });
 
   test("400s map_invalid on a shape parseMapData cannot make sense of", async () => {

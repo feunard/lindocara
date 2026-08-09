@@ -335,9 +335,10 @@ export function elementPlacementCells(element: MapElement): { col: number; row: 
 }
 
 export function elementFitsMap(element: MapElement, cols: number, rows: number): boolean {
-  return elementCells(element).every(
-    (cell) => cell.col >= 0 && cell.row >= 0 && cell.col < cols && cell.row < rows,
-  );
+  // The authored foot is the placement. Art may overhang any map edge: clouds, crowns and large
+  // buildings must remain placeable on the first/last row without pretending their transparent
+  // canvas is gameplay terrain.
+  return element.col >= 0 && element.row >= 0 && element.col < cols && element.row < rows;
 }
 
 export function elementsOverlap(left: MapElement, right: MapElement): boolean {
