@@ -32,6 +32,21 @@ describe("meshStairs", () => {
     const topMaterial = (firstStep.material as THREE.Material[])[2];
     expect(topMaterial).toBeInstanceOf(THREE.MeshLambertMaterial);
     expect((topMaterial as THREE.MeshLambertMaterial).map).toBe(texture);
+    const geometry = firstStep.geometry as THREE.BoxGeometry;
+    const top = geometry.groups[2];
+    const index = geometry.getIndex();
+    const uv = geometry.getAttribute("uv");
+    if (!top || !index) throw new Error("expected the first stair tread top face");
+    const topUvs = Array.from({ length: top.count }, (_, offset) => {
+      const vertex = index.getX(top.start + offset);
+      return { u: uv.getX(vertex), v: uv.getY(vertex) };
+    });
+    const uRange = Math.max(...topUvs.map(({ u }) => u)) - Math.min(...topUvs.map(({ u }) => u));
+    const vRange = Math.max(...topUvs.map(({ v }) => v)) - Math.min(...topUvs.map(({ v }) => v));
+    // Une seule marche porte toute la LARGEUR 64px de l’asset, mais seulement 1/8 de sa longueur
+    // 128px. L’ancien mapping produisait exactement l’inverse et tournait le dessin de 90°.
+    expect(uRange).toBeGreaterThan(0.1);
+    expect(vRange).toBeLessThan(0.05);
     built.dispose();
     expect(built.group.children).toHaveLength(0);
   });

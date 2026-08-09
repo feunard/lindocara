@@ -49,8 +49,11 @@ function mapTopUv(
     const progress = (slice + localU) / slices;
     uv.setXY(
       vertex,
-      THREE.MathUtils.lerp(rect.u0, rect.u1, progress),
-      THREE.MathUtils.lerp(rect.v0, rect.v1, localV),
+      // Le ruban officiel fait 64×128 : sa largeur suit la profondeur de la marche, sa longueur
+      // monte du palier bas au palier haut. Les axes inversés découpaient huit bandes tournées à
+      // 90°, si bien que la géométrie fonctionnait mais ne ressemblait plus du tout à l’asset.
+      THREE.MathUtils.lerp(rect.u0, rect.u1, localV),
+      THREE.MathUtils.lerp(rect.v0, rect.v1, progress),
     );
   }
   uv.needsUpdate = true;
