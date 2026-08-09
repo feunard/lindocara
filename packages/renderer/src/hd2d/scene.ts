@@ -30,7 +30,7 @@ import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { MoodConfig } from "@lindocara/hd2d/mood.js";
-import { createMoodMixer } from "@lindocara/hd2d/mood.js";
+import { createMoodBlend } from "@lindocara/hd2d/mood.js";
 import { createPipeline } from "@lindocara/hd2d/pipeline.js";
 import { createSky } from "@lindocara/hd2d/sky.js";
 import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
@@ -42,6 +42,7 @@ import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+import { dayCycleAt } from "./day-cycle.js";
 
 // --- art direction ------------------------------------------------------------------------------
 
@@ -233,6 +234,31 @@ const DAY: MoodConfig = {
   fogPulse: 0,
 };
 
+/** Exact full-night mood from the lab. `dayCycleAt` supplies its continuous blend weight. */
+const NIGHT: MoodConfig = {
+  exposure: 0.72,
+  sky: {
+    top: "#02040c",
+    horizon: "#080e1e",
+    glow: "#8ea6ff",
+    glowStrength: 0.22,
+    stars: 1,
+  },
+  fog: { near: 24, far: 62 },
+  sun: { color: "#8aa6f5", intensity: 0.62, position: [-15, 21, 10] },
+  rim: { color: "#6c88ee", intensity: 0.12, position: [16, 11, -9] },
+  hemi: { sky: "#0e1730", ground: "#04060d", intensity: 0.55 },
+  fire: 13,
+  clouds: 0.1,
+  water: { shallow: "#062430", deep: "#01060f", sparkle: 0.5 },
+  motes: 0,
+  fireflies: 1,
+  bloom: { strength: 0.78, threshold: 0.38 },
+  grade: { saturation: 1, lift: 0 },
+  aurora: 0,
+  fogPulse: 0,
+};
+
 /** A frame longer than this is clamped: a backgrounded tab returns with a multi-second delta, and
  *  handing that to the water/foam/sky integrators makes them jump. */
 const MAX_FRAME_SECONDS = 0.05;
@@ -241,6 +267,8 @@ const MAX_FRAME_SECONDS = 0.05;
 
 export interface Hd2dScene {
   render(now: number): void;
+  gameHour(): number;
+  fireIntensity(): number;
   /**
    * Ask the camera to follow a point — the local player, in practice. `x`/`z` are the two GROUND
    * axes in tile units, exactly as `ActorView` carries them; there is no conversion left on either
@@ -372,7 +400,9 @@ export function createHd2dScene(
   const pipeline = createPipeline(canvas, scene, camera, ctx);
 
   // --- mood -------------------------------------------------------------------------------------
-  const mood = createMoodMixer({ day: DAY }, "day", 1);
+  const mood = createMoodBlend(DAY, NIGHT);
+  let cycle = dayCycleAt(Date.now());
+  mood.set(cycle.nightWeight);
   const fog = new THREE.Fog(0x000000, 1, 100);
   scene.fog = fog;
 
@@ -485,6 +515,8 @@ export function createHd2dScene(
     scene,
     camera,
     query,
+    gameHour: () => cycle.hour,
+    fireIntensity: () => mood.value.fire,
     // The camera follows a player, and a player's position now arrives in the scene's own tile
     // units — there is nothing to convert here any more.
     //
@@ -550,6 +582,11 @@ export function createHd2dScene(
         }
         frameCamera();
       }
+      cycle = dayCycleAt(Date.now());
+      mood.set(cycle.nightWeight);
+      // The sun/moon, fog and every graded channel evolve even while the hero stands still.
+      frameCamera();
+      pushMood();
       water.update(dt);
       foam.update(dt);
       sky.update(dt, camera, mood.value.aurora);
@@ -559,7 +596,6 @@ export function createHd2dScene(
       // The mood settles once and then never moves again while only `day` exists — `update` returns
       // false and nothing is pushed. Kept anyway: it is one comparison per frame, and it is the
       // seam a second mood would arrive through.
-      if (mood.update(dt)) pushMood();
       updateFocus();
       pipeline.render();
     },

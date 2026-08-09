@@ -28,9 +28,9 @@
 
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { Billboard, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
-import { makeBillboard, makeFlatSprite } from "@lindocara/hd2d/billboard.js";
+import { makeBillboard, makeFlatSprite, makeGlow } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { BillboardScene } from "./billboards.js";
 import { HD2D_CAMERA } from "./scene.js";
 
@@ -72,6 +72,13 @@ export interface StaticSpriteArt {
   renderMode?: "billboard" | "flat";
   flatSize?: number;
   lit?: boolean;
+  fireLight?: {
+    color: number;
+    lift: number;
+    distance: number;
+    decay: number;
+    glow: boolean;
+  };
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
@@ -79,6 +86,7 @@ export interface StaticSpriteArt {
 export type StaticArtResolver = (assetId: string) => StaticSpriteArt | null;
 
 export interface StaticContent {
+  setFireMood(intensity: number): void;
   update(now: number): void;
   dispose(): void;
 }
@@ -167,6 +175,18 @@ export function placeStaticContent(
   // common yaw. Overlapping pixels on that plane otherwise write identical depth and alternate
   // between both textures. Only coplanar siblings receive a bias: different rows keep real depth.
   const depthLayers = new Map<string, number>();
+  const fireSources: {
+    light: THREE.PointLight;
+    glow: THREE.Mesh | null;
+    halo: THREE.Mesh | null;
+    x: number;
+    y: number;
+    z: number;
+    lift: number;
+    phase: number;
+    shadow: boolean;
+  }[] = [];
+  let fireMood = 1.1;
 
   function placeArt(assetId: string, sprite: StaticSpriteArt, x: number, z: number): void {
     const sky = sprite.renderLayer === "sky";
@@ -226,6 +246,33 @@ export function placeStaticContent(
       anchorZ: z,
       wind: sky,
     });
+    if (sprite.fireLight) {
+      const source = sprite.fireLight;
+      const light = new THREE.PointLight(source.color, 1, source.distance, source.decay);
+      light.position.set(x, anchorY + source.lift, z);
+      light.shadow.mapSize.set(256, 256);
+      light.shadow.camera.far = Math.min(9, source.distance);
+      light.shadow.bias = -0.005;
+      scene.root.add(light);
+      const glow = source.glow ? makeGlow(5.4, source.color, 0) : null;
+      const halo = source.glow ? makeGlow(13, source.color, 1) : null;
+      glow?.position.set(x, anchorY + 0.03, z);
+      halo?.position.set(x, anchorY + 0.02, z);
+      if (glow) scene.root.add(glow);
+      if (halo) scene.root.add(halo);
+      fireSources.push({
+        light,
+        glow,
+        halo,
+        x,
+        y: anchorY,
+        z,
+        lift: source.lift,
+        phase: placementPhase(assetId, x, z, 10_000) / 1_000,
+        // One point shadow is already six scene renders. Keep the nearest authored group bounded.
+        shadow: fireSources.length === 0,
+      });
+    }
     for (const companion of sprite.companions ?? []) placeArt(assetId, companion, x, z);
   }
 
@@ -254,6 +301,9 @@ export function placeStaticContent(
   }
 
   return {
+    setFireMood(intensity) {
+      fireMood = Math.max(0, intensity);
+    },
     update(now) {
       for (const placement of placed) {
         placement.sprite.setFrame(
@@ -268,6 +318,28 @@ export function placeStaticContent(
           );
         }
       }
+      const seconds = now / 1_000;
+      for (const source of fireSources) {
+        const t = seconds + source.phase;
+        const flicker = 0.82 + 0.12 * Math.sin(t * 11.3) + 0.08 * Math.sin(t * 27.1 + 1.7);
+        source.light.intensity = fireMood * flicker;
+        source.light.castShadow = source.shadow && fireMood > 2.2;
+        source.light.position.set(
+          source.x + Math.sin(t * 3.7) * 0.09,
+          source.y + source.lift + Math.sin(t * 5.1 + 0.6) * 0.05,
+          source.z + Math.cos(t * 4.3 + 1.9) * 0.09,
+        );
+        const opacity = THREE.MathUtils.clamp(fireMood / 13, 0.16, 1) * 0.5;
+        if (source.glow) {
+          (source.glow.material as THREE.MeshBasicMaterial).opacity = opacity;
+          source.glow.scale.setScalar(0.94 + flicker * 0.12);
+        }
+        if (source.halo) {
+          (source.halo.material as THREE.MeshBasicMaterial).opacity = opacity;
+          source.halo.scale.setScalar(0.88 + flicker * 0.1 + Math.sin(t * 1.9) * 0.05);
+          source.halo.rotation.y += 0.001;
+        }
+      }
     },
     dispose() {
       for (const placement of placed) {
@@ -275,6 +347,17 @@ export function placeStaticContent(
         placement.sprite.dispose();
       }
       placed.length = 0;
+      for (const source of fireSources) {
+        source.light.removeFromParent();
+        for (const glow of [source.glow, source.halo]) {
+          if (!glow) continue;
+          glow.removeFromParent();
+          glow.geometry.dispose();
+          const materials = Array.isArray(glow.material) ? glow.material : [glow.material];
+          for (const material of materials) material.dispose();
+        }
+      }
+      fireSources.length = 0;
     },
   };
 }

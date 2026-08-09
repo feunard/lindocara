@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMoodMixer, type MoodConfig } from "../src/mood.js";
+import { createMoodBlend, createMoodMixer, type MoodConfig } from "../src/mood.js";
 
 const base: MoodConfig = {
   exposure: 1,
@@ -83,5 +83,18 @@ describe("createMoodMixer", () => {
     mix.update(FADE / 2);
     expect(mix.value.aurora).toBeCloseTo(0.5, 2);
     expect(mix.value.fogPulse).toBeCloseTo(0.3, 2);
+  });
+});
+
+describe("createMoodBlend", () => {
+  it("accepts a continuous external weight without accumulating transition state", () => {
+    const blend = createMoodBlend(base, nuit);
+    blend.set(0.25);
+    expect(blend.value.exposure).toBeCloseTo(0.93);
+    expect(blend.value.fire).toBeCloseTo(4.075);
+    blend.set(1);
+    expect(blend.value.exposure).toBeCloseTo(0.72);
+    blend.set(0);
+    expect(blend.value.exposure).toBeCloseTo(1);
   });
 });

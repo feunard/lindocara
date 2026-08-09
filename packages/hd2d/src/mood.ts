@@ -118,6 +118,29 @@ export interface MoodMixer<K extends string> {
   update(dt: number): boolean;
 }
 
+/** Continuous two-mood blend for clocks and weather systems that provide their own weight. */
+export interface MoodBlend {
+  readonly value: ResolvedMood;
+  set(weight: number): void;
+}
+
+export function createMoodBlend(from: MoodConfig, to: MoodConfig): MoodBlend {
+  const preparedFrom = prepare(from) as ResolvedMood;
+  const preparedTo = prepare(to) as ResolvedMood;
+  const current = prepare(from) as ResolvedMood;
+  return {
+    value: current,
+    set(weight) {
+      mix(
+        current as unknown as Record<string, unknown>,
+        preparedFrom as unknown as Record<string, unknown>,
+        preparedTo as unknown as Record<string, unknown>,
+        Math.max(0, Math.min(1, weight)),
+      );
+    },
+  };
+}
+
 /**
  * Mélangeur d'ambiances. Le basculement jour <-> nuit était sec dans le PoC ; il dure désormais
  * `fadeSeconds` secondes, et TOUT ce que décrit une ambiance est interpolé — couleurs comprises.

@@ -332,6 +332,7 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
       foot: 0,
       renderMode: "flat",
       flatSize: 1.25,
+      fireLight: { color: 0xff8c2e, lift: 0.62, distance: 34, decay: 2, glow: true },
       companions: [
         {
           url: LAB_CAMPFIRE_FLAME_URL,
@@ -415,7 +416,18 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
         }
       : {}),
   };
-  return NATIVE_TREE_ASSET_IDS.has(assetId) ? { ...spec, coldVariant: snowTreeSpec() } : spec;
+  const warmLight = definition.tags.some(
+    (tag) => tag === "torch" || tag === "fire" || tag === "campfire",
+  );
+  const litSpec = warmLight
+    ? {
+        ...spec,
+        fireLight: { color: 0xff9a45, lift: 0.55, distance: 18, decay: 2, glow: false },
+      }
+    : spec;
+  return NATIVE_TREE_ASSET_IDS.has(assetId)
+    ? { ...litSpec, coldVariant: snowTreeSpec() }
+    : litSpec;
 }
 
 function staticSpecUrls(spec: StaticAssetSpec): string[] {
@@ -996,6 +1008,9 @@ export class Hd2dRenderer implements RendererLike {
 
     this.#actors?.sync(this.#collectActors(sample, context.now));
     this.#syncWorldEventContent(sample.events);
+    const fireIntensity = scene.fireIntensity();
+    this.#content?.setFireMood(fireIntensity);
+    this.#eventContent?.setFireMood(fireIntensity);
     this.#content?.update(context.now);
     this.#eventContent?.update(context.now);
     this.#visuals?.syncLocalHero(context.self ?? null, context.movement ?? null, context.now);
@@ -1250,6 +1265,7 @@ export class Hd2dRenderer implements RendererLike {
   diagnostics(): Record<string, number> {
     return {
       mapLoaded: this.#scene ? 1 : 0,
+      gameHour: this.#scene?.gameHour() ?? 0,
       trackedActors: this.#actorPositions.size,
       ...this.#visuals?.diagnostics(),
     };
