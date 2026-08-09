@@ -472,6 +472,130 @@ export function runnablePage(
   return { pageIndex, program: page.commands };
 }
 
+function automaticTriggerer(state: WorldRoomState): PlayerRuntime | null {
+  for (const player of state.players.values()) {
+    if (
+      player.identityKind === "hero" &&
+      player.authorized &&
+      player.life === "alive" &&
+      !player.transitioning &&
+      !player.disconnecting
+    ) {
+      return player;
+    }
+  }
+  return null;
+}
+
+/**
+ * Starts every active Autorun/Parallel page against one deterministic live hero.
+ *
+ * The event-id lock in `startRun` limits each page to one context, while `drainRuns` still shares
+ * the room-wide command budget. A completed page may restart on the next tick, matching RPG event
+ * semantics; authors stop repetition with a page condition or self-switch. State-sync pauses also
+ * pause new starts so a run is never selected against the pre-mutation page snapshot.
+ */
+export function startAutomaticEventRuns(state: WorldRoomState): number {
+  if (state.eventStateSync !== null) return 0;
+  const hero = automaticTriggerer(state);
+  const events = state.location?.definition.events;
+  if (!hero || !events) return 0;
+  let started = 0;
+  for (const event of events) {
+    const auto = runnablePage(state, event, "auto");
+    const parallel = auto === null ? runnablePage(state, event, "parallel") : null;
+    const runnable = auto ?? parallel;
+    if (!runnable) continue;
+    if (
+      startRun(state.eventRuns, {
+        event,
+        pageIndex: runnable.pageIndex,
+        program: runnable.program,
+        heroId: hero.id,
+        runId: crypto.randomUUID(),
+      })
+    ) {
+      started += 1;
+    }
+  }
+  return started;
+}
+
+function eventActorPosition(state: WorldRoomState, event: MapEvent): GroundVector | null {
+  if (event.kind === "guard") {
+    const guard = state.guards.find(
+      (candidate) => candidate.id === authoredGuardRuntimeId(event.id),
+    );
+    return guard ? { x: guard.x, z: guard.z } : null;
+  }
+  const active = state.activeEvents.find((candidate) => candidate.id === event.id);
+  return active ? authoredCellCentreGround(active, gridSize(state)) : null;
+}
+
+function actorTouchesHero(actor: GroundVector, hero: GroundVector): boolean {
+  const reach = 0.5 + BODY_RADIUS;
+  return Math.abs(actor.x - hero.x) < reach && Math.abs(actor.z - hero.z) < reach;
+}
+
+/**
+ * Detects the event-owned half of contact triggering.
+ *
+ * A persistent contact set distinguishes a NEW edge, and the actor-position map distinguishes who
+ * created it: a hero walking into an idle event belongs to `player-touch`; `event-touch` starts only
+ * after the NPC/guard moved. This scan runs after NPCs and guards have advanced for the tick.
+ */
+export function detectEventTouch(state: WorldRoomState): number {
+  const events = state.location?.definition.events;
+  if (!events) return 0;
+  const currentContacts = new Set<string>();
+  const currentActorIds = new Set<string>();
+  let started = 0;
+  for (const event of events) {
+    const runnable = runnablePage(state, event, "event-touch");
+    if (!runnable) continue;
+    const actor = eventActorPosition(state, event);
+    if (!actor) continue;
+    currentActorIds.add(event.id);
+    const previous = state.eventTouchActorPositions.get(event.id);
+    const actorMoved =
+      previous !== undefined &&
+      (Math.abs(previous.x - actor.x) > 0.000_1 || Math.abs(previous.z - actor.z) > 0.000_1);
+    state.eventTouchActorPositions.set(event.id, actor);
+    for (const player of state.players.values()) {
+      if (
+        player.identityKind !== "hero" ||
+        !player.authorized ||
+        player.life !== "alive" ||
+        player.transitioning ||
+        player.disconnecting ||
+        !actorTouchesHero(actor, player)
+      ) {
+        continue;
+      }
+      const contactKey = `${event.id}:${player.id}`;
+      currentContacts.add(contactKey);
+      if (!actorMoved || state.eventTouchContacts.has(contactKey)) continue;
+      if (
+        startRun(state.eventRuns, {
+          event,
+          pageIndex: runnable.pageIndex,
+          program: runnable.program,
+          heroId: player.id,
+          runId: crypto.randomUUID(),
+        })
+      ) {
+        started += 1;
+      }
+    }
+  }
+  for (const eventId of state.eventTouchActorPositions.keys()) {
+    if (!currentActorIds.has(eventId)) state.eventTouchActorPositions.delete(eventId);
+  }
+  state.eventTouchContacts.clear();
+  for (const contact of currentContacts) state.eventTouchContacts.add(contact);
+  return started;
+}
+
 /**
  * Port of `#detectPlayerTouch` (`world.ts:1386`): the contact-with-hero trigger, evaluated on the
  * movement edge (from `movement-system`'s `onPlayerMoved`), not a per-tick scan. Uses the body's

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Every player-facing string, EN. Keys are stable identifiers; fr.ts must cover exactly
  * this set (enforced by its Record type). Platform-free: data only.
  */
@@ -1669,7 +1669,7 @@ export const en = {
   "editor.event.opt.onTop": "Draw in front of characters",
   "editor.event.trigger": "Trigger",
   "editor.event.runtime.hint":
-    "These two triggers work directly in the game. The actions and conditions configured here are playable as authored.",
+    "Every trigger runs authoritatively under a bounded server budget. Autorun and Parallel process repeat while their page conditions remain true.",
   "editor.event.legacy": "legacy, not executed",
   "editor.event.runtime.legacy":
     "Pages {pages} use a legacy trigger that the game does not execute. Convert them before saving.",

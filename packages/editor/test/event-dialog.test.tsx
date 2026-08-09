@@ -146,21 +146,18 @@ describe("EventDialog", () => {
     });
   });
 
-  it("flags and converts a legacy trigger instead of presenting it as executable", async () => {
-    const { onCommit } = renderDialog(
-      seedEvent({ pages: [{ ...defaultEventPage(), trigger: "auto" }] }),
-    );
+  it("authors event-touch, autorun and parallel pages as executable runtime triggers", async () => {
+    for (const trigger of ["event-touch", "auto", "parallel"] as const) {
+      const { onCommit, unmount } = renderDialog(
+        seedEvent({ pages: [{ ...defaultEventPage(), trigger }] }),
+      );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      t("editor.event.runtime.legacy", { pages: "1" }),
-    );
-    expect(screen.getByRole("button", { name: t("editor.event.save") })).toBeDisabled();
-
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.runtime.convert") }));
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
-
-    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
-    expect(committed.pages[0]?.trigger).toBe("action");
+      expect(screen.queryByRole("alert")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
+      const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+      expect(committed.pages[0]?.trigger).toBe(trigger);
+      unmount();
+    }
   });
 
   it("discards the draft on cancel", async () => {

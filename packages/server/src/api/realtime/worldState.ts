@@ -14,6 +14,7 @@ import {
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
 import { type AdventureAudioConfig, resolveMapAudio } from "@lindocara/engine/audio-catalog.js";
+import type { GroundVector } from "@lindocara/engine/ground.js";
 import {
   type ColliderIndex,
   type ColliderRect,
@@ -256,6 +257,11 @@ export interface WorldRoomState {
   npcMovement: Map<string, NpcMovementRuntime>;
   /** Which authored exit each hero currently occupies (legacy `#occupiedExitByPlayerId`). */
   occupiedExitByPlayerId: Map<string, string>;
+  /** Last sampled position of each moving event actor. `event-touch` fires only when that actor,
+   * not a hero approaching an idle event, creates a fresh contact edge. */
+  eventTouchActorPositions: Map<string, GroundVector>;
+  /** Current `eventId:heroId` contact pairs, retained across ticks to suppress held-contact repeats. */
+  eventTouchContacts: Set<string>;
   tick: number;
   /**
    * The party coordinator's read-only adventure-state snapshot plus the monotone version rooms use
@@ -353,6 +359,8 @@ export function createWorldRoomState(
     harvestJobs: new Map(),
     npcMovement: new Map(),
     occupiedExitByPlayerId: new Map(),
+    eventTouchActorPositions: new Map(),
+    eventTouchContacts: new Set(),
     tick: 0,
     adventureState: { state: EMPTY_ADVENTURE_STATE, version: 0 },
     adventureRegistry: EMPTY_REGISTRY,

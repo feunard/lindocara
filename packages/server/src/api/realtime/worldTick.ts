@@ -370,6 +370,7 @@ import type {
 } from "./PartyRoom.ts";
 import {
   activeEventCentre,
+  detectEventTouch,
   detectMonsterTouch,
   detectPlayerTouch,
   logGoldRefusedOnce,
@@ -377,6 +378,7 @@ import {
   logTeleportRefusedOnce,
   refreshHarvestEventVisuals,
   runnablePage,
+  startAutomaticEventRuns,
 } from "./worldEvents.ts";
 import type { PendingQuestConversation, WorldRoomState } from "./worldState.ts";
 
@@ -6735,6 +6737,11 @@ export function advanceWorldTick(w: WorldGlue): void {
   );
   advanceGuards(monsterContext, now);
   processExpiredLoot(state.loot, state.lootGrid, now);
+  // Autonomous pages share the existing event-id lock and global command budget. Event-touch is
+  // sampled here, after both cell-stepped NPCs and continuously moving guards reached this tick's
+  // final positions, so only an actor-created contact edge can start it.
+  detectEventTouch(state);
+  startAutomaticEventRuns(state);
   // Drain event runs AFTER all authoritative simulation (movement, combat, monsters, loot) and
   // BEFORE the network flush: a run's teleport acts on final positions and rides out THIS tick's
   // snapshot, and the budget guarantees the drain returns so the tick never hangs.

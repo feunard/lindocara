@@ -84,12 +84,13 @@ function eventDisplayId(ordinal: number): string {
   return `EV${String(ordinal).padStart(3, "0")}`;
 }
 
-/** The World runtime currently detects these two edges. Older persisted trigger values remain
- * parseable for compatibility, but the editor labels them as legacy rather than implying that an
- * autonomous/event-touch executor exists. */
+/** Every trigger offered by the authored format has a bounded authoritative executor. */
 const RUNTIME_EVENT_TRIGGERS = [
   "action",
   "player-touch",
+  "event-touch",
+  "auto",
+  "parallel",
 ] as const satisfies readonly EventTrigger[];
 const NPC_MOVE_SPEEDS = [0, 1, 2, 3, 4, 5] as const;
 const NPC_MOVE_FREQUENCIES = [0, 1, 2, 3, 4] as const;

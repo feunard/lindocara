@@ -1,4 +1,4 @@
-import type { en } from "./en.js";
+﻿import type { en } from "./en.js";
 
 export const fr: Record<keyof typeof en, string> = {
   "common.close": "Fermer",
@@ -1686,7 +1686,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.opt.onTop": "Afficher devant les personnages",
   "editor.event.trigger": "Déclencheur",
   "editor.event.runtime.hint":
-    "Ces deux déclencheurs fonctionnent directement dans le jeu. Les actions et conditions configurées ici seront donc jouables telles quelles.",
+    "Tous les déclencheurs sont exécutés par le serveur avec un budget borné. Automatique et Processus parallèle se répètent tant que leurs conditions restent vraies.",
   "editor.event.legacy": "hérité, non exécuté",
   "editor.event.runtime.legacy":
     "Les pages {pages} utilisent un ancien déclencheur que le jeu n’exécute pas. Convertissez-les avant d’enregistrer.",
