@@ -1602,6 +1602,8 @@ export const en = {
   "editor.test.overlay.badge": "TEST MODE",
   "editor.test.overlay.title": "No player save is modified",
   "editor.test.overlay.start": "Start: {name}",
+  "editor.test.overlay.switchNight": "Switch to night",
+  "editor.test.overlay.switchDay": "Switch to day",
   "editor.test.reset": "Reset state",
   "editor.test.resetting": "Resetting…",
   "editor.test.exit": "Return to editor",

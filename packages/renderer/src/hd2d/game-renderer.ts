@@ -670,6 +670,7 @@ export class Hd2dRenderer implements RendererLike {
   /** Built on the first `configureMapTerrain` carrying a heightfield, not at construction: the map
    *  only exists once the welcome has landed. */
   #scene: Hd2dScene | null = null;
+  #dayCycleOverride: "day" | "night" | null = null;
   /** Lives and dies with the scene: its billboards are parented to that scene's graph. */
   #actors: BillboardRegistry | null = null;
   /** The map's scenery, placed once per map. Lives and dies with the scene, like the actors. */
@@ -794,8 +795,9 @@ export class Hd2dRenderer implements RendererLike {
     this.#currentMapId = zoneId;
     this.#currentMapRevision = revision;
     this.#disposeScene();
-    const scene = createHd2dScene(this.#canvas, heightfield, this.#textures);
+    const scene = createHd2dScene(this.#canvas, heightfield, this.#textures, zoneId);
     this.#scene = scene;
+    scene.setDayCycleOverride(this.#dayCycleOverride);
     scene.setZoom(this.#cameraZoom);
     scene.setYaw(this.#cameraYaw);
     scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
@@ -823,6 +825,11 @@ export class Hd2dRenderer implements RendererLike {
       console.warn("[hd2d] map scenery could not be loaded", error);
     });
     this.#syncWorldEventContent(this.#worldEvents, true);
+  }
+
+  setDayCycleOverride(override: "day" | "night" | null): void {
+    this.#dayCycleOverride = override;
+    this.#scene?.setDayCycleOverride(override);
   }
 
   /** What `billboards.ts` and `static-content.ts` both need of the scene they draw into. */

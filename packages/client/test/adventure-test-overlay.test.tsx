@@ -44,6 +44,8 @@ vi.mock("@lindocara/client/game/session.js", async () => {
   };
 });
 
+const setTestDayCycle = vi.fn();
+
 function fakeGameHandle(): GameHandle {
   return {
     attack: vi.fn(),
@@ -57,6 +59,7 @@ function fakeGameHandle(): GameHandle {
     returnToTitle: vi.fn(),
     attachMinimap: vi.fn(),
     attachWorldMap: vi.fn(),
+    setTestDayCycle,
   };
 }
 
@@ -213,6 +216,7 @@ describe("AdventureTestOverlay", () => {
     apiMock.remove.mockReset();
     sessionMock.start.mockReset();
     sessionMock.stop.mockReset();
+    setTestDayCycle.mockReset();
   });
 
   afterEach(async () => {
@@ -232,6 +236,20 @@ describe("AdventureTestOverlay", () => {
       "text-zinc-950",
       "disabled:text-zinc-500",
     );
+  });
+
+  it("starts in daylight and toggles test lighting without exposing a game setting", async () => {
+    const result = await mountOnGameWithTestSession();
+    alepha = result.alepha;
+    await waitFor(() => expect(setTestDayCycle).toHaveBeenCalledWith("day"));
+
+    await userEvent.click(
+      screen.getByRole("button", { name: t("editor.test.overlay.switchNight") }),
+    );
+    expect(setTestDayCycle).toHaveBeenLastCalledWith("night");
+    expect(
+      screen.getByRole("button", { name: t("editor.test.overlay.switchDay") }),
+    ).toBeInTheDocument();
   });
 
   it("replaces the authoritative session when reset is requested", async () => {

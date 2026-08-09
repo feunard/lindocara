@@ -73,6 +73,8 @@ export interface RendererLike {
     heightfield: MapData,
     appearance?: { tilesetId: string; layers: readonly string[] },
   ): void;
+  /** Used only by an editor test session; null restores the map's own running clock. */
+  setDayCycleOverride?(override: "day" | "night" | null): void;
   configureMerchant(merchant: MerchantDefinition | null): void;
   destroy(): void;
   diagnostics(): Record<string, number>;

@@ -17,6 +17,7 @@ import {
   adventureEditorSessionAtom,
   adventureTestSessionAtom,
 } from "../state/atoms.js";
+import { useUiStore } from "../store.js";
 import type { AppRouter } from "./AppRouter.js";
 
 /**
@@ -30,8 +31,17 @@ export function AdventureTestOverlay() {
   const [session, setTestSession] = useStore(adventureTestSessionAtom);
   const [editorSession] = useStore(adventureEditorSessionAtom);
   const [, setActiveParty] = useStore(activePartyAtom);
+  const game = useUiStore((state) => state.game);
   const [busy, setBusy] = useState<"reset" | "exit" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cycle, setCycle] = useState<"day" | "night">("day");
+  const testSessionId = session?.id ?? null;
+
+  useEffect(() => {
+    if (!testSessionId || !game?.setTestDayCycle) return;
+    setCycle("day");
+    game.setTestDayCycle("day");
+  }, [game, testSessionId]);
 
   useEffect(() => {
     if (!session) return;
@@ -95,6 +105,12 @@ export function AdventureTestOverlay() {
     void router.push("editor");
   }
 
+  function toggleCycle(): void {
+    const next = cycle === "day" ? "night" : "day";
+    setCycle(next);
+    game?.setTestDayCycle?.(next);
+  }
+
   return (
     <aside className="fixed inset-x-0 top-3 z-[90] flex justify-center px-3 pointer-events-none">
       <div className="pointer-events-auto flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-amber-300/60 bg-zinc-950/95 p-2 text-zinc-50 shadow-2xl backdrop-blur">
@@ -107,6 +123,17 @@ export function AdventureTestOverlay() {
             {t("editor.test.overlay.start", { name: startName })}
           </span>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={busy !== null}
+          onClick={toggleCycle}
+        >
+          {cycle === "day"
+            ? t("editor.test.overlay.switchNight")
+            : t("editor.test.overlay.switchDay")}
+        </Button>
         <Button
           type="button"
           size="sm"

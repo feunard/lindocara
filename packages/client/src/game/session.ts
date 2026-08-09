@@ -1244,6 +1244,7 @@ async function startGameIdentity(
     switchCharacter,
     logout: logoutAndReload,
     returnToTitle,
+    setTestDayCycle: (override) => renderer.setDayCycleOverride?.(override),
     attachMinimap: (canvas) => {
       minimapCanvas = canvas;
       mapSurface?.attachMinimap(canvas);

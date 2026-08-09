@@ -42,7 +42,7 @@ import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
-import { dayCycleAt } from "./day-cycle.js";
+import { type DayCycleOverride, mapDayCycleAt } from "./day-cycle.js";
 
 // --- art direction ------------------------------------------------------------------------------
 
@@ -269,6 +269,8 @@ export interface Hd2dScene {
   render(now: number): void;
   gameHour(): number;
   fireIntensity(): number;
+  /** Test-only fixed lighting; null restores this map's independent 24-minute clock. */
+  setDayCycleOverride(override: DayCycleOverride): void;
   /**
    * Ask the camera to follow a point — the local player, in practice. `x`/`z` are the two GROUND
    * axes in tile units, exactly as `ActorView` carries them; there is no conversion left on either
@@ -310,6 +312,7 @@ export function createHd2dScene(
   canvas: HTMLCanvasElement,
   map: MapData,
   textures: TextureRegistry,
+  cycleKey = "map",
 ): Hd2dScene {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 5000);
@@ -401,7 +404,8 @@ export function createHd2dScene(
 
   // --- mood -------------------------------------------------------------------------------------
   const mood = createMoodBlend(DAY, NIGHT);
-  let cycle = dayCycleAt(Date.now());
+  let cycleOverride: DayCycleOverride = null;
+  let cycle = mapDayCycleAt(Date.now(), cycleKey, cycleOverride);
   mood.set(cycle.nightWeight);
   const fog = new THREE.Fog(0x000000, 1, 100);
   scene.fog = fog;
@@ -517,6 +521,11 @@ export function createHd2dScene(
     query,
     gameHour: () => cycle.hour,
     fireIntensity: () => mood.value.fire,
+    setDayCycleOverride(override): void {
+      cycleOverride = override;
+      cycle = mapDayCycleAt(Date.now(), cycleKey, cycleOverride);
+      mood.set(cycle.nightWeight);
+    },
     // The camera follows a player, and a player's position now arrives in the scene's own tile
     // units — there is nothing to convert here any more.
     //
@@ -582,7 +591,7 @@ export function createHd2dScene(
         }
         frameCamera();
       }
-      cycle = dayCycleAt(Date.now());
+      cycle = mapDayCycleAt(Date.now(), cycleKey, cycleOverride);
       mood.set(cycle.nightWeight);
       // The sun/moon, fog and every graded channel evolve even while the hero stands still.
       frameCamera();

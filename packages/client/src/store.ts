@@ -138,6 +138,8 @@ export interface GameHandle {
   /** React owns the canvas; the game loop draws into it. The store stays free of world x/y. */
   attachMinimap(canvas: HTMLCanvasElement | null): void;
   attachWorldMap(canvas: HTMLCanvasElement | null): void;
+  /** Editor-test lighting only. The normal game UI never exposes this seam. */
+  setTestDayCycle?(override: "day" | "night"): void;
 }
 
 export interface ReconnectState {

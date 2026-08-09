@@ -1619,6 +1619,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.test.overlay.badge": "MODE TEST",
   "editor.test.overlay.title": "Aucune sauvegarde joueur n’est modifiée",
   "editor.test.overlay.start": "Départ : {name}",
+  "editor.test.overlay.switchNight": "Passer en nuit",
+  "editor.test.overlay.switchDay": "Passer en jour",
   "editor.test.reset": "Réinitialiser l’état",
   "editor.test.resetting": "Réinitialisation…",
   "editor.test.exit": "Retour à l’éditeur",

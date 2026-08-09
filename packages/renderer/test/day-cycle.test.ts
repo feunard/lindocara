@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DAY_CYCLE_MS, dayCycleAt } from "../src/hd2d/day-cycle.js";
+import {
+  DAY_CYCLE_MS,
+  dayCycleAt,
+  mapDayCycleAt,
+  mapDayCycleOffset,
+} from "../src/hd2d/day-cycle.js";
 
 describe("24-minute day/night cycle", () => {
   it("maps one real minute to one game hour and wraps without a discontinuity", () => {
@@ -14,5 +19,21 @@ describe("24-minute day/night cycle", () => {
     const dawn = dayCycleAt(6 * 60_000).nightWeight;
     expect(dawn).toBeGreaterThan(0);
     expect(dawn).toBeLessThan(1);
+  });
+
+  it("assigns a stable independent phase to every map", () => {
+    expect(mapDayCycleOffset("map-forest")).toBe(mapDayCycleOffset("map-forest"));
+    expect(mapDayCycleOffset("map-forest")).not.toBe(mapDayCycleOffset("map-cavern"));
+    expect(mapDayCycleAt(90_000, "map-forest").hour).not.toBeCloseTo(
+      mapDayCycleAt(90_000, "map-cavern").hour,
+    );
+    expect(mapDayCycleAt(DAY_CYCLE_MS + 90_000, "map-forest").hour).toBeCloseTo(
+      mapDayCycleAt(90_000, "map-forest").hour,
+    );
+  });
+
+  it("lets editor tests force exact day or night without changing the map clock", () => {
+    expect(mapDayCycleAt(123_456, "map-forest", "day")).toEqual(dayCycleAt(12 * 60_000));
+    expect(mapDayCycleAt(123_456, "map-forest", "night")).toEqual(dayCycleAt(0));
   });
 });
