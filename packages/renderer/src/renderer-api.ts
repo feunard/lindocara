@@ -13,6 +13,7 @@ import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
+import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
@@ -42,10 +43,15 @@ import type { SceneSample } from "./scene-sample.js";
  */
 export interface RenderContext {
   self?: PlayerSnapshot;
+  movement?: LocalMovementVisualState;
   quest: QuestState;
   now: number;
   healthBars: HealthBarMode;
   grid: boolean;
+}
+
+export interface LocalMovementVisualState {
+  iceCrack: GroundVector | null;
 }
 
 export interface RendererLike {
@@ -85,6 +91,8 @@ export interface RendererLike {
     z?: number,
   ): void;
   playInteraction(): void;
+  /** Decorative consequences emitted by the client-owned movement rule. */
+  playHeroMovement(events: readonly HeroEvent[], hero: PlayerSnapshot | null): void;
   playLumenPortal(portal: PriestLumenPortalVisual): void;
   playLumenTrail(trail: PriestLumenTrailVisual): void;
   playMonsterImpact(species: MonsterSpecies, x?: number, z?: number): void;

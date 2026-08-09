@@ -1229,10 +1229,12 @@ async function startGameIdentity(
     sound.update(now);
     const movementEvents = client.update(isGameplayInputPaused() ? NO_INPUT : input.current(), dt);
     sound.movement(movementEvents);
+    const movementStatus = client.movementStatus();
     const sample = client.sample(now);
     combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
+    renderer.playHeroMovement(movementEvents, self ?? null);
     if (bombAiming) drawBombAim();
     if (welcomed && self && !loadingCompletionScheduled) {
       loadingCompletionScheduled = true;
@@ -1256,10 +1258,11 @@ async function startGameIdentity(
       healthBars: getDisplaySettings().healthBars,
       grid: getDisplaySettings().grid,
       ...(self ? { self } : {}),
+      ...(movementStatus ? { movement: { iceCrack: movementStatus.iceCrack } } : {}),
     };
     renderer.render(sample, context);
     mapSurface?.draw(sample, self, selfCorpse);
-    renderPlayer(self, selfCorpse, client.movementStatus());
+    renderPlayer(self, selfCorpse, movementStatus);
     updatePrompt(self, questState, door, activeZoneId, currentMerchant);
   });
   window.addEventListener("beforeunload", beforeUnload);

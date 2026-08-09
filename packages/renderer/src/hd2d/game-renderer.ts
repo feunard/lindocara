@@ -14,6 +14,7 @@ import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import { PRIMARY_COLORS, type PrimaryColor } from "@lindocara/engine/character.js";
 import { type MonsterSpecies, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
+import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
@@ -55,7 +56,11 @@ import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
 import type { StaticContent, StaticSpriteArt } from "./static-content.js";
 import { placeStaticContent } from "./static-content.js";
-import { type Hd2dEditorOverlay, Hd2dVisualLayer } from "./visual-layer.js";
+import {
+  HD2D_SPLASH_TEXTURE_URL,
+  type Hd2dEditorOverlay,
+  Hd2dVisualLayer,
+} from "./visual-layer.js";
 
 // --- actor art direction --------------------------------------------------------------------------
 
@@ -160,8 +165,9 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
     ),
     ...Object.values(TINY_SWORDS_ENEMIES).map((art) => art.idle.source),
     HD2D_GLIDER_TEXTURE_URL,
+    HD2D_SPLASH_TEXTURE_URL,
   ]),
-].map((url) => ({ url }));
+].map((url) => ({ url, ...(url === HD2D_SPLASH_TEXTURE_URL ? { atlas: true } : {}) }));
 
 // --- scenery art direction ------------------------------------------------------------------------
 
@@ -421,7 +427,13 @@ export class Hd2dRenderer implements RendererLike {
     scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
     if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     this.#map = heightfield;
-    this.#visuals = new Hd2dVisualLayer(scene, this.#canvas, heightfield.size);
+    this.#visuals = new Hd2dVisualLayer(
+      scene,
+      this.#canvas,
+      heightfield.size,
+      heightfield.waterLevel,
+      this.#textures,
+    );
     this.#visuals.setMerchant(this.#merchant);
     this.#visuals.setQuestMarkers(this.#questMarkers);
     this.#actors = createBillboardRegistry(
@@ -618,6 +630,7 @@ export class Hd2dRenderer implements RendererLike {
 
     this.#actors?.sync(this.#collectActors(sample, context.now));
     this.#syncWorldEventContent(sample.events);
+    this.#visuals?.syncLocalHero(context.self ?? null, context.movement ?? null, context.now);
     this.#visuals?.sync(sample, context.now);
 
     // The camera follows the local player, and only it: every other actor is drawn where the
@@ -845,6 +858,10 @@ export class Hd2dRenderer implements RendererLike {
   playInteraction(): void {
     const self = this.#selfId ? this.#position(this.#selfId) : null;
     if (self) this.#visuals?.pulse(self.x, self.z, 0xffe29a, 0.48, 300);
+  }
+
+  playHeroMovement(events: readonly HeroEvent[], hero: PlayerSnapshot | null): void {
+    this.#visuals?.playHeroMovement(events, hero);
   }
 
   playLumenPortal(portal: PriestLumenPortalVisual): void {

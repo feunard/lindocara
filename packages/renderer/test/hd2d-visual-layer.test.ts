@@ -1,3 +1,4 @@
+import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 import type { Hd2dScene } from "../src/hd2d/scene.js";
@@ -65,6 +66,42 @@ describe("Hd2dVisualLayer screen ray", () => {
     const { layer } = harness(2);
 
     expect(layer.screenToWorld(100, 0)).toBeNull();
+    layer.dispose();
+  });
+});
+
+describe("Hd2dVisualLayer hero movement", () => {
+  const hero = {
+    x: 0,
+    y: 0,
+    z: 0,
+    facing: { x: 1, z: 0 },
+    swimming: false,
+  } as PlayerSnapshot;
+
+  it("plays event-driven footprints, breath and water entry", () => {
+    const { layer } = harness();
+    layer.playHeroMovement(
+      [
+        { t: "trace", x: 0, z: 0, cote: 1 },
+        { t: "haleine" },
+        { t: "entree-eau", x: 0, y: 0, z: 0, rupture: false },
+      ],
+      hero,
+    );
+
+    expect(layer.diagnostics().effects).toBe(3);
+    layer.dispose();
+  });
+
+  it("keeps swimming and cracked-ice surfaces synchronized with local state", () => {
+    const { layer } = harness();
+    layer.syncLocalHero({ ...hero, swimming: true }, { iceCrack: { x: 0, z: 0 } }, 1_000);
+
+    expect(layer.diagnostics().movementSurfaces).toBe(2);
+    expect(layer.diagnostics().effects).toBe(1);
+    layer.syncLocalHero(hero, { iceCrack: null }, 1_100);
+    expect(layer.diagnostics().movementSurfaces).toBe(0);
     layer.dispose();
   });
 });

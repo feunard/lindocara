@@ -61,6 +61,25 @@ function floodedTerrain(): ZoneTerrain {
   return zoneTerrainFromHeightfield(map);
 }
 
+function frozenFloodedTerrain(): ZoneTerrain {
+  const levels: (number | null)[] = [];
+  for (let j = 0; j < SIZE; j++) {
+    for (let i = 0; i < SIZE; i++) levels.push(i >= 5 ? null : 0);
+  }
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.05,
+    levels,
+    materials: Array.from({ length: SIZE * SIZE }, () => "neige" as const),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  });
+}
+
 function press(overrides: Partial<HeroControllerInput> = {}): HeroControllerInput {
   return { x: 0, z: 0, jump: false, ...overrides };
 }
@@ -156,6 +175,34 @@ describe("the hero controller", () => {
     expect(whereItWentUnder).toBeGreaterThan(1);
     expect(hero.state.x).toBeGreaterThan(1);
     expect(hero.state.z).toBe(spawn.z);
+  });
+
+  it("emits visible breath on authored cold terrain", () => {
+    const hero = createHeroController({
+      terrain: frozenFloodedTerrain(),
+      spawn: { x: -1, y: 0, z: 0 },
+      speed: 4.2,
+    });
+    const events = [];
+    for (let frame = 0; frame < 2.3 * 60; frame++) events.push(...hero.step(press(), FRAME));
+
+    expect(events.some((event) => event.t === "haleine")).toBe(true);
+  });
+
+  it("spends breath twice as fast in water beside authored frozen ground", () => {
+    const hero = createHeroController({
+      terrain: frozenFloodedTerrain(),
+      spawn: { x: -1, y: 0, z: 0 },
+      speed: 4.2,
+    });
+    for (let frame = 0; frame < 180 && !hero.state.swimming; frame++) {
+      hero.step(press({ x: 1 }), FRAME);
+    }
+    expect(hero.state.swimming).toBe(true);
+    const before = hero.state.breath;
+    for (let frame = 0; frame < 60; frame++) hero.step(press({ x: 1 }), FRAME);
+
+    expect(before - hero.state.breath).toBeCloseTo(2, 1);
   });
 
   it("snaps to a server-authored position, cutting momentum", () => {

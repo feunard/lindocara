@@ -1,19 +1,29 @@
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
-import type { PeasantCampVisual, WorldEventSnapshot } from "@lindocara/engine/protocol.js";
+import type {
+  PeasantCampVisual,
+  PlayerSnapshot,
+  WorldEventSnapshot,
+} from "@lindocara/engine/protocol.js";
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
+import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import type { Hd2dScene } from "./scene.js";
+
+export const HD2D_SPLASH_TEXTURE_URL = "/assets/lindocara/hd2d/splash.png";
 
 interface TimedVisual {
   object: THREE.Object3D;
   startedAt: number;
   endsAt: number;
   update(progress: number): void;
+  dispose?: () => void;
 }
 
 interface LabelVisual {
@@ -41,7 +51,12 @@ export interface Hd2dEditorOverlay {
 
 function disposeObject(object: THREE.Object3D): void {
   object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.Line)) return;
+    if (
+      !(child instanceof THREE.Mesh) &&
+      !(child instanceof THREE.Line) &&
+      !(child instanceof THREE.Sprite)
+    )
+      return;
     child.geometry.dispose();
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of materials) material.dispose();
@@ -87,6 +102,8 @@ export class Hd2dVisualLayer {
   readonly #scene: Hd2dScene;
   readonly #canvas: HTMLCanvasElement;
   readonly #size: number;
+  readonly #waterLevel: number;
+  readonly #textures: TextureRegistry | null;
   readonly #root = new THREE.Group();
   readonly #editorRoot = new THREE.Group();
   readonly #effects: TimedVisual[] = [];
@@ -98,20 +115,79 @@ export class Hd2dVisualLayer {
   readonly #hiddenQuestSites = new Map<string, number>();
   readonly #labels: LabelVisual[] = [];
   readonly #raycaster = new THREE.Raycaster();
+  readonly #swimDisc: THREE.Mesh;
+  readonly #crackDisc: THREE.Group;
+  readonly #skid: THREE.Mesh;
   #events: readonly WorldEventSnapshot[] = [];
   #questState: readonly AuthoredQuestMarker[] = [];
   #questVisualKey = "";
   #merchant: THREE.Object3D | null = null;
   #aim: THREE.Object3D | null = null;
+  #nextRippleAt = 0;
 
-  constructor(scene: Hd2dScene, canvas: HTMLCanvasElement, size: number) {
+  constructor(
+    scene: Hd2dScene,
+    canvas: HTMLCanvasElement,
+    size: number,
+    waterLevel = 0,
+    textures: TextureRegistry | null = null,
+  ) {
     this.#scene = scene;
     this.#canvas = canvas;
     this.#size = size;
+    this.#waterLevel = waterLevel;
+    this.#textures = textures;
     this.#root.name = "game-presentation";
     this.#editorRoot.name = "editor-overlay";
     this.#root.add(this.#editorRoot);
     scene.scene.add(this.#root);
+
+    this.#swimDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(0.55, 32),
+      transparentMaterial(0x18384b, 0.38),
+    );
+    this.#swimDisc.rotation.x = -Math.PI / 2;
+    this.#swimDisc.visible = false;
+    this.#swimDisc.renderOrder = 2;
+    this.#root.add(this.#swimDisc);
+
+    this.#crackDisc = new THREE.Group();
+    const crackPositions: number[] = [];
+    for (let ray = 0; ray < 9; ray += 1) {
+      const angle = (ray / 9) * Math.PI * 2;
+      const inner = 0.1 + (ray % 3) * 0.035;
+      const outer = 0.5 + (ray % 2) * 0.16;
+      crackPositions.push(
+        Math.cos(angle) * inner,
+        0,
+        Math.sin(angle) * inner,
+        Math.cos(angle + (ray % 2 ? 0.16 : -0.1)) * outer,
+        0,
+        Math.sin(angle + (ray % 2 ? 0.16 : -0.1)) * outer,
+      );
+    }
+    const crackGeometry = new THREE.BufferGeometry();
+    crackGeometry.setAttribute("position", new THREE.Float32BufferAttribute(crackPositions, 3));
+    this.#crackDisc.add(
+      new THREE.LineSegments(
+        crackGeometry,
+        new THREE.LineBasicMaterial({
+          color: 0x173746,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+        }),
+      ),
+    );
+    this.#crackDisc.visible = false;
+    this.#root.add(this.#crackDisc);
+
+    this.#skid = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.012, 0.055),
+      transparentMaterial(0xc7efff, 0.62),
+    );
+    this.#skid.visible = false;
+    this.#root.add(this.#skid);
   }
 
   #groundY(x: number, z: number, lift = 0.04): number {
@@ -200,6 +276,149 @@ export class Hd2dVisualLayer {
         materialOpacity(mesh, Math.min(0.82, (1 - progress) * 1.5));
       },
     });
+  }
+
+  #ripple(x: number, z: number, strength = 1, now = performance.now()): void {
+    const mesh = new THREE.Mesh(
+      new THREE.RingGeometry(0.28, 0.38, 40),
+      transparentMaterial(0xcff5ff, 0.55),
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, this.#waterLevel + 0.025, z);
+    mesh.renderOrder = 3;
+    this.#root.add(mesh);
+    this.#effects.push({
+      object: mesh,
+      startedAt: now,
+      endsAt: now + 2_400,
+      update(progress) {
+        mesh.scale.setScalar(strength * (0.5 + Math.sqrt(progress) * 2.6));
+        materialOpacity(mesh, (1 - progress) * 0.55);
+      },
+    });
+  }
+
+  #splash(x: number, y: number, z: number, now = performance.now()): void {
+    if (!this.#textures) {
+      this.pulse(x, z, 0xd8f7ff, 0.9, 450, now);
+      return;
+    }
+    const map = this.#textures.get(HD2D_SPLASH_TEXTURE_URL).clone();
+    map.repeat.set(1 / 9, 1);
+    map.offset.set(0, 0);
+    map.needsUpdate = true;
+    const material = new THREE.SpriteMaterial({
+      map,
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.center.set(0.5, 0.32);
+    sprite.scale.set(1.7, 1.7, 1);
+    sprite.position.set(x, y, z);
+    sprite.renderOrder = 4;
+    this.#root.add(sprite);
+    const duration = (9 / 20) * 1_000;
+    this.#effects.push({
+      object: sprite,
+      startedAt: now,
+      endsAt: now + duration,
+      update(progress) {
+        map.offset.x = Math.min(8, Math.floor(progress * 9)) / 9;
+      },
+      dispose() {
+        sprite.removeFromParent();
+        sprite.geometry.dispose();
+        material.dispose();
+        map.dispose();
+      },
+    });
+  }
+
+  #footprint(event: Extract<HeroEvent, { t: "trace" }>, hero: PlayerSnapshot, now: number): void {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.012, 0.4),
+      transparentMaterial(0x536d78, 0.7),
+    );
+    mesh.position.set(event.x, this.#groundY(event.x, event.z, 0.025), event.z);
+    mesh.rotation.y = -Math.atan2(hero.facing.z, hero.facing.x);
+    this.#root.add(mesh);
+    this.#effects.push({
+      object: mesh,
+      startedAt: now,
+      endsAt: now + 4_500,
+      update(progress) {
+        materialOpacity(mesh, 0.7 * (1 - progress));
+      },
+    });
+  }
+
+  #breath(hero: PlayerSnapshot, now: number): void {
+    const puff = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 10, 7),
+      transparentMaterial(0xeaf8ff, 0.88),
+    );
+    puff.position.set(hero.x + hero.facing.x * 0.22, hero.y + 1.8, hero.z + hero.facing.z * 0.22);
+    const startY = puff.position.y;
+    this.#root.add(puff);
+    this.#effects.push({
+      object: puff,
+      startedAt: now,
+      endsAt: now + 900,
+      update(progress) {
+        puff.position.y = startY + progress * 0.5;
+        puff.scale.setScalar(1 + progress * 1.4);
+        materialOpacity(puff, 0.88 * (1 - progress));
+      },
+    });
+  }
+
+  playHeroMovement(events: readonly HeroEvent[], hero: PlayerSnapshot | null): void {
+    const now = performance.now();
+    let skid = 0;
+    for (const event of events) {
+      if (event.t === "glisse") skid = Math.max(skid, event.intensite);
+      else if (event.t === "trace" && hero) this.#footprint(event, hero, now);
+      else if (event.t === "haleine" && hero) this.#breath(hero, now);
+      else if (event.t === "brasse" && hero) this.#ripple(hero.x, hero.z, 0.8, now);
+      else if (event.t === "entree-eau" || event.t === "sortie-eau" || event.t === "noyade")
+        this.#splash(event.x, event.y, event.z, now);
+      else if (event.t === "reception" && hero)
+        this.pulse(hero.x, hero.z, 0xd8c49c, Math.min(1.2, 0.45 + event.force * 0.04), 360, now);
+      else if (event.t === "glace-craque") this.pulse(event.x, event.z, 0x294e63, 0.9, 520, now);
+    }
+    this.#skid.visible = hero !== null && skid > 0.03;
+    if (hero && this.#skid.visible) {
+      this.#skid.position.set(
+        hero.x - hero.facing.x * 0.38,
+        this.#groundY(hero.x, hero.z, 0.035),
+        hero.z - hero.facing.z * 0.38,
+      );
+      this.#skid.rotation.y = -Math.atan2(hero.facing.z, hero.facing.x);
+      this.#skid.scale.x = 0.45 + skid * 0.9;
+      materialOpacity(this.#skid, 0.25 + skid * 0.5);
+    }
+  }
+
+  syncLocalHero(
+    hero: PlayerSnapshot | null,
+    movement: LocalMovementVisualState | null,
+    now: number,
+  ): void {
+    this.#swimDisc.visible = hero?.swimming ?? false;
+    if (hero?.swimming) {
+      this.#swimDisc.position.set(hero.x, this.#waterLevel + 0.03, hero.z);
+      if (now >= this.#nextRippleAt) {
+        this.#ripple(hero.x, hero.z, 1, now);
+        this.#nextRippleAt = now + 550;
+      }
+    } else this.#nextRippleAt = now;
+
+    const crack = movement?.iceCrack ?? null;
+    this.#crackDisc.visible = crack !== null;
+    if (crack)
+      this.#crackDisc.position.set(crack.x, this.#groundY(crack.x, crack.z, 0.035), crack.z);
   }
 
   setMerchant(merchant: MerchantDefinition | null): void {
@@ -532,7 +751,8 @@ export class Hd2dVisualLayer {
       effect.object.visible = now >= effect.startedAt;
       if (now < effect.startedAt) continue;
       if (now >= effect.endsAt) {
-        disposeObject(effect.object);
+        if (effect.dispose) effect.dispose();
+        else disposeObject(effect.object);
         this.#effects.splice(index, 1);
         continue;
       }
@@ -571,6 +791,10 @@ export class Hd2dVisualLayer {
       actorsSecondary: this.#loot.size + this.#projectiles.size,
       camps: this.#camps.size,
       effects: this.#effects.length,
+      movementSurfaces:
+        Number(this.#swimDisc.visible) +
+        Number(this.#crackDisc.visible) +
+        Number(this.#skid.visible),
       eventMarkers: this.#eventMarkers.size,
       labels: this.#labels.length,
       questMarkers: this.#questMarkers.size,
@@ -580,6 +804,9 @@ export class Hd2dVisualLayer {
   dispose(): void {
     for (const label of this.#labels) label.element.remove();
     this.#labels.length = 0;
+    for (const effect of this.#effects) {
+      if (effect.dispose) effect.dispose();
+    }
     disposeObject(this.#root);
     this.#effects.length = 0;
     this.#loot.clear();

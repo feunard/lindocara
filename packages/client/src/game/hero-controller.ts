@@ -80,11 +80,35 @@ export const HERO_PHYSICS: Omit<HeroSettings, "speed"> = {
  *  frozen shore must find the same numbers the lab was tuned against. */
 export const THIN_ICE: ThinIceOptions = { seuilCraquement: 0.5, seuilRupture: 1.4, regel: 6 };
 
+const COLD_CLIMATE_OFFSETS = [
+  [0, 0],
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+  [-1.5, -1.5],
+  [1.5, -1.5],
+  [-1.5, 1.5],
+  [1.5, 1.5],
+  [-2, 0],
+  [2, 0],
+  [0, -2],
+  [0, 2],
+] as const;
+
+/** Authored cold ground replaces the lab's hard-coded polar circle. Sampling the nearby shore is
+ * what keeps frozen water cold after `kindAt` correctly returns null under a swimmer. */
+export function coldClimateAt(query: StepDeps["query"], x: number, z: number): boolean {
+  return COLD_CLIMATE_OFFSETS.some(([dx, dz]) => {
+    const material = query.kindAt(x + dx, z + dz);
+    return material === "neige" || material === "glace" || material === "glace-fine";
+  });
+}
+
 /**
  * The half of `HeroInput` the player actually drives. The rest is supplied by this module:
- * `attack` because combat is a server intent here and never the movement rule's business, and
- * `souffleTaux`/`haleineVisible` because the game has no zone that varies them yet (the lab's polar
- * zone is the only thing that ever did).
+ * `attack` because combat is a server intent here and never the movement rule's business, and the
+ * two climate values derived from the authored terrain around the hero.
  */
 export interface HeroControllerInput {
   /** Ground axis 1, -1..1. */
@@ -326,13 +350,14 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
         // The traversal is not the movement rule; it narrates nothing (no footstep, no splash).
         return [];
       }
+      const coldClimate = coldClimateAt(deps.query, state.x, state.z);
       const heroInput: HeroInput = {
         x: input.x,
         z: input.z,
         jump: input.jump,
         attack: false,
-        souffleTaux: 1,
-        haleineVisible: false,
+        souffleTaux: coldClimate ? 2 : 1,
+        haleineVisible: coldClimate,
       };
       const events = stepHero(state, heroInput, dt, deps);
       // **Nothing happens here on `noyade`, and that is the decision.** The lab answers it with
