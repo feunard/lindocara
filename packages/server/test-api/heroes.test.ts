@@ -190,7 +190,7 @@ describe("session gate", () => {
 });
 
 describe("createHero", () => {
-  test("Tier 3 fallback: starts on the first member map when no graph.start or spawn event exists", async () => {
+  test("Tier 3 fallback: starts at the first member map's compiled spawn", async () => {
     const { token, userId } = await registerAndLogin("herospawn");
     const adventureId = await newPlayableAdventure(token);
     const adventureRes = await authedFetch(`/api/adventures/${adventureId}`, token);
@@ -224,12 +224,12 @@ describe("createHero", () => {
       name: "Mira",
       class: "priest",
       mapId: adventure.mapIds[0],
-      // The default map carries no heightfield, so there is no anchor stated in its own units and
-      // the hero is created at the grid centre. Admission's `mapEntryPosition` is what seats it on
-      // real ground; a hero row is no longer where a standing position is decided.
-      x: 0,
+      // New maps compile their authoring spawn immediately. The default 20x14 map's (10, 7) cell
+      // becomes the centre-origin heightfield point (0.5, -2.5); this persisted row is already a
+      // valid standing position before admission reloads the same anchor.
+      x: 0.5,
       y: 0,
-      z: 0,
+      z: -2.5,
       level: 1,
       hp: 100,
       life: "alive",

@@ -106,10 +106,9 @@ const GRID_SIZE = MAP_MIN_COLS;
 /**
  * The authored cell a hero enters the map standing in.
  *
- * `provingHeightfield` puts its only spawn at the grid's origin, and the origin is the centre of
- * cell `(GRID_SIZE / 2, GRID_SIZE / 2)`. Every fixture event a test interacts with straight after
- * admission is authored there, which is what the pixel suite said by authoring the event on the
- * map's own `spawn` cell — the same statement, in the frame the room now reads.
+ * `provingHeightfield` puts its only spawn at the grid's origin. On an even grid the authored
+ * centre cell begins at that origin, so its centre is half a tile away and remains inside the
+ * interaction radius. Every fixture event used immediately after admission is authored there.
  */
 const SPAWN_COL = GRID_SIZE / 2;
 const SPAWN_ROW = GRID_SIZE / 2;
@@ -524,6 +523,9 @@ async function newPlayableParty(
     }),
   });
   expect(putResponse.status).toBe(200);
+  // Install the exact test terrain before creating the hero. Persisted position, collision and
+  // authored event projection must all describe one coordinate frame.
+  await alepha.inject(MapService).saveHeightfield(mapId, provingHeightfield(GRID_SIZE));
   const partyResponse = await api("/api/parties", {
     method: "POST",
     body: JSON.stringify({ adventureId: adventure.id }),
@@ -537,8 +539,6 @@ async function newPlayableParty(
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
   const roomId = `${partyId}:${mapId}`;
-  // A map with no heightfield produces no zone at all, so every join below would be refused 4007.
-  await alepha.inject(MapService).saveHeightfield(mapId, provingHeightfield(GRID_SIZE));
   return {
     token,
     userId,

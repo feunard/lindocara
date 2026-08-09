@@ -161,7 +161,7 @@ export function zoneFromMapPayload(
     terrain,
     quests: [],
     questSites: [],
-    // Authored monsters are conditional event pages; nothing spawns in tranche α (Task 5).
+    // Authored monsters are conditional event pages reconciled into the runtime collection.
     monsters: [],
     guards: [],
     portals: [],
@@ -241,7 +241,7 @@ export interface WorldRoomState {
   navigation: NavigationRuntime | null;
   /** Last hero-party-state payload actually broadcast, per party (legacy `#heroPartyBroadcasts`). */
   heroPartyBroadcasts: Map<string, string>;
-  /** Authored events whose page currently holds. Always empty until Task 7 evaluates pages. */
+  /** Authored events whose page currently holds, reconciled whenever adventure state changes. */
   activeEvents: readonly ActiveWorldEvent[];
   /** Static map/element collision, kept separate so dynamic harvest footprints can be rebuilt. In
    *  tile units, grid centre as origin — the heightfield's own authored rects. */

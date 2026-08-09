@@ -1,8 +1,8 @@
 /**
  * The maps CRUD API on Alepha: create, list, read, update, delete, flip the front-door flag and
  * write the heightfield. Ported from the `/api/maps*` routes in `packages/server/src/index.ts` (see
- * `:1141`-`:1167` for the route table this mirrors) — every route but the last, which is new: it is
- * the only way terrain reaches an instance whose database this process cannot open.
+ * `:1141`-`:1167` for the route table this mirrors) — every route but the last, which is the remote
+ * terrain-seeding escape hatch for an instance whose database this process cannot open.
  *
  * Every body/query/params schema below is deliberately LOOSE (`z.any()`/plain optional
  * `z.string()`), never the tight shape a client actually sends. Two reasons, both load-bearing:
@@ -200,9 +200,8 @@ export class MapController {
   /**
    * `PUT /api/maps/:id/heightfield` body `{heightfield}` -> 204
    *
-   * The way a heightfield reaches a DEPLOYED instance. Everything else that writes one boots the
-   * app and opens the database itself (`scripts/build-proving-map.ts`), which works locally and
-   * cannot work at all against Bay, where the database lives inside the running process.
+   * The direct way a generated heightfield reaches a DEPLOYED instance. Normal map saves compile
+   * terrain from their authoring document; this route exists for proving maps generated elsewhere.
    *
    * `PUT`, not `POST`: the body IS the resource's whole new state and re-sending it converges on
    * that same state — which is exactly how the seed script is used (regenerate, re-stamp, reload).
@@ -210,7 +209,7 @@ export class MapController {
    * `MapService.saveHeightfield`'s docblock for why skipping that bump would leave a live session
    * drawing the previous terrain forever.
    *
-   * Owner-fenced, unlike the collaborative routes above — `MapService.saveHeightfieldForUser`
+   * Owner-fenced like the rest of the map surface — `MapService.saveHeightfieldForUser`
    * carries the reasoning and the machine code (404 `map_not_found`).
    *
    * Bounded on the STRING, not on the request: `MAX_HEIGHTFIELD_BYTES` (1.5 MiB of decoded

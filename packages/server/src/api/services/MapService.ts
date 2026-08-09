@@ -4,24 +4,11 @@
  * calls instead of raw Drizzle/D1 statements — see that file's docblock for the two invariants this
  * exists to protect (never delete the last map of an adventure; `isFirst` always has a survivor).
  *
- * **Owner-fenced editing.** `maps.ts` and its own tests
- * (`packages/server/test/maps-api.test.ts`, see the `describe` blocks literally named "collaborative
- * editing is open") establish that ANY authenticated account may list/create/read/update/delete ANY
- * adventure's maps — a map's `userId` inherits from its owning adventure's author, never from the
- * caller, and `deleteMap`'s legacy `accountId` option is accepted but never actually read by the
- * function body. There is no per-map ownership fence to port; a caller id parameter would be dead
- * weight, exactly as it was in the option bag it came from. The task brief's own test list asked for
- * "foreign user -> 404 (ownership is invisibility)"; the actual port source contradicts that in both
- * code and tests, and the brief also says to preserve every legacy behavior — this follows the code.
- * The only genuine 404 boundaries are: an id that matches no row (never existed, wrong table, or a
- * plain string like the retired `BUILTIN_MAP_ID` sentinel, which is not a uuid and so can never match
- * a real row), and a row whose owning adventure has vanished.
- *
- * **One exception, added rather than ported: {@link MapService.saveHeightfieldForUser}.** Nothing
- * above changes — every method ported from `maps.ts` stays collaboratively open, and none of them
- * grew a caller id. The heightfield write is not a ported method: it is the seeding path into a
- * DEPLOYED instance, and the column it writes is the one that decides whether a room can be joined
- * at all. See its own docblock for the fence and why it answers 404 rather than a new code.
+ * **Owner-fenced editing.** Every HTTP-facing list/read/create/update/delete/front-door operation
+ * receives the authenticated user id and makes foreign rows indistinguishable from missing rows.
+ * Internal methods remain identity-free for room loading, startup backfill and test tooling; they
+ * must not be exposed directly by a controller. The separate heightfield endpoint follows the same
+ * owner fence and answers 404 for a foreign map.
  */
 import {
   type AdventureGraph,
@@ -291,6 +278,7 @@ export class MapService {
     proposedAdventure?: AdventureInput,
   ): Promise<MapPayload> {
     const data = validateMapInput(input);
+    const heightfield = input.heightfield ?? encodeMap(compileAuthoredMap(data, data.events));
     const existing = await this.maps.findById(id);
     if (!existing) throw new Error("not_found: no such map");
     if (expectedRevision !== undefined && existing.revision !== expectedRevision) {
@@ -340,7 +328,7 @@ export class MapService {
           ...(input.heroSettings !== undefined
             ? { heroSettings: JSON.stringify(data.heroSettings) }
             : {}),
-          ...(input.heightfield !== undefined ? { heightfield: input.heightfield } : {}),
+          heightfield,
           revision: sql`revision + 1`,
         },
       );
@@ -395,10 +383,7 @@ export class MapService {
         input.heroSettings === undefined
           ? decodeMapHeroSettings(existing.heroSettings)
           : data.heroSettings,
-      heightfield:
-        input.heightfield === undefined
-          ? heightfieldOfRow(existing.heightfield)
-          : input.heightfield,
+      heightfield,
     };
   }
 

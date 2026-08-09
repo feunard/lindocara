@@ -160,6 +160,18 @@ describe("map heightfield storage", () => {
     expect(updated.heightfield).toBe(heightfield);
     expect(updated.revision).toBe(map.revision + 1);
   });
+
+  test("recompiles authored terrain when a legacy caller omits the heightfield", async () => {
+    const adventureId = await newAdventure("hfrecompile");
+    const map = await mapService.createMap(adventureId, "Test Map");
+    const input = { ...defaultMapInput("Moved Spawn"), spawn: { col: 1, row: 1 } };
+
+    const updated = await mapService.updateMap(map.id, input, map.revision);
+    const compiled = decodeMap(updated.heightfield ?? "");
+
+    expect(compiled?.spawns[0]).toMatchObject({ name: "default", x: -8.5, z: -8.5 });
+    expect(updated.revision).toBe(map.revision + 1);
+  });
 });
 
 async function registerAndLogin(prefix: string): Promise<string> {

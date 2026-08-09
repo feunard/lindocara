@@ -259,6 +259,9 @@ async function newPlayableHero(prefix: string, heroClass = "warrior"): Promise<F
   const adventureResponse = await authed("/api/adventures", { title: "Donjon", maxPlayers: 4 });
   expect(adventureResponse.status).toBe(201);
   const adventure = (await adventureResponse.json()) as { id: string; defaultMap: { id: string } };
+  // Install the test terrain before any hero is created, so every persisted spawn and the room's
+  // collision are expressed by the same heightfield.
+  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, heightfield());
   const partyResponse = await authed("/api/parties", { adventureId: adventure.id });
   expect(partyResponse.status).toBe(201);
   const partyId = ((await partyResponse.json()) as { id: string }).id;
@@ -268,10 +271,6 @@ async function newPlayableHero(prefix: string, heroClass = "warrior"): Promise<F
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
-  // A map with no heightfield produces no zone at all, so every join of this room would be refused
-  // 4007 before a single combat invariant could be observed. `POST /api/adventures` seeds a tile
-  // map and nothing else, so the room's collision has to be stored here.
-  await alepha.inject(MapService).saveHeightfield(adventure.defaultMap.id, heightfield());
   return { userId, roomId: `${partyId}:${adventure.defaultMap.id}`, partyId, heroId };
 }
 

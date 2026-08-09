@@ -147,14 +147,13 @@ export interface MapPayload {
   audio?: MapAudioConfig;
   /** Per-map authoritative class stats and disabled ability slots. */
   heroSettings?: MapHeroSettings;
-  /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
-   *  events existed. Nothing here executes this tranche. */
+  /** Authored events, ordered by ordinal; pages ordered by position. */
   events: readonly MapEvent[];
-  /** Encoded HD-2D terrain. Legacy maps created before the migration may still return `null`. */
+  /** Encoded HD-2D terrain. A malformed legacy row may still return `null` until repaired. */
   heightfield: string | null;
 }
 
-/** What create/update send. Omitting terrain preserves the currently stored heightfield. */
+/** What create/update send. Omitting terrain asks the server to compile it from this authoring doc. */
 export type MapSaveInput = Omit<MapPayload, "id" | "revision" | "heightfield"> & {
   heightfield?: string;
 };
