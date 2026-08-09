@@ -246,6 +246,8 @@ export interface Hd2dScene {
   setZoom(percent: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
   setTiltShiftEnabled(enabled: boolean): void;
+  /** First visible horizontal terrain/stair/water surface under an editor pointer ray. */
+  pickGround(raycaster: THREE.Raycaster): { x: number; z: number } | null;
   resize(): void;
   dispose(): void;
   ctx: Hd2dContext;
@@ -474,6 +476,26 @@ export function createHd2dScene(
     },
     setTiltShiftEnabled(enabled: boolean): void {
       pipeline.setTiltShiftEnabled(enabled);
+    },
+    pickGround(raycaster: THREE.Raycaster): { x: number; z: number } | null {
+      const half = map.size / 2;
+      for (const hit of raycaster.intersectObjects(
+        [terrain.group, stairs.group, water.mesh],
+        true,
+      )) {
+        const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
+        if (!normal || normal.y < 0.5) continue;
+        if (
+          hit.point.x < -half ||
+          hit.point.x > half ||
+          hit.point.z < -half ||
+          hit.point.z > half
+        ) {
+          continue;
+        }
+        return { x: hit.point.x, z: hit.point.z };
+      }
+      return null;
     },
     render(now: number): void {
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);

@@ -98,8 +98,6 @@ export class Hd2dVisualLayer {
   readonly #hiddenQuestSites = new Map<string, number>();
   readonly #labels: LabelVisual[] = [];
   readonly #raycaster = new THREE.Raycaster();
-  readonly #groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  readonly #rayPoint = new THREE.Vector3();
   #events: readonly WorldEventSnapshot[] = [];
   #questState: readonly AuthoredQuestMarker[] = [];
   #questVisualKey = "";
@@ -444,17 +442,13 @@ export class Hd2dVisualLayer {
     );
     this.#scene.camera.updateMatrixWorld();
     this.#raycaster.setFromCamera(ndc, this.#scene.camera);
-    if (!this.#raycaster.ray.intersectPlane(this.#groundPlane, this.#rayPoint)) return null;
+    const point = this.#scene.pickGround(this.#raycaster);
+    if (!point) return null;
     const half = this.#size / 2;
-    if (
-      this.#rayPoint.x < -half ||
-      this.#rayPoint.x > half ||
-      this.#rayPoint.z < -half ||
-      this.#rayPoint.z > half
-    ) {
+    if (point.x < -half || point.x > half || point.z < -half || point.z > half) {
       return null;
     }
-    return { x: this.#rayPoint.x, z: this.#rayPoint.z };
+    return point;
   }
 
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
