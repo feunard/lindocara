@@ -437,7 +437,7 @@ export function moveSelection(
       // load-bearing: it must stay on walkable ground, and an exit may not slide onto the spawn — the
       // same rules the server enforces, applied to a drag as well as a fresh placement.
       if (!functionalEventPlacementOk(map, event.kind, col, row)) return null;
-      if (!harvestEventFootprintFitsMap(map, event, col, row)) return null;
+      if (!harvestEventFootprintFitsMap(map, event)) return null;
       const events = map.events.map((candidate) =>
         candidate.id === selection.id ? { ...candidate, col, row } : candidate,
       );
@@ -763,7 +763,7 @@ export function normalizeEventDraftConditions(draft: MapEvent): MapEvent {
 export function commitEventDraft(history: EditorHistory, draft: MapEvent): EditorHistory {
   const present = history.present;
   if (!present.events.some((event) => event.id === draft.id)) return history;
-  if (!harvestEventFootprintFitsMap(present, draft, draft.col, draft.row)) return history;
+  if (!harvestEventFootprintFitsMap(present, draft)) return history;
   const events = present.events.map((event) => (event.id === draft.id ? draft : event));
   return commitEditorHistory(history, { ...present, events });
 }
@@ -951,8 +951,6 @@ function functionalEventPlacementOk(
 function harvestEventFootprintFitsMap(
   _map: EditorMap,
   event: Pick<MapEvent, "kind" | "harvestProfile">,
-  col: number,
-  row: number,
 ): boolean {
   if (event.kind !== "harvestable") return true;
   const profile = parseHarvestProfile(event.harvestProfile);
@@ -1434,8 +1432,6 @@ export function applyTool(
       if (tool.eventKind === "harvestable") {
         const profile = parseHarvestProfile(tool.harvestProfile);
         if (!profile) return null;
-        const { cols, rows } = editorMapSize(map);
-        if (!harvestFootprintFitsMap(profile, col, row, cols, rows)) return null;
         const event = functionalEvent({
           id: crypto.randomUUID(),
           col,

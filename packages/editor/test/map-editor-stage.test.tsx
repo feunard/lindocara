@@ -135,7 +135,7 @@ describe("HD-2D map editor stage", () => {
       }),
     );
 
-    const guard = "character.units-green-units-warrior.warrior-idle" as const;
+    const guard = "character.units-red-units-warrior.warrior-idle" as const;
     stage.setActiveMode("event");
     stage.setTool({ kind: "event", eventKind: "guard", patrolRadius: 2, graphic: guard });
     expect(mock.renderer.setEditorPreviewAsset).toHaveBeenLastCalledWith(guard);

@@ -1446,7 +1446,7 @@ describe("event dialog draft", () => {
     const committed = commitEventDraft(history, draft);
     expect(committed).not.toBe(history);
     expect(committed.past).toHaveLength(1);
-    expect(committed.present.events[0]?.harvestProfile).toEqual(draft.event.harvestProfile);
+    expect(committed.present.events[0]?.harvestProfile).toEqual(draft.harvestProfile);
   });
 });
 
