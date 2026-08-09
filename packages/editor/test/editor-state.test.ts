@@ -1439,7 +1439,7 @@ describe("event dialog draft", () => {
       ...harvestProfileFromPreset("tree"),
       collision: {
         intact: { offsetX: -100, offsetY: -30, width: 64, height: 30 },
-        depleted: harvestProfileFromPreset("tree").collision?.depleted ?? null,
+        depleted: null,
       },
     });
 

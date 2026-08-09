@@ -33,6 +33,7 @@ function harness(
   const point = new THREE.Vector3();
   const scene = {
     camera,
+    ctx: { yaw: () => 0 },
     query: { heightAt: () => 0 },
     scene: root,
     pickGround(raycaster: THREE.Raycaster) {
