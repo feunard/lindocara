@@ -60,6 +60,7 @@ import {
   unitSheet,
 } from "../tiny-swords-art.js";
 import { tinySwordsSourceUrl } from "../tiny-swords-assets.js";
+import { WorldEventMotionTracker } from "../world-event-motion.js";
 import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.js";
 import { createBillboardRegistry } from "./billboards.js";
 import type { Hd2dScene } from "./scene.js";
@@ -565,6 +566,7 @@ export class Hd2dRenderer implements RendererLike {
   #questMarkers: readonly AuthoredQuestMarker[] = [];
   #actorPositions = new Map<string, ActorPosition>();
   #actorMotion = new ActorMotionTracker();
+  #eventMotion = new WorldEventMotionTracker();
   #serverClock: ServerClock;
   /** Bumped by every map change and every teardown, so a download still in flight for the previous
    *  map cannot land its scenery in the new one's scene. */
@@ -768,7 +770,12 @@ export class Hd2dRenderer implements RendererLike {
   #syncWorldEventContent(events: readonly WorldEventSnapshot[], force = false): void {
     this.#worldEvents = events;
     const visualKey = events
-      .map((event) => `${event.id}:${event.col}:${event.row}:${worldEventAsset(event) ?? ""}`)
+      .map((event) => {
+        const assetId = worldEventAsset(event);
+        return authoredActorSheet(assetId, "idle")
+          ? `${event.id}:actor:${assetId ?? ""}`
+          : `${event.id}:${event.col}:${event.row}:${assetId ?? ""}`;
+      })
       .join("|");
     const assetIds = [
       ...new Set(
@@ -841,7 +848,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#eventContent?.dispose();
     const events = this.#worldEvents.flatMap((event) => {
       const assetId = worldEventAsset(event);
-      return assetId === null
+      return assetId === null || authoredActorSheet(assetId, "idle")
         ? []
         : [
             {
@@ -1020,6 +1027,32 @@ export class Hd2dRenderer implements RendererLike {
         pose: "fallen",
       });
     }
+    const eventIds = new Set<string>();
+    const mapSize = this.#map?.size ?? 0;
+    for (const event of sample.events) {
+      const assetId = worldEventAsset(event);
+      const idleSheet = authoredActorSheet(assetId, "idle");
+      if (!idleSheet) continue;
+      eventIds.add(event.id);
+      const movement = this.#eventMotion.sample(event, animationTimeMs);
+      const motion = event.moveAnimation && movement.moving ? "run" : "idle";
+      const sheet = authoredActorSheet(assetId, motion) ?? idleSheet;
+      views.push({
+        id: `event:${event.id}`,
+        kind: "event",
+        x: movement.col + 0.5 - mapSize / 2,
+        y: 0,
+        z: movement.row + 0.5 - mapSize / 2,
+        ...GROUNDED,
+        vy: 0,
+        facing:
+          !event.directionFixed && movement.direction ? facingOf(movement.direction) : "north",
+        ...actorSheetView(sheet),
+        animationTimeMs,
+        animationLoop: true,
+      });
+    }
+    this.#eventMotion.retain(eventIds);
     this.#actorMotion.retain(present);
     return views;
   }
@@ -1057,6 +1090,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#actors?.dispose();
     this.#actors = null;
     this.#actorMotion.reset();
+    this.#eventMotion.reset();
     this.#scene?.dispose();
     this.#scene = null;
     this.#map = null;

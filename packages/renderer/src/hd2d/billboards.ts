@@ -23,7 +23,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { HD2D_CAMERA } from "./scene.js";
 
-export type ActorKind = "player" | "monster" | "guard" | "corpse";
+export type ActorKind = "player" | "monster" | "guard" | "corpse" | "event";
 
 /** One actor of one frame, as the renderer hands it over. Every coordinate is the snapshot's own —
  *  TILE units, grid centre as origin — so `sync` converts nothing. */
@@ -119,6 +119,7 @@ export const ACTOR_FOOT: Record<ActorKind, number> = {
   guard: 56 / 192,
   monster: 0.3,
   corpse: 56 / 192,
+  event: 56 / 192,
 };
 
 /** Every actor sheet this game ships is a single ROW of square frames — 1536x192 for eight warrior
