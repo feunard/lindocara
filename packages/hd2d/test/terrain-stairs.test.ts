@@ -3,10 +3,22 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
 describe("meshStairs", () => {
-  it("builds eight real treads over the exact authored ramp footprint", () => {
+  it("builds eight textured treads over the exact authored ramp footprint", () => {
+    const texture = new THREE.Texture();
     const built = meshStairs(
       [{ x: -1, z: -1, width: 1, depth: 2, direction: "east", lowLevel: 1 }],
-      { levelHeight: 0.9, lift: 0 },
+      {
+        levelHeight: 0.9,
+        lift: 0,
+        atlas: {
+          texture,
+          cols: 9,
+          rows: 6,
+          block: "water-edge",
+          wallRow: 4,
+          tilePx: 64,
+        },
+      },
     );
     const steps = built.group.children.filter(
       (child): child is THREE.Mesh => child instanceof THREE.Mesh,
@@ -15,6 +27,9 @@ describe("meshStairs", () => {
     expect(Math.min(...steps.map((step) => step.position.x))).toBeGreaterThan(-1);
     expect(Math.max(...steps.map((step) => step.position.x))).toBeLessThan(0);
     expect(Math.max(...steps.map((step) => step.position.y + 0.45))).toBeGreaterThan(1.7);
+    const topMaterial = (steps[0]?.material as THREE.Material[])[2];
+    expect(topMaterial).toBeInstanceOf(THREE.MeshLambertMaterial);
+    expect((topMaterial as THREE.MeshLambertMaterial).map).toBe(texture);
     built.dispose();
     expect(built.group.children).toHaveLength(0);
   });

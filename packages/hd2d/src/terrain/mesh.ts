@@ -283,6 +283,7 @@ export function meshTerrain(
     if (!atlas) throw new Error(`Atlas de terrain "${key}" disparu entre les deux passes`);
     const material = new THREE.MeshLambertMaterial({
       map: atlas.texture,
+      side: THREE.DoubleSide,
       // Sans ça, le sol et les falaises — des quads simples, sans face arrière — ne projettent
       // rien dans la shadow map.
       shadowSide: THREE.DoubleSide,

@@ -46,6 +46,7 @@ import * as THREE from "three";
 // --- art direction ------------------------------------------------------------------------------
 
 const TERRAIN_ROOT = "/assets/lindocara/tiny-swords/terrain";
+const HD2D_TERRAIN_ROOT = "/assets/lindocara/hd2d";
 
 /**
  * The textures this scene needs, all of them already served by the game.
@@ -69,6 +70,8 @@ export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${TERRAIN_ROOT}/Tilemap_color4.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Tilemap_color5.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Tilemap_Flat.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/tileset-neige.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/tileset-glace.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Water.png` },
   { url: `${TERRAIN_ROOT}/Foam.png`, atlas: true },
 ];
@@ -109,10 +112,8 @@ export function terrainAtlasKey(material: string, level: number): string {
  * stone wall on rows 4-5. Sand only ever exists at level 0, but Update 010's flat sheet reuses the
  * SAME column layout as the cliff-edge group for its own sand-against-grass trim.
  *
- * Snow and ice: the lab composes dedicated sheets for them (`apps/lab/scripts/compose-tileset.py`),
- * and the game does not ship those. Both cold materials therefore borrow `color5`, the coldest of
- * the pack's five hues, until the game has art of its own. They stay two separate entries — same
- * texture today, different 4x4 group — so giving snow its own sheet later is one line.
+ * Snow and ice use the byte-identical atlases proven by the lab. Thin ice remains a rule material
+ * and deliberately resolves to the same ice atlas.
  */
 export function terrainAtlases(textures: TextureRegistry): Record<string, TerrainAtlas> {
   const sheet = (name: string, block: TerrainAtlas["block"], cols: number, rows: number) => ({
@@ -132,8 +133,14 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
     // Never a wall for sand (always at level 0): `wallRow` is never read here, kept at 4 out of
     // consistency with the others rather than out of necessity.
     sable: sheet("Tilemap_Flat.png", "cliff-edge", 10, 4),
-    neige: sheet("Tilemap_color5.png", "water-edge", 9, 6),
-    glace: sheet("Tilemap_color5.png", "cliff-edge", 9, 6),
+    neige: {
+      ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/tileset-neige.png`),
+    },
+    glace: {
+      ...sheet("Tilemap_color1.png", "cliff-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/tileset-glace.png`),
+    },
   };
 }
 
@@ -288,9 +295,13 @@ export function createHd2dScene(
   const field = heightFieldFor(map);
   const query = createTerrainQuery(mapToQuerySource(map));
 
-  const terrain = terrainGroupFor(ctx, map, terrainAtlases(textures));
+  const atlases = terrainAtlases(textures);
+  const terrain = terrainGroupFor(ctx, map, atlases);
   scene.add(terrain.group);
-  const stairs = meshStairs(map.ramps ?? [], { levelHeight: map.levelHeight });
+  const stairs = meshStairs(map.ramps ?? [], {
+    levelHeight: map.levelHeight,
+    atlas: atlases.lvl0,
+  });
   scene.add(stairs.group);
 
   // A plane three times wider than the grid: enough that the sea loses itself in the fog before its
