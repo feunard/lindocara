@@ -2,14 +2,17 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { billboardHeight } from "@lindocara/hd2d/billboard.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
-import { ACTOR_FOOT, createBillboardRegistry } from "../src/hd2d/billboards.js";
+import {
+  ACTOR_FOOT,
+  createBillboardRegistry,
+  LAB_UNIT_HEIGHT,
+} from "../src/hd2d/billboards.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 
 /** A square map from a row-major list of levels — `null` is water. Same shape as the terrain
@@ -183,7 +186,7 @@ describe("the billboard registry", () => {
     const foot =
       ACTOR_FOOT.player *
       billboardHeight({
-        height: 192 / TILE_SIZE,
+        height: LAB_UNIT_HEIGHT,
         pitch: HD2D_CAMERA.pitch,
         stretch: ctx.config.spriteStretch,
       });

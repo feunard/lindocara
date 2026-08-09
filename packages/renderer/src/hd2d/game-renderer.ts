@@ -108,6 +108,11 @@ export interface BillboardActorSheet {
 }
 
 const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
+const LAB_SHEEP_HEIGHT = 1.5;
+const SHEEP_ASSET_IDS = new Set([
+  "resource.terrain-resources-meat-sheep.sheep-idle",
+  "resource.resources-sheep.happysheep-idle",
+]);
 
 export function authoredActorSheet(
   graphicAssetId: string | null | undefined,
@@ -1081,6 +1086,9 @@ export class Hd2dRenderer implements RendererLike {
         facing:
           !event.directionFixed && movement.direction ? facingOf(movement.direction) : "north",
         ...actorSheetView(sheet),
+        ...(assetId && SHEEP_ASSET_IDS.has(assetId)
+          ? { renderHeight: LAB_SHEEP_HEIGHT }
+          : {}),
         animationTimeMs,
         animationLoop: true,
       });

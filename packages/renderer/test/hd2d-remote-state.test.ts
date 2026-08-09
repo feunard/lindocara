@@ -13,7 +13,6 @@ import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { billboardHeight } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
@@ -25,6 +24,7 @@ import {
   ACTOR_FOOT,
   createBillboardRegistry,
   GLIDER_LIFT,
+  LAB_UNIT_HEIGHT,
   SWIM_DEPTH,
 } from "../src/hd2d/billboards.js";
 import { HD2D_GLIDER_TEXTURE_URL, playerActorView } from "../src/hd2d/game-renderer.js";
@@ -88,7 +88,7 @@ function drawnElevation(mesh: THREE.Mesh, ctx: Hd2dContext): number {
     mesh.position.y +
     ACTOR_FOOT.player *
       billboardHeight({
-        height: 192 / TILE_SIZE,
+        height: LAB_UNIT_HEIGHT,
         pitch: HD2D_CAMERA.pitch,
         stretch: ctx.config.spriteStretch,
       })

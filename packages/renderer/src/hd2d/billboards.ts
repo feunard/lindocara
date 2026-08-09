@@ -71,6 +71,9 @@ export interface ActorView {
   frameAxis?: "x" | "y";
   /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
   foot?: number;
+  /** Explicit world height for an authored actor whose measured lab size differs from the shared
+   * Tiny Swords actor scale. */
+  renderHeight?: number;
   pose?: "standing" | "fallen" | "ghost";
   animationTimeMs?: number;
   /** Plays every frame over this duration. Without it, the ordinary loop cadence is used. */
@@ -126,6 +129,15 @@ export const ACTOR_FOOT: Record<ActorKind, number> = {
  *  idle poses, 1152x192 for six running ones, and so on up to a troll's 384px frames. Falling back
  *  to a unit's 192 keeps a texture whose bytes have not landed from sizing a sprite at zero. */
 const DEFAULT_FRAME_PX = 192;
+
+/** The lab's measured actor scale: a 192px Tiny Swords unit is 2.6 world tiles high, not the
+ * pixel-era 3 tiles produced by dividing by TILE_SIZE. Larger sheets retain the same ratio. */
+export const LAB_UNIT_HEIGHT = 2.6;
+export const LAB_ACTOR_SCALE = LAB_UNIT_HEIGHT / (DEFAULT_FRAME_PX / TILE_SIZE);
+
+export function actorHeightAtLabScale(frameHeight: number): number {
+  return (frameHeight / TILE_SIZE) * LAB_ACTOR_SCALE;
+}
 
 function sheetOf(texture: THREE.Texture): { cols: number; framePx: number } {
   const image = texture.image as { width?: number; height?: number } | null | undefined;
@@ -200,10 +212,10 @@ export function createBillboardRegistry(
       texture,
       cols,
       rows,
-      // The pack's own scale system, and the same one the deleted PixiJS path drew with: a frame is worth
-      // its native pixels at 64 to the tile, so a 192px goblin and a 384px troll stay in proportion
-      // with each other and with the heroes rather than each being scaled to taste.
-      height: frameHeight / TILE_SIZE,
+      // The lab's measured scale keeps a 192px hero at 2.6 tiles while preserving the native
+      // proportions between a 192px goblin and a 384px troll. A deliberately measured authored
+      // actor may override it (the lab's 128px sheep is 1.5 tiles).
+      height: actor.renderHeight ?? actorHeightAtLabScale(frameHeight),
       aspect: frameWidth / frameHeight,
       foot: actor.foot ?? ACTOR_FOOT[actor.kind],
       pitch: HD2D_CAMERA.pitch,
