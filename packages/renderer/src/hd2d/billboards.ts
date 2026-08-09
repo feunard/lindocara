@@ -64,8 +64,14 @@ export interface ActorView {
   facing: Facing;
   /** A url in the `TextureRegistry` the registry was built with. */
   textureKey: string;
+  /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
+  foot?: number;
   pose?: "standing" | "fallen" | "ghost";
   animationTimeMs?: number;
+  /** Plays every frame over this duration. Without it, the ordinary loop cadence is used. */
+  animationDurationMs?: number;
+  /** Attack strips play once and hold their final frame; idle/run strips loop. */
+  animationLoop?: boolean;
 }
 
 /**
@@ -185,7 +191,7 @@ export function createBillboardRegistry(
       // with each other and with the heroes rather than each being scaled to taste.
       height: framePx / TILE_SIZE,
       aspect: 1,
-      foot: ACTOR_FOOT[actor.kind],
+      foot: actor.foot ?? ACTOR_FOOT[actor.kind],
       pitch: HD2D_CAMERA.pitch,
     });
     scene.root.add(billboard.mesh);
@@ -241,9 +247,15 @@ export function createBillboardRegistry(
         const fallen = actor.pose === "fallen";
         entry.billboard.mesh.scale.set(1 - stretch * 0.6, fallen ? 0.24 : 1 + stretch, 1);
         entry.billboard.mesh.rotation.z = fallen ? Math.PI / 2 : 0;
-        entry.billboard.setFrame(
-          fallen ? 0 : Math.floor((actor.animationTimeMs ?? 0) / 145) % entry.cols,
-        );
+        const elapsed = Math.max(0, actor.animationTimeMs ?? 0);
+        const duration = actor.animationDurationMs;
+        const animatedFrame =
+          duration && duration > 0
+            ? actor.animationLoop === false
+              ? Math.min(entry.cols - 1, Math.floor((elapsed / duration) * entry.cols))
+              : Math.floor((elapsed / duration) * entry.cols) % entry.cols
+            : Math.floor(elapsed / 145) % entry.cols;
+        entry.billboard.setFrame(fallen ? 0 : animatedFrame);
         const material = entry.billboard.mesh.material;
         const materials = Array.isArray(material) ? material : [material];
         for (const current of materials) {

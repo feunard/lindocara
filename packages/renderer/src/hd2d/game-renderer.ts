@@ -11,17 +11,17 @@
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
-import { PRIMARY_COLORS, type PrimaryColor } from "@lindocara/engine/character.js";
-import { type MonsterSpecies, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
+import type { PrimaryColor } from "@lindocara/engine/character.js";
+import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
+  CombatActionSnapshot,
   CombatAnimation,
   GuardSnapshot,
-  MonsterSnapshot,
   MonsterSpecialImpact,
   PeasantBombImpactVisual,
   PeasantCampVisual,
@@ -42,13 +42,21 @@ import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
+import { type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
 import { type MonsterImpactSound, monsterSpecialImpactArt } from "../combat-art.js";
 import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
 import type { RenderContext, RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
-import { unitSheet } from "../tiny-swords-art.js";
+import {
+  allUnitSheets,
+  isPeasantSkillId,
+  peasantCarrySheet,
+  peasantCasterSheet,
+  type UnitSheet,
+  unitSheet,
+} from "../tiny-swords-art.js";
 import { tinySwordsSourceUrl } from "../tiny-swords-assets.js";
 import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.js";
 import { createBillboardRegistry } from "./billboards.js";
@@ -68,19 +76,27 @@ import {
  * Which sheet each kind of actor draws with — the ADAPTER's knowledge, exactly like the terrain
  * atlases in `scene.ts`. `billboards.ts` never sees a class, a species or a faction colour.
  *
- * The IDLE sheet only. This path draws an actor where the server says it is; it does not animate it
- * yet, so a run or attack sheet would be three quarters of a download for a frame never shown.
+ * Idle/run/attack are selected from presentation facts already in the frame: position deltas and
+ * the server-owned action timeline.
  */
-function playerTextureKey(player: PlayerSnapshot): string {
-  return unitSheet(player.class, player.appearance, "idle").source;
+export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): UnitSheet {
+  if (player.class === "peasant") {
+    if (motion === "attack" && player.action?.skillId && isPeasantSkillId(player.action.skillId)) {
+      return peasantCasterSheet(player.appearance.primaryColor, player.action.skillId);
+    }
+    if (motion !== "attack" && player.peasantCarry) {
+      return peasantCarrySheet(player.appearance.primaryColor, player.peasantCarry.kind, motion);
+    }
+  }
+  return unitSheet(player.class, player.appearance, motion);
 }
 
 /** The SPECIES, never `graphicAssetId`: an authored catalogue appearance is one more sheet per
  *  authored monster, and preloading a set that only the running adventure knows is a later piece.
  *  The species is the authoritative combat model, so it is never a wrong answer, only a plainer
  *  one — the deleted PixiJS path drew the authored art on top of the same species model. */
-function monsterTextureKey(monster: MonsterSnapshot): string {
-  return TINY_SWORDS_ENEMIES[monster.species].idle.source;
+export function monsterActorSheet(species: MonsterSpecies, motion: ActorMotion) {
+  return TINY_SWORDS_ENEMIES[species][motion];
 }
 
 /**
@@ -118,7 +134,13 @@ const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
 
-export function playerActorView(player: PlayerSnapshot, animationTimeMs = 0): ActorView {
+export function playerActorView(
+  player: PlayerSnapshot,
+  animationTimeMs = 0,
+  motion: ActorMotion = "idle",
+  animationDurationMs?: number,
+): ActorView {
+  const sheet = playerActorSheet(player, motion);
   return {
     id: player.id,
     kind: "player",
@@ -131,20 +153,23 @@ export function playerActorView(player: PlayerSnapshot, animationTimeMs = 0): Ac
     vy: player.vy ?? 0,
     canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
     facing: facingOf(player.facing),
-    textureKey: playerTextureKey(player),
+    textureKey: sheet.source,
+    foot: sheet.footOffset / sheet.frameHeight,
     animationTimeMs,
+    ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
+    animationLoop: motion !== "attack",
     ...(player.life === "ghost" ? { pose: "ghost" as const } : {}),
   };
 }
 
 /** A guard is a Tiny Swords unit like any other — the same warrior sheet the deleted PixiJS path
  *  gave it, in the faction colour its authored asset id implies. */
-function guardTextureKey(guard: GuardSnapshot): string {
+function guardSheet(guard: GuardSnapshot, motion: ActorMotion): UnitSheet {
   return unitSheet(
     "warrior",
     { body: "wayfarer", primaryColor: guardPrimaryColorForAsset(guard.graphicAssetId) },
-    "idle",
-  ).source;
+    motion,
+  );
 }
 
 /**
@@ -158,12 +183,12 @@ function guardTextureKey(guard: GuardSnapshot): string {
  */
 export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
   ...new Set([
-    ...PLAYER_CLASSES.flatMap((playerClass) =>
-      PRIMARY_COLORS.map(
-        (primaryColor) => unitSheet(playerClass, { body: "wayfarer", primaryColor }, "idle").source,
-      ),
-    ),
-    ...Object.values(TINY_SWORDS_ENEMIES).map((art) => art.idle.source),
+    ...allUnitSheets().map((sheet) => sheet.source),
+    ...Object.values(TINY_SWORDS_ENEMIES).flatMap((art) => [
+      art.idle.source,
+      art.run.source,
+      art.attack.source,
+    ]),
     HD2D_GLIDER_TEXTURE_URL,
     HD2D_SPLASH_TEXTURE_URL,
   ]),
@@ -324,6 +349,7 @@ export class Hd2dRenderer implements RendererLike {
   #merchant: MerchantDefinition | null = null;
   #questMarkers: readonly AuthoredQuestMarker[] = [];
   #actorPositions = new Map<string, ActorPosition>();
+  #actorMotion = new ActorMotionTracker();
   #serverClock: ServerClock;
   /** Bumped by every map change and every teardown, so a download still in flight for the previous
    *  map cannot land its scenery in the new one's scene. */
@@ -666,11 +692,30 @@ export class Hd2dRenderer implements RendererLike {
    */
   #collectActors(sample: SceneSample, animationTimeMs: number): readonly ActorView[] {
     const views = this.#actorViews;
+    const present = new Set<string>();
     views.length = 0;
     this.#actorPositions.clear();
     for (const player of sample.players) {
       if (player.life === "corpse") continue;
-      views.push(playerActorView(player, animationTimeMs));
+      present.add(player.id);
+      const motion = this.#actorMotion.sample(
+        player.id,
+        player.x,
+        player.z,
+        player.action !== null,
+        animationTimeMs,
+      );
+      const timing = player.action
+        ? this.#actorAnimationTiming(player.action, animationTimeMs)
+        : null;
+      views.push(
+        playerActorView(
+          player,
+          timing?.elapsed ?? animationTimeMs,
+          motion.motion,
+          timing?.duration,
+        ),
+      );
       this.#actorPositions.set(player.id, {
         x: player.x,
         z: player.z,
@@ -678,6 +723,18 @@ export class Hd2dRenderer implements RendererLike {
       });
     }
     for (const monster of sample.monsters) {
+      present.add(monster.id);
+      const motion = this.#actorMotion.sample(
+        monster.id,
+        monster.x,
+        monster.z,
+        monster.action !== null,
+        animationTimeMs,
+      );
+      const timing = monster.action
+        ? this.#actorAnimationTiming(monster.action, animationTimeMs)
+        : null;
+      const sheet = monsterActorSheet(monster.species, monster.dead ? "idle" : motion.motion);
       views.push({
         id: monster.id,
         kind: monster.dead ? "corpse" : "monster",
@@ -687,8 +744,10 @@ export class Hd2dRenderer implements RendererLike {
         ...GROUNDED,
         vy: 0,
         facing: facingOf(monster.facing),
-        textureKey: monsterTextureKey(monster),
-        animationTimeMs,
+        textureKey: sheet.source,
+        animationTimeMs: timing?.elapsed ?? animationTimeMs,
+        ...(timing ? { animationDurationMs: timing.duration } : {}),
+        animationLoop: motion.motion !== "attack",
         ...(monster.dead ? { pose: "fallen" as const } : {}),
       });
       this.#actorPositions.set(monster.id, {
@@ -697,7 +756,16 @@ export class Hd2dRenderer implements RendererLike {
         species: monster.species,
       });
     }
-    for (const guard of sample.guards)
+    for (const guard of sample.guards) {
+      present.add(guard.id);
+      const motion = this.#actorMotion.sample(
+        guard.id,
+        guard.x,
+        guard.z,
+        guard.fighting,
+        animationTimeMs,
+      );
+      const sheet = guardSheet(guard, motion.motion);
       views.push({
         id: guard.id,
         kind: "guard",
@@ -708,13 +776,17 @@ export class Hd2dRenderer implements RendererLike {
         vy: 0,
         // A guard carries no facing on the wire. `"north"` is `facingToFlip`'s no-op, so it keeps
         // whichever profile the guard already had rather than snapping it east every frame.
-        facing: "north",
-        textureKey: guardTextureKey(guard),
+        facing: motion.direction ? facingOf(motion.direction) : "north",
+        textureKey: sheet.source,
+        foot: sheet.footOffset / sheet.frameHeight,
         animationTimeMs,
+        animationLoop: true,
       });
+    }
     for (const guard of sample.guards)
       this.#actorPositions.set(guard.id, { x: guard.x, z: guard.z });
     for (const corpse of sample.corpses) {
+      const sheet = unitSheet(corpse.class, corpse.appearance, "idle");
       views.push({
         id: `corpse:${corpse.id}`,
         kind: "corpse",
@@ -724,11 +796,24 @@ export class Hd2dRenderer implements RendererLike {
         ...GROUNDED,
         vy: 0,
         facing: "north",
-        textureKey: unitSheet(corpse.class, corpse.appearance, "idle").source,
+        textureKey: sheet.source,
+        foot: sheet.footOffset / sheet.frameHeight,
         pose: "fallen",
       });
     }
+    this.#actorMotion.retain(present);
     return views;
+  }
+
+  #actorAnimationTiming(
+    action: CombatActionSnapshot,
+    now: number,
+  ): { elapsed: number; duration: number } {
+    const timeline = this.#serverClock.combatTimeline(action, now);
+    return {
+      elapsed: Math.max(0, now - timeline.startedAt),
+      duration: Math.max(1, timeline.recoveryEndsAt - timeline.startedAt),
+    };
   }
 
   #disposeScene(): void {
@@ -752,6 +837,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#visuals = null;
     this.#actors?.dispose();
     this.#actors = null;
+    this.#actorMotion.reset();
     this.#scene?.dispose();
     this.#scene = null;
     this.#map = null;
