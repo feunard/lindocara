@@ -319,6 +319,12 @@ describe("staticAssetSpec", () => {
     });
   });
 
+  it("classifies Tiny Swords buildings as fixed world volumes", () => {
+    expect(staticAssetSpec("building.buildings-blue-buildings.house1")).toMatchObject({
+      renderMode: "fixed-volume",
+    });
+  });
+
   it("places cloud art as a fixed three-card volume above the map", () => {
     const cloud = art({
       cols: 1,
@@ -345,6 +351,30 @@ describe("staticAssetSpec", () => {
     expect(mesh.rotation.y).toBe(rotation);
     content.update(2_500);
     expect(mesh.position.x).not.toBeCloseTo(0.5);
+  });
+
+  it("keeps a building fixed while the camera yaw changes", () => {
+    const building = art({
+      cols: 1,
+      height: 3,
+      aspect: 1.4,
+      foot: 0.1,
+      renderMode: "fixed-volume",
+    });
+    const map = flatMap(4, {
+      elements: [{ assetId: "building", x: -0.5, z: 0.5 }],
+    });
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    placeStaticContent(ctx, scene, map, resolverFor({ building }));
+    const [mesh] = meshes(scene.root);
+    if (!mesh) throw new Error("expected one building volume");
+
+    expect(mesh.geometry.getAttribute("position").count).toBe(8);
+    expect(mesh.position.y + building.height * (building.foot ?? 0)).toBeCloseTo(0);
+    expect(ctx.billboards()).toHaveLength(0);
+    ctx.setYaw(Math.PI / 2);
+    expect(mesh.rotation.y).toBe(0);
   });
 
   it("frames an asset cropped out of a shared sheet", () => {

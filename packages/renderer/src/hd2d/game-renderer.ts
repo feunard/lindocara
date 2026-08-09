@@ -420,7 +420,11 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     foot: definition.footOffset / framePx.height + (1 - definition.anchor.y),
     renderLayer:
       definition.editor.renderLayer === "ground" ? "object" : definition.editor.renderLayer,
-    ...(definition.editor.renderLayer === "sky" ? { renderMode: "cloud-volume" as const } : {}),
+    ...(definition.editor.renderLayer === "sky"
+      ? { renderMode: "cloud-volume" as const }
+      : definition.domain === "building"
+        ? { renderMode: "fixed-volume" as const }
+        : {}),
     ...(definition.nature === "animated" && !crop && count > 1
       ? { animationDurationMs: nativeTreeStrip ? 960 : (frame?.durationMs ?? count * 145) }
       : {}),
