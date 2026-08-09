@@ -66,6 +66,7 @@ import {
   isPeasantSkillId,
   peasantCarrySheet,
   peasantCasterSheet,
+  TINY_SWORDS_LUMEN_CLOUD,
   type UnitSheet,
   unitSheet,
 } from "../tiny-swords-art.js";
@@ -214,6 +215,21 @@ function facingOf(vector: GroundVector): Facing {
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
+const LUMEN_CLOUD_SCALE = 0.24;
+
+/** True only while the held Lumen Step has replaced the Priest's body with its cloud. */
+export function isLumenStepClouded(
+  action: CombatActionSnapshot | null,
+  actionElapsedMs: number,
+): boolean {
+  if (action?.skillId !== "blink") return false;
+  const impactElapsed = action.impactAt - action.startedAt;
+  const recoveryElapsed = action.recoveryEndsAt - action.startedAt;
+  if (actionElapsedMs < impactElapsed || actionElapsedMs >= recoveryElapsed) return false;
+  return (
+    action.channelEndsAt === undefined || actionElapsedMs <= action.channelEndsAt - action.startedAt
+  );
+}
 
 export function playerActorView(
   player: PlayerSnapshot,
@@ -222,6 +238,7 @@ export function playerActorView(
   animationDurationMs?: number,
 ): ActorView {
   const sheet = playerActorSheet(player, motion);
+  const clouded = player.class === "priest" && isLumenStepClouded(player.action, animationTimeMs);
   return {
     id: player.id,
     kind: "player",
@@ -234,10 +251,20 @@ export function playerActorView(
     vy: player.vy ?? 0,
     canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
     facing: facingOf(player.facing),
-    ...actorSheetView(sheet),
+    ...(clouded
+      ? {
+          textureKey: TINY_SWORDS_LUMEN_CLOUD.source,
+          frames: 1,
+          frameWidth: TINY_SWORDS_LUMEN_CLOUD.frameWidth,
+          frameHeight: TINY_SWORDS_LUMEN_CLOUD.frameHeight,
+          frameAxis: "x" as const,
+          foot: 0,
+          renderHeight: (TINY_SWORDS_LUMEN_CLOUD.frameHeight / TILE_SIZE) * LUMEN_CLOUD_SCALE,
+        }
+      : actorSheetView(sheet)),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
-    animationLoop: motion !== "attack",
+    animationLoop: clouded || motion !== "attack",
     ...(player.life === "ghost" ? { pose: "ghost" as const } : {}),
   };
 }

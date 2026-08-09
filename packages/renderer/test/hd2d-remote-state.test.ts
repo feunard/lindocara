@@ -29,6 +29,7 @@ import {
 } from "../src/hd2d/billboards.js";
 import { HD2D_GLIDER_TEXTURE_URL, playerActorView } from "../src/hd2d/game-renderer.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
+import { TINY_SWORDS_LUMEN_CLOUD } from "../src/tiny-swords-art.js";
 
 /** A square map from a row-major list of levels — `null` is water. The billboard suite's `mapOf`,
  *  plus an explicit `waterLevel`: this suite is about the difference between the ground under an
@@ -286,5 +287,39 @@ describe("a remote hero's drawn state", () => {
       swimming: true,
       gliding: false,
     });
+  });
+
+  it("replaces the Priest with the original Tiny Swords cloud only during Lumen Step traversal", () => {
+    const action = {
+      id: "lumen-step",
+      kind: "skill" as const,
+      skillId: "blink",
+      direction: { x: 1, z: 0 },
+      startedAt: 10_000,
+      impactAt: 10_200,
+      channelEndsAt: 11_800,
+      recoveryEndsAt: 12_200,
+      resolved: true,
+    };
+    const priest = snapshot({ class: "priest", action });
+    const { channelEndsAt: _releasedAt, ...heldAction } = action;
+
+    expect(playerActorView(priest, 199, "attack").textureKey).not.toBe(
+      TINY_SWORDS_LUMEN_CLOUD.source,
+    );
+    expect(playerActorView(priest, 200, "attack")).toMatchObject({
+      textureKey: TINY_SWORDS_LUMEN_CLOUD.source,
+      frames: 1,
+      frameWidth: 576,
+      frameHeight: 256,
+      renderHeight: 0.96,
+    });
+    expect(playerActorView(priest, 1_801, "attack").textureKey).not.toBe(
+      TINY_SWORDS_LUMEN_CLOUD.source,
+    );
+    expect(
+      playerActorView(snapshot({ class: "priest", action: heldAction }), 1_900, "attack")
+        .textureKey,
+    ).toBe(TINY_SWORDS_LUMEN_CLOUD.source);
   });
 });
