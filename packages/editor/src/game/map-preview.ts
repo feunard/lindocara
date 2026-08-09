@@ -17,12 +17,7 @@ import { harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/map-data.js";
-import {
-  guardEvents,
-  isActiveWorldEventKind,
-  type MapEvent,
-  monsterEvents,
-} from "@lindocara/engine/map-events.js";
+import { guardEvents, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import type {
@@ -30,13 +25,13 @@ import type {
   MonsterSnapshot,
   PlayerSnapshot,
   QuestState,
-  WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { BODY_RADIUS, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import type { AmbienceConfig } from "@lindocara/renderer/ambience.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { trackInput } from "@lindocara/renderer/input.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
+import { authoredEventPreviewSnapshots } from "./event-preview.js";
 
 const SELF_ID = "map-preview-self";
 const PREVIEW_QUEST: QuestState = {
@@ -75,47 +70,6 @@ export interface MapPreviewOptions {
   /** Camera multiplier. 1 is the game framing, below 1 pulls back. */
   zoom?: number;
   zoomControls?: boolean;
-}
-
-function previewEventSnapshots(events: readonly MapEvent[]): WorldEventSnapshot[] {
-  return events.flatMap((event) => {
-    if (!isActiveWorldEventKind(event.kind)) return [];
-    const page = event.pages[0];
-    if (!page) return [];
-    const profile = event.kind === "harvestable" ? event.harvestProfile : undefined;
-    return [
-      {
-        id: event.id,
-        col: event.col,
-        row: event.row,
-        graphicAssetId: page.graphicAssetId ?? null,
-        graphicTint: page.graphicTint ?? 0xffffff,
-        onTop: page.optOnTop,
-        moveSpeed: page.moveSpeed,
-        moveFrequency: page.moveFreq,
-        moveAnimation: page.optMoveAnim,
-        directionFixed: page.optDirFix,
-        presentation: event.kind === "harvestable" ? "native" : "marker",
-        ...(profile
-          ? {
-              harvest: {
-                state: "intact" as const,
-                generation: 0,
-                hits: 0,
-                hitsRequired: profile.hitsRequired,
-                lastHitAt: null,
-                depletedAt: null,
-                respawnAt: null,
-                exhaustionBehavior: profile.exhaustionBehavior,
-                exhaustedAssetId: profile.exhaustedAssetId,
-                fadeDurationMs: profile.fadeDurationMs,
-                collider: null,
-              },
-            }
-          : {}),
-      },
-    ];
-  });
 }
 
 export async function startMapPreview(
@@ -260,7 +214,7 @@ export async function startMapPreview(
       },
     ];
   });
-  const worldEvents = previewEventSnapshots(events);
+  const worldEvents = authoredEventPreviewSnapshots(events, "playable-preview");
   renderer.preloadWorldEventAssets(worldEvents);
 
   const tracker = trackInput();

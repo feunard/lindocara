@@ -44,6 +44,7 @@ import {
   updateSelectedElementAsset,
   updateSelectedElementOffset,
 } from "./editor-state.js";
+import { authoredEventPreviewSnapshots } from "./event-preview.js";
 
 export interface MapEditorStageHandle {
   setTool(tool: EditorTool): void;
@@ -167,6 +168,7 @@ export function openMapEditorStage(
     let cameraZ = 0;
     let disposed = false;
     let lastCursorKey = "";
+    let renderedEvents = authoredEventPreviewSnapshots(map.events, "map-editor");
 
     const dimensions = () => editorMapSize(map);
     const centreCamera = (): void => {
@@ -212,7 +214,9 @@ export function openMapEditorStage(
 
     const redraw = (): void => {
       const heightfield = compiled();
+      renderedEvents = authoredEventPreviewSnapshots(map.events, "map-editor");
       renderer.configureMapTerrain("editor", [], ++revision, heightfield);
+      renderer.preloadWorldEventAssets(renderedEvents);
       renderer.setCameraFocus(cameraX, cameraZ);
       renderer.setCameraZoom(zoom);
       drawOverlay(heightfield);
@@ -466,7 +470,7 @@ export function openMapEditorStage(
     window.addEventListener("keyup", onKeyUp);
 
     renderer.onFrame((now) => {
-      renderer.render(EMPTY_SAMPLE, { now } as RenderContext);
+      renderer.render({ ...EMPTY_SAMPLE, events: renderedEvents }, { now } as RenderContext);
     });
     centreCamera();
     redraw();

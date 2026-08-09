@@ -1,12 +1,17 @@
 import { blankMap } from "@lindocara/editor/game/editor-state.js";
 import { defaultDimForMode, openMapEditorStage } from "@lindocara/editor/game/map-editor-stage.js";
+import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mock = vi.hoisted(() => {
+  let frame: ((now: number) => void) | null = null;
   const renderer = {
     configureMapTerrain: vi.fn(),
     destroy: vi.fn(),
-    onFrame: vi.fn(),
+    onFrame: vi.fn((callback: (now: number) => void) => {
+      frame = callback;
+    }),
+    preloadWorldEventAssets: vi.fn(),
     render: vi.fn(),
     screenToWorld: vi.fn(() => ({ x: -8.5, z: -7.5 })),
     setCameraFocus: vi.fn(),
@@ -17,6 +22,7 @@ const mock = vi.hoisted(() => {
   return {
     renderer,
     create: vi.fn(async () => renderer),
+    frame: () => frame,
   };
 });
 
@@ -28,6 +34,36 @@ describe("HD-2D map editor stage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.body.innerHTML = '<canvas id="stage"></canvas>';
+  });
+
+  it("renders every authored event appearance and anchor in the authoring stage", async () => {
+    const event = {
+      id: "editor-event",
+      col: 4,
+      row: 5,
+      name: "Hidden passage",
+      ordinal: 1,
+      kind: "exit" as const,
+      species: null,
+      patrolRadius: null,
+      pages: [defaultEventPage()],
+    };
+    const map = { ...blankMap("Map", 20, 15), events: [event] };
+    const stage = await openMapEditorStage(map, vi.fn());
+    const frame = mock.frame();
+    if (!frame) throw new Error("renderer frame callback missing");
+    frame(performance.now());
+
+    expect(mock.renderer.preloadWorldEventAssets).toHaveBeenCalledWith([
+      expect.objectContaining({ id: event.id, presentation: "marker" }),
+    ]);
+    expect(mock.renderer.render).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        events: [expect.objectContaining({ id: event.id, presentation: "marker" })],
+      }),
+      expect.any(Object),
+    );
+    stage.dispose();
   });
 
   it("uses the compiled authored map as its render document", async () => {
