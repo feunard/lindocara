@@ -77,6 +77,7 @@ export function meshStairs(
   });
   const stairMaterial = new THREE.MeshLambertMaterial({
     map: options.atlas.texture,
+    color: options.color ?? 0xffffff,
     transparent: opacity < 1,
     opacity,
     depthWrite: opacity >= 1,

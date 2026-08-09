@@ -9,13 +9,16 @@ import type {
   PlayerSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
+import type { Billboard, Sprite } from "@lindocara/hd2d/billboard.js";
+import { makeBillboard, makeFlatSprite } from "@lindocara/hd2d/billboard.js";
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { type ProjectileVisualDefinition, projectileVisual } from "../projectile-visuals.js";
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
-import type { Hd2dScene } from "./scene.js";
+import { HD2D_CAMERA, type Hd2dScene, terrainAtlases } from "./scene.js";
+import { staticAnimationFrame, type StaticSpriteArt } from "./static-content.js";
 
 export const HD2D_SPLASH_TEXTURE_URL = "/assets/lindocara/hd2d/splash.png";
 
@@ -48,6 +51,12 @@ export interface Hd2dEditorOverlay {
   hover?: GroundVector | null;
   selection?: GroundVector | null;
   stairsPreview?: { ramp: TerrainRamp; valid: boolean; levelHeight: number } | null;
+  assetPreview?: {
+    point: GroundVector;
+    footprint: readonly GroundVector[];
+    valid: boolean;
+    skyAltitude?: number;
+  } | null;
 }
 
 function disposeObject(object: THREE.Object3D): void {
@@ -189,6 +198,7 @@ export class Hd2dVisualLayer {
   readonly #textures: TextureRegistry | null;
   readonly #root = new THREE.Group();
   readonly #editorRoot = new THREE.Group();
+  readonly #editorPreviewRoot = new THREE.Group();
   readonly #effects: TimedVisual[] = [];
   readonly #loot = new Map<string, THREE.Object3D>();
   readonly #projectiles = new Map<string, THREE.Object3D>();
@@ -207,6 +217,9 @@ export class Hd2dVisualLayer {
   #merchant: THREE.Object3D | null = null;
   #aim: THREE.Object3D | null = null;
   #nextRippleAt = 0;
+  #editorOverlay: Hd2dEditorOverlay | null = null;
+  #editorPreview: Billboard | Sprite | null = null;
+  #editorPreviewArt: StaticSpriteArt | null = null;
 
   constructor(
     scene: Hd2dScene,
@@ -222,7 +235,9 @@ export class Hd2dVisualLayer {
     this.#textures = textures;
     this.#root.name = "game-presentation";
     this.#editorRoot.name = "editor-overlay";
+    this.#editorPreviewRoot.name = "editor-asset-preview";
     this.#root.add(this.#editorRoot);
+    this.#root.add(this.#editorPreviewRoot);
     scene.scene.add(this.#root);
 
     this.#swimDisc = new THREE.Mesh(
@@ -762,9 +777,13 @@ export class Hd2dVisualLayer {
   }
 
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
+    this.#editorOverlay = overlay;
     for (const child of [...this.#editorRoot.children]) disposeObject(child);
     this.#editorRoot.clear();
-    if (!overlay) return;
+    if (!overlay) {
+      this.#positionEditorPreview();
+      return;
+    }
 
     const half = this.#size / 2;
     const lift = overlay.dim ? 0.085 : 0.06;
@@ -824,18 +843,105 @@ export class Hd2dVisualLayer {
     };
     if (overlay.hover) addCursor(overlay.hover, 0xffd66b, 1);
     if (overlay.selection) addCursor(overlay.selection, 0x57d6ff, 1.12);
+    if (overlay.assetPreview) {
+      for (const point of overlay.assetPreview.footprint) {
+        const cell = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.96, 0.96),
+          transparentMaterial(overlay.assetPreview.valid ? 0xffd66b : 0xe34d42, 0.22),
+        );
+        cell.rotation.x = -Math.PI / 2;
+        cell.position.set(point.x, this.#groundY(point.x, point.z, 0.105), point.z);
+        this.#editorRoot.add(cell);
+      }
+    }
     if (overlay.stairsPreview) {
-      const preview = meshStairs([overlay.stairsPreview.ramp], {
-        levelHeight: overlay.stairsPreview.levelHeight,
-        color: overlay.stairsPreview.valid ? 0xffd66b : 0xe34d42,
-        opacity: 0.58,
-        lift: 0.03,
-      });
-      this.#editorRoot.add(preview.group);
+      const atlas = this.#textures ? terrainAtlases(this.#textures).lvl0 : null;
+      if (atlas) {
+        const preview = meshStairs([overlay.stairsPreview.ramp], {
+          levelHeight: overlay.stairsPreview.levelHeight,
+          atlas,
+          color: overlay.stairsPreview.valid ? 0xffd66b : 0xe34d42,
+          opacity: 0.58,
+          lift: 0.03,
+        });
+        this.#editorRoot.add(preview.group);
+      }
+    }
+    this.#positionEditorPreview();
+  }
+
+  setEditorPreviewArt(art: StaticSpriteArt | null): void {
+    if (this.#editorPreview) {
+      this.#editorPreview.mesh.removeFromParent();
+      this.#editorPreview.dispose();
+      this.#editorPreview = null;
+    }
+    this.#editorPreviewRoot.clear();
+    this.#editorPreviewArt = art;
+    if (!art) return;
+    const sky = art.renderLayer === "sky";
+    const preview = sky
+      ? makeFlatSprite(this.#scene.ctx, {
+          texture: art.texture,
+          cols: art.cols ?? 1,
+          rows: art.rows ?? 1,
+          size: art.height * (art.aspect ?? 1),
+          aspect: 1 / (art.aspect ?? 1),
+          alphaTest: 0.5,
+          graftCloudShadow: () => undefined,
+        })
+      : makeBillboard(this.#scene.ctx, {
+          texture: art.texture,
+          cols: art.cols ?? 1,
+          rows: art.rows ?? 1,
+          height: art.height,
+          aspect: art.aspect ?? 1,
+          foot: art.foot ?? 0,
+          ...(art.uvRect ? { uvRect: art.uvRect } : {}),
+          pitch: HD2D_CAMERA.pitch,
+        });
+    materialOpacity(preview.mesh, 0.62);
+    preview.mesh.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) material.depthWrite = false;
+    });
+    preview.mesh.renderOrder = 8;
+    this.#editorPreview = preview;
+    this.#editorPreviewRoot.add(preview.mesh);
+    this.#positionEditorPreview();
+  }
+
+  #positionEditorPreview(): void {
+    const preview = this.#editorPreview;
+    const placement = this.#editorOverlay?.assetPreview;
+    if (!preview || !placement) {
+      if (preview) preview.mesh.visible = false;
+      return;
+    }
+    preview.mesh.visible = true;
+    if (this.#editorPreviewArt?.renderLayer === "sky") {
+      preview.mesh.position.set(
+        placement.point.x,
+        placement.skyAltitude ?? this.#waterLevel + 2,
+        placement.point.z,
+      );
+    } else {
+      (preview as Billboard).placeAt(
+        placement.point.x,
+        this.#groundY(placement.point.x, placement.point.z, 0.025),
+        placement.point.z,
+      );
     }
   }
 
   update(now: number): void {
+    if (this.#editorPreview && this.#editorPreviewArt) {
+      const frames = (this.#editorPreviewArt.cols ?? 1) * (this.#editorPreviewArt.rows ?? 1);
+      this.#editorPreview.setFrame(
+        staticAnimationFrame(now, this.#editorPreviewArt.animationDurationMs ?? 0, frames),
+      );
+    }
     for (let index = this.#effects.length - 1; index >= 0; index -= 1) {
       const effect = this.#effects[index];
       if (!effect) continue;
@@ -893,6 +999,7 @@ export class Hd2dVisualLayer {
   }
 
   dispose(): void {
+    this.setEditorPreviewArt(null);
     for (const label of this.#labels) label.element.remove();
     this.#labels.length = 0;
     for (const effect of this.#effects) {

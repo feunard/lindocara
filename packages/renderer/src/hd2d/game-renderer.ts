@@ -563,6 +563,10 @@ export class Hd2dRenderer implements RendererLike {
   #eventToken = 0;
   #eventAssetKey = "";
   #eventVisualKey = "";
+  #editorPreviewAssetId: string | null = null;
+  #editorPreviewArt: StaticSpriteArt | null = null;
+  #editorPreviewTextures: TextureRegistry | null = null;
+  #editorPreviewToken = 0;
   #worldEvents: readonly WorldEventSnapshot[] = [];
   #map: MapData | null = null;
   #visuals: Hd2dVisualLayer | null = null;
@@ -683,6 +687,7 @@ export class Hd2dRenderer implements RendererLike {
       heightfield.waterLevel,
       this.#textures,
     );
+    this.#visuals.setEditorPreviewArt(this.#editorPreviewArt);
     this.#visuals.setMerchant(this.#merchant);
     this.#visuals.setQuestMarkers(this.#questMarkers);
     this.#actors = createBillboardRegistry(
@@ -769,6 +774,23 @@ export class Hd2dRenderer implements RendererLike {
         return { texture: textures.get(url), ...geometry };
       },
     );
+  }
+
+  async #loadEditorPreviewAsset(assetId: string, token: number): Promise<void> {
+    const spec = staticAssetSpec(assetId);
+    if (!spec) return;
+    const textureSpec: TextureSpec = { url: spec.url };
+    const blobs = await fetchAll([spec.url], () => {});
+    const textures = createTextureRegistry([textureSpec]);
+    await textures.decode(blobs, () => {});
+    if (this.#destroyed || token !== this.#editorPreviewToken) {
+      textures.dispose();
+      return;
+    }
+    this.#editorPreviewTextures = textures;
+    const { url, ...geometry } = spec;
+    this.#editorPreviewArt = { texture: textures.get(url), ...geometry };
+    this.#visuals?.setEditorPreviewArt(this.#editorPreviewArt);
   }
 
   #syncWorldEventContent(events: readonly WorldEventSnapshot[], force = false): void {
@@ -1108,6 +1130,10 @@ export class Hd2dRenderer implements RendererLike {
     this.#rafHandle = null;
     this.#frameCallbacks = [];
     this.#disposeScene();
+    this.#editorPreviewToken += 1;
+    this.#editorPreviewTextures?.dispose();
+    this.#editorPreviewTextures = null;
+    this.#editorPreviewArt = null;
     this.#textures.dispose();
   }
 
@@ -1384,6 +1410,26 @@ export class Hd2dRenderer implements RendererLike {
   /** Draws creator-only grid/collision/selection guides in the real HD-2D scene. */
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
     this.#visuals?.setEditorOverlay(overlay);
+  }
+
+  /** Loads only the currently selected creator asset and keeps it alive across terrain redraws. */
+  setEditorPreviewAsset(assetId: string | null): void {
+    if (assetId === this.#editorPreviewAssetId) {
+      this.#visuals?.setEditorPreviewArt(this.#editorPreviewArt);
+      return;
+    }
+    this.#editorPreviewAssetId = assetId;
+    const token = ++this.#editorPreviewToken;
+    this.#visuals?.setEditorPreviewArt(null);
+    this.#editorPreviewArt = null;
+    this.#editorPreviewTextures?.dispose();
+    this.#editorPreviewTextures = null;
+    if (!assetId) return;
+    void this.#loadEditorPreviewAsset(assetId, token).catch((error: unknown) => {
+      if (token === this.#editorPreviewToken) {
+        console.warn(`[hd2d] editor preview asset "${assetId}" could not be loaded`, error);
+      }
+    });
   }
 
   setAuthoredQuestMarkers(markers: readonly AuthoredQuestMarker[]): void {

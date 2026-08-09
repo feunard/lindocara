@@ -17,6 +17,7 @@ const mock = vi.hoisted(() => {
     setCameraFocus: vi.fn(),
     setCameraZoom: vi.fn(),
     setEditorOverlay: vi.fn(),
+    setEditorPreviewAsset: vi.fn(),
     setTiltShiftEnabled: vi.fn(),
   };
   return {
@@ -113,6 +114,31 @@ describe("HD-2D map editor stage", () => {
       expect.objectContaining({ showGrid: false, showCollisions: true }),
     );
     expect(mock.renderer.setCameraZoom).toHaveBeenLastCalledWith(42);
+    stage.dispose();
+  });
+
+  it("shows the selected decor and event art under the pointer with its footprint", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const tree = "resource.terrain-resources-wood-trees.tree3" as const;
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "element", assetId: tree });
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
+    expect(mock.renderer.setEditorPreviewAsset).toHaveBeenLastCalledWith(tree);
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        assetPreview: expect.objectContaining({
+          point: expect.any(Object),
+          footprint: expect.arrayContaining([expect.any(Object)]),
+        }),
+      }),
+    );
+
+    const guard = "character.units-green-units-warrior.warrior-idle" as const;
+    stage.setActiveMode("event");
+    stage.setTool({ kind: "event", eventKind: "guard", patrolRadius: 2, graphic: guard });
+    expect(mock.renderer.setEditorPreviewAsset).toHaveBeenLastCalledWith(guard);
     stage.dispose();
   });
 });

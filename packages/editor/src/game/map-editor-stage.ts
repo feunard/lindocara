@@ -12,8 +12,9 @@ import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
-import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
+import { authoredSkyAltitude } from "@lindocara/renderer/hd2d/static-content.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
 import type { SceneSample } from "@lindocara/renderer/scene-sample.js";
 import type {
@@ -85,6 +86,12 @@ export interface MapEditorStageState {
 
 export function defaultDimForMode(mode: EditorMode): boolean {
   return mode !== "field";
+}
+
+export function editorToolPreviewAssetId(tool: EditorTool): EditorAssetId | null {
+  if (tool.kind === "element") return tool.assetId;
+  if (tool.kind === "event") return tool.graphic ?? null;
+  return null;
 }
 
 const EMPTY_SAMPLE: SceneSample = {
@@ -187,6 +194,24 @@ export function openMapEditorStage(
         ? selectionPoint(map, { kind: "event", id: highlightedEventId })
         : selectionPoint(map, selected);
       const size = Math.max(cols, rows);
+      const hoverPoint = hover
+        ? {
+            x:
+              hover.col +
+              (history.activeMode === "element"
+                ? (hover.offsetX + 0.5) / ELEMENT_OFFSET_STEPS
+                : 0.5) -
+              size / 2,
+            z:
+              hover.row +
+              (history.activeMode === "element"
+                ? (hover.offsetY + 0.5) / ELEMENT_OFFSET_STEPS
+                : 0.5) -
+              size / 2,
+          }
+        : null;
+      const previewAssetId = editorToolPreviewAssetId(tool);
+      const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;
       renderer.setEditorOverlay({
         cols,
         rows,
@@ -194,12 +219,7 @@ export function openMapEditorStage(
         showCollisions: collisionsVisible,
         dim,
         colliders: [...heightfield.colliders, ...blockedCells(map, heightfield.levels)],
-        hover: hover
-          ? {
-              x: hover.col + (hover.offsetX + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
-              z: hover.row + (hover.offsetY + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
-            }
-          : null,
+        hover: hoverPoint,
         selection: focusSelection,
         stairsPreview:
           hover && tool.kind === "stairs"
@@ -207,6 +227,20 @@ export function openMapEditorStage(
                 ramp: authoredStairsRamp(hover.col, hover.row, size, tool.direction, tool.lowLevel),
                 valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
                 levelHeight: heightfield.levelHeight,
+              }
+            : null,
+        assetPreview:
+          hover && hoverPoint && previewAsset
+            ? {
+                point: hoverPoint,
+                footprint: previewAsset.editor.visualFootprint.map((cell) => ({
+                  x: hoverPoint.x + cell.col,
+                  z: hoverPoint.z + cell.row,
+                })),
+                valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
+                ...(previewAsset.editor.renderLayer === "sky"
+                  ? { skyAltitude: authoredSkyAltitude(heightfield) }
+                  : {}),
               }
             : null,
       });
@@ -479,6 +513,7 @@ export function openMapEditorStage(
     const handle: MapEditorStageHandle = {
       setTool(next) {
         tool = next;
+        renderer.setEditorPreviewAsset(editorToolPreviewAssetId(tool));
         canvas.dataset.cursor =
           tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
         drawOverlay();
