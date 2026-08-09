@@ -148,7 +148,7 @@ export interface MeshTerrainOptions {
 /**
  * Maille un `HeightField` : un quad de dessus par case (tuile d'autotile choisie par les arêtes
  * ouvertes, quatre couleurs de coin pour l'occlusion de contact) et, sur chaque côté qui domine un
- * voisin plus bas ou le vide, une paroi découpée en un quad par palier franchi, assombrie à son
+ * voisin plus bas ou le vide, une paroi continue sur toute la hauteur, assombrie à son
  * pied et teintée par la même fonction procédurale que le dessus.
  *
  * Dessus et parois d'un même atlas partagent UN SEUL accumulateur, comme le PoC : le nombre de
@@ -211,7 +211,7 @@ export function meshTerrain(
         ],
       );
 
-      // --- parois : un quad par palier franchi, côté par côté --------------------------------
+      // --- parois : une façade continue par côté exposé ---------------------------------------
       for (const [di, dj] of [
         [1, 0],
         [-1, 0],
@@ -254,29 +254,24 @@ export function meshTerrain(
         const pied = (elevation: number): number =>
           1 - AO_WALL * (1 - Math.min(1, (elevation - bottomY) / AO_WALL_HEIGHT));
 
-        let top = y;
-        let band = 0;
-        while (top > bottomY + 1e-4) {
-          const bottom = Math.max(bottomY, top - opts.levelHeight);
-          const w = tileUV(atlas, wallCol, band === 0 ? atlas.wallRow : atlas.wallRow + 1);
-          const [ab, ah] = [pied(bottom), pied(top)];
-          into(geo, material).quad(
-            [p0[0], bottom, p0[1]],
-            [p1[0], bottom, p1[1]],
-            [p1[0], top, p1[1]],
-            [p0[0], top, p0[1]],
-            [di, 0, dj],
-            [
-              [w.u0, w.v0],
-              [w.u1, w.v0],
-              [w.u1, w.v1],
-              [w.u0, w.v1],
-            ],
-            [ab, ab, ah, ah],
-          );
-          top = bottom;
-          band++;
-        }
+        // Repeating rows 4/5 once per crossed level made a level-2 cliff read as two cubes. One
+        // UV cell now stretches over the full drop, preserving a single tall-block silhouette.
+        const w = tileUV(atlas, wallCol, atlas.wallRow);
+        const [ab, ah] = [pied(bottomY), pied(y)];
+        into(geo, material).quad(
+          [p0[0], bottomY, p0[1]],
+          [p1[0], bottomY, p1[1]],
+          [p1[0], y, p1[1]],
+          [p0[0], y, p0[1]],
+          [di, 0, dj],
+          [
+            [w.u0, w.v0],
+            [w.u1, w.v0],
+            [w.u1, w.v1],
+            [w.u0, w.v1],
+          ],
+          [ab, ab, ah, ah],
+        );
       }
     }
   }

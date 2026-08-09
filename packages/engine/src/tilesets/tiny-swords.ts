@@ -34,9 +34,10 @@ const ATLAS = "tilemap-color1";
  */
 const RAISED_1_TINT = 0xdbdbdb;
 const RAISED_2_TINT = 0xb8b8b8;
+const RAISED_3_TINT = 0x969696;
 
 /** Autotile slots, in declaration order. The indices are the contract; the array below matches. */
-export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
+export const GRASS_SLOTS: readonly [number, number, number, number] = [0, 1, 2, 19];
 export const AUTHORED_TERRAIN_MATERIALS = [
   "herbe",
   "sable",
@@ -47,11 +48,11 @@ export const AUTHORED_TERRAIN_MATERIALS = [
 const EXTRA_TERRAIN_MATERIALS = AUTHORED_TERRAIN_MATERIALS.slice(1);
 export const TERRAIN_MATERIAL_SLOTS = {
   herbe: GRASS_SLOTS,
-  sable: [7, 8, 9],
-  neige: [10, 11, 12],
-  glace: [13, 14, 15],
-  "glace-fine": [16, 17, 18],
-} as const satisfies Readonly<Record<TerrainMaterial, readonly [number, number, number]>>;
+  sable: [7, 8, 9, 20],
+  neige: [10, 11, 12, 21],
+  glace: [13, 14, 15, 22],
+  "glace-fine": [16, 17, 18, 23],
+} as const satisfies Readonly<Record<TerrainMaterial, readonly [number, number, number, number]>>;
 export const CLIFF_WALL_SLOT = 3;
 export const CLIFF_WATER_SLOT = 4;
 export const CLIFF_WALL_HIGH_2_SLOT = 5;
@@ -155,6 +156,15 @@ export const TINY_SWORDS_TILESET: Tileset = {
       renderLevel: 2,
       tint: RAISED_1_TINT,
     },
+    {
+      atlas: ATLAS,
+      origin: { col: 5, row: 5 },
+      kind: "run4",
+      passable: false,
+      priority: "below",
+      renderLevel: 2,
+      tint: RAISED_1_TINT,
+    },
     // HD-2D terrain materials are encoded in the same stable tile-id space as elevation. The
     // retired 2D path may show the shared grass source for these slots, but the shipped editor and
     // game compile the material below and render their dedicated terrain atlas.
@@ -186,15 +196,17 @@ export const TINY_SWORDS_TILESET: Tileset = {
         tint: RAISED_2_TINT,
       },
     ]),
-    {
+    // Appended after every existing slot so persisted authored tile ids remain stable. The order
+    // mirrors AUTHORED_TERRAIN_MATERIALS and therefore yields the declared slots 19 through 23.
+    ...AUTHORED_TERRAIN_MATERIALS.map(() => ({
       atlas: ATLAS,
-      origin: { col: 5, row: 5 },
-      kind: "run4",
-      passable: false,
-      priority: "below",
-      renderLevel: 2,
-      tint: RAISED_1_TINT,
-    },
+      origin: { col: 5, row: 0 },
+      kind: "edge16" as const,
+      passable: true,
+      priority: "below" as const,
+      renderLevel: 3 as const,
+      tint: RAISED_3_TINT,
+    })),
   ],
   // Pixel Frog's two native stairs are atlas (0,4)+(0,5), climbing right, and
   // (3,4)+(3,5), climbing left. West keeps its dedicated source instead of mirroring pixels.
@@ -254,5 +266,5 @@ export function materialOfSlot(slot: number): TerrainMaterial {
 }
 
 export function terrainSlot(material: TerrainMaterial, level: number): number | null {
-  return TERRAIN_MATERIAL_SLOTS[material][level as 0 | 1 | 2] ?? null;
+  return TERRAIN_MATERIAL_SLOTS[material][level as 0 | 1 | 2 | 3] ?? null;
 }

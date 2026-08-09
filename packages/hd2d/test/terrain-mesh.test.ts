@@ -44,6 +44,12 @@ function allY(group: THREE.Group): number[] {
   return ys;
 }
 
+function vertexCount(group: THREE.Group): number {
+  return group.children
+    .filter((child): child is THREE.Mesh => child instanceof THREE.Mesh)
+    .reduce((count, child) => count + child.geometry.getAttribute("position").count, 0);
+}
+
 /**
  * Couleur du premier sommet trouvé à cette position monde, tous meshes du groupe confondus.
  * Localiser par POSITION plutôt que par index de buffer : ça survit à un réordonnancement interne
@@ -109,6 +115,20 @@ describe("meshTerrain", () => {
     expect(Math.min(...ys)).toBeCloseTo(0);
   });
 
+  it("construit une seule façade continue quelle que soit la hauteur du plateau", () => {
+    const ctx = createHd2dContext();
+    const low = meshTerrain(ctx, flat(1, 1, 1), {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    const high = meshTerrain(ctx, flat(1, 1, 3), {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    expect(vertexCount(high.group)).toBe(vertexCount(low.group));
+    expect(Math.max(...allY(high.group))).toBeCloseTo(2.7);
+  });
+
   it("porte une couleur de sommet pour l'occlusion de contact", () => {
     const ctx = createHd2dContext();
     const { group } = meshTerrain(ctx, flat(2, 2, 0), {
@@ -130,13 +150,8 @@ describe("meshTerrain", () => {
   });
 
   describe("couleur de sommet — valeurs, pas seulement présence", () => {
-    // Un palier isolé (voisins hors carte des quatre côtés) à DEUX niveaux, avec `levelHeight`
-    // calé sur `AO_WALL_HEIGHT` : `wallDrop` descend donc chaque paroi de ses deux paliers en
-    // DEUX bandes d'exactement `AO_WALL_HEIGHT` chacune. La frontière entre les deux bandes tombe
-    // pile à `AO_WALL_HEIGHT` au-dessus du pied (Y = AO_WALL_HEIGHT, occlusion dissipée) SANS
-    // coïncider avec le dessus (Y = 2 * AO_WALL_HEIGHT) : sans ce deuxième palier, le sommet
-    // "dissipé" que le brief demande serait au même Y que le dessus, et un `pied()` cassé qui
-    // renverrait toujours `1` passerait quand même le test en retombant sur le sommet du dessus.
+    // Un palier isolé à deux niveaux exerce la façade continue sur une hauteur supérieure à la
+    // distance de dissipation de l'occlusion, sans réintroduire de bande intermédiaire.
     const field = flat(1, 1, 2);
     const levelHeight = AO_WALL_HEIGHT;
 
@@ -186,13 +201,13 @@ describe("meshTerrain", () => {
       expect(color?.[2]).toBeCloseTo(tb * occlusion);
     });
 
-    it("l'occlusion de paroi est totalement dissipée à AO_WALL_HEIGHT au-dessus du pied", () => {
+    it("l'occlusion de paroi est totalement dissipée au sommet de la façade", () => {
       const ctx = createHd2dContext();
       const { group } = meshTerrain(ctx, field, { atlases: { herbe: atlas() }, levelHeight });
       // Même (x,z) que le test du pied, seul le Y change : isole la hauteur de dissipation de
       // tout le reste (teinte, position).
       const [tr, tg, tb] = tintAt(0.5, 0.5);
-      const color = colorAt(group, 0.5, levelHeight, 0.5);
+      const color = colorAt(group, 0.5, 2 * levelHeight, 0.5);
       expect(color).toBeDefined();
       expect(color?.[0]).toBeCloseTo(tr); // occlusion = 1
       expect(color?.[1]).toBeCloseTo(tg);

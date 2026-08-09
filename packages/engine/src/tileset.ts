@@ -29,7 +29,7 @@ export const FIXED_BASE = 1 + AUTOTILE_SLOTS * VARIANTS_PER_AUTOTILE;
 /** Drawn behind characters, or in front of them â€” an XP tile priority, reduced to two values. */
 export type TilePriority = "below" | "above";
 /** Visual elevation band used to interleave Tiny Swords shadows with terrain. */
-export type TileRenderLevel = 0 | 1 | 2;
+export type TileRenderLevel = 0 | 1 | 2 | 3;
 
 /**
  * `edge16` is the four-neighbour mask with sixteen variants â€” a full Wang set.

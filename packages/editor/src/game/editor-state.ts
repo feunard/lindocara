@@ -133,7 +133,7 @@ const GROUND_LAYER = 0;
  */
 export type RectFillContent =
   | { kind: "block"; block: "grass" | "water" }
-  | { kind: "elevation"; level: 0 | 1 | 2; material?: TerrainMaterial };
+  | { kind: "elevation"; level: 0 | 1 | 2 | 3; material?: TerrainMaterial };
 
 interface EditorEventToolBase {
   kind: "event";
@@ -161,7 +161,7 @@ export type EditorEventTool =
 
 export type EditorTool =
   | { kind: "block"; block: "grass" | "water" }
-  | { kind: "elevation"; level: 0 | 1 | 2; material?: TerrainMaterial }
+  | { kind: "elevation"; level: 0 | 1 | 2 | 3; material?: TerrainMaterial }
   | { kind: "element"; assetId: EditorAssetId }
   | { kind: "eraser" }
   | { kind: "spawn" }

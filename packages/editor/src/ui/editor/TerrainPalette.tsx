@@ -5,7 +5,7 @@ import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
 import type { RectFillContent } from "../../game/editor-state.js";
 
-const ELEVATION_LEVELS: (0 | 1 | 2)[] = [0, 1, 2];
+const ELEVATION_LEVELS: (0 | 1 | 2 | 3)[] = [0, 1, 2, 3];
 const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["east", "west"];
 const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1];
 const MATERIAL_OPTIONS: readonly TerrainMaterial[] = [
@@ -138,7 +138,7 @@ export function TerrainPalette({
           <span className="text-[11.5px] text-zinc-500">
             {t("editor.shell.terrain.elevationLabel")}
           </span>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-4 gap-1">
             {ELEVATION_LEVELS.map((level) => {
               const active =
                 terrainActive && selectedMaterial !== null && selectedLevel === level;
@@ -258,7 +258,7 @@ function TerrainMaterialPreview({
   level,
 }: {
   material: TerrainMaterial;
-  level: 0 | 1 | 2;
+  level: 0 | 1 | 2 | 3;
 }) {
   if (material === "herbe") return <TerrainTilePreview kind="grass" level={level} />;
   return (
@@ -267,7 +267,14 @@ function TerrainMaterialPreview({
       className="size-8 flex-none rounded border border-black/10 shadow-inner"
       style={{
         background: MATERIAL_BACKGROUNDS[material],
-        filter: level === 1 ? "brightness(.9)" : level === 2 ? "brightness(.8)" : undefined,
+        filter:
+          level === 1
+            ? "brightness(.9)"
+            : level === 2
+              ? "brightness(.8)"
+              : level === 3
+                ? "brightness(.7)"
+                : undefined,
       }}
     />
   );
@@ -325,7 +332,7 @@ function TerrainTilePreview({
   direction = "east",
 }: {
   kind: "grass" | "water" | "stairs";
-  level: 0 | 1 | 2;
+  level: 0 | 1 | 2 | 3;
   direction?: StairsDirection;
 }) {
   if (kind === "stairs") {
@@ -366,7 +373,14 @@ function TerrainTilePreview({
           backgroundImage: `url("${isWater ? TINY_SWORDS_TERRAIN.water : TINY_SWORDS_TERRAIN.tileset}")`,
           backgroundPosition: `${-atlasCol * 64}px ${-atlasRow * 64}px`,
           backgroundRepeat: "no-repeat",
-          filter: level === 1 ? "brightness(.86)" : level === 2 ? "brightness(.72)" : undefined,
+          filter:
+            level === 1
+              ? "brightness(.86)"
+              : level === 2
+                ? "brightness(.72)"
+                : level === 3
+                  ? "brightness(.62)"
+                  : undefined,
           imageRendering: "pixelated",
           transform: "translate(-50%, -50%) scale(.5)",
         }}

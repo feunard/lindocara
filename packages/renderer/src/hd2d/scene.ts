@@ -88,14 +88,14 @@ export function setHd2dGroundPalette(palette: string): boolean {
  *
  * Grass reads its tileset from its ALTITUDE — the pack ships the same sheet in five hues, so a
  * plateau is a different green rather than the same green with a tint slapped over it. Sand, snow
- * and ice read theirs from the material instead; they never appear at more than one level in
- * practice, and their identity is the material, not the height. `"glace-fine"` (thin ice, a RULE
+ * and ice read theirs from the material instead; their identity is the material, not the height.
+ * `"glace-fine"` (thin ice, a RULE
  * material) shares ice's appearance, exactly as it does in the lab.
  */
 export function terrainAtlasKey(material: string, level: number): string {
   if (material === "sable" || material === "neige") return material;
   if (material === "glace" || material === "glace-fine") return "glace";
-  return `lvl${Math.min(2, Math.max(0, Math.round(level)))}`;
+  return `lvl${Math.min(3, Math.max(0, Math.round(level)))}`;
 }
 
 /**
@@ -103,7 +103,7 @@ export function terrainAtlasKey(material: string, level: number): string {
  *
  * `block` says which 4x4 group the sheet holds. Level 0 always borders the WATER directly (a level-0
  * cell never carries a cliff face towards the sea — see `wallDrop`), so it takes the water-edge
- * group, whose white shore line is already painted in. Levels 1 and 2 necessarily border a VOID
+ * group, whose white shore line is already painted in. Raised levels necessarily border a VOID
  * (they dominate a lower neighbour), so they take the bushy cliff-edge group, the one that joins the
  * stone wall on rows 4-5. Sand only ever exists at level 0, but Update 010's flat sheet reuses the
  * SAME column layout as the cliff-edge group for its own sand-against-grass trim.
@@ -127,6 +127,7 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
     lvl0: sheet(palette ?? "Tilemap_color1.png", "water-edge", 9, 6),
     lvl1: sheet(palette ?? "Tilemap_color3.png", "cliff-edge", 9, 6),
     lvl2: sheet(palette ?? "Tilemap_color4.png", "cliff-edge", 9, 6),
+    lvl3: sheet(palette ?? "Tilemap_color5.png", "cliff-edge", 9, 6),
     // Never a wall for sand (always at level 0): `wallRow` is never read here, kept at 4 out of
     // consistency with the others rather than out of necessity.
     sable: sheet("Tilemap_Flat.png", "cliff-edge", 10, 4),

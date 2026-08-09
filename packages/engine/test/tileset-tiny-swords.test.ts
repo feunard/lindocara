@@ -14,18 +14,22 @@ describe("the Tiny Swords tileset", () => {
     expect(tilesetById("nope")).toBeNull();
   });
 
-  it("gives level 0 the flat group and levels 1 and 2 the raised group", () => {
-    const [flat, one, two] = GRASS_SLOTS;
+  it("gives level 0 the flat group and levels 1 through 3 the raised group", () => {
+    const [flat, one, two, three] = GRASS_SLOTS;
     expect(TINY_SWORDS_TILESET.autotiles[flat]?.origin).toEqual({ col: 0, row: 0 });
     expect(TINY_SWORDS_TILESET.autotiles[one]?.origin).toEqual({ col: 5, row: 0 });
     expect(TINY_SWORDS_TILESET.autotiles[two]?.origin).toEqual({ col: 5, row: 0 });
+    expect(TINY_SWORDS_TILESET.autotiles[three]?.origin).toEqual({ col: 5, row: 0 });
   });
 
   it("shades the raised levels apart and leaves the ground untinted", () => {
-    const [flat, one, two] = GRASS_SLOTS;
+    const [flat, one, two, three] = GRASS_SLOTS;
     expect(TINY_SWORDS_TILESET.autotiles[flat]?.tint).toBeUndefined();
     expect(TINY_SWORDS_TILESET.autotiles[one]?.tint).not.toBe(
       TINY_SWORDS_TILESET.autotiles[two]?.tint,
+    );
+    expect(TINY_SWORDS_TILESET.autotiles[two]?.tint).not.toBe(
+      TINY_SWORDS_TILESET.autotiles[three]?.tint,
     );
   });
 
@@ -43,7 +47,7 @@ describe("the Tiny Swords tileset", () => {
   });
 
   it("maps slots back to elevation levels", () => {
-    expect(GRASS_SLOTS.map(elevationOfSlot)).toEqual([0, 1, 2]);
+    expect(GRASS_SLOTS.map(elevationOfSlot)).toEqual([0, 1, 2, 3]);
     expect(elevationOfSlot(CLIFF_WALL_SLOT)).toBe(-1);
   });
 

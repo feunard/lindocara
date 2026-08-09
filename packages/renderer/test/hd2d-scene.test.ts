@@ -31,6 +31,7 @@ function allAtlases(): Record<string, TerrainAtlas> {
     lvl0: atlas(),
     lvl1: atlas(),
     lvl2: atlas(),
+    lvl3: atlas(),
     sable: atlas(),
     neige: atlas(),
     glace: atlas(),
@@ -91,6 +92,7 @@ describe("the HD-2D scene's terrain", () => {
     ]);
     expect(terrainAtlasKey("herbe", 0)).toBe("lvl0");
     expect(terrainAtlasKey("herbe", 1)).toBe("lvl1");
+    expect(terrainAtlasKey("herbe", 3)).toBe("lvl3");
     expect(terrainAtlasKey("sable", 0)).toBe("sable");
 
     const { group } = terrainGroupFor(ctx, map, allAtlases());
