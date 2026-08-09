@@ -60,6 +60,9 @@ export interface StaticSpriteArt {
   /** Where the art's feet sit in its frame, as a fraction of frame height from the bottom. */
   foot?: number;
   uvRect?: TextureUvRect;
+  /** Full-loop duration for a catalogue entry explicitly classified as `animated`. Technical
+   * multi-state sheets omit it and remain pinned to frame zero. */
+  animationDurationMs?: number;
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
@@ -67,7 +70,29 @@ export interface StaticSpriteArt {
 export type StaticArtResolver = (assetId: string) => StaticSpriteArt | null;
 
 export interface StaticContent {
+  update(now: number): void;
   dispose(): void;
+}
+
+export function staticAnimationFrame(
+  now: number,
+  durationMs: number,
+  frames: number,
+  phaseMs = 0,
+): number {
+  if (frames <= 1 || durationMs <= 0) return 0;
+  const elapsed = (((now + phaseMs) % durationMs) + durationMs) % durationMs;
+  return Math.min(frames - 1, Math.floor((elapsed / durationMs) * frames));
+}
+
+function placementPhase(assetId: string, x: number, z: number, durationMs: number): number {
+  let hash = 2_166_136_261;
+  const key = `${assetId}:${x.toFixed(3)}:${z.toFixed(3)}`;
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0) % Math.max(1, durationMs);
 }
 
 /**
@@ -87,7 +112,12 @@ export function placeStaticContent(
   map: MapData,
   resolve: StaticArtResolver,
 ): StaticContent {
-  const placed: Billboard[] = [];
+  const placed: {
+    billboard: Billboard;
+    frames: number;
+    durationMs: number;
+    phaseMs: number;
+  }[] = [];
   /** Unresolved ids, counted rather than reported one by one. A map dressed entirely out of assets
    *  this build cannot draw — the sub-rect crops are a real such family — would otherwise emit one
    *  line per PLACEMENT, hundreds of them, and bury whatever else the console had to say. The same
@@ -132,7 +162,14 @@ export function placeStaticContent(
       }
     }
     scene.root.add(billboard.mesh);
-    placed.push(billboard);
+    placed.push({
+      billboard,
+      frames: (sprite.cols ?? 1) * (sprite.rows ?? 1),
+      durationMs: sprite.animationDurationMs ?? 0,
+      phaseMs: sprite.animationDurationMs
+        ? placementPhase(assetId, x, z, sprite.animationDurationMs)
+        : 0,
+    });
   }
 
   for (const element of map.elements) place(element.assetId, element.x, element.z);
@@ -147,10 +184,17 @@ export function placeStaticContent(
   }
 
   return {
+    update(now) {
+      for (const placement of placed) {
+        placement.billboard.setFrame(
+          staticAnimationFrame(now, placement.durationMs, placement.frames, placement.phaseMs),
+        );
+      }
+    },
     dispose() {
-      for (const billboard of placed) {
-        scene.root.remove(billboard.mesh);
-        billboard.dispose();
+      for (const placement of placed) {
+        scene.root.remove(placement.billboard.mesh);
+        placement.billboard.dispose();
       }
       placed.length = 0;
     },

@@ -269,6 +269,9 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     height: framePx.height / TILE_SIZE,
     aspect: framePx.width / framePx.height,
     foot: definition.footOffset / framePx.height + (1 - definition.anchor.y),
+    ...(definition.nature === "animated" && !crop && count > 1
+      ? { animationDurationMs: frame?.durationMs ?? count * 145 }
+      : {}),
     ...(crop
       ? {
           uvRect: {
@@ -813,6 +816,8 @@ export class Hd2dRenderer implements RendererLike {
 
     this.#actors?.sync(this.#collectActors(sample, context.now));
     this.#syncWorldEventContent(sample.events);
+    this.#content?.update(context.now);
+    this.#eventContent?.update(context.now);
     this.#visuals?.syncLocalHero(context.self ?? null, context.movement ?? null, context.now);
     this.#visuals?.sync(sample, context.now);
 
