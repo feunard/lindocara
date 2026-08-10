@@ -252,6 +252,10 @@ export function openMapEditorStage(
         colliders: [...heightfield.colliders, ...blockedCells(map, heightfield.levels)],
         hover: hoverPoint,
         selection: focusSelection,
+        // The cursor outlines the unit the active mode actually places on: a whole cell for field
+        // and event work, one of the 4x4 sub-cell slots in element mode (`hoverPoint` is already a
+        // quarter-cell centre there).
+        cursorCells: history.activeMode === "element" ? 1 / ELEMENT_OFFSET_STEPS : 1,
         stairsPreview:
           hover && tool.kind === "stairs"
             ? {

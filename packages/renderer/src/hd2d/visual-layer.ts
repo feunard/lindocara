@@ -107,6 +107,9 @@ export interface Hd2dEditorOverlay {
   colliders: readonly ColliderRect[];
   hover?: GroundVector | null;
   selection?: GroundVector | null;
+  /** Side of the hover/selection outline, in cells. Field and event modes mark a whole cell (1);
+   *  element mode places at quarter cells and marks one of those. Defaults to 1. */
+  cursorCells?: number;
   stairsPreview?: { ramp: TerrainRamp; valid: boolean; levelHeight: number } | null;
   assetPreview?: {
     point: GroundVector;
@@ -195,6 +198,29 @@ export function projectileFrameIndex(
 ): number {
   const count = Math.max(1, Math.trunc(frames));
   return Math.floor((Math.max(0, elapsedMs) / Math.max(1, durationMs)) * count) % count;
+}
+
+/** The cursor outline's border thickness, as a fraction of the cell it marks — so the band stays in
+ *  proportion when the cursor shrinks to a quarter cell in element mode. */
+const EDITOR_CURSOR_BAND = 0.08;
+
+/**
+ * The square outline the editor draws under the pointer and around the selection, sized so its side
+ * is exactly `sideCells` — one grid cell in field/event mode, a quarter in element mode.
+ *
+ * `RingGeometry` is POLAR: with four segments its corners sit at the radius, so a square built from
+ * it has side `radius * sqrt(2)`, not `radius`. The old cursor passed the cell's half-width (0.5) as
+ * the radius and therefore drew a square 0.707 cells across — noticeably inside the grid line it was
+ * meant to trace. Converting side -> radius here is the whole fix, and baking the 45° turn into the
+ * geometry (rather than the mesh) is what lets a test measure the bounding box and see the side.
+ */
+export function editorCursorGeometry(sideCells: number): THREE.RingGeometry {
+  const toRadius = Math.SQRT2 / 2;
+  const outer = sideCells * toRadius;
+  const inner = Math.max(0, sideCells * (1 - 2 * EDITOR_CURSOR_BAND)) * toRadius;
+  const geometry = new THREE.RingGeometry(inner, outer, 4);
+  geometry.rotateZ(Math.PI / 4);
+  return geometry;
 }
 
 /** Server projectile `y` is collision elevation (normally the shooter's ground), not the centre of
@@ -1203,17 +1229,22 @@ export class Hd2dVisualLayer {
       }
     }
 
-    const addCursor = (point: GroundVector, color: number, scale: number): void => {
+    // One cell unless the caller says otherwise — element mode marks a quarter cell, which is the
+    // unit it actually places on.
+    const cursorCells = overlay.cursorCells ?? 1;
+    const addCursor = (point: GroundVector, color: number, lift: number): void => {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.42 * scale, 0.5 * scale, 4),
+        editorCursorGeometry(cursorCells),
         transparentMaterial(color, 0.92),
       );
-      ring.rotation.set(-Math.PI / 2, 0, Math.PI / 4);
-      ring.position.set(point.x, this.#groundY(point.x, point.z, 0.13), point.z);
+      ring.rotation.set(-Math.PI / 2, 0, 0);
+      ring.position.set(point.x, this.#groundY(point.x, point.z, lift), point.z);
       this.#editorRoot.add(ring);
     };
-    if (overlay.hover) addCursor(overlay.hover, 0xffd66b, 1);
-    if (overlay.selection) addCursor(overlay.selection, 0x57d6ff, 1.12);
+    // Both trace the same cell now, so the selection is separated by colour and by drawing just
+    // above the hover rather than by being oversized.
+    if (overlay.hover) addCursor(overlay.hover, 0xffd66b, 0.13);
+    if (overlay.selection) addCursor(overlay.selection, 0x57d6ff, 0.135);
     if (overlay.assetPreview) {
       for (const point of overlay.assetPreview.footprint) {
         const cell = new THREE.Mesh(

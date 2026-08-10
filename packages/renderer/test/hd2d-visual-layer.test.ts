@@ -7,6 +7,7 @@ import {
   AUTHORED_EFFECT_GROUND_CLEARANCE,
   centerProjectileGeometry,
   depthBiasedEffectPosition,
+  editorCursorGeometry,
   Hd2dVisualLayer,
   PROJECTILE_BILLBOARD_FOOT,
   projectileBillboardAngle,
@@ -181,5 +182,25 @@ describe("Hd2dVisualLayer restored authored effects", () => {
 
     expect(layer.diagnostics().effects).toBe(28);
     layer.dispose();
+  });
+
+  // The grid draws its cells on exact unit boundaries (`col - half` .. `col + 1 - half`), so a cell
+  // is 1.0 across. The cursor used to be a polar `RingGeometry(0.42, 0.5, 4)`, whose four corners
+  // sit at the RADIUS — making its side 0.5 * sqrt(2) ~= 0.707, visibly smaller than the cell it
+  // was meant to outline. The size the caller asks for is now the side, measured.
+  it("sizes the editor cursor by cell side, not by polar radius", () => {
+    const cell = editorCursorGeometry(1);
+    cell.computeBoundingBox();
+    const box = cell.boundingBox;
+    if (!box) throw new Error("geometry has no bounding box");
+    expect(box.max.x - box.min.x).toBeCloseTo(1, 5);
+    expect(box.max.y - box.min.y).toBeCloseTo(1, 5);
+
+    // Element mode places at quarter cells, so its cursor must shrink with the unit it marks.
+    const quarter = editorCursorGeometry(0.25);
+    quarter.computeBoundingBox();
+    const quarterBox = quarter.boundingBox;
+    if (!quarterBox) throw new Error("geometry has no bounding box");
+    expect(quarterBox.max.x - quarterBox.min.x).toBeCloseTo(0.25, 5);
   });
 });
