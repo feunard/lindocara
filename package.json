@@ -47,6 +47,8 @@
     "map:check": "npm run map:build && git diff --exit-code -- packages/engine/src/zones/verdant-reach-tiles.ts packages/engine/src/zones/mmo-test-zone-tiles.ts packages/engine/src/zones/sunken-isles-tiles.ts",
     "catalog:build": "npm run catalog:build -w @lindocara/catalog",
     "catalog:check": "npm run catalog:check -w @lindocara/catalog",
+    "music:catalog": "tsx scripts/build-music-catalog.ts",
+    "music:check": "tsx scripts/build-music-catalog.ts --check",
     "format": "biome format --write .",
     "typecheck": "npm run typecheck:engine && npm run typecheck:hd2d && npm run typecheck:lab && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:editor && npm run typecheck:testing && npm run typecheck:catalog && npm run typecheck:main && tsc -p tsconfig.tooling.json && tsc -p tsconfig.tooling.api.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",
@@ -58,7 +60,7 @@
     "typecheck:editor": "tsc -p packages/editor/tsconfig.json && tsc -p packages/editor/tsconfig.api.json",
     "typecheck:testing": "tsc -p packages/testing/tsconfig.json",
     "typecheck:main": "tsc -p apps/main/tsconfig.json",
-    "check": "npm run catalog:check && npm run map:check && npm run lint && npm run typecheck && npm run test",
+    "check": "npm run catalog:check && npm run music:check && npm run map:check && npm run lint && npm run typecheck && npm run test",
     "check:runtime": "npm run lint && npm run typecheck && npm run test:runtime && npm run test:ui:runtime && npm run build",
     "typecheck:catalog": "tsc -p packages/catalog/tsconfig.json",
     "v": "alepha verify"

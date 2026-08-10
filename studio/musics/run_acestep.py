@@ -10,6 +10,7 @@ Everything about the art direction comes from the caller (studio.py applies them
 this script only knows how to drive the model.
 """
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -28,12 +29,25 @@ def main():
     ap.add_argument("--vocal", action="store_true", help="Allow vocals (default: instrumental).")
     ap.add_argument("--bpm", type=int, default=None)
     ap.add_argument("--steps", type=int, default=8, help="8 suits the turbo model.")
+    ap.add_argument("--reference-audio", default=None,
+                    help="Optional style/melodic reference accepted by ACE-Step.")
+    ap.add_argument("--format", default="wav",
+                    choices=["mp3", "wav", "flac", "wav32", "opus", "aac"])
+    ap.add_argument("--mp3-bitrate", default="192k",
+                    choices=["128k", "192k", "256k", "320k"])
     ap.add_argument("--lm", default="acestep-5Hz-lm-1.7B")
     ap.add_argument("--dit", default="acestep-v15-turbo")
     ap.add_argument("--lm-backend", dest="lm_backend", default="pt", choices=["mlx", "pt", "vllm"],
                     help="mlx on Apple Silicon, pt on CUDA (vllm is Linux-only).")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
+
+    if not 10 <= args.duration <= 600:
+        ap.error("--duration must be between 10 and 600 seconds")
+    if args.bpm is not None and not 30 <= args.bpm <= 300:
+        ap.error("--bpm must be between 30 and 300")
+    if args.steps < 1:
+        ap.error("--steps must be positive")
 
     if not os.path.isdir(CHECKPOINTS):
         sys.exit("checkpoints missing — run: "
@@ -61,8 +75,20 @@ def main():
         bpm=args.bpm,
         inference_steps=args.steps,
         seed=args.seed,
+        reference_audio=args.reference_audio,
     )
-    config = GenerationConfig(batch_size=1, audio_format="wav")
+    # `GenerationConfig.use_random_seed` defaults to True and overrides GenerationParams.seed.
+    # Always pass the seed through the config as well so a recorded Lindocara generation is truly
+    # reproducible. `-1` deliberately retains ACE-Step's random-seed mode.
+    deterministic = args.seed >= 0
+    config = GenerationConfig(
+        batch_size=1,
+        use_random_seed=not deterministic,
+        seeds=[args.seed] if deterministic else None,
+        audio_format=args.format,
+        mp3_bitrate=args.mp3_bitrate,
+        mp3_sample_rate=48000,
+    )
 
     tmp = tempfile.mkdtemp(prefix="acestep-")
     result = generate_music(dit_handler, llm_handler, params, config, save_dir=tmp)
@@ -76,9 +102,20 @@ def main():
     out_dir = os.path.dirname(os.path.abspath(args.out))
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    shutil.move(produced, args.out)
+    # ACE-Step stages under the system temp directory, which can be a different Windows volume
+    # from the repository. Copy into a sibling temp file first, then atomically replace the target.
+    suffix = os.path.splitext(args.out)[1]
+    handle, staged_out = tempfile.mkstemp(prefix=".music-", suffix=suffix, dir=out_dir)
+    os.close(handle)
+    try:
+        shutil.copy2(produced, staged_out)
+        os.replace(staged_out, args.out)
+    finally:
+        if os.path.exists(staged_out):
+            os.unlink(staged_out)
     shutil.rmtree(tmp, ignore_errors=True)
-    print("wrote %s" % args.out)
+    actual_seed = result.audios[0].get("params", {}).get("seed", args.seed)
+    print(json.dumps({"path": args.out, "seed": actual_seed, "format": args.format}))
 
 
 if __name__ == "__main__":

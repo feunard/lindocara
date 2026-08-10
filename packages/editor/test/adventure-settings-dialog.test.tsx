@@ -259,8 +259,9 @@ describe("AdventureSettingsDialog", () => {
     // Only the shell fields remain — no Exits/bindings destination selects, no validation readout.
     expect(await screen.findByLabelText(t("adventure.name"))).toBeInTheDocument();
     expect(screen.getByLabelText(t("adventure.players"))).toBeInTheDocument();
-    // The only selects are the three soundscape channels; graph destination controls stay gone.
-    expect(screen.getAllByRole("combobox")).toHaveLength(3);
+    // The only selects are the six dynamic situations, ambience and two legacy fallbacks; graph
+    // destination controls stay gone.
+    expect(screen.getAllByRole("combobox")).toHaveLength(9);
     expect(screen.queryByText(/validation/i)).toBeNull();
   });
 

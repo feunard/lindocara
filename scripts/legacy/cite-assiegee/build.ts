@@ -15,6 +15,7 @@ import {
   parseAdventureBundle,
 } from "@lindocara/engine/adventure-bundle.js";
 import { parseAdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
 import {
   validateBundleMaps,
@@ -35,9 +36,12 @@ const bundle: AdventureBundle = {
     title: "La Cité assiégée",
     maxPlayers: 4,
     audio: {
+      ...DEFAULT_ADVENTURE_AUDIO,
       music: "plain-1",
       ambience: "forest-ambience",
       combatMusic: "boss-1",
+      explorationProfile: null,
+      combatProfile: null,
     },
     registry: { switches: SWITCHES, variables: VARIABLES, quests: [] },
   },

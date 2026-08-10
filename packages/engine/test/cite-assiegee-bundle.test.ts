@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { type AdventureBundle, parseAdventureBundle } from "../src/adventure-bundle.js";
+import { DEFAULT_ADVENTURE_AUDIO } from "../src/audio-catalog.js";
 import type { EventCommand } from "../src/event-commands.js";
 import { CURATED_MONSTER_SPECIES } from "../src/game.js";
 
@@ -42,9 +43,12 @@ describe("La Cité assiégée generated bundle", () => {
       "La Cour centrale",
     ]);
     expect(BUNDLE.adventure.audio).toEqual({
+      ...DEFAULT_ADVENTURE_AUDIO,
       music: "plain-1",
       ambience: "forest-ambience",
       combatMusic: "boss-1",
+      explorationProfile: null,
+      combatProfile: null,
     });
     expect(BUNDLE.maps.map((map) => map.audio?.music)).toEqual([
       "plain-1",

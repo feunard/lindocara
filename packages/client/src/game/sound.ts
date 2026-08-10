@@ -2,7 +2,7 @@ import {
   type AdventureAudioConfig,
   ambienceTrack,
   DEFAULT_ADVENTURE_AUDIO,
-  musicTrack,
+  MUSIC_PROFILE_FIELDS,
 } from "@lindocara/engine/audio-catalog.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
@@ -19,6 +19,7 @@ import {
   type UiSampleKey,
   uniqueSampleSources,
 } from "./combat-sounds.js";
+import { DynamicMusicPlayer } from "./dynamic-music.js";
 import {
   type MovementSoundCue,
   movementSkidIntensity,
@@ -33,11 +34,40 @@ const SEA_GUARDIAN_DEVOUR = "/assets/lindocara/audio/sfx/sea-guardian-devour.wav
 const CHARGE_IMPACT_WINDOW_MS = 900;
 const COMBAT_MUSIC_HOLD_MS = 8_000;
 const COMBAT_THREAT_RELEASE_MS = 500;
-const MUSIC_CROSSFADE_MS = 650;
 const SHEEP_BLEATS = [1, 2, 3, 4].map((index) => `/assets/lindocara/sfx/bleat-${index}.ogg`);
 const SHEEP_POPS = [1, 2, 3].map((index) => `/assets/lindocara/sfx/pop-${index}.ogg`);
 const CHEST_OPEN = [1, 2].map((index) => `/assets/lindocara/sfx/chest-${index}.ogg`);
 const CHEST_CLOSE = [1, 2].map((index) => `/assets/lindocara/sfx/chest-close-${index}.ogg`);
+
+type SceneAudioInput = Pick<AdventureAudioConfig, "music" | "ambience" | "combatMusic"> &
+  Partial<AdventureAudioConfig>;
+
+function normalizeSceneAudio(audio: SceneAudioInput): AdventureAudioConfig {
+  if (MUSIC_PROFILE_FIELDS.some((field) => Object.hasOwn(audio, field))) {
+    return { ...DEFAULT_ADVENTURE_AUDIO, ...audio };
+  }
+  // A welcome from a pre-profile server only has the original three fields. Preserve that exact
+  // soundtrack instead of allowing newly introduced defaults to shadow its authored tracks.
+  return {
+    ...DEFAULT_ADVENTURE_AUDIO,
+    ...audio,
+    explorationProfile: null,
+    nightProfile: null,
+    discoveryProfile: null,
+    dangerProfile: null,
+    combatProfile: null,
+    bossProfile: null,
+  };
+}
+
+function sameSceneAudio(left: AdventureAudioConfig, right: AdventureAudioConfig): boolean {
+  return (
+    left.music === right.music &&
+    left.ambience === right.ambience &&
+    left.combatMusic === right.combatMusic &&
+    MUSIC_PROFILE_FIELDS.every((field) => left[field] === right[field])
+  );
+}
 
 function stableHash(value: string): number {
   let hash = 2_166_136_261;
@@ -48,40 +78,20 @@ function stableHash(value: string): number {
   return hash >>> 0;
 }
 
-interface MusicFade {
-  startedAt: number;
-  explorationFrom: number;
-  combatFrom: number;
-  explorationTo: number;
-  combatTo: number;
-}
-
-function sameSceneAudio(left: AdventureAudioConfig, right: AdventureAudioConfig): boolean {
-  return (
-    left.music === right.music &&
-    left.ambience === right.ambience &&
-    left.combatMusic === right.combatMusic
-  );
-}
-
 export class GameSound {
   #context: AudioContext | null = null;
-  #explorationMusic: HTMLAudioElement | null = null;
-  #combatMusic: HTMLAudioElement | null = null;
   #ambience: HTMLAudioElement | null = null;
   #seaGuardianAmbience: HTMLAudioElement | null = null;
   #seaGuardianNearby = false;
-  #explorationMusicSrc: string | null = null;
-  #combatMusicSrc: string | null = null;
   #ambienceSrc: string | null = null;
   #scene: AdventureAudioConfig = { ...DEFAULT_ADVENTURE_AUDIO };
+  readonly #music: DynamicMusicPlayer;
   #combatUntil = 0;
+  #discoveryUntil = 0;
   #combatThreatened = false;
+  #bossThreatened = false;
   #combatThreatReleaseAt = 0;
-  #combatActive = false;
-  #explorationWeight = 1;
-  #combatWeight = 0;
-  #musicFade: MusicFade | null = null;
+  #nightWeight = 0;
   #unlocked = false;
   #visibilityBound = false;
   #settingsBound = false;
@@ -93,37 +103,60 @@ export class GameSound {
   #skidSource: AudioBufferSourceNode | null = null;
   #skidGain: GainNode | null = null;
 
+  constructor() {
+    this.#music = new DynamicMusicPlayer(
+      this.#scene,
+      () => {
+        const { muted, ambientVolume, musicEnabled } = getAudioSettings();
+        return muted || !musicEnabled ? 0 : MUSIC_BASE * ambientVolume;
+      },
+      () => {
+        const { muted, musicEnabled } = getAudioSettings();
+        return (
+          this.#unlocked &&
+          (typeof document === "undefined" || !document.hidden) &&
+          !muted &&
+          musicEnabled
+        );
+      },
+    );
+  }
+
   unlock(): void {
     if (!this.#context) this.#context = new AudioContext();
     if (this.#context.state === "suspended") void this.#context.resume();
     this.#unlocked = true;
     this.#bindVisibility();
     this.#bindSettings();
+    this.#music.start();
     this.#syncSceneAudio();
     void this.#loadSamples();
   }
 
-  configureScene(audio: AdventureAudioConfig = DEFAULT_ADVENTURE_AUDIO): void {
-    const nextScene = { ...audio };
+  configureScene(audio: SceneAudioInput = DEFAULT_ADVENTURE_AUDIO): void {
+    const nextScene = normalizeSceneAudio(audio);
     if (sameSceneAudio(this.#scene, nextScene)) return;
     this.#scene = nextScene;
     this.#combatUntil = 0;
+    this.#discoveryUntil = 0;
     this.#combatThreatened = false;
+    this.#bossThreatened = false;
     this.#combatThreatReleaseAt = 0;
-    this.#combatActive = false;
-    this.#explorationWeight = 1;
-    this.#combatWeight = 0;
-    this.#musicFade = null;
-    this.#stopElement(this.#combatMusic);
-    this.#combatMusic = null;
+    this.#music.configure(nextScene);
+    this.#refreshDynamicMusic(performance.now());
     this.#syncSceneAudio();
   }
 
   combatPulse(): void {
-    if (this.#scene.combatMusic === null) return;
     const now = performance.now();
     this.#combatUntil = now + COMBAT_MUSIC_HOLD_MS;
-    this.#refreshCombatMusic(now);
+    this.#refreshDynamicMusic(now);
+  }
+
+  discoveryPulse(durationMs = 6_000): void {
+    const now = performance.now();
+    this.#discoveryUntil = now + Math.max(0, durationMs);
+    this.#refreshDynamicMusic(now);
   }
 
   /**
@@ -131,17 +164,25 @@ export class GameSound {
    * any activity hold left by previous hits after a short confirmation window. That window absorbs
    * one missing/delayed snapshot without hiding a real end of combat.
    */
-  setCombatThreatened(threatened: boolean): void {
-    if (threatened === this.#combatThreatened) return;
+  setCombatThreatened(threatened: boolean, boss = false): void {
+    if (threatened === this.#combatThreatened && boss === this.#bossThreatened) return;
     const wasThreatened = this.#combatThreatened;
     this.#combatThreatened = threatened;
+    this.#bossThreatened = threatened && boss;
     const now = performance.now();
     if (threatened) this.#combatThreatReleaseAt = 0;
     else if (wasThreatened) {
       this.#combatUntil = 0;
       this.#combatThreatReleaseAt = now + COMBAT_THREAT_RELEASE_MS;
     }
-    this.#refreshCombatMusic(now);
+    this.#refreshDynamicMusic(now);
+  }
+
+  setNightWeight(weight: number): void {
+    const next = Math.max(0, Math.min(1, weight));
+    if (next === this.#nightWeight) return;
+    this.#nightWeight = next;
+    this.#refreshDynamicMusic(performance.now());
   }
 
   update(now = performance.now()): void {
@@ -151,8 +192,9 @@ export class GameSound {
     if (this.#combatUntil !== 0 && now >= this.#combatUntil) {
       this.#combatUntil = 0;
     }
-    this.#refreshCombatMusic(now);
-    this.#applyMusicFade(now);
+    if (this.#discoveryUntil !== 0 && now >= this.#discoveryUntil) this.#discoveryUntil = 0;
+    this.#refreshDynamicMusic(now);
+    this.#music.update(now);
   }
 
   /** Executes the decorative consequences narrated by the pure movement rule. */
@@ -183,25 +225,19 @@ export class GameSound {
   }
 
   stopAmbient(): void {
-    this.#stopElement(this.#explorationMusic);
-    this.#stopElement(this.#combatMusic);
+    this.#music.stop();
     this.#stopElement(this.#ambience);
     this.#stopElement(this.#seaGuardianAmbience);
-    this.#explorationMusic = null;
-    this.#combatMusic = null;
     this.#ambience = null;
     this.#seaGuardianAmbience = null;
     this.#seaGuardianNearby = false;
-    this.#explorationMusicSrc = null;
-    this.#combatMusicSrc = null;
     this.#ambienceSrc = null;
     this.#combatUntil = 0;
+    this.#discoveryUntil = 0;
     this.#combatThreatened = false;
+    this.#bossThreatened = false;
     this.#combatThreatReleaseAt = 0;
-    this.#combatActive = false;
-    this.#explorationWeight = 1;
-    this.#combatWeight = 0;
-    this.#musicFade = null;
+    this.#nightWeight = 0;
     this.#skidSource?.stop();
     this.#skidSource?.disconnect();
     this.#skidGain?.disconnect();
@@ -280,64 +316,24 @@ export class GameSound {
   }
 
   #syncSceneAudio(): void {
-    this.#syncMusic();
+    this.#music.start();
     this.#syncAmbience();
     this.#syncVolumes();
     this.#syncPlayback();
   }
 
-  #syncMusic(): void {
-    const explorationSrc = musicTrack(this.#scene.music)?.src ?? null;
-    if (explorationSrc !== this.#explorationMusicSrc) {
-      this.#stopElement(this.#explorationMusic);
-      this.#explorationMusic = this.#createLoop(explorationSrc);
-      this.#explorationMusicSrc = explorationSrc;
-    }
-    const combatSrc = musicTrack(this.#scene.combatMusic)?.src ?? null;
-    if (combatSrc !== this.#combatMusicSrc) {
-      this.#stopElement(this.#combatMusic);
-      this.#combatMusic = null;
-      this.#combatMusicSrc = combatSrc;
-    }
-    this.#syncVolumes();
-    this.#syncPlayback();
-  }
-
-  #refreshCombatMusic(now: number): void {
-    const shouldFight =
-      this.#combatMusicSrc !== null &&
-      (this.#combatThreatened || this.#combatThreatReleaseAt > now || this.#combatUntil > now);
-    if (shouldFight === this.#combatActive) return;
-    this.#applyMusicFade(now);
-    this.#combatActive = shouldFight;
-    if (shouldFight && !this.#combatMusic)
-      this.#combatMusic = this.#createLoop(this.#combatMusicSrc);
-    this.#musicFade = {
-      startedAt: now,
-      explorationFrom: this.#explorationWeight,
-      combatFrom: this.#combatWeight,
-      explorationTo: shouldFight ? 0 : 1,
-      combatTo: shouldFight ? 1 : 0,
-    };
-    this.#syncPlayback();
-    this.#applyMusicFade(now);
-  }
-
-  #applyMusicFade(now: number): void {
-    const fade = this.#musicFade;
-    if (!fade) return;
-    const progress = Math.max(0, Math.min(1, (now - fade.startedAt) / MUSIC_CROSSFADE_MS));
-    this.#explorationWeight =
-      fade.explorationFrom + (fade.explorationTo - fade.explorationFrom) * progress;
-    this.#combatWeight = fade.combatFrom + (fade.combatTo - fade.combatFrom) * progress;
-    this.#syncVolumes();
-    if (progress < 1) return;
-    this.#musicFade = null;
-    if (this.#explorationWeight === 0) this.#explorationMusic?.pause();
-    if (this.#combatWeight === 0 && this.#combatMusic) {
-      this.#combatMusic.pause();
-      this.#combatMusic.currentTime = 0;
-    }
+  #refreshDynamicMusic(now: number): void {
+    const danger = this.#combatThreatened || this.#combatThreatReleaseAt > now;
+    this.#music.setState(
+      {
+        nightWeight: this.#nightWeight,
+        discovery: this.#discoveryUntil > now,
+        danger,
+        combat: this.#combatUntil > now,
+        boss: danger && this.#bossThreatened,
+      },
+      now,
+    );
   }
 
   #syncAmbience(): void {
@@ -365,14 +361,8 @@ export class GameSound {
   }
 
   #syncVolumes(): void {
-    const { muted, ambientVolume, musicEnabled } = getAudioSettings();
-    const musicVolume = muted || !musicEnabled ? 0 : MUSIC_BASE * ambientVolume;
-    if (this.#explorationMusic) {
-      this.#explorationMusic.volume = musicVolume * this.#explorationWeight;
-    }
-    if (this.#combatMusic) {
-      this.#combatMusic.volume = musicVolume * this.#combatWeight;
-    }
+    const { muted, ambientVolume } = getAudioSettings();
+    this.#music.sync();
     if (this.#ambience) {
       this.#ambience.volume = muted ? 0 : AMBIENCE_BASE * ambientVolume;
     }
@@ -383,22 +373,9 @@ export class GameSound {
   }
 
   #syncPlayback(): void {
-    const { muted, musicEnabled } = getAudioSettings();
+    const { muted } = getAudioSettings();
     const canPlay = this.#unlocked && !document.hidden && !muted;
-    const explorationNeeded =
-      this.#explorationWeight > 0 || (this.#musicFade?.explorationTo ?? 0) > 0;
-    const combatNeeded = this.#combatWeight > 0 || (this.#musicFade?.combatTo ?? 0) > 0;
-    if (this.#explorationMusic) {
-      if (canPlay && musicEnabled && explorationNeeded) {
-        if (this.#explorationMusic.paused)
-          void this.#explorationMusic.play().catch(() => undefined);
-      } else this.#explorationMusic.pause();
-    }
-    if (this.#combatMusic) {
-      if (canPlay && musicEnabled && combatNeeded) {
-        if (this.#combatMusic.paused) void this.#combatMusic.play().catch(() => undefined);
-      } else this.#combatMusic.pause();
-    }
+    this.#music.sync();
     if (this.#ambience) {
       if (canPlay) {
         if (this.#ambience.paused) void this.#ambience.play().catch(() => undefined);

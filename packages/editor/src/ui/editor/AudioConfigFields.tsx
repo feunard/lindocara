@@ -12,14 +12,25 @@ import {
   AMBIENCE_TRACKS,
   type AmbienceTrackId,
   type MapAudioConfig,
+  MUSIC_PROFILE_FIELDS,
+  MUSIC_PROFILES,
   MUSIC_TRACKS,
+  type MusicProfileField,
+  type MusicProfileId,
   type MusicTrackId,
 } from "@lindocara/engine/audio-catalog.js";
 
 const INHERIT = "__inherit";
 const SILENCE = "__silence";
 
-type AudioField = "music" | "ambience" | "combatMusic";
+type AudioField = "music" | "ambience" | "combatMusic" | MusicProfileField;
+
+const AUDIO_FIELDS = [
+  ...MUSIC_PROFILE_FIELDS,
+  "ambience",
+  "music",
+  "combatMusic",
+] as const satisfies readonly AudioField[];
 
 type AudioConfigFieldsProps =
   | {
@@ -37,6 +48,14 @@ function optionLabel(track: { title: string; author: string }): string {
   return `${track.title} · ${track.author}`;
 }
 
+function profileLabel(item: { title: string; bpm: number }): string {
+  return `${item.title} · ${item.bpm} BPM`;
+}
+
+function isProfileField(field: AudioField): field is MusicProfileField {
+  return MUSIC_PROFILE_FIELDS.some((candidate) => candidate === field);
+}
+
 export function AudioConfigFields(props: AudioConfigFieldsProps) {
   useLocale();
 
@@ -47,6 +66,7 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
       if (encoded === INHERIT) delete next[field];
       else if (encoded === SILENCE) next[field] = null;
       else if (field === "ambience") next[field] = encoded as AmbienceTrackId;
+      else if (isProfileField(field)) next[field] = encoded as MusicProfileId;
       else next[field] = encoded as MusicTrackId;
       props.onChange(next);
       return;
@@ -58,7 +78,9 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
           ? null
           : field === "ambience"
             ? (encoded as AmbienceTrackId)
-            : (encoded as MusicTrackId),
+            : isProfileField(field)
+              ? (encoded as MusicProfileId)
+              : (encoded as MusicTrackId),
     });
   }
 
@@ -71,7 +93,12 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
   function selectedLabel(field: AudioField): string {
     const value = encodedValue(field);
     if (value === INHERIT) return t("editor.audio.inherit");
-    if (value === SILENCE) return t("editor.audio.none");
+    if (value === SILENCE)
+      return t(isProfileField(field) ? "editor.audio.noProfile" : "editor.audio.none");
+    if (isProfileField(field)) {
+      const item = MUSIC_PROFILES.find((candidate) => candidate.id === value);
+      return item ? profileLabel(item) : t("editor.audio.none");
+    }
     const tracks = field === "ambience" ? AMBIENCE_TRACKS : MUSIC_TRACKS;
     const track = tracks.find((candidate) => candidate.id === value);
     return track ? optionLabel(track) : t("editor.audio.none");
@@ -79,7 +106,7 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
 
   return (
     <div className="grid gap-3">
-      {(["music", "ambience", "combatMusic"] as const).map((field) => {
+      {AUDIO_FIELDS.map((field) => {
         const tracks = field === "ambience" ? AMBIENCE_TRACKS : MUSIC_TRACKS;
         const id = `audio-${props.variant}-${field}`;
         return (
@@ -93,12 +120,20 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
                 {props.variant === "map" && (
                   <SelectItem value={INHERIT}>{t("editor.audio.inherit")}</SelectItem>
                 )}
-                <SelectItem value={SILENCE}>{t("editor.audio.none")}</SelectItem>
-                {tracks.map((track) => (
-                  <SelectItem key={track.id} value={track.id}>
-                    {optionLabel(track)}
-                  </SelectItem>
-                ))}
+                <SelectItem value={SILENCE}>
+                  {t(isProfileField(field) ? "editor.audio.noProfile" : "editor.audio.none")}
+                </SelectItem>
+                {isProfileField(field)
+                  ? MUSIC_PROFILES.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {profileLabel(item)}
+                      </SelectItem>
+                    ))
+                  : tracks.map((track) => (
+                      <SelectItem key={track.id} value={track.id}>
+                        {optionLabel(track)}
+                      </SelectItem>
+                    ))}
               </SelectContent>
             </Select>
           </div>

@@ -65,7 +65,7 @@
   },
 
   "musics": {
-    "style_prompt": "heroic medieval fantasy, light orchestral, warm cartoon adventure, live instruments, clean mix",
+    "style_prompt": "Lindocara organic ancient-world fantasy RPG background, intimate live chamber instruments, clean mix",
     "default_duration": 60,
     "instrumental": true,
     "backends": {

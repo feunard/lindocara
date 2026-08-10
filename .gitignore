@@ -1,4 +1,6 @@
 node_modules/
+__pycache__/
+*.py[cod]
 dist/
 # The lab's client build. It lives outside `dist/` on purpose — `alepha build` cleans `dist/`
 # before any task runs, so a client written there would be deleted before the static target could

@@ -39,6 +39,7 @@ import {
 } from "@lindocara/engine/zones.js";
 import { getDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { healingEffectColor, shouldFloatEvent } from "@lindocara/renderer/feedback.js";
+import { type DayCycleOverride, mapDayCycleAt } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import {
   limitedCameraYaw,
@@ -425,6 +426,7 @@ async function startGameIdentity(
   let selfCorpse: GroundVector | null = null;
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
+  let audioDayCycleOverride: DayCycleOverride = null;
   let currentMerchant: MerchantDefinition | null = null;
   // A cross-map authored teleport shows its departure before the transition close, then its arrival
   // on the next authoritative welcome. Ordinary network reconnects never set this flag.
@@ -1186,7 +1188,10 @@ async function startGameIdentity(
     switchCharacter,
     logout: logoutAndReload,
     returnToTitle,
-    setTestDayCycle: (override) => renderer.setDayCycleOverride?.(override),
+    setTestDayCycle: (override) => {
+      audioDayCycleOverride = override;
+      renderer.setDayCycleOverride?.(override);
+    },
     attachMinimap: (canvas) => {
       minimapCanvas = canvas;
       mapSurface?.attachMinimap(canvas);
@@ -1198,6 +1203,9 @@ async function startGameIdentity(
   });
 
   renderer.onFrame((now, dt) => {
+    sound.setNightWeight(
+      mapDayCycleAt(Date.now(), activeZoneId, audioDayCycleOverride).nightWeight,
+    );
     sound.update(now);
     const paused = isGameplayInputPaused();
     const cameraSample = cameraOrbit.takeSample(dt);

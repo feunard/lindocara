@@ -10,6 +10,7 @@ import {
   removeMember,
   toAdventureInput,
 } from "@lindocara/client/adventure-draft.js";
+import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { describe, expect, it } from "vitest";
 
 // Since the graph teardown a draft models only the adventure shell + its member maps: no start, no
@@ -64,11 +65,7 @@ describe("adventure draft", () => {
     expect(toAdventureInput(fullDraft())).toEqual({
       title: "Donjon",
       maxPlayers: 2,
-      audio: {
-        music: null,
-        ambience: "forest-ambience",
-        combatMusic: null,
-      },
+      audio: DEFAULT_ADVENTURE_AUDIO,
       registry: { switches: [], variables: [] },
     });
     // An empty draft has no title, so it is not saveable and yields no input.

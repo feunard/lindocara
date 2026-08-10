@@ -1,5 +1,6 @@
 import { SessionCombatAudio } from "@lindocara/client/game/session-combat-audio.js";
 import { GameSound } from "@lindocara/client/game/sound.js";
+import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import type { EventCode } from "@lindocara/engine/protocol.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -85,6 +86,18 @@ describe("session combat audio", () => {
     expect(combat.src).toBe("/assets/lindocara/audio/boss_1.mp3");
     expect(FakeAudio.created.at(-1)).toBe(combat);
     expect(combat.currentTime).toBe(7);
+  });
+
+  it("reserves the boss profile for an authoritative boss threat", () => {
+    const sound = new GameSound();
+    sound.configureScene(DEFAULT_ADVENTURE_AUDIO);
+    const session = new SessionCombatAudio(sound, () => ({ attack: vi.fn() }));
+
+    session.setServerThreat([{ dead: false, threatening: true, rank: "normal" }]);
+    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/forest_2.mp3");
+
+    session.setServerThreat([{ dead: false, threatening: true, rank: "boss" }]);
+    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/boss_1.mp3");
   });
 
   it.each(["combat.hit", "combat.hurt"] satisfies EventCode[])(

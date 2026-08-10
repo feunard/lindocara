@@ -30,6 +30,18 @@ python3 studio/studio.py voice --text "You shall not pass the gate!" --archetype
 python3 studio/studio.py music --prompt "calm village at dawn" --duration 60 --out packages/client/public/assets/lindocara/audio/bgm/village.wav
 ```
 
+For soundtrack work, use a profile from the central Lindocara Music DNA instead of hand-copying
+the art direction:
+
+```bash
+python3 studio/studio.py music --list-profiles
+python3 studio/studio.py music --profile exploration --variants 3 --seed 18201
+```
+
+The profile form stores prompt, seed and parameters in `musics/generations.json` and rebuilds the
+typed runtime catalogue. See [`docs/music-system.md`](../docs/music-system.md) for listing,
+previewing, regenerating and deleting takes.
+
 Shared flags: `--seed` (default 42), `--variants N` (writes `name_1 … name_N`),
 `--no-theme`, `--dry-run` (prints the command it would run and generates nothing — the
 fastest way to see what the theme actually did to your prompt).

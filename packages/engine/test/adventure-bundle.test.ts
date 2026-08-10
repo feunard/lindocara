@@ -7,6 +7,7 @@ import {
   parseAdventureBundle,
   rewriteBundleIds,
 } from "../src/adventure-bundle.js";
+import { DEFAULT_ADVENTURE_AUDIO } from "../src/audio-catalog.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { createAuthoredQuestDefinition, emptyQuestRewards } from "../src/quests.js";
 import { emptyLayer, encodeTileLayer } from "../src/tile-layer-codec.js";
@@ -165,9 +166,12 @@ describe("adventure bundle", () => {
     expect(again?.maps.map((m) => m.id)).toEqual([MAP_A, MAP_B]);
     expect(again?.adventure.registry.quests?.length).toBe(1);
     expect(again?.adventure.audio).toEqual({
+      ...DEFAULT_ADVENTURE_AUDIO,
       music: "plain-1",
       ambience: null,
       combatMusic: "boss-1",
+      explorationProfile: null,
+      combatProfile: null,
     });
     expect(again?.maps[0]?.audio).toEqual({ music: "forest-1", combatMusic: null });
   });

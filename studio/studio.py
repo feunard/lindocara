@@ -26,6 +26,26 @@ import sys
 import tempfile
 import time
 
+from music_system import (
+    PUBLIC_MUSIC_DIR,
+    PUBLIC_MUSIC_URL,
+    compose_generic_prompt,
+    compose_prompt,
+    delete_generation,
+    generation,
+    list_generations,
+    list_profiles,
+    make_generation_record,
+    music_config,
+    next_profile_index,
+    output_for,
+    preview_generation,
+    profile,
+    register_generation,
+    show_generation,
+    update_generation,
+)
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ACE_PROJECT = os.path.join(ROOT, "musics", "ACE-Step-1.5")
 
@@ -372,26 +392,190 @@ def cmd_voice(args):
         report("voice", out, elapsed)
 
 
+def run_music_generation(caption, out, duration, seed, lm_backend, bpm=None, steps=8,
+                         audio_format="wav", mp3_bitrate="192k", reference_audio=None,
+                         vocal=False, language_model=None, diffusion_model=None):
+    cmd = ["uv", "run", "--project", ACE_PROJECT,
+           "python", os.path.join(ROOT, "musics", "run_acestep.py"),
+           "--caption", caption,
+           "--duration", str(duration),
+           "--seed", str(seed),
+           "--steps", str(steps),
+           "--format", audio_format,
+           "--mp3-bitrate", mp3_bitrate,
+           "--lm-backend", lm_backend,
+           "--out", out]
+    if language_model:
+        cmd += ["--lm", language_model]
+    if diffusion_model:
+        cmd += ["--dit", diffusion_model]
+    if bpm is not None:
+        cmd += ["--bpm", str(bpm)]
+    if reference_audio:
+        cmd += ["--reference-audio", reference_audio]
+    if vocal:
+        cmd.append("--vocal")
+    elapsed = run(cmd, "acestep")
+    report("music", out, elapsed)
+    return elapsed
+
+
 def cmd_music(args):
+    management = sum(bool(value) for value in (
+        args.list_profiles, args.list_generations, args.show, args.play,
+        args.regenerate, args.delete,
+    ))
+    if management > 1:
+        sys.exit("choose only one music catalogue action")
+    if args.list_profiles:
+        list_profiles()
+        return
+    if args.list_generations:
+        list_generations()
+        return
+    if args.show:
+        try:
+            show_generation(args.show)
+        except ValueError as exc:
+            sys.exit(str(exc))
+        return
+    if args.play:
+        try:
+            preview_generation(args.play)
+        except ValueError as exc:
+            sys.exit(str(exc))
+        return
+    if args.delete:
+        if not args.yes:
+            sys.exit("--delete moves the audio to the studio trash and updates the catalogue; pass --yes")
+        try:
+            delete_generation(args.delete)
+        except ValueError as exc:
+            sys.exit(str(exc))
+        return
+
+    if args.variants < 1:
+        sys.exit("--variants must be at least 1")
+    if args.duration is not None and not 10 <= args.duration <= 600:
+        sys.exit("--duration must be between 10 and 600 seconds")
+    if args.bpm is not None and not 30 <= args.bpm <= 300:
+        sys.exit("--bpm must be between 30 and 300")
+    if args.steps < 1:
+        sys.exit("--steps must be positive")
+
     theme = load_json("theme.json")
     t, b = lane_config(theme, "musics")
-    caption = args.prompt if args.no_theme else "%s, %s" % (t["style_prompt"], args.prompt)
-    if len(caption) > 512:
-        caption = caption[:512]
+    if args.regenerate:
+        try:
+            record = generation(args.regenerate)
+        except ValueError as exc:
+            sys.exit(str(exc))
+        params = record["generationParams"]
+        generator = music_config()["generator"]
+        out = os.path.join(os.path.dirname(ROOT), record["file"])
+        reference_audio = params.get("referenceAudio")
+        if reference_audio and not os.path.isabs(reference_audio):
+            reference_audio = os.path.join(os.path.dirname(ROOT), reference_audio)
+        ensure_parent(out)
+        run_music_generation(
+            record["generationPrompt"], out, params["duration"], record["seed"],
+            params.get("languageModelBackend") or b.get("lm_backend", "pt"),
+            record["bpm"], params["steps"], params["format"],
+            params.get("mp3Bitrate") or "192k", reference_audio,
+            False,
+            params.get("languageModel") or generator["languageModel"],
+            params.get("diffusionModel") or generator["model"],
+        )
+        if DRY_RUN:
+            return
+        record["regeneratedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        update_generation(record)
+        return
+
+    if args.profile:
+        if args.seed < 0:
+            sys.exit("profile generations require a non-negative reproducible --seed")
+        try:
+            profile_config = profile(args.profile)
+        except ValueError as exc:
+            sys.exit(str(exc))
+        context = args.context or args.prompt
+        caption = compose_prompt(args.profile, context)
+        generator = music_config()["generator"]
+        duration = args.duration or profile_config["duration"]
+        bpm = args.bpm or profile_config["bpm"]
+        supported_formats = {"mp3", "wav", "flac", "wav32", "opus", "aac"}
+        output_extension = (
+            os.path.splitext(args.out)[1].lstrip(".").lower() if args.out else ""
+        )
+        if output_extension and output_extension not in supported_formats:
+            sys.exit("profile music --out must use a supported audio extension")
+        audio_format = (
+            args.format
+            or output_extension
+            or generator["outputFormat"]
+        )
+        if output_extension and output_extension != audio_format:
+            sys.exit("--format must match the extension of profile music --out")
+        first_index = next_profile_index(args.profile)
+        if args.id and args.variants != 1:
+            sys.exit("--id can only be used with --variants 1")
+        for i in range(args.variants):
+            index = first_index + i
+            generated_id, default_out, default_src = output_for(args.profile, index, audio_format)
+            generated_id = args.id or generated_id
+            out = numbered(args.out, i, args.variants) if args.out else default_out
+            absolute_out = os.path.abspath(out)
+            public_root = os.path.abspath(PUBLIC_MUSIC_DIR)
+            try:
+                is_public_music = os.path.commonpath([absolute_out, public_root]) == public_root
+            except ValueError:
+                is_public_music = False
+            if not is_public_music:
+                sys.exit("profile music must be stored under %s" % PUBLIC_MUSIC_DIR)
+            relative_url = os.path.relpath(absolute_out, PUBLIC_MUSIC_DIR).replace("\\", "/")
+            src = "%s/%s" % (PUBLIC_MUSIC_URL, relative_url)
+            seed = args.seed + i
+            lm_backend = b.get("lm_backend", "pt")
+            ensure_parent(absolute_out)
+            run_music_generation(
+                caption, absolute_out, duration, seed, lm_backend, bpm,
+                args.steps, audio_format, args.mp3_bitrate, args.reference_audio,
+                False, generator["languageModel"], generator["model"],
+            )
+            if DRY_RUN:
+                continue
+            record = make_generation_record(
+                generated_id, args.profile, "%s %02d" % (profile_config["title"], index),
+                src or default_src, absolute_out, caption, seed, duration, bpm, args.steps,
+                audio_format, args.mp3_bitrate, args.reference_audio,
+                lm_backend,
+            )
+            register_generation(record)
+        return
+
+    if not args.prompt or not args.out:
+        sys.exit("generic music generation requires --prompt and --out; use --profile for Lindocara music")
+    caption = (
+        args.prompt
+        if args.no_theme
+        else compose_generic_prompt(args.prompt, args.bpm, args.vocal)
+    )
+    limit = music_config()["generator"]["captionLimit"]
+    if len(caption) > limit:
+        sys.stderr.write("warning: caption shortened to %d characters\n" % limit)
+        caption = caption[:limit].rsplit(" ", 1)[0]
 
     ensure_parent(args.out)
     for i in range(args.variants):
         out = numbered(args.out, i, args.variants)
-        cmd = ["uv", "run", "--project", ACE_PROJECT,
-               "python", os.path.join(ROOT, "musics", "run_acestep.py"),
-               "--caption", caption,
-               "--duration", str(args.duration or t["default_duration"]),
-               "--seed", str(args.seed + i),
-               "--lm-backend", b.get("lm_backend", "pt"),
-               "--out", out]
-        if not t.get("instrumental", True) or args.vocal:
-            cmd.append("--vocal")
-        report("music", out, run(cmd, "acestep"))
+        run_music_generation(
+            caption, out, args.duration or t["default_duration"], args.seed + i,
+            b.get("lm_backend", "pt"), args.bpm, args.steps,
+            args.format or os.path.splitext(out)[1].lstrip(".") or "wav",
+            args.mp3_bitrate, args.reference_audio,
+            not t.get("instrumental", True) or args.vocal,
+        )
 
 
 # --------------------------------------------------------------------------- doctor
@@ -505,10 +689,30 @@ def main():
     add_common(p)
     p.set_defaults(func=cmd_voice)
 
-    p = subs.add_parser("music", help="Music track via ACE-Step 1.5.")
-    p.add_argument("--prompt", required=True)
+    p = subs.add_parser("music", help="Music track and Lindocara soundtrack catalogue via ACE-Step 1.5.")
+    p.add_argument("--prompt", help="Raw prompt, or profile-specific context with --profile.")
+    p.add_argument("--profile", help="Profile from Lindocara Music DNA.")
+    p.add_argument("--context", help="Specific scene/context appended to the profile prompt.")
+    p.add_argument("--id", help="Override the generated catalogue id (one variant only).")
+    p.add_argument("--bpm", type=int, default=None)
+    p.add_argument("--steps", type=int, default=8)
+    p.add_argument("--format", choices=["mp3", "wav", "flac", "wav32", "opus", "aac"])
+    p.add_argument("--mp3-bitrate", default="192k", choices=["128k", "192k", "256k", "320k"])
+    p.add_argument("--reference-audio", help="Optional ACE-Step style/melodic reference.")
     p.add_argument("--vocal", action="store_true", help="Allow vocals (default: instrumental).")
-    add_common(p, with_duration=True)
+    p.add_argument("--out", help="Output path. Profile generations default to the public music folder.")
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--variants", type=int, default=1, help="Generate N stable profile variants.")
+    p.add_argument("--duration", type=int, default=None, help="Seconds.")
+    p.add_argument("--no-theme", action="store_true", help="Send a raw generic prompt without theme injection.")
+    p.add_argument("--dry-run", action="store_true", help="Print generation commands only.")
+    p.add_argument("--list-profiles", action="store_true")
+    p.add_argument("--list-generations", action="store_true")
+    p.add_argument("--show", metavar="ID", help="Print a generation's complete metadata.")
+    p.add_argument("--play", metavar="ID", help="Open a generated track in the system player.")
+    p.add_argument("--regenerate", metavar="ID", help="Rebuild a track from its recorded prompt and seed.")
+    p.add_argument("--delete", metavar="ID", help="Move a failed take to studio trash and unregister it.")
+    p.add_argument("--yes", action="store_true", help="Confirm --delete.")
     p.set_defaults(func=cmd_music)
 
     p = subs.add_parser("doctor", help="Check every runtime and weight, then generate one artifact per lane.")

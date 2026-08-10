@@ -10,6 +10,18 @@ auto-detect.
 python3 studio/studio.py music --prompt "calm village at dawn" --duration 60 --out packages/client/public/assets/lindocara/audio/bgm/village.wav
 ```
 
+Promoted soundtrack work is profile-based:
+
+```bash
+python3 studio/studio.py music --list-profiles
+python3 studio/studio.py music --profile exploration --variants 3 --seed 18201
+```
+
+`lindocara-music.json` owns Music DNA, the five-note motif and the ten profiles;
+`generations.json` owns exact prompts, seeds and parameters. The profile command writes to the
+public music folder and rebuilds the typed engine catalogue. See
+[`docs/music-system.md`](../../docs/music-system.md) for preview, regeneration and deletion.
+
 Measured: **55 s wall-clock for a 20 s track**, of which the diffusion itself is 2.3 s
 (8 steps at 0.28 s/step). Almost all the time is model load and VAE decode, so a 60 s
 track costs barely more than a 20 s one. Generate long, cut down.
@@ -33,9 +45,9 @@ ACE-Step's own `cli.py` is an interactive wizard and cannot be scripted — that
 
 ## Writing prompts
 
-The theme prepends *"heroic medieval fantasy, light orchestral, warm cartoon adventure,
-live instruments, clean mix"*, so your prompt only needs to say what is different about
-this track: the scene, the mood, the energy.
+The themed free-form command injects Lindocara Music DNA and the main motif, so a prompt only needs
+to say what differs about this cue: scene, mood and energy. `--no-theme` remains a deliberate raw
+model escape hatch. Named profiles always use Music DNA.
 
 | Track | Prompt |
 | --- | --- |
@@ -52,16 +64,11 @@ field in `run_acestep.py` are honoured directly.
 Genre names work well and are worth exploiting: `celtic folk`, `baroque`, `spaghetti
 western` all land recognisably and can be blended with the theme's base style.
 
-### The caption is capped at 512 characters, and the overflow is dropped silently
+### The caption is capped at 512 characters
 
-`studio.py` truncates at 512 (`cmd_music`) with no warning — a long prompt does not fail, it
-arrives at the model with its tail cut off mid-word. The theme prefix eats the first 95 of
-those characters, so **a themed prompt has ~415 characters to work in**, and `--no-theme`
-buys back the difference. Count before you generate; the parts authors write last — structure,
-"fully instrumental", the mood qualifiers — are exactly the parts that fall off the end.
-
-When something has to go, cut in reverse order of steering strength: structure first (it comes
-out loose anyway, see Known limits), then mood adjectives, and keep the instrument list intact.
+Profile and themed free-form composers preserve DNA, motif and technical exclusions and trim only
+cue-specific prose at a word boundary. Raw `--no-theme` prompts over 512 characters are shortened
+with a warning.
 
 ### A caption that worked
 
@@ -81,15 +88,12 @@ walking/driving pace, key and its colour, lead instrument and who answers it, th
 bed, the percussion (naming what to leave out), a one-line structure, then the size adjectives.**
 Naming the absent instruments (`no kit`) works as well as naming the present ones.
 
-### Drop the theme for anything quiet
+### Quiet music
 
-`theme.json` prepends *"heroic medieval fantasy, light orchestral, warm cartoon adventure"* to
-every track, and **"heroic" actively fights an intimate cue**. Generated at the same seed with
-and without it, the no-theme take won for the sunlit-plain theme. For exploration, ambience,
-towns and menus, pass `--no-theme` and supply a substitute style prefix that keeps the lane
-coherent without the scale — `light orchestral chamber ensemble, live instruments, clean mix,
-warm storybook fantasy` is the one already proven. Combat, boss and victory cues want the stock
-theme as-is; that is what it was written for.
+The old global `heroic medieval fantasy` prefix fought intimate cues and is no longer used by the
+profile workflow. Exploration, night, village and snow carry their restrained scale directly in
+Music DNA. Use `--no-theme` only for model experiments that should deliberately not sound like
+Lindocara.
 
 ### Starting points for the other cues
 
@@ -112,6 +116,9 @@ Generated tracks have an intro and an ending — they do not loop cleanly. Two o
 - Generate 2–3× the length you need and cut a loop out of the middle at a bar line.
 - Ask for `soft looping ambience, almost still` and crossfade the seams; sparse, static
   material hides a crossfade far better than a melody does.
+
+The game implements that second strategy automatically: non-loopable profile variants advance on
+two decks and crossfade near the end. Set `loopable: true` only after verifying a clean seam.
 
 ## Training a style LoRA
 

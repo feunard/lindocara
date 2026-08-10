@@ -36,6 +36,13 @@ mistakes them for the OpenGameArt tracks above, and so they can be regenerated: 
 `python3 studio/studio.py music --duration 140 --out <path>.wav` with the caption and seed below,
 converted with `ffmpeg -codec:a libmp3lame -q:a 2`. See `studio/musics/AGENTS.md`.
 
+The newer profile-based soundtrack lives under **`music/`**. Its complete per-file provenance is
+machine-readable in `studio/musics/generations.json`: exact effective prompt, seed, profile, biome
+and mood tags, BPM, duration, generator/model, step count, output format and creation date. It is
+generated and reproduced through `python3 studio/studio.py music --profile …`; see
+`docs/music-system.md`. That registry is authoritative so these values cannot drift from the typed
+runtime catalogue.
+
 - **`plain_1.mp3`** — opening-area theme, a wide sunlit plain. `--no-theme`, seed 42.
   Caption: *light orchestral chamber ensemble, live instruments, clean mix, warm storybook
   fantasy, gentle instrumental theme for a wide sunlit plain, calm and safe. 90 BPM walking pace,
@@ -60,6 +67,6 @@ converted with `ffmpeg -codec:a libmp3lame -q:a 2`. See `studio/musics/AGENTS.md
   small, a chamber fight not an army.* Note it was written as a general battle cue and filed as a
   boss track.
 
-All four are 140 s, 48 kHz, peak-normalised to −1 dBFS, and **none of them loops** — each has an
+All six legacy files are 140 s, 48 kHz, peak-normalised to −1 dBFS, and **none of them loops** — each has an
 intro and an ending, so a loop still has to be cut out of the middle at a bar line. The lossless
 WAV masters are not in the repo; regenerate from the captions above if they are needed.

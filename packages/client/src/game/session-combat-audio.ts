@@ -2,11 +2,13 @@ import type { EventCode, MonsterSnapshot } from "@lindocara/engine/protocol.js";
 import type { Connection } from "./net.js";
 
 type AttackConnection = Pick<Connection, "attack">;
-type CombatThreat = Pick<MonsterSnapshot, "dead" | "threatening">;
+type CombatThreat = Pick<MonsterSnapshot, "dead" | "threatening"> & {
+  rank?: MonsterSnapshot["rank"];
+};
 
 export interface SessionCombatSound {
   combatPulse(): void;
-  setCombatThreatened(threatened: boolean): void;
+  setCombatThreatened(threatened: boolean, boss?: boolean): void;
 }
 
 /**
@@ -28,8 +30,10 @@ export class SessionCombatAudio {
   }
 
   setServerThreat(monsters: readonly CombatThreat[]): void {
+    const threats = monsters.filter((monster) => monster.threatening === true && !monster.dead);
     this.#sound.setCombatThreatened(
-      monsters.some((monster) => monster.threatening === true && !monster.dead),
+      threats.length > 0,
+      threats.some((monster) => monster.rank === "boss"),
     );
   }
 
