@@ -650,6 +650,13 @@ The `adventures` and `map-editor` screens are gone: one `adventure-editor` scree
 (`src/client/ui/editor/`) now owns both, as menu bar / toolbar / three resizable panes (shadcn
 `TerrainPalette` left, the WYSIWYG HD-2D stage centre (rebuilt on the shared renderer;
 rebuild), `MapListPanel` right) / status bar.
+
+Entering the editor opens a fresh unsaved adventure rather than a picker: `AdventureEditorScreen`'s
+no-session branch calls `ensureScratchAdventure()`, which is one atomic `POST /api/adventures`
+(the route returns the default map with it, so there is no second round trip). `File → Open` reaches
+an existing adventure and `File → New adventure` starts another; both are dirty-guarded. Untitled
+scratches accumulate by design and are deleted by hand from the Open dialog.
+
 Adventure metadata lives in `AdventureSettingsDialog`, off the canvas. All chrome is stock shadcn â€”
 the old floating asset palette was the last Tiny import inside a creator surface, and it died with
 the pre-merge screens, so the two-tree rule now has zero exceptions in the editor. The stage keeps

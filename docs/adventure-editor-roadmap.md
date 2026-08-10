@@ -309,6 +309,19 @@ tileset entry, no map migration — and gains a consumer the moment the interpre
 the hero standing on". Counter needs redesigning for continuous movement rather than transposing
 from XP's grid.
 
+## Entry flow — the scratch adventure (2026-08-10)
+
+The editor no longer opens on a list. Entering it mints a fresh unsaved adventure
+(`ensureScratchAdventure()`) and drops you on its blank map; `File → Open` reaches an existing one
+and `File → New adventure` starts another, both dirty-guarded. `AdventurePickerScreen` is deleted,
+and so is `editor-last-adventure.ts` — an orphan that solved this same problem by reopening the last
+adventure, a premise this rejects.
+
+Untitled scratches are deliberately never collected: they are deleted by hand from the Open dialog,
+so nothing unsaved can disappear unasked. Expect the Open list to accumulate them.
+
+See [the design](./superpowers/specs/2026-08-10-editor-entry-flow-design.md).
+
 ## How to work
 
 Tranche 1 was executed with `superpowers:subagent-driven-development`: a fresh subagent per task, a

@@ -12,6 +12,13 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - `src/game/editor-state.ts` owns pure editor mutations and serialization.
 - The package composes `@lindocara/engine`, `@lindocara/renderer`, `@lindocara/client` and
   `@lindocara/ui`; it must not duplicate their movement, terrain or rendering rules.
+- Entering the editor mints a fresh **unsaved scratch adventure** (`ensureScratchAdventure()` in
+  `src/ui/editor/adventure-session.ts`) and opens it. There is no landing/picker page: reaching an
+  existing adventure is `File → Open`, and starting another is `File → New adventure`. Abandoned
+  scratches are deliberately NOT cleaned up — they are deleted by hand from the Open dialog, so no
+  unsaved work can vanish unasked.
+- The entry bootstrap's ref latch is load-bearing: without it, React strict mode's double-invoked
+  effect mints two adventures per visit, silently, and nothing ever collects them.
 
 ## Commands
 
