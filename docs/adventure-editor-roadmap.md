@@ -197,8 +197,11 @@ for the full design.
 
 A user feedback wave arrived mid-tranche-4 and is sequenced between 4 and 5 rather than folded into
 either: `docs/superpowers/specs/2026-07-19-ux-feedback-wave.md` records the thirteen items verbatim,
-translated into requirements — no dark mode, the editor opening on an adventure picker rather than a
-blank canvas, adventures owning their maps 1-n instead of an n-n membership model, a new adventure
+translated into requirements — no dark mode, the editor opening on an adventure picker rather than
+straight into the editor (item 15; **delivered** — entering the editor now mints a fresh unsaved
+scratch adventure and opens it, `File → Open` reaches an existing one, `File → New adventure` starts
+another, and the picker screen is deleted), adventures owning their maps 1-n instead of an n-n
+membership model, a new adventure
 auto-creating its first map (5x5 earth, spawn centre, water border), the start map moving into the
 map panel, grid-on-by-default, hover preview with an opaque red illegal-placement background,
 exclusive tool selection, a Test-map performance fix, a minimal/trusted catalogue, and the largest
@@ -308,6 +311,19 @@ Also the deferred tile behaviours: terrain tag, bush, counter. Terrain tag is ch
 tileset entry, no map migration — and gains a consumer the moment the interpreter can ask "what is
 the hero standing on". Counter needs redesigning for continuous movement rather than transposing
 from XP's grid.
+
+## Entry flow — the scratch adventure (2026-08-10)
+
+The editor no longer opens on a list. Entering it mints a fresh unsaved adventure
+(`ensureScratchAdventure()`) and drops you on its blank map; `File → Open` reaches an existing one
+and `File → New adventure` starts another, both dirty-guarded. `AdventurePickerScreen` is deleted,
+and so is `editor-last-adventure.ts` — an orphan that solved this same problem by reopening the last
+adventure, a premise this rejects.
+
+Untitled scratches are deliberately never collected: they are deleted by hand from the Open dialog,
+so nothing unsaved can disappear unasked. Expect the Open list to accumulate them.
+
+See [the design](./superpowers/specs/2026-08-10-editor-entry-flow-design.md).
 
 ## How to work
 

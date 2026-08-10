@@ -4,6 +4,7 @@ import {
   errorCode,
   fetchMap,
   fetchMaps,
+  isUnauthorizedCode,
   type MapPayload,
   type MapSaveInput,
   type MapSummary,
@@ -73,17 +74,6 @@ interface MapListPanelProps {
 }
 
 /**
- * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
- * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
- * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
- * docblock. Task 6 dropped this panel's `onSessionExpired` prop once that global hook was confirmed
- * to cover every one of the editor's machine codes.
- */
-function isSessionError(code: string): boolean {
-  return code === "session_expired" || code === "unauthorized";
-}
-
-/**
  * The wireframe's right pane: the author's maps as a wireframe list (name + `cols×rows` badge),
  * selecting one to switch the stage through the screen's load path, plus new-map creation, rename,
  * delete-with-confirm and the entry to the adventure settings dialog. Stock shadcn + lucide only —
@@ -122,7 +112,7 @@ export function MapListPanel({
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) return;
+    if (isUnauthorizedCode(code)) return;
     onError(code);
   }
 

@@ -24,7 +24,7 @@ import { renderWithAlepha } from "alepha/react/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * `AdventureEditorScreen`/`AdventurePickerScreen`/`MainMenu` all read/write
+ * `AdventureEditorScreen`/`MainMenu` all read/write
  * `state/atoms.ts`'s `adventureEditorSessionAtom` and navigate via `useRouter()` directly (Task 6,
  * off the store's deleted `adventureEditorSession`/`setScreen`/`setAdventureEditorSession` shims and
  * the `state/navigation.ts` seam those used to route through) — every render in this file needs a
@@ -262,6 +262,48 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
       }
     }
     return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
+  });
+}
+
+/** Every `POST /api/adventures` a fetch mock saw — one row minted per entry, and an abandoned
+ *  scratch adventure is deliberately never cleaned up, so the count is the whole assertion. */
+function adventurePosts(mock: ReturnType<typeof vi.fn>): unknown[] {
+  return mock.mock.calls.filter(
+    ([url, init]) =>
+      url === "/api/adventures" && (init as RequestInit | undefined)?.method === "POST",
+  );
+}
+
+/**
+ * `mapsBackend` plus the one route File → New adventure needs: `POST /api/adventures`, answering
+ * with a fresh adventure and its inline default map (the shape `ensureScratchAdventure` reads).
+ * `gate`, when supplied, parks every POST until it resolves, so a test can fire a second
+ * invocation while the first is still in flight.
+ */
+function scratchBackend(gate?: Promise<void>) {
+  const base = mapsBackend(twoMaps);
+  let minted = 0;
+  return vi.fn((url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    if (url === "/api/adventures" && method === "POST") {
+      minted += 1;
+      const id = `adv-new-${minted}`;
+      const mapId = `map-new-${minted}`;
+      const created = {
+        id,
+        accountId: "acct",
+        title: "New adventure",
+        maxPlayers: 4,
+        version: 1,
+        mapIds: [mapId],
+        graph: { start: null, links: [] },
+        registry: { switches: [], variables: [] },
+        defaultMap: { ...payloadFor({ ...(twoMaps[0] as MapSummary), id: mapId }) },
+      };
+      const response = () => jsonResponse(created, 201);
+      return gate ? gate.then(response) : Promise.resolve(response());
+    }
+    return base(url, init);
   });
 }
 
@@ -687,6 +729,74 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: "Frostfen" }));
     await waitFor(() => expect(mock).toHaveBeenCalledWith("/api/maps/m2", expect.anything()));
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
+  });
+
+  /** The File-menu idiom used throughout this file: focus the trigger, press Enter, then click the
+   *  item. A plain click on the trigger does not open this menubar. */
+  async function openNewAdventure(): Promise<void> {
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: t("editor.shell.newAdventure") }),
+    );
+  }
+
+  it("guards File → New adventure with the dirty confirm, and mints nothing when declined", async () => {
+    const mock = mapsBackend(twoMaps);
+    vi.stubGlobal("fetch", mock);
+    await mountReady(alepha);
+    await screen.findByRole("button", { name: "Frostfen" });
+    markDirty();
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await openNewAdventure();
+
+    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+    // Declined: no adventure was created, and the stage was never reopened for a new one.
+    expect(adventurePosts(mock)).toHaveLength(0);
+    expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1);
+    confirm.mockRestore();
+  });
+
+  it("mints exactly one adventure when File → New adventure is confirmed over dirty edits", async () => {
+    const mock = scratchBackend();
+    vi.stubGlobal("fetch", mock);
+    await mountReady(alepha);
+    await screen.findByRole("button", { name: "Frostfen" });
+    markDirty();
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    await openNewAdventure();
+    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+    confirm.mockRestore();
+
+    await waitFor(() =>
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-new-1"),
+    );
+    expect(adventurePosts(mock)).toHaveLength(1);
+  });
+
+  it("mints one adventure, not two, when File → New adventure is invoked twice in flight", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const mock = scratchBackend(gate);
+    vi.stubGlobal("fetch", mock);
+    await mountReady(alepha);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    // Two invocations before the first POST resolves. Without the in-flight latch each one mints its
+    // own adventure, and an abandoned scratch is never cleaned up — the extra row is permanent.
+    await openNewAdventure();
+    await openNewAdventure();
+    expect(adventurePosts(mock)).toHaveLength(1);
+
+    release?.();
+    await waitFor(() =>
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-new-1"),
+    );
+    expect(adventurePosts(mock)).toHaveLength(1);
   });
 
   it("ignores an older map response that arrives after a newer selection", async () => {
@@ -1696,7 +1806,8 @@ describe("AdventureEditorScreen shell", () => {
     });
 
     it("the menu bar's Quit button leaves the editor, dirty-guarded like the File-menu item (C8)", async () => {
-      vi.stubGlobal("fetch", mapsFetchMock());
+      const backend = mapsFetchMock();
+      vi.stubGlobal("fetch", backend);
       await mountReady(alepha);
       markDirty();
 
@@ -1710,6 +1821,13 @@ describe("AdventureEditorScreen shell", () => {
       await userEvent.click(quitButton);
       expect(pushSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
+      // Leaving clears the session while this screen is still mounted, so the no-session branch —
+      // the scratch bootstrap — must NOT take that as an invitation to mint an adventure nobody
+      // asked for. Abandoned scratches are never cleaned up, so a stray row is permanent.
+      expect(backend).not.toHaveBeenCalledWith(
+        "/api/adventures",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
 
     it("opens the Load-adventure dialog from the File menu and switching swaps the session", async () => {
@@ -1779,7 +1897,8 @@ describe("AdventureEditorScreen shell", () => {
     });
 
     it("Quit returns to the title screen, dirty-guarded (cancel stays in the editor)", async () => {
-      vi.stubGlobal("fetch", mapsFetchMock());
+      const backend = mapsFetchMock();
+      vi.stubGlobal("fetch", backend);
       await mountReady(alepha);
       markDirty();
 
@@ -1801,6 +1920,11 @@ describe("AdventureEditorScreen shell", () => {
       await openQuit();
       expect(pushSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
+      // Same fence as the menu-bar Quit button above: quitting must mint nothing.
+      expect(backend).not.toHaveBeenCalledWith(
+        "/api/adventures",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
 
     it("closes the database dialog on Retour without unloading the editor (campaign fix)", async () => {

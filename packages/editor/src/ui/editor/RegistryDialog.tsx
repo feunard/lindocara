@@ -5,6 +5,7 @@ import {
   errorCode,
   fetchAdventure,
   fetchAdventures,
+  isUnauthorizedCode,
   updateAdventureApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
@@ -29,17 +30,6 @@ import { Input } from "@lindocara/ui/components/input.js";
 import { useStore } from "alepha/react";
 import { CircleHelp } from "lucide-react";
 import { useEffect, useState } from "react";
-
-/**
- * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
- * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
- * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
- * docblock. Task 6 dropped this dialog's `onSessionExpired` prop once that global hook was
- * confirmed to cover every one of the editor's machine codes.
- */
-function isSessionError(code: string): boolean {
-  return code === "session_expired" || code === "unauthorized";
-}
 
 /** The two registry kinds share every list operation — which array of the registry they touch is the
  *  only difference — so the dialog keys its handlers on this. */
@@ -89,7 +79,7 @@ export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialo
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) return;
+    if (isUnauthorizedCode(code)) return;
     setError(code);
   }
 

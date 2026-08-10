@@ -12,6 +12,7 @@ import {
   errorCode,
   fetchMap,
   fetchMaps,
+  isUnauthorizedCode,
   type MapPayload,
   updateMapApi,
 } from "@lindocara/client/api.js";
@@ -85,10 +86,9 @@ import {
   openMapEditorStage,
 } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
-import { AdventurePickerScreen } from "./AdventurePickerScreen.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
-import { loadAdventureSession } from "./adventure-session.js";
+import { ensureScratchAdventure, loadAdventureSession } from "./adventure-session.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorHelpDialog, type EditorHelpSection } from "./EditorHelpDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
@@ -180,17 +180,6 @@ function eventToolFor(
   return { kind: "event", eventKind };
 }
 
-/**
- * The two `requireSession` codes that mean "log in again", never "this map request failed". The
- * client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper, `state/navigation.ts`'s
- * `onUnauthorized`) already navigates to `/auth` for both — this file's own catch blocks check it
- * only to SKIP surfacing a redundant local error while that redirect is already in flight, never to
- * navigate themselves.
- */
-function isSessionError(code: string): boolean {
-  return code === "session_expired" || code === "unauthorized";
-}
-
 function toEditorMap(map: MapPayload): EditorMap {
   return {
     name: map.name,
@@ -267,14 +256,130 @@ function paintToolFor(
  * through the `MapEditorStageHandle`, exactly as before.
  */
 export function AdventureEditorScreen() {
-  const [session] = useStore(adventureEditorSessionAtom);
+  const [session, setSession] = useStore(adventureEditorSessionAtom);
+  // Leaving the editor clears the session WHILE this component is still mounted (the route swap is
+  // asynchronous and always lands later), so without this flag the no-session branch below would
+  // mount the bootstrap and mint an adventure the author never asked for — permanently, since
+  // abandoned scratches are deliberately never cleaned up. Every departure therefore goes through
+  // `leave()`, never a bare `setSession(null)`: the two are different intents. Clearing the session
+  // to STAY in the editor (the current adventure was just deleted from the Open dialog) still wants
+  // a fresh scratch and keeps calling `setSession(null)` directly.
+  const [leaving, setLeaving] = useState(false);
+  const leave = useCallback((): void => {
+    setLeaving(true);
+    setSession(null);
+  }, [setSession]);
   if (session?.adventureId) {
-    return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
+    return (
+      <AdventureEditorInner
+        key={session.adventureId}
+        adventureId={session.adventureId}
+        onLeave={leave}
+      />
+    );
   }
-  return <AdventurePickerScreen />;
+  // On the way out: render nothing rather than a screen that acts. The pending `router.push` owns
+  // what comes next.
+  if (leaving) return null;
+  return <AdventureEditorBootstrap />;
 }
 
-function AdventureEditorInner({ adventureId }: { adventureId: string }) {
+/**
+ * The no-session branch: mint a scratch adventure and open it. Entering the editor no longer asks
+ * which adventure to work on — that is `File → Open` now — so this is the only path in.
+ *
+ * This screen mounts under Alepha's real router root, which enables React strict mode by default
+ * (`ReactPageProvider.root`, `strictMode` defaulting `true`, never overridden in this app) — so the
+ * mount→cleanup→mount dance it performs in development is real, not a test artifact. Two rules keep
+ * that dance safe:
+ *
+ * - `startedRef` is the fire-once latch: checked and set before the `await`, so the synthetic second
+ *   mount never starts a second `POST`. Both requests would otherwise succeed silently, leaving the
+ *   author with an extra untitled adventure nothing ever cleans up.
+ * - `aliveRef` owns cancellation, not a per-invocation closure. It is reset to `true` at the TOP of
+ *   every effect run — including the synthetic second mount that the latch above turns into a no-op
+ *   — and only the cleanup that survives (the one belonging to the LAST invocation of a mount pass)
+ *   ever runs again to flip it back to `false`. A per-closure `cancelled` flag looks equivalent but
+ *   is not: strict mode's synthetic cleanup for the FIRST invocation would set it before the still
+ *   in-flight request from that same invocation resolves, so `if (!cancelled)` reads false forever
+ *   and the screen hangs on "Preparing…" even though the adventure was created. Keying cancellation
+ *   off a ref that every invocation re-affirms is what lets the surviving mount "undo" that synthetic
+ *   cleanup, while a genuine unmount (no further invocation reasserts `aliveRef`) still cancels
+ *   correctly.
+ */
+function AdventureEditorBootstrap() {
+  useLocale();
+  const router = useRouter();
+  const [, setSession] = useStore(adventureEditorSessionAtom);
+  const [failed, setFailed] = useState(false);
+  const startedRef = useRef(false);
+  const aliveRef = useRef(true);
+  const [attempt, setAttempt] = useState(0);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the explicit retry trigger
+  useEffect(() => {
+    aliveRef.current = true;
+    if (!startedRef.current) {
+      startedRef.current = true;
+      void (async () => {
+        try {
+          const created = await ensureScratchAdventure();
+          if (aliveRef.current) setSession(created);
+        } catch (caught) {
+          if (!aliveRef.current) return;
+          startedRef.current = false;
+          // A dead session is already being redirected to /auth by the client's global 401 seam;
+          // showing a retry on top of that would be a second, contradictory answer.
+          if (isUnauthorizedCode(errorCode(caught))) return;
+          setFailed(true);
+        }
+      })();
+    }
+    return () => {
+      aliveRef.current = false;
+    };
+  }, [attempt, setSession]);
+
+  return (
+    <main className="editor-root editor-chrome flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-950">
+      {failed ? (
+        <div className="flex flex-col items-center gap-3">
+          <p role="alert" className="text-sm text-destructive">
+            {t("editor.shell.preparing.failed")}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                setFailed(false);
+                setAttempt((current) => current + 1);
+              }}
+            >
+              {t("editor.retry")}
+            </Button>
+            <Button variant="outline" onClick={() => void router.push("menu")}>
+              {t("editor.shell.quit")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p role="status" className="text-sm text-zinc-500">
+          {t("editor.shell.preparing")}
+        </p>
+      )}
+    </main>
+  );
+}
+
+function AdventureEditorInner({
+  adventureId,
+  onLeave,
+}: {
+  adventureId: string;
+  /** Clears the session AND tells the shell this is a departure, not a restart — see
+   *  `AdventureEditorScreen`'s `leave()`. Every exit path must call this instead of clearing the
+   *  session itself. */
+  onLeave: () => void;
+}) {
   useLocale();
   const router = useRouter();
   const alepha = useAlepha();
@@ -419,6 +524,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   > | null>(null);
   // Bumped after every save/create so the map panel refetches names and dimensions.
   const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
+  // One session swap at a time. Both File → New adventure and File → Open replace the whole session
+  // asynchronously, and neither can afford to lose a race: two New invocations before the first POST
+  // resolves mint two adventures (nothing ever cleans an abandoned scratch up), and a New POST that
+  // resolves after an Open silently discards the adventure the author explicitly chose. A single
+  // latch across both is the coherent guard — whichever swap started first is the one that lands.
+  const swappingSessionRef = useRef(false);
 
   function openHelp(section: EditorHelpSection = "start"): void {
     setHelpSection(section);
@@ -427,7 +538,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
   const fail = useCallback((caught: unknown): void => {
     const code = errorCode(caught);
-    if (isSessionError(code)) return;
+    if (isUnauthorizedCode(code)) return;
     setError(code);
   }, []);
 
@@ -435,13 +546,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // unsaved edits first, then swap the session — a new adventureId remounts this component (it is
   // keyed by it), resetting every room-local editor state cleanly.
   function loadAdventure(id: string): void {
-    if (savingMapRef.current) return;
+    if (savingMapRef.current || swappingSessionRef.current) return;
     if (id === adventureId) {
       setLoadOpen(false);
       return;
     }
     if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
     setError(null);
+    swappingSessionRef.current = true;
     void (async () => {
       try {
         const loaded = await loadAdventureSession(id);
@@ -449,6 +561,27 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         setLoadOpen(false);
       } catch (caught) {
         fail(caught);
+      } finally {
+        swappingSessionRef.current = false;
+      }
+    })();
+  }
+
+  // File → New adventure: same dirty guard as `loadAdventure`, then swap the session for a fresh
+  // scratch. `AdventureEditorInner` is keyed by `adventureId`, so this remounts every room-local
+  // editor state cleanly rather than leaking the previous adventure's stage.
+  function newAdventure(): void {
+    if (savingMapRef.current || swappingSessionRef.current) return;
+    if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
+    setError(null);
+    swappingSessionRef.current = true;
+    void (async () => {
+      try {
+        setSession(await ensureScratchAdventure());
+      } catch (caught) {
+        fail(caught);
+      } finally {
+        swappingSessionRef.current = false;
       }
     })();
   }
@@ -983,9 +1116,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       }
       if (releasedStage) setStageEpoch((current) => current + 1);
       const code = errorCode(caught);
-      // The global 401 seam already navigates to /auth (see `isSessionError`'s docblock) — bail
+      // The global 401 seam already navigates to /auth (see `isUnauthorizedCode`'s docblock) — bail
       // without reopening the test dialog with a stale error while that redirect is in flight.
-      if (isSessionError(code)) return;
+      if (isUnauthorizedCode(code)) return;
       if (caught instanceof ApiError && code === "adventure_test_invalid") {
         const diagnostics = (caught.details as { diagnostics?: unknown } | null)?.diagnostics;
         if (Array.isArray(diagnostics)) setTestDiagnostics(diagnostics as QuestDiagnostic[]);
@@ -1174,7 +1307,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         });
       } catch {
         // Best-effort refresh: swallow every failure, including a dead session — the global 401
-        // seam already navigates to /auth on its own (see `isSessionError`'s docblock).
+        // seam already navigates to /auth on its own (see `isUnauthorizedCode`'s docblock).
       }
     })();
   }
@@ -1217,7 +1350,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       return;
     }
     // Clear the session; the next editor open bootstraps a fresh opening adventure (UX wave #15).
-    setSession(null);
+    // `onLeave`, never a bare `setSession(null)`: this screen stays mounted until the route swap
+    // lands, and the no-session branch would otherwise mint a stray scratch on the way out.
+    onLeave();
     void router.push("title");
   }
 
@@ -1444,6 +1579,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           showCollisions={showCollisions}
           onExit={() => exit()}
           onOpenLoad={() => setLoadOpen(true)}
+          onNewAdventure={() => newAdventure()}
           onNewMap={() => setNewMapOpen(true)}
           onSave={() => void save()}
           onOpenSettings={() => setSettingsOpen(true)}

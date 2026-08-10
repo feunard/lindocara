@@ -10,7 +10,8 @@
   // already applied.
   //
   // Task 6 is what first gave the editor package a reason to import `alepha` at all: the editor
-  // route's own screens (`AdventureEditorScreen`, `AdventurePickerScreen`) and three dialogs
+  // route's own screen (`AdventureEditorScreen` — the picker it used to sit beside is gone, the
+  // editor now opens straight into a scratch adventure) and three dialogs
   // (`AdventureSettingsDialog`, `QuestWorkspaceDialog`, `RegistryDialog`) now read/write
   // `state/atoms.ts`'s `adventureEditorSessionAtom` via `useStore()` and navigate via `useRouter()`
   // directly, replacing the store's deleted `setScreen`/`setAdventureEditorSession` shims. Every
@@ -29,7 +30,6 @@
   },
   "include": [
     "src/ui/editor/AdventureEditorScreen.tsx",
-    "src/ui/editor/AdventurePickerScreen.tsx",
     "src/ui/editor/AdventureSettingsDialog.tsx",
     "src/ui/editor/QuestWorkspaceDialog.tsx",
     "src/ui/editor/RegistryDialog.tsx",
