@@ -12,7 +12,8 @@
 export const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 /** Bay is current; keep the retired Cloudflare host protected while its data remains reachable. */
 export const PRODUCTION_HOSTS = new Set(["lindocara.bay.alepha.dev", "lindocara.alepha.dev"]);
-export const DEFAULT_LOCAL_TARGET = "http://localhost:5178";
+/** The app's dedicated dev port — pinned in `apps/main/vite.config.ts`, never Vite's shared 5173. */
+export const DEFAULT_LOCAL_TARGET = "http://localhost:5273";
 
 export interface ApiConfig {
   target: URL;

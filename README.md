@@ -50,6 +50,13 @@ npm run dev
 and the SPA shell, over a local SQLite database whose schema is auto-synced from the entity
 definitions. No secrets or migration step are needed locally.
 
+It always serves **<http://localhost:5273>** — this project's dedicated dev port, pinned with
+`strictPort` in [`apps/main/vite.config.ts`](./apps/main/vite.config.ts) so it never drifts onto a
+neighbouring port. Every local tool that talks to the running app (the seed and import/export CLIs,
+the load test, `.claude/launch.json`) defaults to that address. A startup failure saying the port is
+taken means a stale dev server is still running — stop it rather than starting a second one
+somewhere else.
+
 ```bash
 npm run v             # the full verify pipeline (lint, typecheck, tests, drift/content checks, build)
 npm run check:runtime # lint + typecheck + runtime server/player UI tests + build
@@ -72,7 +79,7 @@ parties of up to four, provisions two-map adventures with nearby monsters, creat
 resolves admission through `GET /api/join?party=...&hero=...` and opens `/ws/world` room
 WebSockets. It prints connection, throughput, message-size,
 acknowledgement latency, transition, disconnect, and protocol-error metrics. It targets
-`http://localhost:5173` by default and refuses any remote target unless
+`http://localhost:5273` by default and refuses any remote target unless
 `--allow-remote=true` is explicit; the production hostname needs the additional
 `--allow-production=true` safeguard. Each scenario uses its own resumable party so durable combat
 or death state cannot contaminate a later reconnect or transition run.

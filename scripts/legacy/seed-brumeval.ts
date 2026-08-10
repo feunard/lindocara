@@ -3,7 +3,7 @@
  * through the same /api/* surface the editor uses. Idempotent: re-running updates in place;
  * `--reset` deletes the adventure first.
  *
- * Run with: npm run seed:brumeval -- --target=http://localhost:5178
+ * Run with: npm run seed:brumeval -- --target=http://localhost:5273
  * Dry run:  npm run seed:brumeval -- --dry-run
  * Prod:     SEED_PASSWORD=… npm run seed:brumeval -- --target=https://lindocara.bay.alepha.dev \
  *             --allow-remote --allow-production
@@ -51,7 +51,7 @@ function argumentsOf(argv: string[]): Map<string, string> {
 
 function configuration(argv: string[]): Config {
   const args = argumentsOf(argv);
-  const target = new URL(args.get("target") ?? "http://localhost:5178");
+  const target = new URL(args.get("target") ?? "http://localhost:5273");
   if (!LOCAL_HOSTS.has(target.hostname) && args.get("allow-remote") !== "true") {
     throw new Error("remote targets require --allow-remote=true");
   }

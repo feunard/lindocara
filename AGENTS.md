@@ -17,7 +17,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | `alepha dev` â€” the whole app on Node: auto-synced SQLite, `/api/*`, auth, the `/ws/*` realtime rooms and the SPA shell |
+| `npm run dev` | `alepha dev` â€” the whole app on Node: auto-synced SQLite, `/api/*`, auth, the `/ws/*` realtime rooms and the SPA shell, always on **port 5273** (see below) |
 | `npm run v` (`npx alepha verify`) | the full verify pipeline: lint â†’ typecheck + tests (parallel) â†’ migrations drift check â†’ catalog/map content checks â†’ build; `--fast` keeps the migrations check but skips content checks and the build |
 | `npm run check` | catalog/map checks, lint, typecheck, test â€” run this before committing |
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
@@ -37,6 +37,35 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 Asset generation runs on macOS (Apple Silicon) and on Windows/Linux with an NVIDIA GPU; on
 Windows the commands start with `python`, not `python3`.
+
+### The dev server has a dedicated port: 5273
+
+`npm run dev` always serves <http://localhost:5273>, pinned with `port` + `strictPort` in
+[`apps/main/vite.config.ts`](./apps/main/vite.config.ts). **Use that address, never 5173.**
+
+5173 is the Vite/Alepha default, shared by every Alepha project on the machine, and without a pin
+`alepha dev` walks forward — 5173, 5174, 5175… — until it finds a free one, so the port changed run
+to run. That drift is not cosmetic: every local tool that talks to the running app hardcodes a
+target (`scripts/lib/adventure-api.ts`'s `DEFAULT_LOCAL_TARGET`, the seed and import/export CLIs,
+`scripts/loadtest.mjs`, `.claude/launch.json`), and a drifting server silently pointed them at
+whatever else was listening — most often another Alepha app answering the same auth routes with its
+own realm rules, which reads like a lindocara bug and is not one. `scripts/loadtest.mjs`'s
+`verifyTarget` exists because that already happened.
+
+**5273 = the framework default + 100, deliberately far from 5173.** Adjacent is the crowded part:
+Alepha Lore is itself a multi-app workspace, and one `alepha dev` there claims 5173..5179 in a
+single run (`DevCommand.selectApps` hands out `basePort + i`). Any pin inside that band collides
+whenever Lore is up — which is exactly what the old 5178 tooling default did. Keep out of a
+neighbour's fleet, not merely off its first port.
+
+`strictPort` is the half that makes it dedicated: boot now FAILS on a collision instead of walking
+on. That failure is information — a stale dev server is still running. Stop it; do not start a
+second one on another port. `SERVER_PORT` in the environment still overrides everything (Alepha
+reads it first), which is how the framework's own multi-app runner assigns ports.
+
+`apps/lab` is a separate app and still declares 5174 (`apps/lab/vite.config.ts`), with no
+`strictPort` — inside Lore's band, so it drifts whenever Lore is running. Left as-is for now; it is
+a witness, nothing targets it programmatically.
 
 ### History: the Alepha migration (2026-07-29 â†’ 2026-07-31)
 

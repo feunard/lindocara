@@ -2,7 +2,7 @@
  * Export / import a whole adventure as ONE portable JSON bundle (engine `adventure-bundle.ts`).
  *
  *   npm run adventure:export -- --adventure="Brumeval" --out=adventures/brumeval.json \
- *     [--target=http://localhost:5178] [--username=brumevalauthor]
+ *     [--target=http://localhost:5273] [--username=brumevalauthor]
  *   npm run adventure:import -- --file=adventures/brumeval.json [--title="Autre titre"] \
  *     [--reset] [--target=…] [--username=…]
  *

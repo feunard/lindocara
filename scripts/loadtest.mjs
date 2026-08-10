@@ -34,7 +34,7 @@ function positiveInteger(value, fallback, name, maximum) {
 
 function configuration(argv) {
   const args = argumentsOf(argv);
-  const target = new URL(args.get("target") ?? "http://localhost:5173");
+  const target = new URL(args.get("target") ?? "http://localhost:5273");
   const scenario = args.get("scenario") ?? "mixed";
   if (!SCENARIOS.has(scenario)) throw new Error(`unknown scenario: ${scenario}`);
   if (!LOCAL_HOSTS.has(target.hostname) && args.get("allow-remote") !== "true") {
@@ -1006,17 +1006,19 @@ class VirtualPlayer {
 }
 
 /**
- * Confirme que `target` sert bien l'app lindocara avant de provisionner quoi que ce soit.
+ * Confirm that `target` really serves the lindocara app before provisioning anything.
  *
- * `--target` par défaut est `http://localhost:5173`, un port par défaut partagé par toute
- * app Alepha (`alepha dev` retombe sur 5173 faute de `SERVER_PORT`) — un autre projet Alepha
- * qui tourne déjà sur ce port (ex. Alepha Lore, lancé depuis un autre repo) répond aux mêmes
- * routes d'inscription avec SES réglages de realm (email + captcha requis), pas ceux de
- * lindocara. Sans ce garde-fou l'échec ressemble à un bug de configuration du realm
- * lindocara ("Email is required" / "Captcha verification is required") alors qu'il s'agit
- * d'une simple collision de port. `HealthController.apiHealth` (lindocara uniquement)
- * répond `{"ok":true}` sur `/api/health` ; une autre app Alepha n'a pas cette route et sert
- * sa coquille SPA (HTML) à la place.
+ * `--target` defaults to `http://localhost:5273`, this app's dedicated dev port
+ * (`apps/main/vite.config.ts`). That pin exists precisely because the Alepha/Vite default 5173 is
+ * shared by every Alepha project on the machine: another one already listening there (Alepha Lore,
+ * started from a different repo) answers the same registration routes with ITS realm settings
+ * (email + captcha required), not lindocara's. Without this guard the failure reads like a
+ * lindocara realm misconfiguration ("Email is required" / "Captcha verification is required") when
+ * it is only a port collision. The pin makes that unlikely, not impossible — an explicit
+ * `--target` can still point anywhere — so the check stays.
+ *
+ * `HealthController.apiHealth` (lindocara only) answers `{"ok":true}` on `/api/health`; another
+ * Alepha app has no such route and serves its SPA shell (HTML) instead.
  */
 async function verifyTarget(config) {
   const result = await requestJson(config.target, "/api/health", { method: "GET" });
@@ -1024,7 +1026,7 @@ async function verifyTarget(config) {
     throw new Error(
       `target ${config.target.origin} does not look like the lindocara server ` +
         `(GET /api/health did not return {"ok":true}) — check what is actually listening on ` +
-        "that port; --target defaults to :5173, which any Alepha app's dev server may occupy",
+        "that port; --target defaults to :5273, this app's dedicated dev port",
     );
   }
 }

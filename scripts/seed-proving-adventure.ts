@@ -31,7 +31,7 @@
  *     --target=https://lindocara.bay.alepha.dev --allow-remote=true --allow-production=true
  *
  * Flags:
- *   --target=<url>          the running app; defaults to http://localhost:5173
+ *   --target=<url>          the running app; defaults to http://localhost:5273
  *   --title=<text>          adventure title; defaults to "HD-2D Proving Ground"
  *   --username=<name>       account to author under; defaults to `proving-pilot`
  *   --allow-remote=true     required for any non-localhost target
@@ -46,8 +46,8 @@ import { buildProvingMap } from "./build-proving-map.js";
 import { ApiClient, argumentsOf, resolveCredentials, resolveTarget } from "./lib/adventure-api.js";
 
 const DEFAULTS = {
-  /** `alepha dev`'s port, not `DEFAULT_LOCAL_TARGET`'s 5178 (the retired stack's). */
-  target: "http://localhost:5173",
+  /** The app's dedicated dev port, same as `DEFAULT_LOCAL_TARGET` — see `apps/main/vite.config.ts`. */
+  target: "http://localhost:5273",
   title: "HD-2D Proving Ground",
   username: "proving-pilot",
   // Alepha's own registration rules reject a password with no uppercase, which is exactly the

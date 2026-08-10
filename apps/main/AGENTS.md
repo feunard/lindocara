@@ -18,7 +18,10 @@ second site would be a sibling `apps/<name>`.
   `bay`) and the authenticated bay-admin endpoint used by CI.
 - `vite.config.ts` — auto-loaded by `alepha dev`/`alepha build`. Alepha owns the server/plugin
   wiring; this file only adds what the framework cannot know: the Tailwind plugin, the client
-  `publicDir`, the `@` alias, and `fs.allow` for workspace-wide asset globs.
+  `publicDir`, the `@` alias, `fs.allow` for workspace-wide asset globs, and the app's **dedicated
+  dev port 5273** (`port` + `strictPort`, so a collision fails loudly instead of drifting onto the
+  next free port). All local tooling targets that port; see the root
+  [`AGENTS.md`](../../AGENTS.md).
 - `migrations/sqlite/` — the generated database migrations (`npm run db:generate` here diffs the
   `$entity` schemas; the Bay app applies packed migrations at boot).
 - `index.html` — vestigial: the framework generates its own shell from `main.browser.ts`; this
@@ -31,7 +34,7 @@ second site would be a sibling `apps/<name>`.
 ## Commands
 
 ```bash
-npm run dev                 # (root delegates here) alepha dev — Node + SQLite, the whole app
+npm run dev                 # (root delegates here) alepha dev — Node + SQLite, the whole app, :5273
 npm run build               # alepha build; add -- --target bare for the Bay production shape
 npm run deploy              # alepha platform up -e production (CI runs this on push to main)
 npm run db:generate         # alepha db migrations create
