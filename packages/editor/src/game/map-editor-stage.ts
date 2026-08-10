@@ -149,7 +149,7 @@ function blockedCells(map: EditorMap, levels: readonly (number | null)[]): Colli
 let activeStage: MapEditorStageHandle | null = null;
 let openQueue: Promise<void> = Promise.resolve();
 
-/** How far an Alt-drag turns the camera per pixel of horizontal travel. A shade under a quarter
+/** How far a right-drag turns the camera per pixel of horizontal travel. A shade under a quarter
  *  turn across a 900px canvas: enough to swing round to a cliff's far face in one gesture, gentle
  *  enough to nudge a few degrees. */
 const ORBIT_RADIANS_PER_PIXEL = 0.005;
@@ -434,15 +434,15 @@ export function openMapEditorStage(
     };
 
     const panTrigger = (event: PointerEvent): boolean =>
-      event.button === 1 ||
-      event.button === 2 ||
-      (event.button === 0 && (spaceHeld || tool.kind === "pan"));
+      event.button === 1 || (event.button === 0 && (spaceHeld || tool.kind === "pan"));
 
     const onPointerDown = (event: PointerEvent): void => {
       canvas.focus();
-      // Alt+drag orbits. Checked before the pan trigger so Alt wins over a held space or the pan
-      // tool, and before the paint branch so an Alt-drag never lays down tiles on the way round.
-      if (event.altKey && event.button === 0) {
+      // Right-drag orbits, middle-drag pans — the split every 3D editor uses. Right USED to be a
+      // second pan trigger beside middle, which left the camera's two movements sharing one button
+      // and rotation with none. Checked before the paint branch so an orbit never lays down tiles
+      // on the way round; the canvas already suppresses the context menu (`preventContext`).
+      if (event.button === 2) {
         orbiting = true;
         lastPointerX = event.clientX;
         lastPointerY = event.clientY;

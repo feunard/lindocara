@@ -137,7 +137,7 @@ describe("HD-2D map editor stage", () => {
     const canvas = document.querySelector<HTMLCanvasElement>("#stage");
     if (!canvas) throw new Error("fixture canvas missing");
     canvas.dispatchEvent(
-      new PointerEvent("pointerdown", { button: 0, altKey: true, clientX: 100, clientY: 100 }),
+      new PointerEvent("pointerdown", { button: 2, clientX: 100, clientY: 100 }),
     );
     canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 104, clientY: 100 }));
     window.dispatchEvent(new PointerEvent("pointerup"));
@@ -145,6 +145,43 @@ describe("HD-2D map editor stage", () => {
 
     stage.rotateQuarter(1);
     expect(yaws.at(-1)).toBe(180);
+    stage.dispose();
+  });
+
+  it("orbits on right-drag and pans on middle-drag, never both", async () => {
+    const yaws: number[] = [];
+    const stage = await openMapEditorStage(
+      blankMap("Map", 20, 15),
+      vi.fn(),
+      undefined,
+      undefined,
+      undefined,
+      (degrees) => yaws.push(degrees),
+    );
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const focusCalls = () => mock.renderer.setCameraFocus.mock.calls.length;
+
+    // Right-drag turns the camera and must NOT move the focus. Right used to be a second pan
+    // trigger, so this is the assertion that pins the reassignment.
+    const beforeRight = focusCalls();
+    canvas.dispatchEvent(
+      new PointerEvent("pointerdown", { button: 2, clientX: 100, clientY: 100 }),
+    );
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 140, clientY: 100 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(yaws.length).toBeGreaterThan(0);
+    expect(focusCalls()).toBe(beforeRight);
+
+    // Middle-drag still pans, and must not turn the camera.
+    const turns = yaws.length;
+    canvas.dispatchEvent(
+      new PointerEvent("pointerdown", { button: 1, clientX: 100, clientY: 100 }),
+    );
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 140, clientY: 100 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(focusCalls()).toBeGreaterThan(beforeRight);
+    expect(yaws.length).toBe(turns);
     stage.dispose();
   });
 
