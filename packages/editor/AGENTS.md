@@ -17,8 +17,13 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
   existing adventure is `File → Open`, and starting another is `File → New adventure`. Abandoned
   scratches are deliberately NOT cleaned up — they are deleted by hand from the Open dialog, so no
   unsaved work can vanish unasked.
-- The entry bootstrap's ref latch is load-bearing: without it, React strict mode's double-invoked
-  effect mints two adventures per visit, silently, and nothing ever collects them.
+- The entry bootstrap's two refs (`AdventureEditorScreen.tsx`) each guard against strict mode's
+  double-invoked effect, in different ways: `startedRef` is the fire-once latch — drop it and you
+  get a silent second `POST`, two untitled adventures per visit. `aliveRef` owns cancellation,
+  reasserted at the top of every effect run rather than a per-closure flag — drop it, or simplify
+  it into one, and the screen instead hangs forever on "Preparing…" after the adventure WAS
+  created, because the synthetic first-mount cleanup discards its own still-in-flight result. See
+  the docblock above the component for the full strict-mode rationale.
 
 ## Commands
 
