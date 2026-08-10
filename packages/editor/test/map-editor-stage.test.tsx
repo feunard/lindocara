@@ -1,9 +1,10 @@
-import { blankMap } from "@lindocara/editor/game/editor-state.js";
+import { blankMap, toMapData } from "@lindocara/editor/game/editor-state.js";
 import {
   defaultDimForMode,
   editorToolPreviewAssetId,
   openMapEditorStage,
 } from "@lindocara/editor/game/map-editor-stage.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -257,6 +258,27 @@ describe("HD-2D map editor stage", () => {
     stage.setActiveMode("event");
     stage.setTool({ kind: "event", eventKind: "guard", patrolRadius: 2, graphic: guard });
     expect(mock.renderer.setEditorPreviewAsset).toHaveBeenLastCalledWith(guard);
+    stage.dispose();
+  });
+
+  it("keeps the decor preview on the exact compiled position after placement", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const tree = "resource.terrain-resources-wood-trees.tree3" as const;
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "element", assetId: tree });
+
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
+    const overlayBeforePlacement = mock.renderer.setEditorOverlay.mock.lastCall?.[0];
+    const previewPoint = overlayBeforePlacement?.assetPreview?.point;
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    const compiledElement = compileAuthoredMap(toMapData(stage.current())).elements[0];
+
+    expect(stage.current().elements[0]).toMatchObject({ col: 1, row: 2, offsetX: 2, offsetY: 2 });
+    expect(previewPoint).toEqual({ x: compiledElement?.x, z: compiledElement?.z });
     stage.dispose();
   });
 });

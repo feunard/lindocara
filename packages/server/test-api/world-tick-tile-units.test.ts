@@ -12,9 +12,8 @@
  * 3. **an authored teleport is grounded on where it LANDS, not on a step.** That is deliberate — an
  *    author placed the destination — but `canStand`'s disc and the collider index still have to
  *    accept it, and the collider half is the one a relief-only conversion silently drops.
- * 4. **a released ghost lands somewhere standable, away from its own corpse, with three axes.**
- *    Releasing on top of your own body reclaims it on the next tick, and a two-axis landing
- *    typechecks while leaving the ghost's elevation at whatever it died holding.
+ * 4. **releasing resurrects at the map entry, alive, grounded, and with all three axes.** A
+ *    two-axis landing typechecks while leaving elevation at whatever height the hero died holding.
  * 5. **every server-authored teleport writes BOTH ground axes.** `WorldPosition`'s ground pair is
  *    `x`/`z` and its `y` is elevation, so `player.x = d.x; player.y = d.y;` — the pixel shape,
  *    verbatim — typechecks perfectly, moves the body along ONE ground axis and leaves it at a
@@ -25,7 +24,7 @@
 
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
-import { CORPSE_RECLAIM_RANGE } from "@lindocara/engine/death.js";
+import { resurrectHp } from "@lindocara/engine/death.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import {
@@ -87,21 +86,6 @@ function terrain(colliders: MapData["colliders"] = []): ZoneTerrain {
     events: [],
   };
   return zoneTerrainFromHeightfield(map);
-}
-
-function singleCellTerrain(): ZoneTerrain {
-  return zoneTerrainFromHeightfield({
-    version: 1,
-    size: 1,
-    levelHeight: LEVEL_HEIGHT,
-    waterLevel: -0.25,
-    levels: [0],
-    materials: ["herbe"],
-    colliders: [],
-    spawns: [],
-    elements: [],
-    events: [],
-  });
 }
 
 function definitionWith(
@@ -331,7 +315,7 @@ describe("an authored event's cell, in tile units", () => {
 });
 
 describe("releasing a spirit", () => {
-  it("leaves the body where it fell, with all three axes", () => {
+  it("leaves the body where it fell until release, with all three axes", () => {
     const built = terrain();
     const player = hero(2.25, -3.5);
     const w = glue(built, player);
@@ -342,7 +326,7 @@ describe("releasing a spirit", () => {
     expect(player.corpse).toEqual({ x: 2.25, y: 0, z: -3.5 });
   });
 
-  it("puts the ghost on the map's authored spawn", () => {
+  it("resurrects alive on the map's authored entry point", () => {
     const built = terrain();
     const player = hero(2.5, -3.5);
     const spawn = { x: -1.5, z: -1.5 };
@@ -351,15 +335,18 @@ describe("releasing a spirit", () => {
     killPlayer(w, "connection", player);
     handleRelease(w, "connection", player);
 
-    expect(player.life).toBe("ghost");
-    expect(player.x).toBeCloseTo(spawn.x, 10);
-    expect(player.z).toBeCloseTo(spawn.z, 10);
-    expect(player.y).toBe(0);
+    expect(player).toMatchObject({
+      life: "alive",
+      corpse: null,
+      hp: resurrectHp(player.level),
+      x: spawn.x,
+      y: groundUnder(built, spawn.x, spawn.z),
+      z: spawn.z,
+    });
   });
 
-  it("never releases on top of the corpse, which would reclaim it on the next tick", () => {
+  it("resurrects directly even when the hero died on the entry point", () => {
     const built = terrain();
-    // Dying exactly on the map's only spirit anchor.
     const spawn = { x: -1.5, z: -1.5 };
     const player = hero(spawn.x, spawn.z);
     const w = glue(built, player, spawn);
@@ -367,49 +354,24 @@ describe("releasing a spirit", () => {
     killPlayer(w, "connection", player);
     handleRelease(w, "connection", player);
 
-    const corpse = { x: spawn.x, z: spawn.z };
-    expect(Math.hypot(player.x - corpse.x, player.z - corpse.z)).toBeGreaterThan(
-      CORPSE_RECLAIM_RANGE,
-    );
-    // …and the ghost is somewhere a body could actually be standing, with its elevation read from
-    // the ground rather than carried over from wherever it died.
-    expect(
-      canStand(built, player.x, player.z, BODY_RADIUS, groundUnder(built, player.x, player.z)),
-    ).toBe(true);
-    expect(player.y).toBe(groundUnder(built, player.x, player.z));
+    expect(player).toMatchObject({ life: "alive", corpse: null, x: spawn.x, z: spawn.z });
   });
 
-  it("keeps the hero down when the map has no safe spirit landing", () => {
-    const built = singleCellTerrain();
-    const spawn = { x: 0, z: 0 };
-    const player = hero(spawn.x, spawn.z);
-    const w = glue(built, player, spawn);
-
-    killPlayer(w, "connection", player);
-    handleRelease(w, "connection", player);
-
-    expect(player.life).toBe("corpse");
-    expect(player.corpse).toEqual({ x: 0, y: 0, z: 0 });
-  });
-
-  it("is one-way: a ghost cannot release again", () => {
+  it("ignores another release after the hero is already alive", () => {
     const built = terrain();
     const player = hero(2.5, -3.5);
     const w = glue(built, player, { x: -1.5, z: -1.5 });
 
     killPlayer(w, "connection", player);
     handleRelease(w, "connection", player);
-    const landed = { x: player.x, z: player.z };
+    const landed = { x: player.x, y: player.y, z: player.z, hp: player.hp };
     handleRelease(w, "connection", player);
 
-    expect(player.life).toBe("ghost");
-    expect({ x: player.x, z: player.z }).toEqual(landed);
+    expect(player.life).toBe("alive");
+    expect({ x: player.x, y: player.y, z: player.z, hp: player.hp }).toEqual(landed);
   });
 
-  it("sends the ghost off an unstandable anchor rather than into the sea", () => {
-    // A map with no authored spawn falls back to the grid CENTRE, which on a heightfield is just
-    // another cell and may be water or, here, a prop. The anchor is a starting point for the
-    // search, never a landing.
+  it("uses the standable entry fallback instead of resurrecting inside an obstacle", () => {
     const built = terrain([{ x: -1.5, z: -1.5, w: 3, h: 3 }]);
     const player = hero(4.5, 4.5);
     const w = glue(built, player, null);
@@ -418,7 +380,8 @@ describe("releasing a spirit", () => {
     killPlayer(w, "connection", player);
     handleRelease(w, "connection", player);
 
-    expect(player.life).toBe("ghost");
+    expect(player.life).toBe("alive");
+    expect(player.corpse).toBeNull();
     expect(
       canStand(built, player.x, player.z, BODY_RADIUS, groundUnder(built, player.x, player.z)),
     ).toBe(true);

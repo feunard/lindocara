@@ -133,6 +133,35 @@ transparent sheets:
 - `packages/client/public/assets/lindocara/hd2d/sea-guardian-swim.png`
 - `packages/client/public/assets/lindocara/hd2d/sea-guardian-attack.png`
 
+The vertical swim was regenerated with Codex's built-in image generator (`imagegen`) after the first
+version failed to preserve the production sprite's identity. The old upward sheet was the edit
+target; the shipped side-swim and attack sheets were authoritative identity/style references.
+Prompt:
+
+> Use case: precise-object-edit. Asset type: production 4-frame HD-2D game sprite sheet. Image 1 is
+> the edit target and defines the exact four-frame horizontal layout and upward-swimming
+> orientation. Images 2 and 3 are the authoritative production character identity, pixel-art
+> rendering, palette, proportions, scars, outline, and animation style. Replace only the mismatched
+> shark rendering in all four cells of Image 1 with exactly the same sea-guardian shark seen in
+> Images 2 and 3, now swimming vertically toward the top of the sheet. This is the same character
+> from a rotated movement direction, not a redesign. Preserve the long angular shark snout, compact
+> muscular body, dark desaturated teal-blue back, irregular cream underside, navy pixel outline,
+> small hostile eye, exact pale scar shapes, dorsal fin shape, paired pectoral fins, forked tail,
+> chunky hand-painted pixel clusters, limited palette, hard stepped edges, and the same apparent
+> sprite scale. Four distinct but subtle poses: tail left, centre, right, centre. One complete shark
+> per equal square frame, nose toward the top. Perfectly flat uniform solid #ff00ff chroma-key
+> background. No front-facing grin, oversized mouth, broad flat head, manta-ray silhouette, bubbles,
+> water, shadows, gradients, background texture, text, border, watermark or extra objects.
+
+The built-in result was keyed to alpha with the installed imagegen `remove_chroma_key.py` helper.
+`scripts/animation-sheet.py` then applied the project sprite normalization at 210 px content height,
+24 colours and four 256x256 cells. A 180-degree nearest-neighbour rotation produced the matching
+downward sheet. The transparent source/reference and opposite-direction reference are stored under
+`studio/pixel-art/refs/sea-guardian-{up,down}.png`; the final sheets are:
+
+- `packages/client/public/assets/lindocara/hd2d/sea-guardian-swim-up.png`
+- `packages/client/public/assets/lindocara/hd2d/sea-guardian-swim-down.png`
+
 The project-local MOSS sound-effect lane generated the two mono 48 kHz PCM WAV files:
 
 - `sea-guardian-near.wav`, seed **91**, 10 s: "continuous ominous underwater pressure from a

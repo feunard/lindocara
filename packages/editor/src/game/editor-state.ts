@@ -15,7 +15,7 @@ import {
   type HarvestProfile,
   parseHarvestProfile,
 } from "@lindocara/engine/harvest.js";
-import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { compileAuthoredMap, isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
@@ -951,6 +951,7 @@ function functionalEventPlacementOk(
 ): boolean {
   if (kind === "normal") return true;
   if (kind === "exit" && col === map.spawn.col && row === map.spawn.row) return false;
+  if (kind === "sea-guardian") return isAuthoredWaterCell(toMapData(map), col, row);
   return true;
 }
 
@@ -1324,6 +1325,17 @@ export function applyTool(
           // preset label names the event so five presets do not all list as "Custom event".
           selfSpawn: map.spawn,
           ...(tool.presetName === undefined ? {} : { name: tool.presetName }),
+        });
+        return { ...map, events: [...map.events, event] };
+      }
+      if (tool.eventKind === "sea-guardian") {
+        const event = functionalEvent({
+          id: crypto.randomUUID(),
+          col,
+          row,
+          ordinal,
+          kind: "sea-guardian",
+          name: tool.presetName ?? "",
         });
         return { ...map, events: [...map.events, event] };
       }

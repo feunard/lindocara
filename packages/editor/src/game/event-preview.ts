@@ -1,5 +1,6 @@
 import type { MapEvent } from "@lindocara/engine/map-events.js";
-import type { WorldEventSnapshot } from "@lindocara/engine/protocol.js";
+import type { SeaGuardianSnapshot, WorldEventSnapshot } from "@lindocara/engine/protocol.js";
+import { seaGuardianRuntimeId } from "@lindocara/engine/sea-guardian.js";
 
 export type AuthoredEventPreviewScope = "map-editor" | "playable-preview";
 
@@ -15,6 +16,7 @@ export function authoredEventPreviewSnapshots(
   scope: AuthoredEventPreviewScope,
 ): WorldEventSnapshot[] {
   return events.flatMap((event) => {
+    if (event.kind === "sea-guardian") return [];
     if (scope === "playable-preview" && (event.kind === "monster" || event.kind === "guard")) {
       return [];
     }
@@ -54,4 +56,28 @@ export function authoredEventPreviewSnapshots(
       },
     ];
   });
+}
+
+/** Preview projection for the dedicated actor path used by both editor surfaces. */
+export function authoredSeaGuardianPreviewSnapshots(
+  events: readonly MapEvent[],
+  size: number,
+  waterLevel: number,
+): SeaGuardianSnapshot[] {
+  return events.flatMap((event) =>
+    event.kind === "sea-guardian"
+      ? [
+          {
+            id: seaGuardianRuntimeId(event.id),
+            x: event.col + 0.5 - size / 2,
+            y: waterLevel,
+            z: event.row + 0.5 - size / 2,
+            facing: { x: 0, z: 1 },
+            state: "patrol" as const,
+            animationStartedAt: 0,
+            animationEndsAt: null,
+          },
+        ]
+      : [],
+  );
 }

@@ -3,7 +3,7 @@
  * happened.
  *
  * Since S3 moved movement to the client, the room stores the position its client REPORTS. A
- * displacement the SERVER decides — a ghost release, a Pas de Lumen landing, an authored teleport —
+ * displacement the SERVER decides — an entry-point resurrection, a Pas de Lumen landing, an authored teleport —
  * therefore races the report stream: for one round trip the client is still computing positions from
  * where it used to be, and a room that stored those unconditionally would let the last stale frame
  * undo the displacement, silently and with nothing anywhere saying so.
@@ -215,18 +215,20 @@ function currentStamp(socket: FakeSocket): DisplacementStamp {
  * displacement the real app has: two client messages, no class, no cooldown, no monster, no talent.
  * Returns where the hero was, where the room put it, and the stamp that says so.
  */
-async function releaseGhost(
+async function releaseAtEntry(
   engine: ReturnType<typeof createEngine>,
   socket: FakeSocket,
   heroId: string,
 ) {
   const start = lastSelfSnapshot(socket, heroId);
   expect(start?.life).toBe("alive");
-  const spawn = { x: start?.x ?? 0, y: start?.y ?? 0, z: start?.z ?? 0 };
+  // `newPlayableHero` installs `provingHeightfield()`, whose authored default entry is the origin.
+  const entry = { x: 0, y: 0, z: 0 };
+  const death = { x: entry.x + 1, y: entry.y, z: entry.z + 1 };
 
-  // Drown where the room seated us: the corpse stays where the hero went under.
+  // Die away from the entry so releasing has a real displacement to stamp and announce.
   await engine.message(socket.id, {
-    ...move(spawn.x, spawn.y, spawn.z, currentStamp(socket).seq),
+    ...move(death.x, death.y, death.z, currentStamp(socket).seq),
     swimming: true,
   });
   await engine.message(socket.id, { t: "drowned" });
@@ -234,16 +236,17 @@ async function releaseGhost(
   clock().advance(TICK_MS);
   expect(lastSelfSnapshot(socket, heroId)?.life).toBe("corpse");
 
-  // Releasing is a SERVER-authored displacement: the ghost materialises at the map's spirit anchor,
-  // far enough from the body that it does not reclaim it on the very next tick.
+  // Releasing is a SERVER-authored displacement and an immediate resurrection at the map entry.
   await engine.message(socket.id, { t: "release" });
   clock().advance(TICK_MS);
   clock().advance(TICK_MS);
   const released = lastSelfSnapshot(socket, heroId);
-  expect(released?.life).toBe("ghost");
+  expect(released?.life).toBe("alive");
+  expect(runtimePlayer(engine, heroId).corpse).toBeNull();
   const landing = { x: released?.x ?? 0, y: released?.y ?? 0, z: released?.z ?? 0 };
-  expect(Math.hypot(landing.x - spawn.x, landing.z - spawn.z)).toBeGreaterThan(0);
-  return { spawn, landing, stamp: currentStamp(socket) };
+  expect(landing).toEqual(entry);
+  expect(Math.hypot(landing.x - death.x, landing.z - death.z)).toBeGreaterThan(0);
+  return { death, landing, stamp: currentStamp(socket) };
 }
 
 /** The clock the current test installed — set by each test before it calls the helper above. */
@@ -332,17 +335,17 @@ describe("server displacement vs. in-flight client reports", () => {
     },
   );
 
-  test("a ghost release is not undone by a move frame that predates it", async () => {
+  test("an entry-point resurrection is not undone by a move frame that predates it", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("release");
     activeClock = new FakeClock();
     const engine = createEngine(roomId, activeClock);
     const socket = fakeSocket(userId, heroId);
     await engine.join(socket);
-    const { spawn, landing, stamp } = await releaseGhost(engine, socket, heroId);
+    const { death, landing, stamp } = await releaseAtEntry(engine, socket, heroId);
 
     // The frame that was already on its way when the room decided: computed from where the hero used
     // to be, and stamped with the displacement count from before the release.
-    await engine.message(socket.id, move(spawn.x, spawn.y, spawn.z, stamp.seq - 1));
+    await engine.message(socket.id, move(death.x, death.y, death.z, stamp.seq - 1));
     activeClock.advance(TICK_MS);
     activeClock.advance(TICK_MS);
 
@@ -360,7 +363,7 @@ describe("server displacement vs. in-flight client reports", () => {
     const engine = createEngine(roomId, activeClock);
     const socket = fakeSocket(userId, heroId);
     await engine.join(socket);
-    const { landing, stamp } = await releaseGhost(engine, socket, heroId);
+    const { landing, stamp } = await releaseAtEntry(engine, socket, heroId);
 
     // The stamp carries the landing itself, not just a number: that pairing is what lets a client
     // adopt the position and raise its echo in one step, with no window in between where it could
@@ -370,7 +373,7 @@ describe("server displacement vs. in-flight client reports", () => {
     expect(stamp.y).toBeCloseTo(landing.y, 6);
     expect(stamp.z).toBeCloseTo(landing.z, 6);
 
-    // Having adopted it, the ghost moves again — the drop is per-frame staleness, never a lock.
+    // Having adopted it, the living hero moves again — the drop is per-frame staleness, never a lock.
     await engine.message(socket.id, move(landing.x + 1, landing.y, landing.z, stamp.seq));
     activeClock.advance(TICK_MS);
     activeClock.advance(TICK_MS);

@@ -73,6 +73,7 @@ export const EVENT_KINDS = [
   "entry",
   "exit",
   "monster",
+  "sea-guardian",
   "guard",
   "harvestable",
   "spawn",
@@ -152,6 +153,7 @@ export function isRuntimeEventKind(kind: EventKind): boolean {
     kind === "normal" ||
     kind === "npc" ||
     kind === "monster" ||
+    kind === "sea-guardian" ||
     kind === "guard" ||
     kind === "harvestable"
   );
@@ -315,6 +317,11 @@ export function exitEvents(events: readonly MapEvent[]): MapEvent[] {
 
 export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "monster");
+}
+
+/** The map's permanent, untargetable special sea monsters. */
+export function seaGuardianEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "sea-guardian");
 }
 
 /** Authored allied combatants. Their active page, unlike a monster's, controls runtime presence. */
@@ -651,7 +658,6 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       runtimeEvents += 1;
       if (runtimeEvents > MAX_RUNTIME_EVENTS_PER_MAP) return null;
     }
-
     // Monster events carry `species` + tuning + radius. Free NPCs reuse the persisted HP/power
     // tuning columns without a species, and guards carry only a radius. Validate all of it here so
     // no untrusted half-event can cross the wire boundary.
@@ -834,6 +840,34 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     if (
       (kind === "entry" || kind === "exit" || kind === "spawn") &&
       normalizedPages.some((page) => page.commands.length > 0)
+    ) {
+      return null;
+    }
+    // This special event is only an authoritative water anchor. Its appearance, movement and
+    // lethality belong to the dedicated sea-guardian system, so reject generic page settings that
+    // would look configurable while being ignored at runtime.
+    if (
+      kind === "sea-guardian" &&
+      normalizedPages.some(
+        (page) =>
+          page.condSwitchId !== null ||
+          page.condVariableId !== null ||
+          page.condVariableMin !== null ||
+          page.condSelfSwitch !== null ||
+          page.graphicAssetId !== null ||
+          page.graphicTint !== EVENT_GRAPHIC_TINT_DEFAULT ||
+          page.moveType !== "fixed" ||
+          (page.moveRoute?.length ?? 0) > 0 ||
+          page.moveSpeed !== 4 ||
+          page.moveFreq !== 3 ||
+          !page.optMoveAnim ||
+          page.optStopAnim ||
+          page.optDirFix ||
+          page.optThrough ||
+          page.optOnTop ||
+          page.trigger !== "action" ||
+          page.commands.length > 0,
+      )
     ) {
       return null;
     }

@@ -412,8 +412,8 @@ Two client-owned decisions and their fences:
   that mentions mobility, so a client cannot fabricate a grant.
 - **Drowning.** A server-decided death in place. The client reports a bare `{t:"drowned"}` â€” no
   position, no damage â€” and the room refuses it unless that client's own position stream has the
-  hero alive and swimming. Then `killPlayer` leaves the body where it went under, and the corpse run
-  brings it back like any other death.
+  hero alive and swimming. Then `killPlayer` leaves the body where it went under. The current
+  release policy resurrects it at the map entry like any other death.
 
 `apps/lab` remains the witness that exercises `stepHero` outside the game, not a second copy of it.
 
@@ -479,22 +479,25 @@ timings, limits and Tiny Swords mappings.
                         â””â”€â”€(you press R)â”€â”€â–¶ "ghost" â”€â”€(walk onto your body)â”€â”€â–¶ "alive"
 ```
 
+The current release policy bypasses the ghost branch: pressing R resurrects immediately at the
+current map's authored entry (or its nearest standable fallback). The ghost route shown above is
+retained only for historical persisted-state compatibility.
+
 There is no timer in it and no auto-release. A corpse waits indefinitely, which is the only
-reason a priest's grace period means anything, and releasing is **one-way** â€” a priest cannot
-resurrect a ghost. Both routes back cost you: you return at `RESURRECT_HP_RATIO` of max HP.
+reason a priest's grace period means anything. Priest revival and direct release both return at
+`RESURRECT_HP_RATIO` of max HP.
 
 Three consequences, each easy to break:
 
-- **Monsters skip any player who is not `alive`.** Without that the corpse run is unwinnable â€”
-  you would die on the way to your own body, over and over.
+- **Monsters skip any player who is not `alive`.** A corpse waiting for release or a priest must not
+  keep taking damage, and a historical ghost remains protected while compatibility state resolves.
 - **A body is broadcast for as long as its owner has one** â€” while they lie over it *and* while
-  their ghost walks back to it. Emitting corpses only for the `corpse` state makes your body
-  vanish at the exact moment you start needing to find it.
+  a historical ghost still refers to it. Ordinary release clears it immediately.
 - **`life` and the corpse position are persisted** (`hero.life`, `corpse_x`, `corpse_y`,
   `corpse_z` â€” three axes, `x`/`z` ground and `y` elevation, like every other position).
   Death that lives only in memory turns logging out into a free resurrection.
 
-A ghost moves at `GHOST_SPEED` and a corpse at zero, so the client folds its life state into the
+A compatibility ghost moves at `GHOST_SPEED` and a corpse at zero, so the client folds its life state into the
 one speed the rule reads (`speedForLife`, `engine/death.ts`) before every `stepHero` â€” it does not
 branch on life twice, and a corpse is fed a zeroed input rather than skipped, so gravity, the water
 and the thin ice keep running underneath it. The server's half of the fence is `applyReportedMove`,
@@ -503,10 +506,8 @@ which refuses a corpse's frames outright: a body that reports itself walking is 
 The priest's resurrect is the interact key, not a sixth skill slot: `#interact` already dispatches
 to the nearest sensible thing, and a corpse is one more thing you can be standing next to.
 
-`CEMETERIES` are the three spirit anchors; `nearestCemetery()` picks where a released ghost
-appears. Their chapels are `graveyard` landmarks with colliders, so moving one means re-checking
-that it blocks no spawn point, no monster patrol ring, and no quest site â€” `game.test.ts` asserts
-all three, and it will catch you.
+`CEMETERIES` and `nearestCemetery()` remain part of the legacy pixel catalogue, but the current
+heightfield release path does not use them: `mapEntryPosition()` resolves the authored map entry.
 
 ### Bay production routing
 

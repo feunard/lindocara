@@ -5,13 +5,8 @@ import {
   SEA_GUARDIAN_ATTACK_DURATION_MS,
   SEA_GUARDIAN_CHASE_SPEED,
   SEA_GUARDIAN_DEVOUR_RANGE,
-  SEA_GUARDIAN_ID,
   SEA_GUARDIAN_PATH_REFRESH_MS,
-  SEA_GUARDIAN_PATROL_DURATION_MS,
-  SEA_GUARDIAN_PATROL_FIRST_DELAY_MS,
-  SEA_GUARDIAN_PATROL_INTERVAL_MS,
   SEA_GUARDIAN_PATROL_SPEED,
-  SEA_GUARDIAN_SWIMMER_SPAWN_DELAY_MS,
   type SeaGuardianState,
 } from "@lindocara/engine/sea-guardian.js";
 import type { PlayerRuntime } from "./world-runtime.js";
@@ -26,7 +21,6 @@ interface WaterTopology {
   cells: readonly WaterCell[];
   byIndex: ReadonlyMap<number, WaterCell>;
   components: readonly (readonly WaterCell[])[];
-  edgeComponents: readonly number[];
 }
 
 export interface SeaGuardianRuntimeEntity extends GroundVector {
@@ -41,15 +35,17 @@ export interface SeaGuardianRuntimeEntity extends GroundVector {
   path: readonly WaterCell[];
   pathIndex: number;
   nextPathAt: number;
-  patrolEndsAt: number;
+  patrolRandomState: number;
+  patrolSpeed: number;
+}
+
+export interface SeaGuardianAnchor extends GroundVector {
+  id: string;
 }
 
 export interface SeaGuardianRuntime {
   topology: WaterTopology | null;
-  guardian: SeaGuardianRuntimeEntity | null;
-  nextPatrolAt: number;
-  swimmerEnteredAt: Map<string, number>;
-  patrolSerial: number;
+  guardians: SeaGuardianRuntimeEntity[];
 }
 
 export interface SeaGuardianAdvanceOptions {
@@ -103,29 +99,23 @@ function buildWaterTopology(map: MapData | null): WaterTopology | null {
   }
   const cells = components.flat();
   const byIndex = new Map(cells.map((cell) => [cell.index, cell]));
-  const edgeComponents = components.flatMap((component, id) =>
-    component.some((cell) => {
-      const i = cell.index % map.size;
-      const j = Math.floor(cell.index / map.size);
-      return i === 0 || j === 0 || i === map.size - 1 || j === map.size - 1;
-    })
-      ? [id]
-      : [],
-  );
-  return { map, cells, byIndex, components, edgeComponents };
+  return { map, cells, byIndex, components };
 }
 
 export function createSeaGuardianRuntime(
   map: MapData | null,
+  anchors: readonly SeaGuardianAnchor[],
   now = Date.now(),
 ): SeaGuardianRuntime {
-  return {
-    topology: buildWaterTopology(map),
-    guardian: null,
-    nextPatrolAt: now + SEA_GUARDIAN_PATROL_FIRST_DELAY_MS,
-    swimmerEnteredAt: new Map(),
-    patrolSerial: 0,
-  };
+  const topology = anchors.length > 0 ? buildWaterTopology(map) : null;
+  const runtime: SeaGuardianRuntime = { topology, guardians: [] };
+  if (!topology) return runtime;
+  for (const anchor of anchors) {
+    const start = cellAt(topology, anchor);
+    if (start) spawn(runtime, anchor.id, start.component, start, now, null);
+  }
+  if (runtime.guardians.length === 0) runtime.topology = null;
+  return runtime;
 }
 
 function cellAt(topology: WaterTopology, point: GroundVector): WaterCell | null {
@@ -197,11 +187,17 @@ function perimeterOrder(cell: WaterCell, size: number): number {
   return 4 * (size - 1) - j;
 }
 
-/** A complete water rim is a real loop: keep the patrol on it and visit it clockwise. For a
- * partial edge component (a river reaching one or two sides), fall back to a routed crossing of
- * that component. Both branches use the same water-only cells as pursuit. */
-function patrolRoute(topology: WaterTopology, component: number, start: WaterCell): WaterCell[] {
-  const edges = edgeCells(topology, component).sort(
+/** A complete water rim is a real loop: keep the patrol on it, varying its direction per route.
+ * For a partial edge component (a river reaching one or two sides), pick one of its distant cells.
+ * Both branches use the same water-only cells as pursuit. */
+function patrolRoute(
+  topology: WaterTopology,
+  component: number,
+  start: WaterCell,
+  direction: 1 | -1,
+  destinationRoll: number,
+): WaterCell[] {
+  let edges = edgeCells(topology, component).sort(
     (left, right) =>
       perimeterOrder(left, topology.map.size) - perimeterOrder(right, topology.map.size),
   );
@@ -211,6 +207,7 @@ function patrolRoute(topology: WaterTopology, component: number, start: WaterCel
     edges.length >= 4 &&
     edges.every((cell, index) => adjacent(cell, edges[(index + 1) % edges.length] as WaterCell));
   if (completeLoop) {
+    if (direction === -1) edges = edges.reverse();
     let anchorIndex = 0;
     for (let index = 1; index < edges.length; index += 1) {
       if (
@@ -226,12 +223,52 @@ function patrolRoute(topology: WaterTopology, component: number, start: WaterCel
     return [...approach, ...loop];
   }
   const pool = edges.length > 1 ? edges : (topology.components[component] ?? []);
-  const destination = farthest(pool, start);
-  return destination ? route(topology, start, destination) : [];
+  const farthestCell = farthest(pool, start);
+  if (!farthestCell) return [];
+  const farthestDistance = groundDistance(start, farthestCell);
+  const destinations = pool.filter(
+    (cell) => groundDistance(start, cell) >= farthestDistance * 0.65,
+  );
+  const destination =
+    destinations[
+      Math.min(destinations.length - 1, Math.floor(destinationRoll * destinations.length))
+    ] ?? farthestCell;
+  return route(topology, start, destination);
+}
+
+/** Stable per guardian, so each shark gets an independent patrol sequence without flaky tests. */
+function patrolSeed(id: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = Math.imul(hash ^ id.charCodeAt(index), 16_777_619);
+  }
+  return hash >>> 0 || 0x6d2b79f5;
+}
+
+function nextPatrolRandom(guardian: SeaGuardianRuntimeEntity): number {
+  let state = guardian.patrolRandomState;
+  state ^= state << 13;
+  state ^= state >>> 17;
+  state ^= state << 5;
+  guardian.patrolRandomState = state >>> 0 || 0x6d2b79f5;
+  return guardian.patrolRandomState / 0x1_0000_0000;
+}
+
+function refreshPatrol(
+  topology: WaterTopology,
+  guardian: SeaGuardianRuntimeEntity,
+  start: WaterCell,
+): void {
+  const direction = nextPatrolRandom(guardian) < 0.5 ? -1 : 1;
+  const destinationRoll = nextPatrolRandom(guardian);
+  guardian.patrolSpeed = SEA_GUARDIAN_PATROL_SPEED * (0.9 + nextPatrolRandom(guardian) * 0.2);
+  guardian.path = patrolRoute(topology, guardian.component, start, direction, destinationRoll);
+  guardian.pathIndex = guardian.path[0]?.index === start.index ? 1 : 0;
 }
 
 function spawn(
   runtime: SeaGuardianRuntime,
+  id: string,
   component: number,
   start: WaterCell,
   now: number,
@@ -239,9 +276,8 @@ function spawn(
 ): SeaGuardianRuntimeEntity {
   const topology = runtime.topology;
   if (!topology) throw new Error("cannot spawn sea guardian without water");
-  runtime.patrolSerial += 1;
   const guardian: SeaGuardianRuntimeEntity = {
-    id: SEA_GUARDIAN_ID,
+    id,
     x: start.x,
     y: topology.map.waterLevel,
     z: start.z,
@@ -251,27 +287,15 @@ function spawn(
     animationEndsAt: null,
     component,
     targetId,
-    path: patrolRoute(topology, component, start),
-    pathIndex: 1,
+    path: [],
+    pathIndex: 0,
     nextPathAt: now,
-    patrolEndsAt: now + SEA_GUARDIAN_PATROL_DURATION_MS,
+    patrolRandomState: patrolSeed(id),
+    patrolSpeed: SEA_GUARDIAN_PATROL_SPEED,
   };
-  runtime.guardian = guardian;
+  refreshPatrol(topology, guardian, start);
+  runtime.guardians.push(guardian);
   return guardian;
-}
-
-function spawnForSwimmer(
-  runtime: SeaGuardianRuntime,
-  swimmer: PlayerRuntime,
-  targetCell: WaterCell,
-  now: number,
-): SeaGuardianRuntimeEntity {
-  const topology = runtime.topology;
-  if (!topology) throw new Error("cannot spawn sea guardian without water");
-  const componentCells = topology.components[targetCell.component] ?? [targetCell];
-  const edges = edgeCells(topology, targetCell.component);
-  const start = farthest(edges.length > 0 ? edges : componentCells, swimmer) ?? targetCell;
-  return spawn(runtime, targetCell.component, start, now, swimmer.id);
 }
 
 function moveAlongPath(guardian: SeaGuardianRuntimeEntity, speed: number, dt: number): void {
@@ -298,12 +322,10 @@ function moveAlongPath(guardian: SeaGuardianRuntimeEntity, speed: number, dt: nu
 function activeSwimmers(
   runtime: SeaGuardianRuntime,
   players: Iterable<PlayerRuntime>,
-  now: number,
 ): { player: PlayerRuntime; cell: WaterCell }[] {
   const topology = runtime.topology;
   if (!topology) return [];
   const result: { player: PlayerRuntime; cell: WaterCell }[] = [];
-  const activeIds = new Set<string>();
   for (const player of players) {
     if (
       !player.authorized ||
@@ -315,49 +337,20 @@ function activeSwimmers(
       continue;
     const cell = cellAt(topology, player);
     if (!cell) continue;
-    activeIds.add(player.id);
-    if (!runtime.swimmerEnteredAt.has(player.id)) runtime.swimmerEnteredAt.set(player.id, now);
     result.push({ player, cell });
-  }
-  for (const id of runtime.swimmerEnteredAt.keys()) {
-    if (!activeIds.has(id)) runtime.swimmerEnteredAt.delete(id);
   }
   return result;
 }
 
-export function advanceSeaGuardian(
+function advanceGuardian(
   runtime: SeaGuardianRuntime,
+  guardian: SeaGuardianRuntimeEntity,
+  swimmers: readonly { player: PlayerRuntime; cell: WaterCell }[],
   options: SeaGuardianAdvanceOptions,
 ): void {
   const topology = runtime.topology;
   if (!topology) return;
   const { now } = options;
-  const swimmers = activeSwimmers(runtime, options.players, now);
-  let guardian = runtime.guardian;
-
-  if (!guardian) {
-    const ready = swimmers.find(
-      ({ player }) =>
-        now - (runtime.swimmerEnteredAt.get(player.id) ?? now) >
-        SEA_GUARDIAN_SWIMMER_SPAWN_DELAY_MS,
-    );
-    if (ready) guardian = spawnForSwimmer(runtime, ready.player, ready.cell, now);
-    else if (now >= runtime.nextPatrolAt) {
-      const choices =
-        topology.edgeComponents.length > 0
-          ? topology.edgeComponents
-          : topology.components.map((_, index) => index);
-      const component = choices[runtime.patrolSerial % choices.length];
-      const cells = component === undefined ? [] : (topology.components[component] ?? []);
-      const edges = component === undefined ? [] : edgeCells(topology, component);
-      const start = (edges.length > 0 ? edges : cells)[
-        runtime.patrolSerial % Math.max(1, (edges.length > 0 ? edges : cells).length)
-      ];
-      if (component !== undefined && start) guardian = spawn(runtime, component, start, now, null);
-      runtime.nextPatrolAt = now + SEA_GUARDIAN_PATROL_INTERVAL_MS;
-    }
-  }
-  if (!guardian) return;
 
   if (guardian.state === "attack" && (guardian.animationEndsAt ?? 0) > now) return;
   if (guardian.state === "attack") {
@@ -367,22 +360,19 @@ export function advanceSeaGuardian(
   }
 
   const reachable = swimmers
-    .filter(({ cell }) => cell.component === guardian?.component)
+    .filter(
+      ({ cell, player }) =>
+        cell.component === guardian.component && player.life === "alive" && player.swimming,
+    )
     .sort(
       (left, right) =>
-        groundDistance(guardian as SeaGuardianRuntimeEntity, left.player) -
-        groundDistance(guardian as SeaGuardianRuntimeEntity, right.player),
+        groundDistance(guardian, left.player) - groundDistance(guardian, right.player),
     );
-  let target = reachable[0] ?? null;
-  if (!target && swimmers.length > 0) {
-    target = swimmers[0] ?? null;
-    if (target) guardian = spawnForSwimmer(runtime, target.player, target.cell, now);
-  }
+  const target = reachable[0] ?? null;
 
   if (target) {
     guardian.state = "chase";
     guardian.targetId = target.player.id;
-    guardian.patrolEndsAt = now + SEA_GUARDIAN_PATROL_DURATION_MS;
     if (now >= guardian.nextPathAt) {
       const start = cellAt(topology, guardian) ?? target.cell;
       guardian.path = route(topology, start, target.cell);
@@ -404,30 +394,35 @@ export function advanceSeaGuardian(
   guardian.targetId = null;
   if (guardian.pathIndex >= guardian.path.length) {
     const start = cellAt(topology, guardian);
-    guardian.path = start ? patrolRoute(topology, guardian.component, start) : [];
-    guardian.pathIndex = 1;
+    if (start) refreshPatrol(topology, guardian, start);
+    else {
+      guardian.path = [];
+      guardian.pathIndex = 0;
+    }
   }
-  moveAlongPath(guardian, SEA_GUARDIAN_PATROL_SPEED, options.dt);
-  if (now >= guardian.patrolEndsAt) {
-    runtime.guardian = null;
-    runtime.nextPatrolAt = now + SEA_GUARDIAN_PATROL_INTERVAL_MS;
+  moveAlongPath(guardian, guardian.patrolSpeed, options.dt);
+}
+
+export function advanceSeaGuardian(
+  runtime: SeaGuardianRuntime,
+  options: SeaGuardianAdvanceOptions,
+): void {
+  if (!runtime.topology) return;
+  const swimmers = activeSwimmers(runtime, options.players);
+  for (const guardian of runtime.guardians) {
+    advanceGuardian(runtime, guardian, swimmers, options);
   }
 }
 
 export function seaGuardianSnapshots(runtime: SeaGuardianRuntime): SeaGuardianSnapshot[] {
-  const guardian = runtime.guardian;
-  return guardian
-    ? [
-        {
-          id: guardian.id,
-          x: Math.round(guardian.x * 6400) / 6400,
-          y: guardian.y,
-          z: Math.round(guardian.z * 6400) / 6400,
-          facing: { ...guardian.facing },
-          state: guardian.state,
-          animationStartedAt: guardian.animationStartedAt,
-          animationEndsAt: guardian.animationEndsAt,
-        },
-      ]
-    : [];
+  return runtime.guardians.map((guardian) => ({
+    id: guardian.id,
+    x: Math.round(guardian.x * 6400) / 6400,
+    y: guardian.y,
+    z: Math.round(guardian.z * 6400) / 6400,
+    facing: { ...guardian.facing },
+    state: guardian.state,
+    animationStartedAt: guardian.animationStartedAt,
+    animationEndsAt: guardian.animationEndsAt,
+  }));
 }

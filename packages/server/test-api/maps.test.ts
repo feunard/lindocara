@@ -397,6 +397,51 @@ describe("list, get, update, delete", () => {
     expect(editorSave.status).toBe(200);
   });
 
+  test("round-trips multiple sea guardians when each one is explicitly anchored on water", async () => {
+    const { userId, token } = await registerAndLogin("mapguardian");
+    const id = await newMapId(await newAdventure(userId), token, "Guardian waters");
+    const guardian = {
+      id: crypto.randomUUID(),
+      col: 1,
+      row: 1,
+      name: "Sea guardian",
+      ordinal: 1,
+      kind: "sea-guardian",
+      pages: [wirePage({ moveSpeed: 4, optMoveAnim: true })],
+    };
+
+    const authored = await putMap(id, token, mapBody({ events: [guardian] }));
+    expect(authored.status).toBe(200);
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    const payload = (await fetched.json()) as { events: Array<Record<string, unknown>> };
+    expect(payload.events).toEqual([
+      expect.objectContaining({
+        id: guardian.id,
+        col: 1,
+        row: 1,
+        kind: "sea-guardian",
+        species: null,
+        patrolRadius: null,
+      }),
+    ]);
+    expect((await putMap(id, token, payload)).status).toBe(200);
+
+    const onLand = await putMap(id, token, mapBody({ events: [{ ...guardian, col: 5, row: 5 }] }));
+    expect(onLand.status).toBe(400);
+    expect(await onLand.json()).toMatchObject({ error: "map_events" });
+
+    const multiple = await putMap(
+      id,
+      token,
+      mapBody({
+        events: [guardian, { ...guardian, id: crypto.randomUUID(), col: 2, ordinal: 2 }],
+      }),
+    );
+    expect(multiple.status).toBe(200);
+    const refetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(((await refetched.json()) as { events: unknown[] }).events).toHaveLength(2);
+  });
+
   test("round-trips an explicit harvest profile independently from its graphic", async () => {
     const { userId, token } = await registerAndLogin("mapharvest");
     const adventureId = await newAdventure(userId);

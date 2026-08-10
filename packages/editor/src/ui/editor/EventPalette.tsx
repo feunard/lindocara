@@ -18,6 +18,7 @@ import {
 import { SKILL_UNLOCK_LEVEL, type SkillSlot } from "@lindocara/engine/skills.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
+import { SEA_GUARDIAN_SWIM_TEXTURE_URL } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { CatalogueAssetPicker, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
@@ -69,6 +70,7 @@ const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   entry: "editor.event.kind.entry",
   exit: "editor.event.kind.exit",
   monster: "editor.event.kind.monster",
+  "sea-guardian": "editor.event.kind.seaGuardian",
   guard: "editor.event.kind.guard",
   harvestable: "editor.event.kind.harvestable",
   spawn: "editor.event.kind.spawn",
@@ -393,6 +395,29 @@ export function EventPalette({
                 onSelectEnemyGraphic(assetId);
                 onSelectEventKind("monster");
               }}
+            />
+          </div>
+        </details>
+
+        <details
+          data-testid="special-monster-catalogue"
+          className={`rounded-md border ${
+            eventKind === "sea-guardian"
+              ? "border-zinc-400 bg-zinc-100"
+              : "border-zinc-200 bg-white"
+          }`}
+        >
+          <summary className="cursor-pointer px-2 py-1.5 text-[11px] font-semibold text-zinc-600">
+            {t("editor.event.specialMonsters.heading")}
+          </summary>
+          <div className="flex flex-col gap-1 border-t border-zinc-200 p-2">
+            <SwatchButton
+              label={t("editor.event.specialMonster.seaGuardian")}
+              description={t("editor.event.specialMonster.seaGuardian.description")}
+              active={eventKind === "sea-guardian"}
+              disabled={placementDisabled("sea-guardian")}
+              preview={<SpriteSheetPreview source={SEA_GUARDIAN_SWIM_TEXTURE_URL} frame={256} />}
+              onClick={() => onSelectEventKind("sea-guardian")}
             />
           </div>
         </details>

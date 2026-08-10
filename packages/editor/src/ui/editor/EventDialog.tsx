@@ -1278,6 +1278,11 @@ export function EventDialog({
             )}
           </p>
         )}
+        {draft.kind === "sea-guardian" && (
+          <p className="border-y border-zinc-200 py-3 text-[12.5px] text-muted-foreground">
+            {t("editor.event.kind.seaGuardian.hint")}
+          </p>
+        )}
 
         {/* Normal events and NPCs expose complete pages. Guards reuse page conditions for presence
             and the action list for dialogue while their combat appearance/movement stays server-owned. */}

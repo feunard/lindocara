@@ -334,8 +334,9 @@ rÃ©apparition au point de dÃ©part.
 differs is who owns the consequence). Drowning is not a respawn at the starting point: the client
 reports a bare `{t:"drowned"}`, the room refuses it unless that client's own position stream has the
 hero alive and swimming, and then kills it IN PLACE â€” the body stays where it went under and the
-ordinary corpse run brings it back. The game now shows a rounded breath countdown while swimming,
-and `window.__lindocara.self()` exposes the raw reserve, maximum and vertical velocity.
+player releases. The current temporary policy then resurrects the hero alive at the map's authored
+entry point. The game shows a rounded breath countdown while swimming, and
+`window.__lindocara.self()` exposes the raw reserve, maximum and vertical velocity.
 
 ## Les moutons
 

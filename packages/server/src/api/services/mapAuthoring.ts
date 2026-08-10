@@ -21,6 +21,7 @@ import {
   type MapAudioConfig,
   parseMapAudioConfig,
 } from "@lindocara/engine/audio-catalog.js";
+import { isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import {
@@ -189,6 +190,9 @@ export function validateMapInput(input: MapInput): MapData & {
   for (const event of events) {
     if (event.kind === "exit" && event.col === input.spawn.col && event.row === input.spawn.row) {
       throw new Error("events: an exit may not share the spawn cell");
+    }
+    if (event.kind === "sea-guardian" && !isAuthoredWaterCell(data, event.col, event.row)) {
+      throw new Error("events: a sea guardian must be placed on water");
     }
   }
   const audio = input.audio === undefined ? EMPTY_MAP_AUDIO : parseMapAudioConfig(input.audio);

@@ -8,6 +8,10 @@ import {
   monsterActorSheet,
   playerActorSheet,
   playerActorView,
+  SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL,
+  SEA_GUARDIAN_SWIM_TEXTURE_URL,
+  SEA_GUARDIAN_SWIM_UP_TEXTURE_URL,
+  seaGuardianSwimTextureUrl,
 } from "@lindocara/renderer/hd2d/game-renderer.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
@@ -91,6 +95,13 @@ describe("actor animation art", () => {
     expect(playerActorView(invisible).opacity).toBe(0.06);
     expect(playerActorView(invisible, 0, "idle", undefined, true).opacity).toBe(0.28);
     expect(playerActorView({ ...player, silhouette: true } as PlayerSnapshot).opacity).toBe(0.9);
+  });
+
+  it("selects dedicated north/south shark swim sheets and keeps the side profile east/west", () => {
+    expect(seaGuardianSwimTextureUrl({ x: 0, z: -1 })).toBe(SEA_GUARDIAN_SWIM_UP_TEXTURE_URL);
+    expect(seaGuardianSwimTextureUrl({ x: 0, z: 1 })).toBe(SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL);
+    expect(seaGuardianSwimTextureUrl({ x: 1, z: 0 })).toBe(SEA_GUARDIAN_SWIM_TEXTURE_URL);
+    expect(seaGuardianSwimTextureUrl({ x: -1, z: 0 })).toBe(SEA_GUARDIAN_SWIM_TEXTURE_URL);
   });
 });
 

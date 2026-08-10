@@ -1,17 +1,18 @@
 /**
  * Death, as a state machine over pure functions.
  *
- * Dying does not move you. It leaves your body where you fell and freezes you over it. From
- * there the two exits are deliberate: a priest revives you in place, or you release your
- * spirit, appear at the nearest cemetery, and walk back to your own corpse.
+ * Dying does not move you. It leaves your body where you fell and freezes you over it. A priest
+ * may still revive that body in place. The ghost/corpse-run branch remains represented here for
+ * persisted compatibility, but the current server release policy bypasses it and revives the hero
+ * directly at the map entry point.
  *
- *   "alive" ──(hp hits 0)──▶ "corpse" ──(a priest resurrects)──▶ "alive"
- *                                │
- *                                └──(you release)──▶ "ghost" ──(reach your corpse)──▶ "alive"
+ *   "alive" ──(hp hits 0)──▶ "corpse" ──(priest revive)──────────▶ "alive"
+ *                                └──────(current release policy)──▶ "alive" at map entry
  *
- * There is no timer in here and no auto-release: a corpse waits indefinitely, which is the
- * only reason a priest's grace period means anything. Releasing is one-way — a priest cannot
- * resurrect a ghost — so the choice actually costs something.
+ *   persisted "ghost" ──(reach corpse; compatibility only)───────▶ "alive"
+ *
+ * There is no timer in here and no auto-release: a corpse waits indefinitely until a priest revive
+ * or the server's explicit release policy resolves it.
  */
 
 import { CLASS_STATS, maxHpForLevel, type PlayerClass } from "./game.js";

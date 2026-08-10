@@ -1016,8 +1016,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.heal.received": "{name} vous soigne : +{amount} PV.",
   "event.death.fallen":
     "Vous êtes tombé. Attendez un prêtre, ou pressez [R] pour libérer votre esprit.",
-  "event.death.released":
-    "Votre esprit s'élève. Votre corps gît là où vous êtes tombé — retournez-y.",
+  "event.death.released": "Vous revenez à la vie au point d'entrée de la carte.",
   "event.death.reclaimed": "Vous reprenez votre corps et respirez à nouveau.",
   "event.death.resurrected": "{name} vous rappelle du seuil.",
   "event.resurrect.cast": "Vous ramenez {name}.",
@@ -1139,6 +1138,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.entry": "Entrée",
   "editor.inspector.exit": "Sortie",
   "editor.inspector.monster": "Apparition de monstre",
+  "editor.inspector.sea-guardian": "Monstre spécial · Requin gardien",
   "editor.inspector.guard": "Garde alliée",
   "editor.inspector.harvestable": "Ressource récoltable",
   "editor.inspector.npc": "PNJ libre",
@@ -1821,6 +1821,10 @@ export const fr: Record<keyof typeof en, string> = {
     "Aucun compteur numérique n’est encore créé — ajoutez-en dans Jeu → États et compteurs.",
   "editor.event.kind.heading": "Type d’événement",
   "editor.event.monsters.heading": "Monstres",
+  "editor.event.specialMonsters.heading": "Monstres spéciaux",
+  "editor.event.specialMonster.seaGuardian": "Requin gardien de la mer",
+  "editor.event.specialMonster.seaGuardian.description":
+    "Permanent et intouchable. Chaque requin patrouille son eau connectée et engloutit les nageurs.",
   "editor.event.enemies.heading": "Ennemis",
   "editor.event.enemies.description":
     "Utilise n’importe quelle créature ou apparence de personnage comme ennemi.",
@@ -1829,6 +1833,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.kind.entry": "Entrée",
   "editor.event.kind.exit": "Sortie",
   "editor.event.kind.monster": "Monstre",
+  "editor.event.kind.seaGuardian": "Monstre spécial · Requin gardien",
   "editor.event.kind.guard": "Garde alliée",
   "editor.event.kind.harvestable": "Ressource récoltable",
   "editor.harvest.palette.heading": "Profils de récolte",
@@ -1893,6 +1898,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.element.decorativeOnly.body":
     "Placer ici un arbre, un minerai ou de la viande ne fait que décorer la carte. Utilisez Événements → Ressource récoltable pour le gameplay du Paysan.",
   "editor.event.kind.spawn": "Départ de l’aventure",
+  "editor.event.kind.seaGuardian.hint":
+    "Ce monstre spécial permanent patrouille son eau connectée, ne peut pas être blessé et engloutit instantanément les nageurs qu’il atteint.",
   "editor.event.kind.anchor.hint":
     "Ancrage hérité conservé pour compatibilité avec les anciennes aventures.",
   "editor.event.kind.spawn.hint":

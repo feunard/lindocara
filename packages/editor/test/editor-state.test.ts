@@ -905,7 +905,7 @@ describe("editor history", () => {
   });
 });
 
-describe("applyTool: functional event kinds (entry / exit / monster / guard / NPC / resource)", () => {
+describe("applyTool: functional event kinds", () => {
   const base = blankMap("m", 20, 15);
 
   it("places a harvestable with an explicit profile and an independent appearance", () => {
@@ -1025,6 +1025,51 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     ).not.toBeNull();
     expect(place(wet, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 3, 3)).not.toBeNull();
     expect(place(wet, { kind: "event", eventKind: "normal" }, 3, 3)).not.toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "sea-guardian" }, 3, 3)).not.toBeNull();
+  });
+
+  it("places multiple sea guardians, only on water, and keeps moves in water", () => {
+    expect(place(base, { kind: "event", eventKind: "sea-guardian" }, 3, 3)).toBeNull();
+
+    const firstWet = place(base, { kind: "block", block: "water" }, 3, 3) as EditorMap;
+    const secondWet = place(firstWet, { kind: "block", block: "water" }, 4, 3) as EditorMap;
+    const wet = place(secondWet, { kind: "block", block: "water" }, 5, 3) as EditorMap;
+    expect(placementLegalAt({ kind: "event", eventKind: "sea-guardian" }, wet, 3, 3, "event")).toBe(
+      true,
+    );
+    const placed = place(
+      wet,
+      {
+        kind: "event",
+        eventKind: "sea-guardian",
+        presetName: "Sea guardian",
+      },
+      3,
+      3,
+    ) as EditorMap;
+    const guardian = placed.events[0] as MapEvent;
+    expect(guardian).toMatchObject({
+      kind: "sea-guardian",
+      name: "Sea guardian",
+      species: null,
+      patrolRadius: null,
+      pages: [defaultEventPage()],
+    });
+    const placedTwice = place(
+      placed,
+      { kind: "event", eventKind: "sea-guardian", presetName: "Sea guardian" },
+      4,
+      3,
+    ) as EditorMap;
+    expect(placedTwice.events.filter((event) => event.kind === "sea-guardian")).toHaveLength(2);
+    expect(moveSelection(placedTwice, { kind: "event", id: guardian.id }, 6, 3)).toBeNull();
+    const moved = moveSelection(placedTwice, { kind: "event", id: guardian.id }, 5, 3);
+    expect(moved?.events.find((event) => event.id === guardian.id)).toMatchObject({
+      id: guardian.id,
+      col: 5,
+      row: 3,
+      kind: "sea-guardian",
+    });
   });
 
   it("places a monster event carrying species and radius, and validates the radius", () => {

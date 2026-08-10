@@ -24,8 +24,10 @@ import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import { MAP_LAYERS } from "@lindocara/engine/map-data.js";
+import { authoredCellCentreGround, seaGuardianEvents } from "@lindocara/engine/map-events.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import type { QuestEventReference } from "@lindocara/engine/quests.js";
+import { seaGuardianRuntimeId } from "@lindocara/engine/sea-guardian.js";
 import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
@@ -145,6 +147,11 @@ export function zoneFromMapPayload(
   ) {
     throw new Error(`map ${payload.id} has an authored event outside its heightfield`);
   }
+  for (const guardianEvent of seaGuardianEvents(payload.events)) {
+    if (heightfield.levels[guardianEvent.row * heightfield.size + guardianEvent.col] !== null) {
+      throw new Error(`map ${payload.id} has a sea guardian outside water`);
+    }
+  }
   const terrain = zoneTerrainFromHeightfield(heightfield);
   // A heightfield room's APPEARANCE must not contradict its own collision, and the contradiction
   // is not cosmetic: `isWorldInfo` (`engine/protocol.ts`) validates every appearance collection
@@ -227,7 +234,7 @@ export interface WorldRoomState {
   guards: GuardRuntime[];
   loot: GroundLoot[];
   projectiles: ProjectileRuntime[];
-  /** The untargetable sea barrier; inactive on maps whose heightfield has no water cells. */
+  /** The untargetable sea barrier; inactive unless a `sea-guardian` event anchors it in water. */
   seaGuardian: SeaGuardianRuntime;
   /** Room-local camps, homemade bombs and in-flight material requests. */
   peasantSupport: PeasantSupportRuntime;
@@ -331,6 +338,13 @@ export function createWorldRoomState(
     ? [...definition.terrain.colliders.all]
     : [];
   const staticColliderIndex = definition?.terrain.colliders ?? createColliderIndex();
+  const heightfield = definition?.heightfield ? decodeMap(definition.heightfield) : null;
+  const guardianAnchors = heightfield
+    ? seaGuardianEvents(definition?.events ?? []).map((event) => ({
+        id: seaGuardianRuntimeId(event.id),
+        ...authoredCellCentreGround(event, heightfield.size),
+      }))
+    : [];
   return {
     partyId: parsed?.partyId ?? "",
     mapId: parsed?.mapId ?? "",
@@ -345,9 +359,7 @@ export function createWorldRoomState(
     guards,
     loot: [],
     projectiles: [],
-    seaGuardian: createSeaGuardianRuntime(
-      definition?.heightfield ? decodeMap(definition.heightfield) : null,
-    ),
+    seaGuardian: createSeaGuardianRuntime(heightfield, guardianAnchors),
     peasantSupport: createPeasantSupportRuntime(),
     activatedSupportSpendIds: new Set(),
     supportSpendQueue: Promise.resolve(),

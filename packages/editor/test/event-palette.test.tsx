@@ -114,6 +114,38 @@ describe("EventPalette (D13/D14)", () => {
     expect(onSelectPreset).toHaveBeenCalledWith("sign");
   });
 
+  it("keeps the sea guardian available after one special monster was already placed", () => {
+    setLocale("en");
+    const onSelectEventKind = vi.fn();
+    const { rerender } = render(
+      <EventPalette {...baseProps()} onSelectEventKind={onSelectEventKind} />,
+    );
+    const catalogue = screen.getByTestId("special-monster-catalogue");
+    fireEvent.click(within(catalogue).getByText(t("editor.event.specialMonsters.heading")));
+    const button = within(catalogue).getByRole("button", {
+      name: t("editor.event.specialMonster.seaGuardian"),
+    });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(onSelectEventKind).toHaveBeenCalledWith("sea-guardian");
+
+    const guardian = functionalEvent({
+      id: crypto.randomUUID(),
+      col: 1,
+      row: 1,
+      ordinal: 1,
+      kind: "sea-guardian",
+    });
+    rerender(
+      <EventPalette {...baseProps()} events={[guardian]} onSelectEventKind={onSelectEventKind} />,
+    );
+    expect(
+      within(screen.getByTestId("special-monster-catalogue")).getByRole("button", {
+        name: t("editor.event.specialMonster.seaGuardian"),
+      }),
+    ).toBeEnabled();
+  });
+
   it("offers explicit harvest presets and keeps the appearance picker independent", () => {
     setLocale("en");
     const onSelectHarvestPreset = vi.fn();
