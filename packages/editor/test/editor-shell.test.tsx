@@ -1719,7 +1719,8 @@ describe("AdventureEditorScreen shell", () => {
     });
 
     it("the menu bar's Quit button leaves the editor, dirty-guarded like the File-menu item (C8)", async () => {
-      vi.stubGlobal("fetch", mapsFetchMock());
+      const backend = mapsFetchMock();
+      vi.stubGlobal("fetch", backend);
       await mountReady(alepha);
       markDirty();
 
@@ -1733,6 +1734,13 @@ describe("AdventureEditorScreen shell", () => {
       await userEvent.click(quitButton);
       expect(pushSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
+      // Leaving clears the session while this screen is still mounted, so the no-session branch —
+      // the scratch bootstrap — must NOT take that as an invitation to mint an adventure nobody
+      // asked for. Abandoned scratches are never cleaned up, so a stray row is permanent.
+      expect(backend).not.toHaveBeenCalledWith(
+        "/api/adventures",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
 
     it("opens the Load-adventure dialog from the File menu and switching swaps the session", async () => {
@@ -1802,7 +1810,8 @@ describe("AdventureEditorScreen shell", () => {
     });
 
     it("Quit returns to the title screen, dirty-guarded (cancel stays in the editor)", async () => {
-      vi.stubGlobal("fetch", mapsFetchMock());
+      const backend = mapsFetchMock();
+      vi.stubGlobal("fetch", backend);
       await mountReady(alepha);
       markDirty();
 
@@ -1824,6 +1833,11 @@ describe("AdventureEditorScreen shell", () => {
       await openQuit();
       expect(pushSpy).toHaveBeenCalledWith("title");
       confirm.mockRestore();
+      // Same fence as the menu-bar Quit button above: quitting must mint nothing.
+      expect(backend).not.toHaveBeenCalledWith(
+        "/api/adventures",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
 
     it("closes the database dialog on Retour without unloading the editor (campaign fix)", async () => {

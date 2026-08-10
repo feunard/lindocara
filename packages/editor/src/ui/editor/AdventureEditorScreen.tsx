@@ -256,10 +256,31 @@ function paintToolFor(
  * through the `MapEditorStageHandle`, exactly as before.
  */
 export function AdventureEditorScreen() {
-  const [session] = useStore(adventureEditorSessionAtom);
+  const [session, setSession] = useStore(adventureEditorSessionAtom);
+  // Leaving the editor clears the session WHILE this component is still mounted (the route swap is
+  // asynchronous and always lands later), so without this flag the no-session branch below would
+  // mount the bootstrap and mint an adventure the author never asked for — permanently, since
+  // abandoned scratches are deliberately never cleaned up. Every departure therefore goes through
+  // `leave()`, never a bare `setSession(null)`: the two are different intents. Clearing the session
+  // to STAY in the editor (the current adventure was just deleted from the Open dialog) still wants
+  // a fresh scratch and keeps calling `setSession(null)` directly.
+  const [leaving, setLeaving] = useState(false);
+  const leave = useCallback((): void => {
+    setLeaving(true);
+    setSession(null);
+  }, [setSession]);
   if (session?.adventureId) {
-    return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
+    return (
+      <AdventureEditorInner
+        key={session.adventureId}
+        adventureId={session.adventureId}
+        onLeave={leave}
+      />
+    );
   }
+  // On the way out: render nothing rather than a screen that acts. The pending `router.push` owns
+  // what comes next.
+  if (leaving) return null;
   return <AdventureEditorBootstrap />;
 }
 
@@ -349,7 +370,16 @@ function AdventureEditorBootstrap() {
   );
 }
 
-function AdventureEditorInner({ adventureId }: { adventureId: string }) {
+function AdventureEditorInner({
+  adventureId,
+  onLeave,
+}: {
+  adventureId: string;
+  /** Clears the session AND tells the shell this is a departure, not a restart — see
+   *  `AdventureEditorScreen`'s `leave()`. Every exit path must call this instead of clearing the
+   *  session itself. */
+  onLeave: () => void;
+}) {
   useLocale();
   const router = useRouter();
   const alepha = useAlepha();
@@ -1308,7 +1338,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       return;
     }
     // Clear the session; the next editor open bootstraps a fresh opening adventure (UX wave #15).
-    setSession(null);
+    // `onLeave`, never a bare `setSession(null)`: this screen stays mounted until the route swap
+    // lands, and the no-session branch would otherwise mint a stray scratch on the way out.
+    onLeave();
     void router.push("title");
   }
 
