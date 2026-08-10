@@ -1,25 +1,43 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
-import { screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Alepha } from "alepha";
-import { AlephaReact } from "alepha/react";
+import { AlephaContext, AlephaReact } from "alepha/react";
 import { ReactRouter } from "alepha/react/router";
-import { renderWithAlepha } from "alepha/react/testing";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** `AdventureEditorScreen` reads `adventureEditorSessionAtom` and calls `useRouter()` directly (Task
  *  6) — both need a real Alepha instance with `AlephaReact` registered to mount at all. None of these
  *  tests click the bootstrap's "Quit" button, so a bare `AlephaReact` (no full `AppRouter` page tree)
- *  is enough — but `ReactRouter` still has to be injected HERE, before `renderWithAlepha`'s `start()`
- *  locks the container: a component's first `useRouter()` call happens after that lock, and `alepha.
- *  react.router`'s module is only ever registered by touching one of its services first (mirrors
- *  `AppRouter`'s own eager `reactAuth = $inject(ReactAuth)` field — see its docblock). */
-function mountScreen() {
+ *  is enough — but `ReactRouter` still has to be injected HERE, before `start()` locks the container:
+ *  a component's first `useRouter()` call happens after that lock, and `alepha.react.router`'s module
+ *  is only ever registered by touching one of its services first (mirrors `AppRouter`'s own eager
+ *  `reactAuth = $inject(ReactAuth)` field — see its docblock).
+ *
+ *  This mounts by hand instead of using `renderWithAlepha`, and the ordering is load-bearing: it must
+ *  match `ReactPageProvider.root` (`.vendor/alepha/src/react/router/providers/ReactPageProvider.ts`),
+ *  which wraps `<StrictMode>` OUTSIDE `<AlephaContext.Provider>` — the real router root every `$page`
+ *  (including `editor`) mounts under, with `strictMode` defaulting `true` and never overridden in this
+ *  app. `renderWithAlepha`'s own `wrapper` option nests the opposite way (inside the Alepha provider),
+ *  which does not reproduce React's real mount→cleanup→mount dance in this environment — a bug this
+ *  latched effect actually hit in `npm run dev` and that a prior version of this suite failed to
+ *  catch. Composing the tree in the ORDER THE APP ACTUALLY USES is what makes `AdventureEditorScreen`
+ *  strict-mode-tested for real. */
+async function mountScreen() {
   const alepha = Alepha.create().with(AlephaReact);
   alepha.inject(ReactRouter);
-  return renderWithAlepha(<AdventureEditorScreen />, { alepha });
+  await alepha.start();
+  const result = render(
+    <StrictMode>
+      <AlephaContext.Provider value={alepha}>
+        <AdventureEditorScreen />
+      </AlephaContext.Provider>
+    </StrictMode>,
+  );
+  return { ...result, alepha };
 }
 
 const stageMock = vi.hoisted(() => ({ openMapEditorStage: vi.fn() }));

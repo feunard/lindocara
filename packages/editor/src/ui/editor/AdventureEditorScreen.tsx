@@ -277,10 +277,24 @@ export function AdventureEditorScreen() {
  * The no-session branch: mint a scratch adventure and open it. Entering the editor no longer asks
  * which adventure to work on — that is `File → Open` now — so this is the only path in.
  *
- * The `startedRef` latch is load-bearing. React 18 strict mode double-invokes this effect in
- * development, and any re-render before the request settles would fire a second `POST`. Both calls
- * succeed, so nothing surfaces as an error: the author simply accumulates untitled adventures that
- * nothing ever cleans up. The latch is therefore checked and set BEFORE the await, never after.
+ * This screen mounts under Alepha's real router root, which enables React strict mode by default
+ * (`ReactPageProvider.root`, `strictMode` defaulting `true`, never overridden in this app) — so the
+ * mount→cleanup→mount dance it performs in development is real, not a test artifact. Two rules keep
+ * that dance safe:
+ *
+ * - `startedRef` is the fire-once latch: checked and set before the `await`, so the synthetic second
+ *   mount never starts a second `POST`. Both requests would otherwise succeed silently, leaving the
+ *   author with an extra untitled adventure nothing ever cleans up.
+ * - `aliveRef` owns cancellation, not a per-invocation closure. It is reset to `true` at the TOP of
+ *   every effect run — including the synthetic second mount that the latch above turns into a no-op
+ *   — and only the cleanup that survives (the one belonging to the LAST invocation of a mount pass)
+ *   ever runs again to flip it back to `false`. A per-closure `cancelled` flag looks equivalent but
+ *   is not: strict mode's synthetic cleanup for the FIRST invocation would set it before the still
+ *   in-flight request from that same invocation resolves, so `if (!cancelled)` reads false forever
+ *   and the screen hangs on "Preparing…" even though the adventure was created. Keying cancellation
+ *   off a ref that every invocation re-affirms is what lets the surviving mount "undo" that synthetic
+ *   cleanup, while a genuine unmount (no further invocation reasserts `aliveRef`) still cancels
+ *   correctly.
  */
 function AdventureEditorBootstrap() {
   useLocale();
@@ -288,28 +302,30 @@ function AdventureEditorBootstrap() {
   const [, setSession] = useStore(adventureEditorSessionAtom);
   const [failed, setFailed] = useState(false);
   const startedRef = useRef(false);
+  const aliveRef = useRef(true);
   const [attempt, setAttempt] = useState(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the explicit retry trigger
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const created = await ensureScratchAdventure();
-        if (!cancelled) setSession(created);
-      } catch (caught) {
-        if (cancelled) return;
-        startedRef.current = false;
-        // A dead session is already being redirected to /auth by the client's global 401 seam;
-        // showing a retry on top of that would be a second, contradictory answer.
-        if (isSessionError(errorCode(caught))) return;
-        setFailed(true);
-      }
-    })();
+    aliveRef.current = true;
+    if (!startedRef.current) {
+      startedRef.current = true;
+      void (async () => {
+        try {
+          const created = await ensureScratchAdventure();
+          if (aliveRef.current) setSession(created);
+        } catch (caught) {
+          if (!aliveRef.current) return;
+          startedRef.current = false;
+          // A dead session is already being redirected to /auth by the client's global 401 seam;
+          // showing a retry on top of that would be a second, contradictory answer.
+          if (isSessionError(errorCode(caught))) return;
+          setFailed(true);
+        }
+      })();
+    }
     return () => {
-      cancelled = true;
+      aliveRef.current = false;
     };
   }, [attempt, setSession]);
 
