@@ -201,8 +201,7 @@ export function sameProjectileElevation(
 ): boolean {
   const difference = Math.abs(sourceY - targetY);
   const level = Math.abs(levelHeight);
-  if (level <= PROJECTILE_ELEVATION_EPSILON)
-    return difference <= PROJECTILE_ELEVATION_EPSILON;
+  if (level <= PROJECTILE_ELEVATION_EPSILON) return difference <= PROJECTILE_ELEVATION_EPSILON;
   return difference < level / 2;
 }
 
@@ -222,10 +221,7 @@ export function nearestProjectileMonster(
   return (
     [...monsters]
       .filter((monster) => {
-        if (
-          monster.deadUntil > now ||
-          !sameProjectileElevation(origin.y, monster.y, levelHeight)
-        )
+        if (monster.deadUntil > now || !sameProjectileElevation(origin.y, monster.y, levelHeight))
           return false;
         const distance = groundDistance(origin, monster);
         return distance > 0 && distance <= maximumRange;

@@ -2698,13 +2698,16 @@ export function preparePeasantSupportRequest(
   const terrain = zone(w.state).terrain;
   const bombTarget =
     slot === 5
-      ? nearestProjectileMonster(player, w.state.monsters, plans.bomb.range, now, terrain.levelHeight)
+      ? nearestProjectileMonster(
+          player,
+          w.state.monsters,
+          plans.bomb.range,
+          now,
+          terrain.levelHeight,
+        )
       : null;
   const bombDirection = bombTarget
-    ? normalizeGround(
-        { x: bombTarget.x - player.x, z: bombTarget.z - player.z },
-        player.facing,
-      )
+    ? normalizeGround({ x: bombTarget.x - player.x, z: bombTarget.z - player.z }, player.facing)
     : normalizeGround(player.facing);
   const result = beginPeasantSupportRequest({
     runtime: w.state.peasantSupport,

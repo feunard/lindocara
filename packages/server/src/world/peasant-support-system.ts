@@ -773,11 +773,7 @@ export function resolvePeasantBombImpact(options: {
     .filter((monster) => {
       const hitbox = monsterBodyHitbox(monster.species, monster);
       return (
-        sameProjectileElevation(
-          options.projectile.y,
-          monster.y,
-          options.terrain.levelHeight,
-        ) &&
+        sameProjectileElevation(options.projectile.y, monster.y, options.terrain.levelHeight) &&
         groundDistance(hitbox.center, options.point) <= bomb.radius + hitbox.radius &&
         groundLineOfSight(options.terrain, options.point, monster)
       );

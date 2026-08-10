@@ -11,8 +11,8 @@ import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceProjectiles,
-  type ProjectileSystemContext,
   nearestProjectileMonster,
+  type ProjectileSystemContext,
   removeProjectilesByOwner,
   spawnProjectile,
 } from "@lindocara/server/world/projectile-system.js";
@@ -220,13 +220,7 @@ describe("authoritative projectile system", () => {
     const outOfRange = monster("out-of-range", t(220));
 
     expect(
-      nearestProjectileMonster(
-        owner,
-        [raised, dead, outOfRange, expected],
-        t(160),
-        1_000,
-        0.5,
-      ),
+      nearestProjectileMonster(owner, [raised, dead, outOfRange, expected], t(160), 1_000, 0.5),
     ).toBe(expected);
   });
 
