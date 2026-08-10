@@ -193,6 +193,35 @@ describe("sea guardian", () => {
     expect(visited.size).toBeGreaterThanOrEqual(20);
   });
 
+  it("gives colocated guardians independent patrol motion", () => {
+    const map = mapWithWater(7, (col, row) => col === 0 || row === 0 || col === 6 || row === 6);
+    const anchor = cell(map.size, 0, 0);
+    const runtime = createSeaGuardianRuntime(
+      map,
+      [
+        { id: "guardian-a", ...anchor },
+        { id: "guardian-b", ...anchor },
+      ],
+      0,
+    );
+
+    for (let tick = 1; tick <= 20; tick += 1) {
+      advanceSeaGuardian(runtime, {
+        now: tick * 50,
+        dt: 0.05,
+        players: [],
+        devour: vi.fn(),
+      });
+    }
+
+    const [first, second] = runtime.guardians;
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(first?.patrolSpeed).not.toBe(second?.patrolSpeed);
+    expect(first?.facing).not.toEqual(second?.facing);
+    expect({ x: first?.x, z: first?.z }).not.toEqual({ x: second?.x, z: second?.z });
+  });
+
   it("redirects immediately toward an in-range swimmer and devours once", () => {
     const map = mapWithWater(3, () => true);
     const anchor = cell(map.size, 1, 1);
