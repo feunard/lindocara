@@ -12,6 +12,7 @@ import {
   errorCode,
   fetchMap,
   fetchMaps,
+  isUnauthorizedCode,
   type MapPayload,
   updateMapApi,
 } from "@lindocara/client/api.js";
@@ -179,17 +180,6 @@ function eventToolFor(
   return { kind: "event", eventKind };
 }
 
-/**
- * The two `requireSession` codes that mean "log in again", never "this map request failed". The
- * client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper, `state/navigation.ts`'s
- * `onUnauthorized`) already navigates to `/auth` for both — this file's own catch blocks check it
- * only to SKIP surfacing a redundant local error while that redirect is already in flight, never to
- * navigate themselves.
- */
-function isSessionError(code: string): boolean {
-  return code === "session_expired" || code === "unauthorized";
-}
-
 function toEditorMap(map: MapPayload): EditorMap {
   return {
     name: map.name,
@@ -319,7 +309,7 @@ function AdventureEditorBootstrap() {
           startedRef.current = false;
           // A dead session is already being redirected to /auth by the client's global 401 seam;
           // showing a retry on top of that would be a second, contradictory answer.
-          if (isSessionError(errorCode(caught))) return;
+          if (isUnauthorizedCode(errorCode(caught))) return;
           setFailed(true);
         }
       })();
@@ -512,7 +502,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
   const fail = useCallback((caught: unknown): void => {
     const code = errorCode(caught);
-    if (isSessionError(code)) return;
+    if (isUnauthorizedCode(code)) return;
     setError(code);
   }, []);
 
@@ -1084,9 +1074,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       }
       if (releasedStage) setStageEpoch((current) => current + 1);
       const code = errorCode(caught);
-      // The global 401 seam already navigates to /auth (see `isSessionError`'s docblock) — bail
+      // The global 401 seam already navigates to /auth (see `isUnauthorizedCode`'s docblock) — bail
       // without reopening the test dialog with a stale error while that redirect is in flight.
-      if (isSessionError(code)) return;
+      if (isUnauthorizedCode(code)) return;
       if (caught instanceof ApiError && code === "adventure_test_invalid") {
         const diagnostics = (caught.details as { diagnostics?: unknown } | null)?.diagnostics;
         if (Array.isArray(diagnostics)) setTestDiagnostics(diagnostics as QuestDiagnostic[]);
@@ -1275,7 +1265,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         });
       } catch {
         // Best-effort refresh: swallow every failure, including a dead session — the global 401
-        // seam already navigates to /auth on its own (see `isSessionError`'s docblock).
+        // seam already navigates to /auth on its own (see `isUnauthorizedCode`'s docblock).
       }
     })();
   }

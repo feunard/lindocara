@@ -31,6 +31,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The error codes that mean "this session is dead, log in again" — never a wrong password
+ * (`InvalidCredentialsError`), which must not bounce the auth form back onto itself.
+ *
+ * `UnauthorizedError` is Alepha's own `$secure()` class name, which `HttpError.toJSON` puts in the
+ * `error` field: it is the ONLY one of the three this server actually emits today.
+ * `session_expired`/`unauthorized` (lowercase) were the now-deleted hand-rolled Worker's
+ * equivalents (`requireSession()`, formerly `packages/server/src/index.ts`) for an
+ * existing-but-stale cookie and a missing/invalid one respectively; they are kept so an old
+ * response shape still reads as unauthorized rather than as a generic failure.
+ *
+ * This is the single definition. `api()` below uses it to fire the global `/auth` redirect
+ * (`state/navigation.ts`'s docblock), and the editor's own catch blocks use it to SKIP surfacing a
+ * redundant local error while that redirect is already in flight — never to navigate themselves.
+ * Two spellings of "is this unauthorized?" is exactly how the editor came to answer a real expired
+ * session with a contradictory error banner.
+ */
+export function isUnauthorizedCode(code: string): boolean {
+  return code === "UnauthorizedError" || code === "session_expired" || code === "unauthorized";
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -43,17 +64,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
         ? body.error
         : "generic";
-    // The 401 seam (`state/navigation.ts`'s docblock): a dead/expired session — never a wrong
-    // password (`InvalidCredentialsError`), which must not bounce the auth form back onto itself.
-    // `UnauthorizedError` is Alepha's own `$secure()` class name (the framework port's routes);
-    // `session_expired`/`unauthorized` (lowercase) were the now-deleted legacy hand-rolled Worker's
-    // equivalents (`requireSession()`, formerly `packages/server/src/index.ts`) for an
-    // existing-but-stale cookie and a missing/invalid one respectively. Kept here even though the
-    // legacy stack is gone: the editor's own local session-error checks (`isSessionError` in its
-    // six `ui/editor/*` files) still special-case the same three codes, and this "global" hook
-    // stays the single source of truth for what counts as "unauthorized" to a caller of this
-    // function.
-    if (code === "UnauthorizedError" || code === "session_expired" || code === "unauthorized") {
+    if (isUnauthorizedCode(code)) {
       onUnauthorized();
     }
     throw new ApiError(code, body);

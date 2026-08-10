@@ -155,10 +155,19 @@ describe("AdventureEditorScreen scratch entry", () => {
     );
   });
 
-  it("shows no error banner when the session has expired", async () => {
+  // `UnauthorizedError` is what this server actually sends: Alepha's `$secure()` throws that class
+  // and `HttpError.toJSON` puts its name in the `error` field. `session_expired`/`unauthorized` are
+  // the retired hand-rolled Worker's spellings, kept only so an old response shape still reads as a
+  // dead session. Both are exercised: a guard that knew only the retired codes answered a REAL
+  // expired session with a local error banner on top of the global `/auth` redirect.
+  it.each([
+    "UnauthorizedError",
+    "session_expired",
+    "unauthorized",
+  ])("shows no error banner when the session is dead (%s)", async (code) => {
     const mock = vi.fn((url: string, init?: RequestInit) => {
       if (url === "/api/adventures" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({ error: "session_expired" }, 401));
+        return Promise.resolve(jsonResponse({ error: code }, 401));
       }
       return Promise.resolve(jsonResponse([], 200));
     });
@@ -172,7 +181,11 @@ describe("AdventureEditorScreen scratch entry", () => {
     expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
   });
 
-  it("mints another scratch from File → New adventure, guarding unsaved edits", async () => {
+  // The dirty guard's two directions are covered where the stage (and therefore a dirty edit) can be
+  // faked: declined in `editor-shell.test.tsx`'s "guards File → New adventure with the dirty
+  // confirm", confirmed in its "mints exactly one adventure … over dirty edits". This one proves
+  // only that the menu item reaches `ensureScratchAdventure` and swaps the session.
+  it("mints another scratch from File → New adventure", async () => {
     let created = 0;
     const mock = vi.fn((url: string, init?: RequestInit) => {
       if (url === "/api/adventures" && init?.method === "POST") {

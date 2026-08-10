@@ -5,6 +5,7 @@ import {
   errorCode,
   fetchMap,
   fetchMaps,
+  isUnauthorizedCode,
   updateAdventureApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
@@ -48,17 +49,6 @@ interface QuestWorkspaceDialogProps {
   /** When the stage is ready, map + adventure registry are committed in the editor's existing
    * revision-fenced transaction. Without a live map, the adventure shell can still be saved alone. */
   onSaveDraft?(draft: AdventureDraft): Promise<AdventureDraft | null>;
-}
-
-/**
- * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
- * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
- * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
- * docblock. Task 6 dropped this dialog's `onSessionExpired` prop once that global hook was
- * confirmed to cover every one of the editor's machine codes.
- */
-function isSessionError(code: string): boolean {
-  return code === "session_expired" || code === "unauthorized";
 }
 
 function questSearchText(quest: AuthoredQuestDefinition): string {
@@ -145,7 +135,7 @@ export function QuestWorkspaceDialog({
       } catch (caught) {
         if (cancelled) return;
         const code = errorCode(caught);
-        if (!isSessionError(code)) setError(code);
+        if (!isUnauthorizedCode(code)) setError(code);
       } finally {
         if (!cancelled) setLoadingMaps(false);
       }
@@ -200,7 +190,7 @@ export function QuestWorkspaceDialog({
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) return;
+    if (isUnauthorizedCode(code)) return;
     setError(code);
   }
 

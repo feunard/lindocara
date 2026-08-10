@@ -7,6 +7,7 @@ import {
   authErrorText,
   deleteAdventureApi,
   errorCode,
+  isUnauthorizedCode,
   updateAdventureApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
@@ -25,17 +26,6 @@ import { Label } from "@lindocara/ui/components/label.js";
 import { useAlepha, useStore } from "alepha/react";
 import { useEffect, useState } from "react";
 import { AudioConfigFields } from "./AudioConfigFields.js";
-
-/**
- * A dead/expired session (`session_expired`, `unauthorized`) is caught here only to SKIP surfacing
- * a local error while the client's global 401 seam (`packages/client/src/api.ts`'s `api()` helper)
- * is already redirecting to `/auth` — see `AdventureEditorScreen.tsx`'s own `isSessionError`
- * docblock for the full rationale. Task 6 dropped this dialog's `onSessionExpired` prop once that
- * global hook was confirmed to cover every one of the editor's machine codes.
- */
-function isSessionError(code: string): boolean {
-  return code === "session_expired" || code === "unauthorized";
-}
 
 interface AdventureSettingsDialogProps {
   open: boolean;
@@ -81,7 +71,7 @@ export function AdventureSettingsDialog({
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
-    if (isSessionError(code)) return;
+    if (isUnauthorizedCode(code)) return;
     setError(code);
   }
 
