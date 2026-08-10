@@ -105,6 +105,7 @@ export function editorToolPreviewAssetId(tool: EditorTool): EditorAssetId | null
 
 const EMPTY_SAMPLE: SceneSample = {
   players: [],
+  seaGuardians: [],
   monsters: [],
   guards: [],
   loot: [],

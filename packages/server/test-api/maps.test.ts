@@ -700,9 +700,8 @@ describe("list, get, update, delete", () => {
     const adventureId = await newAdventure(userId);
     const id = await newMapId(adventureId, token);
     const heroSettings = defaultMapHeroSettings();
-    // A PIXEL speed, as every stored map authored before this increment holds. It must survive a
-    // round-trip untouched: `parseMapHeroSettings` refusing it would take the whole hero-settings
-    // record down with it, and a read would silently hand back the defaults instead.
+    // A PIXEL speed, as every stored map authored before the tile-unit conversion holds. The map
+    // boundary accepts it for compatibility but never lets the pixel reading reach movement.
     heroSettings.classes.rogue.stats.movementSpeed = 350;
     heroSettings.classes.rogue.disabledSkills = [3, 5];
 
@@ -711,7 +710,7 @@ describe("list, get, update, delete", () => {
     expect(await updated.json()).toMatchObject({
       heroSettings: {
         classes: {
-          rogue: { stats: { movementSpeed: 350 }, disabledSkills: [3, 5] },
+          rogue: { stats: { movementSpeed: 350 / 64 }, disabledSkills: [3, 5] },
         },
       },
     });
@@ -721,7 +720,7 @@ describe("list, get, update, delete", () => {
     expect(await fetched.json()).toMatchObject({
       heroSettings: {
         classes: {
-          rogue: { stats: { movementSpeed: 350 }, disabledSkills: [3, 5] },
+          rogue: { stats: { movementSpeed: 350 / 64 }, disabledSkills: [3, 5] },
         },
       },
     });
@@ -745,7 +744,7 @@ describe("list, get, update, delete", () => {
       heroSettings: ReturnType<typeof defaultMapHeroSettings>;
     };
     expect(loaded.heroSettings.classes.rogue).toMatchObject({
-      stats: { movementSpeed: 341 },
+      stats: { movementSpeed: 341 / 64 },
       disabledSkills: [2, 5],
     });
     expect(loaded.heroSettings.classes.peasant).toEqual(defaultMapHeroSettings().classes.peasant);
@@ -755,7 +754,7 @@ describe("list, get, update, delete", () => {
     expect(await resaved.json()).toMatchObject({
       heroSettings: {
         classes: {
-          rogue: { stats: { movementSpeed: 341 }, disabledSkills: [2, 5] },
+          rogue: { stats: { movementSpeed: 341 / 64 }, disabledSkills: [2, 5] },
           peasant: { stats: { movementSpeed: 247 / 64 }, disabledSkills: [] },
         },
       },

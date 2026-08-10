@@ -202,7 +202,7 @@ export const en = {
   "class.peasant.skill.2": "Pick strike and prospecting",
   "class.peasant.skill.3": "Knife strike and butchery",
   "class.peasant.skill.4": "Useful field construction",
-  "class.peasant.skill.5": "Devastating freely aimed explosive",
+  "class.peasant.skill.5": "Devastating auto-aimed explosive",
   "skill.warrior.cleave.name": "Cleave",
   "skill.warrior.iron_guard.name": "Iron Guard",
   "skill.warrior.shield_bash.name": "Shield Bash",
@@ -219,17 +219,19 @@ export const en = {
   "skill.ranger.piercing_arrow.name": "Piercing Arrow",
   "skill.ranger.volley.name": "Volley",
   "skill.ranger.dash.name": "Disengage",
-  "skill.ranger.quick_shot.description": "Fire a quick arrow in your facing direction.",
-  "skill.ranger.piercing_arrow.description": "A powerful arrow that pierces several enemies.",
-  "skill.ranger.volley.description": "Fire a wide fan of arrows in front of you.",
+  "skill.ranger.quick_shot.description": "Fire a quick arrow at the nearest enemy on your level.",
+  "skill.ranger.piercing_arrow.description":
+    "Fire at the nearest enemy with an arrow that can pierce several targets.",
+  "skill.ranger.volley.description": "Fire a wide fan of arrows toward the nearest enemy.",
   "skill.ranger.dash.description":
     "Dash backward from your last movement direction; use WASD to aim it.",
-  "skill.ranger.heartseeker.description": "A devastating straight shot that can miss.",
+  "skill.ranger.heartseeker.description": "A devastating shot aimed at the nearest enemy.",
   "skill.ranger.heartseeker.name": "Heartseeker",
   "skill.priest.radiant_bolt.name": "Radiant Bolt",
   "skill.priest.mend.name": "Mend",
   "skill.priest.blink.name": "Lumen Step",
-  "skill.priest.radiant_bolt.description": "Launch a radiant bolt in your facing direction.",
+  "skill.priest.radiant_bolt.description":
+    "Launch a radiant bolt at the nearest enemy on your level.",
   "skill.priest.mend.description":
     "Launch a green light that heals the first wounded ally it touches.",
   "skill.priest.blink.description":
@@ -268,7 +270,7 @@ export const en = {
   "skill.peasant.makeshift_camp.description":
     "Build a camp that restores allied health and mana, with a shared gold chest.",
   "skill.peasant.homemade_bomb.description":
-    "Arm the aim, freely direct the throw, then unleash a devastating explosion.",
+    "Throw at the nearest enemy on your level, stopping at the first obstacle.",
 
   // HUD
   "death.fallen_title": "You have fallen",

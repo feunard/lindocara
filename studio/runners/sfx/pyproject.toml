@@ -11,6 +11,7 @@ dependencies = [
     "transformers==4.57.*",
     "torch>=2.9,<2.10",
     "soundfile>=0.12",
+    "triton-windows>=3.5,<3.6; sys_platform == 'win32'",
 ]
 
 [[tool.uv.index]]

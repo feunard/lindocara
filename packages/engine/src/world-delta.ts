@@ -6,6 +6,7 @@ import type {
   MonsterSnapshot,
   PlayerSnapshot,
   ProjectileSnapshot,
+  SeaGuardianSnapshot,
   WorldEventSnapshot,
   WorldView,
 } from "./protocol.js";
@@ -19,6 +20,7 @@ export const WORLD_POSITION_DELTA_THRESHOLD = 0.5 / 64;
 
 export interface WorldCache {
   players: Map<string, PlayerSnapshot>;
+  seaGuardians: Map<string, SeaGuardianSnapshot>;
   monsters: Map<string, MonsterSnapshot>;
   guards: Map<string, GuardSnapshot>;
   loot: Map<string, LootSnapshot>;
@@ -36,6 +38,7 @@ export interface WorldCache {
 
 export interface WorldDeltaPayload {
   players: EntityDelta<PlayerSnapshot>;
+  seaGuardians: EntityDelta<SeaGuardianSnapshot>;
   monsters: EntityDelta<MonsterSnapshot>;
   guards: EntityDelta<GuardSnapshot>;
   loot: EntityDelta<LootSnapshot>;
@@ -46,6 +49,7 @@ export interface WorldDeltaPayload {
 export function createWorldCache(view?: WorldView): WorldCache {
   const cache: WorldCache = {
     players: new Map(),
+    seaGuardians: new Map(),
     monsters: new Map(),
     guards: new Map(),
     loot: new Map(),
@@ -59,6 +63,7 @@ export function createWorldCache(view?: WorldView): WorldCache {
 
 export function replaceWorldCache(cache: WorldCache, view: WorldView): void {
   replaceMap(cache.players, view.players);
+  replaceMap(cache.seaGuardians, view.seaGuardians);
   replaceMap(cache.monsters, view.monsters);
   replaceMap(cache.guards, view.guards);
   replaceMap(cache.loot, view.loot);
@@ -69,6 +74,7 @@ export function replaceWorldCache(cache: WorldCache, view: WorldView): void {
 export function buildWorldDelta(cache: WorldCache, view: WorldView): WorldDeltaPayload {
   return {
     players: diffMap(cache.players, view.players),
+    seaGuardians: diffMap(cache.seaGuardians, view.seaGuardians),
     monsters: diffMap(cache.monsters, view.monsters),
     guards: diffMap(cache.guards, view.guards),
     loot: diffMap(cache.loot, view.loot),
@@ -80,6 +86,7 @@ export function buildWorldDelta(cache: WorldCache, view: WorldView): WorldDeltaP
 export function applyWorldDelta(cache: WorldCache, delta: WorldDeltaPayload): WorldView | null {
   if (
     !applyEntityDelta(cache.players, delta.players) ||
+    !applyEntityDelta(cache.seaGuardians, delta.seaGuardians) ||
     !applyEntityDelta(cache.monsters, delta.monsters) ||
     !applyEntityDelta(cache.guards, delta.guards) ||
     !applyEntityDelta(cache.loot, delta.loot) ||
@@ -94,6 +101,7 @@ export function applyWorldDelta(cache: WorldCache, delta: WorldDeltaPayload): Wo
 export function worldViewFromCache(cache: WorldCache): WorldView {
   return {
     players: [...cache.players.values()],
+    seaGuardians: [...cache.seaGuardians.values()],
     monsters: [...cache.monsters.values()],
     guards: [...cache.guards.values()],
     loot: [...cache.loot.values()],
@@ -105,6 +113,7 @@ export function worldViewFromCache(cache: WorldCache): WorldView {
 export function countDeltaEntities(delta: WorldDeltaPayload): number {
   return [
     delta.players,
+    delta.seaGuardians,
     delta.monsters,
     delta.guards,
     delta.loot,

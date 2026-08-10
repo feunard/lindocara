@@ -281,6 +281,7 @@ describe("the wire ships tile units and no pixel projection", () => {
           displacement: { seq: 0, x: 0, y: 0, z: 0 },
         },
         players: [self],
+        seaGuardians: [],
         monsters: [],
         guards: [],
         loot: [],

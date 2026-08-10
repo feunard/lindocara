@@ -8,6 +8,7 @@ import {
   centerProjectileGeometry,
   depthBiasedEffectPosition,
   Hd2dVisualLayer,
+  PROJECTILE_BILLBOARD_FOOT,
   projectileBillboardAngle,
   projectileFrameIndex,
   projectileVisualLift,
@@ -153,6 +154,10 @@ describe("Hd2dVisualLayer restored authored effects", () => {
     expect(geometry.boundingBox?.min.y).toBeCloseTo(-0.6);
     expect(geometry.boundingBox?.max.y).toBeCloseTo(0.6);
     geometry.dispose();
+  });
+
+  it("does not lower a centred projectile by an actor foot offset", () => {
+    expect(PROJECTILE_BILLBOARD_FOOT).toBe(0);
   });
 
   it("biases impacts behind a co-located target relative to the camera", () => {

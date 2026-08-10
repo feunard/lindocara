@@ -27,6 +27,9 @@ import {
 
 const MUSIC_BASE = 0.32;
 const AMBIENCE_BASE = 0.1;
+const SEA_GUARDIAN_AMBIENCE_BASE = 0.26;
+const SEA_GUARDIAN_NEAR = "/assets/lindocara/audio/sfx/sea-guardian-near.wav";
+const SEA_GUARDIAN_DEVOUR = "/assets/lindocara/audio/sfx/sea-guardian-devour.wav";
 const CHARGE_IMPACT_WINDOW_MS = 900;
 const COMBAT_MUSIC_HOLD_MS = 8_000;
 const COMBAT_THREAT_RELEASE_MS = 500;
@@ -66,6 +69,8 @@ export class GameSound {
   #explorationMusic: HTMLAudioElement | null = null;
   #combatMusic: HTMLAudioElement | null = null;
   #ambience: HTMLAudioElement | null = null;
+  #seaGuardianAmbience: HTMLAudioElement | null = null;
+  #seaGuardianNearby = false;
   #explorationMusicSrc: string | null = null;
   #combatMusicSrc: string | null = null;
   #ambienceSrc: string | null = null;
@@ -162,13 +167,31 @@ export class GameSound {
     this.#setSkidIntensity(movementSkidIntensity(events));
   }
 
+  /** The warning exists only while this hero is swimming within 100 gameplay metres. */
+  setSeaGuardianNearby(nearby: boolean): void {
+    if (nearby === this.#seaGuardianNearby) return;
+    this.#seaGuardianNearby = nearby;
+    if (nearby && !this.#seaGuardianAmbience) {
+      this.#seaGuardianAmbience = this.#createLoop(SEA_GUARDIAN_NEAR);
+    }
+    this.#syncVolumes();
+    this.#syncPlayback();
+  }
+
+  seaGuardianDevour(): void {
+    void this.#playSpec({ src: SEA_GUARDIAN_DEVOUR, volume: 1 });
+  }
+
   stopAmbient(): void {
     this.#stopElement(this.#explorationMusic);
     this.#stopElement(this.#combatMusic);
     this.#stopElement(this.#ambience);
+    this.#stopElement(this.#seaGuardianAmbience);
     this.#explorationMusic = null;
     this.#combatMusic = null;
     this.#ambience = null;
+    this.#seaGuardianAmbience = null;
+    this.#seaGuardianNearby = false;
     this.#explorationMusicSrc = null;
     this.#combatMusicSrc = null;
     this.#ambienceSrc = null;
@@ -353,6 +376,9 @@ export class GameSound {
     if (this.#ambience) {
       this.#ambience.volume = muted ? 0 : AMBIENCE_BASE * ambientVolume;
     }
+    if (this.#seaGuardianAmbience) {
+      this.#seaGuardianAmbience.volume = muted ? 0 : SEA_GUARDIAN_AMBIENCE_BASE * ambientVolume;
+    }
     this.#syncSkidVolume();
   }
 
@@ -377,6 +403,12 @@ export class GameSound {
       if (canPlay) {
         if (this.#ambience.paused) void this.#ambience.play().catch(() => undefined);
       } else this.#ambience.pause();
+    }
+    if (this.#seaGuardianAmbience) {
+      if (canPlay && this.#seaGuardianNearby) {
+        if (this.#seaGuardianAmbience.paused)
+          void this.#seaGuardianAmbience.play().catch(() => undefined);
+      } else this.#seaGuardianAmbience.pause();
     }
     this.#syncSkidVolume();
   }
@@ -466,6 +498,7 @@ export class GameSound {
           ...SHEEP_POPS,
           ...CHEST_OPEN,
           ...CHEST_CLOSE,
+          SEA_GUARDIAN_DEVOUR,
         ]),
       ].map(async (src) => {
         if (this.#buffers.has(src)) return;

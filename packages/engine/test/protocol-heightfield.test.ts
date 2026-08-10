@@ -72,6 +72,7 @@ function welcomeFixture(worldOverrides: Record<string, unknown> = {}) {
         action: null,
       },
     ],
+    seaGuardians: [],
     monsters: [],
     guards: [],
     loot: [],

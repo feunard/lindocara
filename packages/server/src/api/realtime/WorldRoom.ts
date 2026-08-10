@@ -729,13 +729,7 @@ export class WorldRoom {
     if (message.t === "skill") {
       if (state.peasantSupport.pendingByOwner.has(player.id)) return;
       if (player.class === "peasant" && (message.slot === 4 || message.slot === 5)) {
-        const request = preparePeasantSupportRequest(
-          w,
-          connectionId,
-          player,
-          message.slot,
-          message.direction,
-        );
+        const request = preparePeasantSupportRequest(w, connectionId, player, message.slot);
         return request
           ? this.startPeasantSupportSkill(room, state, connectionId, player, request)
           : undefined;
@@ -1835,6 +1829,7 @@ export class WorldRoom {
       guards: state.guards,
       loot: state.loot,
       projectiles: state.projectiles,
+      seaGuardian: state.seaGuardian,
       playerGrid: state.playerGrid,
       monsterGrid: state.monsterGrid,
       lootGrid: state.lootGrid,

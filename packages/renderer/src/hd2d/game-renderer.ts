@@ -232,6 +232,8 @@ function facingOf(vector: GroundVector): Facing {
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
+export const SEA_GUARDIAN_SWIM_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guardian-swim.png";
+export const SEA_GUARDIAN_ATTACK_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guardian-attack.png";
 
 /** True only while the held Lumen Step has replaced the Priest's body with its cloud. */
 export function isLumenStepClouded(
@@ -343,6 +345,8 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
       art.attack.source,
     ]),
     HD2D_GLIDER_TEXTURE_URL,
+    SEA_GUARDIAN_SWIM_TEXTURE_URL,
+    SEA_GUARDIAN_ATTACK_TEXTURE_URL,
     HD2D_SPLASH_TEXTURE_URL,
     HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
     CHARACTER_ATLAS_URL,
@@ -1050,6 +1054,39 @@ export class Hd2dRenderer implements RendererLike {
         z: player.z,
         playerClass: player.class,
         primaryColor: player.appearance.primaryColor,
+      });
+    }
+    for (const guardian of sample.seaGuardians) {
+      present.add(guardian.id);
+      const attacking = guardian.state === "attack";
+      const attackStartedAt = this.#serverClock.toLocal(guardian.animationStartedAt);
+      const attackDuration =
+        guardian.animationEndsAt === null
+          ? undefined
+          : guardian.animationEndsAt - guardian.animationStartedAt;
+      views.push({
+        id: guardian.id,
+        kind: "sea_guardian",
+        x: guardian.x,
+        y: guardian.y,
+        z: guardian.z,
+        airborne: false,
+        swimming: true,
+        gliding: false,
+        waterDepth: attacking ? 0.18 : 0.48,
+        vy: 0,
+        facing: facingOf(guardian.facing),
+        textureKey: attacking ? SEA_GUARDIAN_ATTACK_TEXTURE_URL : SEA_GUARDIAN_SWIM_TEXTURE_URL,
+        frames: 4,
+        frameWidth: 256,
+        frameHeight: 256,
+        foot: 0.5,
+        renderHeight: attacking ? 4.2 : 3.4,
+        animationTimeMs: attacking
+          ? Math.max(0, animationTimeMs - (attackStartedAt ?? animationTimeMs))
+          : animationTimeMs,
+        ...(attackDuration === undefined ? {} : { animationDurationMs: attackDuration }),
+        animationLoop: !attacking,
       });
     }
     for (const monster of sample.monsters) {

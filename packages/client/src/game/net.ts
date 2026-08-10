@@ -32,6 +32,7 @@ import {
   type ProjectileSnapshot,
   parseServerMessage,
   type RogueShadowDanceSequence,
+  type SeaGuardianSnapshot,
   type SelfState,
   type ServerMessage,
   type WorldEventSnapshot,
@@ -93,6 +94,7 @@ function stripAlephaRoomMarker(raw: string): string {
 interface BufferedSnapshot {
   receivedAt: number;
   players: PlayerSnapshot[];
+  seaGuardians: SeaGuardianSnapshot[];
   monsters: MonsterSnapshot[];
   guards: GuardSnapshot[];
   loot: LootSnapshot[];
@@ -157,6 +159,7 @@ export interface ConnectionHandlers {
   onPartyInvite(inviteId: string, fromId: string, from: string, expiresAt: number): void;
   onPartyState(party: PartyState | null): void;
   onMerchantOpen(): void;
+  onSeaGuardianDevour(victimId: string): void;
   onAnimation(animation: CombatAnimation): void;
   onMonsterSpecialImpact(impact: MonsterSpecialImpact): void;
   onShadowDance(sequence: RogueShadowDanceSequence): void;
@@ -530,6 +533,7 @@ export class WorldClient {
     if (!newest)
       return {
         players: [],
+        seaGuardians: [],
         monsters: [],
         guards: [],
         loot: [],
@@ -594,6 +598,7 @@ export class WorldClient {
       this.#shadowDanceMovementBlockedUntil = 0;
       this.#push(
         message.players,
+        message.seaGuardians,
         message.monsters,
         message.guards,
         message.loot,
@@ -660,6 +665,7 @@ export class WorldClient {
       this.#corpses = view.corpses;
       const receivedAt = this.#push(
         view.players,
+        view.seaGuardians,
         view.monsters,
         view.guards,
         view.loot,
@@ -680,6 +686,7 @@ export class WorldClient {
       this.#buffer = [];
       const receivedAt = this.#push(
         message.players,
+        message.seaGuardians,
         message.monsters,
         message.guards,
         message.loot,
@@ -712,6 +719,10 @@ export class WorldClient {
     }
     if (message.t === "merchant.open") {
       handlers.onMerchantOpen();
+      return;
+    }
+    if (message.t === "sea_guardian.devour") {
+      handlers.onSeaGuardianDevour(message.victimId);
       return;
     }
     if (message.t === "animation") {
@@ -802,13 +813,14 @@ export class WorldClient {
 
   #push(
     players: PlayerSnapshot[],
+    seaGuardians: SeaGuardianSnapshot[],
     monsters: MonsterSnapshot[],
     guards: GuardSnapshot[],
     loot: LootSnapshot[],
     projectiles: ProjectileSnapshot[],
   ): number {
     const receivedAt = performance.now();
-    this.#buffer.push({ receivedAt, players, monsters, guards, loot, projectiles });
+    this.#buffer.push({ receivedAt, players, seaGuardians, monsters, guards, loot, projectiles });
     const cutoff = receivedAt - BUFFER_MS;
     while (this.#buffer.length > 2 && (this.#buffer[0]?.receivedAt ?? 0) < cutoff) {
       this.#buffer.shift();
@@ -971,6 +983,7 @@ export class WorldClient {
     if (this.#buffer.length === 1) {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),
+        seaGuardians: newest.seaGuardians,
         monsters: newest.monsters,
         guards: newest.guards,
         loot: newest.loot,
@@ -982,6 +995,7 @@ export class WorldClient {
     if (renderAt >= newest.receivedAt) {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),
+        seaGuardians: newest.seaGuardians,
         monsters: newest.monsters,
         guards: newest.guards,
         loot: newest.loot,
@@ -1003,6 +1017,7 @@ export class WorldClient {
     if (!older) {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),
+        seaGuardians: newest.seaGuardians,
         monsters: newest.monsters,
         guards: newest.guards,
         loot: newest.loot,
@@ -1015,6 +1030,7 @@ export class WorldClient {
       players: interpolateSnapshots(older.players, newer.players, alpha).filter(
         (player) => player.id !== this.#selfId,
       ),
+      seaGuardians: interpolateSnapshots(older.seaGuardians, newer.seaGuardians, alpha),
       monsters: interpolateSnapshots(older.monsters, newer.monsters, alpha),
       guards: interpolateSnapshots(older.guards, newer.guards, alpha),
       loot: newer.loot,

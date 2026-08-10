@@ -20,6 +20,7 @@ import type {
 } from "@lindocara/engine/protocol.js";
 import { navigationDebug as navigationDebugSnapshot } from "./navigation-system.js";
 import { isRogueStealthed } from "./rogue-state-system.js";
+import { type SeaGuardianRuntime, seaGuardianSnapshots } from "./sea-guardian-system.js";
 import { queryWithHysteresis, type SpatialGrid } from "./spatial-grid.js";
 import type {
   GroundLoot,
@@ -70,6 +71,7 @@ export interface InterestSystemContext<TSocket = WebSocket> {
   guards: GuardRuntime[];
   loot: GroundLoot[];
   projectiles: ProjectileRuntime[];
+  seaGuardian?: SeaGuardianRuntime;
   playerGrid: SpatialGrid<PlayerRuntime>;
   monsterGrid: SpatialGrid<MonsterRuntime>;
   lootGrid: SpatialGrid<GroundLoot>;
@@ -83,6 +85,7 @@ export function worldView<TSocket>(
 ): WorldView {
   return {
     players: visiblePlayerSnapshots(context, viewer),
+    seaGuardians: context.seaGuardian ? seaGuardianSnapshots(context.seaGuardian) : [],
     monsters: visibleMonsterSnapshots(context, viewer),
     guards: guardSnapshots(context, viewer),
     loot: visibleLootSnapshots(context, viewer),

@@ -188,6 +188,51 @@ export function canSpawnProjectile(
   );
 }
 
+const PROJECTILE_ELEVATION_EPSILON = 1e-3;
+
+/**
+ * Projectiles are horizontal shots. Small differences on the same ramp are tolerated, but a full
+ * authored terrain level is never treated as the same combat plane.
+ */
+export function sameProjectileElevation(
+  sourceY: number,
+  targetY: number,
+  levelHeight: number,
+): boolean {
+  const difference = Math.abs(sourceY - targetY);
+  const level = Math.abs(levelHeight);
+  if (level <= PROJECTILE_ELEVATION_EPSILON) return difference <= PROJECTILE_ELEVATION_EPSILON;
+  return difference < level / 2;
+}
+
+/**
+ * Selects the server-authoritative target for an offensive player projectile. Obstacles are not
+ * filtered here on purpose: the projectile sweep remains authoritative and stops the shot at the
+ * first wall or raised terrain between the actor and this target.
+ */
+export function nearestProjectileMonster(
+  origin: WorldPosition,
+  monsters: Iterable<MonsterRuntime>,
+  range: number,
+  now: number,
+  levelHeight: number,
+): MonsterRuntime | null {
+  const maximumRange = Math.max(0, Math.min(range, MAX_PROJECTILE_RANGE));
+  return (
+    [...monsters]
+      .filter((monster) => {
+        if (monster.deadUntil > now || !sameProjectileElevation(origin.y, monster.y, levelHeight))
+          return false;
+        const distance = groundDistance(origin, monster);
+        return distance > 0 && distance <= maximumRange;
+      })
+      .sort((left, right) => {
+        const distance = groundDistance(origin, left) - groundDistance(origin, right);
+        return distance || left.id.localeCompare(right.id);
+      })[0] ?? null
+  );
+}
+
 function playerById<TSocket>(
   players: Map<TSocket, PlayerRuntime>,
   playerId: string,
@@ -253,6 +298,7 @@ function entityImpacts<TSocket>(
       .filter(
         (monster) =>
           monster.deadUntil <= now &&
+          sameProjectileElevation(projectile.y, monster.y, context.terrain.levelHeight) &&
           !projectile.hitEntityIds.has(monster.id) &&
           !projectile.activationHitEntityIds?.has(monster.id),
       )
@@ -282,6 +328,7 @@ function entityImpacts<TSocket>(
           !player.transitioning &&
           player.invisibleUntil <= now &&
           !isRogueStealthed(player, now) &&
+          sameProjectileElevation(projectile.y, player.y, context.terrain.levelHeight) &&
           !projectile.hitEntityIds.has(player.id) &&
           !projectile.activationHitEntityIds?.has(player.id),
       )
@@ -314,6 +361,11 @@ function entityImpacts<TSocket>(
           isRogueStealthed(player, now) &&
           player.rogueSilhouette !== null &&
           player.rogueSilhouette.expiresAt > now &&
+          sameProjectileElevation(
+            projectile.y,
+            player.rogueSilhouette.y,
+            context.terrain.levelHeight,
+          ) &&
           !projectile.hitEntityIds.has(`rogue-silhouette-${player.id}`),
       )
       .map((player) => ({
@@ -337,7 +389,11 @@ function entityImpacts<TSocket>(
           entry.impact !== null,
       );
     const guardContacts = context.guards
-      .filter((guard) => !projectile.hitEntityIds.has(guard.id))
+      .filter(
+        (guard) =>
+          sameProjectileElevation(projectile.y, guard.y, context.terrain.levelHeight) &&
+          !projectile.hitEntityIds.has(guard.id),
+      )
       .map((guard) => ({
         impact: sweptProjectileEntityImpact(
           from,
@@ -416,7 +472,10 @@ export function advanceProjectiles<TSocket>(
       });
     } else if (projectile.homingTargetId) {
       const target = context.monsters.find(
-        (monster) => monster.id === projectile.homingTargetId && monster.deadUntil <= now,
+        (monster) =>
+          monster.id === projectile.homingTargetId &&
+          monster.deadUntil <= now &&
+          sameProjectileElevation(projectile.y, monster.y, context.terrain.levelHeight),
       );
       if (target) {
         projectile.direction = turnToward(

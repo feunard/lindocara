@@ -5,6 +5,7 @@ import type {
   MonsterSnapshot,
   PlayerSnapshot,
   ProjectileSnapshot,
+  SeaGuardianSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 
@@ -16,6 +17,7 @@ import type {
  */
 export interface SceneSample {
   players: PlayerSnapshot[];
+  seaGuardians: SeaGuardianSnapshot[];
   monsters: MonsterSnapshot[];
   guards: GuardSnapshot[];
   loot: LootSnapshot[];

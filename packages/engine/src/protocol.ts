@@ -250,6 +250,19 @@ export interface MonsterSnapshot {
   navigationDebug?: NavigationDebugSnapshot;
 }
 
+/** The immortal sea barrier. It is deliberately not a MonsterSnapshot: it has no HP, threat,
+ * combat action or targetable identity anywhere on the wire. */
+export interface SeaGuardianSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  facing: GroundVector;
+  state: import("./sea-guardian.js").SeaGuardianState;
+  animationStartedAt: number;
+  animationEndsAt: number | null;
+}
+
 export interface NavigationDebugSnapshot {
   state: import("./navigation.js").MonsterNavigationState;
   path: GroundVector[];
@@ -881,6 +894,7 @@ export interface EntityDelta<T extends { id: string }> {
 
 export interface WorldView {
   players: PlayerSnapshot[];
+  seaGuardians: SeaGuardianSnapshot[];
   monsters: MonsterSnapshot[];
   guards: GuardSnapshot[];
   loot: LootSnapshot[];
@@ -896,6 +910,7 @@ export type ServerMessage =
       selfId: string;
       world: WorldInfo;
       players: PlayerSnapshot[];
+      seaGuardians: SeaGuardianSnapshot[];
       monsters: MonsterSnapshot[];
       guards: GuardSnapshot[];
       loot: LootSnapshot[];
@@ -907,6 +922,7 @@ export type ServerMessage =
       t: "world.delta";
       tick: number;
       players: EntityDelta<PlayerSnapshot>;
+      seaGuardians: EntityDelta<SeaGuardianSnapshot>;
       monsters: EntityDelta<MonsterSnapshot>;
       guards: EntityDelta<GuardSnapshot>;
       loot: EntityDelta<LootSnapshot>;
@@ -923,6 +939,14 @@ export type ServerMessage =
   | { t: "party.invite"; inviteId: string; fromId: string; from: string; expiresAt: number }
   | { t: "party.state"; party: PartyState | null }
   | { t: "merchant.open" }
+  | {
+      t: "sea_guardian.devour";
+      guardianId: string;
+      victimId: string;
+      x: number;
+      z: number;
+      at: number;
+    }
   | CombatAnimation
   | MonsterSpecialImpact
   | RogueShadowDanceSequence
@@ -1316,6 +1340,19 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     isDirection(value.facing) &&
     (value.navigationDebug === undefined || isNavigationDebug(value.navigationDebug)) &&
     (value.action === null || isActionSnapshot(value.action, "monster"))
+  );
+}
+
+function isSeaGuardianSnapshot(value: unknown): value is SeaGuardianSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isWorldPosition(value) &&
+    isDirection(value.facing) &&
+    (value.state === "patrol" || value.state === "chase" || value.state === "attack") &&
+    isFiniteNumber(value.animationStartedAt) &&
+    (value.animationEndsAt === null ||
+      (isFiniteNumber(value.animationEndsAt) && value.animationEndsAt >= value.animationStartedAt))
   );
 }
 
@@ -2116,6 +2153,8 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       Array.isArray(value.players) &&
       value.players.every(isPlayerSnapshot) &&
       value.players.some((player) => player.id === value.selfId) &&
+      Array.isArray(value.seaGuardians) &&
+      value.seaGuardians.every(isSeaGuardianSnapshot) &&
       Array.isArray(value.monsters) &&
       value.monsters.every(isMonsterSnapshot) &&
       Array.isArray(value.guards) &&
@@ -2134,6 +2173,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       value.t === "world.delta" &&
       isNonNegativeInteger(value.tick) &&
       isEntityDelta(value.players, isPlayerSnapshot) &&
+      isEntityDelta(value.seaGuardians, isSeaGuardianSnapshot) &&
       isEntityDelta(value.monsters, isMonsterSnapshot) &&
       isEntityDelta(value.guards, isGuardSnapshot) &&
       isEntityDelta(value.loot, isLootSnapshot) &&
@@ -2148,6 +2188,8 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       isNonNegativeInteger(value.tick) &&
       Array.isArray(value.players) &&
       value.players.every(isPlayerSnapshot) &&
+      Array.isArray(value.seaGuardians) &&
+      value.seaGuardians.every(isSeaGuardianSnapshot) &&
       Array.isArray(value.monsters) &&
       value.monsters.every(isMonsterSnapshot) &&
       Array.isArray(value.guards) &&
@@ -2185,6 +2227,17 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (value.t === "party.state" && (value.party === null || isPartyState(value.party)))
       return value as unknown as ServerMessage;
     if (value.t === "merchant.open" && hasOnlyKeys(value, ["t"])) return { t: "merchant.open" };
+    if (
+      value.t === "sea_guardian.devour" &&
+      isWireId(value.guardianId) &&
+      isWireId(value.victimId) &&
+      isFiniteNumber(value.x) &&
+      isFiniteNumber(value.z) &&
+      isFiniteNumber(value.at) &&
+      hasOnlyKeys(value, ["t", "guardianId", "victimId", "x", "z", "at"])
+    ) {
+      return value as unknown as ServerMessage;
+    }
     if (
       value.t === "animation" &&
       (value.actorKind === "player" || value.actorKind === "monster") &&

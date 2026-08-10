@@ -201,7 +201,7 @@ export const fr: Record<keyof typeof en, string> = {
   "class.peasant.skill.2": "Coup de pioche et prospection",
   "class.peasant.skill.3": "Coup de couteau et dépeçage",
   "class.peasant.skill.4": "Construction utile de terrain",
-  "class.peasant.skill.5": "Explosif artisanal dévastateur à visée libre",
+  "class.peasant.skill.5": "Explosif artisanal dévastateur à visée automatique",
   "skill.warrior.cleave.name": "Fendoir",
   "skill.warrior.iron_guard.name": "Garde de fer",
   "skill.warrior.shield_bash.name": "Charge",
@@ -220,17 +220,20 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.ranger.piercing_arrow.name": "Flèche perforante",
   "skill.ranger.volley.name": "Volée",
   "skill.ranger.dash.name": "Désengagement",
-  "skill.ranger.quick_shot.description": "Une flèche rapide dans la direction du héros.",
-  "skill.ranger.piercing_arrow.description": "Une flèche puissante qui traverse plusieurs ennemis.",
-  "skill.ranger.volley.description": "Un large éventail de flèches devant le héros.",
+  "skill.ranger.quick_shot.description":
+    "Une flèche rapide vers l'ennemi le plus proche au même niveau.",
+  "skill.ranger.piercing_arrow.description":
+    "Vise l'ennemi le plus proche avec une flèche qui peut traverser plusieurs cibles.",
+  "skill.ranger.volley.description": "Un large éventail de flèches vers l'ennemi le plus proche.",
   "skill.ranger.dash.description":
     "Recule dans la direction opposée à votre dernier déplacement ; visez avec ZQSD/WASD.",
-  "skill.ranger.heartseeker.description": "Un tir droit dévastateur qui peut manquer.",
+  "skill.ranger.heartseeker.description": "Un tir dévastateur vers l'ennemi le plus proche.",
   "skill.ranger.heartseeker.name": "Cherche-cœur",
   "skill.priest.radiant_bolt.name": "Trait radieux",
   "skill.priest.mend.name": "Soin",
   "skill.priest.blink.name": "Pas de Lumen",
-  "skill.priest.radiant_bolt.description": "Lance un trait radieux dans la direction du héros.",
+  "skill.priest.radiant_bolt.description":
+    "Lance un trait radieux vers l'ennemi le plus proche au même niveau.",
   "skill.priest.mend.description":
     "Lance une lumière verte qui soigne le premier allié blessé touché.",
   "skill.priest.blink.description":
@@ -271,7 +274,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.peasant.makeshift_camp.description":
     "Construisez un camp qui régénère la vie et le mana des alliés, avec un coffre d’or partagé.",
   "skill.peasant.homemade_bomb.description":
-    "Armez la visée, orientez librement le lancer, puis déclenchez une explosion dévastatrice.",
+    "Lance vers l'ennemi le plus proche au même niveau et s'arrête au premier obstacle.",
 
   // ATH
   "death.fallen_title": "Vous êtes tombé",

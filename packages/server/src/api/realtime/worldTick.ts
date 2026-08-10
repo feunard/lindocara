@@ -275,8 +275,10 @@ import {
 } from "../../world/priest-variant-system.js";
 import {
   advanceProjectiles,
+  nearestProjectileMonster,
   projectileOrigin,
   removeProjectilesByOwner,
+  sameProjectileElevation,
   spawnProjectile,
 } from "../../world/projectile-system.js";
 import { nextQuestChapter, questDefinition } from "../../world/quest-system.js";
@@ -287,7 +289,6 @@ import {
   linePiercerPowerRatio,
   retreatShotDirections,
   scheduleAdditionalVolleys,
-  swornPreyTarget,
   windstepCanInterrupt,
 } from "../../world/ranger-variant-system.js";
 import {
@@ -325,6 +326,7 @@ import {
   rogueOpeningBonusRatio,
   rupturePoisonWithShiv,
 } from "../../world/rogue-state-system.js";
+import { advanceSeaGuardian } from "../../world/sea-guardian-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "../../world/skill-system.js";
 import {
   broadcastNetworkUpdates,
@@ -891,6 +893,7 @@ function interestContext(w: WorldGlue): InterestSystemContext<string> {
     guards: w.state.guards,
     loot: w.state.loot,
     projectiles: w.state.projectiles,
+    seaGuardian: w.state.seaGuardian,
     playerGrid: w.state.playerGrid,
     monsterGrid: w.state.monsterGrid,
     lootGrid: w.state.lootGrid,
@@ -2246,6 +2249,7 @@ function projectileDamage(
       cometArrow,
       (candidate, radius) =>
         candidate.deadUntil <= now &&
+        sameProjectileElevation(projectile.y, candidate.y, zone(w.state).terrain.levelHeight) &&
         monsterHitboxWithin(cometCenter, candidate, radius) &&
         groundLineOfSight(zone(w.state).terrain, monster, candidate),
       (candidate, powerRatio) =>
@@ -2664,7 +2668,6 @@ export function preparePeasantSupportRequest(
   connectionId: string,
   player: PlayerRuntime,
   slot: SkillSlot,
-  direction?: GroundVector,
 ): PeasantSupportRequest | null {
   if (player.class !== "peasant" || (slot !== 4 && slot !== 5)) return null;
   const skill = configuredSkill(w, player, slot);
@@ -2693,6 +2696,21 @@ export function preparePeasantSupportRequest(
     bomb: configuredSkill(w, player, 5),
     selectedTalents: player.talents,
   });
+  const now = w.deps.now();
+  const terrain = zone(w.state).terrain;
+  const bombTarget =
+    slot === 5
+      ? nearestProjectileMonster(
+          player,
+          w.state.monsters,
+          plans.bomb.range,
+          now,
+          terrain.levelHeight,
+        )
+      : null;
+  const bombDirection = bombTarget
+    ? normalizeGround({ x: bombTarget.x - player.x, z: bombTarget.z - player.z }, player.facing)
+    : normalizeGround(player.facing);
   const result = beginPeasantSupportRequest({
     runtime: w.state.peasantSupport,
     connectionId,
@@ -2701,10 +2719,10 @@ export function preparePeasantSupportRequest(
     skill,
     definition: actionForClassSlot(player.class, slot),
     plan: slot === 4 ? plans.camp : plans.bomb,
-    terrain: zone(w.state).terrain,
+    terrain,
     projectiles: w.state.projectiles,
-    now: w.deps.now(),
-    ...(slot === 5 && direction !== undefined ? { direction } : {}),
+    now,
+    ...(slot === 5 ? { direction: bombDirection } : {}),
   });
   if (result.ok) return result.request;
   if (result.reason === "blocked" || result.reason === "projectile_limit") {
@@ -3072,6 +3090,16 @@ export function startPlayerAction(
   if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
   if (!chargeFollowup && slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
   const definition = actionForClassSlot(player.class, slot);
+  const projectileTarget =
+    definition.shape === "projectile" || definition.shape === "volley"
+      ? nearestProjectileMonster(
+          player,
+          w.state.monsters,
+          skill.range,
+          now,
+          zone(w.state).terrain.levelHeight,
+        )
+      : null;
   const shadowStepPhase =
     definition.shape === "shadow_step" &&
     talentEffect(player.class, player.talents, "rogue_shadow_phase", 2) !== undefined;
@@ -3147,18 +3175,7 @@ export function startPlayerAction(
     skill.id === "heartseeker"
       ? talentEffect(player.class, player.talents, "sworn_prey", slot)
       : undefined;
-  const swornTarget = swornPrey
-    ? swornPreyTarget(
-        player,
-        w.state.monsterGrid.queryRadius(
-          player,
-          skill.range + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
-        ),
-        skill.range,
-        now,
-        (monster) => groundLineOfSight(zone(w.state).terrain, player, monster),
-      )
-    : null;
+  const swornTarget = swornPrey ? projectileTarget : null;
   const shadowDanceTarget =
     shadowDance?.ok === true ? shadowDance.plan.strikes[0]?.targetPosition : undefined;
   const direction =
@@ -3175,9 +3192,9 @@ export function startPlayerAction(
             { x: shadowDanceTarget.x - player.x, z: shadowDanceTarget.z - player.z },
             player.facing,
           )
-        : swornTarget
+        : projectileTarget
           ? normalizeGround(
-              { x: swornTarget.x - player.x, z: swornTarget.z - player.z },
+              { x: projectileTarget.x - player.x, z: projectileTarget.z - player.z },
               player.facing,
             )
           : chargeTarget
@@ -6554,6 +6571,34 @@ export function advanceWorldTick(w: WorldGlue): void {
     savePlayer: (player, connectionId) => deps.savePlayer(player, connectionId),
     // No `onPlayerMoved`: the tick no longer moves anyone. The same choreography now runs in
     // `applyReportedMove`, where a client-owned hero's position actually changes.
+  });
+  // The guardian is a room-owned hazard, not a monster: no HP, no threat entry and no combat
+  // target path can ever reach it. It reads the last accepted swimming positions and kills through
+  // the same authoritative life transition as every other lethal outcome.
+  advanceSeaGuardian(state.seaGuardian, {
+    now,
+    dt: 1 / TICK_HZ,
+    players: state.players.values(),
+    devour: (player, guardian) => {
+      if (player.life !== "alive" || !player.swimming) return;
+      const connectionId = connectionOf(state, player.id);
+      if (connectionId === undefined) return;
+      player.hp = 0;
+      killPlayer(w, connectionId, player);
+      sendStateTo(w, connectionId, player);
+      sendSpatialEvent(
+        w,
+        {
+          t: "sea_guardian.devour",
+          guardianId: guardian.id,
+          victimId: player.id,
+          x: guardian.x,
+          z: guardian.z,
+          at: now,
+        },
+        guardian,
+      );
+    },
   });
   healSacredPassageCrossings(w, now);
   expireLumenTrails(state.lumenTrails, now);

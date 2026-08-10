@@ -44,7 +44,7 @@ describe("MapHeroSettingsDialog", () => {
 
     const speed = screen.getByLabelText(t("editor.heroSettings.movementSpeed"));
     await userEvent.clear(speed);
-    await userEvent.type(speed, "350");
+    await userEvent.type(speed, "5.5");
     await userEvent.click(
       screen.getByRole("checkbox", { name: `3. ${t("skill.rogue.vanish.name")}` }),
     );
@@ -52,7 +52,7 @@ describe("MapHeroSettingsDialog", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
     const saved = onSave.mock.calls[0]?.[0];
-    expect(saved?.classes.rogue.stats.movementSpeed).toBe(350);
+    expect(saved?.classes.rogue.stats.movementSpeed).toBe(5.5);
     expect(saved?.classes.rogue.disabledSkills).toEqual([3]);
   });
 

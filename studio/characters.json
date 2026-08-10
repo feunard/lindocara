@@ -53,5 +53,11 @@
     "sprite_ref": null,
     "voice_ref": null,
     "archetype": "elder"
+  },
+  "sea-guardian": {
+    "description": "a massive immortal guardian shark with a compact powerful silhouette, dark blue-gray back, pale underside, tall scarred dorsal fin, broad jaws, old pale scars and subtly luminous cyan eyes",
+    "sprite_ref": "pixel-art/refs/sea-guardian.png",
+    "voice_ref": null,
+    "archetype": "boss"
   }
 }
