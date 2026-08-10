@@ -119,7 +119,7 @@ export function EditorToolbar({
 }: EditorToolbarProps) {
   useLocale();
   return (
-    <div className="flex h-[42px] flex-none items-center gap-1 border-b border-zinc-200 bg-zinc-50 px-2">
+    <div className="flex h-[42px] flex-none items-center gap-1 border-b border-zinc-200 bg-white px-2">
       <ToolbarIconButton label={t("editor.new")} variant="ghost" size="icon" onClick={onNewMap}>
         <FilePlus />
       </ToolbarIconButton>
