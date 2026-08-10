@@ -1825,7 +1825,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.specialMonsters.heading": "Monstres spéciaux",
   "editor.event.specialMonster.seaGuardian": "Requin gardien de la mer",
   "editor.event.specialMonster.seaGuardian.description":
-    "Permanent et intouchable. Placez-en un sur l’eau : il patrouille cette étendue connectée et engloutit les nageurs.",
+    "Permanent et intouchable. Chaque requin patrouille son eau connectée et engloutit les nageurs.",
   "editor.event.enemies.heading": "Ennemis",
   "editor.event.enemies.description":
     "Utilise n’importe quelle créature ou apparence de personnage comme ennemi.",

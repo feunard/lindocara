@@ -397,7 +397,7 @@ describe("list, get, update, delete", () => {
     expect(editorSave.status).toBe(200);
   });
 
-  test("round-trips one sea guardian only when it is explicitly anchored on water", async () => {
+  test("round-trips multiple sea guardians when each one is explicitly anchored on water", async () => {
     const { userId, token } = await registerAndLogin("mapguardian");
     const id = await newMapId(await newAdventure(userId), token, "Guardian waters");
     const guardian = {
@@ -430,15 +430,16 @@ describe("list, get, update, delete", () => {
     expect(onLand.status).toBe(400);
     expect(await onLand.json()).toMatchObject({ error: "map_events" });
 
-    const duplicate = await putMap(
+    const multiple = await putMap(
       id,
       token,
       mapBody({
         events: [guardian, { ...guardian, id: crypto.randomUUID(), col: 2, ordinal: 2 }],
       }),
     );
-    expect(duplicate.status).toBe(400);
-    expect(await duplicate.json()).toMatchObject({ error: "map_invalid" });
+    expect(multiple.status).toBe(200);
+    const refetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(((await refetched.json()) as { events: unknown[] }).events).toHaveLength(2);
   });
 
   test("round-trips an explicit harvest profile independently from its graphic", async () => {

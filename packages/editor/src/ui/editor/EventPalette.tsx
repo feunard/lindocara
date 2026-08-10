@@ -163,7 +163,6 @@ export function EventPalette({
   const activeCount = runtimeEventCount(events);
   const eventLimitReached = events.length >= MAX_EVENTS_PER_MAP;
   const runtimeLimitReached = activeCount >= MAX_RUNTIME_EVENTS_PER_MAP;
-  const seaGuardianPresent = events.some((event) => event.kind === "sea-guardian");
   const placementDisabled = (kind: EventKind) =>
     eventLimitReached || (isRuntimeEventKind(kind) && runtimeLimitReached);
 
@@ -416,7 +415,7 @@ export function EventPalette({
               label={t("editor.event.specialMonster.seaGuardian")}
               description={t("editor.event.specialMonster.seaGuardian.description")}
               active={eventKind === "sea-guardian"}
-              disabled={placementDisabled("sea-guardian") || seaGuardianPresent}
+              disabled={placementDisabled("sea-guardian")}
               preview={<SpriteSheetPreview source={SEA_GUARDIAN_SWIM_TEXTURE_URL} frame={256} />}
               onClick={() => onSelectEventKind("sea-guardian")}
             />

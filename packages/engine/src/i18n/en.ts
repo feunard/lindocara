@@ -1803,7 +1803,7 @@ export const en = {
   "editor.event.specialMonsters.heading": "Special monsters",
   "editor.event.specialMonster.seaGuardian": "Sea guardian shark",
   "editor.event.specialMonster.seaGuardian.description":
-    "Permanent and untargetable. Place one on water; it patrols that connected water and devours swimmers.",
+    "Permanent and untargetable. Each one patrols its connected water and devours swimmers.",
   "editor.event.enemies.heading": "Enemies",
   "editor.event.enemies.description": "Use any creature or character appearance as an enemy.",
   "editor.event.kind.normal": "Custom event",

@@ -114,7 +114,7 @@ describe("EventPalette (D13/D14)", () => {
     expect(onSelectPreset).toHaveBeenCalledWith("sign");
   });
 
-  it("offers the sea guardian as a unique special monster", () => {
+  it("keeps the sea guardian available after one special monster was already placed", () => {
     setLocale("en");
     const onSelectEventKind = vi.fn();
     const { rerender } = render(
@@ -143,7 +143,7 @@ describe("EventPalette (D13/D14)", () => {
       within(screen.getByTestId("special-monster-catalogue")).getByRole("button", {
         name: t("editor.event.specialMonster.seaGuardian"),
       }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it("offers explicit harvest presets and keeps the appearance picker independent", () => {

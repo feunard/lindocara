@@ -261,15 +261,7 @@ describe("parseMapEvents: sea guardian special monster", () => {
     name: "Sea guardian",
   });
 
-  it("round-trips one dedicated anchor and exposes it through the typed selector", () => {
-    const parsed = parseMapEvents([guardian], COLS, ROWS);
-    expect(parsed).toEqual([guardian]);
-    expect(seaGuardianEvents(parsed ?? [])).toEqual([guardian]);
-    expect(isActiveWorldEventKind("sea-guardian")).toBe(false);
-    expect(isInteractiveWorldEventKind("sea-guardian")).toBe(false);
-  });
-
-  it("rejects a second guardian and generic event-page configuration", () => {
+  it("round-trips every dedicated anchor and exposes them through the typed selector", () => {
     const second = functionalEvent({
       id: ID_B,
       col: 4,
@@ -277,7 +269,14 @@ describe("parseMapEvents: sea guardian special monster", () => {
       ordinal: 2,
       kind: "sea-guardian",
     });
-    expect(parseMapEvents([guardian, second], COLS, ROWS)).toBeNull();
+    const parsed = parseMapEvents([guardian, second], COLS, ROWS);
+    expect(parsed).toEqual([guardian, second]);
+    expect(seaGuardianEvents(parsed ?? [])).toEqual([guardian, second]);
+    expect(isActiveWorldEventKind("sea-guardian")).toBe(false);
+    expect(isInteractiveWorldEventKind("sea-guardian")).toBe(false);
+  });
+
+  it("rejects generic event-page configuration", () => {
     expect(
       parseMapEvents(
         [

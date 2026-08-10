@@ -27,6 +27,7 @@ import { MAP_LAYERS } from "@lindocara/engine/map-data.js";
 import { authoredCellCentreGround, seaGuardianEvents } from "@lindocara/engine/map-events.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import type { QuestEventReference } from "@lindocara/engine/quests.js";
+import { seaGuardianRuntimeId } from "@lindocara/engine/sea-guardian.js";
 import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
@@ -146,12 +147,10 @@ export function zoneFromMapPayload(
   ) {
     throw new Error(`map ${payload.id} has an authored event outside its heightfield`);
   }
-  const guardianEvent = seaGuardianEvents(payload.events)[0];
-  if (
-    guardianEvent &&
-    heightfield.levels[guardianEvent.row * heightfield.size + guardianEvent.col] !== null
-  ) {
-    throw new Error(`map ${payload.id} has a sea guardian outside water`);
+  for (const guardianEvent of seaGuardianEvents(payload.events)) {
+    if (heightfield.levels[guardianEvent.row * heightfield.size + guardianEvent.col] !== null) {
+      throw new Error(`map ${payload.id} has a sea guardian outside water`);
+    }
   }
   const terrain = zoneTerrainFromHeightfield(heightfield);
   // A heightfield room's APPEARANCE must not contradict its own collision, and the contradiction
@@ -340,9 +339,12 @@ export function createWorldRoomState(
     : [];
   const staticColliderIndex = definition?.terrain.colliders ?? createColliderIndex();
   const heightfield = definition?.heightfield ? decodeMap(definition.heightfield) : null;
-  const guardianEvent = definition ? seaGuardianEvents(definition.events ?? [])[0] : undefined;
-  const guardianAnchor =
-    heightfield && guardianEvent ? authoredCellCentreGround(guardianEvent, heightfield.size) : null;
+  const guardianAnchors = heightfield
+    ? seaGuardianEvents(definition?.events ?? []).map((event) => ({
+        id: seaGuardianRuntimeId(event.id),
+        ...authoredCellCentreGround(event, heightfield.size),
+      }))
+    : [];
   return {
     partyId: parsed?.partyId ?? "",
     mapId: parsed?.mapId ?? "",
@@ -357,7 +359,7 @@ export function createWorldRoomState(
     guards,
     loot: [],
     projectiles: [],
-    seaGuardian: createSeaGuardianRuntime(heightfield, guardianAnchor),
+    seaGuardian: createSeaGuardianRuntime(heightfield, guardianAnchors),
     peasantSupport: createPeasantSupportRuntime(),
     activatedSupportSpendIds: new Set(),
     supportSpendQueue: Promise.resolve(),

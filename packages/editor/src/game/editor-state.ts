@@ -1301,11 +1301,6 @@ export function applyTool(
      */
     case "event": {
       if (map.events.some((event) => event.col === col && event.row === row)) return null;
-      if (
-        tool.eventKind === "sea-guardian" &&
-        map.events.some((event) => event.kind === "sea-guardian")
-      )
-        return null;
       if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
       if (
         isRuntimeEventKind(tool.eventKind) &&

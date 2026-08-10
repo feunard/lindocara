@@ -5,7 +5,6 @@ import {
   SEA_GUARDIAN_ATTACK_DURATION_MS,
   SEA_GUARDIAN_CHASE_SPEED,
   SEA_GUARDIAN_DEVOUR_RANGE,
-  SEA_GUARDIAN_ID,
   SEA_GUARDIAN_PATH_REFRESH_MS,
   SEA_GUARDIAN_PATROL_SPEED,
   type SeaGuardianState,
@@ -38,9 +37,13 @@ export interface SeaGuardianRuntimeEntity extends GroundVector {
   nextPathAt: number;
 }
 
+export interface SeaGuardianAnchor extends GroundVector {
+  id: string;
+}
+
 export interface SeaGuardianRuntime {
   topology: WaterTopology | null;
-  guardian: SeaGuardianRuntimeEntity | null;
+  guardians: SeaGuardianRuntimeEntity[];
 }
 
 export interface SeaGuardianAdvanceOptions {
@@ -99,15 +102,17 @@ function buildWaterTopology(map: MapData | null): WaterTopology | null {
 
 export function createSeaGuardianRuntime(
   map: MapData | null,
-  anchor: GroundVector | null,
+  anchors: readonly SeaGuardianAnchor[],
   now = Date.now(),
 ): SeaGuardianRuntime {
-  const topology = anchor ? buildWaterTopology(map) : null;
-  const runtime: SeaGuardianRuntime = { topology, guardian: null };
-  if (!topology || !anchor) return runtime;
-  const start = cellAt(topology, anchor);
-  if (!start) return { topology: null, guardian: null };
-  spawn(runtime, start.component, start, now, null);
+  const topology = anchors.length > 0 ? buildWaterTopology(map) : null;
+  const runtime: SeaGuardianRuntime = { topology, guardians: [] };
+  if (!topology) return runtime;
+  for (const anchor of anchors) {
+    const start = cellAt(topology, anchor);
+    if (start) spawn(runtime, anchor.id, start.component, start, now, null);
+  }
+  if (runtime.guardians.length === 0) runtime.topology = null;
   return runtime;
 }
 
@@ -215,6 +220,7 @@ function patrolRoute(topology: WaterTopology, component: number, start: WaterCel
 
 function spawn(
   runtime: SeaGuardianRuntime,
+  id: string,
   component: number,
   start: WaterCell,
   now: number,
@@ -223,7 +229,7 @@ function spawn(
   const topology = runtime.topology;
   if (!topology) throw new Error("cannot spawn sea guardian without water");
   const guardian: SeaGuardianRuntimeEntity = {
-    id: SEA_GUARDIAN_ID,
+    id,
     x: start.x,
     y: topology.map.waterLevel,
     z: start.z,
@@ -237,7 +243,7 @@ function spawn(
     pathIndex: 1,
     nextPathAt: now,
   };
-  runtime.guardian = guardian;
+  runtime.guardians.push(guardian);
   return guardian;
 }
 
@@ -285,16 +291,15 @@ function activeSwimmers(
   return result;
 }
 
-export function advanceSeaGuardian(
+function advanceGuardian(
   runtime: SeaGuardianRuntime,
+  guardian: SeaGuardianRuntimeEntity,
+  swimmers: readonly { player: PlayerRuntime; cell: WaterCell }[],
   options: SeaGuardianAdvanceOptions,
 ): void {
   const topology = runtime.topology;
   if (!topology) return;
   const { now } = options;
-  const swimmers = activeSwimmers(runtime, options.players);
-  const guardian = runtime.guardian;
-  if (!guardian) return;
 
   if (guardian.state === "attack" && (guardian.animationEndsAt ?? 0) > now) return;
   if (guardian.state === "attack") {
@@ -304,11 +309,13 @@ export function advanceSeaGuardian(
   }
 
   const reachable = swimmers
-    .filter(({ cell }) => cell.component === guardian?.component)
+    .filter(
+      ({ cell, player }) =>
+        cell.component === guardian.component && player.life === "alive" && player.swimming,
+    )
     .sort(
       (left, right) =>
-        groundDistance(guardian as SeaGuardianRuntimeEntity, left.player) -
-        groundDistance(guardian as SeaGuardianRuntimeEntity, right.player),
+        groundDistance(guardian, left.player) - groundDistance(guardian, right.player),
     );
   const target = reachable[0] ?? null;
 
@@ -342,20 +349,26 @@ export function advanceSeaGuardian(
   moveAlongPath(guardian, SEA_GUARDIAN_PATROL_SPEED, options.dt);
 }
 
+export function advanceSeaGuardian(
+  runtime: SeaGuardianRuntime,
+  options: SeaGuardianAdvanceOptions,
+): void {
+  if (!runtime.topology) return;
+  const swimmers = activeSwimmers(runtime, options.players);
+  for (const guardian of runtime.guardians) {
+    advanceGuardian(runtime, guardian, swimmers, options);
+  }
+}
+
 export function seaGuardianSnapshots(runtime: SeaGuardianRuntime): SeaGuardianSnapshot[] {
-  const guardian = runtime.guardian;
-  return guardian
-    ? [
-        {
-          id: guardian.id,
-          x: Math.round(guardian.x * 6400) / 6400,
-          y: guardian.y,
-          z: Math.round(guardian.z * 6400) / 6400,
-          facing: { ...guardian.facing },
-          state: guardian.state,
-          animationStartedAt: guardian.animationStartedAt,
-          animationEndsAt: guardian.animationEndsAt,
-        },
-      ]
-    : [];
+  return runtime.guardians.map((guardian) => ({
+    id: guardian.id,
+    x: Math.round(guardian.x * 6400) / 6400,
+    y: guardian.y,
+    z: Math.round(guardian.z * 6400) / 6400,
+    facing: { ...guardian.facing },
+    state: guardian.state,
+    animationStartedAt: guardian.animationStartedAt,
+    animationEndsAt: guardian.animationEndsAt,
+  }));
 }

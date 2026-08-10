@@ -145,7 +145,6 @@ export type SelfSwitch = (typeof SELF_SWITCHES)[number];
  * consume the total budget but not the runtime budget. */
 export const MAX_EVENTS_PER_MAP = 256;
 export const MAX_RUNTIME_EVENTS_PER_MAP = 128;
-export const MAX_SEA_GUARDIANS_PER_MAP = 1;
 export const MAX_PAGES_PER_EVENT = 8;
 export const EVENT_NAME_MAX = 32;
 
@@ -320,7 +319,7 @@ export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "monster");
 }
 
-/** The map's permanent, untargetable special sea monster. Authoring allows at most one. */
+/** The map's permanent, untargetable special sea monsters. */
 export function seaGuardianEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "sea-guardian");
 }
@@ -633,7 +632,6 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
   const seenIds = new Set<string>();
   const events: MapEvent[] = [];
   let runtimeEvents = 0;
-  let seaGuardians = 0;
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return null;
     const record = raw as Record<string, unknown>;
@@ -660,11 +658,6 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       runtimeEvents += 1;
       if (runtimeEvents > MAX_RUNTIME_EVENTS_PER_MAP) return null;
     }
-    if (kind === "sea-guardian") {
-      seaGuardians += 1;
-      if (seaGuardians > MAX_SEA_GUARDIANS_PER_MAP) return null;
-    }
-
     // Monster events carry `species` + tuning + radius. Free NPCs reuse the persisted HP/power
     // tuning columns without a species, and guards carry only a radius. Validate all of it here so
     // no untrusted half-event can cross the wire boundary.

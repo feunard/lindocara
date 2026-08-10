@@ -39,11 +39,20 @@ describe("authored event preview projection", () => {
     );
   });
 
-  it("projects the special monster through the dedicated sea-guardian actor path", () => {
-    expect(authoredSeaGuardianPreviewSnapshots([event("sea-guardian")], 16, -0.05)).toEqual([
+  it("projects every special monster through the dedicated sea-guardian actor path", () => {
+    const first = event("sea-guardian");
+    const second = { ...first, id: "second-guardian", col: 3, ordinal: 2 };
+    expect(authoredSeaGuardianPreviewSnapshots([first, second], 16, -0.05)).toEqual([
       expect.objectContaining({
-        id: "sea-guardian",
+        id: "sea-guardian_sea-guardian-event",
         x: -6.5,
+        y: -0.05,
+        z: -5.5,
+        state: "patrol",
+      }),
+      expect.objectContaining({
+        id: "sea-guardian_second-guardian",
+        x: -4.5,
         y: -0.05,
         z: -5.5,
         state: "patrol",

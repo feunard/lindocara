@@ -8,6 +8,7 @@ import { createWorldRoomState } from "@lindocara/server/api/realtime/worldState.
 import {
   advanceSeaGuardian,
   createSeaGuardianRuntime,
+  type SeaGuardianRuntime,
 } from "@lindocara/server/world/sea-guardian-system.js";
 import { newPlayer } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it, vi } from "vitest";
@@ -33,6 +34,14 @@ function mapWithWater(size: number, water: (col: number, row: number) => boolean
 
 function cell(size: number, col: number, row: number): GroundVector {
   return { x: col + 0.5 - size / 2, z: row + 0.5 - size / 2 };
+}
+
+function runtimeAt(map: MapData, point: GroundVector, id = "guardian-a"): SeaGuardianRuntime {
+  return createSeaGuardianRuntime(map, [{ id, ...point }], 0);
+}
+
+function firstGuardian(runtime: SeaGuardianRuntime) {
+  return runtime.guardians[0];
 }
 
 function swimmer(id: string, x: number, z: number) {
@@ -96,41 +105,56 @@ describe("sea guardian", () => {
         },
       );
 
-    expect(room([]).seaGuardian.guardian).toBeNull();
+    expect(room([]).seaGuardian.guardians).toEqual([]);
 
-    const anchor = cell(map.size, 2, 3);
-    const guardian = functionalEvent({
+    const guardianA = functionalEvent({
       id: "11111111-1111-4111-8111-111111111111",
       col: 2,
       row: 3,
       ordinal: 1,
       kind: "sea-guardian",
     });
-    expect(room([guardian]).seaGuardian.guardian).toMatchObject(anchor);
+    const guardianB = functionalEvent({
+      id: "22222222-2222-4222-8222-222222222222",
+      col: 2,
+      row: 1,
+      ordinal: 2,
+      kind: "sea-guardian",
+    });
+    expect(room([guardianA, guardianB]).seaGuardian.guardians).toEqual([
+      expect.objectContaining({
+        id: `sea-guardian_${guardianA.id}`,
+        ...cell(map.size, 2, 3),
+      }),
+      expect.objectContaining({
+        id: `sea-guardian_${guardianB.id}`,
+        ...cell(map.size, 2, 1),
+      }),
+    ]);
   });
 
   it("stays disabled on a water map without an authored placement", () => {
     const runtime = createSeaGuardianRuntime(
       mapWithWater(4, () => true),
-      null,
+      [],
       0,
     );
     advanceSeaGuardian(runtime, { now: 60_000, dt: 1, players: [], devour: vi.fn() });
     expect(runtime.topology).toBeNull();
-    expect(runtime.guardian).toBeNull();
+    expect(runtime.guardians).toEqual([]);
   });
 
   it("refuses a defensive runtime anchor that is not water", () => {
     const map = mapWithWater(4, (col) => col === 0);
-    const runtime = createSeaGuardianRuntime(map, cell(map.size, 2, 2), 0);
+    const runtime = runtimeAt(map, cell(map.size, 2, 2));
     expect(runtime.topology).toBeNull();
-    expect(runtime.guardian).toBeNull();
+    expect(runtime.guardians).toEqual([]);
   });
 
   it("exists immediately at its authored water anchor and patrols there permanently", () => {
     const map = mapWithWater(5, (col) => col === 2);
-    const runtime = createSeaGuardianRuntime(map, cell(map.size, 2, 0), 0);
-    const startZ = runtime.guardian?.z;
+    const runtime = runtimeAt(map, cell(map.size, 2, 0));
+    const startZ = firstGuardian(runtime)?.z;
     for (let tick = 1; tick <= 300; tick += 1) {
       advanceSeaGuardian(runtime, {
         now: tick * 500,
@@ -138,19 +162,19 @@ describe("sea guardian", () => {
         players: [],
         devour: vi.fn(),
       });
-      const guardian = runtime.guardian;
-      expect(guardian).not.toBeNull();
+      const guardian = firstGuardian(runtime);
+      expect(guardian).toBeDefined();
       if (!guardian) continue;
       const col = Math.floor(guardian.x + map.size / 2);
       const row = Math.floor(guardian.z + map.size / 2);
       expect(map.levels[row * map.size + col]).toBeNull();
     }
-    expect(runtime.guardian?.z).not.toBe(startZ);
+    expect(firstGuardian(runtime)?.z).not.toBe(startZ);
   });
 
   it("loops around a continuous water rim without leaving the map", () => {
     const map = mapWithWater(7, (col, row) => col === 0 || row === 0 || col === 6 || row === 6);
-    const runtime = createSeaGuardianRuntime(map, cell(map.size, 0, 0), 0);
+    const runtime = runtimeAt(map, cell(map.size, 0, 0));
     const visited = new Set<string>();
     for (let tick = 0; tick <= 200; tick += 1) {
       advanceSeaGuardian(runtime, {
@@ -159,7 +183,7 @@ describe("sea guardian", () => {
         players: [],
         devour: vi.fn(),
       });
-      const guardian = runtime.guardian;
+      const guardian = firstGuardian(runtime);
       if (!guardian) continue;
       const col = Math.floor(guardian.x + map.size / 2);
       const row = Math.floor(guardian.z + map.size / 2);
@@ -172,19 +196,51 @@ describe("sea guardian", () => {
   it("redirects immediately toward an in-range swimmer and devours once", () => {
     const map = mapWithWater(3, () => true);
     const anchor = cell(map.size, 1, 1);
-    const runtime = createSeaGuardianRuntime(map, anchor, 0);
+    const runtime = runtimeAt(map, anchor);
     const hero = swimmer("hero", anchor.x, anchor.z);
     const devour = vi.fn((target) => {
       target.life = "corpse";
     });
     advanceSeaGuardian(runtime, { now: 1, dt: 0, players: [hero], devour });
     expect(devour).toHaveBeenCalledOnce();
-    expect(runtime.guardian).toMatchObject({ state: "attack", targetId: hero.id });
+    expect(firstGuardian(runtime)).toMatchObject({ state: "attack", targetId: hero.id });
+  });
+
+  it("advances every placed guardian independently", () => {
+    const map = mapWithWater(7, () => true);
+    const left = cell(map.size, 1, 3);
+    const right = cell(map.size, 5, 3);
+    const runtime = createSeaGuardianRuntime(
+      map,
+      [
+        { id: "guardian-left", ...left },
+        { id: "guardian-right", ...right },
+      ],
+      0,
+    );
+    const leftHero = swimmer("left-hero", left.x, left.z);
+    const rightHero = swimmer("right-hero", right.x, right.z);
+    const devour = vi.fn((target) => {
+      target.life = "corpse";
+    });
+
+    advanceSeaGuardian(runtime, {
+      now: 1,
+      dt: 0,
+      players: [leftHero, rightHero],
+      devour,
+    });
+
+    expect(devour).toHaveBeenCalledTimes(2);
+    expect(runtime.guardians).toEqual([
+      expect.objectContaining({ id: "guardian-left", state: "attack", targetId: leftHero.id }),
+      expect.objectContaining({ id: "guardian-right", state: "attack", targetId: rightHero.id }),
+    ]);
   });
 
   it("never teleports between disconnected bodies of water", () => {
     const map = mapWithWater(5, (col) => col === 0 || col === 4);
-    const runtime = createSeaGuardianRuntime(map, cell(map.size, 0, 2), 0);
+    const runtime = runtimeAt(map, cell(map.size, 0, 2));
     const target = cell(map.size, 4, 2);
     const hero = swimmer("remote-swimmer", target.x, target.z);
     const devour = vi.fn();
@@ -195,8 +251,8 @@ describe("sea guardian", () => {
         players: [hero],
         devour,
       });
-      const guardian = runtime.guardian;
-      expect(guardian).not.toBeNull();
+      const guardian = firstGuardian(runtime);
+      expect(guardian).toBeDefined();
       if (guardian) expect(Math.floor(guardian.x + map.size / 2)).toBe(0);
     }
     expect(devour).not.toHaveBeenCalled();
@@ -205,7 +261,7 @@ describe("sea guardian", () => {
   it("repaths through a right-angle channel when the swimmer turns the corner", () => {
     const map = mapWithWater(7, (col, row) => (row === 1 && col <= 5) || (col === 5 && row >= 1));
     const start = cell(map.size, 0, 1);
-    const runtime = createSeaGuardianRuntime(map, start, 0);
+    const runtime = runtimeAt(map, start);
     const firstTarget = cell(map.size, 5, 1);
     const hero = swimmer("corner-runner", firstTarget.x, firstTarget.z);
     const devour = vi.fn((target) => {
@@ -224,7 +280,7 @@ describe("sea guardian", () => {
         players: [hero],
         devour,
       });
-      const guardian = runtime.guardian;
+      const guardian = firstGuardian(runtime);
       if (!guardian) continue;
       const col = Math.floor(guardian.x + map.size / 2);
       const row = Math.floor(guardian.z + map.size / 2);

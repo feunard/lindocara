@@ -1028,11 +1028,12 @@ describe("applyTool: functional event kinds", () => {
     expect(place(wet, { kind: "event", eventKind: "sea-guardian" }, 3, 3)).not.toBeNull();
   });
 
-  it("places exactly one sea guardian, only on water, and keeps moves in water", () => {
+  it("places multiple sea guardians, only on water, and keeps moves in water", () => {
     expect(place(base, { kind: "event", eventKind: "sea-guardian" }, 3, 3)).toBeNull();
 
     const firstWet = place(base, { kind: "block", block: "water" }, 3, 3) as EditorMap;
-    const wet = place(firstWet, { kind: "block", block: "water" }, 4, 3) as EditorMap;
+    const secondWet = place(firstWet, { kind: "block", block: "water" }, 4, 3) as EditorMap;
+    const wet = place(secondWet, { kind: "block", block: "water" }, 5, 3) as EditorMap;
     expect(placementLegalAt({ kind: "event", eventKind: "sea-guardian" }, wet, 3, 3, "event")).toBe(
       true,
     );
@@ -1054,10 +1055,20 @@ describe("applyTool: functional event kinds", () => {
       patrolRadius: null,
       pages: [defaultEventPage()],
     });
-    expect(place(placed, { kind: "event", eventKind: "sea-guardian" }, 4, 3)).toBeNull();
-    expect(moveSelection(placed, { kind: "event", id: guardian.id }, 5, 3)).toBeNull();
-    expect(moveSelection(placed, { kind: "event", id: guardian.id }, 4, 3)).toMatchObject({
-      events: [{ id: guardian.id, col: 4, row: 3, kind: "sea-guardian" }],
+    const placedTwice = place(
+      placed,
+      { kind: "event", eventKind: "sea-guardian", presetName: "Sea guardian" },
+      4,
+      3,
+    ) as EditorMap;
+    expect(placedTwice.events.filter((event) => event.kind === "sea-guardian")).toHaveLength(2);
+    expect(moveSelection(placedTwice, { kind: "event", id: guardian.id }, 6, 3)).toBeNull();
+    const moved = moveSelection(placedTwice, { kind: "event", id: guardian.id }, 5, 3);
+    expect(moved?.events.find((event) => event.id === guardian.id)).toMatchObject({
+      id: guardian.id,
+      col: 5,
+      row: 3,
+      kind: "sea-guardian",
     });
   });
 
