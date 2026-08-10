@@ -59,7 +59,6 @@ import {
   withinRewardDistance,
 } from "@lindocara/engine/cooperation.js";
 import {
-  CORPSE_RECLAIM_RANGE,
   canAct,
   canBeResurrected,
   RESURRECT_COOLDOWN_MS,
@@ -166,6 +165,7 @@ import {
   canStand,
   groundLineOfSight,
   groundUnder,
+  mapEntryPosition,
   nearestStandableCell,
   resolveGroundMovement,
   sweptGroundTerrainImpact,
@@ -1219,66 +1219,27 @@ export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRun
   });
 }
 
-/**
- * Port of `#release` (`world.ts:5728`): one-way and deliberate.
- *
- * The pixel `CEMETERIES` fallback died with the pixel geometry, and its absence is the conversion
- * rather than an omission: those three anchors are catalogue content authored in PIXELS, and a live
- * room is a heightfield map whose only spirit anchor is its authored spawn. A map with no authored
- * spawn starts its search at the grid centre — which on a heightfield may be open sea, so that
- * point is a starting POINT and never a landing: the search below has to accept it too.
- *
- * The neighbour search is `nearestStandableCell` rather than a hand-rolled ring of eight offsets:
- * that helper already knows what "somewhere a body could stand" means on a heightfield, and its
- * `accepts` seam is exactly the "far enough from the corpse" clause the ring existed to express.
- * Grounding the candidates on their OWN terrain is right here and would be a cliff-climbing bug in
- * a step (see `resolveGroundMovement`): nobody is walking anywhere, the question is whether the
- * ghost could be standing there.
- */
+/** Temporary release policy: resurrect immediately at the current map's authored entry point.
+ * Ghost/corpse-run types remain for persisted compatibility, but ordinary release bypasses them.
+ * `mapEntryPosition` provides the same standable fallback used by room admission. */
 export function handleRelease(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
   if (player.life !== "corpse" || player.corpse === null) return;
   player.resurrectionAt = 0;
   const definition = zone(w.state);
   const terrain = definition.terrain;
-  const corpse = player.corpse;
-  const spawn = definition.spawns?.[0];
-  const anchor: GroundVector = spawn ? { x: spawn.x, z: spawn.z } : { x: 0, z: 0 };
+  const entry = mapEntryPosition(terrain, definition.spawns?.[0]);
   const previousPosition = { x: player.x, y: player.y, z: player.z };
-  let releasePosition: GroundVector | null = anchor;
-  const anchorGround = groundUnder(terrain, anchor.x, anchor.z);
-  // An authored map currently has one spirit anchor: its entry spawn. Two things disqualify it, and
-  // BOTH have to send the ghost elsewhere: releasing on top of the corpse would reclaim the body on
-  // the very next tick, and an anchor a body cannot stand on — an unauthored map's grid centre out
-  // in the water, or a spawn a later terrain edit drowned — would materialise the ghost in the sea.
-  if (
-    groundDistance(anchor, corpse) <= CORPSE_RECLAIM_RANGE ||
-    !canStand(terrain, anchor.x, anchor.z, BODY_RADIUS, anchorGround)
-  ) {
-    const landing = nearestStandableCell(
-      terrain,
-      anchor,
-      BODY_RADIUS,
-      anchorGround,
-      (candidate) => groundDistance(candidate, corpse) > CORPSE_RECLAIM_RANGE,
-    );
-    releasePosition = landing;
-  }
-  // A ghost placed on its corpse is reclaimed by `advancePlayers` on the next tick and appears to
-  // resurrect instantly. If this map offers no safe spirit landing, keep the body down instead of
-  // manufacturing that invalid transition; a priest can still revive it in place.
-  if (releasePosition === null) return;
-  player.life = "ghost";
-  displacePlayer(player, {
-    x: releasePosition.x,
-    y: groundUnder(terrain, releasePosition.x, releasePosition.z, player.y),
-    z: releasePosition.z,
-  });
+  player.life = "alive";
+  player.corpse = null;
+  player.hp = resurrectHp(player.level);
+  displacePlayer(player, entry);
   w.state.playerGrid.update(player, previousPosition);
+  grantReviveGrace(w, player, w.deps.now());
   freeze(w, player);
   w.deps.send(connectionId, {
     t: "event",
     code: "death.released",
-    tone: "info",
+    tone: "good",
     x: player.x,
     z: player.z,
   });

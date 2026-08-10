@@ -12,6 +12,7 @@ import {
   type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
   elementWorldCollider,
+  type MapElement,
 } from "../map-data.js";
 import type { MapEvent } from "../map-events.js";
 import {
@@ -32,6 +33,21 @@ export const AUTHORED_WATER_LEVEL = -0.05;
 
 function groundCoordinate(pixels: number, size: number): number {
   return pixels / TILE_SIZE - size / 2;
+}
+
+/** Project an authored decor anchor onto the HD-2D ground.
+ *
+ * The element's stored cell is its visual footprint cell: its foot is centred on X and planted on
+ * the cell's lower Z edge before quarter-cell offsets are applied. The compiler and the editor's
+ * hover/selection overlays must share this projection or the prop jumps when it is committed. */
+export function authoredElementGroundPoint(
+  element: Pick<MapElement, "col" | "row" | "offsetX" | "offsetY">,
+  size: number,
+): { x: number; z: number } {
+  return {
+    x: element.col + 0.5 + (element.offsetX * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
+    z: element.row + 1 + (element.offsetY * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
+  };
 }
 
 function authoredLevel(id: number): number | null {
@@ -128,10 +144,7 @@ export function compileAuthoredMap(
 
   const elements = authored.elements.map((element) => ({
     assetId: element.assetId,
-    // The old renderer planted art at its visible foot: cell centre on x, cell bottom on z, plus
-    // quarter-cell offsets. Static HD-2D billboards use the same foot convention.
-    x: element.col + 0.5 + (element.offsetX * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
-    z: element.row + 1 + (element.offsetY * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
+    ...authoredElementGroundPoint(element, size),
   }));
 
   const colliders = authored.elements.flatMap((element) => {

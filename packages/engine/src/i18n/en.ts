@@ -1006,7 +1006,7 @@ export const en = {
   "event.heal.cast": "You mend {name} for {amount}.",
   "event.heal.received": "{name} mends you for {amount}.",
   "event.death.fallen": "You have fallen. Wait for a priest, or press [R] to release your spirit.",
-  "event.death.released": "Your spirit rises. Your body lies where you fell — walk back to it.",
+  "event.death.released": "You return to life at the map entrance.",
   "event.death.reclaimed": "You reclaim your body and draw breath again.",
   "event.death.resurrected": "{name} calls you back from the edge.",
   "event.resurrect.cast": "You bring {name} back.",

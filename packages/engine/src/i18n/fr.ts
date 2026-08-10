@@ -1016,8 +1016,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.heal.received": "{name} vous soigne : +{amount} PV.",
   "event.death.fallen":
     "Vous êtes tombé. Attendez un prêtre, ou pressez [R] pour libérer votre esprit.",
-  "event.death.released":
-    "Votre esprit s'élève. Votre corps gît là où vous êtes tombé — retournez-y.",
+  "event.death.released": "Vous revenez à la vie au point d'entrée de la carte.",
   "event.death.reclaimed": "Vous reprenez votre corps et respirez à nouveau.",
   "event.death.resurrected": "{name} vous rappelle du seuil.",
   "event.resurrect.cast": "Vous ramenez {name}.",

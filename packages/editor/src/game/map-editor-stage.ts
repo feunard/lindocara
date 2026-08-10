@@ -7,7 +7,11 @@
  */
 
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
-import { authoredStairsRamp, compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import {
+  authoredElementGroundPoint,
+  authoredStairsRamp,
+  compileAuthoredMap,
+} from "@lindocara/engine/hd2d/authored-map.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
@@ -128,10 +132,7 @@ function selectionPoint(map: EditorMap, selection: EditorSelection | null) {
   if (selection.kind === "spawn") {
     return { x: map.spawn.col + 0.5 - size / 2, z: map.spawn.row + 0.5 - size / 2 };
   }
-  return {
-    x: selection.col + (selection.offsetX + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
-    z: selection.row + (selection.offsetY + 0.5) / ELEMENT_OFFSET_STEPS - size / 2,
-  };
+  return authoredElementGroundPoint(selection, size);
 }
 
 function blockedCells(map: EditorMap, levels: readonly (number | null)[]): ColliderRect[] {
@@ -212,20 +213,9 @@ export function openMapEditorStage(
         : selectionPoint(map, selected);
       const size = Math.max(cols, rows);
       const hoverPoint = hover
-        ? {
-            x:
-              hover.col +
-              (history.activeMode === "element"
-                ? (hover.offsetX + 0.5) / ELEMENT_OFFSET_STEPS
-                : 0.5) -
-              size / 2,
-            z:
-              hover.row +
-              (history.activeMode === "element"
-                ? (hover.offsetY + 0.5) / ELEMENT_OFFSET_STEPS
-                : 0.5) -
-              size / 2,
-          }
+        ? history.activeMode === "element"
+          ? authoredElementGroundPoint(hover, size)
+          : { x: hover.col + 0.5 - size / 2, z: hover.row + 0.5 - size / 2 }
         : null;
       const previewAssetId = editorToolPreviewAssetId(tool);
       const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;

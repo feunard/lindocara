@@ -479,9 +479,8 @@ export interface Cemetery extends Vec2 {
 }
 
 /**
- * Spirit anchors. Releasing puts your ghost at the one nearest your corpse, which is what
- * keeps the walk home in the fifteen-to-thirty-second range wherever on the map you fell.
- * Each sits on open ground just below its chapel — see the `graveyard` landmarks.
+ * Legacy pixel-map spirit anchors, retained for catalogue compatibility. Heightfield rooms now
+ * release directly at their authored map entry and do not choose one of these cemeteries.
  */
 export const CEMETERIES: readonly Cemetery[] = [
   { id: "hollowrest", x: 1040, y: 1990 },
