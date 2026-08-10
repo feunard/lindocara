@@ -538,6 +538,22 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     })();
   }
 
+  // File → New adventure: same dirty guard as `loadAdventure`, then swap the session for a fresh
+  // scratch. `AdventureEditorInner` is keyed by `adventureId`, so this remounts every room-local
+  // editor state cleanly rather than leaking the previous adventure's stage.
+  function newAdventure(): void {
+    if (savingMapRef.current) return;
+    if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
+    setError(null);
+    void (async () => {
+      try {
+        setSession(await ensureScratchAdventure());
+      } catch (caught) {
+        fail(caught);
+      }
+    })();
+  }
+
   // Load the map to edit once: the author's first map. Task 8's maps panel takes over selection;
   // this is the minimal seam that keeps the stage fed.
   // biome-ignore lint/correctness/useExhaustiveDependencies: one contextual auto-open on mount
@@ -1529,6 +1545,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           showCollisions={showCollisions}
           onExit={() => exit()}
           onOpenLoad={() => setLoadOpen(true)}
+          onNewAdventure={() => newAdventure()}
           onNewMap={() => setNewMapOpen(true)}
           onSave={() => void save()}
           onOpenSettings={() => setSettingsOpen(true)}

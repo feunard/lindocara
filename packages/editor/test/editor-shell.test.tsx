@@ -689,6 +689,29 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
   });
 
+  it("guards File → New adventure with the dirty confirm, and mints nothing when declined", async () => {
+    const mock = mapsBackend(twoMaps);
+    vi.stubGlobal("fetch", mock);
+    await mountReady(alepha);
+    await screen.findByRole("button", { name: "Frostfen" });
+    markDirty();
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: t("editor.shell.newAdventure") }),
+    );
+
+    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+    // Declined: no adventure was created, and the stage was never reopened for a new one.
+    expect(mock).not.toHaveBeenCalledWith(
+      "/api/adventures",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores an older map response that arrives after a newer selection", async () => {
     let resolveM2: ((response: Response) => void) | undefined;
     let resolveM3: ((response: Response) => void) | undefined;

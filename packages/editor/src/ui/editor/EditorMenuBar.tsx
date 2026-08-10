@@ -27,6 +27,9 @@ interface EditorMenuBarProps {
   onExit(): void;
   /** Open the "Load an adventure" dialog, from File → « Charger une aventure ». */
   onOpenLoad(): void;
+  /** Start a fresh unsaved adventure, from File → « Nouvelle aventure ». Dirty-guarded by the
+   *  shell, exactly like `onOpenLoad`. */
+  onNewAdventure(): void;
   onNewMap(): void;
   onSave(): void;
   onOpenSettings(): void;
@@ -60,6 +63,7 @@ export function EditorMenuBar({
   showCollisions,
   onExit,
   onOpenLoad,
+  onNewAdventure,
   onNewMap,
   onSave,
   onOpenSettings,
@@ -112,6 +116,8 @@ export function EditorMenuBar({
         <MenubarMenu>
           <MenubarTrigger>{t("editor.shell.menu.file")}</MenubarTrigger>
           <MenubarContent>
+            <MenubarItem onClick={onNewAdventure}>{t("editor.shell.newAdventure")}</MenubarItem>
+            <MenubarSeparator />
             <MenubarItem onClick={onNewMap}>
               {t("editor.new")}
               <MenubarShortcut>⌘N</MenubarShortcut>

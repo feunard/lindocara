@@ -171,4 +171,62 @@ describe("AdventureEditorScreen scratch entry", () => {
     expect(screen.queryByRole("button", { name: t("editor.retry") })).toBeNull();
     expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
   });
+
+  it("mints another scratch from File → New adventure, guarding unsaved edits", async () => {
+    let created = 0;
+    const mock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/adventures" && init?.method === "POST") {
+        created += 1;
+        return Promise.resolve(
+          created === 1
+            ? scratchResponse()
+            : jsonResponse(
+                {
+                  ...adventurePayload("adv-second", t("adventure.default_title")),
+                  mapIds: [],
+                  defaultMap: {
+                    id: "map-2",
+                    name: "Map 1",
+                    revision: 1,
+                    tilesetId: "tiny-swords",
+                    cols: 2,
+                    rows: 2,
+                    layers: [[], [], []],
+                    elements: [],
+                    events: [],
+                    markers: [],
+                    spawn: { col: 0, row: 0 },
+                    heightfield: "",
+                  },
+                },
+                201,
+              ),
+        );
+      }
+      if (url.startsWith("/api/maps/")) {
+        return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+      }
+      return Promise.resolve(jsonResponse([], 200));
+    });
+    vi.stubGlobal("fetch", mock);
+
+    const { alepha } = await mountScreen();
+    alephaInstances.push(alepha);
+    await waitFor(() =>
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-scratch"),
+    );
+
+    // The File-menu idiom used throughout `editor-shell.test.tsx`: focus the trigger, press Enter,
+    // then click the item. A plain click on the trigger does not open this menubar.
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: t("editor.shell.newAdventure") }),
+    );
+
+    await waitFor(() =>
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-second"),
+    );
+    expect(created).toBe(2);
+  });
 });
