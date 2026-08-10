@@ -29,7 +29,7 @@ import type {
   SelfState,
 } from "@lindocara/engine/protocol.js";
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
-import { type SkillSlot, skillFor } from "@lindocara/engine/skills.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
 import {
   DEFAULT_ZONE_ID,
   isKnownZone,
