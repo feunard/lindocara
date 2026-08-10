@@ -1,3 +1,14 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Checkbox } from "@alepha/ui/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@alepha/ui/components/ui/dialog";
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
 import {
   type AdventureDraft,
   draftSaveable,
@@ -12,17 +23,6 @@ import {
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Checkbox } from "@lindocara/ui/components/checkbox.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
 import { useAlepha, useStore } from "alepha/react";
 import { useEffect, useState } from "react";
 import { AudioConfigFields } from "./AudioConfigFields.js";

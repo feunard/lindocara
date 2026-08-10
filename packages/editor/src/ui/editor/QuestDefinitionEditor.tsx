@@ -1,3 +1,9 @@
+import { Badge } from "@alepha/ui/components/ui/badge";
+import { Button } from "@alepha/ui/components/ui/button";
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@alepha/ui/components/ui/tabs";
+import { Textarea } from "@alepha/ui/components/ui/textarea";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { mintRegistryId } from "@lindocara/engine/adventure-state.js";
@@ -7,12 +13,6 @@ import {
   MAX_QUEST_OBJECTIVES,
   type QuestDiagnostic,
 } from "@lindocara/engine/quests.js";
-import { Badge } from "@lindocara/ui/components/badge.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@lindocara/ui/components/tabs.js";
-import { Textarea } from "@lindocara/ui/components/textarea.js";
 import { Plus } from "lucide-react";
 import { QuestChoiceField } from "./QuestChoiceField.js";
 import { QuestDialoguesEditor } from "./QuestDialoguesEditor.js";

@@ -1,6 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+/* Tailwind, tw-animate, shadcn's sheet and the UI fonts all arrive with `@alepha/ui/styles.css`,
+ * imported LAST below — importing them here as well would run Tailwind's entry twice. */
 @import "@fontsource-variable/geist";
 @import "./tokens.css";
 @import "./tiny-swords-primitives.css";
@@ -10,17 +9,18 @@
 @import "./character-creator.css";
 @import "./launch.css";
 
-/* Stock shadcn (base-nova / neutral) tokens and @layer base. Extracted to the @lindocara/ui
- * package (the home of the shadcn component tree) and imported LAST, so these values keep winning
- * over the client-specific sheets above exactly as they did when the block lived here. Tailwind
- * itself stays imported at the top of this file. */
-@import "@lindocara/ui/globals.css";
+/* The shared shadcn/Base-UI library's own sheet: Tailwind's entry, tw-animate, shadcn's tailwind
+ * layer, its fonts, and the token set its components resolve against. Imported LAST so those tokens
+ * keep winning over the client-specific sheets above, exactly as `@lindocara/ui/globals.css` did
+ * before the migration — that package brought only tokens because this file imported Tailwind
+ * itself; `@alepha/ui` brings both, which is why the duplicate imports are gone from the top. */
+@import "@alepha/ui/styles.css";
 
 /* The Vite root is apps/main, so Tailwind v4's automatic content detection would only scan that
  * (near-empty) dir and purge every utility the components use — the shadcn editor chrome would
  * render unstyled in the production build (dev on-demand scanning hides this). Point Tailwind at
  * the packages that carry className utilities. Paths are relative to this file; must sit after all
- * @import rules. renderer is PixiJS (no Tailwind), so it is not scanned. */
+ * @import rules. The renderer carries no Tailwind, so it is not scanned, and `@alepha/ui` scans
+ * itself — its own sheet declares `@source "../**"` relative to its own location. */
 @source "../";
-@source "../../../ui/src";
 @source "../../../editor/src";

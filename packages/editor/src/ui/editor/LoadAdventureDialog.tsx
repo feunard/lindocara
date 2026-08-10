@@ -1,3 +1,13 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Checkbox } from "@alepha/ui/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@alepha/ui/components/ui/dialog";
+import { Label } from "@alepha/ui/components/ui/label";
 import {
   type AdventureSummary,
   authErrorText,
@@ -7,16 +17,6 @@ import {
   isUnauthorizedCode,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Checkbox } from "@lindocara/ui/components/checkbox.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Label } from "@lindocara/ui/components/label.js";
 import { useEffect, useState } from "react";
 
 interface LoadAdventureDialogProps {

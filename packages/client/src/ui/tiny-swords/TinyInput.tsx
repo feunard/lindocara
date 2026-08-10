@@ -1,4 +1,4 @@
-import { cn } from "@lindocara/ui/lib/utils.js";
+import { cn } from "@alepha/ui/lib/utils";
 import * as React from "react";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/input.tsx).

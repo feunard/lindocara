@@ -1,3 +1,11 @@
+import { Label } from "@alepha/ui/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@alepha/ui/components/ui/select";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import {
   type AdventureAudioConfig,
@@ -7,14 +15,6 @@ import {
   MUSIC_TRACKS,
   type MusicTrackId,
 } from "@lindocara/engine/audio-catalog.js";
-import { Label } from "@lindocara/ui/components/label.js";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@lindocara/ui/components/select.js";
 
 const INHERIT = "__inherit";
 const SILENCE = "__silence";

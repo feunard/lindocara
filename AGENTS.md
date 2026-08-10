@@ -114,7 +114,7 @@ prefixes in the file map further down map straight onto these homes:
 | [`@lindocara/engine`](./packages/engine/AGENTS.md) | `src/shared/`, plus `hd2d/` â€” the HD-2D witness's geometry and movement rule, moved in from `apps/lab` in S2 | â€” | pure (ni DOM ni Workers) |
 | [`@lindocara/server`](./packages/server/AGENTS.md) | `src/server/` â€” now Alepha services/entities/controllers (`src/api/`), the realtime rooms (`src/api/realtime/`) and the world systems (`src/world/`) | engine, alepha | Node (dev) / workerd (prod) |
 | [`@lindocara/renderer`](./packages/renderer/AGENTS.md) | drawing half of `src/client/game/` (+ `input`, `locale`, `scene-sample`) | engine, hd2d | browser, React-free (Three.js via `@lindocara/hd2d`) |
-| [`@lindocara/ui`](./packages/ui/AGENTS.md) | the stock shadcn tree (base-nova) + `cn` + `globals.css` tokens â€” shadcn monorepo mode | npm only | browser + React |
+| [`@alepha/ui`](./.vendor/@alepha/ui) | the shared shadcn/Base-UI tree + `cn` + `styles.css` tokens - VENDORED from ../alepha, never hand-edited | npm only | browser + React |
 | [`@lindocara/client`](./packages/client/AGENTS.md) | rest of `src/client/` + `public/` (app shell, HUD, Tiny-Swords tree, store, api, i18n, glue) | engine, renderer, ui | browser + React |
 | [`@lindocara/editor`](./packages/editor/AGENTS.md) | `src/client/ui/editor/` + editor game files â€” HD-2D authoring stage and playable preview | engine, renderer, client, ui | browser + React |
 | [`@lindocara/catalog`](./packages/catalog/AGENTS.md) | `assets/` (raw Tiny Swords art) + the catalogue codegen (was `scripts/tiny-swords-catalog-*`) | engine | node (dev) |
@@ -1128,14 +1128,17 @@ snapshot â€” there is no live env mutation, in tests or on Workers.
   only bridge â€” components never call into net/renderer directly (the `GameHandle` in the
   store is the exception and the boundary).
 - Two component trees, one rule each. Player/game UI uses the client's `ui/tiny-swords/`; creator
-  tools and any non-game surface use stock shadcn from the **`@lindocara/ui`** package (`import { Button }
-  from "@lindocara/ui/components/button.js"`). Never import a Tiny component into an editor to "match
-  the theme", and never hand-edit `@lindocara/ui/src/components/`. See
-  `docs/superpowers/specs/2026-07-18-shadcn-base-ui-port-design.md`.
-- Add a shadcn component with `npm run ui:add -- <name>` (which runs `shadcn add -c packages/ui` in
-  shadcn's monorepo mode â€” the `@lindocara/ui` package has its own `components.json` whose aliases
-  point at `@lindocara/ui/*`), then `npm run lint:fix` (stock output has no semicolons; Biome requires
-  them). The old `--path`/`tsconfig.json` caveat is gone: monorepo mode resolves aliases from the
+  tools and any non-game surface use **`@alepha/ui`** (`import { Button } from
+  "@alepha/ui/components/ui/button"` - note the `ui/` segment and no `.js`). Never import a Tiny
+  component into an editor to "match the theme".
+- `@alepha/ui` is VENDORED, not local: it lives in `.vendor/@alepha/ui`, is listed in the root
+  `alepha.config.ts` vendor plugin, and arrives with `npx alepha vendor sync`. Do not hand-edit it -
+  a local change becomes a patch `vendor diff` reports forever and the next sync fights. A component
+  that needs changing is changed upstream in `../alepha` and synced back, exactly like the framework
+  (see the dogfood loop above). It replaced the project's own `packages/ui` shadcn copy, which is
+  deleted; `npm run ui:add` is gone with it, because adding a component is now an upstream concern.
+  The historical port spec (`docs/superpowers/specs/2026-07-18-shadcn-base-ui-port-design.md`)
+  describes that deleted package.
   package's `components.json`.
 - Stock shadcn's `@layer base` sets `body { background-color; color }` **directly**, which beats
   anything `legacy.css` inherits from `:root` â€” CSS layers only compete with declarations on the
@@ -1148,7 +1151,6 @@ snapshot â€” there is no live env mutation, in tests or on Workers.
   is `:not(:where([data-slot], .editor-root *))` â€” `:where()` contributes zero specificity, every
   shadcn control carries `data-slot`, and every editor-authored raw control lives under
   `.editor-root`.
-- Regenerating `label` (`npm run ui:add -- label -o`) re-trips Biome's `noLabelWithoutControl`:
-  stock shadcn's `Label` is a generic passthrough that spreads props, and Biome cannot see that
-  call sites supply the control. The agreed resolution is a scoped `biome-ignore` on the JSX
+- `Label` is a generic passthrough that spreads props, so Biome's `noLabelWithoutControl` cannot see
+  that call sites supply the control. The agreed resolution is a scoped `biome-ignore` on the JSX
   element, not an unconditional `for` attribute the component doesn't own.

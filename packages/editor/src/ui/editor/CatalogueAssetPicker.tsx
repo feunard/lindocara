@@ -1,3 +1,4 @@
+import { Input } from "@alepha/ui/components/ui/input";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import {
@@ -11,7 +12,6 @@ import {
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { tinySwordsSourceUrl } from "@lindocara/renderer/tiny-swords-assets.js";
-import { Input } from "@lindocara/ui/components/input.js";
 import { useMemo, useState } from "react";
 
 interface CatalogueAssetPickerProps {

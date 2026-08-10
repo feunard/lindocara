@@ -1,7 +1,5 @@
-import { t, useLocale } from "@lindocara/client/i18n.js";
-import type { MessageKey } from "@lindocara/engine/i18n/index.js";
-import { Badge } from "@lindocara/ui/components/badge.js";
-import { Button } from "@lindocara/ui/components/button.js";
+import { Badge } from "@alepha/ui/components/ui/badge";
+import { Button } from "@alepha/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +7,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@lindocara/ui/components/tabs.js";
+} from "@alepha/ui/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@alepha/ui/components/ui/tabs";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 
 export const EDITOR_HELP_SECTIONS = ["start", "maps", "story", "quests", "state", "test"] as const;
 

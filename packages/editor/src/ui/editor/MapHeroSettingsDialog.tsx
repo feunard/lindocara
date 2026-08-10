@@ -1,3 +1,15 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Checkbox } from "@alepha/ui/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@alepha/ui/components/ui/dialog";
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@alepha/ui/components/ui/tabs";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
@@ -9,18 +21,6 @@ import {
   parseMapHeroSettings,
 } from "@lindocara/engine/map-hero-settings.js";
 import { CLASS_SKILLS, type SkillSlot } from "@lindocara/engine/skills.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Checkbox } from "@lindocara/ui/components/checkbox.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@lindocara/ui/components/tabs.js";
 import { useEffect, useState } from "react";
 
 interface MapHeroSettingsDialogProps {

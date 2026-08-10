@@ -1,3 +1,6 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { mintRegistryId } from "@lindocara/engine/adventure-state.js";
@@ -12,9 +15,6 @@ import {
   type QuestRewards,
   type QuestStateReward,
 } from "@lindocara/engine/quests.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
 import { Plus, Trash2 } from "lucide-react";
 import { EventCommandEditor } from "./EventCommandEditor.js";
 import { QuestChoiceField } from "./QuestChoiceField.js";

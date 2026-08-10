@@ -10,7 +10,7 @@
     "@lindocara/client": "*",
     "@lindocara/engine": "*",
     "@lindocara/renderer": "*",
-    "@lindocara/ui": "*",
+    "@alepha/ui": "*",
     "lucide-react": "^1.25.0",
     "react": "^19.2.7"
   },

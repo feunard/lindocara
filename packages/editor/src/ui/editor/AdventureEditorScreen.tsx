@@ -1,3 +1,12 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@alepha/ui/components/ui/resizable";
+import { TooltipProvider } from "@alepha/ui/components/ui/tooltip";
 import {
   type AdventureDraft,
   type DraftMemberInfo,
@@ -49,15 +58,6 @@ import {
   type EditorAssetId,
   editorAsset,
 } from "@lindocara/engine/tiny-swords-catalog.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@lindocara/ui/components/resizable.js";
-import { TooltipProvider } from "@lindocara/ui/components/tooltip.js";
 import { useAlepha, useStore } from "alepha/react";
 import { useRouter } from "alepha/react/router";
 import { XIcon } from "lucide-react";

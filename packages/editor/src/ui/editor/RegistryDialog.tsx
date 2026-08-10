@@ -1,3 +1,12 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@alepha/ui/components/ui/dialog";
+import { Input } from "@alepha/ui/components/ui/input";
 import { draftFromAdventure, toAdventureInput } from "@lindocara/client/adventure-draft.js";
 import {
   type AdventureSummary,
@@ -18,15 +27,6 @@ import {
   REGISTRY_ENTRY_NAME_MAX,
   type RegistryEntry,
 } from "@lindocara/engine/adventure-state.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Input } from "@lindocara/ui/components/input.js";
 import { useStore } from "alepha/react";
 import { CircleHelp } from "lucide-react";
 import { useEffect, useState } from "react";

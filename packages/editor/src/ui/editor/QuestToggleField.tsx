@@ -1,4 +1,4 @@
-import { Checkbox } from "@lindocara/ui/components/checkbox.js";
+import { Checkbox } from "@alepha/ui/components/ui/checkbox";
 import { useId } from "react";
 
 interface QuestToggleFieldProps {

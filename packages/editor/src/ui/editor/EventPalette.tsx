@@ -1,3 +1,5 @@
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { EVENT_PRESETS, type EventPreset } from "@lindocara/engine/event-presets.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
@@ -16,8 +18,6 @@ import {
 import { SKILL_UNLOCK_LEVEL, type SkillSlot } from "@lindocara/engine/skills.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
 import { CatalogueAssetPicker, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 

@@ -1,13 +1,13 @@
-import { t, useLocale } from "@lindocara/client/i18n.js";
-import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
-import { Button } from "@lindocara/ui/components/button.js";
+import { Button } from "@alepha/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
+} from "@alepha/ui/components/ui/dialog";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { useEffect, useState } from "react";
 import { AudioConfigFields } from "./AudioConfigFields.js";
 

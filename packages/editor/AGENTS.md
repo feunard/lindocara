@@ -11,7 +11,7 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - `src/game/map-preview.ts` owns playable preview and runs the real client hero controller.
 - `src/game/editor-state.ts` owns pure editor mutations and serialization.
 - The package composes `@lindocara/engine`, `@lindocara/renderer`, `@lindocara/client` and
-  `@lindocara/ui`; it must not duplicate their movement, terrain or rendering rules.
+  `@alepha/ui`; it must not duplicate their movement, terrain or rendering rules.
 - Entering the editor mints a fresh **unsaved scratch adventure** (`ensureScratchAdventure()` in
   `src/ui/editor/adventure-session.ts`) and opens it. There is no landing/picker page: reaching an
   existing adventure is `File → Open`, and starting another is `File → New adventure`. Abandoned

@@ -453,7 +453,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
     // The event tool is what turns the stage's EV overlay on (shouldShowEventOverlay), so this call
     // reaching the handle IS the overlay flag reaching the stage.
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
@@ -563,7 +563,7 @@ describe("AdventureEditorScreen shell", () => {
 
     // The sidebar graphic catalogue (D13) is gone from EV mode entirely.
     expect(screen.queryByTestId("event-presets")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
     expect(screen.getByTestId("event-presets")).toBeVisible();
     expect(screen.queryByText(t("editor.shell.events.graphic.heading"))).toBeNull();
   });
@@ -572,7 +572,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
     const palette = screen.getByRole("complementary", { name: t("editor.shell.palette.aria") });
 
     await userEvent.click(
@@ -610,7 +610,7 @@ describe("AdventureEditorScreen shell", () => {
     // "Element" appears twice at once (the mode control's own segment label and the status bar
     // echo), so both assertions below scope to the status bar strip rather than a bare getByText.
     expect(within(statusBar(rendered)).getByText(t("editor.shell.mode.field"))).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.element") }));
 
     expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("element");
     expect(
@@ -632,7 +632,7 @@ describe("AdventureEditorScreen shell", () => {
 
     // The handle does not exist yet, so selecting Event mode here can only reach the stage through
     // whatever the `.then` callback reads once it resolves — this is the race.
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
     expect(stageMock.setActiveMode).not.toHaveBeenCalled();
 
     resolveOpen(stageHandle());
@@ -850,7 +850,7 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady(alepha);
 
     // Enter EV mode, then pick the spawn anchor — the event tool it pushes carries eventKind: "spawn".
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.spawn") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "spawn" });
 
@@ -901,7 +901,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
 
     // Entry/exit authoring is gone; the spawn anchor and the monster placement remain.
     await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.spawn") }));
@@ -933,7 +933,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.harvestable") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.harvest.preset.sheep") }));
 
@@ -950,7 +950,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.select") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
 
@@ -1407,7 +1407,7 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady(alepha);
 
     // The catalogue only renders in Element mode (Task 11 split the sidebar per mode).
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.element") }));
 
     const search = screen.getByRole("searchbox", { name: t("editor.palette.search") });
     // `fireEvent.change` rather than `userEvent.type`: this suite's jsdom focus resolution for this
@@ -1466,8 +1466,8 @@ describe("AdventureEditorScreen shell", () => {
 
       fireEvent.keyDown(host, { key: "2" });
       expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("element");
-      expect(screen.getByRole("button", { name: t("editor.shell.mode.element") })).toHaveAttribute(
-        "aria-pressed",
+      expect(screen.getByRole("radio", { name: t("editor.shell.mode.element") })).toHaveAttribute(
+        "aria-checked",
         "true",
       );
 
@@ -1628,7 +1628,7 @@ describe("AdventureEditorScreen shell", () => {
       await mountReady(alepha);
 
       // The catalogue only renders in Element mode (Task 11 split the sidebar per mode).
-      await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
+      await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.element") }));
 
       const search = screen.getByRole("searchbox", { name: t("editor.palette.search") });
       const before = stageMock.setTool.mock.calls.length;

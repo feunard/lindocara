@@ -1,11 +1,11 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Label } from "@alepha/ui/components/ui/label";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type {
   AdventureRegistry,
   AuthoredQuestDefinition,
   QuestPrerequisiteCondition,
 } from "@lindocara/engine/adventure-state.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Label } from "@lindocara/ui/components/label.js";
 import { Trash2 } from "lucide-react";
 import { QuestChoiceField } from "./QuestChoiceField.js";
 import { QuestNumberInput } from "./QuestNumberInput.js";

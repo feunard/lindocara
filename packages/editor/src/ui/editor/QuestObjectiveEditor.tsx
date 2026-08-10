@@ -1,11 +1,11 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { CONSUMABLE_IDS, type ConsumableId } from "@lindocara/engine/consumables.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { AuthoredQuestObjective } from "@lindocara/engine/quests.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { QuestChoiceField } from "./QuestChoiceField.js";
 import { QuestNumberInput } from "./QuestNumberInput.js";

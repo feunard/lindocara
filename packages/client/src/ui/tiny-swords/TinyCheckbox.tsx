@@ -1,4 +1,4 @@
-import { cn } from "@lindocara/ui/lib/utils.js";
+import { cn } from "@alepha/ui/lib/utils";
 import type * as React from "react";
 
 interface TinyCheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {

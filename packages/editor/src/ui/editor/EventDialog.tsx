@@ -1,3 +1,12 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@alepha/ui/components/ui/dialog";
+import { Input } from "@alepha/ui/components/ui/input";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import {
@@ -47,15 +56,6 @@ import {
   validateEventName,
 } from "@lindocara/engine/map-events.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Input } from "@lindocara/ui/components/input.js";
 import { CircleHelp } from "lucide-react";
 import type * as React from "react";
 import { useState } from "react";

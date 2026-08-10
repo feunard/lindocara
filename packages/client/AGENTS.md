@@ -34,7 +34,7 @@ glue that binds the renderer to the network. Browser + React. This is the base t
   spent), `session` (constructs the renderer,
   owns store writes), `sound`/`audio-settings`/`combat-sounds` (including the procedural
   consumer of movement `HeroEvent`s), `party`, `cooldown-sync`.
-- `styles/` â€” `app.css` (Tailwind + the client sheets + `@lindocara/ui/globals.css` last), `legacy.css`
+- `styles/` â€” `app.css` (the client sheets + `@alepha/ui/styles.css` last, which brings Tailwind itself), `legacy.css`
   (the Tiny Swords skin + the two-tree fence), `tokens.css`. `public/` â€” atlas/audio/served assets.
 
 ## Graph
@@ -51,7 +51,7 @@ npm test -w @lindocara/client   # or: npm run test:client â€” jsdom
 
 ## Rules
 
-- Two component trees: game UI uses `ui/tiny-swords/`; creator/non-game surfaces use `@lindocara/ui`.
+- Two component trees: game UI uses `ui/tiny-swords/`; creator/non-game surfaces use `@alepha/ui`.
   Never mix them to "match the theme".
 - `game/` code must not import React OR any `alepha`/`alepha/react` module (`ReactRouter` pulls
   React transitively) â€” the store is the bridge for the 60Hz game state (`GameHandle` is the

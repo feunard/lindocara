@@ -1,5 +1,5 @@
+import { cn } from "@alepha/ui/lib/utils";
 import { TINY_SWORDS_UI } from "@lindocara/engine/tiny-swords-catalog.js";
-import { cn } from "@lindocara/ui/lib/utils.js";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 import type * as React from "react";

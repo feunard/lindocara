@@ -1,4 +1,4 @@
-import { Input } from "@lindocara/ui/components/input.js";
+import { Input } from "@alepha/ui/components/ui/input";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 

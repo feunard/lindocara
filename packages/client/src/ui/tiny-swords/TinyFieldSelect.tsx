@@ -1,4 +1,4 @@
-import { cn } from "@lindocara/ui/lib/utils.js";
+import { cn } from "@alepha/ui/lib/utils";
 import * as React from "react";
 
 /** Accessible native select with the same Tiny Swords surface treatment as PixelAct inputs. */

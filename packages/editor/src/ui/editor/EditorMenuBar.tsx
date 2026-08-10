@@ -1,5 +1,4 @@
-import { t, useLocale } from "@lindocara/client/i18n.js";
-import { Button } from "@lindocara/ui/components/button.js";
+import { Button } from "@alepha/ui/components/ui/button";
 import {
   Menubar,
   MenubarContent,
@@ -8,8 +7,9 @@ import {
   MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
-} from "@lindocara/ui/components/menubar.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@lindocara/ui/components/tooltip.js";
+} from "@alepha/ui/components/ui/menubar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@alepha/ui/components/ui/tooltip";
+import { t, useLocale } from "@lindocara/client/i18n.js";
 import { Box, LogOut } from "lucide-react";
 import type { EditorMode } from "../../game/editor-state.js";
 import type { EditorPaintTool } from "./EditorToolbar.js";

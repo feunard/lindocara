@@ -1,7 +1,7 @@
+import { Label } from "@alepha/ui/components/ui/label";
+import { Textarea } from "@alepha/ui/components/ui/textarea";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AuthoredQuestDefinition, QuestDialogues } from "@lindocara/engine/quests.js";
-import { Label } from "@lindocara/ui/components/label.js";
-import { Textarea } from "@lindocara/ui/components/textarea.js";
 import {
   eventReferenceValue,
   type QuestMapCatalog,

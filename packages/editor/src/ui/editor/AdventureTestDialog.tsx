@@ -1,9 +1,5 @@
-import { t, useLocale } from "@lindocara/client/i18n.js";
-import type { PlayerClass } from "@lindocara/engine/game.js";
-import { HERO_CLASSES, isHeroClass } from "@lindocara/engine/hero.js";
-import type { AuthoredQuestDefinition, QuestDiagnostic } from "@lindocara/engine/quests.js";
-import { Alert, AlertDescription, AlertTitle } from "@lindocara/ui/components/alert.js";
-import { Button } from "@lindocara/ui/components/button.js";
+import { Alert, AlertDescription, AlertTitle } from "@alepha/ui/components/ui/alert";
+import { Button } from "@alepha/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,15 +7,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Label } from "@lindocara/ui/components/label.js";
+} from "@alepha/ui/components/ui/dialog";
+import { Label } from "@alepha/ui/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@lindocara/ui/components/select.js";
+} from "@alepha/ui/components/ui/select";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
+import { HERO_CLASSES, isHeroClass } from "@lindocara/engine/hero.js";
+import type { AuthoredQuestDefinition, QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { AlertTriangle, FlaskConical, Footprints } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { questDiagnosticText } from "./QuestDefinitionEditor.js";

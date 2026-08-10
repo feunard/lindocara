@@ -1,4 +1,4 @@
-import { cn } from "@lindocara/ui/lib/utils.js";
+import { cn } from "@alepha/ui/lib/utils";
 import { Label as LabelPrimitive } from "radix-ui";
 import type * as React from "react";
 

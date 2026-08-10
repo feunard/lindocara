@@ -1,7 +1,7 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@alepha/ui/components/ui/tooltip";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@lindocara/ui/components/tooltip.js";
 import {
   Blocks,
   CircleHelp,

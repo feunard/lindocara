@@ -1,3 +1,15 @@
+import { Button } from "@alepha/ui/components/ui/button";
+import { Checkbox } from "@alepha/ui/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@alepha/ui/components/ui/dialog";
+import { Input } from "@alepha/ui/components/ui/input";
+import { Label } from "@alepha/ui/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@alepha/ui/components/ui/tooltip";
 import {
   createMapApi,
   deleteMapApi,
@@ -19,18 +31,6 @@ import {
   MAP_MIN_ROWS,
 } from "@lindocara/engine/map-limits.js";
 import { nextMapName } from "@lindocara/engine/map-naming.js";
-import { Button } from "@lindocara/ui/components/button.js";
-import { Checkbox } from "@lindocara/ui/components/checkbox.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/ui/components/dialog.js";
-import { Input } from "@lindocara/ui/components/input.js";
-import { Label } from "@lindocara/ui/components/label.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@lindocara/ui/components/tooltip.js";
 import { Music2, Pencil, Plus, Settings2, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 

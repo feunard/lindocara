@@ -1,3 +1,4 @@
+import { Button } from "@alepha/ui/components/ui/button";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AuthoredQuestDefinition, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
@@ -14,7 +15,6 @@ import {
 } from "@lindocara/engine/event-commands.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
-import { Button } from "@lindocara/ui/components/button.js";
 import type * as React from "react";
 import { useMemo, useState } from "react";
 import {

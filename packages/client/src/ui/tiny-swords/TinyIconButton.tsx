@@ -1,4 +1,4 @@
-import { cn } from "@lindocara/ui/lib/utils.js";
+import { cn } from "@alepha/ui/lib/utils";
 import { TinyButton, type TinyButtonProps } from "./TinyButton.js";
 
 export function TinyIconButton({ className, ...props }: TinyButtonProps) {

@@ -1,11 +1,11 @@
-import { Label } from "@lindocara/ui/components/label.js";
+import { Label } from "@alepha/ui/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@lindocara/ui/components/select.js";
+} from "@alepha/ui/components/ui/select";
 import { useId } from "react";
 
 export interface QuestChoiceOption {

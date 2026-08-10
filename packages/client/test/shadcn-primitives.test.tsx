@@ -1,4 +1,4 @@
-import { Button } from "@lindocara/ui/components/button.js";
+import { Button } from "@alepha/ui/components/ui/button";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

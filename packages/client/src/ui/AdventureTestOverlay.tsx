@@ -1,5 +1,5 @@
-import { Badge } from "@lindocara/ui/components/badge.js";
-import { Button } from "@lindocara/ui/components/button.js";
+import { Badge } from "@alepha/ui/components/ui/badge";
+import { Button } from "@alepha/ui/components/ui/button";
 import { useStore } from "alepha/react";
 import { useRouter } from "alepha/react/router";
 import { useEffect, useState } from "react";
