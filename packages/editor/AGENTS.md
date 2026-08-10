@@ -31,6 +31,15 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
   created, because the synthetic first-mount cleanup discards its own still-in-flight result. See
   the docblock above the component for the full strict-mode rationale.
 
+- The authoring camera can turn: `[`/`]` step a quarter turn (snapping to the nearest quarter
+  first, so they also straighten a freely-orbited view), and `Alt`+drag orbits to any angle with no
+  snap-back. Picking needs nothing for this — `screenToWorld` raycasts the live camera — and neither
+  does the overlay, which is handed to the renderer in world coordinates. **Panning does**: its drag
+  is screen-space and must be rotated into world space by the current yaw, or a turned camera sends
+  the map sideways under the cursor. `map-editor-stage.test.tsx` guards exactly that.
+- Distance fog is off while authoring (`setFogEnabled(false)`), because the play-tuned band tightens
+  as the camera pulls back and zooming out is how an author inspects a whole map.
+
 ## Commands
 
 - `npm run typecheck:editor` checks this package.

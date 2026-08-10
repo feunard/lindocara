@@ -18,6 +18,7 @@ const mock = vi.hoisted(() => {
     preloadWorldEventAssets: vi.fn(),
     render: vi.fn(),
     screenToWorld: vi.fn(() => ({ x: -8.5, z: -7.5 })),
+    rotateCamera: vi.fn(),
     setCameraFocus: vi.fn(),
     setCameraZoom: vi.fn(),
     setEditorOverlay: vi.fn(),
@@ -113,6 +114,74 @@ describe("HD-2D map editor stage", () => {
       expect.any(Object),
       expect.objectContaining({ canUndo: true, dirty: true }),
     );
+    stage.dispose();
+  });
+
+  it("snaps a quarter turn to the nearest axis, so a free orbit can be straightened", async () => {
+    const yaws: number[] = [];
+    const stage = await openMapEditorStage(
+      blankMap("Map", 20, 15),
+      vi.fn(),
+      undefined,
+      undefined,
+      undefined,
+      (degrees) => yaws.push(degrees),
+    );
+    const quarter = Math.PI / 2;
+
+    stage.rotateQuarter(1);
+    expect(mock.renderer.rotateCamera).toHaveBeenLastCalledWith(quarter);
+
+    // Orbit to an off-axis angle, then a quarter turn must land back ON an axis rather than
+    // carrying the stray offset forever.
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    canvas.dispatchEvent(
+      new PointerEvent("pointerdown", { button: 0, altKey: true, clientX: 100, clientY: 100 }),
+    );
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 104, clientY: 100 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(yaws.at(-1)).not.toBe(90);
+
+    stage.rotateQuarter(1);
+    expect(yaws.at(-1)).toBe(180);
+    stage.dispose();
+  });
+
+  it("pans along the axis the camera is actually facing", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+
+    // The camera starts centred on the map, so what matters is how far a drag MOVES it, not where
+    // it lands.
+    const focus = (): [number, number] => {
+      const call = mock.renderer.setCameraFocus.mock.calls.at(-1) ?? [0, 0];
+      return [call[0] as number, call[1] as number];
+    };
+    const dragRight = (): [number, number] => {
+      const [beforeX, beforeZ] = focus();
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", { button: 1, clientX: 100, clientY: 100 }),
+      );
+      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 120, clientY: 100 }));
+      window.dispatchEvent(new PointerEvent("pointerup"));
+      const [afterX, afterZ] = focus();
+      return [afterX - beforeX, afterZ - beforeZ];
+    };
+
+    // Unrotated: a rightward drag walks the focus along world X, and leaves Z alone.
+    const [flatDx, flatDz] = dragRight();
+    expect(flatDx).toBeCloseTo(-0.7, 5);
+    expect(flatDz).toBeCloseTo(0, 5);
+
+    // A quarter turn later the SAME drag must move the focus along Z instead. The drag is in
+    // screen space and the focus is in world space; before the yaw rotation was applied to the
+    // delta, this kept walking X and the map slid sideways under the cursor.
+    stage.rotateQuarter(1);
+    const [turnedDx, turnedDz] = dragRight();
+    expect(turnedDx).toBeCloseTo(0, 5);
+    expect(turnedDz).toBeCloseTo(0.7, 5);
     stage.dispose();
   });
 

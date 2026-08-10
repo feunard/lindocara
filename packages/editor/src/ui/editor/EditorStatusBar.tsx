@@ -11,6 +11,9 @@ interface EditorStatusBarProps {
   mode: EditorMode;
   toolLabel: string;
   zoom: number;
+  /** Camera heading, 0..359. Shown because once the camera can turn, "which way is north on this
+   *  map" stops being obvious from the picture alone. */
+  yaw: number;
 }
 
 /** The wireframe's 26px status strip: current map, dimensions, cursor cell, saved flag, active
@@ -24,6 +27,7 @@ export function EditorStatusBar({
   mode,
   toolLabel,
   zoom,
+  yaw,
 }: EditorStatusBarProps) {
   useLocale();
   return (
@@ -58,6 +62,8 @@ export function EditorStatusBar({
       <span>{toolLabel}</span>
       <Divider />
       <span>{`${zoom} %`}</span>
+      <Divider />
+      <span>{`${yaw}°`}</span>
     </div>
   );
 }

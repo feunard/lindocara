@@ -837,6 +837,7 @@ describe("AdventureEditorScreen shell", () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      expect.any(Function),
     );
 
     await act(async () => resolveM2?.(jsonResponse(payloadFor(threeMaps[1] as MapSummary))));
@@ -1136,6 +1137,7 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() =>
       expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(
         edited,
+        expect.any(Function),
         expect.any(Function),
         expect.any(Function),
         expect.any(Function),

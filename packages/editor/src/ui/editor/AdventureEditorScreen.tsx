@@ -457,6 +457,7 @@ function AdventureEditorInner({
   const [showCollisions, setShowCollisions] = useState(false);
   const [cursor, setCursor] = useState<{ col: number; row: number } | null>(null);
   const [zoom, setZoomState] = useState(100);
+  const [yawDegrees, setYawDegrees] = useState(0);
   const [elementCount, setElementCount] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [savingMap, setSavingMap] = useState(false);
@@ -657,6 +658,7 @@ function AdventureEditorInner({
         else if (target.kind === "element") setBindingSelection(target);
       },
       (percent) => setZoomState(percent),
+      (degrees) => setYawDegrees(degrees),
     )
       .then((handle) => {
         if (cancelled) {
@@ -1470,6 +1472,15 @@ function AdventureEditorInner({
       case "g":
         toggleGrid();
         return;
+      // Turn the camera a quarter at a time, so every side of a cliff or a building can be
+      // authored from in front of it. Brackets because every letter that reads as "rotate" is
+      // already a tool (`r` is the rectangle, `e` the eraser).
+      case "[":
+        handleRef.current?.rotateQuarter(-1);
+        return;
+      case "]":
+        handleRef.current?.rotateQuarter(1);
+        return;
     }
   }
 
@@ -1953,6 +1964,7 @@ function AdventureEditorInner({
           mode={mode}
           toolLabel={toolLabel}
           zoom={zoom}
+          yaw={yawDegrees}
         />
       </div>
     </TooltipProvider>

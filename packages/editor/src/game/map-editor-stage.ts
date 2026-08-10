@@ -58,6 +58,8 @@ export interface MapEditorStageHandle {
   setGrid(show: boolean): void;
   setCollisions(show: boolean): void;
   setZoom(percent: number): void;
+  /** A quarter turn left (-1) or right (+1), snapped to the nearest quarter first. */
+  rotateQuarter(direction: 1 | -1): void;
   current(): EditorMap;
   setName(name: string): void;
   setAudio(audio: MapAudioConfig): void;
@@ -147,12 +149,24 @@ function blockedCells(map: EditorMap, levels: readonly (number | null)[]): Colli
 let activeStage: MapEditorStageHandle | null = null;
 let openQueue: Promise<void> = Promise.resolve();
 
+/** How far an Alt-drag turns the camera per pixel of horizontal travel. A shade under a quarter
+ *  turn across a 900px canvas: enough to swing round to a cliff's far face in one gesture, gentle
+ *  enough to nudge a few degrees. */
+const ORBIT_RADIANS_PER_PIXEL = 0.005;
+
+/** Yaw as a 0..359 heading for the status bar. Rounded, because the readout is for orientation,
+ *  not measurement, and a free orbit would otherwise jitter its last digit every frame. */
+export function yawDegrees(yaw: number): number {
+  return ((Math.round((yaw * 180) / Math.PI) % 360) + 360) % 360;
+}
+
 export function openMapEditorStage(
   initial: EditorMap,
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
   onCursorCell?: (col: number | null, row: number | null) => void,
   onOpenSelection?: (selection: EditorSelection) => void,
   onZoomChange?: (percent: number) => void,
+  onYawChange?: (degrees: number) => void,
 ): Promise<MapEditorStageHandle> {
   const opening = openQueue.then(async () => {
     activeStage?.dispose();
@@ -191,6 +205,11 @@ export function openMapEditorStage(
     let lastPointerY = 0;
     let cameraX = 0;
     let cameraZ = 0;
+    // The camera's heading, mirrored here because the pan below has to un-rotate its screen-space
+    // drag by it. `Hd2dRenderer` owns the authoritative yaw; this copy only ever changes through
+    // `applyYaw`, which is what keeps the two in step.
+    let yaw = 0;
+    let orbiting = false;
     let disposed = false;
     let lastCursorKey = "";
     let renderedEvents = authoredEventPreviewSnapshots(map.events, "map-editor");
@@ -421,6 +440,15 @@ export function openMapEditorStage(
 
     const onPointerDown = (event: PointerEvent): void => {
       canvas.focus();
+      // Alt+drag orbits. Checked before the pan trigger so Alt wins over a held space or the pan
+      // tool, and before the paint branch so an Alt-drag never lays down tiles on the way round.
+      if (event.altKey && event.button === 0) {
+        orbiting = true;
+        lastPointerX = event.clientX;
+        lastPointerY = event.clientY;
+        canvas.dataset.cursor = "move";
+        return;
+      }
       if (panTrigger(event)) {
         panning = true;
         lastPointerX = event.clientX;
@@ -436,10 +464,25 @@ export function openMapEditorStage(
     };
 
     const onPointerMove = (event: PointerEvent): void => {
+      if (orbiting) {
+        applyYaw((event.clientX - lastPointerX) * ORBIT_RADIANS_PER_PIXEL);
+        lastPointerX = event.clientX;
+        lastPointerY = event.clientY;
+        return;
+      }
       if (panning) {
         const scale = (100 / zoom) * 0.035;
-        cameraX -= (event.clientX - lastPointerX) * scale;
-        cameraZ -= (event.clientY - lastPointerY) * scale;
+        const dx = (event.clientX - lastPointerX) * scale;
+        const dy = (event.clientY - lastPointerY) * scale;
+        // The drag is in SCREEN space; the focus point is in world space. While the camera looked
+        // down one fixed axis those were interchangeable, and this used to subtract dx/dy straight
+        // from cameraX/cameraZ. Once the camera can turn, that sends the map sideways: a quarter
+        // turn makes a rightward drag walk the focus along world Z. Rotate the delta into world
+        // space by the current yaw first.
+        const cos = Math.cos(yaw);
+        const sin = Math.sin(yaw);
+        cameraX -= dx * cos + dy * sin;
+        cameraZ -= dy * cos - dx * sin;
         lastPointerX = event.clientX;
         lastPointerY = event.clientY;
         renderer.setCameraFocus(cameraX, cameraZ);
@@ -461,6 +504,10 @@ export function openMapEditorStage(
       dragSelection = null;
       painting = false;
       panning = false;
+      // Deliberately no snap-back: an orbit stays where it was left, and the quarter-turn keys are
+      // the one-press way back to an axis. Springing back would make a free look useless for any
+      // work done from that angle.
+      orbiting = false;
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
     };
@@ -469,6 +516,27 @@ export function openMapEditorStage(
       hover = null;
       reportCursor(null, null);
       drawOverlay();
+    };
+
+    /** Turn the camera by `delta` radians and keep the local mirror + the readout in step. */
+    const applyYaw = (delta: number): void => {
+      if (!Number.isFinite(delta) || delta === 0) return;
+      renderer.rotateCamera(delta);
+      yaw = Math.atan2(Math.sin(yaw + delta), Math.cos(yaw + delta));
+      onYawChange?.(yawDegrees(yaw));
+    };
+
+    /**
+     * A quarter turn, from wherever the camera is now.
+     *
+     * It snaps to the nearest quarter FIRST, so the same two keys that step between the four sides
+     * also straighten a freely-orbited camera back onto an axis — otherwise an author who dragged
+     * to 37° would be stuck stepping 37°, 127°, 217° and never get the grid square on screen again.
+     */
+    const rotateQuarter = (direction: 1 | -1): void => {
+      const quarter = Math.PI / 2;
+      const target = (Math.round(yaw / quarter) + direction) * quarter;
+      applyYaw(target - yaw);
     };
 
     const onWheel = (event: WheelEvent): void => {
@@ -561,6 +629,9 @@ export function openMapEditorStage(
       setZoom(percent) {
         zoom = Math.max(2, Math.min(250, percent));
         renderer.setCameraZoom(zoom);
+      },
+      rotateQuarter(direction) {
+        rotateQuarter(direction);
       },
       current: () => map,
       setName(name) {
