@@ -287,6 +287,9 @@ export interface Hd2dScene {
   setCameraShake(xPixels: number, yPixels: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
   setTiltShiftEnabled(enabled: boolean): void;
+  /** Enables distance fog. Editor authoring disables it so pulling back reveals the whole map
+   *  instead of dissolving its edges — see the zoom coupling in the per-frame update. */
+  setFogEnabled(enabled: boolean): void;
   /** First visible horizontal terrain/stair/water surface under an editor pointer ray. */
   pickGround(raycaster: THREE.Raycaster): { x: number; z: number } | null;
   resize(): void;
@@ -411,6 +414,9 @@ export function createHd2dScene(
   mood.set(cycle.nightWeight);
   const fog = new THREE.Fog(0x000000, 1, 100);
   scene.fog = fog;
+  // Authoring turns this off (`setFogEnabled`). Detaching `scene.fog` is the whole switch, and the
+  // per-frame update below keeps this object's near/far current either way — so re-enabling
+  // restores the right band on the next frame rather than showing one stale one.
 
   const sunOffset = new THREE.Vector3();
 
@@ -562,6 +568,9 @@ export function createHd2dScene(
       frameCamera();
     },
     setCameraShake: applyCameraShake,
+    setFogEnabled(enabled: boolean): void {
+      scene.fog = enabled ? fog : null;
+    },
     setTiltShiftEnabled(enabled: boolean): void {
       pipeline.setTiltShiftEnabled(enabled);
     },

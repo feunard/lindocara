@@ -161,6 +161,11 @@ export function openMapEditorStage(
 
     const renderer = await Hd2dRenderer.create(canvas);
     renderer.setTiltShiftEnabled(false);
+    // Distance fog is tuned for play, where pulling the camera back deliberately tightens the band
+    // so the map dissolves at its edges (`fog.far *= zoom ** CAMERA.fogFar`, scene.ts). That is the
+    // opposite of what authoring needs: zooming out is how an author inspects the whole map, and it
+    // was hiding exactly the detail they pulled back to see. Off for the whole session.
+    renderer.setFogEnabled(false);
     // L’auteur doit toujours distinguer matières, raccords et aperçus, quelle que soit la phase
     // propre à la map. Seul le test complet peut ensuite choisir explicitement jour ou nuit.
     renderer.setDayCycleOverride("day");

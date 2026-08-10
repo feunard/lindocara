@@ -23,6 +23,7 @@ const mock = vi.hoisted(() => {
     setEditorOverlay: vi.fn(),
     setEditorPreviewAsset: vi.fn(),
     setDayCycleOverride: vi.fn(),
+    setFogEnabled: vi.fn(),
     setTiltShiftEnabled: vi.fn(),
   };
   return {
@@ -80,6 +81,10 @@ describe("HD-2D map editor stage", () => {
     expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledWith(false);
     expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledOnce();
     expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledWith("day");
+    // Play tightens the fog band as the camera pulls back; authoring pulls back precisely to see
+    // more, so the stage turns it off for the session.
+    expect(mock.renderer.setFogEnabled).toHaveBeenCalledOnce();
+    expect(mock.renderer.setFogEnabled).toHaveBeenCalledWith(false);
 
     expect(mock.renderer.configureMapTerrain).toHaveBeenCalledWith(
       "editor",

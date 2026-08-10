@@ -609,6 +609,7 @@ export class Hd2dRenderer implements RendererLike {
   #selfId: string | null = null;
   #manualFocus: GroundVector | null = null;
   #tiltShiftEnabled = true;
+  #fogEnabled = true;
   #cameraZoom = 100;
   #cameraYaw = 0;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
@@ -703,6 +704,7 @@ export class Hd2dRenderer implements RendererLike {
     scene.setZoom(this.#cameraZoom);
     scene.setYaw(this.#cameraYaw);
     scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
+    scene.setFogEnabled(this.#fogEnabled);
     if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     this.#map = heightfield;
     this.#visuals = new Hd2dVisualLayer(
@@ -1738,6 +1740,11 @@ export class Hd2dRenderer implements RendererLike {
   }
 
   /** Keeps gameplay's tilt-shift by default while allowing the authoring stage to stay crisp. */
+  setFogEnabled(enabled: boolean): void {
+    this.#fogEnabled = enabled;
+    this.#scene?.setFogEnabled(enabled);
+  }
+
   setTiltShiftEnabled(enabled: boolean): void {
     this.#tiltShiftEnabled = enabled;
     this.#scene?.setTiltShiftEnabled(enabled);
