@@ -524,6 +524,12 @@ function AdventureEditorInner({
   > | null>(null);
   // Bumped after every save/create so the map panel refetches names and dimensions.
   const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
+  // One session swap at a time. Both File → New adventure and File → Open replace the whole session
+  // asynchronously, and neither can afford to lose a race: two New invocations before the first POST
+  // resolves mint two adventures (nothing ever cleans an abandoned scratch up), and a New POST that
+  // resolves after an Open silently discards the adventure the author explicitly chose. A single
+  // latch across both is the coherent guard — whichever swap started first is the one that lands.
+  const swappingSessionRef = useRef(false);
 
   function openHelp(section: EditorHelpSection = "start"): void {
     setHelpSection(section);
@@ -540,13 +546,14 @@ function AdventureEditorInner({
   // unsaved edits first, then swap the session — a new adventureId remounts this component (it is
   // keyed by it), resetting every room-local editor state cleanly.
   function loadAdventure(id: string): void {
-    if (savingMapRef.current) return;
+    if (savingMapRef.current || swappingSessionRef.current) return;
     if (id === adventureId) {
       setLoadOpen(false);
       return;
     }
     if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
     setError(null);
+    swappingSessionRef.current = true;
     void (async () => {
       try {
         const loaded = await loadAdventureSession(id);
@@ -554,6 +561,8 @@ function AdventureEditorInner({
         setLoadOpen(false);
       } catch (caught) {
         fail(caught);
+      } finally {
+        swappingSessionRef.current = false;
       }
     })();
   }
@@ -562,14 +571,17 @@ function AdventureEditorInner({
   // scratch. `AdventureEditorInner` is keyed by `adventureId`, so this remounts every room-local
   // editor state cleanly rather than leaking the previous adventure's stage.
   function newAdventure(): void {
-    if (savingMapRef.current) return;
+    if (savingMapRef.current || swappingSessionRef.current) return;
     if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
     setError(null);
+    swappingSessionRef.current = true;
     void (async () => {
       try {
         setSession(await ensureScratchAdventure());
       } catch (caught) {
         fail(caught);
+      } finally {
+        swappingSessionRef.current = false;
       }
     })();
   }
