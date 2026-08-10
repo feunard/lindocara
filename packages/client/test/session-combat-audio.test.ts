@@ -87,16 +87,16 @@ describe("session combat audio", () => {
     expect(combat.currentTime).toBe(7);
   });
 
-  it.each([
-    "combat.hit",
-    "combat.hurt",
-  ] satisfies EventCode[])("starts combat music from the confirmed %s event", (code) => {
-    const { session } = harness();
+  it.each(["combat.hit", "combat.hurt"] satisfies EventCode[])(
+    "starts combat music from the confirmed %s event",
+    (code) => {
+      const { session } = harness();
 
-    session.confirmedEvent(code);
+      session.confirmedEvent(code);
 
-    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/boss_1.mp3");
-  });
+      expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/boss_1.mp3");
+    },
+  );
 
   it("absorbs a transient missing threat and returns to retained exploration after a real end", () => {
     const { session, sound } = harness();

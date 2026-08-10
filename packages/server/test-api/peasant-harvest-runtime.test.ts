@@ -344,44 +344,47 @@ describe("tick-driven Peasant harvest jobs", () => {
     ["iron", "pickaxe", 2, 4, 0],
     ["gold", "pickaxe", 2, 0, 25],
     ["meat", "knife", 3, 4, 0],
-  ] as const)("maps %s only to the %s tool and anchors its target at the visible foot", (resource, tool, expectedSlot, yieldAmount, goldValue) => {
-    const authoredProfile = profile({
-      resource,
-      tool,
-      yieldAmount,
-      goldValue,
-      harvestDurationMs: 0,
-    });
-    const value = runtime(0, {
-      nodes: [
-        {
-          id: EVENT_ID,
-          col: 1,
-          row: 0,
-          profile: authoredProfile,
-        },
-      ],
-    });
-    const wrongSlot = expectedSlot === 1 ? 2 : 1;
-    resolveTool(value.w, wrongSlot);
-    expect(value.w.state.harvestJobs.has(HERO_ID)).toBe(false);
+  ] as const)(
+    "maps %s only to the %s tool and anchors its target at the visible foot",
+    (resource, tool, expectedSlot, yieldAmount, goldValue) => {
+      const authoredProfile = profile({
+        resource,
+        tool,
+        yieldAmount,
+        goldValue,
+        harvestDurationMs: 0,
+      });
+      const value = runtime(0, {
+        nodes: [
+          {
+            id: EVENT_ID,
+            col: 1,
+            row: 0,
+            profile: authoredProfile,
+          },
+        ],
+      });
+      const wrongSlot = expectedSlot === 1 ? 2 : 1;
+      resolveTool(value.w, wrongSlot);
+      expect(value.w.state.harvestJobs.has(HERO_ID)).toBe(false);
 
-    value.player.action = null;
-    resolveTool(value.w, expectedSlot);
-    const collider = harvestColliderAt(authoredProfile, 1, 0, "intact");
-    if (!collider) throw new Error("tool fixture collider missing");
-    expect(value.w.state.harvestJobs.get(HERO_ID)).toMatchObject({
-      slot: expectedSlot,
-      tool,
-      // The authored pixel rectangle's centre, shifted onto the grid-centred tile plane exactly
-      // as `authoredRect` shifts it: `a()` on the corner (an origin moves), a plain divide on the
-      // extent (a length carries no origin).
-      areaCenter: {
-        x: a(collider.x) + collider.width / TILE_SIZE / 2,
-        z: a(collider.y) + collider.height / TILE_SIZE / 2,
-      },
-    });
-  });
+      value.player.action = null;
+      resolveTool(value.w, expectedSlot);
+      const collider = harvestColliderAt(authoredProfile, 1, 0, "intact");
+      if (!collider) throw new Error("tool fixture collider missing");
+      expect(value.w.state.harvestJobs.get(HERO_ID)).toMatchObject({
+        slot: expectedSlot,
+        tool,
+        // The authored pixel rectangle's centre, shifted onto the grid-centred tile plane exactly
+        // as `authoredRect` shifts it: `a()` on the corner (an origin moves), a plain divide on the
+        // extent (a length carries no origin).
+        areaCenter: {
+          x: a(collider.x) + collider.width / TILE_SIZE / 2,
+          z: a(collider.y) + collider.height / TILE_SIZE / 2,
+        },
+      });
+    },
+  );
 
   it("keeps the first job per hero and commits only at harvestDurationMs (including zero)", async () => {
     const delayed = runtime();
@@ -692,60 +695,60 @@ describe("tick-driven Peasant harvest jobs", () => {
     expect(value.w.state.harvestJobs.size).toBe(0);
   });
 
-  it.each([
-    "movement",
-    "disconnect",
-  ] as const)("stops remaining area targets after %s", async (interruption) => {
-    const talents = [
-      "peasant.woodcutters_swing.bounty",
-      "peasant.woodcutters_swing.readiness",
-      "peasant.woodcutters_swing.reach",
-      "peasant.woodcutters_swing.sweeping_fell",
-    ];
-    const nodes = [
-      {
-        id: EVENT_ID,
-        col: 1,
-        row: 0,
-        profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
-      },
-      {
-        id: EVENT_B,
-        col: 0,
-        row: 1,
-        profile: profile({
-          hitsRequired: 1,
-          harvestDurationMs: 0,
-          collision: AREA_SECONDARY_COLLISION,
-        }),
-      },
-    ];
-    const value = runtime(0, { talents, nodes });
-    const originalHit = value.w.deps.hitHarvestNode;
-    let interrupted = false;
-    value.w.deps.hitHarvestNode = async (request, resource) => {
-      const result = await originalHit(request, resource);
-      if (!interrupted) {
-        interrupted = true;
-        if (interruption === "movement") value.player.x += ONE_PIXEL;
-        else {
-          value.w.state.players.delete("connection");
-          value.w.state.connectionIdByHeroId.delete(HERO_ID);
+  it.each(["movement", "disconnect"] as const)(
+    "stops remaining area targets after %s",
+    async (interruption) => {
+      const talents = [
+        "peasant.woodcutters_swing.bounty",
+        "peasant.woodcutters_swing.readiness",
+        "peasant.woodcutters_swing.reach",
+        "peasant.woodcutters_swing.sweeping_fell",
+      ];
+      const nodes = [
+        {
+          id: EVENT_ID,
+          col: 1,
+          row: 0,
+          profile: profile({ hitsRequired: 1, harvestDurationMs: 0 }),
+        },
+        {
+          id: EVENT_B,
+          col: 0,
+          row: 1,
+          profile: profile({
+            hitsRequired: 1,
+            harvestDurationMs: 0,
+            collision: AREA_SECONDARY_COLLISION,
+          }),
+        },
+      ];
+      const value = runtime(0, { talents, nodes });
+      const originalHit = value.w.deps.hitHarvestNode;
+      let interrupted = false;
+      value.w.deps.hitHarvestNode = async (request, resource) => {
+        const result = await originalHit(request, resource);
+        if (!interrupted) {
+          interrupted = true;
+          if (interruption === "movement") value.player.x += ONE_PIXEL;
+          else {
+            value.w.state.players.delete("connection");
+            value.w.state.connectionIdByHeroId.delete(HERO_ID);
+          }
+          cancelPeasantHarvestJob(value.w.state.harvestJobs, HERO_ID);
         }
-        cancelPeasantHarvestJob(value.w.state.harvestJobs, HERO_ID);
-      }
-      return result;
-    };
+        return result;
+      };
 
-    resolveAxe(value.w);
-    expect(value.w.state.harvestJobs.get(HERO_ID)?.targets).toHaveLength(2);
-    advancePeasantHarvestJobs(value.w, NOW);
-    await Promise.all(value.pending);
+      resolveAxe(value.w);
+      expect(value.w.state.harvestJobs.get(HERO_ID)?.targets).toHaveLength(2);
+      advancePeasantHarvestJobs(value.w, NOW);
+      await Promise.all(value.pending);
 
-    expect(value.calls.reserveRequests.map((request) => request.eventId)).toEqual([EVENT_ID]);
-    expect(value.calls.hitRequests.map((request) => request.eventId)).toEqual([EVENT_ID]);
-    expect(value.w.state.harvestJobs.size).toBe(0);
-  });
+      expect(value.calls.reserveRequests.map((request) => request.eventId)).toEqual([EVENT_ID]);
+      expect(value.calls.hitRequests.map((request) => request.eventId)).toEqual([EVENT_ID]);
+      expect(value.w.state.harvestJobs.size).toBe(0);
+    },
+  );
 
   it("serializes two Peasants across separate target reservations without double credit", async () => {
     const talents = [

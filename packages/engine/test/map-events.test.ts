@@ -746,59 +746,55 @@ describe("harvestable map events", () => {
       wrongAsset: "resource.terrain-resources-gold-gold-stones.gold-stone-6" as const,
       correctedAsset: "resource.terrain-resources-gold-gold-resource.gold-resource" as const,
     },
-  ])("normalizes the legacy $label gold preset timing and swapped appearance on read", ({
-    goldValue,
-    hitsRequired,
-    oldDuration,
-    fadeDurationMs,
-    wrongAsset,
-    correctedAsset,
-  }) => {
-    const legacyGold: HarvestProfile = {
-      resource: "gold",
-      tool: "pickaxe",
-      yieldAmount: 0,
-      goldValue,
-      hitsRequired,
-      range: 88,
-      harvestDurationMs: oldDuration,
-      exhaustedAssetId: null,
-      exhaustionBehavior: "fade",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs,
-    };
-    const resource = event({
-      kind: "harvestable",
-      name: "Legacy gold",
-      harvestProfile: legacyGold,
-      pages: [page({ graphicAssetId: wrongAsset })],
-    });
-    const parsed = parseMapEvents([resource], COLS, ROWS)?.[0];
+  ])(
+    "normalizes the legacy $label gold preset timing and swapped appearance on read",
+    ({ goldValue, hitsRequired, oldDuration, fadeDurationMs, wrongAsset, correctedAsset }) => {
+      const legacyGold: HarvestProfile = {
+        resource: "gold",
+        tool: "pickaxe",
+        yieldAmount: 0,
+        goldValue,
+        hitsRequired,
+        range: 88,
+        harvestDurationMs: oldDuration,
+        exhaustedAssetId: null,
+        exhaustionBehavior: "fade",
+        respawn: "permanent",
+        respawnDelayMs: 0,
+        fadeDurationMs,
+      };
+      const resource = event({
+        kind: "harvestable",
+        name: "Legacy gold",
+        harvestProfile: legacyGold,
+        pages: [page({ graphicAssetId: wrongAsset })],
+      });
+      const parsed = parseMapEvents([resource], COLS, ROWS)?.[0];
 
-    expect(parsed?.harvestProfile).toMatchObject({
-      goldValue,
-      hitsRequired,
-      harvestDurationMs: 0,
-      collision: {
-        intact: DEFAULT_HARVEST_COLLISIONS.gold.intact,
-        depleted: null,
-      },
-    });
-    expect(parsed?.pages[0]?.graphicAssetId).toBe(correctedAsset);
-
-    const alreadyCorrect = parseMapEvents(
-      [
-        {
-          ...resource,
-          pages: [page({ graphicAssetId: correctedAsset })],
+      expect(parsed?.harvestProfile).toMatchObject({
+        goldValue,
+        hitsRequired,
+        harvestDurationMs: 0,
+        collision: {
+          intact: DEFAULT_HARVEST_COLLISIONS.gold.intact,
+          depleted: null,
         },
-      ],
-      COLS,
-      ROWS,
-    )?.[0];
-    expect(alreadyCorrect?.pages[0]?.graphicAssetId).toBe(correctedAsset);
-  });
+      });
+      expect(parsed?.pages[0]?.graphicAssetId).toBe(correctedAsset);
+
+      const alreadyCorrect = parseMapEvents(
+        [
+          {
+            ...resource,
+            pages: [page({ graphicAssetId: correctedAsset })],
+          },
+        ],
+        COLS,
+        ROWS,
+      )?.[0];
+      expect(alreadyCorrect?.pages[0]?.graphicAssetId).toBe(correctedAsset);
+    },
+  );
 
   it("preserves a custom legacy gold appearance outside the exact swapped pair", () => {
     const legacyGold: HarvestProfile = {

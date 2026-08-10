@@ -309,28 +309,28 @@ describe("server displacement vs. in-flight client reports", () => {
     engine.dispose();
   });
 
-  test.each([
-    "transitioning",
-    "disconnecting",
-  ] as const)("a hero that is %s cannot overwrite the position already chosen by the room", async (flag) => {
-    const prefix = flag === "transitioning" ? "transit" : "disconn";
-    const { userId, roomId, heroId } = await newPlayableHero(prefix);
-    activeClock = new FakeClock();
-    const engine = createEngine(roomId, activeClock);
-    const socket = fakeSocket(userId, heroId);
-    await engine.join(socket);
-    const player = runtimePlayer(engine, heroId);
-    const before = { x: player.x, y: player.y, z: player.z };
-    player[flag] = true;
+  test.each(["transitioning", "disconnecting"] as const)(
+    "a hero that is %s cannot overwrite the position already chosen by the room",
+    async (flag) => {
+      const prefix = flag === "transitioning" ? "transit" : "disconn";
+      const { userId, roomId, heroId } = await newPlayableHero(prefix);
+      activeClock = new FakeClock();
+      const engine = createEngine(roomId, activeClock);
+      const socket = fakeSocket(userId, heroId);
+      await engine.join(socket);
+      const player = runtimePlayer(engine, heroId);
+      const before = { x: player.x, y: player.y, z: player.z };
+      player[flag] = true;
 
-    await engine.message(
-      socket.id,
-      move(before.x + 1, before.y, before.z, currentStamp(socket).seq),
-    );
+      await engine.message(
+        socket.id,
+        move(before.x + 1, before.y, before.z, currentStamp(socket).seq),
+      );
 
-    expect({ x: player.x, y: player.y, z: player.z }).toEqual(before);
-    engine.dispose();
-  });
+      expect({ x: player.x, y: player.y, z: player.z }).toEqual(before);
+      engine.dispose();
+    },
+  );
 
   test("a ghost release is not undone by a move frame that predates it", async () => {
     const { userId, roomId, heroId } = await newPlayableHero("release");

@@ -33,18 +33,12 @@ describe("zone catalogue", () => {
     expect(parseRoomKey("verdant-reach:main:extra")).toBeNull();
   });
 
-  it.each([
-    "",
-    "Main",
-    "main:two",
-    "main/two",
-    "main_two",
-    "-main",
-    "main-",
-    "a".repeat(33),
-  ])("rejects an invalid instance id %j", (instanceId) => {
-    expect(isValidInstanceId(instanceId)).toBe(false);
-  });
+  it.each(["", "Main", "main:two", "main/two", "main_two", "-main", "main-", "a".repeat(33)])(
+    "rejects an invalid instance id %j",
+    (instanceId) => {
+      expect(isValidInstanceId(instanceId)).toBe(false);
+    },
+  );
 
   // New contract: a room id is any non-empty string <=64 chars now (a map is a D1 row with a
   // uuid id nobody can enumerate), so `resolveZoneLocation` no longer rejects an unknown zoneId —
@@ -61,15 +55,12 @@ describe("zone catalogue", () => {
     });
   });
 
-  it.each([
-    "",
-    "a".repeat(65),
-    42,
-    null,
-    undefined,
-  ])("still rejects a structurally invalid zone id (%j)", (zoneId) => {
-    expect(resolveZoneLocation(zoneId, "main")).toBeNull();
-  });
+  it.each(["", "a".repeat(65), 42, null, undefined])(
+    "still rejects a structurally invalid zone id (%j)",
+    (zoneId) => {
+      expect(resolveZoneLocation(zoneId, "main")).toBeNull();
+    },
+  );
 
   // A zoneId is wire data now, not a lookup key into a compiled-in catalogue: `parseServerMessage`
   // accepts an unrecognised one (see test/protocol.test.ts's pin), so `zoneDefinition` is the last

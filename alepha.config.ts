@@ -11,7 +11,10 @@ export default defineConfig({
       // `@alepha/pulse-client` until the package was renamed upstream — the old
       // name no longer resolves, so vendoring it fails outright rather than
       // quietly shipping a stale copy.
-      packages: ["alepha", "@alepha/sigil"],
+      // `@alepha/ui` is the shared shadcn/Base-UI component library. It replaces the project's own
+      // `packages/ui` copy: same `@base-ui/react` major, maintained upstream, and it carries
+      // components that copy never had (`segmented`, `sidebar`, `combobox`, …).
+      packages: ["alepha", "@alepha/sigil", "@alepha/ui"],
       remote: "file:///Users/nfo/git/alepha",
     }),
     () => ({

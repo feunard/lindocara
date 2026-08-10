@@ -108,19 +108,22 @@ describe("state/atoms", () => {
       "an unknown consumable id smuggled into a real slot",
       JSON.stringify(["not_a_real_item", null, null]),
     ],
-  ])("quickItemsAtom discards a corrupted persisted value (%s) and falls back to the default", async (_case, raw) => {
-    localStorage.setItem("lindocara.quickItems", raw);
-    const { alepha } = await renderWithAlepha(<div />);
-    alephaInstances.push(alepha);
+  ])(
+    "quickItemsAtom discards a corrupted persisted value (%s) and falls back to the default",
+    async (_case, raw) => {
+      localStorage.setItem("lindocara.quickItems", raw);
+      const { alepha } = await renderWithAlepha(<div />);
+      alephaInstances.push(alepha);
 
-    expect(alepha.store.get(quickItemsAtom)).toEqual([
-      "health_potion",
-      "mana_potion",
-      "invisibility_potion",
-    ]);
-    // The bad key is discarded, not left behind to keep re-failing on every later read.
-    expect(localStorage.getItem("lindocara.quickItems")).toBeNull();
-  });
+      expect(alepha.store.get(quickItemsAtom)).toEqual([
+        "health_potion",
+        "mana_potion",
+        "invisibility_potion",
+      ]);
+      // The bad key is discarded, not left behind to keep re-failing on every later read.
+      expect(localStorage.getItem("lindocara.quickItems")).toBeNull();
+    },
+  );
 
   it("questTrackingAtom defaults to an empty record and round-trips per-quest overrides", async () => {
     const { alepha } = await renderWithAlepha(<div />);

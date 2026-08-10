@@ -92,19 +92,18 @@ describe("authoritative combat visual cancellation", () => {
     expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
   });
 
-  it.each([
-    "death",
-    "transition",
-    "reconnection",
-  ])("never restores action-a after cancellation by %s", (reason) => {
-    const authority = new CombatVisualAuthority();
-    authority.recordSnapshot("player-a", "action-a");
-    authority.cancel("action-a");
-    authority.recordSnapshot("player-a", null);
-    if (reason !== "death") authority.clearSnapshots();
-    expect(authority.acceptsAnimation("player-a", "action-a")).toBe(false);
-    expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
-  });
+  it.each(["death", "transition", "reconnection"])(
+    "never restores action-a after cancellation by %s",
+    (reason) => {
+      const authority = new CombatVisualAuthority();
+      authority.recordSnapshot("player-a", "action-a");
+      authority.cancel("action-a");
+      authority.recordSnapshot("player-a", null);
+      if (reason !== "death") authority.clearSnapshots();
+      expect(authority.acceptsAnimation("player-a", "action-a")).toBe(false);
+      expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
+    },
+  );
 
   it("does not couple actor cancellation to authoritative projectile snapshots", () => {
     const authority = new CombatVisualAuthority();

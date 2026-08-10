@@ -160,26 +160,25 @@ describe("AdventureEditorScreen scratch entry", () => {
   // the retired hand-rolled Worker's spellings, kept only so an old response shape still reads as a
   // dead session. Both are exercised: a guard that knew only the retired codes answered a REAL
   // expired session with a local error banner on top of the global `/auth` redirect.
-  it.each([
-    "UnauthorizedError",
-    "session_expired",
-    "unauthorized",
-  ])("shows no error banner when the session is dead (%s)", async (code) => {
-    const mock = vi.fn((url: string, init?: RequestInit) => {
-      if (url === "/api/adventures" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({ error: code }, 401));
-      }
-      return Promise.resolve(jsonResponse([], 200));
-    });
-    vi.stubGlobal("fetch", mock);
+  it.each(["UnauthorizedError", "session_expired", "unauthorized"])(
+    "shows no error banner when the session is dead (%s)",
+    async (code) => {
+      const mock = vi.fn((url: string, init?: RequestInit) => {
+        if (url === "/api/adventures" && init?.method === "POST") {
+          return Promise.resolve(jsonResponse({ error: code }, 401));
+        }
+        return Promise.resolve(jsonResponse([], 200));
+      });
+      vi.stubGlobal("fetch", mock);
 
-    const { alepha } = await mountScreen();
-    alephaInstances.push(alepha);
+      const { alepha } = await mountScreen();
+      alephaInstances.push(alepha);
 
-    await waitFor(() => expect(mock).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: t("editor.retry") })).toBeNull();
-    expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
-  });
+      await waitFor(() => expect(mock).toHaveBeenCalled());
+      expect(screen.queryByRole("button", { name: t("editor.retry") })).toBeNull();
+      expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
+    },
+  );
 
   // The dirty guard's two directions are covered where the stage (and therefore a dirty edit) can be
   // faked: declined in `editor-shell.test.tsx`'s "guards File → New adventure with the dirty

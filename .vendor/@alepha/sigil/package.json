@@ -23,21 +23,24 @@
       "default": "./src/index.ts"
     },
     "./server": "./src/server/index.ts",
+    "./ingest": "./src/ingest/index.ts",
     "./react": "./src/browser/react.ts",
     "./messages": "./src/shared/sigilMessages.ts",
     "./context": "./src/shared/sigilFeedbackContext.ts",
+    "./feedback-position": "./src/shared/sigilFeedbackPosition.ts",
     "./vitals": "./src/shared/schemas/sigilVitalsBuckets.ts",
     "./fingerprint": "./src/shared/sigilFingerprint.ts",
     "./envelope": "./src/shared/schemas/sigilEnvelope.ts",
     "./config": "./src/shared/schemas/sigilConfig.ts",
-    "./paths": "./src/shared/sigilPaths.ts"
+    "./paths": "./src/shared/sigilPaths.ts",
+    "./scrub": "./src/shared/sigilScrubUrl.ts"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "alepha": "0.25.0",
+    "alepha": "0.25.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tsdown": "^0.22.14",
@@ -45,7 +48,7 @@
     "vitest": "^4.1.10"
   },
   "peerDependencies": {
-    "alepha": "0.25.0",
+    "alepha": "0.25.1",
     "react": "*",
     "react-dom": "*"
   },

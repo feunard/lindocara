@@ -102,21 +102,23 @@ describe("interest radii, in tile units", () => {
     ["CORPSE_RECLAIM_RANGE", CORPSE_RECLAIM_RANGE],
   ] as const;
 
-  it.each(
-    GROUND_DISTANCE_CONSTANTS,
-  )("keeps %s inside a grid a map could actually have", (_name, value) => {
-    expect(value).toBeLessThanOrEqual(MAX_HEIGHTFIELD_SIZE);
-    expect(value).toBeGreaterThan(0);
-  });
+  it.each(GROUND_DISTANCE_CONSTANTS)(
+    "keeps %s inside a grid a map could actually have",
+    (_name, value) => {
+      expect(value).toBeLessThanOrEqual(MAX_HEIGHTFIELD_SIZE);
+      expect(value).toBeGreaterThan(0);
+    },
+  );
 
-  it.each(
-    GROUND_DISTANCE_CONSTANTS,
-  )("keeps %s below the tighter tile-unit sanity ceiling", (_name, value) => {
-    // The real map bound above is 256, but that admits pixel-era values such as 3 * 64 = 192.
-    // Requiring every gameplay radius to stay below one legacy tile in raw pixels catches that
-    // defect class while the exact assertions above continue to pin today's balance values.
-    expect(value).toBeLessThan(TILE_SIZE);
-  });
+  it.each(GROUND_DISTANCE_CONSTANTS)(
+    "keeps %s below the tighter tile-unit sanity ceiling",
+    (_name, value) => {
+      // The real map bound above is 256, but that admits pixel-era values such as 3 * 64 = 192.
+      // Requiring every gameplay radius to stay below one legacy tile in raw pixels catches that
+      // defect class while the exact assertions above continue to pin today's balance values.
+      expect(value).toBeLessThan(TILE_SIZE);
+    },
+  );
 
   it("pins the dialogue walk-away radius absolutely, not against itself", () => {
     // Three TILES. It was `3 * TILE_SIZE` — a pixel length — long after the two comparisons that

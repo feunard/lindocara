@@ -6,6 +6,7 @@ import {
   Alepha,
   AlephaError,
   coerceObject,
+  MIDDLEWARE_PROTECTED,
   OPTIONS,
   PipelineHandler,
   type ZType,
@@ -101,8 +102,6 @@ export class ReactPageProvider {
           hasNotFoundHandler = true;
         }
 
-        this.warnIfGuardedBySecure(page);
-
         // skip children, we only want root pages
         if (hasParent(page)) {
           continue;
@@ -124,40 +123,6 @@ export class ReactPageProvider {
       }
     },
   });
-
-  /**
-   * Warn when a page is guarded with `$secure`, which does less than it looks.
-   *
-   * `$secure` is a *handler* middleware: on a page it wraps the `loader`, and its
-   * browser implementation short-circuits by returning `undefined` rather than
-   * throwing. So an unauthorised visitor does not get bounced — the loader is
-   * skipped and **the page renders anyway**, with whatever an empty props object
-   * produces. On a back office that means the entire shell, navigation and all,
-   * over empty tables whose requests each answer 401.
-   *
-   * That is defensible behaviour for an API middleware reused on a page, and it is
-   * indefensible as a silent one: `use: [$secure(...)]` reads exactly like a
-   * guard. So say so once, at boot, and name the alternative.
-   *
-   * A warning rather than an error, because the combination is not wrong — a page
-   * may legitimately want its loader skipped for anonymous visitors while still
-   * rendering. It is only wrong when mistaken for access control.
-   */
-  protected warnIfGuardedBySecure(page: PagePrimitive): void {
-    const guard = page.options.use?.find(
-      (middleware) => (middleware as any)[OPTIONS]?.name === "$secure",
-    );
-
-    if (!guard) {
-      return;
-    }
-
-    this.log.warn(
-      `Page '${page.options.path}' uses $secure, which does not prevent it from rendering. ` +
-        "$secure wraps the loader and skips it for an unauthorised visitor, so the page still renders without its data. " +
-        "To turn a visitor away, throw Redirection from the loader instead; keep $secure on the endpoints underneath, which is what enforces the permission.",
-    );
-  }
 
   // -------------------------------------------------------------------------------------------------------------------
 
@@ -469,32 +434,7 @@ export class ReactPageProvider {
           : await terminal(args);
 
         if (!reached) {
-          // A page guard (e.g. $secure) denied access. Distinguish the two
-          // cases so the flow is right:
-          //  - not authenticated (401) → redirect to the login page,
-          //    resolved by the conventional `name: "login"`, carrying the
-          //    blocked URL as `?redirect=` so login can return the user.
-          //  - authenticated but not allowed (403) → a forbidden error;
-          //    redirecting a logged-in user to login would just loop.
-          const user = this.alepha.store.get(currentUserAtom);
-
-          if (!user) {
-            const login = this.findRoute("login");
-            if (login?.match && !/[:*]/.test(login.match)) {
-              const back = encodeURIComponent(
-                state.url.pathname + state.url.search,
-              );
-              return { redirect: `${login.match}?redirect=${back}` };
-            }
-          }
-
-          const denied = new AlephaError(
-            user
-              ? "You do not have permission to access this page."
-              : "Authentication required.",
-          );
-          (denied as { status?: number }).status = user ? 403 : 401;
-          throw denied;
+          return this.denyGuardedPage(state.url);
         }
 
         // save props
@@ -521,6 +461,23 @@ export class ReactPageProvider {
         break;
       }
     }
+
+    // A route that opts out of SSR emits no HTML for its whole chain — the
+    // root layer is wrapped in `ClientOnly` below. So on the server there is
+    // nothing to gain from importing any layer's component, and quite a lot to
+    // lose: `createElement` awaits `page.lazy()`, which pulls that page's
+    // entire module graph into the server runtime for an element that is then
+    // thrown away.
+    //
+    // On Node that is only wasted memory. On Cloudflare Workers it took Lore's
+    // folio route down in production: importing MDXEditor + Lexical server-side
+    // exceeded the isolate's ceiling, killing it mid-stream — the client got
+    // the early-head flush and nothing else, then the error boundary. It never
+    // reproduced in dev or under `node dist`, because neither is workerd.
+    //
+    // Loaders are untouched. They ran in the loop above and their props are
+    // what the client hydrates from; only the component import is skipped.
+    const skipComponents = !this.alepha.isBrowser() && !this.isSSR(route);
 
     let acc = "";
     for (let i = 0; i < stack.length; i++) {
@@ -551,18 +508,20 @@ export class ReactPageProvider {
       // normal use case
       if (!it.error) {
         try {
-          const element = await this.createElement(
-            it.route,
-            {
-              // default props attached to page
-              ...(it.route.props ? it.route.props() : {}),
-              // resolved props
-              ...props,
-              // context props (from previous layers)
-              ...context,
-            },
-            state.url,
-          );
+          const element = skipComponents
+            ? undefined
+            : await this.createElement(
+                it.route,
+                {
+                  // default props attached to page
+                  ...(it.route.props ? it.route.props() : {}),
+                  // resolved props
+                  ...props,
+                  // context props (from previous layers)
+                  ...context,
+                },
+                state.url,
+              );
 
           state.layers.push({
             name: it.route.name,
@@ -785,11 +744,78 @@ export class ReactPageProvider {
   }
 
   /**
-   * Resolve the effective `ssr` value for a route by walking up the parent
-   * chain. Returns the nearest explicit `ssr` value, defaulting to `true`.
+   * Outcome for a page whose `use` chain refused to call the loader.
    *
-   * The decision is made at the leaf: a parent's `ssr` only acts as a default
-   * for descendants that did not set their own value.
+   * A guard middleware denies by short-circuiting — `$secure` returns
+   * `undefined` in the browser rather than throwing, so the signal is "next was
+   * never called", not the value that came back. Both the browser navigation
+   * path and the server render path funnel here so a denial means the same
+   * thing whichever way the page was reached.
+   *
+   * The two cases are deliberately different:
+   *  - not authenticated (401) → redirect to the login page, resolved by the
+   *    conventional `name: "login"`, carrying the blocked URL as `?redirect=`
+   *    so login can return the user.
+   *  - authenticated but not allowed (403) → a forbidden error; redirecting a
+   *    logged-in user to login would just loop.
+   *
+   * Throws when there is no usable `login` route to send an anonymous visitor
+   * to — a page that cannot be entered and cannot redirect is an error, not a
+   * blank render.
+   */
+  public denyGuardedPage(url: URL): { redirect: string } {
+    const user = this.alepha.store.get(currentUserAtom);
+
+    if (!user) {
+      const login = this.findRoute("login");
+      if (login?.match && !/[:*]/.test(login.match)) {
+        const back = encodeURIComponent(url.pathname + url.search);
+        return { redirect: `${login.match}?redirect=${back}` };
+      }
+    }
+
+    const denied = new AlephaError(
+      user
+        ? "You do not have permission to access this page."
+        : "Authentication required.",
+    );
+    (denied as { status?: number }).status = user ? 403 : 401;
+    throw denied;
+  }
+
+  /**
+   * Resolve the effective `ssr` value for a route by walking up the parent
+   * chain. Returns the nearest explicit `ssr` value, and otherwise derives one
+   * from whether the page is behind a guard — defaulting to `true`.
+   *
+   * The decision is made at the leaf: a parent's value only acts as a default
+   * for descendants that did not decide for themselves.
+   *
+   * ## Why a guarded page defaults to CSR
+   *
+   * Server-rendering exists to hand HTML to something that will not run
+   * JavaScript — a crawler, a link unfurler, a slow first paint that should not
+   * wait on a bundle. A page behind a login wall has none of those readers:
+   * every visitor is authenticated, no crawler will ever see past the
+   * redirect, and the render costs CPU on every single request. On a per-request
+   * CPU budget (Cloudflare Workers) that is the difference between paying for a
+   * render nobody benefits from and not paying for it.
+   *
+   * It costs nothing in data: `ssr: false` still runs the loader on the server
+   * and serialises the result for hydration, so a CSR page makes no extra round
+   * trip — it only skips painting HTML.
+   *
+   * ## Precedence
+   *
+   * At each level of the walk: an explicit `ssr` wins outright; otherwise a
+   * guard at that level means CSR; otherwise keep walking. So a guarded layout
+   * puts its whole subtree in CSR, and any page can still opt back in with an
+   * explicit `ssr: true` — which is what a public marketing page nested under a
+   * guarded shell would do.
+   *
+   * The guard is recognised by the {@link MIDDLEWARE_PROTECTED} capability flag,
+   * never by middleware name, so an application's own auth middleware gets the
+   * same treatment as `$secure`.
    */
   public isSSR(route: PageRoute): boolean {
     let current: PageRoute | undefined = route;
@@ -797,9 +823,25 @@ export class ReactPageProvider {
       if (typeof current.ssr === "boolean") {
         return current.ssr;
       }
+      if (this.isProtected(current)) {
+        return false;
+      }
       current = current.parent;
     }
     return true;
+  }
+
+  /**
+   * Does this single route level carry a guard middleware?
+   *
+   * Only its own `use` — the caller walks the chain, so looking further here
+   * would double-count and make a child indistinguishable from its parent.
+   */
+  protected isProtected(route: PageRoute): boolean {
+    return (route.use ?? []).some(
+      (middleware) =>
+        middleware[OPTIONS]?.meta?.[MIDDLEWARE_PROTECTED] === "true",
+    );
   }
 
   protected map(

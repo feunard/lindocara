@@ -36,21 +36,22 @@ describe("collision baked from layers", () => {
     expect(kindAt(baked, 1, 1)).toBe("grass");
   });
 
-  it.each([
-    1, 2,
-  ] as const)("reads an impassable tile on authored layer %i as solid", (layerIndex) => {
-    const layers = grassField(4, 4);
-    layers[layerIndex] = paintAutotile(layers[layerIndex], TINY_SWORDS_TILESET, 3, 2, 2);
-    const baked = bakeCollision({
-      tilesetId: TINY_SWORDS_TILESET_ID,
-      cols: 4,
-      rows: 4,
-      layers,
-      elements: [],
-      spawn: { col: 0, row: 0 },
-    });
-    expect(kindAt(baked, 2, 2)).toBe("forest");
-  });
+  it.each([1, 2] as const)(
+    "reads an impassable tile on authored layer %i as solid",
+    (layerIndex) => {
+      const layers = grassField(4, 4);
+      layers[layerIndex] = paintAutotile(layers[layerIndex], TINY_SWORDS_TILESET, 3, 2, 2);
+      const baked = bakeCollision({
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        cols: 4,
+        rows: 4,
+        layers,
+        elements: [],
+        spawn: { col: 0, row: 0 },
+      });
+      expect(kindAt(baked, 2, 2)).toBe("forest");
+    },
+  );
 
   it("parses a wire payload and rejects a layer count that is not three", () => {
     const layers = grassField(20, 15);
