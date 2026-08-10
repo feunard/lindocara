@@ -133,6 +133,44 @@ transparent sheets:
 - `packages/client/public/assets/lindocara/hd2d/sea-guardian-swim.png`
 - `packages/client/public/assets/lindocara/hd2d/sea-guardian-attack.png`
 
+The directional references in `studio/pixel-art/refs/sea-guardian-up.png` and
+`studio/pixel-art/refs/sea-guardian-down.png` were created with Codex's built-in image generator
+(`imagegen`) from the original character reference and side-swim sheet. Prompts:
+
+> Use case: stylized-concept. Asset type: directional game-character reference for an HD-2D RPG
+> sprite pipeline. Preserve exactly the same scarred supernatural sea-guardian shark from the
+> supplied concept and swim references: dark blue-gray back, pale underside, tall scarred dorsal
+> fin, broad jaws, old pale scars and one luminous cyan eye. Show one complete shark directly from
+> above, swimming vertically toward the top of the image, nose at the top and tail at the bottom.
+> Center the full body with generous padding on a perfectly flat dark navy background. Keep a
+> powerful, compact, animation-friendly silhouette and simplified large colour shapes. No text,
+> watermark, water, foam, bubbles, scenery, shadow, border, extra creature, blood or gore.
+
+> Use case: stylized-concept. Asset type: directional game-character reference for an HD-2D RPG
+> sprite pipeline. Preserve exactly the same scarred supernatural sea-guardian shark from the
+> supplied concept and swim references: dark blue-gray back, pale underside, tall scarred dorsal
+> fin, broad jaws, old pale scars and one luminous cyan eye. Show one complete shark directly from
+> above, swimming vertically toward the bottom of the image, nose at the bottom and tail at the top.
+> Center the full body with generous padding on a perfectly flat dark navy background. Keep a
+> powerful, compact, animation-friendly silhouette and simplified large colour shapes. No text,
+> watermark, water, foam, bubbles, scenery, shadow, border, extra creature, blood or gore.
+
+The project-local FLUX.2-klein + Tiny Swords LoRA sprite lane then generated a three-pose vertical
+swim strip at 1024x256 with seed **93** from the upward reference:
+
+> one horizontal strip of exactly four equal square animation frames, the same shark in every
+> frame, swimming straight toward the top of the image as seen directly from above, tail sweeping
+> strongly left, centered, strongly right, centered, with a visibly curved body and distinct motion
+> in every frame; full body visible and centered inside each frame; perfectly flat dark navy
+> background; no water, no foam, no bubbles, no shadows, no text, no border, no frame separators
+
+The model produced three coherent source poses. `scripts/animation-sheet.py` normalizes them with
+the same sprite pipeline, assembles the `0,1,2,1` cadence, and rotates the strip 180 degrees for the
+opposite direction. The final transparent 4x256x256 sheets are:
+
+- `packages/client/public/assets/lindocara/hd2d/sea-guardian-swim-up.png`
+- `packages/client/public/assets/lindocara/hd2d/sea-guardian-swim-down.png`
+
 The project-local MOSS sound-effect lane generated the two mono 48 kHz PCM WAV files:
 
 - `sea-guardian-near.wav`, seed **91**, 10 s: "continuous ominous underwater pressure from a

@@ -148,6 +148,12 @@ function eventToolFor(
   harvestPresetId: HarvestPresetId,
   harvestGraphic: EditorAssetId,
 ): EditorTool {
+  if (eventKind === "sea-guardian")
+    return {
+      kind: "event",
+      eventKind,
+      presetName: t("editor.event.specialMonster.seaGuardian"),
+    };
   if (eventKind === "monster")
     return {
       kind: "event",

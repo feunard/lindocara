@@ -233,7 +233,18 @@ const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
 export const SEA_GUARDIAN_SWIM_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guardian-swim.png";
+export const SEA_GUARDIAN_SWIM_UP_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guardian-swim-up.png";
+export const SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL =
+  "/assets/lindocara/hd2d/sea-guardian-swim-down.png";
 export const SEA_GUARDIAN_ATTACK_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guardian-attack.png";
+
+/** Directional swim sheet; side-facing movement keeps the original mirrored profile. */
+export function seaGuardianSwimTextureUrl(facing: GroundVector): string {
+  const direction = facingOf(facing);
+  if (direction === "north") return SEA_GUARDIAN_SWIM_UP_TEXTURE_URL;
+  if (direction === "south") return SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL;
+  return SEA_GUARDIAN_SWIM_TEXTURE_URL;
+}
 
 /** True only while the held Lumen Step has replaced the Priest's body with its cloud. */
 export function isLumenStepClouded(
@@ -346,6 +357,8 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
     ]),
     HD2D_GLIDER_TEXTURE_URL,
     SEA_GUARDIAN_SWIM_TEXTURE_URL,
+    SEA_GUARDIAN_SWIM_UP_TEXTURE_URL,
+    SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL,
     SEA_GUARDIAN_ATTACK_TEXTURE_URL,
     HD2D_SPLASH_TEXTURE_URL,
     HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
@@ -1059,6 +1072,7 @@ export class Hd2dRenderer implements RendererLike {
     for (const guardian of sample.seaGuardians) {
       present.add(guardian.id);
       const attacking = guardian.state === "attack";
+      const facing = facingOf(guardian.facing);
       const attackStartedAt = this.#serverClock.toLocal(guardian.animationStartedAt);
       const attackDuration =
         guardian.animationEndsAt === null
@@ -1075,8 +1089,10 @@ export class Hd2dRenderer implements RendererLike {
         gliding: false,
         waterDepth: attacking ? 0.18 : 0.48,
         vy: 0,
-        facing: facingOf(guardian.facing),
-        textureKey: attacking ? SEA_GUARDIAN_ATTACK_TEXTURE_URL : SEA_GUARDIAN_SWIM_TEXTURE_URL,
+        facing,
+        textureKey: attacking
+          ? SEA_GUARDIAN_ATTACK_TEXTURE_URL
+          : seaGuardianSwimTextureUrl(guardian.facing),
         frames: 4,
         frameWidth: 256,
         frameHeight: 256,

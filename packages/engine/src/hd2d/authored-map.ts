@@ -51,6 +51,17 @@ function authoredMaterial(id: number): TerrainMaterial {
   return tile.kind === "autotile" ? materialOfSlot(tile.slot) : "herbe";
 }
 
+/** Whether an authored editor cell compiles to open water in the shipped heightfield. */
+export function isAuthoredWaterCell(
+  authored: Pick<AuthoredMapData, "cols" | "rows" | "layers">,
+  col: number,
+  row: number,
+): boolean {
+  if (col < 0 || row < 0 || col >= authored.cols || row >= authored.rows) return false;
+  const ground = authored.layers[0];
+  return authoredLevel(ground?.ids[row * authored.cols + col] ?? 0) === null;
+}
+
 /** The world-space ramp both committed stairs and the editor's pointer ghost use. */
 export function authoredStairsRamp(
   col: number,

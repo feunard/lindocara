@@ -905,7 +905,7 @@ describe("editor history", () => {
   });
 });
 
-describe("applyTool: functional event kinds (entry / exit / monster / guard / NPC / resource)", () => {
+describe("applyTool: functional event kinds", () => {
   const base = blankMap("m", 20, 15);
 
   it("places a harvestable with an explicit profile and an independent appearance", () => {
@@ -1025,6 +1025,40 @@ describe("applyTool: functional event kinds (entry / exit / monster / guard / NP
     ).not.toBeNull();
     expect(place(wet, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 3, 3)).not.toBeNull();
     expect(place(wet, { kind: "event", eventKind: "normal" }, 3, 3)).not.toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "sea-guardian" }, 3, 3)).not.toBeNull();
+  });
+
+  it("places exactly one sea guardian, only on water, and keeps moves in water", () => {
+    expect(place(base, { kind: "event", eventKind: "sea-guardian" }, 3, 3)).toBeNull();
+
+    const firstWet = place(base, { kind: "block", block: "water" }, 3, 3) as EditorMap;
+    const wet = place(firstWet, { kind: "block", block: "water" }, 4, 3) as EditorMap;
+    expect(placementLegalAt({ kind: "event", eventKind: "sea-guardian" }, wet, 3, 3, "event")).toBe(
+      true,
+    );
+    const placed = place(
+      wet,
+      {
+        kind: "event",
+        eventKind: "sea-guardian",
+        presetName: "Sea guardian",
+      },
+      3,
+      3,
+    ) as EditorMap;
+    const guardian = placed.events[0] as MapEvent;
+    expect(guardian).toMatchObject({
+      kind: "sea-guardian",
+      name: "Sea guardian",
+      species: null,
+      patrolRadius: null,
+      pages: [defaultEventPage()],
+    });
+    expect(place(placed, { kind: "event", eventKind: "sea-guardian" }, 4, 3)).toBeNull();
+    expect(moveSelection(placed, { kind: "event", id: guardian.id }, 5, 3)).toBeNull();
+    expect(moveSelection(placed, { kind: "event", id: guardian.id }, 4, 3)).toMatchObject({
+      events: [{ id: guardian.id, col: 4, row: 3, kind: "sea-guardian" }],
+    });
   });
 
   it("places a monster event carrying species and radius, and validates the radius", () => {

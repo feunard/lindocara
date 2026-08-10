@@ -1124,6 +1124,7 @@ export const en = {
   "editor.inspector.entry": "Entry",
   "editor.inspector.exit": "Exit",
   "editor.inspector.monster": "Monster spawn",
+  "editor.inspector.sea-guardian": "Special monster · Sea guardian",
   "editor.inspector.guard": "Allied guard",
   "editor.inspector.harvestable": "Harvestable resource",
   "editor.inspector.npc": "Free NPC",
@@ -1799,6 +1800,10 @@ export const en = {
     "No numeric counter exists yet — add one under Game → States and counters.",
   "editor.event.kind.heading": "Event kind",
   "editor.event.monsters.heading": "Monsters",
+  "editor.event.specialMonsters.heading": "Special monsters",
+  "editor.event.specialMonster.seaGuardian": "Sea guardian shark",
+  "editor.event.specialMonster.seaGuardian.description":
+    "Permanent and untargetable. Place one on water; it patrols that connected water and devours swimmers.",
   "editor.event.enemies.heading": "Enemies",
   "editor.event.enemies.description": "Use any creature or character appearance as an enemy.",
   "editor.event.kind.normal": "Custom event",
@@ -1806,6 +1811,7 @@ export const en = {
   "editor.event.kind.entry": "Entry",
   "editor.event.kind.exit": "Exit",
   "editor.event.kind.monster": "Monster",
+  "editor.event.kind.seaGuardian": "Special monster · Sea guardian",
   "editor.event.kind.guard": "Allied guard",
   "editor.event.kind.harvestable": "Harvestable resource",
   "editor.harvest.palette.heading": "Harvest profiles",
@@ -1870,6 +1876,8 @@ export const en = {
   "editor.element.decorativeOnly.body":
     "Placing a tree, ore or meat asset here only decorates the map. Use Events → Harvestable resource for Peasant gameplay.",
   "editor.event.kind.spawn": "Adventure start",
+  "editor.event.kind.seaGuardian.hint":
+    "This permanent special monster patrols its connected water, cannot be harmed and instantly devours swimmers it reaches.",
   "editor.event.kind.anchor.hint":
     "Legacy anchor retained for compatibility with older adventures.",
   "editor.event.kind.spawn.hint":

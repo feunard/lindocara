@@ -73,6 +73,7 @@ export const EVENT_KINDS = [
   "entry",
   "exit",
   "monster",
+  "sea-guardian",
   "guard",
   "harvestable",
   "spawn",
@@ -144,6 +145,7 @@ export type SelfSwitch = (typeof SELF_SWITCHES)[number];
  * consume the total budget but not the runtime budget. */
 export const MAX_EVENTS_PER_MAP = 256;
 export const MAX_RUNTIME_EVENTS_PER_MAP = 128;
+export const MAX_SEA_GUARDIANS_PER_MAP = 1;
 export const MAX_PAGES_PER_EVENT = 8;
 export const EVENT_NAME_MAX = 32;
 
@@ -152,6 +154,7 @@ export function isRuntimeEventKind(kind: EventKind): boolean {
     kind === "normal" ||
     kind === "npc" ||
     kind === "monster" ||
+    kind === "sea-guardian" ||
     kind === "guard" ||
     kind === "harvestable"
   );
@@ -315,6 +318,11 @@ export function exitEvents(events: readonly MapEvent[]): MapEvent[] {
 
 export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "monster");
+}
+
+/** The map's permanent, untargetable special sea monster. Authoring allows at most one. */
+export function seaGuardianEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "sea-guardian");
 }
 
 /** Authored allied combatants. Their active page, unlike a monster's, controls runtime presence. */
@@ -625,6 +633,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
   const seenIds = new Set<string>();
   const events: MapEvent[] = [];
   let runtimeEvents = 0;
+  let seaGuardians = 0;
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return null;
     const record = raw as Record<string, unknown>;
@@ -650,6 +659,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     if (isRuntimeEventKind(kind)) {
       runtimeEvents += 1;
       if (runtimeEvents > MAX_RUNTIME_EVENTS_PER_MAP) return null;
+    }
+    if (kind === "sea-guardian") {
+      seaGuardians += 1;
+      if (seaGuardians > MAX_SEA_GUARDIANS_PER_MAP) return null;
     }
 
     // Monster events carry `species` + tuning + radius. Free NPCs reuse the persisted HP/power
@@ -834,6 +847,34 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     if (
       (kind === "entry" || kind === "exit" || kind === "spawn") &&
       normalizedPages.some((page) => page.commands.length > 0)
+    ) {
+      return null;
+    }
+    // This special event is only an authoritative water anchor. Its appearance, movement and
+    // lethality belong to the dedicated sea-guardian system, so reject generic page settings that
+    // would look configurable while being ignored at runtime.
+    if (
+      kind === "sea-guardian" &&
+      normalizedPages.some(
+        (page) =>
+          page.condSwitchId !== null ||
+          page.condVariableId !== null ||
+          page.condVariableMin !== null ||
+          page.condSelfSwitch !== null ||
+          page.graphicAssetId !== null ||
+          page.graphicTint !== EVENT_GRAPHIC_TINT_DEFAULT ||
+          page.moveType !== "fixed" ||
+          (page.moveRoute?.length ?? 0) > 0 ||
+          page.moveSpeed !== 4 ||
+          page.moveFreq !== 3 ||
+          !page.optMoveAnim ||
+          page.optStopAnim ||
+          page.optDirFix ||
+          page.optThrough ||
+          page.optOnTop ||
+          page.trigger !== "action" ||
+          page.commands.length > 0,
+      )
     ) {
       return null;
     }

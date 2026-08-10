@@ -7,11 +7,7 @@ import {
   SEA_GUARDIAN_DEVOUR_RANGE,
   SEA_GUARDIAN_ID,
   SEA_GUARDIAN_PATH_REFRESH_MS,
-  SEA_GUARDIAN_PATROL_DURATION_MS,
-  SEA_GUARDIAN_PATROL_FIRST_DELAY_MS,
-  SEA_GUARDIAN_PATROL_INTERVAL_MS,
   SEA_GUARDIAN_PATROL_SPEED,
-  SEA_GUARDIAN_SWIMMER_SPAWN_DELAY_MS,
   type SeaGuardianState,
 } from "@lindocara/engine/sea-guardian.js";
 import type { PlayerRuntime } from "./world-runtime.js";
@@ -26,7 +22,6 @@ interface WaterTopology {
   cells: readonly WaterCell[];
   byIndex: ReadonlyMap<number, WaterCell>;
   components: readonly (readonly WaterCell[])[];
-  edgeComponents: readonly number[];
 }
 
 export interface SeaGuardianRuntimeEntity extends GroundVector {
@@ -41,15 +36,11 @@ export interface SeaGuardianRuntimeEntity extends GroundVector {
   path: readonly WaterCell[];
   pathIndex: number;
   nextPathAt: number;
-  patrolEndsAt: number;
 }
 
 export interface SeaGuardianRuntime {
   topology: WaterTopology | null;
   guardian: SeaGuardianRuntimeEntity | null;
-  nextPatrolAt: number;
-  swimmerEnteredAt: Map<string, number>;
-  patrolSerial: number;
 }
 
 export interface SeaGuardianAdvanceOptions {
@@ -103,29 +94,21 @@ function buildWaterTopology(map: MapData | null): WaterTopology | null {
   }
   const cells = components.flat();
   const byIndex = new Map(cells.map((cell) => [cell.index, cell]));
-  const edgeComponents = components.flatMap((component, id) =>
-    component.some((cell) => {
-      const i = cell.index % map.size;
-      const j = Math.floor(cell.index / map.size);
-      return i === 0 || j === 0 || i === map.size - 1 || j === map.size - 1;
-    })
-      ? [id]
-      : [],
-  );
-  return { map, cells, byIndex, components, edgeComponents };
+  return { map, cells, byIndex, components };
 }
 
 export function createSeaGuardianRuntime(
   map: MapData | null,
+  anchor: GroundVector | null,
   now = Date.now(),
 ): SeaGuardianRuntime {
-  return {
-    topology: buildWaterTopology(map),
-    guardian: null,
-    nextPatrolAt: now + SEA_GUARDIAN_PATROL_FIRST_DELAY_MS,
-    swimmerEnteredAt: new Map(),
-    patrolSerial: 0,
-  };
+  const topology = anchor ? buildWaterTopology(map) : null;
+  const runtime: SeaGuardianRuntime = { topology, guardian: null };
+  if (!topology || !anchor) return runtime;
+  const start = cellAt(topology, anchor);
+  if (!start) return { topology: null, guardian: null };
+  spawn(runtime, start.component, start, now, null);
+  return runtime;
 }
 
 function cellAt(topology: WaterTopology, point: GroundVector): WaterCell | null {
@@ -239,7 +222,6 @@ function spawn(
 ): SeaGuardianRuntimeEntity {
   const topology = runtime.topology;
   if (!topology) throw new Error("cannot spawn sea guardian without water");
-  runtime.patrolSerial += 1;
   const guardian: SeaGuardianRuntimeEntity = {
     id: SEA_GUARDIAN_ID,
     x: start.x,
@@ -254,24 +236,9 @@ function spawn(
     path: patrolRoute(topology, component, start),
     pathIndex: 1,
     nextPathAt: now,
-    patrolEndsAt: now + SEA_GUARDIAN_PATROL_DURATION_MS,
   };
   runtime.guardian = guardian;
   return guardian;
-}
-
-function spawnForSwimmer(
-  runtime: SeaGuardianRuntime,
-  swimmer: PlayerRuntime,
-  targetCell: WaterCell,
-  now: number,
-): SeaGuardianRuntimeEntity {
-  const topology = runtime.topology;
-  if (!topology) throw new Error("cannot spawn sea guardian without water");
-  const componentCells = topology.components[targetCell.component] ?? [targetCell];
-  const edges = edgeCells(topology, targetCell.component);
-  const start = farthest(edges.length > 0 ? edges : componentCells, swimmer) ?? targetCell;
-  return spawn(runtime, targetCell.component, start, now, swimmer.id);
 }
 
 function moveAlongPath(guardian: SeaGuardianRuntimeEntity, speed: number, dt: number): void {
@@ -298,12 +265,10 @@ function moveAlongPath(guardian: SeaGuardianRuntimeEntity, speed: number, dt: nu
 function activeSwimmers(
   runtime: SeaGuardianRuntime,
   players: Iterable<PlayerRuntime>,
-  now: number,
 ): { player: PlayerRuntime; cell: WaterCell }[] {
   const topology = runtime.topology;
   if (!topology) return [];
   const result: { player: PlayerRuntime; cell: WaterCell }[] = [];
-  const activeIds = new Set<string>();
   for (const player of players) {
     if (
       !player.authorized ||
@@ -315,12 +280,7 @@ function activeSwimmers(
       continue;
     const cell = cellAt(topology, player);
     if (!cell) continue;
-    activeIds.add(player.id);
-    if (!runtime.swimmerEnteredAt.has(player.id)) runtime.swimmerEnteredAt.set(player.id, now);
     result.push({ player, cell });
-  }
-  for (const id of runtime.swimmerEnteredAt.keys()) {
-    if (!activeIds.has(id)) runtime.swimmerEnteredAt.delete(id);
   }
   return result;
 }
@@ -332,31 +292,8 @@ export function advanceSeaGuardian(
   const topology = runtime.topology;
   if (!topology) return;
   const { now } = options;
-  const swimmers = activeSwimmers(runtime, options.players, now);
-  let guardian = runtime.guardian;
-
-  if (!guardian) {
-    const ready = swimmers.find(
-      ({ player }) =>
-        now - (runtime.swimmerEnteredAt.get(player.id) ?? now) >
-        SEA_GUARDIAN_SWIMMER_SPAWN_DELAY_MS,
-    );
-    if (ready) guardian = spawnForSwimmer(runtime, ready.player, ready.cell, now);
-    else if (now >= runtime.nextPatrolAt) {
-      const choices =
-        topology.edgeComponents.length > 0
-          ? topology.edgeComponents
-          : topology.components.map((_, index) => index);
-      const component = choices[runtime.patrolSerial % choices.length];
-      const cells = component === undefined ? [] : (topology.components[component] ?? []);
-      const edges = component === undefined ? [] : edgeCells(topology, component);
-      const start = (edges.length > 0 ? edges : cells)[
-        runtime.patrolSerial % Math.max(1, (edges.length > 0 ? edges : cells).length)
-      ];
-      if (component !== undefined && start) guardian = spawn(runtime, component, start, now, null);
-      runtime.nextPatrolAt = now + SEA_GUARDIAN_PATROL_INTERVAL_MS;
-    }
-  }
+  const swimmers = activeSwimmers(runtime, options.players);
+  const guardian = runtime.guardian;
   if (!guardian) return;
 
   if (guardian.state === "attack" && (guardian.animationEndsAt ?? 0) > now) return;
@@ -373,16 +310,11 @@ export function advanceSeaGuardian(
         groundDistance(guardian as SeaGuardianRuntimeEntity, left.player) -
         groundDistance(guardian as SeaGuardianRuntimeEntity, right.player),
     );
-  let target = reachable[0] ?? null;
-  if (!target && swimmers.length > 0) {
-    target = swimmers[0] ?? null;
-    if (target) guardian = spawnForSwimmer(runtime, target.player, target.cell, now);
-  }
+  const target = reachable[0] ?? null;
 
   if (target) {
     guardian.state = "chase";
     guardian.targetId = target.player.id;
-    guardian.patrolEndsAt = now + SEA_GUARDIAN_PATROL_DURATION_MS;
     if (now >= guardian.nextPathAt) {
       const start = cellAt(topology, guardian) ?? target.cell;
       guardian.path = route(topology, start, target.cell);
@@ -408,10 +340,6 @@ export function advanceSeaGuardian(
     guardian.pathIndex = 1;
   }
   moveAlongPath(guardian, SEA_GUARDIAN_PATROL_SPEED, options.dt);
-  if (now >= guardian.patrolEndsAt) {
-    runtime.guardian = null;
-    runtime.nextPatrolAt = now + SEA_GUARDIAN_PATROL_INTERVAL_MS;
-  }
 }
 
 export function seaGuardianSnapshots(runtime: SeaGuardianRuntime): SeaGuardianSnapshot[] {

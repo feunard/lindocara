@@ -24,6 +24,7 @@ import {
   type MapEvent,
   type MapEventPage,
   parseMapEvents,
+  seaGuardianEvents,
   validateEventName,
 } from "@lindocara/engine/map-events.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
@@ -247,6 +248,48 @@ describe("parseMapEvents: good payloads round-trip unchanged", () => {
   it("accepts up to MAX_PAGES_PER_EVENT pages", () => {
     const events = [event({ pages: Array.from({ length: MAX_PAGES_PER_EVENT }, () => page()) })];
     expect(parseMapEvents(events, COLS, ROWS)?.[0]?.pages).toHaveLength(MAX_PAGES_PER_EVENT);
+  });
+});
+
+describe("parseMapEvents: sea guardian special monster", () => {
+  const guardian = functionalEvent({
+    id: ID_A,
+    col: 3,
+    row: 4,
+    ordinal: 1,
+    kind: "sea-guardian",
+    name: "Sea guardian",
+  });
+
+  it("round-trips one dedicated anchor and exposes it through the typed selector", () => {
+    const parsed = parseMapEvents([guardian], COLS, ROWS);
+    expect(parsed).toEqual([guardian]);
+    expect(seaGuardianEvents(parsed ?? [])).toEqual([guardian]);
+    expect(isActiveWorldEventKind("sea-guardian")).toBe(false);
+    expect(isInteractiveWorldEventKind("sea-guardian")).toBe(false);
+  });
+
+  it("rejects a second guardian and generic event-page configuration", () => {
+    const second = functionalEvent({
+      id: ID_B,
+      col: 4,
+      row: 4,
+      ordinal: 2,
+      kind: "sea-guardian",
+    });
+    expect(parseMapEvents([guardian, second], COLS, ROWS)).toBeNull();
+    expect(
+      parseMapEvents(
+        [
+          {
+            ...guardian,
+            pages: [{ ...guardian.pages[0], graphicAssetId: GOOD_ASSET_ID }],
+          },
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
   });
 });
 

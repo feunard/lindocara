@@ -31,7 +31,10 @@ import type { AmbienceConfig } from "@lindocara/renderer/ambience.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { trackInput } from "@lindocara/renderer/input.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
-import { authoredEventPreviewSnapshots } from "./event-preview.js";
+import {
+  authoredEventPreviewSnapshots,
+  authoredSeaGuardianPreviewSnapshots,
+} from "./event-preview.js";
 
 const SELF_ID = "map-preview-self";
 const PREVIEW_QUEST: QuestState = {
@@ -215,6 +218,11 @@ export async function startMapPreview(
     ];
   });
   const worldEvents = authoredEventPreviewSnapshots(events, "playable-preview");
+  const previewSeaGuardians = authoredSeaGuardianPreviewSnapshots(
+    events,
+    heightfield.size,
+    heightfield.waterLevel,
+  );
   renderer.preloadWorldEventAssets(worldEvents);
 
   const tracker = trackInput();
@@ -256,7 +264,7 @@ export async function startMapPreview(
     renderer.render(
       {
         players: [self],
-        seaGuardians: [],
+        seaGuardians: previewSeaGuardians,
         monsters: previewMonsters,
         guards: previewGuards,
         loot: [],
