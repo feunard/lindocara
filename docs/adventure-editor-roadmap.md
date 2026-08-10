@@ -197,8 +197,11 @@ for the full design.
 
 A user feedback wave arrived mid-tranche-4 and is sequenced between 4 and 5 rather than folded into
 either: `docs/superpowers/specs/2026-07-19-ux-feedback-wave.md` records the thirteen items verbatim,
-translated into requirements — no dark mode, the editor opening on an adventure picker rather than a
-blank canvas, adventures owning their maps 1-n instead of an n-n membership model, a new adventure
+translated into requirements — no dark mode, the editor opening on an adventure picker rather than
+straight into the editor (item 15; **delivered** — entering the editor now mints a fresh unsaved
+scratch adventure and opens it, `File → Open` reaches an existing one, `File → New adventure` starts
+another, and the picker screen is deleted), adventures owning their maps 1-n instead of an n-n
+membership model, a new adventure
 auto-creating its first map (5x5 earth, spawn centre, water border), the start map moving into the
 map panel, grid-on-by-default, hover preview with an opaque red illegal-placement background,
 exclusive tool selection, a Test-map performance fix, a minimal/trusted catalogue, and the largest
