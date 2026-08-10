@@ -42,16 +42,16 @@ describe("La Cité assiégée generated bundle", () => {
       "La Cour centrale",
     ]);
     expect(BUNDLE.adventure.audio).toEqual({
-      music: "bards-tale",
+      music: "plain-1",
       ambience: "forest-ambience",
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
     expect(BUNDLE.maps.map((map) => map.audio?.music)).toEqual([
-      "bards-tale",
-      "town-theme",
-      "dungeon-ambience",
-      "town-theme",
-      "bards-tale",
+      "plain-1",
+      "plain-1",
+      "forest-1",
+      "plain-1",
+      "plain-1",
     ]);
     expect(BUNDLE.maps.every((map) => map.events.length <= 64)).toBe(true);
     expect(

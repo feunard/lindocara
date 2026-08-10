@@ -6,48 +6,48 @@
  * served by the client package from `public/assets/lindocara/audio/`.
  */
 
+/**
+ * Music is ours alone: every track here is generated in-house with the studio's music lane, so
+ * the catalogue carries no third-party licence obligation. The third-party OpenGameArt music that
+ * used to live here was removed with its files; only `AMBIENCE_TRACKS` below is still borrowed.
+ * Captions and seeds for regenerating each track are in `audio/CREDITS.md`.
+ */
 export const MUSIC_TRACKS = [
   {
-    id: "field-of-dreams",
-    title: "The Field of Dreams",
-    author: "pauliuw",
-    src: "/assets/lindocara/audio/title-theme.mp3",
+    id: "plain-1",
+    title: "Sunlit Plain",
+    author: "lindocara",
+    src: "/assets/lindocara/audio/plain_1.mp3",
   },
   {
-    id: "new-sunrise",
-    title: "New Sunrise",
-    author: "nene",
-    src: "/assets/lindocara/audio/title-theme-epic.mp3",
+    id: "forest-1",
+    title: "Deep Forest I",
+    author: "lindocara",
+    src: "/assets/lindocara/audio/forest_1.mp3",
   },
   {
-    id: "town-theme",
-    title: "Town Theme RPG",
-    author: "cynicmusic",
-    src: "/assets/lindocara/audio/town-theme.mp3",
+    id: "forest-2",
+    title: "Deep Forest II",
+    author: "lindocara",
+    src: "/assets/lindocara/audio/forest_2.mp3",
   },
   {
-    id: "bards-tale",
-    title: "Medieval: The Bard's Tale",
-    author: "RandomMind",
-    src: "/assets/lindocara/audio/bards-tale.mp3",
+    id: "boss-1",
+    title: "Boss Confrontation",
+    author: "lindocara",
+    src: "/assets/lindocara/audio/boss_1.mp3",
   },
   {
-    id: "cave-theme",
-    title: "Cave Theme",
-    author: "Brandon75689",
-    src: "/assets/lindocara/audio/cave-theme.ogg",
+    id: "menu-1",
+    title: "Menu Bed I",
+    author: "lindocara",
+    src: "/assets/lindocara/audio/menu_1.mp3",
   },
   {
-    id: "dungeon-ambience",
-    title: "Dungeon Ambience",
-    author: "yd",
-    src: "/assets/lindocara/audio/dungeon-ambience.ogg",
-  },
-  {
-    id: "battle-theme",
-    title: "Battle Theme A",
-    author: "cynicmusic",
-    src: "/assets/lindocara/audio/battle-theme.mp3",
+    id: "menu-2",
+    title: "Menu Bed II",
+    author: "lindocara",
+    src: "/assets/lindocara/audio/menu_2.mp3",
   },
 ] as const;
 

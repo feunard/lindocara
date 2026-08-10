@@ -47,13 +47,13 @@ describe("GameSound authored scene audio", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
     const sound = new GameSound();
     sound.configureScene({
-      music: "town-theme",
+      music: "plain-1",
       ambience: "swamp-ambience",
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
 
     expect(FakeAudio.created.map((audio) => audio.src)).toEqual([
-      "/assets/lindocara/audio/town-theme.mp3",
+      "/assets/lindocara/audio/plain_1.mp3",
       "/assets/lindocara/audio/swamp-ambience.ogg",
     ]);
 
@@ -63,7 +63,7 @@ describe("GameSound authored scene audio", () => {
 
     sound.setCombatThreatened(true);
     const combat = FakeAudio.created.at(-1);
-    expect(combat?.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
+    expect(combat?.src).toBe("/assets/lindocara/audio/boss_1.mp3");
 
     now += 650;
     sound.update(now);
@@ -103,16 +103,16 @@ describe("GameSound authored scene audio", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
     const sound = new GameSound();
     sound.configureScene({
-      music: "town-theme",
+      music: "plain-1",
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
     sound.unlock();
     sound.setCombatThreatened(true);
     now += 650;
     sound.update(now);
 
-    const combat = FakeAudio.created.find((audio) => audio.src.endsWith("battle-theme.mp3"));
+    const combat = FakeAudio.created.find((audio) => audio.src.endsWith("boss_1.mp3"));
     if (!combat) throw new Error("missing combat channel");
     combat.currentTime = 19;
     const starts = combat.playCalls;
@@ -123,9 +123,7 @@ describe("GameSound authored scene audio", () => {
     sound.unlock();
     sound.unlock();
 
-    expect(FakeAudio.created.filter((audio) => audio.src.endsWith("battle-theme.mp3"))).toEqual([
-      combat,
-    ]);
+    expect(FakeAudio.created.filter((audio) => audio.src.endsWith("boss_1.mp3"))).toEqual([combat]);
     expect(combat.currentTime).toBe(19);
     expect(combat.playCalls).toBe(starts);
   });
@@ -136,9 +134,9 @@ describe("GameSound authored scene audio", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
     const sound = new GameSound();
     const scene = {
-      music: "town-theme",
+      music: "plain-1",
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     } as const;
     sound.configureScene(scene);
     sound.setCombatThreatened(true);
@@ -164,9 +162,9 @@ describe("GameSound authored scene audio", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
     const sound = new GameSound();
     sound.configureScene({
-      music: "town-theme",
+      music: "plain-1",
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
 
     const exploration = FakeAudio.created[0];
@@ -197,13 +195,13 @@ describe("GameSound authored scene audio", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
     const sound = new GameSound();
     sound.configureScene({
-      music: "town-theme",
+      music: "plain-1",
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
 
     sound.combatPulse();
-    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
+    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/boss_1.mp3");
     now += 8_001;
     sound.update(now);
     now += 650;
@@ -217,9 +215,9 @@ describe("GameSound authored scene audio", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
     const sound = new GameSound();
     sound.configureScene({
-      music: "town-theme",
+      music: "plain-1",
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
 
     sound.setCombatThreatened(true);

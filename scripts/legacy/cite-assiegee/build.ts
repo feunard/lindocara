@@ -35,9 +35,9 @@ const bundle: AdventureBundle = {
     title: "La Cité assiégée",
     maxPlayers: 4,
     audio: {
-      music: "bards-tale",
+      music: "plain-1",
       ambience: "forest-ambience",
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     },
     registry: { switches: SWITCHES, variables: VARIABLES, quests: [] },
   },

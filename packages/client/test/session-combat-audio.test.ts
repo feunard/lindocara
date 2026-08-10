@@ -45,9 +45,9 @@ describe("session combat audio", () => {
   function harness() {
     const sound = new GameSound();
     sound.configureScene({
-      music: "town-theme",
+      music: "plain-1",
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
     const connection = { attack: vi.fn() };
     return {
@@ -64,7 +64,7 @@ describe("session combat audio", () => {
 
     expect(connection.attack).toHaveBeenCalledOnce();
     expect(FakeAudio.created.map((audio) => audio.src)).toEqual([
-      "/assets/lindocara/audio/town-theme.mp3",
+      "/assets/lindocara/audio/plain_1.mp3",
     ]);
   });
 
@@ -82,7 +82,7 @@ describe("session combat audio", () => {
       { dead: false, threatening: true },
     ]);
 
-    expect(combat.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
+    expect(combat.src).toBe("/assets/lindocara/audio/boss_1.mp3");
     expect(FakeAudio.created.at(-1)).toBe(combat);
     expect(combat.currentTime).toBe(7);
   });
@@ -95,7 +95,7 @@ describe("session combat audio", () => {
 
     session.confirmedEvent(code);
 
-    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/battle-theme.mp3");
+    expect(FakeAudio.created.at(-1)?.src).toBe("/assets/lindocara/audio/boss_1.mp3");
   });
 
   it("absorbs a transient missing threat and returns to retained exploration after a real end", () => {

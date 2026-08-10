@@ -10,14 +10,14 @@ describe("authored audio catalogue", () => {
   it("accepts catalogue ids and rejects arbitrary asset URLs", () => {
     expect(
       parseAdventureAudioConfig({
-        music: "town-theme",
+        music: "plain-1",
         ambience: "swamp-ambience",
-        combatMusic: "battle-theme",
+        combatMusic: "boss-1",
       }),
     ).toEqual({
-      music: "town-theme",
+      music: "plain-1",
       ambience: "swamp-ambience",
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
     expect(
       parseAdventureAudioConfig({
@@ -31,13 +31,13 @@ describe("authored audio catalogue", () => {
   it("distinguishes map inheritance from an explicit silent override", () => {
     const overrides = parseMapAudioConfig({
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
     expect(overrides).not.toBeNull();
     expect(resolveMapAudio(DEFAULT_ADVENTURE_AUDIO, overrides ?? {})).toEqual({
       music: null,
       ambience: null,
-      combatMusic: "battle-theme",
+      combatMusic: "boss-1",
     });
   });
 });

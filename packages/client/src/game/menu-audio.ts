@@ -7,7 +7,7 @@
  * The bed is a recorded track (`MUSIC_SRC`) played through a looping `HTMLAudioElement`, faded in
  * and out so entering/leaving the menu never clicks. It replaces the earlier Web-Audio synth piano.
  * To swap the piece, drop another mp3 in `public/assets/lindocara/audio/` and point `MUSIC_SRC` at
- * it — `title-theme-epic.mp3` (an epic orchestral alternative) already ships beside the default.
+ * it — `menu_2.mp3` (a second take of the same caption) already ships beside the default.
  *
  * The confirm sample still runs through a small AudioContext (created/resumed inside the real
  * title-screen gesture, so autoplay policy is satisfied). The music element only calls `play()`
@@ -30,8 +30,8 @@ const CONFIRM_VOLUME = 0.8;
 const HOVER_VOLUME = 0.35;
 const BACK_VOLUME = 0.6;
 
-/** The looping menu bed. CC0. Swap this to change the title music. */
-const MUSIC_SRC = "/assets/lindocara/audio/title-theme.mp3";
+/** The looping menu bed. Generated in-house (see audio/CREDITS.md). Swap this to change it. */
+const MUSIC_SRC = "/assets/lindocara/audio/menu_1.mp3";
 /** Pre-slider ceiling for the bed; the ambient slider scales it down from here. */
 const MUSIC_BASE = 0.5;
 /** Fade length when the bed starts or stops, in milliseconds. */

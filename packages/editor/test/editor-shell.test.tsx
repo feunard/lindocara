@@ -1006,9 +1006,9 @@ describe("AdventureEditorScreen shell", () => {
     const edited = {
       name: "Verdant Reach",
       audio: {
-        music: "town-theme" as const,
+        music: "plain-1" as const,
         ambience: "swamp-ambience" as const,
-        combatMusic: "battle-theme" as const,
+        combatMusic: "boss-1" as const,
       },
       layers: OPEN_TILE_LAYERS,
       elements: [],

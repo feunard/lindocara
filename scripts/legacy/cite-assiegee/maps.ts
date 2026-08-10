@@ -378,7 +378,7 @@ function routeMap(refs: StoryRefs): AdventureBundleMap {
     spawn,
     factory.events,
     elements,
-    { music: "bards-tale", ambience: "forest-ambience", combatMusic: "battle-theme" },
+    { music: "plain-1", ambience: "forest-ambience", combatMusic: "boss-1" },
   );
 }
 
@@ -578,7 +578,7 @@ function lowerMap(refs: StoryRefs): AdventureBundleMap {
     spawn,
     factory.events,
     elements,
-    { music: "town-theme", ambience: null, combatMusic: "battle-theme" },
+    { music: "plain-1", ambience: null, combatMusic: "boss-1" },
   );
 }
 
@@ -802,7 +802,7 @@ function foundationsMap(refs: StoryRefs): AdventureBundleMap {
     spawn,
     factory.events,
     elements,
-    { music: "dungeon-ambience", ambience: null, combatMusic: "battle-theme" },
+    { music: "forest-1", ambience: null, combatMusic: "boss-1" },
   );
 }
 
@@ -1058,7 +1058,7 @@ function upperMap(refs: StoryRefs): AdventureBundleMap {
     spawn,
     factory.events,
     elements,
-    { music: "town-theme", ambience: null, combatMusic: "battle-theme" },
+    { music: "plain-1", ambience: null, combatMusic: "boss-1" },
   );
 }
 
@@ -1297,7 +1297,7 @@ function courtMap(refs: StoryRefs): AdventureBundleMap {
     spawn,
     factory.events,
     elements,
-    { music: "bards-tale", ambience: null, combatMusic: "battle-theme" },
+    { music: "plain-1", ambience: null, combatMusic: "boss-1" },
   );
 }
 
