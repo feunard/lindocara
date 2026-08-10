@@ -581,16 +581,20 @@ export function createHd2dScene(
         true,
       )) {
         const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
-        if (!normal || normal.y < 0.5) continue;
-        if (
-          hit.point.x < -half ||
-          hit.point.x > half ||
-          hit.point.z < -half ||
-          hit.point.z > half
-        ) {
+        if (!normal) continue;
+        // A cliff face is not a surface you can stand on, but it IS something an author points at.
+        // Skipping it let the ray carry on to the first horizontal surface behind the wall, which
+        // marked a cell the pointer was nowhere near. Read a vertical face as the ground at its
+        // FOOT instead: step a half cell along the outward normal, which lands in the low cell the
+        // wall drops into rather than on the plateau it holds up.
+        const point =
+          normal.y < 0.5
+            ? { x: hit.point.x + normal.x * 0.5, z: hit.point.z + normal.z * 0.5 }
+            : { x: hit.point.x, z: hit.point.z };
+        if (point.x < -half || point.x > half || point.z < -half || point.z > half) {
           continue;
         }
-        return { x: hit.point.x, z: hit.point.z };
+        return point;
       }
       return null;
     },
