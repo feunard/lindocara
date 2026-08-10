@@ -31,6 +31,84 @@
   border-image-width: 18px;
 }
 
+/* The carved frame's centre is parchment-coloured. It suits menus, but pale chat text disappeared
+   into it. Keep the Tiny Swords frame and let the chat's opaque ink-green reading surface own the
+   centre instead. The higher specificity deliberately beats the generic panel skin above. */
+.game-ui #chat.panel {
+  border-image-slice: 64;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(82 108 72 / 20%), transparent 36%),
+    linear-gradient(145deg, rgb(10 35 27 / 99%), rgb(3 16 13 / 100%));
+  box-shadow:
+    inset 0 0 0 1px rgb(242 211 132 / 10%),
+    inset 0 -1rem 2rem rgb(0 0 0 / 20%),
+    0 0 0 1px rgb(41 27 16 / 90%);
+}
+
+/* Reading-heavy game windows use the same ink-green centre as chat. The carved border remains,
+   but its parchment fill is deliberately removed so it cannot wash out pale interface copy. */
+.game-ui :is(.quest-journal__panel.panel, .talent-panel, .item-overlay.panel) {
+  border-image-slice: 64;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(82 108 72 / 22%), transparent 38%),
+    linear-gradient(145deg, rgb(10 35 27 / 99%), rgb(3 16 13 / 100%));
+  box-shadow:
+    inset 0 0 0 1px rgb(242 211 132 / 11%),
+    inset 0 -2rem 4rem rgb(0 0 0 / 22%),
+    0 0 0 1px rgb(41 27 16 / 92%),
+    0 1.5rem 4rem rgb(0 0 0 / 66%);
+}
+
+/* Inventory is a centred panel rather than a full-screen overlay. Its large shadow supplies the
+   same dimmed backdrop as the journal and talent tree without changing the component structure. */
+.game-ui .item-overlay.panel {
+  box-shadow:
+    0 0 0 100vmax rgb(1 8 6 / 58%),
+    inset 0 0 0 1px rgb(242 211 132 / 11%),
+    inset 0 -2rem 4rem rgb(0 0 0 / 22%),
+    0 0 0 1px rgb(41 27 16 / 92%),
+    0 1.5rem 4rem rgb(0 0 0 / 66%);
+}
+
+@media (min-width: 901px) {
+  /* Open beside the HUD and above the action dock. At compact desktop heights this prevents the
+     enlarged reading surface from covering either the party panel or the skill bar. */
+  .game-ui #chat.chat-open {
+    left: calc(18.6rem + var(--safe-left));
+    bottom: calc(7.4rem + var(--safe-bottom));
+    width: min(32rem, calc(100vw - 19.4rem - var(--safe-left) - var(--safe-right)));
+  }
+}
+
+/* Runtime text sits over moving terrain and must remain readable on grass, sand, snow and night
+   maps alike. Restrict the relief to light game copy: editor/shadcn surfaces and the dark labels on
+   Tiny Swords buttons keep their own shadows. */
+.game-ui
+:is(
+  #hud .identity-copy,
+  #hud .identity label,
+  #hud .panel-title,
+  #hud .party-save,
+  #hud .party-member,
+  #hud .quest,
+  #hud .inventory,
+  #event-log,
+  #prompt,
+  #help,
+  #chat,
+  .event-dialogue__name,
+  .event-dialogue__text,
+  .event-dialogue__legend,
+  .quest-dialogue,
+  .quest-journal__panel,
+  .world-map-panel,
+  .talent-panel,
+  .death-overlay,
+  .item-overlay
+) {
+  text-shadow: var(--game-text-shadow, 0 1px 2px #000);
+}
+
 .game-ui #hud .panel,
 .game-ui .skill-bar.panel,
 .game-ui .quick-item-bar.panel,
@@ -38,6 +116,15 @@
   border-width: 10px;
   border-image-width: 10px;
   backdrop-filter: none;
+}
+
+/* The action dock already supplies its own dark carved surface. A second filled panel around the
+   individual skills made the labels sit on parchment and reduced contrast. */
+.game-ui .skill-bar.panel {
+  border: 0;
+  border-image: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .game-ui :is(button, a, summary, label:has(input), select, input[type="range"]) {

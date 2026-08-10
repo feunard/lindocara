@@ -12,15 +12,42 @@ export function HelpBar() {
 
   return (
     <div id="help">
-      <TinyKbd>{movement}</TinyKbd> {t("help.move")}
-      <TinyKbd>{key("skill1")}</TinyKbd> {t("help.strike")}
-      <TinyKbd>{skills}</TinyKbd> {t("hud.abilities")}
-      <TinyKbd>{key("interact")}</TinyKbd> {t("help.commune")}
-      <TinyKbd>{key("potion")}</TinyKbd> {t("help.tonic")}
-      <TinyKbd>{key("release")}</TinyKbd> {t("help.release")}
-      <TinyKbd>{key("map")}</TinyKbd> {t("help.map")}
-      <TinyKbd>{key("quests")}</TinyKbd> {t("help.quests")}
-      <TinyKbd>{key("settings")}</TinyKbd> {t("help.settings")}
+      <span className="help-hint">
+        <TinyKbd>{movement}</TinyKbd>
+        <span>{t("help.move")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{key("skill1")}</TinyKbd>
+        <span>{t("help.strike")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{skills}</TinyKbd>
+        <span>{t("hud.abilities")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{key("interact")}</TinyKbd>
+        <span>{t("help.commune")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{key("potion")}</TinyKbd>
+        <span>{t("help.tonic")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{key("release")}</TinyKbd>
+        <span>{t("help.release")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{key("map")}</TinyKbd>
+        <span>{t("help.map")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{key("quests")}</TinyKbd>
+        <span>{t("help.quests")}</span>
+      </span>
+      <span className="help-hint">
+        <TinyKbd>{key("settings")}</TinyKbd>
+        <span>{t("help.settings")}</span>
+      </span>
     </div>
   );
 }
