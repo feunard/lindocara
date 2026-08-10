@@ -2,7 +2,6 @@ import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { isSpirit } from "@lindocara/engine/death.js";
-import { normalizeGround } from "@lindocara/engine/directional-combat.js";
 import {
   INTERACTION_RANGE,
   isMonsterSpecialTechnique,
@@ -455,63 +454,13 @@ async function startGameIdentity(
   };
   const playerClass = () => currentSelf?.class ?? identity.class;
 
-  let bombAiming = false;
-  /**
-   * `null` means "no direction the player actually chose". It stays `null` for as long as
-   * `renderer.screenToWorld` cannot answer (the HD-2D path's stub returns `null` — see its
-   * docblock), and `confirmBombAim` sends NOTHING while it is: this direction crosses the wire as
-   * an authoritative `skill(5, direction)` intent, so a placeholder here is not a cosmetic
-   * fallback, it is a bomb thrown somewhere the player never aimed. Sending nothing is the honest
-   * option until the screen ray exists.
-   */
-  let bombDirection: GroundVector | null = null;
-  const bombRange = skillFor("peasant", 5).range;
-  const cancelBombAim = () => {
-    bombAiming = false;
-    bombDirection = null;
-    canvas.removeAttribute("data-bomb-aiming");
-    renderer.hidePeasantBombAim();
-  };
-  const drawBombAim = () => {
-    if (!bombAiming || !currentSelf || !bombDirection) return;
-    renderer.showPeasantBombAim({ x: currentSelf.x, z: currentSelf.z }, bombDirection, bombRange);
-  };
-  const aimBombAt = (clientX: number, clientY: number) => {
-    if (!bombAiming || !currentSelf) return;
-    const target = renderer.screenToWorld(clientX, clientY);
-    // The renderer declined to map the pointer into the world: keep the previous answer (or none
-    // at all) rather than manufacture one from the origin, which would aim every throw at the
-    // map's north-west corner.
-    if (target === null) return;
-    // A body's own centre IS its position in tile units; the pixel world had to add half a body
-    // because its coordinate was a top-left corner.
-    bombDirection = normalizeGround(
-      { x: target.x - currentSelf.x, z: target.z - currentSelf.z },
-      currentSelf.facing,
-    );
-    drawBombAim();
-  };
-  const confirmBombAim = () => {
-    if (!bombAiming) return;
-    const direction = bombDirection;
-    cancelBombAim();
-    if (direction === null) return;
-    connection?.skill(5, direction);
-  };
   const onWorldPointerMove = (event: PointerEvent) => {
-    aimBombAt(event.clientX, event.clientY);
-    const sheepId = bombAiming ? null : renderer.pickSheep?.(event.clientX, event.clientY);
+    const sheepId = renderer.pickSheep?.(event.clientX, event.clientY);
     canvas.classList.toggle("sheep-hover", sheepId !== null && sheepId !== undefined);
   };
   const onWorldPointerLeave = () => canvas.classList.remove("sheep-hover");
   const onWorldPointerDown = (event: PointerEvent) => {
     if (event.button !== 0 || isGameplayInputPaused()) return;
-    if (bombAiming) {
-      event.preventDefault();
-      aimBombAt(event.clientX, event.clientY);
-      confirmBombAim();
-      return;
-    }
     const sheepId = renderer.pickSheep?.(event.clientX, event.clientY);
     if (!sheepId) return;
     event.preventDefault();
@@ -855,7 +804,6 @@ async function startGameIdentity(
     canvas.removeEventListener("pointerleave", onWorldPointerLeave);
     canvas.removeEventListener("pointerdown", onWorldPointerDown);
     canvas.classList.remove("sheep-hover");
-    cancelBombAim();
     sound.stopAmbient();
     renderer.destroy();
     if (stopActiveSession === stopSession) stopActiveSession = null;
@@ -1020,7 +968,6 @@ async function startGameIdentity(
   };
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
-    if (bombAiming && slot !== 5) cancelBombAim();
     const store = useUiStore.getState();
     const now = performance.now();
     const cooldownUntil =
@@ -1059,21 +1006,6 @@ async function startGameIdentity(
       return;
     if (slot === 1) {
       attack();
-      return;
-    }
-    if (store.self?.class === "peasant" && slot === 5) {
-      sound.unlock();
-      if (bombAiming) {
-        // A second press confirms — and, while `screenToWorld` cannot answer, confirms nothing and
-        // simply leaves aim mode. The entry below no longer seeds the hero's facing as a starting
-        // direction: the throw must be the point the player aimed at, and a facing-shaped default
-        // would make the stub's silence indistinguishable from a real aim.
-        confirmBombAim();
-      } else {
-        bombAiming = true;
-        canvas.setAttribute("data-bomb-aiming", "true");
-        drawBombAim();
-      }
       return;
     }
     sound.unlock();
@@ -1295,7 +1227,6 @@ async function startGameIdentity(
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
     renderer.playHeroMovement(movementEvents, self ?? null);
-    if (bombAiming) drawBombAim();
     if (welcomed && self && !loadingCompletionScheduled) {
       loadingCompletionScheduled = true;
       useUiStore.getState().setHeroLoading({

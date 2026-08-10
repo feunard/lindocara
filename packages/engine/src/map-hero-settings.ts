@@ -5,32 +5,25 @@ import { TILE_SIZE } from "./tilemap.js";
 /**
  * Bounds shared by the editor and the authoritative map parser.
  *
- * `movementSpeed` is now read in TILES per second by the server, but its bound deliberately keeps
- * the old PIXEL ceiling and only drops its floor to the tile equivalent, so it admits both
- * readings. This is the same call `MONSTER_TUNING_LIMITS.speed` makes, for the same reason:
- * authored maps stored a pixel speed, and narrowing this to `520/64` refuses every one of them —
- * `parseMapHeroSettings` returns `null` for the whole record, so a read silently substitutes the
- * defaults and a re-save of an untouched map is rejected. Converting authored hero stats belongs
- * at the map boundary, with the rest of the authored geometry, not here.
- *
- * The consequence while the seam is open, and it is not a small one: a map that authored a speed
- * in pixels moves its hero 64x too fast. It is recorded as a carry-forward rather than traded for
- * silent data loss.
- *
- * `attackRange` and `healRange` now make exactly the same bargain, for exactly the same reason:
- * `CLASS_STATS`' own reaches are tile units since the skill tables converted, so a floor of 16 px
- * refuses `defaultMapHeroSettings()` itself, while a ceiling of `1024/64` refuses every stored map
- * that authored a pixel reach. Floor down, ceiling unchanged, and the mixed reading stays a
- * carry-forward.
+ * Public/editor values are always TILES. `parseMapHeroSettings` still accepts the old pixel
+ * ceilings internally and converts values above these tile ceilings by `TILE_SIZE`; that boundary
+ * keeps persisted and imported pixel-era maps playable without letting new editor saves author a
+ * hero that crosses a whole map in one frame.
  */
 export const MAP_HERO_STAT_LIMITS = {
   attackBase: { min: 1, max: 500 },
   attackPerLevel: { min: 0, max: 100 },
-  attackRange: { min: 16 / TILE_SIZE, max: 1_024 },
-  movementSpeed: { min: 80 / TILE_SIZE, max: 520 },
+  attackRange: { min: 16 / TILE_SIZE, max: 1_024 / TILE_SIZE },
+  movementSpeed: { min: 80 / TILE_SIZE, max: 520 / TILE_SIZE },
   healBase: { min: 1, max: 500 },
   healPerLevel: { min: 0, max: 100 },
-  healRange: { min: 16 / TILE_SIZE, max: 1_024 },
+  healRange: { min: 16 / TILE_SIZE, max: 1_024 / TILE_SIZE },
+} as const;
+
+const LEGACY_PIXEL_MAX = {
+  attackRange: 1_024,
+  movementSpeed: 520,
+  healRange: 1_024,
 } as const;
 
 export interface MapHeroClassStats {
@@ -95,6 +88,18 @@ function boundedNumber(
     : null;
 }
 
+/** Accept one legacy pixel value at the map boundary and always return tile units. */
+function tileNumber(
+  value: unknown,
+  limits: { readonly min: number; readonly max: number },
+  legacyPixelMax: number,
+): number | null {
+  const raw = boundedNumber(value, { min: limits.min, max: legacyPixelMax });
+  if (raw === null) return null;
+  const normalized = raw > limits.max ? raw / TILE_SIZE : raw;
+  return boundedNumber(normalized, limits);
+}
+
 function parseClassSettings(value: unknown, playerClass: PlayerClass): MapHeroClassSettings | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
@@ -102,8 +107,16 @@ function parseClassSettings(value: unknown, playerClass: PlayerClass): MapHeroCl
   const stats = record.stats as Record<string, unknown>;
   const attackBase = boundedNumber(stats.attackBase, MAP_HERO_STAT_LIMITS.attackBase);
   const attackPerLevel = boundedNumber(stats.attackPerLevel, MAP_HERO_STAT_LIMITS.attackPerLevel);
-  const attackRange = boundedNumber(stats.attackRange, MAP_HERO_STAT_LIMITS.attackRange);
-  const movementSpeed = boundedNumber(stats.movementSpeed, MAP_HERO_STAT_LIMITS.movementSpeed);
+  const attackRange = tileNumber(
+    stats.attackRange,
+    MAP_HERO_STAT_LIMITS.attackRange,
+    LEGACY_PIXEL_MAX.attackRange,
+  );
+  const movementSpeed = tileNumber(
+    stats.movementSpeed,
+    MAP_HERO_STAT_LIMITS.movementSpeed,
+    LEGACY_PIXEL_MAX.movementSpeed,
+  );
   if (
     attackBase === null ||
     attackPerLevel === null ||
@@ -119,7 +132,11 @@ function parseClassSettings(value: unknown, playerClass: PlayerClass): MapHeroCl
     const rawHeal = stats.heal as Record<string, unknown>;
     const base = boundedNumber(rawHeal.base, MAP_HERO_STAT_LIMITS.healBase);
     const perLevel = boundedNumber(rawHeal.perLevel, MAP_HERO_STAT_LIMITS.healPerLevel);
-    const range = boundedNumber(rawHeal.range, MAP_HERO_STAT_LIMITS.healRange);
+    const range = tileNumber(
+      rawHeal.range,
+      MAP_HERO_STAT_LIMITS.healRange,
+      LEGACY_PIXEL_MAX.healRange,
+    );
     if (base === null || perLevel === null || range === null) return null;
     heal = { base, perLevel, range };
   }

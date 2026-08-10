@@ -12,6 +12,7 @@ import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceProjectiles,
   type ProjectileSystemContext,
+  nearestProjectileMonster,
   removeProjectilesByOwner,
   spawnProjectile,
 } from "@lindocara/server/world/projectile-system.js";
@@ -208,6 +209,27 @@ function launch(
 }
 
 describe("authoritative projectile system", () => {
+  it("targets the nearest living monster in range on the same elevation", () => {
+    const owner = player("owner", t(0));
+    const raised = monster("raised", t(30));
+    raised.y = 0.5;
+    const dead = monster("dead", t(40));
+    dead.deadUntil = 2_000;
+    const expected = monster("expected", t(80));
+    expected.z = t(20);
+    const outOfRange = monster("out-of-range", t(220));
+
+    expect(
+      nearestProjectileMonster(
+        owner,
+        [raised, dead, outOfRange, expected],
+        t(160),
+        1_000,
+        0.5,
+      ),
+    ).toBe(expected);
+  });
+
   it("lets a straight projectile miss and expire at its maximum range", () => {
     const owner = player("owner", t(0));
     const projectiles: ProjectileRuntime[] = [];
@@ -216,6 +238,19 @@ describe("authoritative projectile system", () => {
     advanceProjectiles(harness.value, 1_050);
     expect(harness.damageMonster).not.toHaveBeenCalled();
     expect(projectiles).toHaveLength(0);
+  });
+
+  it("does not hit a monster standing on another elevation level", () => {
+    const owner = player("owner", t(0));
+    const target = monster("raised-target", t(90));
+    target.y = 0.5;
+    const projectiles: ProjectileRuntime[] = [];
+    launch(projectiles, owner, "arrow", { range: t(300) });
+    const harness = context({ owner, projectiles, monsters: [target] });
+
+    advanceProjectiles(harness.value, 1_050);
+
+    expect(harness.damageMonster).not.toHaveBeenCalled();
   });
 
   it("hits the visible upper body of a tall monster above its navigation square", () => {

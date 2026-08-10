@@ -27,7 +27,12 @@ import {
 } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { startCombatAction } from "./combat-action-system.js";
-import { canSpawnProjectile, projectileOrigin, spawnProjectile } from "./projectile-system.js";
+import {
+  canSpawnProjectile,
+  projectileOrigin,
+  sameProjectileElevation,
+  spawnProjectile,
+} from "./projectile-system.js";
 import type {
   CombatActionRuntime,
   GroundIndexQuery,
@@ -768,6 +773,11 @@ export function resolvePeasantBombImpact(options: {
     .filter((monster) => {
       const hitbox = monsterBodyHitbox(monster.species, monster);
       return (
+        sameProjectileElevation(
+          options.projectile.y,
+          monster.y,
+          options.terrain.levelHeight,
+        ) &&
         groundDistance(hitbox.center, options.point) <= bomb.radius + hitbox.radius &&
         groundLineOfSight(options.terrain, options.point, monster)
       );

@@ -44,6 +44,40 @@ describe("map hero settings", () => {
     expect(maxMapHeroMovementSpeed(parsed ?? undefined)).toBe(340 / 64);
   });
 
+  test("normalizes pixel-era authored movement and ranges to tile units", () => {
+    const legacy = defaultMapHeroSettings();
+    legacy.classes.warrior.stats.movementSpeed = 260;
+    legacy.classes.warrior.stats.attackRange = 60;
+    legacy.classes.ranger.stats.movementSpeed = 286;
+    legacy.classes.ranger.stats.attackRange = 382.5;
+    legacy.classes.priest.stats.movementSpeed = 234;
+    legacy.classes.priest.stats.attackRange = 337.5;
+    if (legacy.classes.priest.stats.heal) legacy.classes.priest.stats.heal.range = 390;
+    legacy.classes.rogue.stats.movementSpeed = 312;
+    legacy.classes.rogue.stats.attackRange = 58;
+
+    const parsed = parseMapHeroSettings(legacy);
+
+    expect(parsed?.classes.warrior.stats).toMatchObject({
+      movementSpeed: 260 / TILE_SIZE,
+      attackRange: 60 / TILE_SIZE,
+    });
+    expect(parsed?.classes.ranger.stats).toMatchObject({
+      movementSpeed: 286 / TILE_SIZE,
+      attackRange: 382.5 / TILE_SIZE,
+    });
+    expect(parsed?.classes.priest.stats).toMatchObject({
+      movementSpeed: 234 / TILE_SIZE,
+      attackRange: 337.5 / TILE_SIZE,
+      heal: { range: 390 / TILE_SIZE },
+    });
+    expect(parsed?.classes.rogue.stats).toMatchObject({
+      movementSpeed: 312 / TILE_SIZE,
+      attackRange: 58 / TILE_SIZE,
+    });
+    expect(parsed?.classes.peasant).toEqual(defaultMapHeroSettings().classes.peasant);
+  });
+
   test("rejects abusive values, duplicate locks and incomplete class records", () => {
     const tooFast = defaultMapHeroSettings();
     tooFast.classes.rogue.stats.movementSpeed = 521;

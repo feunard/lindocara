@@ -734,7 +734,6 @@ export class WorldRoom {
           connectionId,
           player,
           message.slot,
-          message.direction,
         );
         return request
           ? this.startPeasantSupportSkill(room, state, connectionId, player, request)

@@ -216,6 +216,11 @@ export function projectileVisualLift(
   return downwardReach + 0.12;
 }
 
+/** A projectile card is centred explicitly below, so `placeAt` must not subtract the ordinary
+ * actor foot offset a second time. Keeping this at `0.5` buried one half-height in flat terrain;
+ * only a cliff edge exposed the complete sheet. */
+export const PROJECTILE_BILLBOARD_FOOT = 0;
+
 /** `makeBillboard` deliberately pivots ordinary sprites at their feet. A projectile needs the
  * pre-HD-2D centre anchor instead: rotating a foot-pivoted arrow 180° puts its whole quad below the
  * map, and the 90° cases leave half the card on either side of the terrain line. */
@@ -994,7 +999,7 @@ export class Hd2dVisualLayer {
         rows: 1,
         height,
         aspect: art.frameWidth / art.frameHeight,
-        foot: 0.5,
+        foot: PROJECTILE_BILLBOARD_FOOT,
         lit: false,
         pitch: HD2D_CAMERA.pitch,
       });
