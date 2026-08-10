@@ -9,13 +9,12 @@ import { ReactRouter } from "alepha/react/router";
 import { renderWithAlepha } from "alepha/react/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/** `AdventureEditorScreen` (and the `AdventurePickerScreen` it falls back to with no session) read
- *  `adventureEditorSessionAtom` and call `useRouter()` directly (Task 6) — both need a real Alepha
- *  instance with `AlephaReact` registered to mount at all. None of these tests click the picker's
- *  "Quit" button, so a bare `AlephaReact` (no full `AppRouter` page tree) is enough — but
- *  `ReactRouter` still has to be injected HERE, before `renderWithAlepha`'s `start()` locks the
- *  container: a component's first `useRouter()` call happens after that lock, and `alepha.react.
- *  router`'s module is only ever registered by touching one of its services first (mirrors
+/** `AdventureEditorScreen` reads `adventureEditorSessionAtom` and calls `useRouter()` directly (Task
+ *  6) — both need a real Alepha instance with `AlephaReact` registered to mount at all. None of these
+ *  tests click the bootstrap's "Quit" button, so a bare `AlephaReact` (no full `AppRouter` page tree)
+ *  is enough — but `ReactRouter` still has to be injected HERE, before `renderWithAlepha`'s `start()`
+ *  locks the container: a component's first `useRouter()` call happens after that lock, and `alepha.
+ *  react.router`'s module is only ever registered by touching one of its services first (mirrors
  *  `AppRouter`'s own eager `reactAuth = $inject(ReactAuth)` field — see its docblock). */
 function mountScreen() {
   const alepha = Alepha.create().with(AlephaReact);
@@ -49,7 +48,7 @@ function adventurePayload(id: string, title: string): Record<string, unknown> {
   };
 }
 
-describe("AdventureEditorScreen explicit picker", () => {
+describe("AdventureEditorScreen scratch entry", () => {
   let alephaInstances: Array<{ stop(): Promise<void> }> = [];
 
   beforeEach(() => {
@@ -62,81 +61,51 @@ describe("AdventureEditorScreen explicit picker", () => {
     alephaInstances = [];
   });
 
-  it("does not reopen the remembered adventure until the author explicitly selects one", async () => {
-    localStorage.setItem("lindocara:editor:last-adventure:acct", "adv-remembered");
+  function scratchResponse() {
+    return jsonResponse(
+      {
+        ...adventurePayload("adv-scratch", t("adventure.default_title")),
+        mapIds: ["map-1"],
+        defaultMap: {
+          id: "map-1",
+          name: "Map 1",
+          revision: 1,
+          tilesetId: "tiny-swords",
+          cols: 2,
+          rows: 2,
+          layers: [[], [], []],
+          elements: [],
+          events: [],
+          markers: [],
+          spawn: { col: 0, row: 0 },
+          heightfield: "",
+        },
+      },
+      201,
+    );
+  }
+
+  it("mints exactly one scratch adventure on entry and never renders a picker", async () => {
     const mock = vi.fn((url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (url === "/api/adventures" && method === "GET") {
-        return Promise.resolve(
-          jsonResponse([
-            {
-              id: "adv-remembered",
-              title: "Remembered",
-              maxPlayers: 4,
-              mapCount: 0,
-              playable: false,
-            },
-          ]),
-        );
+      if (url === "/api/adventures" && init?.method === "POST") {
+        return Promise.resolve(scratchResponse());
       }
-      if (url === "/api/adventures/adv-remembered" && method === "GET") {
-        return Promise.resolve(jsonResponse(adventurePayload("adv-remembered", "Remembered")));
+      if (url === "/api/maps/map-1") {
+        return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
       }
-      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+      return Promise.resolve(jsonResponse([], 200));
     });
     vi.stubGlobal("fetch", mock);
 
     const { alepha } = await mountScreen();
     alephaInstances.push(alepha);
 
-    expect(await screen.findByRole("heading", { name: t("editor.picker.title") })).toBeVisible();
-    expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
-    expect(mock.mock.calls.some(([url]) => url === "/api/adventures?scope=all")).toBe(false);
-    expect(mock.mock.calls.some(([url]) => url === "/api/adventures/adv-remembered")).toBe(false);
-
-    await userEvent.click(screen.getByRole("button", { name: t("editor.picker.open") }));
     await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-remembered"),
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-scratch"),
     );
-  });
-
-  it("does not create anything until the new-adventure form is submitted", async () => {
-    const mock = vi.fn((url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (url === "/api/adventures" && method === "GET") {
-        return Promise.resolve(jsonResponse([]));
-      }
-      if (url === "/api/adventures" && method === "POST") {
-        return Promise.resolve(
-          jsonResponse(
-            {
-              ...adventurePayload("adv-new", "Moon Keep"),
-              defaultMap: { id: "unused-by-session-loader" },
-            },
-            201,
-          ),
-        );
-      }
-      if (url === "/api/adventures/adv-new" && method === "GET") {
-        return Promise.resolve(jsonResponse(adventurePayload("adv-new", "Moon Keep")));
-      }
-      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
-    });
-    vi.stubGlobal("fetch", mock);
-
-    const { alepha } = await mountScreen();
-    alephaInstances.push(alepha);
-    await screen.findByText(t("editor.picker.empty"));
-    expect(mock.mock.calls.some(([, init]) => (init as RequestInit)?.method === "POST")).toBe(
-      false,
-    );
-
-    await userEvent.type(screen.getByLabelText(t("adventure.name")), "Moon Keep");
-    await userEvent.click(screen.getByRole("button", { name: t("editor.picker.create.submit") }));
-
-    await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-new"),
-    );
+    expect(alepha.store.get(adventureEditorSessionAtom)?.titleUntouched).toBe(true);
+    // The latch: strict mode double-invokes the effect, and every extra POST is a stray
+    // untitled adventure that nothing ever cleans up.
     expect(
       mock.mock.calls.filter(
         ([url, init]) => url === "/api/adventures" && (init as RequestInit)?.method === "POST",
@@ -144,45 +113,44 @@ describe("AdventureEditorScreen explicit picker", () => {
     ).toHaveLength(1);
   });
 
-  it("deletes an adventure from the picker after the same forced-delete confirmation", async () => {
+  it("shows a retry instead of a blank stage when the create fails", async () => {
+    let attempts = 0;
     const mock = vi.fn((url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (url === "/api/adventures" && method === "GET") {
-        return Promise.resolve(
-          jsonResponse([
-            {
-              id: "adv-old",
-              title: "Old Keep",
-              maxPlayers: 4,
-              mapCount: 2,
-              playable: true,
-            },
-          ]),
-        );
+      if (url === "/api/adventures" && init?.method === "POST") {
+        attempts += 1;
+        if (attempts === 1) return Promise.resolve(jsonResponse({ error: "server_error" }, 500));
+        return Promise.resolve(scratchResponse());
       }
-      if (url === "/api/adventures/adv-old?force=true" && method === "DELETE") {
-        return Promise.resolve(new Response(null, { status: 204 }));
-      }
-      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+      return Promise.resolve(jsonResponse([], 200));
     });
     vi.stubGlobal("fetch", mock);
 
     const { alepha } = await mountScreen();
     alephaInstances.push(alepha);
 
-    await screen.findByText("Old Keep");
-    await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
-    expect(
-      await screen.findByText(t("adventure.delete.title", { name: "Old Keep" })),
-    ).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: t("editor.delete.confirm") }));
+    const retry = await screen.findByRole("button", { name: t("editor.retry") });
+    expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
 
+    await userEvent.click(retry);
     await waitFor(() =>
-      expect(mock).toHaveBeenCalledWith(
-        "/api/adventures/adv-old?force=true",
-        expect.objectContaining({ method: "DELETE" }),
-      ),
+      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-scratch"),
     );
-    expect(screen.queryByText("Old Keep")).toBeNull();
+  });
+
+  it("shows no error banner when the session has expired", async () => {
+    const mock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/adventures" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ error: "session_expired" }, 401));
+      }
+      return Promise.resolve(jsonResponse([], 200));
+    });
+    vi.stubGlobal("fetch", mock);
+
+    const { alepha } = await mountScreen();
+    alephaInstances.push(alepha);
+
+    await waitFor(() => expect(mock).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: t("editor.retry") })).toBeNull();
+    expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
   });
 });

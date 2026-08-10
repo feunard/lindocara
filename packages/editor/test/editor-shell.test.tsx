@@ -24,7 +24,7 @@ import { renderWithAlepha } from "alepha/react/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * `AdventureEditorScreen`/`AdventurePickerScreen`/`MainMenu` all read/write
+ * `AdventureEditorScreen`/`MainMenu` all read/write
  * `state/atoms.ts`'s `adventureEditorSessionAtom` and navigate via `useRouter()` directly (Task 6,
  * off the store's deleted `adventureEditorSession`/`setScreen`/`setAdventureEditorSession` shims and
  * the `state/navigation.ts` seam those used to route through) — every render in this file needs a

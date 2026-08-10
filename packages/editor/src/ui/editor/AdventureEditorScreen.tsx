@@ -85,10 +85,9 @@ import {
   openMapEditorStage,
 } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
-import { AdventurePickerScreen } from "./AdventurePickerScreen.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
-import { loadAdventureSession } from "./adventure-session.js";
+import { ensureScratchAdventure, loadAdventureSession } from "./adventure-session.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorHelpDialog, type EditorHelpSection } from "./EditorHelpDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
@@ -271,7 +270,77 @@ export function AdventureEditorScreen() {
   if (session?.adventureId) {
     return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
   }
-  return <AdventurePickerScreen />;
+  return <AdventureEditorBootstrap />;
+}
+
+/**
+ * The no-session branch: mint a scratch adventure and open it. Entering the editor no longer asks
+ * which adventure to work on — that is `File → Open` now — so this is the only path in.
+ *
+ * The `startedRef` latch is load-bearing. React 18 strict mode double-invokes this effect in
+ * development, and any re-render before the request settles would fire a second `POST`. Both calls
+ * succeed, so nothing surfaces as an error: the author simply accumulates untitled adventures that
+ * nothing ever cleans up. The latch is therefore checked and set BEFORE the await, never after.
+ */
+function AdventureEditorBootstrap() {
+  useLocale();
+  const router = useRouter();
+  const [, setSession] = useStore(adventureEditorSessionAtom);
+  const [failed, setFailed] = useState(false);
+  const startedRef = useRef(false);
+  const [attempt, setAttempt] = useState(0);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the explicit retry trigger
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const created = await ensureScratchAdventure();
+        if (!cancelled) setSession(created);
+      } catch (caught) {
+        if (cancelled) return;
+        startedRef.current = false;
+        // A dead session is already being redirected to /auth by the client's global 401 seam;
+        // showing a retry on top of that would be a second, contradictory answer.
+        if (isSessionError(errorCode(caught))) return;
+        setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt, setSession]);
+
+  return (
+    <main className="editor-root editor-chrome flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-950">
+      {failed ? (
+        <div className="flex flex-col items-center gap-3">
+          <p role="alert" className="text-sm text-destructive">
+            {t("editor.shell.preparing.failed")}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                setFailed(false);
+                setAttempt((current) => current + 1);
+              }}
+            >
+              {t("editor.retry")}
+            </Button>
+            <Button variant="outline" onClick={() => void router.push("menu")}>
+              {t("editor.shell.quit")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p role="status" className="text-sm text-zinc-500">
+          {t("editor.shell.preparing")}
+        </p>
+      )}
+    </main>
+  );
 }
 
 function AdventureEditorInner({ adventureId }: { adventureId: string }) {
