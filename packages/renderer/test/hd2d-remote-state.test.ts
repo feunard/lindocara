@@ -19,6 +19,7 @@ import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { combatArt } from "../src/combat-art.js";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
 import {
   ACTOR_FOOT,
@@ -29,7 +30,6 @@ import {
 } from "../src/hd2d/billboards.js";
 import { HD2D_GLIDER_TEXTURE_URL, playerActorView } from "../src/hd2d/game-renderer.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
-import { TINY_SWORDS_LUMEN_CLOUD } from "../src/tiny-swords-art.js";
 
 /** A square map from a row-major list of levels — `null` is water. The billboard suite's `mapOf`,
  *  plus an explicit `waterLevel`: this suite is about the difference between the ground under an
@@ -303,23 +303,23 @@ describe("a remote hero's drawn state", () => {
     };
     const priest = snapshot({ class: "priest", action });
     const { channelEndsAt: _releasedAt, ...heldAction } = action;
+    const cloud = combatArt("priest", "blink", "azure").impact;
+    if (!cloud) throw new Error("expected the Lumen cloud");
 
-    expect(playerActorView(priest, 199, "attack").textureKey).not.toBe(
-      TINY_SWORDS_LUMEN_CLOUD.source,
-    );
-    expect(playerActorView(priest, 200, "attack")).toMatchObject({
-      textureKey: TINY_SWORDS_LUMEN_CLOUD.source,
-      frames: 1,
-      frameWidth: 576,
-      frameHeight: 256,
-      renderHeight: 0.96,
+    expect(playerActorView(priest, 199, "attack").textureKey).not.toBe(cloud.source);
+    const clouded = playerActorView(priest, 200, "attack");
+    expect(clouded).toMatchObject({
+      textureKey: cloud.source,
+      frames: 10,
+      frameWidth: 64,
+      frameHeight: 64,
+      tint: 0xb48cff,
     });
-    expect(playerActorView(priest, 1_801, "attack").textureKey).not.toBe(
-      TINY_SWORDS_LUMEN_CLOUD.source,
-    );
+    expect(clouded.renderHeight).toBeCloseTo(1.17);
+    expect(playerActorView(priest, 1_801, "attack").textureKey).not.toBe(cloud.source);
     expect(
       playerActorView(snapshot({ class: "priest", action: heldAction }), 1_900, "attack")
         .textureKey,
-    ).toBe(TINY_SWORDS_LUMEN_CLOUD.source);
+    ).toBe(cloud.source);
   });
 });

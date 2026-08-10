@@ -5,8 +5,10 @@ import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
+  LootSnapshot,
   PeasantCampVisual,
   PlayerSnapshot,
+  ProjectileSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import type { Billboard, Sprite } from "@lindocara/hd2d/billboard.js";
@@ -14,8 +16,14 @@ import { makeBillboard, makeFlatSprite } from "@lindocara/hd2d/billboard.js";
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
-import type { CombatSheetArt } from "../combat-art.js";
-import { type ProjectileVisualDefinition, projectileVisual } from "../projectile-visuals.js";
+import { CHARACTER_ATLAS_SIZE, CHARACTER_ATLAS_URL, LOOT_ATLAS_FRAMES } from "../character-art.js";
+import {
+  type CombatProjectileArt,
+  type CombatSheetArt,
+  PEASANT_CAMP_ART,
+  projectileArt,
+} from "../combat-art.js";
+import { MAX_ACTIVE_WORLD_EFFECTS } from "../feedback.js";
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { HD2D_CAMERA, type Hd2dScene, terrainAtlases } from "./scene.js";
@@ -27,6 +35,29 @@ import {
 
 export const HD2D_SPLASH_TEXTURE_URL = "/assets/lindocara/hd2d/splash.png";
 export const HD2D_SHEEP_EXPLOSION_TEXTURE_URL = "/assets/lindocara/hd2d/sheep-explosion.png";
+/** Authored effect sheets are upright cards whose geometry already pivots at its bottom edge.
+ * Any positive foot fraction would subtract part of their height and bury that edge in terrain. */
+export const AUTHORED_EFFECT_FOOT = 0;
+export const AUTHORED_EFFECT_GROUND_CLEARANCE = 0.055;
+export const AUTHORED_EFFECT_DEPTH_BIAS = 0.035;
+
+/** Moves a co-located transparent impact a few centimetres away from the camera. The target's
+ * depth-writing billboard then remains in front instead of being painted over by the effect. */
+export function depthBiasedEffectPosition(
+  x: number,
+  z: number,
+  cameraX: number,
+  cameraZ: number,
+): GroundVector {
+  const dx = x - cameraX;
+  const dz = z - cameraZ;
+  const length = Math.hypot(dx, dz);
+  if (length <= 0.000_1) return { x, z };
+  return {
+    x: x + (dx / length) * AUTHORED_EFFECT_DEPTH_BIAS,
+    z: z + (dz / length) * AUTHORED_EFFECT_DEPTH_BIAS,
+  };
+}
 
 interface TimedVisual {
   object: THREE.Object3D;
@@ -44,7 +75,27 @@ interface LabelVisual {
 
 interface CampEntry {
   object: THREE.Object3D;
+  billboard: Billboard | null;
   endsAt: number;
+  startedAt: number;
+  expiresAt: number;
+}
+
+interface LootEntry {
+  object: THREE.Group;
+  billboard: Billboard | null;
+  kind: LootSnapshot["kind"];
+  phase: number;
+}
+
+interface ProjectileEntry {
+  object: THREE.Group;
+  billboard: Billboard | null;
+  trail: THREE.Object3D | null;
+  kind: ProjectileSnapshot["kind"];
+  color: ProjectileSnapshot["color"];
+  art: CombatProjectileArt;
+  createdAt: number;
 }
 
 export interface Hd2dEditorOverlay {
@@ -113,86 +164,66 @@ function colorFromText(value: string): number {
   return new THREE.Color().setHSL(((hash >>> 0) % 360) / 360, 0.62, 0.58).getHex();
 }
 
-function projectileMaterial(color: number, opacity = 0.96): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    toneMapped: false,
-  });
+function phaseFor(value: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return ((hash >>> 0) / 0xffff_ffff) * Math.PI * 2;
 }
 
-function projectileMesh(
-  definition: ProjectileVisualDefinition,
-  radius: number,
-  factionColor: number,
-): THREE.Group {
-  const root = new THREE.Group();
-  const spinRoot = new THREE.Group();
-  root.add(spinRoot);
-  const color = definition.color === "faction" ? factionColor : definition.color;
-  const body = projectileMaterial(color);
-  const accent = projectileMaterial(definition.accent, 0.9);
-  const size = Math.max(0.08, radius) * definition.scale;
+/** Rotation of a camera-facing projectile sheet after projecting its ground direction into the
+ * billboard plane. A world-east arrow stays horizontal at yaw zero; rotating the camera rotates the
+ * screen-space arrow without changing the authoritative direction. */
+export function projectileBillboardAngle(
+  direction: GroundVector,
+  cameraYaw: number,
+  cameraPitch = HD2D_CAMERA.pitch,
+): number {
+  const horizontal = direction.x * Math.cos(cameraYaw) - direction.z * Math.sin(cameraYaw);
+  const vertical =
+    -(direction.x * Math.sin(cameraYaw) + direction.z * Math.cos(cameraYaw)) *
+    Math.sin(cameraPitch);
+  return Math.atan2(vertical, horizontal);
+}
 
-  if (definition.shape === "arrow" || definition.shape === "harpoon") {
-    const shaft = new THREE.Mesh(
-      new THREE.CylinderGeometry(size * 0.18, size * 0.18, size * 3.2, 8),
-      body,
-    );
-    shaft.rotation.x = Math.PI / 2;
-    spinRoot.add(shaft);
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(size * 0.72, size * 1.35, 8), accent);
-    tip.rotation.x = Math.PI / 2;
-    tip.position.z = size * 2.1;
-    spinRoot.add(tip);
-    if (definition.shape === "harpoon") {
-      for (const side of [-1, 1]) {
-        const barb = new THREE.Mesh(new THREE.ConeGeometry(size * 0.32, size * 0.9, 6), accent);
-        barb.rotation.x = Math.PI / 2;
-        barb.rotation.z = side * 0.7;
-        barb.position.set(side * size * 0.5, 0, size * 1.35);
-        spinRoot.add(barb);
-      }
-    }
-  } else if (definition.shape === "orb") {
-    spinRoot.add(new THREE.Mesh(new THREE.IcosahedronGeometry(size, 1), body));
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(size * 1.35, size * 0.12, 8, 24), accent);
-    ring.rotation.x = Math.PI / 2;
-    spinRoot.add(ring);
-  } else if (definition.shape === "heart") {
-    for (const side of [-1, 1]) {
-      const lobe = new THREE.Mesh(new THREE.SphereGeometry(size * 0.65, 12, 8), body);
-      lobe.position.set(side * size * 0.5, size * 0.38, 0);
-      spinRoot.add(lobe);
-    }
-    const point = new THREE.Mesh(new THREE.ConeGeometry(size, size * 1.8, 12), accent);
-    point.rotation.z = Math.PI;
-    point.position.y = -size * 0.55;
-    spinRoot.add(point);
-  } else {
-    spinRoot.add(new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), body));
-    const fuse = new THREE.Mesh(
-      new THREE.TorusGeometry(size * 0.48, size * 0.12, 6, 12, Math.PI),
-      accent,
-    );
-    fuse.position.y = size * 0.95;
-    fuse.rotation.z = -0.6;
-    spinRoot.add(fuse);
-  }
+export function projectileFrameIndex(
+  frames: number,
+  durationMs: number,
+  elapsedMs: number,
+): number {
+  const count = Math.max(1, Math.trunc(frames));
+  return Math.floor((Math.max(0, elapsedMs) / Math.max(1, durationMs)) * count) % count;
+}
 
-  if (definition.trailLength > 0) {
-    const trail = new THREE.Mesh(
-      new THREE.ConeGeometry(size * 0.45, definition.trailLength, 8, 1, true),
-      projectileMaterial(color, 0.34),
-    );
-    trail.rotation.x = -Math.PI / 2;
-    trail.position.z = -definition.trailLength / 2 - size * 0.7;
-    root.add(trail);
-  }
-  root.userData.spinRoot = spinRoot;
-  return root;
+/** Server projectile `y` is collision elevation (normally the shooter's ground), not the centre of
+ * its rendered card. The card rotates in its own plane, so its lowest corner changes with the shot
+ * direction; the trail can become vertical too. Return enough presentation-only lift to keep the
+ * complete visual above terrain while leaving the authoritative sweep untouched. */
+export function projectileVisualLift(
+  frameWidth: number,
+  frameHeight: number,
+  scale = 1,
+  angle = 0,
+  trailLengthPixels = 0,
+): number {
+  const renderedHeight = Math.max(0.42, (frameHeight / 192) * 2.6 * scale);
+  const renderedWidth = renderedHeight * (frameWidth / Math.max(1, frameHeight));
+  const horizontalReach = Math.max(renderedWidth / 2, trailLengthPixels / 64);
+  const downwardReach =
+    Math.abs(Math.cos(angle)) * (renderedHeight / 2) + Math.abs(Math.sin(angle)) * horizontalReach;
+  return downwardReach + 0.12;
+}
+
+/** `makeBillboard` deliberately pivots ordinary sprites at their feet. A projectile needs the
+ * pre-HD-2D centre anchor instead: rotating a foot-pivoted arrow 180° puts its whole quad below the
+ * map, and the 90° cases leave half the card on either side of the terrain line. */
+export function centerProjectileGeometry(geometry: THREE.BufferGeometry): void {
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds) return;
+  geometry.translate(-(bounds.min.x + bounds.max.x) / 2, -(bounds.min.y + bounds.max.y) / 2, 0);
 }
 
 /** Dynamic presentation parented to the same scene graph as terrain and billboards. */
@@ -207,8 +238,8 @@ export class Hd2dVisualLayer {
   readonly #editorRoot = new THREE.Group();
   readonly #editorPreviewRoot = new THREE.Group();
   readonly #effects: TimedVisual[] = [];
-  readonly #loot = new Map<string, THREE.Object3D>();
-  readonly #projectiles = new Map<string, THREE.Object3D>();
+  readonly #loot = new Map<string, LootEntry>();
+  readonly #projectiles = new Map<string, ProjectileEntry>();
   readonly #eventMarkers = new Map<string, THREE.Object3D>();
   readonly #camps = new Map<string, CampEntry>();
   readonly #questMarkers = new Map<string, THREE.Object3D>();
@@ -333,6 +364,19 @@ export class Hd2dVisualLayer {
     return (this.#scene.query.heightAt(x, z) ?? 0) + lift;
   }
 
+  #disposeEffect(effect: TimedVisual): void {
+    if (effect.dispose) effect.dispose();
+    else disposeObject(effect.object);
+  }
+
+  #trackEffect(effect: TimedVisual): void {
+    this.#effects.push(effect);
+    while (this.#effects.length > MAX_ACTIVE_WORLD_EFFECTS) {
+      const oldest = this.#effects.shift();
+      if (oldest) this.#disposeEffect(oldest);
+    }
+  }
+
   pulse(
     x: number,
     z: number,
@@ -345,7 +389,7 @@ export class Hd2dVisualLayer {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(x, this.#groundY(x, z), z);
     this.#root.add(mesh);
-    this.#effects.push({
+    this.#trackEffect({
       object: mesh,
       startedAt,
       endsAt: startedAt + Math.max(1, durationMs),
@@ -381,7 +425,7 @@ export class Hd2dVisualLayer {
     mesh.position.set(x, this.#groundY(x, z, 0.07), z);
     mesh.rotation.y = -Math.atan2(dz, dx);
     this.#root.add(mesh);
-    this.#effects.push({
+    this.#trackEffect({
       object: mesh,
       startedAt,
       endsAt: startedAt + Math.max(1, durationMs),
@@ -405,7 +449,7 @@ export class Hd2dVisualLayer {
     );
     mesh.position.set(x, this.#groundY(x, z, radius + 0.12), z);
     this.#root.add(mesh);
-    this.#effects.push({
+    this.#trackEffect({
       object: mesh,
       startedAt,
       endsAt: startedAt + Math.max(1, durationMs),
@@ -437,27 +481,37 @@ export class Hd2dVisualLayer {
       rows: 1,
       height,
       aspect: art.frameWidth / art.frameHeight,
-      foot: 0.08,
+      foot: AUTHORED_EFFECT_FOOT,
       lit: false,
       pitch: HD2D_CAMERA.pitch,
     });
     const material = billboard.mesh.material;
-    if (material instanceof THREE.MeshLambertMaterial) {
+    if (material instanceof THREE.MeshBasicMaterial) {
       material.color.setHex(art.tint ?? 0xffffff);
       material.transparent = true;
       material.depthWrite = false;
     }
-    billboard.placeAt(x, this.#groundY(x, z, 0.035), z);
+    const placement = depthBiasedEffectPosition(
+      x,
+      z,
+      this.#scene.camera.position.x,
+      this.#scene.camera.position.z,
+    );
+    billboard.placeAt(
+      placement.x,
+      this.#groundY(x, z, AUTHORED_EFFECT_GROUND_CLEARANCE),
+      placement.z,
+    );
     billboard.mesh.visible = startedAt <= performance.now();
     this.#root.add(billboard.mesh);
     const authoredDuration = Math.max(1, durationMs);
-    this.#effects.push({
+    this.#trackEffect({
       object: billboard.mesh,
       startedAt,
       endsAt: startedAt + authoredDuration,
       update(progress) {
         billboard.setFrame(Math.min(art.frames - 1, Math.floor(progress * art.frames)));
-        if (material instanceof THREE.MeshLambertMaterial) {
+        if (material instanceof THREE.MeshBasicMaterial) {
           material.opacity = Math.min(1, (1 - progress) * 4);
         }
       },
@@ -477,7 +531,7 @@ export class Hd2dVisualLayer {
     mesh.position.set(x, this.#waterLevel + 0.025, z);
     mesh.renderOrder = 3;
     this.#root.add(mesh);
-    this.#effects.push({
+    this.#trackEffect({
       object: mesh,
       startedAt: now,
       endsAt: now + 2_400,
@@ -510,7 +564,7 @@ export class Hd2dVisualLayer {
     sprite.renderOrder = 4;
     this.#root.add(sprite);
     const duration = (9 / 20) * 1_000;
-    this.#effects.push({
+    this.#trackEffect({
       object: sprite,
       startedAt: now,
       endsAt: now + duration,
@@ -544,7 +598,7 @@ export class Hd2dVisualLayer {
     billboard.placeAt(x, this.#groundY(x, z, 0), z);
     this.#root.add(billboard.mesh);
     const duration = (9 / 12) * 1_000;
-    this.#effects.push({
+    this.#trackEffect({
       object: billboard.mesh,
       startedAt: now,
       endsAt: now + duration,
@@ -566,7 +620,7 @@ export class Hd2dVisualLayer {
     mesh.position.set(event.x, this.#groundY(event.x, event.z, 0.025), event.z);
     mesh.rotation.y = -Math.atan2(hero.facing.z, hero.facing.x);
     this.#root.add(mesh);
-    this.#effects.push({
+    this.#trackEffect({
       object: mesh,
       startedAt: now,
       endsAt: now + 4_500,
@@ -584,7 +638,7 @@ export class Hd2dVisualLayer {
     puff.position.set(hero.x + hero.facing.x * 0.22, hero.y + 1.8, hero.z + hero.facing.z * 0.22);
     const startY = puff.position.y;
     this.#root.add(puff);
-    this.#effects.push({
+    this.#trackEffect({
       object: puff,
       startedAt: now,
       endsAt: now + 900,
@@ -670,30 +724,56 @@ export class Hd2dVisualLayer {
     this.#merchant = marker;
   }
 
-  showCamp(camp: PeasantCampVisual, endsAt: number): void {
+  showCamp(camp: PeasantCampVisual, endsAt: number): boolean {
+    const current = this.#camps.get(camp.id);
+    if (current && current.startedAt === camp.startedAt && current.expiresAt === camp.expiresAt) {
+      current.endsAt = endsAt;
+      return false;
+    }
     this.removeCamp(camp.id);
     const group = new THREE.Group();
-    const tent = new THREE.Mesh(
-      new THREE.ConeGeometry(0.62, 1.15, 4),
-      new THREE.MeshStandardMaterial({ color: 0xc7894d, roughness: 0.9 }),
-    );
-    tent.rotation.y = Math.PI / 4;
-    tent.position.y = 0.58;
+    let billboard: Billboard | null = null;
+    if (this.#textures) {
+      billboard = makeBillboard(this.#scene.ctx, {
+        texture: this.#textures.get(PEASANT_CAMP_ART.source),
+        height: (PEASANT_CAMP_ART.frameHeight / 192) * 2.6 * (PEASANT_CAMP_ART.scale ?? 1),
+        aspect: PEASANT_CAMP_ART.frameWidth / PEASANT_CAMP_ART.frameHeight,
+        foot: AUTHORED_EFFECT_FOOT,
+        pitch: HD2D_CAMERA.pitch,
+      });
+      billboard.placeAt(0, 0, 0);
+      group.add(billboard.mesh);
+    }
     const range = new THREE.Mesh(
       new THREE.RingGeometry(0.97, 1, 48),
       transparentMaterial(0xf2c879, 0.38),
     );
     range.rotation.x = -Math.PI / 2;
     range.scale.setScalar(camp.radius);
-    group.add(tent, range);
-    group.position.set(camp.x, this.#groundY(camp.x, camp.z), camp.z);
+    group.add(range);
+    group.position.set(
+      camp.x,
+      this.#groundY(camp.x, camp.z, AUTHORED_EFFECT_GROUND_CLEARANCE),
+      camp.z,
+    );
     this.#root.add(group);
-    this.#camps.set(camp.id, { object: group, endsAt });
+    this.#camps.set(camp.id, {
+      object: group,
+      billboard,
+      endsAt,
+      startedAt: camp.startedAt,
+      expiresAt: camp.expiresAt,
+    });
+    return true;
   }
 
   removeCamp(id: string): void {
     const camp = this.#camps.get(id);
     if (!camp) return;
+    if (camp.billboard) {
+      camp.object.remove(camp.billboard.mesh);
+      camp.billboard.dispose();
+    }
     disposeObject(camp.object);
     this.#camps.delete(id);
   }
@@ -760,7 +840,7 @@ export class Hd2dVisualLayer {
 
   sync(sample: SceneSample, now: number): void {
     this.#events = sample.events;
-    this.#syncLoot(sample);
+    this.#syncLoot(sample, now);
     this.#syncProjectiles(sample, now);
     this.#syncEventMarkers(sample.events);
     const eventById = new Map(sample.events.map((event) => [event.id, event]));
@@ -777,60 +857,209 @@ export class Hd2dVisualLayer {
     this.update(now);
   }
 
-  #syncLoot(sample: SceneSample): void {
+  #syncLoot(sample: SceneSample, now: number): void {
     const present = new Set<string>();
     for (const loot of sample.loot) {
       present.add(loot.id);
-      let object = this.#loot.get(loot.id);
-      if (!object) {
-        object = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.18),
-          new THREE.MeshStandardMaterial({
-            color: colorFromText(loot.kind),
-            emissive: colorFromText(loot.kind),
-            emissiveIntensity: 0.22,
-          }),
-        );
-        this.#root.add(object);
-        this.#loot.set(loot.id, object);
+      let entry = this.#loot.get(loot.id);
+      if (entry && entry.kind !== loot.kind) {
+        this.#dropLoot(entry);
+        this.#loot.delete(loot.id);
+        entry = undefined;
       }
-      object.position.set(loot.x, loot.y + 0.24, loot.z);
+      if (!entry) {
+        entry = this.#createLoot(loot);
+        this.#loot.set(loot.id, entry);
+      }
+      const bob = Math.sin(now / 360 + entry.phase) * 0.08;
+      entry.object.position.set(loot.x, loot.y + 0.48 + bob, loot.z);
+      const glow = entry.object.userData.glow;
+      if (glow instanceof THREE.Object3D) {
+        const pulse = 0.92 + Math.sin(now / 280 + entry.phase) * 0.12;
+        glow.scale.setScalar(pulse);
+      }
     }
-    for (const [id, object] of this.#loot) {
+    for (const [id, entry] of this.#loot) {
       if (present.has(id)) continue;
-      disposeObject(object);
+      this.#dropLoot(entry);
       this.#loot.delete(id);
     }
+  }
+
+  #createLoot(loot: LootSnapshot): LootEntry {
+    const object = new THREE.Group();
+    const color = colorFromText(loot.kind);
+    const glow = new THREE.Mesh(
+      new THREE.RingGeometry(0.24, 0.34, 32),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.48,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    );
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.y = -0.4;
+    object.add(glow);
+    object.userData.glow = glow;
+
+    let billboard: Billboard | null = null;
+    if (this.#textures) {
+      const frame = LOOT_ATLAS_FRAMES[loot.kind];
+      billboard = makeBillboard(this.#scene.ctx, {
+        texture: this.#textures.get(CHARACTER_ATLAS_URL),
+        height: 0.72,
+        aspect: frame.width / frame.height,
+        foot: 0.5,
+        lit: false,
+        pitch: HD2D_CAMERA.pitch,
+        uvRect: {
+          offsetX: frame.x / CHARACTER_ATLAS_SIZE.width,
+          offsetY: 1 - (frame.y + frame.height) / CHARACTER_ATLAS_SIZE.height,
+          repeatX: frame.width / CHARACTER_ATLAS_SIZE.width,
+          repeatY: frame.height / CHARACTER_ATLAS_SIZE.height,
+        },
+      });
+      billboard.placeAt(0, 0, 0);
+      object.add(billboard.mesh);
+    }
+    this.#root.add(object);
+    return { object, billboard, kind: loot.kind, phase: phaseFor(loot.id) };
+  }
+
+  #dropLoot(entry: LootEntry): void {
+    if (entry.billboard) {
+      entry.object.remove(entry.billboard.mesh);
+      entry.billboard.dispose();
+    }
+    disposeObject(entry.object);
   }
 
   #syncProjectiles(sample: SceneSample, now: number): void {
     const present = new Set<string>();
     for (const projectile of sample.projectiles) {
       present.add(projectile.id);
-      let object = this.#projectiles.get(projectile.id);
-      if (!object) {
-        object = projectileMesh(
-          projectileVisual(projectile.kind),
-          projectile.radius,
-          colorFromText(projectile.color),
-        );
-        this.#root.add(object);
-        this.#projectiles.set(projectile.id, object);
+      let entry = this.#projectiles.get(projectile.id);
+      if (entry && (entry.kind !== projectile.kind || entry.color !== projectile.color)) {
+        this.#dropProjectile(entry);
+        this.#projectiles.delete(projectile.id);
+        entry = undefined;
       }
-      object.position.set(projectile.x, projectile.y, projectile.z);
-      object.rotation.y = Math.atan2(projectile.direction.x, projectile.direction.z);
-      const definition = projectileVisual(projectile.kind);
-      const age = Math.max(0, now - projectile.spawnedAt) / 1_000;
-      const pulse = 1 + Math.sin(age * 11) * definition.pulse;
-      object.scale.setScalar(pulse);
-      const spinRoot = object.userData.spinRoot;
-      if (spinRoot instanceof THREE.Object3D) spinRoot.rotation.z = age * definition.spin;
+      if (!entry) {
+        entry = this.#createProjectile(projectile, now);
+        this.#projectiles.set(projectile.id, entry);
+      }
+      const angle =
+        projectileBillboardAngle(projectile.direction, this.#scene.ctx.yaw()) +
+        entry.art.rotationOffset;
+      const terrainY = this.#scene.query.heightAt(projectile.x, projectile.z);
+      entry.object.position.set(
+        projectile.x,
+        Math.max(projectile.y, terrainY ?? projectile.y) +
+          projectileVisualLift(
+            entry.art.frameWidth,
+            entry.art.frameHeight,
+            entry.art.scale ?? 1,
+            angle,
+            entry.art.trail?.length ?? 0,
+          ),
+        projectile.z,
+      );
+      if (entry.billboard) {
+        entry.billboard.setFrame(
+          projectileFrameIndex(entry.art.frames, entry.art.durationMs, now - entry.createdAt),
+        );
+        entry.billboard.mesh.rotation.z = angle;
+      }
     }
-    for (const [id, object] of this.#projectiles) {
+    for (const [id, entry] of this.#projectiles) {
       if (present.has(id)) continue;
-      disposeObject(object);
+      this.#dropProjectile(entry);
       this.#projectiles.delete(id);
     }
+  }
+
+  #createProjectile(projectile: ProjectileSnapshot, now: number): ProjectileEntry {
+    const art = projectileArt(projectile.kind, projectile.color);
+    const object = new THREE.Group();
+    let billboard: Billboard | null = null;
+    let trail: THREE.Object3D | null = null;
+    if (this.#textures) {
+      const height = Math.max(0.42, (art.frameHeight / 192) * 2.6 * (art.scale ?? 1));
+      billboard = makeBillboard(this.#scene.ctx, {
+        texture: this.#textures.get(art.source),
+        cols: art.frames,
+        rows: 1,
+        height,
+        aspect: art.frameWidth / art.frameHeight,
+        foot: 0.5,
+        lit: false,
+        pitch: HD2D_CAMERA.pitch,
+      });
+      centerProjectileGeometry(billboard.mesh.geometry);
+      const material = billboard.mesh.material;
+      if (material instanceof THREE.MeshBasicMaterial) {
+        material.color.setHex(art.tint ?? 0xffffff);
+        material.transparent = true;
+        material.depthWrite = false;
+      }
+      billboard.placeAt(0, 0, 0);
+      object.add(billboard.mesh);
+      if (art.trail) {
+        trail = this.#projectileTrail(art.trail);
+        billboard.mesh.add(trail);
+      }
+    }
+    this.#root.add(object);
+    return {
+      object,
+      billboard,
+      trail,
+      kind: projectile.kind,
+      color: projectile.color,
+      art,
+      createdAt: now,
+    };
+  }
+
+  #projectileTrail(trail: NonNullable<CombatProjectileArt["trail"]>): THREE.Group {
+    const group = new THREE.Group();
+    const length = Math.max(0.08, trail.length / 64);
+    const width = Math.max(0.025, trail.width / 64);
+    for (const [scale, opacity] of [
+      [2.4, 0.16],
+      [1, 0.82],
+    ] as const) {
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(length, width * scale),
+        new THREE.MeshBasicMaterial({
+          color: trail.color,
+          transparent: true,
+          opacity,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          toneMapped: false,
+        }),
+      );
+      mesh.position.x = -length / 2;
+      mesh.position.z = 0.002 * scale;
+      group.add(mesh);
+    }
+    return group;
+  }
+
+  #dropProjectile(entry: ProjectileEntry): void {
+    if (entry.trail) {
+      entry.billboard?.mesh.remove(entry.trail);
+      disposeObject(entry.trail);
+    }
+    if (entry.billboard) {
+      entry.object.remove(entry.billboard.mesh);
+      entry.billboard.dispose();
+    }
+    disposeObject(entry.object);
   }
 
   #syncEventMarkers(events: readonly WorldEventSnapshot[]): void {
@@ -1110,8 +1339,7 @@ export class Hd2dVisualLayer {
       effect.object.visible = now >= effect.startedAt;
       if (now < effect.startedAt) continue;
       if (now >= effect.endsAt) {
-        if (effect.dispose) effect.dispose();
-        else disposeObject(effect.object);
+        this.#disposeEffect(effect);
         this.#effects.splice(index, 1);
         continue;
       }
@@ -1121,8 +1349,7 @@ export class Hd2dVisualLayer {
     }
     for (const [id, camp] of this.#camps) {
       if (now < camp.endsAt) continue;
-      disposeObject(camp.object);
-      this.#camps.delete(id);
+      this.removeCamp(id);
     }
     for (const [id, until] of this.#hiddenQuestSites) {
       if (now < until) continue;
@@ -1165,9 +1392,10 @@ export class Hd2dVisualLayer {
     this.setEditorPreviewArt(null);
     for (const label of this.#labels) label.element.remove();
     this.#labels.length = 0;
-    for (const effect of this.#effects) {
-      if (effect.dispose) effect.dispose();
-    }
+    for (const effect of this.#effects) this.#disposeEffect(effect);
+    for (const entry of this.#loot.values()) this.#dropLoot(entry);
+    for (const entry of this.#projectiles.values()) this.#dropProjectile(entry);
+    for (const id of [...this.#camps.keys()]) this.removeCamp(id);
     disposeObject(this.#root);
     this.#effects.length = 0;
     this.#loot.clear();

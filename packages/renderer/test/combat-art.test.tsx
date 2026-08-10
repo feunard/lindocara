@@ -12,6 +12,7 @@ import {
   monsterCombatArt,
   monsterSpecialImpactPosition,
   multiImpactActionFrameIndex,
+  PEASANT_CAMP_ART,
   projectileArt,
   teleportEffectArt,
 } from "@lindocara/renderer/combat-art.js";
@@ -235,6 +236,18 @@ describe("Tiny Swords directional combat art", () => {
     }
   });
 
+  it("preloads the original persistent makeshift-camp illustration", () => {
+    expect(PEASANT_CAMP_ART).toMatchObject({
+      source: expect.stringContaining("makeshift-camp.png"),
+      frames: 1,
+      frameWidth: 1_254,
+      frameHeight: 1_254,
+    });
+    expect(new Set(allCombatSheets().map((entry) => entry.source))).toContain(
+      PEASANT_CAMP_ART.source,
+    );
+  });
+
   it("defines and preloads an explicit impact profile for every monster special", () => {
     const techniques = MONSTER_SPECIAL_TECHNIQUES.filter((technique) => technique !== "none");
     expect(Object.keys(MONSTER_SPECIAL_IMPACT_ART).sort()).toEqual([...techniques].sort());
@@ -360,7 +373,7 @@ describe("Tiny Swords directional combat art", () => {
     expect(skillIconArt("warrior", 4).source).toContain("Explosion_02.png");
     expect(skillIconArt("warrior", 5).source).toContain("Explosion_02.png");
     expect(skillIconArt("priest", 2).source).toContain("Heal_Effect.png");
-    expect(skillIconArt("priest", 3).source).toContain("Clouds_01.png");
+    expect(skillIconArt("priest", 3).source).toContain("Dust_02.png");
     expect(skillIconArt("priest", 5).source).toContain("Heal_Effect.png");
     expect(skillIconArt("rogue", 1)).toMatchObject({
       source: expect.stringContaining("Thief_Attack"),
@@ -399,12 +412,13 @@ describe("Tiny Swords directional combat art", () => {
     ]);
   });
 
-  it("uses the Tiny Swords cloud for Lumen traversal", () => {
+  it("restores the rounded violet pre-HD-2D cloud for Lumen traversal", () => {
     const blink = combatArt("priest", "blink", "azure");
     expect(blink.impact).toMatchObject({
-      source: expect.stringContaining("Clouds_01.png"),
-      frames: 1,
+      source: expect.stringContaining("Dust_02.png"),
+      frames: 10,
       tint: 0xb48cff,
+      scale: 1.35,
     });
     expect(new Set(allCombatSheets().map((entry) => entry.source))).toContain(blink.impact?.source);
   });

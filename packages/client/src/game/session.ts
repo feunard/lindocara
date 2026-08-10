@@ -726,7 +726,13 @@ async function startGameIdentity(
             : code === "heal.cast" || code === "heal.received"
               ? `+${String(params?.amount ?? "")}`
               : text;
-        renderer.showWorldEvent(compact, tone, x, z);
+        renderer.showWorldEvent(
+          compact,
+          tone,
+          x,
+          z,
+          typeof params?.targetId === "string" ? params.targetId : undefined,
+        );
       }
       if (code === "quest.site_harvested" && typeof params?.site === "string") {
         renderer.hideQuestSite(params.site, 15_000);
@@ -793,10 +799,11 @@ async function startGameIdentity(
           if (typeof params?.skill === "string" && typeof x === "number" && typeof z === "number") {
             const actorId = typeof params.actorId === "string" ? params.actorId : client.selfId;
             const poisonOutcome = params.poisonTick === 1 || params.poisonRupture === 1;
+            const targetId = typeof params.targetId === "string" ? params.targetId : undefined;
             const impactClass = poisonOutcome
-              ? renderer.playRoguePoisonImpact(x, z, params.poisonRupture === 1)
+              ? renderer.playRoguePoisonImpact(x, z, params.poisonRupture === 1, targetId)
               : actorId
-                ? renderer.playCombatImpact(actorId, params.skill, x, z)
+                ? renderer.playCombatImpact(actorId, params.skill, x, z, targetId)
                 : undefined;
             sound.combatImpact(impactClass ?? playerClass());
           }

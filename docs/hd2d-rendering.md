@@ -643,20 +643,19 @@ The deleted file held rules nobody had written down. Three groups, with differen
   deliberate consequence, not a regression to chase: native scale is the pack's own scale system (see
   "Toutes les framesâ€¦" and `tiny-swords-art.ts`'s own note about never fitting a frame to a box),
   and fitting-to-a-box is what shrank an NPC once already.
-- **The feedback rules survive intact and uncalled.** `feedback.ts` still owns
+- **The feedback rules survive intact and are enforced.** `feedback.ts` still owns
   `MAX_ACTIVE_WORLD_EFFECTS` (28), `shouldFloatEvent` (which system/loot/quest prose belongs in
   React's event log rather than the world) and `questSiteFeedback`. The last one is a security
   property, not a style one: **it must keep returning a zero signal alpha**, because a non-zero one
   would leak the expected rune order to anyone reading pixels. Whoever re-implements world effects on
-  billboards inherits that rule along with the file.
+  billboards inherits that rule along with the file. `Hd2dVisualLayer` enforces the 28-effect cap,
+  while quest-site presentation still consumes no expected-order signal.
 
-### What this path does not draw yet
+### Gaps closed after the first game port
 
-Grep `NOT YET DRAWN ON THE HD-2D PATH` in `packages/renderer/src/hd2d/` for the authoritative list,
-and `NOT YET WIRED ON THE HD-2D PATH` for the shorter, sharper one: the members whose absence is a
-GAMEPLAY gap rather than a visual one, because the session turns their answer into something it
-sends to the server. Triage that second list first â€” a missing effect looks plain, a missing answer
-misbehaves. The ones a player would notice first:
+The first S3 game increment deliberately shipped terrain and frame-zero actors before the rest of
+the PixiJS presentation. The following list is retained as the migration record; these are closed
+properties of the current renderer, not an outstanding no-op list:
 
 - **~~Cliffs are drawn but not collided.~~ CLOSED** by S3's tile-units increment. The pixel
   projection that flattened every non-water cell is deleted along with the whole TILEâ†’PIXEL BRIDGE;
@@ -679,25 +678,31 @@ misbehaves. The ones a player would notice first:
     invisible and standing every swimmer on the seabed. `hd2d-remote-state.test.ts` is what holds
     it closed.
 - **Remote heroes preserve their vertical pose.** Snapshots carry elevation, locomotion flags and `vy`; billboards use them for water-line placement, airborne height, squash/stretch and the glider canopy.
-- **The peasant's bomb cannot be aimed, and therefore cannot be thrown.** `screenToWorld` is the one
-  no-op whose return value crosses the wire â€” the session turns it into `skill(5, direction)`, an
-  authoritative intent â€” so it is marked `NOT YET WIRED ON THE HD-2D PATH â€” GAMEPLAY, NOT RENDERING`
-  rather than `NOT YET DRAWN`, and it returns `null` instead of a point. `session.ts` reads that
-  `null` as "no direction the player chose" and sends nothing: the aim overlay stays blank and a
-  confirm just leaves aim mode. That is the deliberate trade â€” a silent skill beats a bomb thrown at
-  the map's north-west corner every time the player clicks. It needs a ray cast through the ground
-  plus the tileâ†’pixel half of the bridge.
-- **Actors do not animate.** `ActorView` carries no clip and `sync` has no clock; every actor is
-  frame 0 of its idle strip, facing the direction the server reports. Giving it a clip is a real API
-  change (a `dt` into `sync`), which is why it was not done unilaterally.
-- **A ghost is drawn opaque.** The corpse-run's whole visual language is missing; a corpse is not
-  drawn at all, because an idle billboard standing to attention over a body is worse than nothing.
-- **Combat, healing, loot, projectiles, portals, camp and quest-marker effects are explicit no-ops.**
-  The session calls all of them; each returns without drawing, and says so.
-- **Snow and ice borrow `Tilemap_color5.png`**, the coldest of the pack's five hues. The lab composes
-  dedicated cold tilesets with `apps/lab/scripts/compose-tileset.py` and those are not committed, so
-  the two cold materials currently read as the same teal as each other. They are two separate atlas
-  entries pointing at one texture, so giving snow its own art later is one line.
+- **Bomb aiming is a real ground raycast.** `screenToWorld` intersects the visible terrain, stairs or
+  water and refuses out-of-map points; `showPeasantBombAim` draws the accepted direction.
+- **Actors animate authored sheets.** Idle/run/attack selection follows movement and authoritative
+  action timelines. Multi-contact actions pin their declared contact frame to each server impact;
+  Iron Guard loops its guard strip, while stealth, silhouettes and Ranger afterimages preserve their
+  old opacity/tint language.
+- **Corpses and ghosts have distinct presentation.** Bodies use fallen billboards and ghosts retain
+  their movement pose at reduced opacity.
+- **Combat and skill assets are restored on HD-2D.** `combat-art.ts` remains the exhaustive mapping;
+  the texture registry preloads it and `visual-layer.ts` animates each sheet from the terrain line.
+  Combat does not layer generic Three.js rings, beams, spheres or particle bursts over authored art;
+  camera impulses remain presentation-only. Projectiles use their Tiny Swords sheets and trails
+  rather than geometric substitutes: their old centre pivot is preserved in the billboard plane,
+  and angle-aware clearance keeps left/right/up/down shots above terrain without changing server
+  collision elevation. Healing, poison/Rupture, Shadow Dance, monster specials, teleportation and
+  the homemade bomb all consume their authored art; Lumen traversal specifically restores the old
+  rounded violet `Dust_02` strip rather than borrowing a terrain cloud.
+- **Combat chrome follows the rendered target.** Enemy health bars use authoritative HP and the
+  existing proximity/display setting above the world billboard. Hit sheets and damage labels carry
+  the authoritative `targetId`, then attach to the target's interpolated on-screen position; a small
+  camera-relative depth bias keeps transparent impact art behind the target instead of covering it.
+- **Persistent secondary visuals use their original art.** Loot crops the original world atlas and
+  the Peasant camp uses the retained makeshift-camp illustration, planted as a lit HD-2D billboard.
+- **Snow and ice use committed dedicated tilesets** under `packages/client/public/assets/lindocara/
+  hd2d/`; they no longer alias the same Tiny Swords teal sheet.
 
 ## RÃ©glages
 

@@ -50,11 +50,12 @@ authoring stage was rebuilt on `Hd2dRenderer` and shares this package's renderin
   ground, so all three flags are false for them. It also draws
   `heightfield.elements`/`heightfield.events` as static billboards, appearance only: no
   element or event ever contributes a collider, because the server bakes collision from the terrain
-  alone. Grep `NOT YET DRAWN ON THE HD-2D PATH` for what is still owed visually, and
-  `NOT YET WIRED ON THE HD-2D PATH` for the one gap that is not visual at all: `screenToWorld` is
-  the only member whose return value leaves the client (the session makes the peasant's bomb
-  direction out of it and sends it), so it answers `null` â€” "I cannot answer" â€” instead of a
-  placeholder point, and the session sends nothing rather than a direction it invented.
+  alone. Combat presentation is also on this one path: actor attack strips, authored Tiny Swords
+  impacts and projectiles, hero mobility/stealth variants, loot, camps and transient accents all run
+  through `game-renderer.ts` + `visual-layer.ts`. `screenToWorld` raycasts the visible authored
+  ground and is the only renderer answer that leaves the client (the session turns it into the
+  peasant bomb direction), so it must keep returning `null` when no real ground point was hit rather
+  than inventing one.
   Read
   [`docs/hd2d-rendering.md`](../../docs/hd2d-rendering.md) before touching it.
 

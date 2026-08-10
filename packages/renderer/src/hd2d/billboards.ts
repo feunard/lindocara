@@ -17,7 +17,7 @@
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { Billboard, Facing } from "@lindocara/hd2d/billboard.js";
-import { makeBillboard } from "@lindocara/hd2d/billboard.js";
+import { billboardHeight, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
@@ -80,6 +80,20 @@ export interface ActorView {
   animationDurationMs?: number;
   /** Attack strips play once and hold their final frame; idle/run strips loop. */
   animationLoop?: boolean;
+  /** Optional authoritative/presentation-selected frame. Multi-contact actions use this to pin the
+   * authored contact frame to every server-owned impact instead of stretching one strip across the
+   * whole action. */
+  frame?: number;
+  /** Presentation-only modulation for stealth silhouettes and Ranger afterimages. */
+  tint?: number;
+  opacity?: number;
+  /** Server-authored health rendered as world chrome. The registry only clamps and draws it; it
+   * never predicts damage or mutates the values. */
+  healthBar?: {
+    value: number;
+    max: number;
+    visible: boolean;
+  };
 }
 
 /**
@@ -175,11 +189,32 @@ function elevationOf(actor: ActorView, scene: BillboardScene): number {
 interface Entry {
   billboard: Billboard;
   canopy: Billboard | null;
+  healthBar: HealthBarVisual | null;
   /** Kept so a texture change — a class swap, a recoloured guard — rebuilds rather than silently
    *  keeping the old sheet forever. */
   textureKey: string;
   canopyTextureKey: string | undefined;
   frames: number;
+  frameHeight: number;
+}
+
+interface HealthBarVisual {
+  group: THREE.Group;
+  fill: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  dispose(): void;
+}
+
+export const ENEMY_HEALTH_BAR_WIDTH = 0.82;
+export const ENEMY_HEALTH_BAR_HEIGHT = 0.12;
+export const ENEMY_HEALTH_BAR_GAP = 0.16;
+
+export function healthBarFillRatio(value: number, max: number): number {
+  if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return 0;
+  return THREE.MathUtils.clamp(value / max, 0, 1);
+}
+
+export function healthBarFillColor(ratio: number): number {
+  return ratio > 0.55 ? 0x65d17d : ratio > 0.25 ? 0xf0b85a : 0xe85454;
 }
 
 export const GLIDER_HEIGHT = 2.45;
@@ -187,6 +222,63 @@ export const GLIDER_ASPECT = 0.938;
 export const GLIDER_LIFT = 1.05;
 /** Same presentation depth as the lab witness: the water plane masks the swimmer's lower body. */
 export const SWIM_DEPTH = 0.5;
+
+function makeHealthBar(): HealthBarVisual {
+  const group = new THREE.Group();
+  group.name = "enemy-health-bar";
+  const backgroundGeometry = new THREE.PlaneGeometry(
+    ENEMY_HEALTH_BAR_WIDTH + 0.08,
+    ENEMY_HEALTH_BAR_HEIGHT + 0.06,
+  );
+  const fillGeometry = new THREE.PlaneGeometry(ENEMY_HEALTH_BAR_WIDTH, ENEMY_HEALTH_BAR_HEIGHT);
+  const backgroundMaterial = new THREE.MeshBasicMaterial({
+    color: 0x251f26,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const fillMaterial = new THREE.MeshBasicMaterial({
+    color: 0x65d17d,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const background = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+  const fill = new THREE.Mesh(fillGeometry, fillMaterial);
+  background.renderOrder = 40;
+  fill.position.z = 0.004;
+  fill.renderOrder = 41;
+  group.add(background, fill);
+  return {
+    group,
+    fill,
+    dispose() {
+      group.removeFromParent();
+      backgroundGeometry.dispose();
+      fillGeometry.dispose();
+      backgroundMaterial.dispose();
+      fillMaterial.dispose();
+    },
+  };
+}
+
+function healthBarElevation(
+  actor: ActorView,
+  scene: BillboardScene,
+  ctx: Hd2dContext,
+  frameHeight: number,
+): number {
+  const height = actor.renderHeight ?? actorHeightAtLabScale(frameHeight);
+  const drawnHeight = billboardHeight({
+    height,
+    pitch: HD2D_CAMERA.pitch,
+    stretch: ctx.config.spriteStretch,
+  });
+  const foot = actor.foot ?? ACTOR_FOOT[actor.kind];
+  return elevationOf(actor, scene) + drawnHeight * (1 - foot) + ENEMY_HEALTH_BAR_GAP;
+}
 
 /**
  * `ctx` is passed explicitly, and must be the very context that built `scene`: `makeBillboard`
@@ -224,12 +316,16 @@ export function createBillboardRegistry(
     });
     billboard.mesh.userData.actorId = actor.id;
     scene.root.add(billboard.mesh);
+    const healthBar = actor.healthBar ? makeHealthBar() : null;
+    if (healthBar) scene.root.add(healthBar.group);
     return {
       billboard,
       canopy: null,
+      healthBar,
       textureKey: actor.textureKey,
       canopyTextureKey: actor.canopyTextureKey,
       frames,
+      frameHeight,
     };
   }
 
@@ -252,6 +348,7 @@ export function createBillboardRegistry(
       scene.root.remove(entry.canopy.mesh);
       entry.canopy.dispose();
     }
+    entry.healthBar?.dispose();
   }
 
   return {
@@ -285,17 +382,44 @@ export function createBillboardRegistry(
         const elapsed = Math.max(0, actor.animationTimeMs ?? 0);
         const duration = actor.animationDurationMs;
         const animatedFrame =
-          duration && duration > 0
+          actor.frame ??
+          (duration && duration > 0
             ? actor.animationLoop === false
               ? Math.min(entry.frames - 1, Math.floor((elapsed / duration) * entry.frames))
               : Math.floor((elapsed / duration) * entry.frames) % entry.frames
-            : Math.floor(elapsed / 145) % entry.frames;
-        entry.billboard.setFrame(fallen ? 0 : animatedFrame);
+            : Math.floor(elapsed / 145) % entry.frames);
+        entry.billboard.setFrame(
+          fallen ? 0 : Math.max(0, Math.min(entry.frames - 1, animatedFrame)),
+        );
         const material = entry.billboard.mesh.material;
         const materials = Array.isArray(material) ? material : [material];
+        const opacity = actor.opacity ?? (actor.pose === "ghost" ? 0.48 : 1);
         for (const current of materials) {
-          current.transparent = actor.pose === "ghost";
-          current.opacity = actor.pose === "ghost" ? 0.48 : 1;
+          if (current instanceof THREE.MeshLambertMaterial) {
+            current.color.setHex(actor.tint ?? 0xffffff);
+          }
+          current.transparent = opacity < 1;
+          current.opacity = opacity;
+        }
+        if (actor.healthBar && !entry.healthBar) {
+          entry.healthBar = makeHealthBar();
+          scene.root.add(entry.healthBar.group);
+        } else if (!actor.healthBar && entry.healthBar) {
+          entry.healthBar.dispose();
+          entry.healthBar = null;
+        }
+        if (actor.healthBar && entry.healthBar) {
+          const ratio = healthBarFillRatio(actor.healthBar.value, actor.healthBar.max);
+          entry.healthBar.group.visible = actor.healthBar.visible && ratio > 0;
+          entry.healthBar.group.position.set(
+            actor.x,
+            healthBarElevation(actor, scene, ctx, entry.frameHeight),
+            actor.z,
+          );
+          entry.healthBar.group.rotation.y = ctx.yaw();
+          entry.healthBar.fill.scale.x = Math.max(0.000_1, ratio);
+          entry.healthBar.fill.position.x = -(1 - ratio) * (ENEMY_HEALTH_BAR_WIDTH / 2);
+          entry.healthBar.fill.material.color.setHex(healthBarFillColor(ratio));
         }
         entry.billboard.placeAt(
           actor.x,

@@ -8,7 +8,13 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
-import { ACTOR_FOOT, createBillboardRegistry, LAB_UNIT_HEIGHT } from "../src/hd2d/billboards.js";
+import {
+  ACTOR_FOOT,
+  createBillboardRegistry,
+  healthBarFillColor,
+  healthBarFillRatio,
+  LAB_UNIT_HEIGHT,
+} from "../src/hd2d/billboards.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 
 /** A square map from a row-major list of levels — `null` is water. Same shape as the terrain
@@ -96,6 +102,41 @@ function actor(id: string, x: number, z: number): ActorView {
 }
 
 describe("the billboard registry", () => {
+  it("keeps an authoritative enemy health bar above its billboard", () => {
+    const scene = sceneFor(flatMap(4));
+    const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());
+    const enemy: ActorView = {
+      ...actor("enemy", 0, 0),
+      kind: "monster",
+      healthBar: { value: 50, max: 100, visible: true },
+    };
+
+    registry.sync([enemy]);
+    const bar = scene.root.getObjectByName("enemy-health-bar");
+    if (!(bar instanceof THREE.Group)) throw new Error("expected enemy health bar");
+    const fill = bar.children[1];
+    if (!(fill instanceof THREE.Mesh) || !(fill.material instanceof THREE.MeshBasicMaterial))
+      throw new Error("expected enemy health fill");
+    expect(bar.position.y).toBeGreaterThan(2);
+    expect(fill.scale.x).toBeCloseTo(0.5);
+    expect(fill.material.color.getHex()).toBe(0xf0b85a);
+
+    registry.sync([{ ...enemy, healthBar: { value: 20, max: 100, visible: false } }]);
+    expect(bar.visible).toBe(false);
+    expect(fill.material.color.getHex()).toBe(0xe85454);
+    registry.dispose();
+    expect(scene.root.getObjectByName("enemy-health-bar")).toBeUndefined();
+  });
+
+  it("clamps malformed or overfilled health values before drawing", () => {
+    expect(healthBarFillRatio(120, 100)).toBe(1);
+    expect(healthBarFillRatio(-10, 100)).toBe(0);
+    expect(healthBarFillRatio(10, 0)).toBe(0);
+    expect(healthBarFillColor(0.8)).toBe(0x65d17d);
+    expect(healthBarFillColor(0.5)).toBe(0xf0b85a);
+    expect(healthBarFillColor(0.2)).toBe(0xe85454);
+  });
+
   it("creates one billboard per actor and reuses it across frames", () => {
     const map = flatMap(4);
     const scene = sceneFor(map);

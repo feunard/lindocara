@@ -283,6 +283,8 @@ export interface Hd2dScene {
   setZoom(percent: number): void;
   /** Sets the horizontal orbit while keeping the same target, pitch and distance. */
   setYaw(radians: number): void;
+  /** Presentation-only screen-space camera impulse. It never changes the followed world point. */
+  setCameraShake(xPixels: number, yPixels: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
   setTiltShiftEnabled(enabled: boolean): void;
   /** First visible horizontal terrain/stair/water surface under an editor pointer ray. */
@@ -462,6 +464,19 @@ export function createHd2dScene(
     pipeline.setTiltShiftZoom(zoom);
   }
 
+  function applyCameraShake(xPixels: number, yPixels: number): void {
+    if (!Number.isFinite(xPixels) || !Number.isFinite(yPixels)) return;
+    if (Math.abs(xPixels) < 0.001 && Math.abs(yPixels) < 0.001) {
+      camera.clearViewOffset();
+      camera.updateProjectionMatrix();
+      return;
+    }
+    const width = Math.max(1, canvas.clientWidth || canvas.width);
+    const height = Math.max(1, canvas.clientHeight || canvas.height);
+    camera.setViewOffset(width, height, -xPixels, -yPixels, width, height);
+    camera.updateProjectionMatrix();
+  }
+
   /** Reused every frame by `updateFocus`: projecting into a fresh vector 60 times a second is an
    *  allocation for nothing. */
   const projected = new THREE.Vector3();
@@ -546,6 +561,7 @@ export function createHd2dScene(
       ctx.setYaw(cameraYaw);
       frameCamera();
     },
+    setCameraShake: applyCameraShake,
     setTiltShiftEnabled(enabled: boolean): void {
       pipeline.setTiltShiftEnabled(enabled);
     },

@@ -15,7 +15,6 @@ import {
   isPeasantSkillId,
   peasantCasterSheet,
   peasantSkillActiveFrame,
-  TINY_SWORDS_LUMEN_CLOUD,
   TINY_SWORDS_PEASANT_BOMB_SHEETS,
   TINY_SWORDS_ROGUE_SHEETS,
   TINY_SWORDS_ROOT,
@@ -207,6 +206,22 @@ const MAGIC_PROJECTILE = {
 const MAGIC_IMPACT = sheet(HEX_SHAMAN_IMPACT_SOURCE, 128, 128, 9, 620, 2);
 
 const GREEN_MAGIC = 0x62e68f;
+
+/** The original makeshift-camp illustration survived the PixiJS retirement in the renderer
+ * package. Keep it in the combat preload set: the camp is a persistent consequence of a hero
+ * skill, not generic map scenery, and must be ready on the first authoritative camp frame. */
+export const PEASANT_CAMP_ART: CombatSheetArt = {
+  source: new URL("./assets/peasant/makeshift-camp.png", import.meta.url).href,
+  frameWidth: 1_254,
+  frameHeight: 1_254,
+  frames: 1,
+  durationMs: 1_000,
+  activeFrame: 0,
+  anchor: { x: 0.5, y: 0.09 },
+  // 1 254 px at the ordinary effect ratio would fill the screen. This preserves the old camp's
+  // landmark footprint while speaking the HD-2D scene's tile scale.
+  scale: 0.205,
+};
 
 function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {
   return { ...art, tint, scale };
@@ -618,22 +633,9 @@ export function combatArt(
       impact: styled(MAGIC_IMPACT, GREEN_MAGIC, 0.86),
       fallback: "Le projectile magique est teinté en vert pour former la lumière de soin.",
     };
-  if (skillId === "blink")
-    return {
-      caster,
-      impact: {
-        ...sheet(
-          TINY_SWORDS_LUMEN_CLOUD.source,
-          TINY_SWORDS_LUMEN_CLOUD.frameWidth,
-          TINY_SWORDS_LUMEN_CLOUD.frameHeight,
-          1,
-          680,
-          0,
-        ),
-        tint: 0xb48cff,
-        scale: 0.24,
-      },
-    };
+  // Exact pre-HD-2D Lumen cloud: the rounded ten-frame Dust_02 strip, violet-tinted. The terrain
+  // cloud briefly used by the first port was sky decoration and never belonged to this skill.
+  if (skillId === "blink") return { caster, impact: styled(DUST, 0xb48cff, 1.35) };
   return {
     caster,
     zone: {
@@ -700,5 +702,6 @@ export function allCombatSheets(): CombatSheetArt[] {
   }
   const teleport = teleportEffectArt();
   unique.set(teleport.source, teleport);
+  unique.set(PEASANT_CAMP_ART.source, PEASANT_CAMP_ART);
   return [...unique.values()];
 }

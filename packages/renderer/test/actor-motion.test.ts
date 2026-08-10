@@ -77,6 +77,21 @@ describe("actor animation art", () => {
 
     expect(playerActorSheet(guarding, "attack").source).toContain("Warrior_Guard.png");
   });
+
+  it("keeps Iron Guard's authored strip after its cast action has ended", () => {
+    const guarding = { ...player, guarding: true, action: null } as PlayerSnapshot;
+
+    expect(playerActorSheet(guarding, "attack").source).toContain("Warrior_Guard.png");
+    expect(playerActorView(guarding, 500, "attack").animationLoop).toBe(true);
+  });
+
+  it("preserves the retired renderer's stealth visibility for self and party views", () => {
+    const invisible = { ...player, invisible: true } as PlayerSnapshot;
+
+    expect(playerActorView(invisible).opacity).toBe(0.06);
+    expect(playerActorView(invisible, 0, "idle", undefined, true).opacity).toBe(0.28);
+    expect(playerActorView({ ...player, silhouette: true } as PlayerSnapshot).opacity).toBe(0.9);
+  });
 });
 
 describe("one-shot billboard strips", () => {

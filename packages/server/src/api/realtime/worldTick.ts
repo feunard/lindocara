@@ -1719,6 +1719,9 @@ function damageMonster(
           damage: actualDamage,
           skill: skill.id,
           actorId: player.id,
+          // Presentation identity: clients interpolate the target in the past, so the impact must
+          // attach to the rendered actor rather than the server's newer coordinate below.
+          targetId: target.id,
           ...(basic ? { basic: 1 } : {}),
           ...(context.damageOverTime ? { poisonTick: 1 } : {}),
           ...(context.poisonRupture ? { poisonRupture: 1 } : {}),

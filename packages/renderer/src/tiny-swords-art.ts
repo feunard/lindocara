@@ -230,16 +230,6 @@ export const TINY_SWORDS_EFFECTS = {
   arrow: `${TINY_SWORDS_ROOT}/units/blue/archer/Arrow.png`,
 } as const;
 
-/** The pack's own soft cloud, scaled down in-world for the Priest's Lumen traversal. */
-export const TINY_SWORDS_LUMEN_CLOUD = {
-  source: new URL(
-    "../../catalog/assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_01.png",
-    import.meta.url,
-  ).href,
-  frameWidth: 576,
-  frameHeight: 256,
-} as const;
-
 export const TINY_SWORDS_SKILL_ICONS = Array.from(
   { length: 12 },
   (_, index) => `${TINY_SWORDS_ROOT}/ui/Icon_${String(index + 1).padStart(2, "0")}.png`,
@@ -401,7 +391,7 @@ export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIc
     if (slot === 2)
       return { source: TINY_SWORDS_EFFECTS.heal, frames: 11, frame: 4, variant: "mend" };
     if (slot === 3)
-      return { source: TINY_SWORDS_LUMEN_CLOUD.source, frames: 1, frame: 0, variant: "blink" };
+      return { source: TINY_SWORDS_EFFECTS.dustStrong, frames: 10, frame: 2, variant: "blink" };
     if (slot === 4)
       return { source: TINY_SWORDS_EFFECTS.heal, frames: 11, frame: 4, variant: "prayer" };
     return { source: TINY_SWORDS_EFFECTS.heal, frames: 11, frame: 5, variant: "nova" };

@@ -2,7 +2,16 @@ import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 import type { Hd2dScene } from "../src/hd2d/scene.js";
-import { Hd2dVisualLayer } from "../src/hd2d/visual-layer.js";
+import {
+  AUTHORED_EFFECT_FOOT,
+  AUTHORED_EFFECT_GROUND_CLEARANCE,
+  centerProjectileGeometry,
+  depthBiasedEffectPosition,
+  Hd2dVisualLayer,
+  projectileBillboardAngle,
+  projectileFrameIndex,
+  projectileVisualLift,
+} from "../src/hd2d/visual-layer.js";
 
 function harness(
   size = 20,
@@ -111,6 +120,61 @@ describe("Hd2dVisualLayer hero movement", () => {
       1_100,
     );
     expect(layer.diagnostics().movementSurfaces).toBe(0);
+    layer.dispose();
+  });
+});
+
+describe("Hd2dVisualLayer restored authored effects", () => {
+  it("plants upright authored sheets above the terrain instead of burying their lower edge", () => {
+    expect(AUTHORED_EFFECT_FOOT).toBe(0);
+    expect(AUTHORED_EFFECT_GROUND_CLEARANCE).toBeGreaterThan(0);
+  });
+
+  it("projects projectile directions into the rotating billboard plane", () => {
+    expect(projectileBillboardAngle({ x: 1, z: 0 }, 0)).toBeCloseTo(0);
+    expect(projectileBillboardAngle({ x: 0, z: -1 }, 0)).toBeGreaterThan(0);
+    expect(projectileBillboardAngle({ x: 1, z: 0 }, Math.PI / 2)).toBeLessThan(0);
+  });
+
+  it("lifts ranged sheets completely above their authoritative ground elevation", () => {
+    expect(projectileVisualLift(64, 64)).toBeGreaterThan((64 / 192) * 2.6 * 0.5);
+    expect(projectileVisualLift(128, 128, 0.82)).toBeGreaterThan((128 / 192) * 2.6 * 0.82 * 0.5);
+    expect(projectileVisualLift(64, 64, 1, Math.PI / 2, 72)).toBeGreaterThan(72 / 64);
+  });
+
+  it("keeps every projectile direction centred on the server position", () => {
+    const geometry = new THREE.PlaneGeometry(0.8, 1.2);
+    geometry.translate(0, 0.6, 0);
+    centerProjectileGeometry(geometry);
+    geometry.computeBoundingBox();
+
+    expect(geometry.boundingBox?.min.x).toBeCloseTo(-0.4);
+    expect(geometry.boundingBox?.max.x).toBeCloseTo(0.4);
+    expect(geometry.boundingBox?.min.y).toBeCloseTo(-0.6);
+    expect(geometry.boundingBox?.max.y).toBeCloseTo(0.6);
+    geometry.dispose();
+  });
+
+  it("biases impacts behind a co-located target relative to the camera", () => {
+    const camera = { x: 0, z: 10 };
+    const target = { x: 0, z: 0 };
+    const impact = depthBiasedEffectPosition(target.x, target.z, camera.x, camera.z);
+    expect(Math.hypot(impact.x - camera.x, impact.z - camera.z)).toBeGreaterThan(
+      Math.hypot(target.x - camera.x, target.z - camera.z),
+    );
+  });
+
+  it("loops every authored projectile frame over its declared duration", () => {
+    expect(projectileFrameIndex(4, 400, 0)).toBe(0);
+    expect(projectileFrameIndex(4, 400, 250)).toBe(2);
+    expect(projectileFrameIndex(4, 400, 400)).toBe(0);
+  });
+
+  it("keeps the inherited world-effect budget under a burst of impacts", () => {
+    const { layer } = harness();
+    for (let index = 0; index < 40; index += 1) layer.pulse(0, 0, 0xffffff);
+
+    expect(layer.diagnostics().effects).toBe(28);
     layer.dispose();
   });
 });

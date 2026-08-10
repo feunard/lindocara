@@ -49,24 +49,31 @@ import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
+import { CameraShake } from "../camera-shake.js";
+import { CHARACTER_ATLAS_URL } from "../character-art.js";
 import {
   allCombatSheets,
+  combatActionFrameIndex,
   combatArt,
   type MonsterImpactSound,
+  monsterCombatArt,
   monsterSpecialImpactArt,
+  multiImpactActionFrameIndex,
+  teleportEffectArt,
 } from "../combat-art.js";
+import { mobilityVisual } from "../combat-motion.js";
+import { CombatVisualAuthority } from "../combat-visual-state.js";
+import { shouldShowHealthBar } from "../display-settings.js";
 import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
 import type { RenderContext, RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
-import { type SkillVisualDefinition, skillVisual } from "../skill-visuals.js";
 import {
   allUnitSheets,
   isPeasantSkillId,
   peasantCarrySheet,
   peasantCasterSheet,
-  TINY_SWORDS_LUMEN_CLOUD,
   type UnitSheet,
   unitSheet,
 } from "../tiny-swords-art.js";
@@ -95,6 +102,16 @@ import {
  * the server-owned action timeline.
  */
 export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): UnitSheet {
+  if (motion === "attack" && player.class === "warrior" && player.guarding === true) {
+    const guard = combatArt("warrior", "iron_guard", player.appearance.primaryColor).caster;
+    return {
+      source: guard.source,
+      frames: guard.frames,
+      frameWidth: guard.frameWidth,
+      frameHeight: guard.frameHeight,
+      footOffset: 56,
+    };
+  }
   if (player.class === "peasant") {
     if (motion === "attack" && player.action?.skillId && isPeasantSkillId(player.action.skillId)) {
       return peasantCasterSheet(player.appearance.primaryColor, player.action.skillId);
@@ -215,7 +232,6 @@ function facingOf(vector: GroundVector): Facing {
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
-const LUMEN_CLOUD_SCALE = 0.24;
 
 /** True only while the held Lumen Step has replaced the Priest's body with its cloud. */
 export function isLumenStepClouded(
@@ -236,9 +252,13 @@ export function playerActorView(
   animationTimeMs = 0,
   motion: ActorMotion = "idle",
   animationDurationMs?: number,
+  isSelf = false,
 ): ActorView {
   const sheet = playerActorSheet(player, motion);
   const clouded = player.class === "priest" && isLumenStepClouded(player.action, animationTimeMs);
+  const lumenCloud = clouded
+    ? combatArt("priest", "blink", player.appearance.primaryColor).impact
+    : undefined;
   return {
     id: player.id,
     kind: "player",
@@ -251,20 +271,34 @@ export function playerActorView(
     vy: player.vy ?? 0,
     canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
     facing: facingOf(player.facing),
-    ...(clouded
+    ...(lumenCloud
       ? {
-          textureKey: TINY_SWORDS_LUMEN_CLOUD.source,
-          frames: 1,
-          frameWidth: TINY_SWORDS_LUMEN_CLOUD.frameWidth,
-          frameHeight: TINY_SWORDS_LUMEN_CLOUD.frameHeight,
+          textureKey: lumenCloud.source,
+          frames: lumenCloud.frames,
+          frameWidth: lumenCloud.frameWidth,
+          frameHeight: lumenCloud.frameHeight,
           frameAxis: "x" as const,
           foot: 0,
-          renderHeight: (TINY_SWORDS_LUMEN_CLOUD.frameHeight / TILE_SIZE) * LUMEN_CLOUD_SCALE,
+          renderHeight: Math.max(
+            0.42,
+            (lumenCloud.frameHeight / 192) * 2.6 * (lumenCloud.scale ?? 1),
+          ),
+          ...(lumenCloud.tint === undefined ? {} : { tint: lumenCloud.tint }),
         }
       : actorSheetView(sheet)),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
-    animationLoop: clouded || motion !== "attack",
+    animationLoop: clouded || player.guarding === true || motion !== "attack",
+    opacity:
+      player.life === "ghost"
+        ? 0.48
+        : player.silhouette
+          ? 0.9
+          : player.invisible
+            ? isSelf
+              ? 0.28
+              : 0.06
+            : 1,
     ...(player.life === "ghost" ? { pose: "ghost" as const } : {}),
   };
 }
@@ -311,6 +345,7 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
     HD2D_GLIDER_TEXTURE_URL,
     HD2D_SPLASH_TEXTURE_URL,
     HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
+    CHARACTER_ATLAS_URL,
   ]),
 ].map((url) => ({ url, ...(url === HD2D_SPLASH_TEXTURE_URL ? { atlas: true } : {}) }));
 
@@ -507,188 +542,20 @@ function worldEventAsset(event: WorldEventSnapshot): string | null {
   return null;
 }
 
-const CLASS_EFFECT_COLORS: Record<PlayerClass, number> = {
-  warrior: 0xffb45d,
-  ranger: 0x7edb84,
-  priest: 0xf6e28b,
-  rogue: 0xb995ff,
-  peasant: 0xe1ba75,
-};
-
-const PRIMARY_EFFECT_COLORS: Record<PrimaryColor, number> = {
-  azure: 0x74b8ff,
-  ember: 0xff7b68,
-  moss: 0x7ee29a,
-  violet: 0xb995ff,
-};
-
-function colorFromSkill(skillId: string): number {
-  const palette = [0x74b8ff, 0xffb45d, 0x7ee29a, 0xb995ff, 0xff7b68, 0xffdd70] as const;
-  let hash = 0;
-  for (let index = 0; index < skillId.length; index += 1) hash += skillId.charCodeAt(index);
-  return palette[hash % palette.length] ?? 0xffffff;
-}
-
-function rotatedDirection(direction: GroundVector, radians: number): GroundVector {
-  const cosine = Math.cos(radians);
-  const sine = Math.sin(radians);
-  return {
-    x: direction.x * cosine - direction.z * sine,
-    z: direction.x * sine + direction.z * cosine,
-  };
-}
-
-function castTarget(origin: GroundVector, direction: GroundVector, reach: number): GroundVector {
-  return { x: origin.x + direction.x * reach, z: origin.z + direction.z * reach };
-}
-
-function playSkillCast(
-  visuals: Hd2dVisualLayer,
-  origin: GroundVector,
-  direction: GroundVector,
-  profile: SkillVisualDefinition,
-  durationMs: number,
-  startedAt: number,
-): void {
-  const target = castTarget(origin, direction, profile.reach);
-  switch (profile.cast) {
-    case "slash": {
-      const left = castTarget(origin, rotatedDirection(direction, -0.24), profile.reach);
-      const right = castTarget(origin, rotatedDirection(direction, 0.24), profile.reach);
-      visuals.beam(origin, left, profile.width, profile.color, durationMs, startedAt);
-      visuals.beam(origin, right, profile.width, profile.accent, durationMs, startedAt);
-      return;
-    }
-    case "guard":
-      visuals.orb(origin.x, origin.z, profile.color, 0.48, durationMs, startedAt);
-      visuals.pulse(
-        origin.x,
-        origin.z,
-        profile.accent,
-        profile.impactRadius,
-        durationMs,
-        startedAt,
-      );
-      return;
-    case "charge":
-      visuals.beam(origin, target, profile.width, profile.color, durationMs, startedAt);
-      visuals.pulse(
-        target.x,
-        target.z,
-        profile.accent,
-        profile.impactRadius * 0.58,
-        durationMs,
-        startedAt,
-      );
-      return;
-    case "wave":
-      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
-      visuals.pulse(
-        origin.x,
-        origin.z,
-        profile.accent,
-        profile.impactRadius * 0.62,
-        durationMs,
-        startedAt,
-      );
-      return;
-    case "spin": {
-      const side = rotatedDirection(direction, Math.PI / 2);
-      visuals.beam(
-        castTarget(origin, direction, -profile.reach),
-        castTarget(origin, direction, profile.reach),
-        profile.width,
-        profile.color,
-        durationMs,
-        startedAt,
-      );
-      visuals.beam(
-        castTarget(origin, side, -profile.reach),
-        castTarget(origin, side, profile.reach),
-        profile.width,
-        profile.accent,
-        durationMs,
-        startedAt,
-      );
-      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
-      return;
-    }
-    case "projectile":
-      visuals.beam(origin, target, profile.width, profile.color, durationMs, startedAt);
-      visuals.orb(
-        target.x,
-        target.z,
-        profile.accent,
-        Math.max(0.09, profile.width),
-        durationMs,
-        startedAt,
-      );
-      return;
-    case "fan":
-      for (const angle of [-0.28, 0, 0.28]) {
-        visuals.beam(
-          origin,
-          castTarget(origin, rotatedDirection(direction, angle), profile.reach),
-          profile.width,
-          angle === 0 ? profile.accent : profile.color,
-          durationMs,
-          startedAt,
-        );
-      }
-      return;
-    case "heal":
-      visuals.orb(origin.x, origin.z, profile.color, 0.3, durationMs, startedAt);
-      visuals.pulse(
-        origin.x,
-        origin.z,
-        profile.accent,
-        profile.impactRadius,
-        durationMs,
-        startedAt,
-      );
-      return;
-    case "blink":
-      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
-      visuals.beam(origin, target, profile.width, profile.accent, durationMs, startedAt);
-      return;
-    case "stealth":
-      visuals.orb(origin.x, origin.z, profile.color, 0.55, durationMs, startedAt);
-      visuals.pulse(
-        origin.x,
-        origin.z,
-        profile.accent,
-        profile.impactRadius,
-        durationMs,
-        startedAt,
-      );
-      return;
-    case "harvest":
-      visuals.beam(origin, target, profile.width, profile.color, durationMs, startedAt);
-      visuals.pulse(
-        target.x,
-        target.z,
-        profile.accent,
-        profile.impactRadius * 0.55,
-        durationMs,
-        startedAt,
-      );
-      return;
-    case "construct":
-      visuals.pulse(origin.x, origin.z, profile.color, profile.impactRadius, durationMs, startedAt);
-      visuals.orb(origin.x, origin.z, profile.accent, 0.2, durationMs, startedAt);
-      return;
-    case "bomb":
-      visuals.orb(target.x, target.z, profile.color, 0.24, durationMs, startedAt);
-      visuals.beam(origin, target, profile.width, profile.accent, durationMs, startedAt);
-  }
-}
-
 interface ActorPosition {
   x: number;
   z: number;
   playerClass?: PlayerClass;
   primaryColor?: PrimaryColor;
   species?: MonsterSpecies;
+}
+
+interface PlayerPresentationState {
+  x: number;
+  z: number;
+  invisible: boolean;
+  actionId: string | null;
+  mobilityPlayedActionId: string | null;
 }
 
 export class Hd2dRenderer implements RendererLike {
@@ -723,6 +590,10 @@ export class Hd2dRenderer implements RendererLike {
   #actorPositions = new Map<string, ActorPosition>();
   #actorMotion = new ActorMotionTracker();
   #eventMotion = new WorldEventMotionTracker();
+  #playerPresentation = new Map<string, PlayerPresentationState>();
+  #combatAnimations = new Map<string, CombatAnimation>();
+  #combatVisualAuthority = new CombatVisualAuthority();
+  #cameraShake = new CameraShake();
   #pointerRaycaster = new THREE.Raycaster();
   #serverClock: ServerClock;
   /** Bumped by every map change and every teardown, so a download still in flight for the previous
@@ -1058,7 +929,7 @@ export class Hd2dRenderer implements RendererLike {
     const scene = this.#scene;
     if (!scene) return;
 
-    this.#actors?.sync(this.#collectActors(sample, context.now));
+    this.#actors?.sync(this.#collectActors(sample, context));
     this.#syncWorldEventContent(sample.events);
     const fireIntensity = scene.fireIntensity();
     this.#content?.setFireMood(fireIntensity);
@@ -1077,6 +948,8 @@ export class Hd2dRenderer implements RendererLike {
     const self = sample.players.find((player) => player.id === this.#selfId);
     if (self) scene.focusOn(self.x, self.z);
     else if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
+    const shake = this.#cameraShake.offset(context.now);
+    scene.setCameraShake(shake.x, shake.y);
 
     // `context.now` rather than a clock read of our own: it is the very `now` this frame's callback
     // was handed, so the scene's animations advance on the same timeline as everything else in it.
@@ -1097,32 +970,81 @@ export class Hd2dRenderer implements RendererLike {
    * with reduced opacity. A player whose life is `corpse` is omitted only because the dedicated
    * `sample.corpses` entry is the single body source.
    */
-  #collectActors(sample: SceneSample, animationTimeMs: number): readonly ActorView[] {
+  #collectActors(sample: SceneSample, context: RenderContext): readonly ActorView[] {
+    const animationTimeMs = context.now;
+    const self =
+      context.self ?? sample.players.find((player) => player.id === this.#selfId) ?? null;
     const views = this.#actorViews;
     const present = new Set<string>();
+    const playerIds = new Set<string>();
     views.length = 0;
     this.#actorPositions.clear();
     for (const player of sample.players) {
       if (player.life === "corpse") continue;
+      playerIds.add(player.id);
       present.add(player.id);
+      this.#combatVisualAuthority.recordSnapshot(player.id, player.action?.id ?? null);
+      this.#restorePlayerPresentation(player, animationTimeMs);
       const motion = this.#actorMotion.sample(
         player.id,
         player.x,
         player.z,
-        player.action !== null,
+        player.action !== null || player.guarding === true,
         animationTimeMs,
       );
       const timing = player.action
         ? this.#actorAnimationTiming(player.action, animationTimeMs)
         : null;
-      views.push(
-        playerActorView(
-          player,
-          timing?.elapsed ?? animationTimeMs,
-          motion.motion,
-          timing?.duration,
-        ),
+      const view = playerActorView(
+        player,
+        timing?.elapsed ?? animationTimeMs,
+        motion.motion,
+        timing?.duration,
+        player.id === this.#selfId,
       );
+      if (player.action && !isLumenStepClouded(player.action, timing?.elapsed ?? animationTimeMs)) {
+        const art = combatArt(
+          player.class,
+          player.action.skillId ?? "attack",
+          player.appearance.primaryColor,
+        );
+        view.frame = this.#actionFrame(
+          player.action,
+          art.caster.frames,
+          art.caster.activeFrame,
+          animationTimeMs,
+          this.#combatAnimations.get(player.id)?.actionId === player.action.id
+            ? this.#combatAnimations.get(player.id)?.impactTimes
+            : undefined,
+        );
+      }
+      views.push(view);
+      const afterimageExpiresAt = player.afterimage
+        ? this.#serverClock.toLocal(player.afterimage.expiresAt)
+        : null;
+      if (
+        player.afterimage &&
+        (afterimageExpiresAt === null || afterimageExpiresAt > animationTimeMs)
+      ) {
+        const sheet = unitSheet(player.class, player.appearance, "idle");
+        views.push({
+          id: `afterimage:${player.id}`,
+          kind: "player",
+          x: player.afterimage.x,
+          y: player.afterimage.y,
+          z: player.afterimage.z,
+          airborne: true,
+          swimming: false,
+          gliding: false,
+          vy: 0,
+          facing: facingOf(player.facing),
+          ...actorSheetView(sheet),
+          animationTimeMs,
+          animationLoop: true,
+          tint: 0x6ad9ff,
+          opacity: 0.32,
+        });
+      }
       this.#actorPositions.set(player.id, {
         x: player.x,
         z: player.z,
@@ -1132,6 +1054,7 @@ export class Hd2dRenderer implements RendererLike {
     }
     for (const monster of sample.monsters) {
       present.add(monster.id);
+      this.#combatVisualAuthority.recordSnapshot(monster.id, monster.action?.id ?? null);
       const motion = this.#actorMotion.sample(
         monster.id,
         monster.x,
@@ -1147,7 +1070,7 @@ export class Hd2dRenderer implements RendererLike {
         monster.dead ? "idle" : motion.motion,
         monster.graphicAssetId,
       );
-      views.push({
+      const monsterView: ActorView = {
         id: monster.id,
         kind: monster.dead ? "corpse" : "monster",
         x: monster.x,
@@ -1160,8 +1083,34 @@ export class Hd2dRenderer implements RendererLike {
         animationTimeMs: timing?.elapsed ?? animationTimeMs,
         ...(timing ? { animationDurationMs: timing.duration } : {}),
         animationLoop: motion.motion !== "attack",
+        healthBar: {
+          value: monster.hp,
+          max: monster.maxHp,
+          visible:
+            !monster.dead &&
+            shouldShowHealthBar(
+              context.healthBars,
+              "enemy",
+              self
+                ? Math.hypot(self.x - monster.x, self.z - monster.z) * TILE_SIZE
+                : Number.POSITIVE_INFINITY,
+            ),
+        },
         ...(monster.dead ? { pose: "fallen" as const } : {}),
-      });
+      };
+      if (monster.action) {
+        const art = monsterCombatArt(monster.species);
+        monsterView.frame = this.#actionFrame(
+          monster.action,
+          art.caster.frames,
+          art.activeFrame,
+          animationTimeMs,
+          this.#combatAnimations.get(monster.id)?.actionId === monster.action.id
+            ? this.#combatAnimations.get(monster.id)?.impactTimes
+            : undefined,
+        );
+      }
+      views.push(monsterView);
       this.#actorPositions.set(monster.id, {
         x: monster.x,
         z: monster.z,
@@ -1239,7 +1188,81 @@ export class Hd2dRenderer implements RendererLike {
     }
     this.#eventMotion.retain(eventIds);
     this.#actorMotion.retain(present);
+    for (const playerId of this.#playerPresentation.keys()) {
+      if (!playerIds.has(playerId)) this.#playerPresentation.delete(playerId);
+    }
+    for (const actorId of this.#combatAnimations.keys()) {
+      if (!present.has(actorId)) this.#combatAnimations.delete(actorId);
+    }
     return views;
+  }
+
+  #actionFrame(
+    action: CombatActionSnapshot,
+    frames: number,
+    activeFrame: number,
+    now: number,
+    serverImpactTimes?: readonly number[],
+  ): number {
+    const timeline = this.#serverClock.combatTimeline(action, now);
+    const impactTimes = serverImpactTimes?.map(
+      (impactAt) =>
+        this.#serverClock.toLocal(impactAt) ??
+        timeline.impactAt + Math.max(0, impactAt - action.impactAt),
+    );
+    return impactTimes && impactTimes.length > 1
+      ? multiImpactActionFrameIndex(frames, activeFrame, timeline, impactTimes, now)
+      : combatActionFrameIndex(frames, activeFrame, timeline, now);
+  }
+
+  #restorePlayerPresentation(player: PlayerSnapshot, now: number): void {
+    const previous = this.#playerPresentation.get(player.id);
+    const actionId = player.action?.id ?? null;
+    let mobilityPlayedActionId =
+      previous?.actionId === actionId ? previous.mobilityPlayedActionId : null;
+    if (previous) {
+      if (previous.invisible && !player.invisible) {
+        const vanish = combatArt("rogue", "vanish", player.appearance.primaryColor);
+        if (vanish.zone) this.#visuals?.playSheet(vanish.zone, player.x, player.z);
+      }
+      const mobility = mobilityVisual(player.action?.skillId);
+      const distance = Math.hypot(player.x - previous.x, player.z - previous.z);
+      const lumenHeld =
+        player.action?.skillId === "blink" && player.action.channelEndsAt !== undefined;
+      if (
+        mobility &&
+        actionId &&
+        !lumenHeld &&
+        mobilityPlayedActionId !== actionId &&
+        distance > 12 / TILE_SIZE
+      ) {
+        const startedAt = now;
+        const impact = combatArt(
+          player.class,
+          player.action?.skillId ?? "attack",
+          player.appearance.primaryColor,
+        ).impact;
+        if (impact) {
+          this.#visuals?.playSheet(
+            impact,
+            previous.x,
+            previous.z,
+            impact.durationMs,
+            startedAt,
+            0.72,
+          );
+          this.#visuals?.playSheet(impact, player.x, player.z, impact.durationMs, startedAt, 1.02);
+        }
+        mobilityPlayedActionId = actionId;
+      }
+    }
+    this.#playerPresentation.set(player.id, {
+      x: player.x,
+      z: player.z,
+      invisible: player.invisible === true,
+      actionId,
+      mobilityPlayedActionId,
+    });
   }
 
   #actorAnimationTiming(
@@ -1276,6 +1299,10 @@ export class Hd2dRenderer implements RendererLike {
     this.#actors = null;
     this.#actorMotion.reset();
     this.#eventMotion.reset();
+    this.#playerPresentation.clear();
+    this.#combatAnimations.clear();
+    this.#combatVisualAuthority.clearSnapshots();
+    this.#cameraShake.clear();
     this.#scene?.dispose();
     this.#scene = null;
     this.#map = null;
@@ -1306,6 +1333,11 @@ export class Hd2dRenderer implements RendererLike {
     return this.#actorPositions.get(id) ?? null;
   }
 
+  #effectPosition(x: number, z: number, targetId?: string): GroundVector {
+    const renderedTarget = targetId ? this.#position(targetId) : null;
+    return renderedTarget ? { x: renderedTarget.x, z: renderedTarget.z } : { x, z };
+  }
+
   #localDeadline(serverTimestamp: number, fallbackMs: number): number {
     return this.#serverClock.toLocal(serverTimestamp) ?? performance.now() + fallbackMs;
   }
@@ -1333,50 +1365,67 @@ export class Hd2dRenderer implements RendererLike {
   }
 
   playCombatAnimation(animation: CombatAnimation): void {
+    if (!this.#combatVisualAuthority.acceptsAnimation(animation.actorId, animation.actionId))
+      return;
+    this.#combatAnimations.set(animation.actorId, animation);
     const position = this.#position(animation.actorId);
     if (!position) return;
     const now = performance.now();
     const timeline = this.#serverClock.combatTimeline(animation, now);
-    const profile = animation.skillId ? skillVisual(animation.skillId) : null;
-    const duration = Math.max(120, timeline.impactAt - timeline.startedAt);
-    if (profile && animation.actorKind === "player" && this.#visuals) {
-      playSkillCast(
-        this.#visuals,
-        { x: position.x, z: position.z },
-        animation.direction,
-        profile,
-        duration,
-        timeline.startedAt,
-      );
-      if (position.playerClass && position.primaryColor) {
-        const art = combatArt(
-          position.playerClass,
-          animation.skillId ?? "attack",
-          position.primaryColor,
-        );
-        for (const sheet of [art.zone, art.accent]) {
-          if (sheet)
-            this.#visuals.playSheet(sheet, position.x, position.z, duration, timeline.startedAt);
+    if (
+      animation.actorKind === "player" &&
+      animation.skillId &&
+      this.#visuals &&
+      position.playerClass &&
+      position.primaryColor
+    ) {
+      const art = combatArt(position.playerClass, animation.skillId, position.primaryColor);
+      const mobilityImpact =
+        animation.skillId === "shield_bash" ||
+        animation.skillId === "dash" ||
+        animation.skillId === "blink" ||
+        animation.skillId === "shadow_step"
+          ? art.impact
+          : undefined;
+      for (const sheet of [art.zone ?? mobilityImpact, art.accent]) {
+        if (sheet)
+          this.#visuals.playSheet(
+            sheet,
+            position.x,
+            position.z,
+            sheet.durationMs,
+            timeline.impactAt,
+          );
+      }
+      if (animation.talented) {
+        const flourish = art.accent ?? art.zone ?? art.impact;
+        if (flourish) {
+          this.#visuals.playSheet(
+            { ...flourish, scale: (flourish.scale ?? 1) * 1.28 },
+            position.x,
+            position.z,
+            flourish.durationMs,
+            timeline.impactAt,
+          );
+          this.#visuals.playSheet(
+            { ...flourish, scale: (flourish.scale ?? 1) * 0.72 },
+            position.x,
+            position.z,
+            flourish.durationMs * 0.82,
+            timeline.impactAt,
+          );
+          if (animation.evolved) {
+            this.#visuals.playSheet(
+              { ...flourish, scale: (flourish.scale ?? 1) * 1.68 },
+              position.x,
+              position.z,
+              flourish.durationMs * 1.18,
+              timeline.impactAt,
+            );
+          }
         }
       }
-      return;
     }
-    const color = position.playerClass
-      ? CLASS_EFFECT_COLORS[position.playerClass]
-      : animation.actorKind === "monster"
-        ? 0xff745f
-        : 0xffffff;
-    this.#visuals?.beam(
-      { x: position.x, z: position.z },
-      {
-        x: position.x + animation.direction.x * 0.72,
-        z: position.z + animation.direction.z * 0.72,
-      },
-      0.12,
-      color,
-      duration,
-      timeline.startedAt,
-    );
   }
 
   playCombatImpact(
@@ -1384,38 +1433,21 @@ export class Hd2dRenderer implements RendererLike {
     skillId: string,
     x: number,
     z: number,
+    targetId?: string,
   ): PlayerClass | undefined {
     const position = this.#position(playerId);
     const playerClass = position?.playerClass;
-    const profile = skillVisual(skillId);
-    const color =
-      profile?.color ?? (playerClass ? CLASS_EFFECT_COLORS[playerClass] : colorFromSkill(skillId));
-    this.#visuals?.pulse(
-      x,
-      z,
-      color,
-      profile?.impactRadius ?? (skillId === "attack" ? 0.55 : 0.9),
-      profile?.impactDurationMs,
-    );
-    if (profile) {
-      this.#visuals?.orb(
-        x,
-        z,
-        profile.accent,
-        Math.max(0.1, profile.impactRadius * 0.16),
-        profile.impactDurationMs,
-      );
-    }
     if (playerClass && position?.primaryColor) {
       const art = combatArt(playerClass, skillId, position.primaryColor);
-      if (art.impact) this.#visuals?.playSheet(art.impact, x, z);
+      const impact = this.#effectPosition(x, z, targetId);
+      if (art.impact) this.#visuals?.playSheet(art.impact, impact.x, impact.z);
     }
     return playerClass;
   }
 
   playHealingImpact(
     color: PrimaryColor,
-    skillId?: "mend" | "prayer" | "divine_nova",
+    skillId: "mend" | "prayer" | "divine_nova" = "mend",
     x?: number,
     z?: number,
   ): void {
@@ -1423,25 +1455,9 @@ export class Hd2dRenderer implements RendererLike {
     const atX = x ?? self?.x;
     const atZ = z ?? self?.z;
     if (atX === undefined || atZ === undefined) return;
-    const profile = skillId ? skillVisual(skillId) : null;
-    this.#visuals?.pulse(
-      atX,
-      atZ,
-      profile?.color ?? PRIMARY_EFFECT_COLORS[color],
-      profile?.impactRadius ?? 0.75,
-      profile?.impactDurationMs ?? 680,
-    );
-    this.#visuals?.orb(
-      atX,
-      atZ,
-      profile?.accent ?? PRIMARY_EFFECT_COLORS[color],
-      Math.max(0.12, (profile?.impactRadius ?? 0.75) * 0.18),
-      profile?.impactDurationMs ?? 680,
-    );
-    if (skillId) {
-      const impact = combatArt("priest", skillId, color).impact;
-      if (impact) this.#visuals?.playSheet(impact, atX, atZ);
-    }
+    const definition = combatArt("priest", skillId, color);
+    const impact = definition.impact ?? definition.zone;
+    if (impact) this.#visuals?.playSheet(impact, atX, atZ);
   }
 
   playInteraction(): void {
@@ -1494,19 +1510,52 @@ export class Hd2dRenderer implements RendererLike {
     const fallback = [...this.#actorPositions.values()].find((actor) => actor.species === species);
     const atX = x ?? fallback?.x;
     const atZ = z ?? fallback?.z;
-    if (atX !== undefined && atZ !== undefined) this.#visuals?.pulse(atX, atZ, 0xff755f, 0.72);
+    if (atX === undefined || atZ === undefined) return;
+    this.#visuals?.playSheet(monsterCombatArt(species).impact, atX, atZ);
   }
 
   playMonsterSpecialImpact(impact: MonsterSpecialImpact): MonsterImpactSound | undefined {
+    if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return undefined;
     const art = monsterSpecialImpactArt(impact.technique);
     const x = impact.x + (impact.direction.x * art.forwardOffset) / TILE_SIZE;
     const z = impact.z + (impact.direction.z * art.forwardOffset) / TILE_SIZE;
-    this.#visuals?.pulse(x, z, 0xff6b54, art.visualRadius / TILE_SIZE, 620);
-    return art.sound;
+    this.#visuals?.playSheet(art.effect, x, z);
+    if (art.accent) this.#visuals?.playSheet(art.accent, x, z);
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    if (!self) return undefined;
+    const nearby = this.#cameraShake.trigger({
+      id: impact.actionId,
+      now: performance.now(),
+      intensity: art.shake.intensity,
+      durationMs: art.shake.durationMs,
+      distance: Math.hypot(self.x - x, self.z - z),
+      maxDistance: art.shake.maxDistance / TILE_SIZE,
+    });
+    return nearby ? art.sound : undefined;
   }
 
   playPeasantBombImpact(impact: PeasantBombImpactVisual): void {
-    this.#visuals?.pulse(impact.x, impact.z, 0xff9f45, impact.radius, 720);
+    if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return;
+    const art = combatArt("peasant", "homemade_bomb", "ember").impact;
+    if (art) {
+      this.#visuals?.playSheet(
+        { ...art, scale: (art.scale ?? 1) * 1.65 },
+        impact.x,
+        impact.z,
+        art.durationMs * 1.2,
+      );
+    }
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    if (self) {
+      this.#cameraShake.trigger({
+        id: `peasant-bomb-${impact.actionId}`,
+        now: performance.now(),
+        intensity: 5.5,
+        durationMs: 260,
+        distance: Math.hypot(self.x - impact.x, self.z - impact.z),
+        maxDistance: Math.max(260 / TILE_SIZE, impact.radius * 4),
+      });
+    }
   }
 
   playSheepExplosion(x: number, z: number): void {
@@ -1516,33 +1565,53 @@ export class Hd2dRenderer implements RendererLike {
   playPolarityOrb(orb: PriestPolarityOrbVisual): void {
     const now = performance.now();
     const duration = Math.max(120, this.#localDeadline(orb.endsAt, 900) - now);
-    this.#visuals?.orb(
-      orb.x,
-      orb.z,
-      0x8bcfff,
-      Math.min(0.45, orb.maximumRadius * 0.22),
-      duration,
-      now,
-    );
-    this.#visuals?.pulse(orb.x, orb.z, 0x8bcfff, orb.maximumRadius, duration, now);
+    const color = this.#position(orb.actorId)?.primaryColor ?? "azure";
+    const sprite = combatArt("priest", "radiant_bolt", color).projectile;
+    if (sprite) this.#visuals?.playSheet(sprite, orb.x, orb.z, duration, now, 0.78);
   }
 
-  playRoguePoisonImpact(x: number, z: number, rupture: boolean): PlayerClass {
-    this.#visuals?.pulse(x, z, rupture ? 0x8fff5f : 0x6bcf54, rupture ? 1.1 : 0.68, 560);
+  playRoguePoisonImpact(x: number, z: number, rupture: boolean, targetId?: string): PlayerClass {
+    const art = combatArt("rogue", "poisoned_shiv", "violet").impact;
+    const impact = this.#effectPosition(x, z, targetId);
+    if (art) {
+      this.#visuals?.playSheet(
+        {
+          ...art,
+          scale: (art.scale ?? 1) * (rupture ? 1.85 : 0.58),
+        },
+        impact.x,
+        impact.z,
+        art.durationMs * (rupture ? 1.15 : 0.72),
+      );
+    }
     return "rogue";
   }
 
   playShadowDance(sequence: RogueShadowDanceSequence): void {
+    if (!this.#combatVisualAuthority.acceptsAction(sequence.actionId)) return;
     const base = this.#serverClock.toLocal(sequence.startedAt) ?? performance.now();
+    const art = combatArt("rogue", "shadow_dance", "violet");
     for (const strike of sequence.strikes) {
       const startedAt = this.#serverClock.toLocal(strike.impactAt) ?? base;
-      this.#visuals?.beam(strike.from, strike.targetPosition, 0.09, 0xb995ff, 280, startedAt);
-      this.#visuals?.pulse(
-        strike.targetPosition.x,
-        strike.targetPosition.z,
-        0xc8a8ff,
-        0.62,
-        360,
+      if (art.zone) {
+        this.#visuals?.playSheet(
+          { ...art.zone, scale: (art.zone.scale ?? 1) * 0.62 },
+          strike.targetPosition.x,
+          strike.targetPosition.z,
+          360,
+          startedAt,
+          0.78,
+        );
+      }
+    }
+    const last = sequence.strikes.at(-1);
+    if (last && art.accent) {
+      const startedAt = this.#serverClock.toLocal(last.impactAt) ?? base;
+      this.#visuals?.playSheet(
+        art.accent,
+        last.targetPosition.x,
+        last.targetPosition.z,
+        art.accent.durationMs,
         startedAt,
       );
     }
@@ -1552,7 +1621,8 @@ export class Hd2dRenderer implements RendererLike {
     const self = this.#selfId ? this.#position(this.#selfId) : null;
     const atX = x ?? self?.x;
     const atZ = z ?? self?.z;
-    if (atX !== undefined && atZ !== undefined) this.#visuals?.pulse(atX, atZ, 0xb995ff, 1.15, 620);
+    if (atX === undefined || atZ === undefined) return;
+    this.#visuals?.playSheet(teleportEffectArt(), atX, atZ);
   }
 
   /**
@@ -1671,11 +1741,22 @@ export class Hd2dRenderer implements RendererLike {
   }
 
   showPeasantCamp(camp: PeasantCampVisual): void {
-    this.#visuals?.showCamp(camp, this.#localDeadline(camp.expiresAt, 30_000));
+    const created = this.#visuals?.showCamp(camp, this.#localDeadline(camp.expiresAt, 30_000));
+    if (!created) return;
+    const color = this.#position(camp.actorId)?.primaryColor ?? "moss";
+    const zone = combatArt("peasant", "makeshift_camp", color).zone;
+    if (zone) this.#visuals?.playSheet(zone, camp.x, camp.z);
   }
 
-  showWorldEvent(text: string, tone: "info" | "good" | "bad", x?: number, z?: number): void {
+  showWorldEvent(
+    text: string,
+    tone: "info" | "good" | "bad",
+    x?: number,
+    z?: number,
+    targetId?: string,
+  ): void {
     const self = this.#selfId ? this.#position(this.#selfId) : null;
-    this.#visuals?.showWorldEvent(text, tone, x ?? self?.x ?? 0, z ?? self?.z ?? 0);
+    const position = this.#effectPosition(x ?? self?.x ?? 0, z ?? self?.z ?? 0, targetId);
+    this.#visuals?.showWorldEvent(text, tone, position.x, position.z);
   }
 }

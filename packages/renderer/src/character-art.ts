@@ -1,6 +1,18 @@
 import type { MainHandItem, OffHandItem, PrimaryColor } from "@lindocara/engine/character.js";
+import type { ItemKind } from "@lindocara/engine/protocol.js";
 
 export const CHARACTER_ATLAS_URL = "/assets/lindocara/atlas/world.png";
+export const CHARACTER_ATLAS_SIZE = { width: 256, height: 512 } as const;
+
+/** Exact crops used by the retired PixiJS renderer. HD-2D resolves them as UV rectangles on the
+ * same atlas instead of replacing potion, gold and crystal drops with geometric gems. */
+export const LOOT_ATLAS_FRAMES: Readonly<
+  Record<ItemKind, { x: number; y: number; width: number; height: number }>
+> = {
+  potion: { x: 180, y: 208, width: 16, height: 16 },
+  gold: { x: 198, y: 208, width: 16, height: 16 },
+  crystal: { x: 216, y: 208, width: 16, height: 16 },
+};
 
 export const PLAYER_ATLAS_FRAMES: Readonly<
   Record<PrimaryColor, { name: string; x: number; y: number; width: number; height: number }>

@@ -88,6 +88,7 @@ export interface RendererLike {
     skillId: string,
     x: number,
     z: number,
+    targetId?: string,
   ): PlayerClass | undefined;
   playHealingImpact(
     color: PrimaryColor,
@@ -104,7 +105,7 @@ export interface RendererLike {
   playMonsterSpecialImpact(impact: MonsterSpecialImpact): MonsterImpactSound | undefined;
   playPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   playPolarityOrb(orb: PriestPolarityOrbVisual): void;
-  playRoguePoisonImpact(x: number, z: number, rupture: boolean): PlayerClass;
+  playRoguePoisonImpact(x: number, z: number, rupture: boolean, targetId?: string): PlayerClass;
   playSheepExplosion(x: number, z: number): void;
   /** Raycasts only live authored sheep billboards; no ground approximation or client outcome. */
   pickSheep?(clientX: number, clientY: number): string | null;
@@ -130,5 +131,11 @@ export interface RendererLike {
   setSelfId(id: string): void;
   showPeasantBombAim(origin: GroundVector, direction: GroundVector, range: number): void;
   showPeasantCamp(camp: PeasantCampVisual): void;
-  showWorldEvent(text: string, tone: "info" | "good" | "bad", x?: number, z?: number): void;
+  showWorldEvent(
+    text: string,
+    tone: "info" | "good" | "bad",
+    x?: number,
+    z?: number,
+    targetId?: string,
+  ): void;
 }
