@@ -27,8 +27,8 @@ interface EditorMenuBarProps {
   onExit(): void;
   /** Open the "Load an adventure" dialog, from File → « Charger une aventure ». */
   onOpenLoad(): void;
-  /** Start a fresh unsaved adventure, from File → « Nouvelle aventure ». Dirty-guarded by the
-   *  shell, exactly like `onOpenLoad`. */
+  /** Start a fresh unsaved adventure from the File menu's "New adventure" item. Dirty-guarded by
+   *  the shell, exactly like `onOpenLoad`. */
   onNewAdventure(): void;
   onNewMap(): void;
   onSave(): void;
