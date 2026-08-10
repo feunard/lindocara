@@ -123,10 +123,16 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
   for (let k = 0; k < position.count; k++) {
     const i = Math.floor(position.getX(k) + cx);
     const j = Math.floor(position.getZ(k) + cz);
-    const d =
-      i < 0 || j < 0 || i >= cols || j >= rows
-        ? Number.POSITIVE_INFINITY
-        : (dist[j * cols + i] ?? Number.POSITIVE_INFINITY);
+    // Le plan mesure trois fois la grille : la plupart de ses sommets tombent DEHORS. Les compter
+    // comme infiniment loin de la terre coupait net le dégradé au cadre du champ — une côte qui
+    // touche le bord perdait toute sa frange de haut-fond, tandis qu'un bord doublé d'eau à
+    // l'intérieur du cadre gardait la sienne : le liseré devenait franc d'un côté, absent de
+    // l'autre. La distance CONTINUE dehors : on se ramène à la case du bord la plus proche et on
+    // ajoute le débord, ce qui prolonge exactement la même rampe au large.
+    const ci = Math.min(cols - 1, Math.max(0, i));
+    const cj = Math.min(rows - 1, Math.max(0, j));
+    const overshoot = Math.hypot(i - ci, j - cj);
+    const d = (dist[cj * cols + ci] ?? Number.POSITIVE_INFINITY) + overshoot;
     shallow[k] = 1 - Math.min(1, d / opts.depthRange);
   }
   geo.setAttribute("aShallow", new THREE.Float32BufferAttribute(shallow, 1));
