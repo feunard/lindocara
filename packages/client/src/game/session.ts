@@ -28,6 +28,7 @@ import type {
   RogueShadowDanceSequence,
   SelfState,
 } from "@lindocara/engine/protocol.js";
+import { SEA_GUARDIAN_AMBIENCE_RADIUS } from "@lindocara/engine/sea-guardian.js";
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import {
@@ -576,6 +577,7 @@ async function startGameIdentity(
       store.setMerchantOpen(true);
       input.reset();
     },
+    onSeaGuardianDevour: () => sound.seaGuardianDevour(),
     onAnimation: (animation: CombatAnimation) => {
       renderer.playCombatAnimation(animation);
       if (animation.actorKind === "monster") sound.monsterAttack();
@@ -1225,6 +1227,14 @@ async function startGameIdentity(
     for (const feedback of chestFeedback.sync(sample.events)) sound.chest(feedback === "open");
     combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);
+    sound.setSeaGuardianNearby(
+      Boolean(
+        self?.swimming &&
+          sample.seaGuardians.some(
+            (guardian) => groundDistance(self, guardian) <= SEA_GUARDIAN_AMBIENCE_RADIUS,
+          ),
+      ),
+    );
     currentSelf = self;
     renderer.playHeroMovement(movementEvents, self ?? null);
     if (welcomed && self && !loadingCompletionScheduled) {

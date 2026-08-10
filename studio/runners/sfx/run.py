@@ -42,13 +42,42 @@ def main():
     pipe = MossSoundEffectPipeline.from_pretrained(
         args.model, torch_dtype=torch.bfloat16, device="cuda"
     )
+    # Upstream forces Triton CUDA graphs. The Windows launcher currently overflows while building
+    # that graph; compile the same denoiser without CUDA graphs when triton-windows is available,
+    # with its undecorated eager function as the no-Triton fallback.
+    compiled = pipe.engine.model_fn
+    try:
+        import triton  # noqa: F401
+        triton_available = True
+    except ImportError:
+        triton_available = False
+    if sys.platform == "win32" and hasattr(compiled, "__wrapped__"):
+        pipe.engine.model_fn = (
+            torch.compile(
+                compiled.__wrapped__,
+                fullgraph=True,
+                options={"triton.cudagraphs": False},
+            )
+            if triton_available
+            else compiled.__wrapped__
+        )
     audio = pipe(
         prompt=args.text,
         seconds=args.seconds,
         num_inference_steps=args.steps,
         cfg_scale=args.cfg_scale,
     )
-    pipe.save_audio(audio, args.out)
+    # torchaudio 2.9 routes every save through TorchCodec, although this lane already depends on
+    # libsndfile and writes plain PCM WAV. Keeping the final write here avoids adding a video/audio
+    # codec runtime just to serialize the tensor MOSS has already produced.
+    import soundfile as sf
+
+    wav = audio.detach().cpu()
+    if wav.ndim == 3:
+        wav = wav[0]
+    elif wav.ndim == 1:
+        wav = wav.unsqueeze(0)
+    sf.write(args.out, wav.to(torch.float32).numpy().T, pipe.sample_rate, subtype="PCM_16")
     print("wrote %s" % args.out)
 
 

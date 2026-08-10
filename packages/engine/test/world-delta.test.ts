@@ -1,6 +1,7 @@
 import type {
   MonsterSnapshot,
   PlayerSnapshot,
+  SeaGuardianSnapshot,
   WorldEventSnapshot,
   WorldView,
 } from "@lindocara/engine/protocol.js";
@@ -64,8 +65,21 @@ const monster = (overrides: Partial<MonsterSnapshot> = {}): MonsterSnapshot => (
   ...overrides,
 });
 
+const seaGuardian = (overrides: Partial<SeaGuardianSnapshot> = {}): SeaGuardianSnapshot => ({
+  id: "sea-guardian",
+  x: -2,
+  y: -0.05,
+  z: 1,
+  facing: { x: 1, z: 0 },
+  state: "patrol",
+  animationStartedAt: 1_000,
+  animationEndsAt: null,
+  ...overrides,
+});
+
 const view = (overrides: Partial<WorldView> = {}): WorldView => ({
   players: [player()],
+  seaGuardians: [],
   monsters: [monster()],
   guards: [],
   loot: [{ id: "loot", kind: "gold", amount: 4, x: 4.5, y: 0, z: 2 }],
@@ -92,6 +106,20 @@ describe("differential world state", () => {
     const cache = createWorldCache(view());
     const delta = buildWorldDelta(cache, view({ players: [player({ hp: 72 })] }));
     expect(delta.players.upsert).toEqual([expect.objectContaining({ id: "player", hp: 72 })]);
+  });
+
+  it("diffs and interpolates the untargetable sea guardian as its own entity family", () => {
+    const cache = createWorldCache(view({ seaGuardians: [seaGuardian()] }));
+    const delta = buildWorldDelta(
+      cache,
+      view({
+        seaGuardians: [seaGuardian({ x: 2, state: "attack", animationEndsAt: 1_850 })],
+      }),
+    );
+    expect(delta.seaGuardians.upsert).toEqual([
+      expect.objectContaining({ id: "sea-guardian", state: "attack" }),
+    ]);
+    expect(interpolateSnapshots([seaGuardian()], delta.seaGuardians.upsert, 0.5)[0]?.x).toBe(0);
   });
 
   it("upserts entering entities and removes entities leaving interest", () => {
@@ -121,6 +149,7 @@ describe("differential world state", () => {
     expect(
       applyWorldDelta(clientCache, {
         players: { upsert: [], remove: ["unknown"] },
+        seaGuardians: { upsert: [], remove: [] },
         monsters: { upsert: [], remove: [] },
         guards: { upsert: [], remove: [] },
         loot: { upsert: [], remove: [] },

@@ -23,7 +23,7 @@ import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { HD2D_CAMERA } from "./scene.js";
 
-export type ActorKind = "player" | "monster" | "guard" | "corpse" | "event";
+export type ActorKind = "player" | "sea_guardian" | "monster" | "guard" | "corpse" | "event";
 
 /** One actor of one frame, as the renderer hands it over. Every coordinate is the snapshot's own —
  *  TILE units, grid centre as origin — so `sync` converts nothing. */
@@ -54,6 +54,8 @@ export interface ActorView {
    */
   airborne: boolean;
   swimming: boolean;
+  /** Presentation depth below the water plane; defaults to the ordinary hero swim depth. */
+  waterDepth?: number;
   gliding: boolean;
   /** Vertical velocity, used only for stretch/squash. */
   vy: number;
@@ -135,6 +137,7 @@ export interface BillboardRegistry {
  */
 export const ACTOR_FOOT: Record<ActorKind, number> = {
   player: 56 / 192,
+  sea_guardian: 0.5,
   guard: 56 / 192,
   monster: 0.3,
   corpse: 56 / 192,
@@ -423,7 +426,7 @@ export function createBillboardRegistry(
         }
         entry.billboard.placeAt(
           actor.x,
-          elevationOf(actor, scene) - (actor.swimming ? SWIM_DEPTH : 0),
+          elevationOf(actor, scene) - (actor.swimming ? (actor.waterDepth ?? SWIM_DEPTH) : 0),
           actor.z,
         );
         entry.billboard.setFacing(actor.facing);

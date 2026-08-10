@@ -248,6 +248,7 @@ describe("server protocol", () => {
     tick: 10,
     selfId: "p1",
     players: [player],
+    seaGuardians: [],
     monsters: [],
     guards: [],
     loot: [],
@@ -508,6 +509,7 @@ describe("server protocol", () => {
         t: "world.resync",
         tick: 20,
         players: [player],
+        seaGuardians: [],
         monsters: [normal, elite, boss],
         guards: [],
         loot: [],
@@ -719,6 +721,7 @@ describe("server protocol", () => {
           t: "world.delta",
           tick: 12,
           players: emptyDelta,
+          seaGuardians: emptyDelta,
           monsters: emptyDelta,
           guards: emptyDelta,
           loot: emptyDelta,
@@ -734,6 +737,7 @@ describe("server protocol", () => {
           t: "world.delta",
           tick: 12,
           players: { upsert: [{}], remove: [] },
+          seaGuardians: emptyDelta,
           monsters: emptyDelta,
           guards: emptyDelta,
           loot: emptyDelta,
@@ -749,6 +753,7 @@ describe("server protocol", () => {
           t: "world.resync",
           tick: 14,
           players: [],
+          seaGuardians: [],
           monsters: [],
           guards: [],
           loot: [],
@@ -758,6 +763,33 @@ describe("server protocol", () => {
         }),
       ),
     ).toMatchObject({ t: "world.resync", tick: 14 });
+
+    const guardian = {
+      id: "sea-guardian",
+      x: -1,
+      y: -0.05,
+      z: 2,
+      facing: { x: 1, z: 0 },
+      state: "attack",
+      animationStartedAt: 1_000,
+      animationEndsAt: 1_850,
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "world.resync",
+          tick: 14,
+          players: [],
+          seaGuardians: [guardian],
+          monsters: [],
+          guards: [],
+          loot: [],
+          corpses: [],
+          projectiles: [],
+          events: [],
+        }),
+      ),
+    ).toMatchObject({ t: "world.resync", seaGuardians: [guardian] });
 
     const projectile = {
       id: "projectile-a",
@@ -779,6 +811,7 @@ describe("server protocol", () => {
           t: "world.resync",
           tick: 15,
           players: [],
+          seaGuardians: [],
           monsters: [],
           guards: [],
           loot: [],
@@ -801,6 +834,7 @@ describe("server protocol", () => {
             t: "world.resync",
             tick: 16,
             players: [],
+            seaGuardians: [],
             monsters: [],
             guards: [],
             loot: [],
@@ -811,6 +845,20 @@ describe("server protocol", () => {
         ),
       ).toBeNull();
     }
+  });
+
+  it("accepts only a bounded sea-guardian devour notification", () => {
+    const message = {
+      t: "sea_guardian.devour",
+      guardianId: "sea-guardian",
+      victimId: "hero-1",
+      x: 1,
+      z: -2,
+      at: 1_000,
+    };
+    expect(parseServerMessage(JSON.stringify(message))).toEqual(message);
+    expect(parseServerMessage(JSON.stringify({ ...message, victimId: "" }))).toBeNull();
+    expect(parseServerMessage(JSON.stringify({ ...message, damage: 999 }))).toBeNull();
   });
 });
 

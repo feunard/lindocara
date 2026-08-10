@@ -89,3 +89,59 @@ The `glider-open.wav` sound (`sfx` lane, 2.16 s, peaks at −5.5 dBFS) lives in
 `assets/sounds/` with the other takes that did not come from the pack;
 `sync-assets.sh` encodes it to Opus mono. **Not yet judged by ear** — that pass
 is still owed.
+
+## Sea guardian shark (2026-08-10)
+
+The character reference in `studio/pixel-art/refs/sea-guardian.png` was created with Codex's
+built-in image generator (`imagegen`). Prompt:
+
+> Use case: stylized-concept. Asset type: game character reference for a Tiny Swords-inspired
+> HD-2D cooperative RPG sprite pipeline. Primary request: a single massive supernatural guardian
+> shark, the immortal guardian of the sea, designed to patrol around islands and instantly swallow
+> swimmers. Scene/backdrop: perfectly flat solid dark navy #10182e background, no water, no floor,
+> no shadow, no scenery. Subject: one shark only, full body visible in side three-quarter view
+> facing right, powerful compact silhouette, dark blue-gray back, pale underside, tall scarred
+> dorsal fin, broad jaws, a few old pale scars, subtly luminous cyan eyes, menacing but readable at
+> small pixel-art scale. Style/medium: clean stylized game concept art with chunky proportions and
+> simplified large color shapes suitable for later downsampling into Tiny Swords-like pixel art.
+> Composition/framing: centered, generous padding on every side, body nearly horizontal, fins
+> clearly separated, tail fully visible. Lighting/mood: restrained cool rim light, ominous, high
+> silhouette readability. Constraints: no text, no watermark, no other creatures, no blood, no
+> gore, no detached parts, no ocean background, no bubbles, no cast shadow; keep anatomy consistent
+> and animation-friendly. Avoid: photorealism, cartoon smile, humanoid limbs, weapons, armor,
+> excessive tiny detail.
+
+The project-local FLUX.2-klein + Tiny Swords LoRA sprite lane then used that reference for two
+four-frame strips, both seed **84**, generated at 1024x256:
+
+> a clean horizontal animation strip of exactly four equal square frames showing the same shark
+> swimming rapidly to the right, full body side view in every frame, exaggerated tail sweep phases
+> left-center-right-center, fins and body clearly changing pose, each frame isolated with generous
+> empty background, no panel borders, no labels, no extra creatures
+
+> a clean horizontal animation strip of exactly four equal square frames showing the same shark
+> lunging to swallow a swimmer to the right, full body side view in every frame, exaggerated attack
+> phases: jaws closed charging, jaws opening wide, maximum enormous open bite, jaws snapping shut,
+> powerful tail thrust and arched body, each frame isolated with generous empty background, no
+> victim visible, no blood, no gore, no panel borders, no labels, no extra creatures
+
+`scripts/animation-sheet.py` applies the existing sprite pipeline independently to each source
+cell: background removal, enclosed-pocket clearing, crop, downsample, hard alpha, 24-colour
+quantisation and the project outline. Each normalized 256x256 cell is assembled into the final
+transparent sheets:
+
+- `packages/client/public/assets/lindocara/hd2d/sea-guardian-swim.png`
+- `packages/client/public/assets/lindocara/hd2d/sea-guardian-attack.png`
+
+The project-local MOSS sound-effect lane generated the two mono 48 kHz PCM WAV files:
+
+- `sea-guardian-near.wav`, seed **91**, 10 s: "continuous ominous underwater pressure from a
+  massive shark circling nearby, deep submerged body rumbles, slow heavy water displacement,
+  distant fin cutting through water, steady tension with no sudden climax"
+- `sea-guardian-devour.wav`, seed **92**, 3 s: "a massive shark surges from underwater and snaps
+  enormous jaws shut around a body, violent heavy water splash, deep wet bite impact, one short
+  brutal engulfing event, no scream"
+
+Those ship from `packages/client/public/assets/lindocara/audio/sfx/`. The committed runner
+compatibility changes keep the documented Windows/NVIDIA lanes usable with current Diffusers,
+PyTorch and torchaudio rather than changing either generated artifact after inference.

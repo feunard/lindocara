@@ -256,6 +256,7 @@ export async function startMapPreview(
     renderer.render(
       {
         players: [self],
+        seaGuardians: [],
         monsters: previewMonsters,
         guards: previewGuards,
         loot: [],

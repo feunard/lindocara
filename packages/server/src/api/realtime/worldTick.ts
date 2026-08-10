@@ -326,6 +326,7 @@ import {
   rogueOpeningBonusRatio,
   rupturePoisonWithShiv,
 } from "../../world/rogue-state-system.js";
+import { advanceSeaGuardian } from "../../world/sea-guardian-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "../../world/skill-system.js";
 import {
   broadcastNetworkUpdates,
@@ -892,6 +893,7 @@ function interestContext(w: WorldGlue): InterestSystemContext<string> {
     guards: w.state.guards,
     loot: w.state.loot,
     projectiles: w.state.projectiles,
+    seaGuardian: w.state.seaGuardian,
     playerGrid: w.state.playerGrid,
     monsterGrid: w.state.monsterGrid,
     lootGrid: w.state.lootGrid,
@@ -6569,6 +6571,34 @@ export function advanceWorldTick(w: WorldGlue): void {
     savePlayer: (player, connectionId) => deps.savePlayer(player, connectionId),
     // No `onPlayerMoved`: the tick no longer moves anyone. The same choreography now runs in
     // `applyReportedMove`, where a client-owned hero's position actually changes.
+  });
+  // The guardian is a room-owned hazard, not a monster: no HP, no threat entry and no combat
+  // target path can ever reach it. It reads the last accepted swimming positions and kills through
+  // the same authoritative life transition as every other lethal outcome.
+  advanceSeaGuardian(state.seaGuardian, {
+    now,
+    dt: 1 / TICK_HZ,
+    players: state.players.values(),
+    devour: (player, guardian) => {
+      if (player.life !== "alive" || !player.swimming) return;
+      const connectionId = connectionOf(state, player.id);
+      if (connectionId === undefined) return;
+      player.hp = 0;
+      killPlayer(w, connectionId, player);
+      sendStateTo(w, connectionId, player);
+      sendSpatialEvent(
+        w,
+        {
+          t: "sea_guardian.devour",
+          guardianId: guardian.id,
+          victimId: player.id,
+          x: guardian.x,
+          z: guardian.z,
+          at: now,
+        },
+        guardian,
+      );
+    },
   });
   healSacredPassageCrossings(w, now);
   expireLumenTrails(state.lumenTrails, now);

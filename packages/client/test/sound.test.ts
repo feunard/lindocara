@@ -233,4 +233,26 @@ describe("GameSound authored scene audio", () => {
     expect(FakeAudio.created[0]?.volume).toBe(0);
     expect(FakeAudio.created.at(-1)?.volume).toBeCloseTo(0.144);
   });
+
+  it("starts and stops the generated guardian warning without duplicating its loop", () => {
+    vi.stubGlobal("Audio", FakeAudio);
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("sample loading disabled"))),
+    );
+    const sound = new GameSound();
+    sound.unlock();
+
+    sound.setSeaGuardianNearby(true);
+    sound.setSeaGuardianNearby(true);
+    const warnings = FakeAudio.created.filter((audio) =>
+      audio.src.endsWith("sea-guardian-near.wav"),
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ loop: true, paused: false });
+
+    sound.setSeaGuardianNearby(false);
+    expect(warnings[0]?.paused).toBe(true);
+  });
 });

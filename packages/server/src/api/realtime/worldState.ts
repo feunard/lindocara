@@ -44,6 +44,10 @@ import type {
   PolarityOrbRuntime,
   SanctuaryRuntime,
 } from "../../world/priest-variant-system.js";
+import {
+  createSeaGuardianRuntime,
+  type SeaGuardianRuntime,
+} from "../../world/sea-guardian-system.js";
 import { SpatialGrid } from "../../world/spatial-grid.js";
 import {
   type ActiveWorldEvent,
@@ -223,6 +227,8 @@ export interface WorldRoomState {
   guards: GuardRuntime[];
   loot: GroundLoot[];
   projectiles: ProjectileRuntime[];
+  /** The untargetable sea barrier; inactive on maps whose heightfield has no water cells. */
+  seaGuardian: SeaGuardianRuntime;
   /** Room-local camps, homemade bombs and in-flight material requests. */
   peasantSupport: PeasantSupportRuntime;
   /** Activated support spends whose durable settlement has not yet been acknowledged. */
@@ -339,6 +345,9 @@ export function createWorldRoomState(
     guards,
     loot: [],
     projectiles: [],
+    seaGuardian: createSeaGuardianRuntime(
+      definition?.heightfield ? decodeMap(definition.heightfield) : null,
+    ),
     peasantSupport: createPeasantSupportRuntime(),
     activatedSupportSpendIds: new Set(),
     supportSpendQueue: Promise.resolve(),

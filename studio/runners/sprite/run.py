@@ -10,6 +10,26 @@ import argparse
 import sys
 
 
+def load_tinyswords_lora(pipe, path):
+    """Load the project LoRA across the current FLUX.2 Diffusers module layout.
+
+    The adapter was trained against an attention `to_out` linear projection. Recent
+    Flux2KleinPipeline builds wrap that projection in `ModuleList(Linear, Dropout)` for the
+    double transformer blocks; PEFT otherwise tries to attach the adapter to the container and
+    rejects it. Pointing those keys at element zero preserves the exact trained linear layer.
+    """
+    from safetensors.torch import load_file
+
+    state = load_file(path)
+    compatible = {
+        key.replace(".attn.to_out.lora_", ".attn.to_out.0.lora_")
+        if ".transformer_blocks." in key and ".single_transformer_blocks." not in key
+        else key: value
+        for key, value in state.items()
+    }
+    pipe.load_lora_weights(compatible, adapter_name="tinyswords")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Generate one sprite with FLUX.2-klein + a LoRA.")
     ap.add_argument("--model", required=True)
@@ -56,7 +76,7 @@ def main():
     else:
         pipe.to("cuda")
 
-    pipe.load_lora_weights(args.lora, adapter_name="tinyswords")
+    load_tinyswords_lora(pipe, args.lora)
     pipe.set_adapters("tinyswords", adapter_weights=args.lora_scale)
 
     call = {

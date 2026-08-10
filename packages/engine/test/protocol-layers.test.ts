@@ -70,6 +70,7 @@ function welcome(overrides: Record<string, unknown>) {
         action: null,
       },
     ],
+    seaGuardians: [],
     monsters: [],
     guards: [],
     loot: [],

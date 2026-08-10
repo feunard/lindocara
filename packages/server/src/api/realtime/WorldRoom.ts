@@ -1829,6 +1829,7 @@ export class WorldRoom {
       guards: state.guards,
       loot: state.loot,
       projectiles: state.projectiles,
+      seaGuardian: state.seaGuardian,
       playerGrid: state.playerGrid,
       monsterGrid: state.monsterGrid,
       lootGrid: state.lootGrid,
