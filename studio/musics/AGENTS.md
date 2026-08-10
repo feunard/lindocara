@@ -65,8 +65,9 @@ out loose anyway, see Known limits), then mood adjectives, and keep the instrume
 
 ### A caption that worked
 
-The opening-area theme (`studio/examples/sunlit-plain-notheme.wav`, `--no-theme --seed 42
---duration 140`), 503 characters:
+The opening-area theme, 503 characters. Regenerate it with `--no-theme --seed 42 --duration 140`
+— the audio itself is not in the repo (`studio/examples/` is git-ignored local scratch), but the
+seed makes it reproducible:
 
 > light orchestral chamber ensemble, live instruments, clean mix, warm storybook fantasy,
 > gentle instrumental theme for a wide sunlit plain, calm and safe. 90 BPM walking pace, warm

@@ -47,3 +47,9 @@ wireframes
 
 # ACE-Step writes progress estimates next to the working directory.
 .cache/
+
+# Studio output kept for listening back to — takes, smoke runs and variants. Local scratch, not
+# repo content: the directory reached 219 MB of wav/mp3/png in ordinary use, and git history is
+# permanent, so committing it would weigh on every clone forever with no easy way back. A caption
+# worth keeping belongs in the lane's AGENTS.md as text; the audio it produced does not.
+studio/examples/
