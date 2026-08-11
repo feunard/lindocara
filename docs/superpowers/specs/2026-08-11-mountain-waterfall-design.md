@@ -7,8 +7,7 @@ Status: approved in brainstorming
 
 A fifth island in `apps/lab`, carrying a terraced mountain and a **three-drop waterfall** delivered
 as a complete experience: falling water, catch basins, mist, spray, a rainbow, a distance-driven
-roar, its own zone with its own theme, and a wet-rock material underfoot on the ledges beside the
-falls.
+roar, and its own zone with its own theme.
 
 The mountain itself is scenery. It is terrain blocks at high elevation — a silhouette you approach
 and can climb one 0.9-unit jump at a time, with nothing authored at the summit. **The waterfall is
@@ -16,9 +15,11 @@ the deliverable**; the mountain exists to give it somewhere to fall from.
 
 This is lab work, in the lab's own sense: `apps/lab` is the witness for `@lindocara/hd2d`, so the
 one genuinely new piece of render code (the falling sheet) is built **in the package**, not in the
-app, and the app proves it. Two edits deliberately leave the lab — the falling sheet in
-`@lindocara/hd2d` and the sixth `TerrainMaterial` in `@lindocara/engine` — and both are named as
-such below.
+app, and the app proves it. Exactly one edit deliberately leaves the lab — the falling sheet in
+`@lindocara/hd2d` — and it is named as such below.
+
+A wet-rock terrain material was part of the original scope and has been **cut**; the measurement
+that killed it is recorded under "Wet rock, and why it is not here" near the end.
 
 ## What already exists, and what does not
 
@@ -148,8 +149,8 @@ visibly into the sea across the existing beach and foam rather than needing a sh
 **The basins are decorative and stay that way.** The hero wades through them: `TerrainQuery` keeps
 its single global `waterLevel`, no swim state, no breath, no splash-in. Teaching the engine about
 per-cell water height is a change in `@lindocara/engine` shared with the game's authoritative
-server, and nothing in this chantier justifies it. What the basins get instead is the wet-rock
-material below and ripples at the hero's feet.
+server, and nothing in this chantier justifies it. What the basins get instead is ripples at the
+hero's feet and the mist and spray below.
 
 **Budget.** Three drops × three meshes, plus the summit spring pool = 10 added draw calls. The
 lab's 60 fps target is a hard
@@ -178,7 +179,7 @@ A new held loop gets the same treatment and the same entry.
 
 ### The zone
 
-`ZONE_CASCADE` in `settings.ts`, inserted into `ZONES` **before** `ZONE_LARGE` — the ordering *is*
+`ZONE_FALLS` in `settings.ts`, inserted into `ZONES` **before** `ZONE_LARGE` — the ordering *is*
 the priority in `zoneAt`, and the infinite-radius default must stay last.
 
 It carries its own ambience bed (`nappe`) and its own generated theme (`musique`), and `souffle: 1`
@@ -207,36 +208,45 @@ test red instead of quietly making two events land on the same frame.
   The gating mirrors `applyAurora`, which fades the aurora in only when the hero is in the polar
   zone *and* it is night, with its own fade independent of `MOOD_FADE`.
 
-### Wet rock
+### Wet rock, and why it is not here
 
-`TerrainMaterial` gains a sixth member. Every site that must change is behind an exhaustive
-`switch` or an explicit runtime list, so the compiler enumerates the work:
+A sixth `TerrainMaterial` — wet rock on the ledges beside the falls, with its own footstep and a
+friction between grass's and ice's — was scoped into this chantier and then **cut on measurement**.
 
-| file | what changes |
-| --- | --- |
-| `packages/engine/src/hd2d/terrain-query.ts` | the union itself |
-| `packages/engine/src/hd2d/map-data.ts` | `TERRAIN_MATERIALS`, the runtime enumeration the map parser validates against |
-| `packages/engine/src/hd2d/locomotion.ts` | `frictionPour` and `vitesseMaxPour` |
-| `apps/lab/src/world/island.ts` | `renderMaterialAt` (shares the rock atlas) and the generation rule that assigns it |
-| `apps/lab/src/core/audio.ts` | `pasDe` |
-| `apps/lab/src/settings.ts` | new `HERO.friction` / `HERO.vitesseSol` entries |
+The estimate was six sites, all mechanical. The count was wrong, and one of them is not mechanical
+at all:
 
-Friction lands around **12** — between grass (80) and ice (0.35). A wet ledge should let you keep
-some momentum without becoming a rink; ice's 0.35 is what makes a turn skid, and this material is
-not meant to. The speed cap stays at grass's (wet rock does not slow you down, it just lets go of
-you more slowly).
+| file | what it would need | mechanical? |
+| --- | --- | --- |
+| `packages/engine/src/hd2d/terrain-query.ts` | the union member | yes |
+| `packages/engine/src/hd2d/map-data.ts` | `TERRAIN_MATERIALS`, the parser's runtime list | yes |
+| `packages/engine/src/hd2d/locomotion.ts` | `frictionPour`, `vitesseMaxPour` | yes |
+| `packages/engine/src/hd2d/hero-state.ts` | `HeroSettings.friction` | yes |
+| `packages/engine/src/tilesets/tiny-swords.ts` | **four tile-id slots in the game's authored tile id space** | **no** |
+| `packages/renderer/src/minimap.ts` | `MATERIAL_COLORS`, an exhaustive `Record` | yes |
+| `packages/renderer/src/hd2d/scene.ts` | the material → atlas case | yes |
+| `packages/audio/src/movement.ts` | `STEPS` — **not exhaustive**, falls back to grass | silent if missed |
+| `packages/audio/src/assets.ts` + `packages/audio/assets/` | a bank key and three `.ogg` takes | yes |
+| `apps/lab` | `renderMaterialAt`, the assignment, `pasDe`, `HERO.friction` | yes |
 
-It shares the rock atlas rather than getting its own, the way `glace-fine` shares `glace`'s — a
-rule material without its own appearance yet. The material is painted on the ledges beside the
-falls and around the basins, generated in `island.ts` from proximity to the authored waterfall
-placements.
+`TERRAIN_MATERIAL_SLOTS` is declared `satisfies Readonly<Record<TerrainMaterial, ...>>`, so the
+union cannot grow until the new member is given four tile ids in the space authored maps are
+stored in — ids no shipped tileset has art for, for a material only the lab would ever paint. That
+is a content-format decision, not a plumbing change, and it is far too much to carry for a footstep
+sound and a friction value.
 
-**This is the one edit that leaves the lab.** `@lindocara/engine` is shared with the game's
-authoritative server, and its `hd2d/` files are held pure and deterministic on purpose — no
-`Math.random`, no clock, no `three` — because `stepHero` is destined to become the server's per-tick
-rule. Adding a member to a union and a case to two switches respects that; anything else here would
-not. Tests go in `packages/engine/test/hd2d/`, beside the code, and run with
-`npm run test:engine`.
+Two smaller findings came out of the same measurement and are worth keeping:
+
+- **`STEPS` is `Record<string, StepSample>` with a grass fallback**, not an exhaustive record. A
+  material missing from it does not fail the build — it silently plays a grass footstep. Any future
+  material must be added there by hand, because nothing will tell you.
+- **Footsteps are no longer lab-local.** They moved to `packages/audio/assets/`, reached through
+  `audioAssetUrl`, so the game and the lab share one copy. Ambience beds, doors and dialogue ticks
+  stay in `apps/lab/public/sfx/`. The root `AGENTS.md` package table does not list
+  `@lindocara/audio` yet.
+
+The ledges therefore keep rock's ordinary footing. If the footing turns out to matter once the
+falls are on screen, it comes back as its own chantier, costed honestly against the tile id space.
 
 ## Language
 
@@ -245,10 +255,9 @@ chantier's precedent (`HERO.glide`, `GLIDER`, and their English docstrings in `s
 than the older French code around them. Existing French symbols are not renamed as a side effect of
 this work.
 
-The one place this is not purely cosmetic is the new `TerrainMaterial` member, whose value sits in
-a union of French strings (`"sable" | "herbe" | "neige" | "glace" | "glace-fine"`) and is persisted
-in every baked map. It is named `"wet-rock"`, accepting the mixed vocabulary rather than either
-renaming five members across two packages and every map file, or adding a sixth French one.
+Nothing in the remaining scope adds a value to a persisted vocabulary, so the decision costs
+nothing here: the one place it would have bitten was the cut wet-rock material, whose value would
+have had to sit in a union of French strings and in every baked map.
 
 ## Staging
 
@@ -259,12 +268,11 @@ Small increments, each ending on screen at 60 fps — the lab's own acceptance t
 2. **The falling sheet.** `waterfall.ts` in `@lindocara/hd2d`, one drop, silent, no basin.
 3. **Basin, plunge ring, and the three drops chained.**
 4. **The roar** — sfx lane, `BOUCLES` entry, distance gain.
-5. **`ZONE_CASCADE`** — generated theme, ambience bed, `zone-precede-matiere.test.ts` case.
+5. **`ZONE_FALLS`** — generated theme, ambience bed, `zone-precede-matiere.test.ts` case.
 6. **Mist, spray, low fog.**
 7. **The rainbow.**
-8. **Wet rock**, end to end across both packages.
 
-Steps 1–3 are the chantier's spine; 4–8 each stand alone and can be judged, kept or retuned on
+Steps 1–3 are the chantier's spine; 4–7 each stand alone and can be judged, kept or retuned on
 their own.
 
 ## What this deliberately does not do
@@ -275,8 +283,8 @@ their own.
 - **No stairs.** `meshStairs` exists in `hd2d` and stays unused: terraces plus the existing jump
   already make the mountain climbable, and wiring a second traversal primitive into the lab for the
   first time is its own chantier.
-- **No promotion to `@lindocara/engine` beyond the material.** `waterfall.ts` lives in
-  `@lindocara/hd2d` because it is render code; nothing in this work belongs in the pure rule
-  package except the sixth material.
+- **No wet-rock material, and no `@lindocara/engine` edit at all.** Cut on measurement — see "Wet
+  rock, and why it is not here" above. `waterfall.ts` lives in `@lindocara/hd2d` because it is
+  render code; nothing that remains belongs in the pure rule package.
 - **No change to `WORLD.size`.** The measurement above exists precisely so the whole map does not
   get 23% more expensive for one island.
