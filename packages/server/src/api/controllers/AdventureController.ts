@@ -13,9 +13,14 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
-import { enforceBodySizeCap, MAX_ADVENTURE_JSON_BYTES } from "../bodySizeCap.ts";
+import {
+  enforceBodySizeCap,
+  MAX_ADVENTURE_JSON_BYTES,
+  MAX_MAP_JSON_BYTES,
+} from "../bodySizeCap.ts";
 import { AdventureService } from "../services/AdventureService.ts";
 import { rethrowAsAdventureError } from "../services/adventureAuthoring.ts";
+import { type MapInput, parseMapBody, rethrowAsMapError } from "../services/mapAuthoring.ts";
 
 const adventureSummarySchema = z.object({
   id: z.string(),
@@ -25,6 +30,22 @@ const adventureSummarySchema = z.object({
   playable: z.boolean(),
   author: z.string().optional(),
 });
+
+/**
+ * A create carrying a sandbox map can fail in either half — the adventure shell (`title:`,
+ * `players:`) or the map itself (`name:`, `size:`, `spawn:`, ...) — and each family has its own
+ * exact machine code. Both mappers rethrow what they do not recognise, so the map mapper runs only
+ * on what the adventure mapper let through, and an unknown prefix still escapes as a 500 exactly
+ * as it did before either ran.
+ */
+function rethrowAsCreateAdventureError(error: unknown): never {
+  try {
+    rethrowAsAdventureError(error);
+  } catch (mapped) {
+    if (mapped instanceof HttpError) throw mapped;
+  }
+  rethrowAsMapError(error);
+}
 
 export class AdventureController {
   adventureService = $inject(AdventureService);
@@ -46,29 +67,46 @@ export class AdventureController {
     },
   });
 
-  /** `POST /api/adventures` body `{title,maxPlayers,audio?,registry?}` -> 201
+  /** `POST /api/adventures` body `{title,maxPlayers,audio?,registry?,map?}` -> 201
    *  `AdventurePayload & {defaultMap}`. Atomic: the adventure and its default map are created in one
-   *  transaction. */
+   *  transaction. An optional `map` is the editor's unsaved sandbox reaching its first save — it
+   *  becomes the adventure's one map instead of the blank template, in that same transaction. */
   createAdventure = $action({
     method: "POST",
     path: "/adventures",
     use: [$secure({}), $transactional()],
     schema: { body: z.any(), response: z.any() },
     handler: async ({ body, headers, user, reply }) => {
-      enforceBodySizeCap(headers, body, MAX_ADVENTURE_JSON_BYTES);
+      const rawMap = (body as { map?: unknown } | null)?.map;
+      // A body carrying a whole map is a MAP-sized body, not a 64 KiB adventure shell — the same
+      // ceiling `PUT /api/maps/:id` enforces, since that is what this request replaces.
+      enforceBodySizeCap(
+        headers,
+        body,
+        rawMap === undefined ? MAX_ADVENTURE_JSON_BYTES : MAX_MAP_JSON_BYTES,
+      );
       const input = parseCreateAdventureInput(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "adventure_invalid", message: "invalid body" });
+      }
+      let firstMap: MapInput | undefined;
+      if (rawMap !== undefined) {
+        const parsed = parseMapBody(rawMap);
+        if (!parsed) {
+          throw new HttpError({ status: 400, error: "map_invalid", message: "invalid map body" });
+        }
+        firstMap = parsed;
       }
       try {
         const { adventure, map } = await this.adventureService.createAdventureWithDefaultMap(
           user.id,
           input,
+          firstMap,
         );
         reply.setStatus(201);
         return { ...adventure, defaultMap: map };
       } catch (error) {
-        rethrowAsAdventureError(error);
+        rethrowAsCreateAdventureError(error);
       }
     },
   });

@@ -141,11 +141,17 @@ function resync(events: unknown) {
 
 describe("events on the wire", () => {
   it("accepts a well-formed event in welcome, delta and resync", () => {
-    expect(parseServerMessage(JSON.stringify(welcome([event()])))).not.toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ interactive: true })]))),
+    ).not.toBeNull();
     expect(
       parseServerMessage(JSON.stringify(delta({ upsert: [event()], remove: [] }))),
     ).not.toBeNull();
     expect(parseServerMessage(JSON.stringify(resync([event()])))).not.toBeNull();
+  });
+
+  it("rejects an invented false interaction flag", () => {
+    expect(parseServerMessage(JSON.stringify(welcome([event({ interactive: false })])))).toBeNull();
   });
 
   it("accepts a null graphic — the authored blank tile is a legitimate active page", () => {

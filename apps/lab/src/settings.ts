@@ -68,6 +68,19 @@ export const MOUNTAIN = { x: -26.5, z: 10.5 } as const;
  */
 export const MOUNTAIN_FACE_Z = 12;
 
+/** The spring pool on the summit: a rectangle of real water at level 4, cut into the mountain top
+ *  and reaching the lip so it pours into the fall. Cells inside it are WATER (`levelAt` null) whose
+ *  surface sits at `MOUNTAIN_TOP_LEVEL` — see `HeightField.waterAt` in `@lindocara/hd2d`, which is
+ *  what stops the surrounding walls from opening a four-level shaft down to the sea. */
+export const MOUNTAIN_TOP_LEVEL = 4;
+export const SPRING = {
+  /** Half-width in x, world units — matches the fall so the water that pours over IS the water
+   *  that falls. */
+  halfWidth: 1.5,
+  /** How far north of the lip the pool reaches. */
+  depth: 3,
+} as const;
+
 /** One authored fall on the west island. Authored rather than derived: nothing in the height field
  *  knows about water above ground (`waterLevel` is one global scalar), so a fall cannot be detected
  *  the way `foamPlacements` detects a shoreline. */

@@ -20,16 +20,6 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..", "..");
 export const PROJECT_ROOT = CATALOG_DIR;
 export const RAW_INDEX_PATH = path.join(CATALOG_DIR, "assets", "index.json");
 export const CATALOG_SOURCE_PATH = path.join(CATALOG_DIR, "assets", "lindocara-asset-catalog.json");
-export const CLIENT_CATALOG_PATH = path.join(
-  REPO_ROOT,
-  "packages",
-  "client",
-  "public",
-  "assets",
-  "lindocara",
-  "tiny-swords",
-  "catalog.json",
-);
 export const GENERATED_SHARED_PATH = path.join(
   REPO_ROOT,
   "packages",
@@ -1120,27 +1110,6 @@ export function uiAssets(catalog: TinySwordsCatalogFile) {
       dust: ref("Particle FX/Dust_01.png"),
     },
   } as const;
-}
-
-export function clientCatalogJson(catalog: TinySwordsCatalogFile): string {
-  const compact = {
-    version: catalog.version,
-    entries: catalog.entries.map((entry) => ({
-      id: entry.id,
-      sourcePath: entry.sourcePath,
-      pack: entry.pack,
-      domain: entry.domain,
-      category: entry.category,
-      tags: entry.tags,
-      width: entry.width,
-      height: entry.height,
-      nature: entry.nature,
-      ...(entry.frame ? { frame: entry.frame } : {}),
-      classification: entry.classification,
-      ...(entry.editor ? { editor: entry.editor } : {}),
-    })),
-  };
-  return `${JSON.stringify(compact)}\n`;
 }
 
 export function generatedSharedSource(catalog: TinySwordsCatalogFile): string {

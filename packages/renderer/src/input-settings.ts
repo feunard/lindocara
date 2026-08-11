@@ -42,18 +42,19 @@ export interface InputSettings {
 }
 
 const STORAGE_KEY = "lindocara.input";
-const INPUT_BINDINGS_VERSION = 3;
+const INPUT_BINDINGS_VERSION = 5;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
+const HERO_DIRECTION_CONTROLS = ["moveUp", "moveDown", "moveLeft", "moveRight"] as const;
 const listeners = new Set<() => void>();
 const modeListeners = new Set<() => void>();
 
 export const DEFAULT_INPUT_SETTINGS: InputSettings = {
   controllerLayout: "xbox",
   keyboard: {
-    moveUp: [{ code: "KeyW" }, { code: "ArrowUp" }],
-    moveDown: [{ code: "KeyS" }, { code: "ArrowDown" }],
-    moveLeft: [{ code: "KeyA" }, { code: "ArrowLeft" }],
-    moveRight: [{ code: "KeyD" }, { code: "ArrowRight" }],
+    moveUp: [{ code: "KeyW" }],
+    moveDown: [{ code: "KeyS" }],
+    moveLeft: [{ code: "KeyA" }],
+    moveRight: [{ code: "KeyD" }],
     // The one control client-owned movement added (S3): high ground is reached by jumping now,
     // not by walking up it. Space was free — the legacy `skill1` binding that used to hold it was
     // migrated off in bindings version 3.
@@ -66,53 +67,43 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     skill5: [{ code: "KeyJ" }, { code: "Numpad4" }],
     interact: [{ code: "KeyE" }],
     potion: [{ code: "KeyQ" }],
-    item1: [{ code: "Digit1" }],
-    item2: [{ code: "Digit2" }],
-    item3: [{ code: "Digit3" }],
+    item1: [{ code: "Digit1" }, { code: "ArrowLeft" }],
+    item2: [{ code: "Digit2" }, { code: "ArrowUp" }],
+    item3: [{ code: "Digit3" }, { code: "ArrowRight" }],
     release: [{ code: "KeyR" }],
     map: [{ code: "KeyC" }],
     talents: [{ code: "KeyH" }],
-    inventory: [{ code: "KeyB" }],
+    inventory: [{ code: "KeyB" }, { code: "ArrowDown" }],
     quests: [{ code: "KeyN" }],
     chat: [{ code: "Enter" }],
     settings: [{ code: "Escape" }],
   },
   gamepad: {
-    moveUp: [
-      { kind: "axis", index: 1, direction: -1 },
-      { kind: "button", index: 12 },
-    ],
-    moveDown: [
-      { kind: "axis", index: 1, direction: 1 },
-      { kind: "button", index: 13 },
-    ],
-    moveLeft: [
-      { kind: "axis", index: 0, direction: -1 },
-      { kind: "button", index: 14 },
-    ],
-    moveRight: [
-      { kind: "axis", index: 0, direction: 1 },
-      { kind: "button", index: 15 },
-    ],
-    // No gamepad default: every face button is already spoken for by a skill, and silently
-    // stealing one would remap a control the player never asked to lose. Rebindable like any other.
-    jump: [],
-    skill1: [{ kind: "button", index: 0 }],
+    // The left stick is the only default movement control. The D-pad is reserved for remappable
+    // shortcuts so pressing a quick item can never also move the hero.
+    moveUp: [{ kind: "axis", index: 1, direction: -1 }],
+    moveDown: [{ kind: "axis", index: 1, direction: 1 }],
+    moveLeft: [{ kind: "axis", index: 0, direction: -1 }],
+    moveRight: [{ kind: "axis", index: 0, direction: 1 }],
+    // Standard button 0 is the physical south face button: Xbox A, PlayStation Cross, Switch B.
+    jump: [{ kind: "button", index: 0 }],
+    skill1: [{ kind: "button", index: 6 }],
     skill2: [{ kind: "button", index: 2 }],
     skill3: [{ kind: "button", index: 3 }],
-    skill4: [{ kind: "button", index: 4 }],
-    skill5: [{ kind: "button", index: 7 }],
-    interact: [{ kind: "button", index: 1 }],
+    skill4: [{ kind: "button", index: 1 }],
+    skill5: [{ kind: "button", index: 11 }],
+    // The south face button is contextual: interaction consumes it in range, otherwise jump does.
+    interact: [{ kind: "button", index: 0 }],
     potion: [{ kind: "button", index: 17 }],
-    item1: [{ kind: "button", index: 6 }],
-    item2: [{ kind: "button", index: 10 }],
-    item3: [{ kind: "button", index: 11 }],
+    item1: [{ kind: "button", index: 14 }],
+    item2: [{ kind: "button", index: 12 }],
+    item3: [{ kind: "button", index: 15 }],
     release: [{ kind: "button", index: 10 }],
     map: [{ kind: "button", index: 8 }],
     talents: [{ kind: "button", index: 5 }],
-    inventory: [{ kind: "button", index: 16 }],
+    inventory: [{ kind: "button", index: 13 }],
     quests: [{ kind: "button", index: 18 }],
-    chat: [{ kind: "button", index: 11 }],
+    chat: [{ kind: "button", index: 7 }],
     settings: [{ kind: "button", index: 9 }],
   },
 };
@@ -179,6 +170,38 @@ function validGamepadBindings(value: unknown): GamepadBinding[] | null {
   return filtered.length > 0 ? filtered.slice(0, 2) : null;
 }
 
+function sameGamepadBindings(
+  left: readonly GamepadBinding[],
+  right: readonly GamepadBinding[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((binding, index) => {
+      const candidate = right[index];
+      if (!candidate || binding.kind !== candidate.kind || binding.index !== candidate.index) {
+        return false;
+      }
+      return (
+        binding.kind !== "axis" ||
+        (candidate.kind === "axis" && binding.direction === candidate.direction)
+      );
+    })
+  );
+}
+
+function isDpadButton(binding: GamepadBinding): boolean {
+  return binding.kind === "button" && binding.index >= 12 && binding.index <= 15;
+}
+
+function isArrowKey(binding: KeyboardBinding): boolean {
+  return (
+    binding.code === "ArrowUp" ||
+    binding.code === "ArrowDown" ||
+    binding.code === "ArrowLeft" ||
+    binding.code === "ArrowRight"
+  );
+}
+
 function loadSettings(): InputSettings {
   const fallback = cloneDefaults();
   if (typeof localStorage === "undefined") return fallback;
@@ -190,6 +213,18 @@ function loadSettings(): InputSettings {
     for (const id of CONTROL_IDS) {
       fallback.keyboard[id] = validKeyboardBindings(parsed.keyboard?.[id]) ?? fallback.keyboard[id];
       fallback.gamepad[id] = validGamepadBindings(parsed.gamepad?.[id]) ?? fallback.gamepad[id];
+    }
+    for (const id of HERO_DIRECTION_CONTROLS) {
+      const withoutArrows = fallback.keyboard[id].filter((binding) => !isArrowKey(binding));
+      fallback.keyboard[id] =
+        withoutArrows.length > 0
+          ? withoutArrows
+          : DEFAULT_INPUT_SETTINGS.keyboard[id].map((binding) => ({ ...binding }));
+      const withoutDpad = fallback.gamepad[id].filter((binding) => !isDpadButton(binding));
+      fallback.gamepad[id] =
+        withoutDpad.length > 0
+          ? withoutDpad
+          : DEFAULT_INPUT_SETTINGS.gamepad[id].map((binding) => ({ ...binding }));
     }
     if (isControllerLayout(parsed.controllerLayout))
       fallback.controllerLayout = parsed.controllerLayout;
@@ -211,6 +246,89 @@ function loadSettings(): InputSettings {
             ...binding,
           }));
         }
+      }
+      const version4Keyboard = {
+        moveUp: ["KeyW", "ArrowUp"],
+        moveDown: ["KeyS", "ArrowDown"],
+        moveLeft: ["KeyA", "ArrowLeft"],
+        moveRight: ["KeyD", "ArrowRight"],
+        item1: ["Digit1"],
+        item2: ["Digit2"],
+        item3: ["Digit3"],
+        inventory: ["KeyB"],
+      } as const satisfies Partial<Record<ControlId, readonly string[]>>;
+      for (const id of [
+        "moveUp",
+        "moveDown",
+        "moveLeft",
+        "moveRight",
+        "item1",
+        "item2",
+        "item3",
+        "inventory",
+      ] as const) {
+        const stored = parsed.keyboard?.[id]?.map((binding) => binding.code);
+        if (stored?.join("|") === version4Keyboard[id].join("|")) {
+          fallback.keyboard[id] = DEFAULT_INPUT_SETTINGS.keyboard[id].map((binding) => ({
+            ...binding,
+          }));
+        }
+      }
+      const legacyGamepad = {
+        moveUp: [
+          { kind: "axis", index: 1, direction: -1 },
+          { kind: "button", index: 12 },
+        ],
+        moveDown: [
+          { kind: "axis", index: 1, direction: 1 },
+          { kind: "button", index: 13 },
+        ],
+        moveLeft: [
+          { kind: "axis", index: 0, direction: -1 },
+          { kind: "button", index: 14 },
+        ],
+        moveRight: [
+          { kind: "axis", index: 0, direction: 1 },
+          { kind: "button", index: 15 },
+        ],
+        skill1: [{ kind: "button", index: 0 }],
+        skill4: [{ kind: "button", index: 4 }],
+        skill5: [{ kind: "button", index: 7 }],
+        interact: [{ kind: "button", index: 1 }],
+        item1: [{ kind: "button", index: 6 }],
+        item2: [{ kind: "button", index: 10 }],
+        item3: [{ kind: "button", index: 11 }],
+        inventory: [{ kind: "button", index: 16 }],
+        chat: [{ kind: "button", index: 11 }],
+      } as const satisfies Partial<Record<ControlId, readonly GamepadBinding[]>>;
+      for (const id of [
+        "moveUp",
+        "moveDown",
+        "moveLeft",
+        "moveRight",
+        "skill1",
+        "skill4",
+        "skill5",
+        "interact",
+        "item1",
+        "item2",
+        "item3",
+        "inventory",
+        "chat",
+      ] as const) {
+        const stored = validGamepadBindings(parsed.gamepad?.[id]);
+        const previous = legacyGamepad[id];
+        if (stored && previous && sameGamepadBindings(stored, previous)) {
+          fallback.gamepad[id] = DEFAULT_INPUT_SETTINGS.gamepad[id].map((binding) => ({
+            ...binding,
+          }));
+        }
+      }
+      const storedInteract = validGamepadBindings(parsed.gamepad?.interact);
+      if (storedInteract && sameGamepadBindings(storedInteract, [{ kind: "button", index: 4 }])) {
+        fallback.gamepad.interact = DEFAULT_INPUT_SETTINGS.gamepad.interact.map((binding) => ({
+          ...binding,
+        }));
       }
     }
     return fallback;
@@ -263,7 +381,10 @@ export function setControllerLayout(controllerLayout: ControllerLayout): void {
   commit({ ...settings, controllerLayout });
 }
 
-export function setKeyboardBinding(control: ControlId, binding: KeyboardBinding): void {
+export function setKeyboardBinding(control: ControlId, binding: KeyboardBinding): boolean {
+  if (HERO_DIRECTION_CONTROLS.includes(control as (typeof HERO_DIRECTION_CONTROLS)[number])) {
+    if (isArrowKey(binding)) return false;
+  }
   const displaced = settings.keyboard[control].map((candidate) => ({ ...candidate }));
   const keyboard = Object.fromEntries(
     CONTROL_IDS.map((id) => {
@@ -278,13 +399,24 @@ export function setKeyboardBinding(control: ControlId, binding: KeyboardBinding)
     ...settings,
     keyboard,
   });
+  return true;
 }
 
-export function setGamepadBinding(control: ControlId, binding: GamepadBinding): void {
+export function setGamepadBinding(control: ControlId, binding: GamepadBinding): boolean {
+  if (HERO_DIRECTION_CONTROLS.includes(control as (typeof HERO_DIRECTION_CONTROLS)[number])) {
+    if (isDpadButton(binding)) return false;
+  }
   const displaced = settings.gamepad[control].map((candidate) => ({ ...candidate }));
   const gamepad = Object.fromEntries(
     CONTROL_IDS.map((id) => {
       if (id === control) return [id, [{ ...binding }]];
+      if (
+        binding.kind === "button" &&
+        binding.index === 0 &&
+        ((control === "jump" && id === "interact") || (control === "interact" && id === "jump"))
+      ) {
+        return [id, settings.gamepad[id].map((candidate) => ({ ...candidate }))];
+      }
       const remaining = settings.gamepad[id].filter(
         (candidate) =>
           candidate.kind !== binding.kind ||
@@ -300,6 +432,7 @@ export function setGamepadBinding(control: ControlId, binding: GamepadBinding): 
     ...settings,
     gamepad,
   });
+  return true;
 }
 
 export function resetInputBindings(device?: "keyboard" | "gamepad"): void {

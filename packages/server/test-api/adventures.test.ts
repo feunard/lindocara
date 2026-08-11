@@ -235,6 +235,56 @@ describe("create: atomic with a default map", () => {
     expect(created.graph.links).toEqual([]);
   });
 
+  // The editor opens an unsaved local sandbox and only creates a row at the author's first save, so
+  // that save must land the adventure AND the map it was drawing in ONE request: a create-then-PUT
+  // pair could persist a named adventure and then fail the map, presenting one action as done when
+  // half of it was.
+  test("creates the adventure and its first map from an authored map, in one POST", async () => {
+    const { token } = await registerAndLogin("advsandbox");
+    const response = await createAdventure(token, {
+      title: "Sandbox",
+      maxPlayers: 4,
+      map: mapBody("Atelier"),
+    });
+    expect(response.status).toBe(201);
+    const created = (await response.json()) as {
+      id: string;
+      mapIds: string[];
+      defaultMap: {
+        id: string;
+        name: string;
+        cols: number;
+        rows: number;
+        events: unknown[];
+        heightfield: string | null;
+      };
+    };
+    expect(created.mapIds).toHaveLength(1);
+    expect(created.defaultMap.id).toBe(created.mapIds[0]);
+    expect(created.defaultMap.name).toBe("Atelier");
+    expect(created.defaultMap.cols).toBe(COLS);
+    expect(created.defaultMap.rows).toBe(ROWS);
+    // The authored events rode along, and the terrain was compiled by the server from them.
+    expect(created.defaultMap.events).toHaveLength(2);
+    expect(created.defaultMap.heightfield).toBeTruthy();
+    // Exactly one map: the carried map REPLACES the blank template, it is not created beside it.
+    const list = await authedFetch(`/api/maps?adventure=${created.id}`, token);
+    expect((await list.json()) as unknown[]).toHaveLength(1);
+  });
+
+  test("400s map_invalid when the create body carries a malformed map, writing nothing", async () => {
+    const { token } = await registerAndLogin("advsandbadmap");
+    const response = await createAdventure(token, {
+      title: "Sandbox",
+      maxPlayers: 4,
+      map: { name: "Atelier", nope: true },
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "map_invalid" });
+    const list = await authedFetch("/api/adventures", token);
+    expect(await list.json()).toEqual([]);
+  });
+
   test("400s adventure_invalid/title/players on a malformed create body", async () => {
     const { token } = await registerAndLogin("advinvalid");
     const invalid = await createAdventure(token, { nope: true } as never);

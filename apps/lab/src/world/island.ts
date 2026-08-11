@@ -6,7 +6,16 @@ import {
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
-import { MOUNTAIN, MOUNTAIN_FACE_Z, NORD, WATERFALLS, WEST, WORLD } from "../settings.js";
+import {
+  MOUNTAIN,
+  MOUNTAIN_FACE_Z,
+  MOUNTAIN_TOP_LEVEL,
+  NORD,
+  SPRING,
+  WATERFALLS,
+  WEST,
+  WORLD,
+} from "../settings.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
  *  `generateIsland` ci-dessous. Sorti au niveau module (et exporté) pour que
@@ -89,6 +98,10 @@ const MOUNTAIN_RELIEFS: readonly IslandRelief[] = [
  * because water that falls has to go somewhere.
  */
 function carveWestIsland(x: number, z: number): number | null | undefined {
+  // The spring pool on the summit: water, at level 4 rather than at sea level. `waterLevelAt`
+  // below tells the renderer and the collision where its surface is; without that the walls around
+  // it would drop their full four levels and the pool would be a shaft to the ocean.
+  if (isSpring(x, z)) return null;
   if (z <= MOUNTAIN_FACE_Z) return undefined;
   for (const fall of WATERFALLS) {
     if (Math.abs(x - fall.x) < fall.width / 2) return null;
@@ -160,6 +173,26 @@ const ILES: readonly IslandShape[] = [
  *  `WEST_REACH_MAX` below has to sample the SAME function. Writing it twice would put the zone
  *  ordering test (`test/zone-precede-matiere.test.ts`) on a second source of truth that could drift
  *  from the island it claims to bound without anything noticing. */
+/** The summit spring's footprint: a rectangle reaching the lip, exactly as wide as the fall. */
+export function isSpring(x: number, z: number): boolean {
+  return (
+    Math.abs(x - MOUNTAIN.x) < SPRING.halfWidth &&
+    z > MOUNTAIN_FACE_Z - SPRING.depth &&
+    z < MOUNTAIN_FACE_Z
+  );
+}
+
+/**
+ * The world height of the water surface at a point, or `null` where there is none.
+ *
+ * Everywhere but the summit spring this is the world's own sea. The spring is the exception this
+ * whole capability exists for: real water, at level 4, with the same material, the same foam border
+ * and the same swim as the ocean — just 3.6 units up.
+ */
+export function waterLevelAt(x: number, z: number): number {
+  return isSpring(x, z) ? MOUNTAIN_TOP_LEVEL * WORLD.levelHeight : WORLD.waterLevel;
+}
+
 function westShoreWave(a: number): number {
   return 0.12 * Math.sin(a * 3 + 2.2) + 0.05 * Math.sin(a * 5 - 0.4);
 }
@@ -350,6 +383,11 @@ export function generateIsland(opts: GenerateIslandOptions): {
     cols: size,
     rows: size,
     levelAt: at,
+    waterAt(i, j) {
+      if (at(i, j) !== null) return null;
+      const [x, z] = [i + 0.5 - c, j + 0.5 - c];
+      return isSpring(x, z) ? MOUNTAIN_TOP_LEVEL : null;
+    },
     materialAt(i, j) {
       const h = at(i, j);
       if (h === null) return null;
@@ -382,10 +420,22 @@ export function generateIsland(opts: GenerateIslandOptions): {
  * labo où les deux notions (donnée de carte, bande de rendu) se rencontrent légitimement.
  */
 export function mapToHeightField(m: MapData): HeightField {
-  return heightFieldFromGrid({
+  const grid = heightFieldFromGrid({
     size: m.size,
     levels: m.levels,
     materials: m.materials,
     materialKey: (material, level) => renderMaterialAt(material as TerrainMaterial, level),
   });
+  const c = m.size / 2;
+  return {
+    ...grid,
+    // Re-derived from the AUTHORED footprint rather than carried in `MapData`, which has no field
+    // for a per-cell water level and would need a format change across `@lindocara/engine` to gain
+    // one. The spring is authored geometry (`SPRING`, `settings.ts`), known at runtime, and the
+    // baked map already says those cells are water — this only says how high its surface sits.
+    waterAt(i, j) {
+      if (grid.levelAt(i, j) !== null) return null;
+      return isSpring(i + 0.5 - c, j + 0.5 - c) ? MOUNTAIN_TOP_LEVEL : null;
+    },
+  };
 }

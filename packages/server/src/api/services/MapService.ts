@@ -40,6 +40,7 @@ import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { $inject } from "alepha";
+import { users } from "alepha/api/users";
 import { $repository, sql } from "alepha/orm";
 // Pure, D1-free helper: reused as-is rather than re-ported (see its own docblock).
 import {
@@ -118,6 +119,7 @@ function decodeHarvestProfileColumn(text: string | null | undefined): HarvestPro
 export interface MapSummary {
   id: string;
   name: string;
+  author: string;
   revision: number;
   cols: number;
   rows: number;
@@ -155,6 +157,7 @@ export class MapService {
   heroService = $inject(HeroService);
 
   maps = $repository(maps);
+  users = $repository(users);
   adventures = $repository(adventures);
   mapElements = $repository(mapElements);
   mapEvents = $repository(mapEvents);
@@ -168,14 +171,17 @@ export class MapService {
       where: { adventureId: { eq: adventureId } },
       orderBy: "createdAt",
     });
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      revision: row.revision,
-      cols: row.cols,
-      rows: row.rows,
-      isFirst: row.isFirst,
-    }));
+    return Promise.all(
+      rows.map(async (row) => ({
+        id: row.id,
+        name: row.name,
+        author: (await this.users.findById(row.userId))?.username ?? "unknown",
+        revision: row.revision,
+        cols: row.cols,
+        rows: row.rows,
+        isFirst: row.isFirst,
+      })),
+    );
   }
 
   /** HTTP-facing list: an adventure id is not a capability to enumerate another author's maps. */
@@ -184,9 +190,11 @@ export class MapService {
       where: { adventureId: { eq: adventureId }, userId: { eq: userId } },
       orderBy: "createdAt",
     });
+    const author = (await this.users.findById(userId))?.username ?? "unknown";
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      author,
       revision: row.revision,
       cols: row.cols,
       rows: row.rows,
@@ -194,12 +202,20 @@ export class MapService {
     }));
   }
 
-  /** Ported from `createMap`: always the trusted blank template, never client-authored terrain. */
+  /**
+   * Ported from `createMap`: the trusted blank template, unless `content` carries an authored map.
+   *
+   * `content` is the editor's unsaved sandbox arriving at its first save (see
+   * `AdventureService.createAdventureWithDefaultMap`). Client-authored terrain is not TRUSTED here
+   * any more than it is on a `PUT`: it goes through the same `validateMapInput` gate, and the stored
+   * heightfield is compiled from it by this server, never taken from the wire.
+   */
   async createMap(
     adventureId: string,
     name: string,
     cols?: number,
     rows?: number,
+    content?: MapInput,
   ): Promise<MapPayload> {
     const owner = await this.adventures.findById(adventureId);
     if (!owner) throw new Error("not_found: no such adventure");
@@ -207,7 +223,7 @@ export class MapService {
     if (mapCount >= MAX_ADVENTURE_MAPS) {
       throw new Error(`limit: at most ${MAX_ADVENTURE_MAPS} maps per adventure`);
     }
-    const input = defaultMapInput(name, cols, rows);
+    const input = content ?? defaultMapInput(name, cols, rows);
     const data = validateMapInput(input);
     const heightfield = encodeMap(compileAuthoredMap(data, data.events));
     // NOT protected by `$transactional()` on this app's actual production target: Alepha's D1
@@ -242,8 +258,8 @@ export class MapService {
       heightfield,
       isFirst: firstCountForAccount === 0,
     });
-    // `defaultMapInput` always yields empty elements/events; writing them here keeps this in step
-    // with `createMap`'s shape in case a future default template ever seeds either.
+    // The blank template yields empty elements/events; an authored `content` may carry both, and a
+    // future default template might seed either — so both are always written from the input.
     await this.writeElements(id, input.elements);
     await this.writeEvents(id, data.events);
     return this.toPayload(row);

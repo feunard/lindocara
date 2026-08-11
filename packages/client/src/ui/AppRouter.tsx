@@ -57,7 +57,6 @@ import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { CreditsScreen } from "./CreditsScreen.js";
 import { EventLog } from "./EventLog.js";
-import { HelpBar } from "./HelpBar.js";
 import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
 import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
@@ -144,7 +143,6 @@ function GameScreen() {
       <Chat />
       <EventLog />
       <Prompt />
-      <HelpBar />
       <InteriorOverlay />
       <InventoryOverlay />
       <MerchantOverlay />

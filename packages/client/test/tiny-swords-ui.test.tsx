@@ -1,55 +1,12 @@
-import { AssetBrowser, resetTinySwordsCatalogForTests } from "@lindocara/client/ui/AssetBrowser.js";
 import { TinyButton } from "@lindocara/client/ui/tiny-swords/TinyButton.js";
 import { TinyPanel } from "@lindocara/client/ui/tiny-swords/TinyPanel.js";
 import { TinyRange } from "@lindocara/client/ui/tiny-swords/TinyRange.js";
 import { applyTinySwordsTheme } from "@lindocara/renderer/tiny-swords-assets.js";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const entries = [
-  {
-    id: "decoration.terrain-decorations-rocks.rock1",
-    sourcePath: "Tiny Swords (Free Pack)/Terrain/Decorations/Rocks/Rock1.png",
-    pack: "Tiny Swords (Free Pack)",
-    domain: "decoration",
-    category: "terrain-decorations-rocks",
-    tags: ["rock", "stone"],
-    width: 64,
-    height: 64,
-    nature: "static",
-    classification: { status: "catalogued", role: "Static rock" },
-    editor: {
-      allowedTerrain: ["grass"],
-      renderLayer: "ground",
-      visualFootprint: { cols: 1, rows: 1 },
-      collisionFootprint: [],
-      behavior: "static",
-    },
-  },
-  {
-    id: "ui.cursor.default",
-    sourcePath: "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_01.png",
-    pack: "Tiny Swords (Free Pack)",
-    domain: "ui",
-    category: "ui-elements-cursors",
-    tags: ["cursor"],
-    width: 32,
-    height: 32,
-    nature: "static",
-    classification: { status: "catalogued", role: "Default cursor" },
-  },
-] as const;
+import { describe, expect, it, vi } from "vitest";
 
 describe("Tiny Swords UI foundation", () => {
-  beforeEach(() => {
-    resetTinySwordsCatalogForTests();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it("keeps authored button states, keyboard activation, focus and disabled behavior", async () => {
     const action = vi.fn();
     const user = userEvent.setup();
@@ -95,30 +52,5 @@ describe("Tiny Swords UI foundation", () => {
     const slider = screen.getByRole("slider", { name: "Volume" });
     expect(slider).toHaveClass("tiny-range");
     expect(slider.parentElement?.querySelector("[data-tiny-bar-track]")?.children).toHaveLength(3);
-  });
-
-  it("searches and filters the progressively loaded asset catalogue", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 1, entries }) }),
-    );
-    const user = userEvent.setup();
-    render(<AssetBrowser />);
-    await user.click(screen.getByText("Tiny Swords asset browser"));
-    expect(await screen.findByText(entries[0].id)).toBeInTheDocument();
-    expect(screen.getByText("Available in the map editor")).toBeInTheDocument();
-    await user.type(screen.getByRole("searchbox"), "cursor");
-    expect(screen.getByText(entries[1].id)).toBeInTheDocument();
-    expect(screen.queryByText(entries[0].id)).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Domain" }), "decoration");
-    await user.clear(screen.getByRole("searchbox"));
-    expect(screen.getByText(entries[0].id)).toBeInTheDocument();
-    expect(screen.queryByText(entries[1].id)).not.toBeInTheDocument();
-  });
-
-  it("reports a catalogue loading error without crashing the interface", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("storage unavailable")));
-    render(<AssetBrowser />);
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
   });
 });

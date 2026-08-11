@@ -2,9 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   CATALOG_SOURCE_PATH,
-  CLIENT_CATALOG_PATH,
   COVERAGE_REPORT_PATH,
-  clientCatalogJson,
   coverageReportMarkdown,
   createCatalogSource,
   GENERATED_SHARED_PATH,
@@ -24,9 +22,7 @@ if (validation.errors.length > 0) {
 }
 
 if (bootstrap) writeFileSync(CATALOG_SOURCE_PATH, sourceCatalogJson(catalog));
-mkdirSync(path.dirname(CLIENT_CATALOG_PATH), { recursive: true });
 mkdirSync(path.dirname(COVERAGE_REPORT_PATH), { recursive: true });
-writeFileSync(CLIENT_CATALOG_PATH, clientCatalogJson(catalog));
 writeFileSync(GENERATED_SHARED_PATH, generatedSharedSource(catalog));
 writeFileSync(COVERAGE_REPORT_PATH, coverageReportMarkdown(catalog, validation.report));
 

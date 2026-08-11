@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import {
-  CLIENT_CATALOG_PATH,
   COVERAGE_REPORT_PATH,
-  clientCatalogJson,
   coverageReportMarkdown,
   GENERATED_SHARED_PATH,
   generatedSharedSource,
@@ -16,9 +14,6 @@ const catalog = readCatalogSource();
 const validation = validateCatalog(index, catalog);
 if (validation.errors.length > 0) {
   throw new Error(`Tiny Swords catalogue invalid:\n${validation.errors.join("\n")}`);
-}
-if (readFileSync(CLIENT_CATALOG_PATH, "utf8") !== clientCatalogJson(catalog)) {
-  throw new Error("Client catalogue is stale. Run npm run catalog:build.");
 }
 if (readFileSync(GENERATED_SHARED_PATH, "utf8") !== generatedSharedSource(catalog)) {
   throw new Error("Shared catalogue is stale. Run npm run catalog:build.");

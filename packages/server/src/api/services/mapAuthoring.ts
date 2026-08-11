@@ -57,7 +57,11 @@ import {
   MAP_MIN_COLS,
   MAP_MIN_ROWS,
 } from "@lindocara/engine/map-limits.js";
-import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
+import {
+  DEFAULT_FIRST_MAP_NAME,
+  defaultMapInput,
+  type MapInput,
+} from "@lindocara/engine/map-template.js";
 import {
   emptyLayer,
   encodeTileLayer,
@@ -66,67 +70,18 @@ import {
 } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
 import { tileIdInTileset } from "@lindocara/engine/tileset.js";
-import { TINY_SWORDS_TILESET_ID, tilesetById } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { tilesetById } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { HttpError } from "alepha/server";
 
 export { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_MIN_COLS, MAP_MIN_ROWS, MAX_ADVENTURE_MAPS };
 export const MAP_NAME_MAX = 48;
-export const DEFAULT_FIRST_MAP_NAME = "Map1";
 
-export interface MapInput {
-  name: string;
-  tilesetId: string;
-  cols: number;
-  rows: number;
-  layers: readonly TileLayer[];
-  elements: readonly MapElement[];
-  spawn: { col: number; row: number };
-  markers?: MapMarkers | undefined;
-  events?: readonly MapEvent[] | undefined;
-  audio?: MapAudioConfig | undefined;
-  heroSettings?: MapHeroSettings | undefined;
-  /** Missing keeps legacy writers on the historical cycle-enabled behaviour. */
-  dayNightCycle?: boolean | undefined;
-  /** Missing keeps disabled legacy maps fixed in daylight. */
-  fixedLighting?: MapFixedLighting | undefined;
-  /** Encoded HD-2D terrain derived or authored by the editor. Omission preserves stored terrain. */
-  heightfield?: string | undefined;
-}
-
-/**
- * The one template a new map is ever created from — ported verbatim from `maps.ts`. Bounded field of
- * flat grass, walkable everywhere, spawn dead centre, no elements, no events.
- */
-export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MIN_ROWS): MapInput {
-  if (
-    !Number.isSafeInteger(cols) ||
-    !Number.isSafeInteger(rows) ||
-    cols < MAP_MIN_COLS ||
-    cols > MAP_MAX_COLS ||
-    rows < MAP_MIN_ROWS ||
-    rows > MAP_MAX_ROWS
-  ) {
-    throw new Error("size: map dimensions are out of bounds");
-  }
-  const { layers } = layersFromBlocks(Array.from({ length: rows }, () => ".".repeat(cols)));
-  const spawn = { col: Math.floor(cols / 2), row: Math.floor(rows / 2) };
-  return {
-    name,
-    tilesetId: TINY_SWORDS_TILESET_ID,
-    cols,
-    rows,
-    layers,
-    elements: [],
-    spawn,
-    markers: EMPTY_MARKERS,
-    events: [],
-    audio: EMPTY_MAP_AUDIO,
-    heroSettings: defaultMapHeroSettings(),
-    dayNightCycle: true,
-    fixedLighting: DEFAULT_MAP_FIXED_LIGHTING,
-  };
-}
+// The authoring shape and the blank template live in the engine (`map-template.ts`), because the
+// editor mints the same blank map for an unsaved sandbox — one template, or the sandbox is born on
+// terrain the server would never have produced. Re-exported here so every server call site keeps
+// importing its map vocabulary from this one module.
+export { DEFAULT_FIRST_MAP_NAME, defaultMapInput, type MapInput };
 
 /** Rejects a map nobody could play before it reaches the database. Ported verbatim from `maps.ts`. */
 export function validateMapInput(input: MapInput): MapData & {

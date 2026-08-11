@@ -373,6 +373,11 @@ export function createHd2dScene(
     fps: 7,
     spread: FOAM_SPREAD,
     waterLevel: map.waterLevel,
+    // Authored game maps have no water at elevation — `HeightField.waterAt` answers `null`
+    // everywhere for them — so this only ever feeds the sea's own placement. It is required rather
+    // than optional so a map that DOES grow elevated water cannot silently draw its foam at sea
+    // level, buried inside the terrain.
+    levelHeight: map.levelHeight,
   });
   scene.add(foam.group);
 

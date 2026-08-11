@@ -42,7 +42,9 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const climb = world.levelHeight * hero.swim.climb;
   const maxStep = world.maxStep * world.levelHeight + 1e-3;
   const surfaceAt = (xx: number, zz: number) =>
-    query.surfaceAt?.(xx, zz, state.y + 0.02) ?? query.heightAt(xx, zz) ?? world.waterLevel;
+    query.surfaceAt?.(xx, zz, state.y + 0.02) ??
+    query.heightAt(xx, zz) ??
+    query.waterLevelAt(xx, zz);
   const footprintZ = empreinte(z, hero);
   const currentFootprintZ = empreinte(state.z, hero);
   const traversingRamp = query.canTraverseRamp(
@@ -68,8 +70,19 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   // The ground under the CENTER decides where a foot can land. A hard rule: never relaxed, or the
   // hero would climb a cliff by leaning into it.
   const centreOk = (xx: number, zz: number): boolean => {
-    const h = surfaceAt(xx, empreinte(zz, hero));
-    if (state.swimming) return h - world.waterLevel <= climb;
+    const foot = empreinte(zz, hero);
+    const h = surfaceAt(xx, foot);
+    // Measured against the surface the swimmer is FLOATING ON — `state.y` — not against a water
+    // level sampled somewhere else. "How far must I climb to get out" is a question about the
+    // water under the hero, and the only place that is reliably known is the hero.
+    //
+    // Sampling it at the destination instead looks equivalent and is not, in both directions.
+    // At the destination CENTRE, the lip of a fall reads as a cliff the height of the drop and the
+    // swimmer cannot go over it. At the destination FOOTPRINT, a bank reads the same way — the
+    // footprint is over LAND, which has no water, so the lookup answers the distant sea and the
+    // swimmer cannot climb out. Both were live bugs; with one global water level neither could
+    // happen, because every lookup returned the same number.
+    if (state.swimming) return h - state.y <= climb;
     return state.airborne ? h <= state.y + 0.02 : traversingRamp || h - state.groundY <= maxStep;
   };
   if (!centreOk(x, z)) return false;
@@ -78,7 +91,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   // into a wall before being stopped.
   const h = query.maxHeightAround(x, empreinte(z, hero), hero.radius, state.y + 0.02);
   const plafond = state.swimming
-    ? world.waterLevel + climb
+    ? state.y + climb
     : state.airborne
       ? state.y + 0.02
       : state.groundY + maxStep;
@@ -109,30 +122,38 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
  * general, so a caller can read `x`/`z` off it without re-testing `t`.
  */
 function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "entree-eau" }> {
-  const { hero, world } = deps;
+  const { hero } = deps;
   state.swimming = true;
   state.airborne = false;
   state.vy = 0;
   state.vx = 0;
   state.vz = 0;
   state.breath = hero.swim.breath;
-  state.y = world.waterLevel;
-  state.groundY = world.waterLevel;
-  return { t: "entree-eau", x: state.x, y: world.waterLevel, z: state.z };
+  const surface = deps.query.waterLevelAt(state.x, state.z);
+  state.y = surface;
+  state.groundY = surface;
+  return { t: "entree-eau", x: state.x, y: surface, z: state.z };
 }
 
 /** Leaves the water onto a shore at `y` — never a cliff: `canEnter` (above, the `climb`
  *  constraint) has already ruled that out upstream, this function only records the exit. */
 function leaveWater(state: HeroState, deps: StepDeps, y: number): HeroEvent {
-  const { hero, world } = deps;
+  const { hero } = deps;
   state.swimming = false;
   state.vx = 0;
   state.vz = 0;
   state.breath = hero.swim.breath;
   state.y = y;
   state.groundY = y;
-  return { t: "sortie-eau", x: state.x, y: world.waterLevel, z: state.z };
+  return { t: "sortie-eau", x: state.x, y: deps.query.waterLevelAt(state.x, state.z), z: state.z };
 }
+
+/**
+ * How far the water surface must fall away under a swimmer before he stops swimming and starts
+ * falling. Generous enough that no ordinary surface wobble triggers it, small enough that the lip
+ * of any real drop does.
+ */
+const WATER_SPILL_DROP = 0.4;
 
 /**
  * Breath is exhausted. The event carries the DROWNING position — where the splash should appear —
@@ -141,7 +162,7 @@ function leaveWater(state: HeroState, deps: StepDeps, y: number): HeroEvent {
  * parameter, on purpose (see the file header).
  */
 function drown(state: HeroState, deps: StepDeps): HeroEvent {
-  const { hero, world } = deps;
+  const { hero } = deps;
   const x = state.x;
   const z = state.z;
   state.swimming = false;
@@ -150,7 +171,7 @@ function drown(state: HeroState, deps: StepDeps): HeroEvent {
   state.vx = 0;
   state.vz = 0;
   state.breath = hero.swim.breath;
-  return { t: "noyade", x, y: world.waterLevel, z };
+  return { t: "noyade", x, y: deps.query.waterLevelAt(x, z), z };
 }
 
 export function stepHero(
@@ -160,7 +181,7 @@ export function stepHero(
   deps: StepDeps,
 ): HeroEvent[] {
   const events: HeroEvent[] = [];
-  const { query, hero, world } = deps;
+  const { query, hero } = deps;
 
   // The jump input is a LEVEL. Read the rising edge ONCE, here, before any branch: the latch has
   // to advance on every step — indoors, swimming, anywhere — or a key held across a doorway would
@@ -231,7 +252,7 @@ export function stepHero(
   // guarded by `!state.room` so none of these mechanics run indoors.
   if (!state.room) {
     if (!state.swimming) {
-      const ground = sol ?? world.waterLevel;
+      const ground = sol ?? query.waterLevelAt(state.x, state.z);
       if (state.airborne) {
         state.coyote -= dt;
       } else if (ground < state.y - 1e-3) {
@@ -307,11 +328,23 @@ export function stepHero(
       if (sol !== null) {
         events.push(leaveWater(state, deps, sol));
       } else {
-        state.y = world.waterLevel;
-        // The rate comes from the zone (see `HeroInput.souffleTaux`): the hero no longer needs to
-        // know WHICH water drains faster, only to read what it's given.
-        state.breath -= dt * input.souffleTaux;
-        if (state.breath <= 0) events.push(drown(state, deps));
+        const surface = query.waterLevelAt(state.x, state.z);
+        if (surface < state.y - WATER_SPILL_DROP) {
+          // The water has fallen away beneath: carried over a lip, which is what the top of a
+          // waterfall IS. Without this the swimmer's Y snaps to the new surface and he TELEPORTS
+          // down the drop — the rule pins a swimmer to the water every frame, and that is right
+          // everywhere except an edge. Horizontal speed is kept: he is carried over, not stopped.
+          state.swimming = false;
+          state.airborne = true;
+          state.vy = 0;
+          events.push({ t: "sortie-eau", x: state.x, y: state.y, z: state.z });
+        } else {
+          state.y = surface;
+          // The rate comes from the zone (see `HeroInput.souffleTaux`): the hero no longer needs
+          // to know WHICH water drains faster, only to read what it's given.
+          state.breath -= dt * input.souffleTaux;
+          if (state.breath <= 0) events.push(drown(state, deps));
+        }
       }
     }
   }

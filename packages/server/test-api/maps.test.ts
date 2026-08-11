@@ -130,7 +130,9 @@ afterEach(async () => {
 /** Registers a user through the real realm flow and logs in via the credentials provider — same
  *  two-phase idiom as `auth.test.ts`/`entities-authoring.test.ts`, plus the login step neither of
  *  those needed. Bearer token, not a cookie: this realm has no session cookie concept. */
-async function registerAndLogin(prefix: string): Promise<{ userId: string; token: string }> {
+async function registerAndLogin(
+  prefix: string,
+): Promise<{ userId: string; token: string; username: string }> {
   userCount += 1;
   const username = `${prefix}${userCount}`;
   const users = alepha.inject(UserController);
@@ -146,7 +148,7 @@ async function registerAndLogin(prefix: string): Promise<{ userId: string; token
     body: JSON.stringify({ username, password: PASSWORD }),
   });
   const tokens = (await login.json()) as { access_token: string };
-  return { userId: registered.data.id, token: tokens.access_token };
+  return { userId: registered.data.id, token: tokens.access_token, username };
 }
 
 function authedFetch(path: string, token: string, init: RequestInit = {}): Promise<Response> {
@@ -185,9 +187,9 @@ function putMap(id: string, token: string, body: unknown): Promise<Response> {
 async function listMaps(
   adventureId: string,
   token: string,
-): Promise<{ id: string; isFirst: boolean }[]> {
+): Promise<{ id: string; isFirst: boolean; author: string }[]> {
   const response = await authedFetch(`/api/maps?adventure=${adventureId}`, token);
-  return (await response.json()) as { id: string; isFirst: boolean }[];
+  return (await response.json()) as { id: string; isFirst: boolean; author: string }[];
 }
 
 describe("session gate", () => {
@@ -217,7 +219,7 @@ describe("session gate", () => {
 
 describe("create under an adventure", () => {
   test("creates the blank flat-grass template, ignoring any client terrain, revision 1", async () => {
-    const { userId, token } = await registerAndLogin("mapcreate");
+    const { userId, token, username } = await registerAndLogin("mapcreate");
     const adventureId = await newAdventure(userId);
     const response = await authedFetch("/api/maps", token, {
       method: "POST",
@@ -243,6 +245,7 @@ describe("create under an adventure", () => {
     // ...and the first map created for an account is flagged first (MapSummary-only field).
     const list = await listMaps(adventureId, token);
     expect(list.find((entry) => entry.id === created.id)?.isFirst).toBe(true);
+    expect(list.find((entry) => entry.id === created.id)).toMatchObject({ author: username });
   });
 
   test(`refuses a ${MAX_ADVENTURE_MAPS + 1}th map in one adventure`, async () => {

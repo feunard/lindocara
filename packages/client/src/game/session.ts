@@ -72,6 +72,7 @@ import {
   clientShadowReturnDeadline,
   skillCooldownBlocksCast,
 } from "./cooldown-sync.js";
+import { hasNearbyInteraction } from "./interaction-context.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { SessionCombatAudio } from "./session-combat-audio.js";
@@ -419,7 +420,8 @@ async function startGameIdentity(
   let reconnectCancelled = false;
   let intentionallyClosed = false;
   let ended = false;
-  const input = trackInput();
+  let interactionNearby = false;
+  const input = trackInput(() => interactionNearby);
   const cameraOrbit = trackCameraOrbit(canvas);
   let cameraYaw = 0;
   let stopActions: (() => void) | null = null;
@@ -434,6 +436,8 @@ async function startGameIdentity(
   let selfCorpse: GroundVector | null = null;
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
+  let activeWorldSize = 0;
+  const peasantCamps = new Map<string, PeasantCampVisual>();
   let audioDayCycleOverride: DayCycleOverride = null;
   let dayNightCycleEnabled = true;
   let fixedLighting: MapFixedLighting = DEFAULT_MAP_FIXED_LIGHTING;
@@ -497,6 +501,8 @@ async function startGameIdentity(
       // disconnect, so no run is left to answer the panel — clear it rather than strand a dead panel.
       useUiStore.getState().setEventDialogue(null);
       useUiStore.getState().setQuestDialogue(null);
+      peasantCamps.clear();
+      interactionNearby = false;
       if (!welcomed) {
         useUiStore.getState().setHeroLoading({
           name: identity.name,
@@ -514,6 +520,7 @@ async function startGameIdentity(
       // the first playable frame so the last authoritative hit never initiates their texture load.
       renderer.preloadWorldEventAssets(world.events);
       activeZoneId = world.zoneId;
+      activeWorldSize = world.size;
       dayNightCycleEnabled = world.dayNightCycle ?? true;
       fixedLighting = world.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING;
       renderer.setDayCycleOverride?.(effectiveDayCycleOverride());
@@ -611,7 +618,10 @@ async function startGameIdentity(
     onLumenPortal: (portal: PriestLumenPortalVisual) => renderer.playLumenPortal(portal),
     onLumenTrail: (trail: PriestLumenTrailVisual) => renderer.playLumenTrail(trail),
     onPolarityOrb: (orb: PriestPolarityOrbVisual) => renderer.playPolarityOrb(orb),
-    onPeasantCamp: (camp: PeasantCampVisual) => renderer.showPeasantCamp(camp),
+    onPeasantCamp: (camp: PeasantCampVisual) => {
+      peasantCamps.set(camp.id, camp);
+      renderer.showPeasantCamp(camp);
+    },
     onPeasantCampBank: (bank: PeasantCampBankVisual) => {
       const store = useUiStore.getState();
       if (bank.opened || store.campBank?.id === bank.id) {
@@ -620,6 +630,7 @@ async function startGameIdentity(
       }
     },
     onPeasantCampRemoved: (camp: PeasantCampRemovedVisual) => {
+      peasantCamps.delete(camp.id);
       renderer.removePeasantCamp(camp.id);
       const store = useUiStore.getState();
       if (store.campBank?.id === camp.id) store.setCampBank(null);
@@ -1150,6 +1161,7 @@ async function startGameIdentity(
       toggleSettings,
     },
     () => !isGameplayInputPaused(),
+    () => interactionNearby,
   );
 
   useUiStore.getState().setGame({
@@ -1296,6 +1308,21 @@ async function startGameIdentity(
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse, movementStatus);
     updatePrompt(self, questState, door, activeZoneId, currentMerchant);
+    const interactionStore = useUiStore.getState();
+    interactionNearby = hasNearbyInteraction({
+      self,
+      worldSize: activeWorldSize,
+      events: sample.events,
+      corpses: sample.corpses,
+      camps: [...peasantCamps.values()],
+      promptKey: interactionStore.prompt?.key,
+      interiorNearby: door !== undefined,
+      interactionOpen:
+        interactionStore.eventDialogue !== null ||
+        interactionStore.questDialogue !== null ||
+        interactionStore.interiorDoorId !== null,
+      now: Date.now(),
+    });
   });
   window.addEventListener("beforeunload", beforeUnload);
 

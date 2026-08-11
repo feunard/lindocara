@@ -8,6 +8,9 @@ interface Options {
   hauteur?: (x: number, z: number) => number | null;
   surface?: (x: number, z: number, ceilingY: number) => number | null;
   matiere?: (x: number, z: number) => TerrainMaterial | null;
+  /** World height of the water surface at a point. Default: 0 everywhere, which is what every map
+   *  without water at elevation answers. */
+  eau?: (x: number, z: number) => number;
 }
 
 /** Flat, obstacle-free terrain, every part of which can be overridden — every
@@ -24,6 +27,9 @@ export function depsPlates(o: Options = {}): StepDeps {
     rampAt: () => null,
     canTraverseRamp: () => false,
     cellCenter: (i, j) => [i + 0.5, j + 0.5],
+    // A world with no elevated water answers the same surface everywhere, which is what every
+    // map but the lab's summit spring does. `eau` lets a test place water higher when it wants to.
+    waterLevelAt: (x, z) => o.eau?.(x, z) ?? 0,
   };
   const colliders: ColliderQuery = { blocked: (x, z, _r, y) => o.bloque?.(x, z, y) ?? false };
   return {

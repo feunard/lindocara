@@ -9,6 +9,11 @@ import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 
 const QUICK_SLOT_KEYS = ["quick-item-1", "quick-item-2", "quick-item-3"] as const;
 const QUICK_SLOT_CONTROLS = ["item1", "item2", "item3"] as const;
+const QUICK_SLOT_DIRECTIONS = ["left", "up", "right"] as const;
+
+function compactBindingLabel(label: string): string {
+  return label.replace(/^D-pad\s+/, "");
+}
 
 export function QuickItemBar() {
   useLocale();
@@ -16,6 +21,8 @@ export function QuickItemBar() {
   const game = useUiStore((state) => state.game);
   const self = useUiStore((state) => state.self);
   const selfState = useUiStore((state) => state.selfState);
+  const inventoryOpen = useUiStore((state) => state.inventoryOpen);
+  const setInventoryOpen = useUiStore((state) => state.setInventoryOpen);
   const quickItems = useSelector(quickItemsAtom, (s) => s);
   const [now, setNow] = useState(() => performance.now());
   const localDeadline = useMemo(() => {
@@ -42,10 +49,12 @@ export function QuickItemBar() {
     <section className="quick-item-bar panel" aria-label={t("inventory.quickbar")}>
       {quickItems.map((item, index) => {
         const unavailable = !item || counts[item] <= 0 || remaining > 0 || self.life === "ghost";
+        const direction = QUICK_SLOT_DIRECTIONS[index] ?? "left";
         return (
           <button
             type="button"
             key={QUICK_SLOT_KEYS[index]}
+            className={`quick-item-bar__slot quick-item-bar__slot--${direction}`}
             disabled={unavailable}
             onClick={() => item && consumeQuickItem?.(item)}
             aria-label={
@@ -55,14 +64,33 @@ export function QuickItemBar() {
             }
           >
             <span className="quick-item-bar__key">
-              {controlBindingLabel(QUICK_SLOT_CONTROLS[index] ?? "item1", mode, settings)}
+              {compactBindingLabel(
+                controlBindingLabel(QUICK_SLOT_CONTROLS[index] ?? "item1", mode, settings),
+              )}
             </span>
-            {item ? <img src={consumableIconSource(item)} alt="" /> : <span>+</span>}
+            {item ? (
+              <img src={consumableIconSource(item)} alt="" />
+            ) : (
+              <span className="quick-item-bar__empty">+</span>
+            )}
             {item && <b>×{counts[item]}</b>}
             {remaining > 0 && <em>{(remaining / 1_000).toFixed(remaining < 950 ? 1 : 0)}</em>}
           </button>
         );
       })}
+      <span className="quick-item-bar__core" aria-hidden="true" />
+      <button
+        type="button"
+        className="quick-item-bar__inventory quick-item-bar__slot--down"
+        aria-label={t("inventory.title")}
+        aria-pressed={inventoryOpen}
+        onClick={() => setInventoryOpen(!inventoryOpen)}
+      >
+        <span className="quick-item-bar__key">
+          {compactBindingLabel(controlBindingLabel("inventory", mode, settings))}
+        </span>
+        <span className="quick-item-bar__bag" aria-hidden="true" />
+      </button>
     </section>
   );
 }

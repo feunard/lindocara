@@ -28,7 +28,7 @@ export const fr: Record<keyof typeof en, string> = {
   "inventory.hint":
     "Assignez un objet à l'un des trois raccourcis. Tous les consommables partagent un délai de 10 secondes.",
   "inventory.controller_hint":
-    "Manette : LT utilise l'emplacement 1 · LT + croix bas/droite utilise 2/3 · LT + Retour ouvre le sac.",
+    "Flèches ou croix de manette : gauche/haut/droite utilise les emplacements 1/2/3 · bas ouvre le sac.",
   "inventory.assign": "Assigner au raccourci",
   "inventory.quickbar": "Objets rapides",
   "inventory.use": "Utiliser {item}",
@@ -435,7 +435,7 @@ export const fr: Record<keyof typeof en, string> = {
   "prompt.quest_site": "[E] Interagir : {name}",
 
   // Discussion, aide, statut
-  "chat.title": "Voix du feu de camp",
+  "chat.title": "Local",
   "chat.placeholder": "Entrée : discuter...",
   "chat.party": "Groupe",
   "chat.resize": "Redimensionner le chat",
@@ -521,9 +521,9 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.disconnected":
     "Aucune manette détectée — branchez-en une, puis appuyez sur un bouton.",
   "settings.controls.keyboard_hint":
-    "Choisissez une action, puis appuyez sur la touche que vous souhaitez utiliser. En jeu, maintenez le clic droit et glissez pour tourner la caméra.",
+    "Choisissez une action, puis appuyez sur la touche voulue. WASD déplace le héros ; les flèches utilisent les objets rapides et ouvrent le sac. Maintenez le clic droit et glissez pour tourner la caméra.",
   "settings.controls.gamepad_hint":
-    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick droit tourne la caméra. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
+    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick gauche déplace le héros, la croix est réservée aux actions et le stick droit tourne la caméra. Le bouton inférieur interagit à portée et fait sauter sinon. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
   "settings.controls.press_key": "Appuyez sur une touche…",
   "settings.controls.press_button": "Appuyez sur un bouton…",
   "settings.controls.group.movement": "Déplacements",
@@ -534,11 +534,11 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.move_left": "Aller à gauche",
   "settings.controls.move_right": "Aller à droite",
   "settings.controls.jump": "Sauter",
-  "settings.controls.skill_1": "Attaque principale / compétence 1",
-  "settings.controls.skill_2": "Compétence 2",
-  "settings.controls.skill_3": "Compétence 3",
-  "settings.controls.skill_4": "Compétence 4",
-  "settings.controls.skill_5": "Compétence 5",
+  "settings.controls.skill_1": "Attaque de base",
+  "settings.controls.skill_2": "Compétence 1",
+  "settings.controls.skill_3": "Compétence 2",
+  "settings.controls.skill_4": "Compétence 3",
+  "settings.controls.skill_5": "Ultime",
   "settings.controls.interact": "Interagir",
   "settings.controls.potion": "Utiliser un tonique",
   "settings.controls.item_1": "Objet rapide 1",
@@ -1958,6 +1958,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.registry.delete.confirm.body":
     "Les pages d’événement qui en dépendent liront Non pour un état oui/non ou 0 pour un compteur. Aucune autre donnée ne sera utilisée par erreur : la condition cessera simplement d’être vraie.",
   "editor.shell.status.saved": "Enregistré",
+  "editor.shell.status.sandbox": "Pas encore enregistré",
   "editor.shell.status.cursor": "Largeur X {col} · Hauteur Y {row}",
 
   // Erreurs de l'API des aventures
@@ -2062,7 +2063,15 @@ export const fr: Record<keyof typeof en, string> = {
   "credits.art": "Graphismes",
   "credits.music": "Musique",
   "credits.sfx": "Effets sonores",
-  "continue.empty": "Aucune sauvegarde. Lance une nouvelle aventure.",
+  "continue.empty": "Aucune aventure en cours. Lance une nouvelle aventure.",
+  "continue.archive.title": "Aventures terminées",
+  "continue.purge": "Supprimer",
+  "continue.purge.confirm":
+    "Supprimer {title} de vos aventures terminées ? Vos héros de cette aventure seront supprimés.",
+  "continue.purge.error": "Impossible de supprimer cette aventure terminée. Réessaie.",
+  "continue.abandon": "Abandonner",
+  "continue.abandon.confirm": "Abandonner {title} ? Vos héros de cette aventure seront supprimés.",
+  "continue.abandon.error": "Impossible d’abandonner cette aventure. Réessaie.",
   "new.empty": "Aucune aventure jouable pour l'instant. Crée-en une dans l'éditeur.",
   "new.maps": "{count} cartes",
   "new.by": "par {author}",

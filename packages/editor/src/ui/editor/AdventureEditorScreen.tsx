@@ -16,6 +16,7 @@ import {
 import {
   ApiError,
   authErrorText,
+  createAdventureApi,
   createAdventureTestSessionApi,
   deleteAdventureTestSessionApi,
   errorCode,
@@ -92,7 +93,7 @@ import {
 import { startMapPreview } from "../../game/map-preview.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
-import { ensureScratchAdventure, loadAdventureSession } from "./adventure-session.js";
+import { createSandboxSession, loadAdventureSession } from "./adventure-session.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorHelpDialog, type EditorHelpSection } from "./EditorHelpDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
@@ -271,20 +272,24 @@ export function AdventureEditorScreen() {
   const [session, setSession] = useStore(adventureEditorSessionAtom);
   // Leaving the editor clears the session WHILE this component is still mounted (the route swap is
   // asynchronous and always lands later), so without this flag the no-session branch below would
-  // mount the bootstrap and mint an adventure the author never asked for — permanently, since
-  // abandoned scratches are deliberately never cleaned up. Every departure therefore goes through
-  // `leave()`, never a bare `setSession(null)`: the two are different intents. Clearing the session
-  // to STAY in the editor (the current adventure was just deleted from the Open dialog) still wants
-  // a fresh scratch and keeps calling `setSession(null)` directly.
+  // mount the bootstrap and open a sandbox the author never asked for. Every departure therefore
+  // goes through `leave()`, never a bare `setSession(null)`: the two are different intents. Clearing
+  // the session to STAY in the editor (the current adventure was just deleted from the Open dialog)
+  // still wants a fresh sandbox and keeps calling `setSession(null)` directly.
   const [leaving, setLeaving] = useState(false);
   const leave = useCallback((): void => {
     setLeaving(true);
     setSession(null);
   }, [setSession]);
-  if (session?.adventureId) {
+  if (session) {
+    // Keyed by `draftId`, NOT by `adventureId`: an unsaved sandbox has no adventure id, and its
+    // first save gives it one — remounting there would throw away the stage the author is standing
+    // in mid-save. `draftId` changes only when the session is genuinely swapped (File → New /
+    // Open), which is exactly when the room-local editor state must reset. That makes it
+    // load-bearing for `refreshSession`, which must preserve it rather than mint a new one.
     return (
       <AdventureEditorInner
-        key={session.adventureId}
+        key={session.draftId}
         adventureId={session.adventureId}
         onLeave={leave}
       />
@@ -297,87 +302,36 @@ export function AdventureEditorScreen() {
 }
 
 /**
- * The no-session branch: mint a scratch adventure and open it. Entering the editor no longer asks
- * which adventure to work on — that is `File → Open` now — so this is the only path in.
+ * The no-session branch: open a local sandbox. Entering the editor no longer asks which adventure to
+ * work on — that is `File → Open` now — and no longer WRITES one either: `createSandboxSession()` is
+ * pure and synchronous, so there is nothing here to await, fail or retry.
  *
- * This screen mounts under Alepha's real router root, which enables React strict mode by default
- * (`ReactPageProvider.root`, `strictMode` defaulting `true`, never overridden in this app) — so the
- * mount→cleanup→mount dance it performs in development is real, not a test artifact. Two rules keep
- * that dance safe:
- *
- * - `startedRef` is the fire-once latch: checked and set before the `await`, so the synthetic second
- *   mount never starts a second `POST`. Both requests would otherwise succeed silently, leaving the
- *   author with an extra untitled adventure nothing ever cleans up.
- * - `aliveRef` owns cancellation, not a per-invocation closure. It is reset to `true` at the TOP of
- *   every effect run — including the synthetic second mount that the latch above turns into a no-op
- *   — and only the cleanup that survives (the one belonging to the LAST invocation of a mount pass)
- *   ever runs again to flip it back to `false`. A per-closure `cancelled` flag looks equivalent but
- *   is not: strict mode's synthetic cleanup for the FIRST invocation would set it before the still
- *   in-flight request from that same invocation resolves, so `if (!cancelled)` reads false forever
- *   and the screen hangs on "Preparing…" even though the adventure was created. Keying cancellation
- *   off a ref that every invocation re-affirms is what lets the surviving mount "undo" that synthetic
- *   cleanup, while a genuine unmount (no further invocation reasserts `aliveRef`) still cancels
- *   correctly.
+ * That is what retired this component's strict-mode machinery. This screen mounts under Alepha's
+ * real router root, which enables strict mode by default (`ReactPageProvider.root`, `strictMode`
+ * defaulting `true`, never overridden in this app), so its mount→cleanup→mount dance is real in
+ * development — and when the effect POSTed an adventure, that dance needed a fire-once latch (or the
+ * author got two untitled rows per visit) plus a mount-reasserted cancellation ref (or the screen
+ * hung on "Preparing…" forever after the synthetic cleanup discarded its own in-flight result).
+ * `startedRef` remains as the latch, and it is still doing real work: without it the second
+ * invocation would replace the sandbox with a different one, discarding the first (empty) session
+ * and its map id. Nothing is in flight any more, so cancellation has nothing left to cancel.
  */
 function AdventureEditorBootstrap() {
   useLocale();
-  const router = useRouter();
   const [, setSession] = useStore(adventureEditorSessionAtom);
-  const [failed, setFailed] = useState(false);
   const startedRef = useRef(false);
-  const aliveRef = useRef(true);
-  const [attempt, setAttempt] = useState(0);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the explicit retry trigger
   useEffect(() => {
-    aliveRef.current = true;
-    if (!startedRef.current) {
-      startedRef.current = true;
-      void (async () => {
-        try {
-          const created = await ensureScratchAdventure();
-          if (aliveRef.current) setSession(created);
-        } catch (caught) {
-          if (!aliveRef.current) return;
-          startedRef.current = false;
-          // A dead session is already being redirected to /auth by the client's global 401 seam;
-          // showing a retry on top of that would be a second, contradictory answer.
-          if (isUnauthorizedCode(errorCode(caught))) return;
-          setFailed(true);
-        }
-      })();
-    }
-    return () => {
-      aliveRef.current = false;
-    };
-  }, [attempt, setSession]);
+    if (startedRef.current) return;
+    startedRef.current = true;
+    setSession(createSandboxSession());
+  }, [setSession]);
 
   return (
     <main className="editor-root editor-chrome flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-950">
-      {failed ? (
-        <div className="flex flex-col items-center gap-3">
-          <p role="alert" className="text-sm text-destructive">
-            {t("editor.shell.preparing.failed")}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => {
-                setFailed(false);
-                setAttempt((current) => current + 1);
-              }}
-            >
-              {t("editor.retry")}
-            </Button>
-            <Button variant="outline" onClick={() => void router.push("menu")}>
-              {t("editor.shell.quit")}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <p role="status" className="text-sm text-zinc-500">
-          {t("editor.shell.preparing")}
-        </p>
-      )}
+      <p role="status" className="text-sm text-zinc-500">
+        {t("editor.shell.preparing")}
+      </p>
     </main>
   );
 }
@@ -386,7 +340,9 @@ function AdventureEditorInner({
   adventureId,
   onLeave,
 }: {
-  adventureId: string;
+  /** `null` for an unsaved sandbox — every server-backed action reads this to know it must ask for
+   *  the first save (which creates the adventure) before it can do anything. */
+  adventureId: string | null;
   /** Clears the session AND tells the shell this is a departure, not a restart — see
    *  `AdventureEditorScreen`'s `leave()`. Every exit path must call this instead of clearing the
    *  session itself. */
@@ -581,22 +537,15 @@ function AdventureEditorInner({
   }
 
   // File → New adventure: same dirty guard as `loadAdventure`, then swap the session for a fresh
-  // scratch. `AdventureEditorInner` is keyed by `adventureId`, so this remounts every room-local
-  // editor state cleanly rather than leaking the previous adventure's stage.
+  // sandbox. `AdventureEditorInner` is keyed by `draftId`, so this remounts every room-local editor
+  // state cleanly rather than leaking the previous adventure's stage. No request and no failure
+  // mode: a sandbox is minted locally, and the swap latch is only read here to refuse while an
+  // asynchronous `File → Open` is still landing.
   function newAdventure(): void {
     if (savingMapRef.current || swappingSessionRef.current) return;
     if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
     setError(null);
-    swappingSessionRef.current = true;
-    void (async () => {
-      try {
-        setSession(await ensureScratchAdventure());
-      } catch (caught) {
-        fail(caught);
-      } finally {
-        swappingSessionRef.current = false;
-      }
-    })();
+    setSession(createSandboxSession());
   }
 
   // Load the map to edit once: the author's first map. Task 8's maps panel takes over selection;
@@ -608,9 +557,14 @@ function AdventureEditorInner({
     const generation = ++mapLoadGenerationRef.current;
     void (async () => {
       try {
-        // No adventure loaded means no maps to open — a first-class empty state, not an error.
+        // An unsaved sandbox has no stored map to fetch: its one map lives on the session and is
+        // mounted straight into the stage. Without a sandbox map either, there is nothing to open —
+        // a first-class empty state, not an error.
         if (!adventureId) {
-          if (generation === mapLoadGenerationRef.current) setStageStatus("empty");
+          if (generation !== mapLoadGenerationRef.current) return;
+          const sandboxMap = alepha.store.get(adventureEditorSessionAtom)?.sandboxMap;
+          if (sandboxMap) setMap(sandboxMap);
+          else setStageStatus("empty");
           return;
         }
         const list = await fetchMaps(adventureId);
@@ -1101,8 +1055,12 @@ function AdventureEditorInner({
   async function launchAdventureTest(
     options: AdventureTestOptions,
     mapAlreadySaved = false,
+    /** The adventure the first save just created. Required on that path: this function closes over
+     *  the render's `adventureId`, which is still `null` inside the very handler that created it. */
+    createdAdventureId?: string,
   ): Promise<void> {
-    if (!adventureId || testBusy) return;
+    const testAdventureId = createdAdventureId ?? adventureId;
+    if (!testAdventureId || testBusy) return;
     setTestBusy(true);
     setTestError(null);
     setTestDiagnostics([]);
@@ -1113,7 +1071,7 @@ function AdventureEditorInner({
         const saved = await doSaveMap();
         if (!saved) return;
       }
-      const testSession = await createAdventureTestSessionApi(adventureId, options);
+      const testSession = await createAdventureTestSessionApi(testAdventureId, options);
       createdSessionId = testSession.id;
       setAdventureTestSession(testSession);
       setTestOpen(false);
@@ -1154,7 +1112,9 @@ function AdventureEditorInner({
   }
 
   function requestAdventureTest(options: AdventureTestOptions): void {
-    if (titleUntouched) {
+    // A sandbox has no adventure for a test party to join, and an unnamed one has no name to join
+    // it under: both route through the first-save popup, which continues into the launch.
+    if (titleUntouched || !adventureId) {
       pendingTestOptionsRef.current = options;
       setTestOpen(false);
       setFirstSaveOpen(true);
@@ -1195,6 +1155,42 @@ function AdventureEditorInner({
     setError(null);
     setSavingMap(true);
     try {
+      // No adventure yet: this IS the first save of a sandbox, so it CREATES rather than updates —
+      // the adventure and the map the author has been drawing, in one request (see
+      // `createAdventureApi`). A create-then-PUT pair could persist the named adventure and then
+      // fail the map, which would present one action as half done.
+      if (!adventureId) {
+        // Both are guaranteed by the first-save popup (a non-empty title) and by the sandbox draft
+        // tracking its own map; a create cannot proceed without either.
+        if (!adventureInput || !baseDraft) return null;
+        const created = await createAdventureApi({
+          ...adventureInput,
+          map: toSaveInput(savedSnapshot),
+        });
+        if (mapLoadGenerationRef.current === savedMapGeneration) handle.markSaved(savedSnapshot);
+        // The stored map is a new row with a server-minted id, so the stage reopens — from
+        // `editedRef`, i.e. the exact edits just saved, the same way it does after a preview.
+        setMap(created.defaultMap);
+        setMapsRefreshNonce((n) => n + 1);
+        const member = Array.isArray(savedSnapshot.events)
+          ? memberInfoFromEditor(created.defaultMap.id, created.defaultMap.revision, savedSnapshot)
+          : null;
+        const createdDraft: AdventureDraft = {
+          ...(refreshed ?? baseDraft),
+          members: member ? [member] : [],
+        };
+        setSession({
+          adventureId: created.id,
+          draftId: currentSession?.draftId ?? crypto.randomUUID(),
+          draft: createdDraft,
+          invalidatedLinks: [],
+          savedDraft: JSON.stringify(createdDraft),
+          // Named and stored: the sandbox is gone, and so is the first-save prompt.
+          titleUntouched: false,
+        });
+        setTitleUntouched(false);
+        return createdDraft;
+      }
       const updated = await updateMapApi(
         map.id,
         toSaveInput(savedSnapshot),
@@ -1252,10 +1248,9 @@ function AdventureEditorInner({
     await doSaveMap();
   }
 
-  // First-save popup Confirm: persist the confirmed title through the adventure PUT, drop the unnamed
-  // flag, then continue the pending map save. This is a title-only change now — no graph rides the
-  // PUT, so the server preserves the stored graph. A PUT failure leaves the popup's abort semantics
-  // intact: nothing partial is claimed as saved.
+  // First-save popup Confirm: name the adventure and save under that name, drop the unnamed flag,
+  // then continue the pending map save. A failure leaves the popup's abort semantics intact: nothing
+  // partial is claimed as saved.
   async function confirmFirstSave(title: string): Promise<void> {
     const current = alepha.store.get(adventureEditorSessionAtom);
     if (!current) {
@@ -1263,8 +1258,10 @@ function AdventureEditorInner({
       return;
     }
     setError(null);
-    // Title + map are one `/api/maps/:id` transaction. The old two-PUT sequence could persist the
-    // title and then fail the map, despite presenting the action as one first save.
+    // Title + map are ONE request either way: the sandbox's first save creates both
+    // (`POST /api/adventures` carrying the map), a named adventure's rides the map PUT. A two-call
+    // sequence could persist the title and then fail the map, despite presenting the action as one
+    // first save.
     let saved: AdventureDraft | null;
     try {
       saved = await doSaveMap({ ...current.draft, title });
@@ -1279,7 +1276,9 @@ function AdventureEditorInner({
     setFirstSaveOpen(false);
     const pendingTest = pendingTestOptionsRef.current;
     pendingTestOptionsRef.current = null;
-    if (pendingTest) void launchAdventureTest(pendingTest, true);
+    // `latest.adventureId` explicitly: on the sandbox path the adventure was created a moment ago
+    // by `doSaveMap`, and this closure's own `adventureId` is still the render's `null`.
+    if (pendingTest) void launchAdventureTest(pendingTest, true, latest?.adventureId ?? undefined);
   }
 
   // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
@@ -1303,7 +1302,9 @@ function AdventureEditorInner({
 
   // Reload the editor session from the server so the draft's members reflect maps just created,
   // deleted or renamed. Best-effort: a failure here never blocks the map edit that triggered it.
+  // Nothing to reload for an unsaved sandbox — it has no server state to be behind.
   function refreshSession(): void {
+    if (!adventureId) return;
     const generation = ++sessionLoadGenerationRef.current;
     void (async () => {
       try {
@@ -1322,6 +1323,10 @@ function AdventureEditorInner({
         };
         setSession({
           ...loaded,
+          // A refresh is the SAME session, so it keeps its `draftId`: that id keys
+          // `AdventureEditorInner`, and minting a new one here would remount the whole editor —
+          // stage, history and camera — every time a map is created, renamed or deleted.
+          draftId: current.draftId,
           draft: mergedDraft,
           savedDraft: JSON.stringify(mergedDraft),
           ...(current.titleUntouched === undefined
@@ -1793,6 +1798,18 @@ function AdventureEditorInner({
           >
             <MapListPanel
               adventureId={adventureId}
+              // The sandbox's map, named from the LIVE stage rather than the session snapshot, so a
+              // rename shows in the list at once (a stored map gets that from its save refresh).
+              sandboxMap={
+                adventureId === null && map
+                  ? {
+                      id: map.id,
+                      name: currentMap?.name ?? map.name,
+                      cols: map.cols,
+                      rows: map.rows,
+                    }
+                  : undefined
+              }
               activeMapId={map?.id ?? null}
               dirty={dirty}
               locked={savingMap}
@@ -1986,6 +2003,7 @@ function AdventureEditorInner({
           rows={map?.rows ?? 0}
           cursor={cursor}
           saved={map !== null && !dirty && stageStatus === "ready"}
+          sandbox={adventureId === null && map !== null}
           mode={mode}
           toolLabel={toolLabel}
           zoom={zoom}

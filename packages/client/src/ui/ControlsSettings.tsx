@@ -126,8 +126,7 @@ export function ControlsSettings() {
         return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      setKeyboardBinding(capture.control, { code: event.code });
-      setCapture(null);
+      if (setKeyboardBinding(capture.control, { code: event.code })) setCapture(null);
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
@@ -143,9 +142,10 @@ export function ControlsSettings() {
       const pressed = gamepad ? pressedGamepadBinding(gamepad) : null;
       if (!armed) armed = pressed === null;
       else if (pressed) {
-        setGamepadBinding(capture.control, pressed);
-        setCapture(null);
-        return;
+        if (setGamepadBinding(capture.control, pressed)) {
+          setCapture(null);
+          return;
+        }
       }
       frame = window.requestAnimationFrame(poll);
     };

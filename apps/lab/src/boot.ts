@@ -52,6 +52,7 @@ import {
   MOODS,
   MOUNTAIN,
   MOUNTAIN_FACE_Z,
+  MOUNTAIN_TOP_LEVEL,
   NEIGE_CHUTE,
   NORD,
   RAINBOW,
@@ -77,7 +78,7 @@ import {
   SAKURA_RADIUS,
 } from "./world/house.js";
 import { createInterior } from "./world/interior.js";
-import { mapToHeightField } from "./world/island.js";
+import { isSpring, mapToHeightField } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
 import { populate, windPhase } from "./world/props.js";
 import { createSnowNpc } from "./world/snow-npc.js";
@@ -150,7 +151,17 @@ if (!carte)
   throw new Error(`Carte invalide : ${MAP_URL} (relancer "npm run build:map -w @lindocara/lab")`);
 
 const field = mapToHeightField(carte);
-const query = createTerrainQuery(mapToQuerySource(carte));
+// The summit spring is water at ELEVATION, so the query needs to know where its surface is — the
+// movement rule asks per position now, and without this the hero would swim at sea level inside
+// the mountain. Derived from the authored footprint for the same reason `mapToHeightField` does it:
+// `MapData` carries no per-cell water level.
+const query = createTerrainQuery({
+  ...mapToQuerySource(carte),
+  waterAt: (i, j) => {
+    const [x, z] = [i + 0.5 - carte.size / 2, j + 0.5 - carte.size / 2];
+    return isSpring(x, z) ? MOUNTAIN_TOP_LEVEL : null;
+  },
+});
 
 // Un atlas par clé de matière (voir `HeightField.materialAt`, `island.ts`). `TerrainAtlas.block`
 // dit quel bloc 4x4 l'image contient (voir `atlas.ts`) : dans le tileset du Free Pack, le palier 0
@@ -254,6 +265,7 @@ const foam = createFoam(ctx, field, {
   fps: 7,
   spread: FOAM_SPREAD,
   waterLevel: WORLD.waterLevel,
+  levelHeight: WORLD.levelHeight,
 });
 scene.add(foam.group);
 
@@ -298,13 +310,21 @@ const pools = [
     // than stopping a metre short with a band of bare rock between the two — which is what a
     // centre chosen by eye left, and which read as a pond that happened to be near a waterfall.
     size: SPRING_SIZE,
-    segment: 0.35,
+    // Fine enough that the four analytic swells actually bend a normal across three world units.
+    segment: 0.2,
     depthRange: WATER.depthRange,
     roughness: WATER.roughness,
     center: [MOUNTAIN.x, MOUNTAIN_FACE_Z - SPRING_SIZE / 2],
-    // Not fully shallow: a flat single tone reads as painted mint. Mid-depth lets the swell
-    // normals and the sparkle actually show, which is what says "water" at this size.
-    shallow: 0.55,
+    // A BOWL, not a constant. `mix(deep, shallow, k)` with a fixed `k` is one flat colour over the
+    // whole surface — a blue rectangle however good the material is, which is exactly what this
+    // was. Deep in the middle, shore-shallow at the rim, so the pool has a bottom.
+    shallow: (x, z) => {
+      const r = Math.hypot(x, z) / (SPRING_SIZE / 2);
+      return Math.min(1, 0.25 + 0.75 * r * r);
+    },
+    // The sea gets 36 texture tiles across its plane; at the default 6 world units per tile this
+    // 3-unit pool got HALF of one, smearing the grain that gives water its life into a flat wash.
+    textureWorldSize: 1.2,
   }),
 ];
 for (const p of pools) scene.add(p.mesh);

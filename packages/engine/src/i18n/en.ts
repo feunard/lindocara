@@ -33,7 +33,7 @@ export const en = {
   "inventory.hint":
     "Assign any item to one of the three quick slots. All consumables share a 10 second cooldown.",
   "inventory.controller_hint":
-    "Controller: LT uses slot 1 · LT + D-pad down/right uses slots 2/3 · LT + Back opens the bag.",
+    "Arrow keys or controller D-pad: left/up/right uses slots 1/2/3 · down opens the bag.",
   "inventory.assign": "Assign to quick slot",
   "inventory.quickbar": "Quick items",
   "inventory.use": "Use {item}",
@@ -430,7 +430,7 @@ export const en = {
   "prompt.quest_site": "[E] Interact: {name}",
 
   // Chat, help, status
-  "chat.title": "Campfire voices",
+  "chat.title": "Local",
   "chat.placeholder": "Enter: chat...",
   "chat.party": "Party",
   "chat.resize": "Resize chat",
@@ -515,9 +515,9 @@ export const en = {
   "settings.controls.connected": "Connected: {name}",
   "settings.controls.disconnected": "No controller detected — connect one, then press a button.",
   "settings.controls.keyboard_hint":
-    "Choose an action, then press the key you want to use. Right-drag in game to rotate the camera.",
+    "Choose an action, then press the key you want to use. WASD moves; arrow keys use quick items and open the bag. Right-drag rotates the camera.",
   "settings.controls.gamepad_hint":
-    "Choose an action, then press a button or move a stick. The right stick rotates the camera. Standard Xbox, PS5, Switch and generic controllers are supported.",
+    "Choose an action, then press a button or move a stick. The left stick moves, the D-pad is reserved for actions, and the right stick rotates the camera. The south face button interacts in range and jumps otherwise. Standard Xbox, PS5, Switch and generic controllers are supported.",
   "settings.controls.press_key": "Press a key…",
   "settings.controls.press_button": "Press a button…",
   "settings.controls.group.movement": "Movement",
@@ -528,11 +528,11 @@ export const en = {
   "settings.controls.move_left": "Move left",
   "settings.controls.move_right": "Move right",
   "settings.controls.jump": "Jump",
-  "settings.controls.skill_1": "Primary attack / ability 1",
-  "settings.controls.skill_2": "Ability 2",
-  "settings.controls.skill_3": "Ability 3",
-  "settings.controls.skill_4": "Ability 4",
-  "settings.controls.skill_5": "Ability 5",
+  "settings.controls.skill_1": "Basic attack",
+  "settings.controls.skill_2": "Ability 1",
+  "settings.controls.skill_3": "Ability 2",
+  "settings.controls.skill_4": "Ability 3",
+  "settings.controls.skill_5": "Ultimate",
   "settings.controls.interact": "Interact",
   "settings.controls.potion": "Use tonic",
   "settings.controls.item_1": "Quick item 1",
@@ -1934,6 +1934,7 @@ export const en = {
   "editor.registry.delete.confirm.body":
     "Dependent event pages will read No for a yes/no state or 0 for a counter. They never point at another value by mistake; the condition simply stops holding.",
   "editor.shell.status.saved": "Saved",
+  "editor.shell.status.sandbox": "Not saved yet",
   "editor.shell.status.cursor": "Width X {col} · Height Y {row}",
 
   // Adventure API errors
@@ -2038,7 +2039,15 @@ export const en = {
   "credits.art": "Art",
   "credits.music": "Music",
   "credits.sfx": "Sound effects",
-  "continue.empty": "No save yet. Start a new adventure.",
+  "continue.empty": "No adventure in progress. Start a new one.",
+  "continue.archive.title": "Completed adventures",
+  "continue.purge": "Delete",
+  "continue.purge.confirm":
+    "Delete {title} from your completed adventures? Your heroes in this adventure will be deleted.",
+  "continue.purge.error": "Could not delete this completed adventure. Try again.",
+  "continue.abandon": "Abandon",
+  "continue.abandon.confirm": "Abandon {title}? Your heroes in this adventure will be deleted.",
+  "continue.abandon.error": "Could not abandon this adventure. Try again.",
   "new.empty": "No playable adventure yet. Create one in the editor.",
   "new.maps": "{count} maps",
   "new.by": "by {author}",

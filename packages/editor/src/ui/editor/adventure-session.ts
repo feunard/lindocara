@@ -8,10 +8,16 @@
 
 import { type DraftMemberInfo, draftFromAdventure } from "@lindocara/client/adventure-draft.js";
 import type { MapPayload } from "@lindocara/client/api.js";
-import { createAdventureApi, fetchAdventure, fetchMap } from "@lindocara/client/api.js";
+import { fetchAdventure, fetchMap } from "@lindocara/client/api.js";
 import { t } from "@lindocara/client/i18n.js";
 import type { AdventureEditorSession } from "@lindocara/client/store.js";
+import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { entryEvents, exitEvents, monsterEvents } from "@lindocara/engine/map-events.js";
+import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
+import { DEFAULT_MAP_FIXED_LIGHTING } from "@lindocara/engine/map-lighting.js";
+import { DEFAULT_FIRST_MAP_NAME, defaultMapInput } from "@lindocara/engine/map-template.js";
+import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { solidMaskFromMapPayload } from "../../game/editor-state.js";
 
 /** One map's draft-facing facts read from a payload already in hand — the same shape `memberInfo`
@@ -43,30 +49,63 @@ export async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
 }
 
 /**
- * Mint a fresh, unsaved adventure and return the editor session for it — the one definition of
- * "new scratch adventure", used by the entry bootstrap and by File → New adventure so the two
- * cannot drift.
+ * The blank map a sandbox opens on, as a `MapPayload` the stage can mount directly.
  *
- * `POST /api/adventures` is atomic: it creates the adventure AND its first map, and answers with
- * both, so this is a single round trip. `titleUntouched` is what makes it read as unsaved — the
- * first ⌘S opens `FirstSaveDialog` for the real name instead of saving under the default one.
+ * Minted from the engine's `defaultMapInput` — the SAME template `MapService.createMap` uses — so
+ * an unsaved sandbox is born on exactly the terrain the server would have produced for it. Its id
+ * is a local uuid and its `revision` is 0: nothing with this id exists server-side, and the first
+ * save mints the real row (and a real id) rather than updating anything.
  */
-export async function ensureScratchAdventure(): Promise<AdventureEditorSession> {
-  const created = await createAdventureApi({
-    title: t("adventure.default_title"),
-    maxPlayers: 4,
-  });
-  const infos = new Map<string, DraftMemberInfo>([
-    [created.defaultMap.id, memberInfoFromPayload(created.defaultMap)],
-  ]);
-  const draft = draftFromAdventure(created, infos);
+function sandboxMapPayload(): MapPayload {
+  const input = defaultMapInput(DEFAULT_FIRST_MAP_NAME);
   return {
-    adventureId: created.id,
+    id: crypto.randomUUID(),
+    name: input.name,
+    revision: 0,
+    tilesetId: input.tilesetId,
+    cols: input.cols,
+    rows: input.rows,
+    layers: input.layers.map(encodeTileLayer),
+    elements: [...input.elements],
+    spawn: input.spawn,
+    markers: input.markers ?? EMPTY_MARKERS,
+    audio: input.audio ?? EMPTY_MAP_AUDIO,
+    heroSettings: input.heroSettings ?? defaultMapHeroSettings(),
+    dayNightCycle: input.dayNightCycle ?? true,
+    fixedLighting: input.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING,
+    events: input.events ?? [],
+    // Deliberately null: terrain is compiled by the server on save. The editor stage and the
+    // playable preview both compile their own from the authoring document (`compileAuthoredMap`),
+    // so an unsaved map needs no stored heightfield to be fully editable and previewable.
+    heightfield: null,
+  };
+}
+
+/**
+ * Open a local sandbox: a complete editor session that has written NOTHING — the one definition of
+ * "new adventure", used by the entry bootstrap and by File → New adventure so the two cannot drift.
+ *
+ * Entering the editor used to `POST /api/adventures`, which left one untitled row behind per visit
+ * (nothing ever cleaned them up). A sandbox instead lives entirely in memory until the author's
+ * first save, which creates the adventure and this map in one request. `adventureId: null` is what
+ * every server-backed action tests to know it must ask for that save first; `savedDraft: null` says
+ * plainly that no saved state exists to compare against yet.
+ */
+export function createSandboxSession(): AdventureEditorSession {
+  const map = sandboxMapPayload();
+  const infos = new Map<string, DraftMemberInfo>([[map.id, memberInfoFromPayload(map)]]);
+  const draft = draftFromAdventure(
+    { title: t("adventure.default_title"), maxPlayers: 4, mapIds: [map.id] },
+    infos,
+  );
+  return {
+    adventureId: null,
     draftId: crypto.randomUUID(),
     draft,
     invalidatedLinks: [],
-    savedDraft: JSON.stringify(draft),
+    savedDraft: null,
     titleUntouched: true,
+    sandboxMap: map,
   };
 }
 

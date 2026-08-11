@@ -31,7 +31,28 @@ export const FOAM_SPREAD = 1.42;
 // silencieusement TOUTE l'écume, vue du dessus, sans qu'aucun test ne puisse l'attraper.
 const FOAM_MARGIN_ABOVE_WATER = 0.02;
 
+/**
+ * The visible span of an elevated strip ALONG its shoreline, in world units.
+ *
+ * It has to exceed the one-unit spacing between cells or the rim comes out DASHED: a round
+ * pastille 0.6 across, dropped once per cell a unit apart, cannot touch its neighbours. Slightly
+ * over one unit makes consecutive strips overlap into a continuous line.
+ */
+const FOAM_ELEVATED_ALONG = 1.25;
+
+/** The visible span ACROSS the shoreline. Thin, so the rim reads as a line at the water's edge
+ *  rather than as a pillow sitting on the bank — which is what a round sprite big enough to be
+ *  continuous would look like. */
+const FOAM_ELEVATED_ACROSS = 0.5;
+
+/** How far an elevated strip is pushed from its cell's centre toward the water. Half a cell puts
+ *  it exactly on the boundary. */
+const FOAM_ELEVATED_PUSH = 0.5;
+
 export interface FoamOptions {
+  /** Height of one level tier, in world units — needed to place foam at an ELEVATED water surface
+   *  (see `HeightField.waterAt`). The sea's own foam only ever needs `waterLevel`. */
+  levelHeight: number;
   /** La bande de frames de l'écume — DÉCLARÉE `atlas: true` au registre de textures (voir
    *  `textures.ts`) : c'est une bande de plusieurs frames échantillonnée par sous-rectangles comme
    *  un tileset, et ses mipmaps moyenneraient les frames entre elles sans ce réglage. */
@@ -65,13 +86,39 @@ export interface Foam {
  * au ras de l'eau, au pied de la falaise. Le restreindre au palier 0 laissait une falaise plonger
  * dans la mer sur un trait net, sans une vague.
  */
-export function foamPlacements(field: HeightField): readonly { i: number; j: number }[] {
-  const placements: { i: number; j: number }[] = [];
+export function foamPlacements(
+  field: HeightField,
+): readonly { i: number; j: number; water: number | null; toWater: readonly [number, number] }[] {
+  const placements: {
+    i: number;
+    j: number;
+    water: number | null;
+    toWater: readonly [number, number];
+  }[] = [];
   for (let j = 0; j < field.rows; j++) {
     for (let i = 0; i < field.cols; i++) {
       if (field.levelAt(i, j) === null) continue;
-      const touchesWater = NEIGHBORS_4.some(([di, dj]) => field.levelAt(i + di, j + dj) === null);
-      if (touchesWater) placements.push({ i, j });
+      let sea = false;
+      const elevated: { dir: readonly [number, number]; level: number }[] = [];
+      for (const [di, dj] of NEIGHBORS_4) {
+        if (field.levelAt(i + di, j + dj) !== null) continue;
+        const w = field.waterAt?.(i + di, j + dj);
+        if (w === null || w === undefined) sea = true;
+        else elevated.push({ dir: [di, dj], level: w });
+      }
+      // The sea wins wherever a cell touches both: it is the lower surface, and the one whose foam
+      // belongs at the cell's foot rather than floating at its head. It also keeps this path
+      // producing exactly ONE placement per shore cell, as it always has.
+      if (sea) {
+        placements.push({ i, j, water: null, toWater: [0, 0] });
+        continue;
+      }
+      // Elevated water gets one strip per EDGE, not per cell. Per cell leaves a notch at every
+      // corner — a cell touching the pool on two sides can only be oriented along one of them —
+      // and corners are where a rim most obviously breaks.
+      for (const { dir, level } of elevated) {
+        placements.push({ i, j, water: level, toWater: dir });
+      }
     }
   }
   return placements;
@@ -88,15 +135,47 @@ export function createFoam(ctx: Hd2dContext, field: HeightField, opts: FoamOptio
   const size = opts.spread / FOAM_OPAQUE;
   const y = opts.waterLevel + FOAM_MARGIN_ABOVE_WATER;
 
-  const sprites = foamPlacements(field).map(({ i, j }) => {
+  const sprites = foamPlacements(field).map(({ i, j, water, toWater }) => {
+    // The sea's blob is deliberately WIDER than a cell because the terrain tile buries most of it
+    // and only the overhang shows (see `FOAM_SPREAD`). Water at ELEVATION is flush with the rock
+    // around it, so nothing buries anything: drawn at the same size it renders as a white pillow
+    // sitting on the summit.
+    //
+    // An elevated strip is therefore sized in TWO axes rather than one — long along its shoreline
+    // so consecutive strips overlap into a continuous rim, thin across it so it reads as a line at
+    // the water's edge. A single round sprite cannot be both: shrunk enough not to be a pillow it
+    // no longer reaches its neighbour, and the rim comes out dashed.
+    if (water === null) {
+      const sprite = makeFlatSprite(ctx, {
+        texture: opts.texture,
+        cols: opts.frames,
+        rows: 1,
+        size,
+        alphaTest: 0.5,
+      });
+      sprite.mesh.position.set(i + 0.5 - cx, y, j + 0.5 - cz);
+      return sprite;
+    }
+
+    // `makeFlatSprite` lays `PlaneGeometry(size, size * aspect)` flat: `size` spans X, the product
+    // spans Z. A shoreline whose water lies north or south runs along X and wants the length there;
+    // one whose water lies east or west wants it along Z.
+    const alongX = Math.abs(toWater[1]) >= Math.abs(toWater[0]);
+    const along = FOAM_ELEVATED_ALONG / FOAM_OPAQUE;
+    const across = FOAM_ELEVATED_ACROSS / FOAM_OPAQUE;
     const sprite = makeFlatSprite(ctx, {
       texture: opts.texture,
       cols: opts.frames,
       rows: 1,
-      size,
+      size: alongX ? along : across,
+      aspect: alongX ? across / along : along / across,
       alphaTest: 0.5,
     });
-    sprite.mesh.position.set(i + 0.5 - cx, y, j + 0.5 - cz);
+    sprite.mesh.position.set(
+      i + 0.5 - cx + toWater[0] * FOAM_ELEVATED_PUSH,
+      water * opts.levelHeight + FOAM_MARGIN_ABOVE_WATER,
+      j + 0.5 - cz + toWater[1] * FOAM_ELEVATED_PUSH,
+    );
     return sprite;
   });
 

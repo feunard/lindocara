@@ -133,6 +133,8 @@ export async function register(username: string, password: string): Promise<Me> 
 export interface MapSummary {
   id: string;
   name: string;
+  /** Username of the account that created the map. */
+  author: string;
   revision: number;
   cols: number;
   rows: number;
@@ -237,7 +239,10 @@ export const fetchPlayableAdventures = () => api<AdventureSummary[]>("/api/adven
 /** Every adventure on the server, drafts included — the collaborative editor's picker. */
 export const fetchAllAdventures = () => api<AdventureSummary[]>("/api/adventures?scope=all");
 export const fetchAdventure = (id: string) => api<AdventurePayload>(`/api/adventures/${id}`);
-export const createAdventureApi = (input: CreateAdventureInput) =>
+/** Creates the adventure and its first map in ONE request. `map` is the editor's unsaved sandbox
+ *  reaching its first save: it becomes the adventure's map instead of the blank template, in the
+ *  same transaction, so a named adventure can never be persisted without the work it was named for. */
+export const createAdventureApi = (input: CreateAdventureInput & { map?: MapSaveInput }) =>
   api<CreatedAdventure>("/api/adventures", { method: "POST", body: JSON.stringify(input) });
 export const updateAdventureApi = (id: string, input: AdventureInput) =>
   api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });
@@ -331,6 +336,10 @@ export const joinPartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}/join`, { method: "POST" });
 export const deletePartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}`, { method: "DELETE" });
+export const abandonPartyApi = (partyId: string) =>
+  api<void>(`/api/parties/${partyId}/membership`, { method: "DELETE" });
+export const purgeCompletedPartyApi = (partyId: string) =>
+  api<void>(`/api/parties/${partyId}/archive`, { method: "DELETE" });
 export const fetchHeroes = (partyId: string) => api<StoredHero[]>(`/api/parties/${partyId}/heroes`);
 export const createHeroApi = (partyId: string, input: { name: string; class: PlayerClass }) =>
   api<StoredHero>(`/api/parties/${partyId}/heroes`, {

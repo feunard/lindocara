@@ -252,6 +252,61 @@ the hero swims down it. It was an enclosed disc first, which is a pond, not a pl
 expressed as a disc, and a global "flatten everything south of z = 12" would also flatten the
 southern island at z = 24.
 
+**Shore foam is sized to be BURIED, so elevated water needs its own size.** The sprite is 1.42
+units — wider than a cell — because at a sea shore the terrain tile covers most of it and only a
+thin lacy overhang shows (`FOAM_SPREAD`, and the comment above `FOAM_MARGIN_ABOVE_WATER`). Water
+flush with the rock around it buries nothing, so drawn at that size the whole pastille sits on top
+of the summit as a white pillow, which is exactly how it first looked. Elevated foam is instead sized in TWO axes
+(`FOAM_ELEVATED_ALONG` / `FOAM_ELEVATED_ACROSS`) and pushed half a cell to the water's edge: long
+along the shoreline so consecutive strips overlap into a continuous rim, thin across it so it reads
+as a line rather than a pillow. One round sprite cannot be both — shrunk enough not to be a pillow
+it no longer reaches its neighbour a cell away, and the rim comes out DASHED. It is also emitted per
+land/water EDGE rather than per cell, because a cell touching the pool on two sides can only be
+oriented along one of them, and a corner is where a rim most obviously breaks.
+
+**A swimmer's climb-out is measured from the surface it FLOATS ON, not from a water level looked up
+somewhere else.** `centreOk` (`hero-step.ts`) compared the destination's ground height against
+`waterLevelAt(...)`, and that is wrong in two opposite directions once water exists at more than one
+height — neither of which could happen while every lookup returned the same global number:
+
+- sampled at the destination CENTRE, the lip of a fall reads as a cliff the height of the drop, and
+  the swimmer cannot go over it;
+- sampled at the destination FOOTPRINT, a bank reads the same way — the footprint is over LAND,
+  which has no water, so the lookup answers the distant sea and the swimmer cannot climb OUT. A pool
+  you can only leave by going over the fall is a trap, not a pool.
+
+It compares against `state.y` now, which is where the swimmer actually is. And a swimmer whose water
+falls away beneath it (`WATER_SPILL_DROP`) leaves the water and FALLS, rather than teleporting to
+the new surface — which is what pinning a swimmer to the water every frame would otherwise do at a
+lip.
+
+**Water at elevation is a real capability now, not a patch laid on the ground.** The summit spring
+is water in every sense the sea is: the terrain has a HOLE there, the ocean's own material fills it,
+`createFoam` rings it with the animated shore border, and the hero SWIMS in it, breath gauge and
+all. Three pieces had to learn about it, and each was pinned to sea level before:
+
+- `HeightField.waterAt(i, j)` (`@lindocara/hd2d`) — the LEVEL a water cell's surface sits at, or
+  `null` for the world's sea. Without it `wallDrop` sends the walls around a hole down their full
+  height, and a pool cut into a summit opens a four-level shaft to the ocean.
+- `foamPlacements` carries that level out with each placement, so a shore cell beside an elevated
+  pool gets its foam at the POOL's surface instead of buried inside the mountain.
+- `TerrainQuery.waterLevelAt(wx, wz)` (`@lindocara/engine`), and `stepHero` now asks it at the
+  hero's position everywhere it used to read one global `world.waterLevel` — ten sites. A map with
+  no elevated water answers the same constant everywhere and behaves exactly as before, which is
+  every authored game map.
+
+The rule stays pure: `waterLevelAt` is a function of position, no clock and no randomness, so the
+port of `stepHero` onto the server is no more expensive than it was.
+
+**Small water needs a bowl and its own texture density, or it is a blue rectangle.** The summit
+spring uses the sea's exact material and still read as a flat block, for two reasons that have
+nothing to do with the shader. A CONSTANT `shallow` makes `mix(deep, shallow, k)` one colour across
+the whole surface — flat by construction. And `textureWorldSize` defaults to 6 world units per
+tile, so a three-unit pool got HALF a tile stretched across it while the sea gets thirty-six: the
+grain that gives water its life was smeared into a wash. `shallow` now also takes a FUNCTION of the
+position within the surface (a radial bowl here), and small bodies of water must pass a
+`textureWorldSize` to match their size.
+
 **The churn at the foot is a generated flip-book.** `/tex/water-fog.png` — four frames cropped from
 a studio sprite generation and cut out on LUMINANCE, not by `scripts/sprite.py`'s edge-propagation
 key: fog has no silhouette, and a flat colour key gives it a crisp edge, the one thing a cloud must

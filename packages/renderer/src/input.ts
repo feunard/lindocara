@@ -201,7 +201,7 @@ export interface InputTracker {
   stop(): void;
 }
 
-export function trackInput(): InputTracker {
+export function trackInput(suppressGamepadJump: () => boolean = () => false): InputTracker {
   let keyboard: Input = { ...NO_INPUT };
   let virtual: Input = { ...NO_INPUT };
 
@@ -265,7 +265,7 @@ export function trackInput(): InputTracker {
         jump:
           (keyboard.jump ?? false) ||
           (virtual.jump ?? false) ||
-          (gamepad ? gamepadControlPressed("jump", gamepad) : false),
+          (gamepad ? gamepadControlPressed("jump", gamepad) && !suppressGamepadJump() : false),
         axisX: 0,
         axisY: 0,
       };
@@ -366,6 +366,7 @@ function isTextEntry(target: EventTarget | null): target is HTMLElement {
 export function trackActions(
   handlers: ActionHandlers,
   actionsEnabled: () => boolean = () => true,
+  interactionAvailable: () => boolean = () => true,
 ): () => void {
   const pressedSkillCodes = new Map<string, SkillSlot>();
   const onKeyDown = (event: KeyboardEvent) => {
@@ -404,7 +405,6 @@ export function trackActions(
   };
 
   let previousGamepad = new Set<ControlId>();
-  let previousGamepadCombo: string | null = null;
   let frame = 0;
   const pollGamepad = () => {
     const gamepad = firstConnectedGamepad();
@@ -413,40 +413,12 @@ export function trackActions(
       if (ACTION_CONTROLS.some((control) => gamepadControlPressed(control, gamepad))) {
         setInputMode("gamepad");
       }
-      // Standard pads have no three spare face buttons. LT acts as a quick-item modifier:
-      // LT alone uses slot 1, LT + D-pad down/right uses slots 2/3, and LT + Back opens the bag.
-      // Individual mapped actions are suppressed for the chord so one press produces one intent.
-      const modifier = gamepad.buttons[6]?.pressed === true;
-      const inventoryChord = modifier && gamepad.buttons[8]?.pressed === true;
-      const quickIndex = !modifier
-        ? null
-        : gamepad.buttons[13]?.pressed
-          ? 1
-          : gamepad.buttons[15]?.pressed
-            ? 2
-            : gamepad.buttons[14]?.pressed
-              ? 0
-              : null;
-      const combo = inventoryChord
-        ? "inventory"
-        : quickIndex === null
-          ? null
-          : `item-${quickIndex}`;
-      if (combo && combo !== previousGamepadCombo) {
-        if (combo === "inventory") handlers.toggleInventory?.();
-        else if (actionsEnabled()) handlers.useQuickItem?.(quickIndex as 0 | 1 | 2);
-      }
-      previousGamepadCombo = combo;
       for (const control of ACTION_CONTROLS) {
         if (!gamepadControlPressed(control, gamepad)) continue;
         pressed.add(control);
         if (
-          (inventoryChord && (control === "potion" || control === "item1" || control === "map")) ||
-          (quickIndex !== null && (control === "potion" || control === "item1"))
-        )
-          continue;
-        if (
           !previousGamepad.has(control) &&
+          (control !== "interact" || interactionAvailable()) &&
           (control === "settings" ||
             control === "talents" ||
             control === "inventory" ||
@@ -456,8 +428,6 @@ export function trackActions(
           invokeAction(control, handlers);
         }
       }
-    } else {
-      previousGamepadCombo = null;
     }
     for (const control of previousGamepad) {
       if (pressed.has(control)) continue;

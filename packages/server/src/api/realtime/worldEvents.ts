@@ -273,6 +273,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       moveFrequency: page.moveFreq,
       moveAnimation: page.optMoveAnim,
       directionFixed: page.optDirFix,
+      ...(page.trigger === "action" ? { interactive: true as const } : {}),
       presentation: event.kind === "harvestable" ? "native" : "marker",
       ...(profile && harvestNode
         ? {

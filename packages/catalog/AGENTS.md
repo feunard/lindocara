@@ -14,8 +14,10 @@ raw art it holds **is** bundled by the renderer at build time.
   `src/build-tiny-swords-catalog.ts` — writes the generated outputs. `src/check-tiny-swords-catalog.ts`
   — fails if any generated output is stale.
 - **Generated outputs land in the consumer packages**, not here: `packages/engine/src/
-  tiny-swords-catalog.generated.ts`, `packages/client/public/assets/lindocara/tiny-swords/catalog.json`,
-  and `docs/generated/tiny-swords-catalog-coverage.md`. `test/catalog.test.ts` validates them.
+  tiny-swords-catalog.generated.ts` and `docs/generated/tiny-swords-catalog-coverage.md`.
+  `test/catalog.test.ts` validates them. A third output — a compact `catalog.json` served from the
+  client's `public/` — was dropped once its only consumer (the `AssetBrowser` debug screen) was
+  deleted: it was a 393 KB static asset nothing fetched.
 
 ## Graph
 
@@ -36,7 +38,6 @@ npm test -w @lindocara/catalog     # or: npm run test:catalog — Node
 
 - After changing the source catalogue or the generators, run `npm run catalog:build` and commit the
   regenerated files in `engine`/`client`/`docs` — `catalog:check` (and CI) fails otherwise.
-- The generated `.generated.ts` and the public `catalog.json` are excluded from Biome (do not
-  hand-edit them).
+- The generated `.generated.ts` is excluded from Biome (do not hand-edit it).
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the tileset / catalogued-element model.

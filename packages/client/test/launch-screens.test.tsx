@@ -60,6 +60,15 @@ const PARTIES: PartyFixture[] = [
     mine: false,
   },
   {
+    id: "p-mine-completed",
+    adventureId: "adv-mine-done",
+    adventureTitle: "Finished Adventure",
+    maxPlayers: 4,
+    status: "completed",
+    colors: ["blue"],
+    mine: true,
+  },
+  {
     id: "p-other-full",
     adventureId: "adv-full",
     adventureTitle: "Other Full",
@@ -140,10 +149,15 @@ describe("launch screens (loader-driven routes)", () => {
     alepha = undefined;
   });
 
-  it("playContinue renders only my saved parties from the loader", async () => {
+  it("playContinue keeps active saves selectable and archives my completed adventures", async () => {
     ({ alepha } = await mountAt("/play/continue"));
 
     await waitFor(() => expect(screen.getByText("Mine Adventure")).toBeTruthy());
+    expect(screen.getByRole("heading", { name: t("continue.archive.title") })).toBeTruthy();
+    expect(screen.getByText("Finished Adventure")).toBeTruthy();
+    expect(document.querySelector(".carousel-track")?.textContent).not.toContain(
+      "Finished Adventure",
+    );
     expect(screen.queryByText("Other Open")).toBeNull();
     expect(screen.queryByText("Other Full")).toBeNull();
     expect(screen.queryByText("Other Completed")).toBeNull();
@@ -158,6 +172,41 @@ describe("launch screens (loader-driven routes)", () => {
 
     await waitFor(() => expect(document.querySelector(".main-menu")).toBeTruthy());
     expect(router.state.url.pathname).toBe("/menu");
+  });
+
+  it("playContinue can abandon an active save after confirmation", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    ({ alepha } = await mountAt("/play/continue"));
+    await waitFor(() => expect(screen.getByText("Mine Adventure")).toBeTruthy());
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("continue.abandon")} Mine Adventure` }),
+    );
+
+    await waitFor(() => expect(screen.queryByText("Mine Adventure")).toBeNull());
+    expect(screen.getByText(t("continue.empty"))).toBeTruthy();
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/parties/p-mine/membership",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    confirm.mockRestore();
+  });
+
+  it("playContinue can purge a completed adventure from the current account", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    ({ alepha } = await mountAt("/play/continue"));
+    await waitFor(() => expect(screen.getByText("Finished Adventure")).toBeTruthy());
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("continue.purge")} Finished Adventure` }),
+    );
+
+    await waitFor(() => expect(screen.queryByText("Finished Adventure")).toBeNull());
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/parties/p-mine-completed/archive",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    confirm.mockRestore();
   });
 
   it("playNew renders the playable adventures from the loader", async () => {

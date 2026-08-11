@@ -288,6 +288,12 @@
     box-shadow 0.14s ease,
     border-color 0.14s ease;
 }
+
+.carousel-card {
+  height: 16rem;
+  box-sizing: border-box;
+}
+
 .carousel-card__art {
   display: grid;
   place-items: center;
@@ -305,6 +311,16 @@
   color: var(--launch-gold-bright);
   letter-spacing: 0.03em;
 }
+
+.carousel-card__title {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 2.6em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .carousel-card__subtitle,
 .class-card__blurb {
   font-family: system-ui, sans-serif;
@@ -313,13 +329,26 @@
   text-align: center;
 }
 
+.carousel-card__subtitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .class-card__stat {
   color: var(--tiny-gold, #d9b96e);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.03em;
 }
-.carousel-card--focused,
+.carousel-card--focused {
+  border-color: var(--launch-gold);
+  box-shadow: var(--launch-glow);
+  transform: translateY(-8px);
+}
+
 .class-card--focused {
   border-color: var(--launch-gold);
   box-shadow: var(--launch-glow);
@@ -328,6 +357,135 @@
 .carousel-card:focus-visible,
 .class-card:focus-visible {
   outline: none;
+}
+
+.carousel-card-shell {
+  display: flex;
+  flex: 0 0 auto;
+  width: 12rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  scroll-snap-align: center;
+}
+
+.carousel-card-shell > .carousel-card {
+  width: 100%;
+}
+
+.carousel-card__action {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgba(190, 96, 76, 0.72);
+  border-radius: 8px;
+  background: rgba(84, 31, 24, 0.58);
+  color: #f2b6a8;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: var(--tiny-cursor-link, pointer);
+}
+
+.carousel-card__action:hover,
+.carousel-card__action:focus-visible {
+  border-color: #ef9a86;
+  background: rgba(119, 42, 31, 0.72);
+  outline: none;
+}
+
+.carousel-card__action:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.continue-secondary {
+  display: flex;
+  width: min(92vw, 64rem);
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.continue-abandon-error {
+  margin: 0;
+  color: #f2b6a8;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.continue-archive {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(107, 83, 53, 0.75);
+  border-radius: 12px;
+  background: rgba(12, 11, 10, 0.6);
+}
+
+.continue-archive__title {
+  margin: 0 0 0.65rem;
+  color: rgba(244, 233, 210, 0.78);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+}
+
+.continue-archive__list {
+  display: flex;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.continue-archive__item {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 12rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(107, 83, 53, 0.45);
+  border-radius: 8px;
+  background: rgba(58, 48, 42, 0.45);
+}
+
+.continue-archive__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.continue-archive__name {
+  color: rgba(244, 233, 210, 0.84);
+  font-size: 0.8rem;
+}
+
+.continue-archive__status {
+  color: rgba(232, 195, 122, 0.7);
+  font-family: system-ui, sans-serif;
+  font-size: 0.72rem;
+}
+
+.continue-archive__purge {
+  align-self: center;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(190, 96, 76, 0.55);
+  border-radius: 6px;
+  background: rgba(84, 31, 24, 0.42);
+  color: #f2b6a8;
+  font: inherit;
+  font-size: 0.68rem;
+  cursor: var(--tiny-cursor-link, pointer);
+}
+
+.continue-archive__purge:hover,
+.continue-archive__purge:focus-visible {
+  border-color: #ef9a86;
+  background: rgba(119, 42, 31, 0.68);
+  outline: none;
+}
+
+.continue-archive__purge:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 /* Five classes must remain visible on a laptop-sized viewport. The original flex row was sized

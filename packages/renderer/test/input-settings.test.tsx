@@ -36,6 +36,35 @@ describe("input remapping", () => {
     expect(getInputSettings().gamepad.talents).toEqual([{ kind: "button", index: 5 }]);
   });
 
+  it("reserves both directional pads for shortcuts and shares the south button contextually", () => {
+    const { keyboard, gamepad } = getInputSettings();
+    expect(keyboard.moveUp).toEqual([{ code: "KeyW" }]);
+    expect(keyboard.moveDown).toEqual([{ code: "KeyS" }]);
+    expect(keyboard.moveLeft).toEqual([{ code: "KeyA" }]);
+    expect(keyboard.moveRight).toEqual([{ code: "KeyD" }]);
+    expect(keyboard.item1).toEqual([{ code: "Digit1" }, { code: "ArrowLeft" }]);
+    expect(keyboard.item2).toEqual([{ code: "Digit2" }, { code: "ArrowUp" }]);
+    expect(keyboard.item3).toEqual([{ code: "Digit3" }, { code: "ArrowRight" }]);
+    expect(keyboard.inventory).toEqual([{ code: "KeyB" }, { code: "ArrowDown" }]);
+    expect(gamepad.moveUp).toEqual([{ kind: "axis", index: 1, direction: -1 }]);
+    expect(gamepad.moveDown).toEqual([{ kind: "axis", index: 1, direction: 1 }]);
+    expect(gamepad.moveLeft).toEqual([{ kind: "axis", index: 0, direction: -1 }]);
+    expect(gamepad.moveRight).toEqual([{ kind: "axis", index: 0, direction: 1 }]);
+    expect(gamepad.item1).toEqual([{ kind: "button", index: 14 }]);
+    expect(gamepad.item2).toEqual([{ kind: "button", index: 12 }]);
+    expect(gamepad.item3).toEqual([{ kind: "button", index: 15 }]);
+    expect(gamepad.inventory).toEqual([{ kind: "button", index: 13 }]);
+    expect(gamepad.jump).toEqual([{ kind: "button", index: 0 }]);
+    expect(gamepad.skill1).toEqual([{ kind: "button", index: 6 }]);
+    expect(gamepad.skill2).toEqual([{ kind: "button", index: 2 }]);
+    expect(gamepad.skill3).toEqual([{ kind: "button", index: 3 }]);
+    expect(gamepad.skill4).toEqual([{ kind: "button", index: 1 }]);
+    expect(gamepad.skill5).toEqual([{ kind: "button", index: 11 }]);
+    expect(gamepad.interact).toEqual([{ kind: "button", index: 0 }]);
+    expect(gamepad.chat).toEqual([{ kind: "button", index: 7 }]);
+    expect(gamepad.settings).toEqual([{ kind: "button", index: 9 }]);
+  });
+
   it("uses remapped movement keys in the prediction input tracker", () => {
     setKeyboardBinding("moveUp", { code: "KeyI" });
     const tracker = trackInput();
@@ -51,7 +80,15 @@ describe("input remapping", () => {
     setKeyboardBinding("interact", { code: "KeyW" });
 
     expect(getInputSettings().keyboard.interact).toEqual([{ code: "KeyW" }]);
-    expect(getInputSettings().keyboard.moveUp).toEqual([{ code: "ArrowUp" }]);
+    expect(getInputSettings().keyboard.moveUp).toEqual([{ code: "KeyE" }]);
+  });
+
+  it("rejects arrow remaps for movement while keeping them available to actions", () => {
+    expect(setKeyboardBinding("moveLeft", { code: "ArrowLeft" })).toBe(false);
+    expect(getInputSettings().keyboard.moveLeft).toEqual([{ code: "KeyA" }]);
+
+    expect(setKeyboardBinding("interact", { code: "ArrowLeft" })).toBe(true);
+    expect(getInputSettings().keyboard.interact).toEqual([{ code: "ArrowLeft" }]);
   });
 
   it("reads analogue controller movement through the same input tracker", () => {
@@ -82,6 +119,260 @@ describe("input remapping", () => {
         configurable: true,
         value: original,
       });
+    }
+  });
+
+  it("never turns a D-pad quick-item press into hero movement", () => {
+    const buttons = Array.from({ length: 19 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    buttons[14] = { pressed: true, touched: true, value: 1 };
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    const original = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const tracker = trackInput();
+
+    try {
+      expect(tracker.current()).toMatchObject({
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        axisX: 0,
+        axisY: 0,
+      });
+    } finally {
+      tracker.stop();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: original,
+      });
+    }
+  });
+
+  it("never turns keyboard item arrows into hero movement", () => {
+    const tracker = trackInput();
+
+    try {
+      fireEvent.keyDown(window, { code: "ArrowLeft" });
+      fireEvent.keyDown(window, { code: "ArrowUp" });
+      expect(tracker.current()).toMatchObject({
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+      });
+    } finally {
+      tracker.stop();
+    }
+  });
+
+  it("dispatches keyboard arrows to the same item shortcuts as the D-pad", () => {
+    const useQuickItem = vi.fn();
+    const toggleInventory = vi.fn();
+    const stop = trackActions({
+      attack: vi.fn(),
+      interact: vi.fn(),
+      usePotion: vi.fn(),
+      useQuickItem,
+      release: vi.fn(),
+      castSkill: vi.fn(),
+      focusChat: vi.fn(),
+      toggleMap: vi.fn(),
+      toggleInventory,
+      toggleSettings: vi.fn(),
+    });
+
+    fireEvent.keyDown(window, { code: "ArrowLeft" });
+    fireEvent.keyDown(window, { code: "ArrowUp" });
+    fireEvent.keyDown(window, { code: "ArrowRight" });
+    fireEvent.keyDown(window, { code: "ArrowDown" });
+
+    expect(useQuickItem.mock.calls).toEqual([[0], [1], [2]]);
+    expect(toggleInventory).toHaveBeenCalledOnce();
+    stop();
+  });
+
+  it("turns the south face button into jump only outside interaction range", () => {
+    const buttons = Array.from({ length: 16 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    buttons[0] = { pressed: true, touched: true, value: 1 };
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    const original = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    let interactionAvailable = false;
+    const tracker = trackInput(() => interactionAvailable);
+
+    try {
+      expect(tracker.current().jump).toBe(true);
+      interactionAvailable = true;
+      expect(tracker.current().jump).toBe(false);
+    } finally {
+      tracker.stop();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: original,
+      });
+    }
+  });
+
+  it("dispatches south-button interaction only when contextual interaction is available", () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const buttons = Array.from({ length: 16 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    const original = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const interact = vi.fn();
+    let interactionAvailable = false;
+    const stop = trackActions(
+      {
+        attack: vi.fn(),
+        interact,
+        usePotion: vi.fn(),
+        release: vi.fn(),
+        castSkill: vi.fn(),
+        focusChat: vi.fn(),
+        toggleMap: vi.fn(),
+        toggleSettings: vi.fn(),
+      },
+      () => true,
+      () => interactionAvailable,
+    );
+    const poll = (pressed: boolean) => {
+      buttons[0] = { pressed, touched: pressed, value: Number(pressed) };
+      const callback = frames.shift();
+      if (!callback) throw new Error("Missing gamepad polling frame");
+      callback(0);
+    };
+
+    try {
+      poll(true);
+      expect(interact).not.toHaveBeenCalled();
+      poll(false);
+      interactionAvailable = true;
+      poll(true);
+      expect(interact).toHaveBeenCalledOnce();
+    } finally {
+      stop();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: original,
+      });
+      requestFrame.mockRestore();
+      cancelFrame.mockRestore();
+    }
+  });
+
+  it("dispatches the four default D-pad shortcuts as independent edge-triggered actions", () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const buttons = Array.from({ length: 19 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    const original = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const useQuickItem = vi.fn();
+    const toggleInventory = vi.fn();
+    const stop = trackActions({
+      attack: vi.fn(),
+      interact: vi.fn(),
+      usePotion: vi.fn(),
+      useQuickItem,
+      release: vi.fn(),
+      castSkill: vi.fn(),
+      focusChat: vi.fn(),
+      toggleMap: vi.fn(),
+      toggleInventory,
+      toggleSettings: vi.fn(),
+    });
+    const pressAndPoll = (index: number) => {
+      for (const button of buttons) {
+        button.pressed = false;
+        button.touched = false;
+        button.value = 0;
+      }
+      const button = buttons[index];
+      if (!button) throw new Error(`Missing test gamepad button ${index}`);
+      button.pressed = true;
+      button.touched = true;
+      button.value = 1;
+      const callback = frames.shift();
+      if (!callback) throw new Error("Missing gamepad polling frame");
+      callback(0);
+    };
+
+    try {
+      pressAndPoll(14);
+      pressAndPoll(12);
+      pressAndPoll(15);
+      pressAndPoll(13);
+      expect(useQuickItem.mock.calls).toEqual([[0], [1], [2]]);
+      expect(toggleInventory).toHaveBeenCalledOnce();
+    } finally {
+      stop();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: original,
+      });
+      requestFrame.mockRestore();
+      cancelFrame.mockRestore();
     }
   });
 
@@ -120,6 +411,24 @@ describe("input remapping", () => {
     expect(gamepadControlPressed("interact", gamepad)).toBe(false);
     buttons[2] = { pressed: true, touched: true, value: 0.8 };
     expect(gamepadControlPressed("interact", gamepad)).toBe(true);
+  });
+
+  it("rejects D-pad remaps for hero directions while allowing them for actions", () => {
+    expect(setGamepadBinding("moveLeft", { kind: "button", index: 14 })).toBe(false);
+    expect(getInputSettings().gamepad.moveLeft).toEqual([
+      { kind: "axis", index: 0, direction: -1 },
+    ]);
+
+    expect(setGamepadBinding("interact", { kind: "button", index: 14 })).toBe(true);
+    expect(getInputSettings().gamepad.interact).toEqual([{ kind: "button", index: 14 }]);
+  });
+
+  it("keeps jump and interact together when the south button is restored", () => {
+    setGamepadBinding("interact", { kind: "button", index: 14 });
+
+    expect(setGamepadBinding("interact", { kind: "button", index: 0 })).toBe(true);
+    expect(getInputSettings().gamepad.interact).toEqual([{ kind: "button", index: 0 }]);
+    expect(getInputSettings().gamepad.jump).toEqual([{ kind: "button", index: 0 }]);
   });
 
   it("leaves Tab unbound and never turns it into a combat selection", () => {

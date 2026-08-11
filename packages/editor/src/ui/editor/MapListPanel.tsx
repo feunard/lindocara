@@ -42,9 +42,13 @@ function saveInputFromPayload(payload: MapPayload): MapSaveInput {
 
 interface MapListPanelProps {
   /** The adventure whose maps this panel lists and creates into. A map belongs to exactly one
-   *  adventure, so creation is per-adventure; `null` means no adventure is loaded — the list is empty
-   *  and creation is disabled. */
+   *  adventure, so creation is per-adventure; `null` means the session is an unsaved sandbox —
+   *  nothing to list from the server, and creation is disabled until the first save. */
   adventureId: string | null;
+  /** The unsaved sandbox's one map, listed in place of the server list while `adventureId` is null.
+   *  An empty panel beside a map the author is actively painting reads as a broken list; this shows
+   *  the real thing, minus the rename/delete actions, which need a stored row to act on. */
+  sandboxMap?: { id: string; name: string; cols: number; rows: number } | undefined;
   /** The map currently mounted in the stage, so the panel marks it and knows what "delete the open
    *  map" targets. */
   activeMapId: string | null;
@@ -84,6 +88,7 @@ interface MapListPanelProps {
  */
 export function MapListPanel({
   adventureId,
+  sandboxMap,
   activeMapId,
   dirty,
   locked,
@@ -214,6 +219,17 @@ export function MapListPanel({
     }
   }
 
+  // A sandbox lists its own in-memory map instead of the server's (there is none). Derived in
+  // render rather than pushed into `maps` by `refresh`, so a rename in the stage shows immediately.
+  const stored = adventureId !== null;
+  const listed: MapSummary[] = stored
+    ? maps
+    : sandboxMap
+      ? // No author: nothing has been stored, so no account owns this row yet. The empty string is
+        // the sandbox's signature here — a listed map always carries its creator's username.
+        [{ ...sandboxMap, author: "", revision: 0, isFirst: true }]
+      : [];
+
   const deleting = maps.find((map) => map.id === confirmDeleteId);
   const validNewSize =
     Number.isSafeInteger(newCols) &&
@@ -245,7 +261,7 @@ export function MapListPanel({
       </div>
 
       <div className="flex flex-1 flex-col gap-1 overflow-auto p-2">
-        {maps.map((map) => {
+        {listed.map((map) => {
           return (
             <div
               key={map.id}
@@ -266,49 +282,63 @@ export function MapListPanel({
                 <span className="w-full truncate text-[12.5px] font-medium text-zinc-800">
                   {map.name || t("editor.new")}
                 </span>
-                <span className="rounded bg-zinc-200/80 px-1 text-[10px] tabular-nums text-zinc-500">
-                  {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
+                <span className="flex max-w-full items-center gap-1.5 text-[10px] text-zinc-500">
+                  <span className="rounded bg-zinc-200/80 px-1 tabular-nums">
+                    {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
+                  </span>
+                  {map.author && (
+                    <span className="truncate">
+                      {t("editor.picker.author", { author: map.author })}
+                    </span>
+                  )}
                 </span>
               </button>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`${t("editor.shell.maps.rename")} ${map.name}`}
-                      disabled={busy || locked}
-                      className="opacity-0 group-hover:opacity-100"
-                      onClick={() => {
-                        setRenaming(map);
-                        setRenameValue(map.name);
-                      }}
-                    >
-                      <Pencil />
-                    </Button>
-                  }
-                />
-                <TooltipContent>{t("editor.shell.maps.rename")}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`${t("editor.delete")} ${map.name}`}
-                      disabled={busy || locked}
-                      className="text-destructive opacity-0 group-hover:opacity-100"
-                      onClick={() => {
-                        onConfirmDeleteIdChange(map.id);
-                      }}
-                    >
-                      <Trash2 />
-                    </Button>
-                  }
-                />
-                <TooltipContent>{t("editor.delete")}</TooltipContent>
-              </Tooltip>
+              {/* Rename and delete both act on a STORED row (they PUT/DELETE by id), so the
+                  sandbox's in-memory map offers neither: its name is edited in the stage, and
+                  "deleting" the only map of an adventure that does not exist yet is meaningless. */}
+              {stored && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`${t("editor.shell.maps.rename")} ${map.name}`}
+                          disabled={busy || locked}
+                          className="opacity-0 group-hover:opacity-100"
+                          onClick={() => {
+                            setRenaming(map);
+                            setRenameValue(map.name);
+                          }}
+                        >
+                          <Pencil />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>{t("editor.shell.maps.rename")}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`${t("editor.delete")} ${map.name}`}
+                          disabled={busy || locked}
+                          className="text-destructive opacity-0 group-hover:opacity-100"
+                          onClick={() => {
+                            onConfirmDeleteIdChange(map.id);
+                          }}
+                        >
+                          <Trash2 />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>{t("editor.delete")}</TooltipContent>
+                  </Tooltip>
+                </>
+              )}
             </div>
           );
         })}

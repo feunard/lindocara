@@ -611,6 +611,8 @@ export interface WorldEventSnapshot {
   moveFrequency: number;
   moveAnimation: boolean;
   directionFixed: boolean;
+  /** The server-selected page accepts the interact action. Omitted means it does not. */
+  interactive?: true;
   /** Server-selected rendering semantics; legacy omission means the one-cell marker treatment. */
   presentation?: "marker" | "native";
   /** Presentation state for an explicitly-authored harvest node. It never grants resources. */
@@ -1849,6 +1851,7 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     (value.moveFrequency as number) <= 4 &&
     typeof value.moveAnimation === "boolean" &&
     typeof value.directionFixed === "boolean" &&
+    (value.interactive === undefined || value.interactive === true) &&
     (value.presentation === undefined ||
       value.presentation === "marker" ||
       value.presentation === "native") &&

@@ -1,5 +1,5 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { Check } from "lucide-react";
+import { Check, CircleDashed } from "lucide-react";
 import type { EditorMode } from "../../game/editor-state.js";
 
 interface EditorStatusBarProps {
@@ -8,6 +8,10 @@ interface EditorStatusBarProps {
   rows: number;
   cursor: { col: number; row: number } | null;
   saved: boolean;
+  /** True while the session is an unsaved local sandbox. `saved` only reports "no unsaved EDITS",
+   *  which is vacuously true for a map that has never been written at all — showing its green tick
+   *  there would tell the author their work is safe when nothing of it exists yet. */
+  sandbox: boolean;
   mode: EditorMode;
   toolLabel: string;
   zoom: number;
@@ -24,6 +28,7 @@ export function EditorStatusBar({
   rows,
   cursor,
   saved,
+  sandbox,
   mode,
   toolLabel,
   zoom,
@@ -48,14 +53,24 @@ export function EditorStatusBar({
 
       <span className="flex-1" />
 
-      {saved && (
+      {sandbox ? (
         <>
-          <span className="flex items-center gap-1.5 font-medium text-green-600">
-            <Check className="size-3" />
-            {t("editor.shell.status.saved")}
+          <span className="flex items-center gap-1.5 font-medium text-amber-600">
+            <CircleDashed className="size-3" />
+            {t("editor.shell.status.sandbox")}
           </span>
           <Divider />
         </>
+      ) : (
+        saved && (
+          <>
+            <span className="flex items-center gap-1.5 font-medium text-green-600">
+              <Check className="size-3" />
+              {t("editor.shell.status.saved")}
+            </span>
+            <Divider />
+          </>
+        )
       )}
       <span>{t(`editor.shell.mode.${mode}`)}</span>
       <Divider />

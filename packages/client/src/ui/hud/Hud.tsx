@@ -5,16 +5,14 @@ import { useStore } from "alepha/react";
 import { useEffect, useRef, useState } from "react";
 import { t, useLocale } from "../../i18n.js";
 import { questObjectiveProgressText } from "../../quest-presentation.js";
-import { activePartyAtom, adventureTestSessionAtom, questTrackingAtom } from "../../state/atoms.js";
+import { activePartyAtom, questTrackingAtom } from "../../state/atoms.js";
 import { useUiStore } from "../../store.js";
-import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 import { ActionDock } from "./ActionDock.js";
 import { Bar } from "./Bar.js";
 import { CampBankPanel } from "./CampBankPanel.js";
 import { CooldownBar } from "./CooldownBar.js";
 import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
-import { InventoryChip } from "./InventoryChip.js";
 import { UnitPortrait } from "./UnitPortrait.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
@@ -36,15 +34,10 @@ function questText(quest: QuestState): string {
 }
 
 export function Hud() {
-  const { mode, settings: inputSettings } = useInputModeSettings();
   useLocale();
   const self = useUiStore((s) => s.self);
   const selfState = useUiStore((s) => s.selfState);
-  const game = useUiStore((s) => s.game);
-  const party = useUiStore((s) => s.party);
-  const partyInvite = useUiStore((s) => s.partyInvite);
   const [activeParty] = useStore(activePartyAtom);
-  const [adventureTestSession] = useStore(adventureTestSessionAtom);
   const [questTracking] = useStore(questTrackingAtom);
   const setQuestJournalOpen = useUiStore((s) => s.setQuestJournalOpen);
 
@@ -83,7 +76,6 @@ export function Hud() {
 
   if (self === null || selfState === null) return null;
 
-  const { potions, gold, crystals } = selfState.inventory;
   const { quest } = selfState;
   const authoredQuests = selfState.authoredQuests ?? [];
   const trackableAuthoredQuests = authoredQuests
@@ -143,76 +135,6 @@ export function Hud() {
                 {self.breath.current}/{self.breath.max}
               </span>
             </label>
-          )}
-          {/* biome-ignore lint/a11y/noLabelWithoutControl: see above. */}
-          <label>
-            <span>{t("hud.spark")}</span>
-            <Bar value={selfState.xp} max={selfState.xpToNext} variant="xp" />
-            <span>
-              {selfState.xp}/{selfState.xpToNext}
-            </span>
-          </label>
-        </section>
-
-        <section className="panel party">
-          <div className="panel-title">
-            <strong>{t("party.title")}</strong>
-          </div>
-          {activeParty && (
-            <div className="party-save">
-              <strong>{activeParty.name ?? activeParty.adventureTitle}</strong>
-              <span>
-                {adventureTestSession
-                  ? t("party.test_session")
-                  : t("party.saved_session", {
-                      status:
-                        activeParty.status === "completed"
-                          ? t("parties.completed")
-                          : t("party.in_progress"),
-                    })}
-              </span>
-            </div>
-          )}
-          {party ? (
-            <div className="party-members">
-              {party.members.map((member) => (
-                <div className="party-member" key={member.id}>
-                  <span className="party-member__sigil" aria-hidden="true">
-                    {member.nick.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="party-member__name">
-                    {member.nick}
-                    {member.id === party.leaderId ? " ★" : ""}
-                  </span>
-                  <Bar value={member.hp} max={member.maxHp} variant="hp" />
-                </div>
-              ))}
-            </div>
-          ) : !activeParty ? (
-            <button type="button" onClick={() => game?.partyCreate?.()}>
-              {t("party.create")}
-            </button>
-          ) : null}
-          {!activeParty && party && (
-            <button
-              type="button"
-              onClick={() =>
-                party.leaderId === self.id ? game?.partyDissolve?.() : game?.partyLeave?.()
-              }
-            >
-              {party.leaderId === self.id ? t("party.dissolve") : t("party.leave")}
-            </button>
-          )}
-          {!activeParty && partyInvite && (
-            <div>
-              <span>{t("party.invite_received", { name: partyInvite.from })}</span>
-              <button type="button" onClick={() => game?.partyAccept?.(partyInvite.inviteId)}>
-                {t("party.accept")}
-              </button>
-              <button type="button" onClick={() => game?.partyRefuse?.(partyInvite.inviteId)}>
-                {t("party.refuse")}
-              </button>
-            </div>
           )}
         </section>
 
@@ -279,28 +201,6 @@ export function Hud() {
 
         <CooldownBar />
         {self.class === "priest" && <HealCooldownBar />}
-
-        <section className="panel inventory">
-          <div className="panel-title">
-            <span className="panel-icon panel-icon--pack" aria-hidden="true" />
-            <strong>{t("hud.pack")}</strong>
-          </div>
-          <div className="item-grid">
-            <InventoryChip
-              icon="potion"
-              label={t("item.potion")}
-              value={String(potions)}
-              hotkey={controlBindingLabel("potion", mode, inputSettings)}
-            />
-            <InventoryChip icon="gold" label={t("item.gold")} value={String(gold)} />
-            <InventoryChip icon="crystal" label={t("item.crystal")} value={String(crystals)} />
-            <InventoryChip
-              icon="sword"
-              label={t(`item.${self.equipment.mainHand}`)}
-              value={t("item.sword_on")}
-            />
-          </div>
-        </section>
       </aside>
       <ActionDock />
     </>

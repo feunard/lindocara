@@ -12,12 +12,16 @@ describe("the authored fall hangs on a real sheer face", () => {
   // each disc, so the wall lands on the integer boundary between two cells. Deriving the placement
   // from the radii instead buried the sheet inside the rock — invisible on screen, with every unit
   // test still green, because nothing was asking the terrain where its walls actually are.
-  it("has the summit behind the lip and the pool in front of the base", () => {
+  it("is fed by the spring at the lip and lands in water at the base", () => {
     for (const w of WATERFALLS) {
-      // Behind the lip (north of a south-facing wall) the terrain stands at the top level...
-      expect(field.levelAt(toCell(w.x), toCell(w.z - 0.5))).toBe(w.topLevel);
-      // ...and in front of the base it is WATER: the plunge pool is cut into the terrain, not laid
-      // on top of it, so the sea shows through and the bank gets its own foam. See `isPlungePool`.
+      // Behind the lip is the SPRING: water, whose surface sits at the summit's own level rather
+      // than at sea level. That is what makes the water that pours over the edge the same body as
+      // the water that falls, instead of a pond near a waterfall.
+      const lipI = toCell(w.x);
+      const lipJ = toCell(w.z - 0.5);
+      expect(field.levelAt(lipI, lipJ)).toBeNull();
+      expect(field.waterAt?.(lipI, lipJ)).toBe(w.topLevel);
+      // And in front of the base it is water too — the channel out to the sea.
       expect(field.levelAt(toCell(w.x), toCell(w.z + w.poolOffset))).toBeNull();
     }
   });
@@ -31,10 +35,10 @@ describe("the authored fall hangs on a real sheer face", () => {
     }
   });
 
-  it("is backed by the summit across its whole width, with no overhang at either end", () => {
+  it("is fed across its whole width, with no dry stretch of lip", () => {
     for (const w of WATERFALLS) {
-      for (const dx of [-w.width / 2 + 0.1, 0, w.width / 2 - 0.1]) {
-        expect(field.levelAt(toCell(w.x + dx), toCell(w.z - 0.5))).toBe(w.topLevel);
+      for (const dx of [-w.width / 2 + 0.2, 0, w.width / 2 - 0.2]) {
+        expect(field.waterAt?.(toCell(w.x + dx), toCell(w.z - 0.5))).toBe(w.topLevel);
       }
     }
   });

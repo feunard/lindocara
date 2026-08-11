@@ -49,6 +49,7 @@
     "src/ui/admin/AdminShell.tsx",
     "test/atoms.test.tsx",
     "test/hud.test.tsx",
+    "test/quick-item-bar.test.tsx",
     "test/quest-journal-overlay.test.tsx",
     "test/inventory-merchant.test.tsx",
     "test/adventure-test-overlay.test.tsx",

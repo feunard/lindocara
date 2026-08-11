@@ -37,6 +37,11 @@ glue that binds the renderer to the network. Browser + React. This is the base t
 - `styles/` â€” `app.css` (the client sheets + `@alepha/ui/styles.css` last, which brings Tailwind itself), `legacy.css`
   (the Tiny Swords skin + the two-tree fence), `tokens.css`. `public/` â€” atlas/audio/served assets.
 
+- `ui/Chat.tsx` keeps only its transparent local dialogue log visible while unfocused; the dark
+  glass, filters, input and top-right resize grip appear while writing. The grip resizes width and
+  height together, clamps to the viewport, and persists the validated pair under
+  `lindocara.chat.size.v2`; keep transient pointer coordinates in refs, not render state.
+
 ## Graph
 
 - **Depends on:** `engine`, `renderer`, `ui`.
