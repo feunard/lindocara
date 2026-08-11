@@ -43,7 +43,7 @@ import { maps } from "../entities/maps.ts";
 import { parties } from "../entities/parties.ts";
 import { decodeAdventureAudio } from "./adventureAuthoring.ts";
 import { type MapPayload, MapService } from "./MapService.ts";
-import { DEFAULT_FIRST_MAP_NAME } from "./mapAuthoring.ts";
+import { DEFAULT_FIRST_MAP_NAME, type MapInput } from "./mapAuthoring.ts";
 
 // `mapEventPages.deleteMany`'s `eventId: { inArray: [...] }` binds exactly one parameter per event
 // id (unlike an INSERT, there is no per-column multiplication — see `MapService`'s own docblock for
@@ -112,12 +112,20 @@ export class AdventureService {
     return all.filter((entry) => entry.mapCount > 0);
   }
 
-  /** One atomic create: the adventure row AND its blank default map (UX wave #2/#3/#4). Ported from
-   *  `createAdventureWithDefaultMap`; the map half is reused from `MapService.createMap` rather than
-   *  duplicated. */
+  /**
+   * One atomic create: the adventure row AND its default map (UX wave #2/#3/#4). Ported from
+   * `createAdventureWithDefaultMap`; the map half is reused from `MapService.createMap` rather than
+   * duplicated.
+   *
+   * `firstMap` is the editor's unsaved sandbox: entering the editor no longer writes anything, so
+   * the author's first save arrives here carrying the map they have been drawing. It REPLACES the
+   * blank template rather than being written beside it — the adventure still owns exactly one map —
+   * and it rides this same call so a named adventure can never be persisted without it.
+   */
   async createAdventureWithDefaultMap(
     userId: string,
     input: CreateAdventureInput,
+    firstMap?: MapInput,
   ): Promise<{ adventure: StoredAdventure; map: MapPayload }> {
     const title = input.title.trim();
     if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
@@ -136,7 +144,13 @@ export class AdventureService {
     });
     // The born map is named `Map1` (UX wave #16); a fresh adventure has zero maps, so the lowest
     // free `MapN` is unconditionally the first. `createMap` also stamps `isFirst: true` for it.
-    const map = await this.mapService.createMap(id, DEFAULT_FIRST_MAP_NAME);
+    const map = await this.mapService.createMap(
+      id,
+      DEFAULT_FIRST_MAP_NAME,
+      undefined,
+      undefined,
+      firstMap,
+    );
     const stored = await this.loadAdventureById(id);
     if (!stored) throw new Error("not_found: adventure vanished mid-create");
     return { adventure: stored, map };

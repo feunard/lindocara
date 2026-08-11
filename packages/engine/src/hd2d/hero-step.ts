@@ -138,6 +138,13 @@ function leaveWater(state: HeroState, deps: StepDeps, y: number): HeroEvent {
 }
 
 /**
+ * How far the water surface must fall away under a swimmer before he stops swimming and starts
+ * falling. Generous enough that no ordinary surface wobble triggers it, small enough that the lip
+ * of any real drop does.
+ */
+const WATER_SPILL_DROP = 0.4;
+
+/**
  * Breath is exhausted. The event carries the DROWNING position — where the splash should appear —
  * never the respawn position: that teleport (to `spawn`, at the terrain height there) stays the
  * adapter's (`hero.ts`) job, since it ALONE knows `spawn` — `stepHero` never receives it as a
@@ -310,11 +317,23 @@ export function stepHero(
       if (sol !== null) {
         events.push(leaveWater(state, deps, sol));
       } else {
-        state.y = query.waterLevelAt(state.x, state.z);
-        // The rate comes from the zone (see `HeroInput.souffleTaux`): the hero no longer needs to
-        // know WHICH water drains faster, only to read what it's given.
-        state.breath -= dt * input.souffleTaux;
-        if (state.breath <= 0) events.push(drown(state, deps));
+        const surface = query.waterLevelAt(state.x, state.z);
+        if (surface < state.y - WATER_SPILL_DROP) {
+          // The water has fallen away beneath: carried over a lip, which is what the top of a
+          // waterfall IS. Without this the swimmer's Y snaps to the new surface and he TELEPORTS
+          // down the drop — the rule pins a swimmer to the water every frame, and that is right
+          // everywhere except an edge. Horizontal speed is kept: he is carried over, not stopped.
+          state.swimming = false;
+          state.airborne = true;
+          state.vy = 0;
+          events.push({ t: "sortie-eau", x: state.x, y: state.y, z: state.z });
+        } else {
+          state.y = surface;
+          // The rate comes from the zone (see `HeroInput.souffleTaux`): the hero no longer needs
+          // to know WHICH water drains faster, only to read what it's given.
+          state.breath -= dt * input.souffleTaux;
+          if (state.breath <= 0) events.push(drown(state, deps));
+        }
       }
     }
   }

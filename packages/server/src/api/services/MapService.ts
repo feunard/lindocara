@@ -194,12 +194,20 @@ export class MapService {
     }));
   }
 
-  /** Ported from `createMap`: always the trusted blank template, never client-authored terrain. */
+  /**
+   * Ported from `createMap`: the trusted blank template, unless `content` carries an authored map.
+   *
+   * `content` is the editor's unsaved sandbox arriving at its first save (see
+   * `AdventureService.createAdventureWithDefaultMap`). Client-authored terrain is not TRUSTED here
+   * any more than it is on a `PUT`: it goes through the same `validateMapInput` gate, and the stored
+   * heightfield is compiled from it by this server, never taken from the wire.
+   */
   async createMap(
     adventureId: string,
     name: string,
     cols?: number,
     rows?: number,
+    content?: MapInput,
   ): Promise<MapPayload> {
     const owner = await this.adventures.findById(adventureId);
     if (!owner) throw new Error("not_found: no such adventure");
@@ -207,7 +215,7 @@ export class MapService {
     if (mapCount >= MAX_ADVENTURE_MAPS) {
       throw new Error(`limit: at most ${MAX_ADVENTURE_MAPS} maps per adventure`);
     }
-    const input = defaultMapInput(name, cols, rows);
+    const input = content ?? defaultMapInput(name, cols, rows);
     const data = validateMapInput(input);
     const heightfield = encodeMap(compileAuthoredMap(data, data.events));
     // NOT protected by `$transactional()` on this app's actual production target: Alepha's D1
@@ -242,8 +250,8 @@ export class MapService {
       heightfield,
       isFirst: firstCountForAccount === 0,
     });
-    // `defaultMapInput` always yields empty elements/events; writing them here keeps this in step
-    // with `createMap`'s shape in case a future default template ever seeds either.
+    // The blank template yields empty elements/events; an authored `content` may carry both, and a
+    // future default template might seed either — so both are always written from the input.
     await this.writeElements(id, input.elements);
     await this.writeEvents(id, data.events);
     return this.toPayload(row);
