@@ -98,6 +98,22 @@ describe("stepHero — water at elevation", () => {
     expect(state.y).toBeCloseTo(HIGH, 5);
   });
 
+  // Being able to get OUT matters as much as being able to get in: a pool you can only leave by
+  // going over the fall is a trap, not a pool. The climb-out is measured against the surface the
+  // swimmer floats on — sampling a water level at the destination instead reads the bank as a
+  // 3.65-unit cliff, because a bank is LAND and the lookup answers the distant sea.
+  it("climbs out of an elevated pool onto its own bank", () => {
+    const deps = summit();
+    const state = createHeroState(0, 0, HIGH, 10, 2.2);
+    state.swimming = true;
+    for (let k = 0; k < 200 && state.swimming; k++) {
+      stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
+    }
+    expect(state.swimming).toBe(false);
+    expect(state.y).toBeCloseTo(HIGH, 5);
+    expect(state.x).toBeGreaterThan(1);
+  });
+
   it("still uses the sea's level where there is no elevated water", () => {
     const deps = depsPlates({ hauteur: (x) => (Math.abs(x) < 1 ? null : 0) });
     const state = createHeroState(-1.6, 0, 0, 10, 2.2);

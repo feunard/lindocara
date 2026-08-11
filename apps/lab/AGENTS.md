@@ -256,19 +256,29 @@ southern island at z = 24.
 units — wider than a cell — because at a sea shore the terrain tile covers most of it and only a
 thin lacy overhang shows (`FOAM_SPREAD`, and the comment above `FOAM_MARGIN_ABOVE_WATER`). Water
 flush with the rock around it buries nothing, so drawn at that size the whole pastille sits on top
-of the summit as a white pillow, which is exactly how it first looked. Elevated foam is shrunk to
-`FOAM_ELEVATED_SCALE` — roughly the part the sea only ever SHOWS — and pushed half a cell to the
-water's edge, where neighbouring sprites overlap into one rim instead of dotting each bank tile.
+of the summit as a white pillow, which is exactly how it first looked. Elevated foam is instead sized in TWO axes
+(`FOAM_ELEVATED_ALONG` / `FOAM_ELEVATED_ACROSS`) and pushed half a cell to the water's edge: long
+along the shoreline so consecutive strips overlap into a continuous rim, thin across it so it reads
+as a line rather than a pillow. One round sprite cannot be both — shrunk enough not to be a pillow
+it no longer reaches its neighbour a cell away, and the rim comes out DASHED. It is also emitted per
+land/water EDGE rather than per cell, because a cell touching the pool on two sides can only be
+oriented along one of them, and a corner is where a rim most obviously breaks.
 
-**You can go over the lip, and that is a rule fix, not a feature.** `centreOk` (`hero-step.ts`)
-sampled the ground height at the FOOTPRINT and the water level at the un-footprinted CENTRE. With
-one global water level the two answers were identical everywhere and the mismatch was invisible;
-with water at two heights it becomes a wall exactly at a lip, where the footprint is still over the
-pool while the centre is already over the drop — the difference reads as a cliff the height of the
-fall, and the swimmer is refused the one move that would carry it over. Both are sampled at the same
-point now. A swimmer whose water falls away beneath it (`WATER_SPILL_DROP`) leaves the water and
-falls instead of teleporting down to the new surface, which is what pinning a swimmer to the water
-every frame would otherwise do.
+**A swimmer's climb-out is measured from the surface it FLOATS ON, not from a water level looked up
+somewhere else.** `centreOk` (`hero-step.ts`) compared the destination's ground height against
+`waterLevelAt(...)`, and that is wrong in two opposite directions once water exists at more than one
+height — neither of which could happen while every lookup returned the same global number:
+
+- sampled at the destination CENTRE, the lip of a fall reads as a cliff the height of the drop, and
+  the swimmer cannot go over it;
+- sampled at the destination FOOTPRINT, a bank reads the same way — the footprint is over LAND,
+  which has no water, so the lookup answers the distant sea and the swimmer cannot climb OUT. A pool
+  you can only leave by going over the fall is a trap, not a pool.
+
+It compares against `state.y` now, which is where the swimmer actually is. And a swimmer whose water
+falls away beneath it (`WATER_SPILL_DROP`) leaves the water and FALLS, rather than teleporting to
+the new surface — which is what pinning a swimmer to the water every frame would otherwise do at a
+lip.
 
 **Water at elevation is a real capability now, not a patch laid on the ground.** The summit spring
 is water in every sense the sea is: the terrain has a HOLE there, the ocean's own material fills it,

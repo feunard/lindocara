@@ -72,13 +72,17 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const centreOk = (xx: number, zz: number): boolean => {
     const foot = empreinte(zz, hero);
     const h = surfaceAt(xx, foot);
-    // The water level is sampled at the SAME point as the height it is compared against. Reading
-    // it at the un-footprinted centre instead was harmless while the world had one global water
-    // level — the answer was identical everywhere — and becomes a wall the moment water exists at
-    // more than one height: at the lip of a fall the footprint is still over the pool while the
-    // centre is already over the drop, so the difference reads as a cliff the height of the fall
-    // and the swimmer is refused the one move that would carry it over.
-    if (state.swimming) return h - query.waterLevelAt(xx, foot) <= climb;
+    // Measured against the surface the swimmer is FLOATING ON — `state.y` — not against a water
+    // level sampled somewhere else. "How far must I climb to get out" is a question about the
+    // water under the hero, and the only place that is reliably known is the hero.
+    //
+    // Sampling it at the destination instead looks equivalent and is not, in both directions.
+    // At the destination CENTRE, the lip of a fall reads as a cliff the height of the drop and the
+    // swimmer cannot go over it. At the destination FOOTPRINT, a bank reads the same way — the
+    // footprint is over LAND, which has no water, so the lookup answers the distant sea and the
+    // swimmer cannot climb out. Both were live bugs; with one global water level neither could
+    // happen, because every lookup returned the same number.
+    if (state.swimming) return h - state.y <= climb;
     return state.airborne ? h <= state.y + 0.02 : traversingRamp || h - state.groundY <= maxStep;
   };
   if (!centreOk(x, z)) return false;
@@ -87,7 +91,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   // into a wall before being stopped.
   const h = query.maxHeightAround(x, empreinte(z, hero), hero.radius, state.y + 0.02);
   const plafond = state.swimming
-    ? query.waterLevelAt(state.x, state.z) + climb
+    ? state.y + climb
     : state.airborne
       ? state.y + 0.02
       : state.groundY + maxStep;

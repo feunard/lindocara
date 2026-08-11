@@ -73,3 +73,33 @@ describe("foam beside water at elevation", () => {
     expect(corner?.water).toBeNull();
   });
 });
+
+describe("an elevated rim is continuous", () => {
+  const summit = (): HeightField => {
+    const grid = fieldFrom(["44444", "44444", "44.44", "44444", "44444"]);
+    return { ...grid, waterAt: (i, j) => (i === 2 && j === 2 ? 4 : null) };
+  };
+
+  // One strip per land/water EDGE, not per cell. Per cell leaves a notch at every corner: a cell
+  // touching the pool on two sides can only be oriented along one of them, and a corner is where a
+  // rim most obviously breaks.
+  it("emits one strip per wet edge, so corners are covered too", () => {
+    const places = foamPlacements(summit()).filter((p) => p.water === 4);
+    expect(places).toHaveLength(4);
+    const dirs = places.map((p) => `${p.toWater[0]},${p.toWater[1]}`).sort();
+    expect(dirs).toEqual(["-1,0", "0,-1", "0,1", "1,0"]);
+  });
+
+  it("points each strip at the water it borders", () => {
+    for (const p of foamPlacements(summit()).filter((x) => x.water === 4)) {
+      // The neighbour in that direction is the pool itself.
+      expect(p.i + p.toWater[0]).toBe(2);
+      expect(p.j + p.toWater[1]).toBe(2);
+    }
+  });
+
+  // The sea path is untouched: exactly one placement per shore cell, as it has always been.
+  it("still emits one placement per shore cell for the sea", () => {
+    expect(foamPlacements(fieldFrom(["1."]))).toHaveLength(1);
+  });
+});
