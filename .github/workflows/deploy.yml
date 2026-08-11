@@ -89,6 +89,17 @@ jobs:
           CHEATS_ENABLED: ${{ vars.CHEATS_ENABLED || 'false' }}
           NAVIGATION_DEBUG: ${{ vars.NAVIGATION_DEBUG || 'false' }}
           WEBSOCKET_MAX_PAYLOAD: ${{ vars.WEBSOCKET_MAX_PAYLOAD || '16384' }}
+          # The app's Lore sigil (project Lindocara, enrolled as `main`). It has to be listed
+          # here to reach production at all: the secret collection above prefers
+          # `apps/main/.env.production`, and that file is gitignored, so it does not exist on a
+          # runner — a key living only there ships from a laptop and never from CI.
+          #
+          # No `|| ''` fallback, unlike the three above: `SIGIL_KEY` is `z.text({ default: "" })`
+          # and an empty string is its documented "absent" state — the app captures locally and
+          # sends nothing, which is exactly the behaviour before this line existed. The neighbours
+          # need their fallbacks because an empty string is neither a boolean nor an integer and
+          # would stop Alepha booting; a text key has no such edge.
+          SIGIL_KEY: ${{ secrets.SIGIL_KEY }}
         run: npm run deploy -w @lindocara/main
 
   # The HD-2D witness, deployed beside the game as a SITE rather than a service:
