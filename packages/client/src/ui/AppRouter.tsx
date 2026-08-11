@@ -9,9 +9,13 @@
  * notice instead, because that package no longer compiles. Its own field docblock has the whole
  * story and the exact code to restore.
  *
- * The root `layout` carries the chrome the old `App.tsx` used to own directly: the boot ping (now
- * `ReactAuth.ping()` -> guest fallback -> /auth, replacing the old `fetchMe()`), the launch-menu music effect and the
- * LocaleToggle/StatusBar immersive toggle, all now driven by the URL instead of `screen`.
+ * The root `layout` carries the chrome the old `App.tsx` used to own directly: the launch-menu
+ * music effect and the LocaleToggle/StatusBar immersive toggle, both now driven by the URL instead
+ * of `screen`. The boot ping (`ReactAuth.ping()` -> guest fallback -> /auth, replacing the old
+ * `fetchMe()`) is NOT part of this layout's render — it is `AppRouter`'s own `bootPing` `$hook({
+ * on: "start" })`, below, which must fully resolve before the router's first route transition
+ * evaluates any `$secure` guard on the initial URL. See that field's own docblock for why a React
+ * effect could not do this safely.
  * `TitleScreen`/`MainMenu`/`CreditsScreen` push through `useRouter()` directly (Task 6) — the
  * store's `setScreen`/`screen` machine is fully dead, both as a store field (removed Task 2) and
  * as the deprecated shim that routed through this layout's installed navigation seam (removed
@@ -27,10 +31,11 @@
 import { $hook, $inject, Alepha } from "alepha";
 import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
+import { I18nProvider } from "alepha/react/i18n";
 import { $page, NestedView, Redirection, useRouter, useRouterState } from "alepha/react/router";
 import { currentUserAtom } from "alepha/security";
 import { HttpError } from "alepha/server";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { menuAudio } from "../game/menu-audio.js";
 import { stopActiveGameSession } from "../game/session.js";
 import { continueAsGuest } from "../guest.js";
@@ -159,55 +164,16 @@ function AppLayout() {
   const router = useRouter<AppRouter>();
   const { url } = useRouterState();
   const pathname = url.pathname;
-  const booted = useRef(false);
 
-  // The boot ping. App.tsx ran this once per app mount and always landed on "title" (its own
-  // initial `screen` was a blank "boot" state); the router already resolved the right page from
-  // the URL, so this effect only needs to authenticate and handle total failure — forcing a
-  // navigation on success would fight a real deep link (or this component's own test).
-  //
-  // `ReactAuth.ping()` replaces the old `fetchMe()`: AlephaReact does not auto-ping on browser
-  // start (there is no such hook under `alepha/react/auth` — only `ReactAuthProvider`'s SSR-only
-  // `react:server:render:begin` hydration, which never runs for this `ssr: false` root layout), so
-  // this effect is the one place that does it. `ping()` fills `currentUserAtom` itself as a side
-  // effect when a session cookie resolves to a user; nothing else here needs to touch the atom
-  // directly for that branch. Anonymous falls back to the SAME plain-fetch guest flow as before
-  // (`guest.ts`, unchanged — it has no Alepha instance to reach, see its own docblock), then an
-  // explicit re-`ping()` syncs the atom the guest login itself never touches (chosen over a second
-  // `ReactAuth.login()` call: `continueAsGuest()` already authenticated the cookie, so a second
-  // login would just be a redundant round trip to learn what `ping()` can read directly).
-  //
-  // Skipped entirely when the FIRST-resolved `pathname` is `/auth`: landing there already means
-  // "let the human decide" (a 401 redirect, or a direct deep link) — silently signing the visitor
-  // in as a fresh guest behind their back would both surprise them and race the auth form's own
-  // login/register/guest actions, which drive the exact same `continueAsGuest()`/`ping()` calls.
-  // See the `booted` guard inside for why this is a one-shot decision, not "keep checking until
-  // we're off /auth".
-  useEffect(() => {
-    // `booted` is consulted (and flipped) AT MOST ONCE — not "once we finally see a non-/auth
-    // pathname". A route change later in the session (successful login pushing to /menu, a
-    // deep-linked reload elsewhere) must never come back and retroactively run the automatic
-    // ping/guest flow: if the FIRST consultation lands on /auth, the boot effect skips itself
-    // permanently for this mount and the auth form owns authentication start to finish. Getting
-    // this wrong is a real bug, not just test noise — a deferred boot run firing AFTER a
-    // successful login (because the form's own `ping()`/`login()` call raced this effect's first,
-    // still-/auth render) would `router.push("auth")` on ITS OWN failure and silently undo a login
-    // that had already succeeded.
-    if (booted.current) return;
-    booted.current = true;
-    if (pathname === "/auth") return;
-    const auth = alepha.inject(ReactAuth);
-    void (async () => {
-      const user = await auth.ping().catch(() => undefined);
-      if (user) return;
-      try {
-        await continueAsGuest();
-        await auth.ping();
-      } catch {
-        await router.push("auth");
-      }
-    })();
-  }, [alepha, router, pathname]);
+  // The boot ping used to live here, in a `useEffect`. It now runs from `AppRouter`'s own
+  // `bootPing` `$hook({ on: "start" })` instead — see that field's docblock for why: a React
+  // effect runs after first paint, which is after the router's OWN first route transition already
+  // evaluated any `$secure` guard on the initial URL. `$secure` reads `currentUserAtom`
+  // synchronously and denies outright when it is still empty, so a guarded route hit cold (a
+  // bookmark, a typed URL, a refresh) saw "Authentication required" instead of the panel — even
+  // for a real admin — regardless of how quickly `ping()` would otherwise have resolved. Moving the
+  // ping into a lifecycle hook that is fully awaited before `ReactBrowserProvider`'s own `ready`
+  // hook performs that first transition removes the race instead of racing it.
 
   useEffect(() => {
     if (LAUNCH_MENU_PATHS.has(pathname)) menuAudio.startMusic();
@@ -319,6 +285,27 @@ export class AppRouter {
   adminRouter = $inject(AdminRouter);
 
   /**
+   * Found while fixing the cold-load race below (Task 2, fix round 1): `@alepha/ui`'s `AppShell`
+   * (under `AdminShell`'s `NavShell`) unconditionally wraps its content in a `<DialogProvider>`
+   * (`.vendor/@alepha/ui/src/components/app-shell/app-shell.tsx`), and `DialogProvider` calls
+   * `useI18n()` on every render, no matter whether a dialog is ever opened
+   * (`.vendor/@alepha/ui/src/components/use-dialog/use-dialog.tsx`). `useI18n()` → `useInject(
+   * I18nProvider)`, and NOTHING in this app registers `alepha/react/i18n`'s module anywhere else —
+   * this app has never used a `@alepha/ui` component that needed it before `AdminShell`. The first
+   * time React tries to construct `I18nProvider` is therefore mid-render, well after
+   * `alepha.start()` has already locked the container, which throws `ContainerLockedError`
+   * ("Module 'alepha.react.i18n' is not registered") instead of quietly auto-registering it the
+   * way injecting a not-yet-touched service normally does at boot. Concretely: without this field,
+   * EVERY successful admin session — not merely a cold-loaded one — crashed the instant
+   * `AdminShell` mounted, because reaching the shell at all means reaching `AppShell`'s
+   * `DialogProvider`. Eagerly injecting `I18nProvider` here, alongside `reactAuth`/`adminRouter`
+   * above, registers `alepha.react.i18n` during boot instead. `I18nProvider` tolerates zero
+   * registered `$dictionary`s fine (`ButtonLanguage`'s own docblock: "renders nothing when only
+   * one language is registered") — this app has none, and needs none for `DialogProvider` to work.
+   */
+  i18nProvider = $inject(I18nProvider);
+
+  /**
    * The lore idiom (`AppRouter.ts:133-150` there): global 401 recovery for every request that goes
    * through Alepha's own `HttpClient`. `api.ts`'s plain-`fetch` calls never raise this event (see
    * `state/navigation.ts`'s `onUnauthorized` docblock) — they call the SAME seam directly instead,
@@ -330,6 +317,64 @@ export class AppRouter {
     handler: async ({ error }) => {
       if (this.alepha.isBrowser() && HttpError.is(error, 401)) {
         onUnauthorized();
+      }
+    },
+  });
+
+  /**
+   * The boot ping — browser-only, and deliberately a lifecycle `$hook` rather than a React
+   * `useEffect` on `AppLayout` (where it lived before this fix). `"start"` hooks are fully awaited,
+   * across every service, before the `"ready"` phase runs — and `ReactBrowserProvider`'s own
+   * `on: "ready"` hook is what performs React's initial mount AND the router's first route
+   * transition. `$secure`'s browser guard (`.vendor/alepha/src/security/primitives/
+   * $secure.browser.ts`) reads `currentUserAtom` SYNCHRONOUSLY during that first transition
+   * (`ReactPageProvider.createLayers` → `denyGuardedPage` on a short-circuited guard) — an effect
+   * that only starts populating the atom AFTER first paint is already too late for whatever route
+   * the visitor is cold-loading, guarded or not. Ending this hook's own `await` chain is therefore
+   * what has to happen before `ready` — not a `useEffect` racing to beat it, which cannot be made
+   * reliable from inside React's own lifecycle.
+   *
+   * This is not cosmetic. `denyGuardedPage`'s anonymous-visitor fallback looks for a route named
+   * exactly `"login"` to redirect to; this app's equivalent route is named `"auth"`, so that
+   * fallback silently never fires here, and the denial (a thrown `AlephaError`, status 401) is
+   * caught by `NestedView`'s `ErrorBoundary`, whose `resetKeys` is only the URL pathname — it does
+   * NOT re-clear when `currentUserAtom` populates later, only when the pathname changes. Before
+   * this fix, a real admin who bookmarked, typed, or refreshed `/admin` (the first `$secure`-guarded
+   * route this app ever shipped, Task 2) got a permanent "Authentication required" error screen
+   * instead of the console, because the old effect-based ping resolved strictly after that first,
+   * already-denied transition. Every future `$secure`-guarded route inherits the same fix.
+   *
+   * Behaviour otherwise unchanged from the effect it replaces: `ping()` fills `currentUserAtom`
+   * itself when a session cookie resolves to a user (nothing else here needs to touch the atom
+   * directly for that branch); a failed ping falls back to the same plain-fetch guest flow as
+   * before (`guest.ts` — it has no Alepha instance to reach, see its own docblock), then a second
+   * `ping()` syncs the atom the guest login itself never touches; and total failure — both the real
+   * ping AND the guest fallback failing — sends the visitor to `/auth`. That last branch is now a
+   * hard `window.location` assignment rather than `router.push("auth")`: at `"start"` time React
+   * has not mounted yet, so there is no live SPA router to push through, and this failure mode
+   * (session AND guest registration both unreachable) is already the exceptional case a full
+   * reload is an acceptable answer to.
+   *
+   * Skipped entirely — exactly as before — when the browser's OWN current location is `/auth`:
+   * landing there already means "let the human decide" (a 401 redirect, or a direct deep link), and
+   * silently signing the visitor in as a guest behind their back would both surprise them and race
+   * `AuthScreen`'s own login/register/guest actions, which drive the exact same `continueAsGuest()`/
+   * `ping()` calls. Reads `window.location.pathname` rather than router state: the router has not
+   * resolved anything yet at `"start"` time, and `window.location` IS the value its first
+   * transition is about to use.
+   */
+  bootPing = $hook({
+    on: "start",
+    handler: async () => {
+      if (!this.alepha.isBrowser()) return;
+      if (window.location.pathname === "/auth") return;
+      const user = await this.reactAuth.ping().catch(() => undefined);
+      if (user) return;
+      try {
+        await continueAsGuest();
+        await this.reactAuth.ping();
+      } catch {
+        window.location.href = "/auth";
       }
     },
   });
