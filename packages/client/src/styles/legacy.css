@@ -2593,6 +2593,7 @@ kbd {
   padding: 0.55rem 0.35rem 0.35rem;
   display: grid;
   place-items: center;
+  align-content: center;
   gap: 0.1rem;
   overflow: hidden;
   border: 2px solid rgb(220 194 111 / 42%);
@@ -4428,88 +4429,128 @@ kbd {
     ". up ."
     "left core right"
     ". down .";
-  grid-template-columns: repeat(3, 2.65rem);
-  grid-template-rows: repeat(3, 2.65rem);
-  gap: 0.04rem;
+  grid-template-columns: 2.55rem 3rem 2.55rem;
+  grid-template-rows: 2.55rem 3rem 2.55rem;
+  gap: 0;
   padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
+  filter: drop-shadow(0 0.45rem 0.65rem rgb(0 0 0 / 58%));
 }
 
 /* biome-ignore lint/style/noDescendingSpecificity: game quick slots intentionally refine the global controls. */
 .quick-item-bar button {
   z-index: 2;
-  width: 2.65rem;
-  height: 2.65rem;
+  width: 100%;
+  height: 100%;
   overflow: visible;
-  border-color: #a27a3e;
-  border-radius: 50%;
+  padding: 0.28rem;
+  border: 1px solid #9f793d;
+  border-radius: 0;
   background:
-    radial-gradient(circle at 42% 32%, rgb(90 104 68 / 72%), transparent 38%),
-    linear-gradient(rgb(37 58 43 / 99%), rgb(7 24 18 / 100%)),
+    radial-gradient(circle at 42% 30%, rgb(119 128 80 / 48%), transparent 42%),
+    linear-gradient(145deg, rgb(41 67 48 / 99%), rgb(6 25 18 / 100%)),
     var(--tiny-slot) center / cover no-repeat;
   box-shadow:
-    inset 0 0 0 2px rgb(4 16 12 / 78%),
-    inset 0 0 0 3px rgb(231 197 111 / 12%),
-    0 0 0 2px rgb(34 21 13 / 82%),
-    0 0.22rem 0.45rem rgb(0 0 0 / 48%);
+    inset 0 0 0 2px rgb(3 15 11 / 68%),
+    inset 0 0.2rem 0.45rem rgb(255 232 165 / 8%),
+    0 0 0 1px rgb(31 18 11 / 92%);
+  transition:
+    border-color 120ms ease,
+    filter 120ms ease;
+}
+
+.quick-item-bar button:not(:disabled):hover,
+.quick-item-bar button:focus-visible {
+  z-index: 4;
+  border-color: #f2cc72;
+  outline: none;
+  filter: brightness(1.18);
+  transform: none;
+}
+
+.quick-item-bar button img {
+  width: 1.8rem;
+  height: 1.8rem;
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 72%));
+}
+
+.quick-item-bar__empty {
+  color: rgb(239 214 151 / 62%);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .quick-item-bar__slot--up {
   grid-area: up;
+  margin-bottom: -1px;
+  border-radius: 0.72rem 0.72rem 0.16rem 0.16rem;
 }
 
 .quick-item-bar__slot--left {
   grid-area: left;
+  margin-right: -1px;
+  border-radius: 0.72rem 0.16rem 0.16rem 0.72rem;
 }
 
 .quick-item-bar__slot--right {
   grid-area: right;
+  margin-left: -1px;
+  border-radius: 0.16rem 0.72rem 0.72rem 0.16rem;
 }
 
 .quick-item-bar__slot--down {
   grid-area: down;
+  margin-top: -1px;
+  border-radius: 0.16rem 0.16rem 0.72rem 0.72rem;
 }
 
 .quick-item-bar__core {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   grid-area: core;
   place-self: center;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid rgb(178 132 61 / 68%);
-  border-radius: 50%;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid #9f793d;
+  border-radius: 0.22rem;
   background:
-    radial-gradient(circle, #cfaa59 0 10%, transparent 12%),
-    linear-gradient(145deg, #334a37, #0a2018);
+    radial-gradient(circle, #d8b865 0 7%, #5a4327 8% 11%, transparent 12%),
+    linear-gradient(145deg, #3c5d43, #0a251a);
   box-shadow:
-    inset 0 0 0 2px rgb(3 15 11 / 70%),
-    0 0 0 2px rgb(38 23 13 / 72%);
+    inset 0 0 0 2px rgb(3 15 11 / 72%),
+    inset 0 0.4rem 0.7rem rgb(255 230 158 / 8%),
+    0 0 0 1px rgb(31 18 11 / 92%);
 }
 
 .quick-item-bar__core::before,
 .quick-item-bar__core::after {
   position: absolute;
-  z-index: -1;
   content: "";
-  background: linear-gradient(90deg, #162e22, #35503a, #162e22);
 }
 
 .quick-item-bar__core::before {
-  top: 0.5rem;
-  right: -2rem;
-  left: -2rem;
-  height: 0.9rem;
+  inset: 0.34rem;
+  border: 1px solid rgb(228 196 111 / 18%);
+  border-radius: 0.12rem;
+  background:
+    linear-gradient(90deg, transparent 47%, rgb(3 15 11 / 48%) 48% 52%, transparent 53%),
+    linear-gradient(transparent 47%, rgb(3 15 11 / 48%) 48% 52%, transparent 53%);
 }
 
 .quick-item-bar__core::after {
-  top: -2rem;
-  bottom: -2rem;
-  left: 0.5rem;
-  width: 0.9rem;
+  top: 50%;
+  left: 50%;
+  width: 0.42rem;
+  height: 0.42rem;
+  border: 1px solid #d6b765;
+  border-radius: 50%;
+  background: #3a2b1a;
+  box-shadow: inset 0 0 0 1px rgb(4 15 11 / 82%);
+  transform: translate(-50%, -50%);
 }
 
 .quick-item-bar__inventory {
@@ -4571,12 +4612,12 @@ kbd {
 }
 
 .quick-item-bar__slot--up .quick-item-bar__key {
-  top: -0.36rem;
+  top: 0.12rem;
 }
 
 .quick-item-bar__slot--down .quick-item-bar__key {
   top: auto;
-  bottom: -0.36rem;
+  bottom: 0.12rem;
 }
 
 .quick-item-bar__slot--left .quick-item-bar__key,
@@ -4586,12 +4627,27 @@ kbd {
 }
 
 .quick-item-bar__slot--left .quick-item-bar__key {
-  left: -0.28rem;
+  left: 0.12rem;
 }
 
 .quick-item-bar__slot--right .quick-item-bar__key {
-  right: -0.28rem;
+  right: 0.12rem;
   left: auto;
+}
+
+.quick-item-bar__key {
+  display: grid;
+  min-width: 1.05rem;
+  min-height: 1.05rem;
+  place-items: center;
+  padding: 0.08rem 0.18rem;
+  border: 1px solid rgb(224 192 108 / 48%);
+  border-radius: 0.25rem;
+  background: rgb(2 15 11 / 82%);
+  color: #f7dea0;
+  font-size: 0.62rem;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 56%);
 }
 
 .peasant-resources.panel {

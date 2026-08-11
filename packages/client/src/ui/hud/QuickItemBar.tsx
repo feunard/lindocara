@@ -68,7 +68,11 @@ export function QuickItemBar() {
                 controlBindingLabel(QUICK_SLOT_CONTROLS[index] ?? "item1", mode, settings),
               )}
             </span>
-            {item ? <img src={consumableIconSource(item)} alt="" /> : <span>+</span>}
+            {item ? (
+              <img src={consumableIconSource(item)} alt="" />
+            ) : (
+              <span className="quick-item-bar__empty">+</span>
+            )}
             {item && <b>×{counts[item]}</b>}
             {remaining > 0 && <em>{(remaining / 1_000).toFixed(remaining < 950 ? 1 : 0)}</em>}
           </button>
