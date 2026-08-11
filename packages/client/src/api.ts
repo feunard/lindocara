@@ -282,6 +282,8 @@ export interface PartyListing {
   colors: PartyColor[];
   mine: boolean;
   myColor: PartyColor | null;
+  /** Volatile server hint: at least one hero currently has a live socket in this party. */
+  hasConnectedPlayers?: boolean;
 }
 
 export interface StoredParty {

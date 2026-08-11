@@ -605,6 +605,7 @@ export class PartyRoom {
         ),
       broadcastToParty: (room, message: ServerMessage) =>
         this.broadcastToParty(room.state, message),
+      hasConnectedPlayers: (room) => this.hasConnectedPlayers(room.state),
       registerRoom: (room, roomKey: string) => this.registerRoom(room.roomId, room.state, roomKey),
       roomEmptied: (room, roomKey: string) => this.roomEmptied(room.state, roomKey),
       markPartyCompleted: (room) => this.markPartyCompleted(room.state),
@@ -1866,6 +1867,14 @@ export class PartyRoom {
    *  `roomEmptied` removes an entry the instant its `WorldRoom` drains. */
   protected async broadcastToParty(state: PartyRoomState, message: ServerMessage): Promise<void> {
     await Promise.all([...state.rooms].map((roomKey) => this.sendToRoom(roomKey, message)));
+  }
+
+  /** Live party-list hint. A registered WorldRoom always contains at least one connected hero;
+   *  `roomEmptied` removes it as soon as its final socket leaves. The coordinator directory is
+   *  volatile and self-heals on the 10s presence beat, so this is deliberately a hint, never an
+   *  admission or persistence decision. */
+  protected hasConnectedPlayers(state: PartyRoomState): boolean {
+    return state.rooms.size > 0;
   }
 
   /** Registers one `WorldRoom` in this party's directory and returns the latest committed public

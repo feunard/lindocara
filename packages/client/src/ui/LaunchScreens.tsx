@@ -28,6 +28,8 @@ import type { AppRouter } from "./AppRouter.js";
 import { Carousel, type CarouselCard } from "./Carousel.js";
 import { HeroCreate } from "./HeroCreate.js";
 
+const PARTY_PRESENCE_REFRESH_MS = 10_000;
+
 function accentFor(id: string): number {
   let h = 0;
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 6;
@@ -68,23 +70,29 @@ export const loadPlayableAdventures = async (): Promise<AdventureSummary[]> =>
 function useLaunchList<T>(
   loaded: T[] | null,
   load: () => Promise<T[]>,
+  refreshMs?: number,
 ): { items: T[]; loading: boolean } {
   const [fetched, setFetched] = useState<T[] | null>(null);
+  const needsInitialLoad = loaded === null;
   useEffect(() => {
-    if (loaded !== null) return;
     let live = true;
-    void load()
-      .then((items) => {
-        if (live) setFetched(items);
-      })
-      .catch(() => {
-        if (live) setFetched([]);
-      });
+    const refresh = () => {
+      void load()
+        .then((items) => {
+          if (live) setFetched(items);
+        })
+        .catch(() => {
+          if (live && needsInitialLoad) setFetched([]);
+        });
+    };
+    if (needsInitialLoad) refresh();
+    const interval = refreshMs === undefined ? undefined : window.setInterval(refresh, refreshMs);
     return () => {
       live = false;
+      if (interval !== undefined) window.clearInterval(interval);
     };
-  }, [loaded, load]);
-  const items = loaded ?? fetched;
+  }, [needsInitialLoad, load, refreshMs]);
+  const items = fetched ?? loaded;
   return { items: items ?? [], loading: items === null };
 }
 
@@ -101,7 +109,7 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
   const [abandonError, setAbandonError] = useState(false);
   const [purgeError, setPurgeError] = useState(false);
   const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
-  const { items, loading } = useLaunchList(parties, loadMyParties);
+  const { items, loading } = useLaunchList(parties, loadMyParties, PARTY_PRESENCE_REFRESH_MS);
   const visibleItems = items.filter((party) => !removedIds.has(party.id));
   const activeParties = visibleItems.filter((party) => party.status === "open");
   const completedParties = visibleItems.filter((party) => party.status === "completed");
@@ -157,6 +165,7 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
     id: p.id,
     title: p.adventureTitle,
     subtitle: t("parties.slots", { used: p.colors.length, max: p.maxPlayers }),
+    status: p.hasConnectedPlayers ? t("parties.online") : undefined,
     accent: accentFor(p.adventureId),
     actionLabel: t("continue.abandon"),
     actionDisabled: abandoningId !== null,
@@ -243,7 +252,7 @@ export function NewGameScreen({ adventures }: { adventures: AdventureSummary[] |
 export function JoinScreen({ parties }: { parties: PartyListing[] | null }) {
   const router = useRouter<AppRouter>();
   const [pending, setPending] = useState<PartyListing | null>(null);
-  const { items, loading } = useLaunchList(parties, loadOpenParties);
+  const { items, loading } = useLaunchList(parties, loadOpenParties, PARTY_PRESENCE_REFRESH_MS);
 
   if (pending) return <HeroCreate party={pending} onBack={() => setPending(null)} />;
 
@@ -251,6 +260,7 @@ export function JoinScreen({ parties }: { parties: PartyListing[] | null }) {
     id: p.id,
     title: p.adventureTitle,
     subtitle: t("parties.slots", { used: p.colors.length, max: p.maxPlayers }),
+    status: p.hasConnectedPlayers ? t("parties.online") : undefined,
     accent: accentFor(p.adventureId),
   }));
 

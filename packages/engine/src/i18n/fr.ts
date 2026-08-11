@@ -2086,6 +2086,7 @@ export const fr: Record<keyof typeof en, string> = {
   "party.saved_session": "Partie persistante · {status}",
   "party.test_session": "Session de test jetable",
   "parties.slots": "{used}/{max} joueurs",
+  "parties.online": "En ligne",
   "parties.delete.title": "Supprimer {name} ?",
 
   // Effectif de la partie (écran des héros)

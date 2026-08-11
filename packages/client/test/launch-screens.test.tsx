@@ -29,6 +29,7 @@ interface PartyFixture {
   status: "open" | "completed";
   colors: string[];
   mine: boolean;
+  hasConnectedPlayers?: boolean;
 }
 
 function party(fixture: PartyFixture) {
@@ -49,6 +50,7 @@ const PARTIES: PartyFixture[] = [
     status: "open",
     colors: ["blue"],
     mine: true,
+    hasConnectedPlayers: true,
   },
   {
     id: "p-other-open",
@@ -58,6 +60,7 @@ const PARTIES: PartyFixture[] = [
     status: "open",
     colors: ["red"],
     mine: false,
+    hasConnectedPlayers: true,
   },
   {
     id: "p-mine-completed",
@@ -161,6 +164,7 @@ describe("launch screens (loader-driven routes)", () => {
     expect(screen.queryByText("Other Open")).toBeNull();
     expect(screen.queryByText("Other Full")).toBeNull();
     expect(screen.queryByText("Other Completed")).toBeNull();
+    expect(screen.getByText(t("parties.online"))).toBeTruthy();
   });
 
   it("playContinue's back button routes to /menu", async () => {
@@ -273,6 +277,7 @@ describe("launch screens (loader-driven routes)", () => {
     expect(screen.queryByText("Mine Adventure")).toBeNull();
     expect(screen.queryByText("Other Full")).toBeNull();
     expect(screen.queryByText("Other Completed")).toBeNull();
+    expect(screen.getByText(t("parties.online"))).toBeTruthy();
   });
 
   it("playJoin's back button routes to /menu", async () => {

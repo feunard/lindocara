@@ -16,6 +16,8 @@ export interface CarouselCard {
   emblem?: string;
   /** A stable accent (e.g. per-adventure), 0..5, so cards read as distinct without a colour picker. */
   accent?: number;
+  /** Short, low-emphasis live state shown on the card face. */
+  status?: string;
   /** Optional mouse/keyboard action displayed beneath the primary selection card. */
   actionLabel?: string;
   actionDisabled?: boolean;
@@ -41,6 +43,12 @@ function Card({
       data-accent={card.accent ?? 0}
       {...itemProps}
     >
+      {card.status ? (
+        <span className="carousel-card__status">
+          <span className="carousel-card__status-dot" aria-hidden="true" />
+          {card.status}
+        </span>
+      ) : null}
       <span className="carousel-card__art" aria-hidden="true">
         {card.emblem ?? card.title.slice(0, 1).toUpperCase()}
       </span>

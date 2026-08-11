@@ -1260,6 +1260,17 @@ describe("shared party materials and harvest nodes", () => {
 });
 
 describe("registerRoom / roomEmptied / broadcastToParty", () => {
+  test("the live-party hint follows the volatile room directory", async () => {
+    const { partyId } = await newPartyOnly("onlinehint");
+    const roomKey = `${partyId}:map`;
+
+    expect(await partyRoom.room.call(partyId, "hasConnectedPlayers")).toBe(false);
+    await partyRoom.room.call(partyId, "registerRoom", roomKey);
+    expect(await partyRoom.room.call(partyId, "hasConnectedPlayers")).toBe(true);
+    await partyRoom.room.call(partyId, "roomEmptied", roomKey);
+    expect(await partyRoom.room.call(partyId, "hasConnectedPlayers")).toBe(false);
+  });
+
   test("re-registration replays the latest durable state after a missed push and eviction", async () => {
     const { partyId } = await newPartyOnly("registerreplay");
     const roomKey = `${partyId}:${crypto.randomUUID()}`;

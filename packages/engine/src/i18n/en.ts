@@ -2062,6 +2062,7 @@ export const en = {
   "party.saved_session": "Persistent party · {status}",
   "party.test_session": "Disposable test session",
   "parties.slots": "{used}/{max} players",
+  "parties.online": "Online now",
   "parties.delete.title": "Delete {name}?",
 
   // Party roster (hero screen)

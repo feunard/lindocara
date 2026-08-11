@@ -21,6 +21,7 @@ import { adventures } from "../src/api/entities/adventures.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
 import { parties } from "../src/api/entities/parties.ts";
 import { partyMembers } from "../src/api/entities/partyMembers.ts";
+import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { HeroService } from "../src/api/services/HeroService.ts";
 import { createTestApp } from "./helpers.ts";
 
@@ -526,6 +527,32 @@ describe("purgeCompletedParty", () => {
 });
 
 describe("listParties pagination", () => {
+  test("reports whether a listed party currently owns a live world room", async () => {
+    const { token } = await registerAndLogin("pageonline");
+    const adventureId = await newPlayableAdventure(token);
+    const createdResponse = await authedFetch("/api/parties", token, {
+      method: "POST",
+      body: JSON.stringify({ adventureId }),
+    });
+    const created = (await createdResponse.json()) as { id: string };
+    const roomKey = `${created.id}:map`;
+
+    const online = async () => {
+      const response = await authedFetch("/api/parties", token);
+      const page = (await response.json()) as {
+        items: { id: string; hasConnectedPlayers: boolean }[];
+      };
+      return page.items.find((item) => item.id === created.id)?.hasConnectedPlayers;
+    };
+
+    expect(await online()).toBe(false);
+    const partyRoom = alepha.inject(PartyRoom);
+    await partyRoom.room.call(created.id, "registerRoom", roomKey);
+    expect(await online()).toBe(true);
+    await partyRoom.room.call(created.id, "roomEmptied", roomKey);
+    expect(await online()).toBe(false);
+  });
+
   test("paginates with a cursor and stops at nextCursor: null", async () => {
     const { userId, token } = await registerAndLogin("page");
     const adventureId = await newPlayableAdventure(token);

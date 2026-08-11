@@ -90,7 +90,9 @@ never duplicate the message variants in zod.
   (`engine/close-codes.ts`).
 - **`PartyRoom`** (headless, roomId `partyId`) — the party coordinator: room directory, party
   chat/victory fan-out, single writer of adventure state (switches/variables/self-switches, a
-  monotone version, write-through persistence via `AdventureStateService`).
+  monotone version, write-through persistence via `AdventureStateService`). Its room directory
+  also supplies the non-authoritative `hasConnectedPlayers` hint used by party listings; admission
+  never trusts that volatile value.
 - **`PresenceRoom`** (headless, roomId `heroId`) — the per-hero lease (`connectionId`, epoch,
   room, TTL 30s, renewed on `WorldRoom`'s 10s beat). The database stays the single monotone
   source of `hero.session_epoch` (`HeroEpochService`); every hero save keeps the

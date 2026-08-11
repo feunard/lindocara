@@ -15,11 +15,13 @@ import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
 import { enforceBodySizeCap, MAX_API_JSON_BYTES } from "../bodySizeCap.ts";
+import { PartyRoom } from "../realtime/PartyRoom.ts";
 import { PartyService } from "../services/PartyService.ts";
 import { rethrowAsPartyError } from "../services/partyAuthoring.ts";
 
 export class PartyController {
   partyService = $inject(PartyService);
+  partyRoom = $inject(PartyRoom);
 
   /** `GET /api/parties?cursor&limit` -> `{items: PartyListing[], nextCursor: string|null}`. */
   getParties = $action({
@@ -32,10 +34,19 @@ export class PartyController {
     handler: async ({ query, user }) => {
       const limit = query.limit === undefined ? undefined : Number(query.limit);
       try {
-        return await this.partyService.listPartiesPage(user.id, {
+        const page = await this.partyService.listPartiesPage(user.id, {
           ...(query.cursor !== undefined ? { cursor: query.cursor } : {}),
           ...(limit !== undefined ? { limit } : {}),
         });
+        const items = await Promise.all(
+          page.items.map(async (party) => ({
+            ...party,
+            hasConnectedPlayers: Boolean(
+              await this.partyRoom.room.call(party.id, "hasConnectedPlayers").catch(() => false),
+            ),
+          })),
+        );
+        return { ...page, items };
       } catch (error) {
         rethrowAsPartyError(error);
       }
