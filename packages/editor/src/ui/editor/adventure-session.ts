@@ -62,6 +62,7 @@ export async function ensureScratchAdventure(): Promise<AdventureEditorSession> 
   const draft = draftFromAdventure(created, infos);
   return {
     adventureId: created.id,
+    initialMapId: created.defaultMap.id,
     draftId: crypto.randomUUID(),
     draft,
     invalidatedLinks: [],
@@ -71,13 +72,17 @@ export async function ensureScratchAdventure(): Promise<AdventureEditorSession> 
 }
 
 /** Fetch an adventure and build the full editor session (draft + saved snapshot) for it. */
-export async function loadAdventureSession(id: string): Promise<AdventureEditorSession> {
+export async function loadAdventureSession(
+  id: string,
+  initialMapId?: string,
+): Promise<AdventureEditorSession> {
   const payload = await fetchAdventure(id);
   const loadedInfos = await Promise.all(payload.mapIds.map((mapId) => memberInfo(mapId)));
   const infos = new Map<string, DraftMemberInfo>(loadedInfos.map((info) => [info.mapId, info]));
   const draft = draftFromAdventure(payload, infos);
   return {
     adventureId: id,
+    ...(initialMapId === undefined ? {} : { initialMapId }),
     draftId: crypto.randomUUID(),
     draft,
     invalidatedLinks: [],

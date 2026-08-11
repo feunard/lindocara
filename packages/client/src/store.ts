@@ -17,6 +17,9 @@ import type { AdventureDraft } from "./adventure-draft.js";
 
 export interface AdventureEditorSession {
   adventureId: string | null;
+  /** Map explicitly chosen on the editor landing page. The shell consumes it only for its first
+   *  map load, then ordinary in-editor selection takes over. */
+  initialMapId?: string;
   draftId: string;
   draft: AdventureDraft;
   invalidatedLinks: string[];
