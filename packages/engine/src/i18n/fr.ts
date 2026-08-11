@@ -28,7 +28,7 @@ export const fr: Record<keyof typeof en, string> = {
   "inventory.hint":
     "Assignez un objet à l'un des trois raccourcis. Tous les consommables partagent un délai de 10 secondes.",
   "inventory.controller_hint":
-    "Manette : croix gauche/haut/droite utilise les emplacements 1/2/3 · croix bas ouvre le sac.",
+    "Flèches ou croix de manette : gauche/haut/droite utilise les emplacements 1/2/3 · bas ouvre le sac.",
   "inventory.assign": "Assigner au raccourci",
   "inventory.quickbar": "Objets rapides",
   "inventory.use": "Utiliser {item}",
@@ -521,9 +521,9 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.disconnected":
     "Aucune manette détectée — branchez-en une, puis appuyez sur un bouton.",
   "settings.controls.keyboard_hint":
-    "Choisissez une action, puis appuyez sur la touche que vous souhaitez utiliser. En jeu, maintenez le clic droit et glissez pour tourner la caméra.",
+    "Choisissez une action, puis appuyez sur la touche voulue. WASD déplace le héros ; les flèches utilisent les objets rapides et ouvrent le sac. Maintenez le clic droit et glissez pour tourner la caméra.",
   "settings.controls.gamepad_hint":
-    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick gauche déplace le héros, la croix est réservée aux actions et le stick droit tourne la caméra. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
+    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick gauche déplace le héros, la croix est réservée aux actions et le stick droit tourne la caméra. Le bouton inférieur interagit à portée et fait sauter sinon. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
   "settings.controls.press_key": "Appuyez sur une touche…",
   "settings.controls.press_button": "Appuyez sur un bouton…",
   "settings.controls.group.movement": "Déplacements",

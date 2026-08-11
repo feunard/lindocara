@@ -826,6 +826,7 @@ describe("world room events (FakeClock)", () => {
       col: 5,
       row: 5,
       graphicAssetId: PAGE2_GRAPHIC,
+      interactive: true,
       harvest: {
         state: "intact",
         generation: 0,

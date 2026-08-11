@@ -60,6 +60,10 @@ describe("Hud", () => {
     expect(screen.getByText("7/11")).toBeInTheDocument();
     expect(screen.getByText("40/220")).toBeInTheDocument();
     expect(
+      document.querySelector('.action-dock__experience [data-variant="xp"]'),
+    ).toBeInTheDocument();
+    expect(document.querySelector('#hud [data-variant="xp"]')).not.toBeInTheDocument();
+    expect(
       screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),
     ).toBeInTheDocument();
     expect(document.querySelector("#hud .inventory")).not.toBeInTheDocument();

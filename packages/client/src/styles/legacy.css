@@ -1703,6 +1703,45 @@ kbd {
   gap: 0.65rem;
 }
 
+.action-dock__main {
+  display: grid;
+  width: max-content;
+  max-width: 100%;
+  justify-self: center;
+  gap: 0.7rem;
+}
+
+.action-dock__experience {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr) 4.8rem;
+  align-items: center;
+  gap: 0.42rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.26rem 0.5rem;
+  border: 1px solid rgb(194 151 66 / 72%);
+  border-radius: 0.38rem;
+  background: linear-gradient(rgb(10 29 22 / 95%), rgb(3 16 12 / 98%));
+  color: #f2d995;
+  font-size: 0.62rem;
+  text-shadow: var(--game-text-shadow);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 231 158 / 9%),
+    0 0 0 2px rgb(31 19 11 / 72%),
+    0 0.45rem 1rem rgb(0 0 0 / 45%);
+}
+
+.action-dock__experience > strong {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.action-dock__experience > span {
+  color: #fff0bc;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .action-dock__group {
   position: relative;
   padding-top: 0.9rem;
@@ -4188,7 +4227,7 @@ kbd {
   grid-column: 1;
   grid-row: 1;
   grid-template-columns: 3.4rem minmax(0, 1fr);
-  min-width: 0;
+  min-width: 17.5rem;
   padding: 0.48rem 0.58rem;
 }
 
@@ -4221,11 +4260,16 @@ kbd {
 }
 
 #hud .identity label {
-  grid-template-columns: 1.75rem minmax(4rem, 1fr) 2.75rem;
+  grid-template-columns: 2rem minmax(6rem, 1fr) 3.1rem;
   gap: 0.25rem;
   color: #d7e2d5;
   font-size: 0.59rem;
   font-weight: 700;
+}
+
+#hud .identity .tiny-bar {
+  --tiny-track-cap-size: 1.45rem;
+  height: 1.45rem;
 }
 
 #hud .party {
@@ -4724,6 +4768,14 @@ kbd {
   #hud {
     grid-template-columns: 1fr;
     width: min(15rem, calc(100vw - 4.5rem - var(--safe-left)));
+  }
+
+  #hud .identity {
+    min-width: 0;
+  }
+
+  #hud .identity label {
+    grid-template-columns: 1.75rem minmax(0, 1fr) 2.75rem;
   }
 
   #hud .party,

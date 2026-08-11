@@ -136,14 +136,6 @@ export function Hud() {
               </span>
             </label>
           )}
-          {/* biome-ignore lint/a11y/noLabelWithoutControl: see above. */}
-          <label>
-            <span>{t("hud.spark")}</span>
-            <Bar value={selfState.xp} max={selfState.xpToNext} variant="xp" />
-            <span>
-              {selfState.xp}/{selfState.xpToNext}
-            </span>
-          </label>
         </section>
 
         {!activeParty && (

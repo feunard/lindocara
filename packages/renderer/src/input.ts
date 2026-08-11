@@ -201,7 +201,7 @@ export interface InputTracker {
   stop(): void;
 }
 
-export function trackInput(): InputTracker {
+export function trackInput(suppressGamepadJump: () => boolean = () => false): InputTracker {
   let keyboard: Input = { ...NO_INPUT };
   let virtual: Input = { ...NO_INPUT };
 
@@ -265,7 +265,7 @@ export function trackInput(): InputTracker {
         jump:
           (keyboard.jump ?? false) ||
           (virtual.jump ?? false) ||
-          (gamepad ? gamepadControlPressed("jump", gamepad) : false),
+          (gamepad ? gamepadControlPressed("jump", gamepad) && !suppressGamepadJump() : false),
         axisX: 0,
         axisY: 0,
       };
@@ -366,6 +366,7 @@ function isTextEntry(target: EventTarget | null): target is HTMLElement {
 export function trackActions(
   handlers: ActionHandlers,
   actionsEnabled: () => boolean = () => true,
+  interactionAvailable: () => boolean = () => true,
 ): () => void {
   const pressedSkillCodes = new Map<string, SkillSlot>();
   const onKeyDown = (event: KeyboardEvent) => {
@@ -417,6 +418,7 @@ export function trackActions(
         pressed.add(control);
         if (
           !previousGamepad.has(control) &&
+          (control !== "interact" || interactionAvailable()) &&
           (control === "settings" ||
             control === "talents" ||
             control === "inventory" ||

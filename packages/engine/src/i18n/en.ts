@@ -33,7 +33,7 @@ export const en = {
   "inventory.hint":
     "Assign any item to one of the three quick slots. All consumables share a 10 second cooldown.",
   "inventory.controller_hint":
-    "Controller: D-pad left/up/right uses slots 1/2/3 · D-pad down opens the bag.",
+    "Arrow keys or controller D-pad: left/up/right uses slots 1/2/3 · down opens the bag.",
   "inventory.assign": "Assign to quick slot",
   "inventory.quickbar": "Quick items",
   "inventory.use": "Use {item}",
@@ -515,9 +515,9 @@ export const en = {
   "settings.controls.connected": "Connected: {name}",
   "settings.controls.disconnected": "No controller detected — connect one, then press a button.",
   "settings.controls.keyboard_hint":
-    "Choose an action, then press the key you want to use. Right-drag in game to rotate the camera.",
+    "Choose an action, then press the key you want to use. WASD moves; arrow keys use quick items and open the bag. Right-drag rotates the camera.",
   "settings.controls.gamepad_hint":
-    "Choose an action, then press a button or move a stick. The left stick moves, the D-pad is reserved for actions, and the right stick rotates the camera. Standard Xbox, PS5, Switch and generic controllers are supported.",
+    "Choose an action, then press a button or move a stick. The left stick moves, the D-pad is reserved for actions, and the right stick rotates the camera. The south face button interacts in range and jumps otherwise. Standard Xbox, PS5, Switch and generic controllers are supported.",
   "settings.controls.press_key": "Press a key…",
   "settings.controls.press_button": "Press a button…",
   "settings.controls.group.movement": "Movement",

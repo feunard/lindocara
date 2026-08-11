@@ -42,7 +42,7 @@ export interface InputSettings {
 }
 
 const STORAGE_KEY = "lindocara.input";
-const INPUT_BINDINGS_VERSION = 4;
+const INPUT_BINDINGS_VERSION = 5;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
 const HERO_DIRECTION_CONTROLS = ["moveUp", "moveDown", "moveLeft", "moveRight"] as const;
 const listeners = new Set<() => void>();
@@ -51,10 +51,10 @@ const modeListeners = new Set<() => void>();
 export const DEFAULT_INPUT_SETTINGS: InputSettings = {
   controllerLayout: "xbox",
   keyboard: {
-    moveUp: [{ code: "KeyW" }, { code: "ArrowUp" }],
-    moveDown: [{ code: "KeyS" }, { code: "ArrowDown" }],
-    moveLeft: [{ code: "KeyA" }, { code: "ArrowLeft" }],
-    moveRight: [{ code: "KeyD" }, { code: "ArrowRight" }],
+    moveUp: [{ code: "KeyW" }],
+    moveDown: [{ code: "KeyS" }],
+    moveLeft: [{ code: "KeyA" }],
+    moveRight: [{ code: "KeyD" }],
     // The one control client-owned movement added (S3): high ground is reached by jumping now,
     // not by walking up it. Space was free — the legacy `skill1` binding that used to hold it was
     // migrated off in bindings version 3.
@@ -67,13 +67,13 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     skill5: [{ code: "KeyJ" }, { code: "Numpad4" }],
     interact: [{ code: "KeyE" }],
     potion: [{ code: "KeyQ" }],
-    item1: [{ code: "Digit1" }],
-    item2: [{ code: "Digit2" }],
-    item3: [{ code: "Digit3" }],
+    item1: [{ code: "Digit1" }, { code: "ArrowLeft" }],
+    item2: [{ code: "Digit2" }, { code: "ArrowUp" }],
+    item3: [{ code: "Digit3" }, { code: "ArrowRight" }],
     release: [{ code: "KeyR" }],
     map: [{ code: "KeyC" }],
     talents: [{ code: "KeyH" }],
-    inventory: [{ code: "KeyB" }],
+    inventory: [{ code: "KeyB" }, { code: "ArrowDown" }],
     quests: [{ code: "KeyN" }],
     chat: [{ code: "Enter" }],
     settings: [{ code: "Escape" }],
@@ -92,7 +92,8 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     skill3: [{ kind: "button", index: 3 }],
     skill4: [{ kind: "button", index: 1 }],
     skill5: [{ kind: "button", index: 11 }],
-    interact: [{ kind: "button", index: 4 }],
+    // The south face button is contextual: interaction consumes it in range, otherwise jump does.
+    interact: [{ kind: "button", index: 0 }],
     potion: [{ kind: "button", index: 17 }],
     item1: [{ kind: "button", index: 14 }],
     item2: [{ kind: "button", index: 12 }],
@@ -192,6 +193,15 @@ function isDpadButton(binding: GamepadBinding): boolean {
   return binding.kind === "button" && binding.index >= 12 && binding.index <= 15;
 }
 
+function isArrowKey(binding: KeyboardBinding): boolean {
+  return (
+    binding.code === "ArrowUp" ||
+    binding.code === "ArrowDown" ||
+    binding.code === "ArrowLeft" ||
+    binding.code === "ArrowRight"
+  );
+}
+
 function loadSettings(): InputSettings {
   const fallback = cloneDefaults();
   if (typeof localStorage === "undefined") return fallback;
@@ -205,6 +215,11 @@ function loadSettings(): InputSettings {
       fallback.gamepad[id] = validGamepadBindings(parsed.gamepad?.[id]) ?? fallback.gamepad[id];
     }
     for (const id of HERO_DIRECTION_CONTROLS) {
+      const withoutArrows = fallback.keyboard[id].filter((binding) => !isArrowKey(binding));
+      fallback.keyboard[id] =
+        withoutArrows.length > 0
+          ? withoutArrows
+          : DEFAULT_INPUT_SETTINGS.keyboard[id].map((binding) => ({ ...binding }));
       const withoutDpad = fallback.gamepad[id].filter((binding) => !isDpadButton(binding));
       fallback.gamepad[id] =
         withoutDpad.length > 0
@@ -227,6 +242,33 @@ function loadSettings(): InputSettings {
         const stored = parsed.keyboard?.[id]?.map((binding) => binding.code);
         const previous = legacy[id];
         if (stored && previous && stored.join("|") === previous.join("|")) {
+          fallback.keyboard[id] = DEFAULT_INPUT_SETTINGS.keyboard[id].map((binding) => ({
+            ...binding,
+          }));
+        }
+      }
+      const version4Keyboard = {
+        moveUp: ["KeyW", "ArrowUp"],
+        moveDown: ["KeyS", "ArrowDown"],
+        moveLeft: ["KeyA", "ArrowLeft"],
+        moveRight: ["KeyD", "ArrowRight"],
+        item1: ["Digit1"],
+        item2: ["Digit2"],
+        item3: ["Digit3"],
+        inventory: ["KeyB"],
+      } as const satisfies Partial<Record<ControlId, readonly string[]>>;
+      for (const id of [
+        "moveUp",
+        "moveDown",
+        "moveLeft",
+        "moveRight",
+        "item1",
+        "item2",
+        "item3",
+        "inventory",
+      ] as const) {
+        const stored = parsed.keyboard?.[id]?.map((binding) => binding.code);
+        if (stored?.join("|") === version4Keyboard[id].join("|")) {
           fallback.keyboard[id] = DEFAULT_INPUT_SETTINGS.keyboard[id].map((binding) => ({
             ...binding,
           }));
@@ -282,6 +324,12 @@ function loadSettings(): InputSettings {
           }));
         }
       }
+      const storedInteract = validGamepadBindings(parsed.gamepad?.interact);
+      if (storedInteract && sameGamepadBindings(storedInteract, [{ kind: "button", index: 4 }])) {
+        fallback.gamepad.interact = DEFAULT_INPUT_SETTINGS.gamepad.interact.map((binding) => ({
+          ...binding,
+        }));
+      }
     }
     return fallback;
   } catch {
@@ -333,7 +381,10 @@ export function setControllerLayout(controllerLayout: ControllerLayout): void {
   commit({ ...settings, controllerLayout });
 }
 
-export function setKeyboardBinding(control: ControlId, binding: KeyboardBinding): void {
+export function setKeyboardBinding(control: ControlId, binding: KeyboardBinding): boolean {
+  if (HERO_DIRECTION_CONTROLS.includes(control as (typeof HERO_DIRECTION_CONTROLS)[number])) {
+    if (isArrowKey(binding)) return false;
+  }
   const displaced = settings.keyboard[control].map((candidate) => ({ ...candidate }));
   const keyboard = Object.fromEntries(
     CONTROL_IDS.map((id) => {
@@ -348,6 +399,7 @@ export function setKeyboardBinding(control: ControlId, binding: KeyboardBinding)
     ...settings,
     keyboard,
   });
+  return true;
 }
 
 export function setGamepadBinding(control: ControlId, binding: GamepadBinding): boolean {
@@ -358,6 +410,13 @@ export function setGamepadBinding(control: ControlId, binding: GamepadBinding): 
   const gamepad = Object.fromEntries(
     CONTROL_IDS.map((id) => {
       if (id === control) return [id, [{ ...binding }]];
+      if (
+        binding.kind === "button" &&
+        binding.index === 0 &&
+        ((control === "jump" && id === "interact") || (control === "interact" && id === "jump"))
+      ) {
+        return [id, settings.gamepad[id].map((candidate) => ({ ...candidate }))];
+      }
       const remaining = settings.gamepad[id].filter(
         (candidate) =>
           candidate.kind !== binding.kind ||

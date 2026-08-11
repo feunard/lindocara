@@ -126,8 +126,7 @@ export function ControlsSettings() {
         return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      setKeyboardBinding(capture.control, { code: event.code });
-      setCapture(null);
+      if (setKeyboardBinding(capture.control, { code: event.code })) setCapture(null);
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
