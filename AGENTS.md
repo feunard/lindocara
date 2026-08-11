@@ -1165,6 +1165,26 @@ primitives with safe defaults; being `$env`-declared is what puts them on the ma
 production value is ever wanted. `$env` parses once per Alepha instance from a boot-time env
 snapshot â€” there is no live env mutation, in tests or on Workers.
 
+`ADMIN_USERNAMES` is a fourth `$env` primitive, and the only way anyone gets the `admin` role.
+Comma-separated usernames; `AdminRoleProvider` reconciles it against the realm at boot.
+
+**It is authoritative only when SET.** Unset or empty, the provider does nothing at all - no grants,
+no revocations. Set, it is authoritative in both directions: listed accounts gain `admin`, and any
+account holding `admin` that is not listed loses it. The asymmetry is the safety property: a plain
+reconciliation would silently demote every admin in any environment where the variable happens to be
+absent - a contributor's checkout, the CI boot smoke - at boot, with nothing failing. Revoking is
+therefore a redeploy, not a hand-written `UPDATE`.
+
+It grants a role to an account that EXISTS and never creates one, so a typo grants nobody (logged and
+skipped). And because it reconciles **at boot**, granting admin to an account registered *after*
+startup needs a restart - run with the variable set, register, then restart.
+
+`/admin` itself is guarded server-side by `$secure({ permissions: ["admin:ui"] })` on the route, not
+by any client check; the menu's ADMIN button is an affordance only. Enabling it also turned on the
+realm's `audits` and `apiKeys` features - see `AppSecurityProvider`'s docblock, which records that
+`apiKeys` opens a second authentication path into the whole API and that leaving it open to every
+account was a deliberate decision.
+
 ## Conventions
 
 - Browser checks (running the app, screenshots, driving the editor UI): use the `playwright-cli`
