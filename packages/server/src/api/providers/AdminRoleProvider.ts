@@ -60,11 +60,19 @@ export class AdminRoleProvider {
     if (wanted.length === 0) return;
 
     const wantedSet = new Set(wanted);
+    // Grant lookups are genuinely by username, so this map only needs (and only gets) the
+    // usernamed accounts. The revoke scan below must NOT reuse it: `username` is `.optional()` on
+    // alepha's `users` entity (only this app's realm enforces it at registration), so gating the
+    // revoke scan on the same map would silently exempt any usernameless admin from ever being
+    // revoked -- a permanent hole in "authoritative in both directions". `allFetched` stays
+    // ungated for exactly that reason.
     const byUsername = new Map<string, { id: string; roles: string[] }>();
+    const allFetched: { id: string; username: string | undefined; roles: string[] }[] = [];
 
     for (let page = 0; ; page += 1) {
       const result = await this.userService.findUsers({ page, size: RECONCILE_PAGE_SIZE });
       for (const user of result.content) {
+        allFetched.push({ id: user.id, username: user.username, roles: user.roles });
         if (user.username) {
           byUsername.set(user.username, { id: user.id, roles: user.roles });
         }
@@ -84,9 +92,10 @@ export class AdminRoleProvider {
       });
     }
 
-    for (const [username, user] of byUsername) {
+    for (const user of allFetched) {
       if (!user.roles.includes(ADMIN_ROLE)) continue;
-      if (wantedSet.has(username)) continue;
+      // A missing/unlisted username reads as "not listed" and is revoked like anything else.
+      if (user.username && wantedSet.has(user.username)) continue;
       await this.userService.updateUser(user.id, {
         roles: user.roles.filter((role) => role !== ADMIN_ROLE),
       });

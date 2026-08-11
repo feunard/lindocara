@@ -36,7 +36,7 @@ async function bootApp(env: {
 
 async function makeUser(
   app: ReturnType<typeof createTestApp>,
-  data: { username: string; roles: string[] },
+  data: { username?: string; roles: string[] },
 ): Promise<UserEntity> {
   return app.inject(UserService).createUser({ username: data.username, roles: data.roles });
 }
@@ -76,5 +76,22 @@ describe("AdminRoleProvider", () => {
   it("skips an unknown username without throwing", async () => {
     const app = await bootApp({ ADMIN_USERNAMES: "ghost" });
     await expect(app.inject(AdminRoleProvider).reconcile()).resolves.toBeUndefined();
+  });
+
+  it("revokes admin from an account that has no username at all", async () => {
+    // `username` is `.optional()` on alepha's `users` entity — only this app's realm setting
+    // enforces it at registration, and `UserService.createUser` (the admin-level primitive,
+    // unlike the registration flow) does not require one. A usernamed account stays present so
+    // the wanted-list has a real target for the grant half.
+    const app = await bootApp({ ADMIN_USERNAMES: "chosen" });
+    await makeUser(app, { username: "chosen", roles: ["user"] });
+    const usernameless = await makeUser(app, { roles: ["admin", "user"] });
+    expect(usernameless.username).toBeUndefined();
+
+    await app.inject(AdminRoleProvider).reconcile();
+
+    const after = await getUser(app, usernameless.id);
+    expect(after.roles).not.toContain("admin");
+    expect(after.roles).toContain("user");
   });
 });
