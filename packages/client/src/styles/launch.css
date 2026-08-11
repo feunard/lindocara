@@ -276,6 +276,12 @@
     box-shadow 0.14s ease,
     border-color 0.14s ease;
 }
+
+.carousel-card {
+  height: 16rem;
+  box-sizing: border-box;
+}
+
 .carousel-card__art {
   display: grid;
   place-items: center;
@@ -293,6 +299,16 @@
   color: var(--launch-gold-bright);
   letter-spacing: 0.03em;
 }
+
+.carousel-card__title {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 2.6em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .carousel-card__subtitle,
 .class-card__blurb {
   font-family: system-ui, sans-serif;
@@ -301,13 +317,26 @@
   text-align: center;
 }
 
+.carousel-card__subtitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .class-card__stat {
   color: var(--tiny-gold, #d9b96e);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.03em;
 }
-.carousel-card--focused,
+.carousel-card--focused {
+  border-color: var(--launch-gold);
+  box-shadow: var(--launch-glow);
+  transform: translateY(-8px);
+}
+
 .class-card--focused {
   border-color: var(--launch-gold);
   box-shadow: var(--launch-glow);
