@@ -122,6 +122,7 @@ prefixes in the file map further down map straight onto these homes:
 | [`@lindocara/catalog`](./packages/catalog/AGENTS.md) | `assets/` (raw Tiny Swords art) + the catalogue codegen (was `scripts/tiny-swords-catalog-*`) | engine | node (dev) |
 | [`@lindocara/testing`](./packages/testing/AGENTS.md) | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup) | engine | node/jsdom (dev) |
 | [`@lindocara/hd2d`](./packages/hd2d/AGENTS.md) | the HD-2D render engine (billboards, terrain mesh, lighting, post-fx) | three only | browser, framework-free (Three.js) |
+| [`@lindocara/audio`](./packages/audio/AGENTS.md) | the shared sample bank + the movement samples the game and the lab both play (extracted from `apps/lab/src/core/audio.ts`) | nothing | browser, framework-free (WebAudio) |
 | [`@lindocara/main`](./apps/main/AGENTS.md) | **the deployable app** â€” `alepha.config.ts`, the server/browser entries, `migrations/`, build/deploy | client, server | build â†’ Worker + assets |
 | [`apps/lab`](./apps/lab/AGENTS.md) | the HD-2D render **witness** â€” reproduces the PoC on `hd2d`, not a game; see its own `AGENTS.md` | engine (`hd2d/` only), hd2d, three | browser (Vite dev app) |
 
@@ -1020,6 +1021,19 @@ an `EventCode` and two dictionary entries instead (the i18n test enforces parity
 
 **The canvas is not React's.** `#stage` is a sibling of `#root`, created by the client bootstrap
 (`bootClient()` in `main.tsx`), not by the served HTML; nothing in `ui/` may touch it.
+
+**Movement audio is recorded, not synthesised.** `client/game/sound.ts` plays the shared bank
+([`@lindocara/audio`](./packages/audio/AGENTS.md)) — the very takes the lab was tuned against, with
+per-shot pitch/level jitter. It replaced a bandpass-noise synthesiser whose only variety was a
+rotating ±8%. `movement-sounds.ts` still owns the ROUTING, as an exhaustive switch over `HeroEvent`,
+so the compiler catches the day the rule grows an event; the package owns only what both consumers
+agree on. A key named there that the package does not define is silent with nothing failing —
+`movement-sounds.test.ts` is the guard.
+
+**A landing shakes the camera, off the same number that makes it loud.** The rule's `reception`
+force (0.35..1.4, `hero-step.ts`) drives the sample's gain AND `heroLandingImpulse`
+(`renderer/camera-shake.ts`). They must keep agreeing: a landing that is loud but still, or that
+shakes without a thud, reads as a bug in the physics rather than in the presentation.
 
 **`@lindocara/hd2d` has no module-level mutable state.** Camera yaw, the billboard registry, the
 cloud-shadow uniforms all live on `Hd2dContext` (`createHd2dContext()`), never a module variable.

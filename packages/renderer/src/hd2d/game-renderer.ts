@@ -49,7 +49,7 @@ import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
-import { CameraShake } from "../camera-shake.js";
+import { CameraShake, heroLandingImpulse, SHEEP_EXPLOSION_SHAKE } from "../camera-shake.js";
 import { CHARACTER_ATLAS_URL } from "../character-art.js";
 import {
   allCombatSheets,
@@ -1520,8 +1520,21 @@ export class Hd2dRenderer implements RendererLike {
     if (self) this.#visuals?.pulse(self.x, self.z, 0xffe29a, 0.48, 300);
   }
 
+  /**
+   * The local hero's own movement events — never a remote one's: the session hands this whatever
+   * `client.update` returned, and that is the one hero this client steps.
+   *
+   * Which is what makes the landing shake sound: the camera is over this hero, so its feet hitting
+   * the ground are the one impact that needs no distance test.
+   */
   playHeroMovement(events: readonly HeroEvent[], hero: PlayerSnapshot | null): void {
     this.#visuals?.playHeroMovement(events, hero);
+    const now = performance.now();
+    for (const event of events) {
+      if (event.t !== "reception") continue;
+      const impulse = heroLandingImpulse(event.force, now);
+      if (impulse) this.#cameraShake.trigger(impulse);
+    }
   }
 
   playLumenPortal(portal: PriestLumenPortalVisual): void {
@@ -1615,6 +1628,16 @@ export class Hd2dRenderer implements RendererLike {
 
   playSheepExplosion(x: number, z: number): void {
     this.#visuals?.playSheepExplosion(x, z);
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    if (!self) return;
+    this.#cameraShake.trigger({
+      id: `sheep-explosion-${x}-${z}`,
+      now: performance.now(),
+      intensity: SHEEP_EXPLOSION_SHAKE.intensity,
+      durationMs: SHEEP_EXPLOSION_SHAKE.durationMs,
+      distance: Math.hypot(self.x - x, self.z - z),
+      maxDistance: SHEEP_EXPLOSION_SHAKE.maxDistanceTiles,
+    });
   }
 
   playPolarityOrb(orb: PriestPolarityOrbVisual): void {

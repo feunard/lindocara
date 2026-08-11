@@ -1,0 +1,15 @@
+{
+  "name": "@lindocara/audio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}

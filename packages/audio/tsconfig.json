@@ -1,0 +1,15 @@
+{
+  // The shared sample bank. Browser (WebAudio lives on the DOM lib), but with NO dependency at all
+  // — not three, not React, not another package in this repo. That ignorance is what lets the game
+  // and the lab share it: `apps/lab` is fenced to `engine` + `hd2d` + `three`, so anything it
+  // shares with the game has to be cheap enough to add as a fourth dependency and carry nothing
+  // else in with it.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Only `assets.ts` needs these, for its `import.meta.glob` — the same boundary
+    // `packages/renderer` declares them for.
+    "types": ["vite/client"]
+  },
+  "include": ["src", "test"]
+}

@@ -1,3 +1,7 @@
+import { movementSampleKeys, SKID_LOOP_END_SECONDS, skidLoopUrl } from "@lindocara/audio/assets.js";
+import { createSampleBank, type SampleBank } from "@lindocara/audio/bank.js";
+import type { HeldLoop } from "@lindocara/audio/held-loop.js";
+import { SKID_MAX_GAIN } from "@lindocara/audio/movement.js";
 import {
   type AdventureAudioConfig,
   ambienceTrack,
@@ -20,11 +24,7 @@ import {
   uniqueSampleSources,
 } from "./combat-sounds.js";
 import { DynamicMusicPlayer } from "./dynamic-music.js";
-import {
-  type MovementSoundCue,
-  movementSkidIntensity,
-  movementSoundCue,
-} from "./movement-sounds.js";
+import { movementSkidIntensity, movementSoundCue } from "./movement-sounds.js";
 
 const MUSIC_BASE = 0.32;
 const AMBIENCE_BASE = 0.1;
@@ -98,10 +98,11 @@ export class GameSound {
   #buffers = new Map<string, AudioBuffer>();
   #sampleLoad: Promise<void> | null = null;
   #lastCast: { skillId: string; at: number } | null = null;
-  #movementTake = 0;
+  /** The recorded movement bank, shared with the lab. Opened on unlock, with the context. */
+  #movement: SampleBank | null = null;
+  #movementLoad: Promise<void> | null = null;
   #skidIntensity = 0;
-  #skidSource: AudioBufferSourceNode | null = null;
-  #skidGain: GainNode | null = null;
+  #skid: HeldLoop | null = null;
 
   constructor() {
     this.#music = new DynamicMusicPlayer(
@@ -131,6 +132,7 @@ export class GameSound {
     this.#music.start();
     this.#syncSceneAudio();
     void this.#loadSamples();
+    void this.#loadMovement();
   }
 
   configureScene(audio: SceneAudioInput = DEFAULT_ADVENTURE_AUDIO): void {
@@ -197,13 +199,22 @@ export class GameSound {
     this.#music.update(now);
   }
 
-  /** Executes the decorative consequences narrated by the pure movement rule. */
+  /**
+   * Executes the decorative consequences narrated by the pure movement rule.
+   *
+   * Silent until the bank has decoded — which is a few hundred milliseconds after the first
+   * gesture, and deliberately not awaited: a hero must start walking on the frame the player
+   * pressed a key, not on the frame the footsteps finished downloading.
+   */
   movement(events: readonly HeroEvent[]): void {
-    for (const event of events) {
-      const cue = movementSoundCue(event, this.#movementTake);
-      if (cue) {
-        this.#movementTake += 1;
-        this.#playMovementCue(cue);
+    const bank = this.#movement;
+    if (bank) {
+      const { muted, sfxVolume } = getAudioSettings();
+      if (!muted) {
+        for (const event of events) {
+          const cue = movementSoundCue(event);
+          if (cue) bank.play(cue.key, { gain: cue.gain * sfxVolume });
+        }
       }
     }
     this.#setSkidIntensity(movementSkidIntensity(events));
@@ -238,11 +249,8 @@ export class GameSound {
     this.#bossThreatened = false;
     this.#combatThreatReleaseAt = 0;
     this.#nightWeight = 0;
-    this.#skidSource?.stop();
-    this.#skidSource?.disconnect();
-    this.#skidGain?.disconnect();
-    this.#skidSource = null;
-    this.#skidGain = null;
+    this.#skid?.stop();
+    this.#skid = null;
     this.#skidIntensity = 0;
     this.#unlocked = false;
   }
@@ -390,77 +398,54 @@ export class GameSound {
     this.#syncSkidVolume();
   }
 
-  #playMovementCue(cue: MovementSoundCue): void {
-    const { muted, sfxVolume } = getAudioSettings();
-    const context = this.#context;
-    if (muted || context?.state !== "running") return;
-    const now = context.currentTime;
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(Math.max(0.0001, cue.volume * sfxVolume), now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + cue.duration);
-    gain.connect(context.destination);
-
-    if (cue.kind === "tone") {
-      const source = context.createOscillator();
-      source.type = "triangle";
-      source.frequency.setValueAtTime(cue.frequency, now);
-      source.frequency.exponentialRampToValueAtTime(cue.endFrequency, now + cue.duration);
-      source.connect(gain);
-      source.start(now);
-      source.stop(now + cue.duration);
-      return;
+  /**
+   * The movement bank, opened once per context.
+   *
+   * Separate from `#loadSamples` (the combat/UI specs) on purpose: those are one url per key with
+   * an authored level, this is a set of interchangeable takes per key, and the two are decoded into
+   * different structures. Sharing a loader would mean flattening the takes back into single urls,
+   * which is the variety this whole migration exists to restore.
+   */
+  async #loadMovement(): Promise<void> {
+    if (this.#movementLoad) {
+      // Already decoded, but `stopAmbient` disposed the skid loop on the way out of the last map.
+      // Re-opening it here rather than only on the first load is the difference between a skid that
+      // works for one map and a skid that works for the session — and nothing would have failed.
+      this.#openSkid();
+      return this.#movementLoad;
     }
-
-    const source = context.createBufferSource();
-    source.buffer = this.#noiseBuffer(context, cue.duration);
-    const filter = context.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = cue.frequency;
-    filter.Q.value = cue.q;
-    source.connect(filter);
-    filter.connect(gain);
-    source.start(now);
+    const context = this.#context;
+    if (!context) return;
+    const bank = createSampleBank({ context });
+    for (const [key, urls] of Object.entries(movementSampleKeys())) bank.define(key, urls);
+    this.#movement = bank;
+    this.#movementLoad = bank.load([...bank.sources(), skidLoopUrl()]).then(() => {
+      this.#openSkid();
+    });
+    return this.#movementLoad;
   }
 
-  #noiseBuffer(context: AudioContext, duration: number): AudioBuffer {
-    const frames = Math.max(1, Math.ceil(context.sampleRate * duration));
-    const buffer = context.createBuffer(1, frames, context.sampleRate);
-    const channel = buffer.getChannelData(0);
-    for (let i = 0; i < channel.length; i += 1) channel[i] = Math.random() * 2 - 1;
-    return buffer;
+  /** The skid is a HELD loop, opened once and then driven by gain — never re-triggered per frame. */
+  #openSkid(): void {
+    if (this.#skid || !this.#movement) return;
+    this.#skid =
+      this.#movement.loop(skidLoopUrl(), {
+        loopEnd: SKID_LOOP_END_SECONDS,
+      }) ?? null;
+    this.#syncSkidVolume();
   }
 
   #setSkidIntensity(intensity: number): void {
     this.#skidIntensity = intensity;
-    const context = this.#context;
-    if (intensity > 0 && context?.state === "running" && !this.#skidSource) {
-      const source = context.createBufferSource();
-      source.buffer = this.#noiseBuffer(context, 0.35);
-      source.loop = true;
-      const filter = context.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.value = 1_600;
-      filter.Q.value = 1.4;
-      const gain = context.createGain();
-      gain.gain.value = 0;
-      source.connect(filter);
-      filter.connect(gain);
-      gain.connect(context.destination);
-      source.start();
-      this.#skidSource = source;
-      this.#skidGain = gain;
-    }
     this.#syncSkidVolume();
   }
 
   #syncSkidVolume(): void {
-    const context = this.#context;
-    const gain = this.#skidGain;
-    if (!context || !gain) return;
+    const skid = this.#skid;
+    if (!skid) return;
     const { muted, sfxVolume } = getAudioSettings();
     const audible = this.#unlocked && !document.hidden && !muted;
-    const target = audible ? this.#skidIntensity * sfxVolume * 0.035 : 0;
-    gain.gain.setTargetAtTime(target, context.currentTime, 0.025);
+    skid.setGain(audible ? this.#skidIntensity * sfxVolume * SKID_MAX_GAIN : 0, 0.025);
   }
 
   async #loadSamples(): Promise<void> {

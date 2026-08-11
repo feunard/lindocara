@@ -7,6 +7,7 @@
 // une variante au hasard ET une hauteur légèrement différente — sans ça, cinq
 // échantillons en boucle s'entendent au bout de dix secondes.
 
+import { audioAssetUrl, SKID_LOOP_END_SECONDS, skidLoopUrl } from "@lindocara/audio/assets.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 
 type BankKey =
@@ -33,16 +34,23 @@ type BankKey =
   | "rupture"
   | "ploufGlace";
 
+// Samples the GAME shares with this lab now live in `@lindocara/audio` and are resolved through
+// its bundler glob rather than served from `public/sfx`. Neither app can reach the other's
+// `public/`, so a shared footstep has to arrive as a package import — see that package's
+// `assets.ts`. Everything still written `/sfx/...` below is lab-only content (its doors, its
+// dialogue tick, its ambience beds) and stays where it is.
+const shared = (name: string): string => audioAssetUrl(`${name}.ogg`);
+
 const BANQUE: Record<BankKey, readonly string[]> = {
-  pasHerbe: [1, 2, 3, 4, 5].map((i) => `/sfx/step-grass-${i}.ogg`),
-  pasSable: [1, 2, 3, 4, 5].map((i) => `/sfx/step-sand-${i}.ogg`),
+  pasHerbe: [1, 2, 3, 4, 5].map((i) => shared(`step-grass-${i}`)),
+  pasSable: [1, 2, 3, 4, 5].map((i) => shared(`step-sand-${i}`)),
   // Trois variantes seulement, contre cinq pour herbe/sable : générées une par une (le studio
   // local n'a pas de banque toute faite), et trois suffisent déjà à casser la répétition avec le
   // tirage aléatoire de `jouer()`. Les trois crêtes sont alignées au montage — voir le rapport de
   // la task, un pas sur trois traînait avant ce travail.
-  pasNeige: [1, 2, 3].map((i) => `/sfx/pas-neige-${i}.ogg`),
-  pasGlace: [1, 2, 3].map((i) => `/sfx/pas-glace-${i}.ogg`),
-  brasse: [1, 2, 3, 4].map((i) => `/sfx/swim-${i}.ogg`),
+  pasNeige: [1, 2, 3].map((i) => shared(`pas-neige-${i}`)),
+  pasGlace: [1, 2, 3].map((i) => shared(`pas-glace-${i}`)),
+  brasse: [1, 2, 3, 4].map((i) => shared(`swim-${i}`)),
   pop: [1, 2, 3].map((i) => `/sfx/pop-${i}.ogg`),
   coffre: [1, 2].map((i) => `/sfx/chest-${i}.ogg`),
   coffreFerme: [1, 2].map((i) => `/sfx/chest-close-${i}.ogg`),
@@ -53,13 +61,13 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // scripts/sync-assets.sh. Elles vont de 0.97 s à 1.97 s — un bêlement n'a pas
   // de durée standard, et c'est tant mieux.
   belement: [1, 2, 3, 4].map((i) => `/sfx/bleat-${i}.ogg`),
-  saut: ["/sfx/jump.ogg"],
+  saut: [shared("jump")],
   // The glider's canopy opening (Task 2 of the glider plan, `~/git/pixel-art-model`'s `sfx` lane) —
   // a single take, played once per deployment like `saut`/`reception` above, not a variant pool.
-  glider: ["/sfx/glider-open.ogg"],
-  reception: ["/sfx/land.ogg"],
-  entreeEau: ["/sfx/water-in.ogg"],
-  sortieEau: ["/sfx/water-out.ogg"],
+  glider: [shared("glider-open")],
+  reception: [shared("land")],
+  entreeEau: [shared("water-in")],
+  sortieEau: [shared("water-out")],
   // Validation d'une réplique. Le pack n'a aucun son d'interface, mais il a des
   // pas : un pas sur planche, détaché de la marche, n'est plus qu'un bloc de
   // bois frappé — le son de validation des jeux à dialogues, et il va bien à un
@@ -74,9 +82,9 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // donc des variantes comme les pas, pour la même raison (`jouer()` en tire une au hasard à
   // chaque appel). Rupture et plongeon n'arrivent qu'une fois par chute : un seul fichier chacun,
   // comme `saut`/`reception`/`entreeEau` plus haut.
-  craquement: [1, 2, 3].map((i) => `/sfx/craquement-${i}.ogg`),
-  rupture: ["/sfx/rupture.ogg"],
-  ploufGlace: ["/sfx/plouf-glace.ogg"],
+  craquement: [1, 2, 3].map((i) => shared(`craquement-${i}`)),
+  rupture: [shared("rupture")],
+  ploufGlace: [shared("plouf-glace")],
 };
 
 type Ambiance = "jour" | "nuit";
@@ -128,7 +136,7 @@ const BOUCLES: Record<BoucleKey, string> = {
   // cette infrastructure de boucle plutôt que d'en inventer une seconde : `demarrerBoucles`
   // (plus bas) la crée une fois, silencieuse par défaut puisque `ambiance` ne vaut jamais
   // "glisse" — exactement comme le foyer avant que `setFireDistance` ne lui donne un gain.
-  glisse: "/sfx/glisse.ogg",
+  glisse: skidLoopUrl(),
 };
 
 // `glisse`/`polaire` sont exportées avec une marge de queue au-delà du point de bouclage réel
@@ -140,7 +148,9 @@ const BOUCLES: Record<BoucleKey, string> = {
 // mer/feu) n'ont pas cette marge — elles n'ont pas été réencodées par ce travail, seulement
 // recopiées telles quelles depuis le pack.
 const LOOP_END_S: Partial<Record<BoucleKey, number>> = {
-  glisse: 1.0,
+  // Now declared beside the file it describes, in `@lindocara/audio` — the margin and the export
+  // that produced it must never drift apart, and the game needs the same number for the same file.
+  glisse: SKID_LOOP_END_SECONDS,
   polaire: 17.5,
 };
 

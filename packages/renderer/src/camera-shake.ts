@@ -1,5 +1,28 @@
 export const MAX_CAMERA_SHAKE_OFFSET = 12;
 
+/**
+ * The hero's own landing (`apps/lab/src/boot.ts`'s `shake(CAMERA.shake.land * choc)`).
+ *
+ * The curve stays LINEAR in the rule's landing weight, exactly as the lab's was; only the unit
+ * changed, because the lab displaced the camera in world units and this renderer offsets the
+ * projection in pixels. `intensityPerForce` is set so the ratio the lab was tuned at survives the
+ * conversion: a hard landing is worth about half a critter blast, and a gentle one is worth almost
+ * nothing — which is the whole point of scaling by fall speed at all.
+ */
+export const HERO_LANDING_SHAKE = { intensityPerForce: 1.35, durationMs: 220 } as const;
+
+/**
+ * The critter blast (`flock.onExplode = () => shake(0.26)` in the lab).
+ *
+ * Unlike a landing this can go off across the field, so it keeps a real radius and is scaled down
+ * with distance like every other world impact.
+ */
+export const SHEEP_EXPLOSION_SHAKE = {
+  intensity: 4,
+  durationMs: 240,
+  maxDistanceTiles: 9,
+} as const;
+
 export interface CameraShakeImpulse {
   /** Authoritative action id; the renderer rejects duplicates before an impulse reaches this seam. */
   id: string;
@@ -25,6 +48,28 @@ function phaseFor(id: string): number {
     hash = Math.imul(hash, 16_777_619);
   }
   return ((hash >>> 0) / 0xffff_ffff) * Math.PI * 2;
+}
+
+/**
+ * The hero's landing as an impulse, or `null` when the rule reported no weight at all.
+ *
+ * `distance: 0` against a nominal radius: these are the local hero's own feet, and there is nothing
+ * to attenuate. Every other caller of `trigger` reports a real world distance, because every other
+ * caller is shaking for something that happened somewhere else.
+ */
+export function heroLandingImpulse(force: number, now: number): CameraShakeImpulse | null {
+  if (!Number.isFinite(force) || force <= 0) return null;
+  return {
+    // The landing carries no authoritative id — it is a client-owned event, decided by the movement
+    // rule this client runs — so the timestamp seeds the phase instead. Two landings a frame apart
+    // therefore shake along different axes, which one shared id would not give.
+    id: `hero-landing-${now}`,
+    now,
+    intensity: force * HERO_LANDING_SHAKE.intensityPerForce,
+    durationMs: HERO_LANDING_SHAKE.durationMs,
+    distance: 0,
+    maxDistance: 1,
+  };
 }
 
 /**

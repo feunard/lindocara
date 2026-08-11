@@ -13,6 +13,7 @@
     "build:map": "tsx scripts/build-map.ts"
   },
   "dependencies": {
+    "@lindocara/audio": "*",
     "@lindocara/engine": "*",
     "@lindocara/hd2d": "*",
     "alepha": "*",

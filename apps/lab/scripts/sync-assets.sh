@@ -91,18 +91,24 @@ fi
 # On prend les variantes "Chain" pour le héros : il porte une armure, et le
 # cliquetis fait la moitié du travail.
 SND="$ROOT/public/sfx"
-mkdir -p "$SND"
+# Les sons de DÉPLACEMENT sont partagés avec le jeu et vivent dans `@lindocara/audio` : ni le labo
+# ni `apps/main` ne peut lire le `public/` de l'autre, donc un pas commun arrive par un import de
+# paquet (voir `packages/audio/src/assets.ts`). Ce script reste leur générateur unique — il écrit
+# simplement les partagés dans $PARTAGE et le contenu propre au labo dans $SND. Rediriger les deux
+# vers $SND ressusciterait les copies périmées à la prochaine synchro.
+PARTAGE="$ROOT/../../packages/audio/assets"
+mkdir -p "$SND" "$PARTAGE"
 for i in 1 2 3 4 5; do
-  cp "$SFX/SFX/Footsteps/Dirt/Dirt Chain Run $i.ogg" "$SND/step-grass-$i.ogg"
-  cp "$SFX/SFX/Footsteps/Dirt/Dirt Run $i.ogg"       "$SND/step-sand-$i.ogg"
+  cp "$SFX/SFX/Footsteps/Dirt/Dirt Chain Run $i.ogg" "$PARTAGE/step-grass-$i.ogg"
+  cp "$SFX/SFX/Footsteps/Dirt/Dirt Run $i.ogg"       "$PARTAGE/step-sand-$i.ogg"
 done
 for i in 1 2 3 4; do
-  cp "$SFX/SFX/Footsteps/Water/Water Chain Walk $i.ogg" "$SND/swim-$i.ogg"
+  cp "$SFX/SFX/Footsteps/Water/Water Chain Walk $i.ogg" "$PARTAGE/swim-$i.ogg"
 done
-cp "$SFX/SFX/Footsteps/Dirt/Dirt Chain Jump.ogg"   "$SND/jump.ogg"
-cp "$SFX/SFX/Footsteps/Dirt/Dirt Chain Land.ogg"   "$SND/land.ogg"
-cp "$SFX/SFX/Footsteps/Water/Water Chain Jump.ogg" "$SND/water-in.ogg"
-cp "$SFX/SFX/Footsteps/Water/Water Chain Land.ogg" "$SND/water-out.ogg"
+cp "$SFX/SFX/Footsteps/Dirt/Dirt Chain Jump.ogg"   "$PARTAGE/jump.ogg"
+cp "$SFX/SFX/Footsteps/Dirt/Dirt Chain Land.ogg"   "$PARTAGE/land.ogg"
+cp "$SFX/SFX/Footsteps/Water/Water Chain Jump.ogg" "$PARTAGE/water-in.ogg"
+cp "$SFX/SFX/Footsteps/Water/Water Chain Land.ogg" "$PARTAGE/water-out.ogg"
 for i in 1 2; do
   cp "$SFX/SFX/Doors Gates and Chests/Chest Open $i.ogg"  "$SND/chest-$i.ogg"
   cp "$SFX/SFX/Doors Gates and Chests/Chest Close $i.ogg" "$SND/chest-close-$i.ogg"
@@ -221,9 +227,9 @@ fi
 # encode. Opus mono like the bleats — a canvas snap gains nothing from stereo.
 if command -v ffmpeg >/dev/null; then
   ffmpeg -hide_banner -loglevel error -y -i "$ROOT/assets/sounds/glider-open.wav" \
-    -ac 1 -c:a libopus -b:a 96k "$SND/glider-open.ogg"
+    -ac 1 -c:a libopus -b:a 96k "$PARTAGE/glider-open.ogg"
 else
-  echo "! ffmpeg missing: public/sfx/glider-open.ogg was not regenerated" >&2
+  echo "! ffmpeg missing: packages/audio/assets/glider-open.ogg was not regenerated" >&2
 fi
 
 # --- musique ---------------------------------------------------------------
@@ -232,4 +238,4 @@ fi
 # fichiers dans `public/music/` et les déclarer dans `audio.ts` (Task 12)
 # suffira à la rallumer.
 
-echo "✓ $(ls "$OUT" | wc -l | tr -d ' ') textures dans public/tex/, $(ls "$SND" | wc -l | tr -d ' ') sons dans public/sfx/, $(ls "$VOIX" | wc -l | tr -d ' ') voix dans public/voice/"
+echo "✓ $(ls "$OUT" | wc -l | tr -d ' ') textures dans public/tex/, $(ls "$SND" | wc -l | tr -d ' ') sons dans public/sfx/, $(ls "$PARTAGE" | wc -l | tr -d ' ') sons partagés dans packages/audio/assets/, $(ls "$VOIX" | wc -l | tr -d ' ') voix dans public/voice/"
