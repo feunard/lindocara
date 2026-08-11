@@ -12,18 +12,31 @@
 import type { ColliderRect } from "./collider-index.js";
 import type { TerrainMaterial, TerrainQuerySource, TerrainRamp } from "./terrain-query.js";
 
-/** The five materials of `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
+/** The four materials of `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
  *  enough to validate a string coming from the network, it vanishes at compile time. */
-const TERRAIN_MATERIALS: readonly TerrainMaterial[] = [
-  "sable",
-  "herbe",
-  "neige",
-  "glace",
-  "glace-fine",
-];
+const TERRAIN_MATERIALS: readonly TerrainMaterial[] = ["sable", "herbe", "neige", "glace"];
 
-function isTerrainMaterial(value: unknown): value is TerrainMaterial {
-  return typeof value === "string" && (TERRAIN_MATERIALS as readonly string[]).includes(value);
+/**
+ * The retired thin-ice material, still accepted from storage.
+ *
+ * `decodeMap` rejects a map OUTRIGHT on one unknown material — the whole grid, not the one cell —
+ * so simply dropping `"glace-fine"` from the union would have turned every map ever painted with
+ * it into an unjoinable map, with no error anyone would connect to this change. Reading it as
+ * ordinary ice is the entire migration: thin ice already shared ice's friction and appearance, so
+ * a coerced cell behaves exactly as it looked, minus the cracking that no longer exists.
+ *
+ * Safe to delete once no stored map contains it — which nothing in this repo can prove, since
+ * authored maps live in the database.
+ */
+const RETIRED_THIN_ICE = "glace-fine";
+
+/** Reads one stored material, or `null` if it is not one. Coerces the retired thin ice to ice. */
+function toTerrainMaterial(value: unknown): TerrainMaterial | null {
+  if (typeof value !== "string") return null;
+  if (value === RETIRED_THIN_ICE) return "glace";
+  return (TERRAIN_MATERIALS as readonly string[]).includes(value)
+    ? (value as TerrainMaterial)
+    : null;
 }
 
 /**
@@ -211,9 +224,8 @@ export function decodeMap(s: string): MapData | null {
   for (const level of levels) {
     if (level !== null && !isFiniteNumber(level)) return null;
   }
-  for (const material of materials) {
-    if (!isTerrainMaterial(material)) return null;
-  }
+  const decodedMaterials = (materials as unknown[]).map(toTerrainMaterial);
+  if (decodedMaterials.some((material) => material === null)) return null;
 
   if (value.ramps !== undefined && !Array.isArray(value.ramps)) return null;
   const rawRamps = Array.isArray(value.ramps) ? value.ramps : [];
@@ -247,7 +259,7 @@ export function decodeMap(s: string): MapData | null {
     levelHeight,
     waterLevel,
     levels: levels as (number | null)[],
-    materials: materials as TerrainMaterial[],
+    materials: decodedMaterials as TerrainMaterial[],
     ...(value.ramps === undefined ? {} : { ramps: decodedRamps as TerrainRamp[] }),
     colliders: decodedColliders as ColliderRect[],
     spawns: decodedSpawns as { name: string; x: number; z: number }[],

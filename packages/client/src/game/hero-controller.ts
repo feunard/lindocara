@@ -16,12 +16,9 @@
  * what it was handed. Drowning is the counter-example on the same boundary: the rule below decides
  * that the hero ran out of breath, and the server alone decides what that costs.
  *
- * Two obligations `stepHero` cannot enforce and that live here:
- *
- * - **`stepHero` mutates `HeroState` in place** and returns events. It is not `next = step(prev)`.
- *   The state exposed below is the live object, typed `Readonly` so a caller cannot write through it.
- * - **`ThinIce.update(dt)` is the caller's job**, unconditionally, once per frame, before the step
- *   (see `StepDeps.glace`): the rule loads and releases cells but has no clock to refreeze one with.
+ * One obligation `stepHero` cannot enforce and that lives here: **`stepHero` mutates `HeroState`
+ * in place** and returns events. It is not `next = step(prev)`. The state exposed below is the
+ * live object, typed `Readonly` so a caller cannot write through it.
  */
 
 import { orientationFromMovement } from "@lindocara/engine/directional-combat.js";
@@ -37,7 +34,6 @@ import {
   type WorldSettings,
 } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
-import { createThinIce, type ThinIceOptions } from "@lindocara/engine/hd2d/thin-ice.js";
 import {
   BODY_RADIUS,
   canStand,
@@ -75,11 +71,6 @@ export const HERO_PHYSICS: Omit<HeroSettings, "speed"> = {
   traceEcart: 0.14,
 };
 
-/** The lab's three thin-ice thresholds, unchanged. No shipped map authors `glace-fine` yet, so this
- *  is dormant rather than dead: the rule reads it every frame regardless, and a map that grows a
- *  frozen shore must find the same numbers the lab was tuned against. */
-export const THIN_ICE: ThinIceOptions = { seuilCraquement: 0.5, seuilRupture: 1.4, regel: 6 };
-
 const COLD_CLIMATE_OFFSETS = [
   [0, 0],
   [-1, 0],
@@ -101,7 +92,7 @@ const COLD_CLIMATE_OFFSETS = [
 export function coldClimateAt(query: StepDeps["query"], x: number, z: number): boolean {
   return COLD_CLIMATE_OFFSETS.some(([dx, dz]) => {
     const material = query.kindAt(x + dx, z + dz);
-    return material === "neige" || material === "glace" || material === "glace-fine";
+    return material === "neige" || material === "glace";
   });
 }
 
@@ -198,8 +189,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     // constant the server's `canStand` uses, so the two agree on what a cliff is.
     maxStep: MAX_STEP,
   };
-  const glace = createThinIce(THIN_ICE);
-  const deps: StepDeps = { query: terrain.query, colliders: terrain.colliders, hero, world, glace };
+  const deps: StepDeps = { query: terrain.query, colliders: terrain.colliders, hero, world };
 
   const state = createHeroState(
     spawn.x,
@@ -338,9 +328,6 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
       mobility = { remaining: grant.distance, window: grant.duration };
     },
     step(input, dt) {
-      // Unconditional, before the step and independent of where the hero is: a released cell only
-      // refreezes on real elapsed time (see `StepDeps.glace`).
-      glace.update(dt);
       if (mobility) {
         phase(input, dt);
         // Same two heading writes as below, from the same input: a phased hero still faces where

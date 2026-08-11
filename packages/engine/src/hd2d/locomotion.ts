@@ -52,8 +52,6 @@ export function pasAmorti(
 
 /** `null` = off the map or in the water: swimming there, ground friction does not apply, but the
  *  function must still return something finite rather than force every caller to test for it.
- *  `"glace-fine"` (thin ice) shares `"glace"`'s (ice) friction — the same skidding behavior until
- *  it gives way (a later task gave it its own cracking visual, not its own physics).
  *  `"sable"` (sand) has no rule of its own yet: it falls back to `"herbe"` (grass).
  *
  *  `hero` as a parameter rather than `HERO` imported from `settings.ts`: this is what let this
@@ -62,7 +60,6 @@ export function pasAmorti(
 export function frictionPour(m: TerrainMaterial | null, hero: HeroSettings): number {
   switch (m) {
     case "glace":
-    case "glace-fine":
       return hero.friction.glace;
     case "neige":
       return hero.friction.neige;
@@ -79,7 +76,6 @@ export function frictionPour(m: TerrainMaterial | null, hero: HeroSettings): num
 export function vitesseMaxPour(m: TerrainMaterial | null, hero: HeroSettings): number {
   switch (m) {
     case "glace":
-    case "glace-fine":
       return hero.speed * hero.vitesseSol.glace;
     case "neige":
       return hero.speed * hero.vitesseSol.neige;

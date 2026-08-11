@@ -1191,7 +1191,6 @@ export const en = {
   "editor.palette.terrain.sable": "Sand",
   "editor.palette.terrain.neige": "Snow",
   "editor.palette.terrain.glace": "Ice",
-  "editor.palette.terrain.glace-fine": "Thin ice",
   "editor.palette.terrain.water": "Water",
   "editor.palette.showMore": "Show more ({shown}/{total})",
   "editor.palette.category.all": "All categories",

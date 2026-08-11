@@ -49,8 +49,11 @@ export const MAX_MAP_JSON_BYTES = 4 * 1024 * 1024;
  *
  * Derived from the largest LEGITIMATE payload rather than picked round. A heightfield's own size is
  * bounded by `MAX_HEIGHTFIELD_SIZE` (256), so the worst honest grid is 256² = 65 536 cells with
- * every level `null` (`"null,"`, 5 bytes) and every material the longest name (`"glace-fine",`,
- * 13 bytes, 15 once escaped inside the JSON body that carries it): ~1.31 MB. 2 MiB leaves ~780 KB
+ * every level `null` (`"null,"`, 5 bytes) and every material the longest name — still the retired
+ * `"glace-fine",` (13 bytes, 15 once escaped inside the JSON body that carries it), because stored
+ * maps painted with it are still accepted and read as ice: ~1.31 MB. The cap therefore stays where
+ * it is; lowering it to the live materials' 8 bytes would start REJECTING maps this app has already
+ * written. 2 MiB leaves ~780 KB
  * over that for colliders, spawns, props and events — whose COUNTS are bounded separately and
  * relative to the same `size` (`parseHeightfieldBody`), because bytes alone cannot tell a dense
  * 256² map from a 1×1 one padded with 160 000 colliders.

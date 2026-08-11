@@ -40,30 +40,6 @@ describe("stepHero — swimming", () => {
     expect(s.swimming).toBe(true);
   });
 
-  // The trap the snow island uncovered (see `thin-ice.ts`'s `compteCommeEau` docstring): a BROKEN
-  // thin-ice cell keeps the real, non-zero height of the terrain it covers — only its MATERIAL
-  // changes (`kindAt`), never its height field (`heightAt`). Without the `compteCommeEau` guard,
-  // `sol !== null` alone would be enough to surface the hero back out of the water one frame after
-  // falling through the ice, before breath even had time to drop. The fix (the guard `&&`-ed with
-  // `sol !== null`) is already in the ported code — this test covers it, which no code reading had.
-  it("doesn't surface on its own on a broken ice cell sitting on terrain of non-zero height", () => {
-    const rompue = {
-      charge: () => "rompue" as const,
-      relache: () => {},
-      update: () => {},
-      etat: () => "rompue" as const,
-      taille: () => 0,
-    };
-    // Non-zero height EVERYWHERE: reproduces a thin-ice cell sitting on raised terrain — the hole
-    // it left keeps the same terrain height as the rest of the island.
-    const deps = { ...depsPlates({ hauteur: () => 5 }), glace: rompue };
-    const s = createHeroState(0, 0, 0, 10, 2.2);
-    s.swimming = true;
-    const evts = stepHero(s, immobile, 1 / 60, deps);
-    expect(s.swimming).toBe(true);
-    expect(evts.some((e) => e.t === "sortie-eau")).toBe(false);
-  });
-
   // The cadence debt this rule closed (see its originating task's report): the footstep gate is
   // evaluated INSIDE `stepHero`, AFTER the swim resolution — never before. Before that fix, the
   // gate still read `swimming === false` (the value from the START of the tick) right on the frame

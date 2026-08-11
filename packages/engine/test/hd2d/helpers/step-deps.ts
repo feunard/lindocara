@@ -44,12 +44,5 @@ export function depsPlates(o: Options = {}): StepDeps {
       traceEcart: 0.12,
     },
     world: { size: 72, levelHeight: 0.9, waterLevel: 0, maxStep: 1 },
-    glace: {
-      charge: () => "intacte",
-      relache: () => {},
-      update: () => {},
-      etat: () => "intacte",
-      taille: () => 0,
-    },
   };
 }

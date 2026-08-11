@@ -1,7 +1,7 @@
 import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
-import { ActorMotionTracker } from "@lindocara/renderer/actor-motion.js";
+import { ACTOR_FRAME_MS, ActorMotionTracker } from "@lindocara/renderer/actor-motion.js";
 import type { ActorView, BillboardScene } from "@lindocara/renderer/hd2d/billboards.js";
 import { createBillboardRegistry } from "@lindocara/renderer/hd2d/billboards.js";
 import {
@@ -151,6 +151,90 @@ describe("one-shot billboard strips", () => {
     expect(map.offset.x).toBe(held);
     registry.sync([{ ...actor, animationTimeMs: 100, animationLoop: true }]);
     expect(map.offset.x).not.toBe(held);
+    registry.dispose();
+  });
+});
+
+describe("looping strip cadence", () => {
+  function harness() {
+    const root = new THREE.Scene();
+    const scene = {
+      root,
+      query: { heightAt: () => 0 },
+      size: 4,
+      waterLevel: 0,
+    } as unknown as BillboardScene;
+    // 1152x192 — the six-frame run strip the lab was tuned against.
+    const texture = new THREE.Texture({
+      width: 1152,
+      height: 192,
+    } as unknown as HTMLImageElement);
+    const textures: TextureRegistry = {
+      async decode() {},
+      get: () => texture,
+      urls: () => [],
+      dispose() {},
+    };
+    const registry = createBillboardRegistry(createHd2dContext(), scene, textures);
+    const base: ActorView = {
+      id: "hero",
+      kind: "player",
+      x: 0,
+      y: 0,
+      z: 0,
+      airborne: false,
+      swimming: false,
+      gliding: false,
+      vy: 0,
+      facing: "east",
+      textureKey: "run",
+      animationTimeMs: 0,
+      animationLoop: true,
+    };
+    return { registry, root, base };
+  }
+
+  /** Which frame index the registry actually drew, read back off the texture offset. */
+  function frameAt(
+    registry: ReturnType<typeof createBillboardRegistry>,
+    root: THREE.Scene,
+    actor: ActorView,
+    elapsed: number,
+  ): number {
+    registry.sync([{ ...actor, animationTimeMs: elapsed }]);
+    const mesh = root.children[0] as THREE.Mesh;
+    const map = (mesh.material as THREE.MeshLambertMaterial).map;
+    if (!map) throw new Error("expected an actor texture");
+    return Math.round(map.offset.x * 6);
+  }
+
+  it("runs at the lab's 12 fps, not at the idle cadence", () => {
+    const { registry, root, base } = harness();
+    const actor = { ...base, frameDurationMs: ACTOR_FRAME_MS.run };
+    // One second of running is twelve frames: on a six-frame strip that is two full cycles, so the
+    // strip is back on frame 0. At the old shared 145 ms it would only have reached frame 6 % 6 —
+    // also 0 — so the midpoints below are what actually separate the two cadences.
+    expect(frameAt(registry, root, actor, 0)).toBe(0);
+    expect(frameAt(registry, root, actor, 1_000 / 12)).toBe(1);
+    expect(frameAt(registry, root, actor, 500)).toBe(0);
+    // 250 ms in: three frames at 12 fps, but only one at the old 145 ms cadence.
+    expect(frameAt(registry, root, actor, 250)).toBe(3);
+    registry.dispose();
+  });
+
+  it("idles slower than it runs, at the lab's 7 fps", () => {
+    const { registry, root, base } = harness();
+    expect(ACTOR_FRAME_MS.idle).toBeGreaterThan(ACTOR_FRAME_MS.run);
+    const idle = { ...base, frameDurationMs: ACTOR_FRAME_MS.idle };
+    expect(frameAt(registry, root, idle, 250)).toBe(1);
+    registry.dispose();
+  });
+
+  it("falls back to the idle cadence when no motion was named", () => {
+    const { registry, root, base } = harness();
+    // Being wrong towards idle is the safe direction: a slightly slow idle reads as calm, a slow
+    // run reads as skating.
+    expect(frameAt(registry, root, base, 250)).toBe(1);
     registry.dispose();
   });
 });

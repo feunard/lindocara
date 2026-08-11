@@ -189,8 +189,6 @@ const atlases: Record<string, TerrainAtlas> = {
   },
   // Task 2 : surfaces générées sur la géométrie d'origine (voir `scripts/compose-tileset.py`).
   // Même bloc/mêmes colonnes que `lvl0`/`lvl1` : seul le remplissage a changé, la découpe et les
-  // raccords viennent toujours du même bloc 4x4. `"glace-fine"` (voir `island.ts`, `materialAt`)
-  // se dessine avec CET atlas `glace` : c'est une matière de règle, pas encore d'apparence.
   neige: {
     texture: textures.get("/tex/tileset-neige.png"),
     cols: 9,
@@ -466,8 +464,7 @@ if (benchLevel !== "off") {
 // `ZONE_POLAIRE.souffle`), et chacun s'est noyé avant d'accoster. Sans poignée, le seul recours
 // était de bricoler `SPAWN` puis de recharger toute la scène. `versIleDuNord` évite à quiconque
 // d'avoir à retrouver les coordonnées de `NORD` (`settings.ts`) : elle pose le héros au centre du
-// lac gelé — solide (matière "glace", pas "glace-fine"), à quelques pas seulement de la couronne
-// de glace fine à tester. Exposée INCONDITIONNELLEMENT (pas seulement sous `?bench=`) : contrairement
+// lac gelé. Exposée INCONDITIONNELLEMENT (pas seulement sous `?bench=`) : contrairement
 // au harnais de mesure, ce n'est pas une charge coûteuse, et c'est utile dans toute session de dev.
 (
   globalThis as unknown as {
@@ -701,16 +698,17 @@ const GROTA_DIT = [
   "Repars avant la nuit. Elle tombe pour de bon, ici. Au large, on ne voit plus sa propre main.",
 ];
 
-// Nanuq, l'habitant de la banquise (Task 12 de l'île de neige) : quatre répliques, comme Grota,
-// mais qui parlent du FROID, de la glace qui ne tient pas partout, et de ce qu'il fait là — le
-// registre à tenir est celui de Grota (terse, sec, jamais explicatif), pas un cahier des charges.
-// La 3e réplique est un tutoriel déguisé : elle décrit la VRAIE mécanique de la glace fine
-// (`@lindocara/engine/hd2d/thin-ice.js`, `GLACE_FINE` dans `settings.ts`) — elle craque, PUIS elle cède.
+// Nanuq, l'habitant de la banquise (Task 12 de l'île de neige) : il parle du FROID et de ce qu'il
+// fait là — le registre à tenir est celui de Grota (terse, sec, jamais explicatif).
+//
+// Il en disait DEUX de plus, un tutoriel déguisé sur la glace fine : elle grince avant de céder,
+// et ce qui a cédé regèle. Cette mécanique a été retirée, et les deux répliques avec elle plutôt
+// que de laisser un PNJ enseigner une règle qui n'existe plus. Ses prises `habitant-3`/`habitant-4`
+// (`public/voice/`) attendent donc d'être ré-écrites, pas de disparaître : `sayLine` les jouera
+// dès que ce tableau reprendra quatre entrées.
 const HABITANT_DIT = [
   "Tiens. Un chevalier qui a nagé jusqu’ici. Tu ne dois plus sentir tes doigts.",
   "Je pose mes lignes où le poisson remonte respirer. Le reste du temps, je répare ce que le vent défait.",
-  "La glace grince avant de céder, un vrai avertissement, pas un bruit de rien. Si tu l’entends sous tes pas, bouge.",
-  "Elle ne tient pas partout pareil. Ce qui a cédé regèle, avec le temps, mais pas ce jour-là. Choisis où tu marches.",
 ];
 
 const fondu = document.getElementById("fade");

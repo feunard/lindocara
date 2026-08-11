@@ -1333,13 +1333,11 @@ describe("AdventureEditorScreen shell", () => {
       material: "herbe",
     });
 
-    await userEvent.click(
-      screen.getByRole("button", { name: t("editor.palette.terrain.glace-fine") }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: t("editor.palette.terrain.glace") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "elevation",
       level: 2,
-      material: "glace-fine",
+      material: "glace",
     });
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.stairs") }));

@@ -135,7 +135,7 @@ const levelSet = (h: number): string => LEVEL_SET[Math.min(h, LEVEL_SET.length -
  */
 export function renderMaterialAt(kind: TerrainMaterial, level: number): string {
   if (kind === "sable" || kind === "neige") return kind;
-  if (kind === "glace" || kind === "glace-fine") return "glace";
+  if (kind === "glace") return "glace";
   return levelSet(level);
 }
 
@@ -241,7 +241,6 @@ export function generateIsland(opts: GenerateIslandOptions): {
   // (`NORD.r` majoré de l'amplitude de son onde, ~8.3 unités ici) : il sert seulement à écarter les
   // trois autres îles, qui sont à des dizaines d'unités de distance.
   const LAC_R = 2.5;
-  const GLACE_FINE_LARGEUR = 0.9;
   const c = size / 2;
 
   const kinds = new Array<TerrainMaterial | null>(size * size).fill(null);
@@ -252,8 +251,7 @@ export function generateIsland(opts: GenerateIslandOptions): {
       const z = j + 0.5 - c;
       const dNord = Math.hypot(x - NORD.x, z - NORD.z);
       if (dNord < NORD_EMPRISE) {
-        kinds[j * size + i] =
-          dNord < LAC_R ? "glace" : dNord < LAC_R + GLACE_FINE_LARGEUR ? "glace-fine" : "neige";
+        kinds[j * size + i] = dNord < LAC_R ? "glace" : "neige";
         continue;
       }
       kinds[j * size + i] = isBeach(i, j, size, at, distEau) ? "sable" : "herbe";

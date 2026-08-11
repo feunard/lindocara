@@ -48,7 +48,7 @@ import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
-import { type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
+import { ACTOR_FRAME_MS, type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
 import { CameraShake, heroLandingImpulse, SHEEP_EXPLOSION_SHAKE } from "../camera-shake.js";
 import { CHARACTER_ATLAS_URL } from "../character-art.js";
 import {
@@ -301,6 +301,7 @@ export function playerActorView(
       : actorSheetView(sheet)),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
+    frameDurationMs: ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
     opacity:
       player.life === "ghost"
@@ -1137,6 +1138,7 @@ export class Hd2dRenderer implements RendererLike {
         ...actorSheetView(sheet),
         animationTimeMs: timing?.elapsed ?? animationTimeMs,
         ...(timing ? { animationDurationMs: timing.duration } : {}),
+        frameDurationMs: ACTOR_FRAME_MS[monster.dead ? "idle" : motion.motion],
         animationLoop: motion.motion !== "attack",
         healthBar: {
           value: monster.hp,
@@ -1195,6 +1197,7 @@ export class Hd2dRenderer implements RendererLike {
         facing: motion.direction ? facingOf(motion.direction) : "north",
         ...actorSheetView(sheet),
         animationTimeMs,
+        frameDurationMs: ACTOR_FRAME_MS[motion.motion],
         animationLoop: true,
       });
     }
@@ -1238,6 +1241,7 @@ export class Hd2dRenderer implements RendererLike {
         ...actorSheetView(sheet),
         ...(isSheepAssetId(assetId) ? { renderHeight: SHEEP_RENDER_HEIGHT } : {}),
         animationTimeMs,
+        frameDurationMs: ACTOR_FRAME_MS[motion],
         animationLoop: true,
       });
     }

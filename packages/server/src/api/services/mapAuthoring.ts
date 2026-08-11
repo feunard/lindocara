@@ -285,8 +285,10 @@ export type HeightfieldBodyResult =
  *
  * **The value is derived from the honest worst case, not picked round.** `MAX_HEIGHTFIELD_SIZE`
  * caps a grid at 256² = 65 536 cells, so the largest legitimate encoding is every level `null`
- * (`"null,"`, 5 B → 327 680) plus every material the longest name (`"glace-fine",`, 13 B →
- * 851 968), about **1.18 MB** of unavoidable grid. 1.5 MiB leaves ~390 KB over it — room for some
+ * (`"null,"`, 5 B → 327 680) plus every material the longest name — still the retired
+ * `"glace-fine",` (13 B → 851 968), since stored maps carrying it are still accepted and read as
+ * ice — about **1.18 MB** of unavoidable grid. Lowering it to the live materials' 8 B would start
+ * rejecting maps this app has already written. 1.5 MiB leaves ~390 KB over it — room for some
  * 5 500 decoration entries at ~70 B each, roughly nine times the density of the proving map
  * (48 elements over 5 184 cells), on a grid twelve times its size. Real terrain is nowhere near:
  * the 72² proving heightfield is 67 816 B.

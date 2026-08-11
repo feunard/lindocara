@@ -29,10 +29,7 @@ type BankKey =
   | "entreeEau"
   | "sortieEau"
   | "suivant"
-  | "rafale"
-  | "craquement"
-  | "rupture"
-  | "ploufGlace";
+  | "rafale";
 
 // Samples the GAME shares with this lab now live in `@lindocara/audio` and are resolved through
 // its bundler glob rather than served from `public/sfx`. Neither app can reach the other's
@@ -77,14 +74,6 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   // aller-retour au studio pour un seul fichier. Déclenchée par Task 9 (voir `gust()` plus bas) sur
   // le front montant du pulse visuel de brouillard polaire, câblé depuis `main.ts`.
   rafale: ["/sfx/rafale.ogg"],
-  // La glace fine (Task 7, `@lindocara/engine/hd2d/thin-ice.js`) : trois temps, trois sons. Le craquement est
-  // RÉPÉTÉ tant qu'on reste dessus après le premier avertissement (voir `hero.ts`) — il lui faut
-  // donc des variantes comme les pas, pour la même raison (`jouer()` en tire une au hasard à
-  // chaque appel). Rupture et plongeon n'arrivent qu'une fois par chute : un seul fichier chacun,
-  // comme `saut`/`reception`/`entreeEau` plus haut.
-  craquement: [1, 2, 3].map((i) => shared(`craquement-${i}`)),
-  rupture: [shared("rupture")],
-  ploufGlace: [shared("plouf-glace")],
 };
 
 type Ambiance = "jour" | "nuit";
@@ -493,10 +482,7 @@ function jouer(
   src.start();
 }
 
-/** Choisit l'échantillon et son niveau pour chaque matière. `glace-fine` partage le son de
- *  `glace` — comme elle partage déjà sa friction (`locomotion.ts`) : ce n'est pas encore une
- *  matière de RENDU distincte (Task 7 lui donnera son propre visuel de craquelure), donc pas
- *  encore un son distinct non plus. */
+/** Choisit l'échantillon et son niveau pour chaque matière. */
 function pasDe(sol: TerrainMaterial): { clef: BankKey; gain: number } {
   switch (sol) {
     case "sable":
@@ -505,7 +491,6 @@ function pasDe(sol: TerrainMaterial): { clef: BankKey; gain: number } {
       // Étouffé : un pas de neige n'a pas le mordant sec d'un pas de glace.
       return { clef: "pasNeige", gain: 0.85 };
     case "glace":
-    case "glace-fine":
       return { clef: "pasGlace", gain: 0.95 };
     case "herbe":
       return { clef: "pasHerbe", gain: 0.9 };
@@ -513,7 +498,7 @@ function pasDe(sol: TerrainMaterial): { clef: BankKey; gain: number } {
 }
 
 /** Un pas. Chaque matière tire sa propre variante ET sa propre hauteur au hasard, comme le reste
- *  du module (voir `jouer`) — cinq matières pour trois échantillons chacun au minimum (herbe et
+ *  du module (voir `jouer`) — quatre matières pour trois échantillons chacun au minimum (herbe et
  *  sable en ont cinq, neige et glace trois) : sans ce tirage la répétition s'entendrait en
  *  quelques pas, pas en dix secondes. */
 export const step = (sol: TerrainMaterial = "herbe"): void => {
@@ -538,25 +523,7 @@ export const openDoor = (): void => jouer("porte", { gain: 0.85 });
 export const closeDoor = (): void => jouer("porteFerme", { gain: 0.85 });
 
 /**
- * La glace fine (Task 7, `@lindocara/engine/hd2d/thin-ice.js`) : `crack()` prévient, `shatter()` marque la
- * rupture, `plunge()` accompagne la chute. Les trois passent par `jouer()` comme le reste du
- * module — `plunge`/`shatter` n'ont qu'une seule variante chacun dans `BANQUE`, `jouer()` la joue
- * donc à chaque appel (avec sa propre hauteur aléatoire, comme tout le reste), exactement le même
- * chemin que `jump`/`land`/`enterWater` plus haut.
- */
-export const crack = (): void => jouer("craquement", { gain: 0.8 });
-/** Jouée juste avant que `hero.ts` fasse tomber le héros à l'eau (`enterWater`, réutilisé tel
- *  quel) : le bruit de la glace qui cède, distinct du `plunge()` qui suit d'une fraction de
- *  seconde. */
-export const shatter = (): void => jouer("rupture", { gain: 0.95 });
-/** Le plongeon À TRAVERS la glace, à la place du `entreeEau` générique : c'est la même chute dans
- *  l'eau que partout ailleurs (`hero.ts` réutilise `enterWater`), seul le son change — passé en
- *  paramètre plutôt que réimplémenté. */
-export const plunge = (): void => jouer("ploufGlace", { gain: 0.95 });
-
-/**
- * La rafale de vent isolée (Task 6, `BANQUE.rafale`). Comme `crack`/`shatter`/`plunge` ci-dessus,
- * un simple passe-plat vers `jouer()` — décider QUAND elle joue (le front montant du pulse visuel
+ * La rafale de vent isolée (Task 6, `BANQUE.rafale`). Un simple passe-plat vers `jouer()` — décider QUAND elle joue (le front montant du pulse visuel
  * de brouillard polaire, en zone polaire uniquement) est le travail de `main.ts`, pas de ce module :
  * `audio.ts` ne sait pas ce qu'est un biome de neige, il sait seulement jouer un son nommé.
  */

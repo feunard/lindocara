@@ -17,7 +17,7 @@ import { decidePlacements } from "../src/world/props.js";
 // correspondre au générateur, le monde a changé sans que personne l'ait voulu. Le brief proposait
 // de comparer `carte.materials` à `field.materialAt` (`HeightField`, la bande de RENDU —
 // "lvl0"/"lvl1"/"lvl2" pour l'herbe), mais `MapData.materials` est typé `TerrainMaterial`
-// (sable/herbe/neige/glace/glace-fine, voir `@lindocara/engine/hd2d/map-data.ts`) : ce n'est pas la même valeur, et
+// (sable/herbe/neige/glace, voir `@lindocara/engine/hd2d/map-data.ts`) : ce n'est pas la même valeur, et
 // `decodeMap` rejetterait de toute façon une carte qui contiendrait "lvl0". La comparaison
 // pertinente est donc contre `query.kindAt` — la matière de RÈGLE que `mapToQuerySource` reconstruit
 // et que le reste du jeu (friction, glace fine...) consulte réellement.

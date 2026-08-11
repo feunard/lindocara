@@ -29,9 +29,8 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
   disc queries test against), `map-data.ts` (a map as pure, defensively-parsed data),
   `hero-state.ts` (`HeroState`/`HeroInput`/`HeroSettings`/`HeroEvent`, the data the rule reads and
   writes), `locomotion.ts` (the friction-based movement model — one `pasAmorti` integrator, three
-  materials' worth of friction/speed/skid), `thin-ice.ts` (the crack → break → refreeze state
-  machine) and `hero-step.ts` (`stepHero`, the per-frame rule that ties the other three together
-  and narrates what happened as `HeroEvent`s rather than playing sound or touching a billboard
+  materials' worth of friction/speed/skid) and `hero-step.ts` (`stepHero`, the per-frame rule that
+  ties the others together and narrates what happened as `HeroEvent`s rather than playing sound or touching a billboard
   itself). These read in **tile units** — as does the whole game now; what is left in **pixels** is
   the unconverted zone catalogue in `game.ts`/`collider.ts` and the `clampToWorld` it calls, which
   no live party reaches. The subfolder is still the visible fence between the two.
@@ -95,11 +94,18 @@ npm test -w @lindocara/engine   # or: npm run test:engine  — Node env, no work
   argument every `git mv`-based move in that chantier relied on (the reviewer diffing old vs. new
   code line by line), and the repo's author works in French day to day. Don't "clean up" a French
   identifier in `hd2d/` into English on sight; that decision was made deliberately, not by neglect.
-- **`TerrainMaterial`'s five values (`hd2d/terrain-query.ts`) are DATA, not just a type.** They are
+- **`TerrainMaterial`'s four values (`hd2d/terrain-query.ts`) are DATA, not just a type.** They are
   already serialized by name, thousands of times over, in `apps/lab/public/maps/ile.json`
   (`MapData.materials`, `hd2d/map-data.ts`). Renaming one today costs a `build:map` regeneration;
   the day an editor has produced maps of its own that nobody regenerates from source, the same
   rename costs a format migration instead. Know which cost you're signing up for before renaming.
+  **`"glace-fine"` (thin ice) is the worked example.** The mechanic — crack, break, refreeze — was
+  removed; the NAME was not, because `decodeMap` rejects a map OUTRIGHT on one unknown material and
+  authored maps live in the database where nothing here can inspect them. It is coerced to
+  `"glace"` on the way in (`hd2d/map-data.ts`), and the tile slots its brush painted are coerced the
+  same way (`RETIRED_THIN_ICE_SLOTS`, `tilesets/tiny-swords.ts`) so they do not fall down
+  `materialOfSlot`'s grass fallback and turn an authored frozen lake into a lawn. Both are safe to
+  delete only once no stored map carries either — which is not something this repo can prove.
 - Tests are pure logic and run in Node (`packages/engine/test/`).
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the full architecture and the monorepo layout.

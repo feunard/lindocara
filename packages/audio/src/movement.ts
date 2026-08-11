@@ -22,10 +22,6 @@ const STEPS: Record<string, StepSample> = {
   // Muffled: a step in snow has none of the dry bite of a step on ice.
   neige: { key: "step.snow", gain: 0.85 },
   glace: { key: "step.ice", gain: 0.95 },
-  // Thin ice shares the sound of ice, exactly as it already shares its friction. It is not yet a
-  // distinct render material, so it is not a distinct sound either — what warns you it is thin is
-  // `ice.crack`, not the footstep.
-  "glace-fine": { key: "step.ice", gain: 0.95 },
 };
 
 /** Unknown ground falls back to grass rather than to silence: a hero that walks without a sound
@@ -47,9 +43,6 @@ export const MOVEMENT_GAINS = {
   waterLeave: 0.7,
   swim: 0.55,
   gliderOpen: 0.7,
-  iceCrack: 0.8,
-  iceBreak: 0.95,
-  icePlunge: 0.95,
 } as const;
 
 /** The skid's level at full intensity. Always multiplied by the 0..1 slide, never used raw. */

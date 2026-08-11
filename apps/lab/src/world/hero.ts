@@ -10,7 +10,6 @@ import {
 } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import { createThinIce } from "@lindocara/engine/hd2d/thin-ice.js";
 import {
   type Billboard,
   createAnimator,
@@ -24,12 +23,9 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
-  crack,
   gliderOpen,
   land,
-  plunge,
   setSkid,
-  shatter,
   attack as sonAttaque,
   enterWater as sonEntreeEau,
   jump as sonSaut,
@@ -37,7 +33,7 @@ import {
   step,
   swimStroke,
 } from "../core/audio.js";
-import { CAMERA, GLACE_FINE, GLIDER, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
+import { CAMERA, GLIDER, HALEINE, HERO, TRACES, WORLD } from "../settings.js";
 
 // Water Splash : 9 frames de 192px, jouées une fois.
 const SPLASH = { cols: 9, frames: 9, fps: 20, height: 1.7, foot: 0.32 };
@@ -231,21 +227,6 @@ export function createHero(
   effects.add(glider.mesh);
   const splashes: Splash[] = [];
 
-  // Glace fine (Task 7) : visuel FACULTATIF du craquement — un simple décalque givré sous les
-  // pieds, réutilisant `makeSurfaceDisc` comme le disque de nage juste au-dessus plutôt qu'un
-  // système de rendu par case (hors périmètre, voir le brief). Il ne suit que la case ACTUELLEMENT
-  // sous le poids : une case craquelée qu'on vient de quitter perd son décalque, mais garde son
-  // état réel (`thinIce`) — le son prévient déjà que ça craque, ce décalque n'est qu'un appoint.
-  // 1.4 : plus large que le héros lui-même. Vérifié à l'écran (voir le rapport de la task) —
-  // à sa taille initiale (0.85, sous l'empreinte du personnage) le décalque restait quasi
-  // entièrement caché par son propre sprite vu de l'angle isométrique du jeu ; il doit DÉBORDER
-  // pour se voir, comme une flaque plus large que les pieds qui la font. Teinte sombre plutôt que
-  // givrée : sur une glace déjà pâle (`tileset-glace.png`), un décalque clair s'y noyait aussi.
-  const crackDisc = makeSurfaceDisc(1.4);
-  (crackDisc.material as THREE.MeshBasicMaterial).color.set(0x1c3a4a);
-  (crackDisc.material as THREE.MeshBasicMaterial).opacity = 0.8;
-  effects.add(crackDisc);
-
   // Ondes de nage : un petit lot recyclé en rond, jamais rien à allouer en cours de partie. Le
   // disque sombre disait où était le nageur, pas qu'il avançait — sous lui, la surface restait un
   // miroir immobile.
@@ -311,7 +292,7 @@ export function createHero(
 
   // TOUT ce qui doit survivre d'une image à l'autre vit maintenant dans `state` (`hero-state.ts`),
   // muté en place par `stepHero` (déplacement horizontal) et par les sections encore résidentes
-  // ci-dessous (vertical, nage, glace — Tasks 3 à 7 les extrairont à leur tour). `pos`
+  // ci-dessous (vertical, nage — Tasks 3 à 7 les extrairont à leur tour). `pos`
   // (`THREE.Vector3`) reste l'accesseur PUBLIC exposé par `Hero.position` : il est resynchronisé
   // depuis `state` en fin d'image (et dans `setRoom`, hors boucle), jamais lu ni écrit ailleurs
   // dans cette fonction — sinon on aurait deux vérités de position qui pourraient diverger.
@@ -328,16 +309,8 @@ export function createHero(
   // que `state` porte, donc rien n'oblige la règle pure à la connaître.
   let impact = 0;
 
-  // Glace fine (Task 7) : un état par case, tenu par un module pur (`@lindocara/engine/hd2d/thin-ice.js`) — le
-  // héros ne fait que lui donner le `dt` et lire l'état en retour, jamais sa propre horloge.
-  // `state.glaceCase` retient la case actuellement chargée (pour savoir QUAND relâcher l'ancienne
-  // en changeant de case), `state.glaceEtat` le dernier état lu dessus (pour ne déclencher son et
-  // visuel qu'à la TRANSITION, pas à chaque image où on reste craquelé).
-  const thinIce = createThinIce(GLACE_FINE);
-
   // Les dépendances que `stepHero` (règle pure) consomme — construites une fois, pas par image :
-  // `query`/`colliders` sont déjà les interfaces attendues, `thinIce` EST le `ThinIce` réel.
-  const deps: StepDeps = { query, colliders, hero: HERO_STEP, world: WORLD, glace: thinIce };
+  const deps: StepDeps = { query, colliders, hero: HERO_STEP, world: WORLD };
 
   function splash(x: number, y: number, z: number): void {
     const s = makeBillboard(ctx, {
@@ -451,30 +424,19 @@ export function createHero(
       state.breath = HERO.swim.breath;
     },
     update(dt, input) {
-      // Glace fine (Task 7) : le regel doit avancer au TEMPS RÉEL écoulé, pas seulement quand le
-      // héros est dessus, dessous (nage) ou ailleurs (pièce) — sinon tomber à l'eau y GÈLERAIT le
-      // compte à rebours de la case qu'on vient de quitter, tant qu'on reste submergé. Appelé
-      // inconditionnellement, une fois par image, avant tout le reste.
-      thinIce.update(dt);
-
       // --- déplacement, verticale ET nage comprises (Tasks 2-4 : extraites en règle pure,
       // `hero-step.ts`) - `stepHero` mute `state` en place (position et vitesse horizontales ET
       // verticales, plancher de pièce, saut/gravité/coyote/réception, entrée/sortie d'eau
-      // ordinaire, noyade, cadence des pas ET des brasses, glace fine, souffle visible et traces —
+      // ordinaire, noyade, cadence des pas ET des brasses, souffle visible et traces —
       // Task 7) et RACONTE ce qu'il s'est produit ; on joue ces événements ici, sur l'unique
       // frontière encore en fermeture sur `settings.ts`/`core/audio.ts`/`three`. "haleine" et
       // "trace" reproduisent exactement les anciens blocs `e.t === "pas"` (réarmer le repos
       // d'haleine, poser une trace sur neige) et le décompte de repos hors marche — seul leur
       // DÉCLENCHEUR a bougé de fichier, pas ce qu'ils font : voir `emitHaleine`/`poserTrace`
-      // ci-dessus. Idem pour "entree-eau"/"sortie-eau"/"noyade"/"glace-craque"/"glace-rompt" : seul
-      // le SPLASH + le SON a bougé de place, la mécanique (reset vitesse/souffle, position au
-      // niveau de l'eau, charge/rupture d'une case) est désormais dans
-      // `enterWater`/`leaveWater`/`drown`/`rompre` de `hero-step.ts`.
+      // ci-dessus. Idem pour "entree-eau"/"sortie-eau"/"noyade" : seul le SPLASH + le SON a bougé
+      // de place, la mécanique (reset vitesse/souffle, position au niveau de l'eau) est désormais
+      // dans `enterWater`/`leaveWater`/`drown` de `hero-step.ts`.
       //
-      // Plus d'instantané de `state.swimming` pris AVANT cet appel (l'ancien `nageaitDejaCeTick`,
-      // devenu inutile depuis que le suivi de la glace fine vit DANS `stepHero` — voir sa docstring
-      // pour où, dans la séquence, ce suivi lit encore `swimming` de DÉBUT de tick sans avoir besoin
-      // d'une valeur mise de côté par l'appelant).
       const evts = stepHero(state, input, dt, deps);
       for (const e of evts) {
         if (e.t === "glisse") {
@@ -497,17 +459,9 @@ export function createHero(
           // ici seulement joué (son + secousse de caméra lue par `takeImpact()`).
           impact = e.force;
           land(impact);
-        } else if (e.t === "glace-craque") {
-          crack();
-        } else if (e.t === "glace-rompt") {
-          shatter();
         } else if (e.t === "entree-eau") {
           splash(e.x, e.y, e.z);
-          // `rupture` distingue le plouf ordinaire du `plunge` de la glace qui cède (`rompre`,
-          // `hero-step.ts`, Task 5) — SEUL le son change, la mécanique d'entrée dans l'eau est la
-          // même dans les deux cas (voir `enterWater`).
-          if (e.rupture) plunge();
-          else sonEntreeEau();
+          sonEntreeEau();
         } else if (e.t === "sortie-eau") {
           splash(e.x, e.y, e.z);
           sonSortieEau();
@@ -524,17 +478,6 @@ export function createHero(
           swimStroke();
         }
       }
-
-      // Glace fine (Task 5) : le décalque de craquelure suit l'état COURANT tenu par `state`
-      // (`glaceCase`/`glaceEtat`, maintenant maintenus par `stepHero` lui-même, plus par ce
-      // fichier) — il doit rester visible tant qu'on reste plantés sur une case craquelée, pas
-      // clignoter une image, et s'éteindre dès qu'on la quitte. `state.glaceCase` n'est non-null
-      // QUE pendant qu'on est effectivement sous le poids d'une case suivie : `stepHero` le remet à
-      // `null` dès qu'on saute, entre en pièce, change de case ou fait céder celle-ci (voir sa
-      // docstring) — cette lecture n'a donc plus besoin de reconstruire `surGlaceFine` elle-même,
-      // qui n'existe plus qu'à l'intérieur de la règle pure.
-      crackDisc.visible = state.glaceCase !== null && state.glaceEtat === "craquelee";
-      if (crackDisc.visible) crackDisc.position.set(state.x, state.y + 0.02, state.z);
 
       // Le décompte du souffle AU REPOS (arrêt, l'air, glisse) vit désormais dans `stepHero`
       // (Task 7) : il rend son propre événement "haleine" quand le timer expire, déjà joué par la

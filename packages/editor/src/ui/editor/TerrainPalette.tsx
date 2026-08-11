@@ -8,18 +8,11 @@ import type { RectFillContent } from "../../game/editor-state.js";
 const ELEVATION_LEVELS: (0 | 1 | 2 | 3)[] = [0, 1, 2, 3];
 const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["east", "west"];
 const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1, 2];
-const MATERIAL_OPTIONS: readonly TerrainMaterial[] = [
-  "herbe",
-  "sable",
-  "neige",
-  "glace",
-  "glace-fine",
-];
+const MATERIAL_OPTIONS: readonly TerrainMaterial[] = ["herbe", "sable", "neige", "glace"];
 const MATERIAL_BACKGROUNDS: Readonly<Record<Exclude<TerrainMaterial, "herbe">, string>> = {
   sable: "linear-gradient(145deg, #e6c57a, #b98345)",
   neige: "linear-gradient(145deg, #ffffff, #b9d7df)",
   glace: "linear-gradient(145deg, #d8fbff, #69b9d1)",
-  "glace-fine": "repeating-linear-gradient(135deg, #c9f4fb 0 7px, #7fc9dc 7px 9px)",
 };
 
 /** Sprite-path previews for the editor's non-tile swatches. Exported so `EventPalette` draws its

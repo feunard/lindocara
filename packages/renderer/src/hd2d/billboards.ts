@@ -78,8 +78,12 @@ export interface ActorView {
   renderHeight?: number;
   pose?: "standing" | "fallen" | "ghost";
   animationTimeMs?: number;
-  /** Plays every frame over this duration. Without it, the ordinary loop cadence is used. */
+  /** Plays every frame over this duration. Without it, the per-frame cadence below is used. */
   animationDurationMs?: number;
+  /** How long ONE frame is held on a looping strip, in ms — `ACTOR_FRAME_MS` for the motion being
+   *  drawn. Omitted, every strip falls back to one shared cadence, which is right for an idle and
+   *  far too slow for a run. */
+  frameDurationMs?: number;
   /** Attack strips play once and hold their final frame; idle/run strips loop. */
   animationLoop?: boolean;
   /** Optional authoritative/presentation-selected frame. Multi-contact actions use this to pin the
@@ -148,6 +152,11 @@ export const ACTOR_FOOT: Record<ActorKind, number> = {
  *  idle poses, 1152x192 for six running ones, and so on up to a troll's 384px frames. Falling back
  *  to a unit's 192 keeps a texture whose bytes have not landed from sizing a sprite at zero. */
 const DEFAULT_FRAME_PX = 192;
+
+/** Cadence for a looping strip whose caller named no motion — the lab's idle, which is the safest
+ *  thing to be wrong about: a sprite that idles slightly slow reads as calm, and one that RUNS
+ *  slow reads as broken. Callers that know the motion pass `ACTOR_FRAME_MS` for it instead. */
+const DEFAULT_FRAME_MS = 1_000 / 7;
 
 /** The lab's measured actor scale: a 192px Tiny Swords unit is 2.6 world tiles high, not the
  * pixel-era 3 tiles produced by dividing by TILE_SIZE. Larger sheets retain the same ratio. */
@@ -390,7 +399,7 @@ export function createBillboardRegistry(
             ? actor.animationLoop === false
               ? Math.min(entry.frames - 1, Math.floor((elapsed / duration) * entry.frames))
               : Math.floor((elapsed / duration) * entry.frames) % entry.frames
-            : Math.floor(elapsed / 145) % entry.frames);
+            : Math.floor(elapsed / (actor.frameDurationMs ?? DEFAULT_FRAME_MS)) % entry.frames);
         entry.billboard.setFrame(
           fallen ? 0 : Math.max(0, Math.min(entry.frames - 1, animatedFrame)),
         );

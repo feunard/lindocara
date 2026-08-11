@@ -1270,7 +1270,6 @@ async function startGameIdentity(
       ...(movementStatus
         ? {
             movement: {
-              iceCrack: movementStatus.iceCrack,
               breath: movementStatus.breath,
               maxBreath: movementStatus.maxBreath,
               swimming: movementStatus.swimming,

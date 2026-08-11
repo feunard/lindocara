@@ -14,7 +14,11 @@ export default defineConfig({
     environment: "jsdom",
     execArgv: ["--no-experimental-webstorage"],
     include: ["test/**/*.test.{ts,tsx}"],
-    setupFiles: [fileURLToPath(new URL("../testing/src/jsdom-setup.ts", import.meta.url))],
+    setupFiles: [
+      fileURLToPath(new URL("../testing/src/jsdom-setup.ts", import.meta.url)),
+      // Renderer-only: see the file's own header for why this is not in the shared setup.
+      fileURLToPath(new URL("./test/canvas-setup.ts", import.meta.url)),
+    ],
     css: false,
   },
 });

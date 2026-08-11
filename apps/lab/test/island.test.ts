@@ -185,7 +185,7 @@ describe("l'île du nord", () => {
     // Son centre porte de la terre...
     expect(field.levelAt(toCell(NORD.x), toCell(NORD.z))).not.toBeNull();
     // ...et de la neige ou de la glace, jamais de l'herbe.
-    expect(["neige", "glace", "glace-fine"]).toContain(query.kindAt(NORD.x, NORD.z));
+    expect(["neige", "glace"]).toContain(query.kindAt(NORD.x, NORD.z));
 
     // Le couloir entre les deux îles est de l'eau sur TOUTE sa longueur ET sa largeur : on n'y va
     // qu'à la nage. Les bornes ne sont PAS codées en dur (une valeur du genre `z < -17` redevient
@@ -210,7 +210,7 @@ describe("l'île du nord", () => {
     }
   });
 
-  it("porte les trois matières froides, et aucune matière chaude", () => {
+  it("porte les deux matières froides, et aucune matière chaude", () => {
     const vues = new Set<string>();
     for (let dz = -NORD.r; dz <= NORD.r; dz += 0.5)
       for (let dx = -NORD.r; dx <= NORD.r; dx += 0.5) {
@@ -219,7 +219,6 @@ describe("l'île du nord", () => {
       }
     expect(vues).toContain("neige");
     expect(vues).toContain("glace");
-    expect(vues).toContain("glace-fine");
     expect(vues).not.toContain("herbe");
     expect(vues).not.toContain("sable");
   });

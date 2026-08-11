@@ -11,10 +11,8 @@ describe("movement sound routing", () => {
       { t: "brasse" },
       { t: "saut" },
       { t: "reception", force: 1 },
-      { t: "entree-eau", x: 0, y: 0, z: 0, rupture: false },
+      { t: "entree-eau", x: 0, y: 0, z: 0 },
       { t: "sortie-eau", x: 0, y: 0, z: 0 },
-      { t: "glace-craque", cle: "0:0", x: 0, z: 0 },
-      { t: "glace-rompt", cle: "0:0", x: 0, z: 0 },
       { t: "glider-open" },
     ];
     for (const event of audible) expect(movementSoundCue(event)).not.toBeNull();
@@ -37,21 +35,6 @@ describe("movement sound routing", () => {
     expect(soft?.gain).toBeCloseTo(MOVEMENT_GAINS.land * 0.35, 8);
     expect(hard?.gain).toBeCloseTo(MOVEMENT_GAINS.land * 1.4, 8);
     expect(hard?.gain).toBeGreaterThan(soft?.gain ?? 0);
-  });
-
-  it("plays the ice's own plunge when the fall came through a broken sheet", () => {
-    expect(movementSoundCue({ t: "entree-eau", x: 0, y: 0, z: 0, rupture: true })?.key).toBe(
-      "ice.plunge",
-    );
-    expect(movementSoundCue({ t: "entree-eau", x: 0, y: 0, z: 0, rupture: false })?.key).toBe(
-      "water.enter",
-    );
-  });
-
-  it("keeps thin ice on the ice footstep, as it already shares its friction", () => {
-    expect(movementSoundCue({ t: "pas", matiere: "glace-fine" })?.key).toBe(
-      movementSoundCue({ t: "pas", matiere: "glace" })?.key,
-    );
   });
 
   it("keeps visual events silent and reduces held skids to one bounded intensity", () => {
@@ -91,7 +74,4 @@ const movementSampleKeyNames = {
   "water.enter": true,
   "water.leave": true,
   "glider.open": true,
-  "ice.crack": true,
-  "ice.break": true,
-  "ice.plunge": true,
 };

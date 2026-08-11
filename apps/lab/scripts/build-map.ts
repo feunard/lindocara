@@ -28,7 +28,7 @@ const size = field.cols;
 // --- relief et matières -------------------------------------------------------------------------
 // `levels` reprend `field.levelAt` tel quel (le palier BRUT, pas la hauteur monde — c'est
 // `levelHeight` qui la porte séparément dans `MapData`). `materials` reprend la matière de RÈGLE
-// (`query.kindAt`, cinq valeurs — sable/herbe/neige/glace/glace-fine), PAS la bande de rendu de
+// (`query.kindAt`, quatre valeurs — sable/herbe/neige/glace), PAS la bande de rendu de
 // `field.materialAt` ("lvl0"/"lvl1"/"lvl2" pour l'herbe) : celle-ci n'est qu'une dérivation
 // (matière, palier) → bloc d'atlas que `mapToHeightField`/`renderMaterialAt` (`island.ts`)
 // recalculent au chargement, jamais une donnée en soi — la sérialiser aurait de toute façon été

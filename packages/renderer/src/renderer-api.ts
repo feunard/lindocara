@@ -51,7 +51,6 @@ export interface RenderContext {
 }
 
 export interface LocalMovementVisualState {
-  iceCrack: GroundVector | null;
   breath: number;
   maxBreath: number;
   swimming: boolean;

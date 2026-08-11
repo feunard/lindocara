@@ -94,12 +94,10 @@ export function setHd2dGroundPalette(palette: string): boolean {
  * Grass reads its tileset from its ALTITUDE — the pack ships the same sheet in five hues, so a
  * plateau is a different green rather than the same green with a tint slapped over it. Sand, snow
  * and ice read theirs from the material instead; their identity is the material, not the height.
- * `"glace-fine"` (thin ice, a RULE
- * material) shares ice's appearance, exactly as it does in the lab.
  */
 export function terrainAtlasKey(material: string, level: number): string {
   if (material === "sable" || material === "neige") return material;
-  if (material === "glace" || material === "glace-fine") return "glace";
+  if (material === "glace") return "glace";
   return `lvl${Math.min(3, Math.max(0, Math.round(level)))}`;
 }
 

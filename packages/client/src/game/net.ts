@@ -107,8 +107,6 @@ export interface LocalMovementStatus {
   swimming: boolean;
   /** Local vertical velocity, exposed for diagnostics and the future animation owner. */
   vy: number;
-  /** The currently loaded cracked cell follows the local rule and never crosses the wire. */
-  iceCrack: GroundVector | null;
 }
 
 // SceneSample now lives in the renderer package (both the renderer and the minimap consume it,
@@ -434,10 +432,6 @@ export class WorldClient {
       maxBreath: hero.maxBreath,
       swimming: hero.state.swimming,
       vy: hero.state.vy,
-      iceCrack:
-        hero.state.glaceCase !== null && hero.state.glaceEtat === "craquelee"
-          ? { x: hero.state.x, z: hero.state.z }
-          : null,
     };
   }
 

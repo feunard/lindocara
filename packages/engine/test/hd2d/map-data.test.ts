@@ -123,4 +123,30 @@ describe("the map codec", () => {
     expect(decoded?.colliders).toEqual([{ x: 1, z: 1, w: 0.4, h: 0.4 }]);
     expect(decoded?.colliders[0]).not.toHaveProperty("evil");
   });
+
+  it("still reads a map painted with the retired thin ice, as ordinary ice", () => {
+    // Thin ice was removed as a mechanic. It was NOT removed from storage, and it cannot be:
+    // authored maps live in the database, and this decoder rejects a map OUTRIGHT on one unknown
+    // material — the whole grid, not the one cell. Dropping the name from the union would
+    // therefore have turned every map ever painted with that brush into an unjoinable map, with
+    // no error anyone would trace back to it.
+    //
+    // Reading it as ice is the whole migration: thin ice already shared ice's friction and its
+    // appearance, so a coerced cell behaves exactly as it looked, minus the cracking.
+    const painted = {
+      ...map,
+      materials: map.materials.map((m, i) => (i === 6 ? "glace-fine" : m)),
+    };
+    const decoded = decodeMap(JSON.stringify(painted));
+    expect(decoded).not.toBeNull();
+    expect(decoded?.materials[6]).toBe("glace");
+    // And every other cell is untouched — the coercion is one value, not a pass over the grid.
+    expect(decoded?.materials).toEqual(map.materials);
+  });
+
+  it("still rejects a material that was never real", () => {
+    expect(
+      decodeMap(JSON.stringify({ ...map, materials: map.materials.map(() => "lave") })),
+    ).toBeNull();
+  });
 });

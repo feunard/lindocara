@@ -502,8 +502,8 @@ Three consequences, each easy to break:
 
 A compatibility ghost moves at `GHOST_SPEED` and a corpse at zero, so the client folds its life state into the
 one speed the rule reads (`speedForLife`, `engine/death.ts`) before every `stepHero` â€” it does not
-branch on life twice, and a corpse is fed a zeroed input rather than skipped, so gravity, the water
-and the thin ice keep running underneath it. The server's half of the fence is `applyReportedMove`,
+branch on life twice, and a corpse is fed a zeroed input rather than skipped, so gravity and the
+water keep running underneath it. The server's half of the fence is `applyReportedMove`,
 which refuses a corpse's frames outright: a body that reports itself walking is not believed.
 
 The priest's resurrect is the interact key, not a sixth skill slot: `#interact` already dispatches
@@ -1029,6 +1029,19 @@ rotating ±8%. `movement-sounds.ts` still owns the ROUTING, as an exhaustive swi
 so the compiler catches the day the rule grows an event; the package owns only what both consumers
 agree on. A key named there that the package does not define is silent with nothing failing —
 `movement-sounds.test.ts` is the guard.
+
+**A looping strip's cadence is per MOTION, not one shared number.** `ACTOR_FRAME_MS`
+(`renderer/actor-motion.ts`) holds the lab's `HERO.anims` fps inverted — idle 7, run 12 — and every
+`ActorView` carries the one for the motion it is drawing (`frameDurationMs`). Before that, every
+looping strip in the game shared a hardcoded 145 ms: right for idle by coincidence, and 6.9 fps for
+a run that should be 12, so a hero's body moved at full speed while its legs cycled at 57%. That is
+what reads as skating, and no typecheck or snapshot test can be wrong about a cadence — only an eye.
+
+**Ripples, breath and footprints come from `@lindocara/hd2d`'s primitives, not from rebuilt
+geometry.** `makeRipple()` is a textured plane with `fog: false`; a `RingGeometry` annulus with the
+identical timing curve moves correctly and reads as a wireframe hoop. The swim ripple was exactly
+that until it was fixed. Its cadence is the 550 ms timer in `syncLocalHero` ALONE — a `brasse` event
+is a sound, and emitting a ripple there too puts two overlapping series on the water.
 
 **A landing shakes the camera, off the same number that makes it loud.** The rule's `reception`
 force (0.35..1.4, `hero-step.ts`) drives the sample's gain AND `heroLandingImpulse`

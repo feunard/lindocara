@@ -18,7 +18,7 @@ now HD-2D, and the lab remains its isolated render witness (see the root
 written as the future `@lindocara/engine` generation module, kept pure and `three`-free on
 purpose, so a later task can promote it by moving the file, not rewriting it. Its siblings already
 made that move: `terrain-query.ts`, `collider-index.ts` and `map-data.ts` first, then
-`hero-state.ts`, `locomotion.ts`, `thin-ice.ts` and `hero-step.ts` â€” all seven now live in
+`hero-state.ts`, `locomotion.ts` and `hero-step.ts` â€” all now live in
 `@lindocara/engine/hd2d/`, tile-unit geometry AND the hero's movement rule kept in their own
 subfolder there, away from the pixel-unit `simulation.ts`/`collider.ts` the live game still ships
 against â€” and the lab imports every one of them back as `@lindocara/engine/hd2d/*.js`. **`world/hero.ts`
@@ -27,10 +27,10 @@ camera-facing bits, and every frame it calls `stepHero()` (`@lindocara/engine/hd
 with the current `HeroState` and plays back whatever `HeroEvent`s that pure call returns. It keeps
 exactly TWO rules of its own, both deliberate exceptions documented at the field level in
 `HeroState` (`packages/engine/AGENTS.md`'s `hd2d/` section): the attack state machine (`attaque`,
-presentation timing a server doesn't need) and advancing thin ice's refreeze clock
+presentation timing a server doesn't need)
 (`thinIce.update(dt)`, called once per frame, unconditionally, before `stepHero` â€” see
 `StepDeps.glace`'s docstring for why `stepHero` itself never does). Everything else about why the
-hero jumps, skids, drowns or cracks thin ice the way it does lives in `hd2d/`, not here. **The
+hero jumps, skids or drowns the way it does lives in `hd2d/`, not here. **The
 glider adds no third rule**: opening/closing the canopy and pinning the descent to
 `HERO.glide.fall` are `stepHero`'s (`state.gliding`, `hero-step.ts`), and `hero.ts` holds only the
 canopy billboard, its flip (sharing `state.facing` with the body) and the deploy sound.
@@ -56,18 +56,17 @@ canopy billboard, its flip (sharing `state.facing` with the body) and the deploy
   typing cadence follows the voice line's real duration.
 - `core/input.ts` â€” keyboard/mouse sampling (AZERTY+QWERTY+arrows, wheel zoom, right-drag orbit).
 - `world/island.ts` â€” pure procedural heightmap + beach generation (`generateIsland`,
-  `mulberry32`), including the frozen lake/thin-ice ring/snow of the north island (Task 4-7 of the
+  `mulberry32`), including the frozen lake and snow of the north island (Task 4-7 of the
   snow island). Destined for `@lindocara/engine` in S2 â€” see above and "The snow island" below.
 - `@lindocara/engine/hd2d/terrain-query.ts` â€” `TerrainQuery`: world-space collision queries over a
   `HeightField`, and `TerrainMaterial`, the five-material type
-  (`sable`/`herbe`/`neige`/`glace`/`glace-fine`). Moved out of `apps/lab` first, kept `three`-free
+  (`sable`/`herbe`/`neige`/`glace`). Moved out of `apps/lab` first, kept `three`-free
   from the start for exactly this move.
 - `@lindocara/engine/hd2d/locomotion.ts` â€” the friction-based movement model (`pasAmorti`) and the
   per-material friction/speed/skid helpers. Pure and deterministic on purpose â€” see "The snow
   island" below for why, and for the consequence this had for S2. Moved out of `apps/lab` alongside
-  `hero-state.ts`, `thin-ice.ts` and `hero-step.ts`.
-- `@lindocara/engine/hd2d/thin-ice.ts` â€” the thin-ice state machine (`ThinIce`: intact â†’ cracking â†’
-  broken, with a delayed refreeze). Same purity discipline as `locomotion.ts`, moved alongside it.
+  `hero-state.ts` and `hero-step.ts`.
+
 - `world/zones.ts` â€” `Zone`/`zoneAt`: a named region carrying its own ambience (soundscape, music,
   breath-drain rate). Pure rules; `main.ts` reads `zoneAt` every frame and wires the result to
   `core/audio.ts` and the hero.
@@ -118,13 +117,13 @@ A fourth island, `ILES[3]` in `world/island.ts`, frozen and reachable only by sw
 (`NORD`/`ZONE_POLAIRE`, `settings.ts`) â€” the couloir between it and the main island stays open
 water on purpose, so the ambience change (nappe, music, breath drain) lands *while* the hero is
 still swimming across, before the first step in the snow. It carries a frozen lake (`LAC_R`), a
-narrow thin-ice ring around that lake, snow everywhere else, a hot spring (the polar counterpart of
+snow everywhere else, a hot spring (the polar counterpart of
 the campfire â€” same glow/shadow/fill-light plumbing, `world/props.ts`), snow-covered pines and ice
 stalagmites, and Nanuq, the second NPC.
 
 **Five terrain materials, one collision path.** `TerrainMaterial`
 (`@lindocara/engine/hd2d/terrain-query.ts`) is
-`"sable" | "herbe" | "neige" | "glace" | "glace-fine"`. `glace-fine` is a RULE material, not yet a
+`"sable" | "herbe" | "neige" | "glace"`.
 render one â€” it shares `glace`'s atlas and step sound, and only Task 7's crackle overlay tells them
 apart visually. Passability still comes from `tiles`/`isWalkable` exactly like the other three
 islands (see the root `AGENTS.md`'s "Maps and the editor" section for why collision only ever comes
@@ -139,13 +138,11 @@ accelerates, the material brakes â€” grass is tuned to stay indistinguishab
 instantaneous model (fast accel/decel), snow brakes harder AND caps lower (`HERO.vitesseSol.neige`
 = 0.55Ã—), ice barely brakes at all (`HERO.friction.glace` = 0.35, so releasing input a full second
 later you're still gliding at ~70% speed â€” a turn skids instead of snapping).
-`@lindocara/engine/hd2d/thin-ice.ts` adds a small state machine on top (`intacte â†’ craquelee â†’
-rompue`, then a delayed `regel`), driven by the same per-frame `dt`. `hero-state.ts` (the data) and
-`hero-step.ts` (`stepHero`, the per-frame rule that calls into both) complete the set â€” all four
-files, and all their tests, moved into `@lindocara/engine/hd2d/` in this chantier's last task; see
-`packages/engine/AGENTS.md`'s `hd2d/` section for what each one now holds.
+`hero-state.ts` (the data) and `hero-step.ts` (`stepHero`, the per-frame rule) complete the set —
+every file, and all their tests, moved into `@lindocara/engine/hd2d/` in this chantier's last task;
+see `packages/engine/AGENTS.md`'s `hd2d/` section for what each one now holds.
 
-All four are written **pure and deterministic to the bit** â€” no `Math.random`, no clock, no
+All of them are written **pure and deterministic to the bit** â€” no `Math.random`, no clock, no
 `three` â€” not as a style preference but because **this is the movement model the game is getting**.
 Introducing inertia here is deciding the game has inertia, and that decision has a real cost
 downstream: `@lindocara/server`'s authoritative `step()` and the client's prediction/reconciliation
@@ -161,7 +158,7 @@ that matters is the NEXT one, still ahead: `stepHero` becoming the server's auth
 rule and the client's prediction function, the same way `shared/simulation.ts`'s `step()` is today
 (root `AGENTS.md`, "Why `step()` lives in `shared/`"). That port is meant to be exactly as cheap as
 this one was â€” another file already living in the right package, wired into a tick loop â€” and it
-stays that cheap for exactly as long as `hero-state.ts`/`hero-step.ts`/`locomotion.ts`/`thin-ice.ts`
+stays that cheap for exactly as long as `hero-state.ts`/`hero-step.ts`/`locomotion.ts`
 stay pure. Nothing enforces that after this task except discipline: `npm run typecheck:engine`
 catches a stray `three` type or a leaked DOM global (the package has neither in its `tsconfig`),
 but it does NOT catch a call to `performance.now()`, a bare `Math.random()`, or a `dt` silently
@@ -213,7 +210,7 @@ generated for the snow island instead goes straight into `public/` with `studio.
 judged and cut with `scripts/sprite.py` in place, and the raw underscore-prefixed variant
 (`_name.png`) is deleted once the pick is made â€” never committed, never routed through
 `sync-assets.sh`. That covers the five snow/ice tilesets (`tileset-neige.png`/`tileset-glace.png`,
-`scripts/compose-tileset.py`, Task 2), the snow/ice footstep and thin-ice SFX and the polar
+`scripts/compose-tileset.py`, Task 2), the snow/ice footstep SFX and the polar
 ambience loop (`public/sfx/pas-neige-*`, `pas-glace-*`, `craquement-*`, `rupture.ogg`,
 `plouf-glace.ogg`, `amb-polaire.ogg`, `rafale.ogg`, Task 6/7/9), the polar music track
 (`public/music/neige.ogg`, Task 5), the two snow props (`sapin-neige.png`, `stalagmite.png`, Task
@@ -414,7 +411,7 @@ npm run build:map -w @lindocara/lab  # regenerate public/maps/ile.json â€” 
 npm run typecheck:lab        # tsc
 npm test -w @lindocara/lab   # or: npm run test:lab â€” Node env, pure logic only (island,
                               # map-parite, zones, bench). The hero's own tests
-                              # (hero-state/hero-step/hero-friction/thin-ice) AND terrain-query's
+                              # (hero-state/hero-step/hero-friction) AND terrain-query's
                               # moved to `packages/engine/test/hd2d/` alongside the code â€” run with
                               # `npm run test:engine`.
 ```

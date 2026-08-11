@@ -11,16 +11,44 @@
  * from; only this module, which no test imports, depends on the bundler.
  */
 
-const SOURCE_URLS = import.meta.glob<string>("../assets/*.ogg", {
-  eager: true,
-  import: "default",
-  query: "?url",
-});
+/** `undefined` = not looked up yet, `null` = there is no bundler here at all (see `sources`). */
+let sourceUrls: Record<string, string> | null | undefined;
 
-/** Resolves a shipped sample by file name. Throws rather than returning a broken url: a missing
- *  asset is a build mistake, and it should surface at the boundary that can name the file. */
+/**
+ * The bundler's view of `assets/`, resolved once and lazily.
+ *
+ * Lazily because `import.meta.glob` is a Vite TRANSFORM, not a function: under a plain Node runner
+ * it survives as a property access on `import.meta` and throws the moment it is evaluated. Left at
+ * module scope, that made merely IMPORTING this file fatal for any Node tool that reached it
+ * transitively — `apps/lab`'s `build-map.ts` pulls in the lab's chest, which pulls in its audio,
+ * which pulls in this. Nothing in that path ever wanted a url; it just paid for the import.
+ */
+function sources(): Record<string, string> | null {
+  if (sourceUrls !== undefined) return sourceUrls;
+  try {
+    sourceUrls = import.meta.glob<string>("../assets/*.ogg", {
+      eager: true,
+      import: "default",
+      query: "?url",
+    });
+  } catch {
+    sourceUrls = null;
+  }
+  return sourceUrls;
+}
+
+/**
+ * Resolves a shipped sample by file name.
+ *
+ * Under a bundler this throws for an unknown name rather than returning a broken url: a missing
+ * asset is a build mistake, and it should surface at the boundary that can name the file. With no
+ * bundler it hands back the plain path instead — a Node tool that reached this module by accident
+ * gets something inert rather than a crash, and nothing in that context ever fetches it.
+ */
 export function audioAssetUrl(name: string): string {
-  const resolved = SOURCE_URLS[`../assets/${name}`];
+  const urls = sources();
+  if (!urls) return `/${name}`;
+  const resolved = urls[`../assets/${name}`];
   if (!resolved) throw new Error(`Missing bundled audio asset: ${name}`);
   return resolved;
 }
@@ -49,11 +77,6 @@ export function movementSampleKeys(): Record<string, readonly string[]> {
     "water.enter": [audioAssetUrl("water-in.ogg")],
     "water.leave": [audioAssetUrl("water-out.ogg")],
     "glider.open": [audioAssetUrl("glider-open.ogg")],
-    // Repeated for as long as the hero stands on a cracking cell, so it needs variants for the
-    // same reason a footstep does. Breaking and plunging happen once per fall and do not.
-    "ice.crack": takes("craquement", 3),
-    "ice.break": [audioAssetUrl("rupture.ogg")],
-    "ice.plunge": [audioAssetUrl("plouf-glace.ogg")],
   };
 }
 

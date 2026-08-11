@@ -22,8 +22,6 @@ describe("createHeroState", () => {
     // drift from `hero.ts`'s original without anything here signaling it.
     expect(s.facing).toBe(1);
     expect(s.room).toBeNull();
-    expect(s.glaceCase).toBeNull();
-    expect(s.glaceEtat).toBe("intacte");
     // `attaque` must start NEGATIVE, not 0: zero reads as "already mid-attack", which would put a
     // freshly spawned hero into strike animation on their very first frame.
     expect(s.attaque).toBe(-1);

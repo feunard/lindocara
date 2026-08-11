@@ -5,7 +5,6 @@
 // other two can import without a cycle. It moved into `@lindocara/engine` in S2, unchanged.
 
 import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
-import type { EtatGlace, ThinIce } from "./thin-ice.js";
 
 /** Rectangle where the hero can walk indoors — a flat floor, no gravity, no swimming, no jumping.
  *  MOVED from the lab's `hero.ts`: `hero.ts` must RE-EXPORT it from here rather than keep a second
@@ -96,10 +95,6 @@ export interface HeroState {
   brasse: number;
   /** Countdown to the next idle breath puff. */
   reposHaleine: number;
-  /** Thin-ice cell currently loaded under the hero's weight, or `null`. */
-  glaceCase: string | null;
-  /** Last state read on that cell, to react only to TRANSITIONS. */
-  glaceEtat: EtatGlace;
   /** Time elapsed in the current attack; negative = no attack. THE OTHER FIELD `stepHero` never
    *  writes (see `facing` above for the first) — advanced and armed by the adapter (`hero.ts`, in
    *  `update()`, after `stepHero`'s event loop) instead, on its own clock. Deliberately kept out
@@ -124,11 +119,9 @@ export type HeroEvent =
   | { t: "brasse" }
   | { t: "saut" }
   | { t: "reception"; force: number }
-  | { t: "entree-eau"; x: number; y: number; z: number; rupture: boolean }
+  | { t: "entree-eau"; x: number; y: number; z: number }
   | { t: "sortie-eau"; x: number; y: number; z: number }
   | { t: "noyade"; x: number; y: number; z: number }
-  | { t: "glace-craque"; cle: string; x: number; z: number }
-  | { t: "glace-rompt"; cle: string; x: number; z: number }
   | { t: "trace"; x: number; z: number; cote: number }
   | { t: "haleine" }
   /** Skid intensity, 0..1 — a HELD sound, so emitted every frame, not on trigger. */
@@ -183,20 +176,6 @@ export interface StepDeps {
   colliders: ColliderQuery;
   hero: HeroSettings;
   world: WorldSettings;
-  /** Thin-ice state — mutable and kept outside `HeroState` because it belongs to the MAP, not the
-   *  hero: two heroes on the same cell share the same ice. This is the existing `ThinIce` type as
-   *  is, not a redeclaration: redeclaring it here would let it drift from its implementation the
-   *  moment either one changes.
-   *
-   *  CALLER OBLIGATION, not `stepHero`'s: `stepHero` never calls `glace.update()` itself — it only
-   *  calls `charge()`/`relache()`/`etat()`, which load, release and read a cell, never advance its
-   *  refreeze clock. The caller (the lab's `hero.ts`, unconditionally, once per frame, BEFORE
-   *  calling `stepHero`) must advance `update(dt)` itself, every frame, independent of whether the
-   *  hero is on ice, underwater, indoors or anywhere else that frame — refreezing a cell nobody is
-   *  standing on is the whole point (see `thin-ice.ts`'s own docstring). Skip this call and a
-   *  broken cell never refreezes: `stepHero`'s own rule only loads and releases cells, it has no
-   *  clock of its own to advance one with. */
-  glace: ThinIce;
 }
 
 /** The starting state, on the ground, at the given position. */
@@ -226,8 +205,6 @@ export function createHeroState(
     distanceDepuisLePas: 0,
     brasse: 0,
     reposHaleine,
-    glaceCase: null,
-    glaceEtat: "intacte",
     attaque: -1,
     coteTrace: 1,
   };

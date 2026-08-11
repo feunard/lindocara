@@ -1205,7 +1205,6 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.palette.terrain.sable": "Sable",
   "editor.palette.terrain.neige": "Neige",
   "editor.palette.terrain.glace": "Glace",
-  "editor.palette.terrain.glace-fine": "Glace fine",
   "editor.palette.terrain.water": "Eau",
   "editor.palette.showMore": "Afficher plus ({shown}/{total})",
   "editor.palette.category.all": "Toutes les catégories",

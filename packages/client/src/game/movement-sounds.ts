@@ -38,17 +38,9 @@ export function movementSoundCue(event: HeroEvent): MovementSampleCue | null {
       // number: one event, one force, two consequences that must agree.
       return { key: "land", gain: MOVEMENT_GAINS.land * event.force };
     case "entree-eau":
-      // Breaking THROUGH the ice is the same fall into the same water — only the sound differs, so
-      // only the sound is branched on. The mechanics live in the rule (`enterWater`).
-      return event.rupture
-        ? { key: "ice.plunge", gain: MOVEMENT_GAINS.icePlunge }
-        : { key: "water.enter", gain: MOVEMENT_GAINS.waterEnter };
+      return { key: "water.enter", gain: MOVEMENT_GAINS.waterEnter };
     case "sortie-eau":
       return { key: "water.leave", gain: MOVEMENT_GAINS.waterLeave };
-    case "glace-craque":
-      return { key: "ice.crack", gain: MOVEMENT_GAINS.iceCrack };
-    case "glace-rompt":
-      return { key: "ice.break", gain: MOVEMENT_GAINS.iceBreak };
     case "glider-open":
       return { key: "glider.open", gain: MOVEMENT_GAINS.gliderOpen };
     case "noyade":

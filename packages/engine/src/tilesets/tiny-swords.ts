@@ -43,7 +43,6 @@ export const AUTHORED_TERRAIN_MATERIALS = [
   "sable",
   "neige",
   "glace",
-  "glace-fine",
 ] as const satisfies readonly TerrainMaterial[];
 const EXTRA_TERRAIN_MATERIALS = AUTHORED_TERRAIN_MATERIALS.slice(1);
 export const TERRAIN_MATERIAL_SLOTS = {
@@ -51,8 +50,18 @@ export const TERRAIN_MATERIAL_SLOTS = {
   sable: [7, 8, 9, 20],
   neige: [10, 11, 12, 21],
   glace: [13, 14, 15, 22],
-  "glace-fine": [16, 17, 18, 23],
 } as const satisfies Readonly<Record<TerrainMaterial, readonly [number, number, number, number]>>;
+
+/**
+ * The slots the retired thin-ice brush painted, still readable as ordinary ice.
+ *
+ * Dropping them outright would not have failed anything — it would have sent them down
+ * `materialOfSlot`'s grass fallback, quietly turning every authored thin-ice tile into a lawn,
+ * with the collision and the appearance both wrong and nothing to point at. Ice is the honest
+ * reading: thin ice already looked and slid exactly like it. Pairs with `decodeMap`'s coercion of
+ * the `"glace-fine"` material itself.
+ */
+const RETIRED_THIN_ICE_SLOTS: readonly number[] = [16, 17, 18, 23];
 export const CLIFF_WALL_SLOT = 3;
 export const CLIFF_WATER_SLOT = 4;
 export const CLIFF_WALL_HIGH_2_SLOT = 5;
@@ -280,6 +289,7 @@ export function materialOfSlot(slot: number): TerrainMaterial {
   for (const material of AUTHORED_TERRAIN_MATERIALS) {
     if ((TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
   }
+  if (RETIRED_THIN_ICE_SLOTS.includes(slot)) return "glace";
   return "herbe";
 }
 

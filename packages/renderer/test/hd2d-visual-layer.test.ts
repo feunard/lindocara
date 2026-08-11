@@ -21,6 +21,7 @@ function harness(
 ): {
   canvas: HTMLCanvasElement;
   layer: Hd2dVisualLayer;
+  root: THREE.Scene;
 } {
   const canvas = document.createElement("canvas");
   vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
@@ -52,7 +53,7 @@ function harness(
       return hit ? { x: hit.x, z: hit.z } : null;
     },
   } as unknown as Hd2dScene;
-  return { canvas, layer: new Hd2dVisualLayer(scene, canvas, size) };
+  return { canvas, layer: new Hd2dVisualLayer(scene, canvas, size), root };
 }
 
 describe("Hd2dVisualLayer screen ray", () => {
@@ -97,7 +98,7 @@ describe("Hd2dVisualLayer hero movement", () => {
       [
         { t: "trace", x: 0, z: 0, cote: 1 },
         { t: "haleine" },
-        { t: "entree-eau", x: 0, y: 0, z: 0, rupture: false },
+        { t: "entree-eau", x: 0, y: 0, z: 0 },
       ],
       hero,
     );
@@ -106,21 +107,53 @@ describe("Hd2dVisualLayer hero movement", () => {
     layer.dispose();
   });
 
-  it("keeps swimming and cracked-ice surfaces synchronized with local state", () => {
+  it("draws swim ripples as the shared soft ring, unfogged, on their own cadence", () => {
+    const { layer, root } = harness();
+    const swimmer = { ...hero, swimming: true };
+    const movement = { breath: 10, maxBreath: 10, swimming: true };
+
+    layer.syncLocalHero(swimmer, movement, 1_000);
+    const first = root
+      .getObjectsByProperty("type", "Mesh")
+      .find(
+        (child): child is THREE.Mesh =>
+          child instanceof THREE.Mesh &&
+          child.material instanceof THREE.MeshBasicMaterial &&
+          child.material.map !== null &&
+          child.geometry instanceof THREE.PlaneGeometry,
+      );
+    if (!first) throw new Error("expected a swim ripple on the water");
+    // A TEXTURED plane, not a bare `RingGeometry` annulus: the hard 40-segment hoop this used to
+    // build moved on the identical curve and read as a wireframe on the water.
+    expect(first.geometry).toBeInstanceOf(THREE.PlaneGeometry);
+    // And unfogged, like the lab's — otherwise a distant swimmer's rings wash into the haze.
+    expect((first.material as THREE.MeshBasicMaterial).fog).toBe(false);
+
+    // A stroke is a SOUND, not a ripple. Emitting one here too put two overlapping series on the
+    // water; the 550 ms timer above owns the cadence alone.
+    const before = layer.diagnostics().effects ?? 0;
+    layer.playHeroMovement([{ t: "brasse" }], swimmer);
+    expect(layer.diagnostics().effects).toBe(before);
+
+    // The timer still fires: 550 ms later there is a second ring.
+    layer.syncLocalHero(swimmer, movement, 1_600);
+    expect(layer.diagnostics().effects).toBe(before + 1);
+    layer.dispose();
+  });
+
+  it("keeps the swimming surfaces synchronized with local state", () => {
     const { layer } = harness();
     layer.syncLocalHero(
       { ...hero, swimming: true },
-      { iceCrack: { x: 0, z: 0 }, breath: 7, maxBreath: 10, swimming: true },
+      { breath: 7, maxBreath: 10, swimming: true },
       1_000,
     );
 
-    expect(layer.diagnostics().movementSurfaces).toBe(3);
+    // The swim disc and the breath bar. There were three while thin ice existed and a crack decal
+    // followed the hero; that mechanic is gone, and so is the surface.
+    expect(layer.diagnostics().movementSurfaces).toBe(2);
     expect(layer.diagnostics().effects).toBe(1);
-    layer.syncLocalHero(
-      hero,
-      { iceCrack: null, breath: 10, maxBreath: 10, swimming: false },
-      1_100,
-    );
+    layer.syncLocalHero(hero, { breath: 10, maxBreath: 10, swimming: false }, 1_100);
     expect(layer.diagnostics().movementSurfaces).toBe(0);
     layer.dispose();
   });

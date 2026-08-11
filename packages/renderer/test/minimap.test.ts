@@ -111,7 +111,7 @@ describe("corpse ring clamp", () => {
 });
 
 describe("minimap colour", () => {
-  const MATERIALS: TerrainMaterial[] = ["sable", "herbe", "neige", "glace", "glace-fine"];
+  const MATERIALS: TerrainMaterial[] = ["sable", "herbe", "neige", "glace"];
 
   it("gives every ground material its own colour", () => {
     const colors = MATERIALS.map((material) => colorForCell(material, 0));

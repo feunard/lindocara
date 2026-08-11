@@ -16,7 +16,12 @@ function authored(): MapData {
     0,
     autotileId(TERRAIN_MATERIAL_SLOTS.neige[2], 0),
     autotileId(TERRAIN_MATERIAL_SLOTS.glace[0], 0),
-    autotileId(TERRAIN_MATERIAL_SLOTS["glace-fine"][0], 0),
+    // The RETIRED thin-ice brush's first slot, written as a literal because the material it
+    // belonged to no longer exists. Kept in this fixture on purpose: maps painted with that brush
+    // are still out there, and they must compile to ordinary ice rather than fall down
+    // `materialOfSlot`'s grass fallback — which would silently turn an authored frozen lake into a
+    // walkable lawn. See `RETIRED_THIN_ICE_SLOTS` (`tilesets/tiny-swords.ts`).
+    autotileId(16, 0),
   ];
   return {
     tilesetId: TINY_SWORDS_TILESET_ID,
@@ -64,7 +69,8 @@ describe("compileAuthoredMap", () => {
       "herbe",
       "neige",
       "glace",
-      "glace-fine",
+      // The retired thin-ice slot, read as ordinary ice — not as grass.
+      "glace",
       "herbe",
       "herbe",
       "herbe",

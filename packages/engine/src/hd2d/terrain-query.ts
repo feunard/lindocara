@@ -2,13 +2,16 @@
 // into `@lindocara/engine` in S2, authoritative and shared with prediction — kept pure and free of
 // any `three` dependency so that on that day movement changed nothing but its address.
 
-/** The lab's five ground materials — two warm (the tropical island), three cold (the northern
- *  island). An exported union rather than `string`: `engine` is the future server authority for
- *  this, and a stringly-typed material would be a liability from the first silent typo — the
- *  compiler must be able to reject `"herb"` outright. `"glace-fine"` (thin ice) is a RULE
- *  material (it gives way under weight): it shares the appearance of `"glace"` until Task 7 gives
- *  it its own cracked-ice visual — see `main.ts`, `atlases`. */
-export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace" | "glace-fine";
+/** The four ground materials — two warm (the tropical island), two cold (the northern island). An
+ *  exported union rather than `string`: `engine` is the future server authority for this, and a
+ *  stringly-typed material would be a liability from the first silent typo — the compiler must be
+ *  able to reject `"herb"` outright.
+ *
+ *  There WAS a fifth, `"glace-fine"` (thin ice), which cracked and gave way underfoot. The
+ *  mechanic is gone; ice is just ice. Stored maps painted with it are still accepted and read as
+ *  `"glace"` — see `decodeMap` — so no authored map had to be migrated, and none became
+ *  unjoinable. */
+export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace";
 
 /** A two-cell authored staircase. Its rectangle covers the low bank; `direction` names the edge
  * that meets the immediately higher plateau. Collision samples it as a continuous slope while the

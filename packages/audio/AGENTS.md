@@ -56,8 +56,7 @@ this bank exists to prevent.
 ## Assets
 
 `assets/` holds only what BOTH apps play: footsteps (grass, sand, snow, ice), swimming, jump,
-landing, water entry/exit, the glider canopy, the three thin-ice beats, and the skid loop.
-Lab-only content — its doors, its dialogue tick, its ambience beds, its NPC voices, its blade
+landing, water entry/exit, the glider canopy, and the skid loop. Lab-only content — its doors, its dialogue tick, its ambience beds, its NPC voices, its blade
 whoosh — stays in `apps/lab/public/sfx`.
 
 `apps/lab/scripts/sync-assets.sh` is still the single generator for the pack-derived files and

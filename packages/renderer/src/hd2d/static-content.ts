@@ -134,7 +134,7 @@ export function authoredCloudWind(nowMs: number, phaseMs: number): { x: number; 
 }
 
 export function isColdBiomeMaterial(material: unknown): boolean {
-  return material === "neige" || material === "glace" || material === "glace-fine";
+  return material === "neige" || material === "glace";
 }
 
 export function authoredMaterialAt(map: MapData, x: number, z: number): unknown {

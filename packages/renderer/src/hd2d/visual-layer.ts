@@ -12,7 +12,7 @@ import type {
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import type { Billboard, Sprite } from "@lindocara/hd2d/billboard.js";
-import { makeBillboard, makeFlatSprite } from "@lindocara/hd2d/billboard.js";
+import { makeBillboard, makeFlatSprite, makeRipple } from "@lindocara/hd2d/billboard.js";
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
@@ -280,7 +280,6 @@ export class Hd2dVisualLayer {
   readonly #swimDisc: THREE.Mesh;
   readonly #breathBar = new THREE.Group();
   readonly #breathFill: THREE.Mesh;
-  readonly #crackDisc: THREE.Group;
   readonly #skid: THREE.Mesh;
   #events: readonly WorldEventSnapshot[] = [];
   #questState: readonly AuthoredQuestMarker[] = [];
@@ -351,37 +350,6 @@ export class Hd2dVisualLayer {
     this.#breathBar.add(breathBackground, this.#breathFill);
     this.#breathBar.visible = false;
     this.#root.add(this.#breathBar);
-
-    this.#crackDisc = new THREE.Group();
-    const crackPositions: number[] = [];
-    for (let ray = 0; ray < 9; ray += 1) {
-      const angle = (ray / 9) * Math.PI * 2;
-      const inner = 0.1 + (ray % 3) * 0.035;
-      const outer = 0.5 + (ray % 2) * 0.16;
-      crackPositions.push(
-        Math.cos(angle) * inner,
-        0,
-        Math.sin(angle) * inner,
-        Math.cos(angle + (ray % 2 ? 0.16 : -0.1)) * outer,
-        0,
-        Math.sin(angle + (ray % 2 ? 0.16 : -0.1)) * outer,
-      );
-    }
-    const crackGeometry = new THREE.BufferGeometry();
-    crackGeometry.setAttribute("position", new THREE.Float32BufferAttribute(crackPositions, 3));
-    this.#crackDisc.add(
-      new THREE.LineSegments(
-        crackGeometry,
-        new THREE.LineBasicMaterial({
-          color: 0x173746,
-          transparent: true,
-          opacity: 0.9,
-          depthWrite: false,
-        }),
-      ),
-    );
-    this.#crackDisc.visible = false;
-    this.#root.add(this.#crackDisc);
 
     this.#skid = new THREE.Mesh(
       new THREE.BoxGeometry(0.9, 0.012, 0.055),
@@ -553,14 +521,18 @@ export class Hd2dVisualLayer {
     });
   }
 
+  /**
+   * One expanding surface ring, from the shared primitive rather than a rebuilt one.
+   *
+   * `makeRipple()` is a plane carrying the soft radial ring texture, and it is what the lab has
+   * always drawn. This used to build a `RingGeometry(0.28, 0.38, 40)` instead — a hard-edged
+   * untextured annulus with the identical timing curve, so it MOVED correctly and read as a
+   * wireframe hoop on the water. It was also fogged, unlike the primitive (`fog: false`), so
+   * distant ripples washed out into the haze.
+   */
   #ripple(x: number, z: number, strength = 1, now = performance.now()): void {
-    const mesh = new THREE.Mesh(
-      new THREE.RingGeometry(0.28, 0.38, 40),
-      transparentMaterial(0xcff5ff, 0.55),
-    );
-    mesh.rotation.x = -Math.PI / 2;
+    const mesh = makeRipple();
     mesh.position.set(x, this.#waterLevel + 0.025, z);
-    mesh.renderOrder = 3;
     this.#root.add(mesh);
     this.#trackEffect({
       object: mesh,
@@ -688,12 +660,14 @@ export class Hd2dVisualLayer {
       if (event.t === "glisse") skid = Math.max(skid, event.intensite);
       else if (event.t === "trace" && hero) this.#footprint(event, hero, now);
       else if (event.t === "haleine" && hero) this.#breath(hero, now);
-      else if (event.t === "brasse" && hero) this.#ripple(hero.x, hero.z, 0.8, now);
+      // `brasse` is a SOUND, not a ripple. Ripples run on their own cadence in `syncLocalHero`
+      // (550 ms, the lab's `ONDE_TOUTES_LES`); emitting one here as well put two overlapping
+      // series on the water — the stroke's own ~850 ms beat on top of the timer's — which reads
+      // as churn rather than as a swimmer.
       else if (event.t === "entree-eau" || event.t === "sortie-eau" || event.t === "noyade")
         this.#splash(event.x, event.y, event.z, now);
       else if (event.t === "reception" && hero)
         this.pulse(hero.x, hero.z, 0xd8c49c, Math.min(1.2, 0.45 + event.force * 0.04), 360, now);
-      else if (event.t === "glace-craque") this.pulse(event.x, event.z, 0x294e63, 0.9, 520, now);
     }
     this.#skid.visible = hero !== null && skid > 0.03;
     if (hero && this.#skid.visible) {
@@ -734,11 +708,6 @@ export class Hd2dVisualLayer {
       const material = this.#breathFill.material as THREE.MeshBasicMaterial;
       material.color.setHex(ratio <= 0.25 ? 0xf06b5d : ratio <= 0.5 ? 0xf2bd56 : 0x73ddf2);
     }
-
-    const crack = movement?.iceCrack ?? null;
-    this.#crackDisc.visible = crack !== null;
-    if (crack)
-      this.#crackDisc.position.set(crack.x, this.#groundY(crack.x, crack.z, 0.035), crack.z);
   }
 
   setMerchant(merchant: MerchantDefinition | null): void {
@@ -1416,7 +1385,6 @@ export class Hd2dVisualLayer {
       movementSurfaces:
         Number(this.#swimDisc.visible) +
         Number(this.#breathBar.visible) +
-        Number(this.#crackDisc.visible) +
         Number(this.#skid.visible),
       eventMarkers: this.#eventMarkers.size,
       labels: this.#labels.length,
