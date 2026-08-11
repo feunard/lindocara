@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { NORD, WORLD } from "../src/settings.js";
-import { generateIsland, isBeach, mulberry32, waterDistance } from "../src/world/island.js";
+import { NORD, WEST, WORLD } from "../src/settings.js";
+import {
+  generateIsland,
+  isBeach,
+  mulberry32,
+  renderMaterialAt,
+  WEST_REACH_MAX,
+  waterDistance,
+} from "../src/world/island.js";
 
 /** Même formule que le `toCell` privé de `createTerrainQuery` (`terrain-query.ts`) : convertit une
  *  coordonnée MONDE en indice de cellule. Dupliquée plutôt qu'importée — l'original ferme sur la
@@ -159,7 +166,7 @@ describe("generateIsland", () => {
         }
         // "glace" couvre aussi bien la glace que la glace fine : `materialAt` rend une clé
         // d'ATLAS, pas la matière de collision — voir `island.ts`.
-        expect(["lvl0", "lvl1", "lvl2", "sable", "neige", "glace"]).toContain(m);
+        expect(["lvl0", "lvl1", "lvl2", "roche", "sable", "neige", "glace"]).toContain(m);
         // Le sable n'existe qu'au palier 0.
         if (m === "sable") {
           expect(h).toBe(0);
@@ -226,5 +233,79 @@ describe("l'île du nord", () => {
   it("laisse les trois autres îles inchangées", () => {
     // La grande reste de l'herbe : ajouter un biome ne doit rien reteindre ailleurs.
     expect(query.kindAt(0, 0)).toBe("herbe");
+  });
+});
+
+describe("the west island", () => {
+  const { field } = generateIsland({ size: WORLD.size, seed: WORLD.seed });
+
+  /** Every cell within reach of the west island, as a flat list — the four cases below each walk
+   *  the same land, and a flood fill is the only definition that cannot be fooled.
+   *
+   *  A RADIUS around `WEST` would be wrong, and measurably so: the main island's shore comes within
+   *  ~11.2 units of this island's centre at its closest, which is INSIDE any cutoff generous enough
+   *  to hold the whole island (its own reach runs to 7.70). A first draft used 12 and picked up
+   *  main-island land at 11.85, which read as "the mountain is 11 units tall" rather than as a test
+   *  bug. Walking the land from the summit outward asks the question the tests actually mean —
+   *  which cells belong to THIS island — and gets it right by construction. */
+  const westCells = (): { i: number; j: number; h: number }[] => {
+    const start: [number, number] = [toCell(WEST.x), toCell(WEST.z)];
+    const seen = new Set<number>();
+    const out: { i: number; j: number; h: number }[] = [];
+    const file: [number, number][] = [start];
+    while (file.length) {
+      const cell = file.pop();
+      if (!cell) break;
+      const [i, j] = cell;
+      if (i < 0 || j < 0 || i >= WORLD.size || j >= WORLD.size) continue;
+      const key = j * WORLD.size + i;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const h = field.levelAt(i, j);
+      if (h === null) continue; // water is the island's edge: the fill stops here
+      out.push({ i, j, h });
+      file.push([i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]);
+    }
+    return out;
+  };
+
+  it("exists, and its summit reaches level 4", () => {
+    expect(field.levelAt(toCell(WEST.x), toCell(WEST.z))).not.toBeNull();
+    const highest = westCells().reduce((max, c) => Math.max(max, c.h), 0);
+    expect(highest).toBe(4);
+  });
+
+  it("carries every terrace from 0 to 4, so no wall is ever taller than one level", () => {
+    const seen = new Set<number>();
+    for (const c of westCells()) seen.add(c.h);
+    expect([...seen].sort()).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("renders levels 3 and up with the rock atlas, and 0/1/2 with the grass bands", () => {
+    expect(renderMaterialAt("herbe", 0)).toBe("lvl0");
+    expect(renderMaterialAt("herbe", 1)).toBe("lvl1");
+    expect(renderMaterialAt("herbe", 2)).toBe("lvl2");
+    expect(renderMaterialAt("herbe", 3)).toBe("roche");
+    expect(renderMaterialAt("herbe", 4)).toBe("roche");
+  });
+
+  // The north corridor test above sweeps columns looking for a land bridge; the flood fill states
+  // the same invariant directly and cannot miss a diagonal one. "Reached only by swimming" IS
+  // "no walkable path from the main island", and connectivity is exactly what a fill measures —
+  // the origin is main-island land by construction (`ILES[0]` is centred there), so its absence
+  // from this island's component is the whole proof.
+  it("is not reachable on foot from the main island", () => {
+    const reachable = new Set(westCells().map((c) => c.j * WORLD.size + c.i));
+    expect(reachable.size).toBeGreaterThan(0);
+    expect(field.levelAt(toCell(0), toCell(0))).not.toBeNull();
+    expect(reachable.has(toCell(0) * WORLD.size + toCell(0))).toBe(false);
+  });
+
+  it("WEST_REACH_MAX bounds the real shoreline", () => {
+    for (const c of westCells()) {
+      const x = c.i + 0.5 - WORLD.size / 2;
+      const z = c.j + 0.5 - WORLD.size / 2;
+      expect(Math.hypot(x - WEST.x, z - WEST.z)).toBeLessThanOrEqual(WEST_REACH_MAX);
+    }
   });
 });

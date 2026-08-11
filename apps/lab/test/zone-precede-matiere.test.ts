@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ZONE_POLAIRE } from "../src/settings.js";
-import { NORD_EMPRISE } from "../src/world/island.js";
+import { ZONE_FALLS, ZONE_LARGE, ZONE_POLAIRE, ZONES } from "../src/settings.js";
+import { NORD_EMPRISE, WEST_REACH_MAX } from "../src/world/island.js";
 
 describe("l'ambiance polaire précède la matière neige/glace", () => {
   // Deux marges codées en dur dans deux fichiers, par deux tasks différentes, sur le même rayon de
@@ -15,5 +15,26 @@ describe("l'ambiance polaire précède la matière neige/glace", () => {
   // rougir si la relation se rompt, pas seulement si une valeur change.
   it("ZONE_POLAIRE.rayon reste strictement plus large que NORD_EMPRISE", () => {
     expect(ZONE_POLAIRE.rayon).toBeGreaterThan(NORD_EMPRISE);
+  });
+});
+
+describe("the falls ambience precedes the shore", () => {
+  // Same invariant as the polar zone's above, on the west island: the zone must be wider than the
+  // island's widest shoreline reach, so the soundscape and the theme install themselves WHILE the
+  // hero is still swimming rather than on the frame their foot lands. Both real symbols are
+  // imported rather than their values copied, so this reddens if the RELATION breaks — not merely
+  // if a number changes.
+  it("ZONE_FALLS.rayon stays strictly wider than the island's shoreline", () => {
+    expect(ZONE_FALLS.rayon).toBeGreaterThan(WEST_REACH_MAX);
+  });
+
+  it("ZONE_FALLS comes before the catch-all, whose infinite radius would swallow it", () => {
+    expect(ZONES.indexOf(ZONE_FALLS)).toBeLessThan(ZONES.indexOf(ZONE_LARGE));
+  });
+
+  // The order IS the priority in `zoneAt`, and a zone listed after an infinite-radius one can
+  // never be reached. This is the assertion that makes that structural, not a comment.
+  it("the catch-all stays last", () => {
+    expect(ZONES[ZONES.length - 1]).toBe(ZONE_LARGE);
   });
 });

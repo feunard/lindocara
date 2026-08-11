@@ -6,7 +6,7 @@ import {
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
-import { NORD, WORLD } from "../settings.js";
+import { MOUNTAIN, NORD, WEST, WORLD } from "../settings.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
  *  `generateIsland` ci-dessous. Sorti au niveau module (et exporté) pour que
@@ -95,7 +95,46 @@ const ILES: readonly IslandShape[] = [
     onde: (a) => 0.12 * Math.sin(a * 3 - 1.1) + 0.05 * Math.sin(a * 5 + 0.7),
     reliefs: [{ x: NORD.x + 4.5, z: NORD.z - 3.5, r: 2, h: 1 }],
   },
+  // The fifth, west (see `WEST`, `settings.ts`): a terraced mountain, reached only by swimming.
+  // Four CONCENTRIC relief discs of shrinking radius give levels 1 to 4, so every wall on this
+  // island is exactly one level (0.9) tall. That is not decoration — `mesh.ts` stretches ONE UV
+  // cell over a wall's full drop ("preserving a single tall-block silhouette"), which is right for
+  // a level-2 cliff and would smear the rock over 3.6 units on a mountain face. Keeping the discs
+  // concentric rather than staggered also stacks the three waterfall drops in one clean vertical
+  // line down the east face.
+  {
+    x: WEST.x,
+    z: WEST.z,
+    r: WEST.r,
+    onde: westShoreWave,
+    reliefs: [
+      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 4.2, h: 1 },
+      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 3.2, h: 2 },
+      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 2.2, h: 3 },
+      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 1.2, h: 4 },
+    ],
+  },
 ];
+
+/** The west island's shoreline wave, named rather than inlined like its four neighbours' because
+ *  `WEST_REACH_MAX` below has to sample the SAME function. Writing it twice would put the zone
+ *  ordering test (`test/zone-precede-matiere.test.ts`) on a second source of truth that could drift
+ *  from the island it claims to bound without anything noticing. */
+function westShoreWave(a: number): number {
+  return 0.12 * Math.sin(a * 3 + 2.2) + 0.05 * Math.sin(a * 5 - 0.4);
+}
+
+/** The west island's widest effective shoreline radius: `r · (0.94 − onde(a))` sampled around the
+ *  full circle, which is exactly the threshold `makeHeightmap` applies. Exported so
+ *  `test/zone-precede-matiere.test.ts` can pin `ZONE_FALLS.rayon` above it against the REAL symbol
+ *  rather than a copied number — the same reason `NORD_EMPRISE` is exported. Computed once at
+ *  module load: 720 samples of two sines, paid once per process, never per frame. */
+export const WEST_REACH_MAX = ((): number => {
+  let max = 0;
+  for (let k = 0; k < 720; k++)
+    max = Math.max(max, WEST.r * (0.94 - westShoreWave((k * Math.PI) / 360)));
+  return max;
+})();
 
 /** Palier par case, ou `null` si c'est de l'eau. */
 function makeHeightmap(size: number): (number | null)[] {
@@ -120,8 +159,10 @@ function makeHeightmap(size: number): (number | null)[] {
   return cells;
 }
 
-const LEVEL_SET = ["lvl0", "lvl1", "lvl2"] as const;
-const levelSet = (h: number): string => LEVEL_SET[Math.min(h, LEVEL_SET.length - 1)] ?? "lvl2";
+const LEVEL_SET = ["lvl0", "lvl1", "lvl2", "roche"] as const;
+/** Levels 0-2 keep their own grass band; everything at 3 or above is rock. The clamp is what makes
+ *  a mountain of any height legal without a fifth atlas — the terraces above 3 all share one. */
+const levelSet = (h: number): string => LEVEL_SET[Math.min(h, LEVEL_SET.length - 1)] ?? "roche";
 
 /**
  * La clé d'ATLAS d'une case, à partir de sa matière de RÈGLE (`TerrainMaterial`, cinq valeurs) et
