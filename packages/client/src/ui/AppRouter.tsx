@@ -2,7 +2,8 @@
  * The `$page` route tree — Alepha's router that replaced the old zustand `screen` machine
  * (`App.tsx`, formerly `ui/LegacyShell.tsx`, the frozen rollback-only counterpart to this file
  * until the legacy retirement tranche deleted it entirely). Every route is live now:
- * `title`/`menu`/`credits`/`auth`, the three launch
+ * `title`/`menu`/`credits`/`login` (path `/auth` — see that field's own docblock for why the
+ * ROUTE NAME and the URL PATH deliberately differ since Task 2's fix round 3), the three launch
  * carousels (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own
  * docblock below), `game` (Task 5) and `editor`. `editor` was a lazy-loaded route rendering the real
  * `@lindocara/editor` shell; since S3 retired the PixiJS render path it lazy-loads the rebuilt
@@ -207,7 +208,10 @@ function AppLayout() {
     const nav: GameNavigation = {
       toGame: () => void router.push("game"),
       toMenu: () => void router.push("menu"),
-      toAuth: () => void router.push("auth"),
+      // `toAuth` is the `GameNavigation` CONTRACT name (`state/navigation.ts`) — it stays as-is.
+      // Only the route it pushes changed: the `/auth` `$page`'s route NAME is `login` now (fix
+      // round 3 — see that field's own docblock), while its URL `path` is still `/auth`.
+      toAuth: () => void router.push("login"),
       toEditor: () => void router.push("editor"),
       setActiveParty: (party) => alepha.store.set(activePartyAtom, party),
       getActiveParty: () => alepha.store.get(activePartyAtom),
@@ -218,9 +222,9 @@ function AppLayout() {
     };
     setGameNavigation(nav);
     setOnUnauthorized(() => {
-      if (router.state.url.pathname === router.path("auth")) return;
+      if (router.state.url.pathname === router.path("login")) return;
       alepha.store.set(currentUserAtom, undefined);
-      void router.push("auth");
+      void router.push("login");
     });
     return () => {
       setGameNavigation(null);
@@ -283,7 +287,9 @@ export class AppRouter {
   // fires, then React mounts and the container refuses to register anything new). Mirrors lore's
   // own `AppRouter` (`auth = $inject(ReactAuth)`) — see the Task 3 report for the recon that ruled
   // out registering `AlephaReactAuth` explicitly in `main.browser.ts` instead. Named `reactAuth`,
-  // not `auth`: the route map below already claims that field name for the `/auth` `$page`.
+  // not `auth`: originally to avoid colliding with the `/auth` `$page`'s own field name (that page
+  // is `login` now — see its own docblock — but the injected-service field kept its established
+  // name regardless, since it names the SERVICE, not the route).
   reactAuth = $inject(ReactAuth);
 
   /**
@@ -368,11 +374,33 @@ export class AppRouter {
    * fallback (`continueAsGuest()` + a second `ping()`) then runs COMPLETELY UNAWAITED, as a
    * fire-and-forget background chain: if the visitor turns out to be anonymous, they see the app
    * render first and the guest session attach a moment later (or, on total failure — both the real
-   * ping AND guest registration failing — get sent to `/auth` via a hard `window.location`
-   * assignment a moment later; still not `router.push`, since React has not mounted yet when this
-   * hook runs and there is no live SPA router to push through). The race's LOSING timer callback
-   * calling `resolve()` on an already-settled promise is a harmless no-op — nothing needs to
-   * cancel it.
+   * ping AND guest registration failing — get sent to the sign-in screen via a hard
+   * `window.location` assignment a moment later; still not `router.push`, since React has not
+   * mounted yet when this hook runs and there is no live SPA router to push through). The race's
+   * LOSING timer callback calling `resolve()` on an already-settled promise is a harmless no-op —
+   * nothing needs to cancel it.
+   *
+   * **Fix round 3, for a `$secure`-guarded route specifically (e.g. `/admin`): a SLOW-but-real
+   * session (`ping()` genuinely resolving, just after `BOOT_PING_TIMEOUT_MS`) is NOT the same
+   * outcome as an anonymous one, even though `bootPing` treats them identically at this point —
+   * and that used to matter. Any bounded timeout necessarily has a "the real answer arrives a
+   * moment after the cap" case, and — before fix round 3 — that case dead-ended: `currentUserAtom`
+   * was still empty at the guard's FIRST evaluation, `denyGuardedPage` threw a plain 401
+   * `AlephaError`, and `NestedView`'s `ErrorBoundary` (`resetKeys` = only the URL pathname) LATCHED
+   * that error permanently — `ping()` completing moments later, and populating the atom, changed
+   * nothing already committed to screen. So this docblock used to claim "the real session attaches
+   * late in the background," which was true for an UNGUARDED route (nothing there was ever denied
+   * in the first place) and FALSE for a guarded one (denial had already thrown before the atom
+   * populated).
+   *
+   * The actual fix was renaming the `/auth` `$page`'s route NAME from `auth` to `login` — see that
+   * field's own docblock. `denyGuardedPage`'s anonymous-visitor branch resolves a route named
+   * exactly `"login"` and, once found, RETURNS a redirect instead of throwing:
+   * `/auth?redirect=<original>`. So today, a `$secure`-guarded route hit with no user yet — whether
+   * genuinely anonymous or just a session whose `ping()` hasn't resolved yet — redirects to the
+   * real, usable sign-in screen instead of latching an error. That redirect is not itself a symptom
+   * of a slow ping; it is the CORRECT behaviour for "no confirmed session yet," and it no longer
+   * traps a slow-but-real session behind a permanent wall the way the pre-round-3 shape did.
    *
    * Skipped entirely when the browser's OWN current location is `/auth`: landing there already
    * means "let the human decide" (a 401 redirect, or a direct deep link), and silently signing the
@@ -380,7 +408,9 @@ export class AppRouter {
    * login/register/guest actions, which drive the exact same `continueAsGuest()`/`ping()` calls.
    * Reads `window.location.pathname` rather than router state: the router has not resolved
    * anything yet at `"start"` time, and `window.location` IS the value its first transition is
-   * about to use.
+   * about to use. Checked against the literal `/auth` PATH (not the `login` route NAME) on
+   * purpose — this is the one place in the file that legitimately means "the URL the browser is
+   * sitting on," which `path` describes and `name` does not.
    */
   bootPing = $hook({
     on: "start",
@@ -425,7 +455,7 @@ export class AppRouter {
       this.title,
       this.menu,
       this.credits,
-      this.auth,
+      this.login,
       this.playContinue,
       this.playNew,
       this.playJoin,
@@ -439,7 +469,26 @@ export class AppRouter {
   menu = $page({ path: "/menu", component: MainMenu });
   credits = $page({ path: "/credits", component: CreditsScreen });
 
-  auth = $page({ path: "/auth", component: AuthScreen });
+  /**
+   * Named `login`, not `auth` — deliberately, since Task 2's fix round 3. `$page`'s route NAME
+   * (no explicit `name:` here, so it defaults to this field's own property key,
+   * `PagePrimitive.name`'s `this.options.name ?? this.config.propertyKey`) is what
+   * `ReactPageProvider.denyGuardedPage` looks up via `findRoute("login")` when a `$secure`-guarded
+   * route denies an anonymous visitor: found, it REDIRECTS (`/auth?redirect=<original>`); not
+   * found, it THROWS a 401 that latches in `NestedView`'s `ErrorBoundary` until the pathname
+   * itself changes. This app's route was named `auth`, so `findRoute("login")` always came back
+   * empty and EVERY guard denial — cold-loading `/admin` chief among them — took the throwing,
+   * latching branch. Renaming the FIELD (there is no separate `name:` to set) is the fix; nothing
+   * about routing otherwise changes.
+   *
+   * `path: "/auth"` is UNCHANGED and must stay unchanged — the URL a player sees, bookmarks or
+   * types is a separate concern from the route's internal name, and this repo's own sign-in screen
+   * is still reached at `/auth`. Every caller that used to `push`/`path` the route by its old name
+   * (`AppRouter.tsx`'s own navigation seam and 401 recovery, `AdminShell.tsx`'s `ButtonUser`) was
+   * updated to `"login"` alongside this rename — grepped for every remaining `"auth"` route-name
+   * reference (not `/auth` path literals, which stay put) before trusting this change was complete.
+   */
+  login = $page({ path: "/auth", component: AuthScreen });
 
   /**
    * The three launch carousels (Task 4). Each loader replaces the screen's old `useEffect` fetch —

@@ -128,17 +128,14 @@ describe("AdminShell route", () => {
   it(
     "does not dead-end an already-authenticated admin's cold /admin load",
     async () => {
-      // Direct regression test for the finding: before this fix, the boot ping ran from
+      // Direct regression test for the finding: before fix round 1, the boot ping ran from
       // `AppLayout`'s `useEffect`, which only runs AFTER first paint — after the router's own FIRST
       // route transition had already evaluated `$secure` against a still-empty `currentUserAtom`.
-      // `ReactPageProvider.denyGuardedPage`'s anonymous-visitor branch looks for a route named
-      // exactly "login" to redirect to; this app's equivalent route is named "auth", so that
-      // fallback never fired, and the resulting 401 "Authentication required" error latched in
-      // `NestedView`'s `ErrorBoundary` — whose `resetKeys` is only the pathname, not the atom — so a
-      // real admin who bookmarked, typed, or refreshed `/admin` got stuck on that error page even
-      // though `ping()` would have resolved a moment later. `AppRouter.bootPing` (a `$hook({ on:
-      // "start" })`) now fully resolves before the router's first transition runs at all, closing
-      // the window this regression lived in.
+      // `AppRouter.bootPing` (a `$hook({ on: "start" })`) now fully resolves before the router's
+      // first transition runs at all, closing that window: for THIS session (a fast, successful
+      // `ping()`), the atom is already populated by the time the guard runs, so it never takes the
+      // anonymous branch at all — the "login" route rename (fix round 3, see the third test below)
+      // is what protects a SLOW-but-real session instead.
       //
       // Grants every permission the admin route tree actually checks — the layout's own `admin:ui`
       // plus each page's own `nav.permission` — so the guard genuinely passes and the full sidebar
@@ -227,17 +224,108 @@ describe("AdminShell route", () => {
       // actually returned instead of hanging on the dead request.
       expect(elapsedMs).toBeLessThan(6_000);
 
-      // With `currentUserAtom` still empty (the real ping never returned), `/admin`'s guard
-      // denies the ANONYMOUS branch — `denyGuardedPage` throws a 401, since this app has no route
-      // named "login" for it to redirect to instead (see the first test's own docblock). The
-      // point here isn't the exact denial text (already covered above) — it's that SOMETHING
-      // rendered at all, promptly, rather than an eternally blank `#root`.
+      // With `currentUserAtom` still empty (the real ping never returns in this test), `/admin`'s
+      // guard denies the ANONYMOUS branch — and since fix round 3 renamed the sign-in route to
+      // `login`, `denyGuardedPage` now REDIRECTS there instead of throwing (see the next test,
+      // which asserts that redirect precisely). This test isn't about which of those two shapes
+      // fires, only that SOMETHING renders promptly either way, rather than an eternally blank
+      // `#root` — so the assertion stays deliberately generic.
       await waitFor(
         () => {
           expect(document.body.textContent).not.toBe("");
         },
         { timeout: 5_000 },
       );
+      expect(screen.queryByText("Users")).toBeNull();
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "redirects to sign-in instead of latching an error when a real session resolves after the boot timeout",
+    async () => {
+      // Fix round 3's regression test. The residual bug: `bootPing`'s `BOOT_PING_TIMEOUT_MS` cap
+      // is required (round 2), but ANY bounded timeout has a "the real answer arrives a moment
+      // after the cap" case — a genuinely authenticated admin whose `/_auth/userinfo` legitimately
+      // takes longer than the cap (a cold platform boot, a slow network, a DB latency spike; slow,
+      // not hung) still has an EMPTY `currentUserAtom` at the guard's first evaluation. Before this
+      // round, that dead-ended exactly like a truly anonymous visitor: `denyGuardedPage` threw a
+      // 401 that `NestedView`'s `ErrorBoundary` latched permanently (`resetKeys` is only the
+      // pathname — never the atom), so the session resolving moments later changed nothing already
+      // on screen. Renaming the sign-in route from `auth` to `login` (`AppRouter.tsx`'s `login`
+      // field) fixes this unconditionally rather than narrowing the window: `denyGuardedPage` now
+      // finds that route and REDIRECTS instead of throwing, for ANY no-user-yet guard evaluation —
+      // slow-but-real and truly-anonymous alike.
+      //
+      // `/_auth/userinfo` resolves SUCCESSFULLY here, carrying full admin permissions — proving the
+      // motivating scenario (a real admin, not merely an anonymous visitor) — but only after
+      // 3500ms, comfortably past `BOOT_PING_TIMEOUT_MS` (2500ms). `bootPing`'s race times out
+      // first, mount proceeds with the atom still empty, and only THEN does the slow ping resolve
+      // in the background — after the first transition already ran.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          const path = String(input);
+          if (path.startsWith("/_auth/userinfo")) {
+            await new Promise((resolve) => setTimeout(resolve, 3_500));
+            return new Response(
+              JSON.stringify({
+                user: { id: "acc-1", username: "nico" },
+                api: {
+                  actions: {},
+                  permissions: [
+                    "admin:ui",
+                    "admin:user:read",
+                    "admin:session:read",
+                    "admin:api-key:read",
+                    "admin:audit:read",
+                  ],
+                },
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            );
+          }
+          // `bootPing`'s guest-registration fallback fires in the background regardless (it
+          // cannot know the slow `ping()` above will eventually succeed) — stubbed here purely so
+          // that fire-and-forget chain resolves cleanly instead of throwing on an unexpected shape
+          // and hitting the total-failure `window.location.href` branch, which has no bearing on
+          // this test's own assertions but would otherwise log jsdom's noisy "not implemented:
+          // navigation" warning.
+          if (path.startsWith("/api/users/register") && !path.includes("complete")) {
+            return new Response(JSON.stringify({ intentId: "guest-intent" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          if (path.startsWith("/_auth/token")) {
+            return new Response(JSON.stringify({ user: { id: "guest-1", username: "guest-x" } }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return new Response("{}", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }),
+      );
+
+      alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+      await act(async () => {
+        await alepha?.start();
+      });
+
+      // Redirected to the sign-in screen (route name `login`, URL path `/auth`) — NOT a latched
+      // 401/403 error, and NOT the admin sidebar (the atom was still empty at the moment the guard
+      // ran, regardless of what the slow ping would eventually grant).
+      await waitFor(
+        () => {
+          expect(document.querySelector(".auth-shell")).toBeTruthy();
+        },
+        { timeout: 5_000 },
+      );
+      expect(screen.queryByText(/authentication required/i)).toBeNull();
+      expect(screen.queryByText(/you do not have permission/i)).toBeNull();
       expect(screen.queryByText("Users")).toBeNull();
     },
     TEST_TIMEOUT_MS,

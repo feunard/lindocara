@@ -70,7 +70,10 @@ export function AdminShell() {
             {/* No `onAdminClick`: unlike the game menu's corner button (which enters `/admin`),
               this button is already inside `/admin` — there is nowhere useful for it to send the
               user, so the default menu's "Admin Panel" item stays hidden and only Logout shows. */}
-            <ButtonUser onSignIn={() => void router.push("auth")} />
+            {/* Pushes the route NAME, `login` (Task 2 fix round 3) — the sign-in screen's URL
+              `path` is still `/auth`; see `AppRouter.tsx`'s `login` field docblock for why the two
+              deliberately differ. */}
+            <ButtonUser onSignIn={() => void router.push("login")} />
           </div>
         }
       />
