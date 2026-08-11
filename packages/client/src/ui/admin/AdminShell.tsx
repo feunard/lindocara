@@ -2,9 +2,11 @@ import { ButtonLanguage } from "@alepha/ui/components/button-language/button-lan
 import { ButtonUser } from "@alepha/ui/components/button-user/button-user";
 import { NavShell } from "@alepha/ui/components/nav-shell/nav-shell";
 import { Spotlight } from "@alepha/ui/components/nav-shell/spotlight";
+import { DropdownMenuItem } from "@alepha/ui/components/ui/dropdown-menu";
 import { useRouter } from "alepha/react/router";
-import { ArrowLeft, LayoutDashboard, Search } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, LogOut, Search } from "lucide-react";
 import { useState } from "react";
+import { getGameNavigation } from "../../state/navigation.js";
 import type { AppRouter } from "../AppRouter.js";
 
 /**
@@ -84,7 +86,20 @@ export function AdminShell() {
             {/* Pushes the route NAME, `login` (Task 2 fix round 3) — the sign-in screen's URL
               `path` is still `/auth`; see `AppRouter.tsx`'s `login` field docblock for why the two
               deliberately differ. */}
-            <ButtonUser onSignIn={() => void router.push("login")} />
+            <ButtonUser onSignIn={() => void router.push("login")}>
+              <ButtonUser.Email />
+              {/* Its own logout item, NOT the vendored default one. `ButtonUser`'s default menu
+                calls `useAuth().logout()` — i.e. `ReactAuth.logout()` — directly, which skips both
+                halves of the sign-out contract the main menu's QUIT honours: forgetting the stored
+                guest credential and suppressing the auto-guest for one boot. Signing out through
+                that path would revoke the named session and then have `bootPing` sign the browser
+                straight back in as a guest, minting a junk account per press. The navigation seam
+                is the one place that does it properly, so the console goes through it too. */}
+              <DropdownMenuItem onClick={() => getGameNavigation()?.logout()}>
+                <LogOut className="size-4" />
+                Logout
+              </DropdownMenuItem>
+            </ButtonUser>
           </div>
         }
       />
