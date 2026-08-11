@@ -258,9 +258,19 @@ export function meshTerrain(
         const pied = (elevation: number): number =>
           1 - AO_WALL * (1 - Math.min(1, (elevation - bottomY) / AO_WALL_HEIGHT));
 
-        // Repeating rows 4/5 once per crossed level made a level-2 cliff read as two cubes. One
-        // UV cell now stretches over the full drop, preserving a single tall-block silhouette.
-        const w = tileUV(atlas, wallCol, atlas.wallRow);
+        // Deux variantes de paroi, choisies par ce que la falaise touche EN BAS : le pied dans
+        // l'eau porte un feston d'écume, le pied sur la terre de petites touffes (voir
+        // `TerrainAtlas.wallRowInWater`). Un voisin sans palier EST la mer — `levelAt` répond
+        // `null` aussi bien sur l'eau qu'hors grille — et c'est exactement le côté que `wallDrop`
+        // fait descendre jusqu'en bas.
+        const footInWater = field.levelAt(i + di, j + dj) === null;
+        const wallRow = footInWater ? (atlas.wallRowInWater ?? atlas.wallRow) : atlas.wallRow;
+
+        // Une seule cellule d'UV s'étire sur toute la chute : répéter la rangée une fois par palier
+        // franchi faisait lire une falaise de palier 2 comme deux cubes empilés. La feuille du Free
+        // Pack n'a de toute façon aucune bande de paroi RÉPÉTABLE — seulement ces deux pieds — donc
+        // empiler sèmerait des touffes d'herbe à mi-hauteur.
+        const w = tileUV(atlas, wallCol, wallRow);
         const [ab, ah] = [pied(bottomY), pied(y)];
         const vertices = [
           [p0[0], bottomY, p0[1]],

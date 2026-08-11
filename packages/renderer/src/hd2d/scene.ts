@@ -115,12 +115,18 @@ export function terrainAtlasKey(material: string, level: number): string {
  * and deliberately resolves to the same ice atlas.
  */
 export function terrainAtlases(textures: TextureRegistry): Record<string, TerrainAtlas> {
+  // `wallRowInWater` only for the 9x6 sheets, which are the ones that carry a wall band at all:
+  // rows 4 and 5 are the same cliff face footed on land and footed in water, and the mesher picks
+  // between them per wall segment. The 10x4 sand sheet has neither, and must not be handed a row 5
+  // that does not exist in it — sand never descends (level 0 emits no wall), so an unread but
+  // out-of-range row would be a landmine rather than a harmless default.
   const sheet = (name: string, block: TerrainAtlas["block"], cols: number, rows: number) => ({
     texture: textures.get(`${TERRAIN_ROOT}/${name}`),
     cols,
     rows,
     block,
     wallRow: 4,
+    ...(rows > 5 ? { wallRowInWater: 5 } : {}),
     tilePx: 64,
   });
   const palette = groundPaletteOverride ? `Tilemap_${groundPaletteOverride}.png` : null;
