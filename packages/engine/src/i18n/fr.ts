@@ -2049,6 +2049,7 @@ export const fr: Record<keyof typeof en, string> = {
   "menu.options": "Options",
   "menu.quit": "Quitter",
   "menu.editor": "Éditeur",
+  "menu.admin": "Admin",
   "menu.music.on": "Musique : activée",
   "menu.music.off": "Musique : coupée",
   "menu.back": "Retour",
