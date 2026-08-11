@@ -10,6 +10,10 @@ import {
 import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import {
+  DEFAULT_MAP_FIXED_LIGHTING,
+  type MapFixedLighting,
+} from "@lindocara/engine/map-lighting.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
   CombatAnimation,
@@ -39,7 +43,11 @@ import {
 } from "@lindocara/engine/zones.js";
 import { getDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { healingEffectColor, shouldFloatEvent } from "@lindocara/renderer/feedback.js";
-import { type DayCycleOverride, mapDayCycleAt } from "@lindocara/renderer/hd2d/day-cycle.js";
+import {
+  type DayCycleOverride,
+  fixedLightingOverride,
+  mapDayCycleAt,
+} from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import {
   limitedCameraYaw,
@@ -428,8 +436,9 @@ async function startGameIdentity(
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
   let audioDayCycleOverride: DayCycleOverride = null;
   let dayNightCycleEnabled = true;
+  let fixedLighting: MapFixedLighting = DEFAULT_MAP_FIXED_LIGHTING;
   const effectiveDayCycleOverride = (): DayCycleOverride =>
-    audioDayCycleOverride ?? (dayNightCycleEnabled ? null : "day");
+    audioDayCycleOverride ?? (dayNightCycleEnabled ? null : fixedLightingOverride(fixedLighting));
   let currentMerchant: MerchantDefinition | null = null;
   // A cross-map authored teleport shows its departure before the transition close, then its arrival
   // on the next authoritative welcome. Ordinary network reconnects never set this flag.
@@ -506,6 +515,7 @@ async function startGameIdentity(
       renderer.preloadWorldEventAssets(world.events);
       activeZoneId = world.zoneId;
       dayNightCycleEnabled = world.dayNightCycle ?? true;
+      fixedLighting = world.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING;
       renderer.setDayCycleOverride?.(effectiveDayCycleOverride());
       // Every live room is a database map: `WorldRoom` builds its world with `zoneFromMapPayload`
       // and never reads the compiled catalogue, so the old `isKnownZone(world.zoneId)` branch to

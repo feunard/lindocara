@@ -18,6 +18,7 @@ import type { TerrainQuery } from "./hd2d/terrain-query.js";
 import type { MapElement, MapMarkers } from "./map-data.js";
 import type { MapEvent } from "./map-events.js";
 import type { MapHeroSettings } from "./map-hero-settings.js";
+import type { MapFixedLighting } from "./map-lighting.js";
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
 import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
@@ -111,6 +112,8 @@ export interface ZoneDefinition {
   readonly heroSettings?: MapHeroSettings;
   /** Authored maps may freeze their ambience in daylight instead of advancing the clock. */
   readonly dayNightCycle?: boolean;
+  /** Stable ambience used when an authored map disables its clock. */
+  readonly fixedLighting?: MapFixedLighting;
   /**
    * JSON-encoded `MapData` heightfield (`hd2d/map-data.ts`), or `null` when this map has none.
    * Undefined for every catalogue zone (they carry no map row at all).

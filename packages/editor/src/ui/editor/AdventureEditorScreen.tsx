@@ -49,6 +49,10 @@ import {
   monsterEvents,
 } from "@lindocara/engine/map-events.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
+import {
+  DEFAULT_MAP_FIXED_LIGHTING,
+  type MapFixedLighting,
+} from "@lindocara/engine/map-lighting.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import {
@@ -192,6 +196,7 @@ function toEditorMap(map: MapPayload): EditorMap {
     audio: map.audio ?? EMPTY_MAP_AUDIO,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
     dayNightCycle: map.dayNightCycle ?? true,
+    fixedLighting: map.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING,
     layers: editorLayersFromPayload(map),
     elements: map.elements,
     spawn: map.spawn,
@@ -710,6 +715,7 @@ function AdventureEditorInner({
     const previewStart = startMapPreview(data, edited.events, {
       heroSettings: edited.heroSettings,
       dayNightCycle: edited.dayNightCycle,
+      fixedLighting: edited.fixedLighting,
     });
     void previewStart
       .then((started) => {
@@ -1060,10 +1066,11 @@ function AdventureEditorInner({
     });
   }
 
-  function toggleDayNightCycle(): void {
+  function selectLighting(value: "cycle" | MapFixedLighting): void {
     const handle = handleRef.current;
     if (!handle) return;
-    handle.setDayNightCycle(!handle.current().dayNightCycle);
+    const current = handle.current();
+    handle.setLighting(value === "cycle", value === "cycle" ? current.fixedLighting : value);
   }
 
   function setEditorZoom(percent: number): void {
@@ -1629,6 +1636,7 @@ function AdventureEditorInner({
           showDim={showDim}
           showCollisions={showCollisions}
           dayNightCycle={currentMap?.dayNightCycle ?? true}
+          fixedLighting={currentMap?.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING}
           dayNightCycleAvailable={currentMap !== null}
           zoom={zoom}
           onNewMap={() => setNewMapOpen(true)}
@@ -1637,7 +1645,7 @@ function AdventureEditorInner({
           onToggleGrid={toggleGrid}
           onToggleDim={toggleDim}
           onToggleCollisions={toggleCollisions}
-          onToggleDayNightCycle={toggleDayNightCycle}
+          onSelectLighting={selectLighting}
           onCycleZoom={cycleZoom}
           onTest={test}
           onOpenHelp={() => openHelp()}

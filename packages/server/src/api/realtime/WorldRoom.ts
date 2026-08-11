@@ -1860,6 +1860,9 @@ export class WorldRoom {
       ...(definition.dayNightCycle === undefined
         ? {}
         : { dayNightCycle: definition.dayNightCycle }),
+      ...(definition.fixedLighting === undefined
+        ? {}
+        : { fixedLighting: definition.fixedLighting }),
       size: definition.terrain.size,
       questNpc: definition.quests[0]?.giver ?? { id: "none", x: 0, y: 0 },
       questNpcs: definition.quests.map((quest) => quest.giver),

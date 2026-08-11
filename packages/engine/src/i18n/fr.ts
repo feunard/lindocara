@@ -1335,6 +1335,12 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.audio.mapButton": "Sons de la carte",
   "editor.dayNightCycle.enable": "Activer le cycle jour/nuit",
   "editor.dayNightCycle.disable": "Désactiver le cycle jour/nuit",
+  "editor.dayNightCycle.settings": "Ambiance jour/nuit",
+  "editor.dayNightCycle.mode.cycle": "Cycle jour/nuit",
+  "editor.dayNightCycle.mode.day": "Jour permanent",
+  "editor.dayNightCycle.mode.nightStart": "Début de nuit",
+  "editor.dayNightCycle.mode.nightMiddle": "Milieu de nuit",
+  "editor.dayNightCycle.mode.nightFull": "Nuit totale",
   "editor.heroSettings.button": "Stats des héros",
   "editor.heroSettings.title": "Réglages des héros — {name}",
   "editor.heroSettings.hint":

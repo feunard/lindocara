@@ -100,15 +100,16 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
-  it("stores the map clock toggle in history and fixes disabled maps at noon", async () => {
+  it("stores the map lighting mode in history and previews every fixed night degree", async () => {
     const changes = vi.fn();
     const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
 
-    stage.setDayNightCycle(false);
+    stage.setLighting(false, "night-middle");
     expect(stage.current().dayNightCycle).toBe(false);
-    expect(mock.renderer.setDayCycleOverride).toHaveBeenLastCalledWith("day");
+    expect(stage.current().fixedLighting).toBe("night-middle");
+    expect(mock.renderer.setDayCycleOverride).toHaveBeenLastCalledWith("night-middle");
     expect(changes).toHaveBeenLastCalledWith(
-      expect.objectContaining({ dayNightCycle: false }),
+      expect.objectContaining({ dayNightCycle: false, fixedLighting: "night-middle" }),
       expect.objectContaining({ canUndo: true, dirty: true }),
     );
 

@@ -11,6 +11,7 @@ import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
+import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { t } from "./i18n.js";
@@ -160,6 +161,8 @@ export interface MapPayload {
   heroSettings?: MapHeroSettings;
   /** Whether this map follows its independent 24-minute day/night clock. */
   dayNightCycle: boolean;
+  /** Stable ambience used while the day/night clock is disabled. */
+  fixedLighting: MapFixedLighting;
   /** Authored events, ordered by ordinal; pages ordered by position. */
   events: readonly MapEvent[];
   /** Encoded HD-2D terrain. A malformed legacy row may still return `null` until repaired. */

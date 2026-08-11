@@ -86,6 +86,7 @@ import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import { parseMapHeroSettings } from "./map-hero-settings.js";
+import { type MapFixedLighting, parseMapFixedLighting } from "./map-lighting.js";
 import type { MerchantDefinition } from "./merchant.js";
 import { isPartyMaterials, MAX_HARVEST_HITS, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
@@ -689,6 +690,8 @@ export interface WorldInfo {
   heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
   /** Missing preserves compatibility with rooms created before maps could disable their clock. */
   dayNightCycle?: boolean;
+  /** Missing keeps disabled legacy maps fixed in daylight. */
+  fixedLighting?: MapFixedLighting;
   /**
    * The grid's side, in cells — the whole extent of the world, because a heightfield is square and
    * centred on the origin. Coordinates therefore run `-size/2`..`+size/2` on both ground axes.
@@ -1795,6 +1798,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
     (value.dayNightCycle === undefined || typeof value.dayNightCycle === "boolean") &&
+    (value.fixedLighting === undefined || parseMapFixedLighting(value.fixedLighting) !== null) &&
     isNpc(value.questNpc) &&
     Array.isArray(value.questNpcs) &&
     value.questNpcs.every(isNpc) &&

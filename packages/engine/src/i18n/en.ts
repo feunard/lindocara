@@ -1319,6 +1319,12 @@ export const en = {
   "editor.audio.mapButton": "Map audio",
   "editor.dayNightCycle.enable": "Enable day/night cycle",
   "editor.dayNightCycle.disable": "Disable day/night cycle",
+  "editor.dayNightCycle.settings": "Day/night ambience",
+  "editor.dayNightCycle.mode.cycle": "Day/night cycle",
+  "editor.dayNightCycle.mode.day": "Permanent day",
+  "editor.dayNightCycle.mode.nightStart": "Early night",
+  "editor.dayNightCycle.mode.nightMiddle": "Mid night",
+  "editor.dayNightCycle.mode.nightFull": "Full night",
   "editor.heroSettings.button": "Hero stats",
   "editor.heroSettings.title": "Hero settings — {name}",
   "editor.heroSettings.hint":
