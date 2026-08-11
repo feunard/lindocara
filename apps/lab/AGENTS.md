@@ -252,6 +252,24 @@ the hero swims down it. It was an enclosed disc first, which is a pond, not a pl
 expressed as a disc, and a global "flatten everything south of z = 12" would also flatten the
 southern island at z = 24.
 
+**Shore foam is sized to be BURIED, so elevated water needs its own size.** The sprite is 1.42
+units — wider than a cell — because at a sea shore the terrain tile covers most of it and only a
+thin lacy overhang shows (`FOAM_SPREAD`, and the comment above `FOAM_MARGIN_ABOVE_WATER`). Water
+flush with the rock around it buries nothing, so drawn at that size the whole pastille sits on top
+of the summit as a white pillow, which is exactly how it first looked. Elevated foam is shrunk to
+`FOAM_ELEVATED_SCALE` — roughly the part the sea only ever SHOWS — and pushed half a cell to the
+water's edge, where neighbouring sprites overlap into one rim instead of dotting each bank tile.
+
+**You can go over the lip, and that is a rule fix, not a feature.** `centreOk` (`hero-step.ts`)
+sampled the ground height at the FOOTPRINT and the water level at the un-footprinted CENTRE. With
+one global water level the two answers were identical everywhere and the mismatch was invisible;
+with water at two heights it becomes a wall exactly at a lip, where the footprint is still over the
+pool while the centre is already over the drop — the difference reads as a cliff the height of the
+fall, and the swimmer is refused the one move that would carry it over. Both are sampled at the same
+point now. A swimmer whose water falls away beneath it (`WATER_SPILL_DROP`) leaves the water and
+falls instead of teleporting down to the new surface, which is what pinning a swimmer to the water
+every frame would otherwise do.
+
 **Water at elevation is a real capability now, not a patch laid on the ground.** The summit spring
 is water in every sense the sea is: the terrain has a HOLE there, the ocean's own material fills it,
 `createFoam` rings it with the animated shore border, and the hero SWIMS in it, breath gauge and

@@ -9,7 +9,7 @@ describe("foamPlacements", () => {
     // dessous, le sol la masque partout où il la recouvre : seul son débord dépasse, et le liseré
     // épouse exactement le découpage des cases.
     const f = fieldFrom([".0."]);
-    expect(foamPlacements(f)).toEqual([{ i: 1, j: 0, water: null }]);
+    expect(foamPlacements(f)).toMatchObject([{ i: 1, j: 0, water: null }]);
   });
 
   it("ne pose rien sur une case de terre entourée de terre", () => {
@@ -25,11 +25,11 @@ describe("foamPlacements", () => {
     // falaise qui tombe droit dans la mer en porte une, sinon sa base est un trait net posé sur
     // l'eau. La tache reste au niveau de la mer et le volume de l'île la masque (la coque de paroi
     // de `mesh.ts` ferme les découpes) : seul son débord dépasse au pied de la falaise.
-    expect(foamPlacements(fieldFrom([".1."]))).toEqual([{ i: 1, j: 0, water: null }]);
+    expect(foamPlacements(fieldFrom([".1."]))).toMatchObject([{ i: 1, j: 0, water: null }]);
   });
 
   it("pose une tache quel que soit le palier du rivage", () => {
-    expect(foamPlacements(fieldFrom(["2"]))).toEqual([{ i: 0, j: 0, water: null }]);
+    expect(foamPlacements(fieldFrom(["2"]))).toMatchObject([{ i: 0, j: 0, water: null }]);
   });
 
   it("ne pose rien sur une carte sans terre", () => {

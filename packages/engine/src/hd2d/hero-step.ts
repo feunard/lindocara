@@ -70,8 +70,15 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   // The ground under the CENTER decides where a foot can land. A hard rule: never relaxed, or the
   // hero would climb a cliff by leaning into it.
   const centreOk = (xx: number, zz: number): boolean => {
-    const h = surfaceAt(xx, empreinte(zz, hero));
-    if (state.swimming) return h - query.waterLevelAt(x, z) <= climb;
+    const foot = empreinte(zz, hero);
+    const h = surfaceAt(xx, foot);
+    // The water level is sampled at the SAME point as the height it is compared against. Reading
+    // it at the un-footprinted centre instead was harmless while the world had one global water
+    // level — the answer was identical everywhere — and becomes a wall the moment water exists at
+    // more than one height: at the lip of a fall the footprint is still over the pool while the
+    // centre is already over the drop, so the difference reads as a cliff the height of the fall
+    // and the swimmer is refused the one move that would carry it over.
+    if (state.swimming) return h - query.waterLevelAt(xx, foot) <= climb;
     return state.airborne ? h <= state.y + 0.02 : traversingRamp || h - state.groundY <= maxStep;
   };
   if (!centreOk(x, z)) return false;
