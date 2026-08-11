@@ -26,7 +26,7 @@ describe("Hud", () => {
     return result;
   }
 
-  it("renders identity, bars, quest and inventory from the store", async () => {
+  it("renders identity, bars and quest without the old inventory or party panels", async () => {
     useUiStore.setState({
       self: {
         nick: "Hero",
@@ -62,7 +62,8 @@ describe("Hud", () => {
     expect(
       screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Heartroot tonic")).toBeInTheDocument();
+    expect(document.querySelector("#hud .inventory")).not.toBeInTheDocument();
+    expect(document.querySelector("#hud .party")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Switch character" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     // FR toggle re-renders live
@@ -253,7 +254,7 @@ describe("Hud", () => {
     expect(screen.getAllByRole("progressbar")).toHaveLength(2); // vit, spark only
   });
 
-  it("shows the authoritative class resource and same-zone party health", async () => {
+  it("shows the authoritative class resource while keeping the party panel hidden", async () => {
     useUiStore.setState({
       self: {
         id: "11111111-1111-4111-8111-111111111111",
@@ -294,8 +295,8 @@ describe("Hud", () => {
     await renderHud();
     expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("45/100")).toBeInTheDocument();
-    expect(screen.getByText("Ally")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Disband party" })).toBeInTheDocument();
+    expect(screen.queryByText("Ally")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Disband party" })).not.toBeInTheDocument();
   });
 
   it("renders the shared camp chest and sends amount-only transfer intent", async () => {
