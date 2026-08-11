@@ -2025,6 +2025,7 @@ export const en = {
   "menu.options": "Options",
   "menu.quit": "Quit",
   "menu.editor": "Editor",
+  "menu.admin": "Admin",
   "menu.music.on": "Music: on",
   "menu.music.off": "Music: off",
   "menu.back": "Back",
