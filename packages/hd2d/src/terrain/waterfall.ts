@@ -187,3 +187,188 @@ export function createWaterfallSheet(
     },
   };
 }
+
+export interface WaterfallBasinOptions {
+  texture: THREE.Texture;
+  /** World centre of the disc. */
+  x: number;
+  z: number;
+  /** Radius of the disc, world units. */
+  radius: number;
+  /** World height of its surface — the terrace it sits on. */
+  y: number;
+}
+
+export interface WaterfallBasin {
+  mesh: THREE.Mesh;
+  update(dt: number): void;
+  dispose(): void;
+}
+
+/**
+ * A catch basin: a small horizontal disc of water on the terrace a fall lands on.
+ *
+ * DECORATIVE, and not by omission. `TerrainQuery` reads one global `waterLevel` for the whole
+ * world, so water at altitude cannot exist as far as collision is concerned — the hero wades
+ * through this, and teaching the engine about per-cell water height would change a contract shared
+ * with the game's authoritative server for the sake of a visual feature.
+ *
+ * It reuses the sea's texture and a two-tone gradient like `createWater`'s, but with no
+ * depth-range grading: a basin has no open sea to fade toward. What it must not lose is the
+ * FAMILY resemblance — a basin that reads as a different substance from the ocean it drains into
+ * breaks the island in two.
+ */
+export function createWaterfallBasin(
+  _ctx: Hd2dContext,
+  opts: WaterfallBasinOptions,
+): WaterfallBasin {
+  const geometry = new THREE.CircleGeometry(opts.radius, 24);
+  geometry.rotateX(-Math.PI / 2);
+
+  const map = opts.texture.clone();
+  map.wrapS = THREE.RepeatWrapping;
+  map.wrapT = THREE.RepeatWrapping;
+  map.needsUpdate = true;
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: map },
+      uTime: { value: 0 },
+      // Pitched at the sea's own depth for the same reason the sheet's core is: unlit material
+      // under bloom, so swatch-bright colours blow out to white. The two tones stay CLOSE together
+      // — a wide shallow/deep spread on a disc this small reads as a bruise painted on the rock
+      // rather than as a puddle, which is what the first pass looked like on screen.
+      uShallow: { value: new THREE.Color("#3ea3a8") },
+      uDeep: { value: new THREE.Color("#227e91") },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      uniform float uTime;
+      uniform vec3 uShallow;
+      uniform vec3 uDeep;
+      varying vec2 vUv;
+      void main() {
+        float r = distance(vUv, vec2(0.5)) * 2.0;
+        vec2 uv = vUv * 4.0 + vec2(uTime * 0.06, uTime * 0.04);
+        float grain = texture2D(uMap, uv).r;
+        // Slightly deeper in the middle, and a bright ring right at the rim where the water meets
+        // the rock — that rim is what actually says "pool" rather than "blue paint".
+        float bowl = smoothstep(0.9, 0.1, r);
+        // Broad and gentle. A crisp bright rim reads as a UI button rather than as water meeting
+        // rock, which is exactly how the first pass looked on screen.
+        float rim = smoothstep(0.45, 1.0, r);
+        vec3 col = mix(uShallow, uDeep, bowl) * (0.72 + 0.4 * grain);
+        gl_FragColor = vec4(mix(col, vec3(0.78, 0.9, 0.94), rim * 0.34), 1.0);
+      }
+    `,
+    side: THREE.DoubleSide,
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(opts.x, opts.y, opts.z);
+  // Just clear of the terrace top, for the same reason the sheet stands clear of its wall.
+  mesh.position.y += FACE_CLEARANCE / 2;
+  mesh.renderOrder = 1;
+
+  return {
+    mesh,
+    update(dt) {
+      const time = material.uniforms.uTime;
+      if (time) time.value = ((time.value as number) + dt) % 3600;
+    },
+    dispose() {
+      geometry.dispose();
+      material.dispose();
+      map.dispose();
+    },
+  };
+}
+
+export interface WaterfallOptions extends WaterfallSheetOptions {
+  /** Radius of the catch basin under the sheet. */
+  basinRadius: number;
+  /**
+   * How far out from the wall the basin's CENTRE sits, in world units. Defaults to half a cell.
+   *
+   * This is not the same as the radius, and conflating the two is a mistake worth naming: pushing
+   * the basin out by its own radius puts its near edge on the wall and its far edge `2·radius`
+   * away, which overhangs a terrace only one cell deep and leaves the disc floating over the drop
+   * below. Offsetting by half a cell instead centres the basin on the terrace cell, where a disc
+   * of radius up to ~0.45 fits with room to spare.
+   */
+  basinOffset?: number;
+}
+
+export interface Waterfall {
+  group: THREE.Group;
+  /** The world point where the sheet meets the basin. Mist, spray, the rainbow and the roar's
+   *  distance are all anchored to this rather than each recomputing it from the placement. */
+  impact: THREE.Vector3;
+  update(dt: number): void;
+  dispose(): void;
+}
+
+/** One complete drop: a falling sheet, the basin it lands in, and the ring where the two meet. */
+export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Waterfall {
+  const sheet = createWaterfallSheet(ctx, opts);
+
+  // The basin is pushed OUT from the wall onto the terrace the sheet lands on — by `basinOffset`,
+  // half a cell by default, NOT by its own radius. See that field's docstring for why the
+  // difference matters.
+  const [nx, nz] = FACE_NORMAL[opts.facing];
+  const offset = opts.basinOffset ?? 0.5;
+  const basinX = opts.x + nx * offset;
+  const basinZ = opts.z + nz * offset;
+  const basin = createWaterfallBasin(ctx, {
+    texture: opts.texture,
+    x: basinX,
+    z: basinZ,
+    radius: opts.basinRadius,
+    y: opts.bottomY,
+  });
+
+  // The plunge ring: a flat annulus that grows and fades on a loop, the way `makeRipple` animates
+  // the hero's swim wake. Built here rather than reusing `makeRipple` because that one is sized
+  // and paced for a single stroke, and a plunge pool ripples continuously.
+  const ringGeometry = new THREE.RingGeometry(0.35, 0.5, 24);
+  ringGeometry.rotateX(-Math.PI / 2);
+  const ringMaterial = new THREE.MeshBasicMaterial({
+    color: 0xdff4fb,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+  ring.position.set(basinX, opts.bottomY + FACE_CLEARANCE, basinZ);
+  ring.renderOrder = 2;
+
+  const group = new THREE.Group();
+  group.add(sheet.mesh, basin.mesh, ring);
+
+  let phase = 0;
+  return {
+    group,
+    impact: new THREE.Vector3(opts.x, opts.bottomY, opts.z),
+    update(dt) {
+      sheet.update(dt);
+      basin.update(dt);
+      phase = (phase + dt * 0.9) % 1;
+      ring.scale.setScalar(0.4 + phase * 1.6);
+      ringMaterial.opacity = 0.5 * (1 - phase);
+    },
+    dispose() {
+      sheet.dispose();
+      basin.dispose();
+      ringGeometry.dispose();
+      ringMaterial.dispose();
+    },
+  };
+}

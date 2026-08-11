@@ -14,7 +14,7 @@ import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import { createFoam, FOAM_SPREAD } from "@lindocara/hd2d/terrain/foam.js";
 import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
-import { createWaterfallSheet } from "@lindocara/hd2d/terrain/waterfall.js";
+import { createWaterfall, createWaterfallBasin } from "@lindocara/hd2d/terrain/waterfall.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
@@ -48,6 +48,7 @@ import {
   CAMERA,
   MOOD_FADE,
   MOODS,
+  MOUNTAIN,
   NEIGE_CHUTE,
   NORD,
   SPAWN,
@@ -244,10 +245,15 @@ const foam = createFoam(ctx, field, {
 });
 scene.add(foam.group);
 
-// The waterfall (Task 2 of the waterfall chantier): one sheet per authored drop. It shares the
-// sea's own texture on purpose — a fall and the sea it ends in must read as one substance.
+// The waterfall (Task 3 of the waterfall chantier): one complete drop per authored placement —
+// sheet, catch basin, plunge ring. It shares the sea's own texture on purpose: a fall and the sea
+// it ends in must read as one substance.
+//
+// `basinRadius` 0.4 with the default half-cell offset keeps every disc inside the one-cell terrace
+// it lands on. Sizing it from the sheet's width instead (the first attempt) made the widest drop's
+// basin overhang its terrace and float over the drop below.
 const waterfalls = WATERFALLS.map((w) =>
-  createWaterfallSheet(ctx, {
+  createWaterfall(ctx, {
     texture: textures.get("/tex/water.png"),
     x: w.x,
     z: w.z,
@@ -255,9 +261,21 @@ const waterfalls = WATERFALLS.map((w) =>
     topY: w.topLevel * WORLD.levelHeight,
     bottomY: w.bottomLevel * WORLD.levelHeight,
     facing: w.facing,
+    basinRadius: 0.4,
   }),
 );
-for (const w of waterfalls) scene.add(w.mesh);
+for (const w of waterfalls) scene.add(w.group);
+
+// The spring pool on the summit: a basin with no sheet above it, which is what closes the chain at
+// the top. A fall whose source is off-screen reads as a leak rather than a spring.
+const springPool = createWaterfallBasin(ctx, {
+  texture: textures.get("/tex/water.png"),
+  x: MOUNTAIN.x,
+  z: MOUNTAIN.z,
+  radius: 0.5,
+  y: 4 * WORLD.levelHeight,
+});
+scene.add(springPool.mesh);
 
 // `colliders` est créé ICI, dans le composition root, parce que le héros — créé juste après
 // Grota — doit voir la MÊME instance que celle que Grota/Nanuq peuplent ensuite : contrairement au
@@ -1150,6 +1168,7 @@ function frame(now = performance.now()): void {
   dialog.update(dt);
   water.update(dt);
   for (const w of waterfalls) w.update(dt);
+  springPool.update(dt);
   foam.update(dt);
   clouds.update(dt);
   particles.update(dt);
