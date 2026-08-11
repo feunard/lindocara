@@ -114,6 +114,23 @@ export const ZONE_POLAIRE: Zone = {
   souffle: 2,
 };
 
+/** The falls zone, around the west island (`WEST`). Its radius runs past the island's widest
+ *  shoreline (`WEST_REACH_MAX`, `world/island.ts`) so the theme and the soundscape install
+ *  themselves DURING the swim, before the first step ashore — the same reason `ZONE_POLAIRE` is
+ *  `NORD.r + 3`, and `test/zone-precede-matiere.test.ts` pins both relations against the real
+ *  symbols rather than against copied numbers.
+ *
+ *  `souffle: 1`, deliberately: the doubled breath drain belongs to the polar chantier's icy water,
+ *  and there is no reason this water is crueller than the open sea. */
+export const ZONE_FALLS: Zone = {
+  nom: "falls",
+  centre: [WEST.x, WEST.z],
+  rayon: WEST.r + 3,
+  musique: "falls",
+  nappe: "falls",
+  souffle: 1,
+};
+
 /** La zone par défaut : tout le reste du monde. Rayon infini et EN DERNIER dans `ZONES` — c'est le
  *  filet qui capte tout point qu'aucune zone plus spécifique n'a pris (voir `zoneAt`,
  *  `world/zones.ts`). */
@@ -127,7 +144,7 @@ export const ZONE_LARGE: Zone = {
 };
 
 /** L'ordre EST la priorité (voir `zoneAt`) : la polaire d'abord, la zone par défaut en dernier. */
-export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_LARGE];
+export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_FALLS, ZONE_LARGE];
 
 /** Chute de neige (Task 8 de l'île de neige, `main.ts`) — un `createPetalFall` recoloré/redensifié
  *  (voir `packages/hd2d/src/particles.ts`, `PetalFallOptions.color`/`count`/`size`). */

@@ -34,6 +34,7 @@ import {
   openDoor,
   sayLine,
   setAmbience,
+  setCascadeDistance,
   setFireDistance,
   setZoneMusic,
   stopLine,
@@ -1202,6 +1203,12 @@ function frame(now = performance.now()): void {
 
   // Le foyer s'entend d'autant plus qu'on en est près.
   setFireDistance(hero.position.distanceTo(props.firePosition));
+  // The falls are heard from the NEAREST drop, not from the island's centre: walking up the
+  // terraces should keep the roar close rather than fading it as you leave the middle.
+  let nearestFall = Number.POSITIVE_INFINITY;
+  for (const w of waterfalls)
+    nearestFall = Math.min(nearestFall, hero.position.distanceTo(w.impact));
+  setCascadeDistance(nearestFall);
 
   props.fireLight.intensity = mood.value.fire * ((props.fireLight.userData.flicker as number) ?? 1);
   props.springLight.intensity =
