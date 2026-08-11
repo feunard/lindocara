@@ -169,4 +169,77 @@ describe("AdminShell route", () => {
     },
     TEST_TIMEOUT_MS,
   );
+
+  it(
+    "mounts even when /_auth/userinfo hangs forever",
+    async () => {
+      // Fix round 2's regression test: `AppRouter.bootPing` used to await the WHOLE
+      // ping/guest/re-ping chain before letting `alepha.start()` resolve. Alepha's `HttpClient`
+      // has no timeout of its own, so a hanging (never resolving, not merely slow or failing)
+      // `/_auth/userinfo` blocked `"start"` forever — and a `"start"` hook that never resolves
+      // means the app never reaches `"ready"`, i.e. never mounts React at all. `bootPing` now
+      // races its one awaited `ping()` against `BOOT_PING_TIMEOUT_MS` and lets mount proceed
+      // either way, so a dead auth endpoint degrades to "renders anonymous" instead of "blank
+      // page forever".
+      //
+      // `/_auth/userinfo` here returns a Promise that never settles — not a slow one, the
+      // worst case the finding named explicitly. Every other path (the guest-registration
+      // fallback's own calls, fired unawaited in the background) gets a benign, schema-plausible
+      // response so that background chain doesn't throw noisily; it has no bearing on this
+      // test's assertion either way, since nothing here awaits it.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          const path = String(input);
+          if (path.startsWith("/_auth/userinfo")) {
+            return new Promise<Response>(() => {
+              /* never resolves */
+            });
+          }
+          if (path.startsWith("/api/users/register") && !path.includes("complete")) {
+            return new Response(JSON.stringify({ intentId: "guest-intent" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          if (path.startsWith("/_auth/token")) {
+            return new Response(JSON.stringify({ user: { id: "guest-1", username: "guest-x" } }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return new Response("{}", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }),
+      );
+
+      const startedAt = Date.now();
+      alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+      await act(async () => {
+        await alepha?.start();
+      });
+      const elapsedMs = Date.now() - startedAt;
+
+      // Bounded well under "forever", and comfortably above `BOOT_PING_TIMEOUT_MS` (2500ms) so
+      // this isn't just asserting the timeout constant back at itself — it proves `alepha.start()`
+      // actually returned instead of hanging on the dead request.
+      expect(elapsedMs).toBeLessThan(6_000);
+
+      // With `currentUserAtom` still empty (the real ping never returned), `/admin`'s guard
+      // denies the ANONYMOUS branch — `denyGuardedPage` throws a 401, since this app has no route
+      // named "login" for it to redirect to instead (see the first test's own docblock). The
+      // point here isn't the exact denial text (already covered above) — it's that SOMETHING
+      // rendered at all, promptly, rather than an eternally blank `#root`.
+      await waitFor(
+        () => {
+          expect(document.body.textContent).not.toBe("");
+        },
+        { timeout: 5_000 },
+      );
+      expect(screen.queryByText("Users")).toBeNull();
+    },
+    TEST_TIMEOUT_MS,
+  );
 });

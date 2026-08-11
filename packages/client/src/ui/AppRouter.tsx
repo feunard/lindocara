@@ -150,6 +150,18 @@ function GameScreen() {
 const LAUNCH_MENU_PATHS = new Set<string>(["/menu", "/play/continue", "/play/new", "/play/join"]);
 
 /**
+ * How long `AppRouter.bootPing` waits for the FIRST `ping()` before letting the app mount anyway.
+ * Alepha's `HttpClient` has no timeout or `AbortSignal` support of its own, so without this bound
+ * a hanging (not merely failing) `/_auth/userinfo` would hang the `"start"` lifecycle phase
+ * forever — and a `"start"` hook that never resolves means the whole app never reaches `"ready"`,
+ * i.e. never mounts React at all. Kept short deliberately: this is the one thing every route pays
+ * for (see `bootPing`'s own docblock), and a slow/dead auth endpoint should degrade to "renders
+ * anonymous, the real session attaches late in the background" rather than "blank page for N
+ * seconds then blank page forever."
+ */
+const BOOT_PING_TIMEOUT_MS = 2500;
+
+/**
  * Run a launch carousel's fetch where it can actually succeed — the browser — and report `null`
  * ("not loaded") anywhere else, including when the fetch fails. Never `[]`: an empty array is a
  * real answer the screen renders as "nothing here", and conflating it with a failure is precisely
@@ -323,59 +335,75 @@ export class AppRouter {
 
   /**
    * The boot ping — browser-only, and deliberately a lifecycle `$hook` rather than a React
-   * `useEffect` on `AppLayout` (where it lived before this fix). `"start"` hooks are fully awaited,
-   * across every service, before the `"ready"` phase runs — and `ReactBrowserProvider`'s own
-   * `on: "ready"` hook is what performs React's initial mount AND the router's first route
-   * transition. `$secure`'s browser guard (`.vendor/alepha/src/security/primitives/
-   * $secure.browser.ts`) reads `currentUserAtom` SYNCHRONOUSLY during that first transition
-   * (`ReactPageProvider.createLayers` → `denyGuardedPage` on a short-circuited guard) — an effect
-   * that only starts populating the atom AFTER first paint is already too late for whatever route
-   * the visitor is cold-loading, guarded or not. Ending this hook's own `await` chain is therefore
-   * what has to happen before `ready` — not a `useEffect` racing to beat it, which cannot be made
-   * reliable from inside React's own lifecycle.
+   * `useEffect` on `AppLayout` (where it lived before Task 2's fix round 1). `"start"` hooks are
+   * fully awaited, across every service, before the `"ready"` phase runs — and
+   * `ReactBrowserProvider`'s own `on: "ready"` hook is what performs React's initial mount AND the
+   * router's first route transition. `$secure`'s browser guard reads `currentUserAtom`
+   * SYNCHRONOUSLY during that first transition (`ReactPageProvider.createLayers` →
+   * `denyGuardedPage`), so an effect that only starts populating the atom AFTER first paint is
+   * already too late for whatever route the visitor is cold-loading, guarded or not — see fix
+   * round 1's report for the full "Authentication required" latch this closed.
    *
-   * This is not cosmetic. `denyGuardedPage`'s anonymous-visitor fallback looks for a route named
-   * exactly `"login"` to redirect to; this app's equivalent route is named `"auth"`, so that
-   * fallback silently never fires here, and the denial (a thrown `AlephaError`, status 401) is
-   * caught by `NestedView`'s `ErrorBoundary`, whose `resetKeys` is only the URL pathname — it does
-   * NOT re-clear when `currentUserAtom` populates later, only when the pathname changes. Before
-   * this fix, a real admin who bookmarked, typed, or refreshed `/admin` (the first `$secure`-guarded
-   * route this app ever shipped, Task 2) got a permanent "Authentication required" error screen
-   * instead of the console, because the old effect-based ping resolved strictly after that first,
-   * already-denied transition. Every future `$secure`-guarded route inherits the same fix.
+   * **What this hook blocks `"ready"` (and therefore first paint) on, precisely: ONE `ping()`
+   * call, capped at `BOOT_PING_TIMEOUT_MS`. Nothing else.** That is deliberately the SMALLEST
+   * thing that can close the race above — a route guard only needs to know "is there already a
+   * returning, authenticated session," and that is exactly what one `ping()` answers.
    *
-   * Behaviour otherwise unchanged from the effect it replaces: `ping()` fills `currentUserAtom`
-   * itself when a session cookie resolves to a user (nothing else here needs to touch the atom
-   * directly for that branch); a failed ping falls back to the same plain-fetch guest flow as
-   * before (`guest.ts` — it has no Alepha instance to reach, see its own docblock), then a second
-   * `ping()` syncs the atom the guest login itself never touches; and total failure — both the real
-   * ping AND the guest fallback failing — sends the visitor to `/auth`. That last branch is now a
-   * hard `window.location` assignment rather than `router.push("auth")`: at `"start"` time React
-   * has not mounted yet, so there is no live SPA router to push through, and this failure mode
-   * (session AND guest registration both unreachable) is already the exceptional case a full
-   * reload is an acceptable answer to.
+   * **What it does NOT block on: the guest-registration fallback.** Fix round 1 awaited the whole
+   * chain — `ping()` → `continueAsGuest()` (a real register/login POST doing server-side password
+   * hashing) → `ping()` again — which was caught in review as a real regression, worse than the
+   * bug it fixed:
+   * - it made EVERY route pay for fixing ONE guarded route: `/` and `/menu` had no loader and no
+   *   network before first paint at all before this; guest registration used to happen underneath
+   *   an already-visible title screen, not in front of it;
+   * - a RETURNING user paid one blocking round trip, and a FIRST-TIME/anonymous visitor paid
+   *   THREE sequential ones, all before a single pixel;
+   * - worst of all, Alepha's `HttpClient` has no timeout or `AbortSignal` of its own — a hanging
+   *   (not merely failing) `/_auth/userinfo` blocked `alepha.start()` forever, and a `"start"`
+   *   hook that never resolves means the app never reaches `"ready"` at all: a permanently blank
+   *   page, strictly worse than the pre-fix behaviour (renders fine, only auth degrades).
    *
-   * Skipped entirely — exactly as before — when the browser's OWN current location is `/auth`:
-   * landing there already means "let the human decide" (a 401 redirect, or a direct deep link), and
-   * silently signing the visitor in as a guest behind their back would both surprise them and race
-   * `AuthScreen`'s own login/register/guest actions, which drive the exact same `continueAsGuest()`/
-   * `ping()` calls. Reads `window.location.pathname` rather than router state: the router has not
-   * resolved anything yet at `"start"` time, and `window.location` IS the value its first
-   * transition is about to use.
+   * So: the first `ping()` is raced against `BOOT_PING_TIMEOUT_MS` — a timeout counts as "no user
+   * yet," exactly like a rejection, and lets mount proceed either way. The guest-registration
+   * fallback (`continueAsGuest()` + a second `ping()`) then runs COMPLETELY UNAWAITED, as a
+   * fire-and-forget background chain: if the visitor turns out to be anonymous, they see the app
+   * render first and the guest session attach a moment later (or, on total failure — both the real
+   * ping AND guest registration failing — get sent to `/auth` via a hard `window.location`
+   * assignment a moment later; still not `router.push`, since React has not mounted yet when this
+   * hook runs and there is no live SPA router to push through). The race's LOSING timer callback
+   * calling `resolve()` on an already-settled promise is a harmless no-op — nothing needs to
+   * cancel it.
+   *
+   * Skipped entirely when the browser's OWN current location is `/auth`: landing there already
+   * means "let the human decide" (a 401 redirect, or a direct deep link), and silently signing the
+   * visitor in as a guest behind their back would both surprise them and race `AuthScreen`'s own
+   * login/register/guest actions, which drive the exact same `continueAsGuest()`/`ping()` calls.
+   * Reads `window.location.pathname` rather than router state: the router has not resolved
+   * anything yet at `"start"` time, and `window.location` IS the value its first transition is
+   * about to use.
    */
   bootPing = $hook({
     on: "start",
     handler: async () => {
       if (!this.alepha.isBrowser()) return;
       if (window.location.pathname === "/auth") return;
-      const user = await this.reactAuth.ping().catch(() => undefined);
+
+      const user = await Promise.race([
+        this.reactAuth.ping().catch(() => undefined),
+        new Promise<undefined>((resolve) => setTimeout(resolve, BOOT_PING_TIMEOUT_MS)),
+      ]);
       if (user) return;
-      try {
-        await continueAsGuest();
-        await this.reactAuth.ping();
-      } catch {
-        window.location.href = "/auth";
-      }
+
+      // Deliberately fire-and-forget — see this field's own docblock for why blocking mount on
+      // this chain is exactly the regression fix round 2 closed.
+      void (async () => {
+        try {
+          await continueAsGuest();
+          await this.reactAuth.ping();
+        } catch {
+          window.location.href = "/auth";
+        }
+      })();
     },
   });
 
