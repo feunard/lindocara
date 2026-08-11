@@ -25,10 +25,12 @@ export function ActionDock() {
         {selfState && (
           <div className="action-dock__experience">
             <strong>{t("hud.spark")}</strong>
-            <Bar value={selfState.xp} max={selfState.xpToNext} variant="xp" />
-            <span>
-              {selfState.xp}/{selfState.xpToNext}
-            </span>
+            <Bar
+              value={selfState.xp}
+              max={selfState.xpToNext}
+              variant="xp"
+              label={`${selfState.xp}/${selfState.xpToNext}`}
+            />
           </div>
         )}
       </div>

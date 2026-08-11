@@ -18,4 +18,10 @@ describe("Bar", () => {
     const fill = screen.getByRole("progressbar").querySelector("[data-fill]");
     expect(fill).toHaveStyle({ width: "100%" });
   });
+
+  it("can place a compact value label inside the bar", () => {
+    render(<Bar value={40} max={220} variant="xp" label="40/220" />);
+    expect(screen.getByRole("progressbar")).toHaveTextContent("40/220");
+    expect(document.querySelector(".tiny-bar__label")).toHaveTextContent("40/220");
+  });
 });

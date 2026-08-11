@@ -4286,8 +4286,13 @@ kbd {
 }
 
 #hud .identity .tiny-bar {
-  --tiny-track-cap-size: 1.45rem;
-  height: 1.45rem;
+  --tiny-track-cap-size: 1.65rem;
+  height: 1.65rem;
+}
+
+#hud .identity .tiny-bar[data-variant="hp"] {
+  --tiny-track-cap-size: 2.8rem;
+  height: 2.8rem;
 }
 
 #hud .party {
@@ -5178,14 +5183,43 @@ kbd {
 
 /* Skills */
 .action-dock .action-dock__controls {
-  border-color: rgb(214 176 91 / 50%);
-  background:
-    radial-gradient(circle at 50% 0%, rgb(78 104 65 / 24%), transparent 52%),
-    linear-gradient(rgb(8 30 23 / 98%), rgb(2 14 11 / 100%));
-  box-shadow:
-    inset 0 0 0 1px rgb(255 229 158 / 9%),
-    0 0 0 2px rgb(35 21 13 / 86%),
-    0 0.75rem 2rem rgb(0 0 0 / 58%);
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.action-dock .action-dock__group + .action-dock__group {
+  border-left-color: transparent;
+}
+
+.action-dock__experience {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#root .action-dock__experience .tiny-bar {
+  --tiny-track-cap-size: 1.5rem;
+  height: 1.5rem;
+}
+
+.tiny-bar__label {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff1bd;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
 }
 
 .skill-bar.panel {

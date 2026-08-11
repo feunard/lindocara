@@ -7,10 +7,12 @@ export function Bar({
   value,
   max,
   variant = "hp",
+  label,
 }: {
   value: number;
   max: number;
   variant?: BarVariant;
+  label?: string;
 }) {
   const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
   return (
@@ -28,6 +30,7 @@ export function Bar({
           <div className="tiny-bar__fill" />
         </div>
       </div>
+      {label ? <span className="tiny-bar__label">{label}</span> : null}
     </div>
   );
 }
