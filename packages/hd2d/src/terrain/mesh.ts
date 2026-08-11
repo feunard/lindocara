@@ -17,11 +17,14 @@ import {
 // l'autotiling ne s'occupe que des bordures. Portée telle quelle depuis le PoC (`tintAt`).
 const TINT_DARK: readonly [number, number, number] = [0.84, 0.89, 0.82];
 /**
- * Reste un détail d'implémentation de `mesh.ts` — exportée uniquement pour que
- * `terrain-mesh.test.ts` puisse recalculer la couleur ATTENDUE d'un sommet connu et la comparer à
- * celle produite, plutôt que de recopier cette formule dans le test (une seconde source de vérité
- * qui dériverait sans qu'aucun test ne le remarque — exactement le mode de panne qu'`AO_CORNER`
- * a démontré : personne ne l'assertait contre le PoC, seulement contre lui-même).
+ * La teinte procédurale du sol, partagée par tout ce qui doit se lire COMME du sol.
+ *
+ * Deux consommateurs, tous deux légitimes : `stairs.ts`, dont la pente doit porter exactement la
+ * même teinte que le terrain qu'elle relie — sinon la rampe se lit comme une pièce rapportée — et
+ * `terrain-mesh.test.ts`, qui recalcule la couleur ATTENDUE d'un sommet connu plutôt que de
+ * recopier cette formule (une seconde source de vérité qui dériverait sans qu'aucun test ne le
+ * remarque — exactement le mode de panne qu'`AO_CORNER` a démontré : personne ne l'assertait
+ * contre le PoC, seulement contre lui-même).
  */
 export function tintAt(x: number, z: number): readonly [number, number, number] {
   const n =

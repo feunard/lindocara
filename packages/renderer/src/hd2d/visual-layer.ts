@@ -26,7 +26,7 @@ import {
 import { MAX_ACTIVE_WORLD_EFFECTS } from "../feedback.js";
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
-import { HD2D_CAMERA, type Hd2dScene, terrainAtlases } from "./scene.js";
+import { HD2D_CAMERA, type Hd2dScene, terrainAtlases, terrainAtlasKey } from "./scene.js";
 import {
   isColdBiomeMaterial,
   type StaticSpriteArt,
@@ -1226,11 +1226,14 @@ export class Hd2dVisualLayer {
       }
     }
     if (overlay.stairsPreview) {
-      const atlas = this.#textures ? terrainAtlases(this.#textures).lvl0 : null;
-      if (atlas) {
+      const atlases = this.#textures ? terrainAtlases(this.#textures) : null;
+      const fallback = atlases?.lvl0;
+      if (atlases && fallback) {
         const preview = meshStairs([overlay.stairsPreview.ramp], {
           levelHeight: overlay.stairsPreview.levelHeight,
-          atlas,
+          // The preview is tinted a flat highlight colour anyway, but it still asks for the right
+          // bank's atlas: the ghost's geometry must be the geometry the real ramp will have.
+          atlasFor: (level) => atlases[terrainAtlasKey("herbe", level)] ?? fallback,
           color: overlay.stairsPreview.valid ? 0xffd66b : 0xe34d42,
           opacity: 0.58,
           lift: 0.03,
