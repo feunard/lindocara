@@ -60,6 +60,23 @@ const REGIONS = {
   block: { i0: 12, i1: 14, j0: 4, j1: 6 },
   /** The mainland, at level 0. */
   mainland: { i0: 18, i1: 44, j0: 4, j1: 43 },
+  /**
+   * The sea cliff, and the whole reason this map exists.
+   *
+   * It sits on the mainland's WESTERN shore, not its eastern one, because of where the camera is:
+   * the HD-2D view looks north-east, so it shows a cell's west and south faces and never its east
+   * one. A water-footed cliff on the east coast is a correct cliff nobody can see — which is what
+   * the first version of this map built, and what made the fix invisible on the very map written to
+   * prove it.
+   *
+   * So: its west face (i = 18) drops straight into the sea — the water-footed wall row, plus foam —
+   * and its south face (j = 16) drops onto level-0 land, the land-footed row. Both face the camera,
+   * one frame apart.
+   */
+  seaCliff: { i0: 18, i1: 24, j0: 8, j1: 16 },
+  /** A level-2 crown on the sea cliff's northern half, so the same western coastline also carries a
+   *  TWO-level drop into the water, stacked directly above the one-level drops. */
+  seaCrown: { i0: 18, i1: 21, j0: 10, j1: 14 },
   /** Sand along the southern shore — a beach meeting grass inland and the sea outward. */
   beach: { i0: 18, i1: 44, j0: 40, j1: 43 },
   /**
@@ -77,6 +94,18 @@ const REGIONS = {
   headland: { i0: 42, i1: 44, j0: 6, j1: 9 },
   /** Land-locked water inside the mainland: an inner shore, foam with no sea behind it. */
   lake: { i0: 21, i1: 25, j0: 30, j1: 35 },
+  /**
+   * A bay cut into the southern shore, and the terrace standing over it.
+   *
+   * The sea cliff on the western shore is correct but reads at a grazing angle: the camera looks
+   * north-east, so a west face is foreshortened and a SOUTH face is the one seen square on. This
+   * pair puts the whole point of the chantier in front of the lens — a one-level and a two-level
+   * drop, both footed in water, both facing the viewer — right beside the plateau's own south face,
+   * which is footed on land. The two wall rows, side by side, in one frame.
+   */
+  bay: { i0: 27, i1: 41, j0: 36, j1: 43 },
+  seaTerrace: { i0: 29, i1: 39, j0: 31, j1: 35 },
+  seaTerraceCrown: { i0: 32, i1: 36, j0: 31, j1: 35 },
 } as const;
 
 /** The two ramps, in cells. Each rectangle covers its LOW bank, per `TerrainRamp`. */
@@ -87,8 +116,12 @@ const RAMP_CELLS = [
   { i0: 41, i1: 42, j0: 17, j1: 18, direction: "west", lowLevel: 1 },
 ] as const;
 
-/** Where a hero lands: mainland grass, west of the first ramp, with the plateau in view. */
-const SPAWN_CELL = { i: 24, j: 20 };
+/**
+ * Where a hero lands: mainland grass a few tiles north of the bay, so the very first frame carries
+ * the pair this map was built for — the sea terrace's water-footed south face over the bay, with
+ * the plateau's land-footed south face off to the east.
+ */
+const SPAWN_CELL = { i: 34, j: 28 };
 
 function inside(region: { i0: number; i1: number; j0: number; j1: number }, i: number, j: number) {
   return i >= region.i0 && i <= region.i1 && j >= region.j0 && j <= region.j1;
@@ -98,6 +131,11 @@ function inside(region: { i0: number; i1: number; j0: number; j1: number }, i: n
 function cellAt(i: number, j: number): Cell {
   const water: Cell = { level: null, material: "herbe" };
   if (inside(REGIONS.lake, i, j)) return water;
+  if (inside(REGIONS.bay, i, j)) return water;
+  if (inside(REGIONS.seaTerraceCrown, i, j)) return { level: 2, material: "herbe" };
+  if (inside(REGIONS.seaTerrace, i, j)) return { level: 1, material: "herbe" };
+  if (inside(REGIONS.seaCrown, i, j)) return { level: 2, material: "herbe" };
+  if (inside(REGIONS.seaCliff, i, j)) return { level: 1, material: "herbe" };
   if (inside(REGIONS.headland, i, j)) return { level: 2, material: "herbe" };
   if (inside(REGIONS.mesa, i, j)) return { level: 2, material: "herbe" };
   if (inside(REGIONS.plateau, i, j)) return { level: 1, material: "herbe" };
@@ -146,13 +184,22 @@ function assertEveryEdge16Variant(levels: readonly (number | null)[]): void {
 }
 
 /**
- * The other half of the claim: the two wall rows. A wall's foot is in water when the neighbour it
- * faces has no level at all, and on land when that neighbour is simply lower — so the map has to
- * contain at least one of each, or the fix it exists to show is invisible on it.
+ * The other half of the claim: the two wall rows, and — the part that is easy to get wrong — that
+ * they face the CAMERA.
+ *
+ * A wall's foot is in water when the neighbour it faces has no level at all, and on land when that
+ * neighbour is simply lower. But the HD-2D view looks north-east, so it only ever shows a cell's
+ * WEST face (di = -1) and its SOUTH face (dj = +1). The first version of this map put every one of
+ * its sea cliffs on the eastern shore: all correct, none visible, and the fix the map exists to
+ * prove could not be seen on it. Counting only camera-facing walls is what stops that recurring.
  */
 function assertBothWallFeet(levels: readonly (number | null)[]): void {
   const at = (i: number, j: number): number | null =>
     i < 0 || j < 0 || i >= SIZE || j >= SIZE ? null : (levels[j * SIZE + i] ?? null);
+  // The SOUTH face only. The camera can also catch a west face, but at a grazing angle that
+  // foreshortens it to a sliver — proven the hard way, by shipping a map whose sea cliffs were all
+  // west-facing and then not being able to photograph one. A south face is seen square on.
+  const VISIBLE = [[0, 1]] as const;
   let intoWater = 0;
   let ontoLand = 0;
   let twoLevel = 0;
@@ -160,12 +207,7 @@ function assertBothWallFeet(levels: readonly (number | null)[]): void {
     for (let i = 0; i < SIZE; i += 1) {
       const h = at(i, j);
       if (h === null || h === 0) continue;
-      for (const [di, dj] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ] as const) {
+      for (const [di, dj] of VISIBLE) {
         const n = at(i + di, j + dj);
         if (n === null) {
           intoWater += 1;
@@ -174,9 +216,9 @@ function assertBothWallFeet(levels: readonly (number | null)[]): void {
       }
     }
   }
-  if (intoWater === 0) throw new Error("showcase map has no cliff falling into the sea");
-  if (ontoLand === 0) throw new Error("showcase map has no cliff falling onto land");
-  if (twoLevel === 0) throw new Error("showcase map has no two-level drop into the sea");
+  if (intoWater === 0) throw new Error("showcase map has no VISIBLE cliff falling into the sea");
+  if (ontoLand === 0) throw new Error("showcase map has no VISIBLE cliff falling onto land");
+  if (twoLevel === 0) throw new Error("showcase map has no VISIBLE two-level drop into the sea");
 }
 
 /** Exported so the seeder builds the SAME map rather than a second one that drifts from it. */
