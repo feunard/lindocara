@@ -94,15 +94,20 @@ export interface WaterOptions {
    */
   center?: readonly [number, number];
   /**
-   * Constant shallowness (0 = open sea, 1 = right against the shore), replacing the depth gradient
-   * derived from the height field.
+   * Shallowness (0 = open sea, 1 = right against the shore), replacing the depth gradient derived
+   * from the height field. Either a constant, or a function of the position WITHIN the surface,
+   * in world units relative to its centre.
    *
-   * A small pool needs this. The gradient answers "how far is the nearest land", which is the right
-   * question for an ocean and a meaningless one for a body of water that is entirely within a few
-   * feet of its own bank — worse, a pool sitting ON land samples distance 0 everywhere and would
-   * come out uniformly shore-coloured by accident rather than by intent. Say it explicitly instead.
+   * A small pool needs this. The field gradient answers "how far is the nearest land", which is the
+   * right question for an ocean and a meaningless one for a body of water entirely within a few
+   * feet of its own bank — worse, a pool sitting ON land samples distance 0 everywhere and comes
+   * out uniformly shore-coloured by accident rather than by intent.
+   *
+   * Prefer the FUNCTION form for anything small. A constant makes `mix(deep, shallow, k)` one flat
+   * colour across the whole surface, which is a blue rectangle however good the material is — the
+   * summit spring was exactly that until it was given a bowl.
    */
-  shallow?: number;
+  shallow?: number | ((x: number, z: number) => number);
 }
 
 export interface Water {
@@ -141,7 +146,12 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
   const position = geo.attributes.position;
   if (!position) throw new Error("PlaneGeometry sans attribut position");
   const shallow = new Float32Array(position.count);
-  if (opts.shallow !== undefined) shallow.fill(opts.shallow);
+  if (typeof opts.shallow === "number") shallow.fill(opts.shallow);
+  else if (typeof opts.shallow === "function") {
+    for (let k = 0; k < position.count; k++) {
+      shallow[k] = opts.shallow(position.getX(k), position.getZ(k));
+    }
+  }
   for (let k = 0; opts.shallow === undefined && k < position.count; k++) {
     const i = Math.floor(position.getX(k) + cx);
     const j = Math.floor(position.getZ(k) + cz);

@@ -252,6 +252,15 @@ the hero swims down it. It was an enclosed disc first, which is a pond, not a pl
 expressed as a disc, and a global "flatten everything south of z = 12" would also flatten the
 southern island at z = 24.
 
+**Small water needs a bowl and its own texture density, or it is a blue rectangle.** The summit
+spring uses the sea's exact material and still read as a flat block, for two reasons that have
+nothing to do with the shader. A CONSTANT `shallow` makes `mix(deep, shallow, k)` one colour across
+the whole surface — flat by construction. And `textureWorldSize` defaults to 6 world units per
+tile, so a three-unit pool got HALF a tile stretched across it while the sea gets thirty-six: the
+grain that gives water its life was smeared into a wash. `shallow` now also takes a FUNCTION of the
+position within the surface (a radial bowl here), and small bodies of water must pass a
+`textureWorldSize` to match their size.
+
 **The churn at the foot is a generated flip-book.** `/tex/water-fog.png` — four frames cropped from
 a studio sprite generation and cut out on LUMINANCE, not by `scripts/sprite.py`'s edge-propagation
 key: fog has no silhouette, and a flat colour key gives it a crisp edge, the one thing a cloud must

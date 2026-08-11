@@ -292,13 +292,21 @@ const pools = [
     // than stopping a metre short with a band of bare rock between the two — which is what a
     // centre chosen by eye left, and which read as a pond that happened to be near a waterfall.
     size: SPRING_SIZE,
-    segment: 0.35,
+    // Fine enough that the four analytic swells actually bend a normal across three world units.
+    segment: 0.2,
     depthRange: WATER.depthRange,
     roughness: WATER.roughness,
     center: [MOUNTAIN.x, MOUNTAIN_FACE_Z - SPRING_SIZE / 2],
-    // Not fully shallow: a flat single tone reads as painted mint. Mid-depth lets the swell
-    // normals and the sparkle actually show, which is what says "water" at this size.
-    shallow: 0.55,
+    // A BOWL, not a constant. `mix(deep, shallow, k)` with a fixed `k` is one flat colour over the
+    // whole surface — a blue rectangle however good the material is, which is exactly what this
+    // was. Deep in the middle, shore-shallow at the rim, so the pool has a bottom.
+    shallow: (x, z) => {
+      const r = Math.hypot(x, z) / (SPRING_SIZE / 2);
+      return Math.min(1, 0.25 + 0.75 * r * r);
+    },
+    // The sea gets 36 texture tiles across its plane; at the default 6 world units per tile this
+    // 3-unit pool got HALF of one, smearing the grain that gives water its life into a flat wash.
+    textureWorldSize: 1.2,
   }),
 ];
 for (const p of pools) scene.add(p.mesh);

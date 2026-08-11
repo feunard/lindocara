@@ -99,3 +99,46 @@ describe("water somewhere other than the sea", () => {
     for (let k = 0; k < attr.count; k++) expect(attr.getX(k)).toBe(1);
   });
 });
+
+describe("shallowness as a bowl", () => {
+  const field = fieldFrom(["0000", "0000", "0000", "0000"]);
+  const base = {
+    texture: new THREE.Texture(),
+    level: 3.6,
+    size: 3,
+    segment: 0.5,
+    depthRange: 7,
+    roughness: 0.46,
+  };
+
+  // A CONSTANT shallowness makes `mix(deep, shallow, k)` one flat colour across the whole surface,
+  // which renders as a blue rectangle however good the material is. Small bodies of water need a
+  // gradient of their own, and the function form is how they say so.
+  it("varies across the surface when given a function", () => {
+    const w = createWater(CTX, field, {
+      ...base,
+      shallow: (x, z) => Math.min(1, Math.hypot(x, z) / 1.5),
+    });
+    const attr = w.mesh.geometry.getAttribute("aShallow");
+    const values = new Set<number>();
+    for (let k = 0; k < attr.count; k++) values.add(Math.round(attr.getX(k) * 100));
+    expect(values.size).toBeGreaterThan(3);
+  });
+
+  it("is deepest at the centre and shallowest at the rim", () => {
+    const w = createWater(CTX, field, {
+      ...base,
+      shallow: (x, z) => Math.min(1, Math.hypot(x, z) / 1.5),
+    });
+    const pos = w.mesh.geometry.getAttribute("position");
+    const attr = w.mesh.geometry.getAttribute("aShallow");
+    let centre = 1;
+    let rim = 0;
+    for (let k = 0; k < attr.count; k++) {
+      const r = Math.hypot(pos.getX(k), pos.getZ(k));
+      if (r < 0.1) centre = Math.min(centre, attr.getX(k));
+      if (r > 1.4) rim = Math.max(rim, attr.getX(k));
+    }
+    expect(centre).toBeLessThan(rim);
+  });
+});
