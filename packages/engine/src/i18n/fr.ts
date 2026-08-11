@@ -498,6 +498,7 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.sfx": "Effets & actions",
   "settings.ambient": "Musique & ambiance",
   "settings.interface": "Interface",
+  "settings.language": "Langue",
   "settings.controls": "Commandes",
   "settings.session": "Session",
   "settings.health_bars": "Barres de vie à proximité",

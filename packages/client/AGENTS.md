@@ -44,6 +44,9 @@ glue that binds the renderer to the network. Browser + React. This is the base t
   glass, filters, input and top-right resize grip appear while writing. The grip resizes width and
   height together, clamps to the viewport, and persists the validated pair under
   `lindocara.chat.size.v2`; keep transient pointer coordinates in refs, not render state.
+- `ui/LaunchScreens.tsx` refreshes party listings every 10 seconds on Continue/Join so their subtle
+  online badge follows the server's volatile party-room directory. Language selection lives only
+  in `SettingsMenu`'s Interface pane; do not restore a floating locale control over the game.
 
 ## Graph
 

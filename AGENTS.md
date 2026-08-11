@@ -258,7 +258,8 @@ src/client/     runs in a browser.
                 screen (`title` `/`, `menu` `/menu`, `credits` `/credits`, `auth` `/auth`,
                 `playContinue` `/play/continue`, `playNew` `/play/new`, `playJoin` `/play/join`,
                 `game` `/game`, `editor` `/editor` â€” lazy-loaded). The root layout owns the chrome
-                every route shares (LocaleToggle/StatusBar visibility, menu music) and installs
+                every route shares (StatusBar visibility, menu music; language lives in Settings)
+                and installs
                 `state/navigation.ts`'s seam on mount. Navigation is `useRouter().push("name")`,
                 never a store write. Registered server-side too (`apps/main/src/main.ts`), which
                 is what serves the HTML shell.

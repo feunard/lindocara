@@ -1,5 +1,5 @@
 import { getAudioSettings, setAudioSettings } from "@lindocara/client/game/audio-settings.js";
-import { setLocale } from "@lindocara/client/i18n.js";
+import { currentLocale, setLocale } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { SettingsMenu } from "@lindocara/client/ui/SettingsMenu.js";
 import { getDisplaySettings, setDisplaySettings } from "@lindocara/renderer/display-settings.js";
@@ -21,7 +21,7 @@ describe("SettingsMenu", () => {
     useUiStore.setState({ settingsOpen: true });
     render(<SettingsMenu />);
     await userEvent.click(screen.getByRole("tab", { name: "Interface" }));
-    await userEvent.selectOptions(screen.getByRole("combobox"), "enemies");
+    await userEvent.selectOptions(screen.getByLabelText("Nearby health bars"), "enemies");
     expect(getDisplaySettings().healthBars).toBe("enemies");
   });
 
@@ -53,6 +53,15 @@ describe("SettingsMenu", () => {
 
     await userEvent.click(grid);
     expect(getDisplaySettings().grid).toBe(false);
+  });
+
+  it("keeps language selection inside the interface settings", async () => {
+    useUiStore.setState({ settingsOpen: true });
+    render(<SettingsMenu />);
+    await userEvent.click(screen.getByRole("tab", { name: "Interface" }));
+
+    await userEvent.selectOptions(screen.getByLabelText("Language"), "fr");
+    expect(currentLocale()).toBe("fr");
   });
 
   it("closes via resume", async () => {

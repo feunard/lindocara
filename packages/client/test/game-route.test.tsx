@@ -155,8 +155,8 @@ describe("the /game route", () => {
 
     // `/game` is deliberately absent from `AppRouter.tsx`'s `IMMERSIVE_PATHS` (matching the
     // pre-router `App.tsx`'s `immersive` set, which never included `"game"` either — see that
-    // set's docblock): the locale chip and status pill stay visible during actual play.
-    expect(document.querySelector("#locale-toggle")).toBeTruthy();
+    // set's docblock): the status pill stays visible, while language selection lives in Settings.
+    expect(document.querySelector("#locale-toggle")).toBeNull();
     expect(document.querySelector("#status")).toBeTruthy();
   });
 });

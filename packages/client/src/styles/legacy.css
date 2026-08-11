@@ -294,25 +294,6 @@ button:not(:where([data-slot], [data-slot] *, .editor-root *)):disabled {
   cursor: progress;
 }
 
-#locale-toggle {
-  position: fixed;
-  top: auto;
-  /* #status also sits bottom-right (bottom: 0.75rem); stacked above it with a gap rather than
-     the brief's plain 0.8rem, which would sit the two panels directly on top of each other. */
-  bottom: 2.6rem;
-  right: 0.8rem;
-  z-index: 40;
-  display: flex;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-#locale-toggle button {
-  margin: 0;
-}
-
 #character-list {
   display: grid;
   gap: 8px;
@@ -3175,18 +3156,6 @@ kbd {
   #minimap,
   #status {
     display: none;
-  }
-
-  #locale-toggle {
-    top: calc(0.4rem + env(safe-area-inset-top, 0px));
-    right: calc(0.4rem + var(--safe-right));
-    bottom: auto;
-  }
-
-  #locale-toggle button {
-    min-width: 2rem;
-    min-height: 2rem;
-    padding: 0.35rem;
   }
 
   #event-log {

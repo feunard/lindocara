@@ -10,7 +10,7 @@ import {
   setAudioSettings,
   subscribeAudioSettings,
 } from "../game/audio-settings.js";
-import { t, useLocale } from "../i18n.js";
+import { setLocale, t, useLocale } from "../i18n.js";
 import { getGameNavigation } from "../state/navigation.js";
 import { useUiStore } from "../store.js";
 import { ControlsSettings } from "./ControlsSettings.js";
@@ -51,7 +51,7 @@ function SettingsMenuItem({
 }
 
 export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
-  useLocale();
+  const locale = useLocale();
   const open = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const game = useUiStore((s) => s.game);
@@ -235,6 +235,23 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
                   >
                     {t("settings.grid")}
                   </TinyCheckbox>
+                </SettingsMenuItem>
+
+                <SettingsMenuItem
+                  order={22}
+                  onActivate={() => setLocale(locale === "en" ? "fr" : "en")}
+                >
+                  <label className="settings-row" htmlFor="settings-language">
+                    <span className="settings-row-label">{t("settings.language")}</span>
+                    <TinySelect
+                      id="settings-language"
+                      value={locale}
+                      onChange={(event) => setLocale(event.target.value === "fr" ? "fr" : "en")}
+                    >
+                      <option value="en">EN</option>
+                      <option value="fr">FR</option>
+                    </TinySelect>
+                  </label>
                 </SettingsMenuItem>
               </div>
             )}

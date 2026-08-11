@@ -493,6 +493,7 @@ export const en = {
   "settings.sfx": "Effects & actions",
   "settings.ambient": "Music & ambience",
   "settings.interface": "Interface",
+  "settings.language": "Language",
   "settings.controls": "Controls",
   "settings.session": "Session",
   "settings.health_bars": "Nearby health bars",

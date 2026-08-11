@@ -11,7 +11,7 @@
  * story and the exact code to restore.
  *
  * The root `layout` carries the chrome the old `App.tsx` used to own directly: the launch-menu
- * music effect and the LocaleToggle/StatusBar immersive toggle, both now driven by the URL instead
+ * music effect and the StatusBar immersive toggle, both now driven by the URL instead
  * of `screen`. The boot ping (`ReactAuth.ping()` -> guest fallback -> /auth, replacing the old
  * `fetchMe()`) is NOT part of this layout's render — it is `AppRouter`'s own `bootPing` `$hook({
  * on: "start" })`, below, which must fully resolve before the router's first route transition
@@ -71,7 +71,6 @@ import {
   loadPlayableAdventures,
   NewGameScreen,
 } from "./LaunchScreens.js";
-import { LocaleToggle } from "./LocaleToggle.js";
 import { MainMenu } from "./MainMenu.js";
 import { MerchantOverlay } from "./MerchantOverlay.js";
 import { MobileControls } from "./MobileControls.js";
@@ -85,16 +84,15 @@ import { VictoryOverlay } from "./VictoryOverlay.js";
 import { WorldMap } from "./WorldMap.js";
 
 /**
- * Paths where the game-chrome LocaleToggle/StatusBar hide — the pre-router `immersive` set ported
+ * Paths where the game-chrome StatusBar hides — the pre-router `immersive` set ported
  * verbatim from what was `App.tsx:77-84`. Kept as pathnames
  * rather than page names: pathname is what the layout's `useRouterState()` naturally exposes, and
  * every route below is still flat (no params).
  *
- * `/game` is DELIBERATELY absent, matching the pre-router set: that floating locale chip/status
- * pill are anchored bottom-right precisely so they stay visible during actual gameplay (see the
- * comment that used to sit next to this toggle in `App.tsx`, before Task 1 folded it into this
- * set) — only `/editor`'s dense, full-viewport chrome and the non-game menu/launch screens hide
- * them. The plan's own Task 5 interface note ("derives from the active route (game + editor)")
+ * `/game` is DELIBERATELY absent, matching the pre-router set: the status pill stays visible during
+ * actual gameplay. Language selection now lives inside Settings instead of floating over the
+ * game. Only `/editor`'s dense, full-viewport chrome and the non-game menu/launch screens hide the
+ * status. The plan's own Task 5 interface note ("derives from the active route (game + editor)")
  * reads as if `/game` should join this set too; that is a plan-text bug against the verified
  * pre-migration behaviour (`git show 61836eb:packages/client/src/ui/App.tsx`, `immersive` never
  * included `"game"`), not a deviation this task introduces — see the Task 5 report.
@@ -103,8 +101,8 @@ import { WorldMap } from "./WorldMap.js";
  * (`/admin/users`, `/admin/users/:id`, ...) that a `Set.has()` lookup can never match — see the
  * `isAdminPath` check folded into `immersive` below instead. Same dense,
  * full-viewport reasoning as `/editor`: `AdminShell`'s own `@alepha/ui` `NavShell` sidebar/topbar
- * is the surface's real chrome, and the floating Tiny Swords `LocaleToggle`/`StatusBar` would
- * otherwise render on top of it.
+ * is the surface's real chrome, and the floating Tiny Swords `StatusBar` would otherwise render on
+ * top of it.
  */
 const IMMERSIVE_PATHS = new Set<string>([
   "/",
@@ -294,7 +292,6 @@ function AppLayout() {
 
   return (
     <>
-      {!immersive && <LocaleToggle />}
       {!immersive && <StatusBar />}
       <NestedView />
       <SettingsMenu inGame={pathname === "/game"} />
