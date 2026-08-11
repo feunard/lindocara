@@ -72,6 +72,7 @@ import {
   clientShadowReturnDeadline,
   skillCooldownBlocksCast,
 } from "./cooldown-sync.js";
+import { shouldLogEvent } from "./event-log-policy.js";
 import { hasNearbyInteraction } from "./interaction-context.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
@@ -258,11 +259,6 @@ function eventText(
     resolved.name = t(resolved.nameKey as MessageKey);
   }
   return t(`event.${code}` as MessageKey, resolved);
-}
-
-/** Your own hits spam the combat log; everything else is worth a line. */
-function shouldLogEvent(code: EventCode): boolean {
-  return code !== "combat.hit" && code !== "quest.site_harvested";
 }
 
 function healingSkillId(value: unknown): "mend" | "prayer" | "divine_nova" {
@@ -574,7 +570,6 @@ async function startGameIdentity(
           phase: "world",
           progress: 90,
         });
-        addEvent(t("status.welcome_hint"), "info");
       }
     },
     onState: (state) => {
@@ -716,8 +711,8 @@ async function startGameIdentity(
       if (code === "quest.site_harvested" && typeof params?.site === "string") {
         renderer.hideQuestSite(params.site, 15_000);
       }
-      // `skill.cast` remains visible through the event log and CombatAnimation owns its sound/art.
-      // It intentionally has no switch branch: only SelfState may update cooldown deadlines.
+      // `skill.cast` stays out of the high-signal event log; CombatAnimation owns its sound/art.
+      // It intentionally has no switch branch either: only SelfState may update cooldown deadlines.
       switch (code) {
         case "zone.transition":
           if (params?.teleport === 1) {

@@ -34,6 +34,9 @@ glue that binds the renderer to the network. Browser + React. This is the base t
   spent), `session` (constructs the renderer,
   owns store writes), `sound`/`audio-settings`/`combat-sounds` (including the procedural
   consumer of movement `HeroEvent`s), `party`, `cooldown-sync`.
+- `game/event-log-policy.ts` is the explicit high-signal allowlist for the temporary top-right log.
+  Keep durable outcomes and critical state changes there; technique triggers, combat ticks,
+  proximity misses and routine action failures must stay out of that log.
 - `styles/` â€” `app.css` (the client sheets + `@alepha/ui/styles.css` last, which brings Tailwind itself), `legacy.css`
   (the Tiny Swords skin + the two-tree fence), `tokens.css`. `public/` â€” atlas/audio/served assets.
 
