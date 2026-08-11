@@ -109,8 +109,9 @@
 }
 
 /* The action dock already supplies its own dark carved surface. A second filled panel around the
-   individual skills made the labels sit on parchment and reduced contrast. */
-.game-ui .skill-bar.panel {
+   individual skills or D-pad made the labels sit on parchment and reduced contrast. */
+.game-ui .skill-bar.panel,
+.game-ui .quick-item-bar.panel {
   border: 0;
   border-image: none;
   background: transparent;

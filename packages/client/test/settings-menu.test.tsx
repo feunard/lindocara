@@ -82,11 +82,18 @@ describe("SettingsMenu", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Controls" }));
     await userEvent.click(screen.getByRole("tab", { name: "Controller" }));
     await userEvent.selectOptions(screen.getByLabelText("Button labels"), "playstation");
+    expect(screen.getByRole("button", { name: "Remap Jump" })).toHaveTextContent("Cross");
     await userEvent.click(screen.getByText("Combat & abilities"));
 
-    expect(
-      screen.getByRole("button", { name: "Remap Primary attack / ability 1" }),
-    ).toHaveTextContent("Cross");
+    expect(screen.getByRole("button", { name: "Remap Basic attack" })).toHaveTextContent("L2");
+    expect(screen.getByRole("button", { name: "Remap Ability 1" })).toHaveTextContent("Square");
+    expect(screen.getByRole("button", { name: "Remap Ability 2" })).toHaveTextContent("Triangle");
+    expect(screen.getByRole("button", { name: "Remap Ability 3" })).toHaveTextContent("Circle");
+    expect(screen.getByRole("button", { name: "Remap Ultimate" })).toHaveTextContent("R3");
+    await userEvent.click(screen.getByText("Menus & shortcuts"));
+    expect(screen.getByRole("button", { name: "Remap Options / back" })).toHaveTextContent(
+      "Options",
+    );
   });
 
   it("owns the switch-character and back-to-title actions instead of the player frame", async () => {

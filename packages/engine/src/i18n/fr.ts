@@ -28,7 +28,7 @@ export const fr: Record<keyof typeof en, string> = {
   "inventory.hint":
     "Assignez un objet à l'un des trois raccourcis. Tous les consommables partagent un délai de 10 secondes.",
   "inventory.controller_hint":
-    "Manette : LT utilise l'emplacement 1 · LT + croix bas/droite utilise 2/3 · LT + Retour ouvre le sac.",
+    "Manette : croix gauche/haut/droite utilise les emplacements 1/2/3 · croix bas ouvre le sac.",
   "inventory.assign": "Assigner au raccourci",
   "inventory.quickbar": "Objets rapides",
   "inventory.use": "Utiliser {item}",
@@ -523,7 +523,7 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.keyboard_hint":
     "Choisissez une action, puis appuyez sur la touche que vous souhaitez utiliser. En jeu, maintenez le clic droit et glissez pour tourner la caméra.",
   "settings.controls.gamepad_hint":
-    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick droit tourne la caméra. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
+    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick gauche déplace le héros, la croix est réservée aux actions et le stick droit tourne la caméra. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
   "settings.controls.press_key": "Appuyez sur une touche…",
   "settings.controls.press_button": "Appuyez sur un bouton…",
   "settings.controls.group.movement": "Déplacements",
@@ -534,11 +534,11 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.move_left": "Aller à gauche",
   "settings.controls.move_right": "Aller à droite",
   "settings.controls.jump": "Sauter",
-  "settings.controls.skill_1": "Attaque principale / compétence 1",
-  "settings.controls.skill_2": "Compétence 2",
-  "settings.controls.skill_3": "Compétence 3",
-  "settings.controls.skill_4": "Compétence 4",
-  "settings.controls.skill_5": "Compétence 5",
+  "settings.controls.skill_1": "Attaque de base",
+  "settings.controls.skill_2": "Compétence 1",
+  "settings.controls.skill_3": "Compétence 2",
+  "settings.controls.skill_4": "Compétence 3",
+  "settings.controls.skill_5": "Ultime",
   "settings.controls.interact": "Interagir",
   "settings.controls.potion": "Utiliser un tonique",
   "settings.controls.item_1": "Objet rapide 1",
