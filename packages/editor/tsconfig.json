@@ -18,7 +18,6 @@
   // `packages/client/tsconfig.json`'s identical split, added at the same task).
   "exclude": [
     "src/ui/editor/AdventureEditorScreen.tsx",
-    "src/ui/editor/MapPickerScreen.tsx",
     "src/ui/editor/AdventureSettingsDialog.tsx",
     "src/ui/editor/QuestWorkspaceDialog.tsx",
     "src/ui/editor/RegistryDialog.tsx",

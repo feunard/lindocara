@@ -161,7 +161,7 @@ describe("MapListPanel", () => {
     expect(onOpenMapAudio).toHaveBeenCalledOnce();
   });
 
-  it("lists the author's maps with a dimensions badge", async () => {
+  it("lists the author's maps with their account username and dimensions", async () => {
     vi.stubGlobal("fetch", mapsBackend());
     render(<Harness />);
 
@@ -169,6 +169,7 @@ describe("MapListPanel", () => {
     expect(screen.getByRole("button", { name: "Frostfen" })).toBeInTheDocument();
     expect(screen.getByText("40×30")).toBeInTheDocument();
     expect(screen.getByText("48×32")).toBeInTheDocument();
+    expect(screen.getAllByText(t("editor.picker.author", { author: "MapMaker" }))).toHaveLength(2);
   });
 
   it("has no start affordance now — the graph is no longer authored", async () => {

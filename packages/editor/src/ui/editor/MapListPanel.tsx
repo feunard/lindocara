@@ -266,8 +266,13 @@ export function MapListPanel({
                 <span className="w-full truncate text-[12.5px] font-medium text-zinc-800">
                   {map.name || t("editor.new")}
                 </span>
-                <span className="rounded bg-zinc-200/80 px-1 text-[10px] tabular-nums text-zinc-500">
-                  {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
+                <span className="flex max-w-full items-center gap-1.5 text-[10px] text-zinc-500">
+                  <span className="rounded bg-zinc-200/80 px-1 tabular-nums">
+                    {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
+                  </span>
+                  <span className="truncate">
+                    {t("editor.picker.author", { author: map.author })}
+                  </span>
                 </span>
               </button>
               <Tooltip>

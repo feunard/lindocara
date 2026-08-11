@@ -30,7 +30,6 @@
   },
   "include": [
     "src/ui/editor/AdventureEditorScreen.tsx",
-    "src/ui/editor/MapPickerScreen.tsx",
     "src/ui/editor/AdventureSettingsDialog.tsx",
     "src/ui/editor/QuestWorkspaceDialog.tsx",
     "src/ui/editor/RegistryDialog.tsx",

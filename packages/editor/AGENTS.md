@@ -12,21 +12,24 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - `src/game/editor-state.ts` owns pure editor mutations and serialization.
 - The package composes `@lindocara/engine`, `@lindocara/renderer`, `@lindocara/client` and
   `@alepha/ui`; it must not duplicate their movement, terrain or rendering rules.
-- Entering the editor renders `MapPickerScreen`: it lists the account's existing maps across its
-  adventures and does not mutate data on mount. Choosing a map opens its owning adventure with that
-  exact map selected. **New map** explicitly mints an unsaved scratch adventure through
-  `ensureScratchAdventure()` and opens the default map returned by the same request. `File → Open`
-  and `File → New adventure` remain available inside the shell. Abandoned scratches are deliberately
-  NOT cleaned up — they are deleted by hand from the Open dialog, so no unsaved work can vanish
-  unasked.
+- Entering the editor mints a fresh **unsaved scratch adventure** (`ensureScratchAdventure()` in
+  `src/ui/editor/adventure-session.ts`) and opens it. There is no landing/picker page: reaching an
+  existing adventure is `File → Open`, and starting another is `File → New adventure`. Abandoned
+  scratches are deliberately NOT cleaned up — they are deleted by hand from the Open dialog, so no
+  unsaved work can vanish unasked.
 - Leaving the editor goes through `AdventureEditorScreen`'s `leave()` (passed to the inner screen as
   `onLeave`), never a bare `setSession(null)`: the route swap lands AFTER this render, so clearing
-  the session on the way out would otherwise flash the picker before navigation completes. Clearing
-  the session to STAY in the editor (the open adventure was just deleted) still calls
-  `setSession(null)` directly and intentionally returns to the picker.
-- `MapPickerScreen` memoizes its initial list promise in a ref so the real router's strict-mode
-  mount/cleanup/mount cycle does not duplicate the adventure/map reads. Creating remains an explicit
-  button action, so strict mode can never mint a second scratch adventure on entry.
+  the session on the way out would otherwise drop straight into the bootstrap and mint a stray
+  adventure — permanently, since abandoned scratches are never cleaned up. Clearing the session to
+  STAY in the editor (the open adventure was just deleted) still calls `setSession(null)` directly
+  and still wants a fresh scratch: the two are different intents.
+- The entry bootstrap's two refs (`AdventureEditorScreen.tsx`) each guard against strict mode's
+  double-invoked effect, in different ways: `startedRef` is the fire-once latch — drop it and you
+  get a silent second `POST`, two untitled adventures per visit. `aliveRef` owns cancellation,
+  reasserted at the top of every effect run rather than a per-closure flag — drop it, or simplify
+  it into one, and the screen instead hangs forever on "Preparing…" after the adventure WAS
+  created, because the synthetic first-mount cleanup discards its own still-in-flight result. See
+  the docblock above the component for the full strict-mode rationale.
 
 - The authoring camera can turn: `[`/`]` step a quarter turn (snapping to the nearest quarter
   first, so they also straighten a freely-orbited view), and **right**-drag orbits to any angle with

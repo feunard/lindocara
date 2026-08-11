@@ -57,7 +57,6 @@ describe("ensureScratchAdventure", () => {
     const session = await ensureScratchAdventure();
 
     expect(session.adventureId).toBe("adv-scratch");
-    expect(session.initialMapId).toBe("map-1");
     expect(session.titleUntouched).toBe(true);
     expect(session.draft.title).toBe(t("adventure.default_title"));
     expect(session.draft.members.map((member) => member.mapId)).toEqual(["map-1"]);
