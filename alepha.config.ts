@@ -20,7 +20,8 @@ export default defineConfig({
     () => ({
       verify: $command({
         aliases: ["v"],
-        description: "Lint + typecheck + tests + content checks + (optionally) both builds.",
+        description:
+          "Clean + lint + typecheck + tests + migrations + content checks + (optionally) the build.",
         flags: z.object({
           fast: z
             .boolean()
@@ -28,9 +29,21 @@ export default defineConfig({
             .optional(),
         }),
         handler: async ({ run, flags }) => {
+          // Start from no build output at all. A stale `dist/` from an older app shape survives a
+          // failed build, so `build` can go red while the directory beside it still looks like a
+          // shipped artifact — and `alepha platform up` packs what it finds. Cleaning first is what
+          // makes the build step's success mean "this ran produced it", not "something once did".
+          // Nothing here is incremental (no `tsBuildInfoFile`, `noEmit` everywhere), so this costs
+          // no rebuild time. Deliberately NOT repeated at the end: the artifact is worth keeping
+          // for inspection, and CI uploads `apps/main/dist` after its own build.
+          await run("npm run clean");
+
           await run("npm run lint");
 
-          // typecheck and the vitest projects share no state — parallel.
+          // typecheck and the vitest projects share no state — parallel. This is also where
+          // i18n parity is verified: `packages/engine/test/i18n.test.ts` asserts en/fr key
+          // equality, no empty strings and a template per `EventCode`, so there is no separate
+          // i18n check to call — a missing translation fails `npm test`.
           await run(["npm run typecheck", "npm test"]);
 
           // Catches schema drift (an edited entity with no matching migration) before it ships —
@@ -44,8 +57,19 @@ export default defineConfig({
           // generator against it would produce phantom diffs.
           await run("npm run catalog:check");
           await run("npm run map:check");
+          await run("npm run music:check");
 
           await run("npm run build");
+
+          // The build proves the app COMPILES. This proves it BOOTS — it starts the artifact the
+          // way Bay starts it (production mode, migrations from `apps/main/migrations/`, a
+          // throwaway SQLite file) and asserts the API answers, the SPA shell is served, an
+          // unadmitted `/ws/world` dial is refused by the room, nothing logged an error on the way
+          // up and SIGTERM stops it. Everything a compiler cannot see — an `$action` name
+          // colliding with an alepha builtin, a service missing from `LindocaraApi`, an entity
+          // whose migration was never generated, a throwing `ready()` hook — fails here instead of
+          // in production. Last, because it consumes the build above.
+          await run("npm run smoke");
         },
       }),
     }),

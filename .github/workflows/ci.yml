@@ -37,6 +37,9 @@ jobs:
       - name: Maps up to date
         run: npm run map:check
 
+      - name: Music catalogue up to date
+        run: npm run music:check
+
       - name: Lint
         run: npm run lint
 
@@ -57,6 +60,15 @@ jobs:
       # `platform up` refuses to deploy something it did not build itself.
       - name: Build
         run: npm run build -w @lindocara/main -- --target bare
+
+      # A compiled artifact is not a working one. This boots the thing the step above just
+      # produced — production mode, real migrations, a throwaway SQLite file — and asserts the API
+      # answers, the shell is served, an unadmitted `/ws/world` dial is refused by the room and
+      # SIGTERM stops the process. It runs against the `--target bare` output on purpose: that is
+      # the shape Bay runs, so this is the last gate before a deploy that would otherwise only
+      # discover a failed `ready()` hook in production.
+      - name: Boot smoke
+        run: npm run smoke
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

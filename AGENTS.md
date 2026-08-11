@@ -18,7 +18,9 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | `alepha dev` â€” the whole app on Node: auto-synced SQLite, `/api/*`, auth, the `/ws/*` realtime rooms and the SPA shell, always on **port 5273** (see below) |
-| `npm run v` (`npx alepha verify`) | the full verify pipeline: lint â†’ typecheck + tests (parallel) â†’ migrations drift check â†’ catalog/map content checks â†’ build; `--fast` keeps the migrations check but skips content checks and the build |
+| `npm run verify` (or `npm run v`, `npx alepha verify`) | the full verify pipeline: clean â†’ lint â†’ typecheck + tests (parallel) â†’ migrations drift check â†’ catalog/map/music content checks â†’ build â†’ boot smoke; `--fast` keeps the migrations check but skips content checks, the build and the smoke. There is no separate i18n check â€” en/fr parity, empty strings and per-`EventCode` templates are asserted by `packages/engine/test/i18n.test.ts`, so `npm test` covers it |
+| `npm run clean` | remove every build output (`apps/main/dist`, `apps/lab/dist`, `apps/lab/dist-client`). `verify` runs it first so a green build cannot be a stale directory; it does NOT run it last, because the artifact is worth keeping |
+| `npm run smoke` | boot the BUILT artifact and prove it runs (see below). Needs `npm run build` first â€” `verify` and CI both sequence it there |
 | `npm run check` | catalog/map checks, lint, typecheck, test â€” run this before committing |
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
 | `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` (each sync = its own commit, pinned in `.vendor/vendor.json`) |
@@ -962,6 +964,29 @@ allowlisted `$env` secrets. The Bay process applies migrations at boot; a build 
 compilation. Relatedly, any `alepha db` command boots the
 real server entry (`apps/main/src/main.ts`) and needs a resolvable `DATABASE_URL` (the dev SQLite
 default suffices locally).
+
+**`npm run smoke` is what closes that gap** (`scripts/smoke-boot.ts`, last step of `npm run verify`
+and of CI). It boots the built artifact the way Bay boots it and asserts five things a compiler
+cannot see: migrations applied against an empty database, `/api/health` answers, `GET /` serves the
+Lindocara shell with a module entry script, an unadmitted `/ws/world` dial is refused BY THE ROOM,
+nothing logged an `ERROR` on the way up, and SIGTERM stops the process. Three details in it are
+load-bearing and were each found the hard way:
+
+- **The process runs with `apps/main` as its working directory, not `dist/`.** Alepha's
+  `DatabaseProvider.getMigrationsFolder()` returns the RELATIVE `migrations/<driver>`, so booting
+  from inside `dist/` logs "Migration SKIPPED - no migrations found" and then dies on the first
+  query against a table nothing created.
+- **Probe `localhost`, never `127.0.0.1`.** The Node server binds the hostname it is given and on a
+  dual-stack machine that is `::1` ONLY — an IPv4-hardcoded probe gets ECONNREFUSED from a server
+  that is up and healthy.
+- **The WebSocket assertion is three-way on purpose.** A mounted-but-fenced `/ws/world` completes
+  the upgrade and is then closed by the room with an `engine/close-codes.ts` code (4004 today); a
+  path nothing serves fails the upgrade and surfaces as a transport error; an open socket means a
+  client reached the world without passing `GET /api/join`. Collapsing that to "the socket did not
+  stay open" would pass just as happily when the room stopped being served at all.
+
+It is a boot smoke, NOT a browser end-to-end test: nothing logs in, creates a party or renders a
+hero. A Playwright suite over the real screens is still an open gap.
 
 **IDE tsserver misprojects the vendored-source programs.** alepha's `package.json` points `types`
 at raw framework source, so an open file can be assigned the wrong tsconfig program and show false
