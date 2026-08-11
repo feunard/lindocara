@@ -27,6 +27,14 @@ body {
   color: #f4f0df;
 }
 
+/* ...but this rule is UNLAYERED, so it beats stock shadcn's own layered `body { color }` and is
+   inherited by every creator surface that does not set its own. On /admin that meant the game's
+   parchment `#f4f0df` on shadcn's white — near-illegible, and invisible to the UI suite, which
+   runs with `css: false`. The console pins its own foreground instead of inheriting the game's. */
+.admin-root {
+  color: var(--foreground);
+}
+
 body::after {
   content: "";
   position: fixed;
@@ -79,6 +87,15 @@ body::after {
   pointer-events: none;
 }
 
+/* The /admin console needs the first half of the editor's contract but not the second: it is a
+   full-viewport opaque shell with no painting canvas underneath it, so it lifts above
+   `body::after` (the fixed vignette at z-index 2, which otherwise washes the whole console out)
+   and keeps its pointer events rather than handing them to #stage. */
+.admin-root {
+  position: relative;
+  z-index: 20;
+}
+
 .editor-root > * {
   pointer-events: auto;
 }
@@ -103,6 +120,7 @@ body::after {
    light palette is ever regenerated — the UI test suite runs with css:false, so only the real-browser
    campaign can catch a drift here. */
 .editor-root,
+.admin-root,
 [data-slot="dialog-content"],
 [data-slot="dialog-overlay"],
 [data-slot="menubar-content"],

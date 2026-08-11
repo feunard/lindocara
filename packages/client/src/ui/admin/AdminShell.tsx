@@ -27,7 +27,14 @@ export function AdminShell() {
     // `h-svh` bounds the shell at the viewport. Combined with `fill` on NavShell/AppShell
     // (switches SidebarProvider from `min-h-svh` to `h-full`), this lets the table body scroll
     // inside the main area instead of pushing the whole page taller.
-    <div className="flex h-svh flex-col">
+    // `admin-root` is the same fence `.editor-root` is, and for the same two reasons — see
+    // `styles/legacy.css`. It lifts the shell above `body::after` (the game's fixed vignette at
+    // z-index 2, which otherwise washes the whole console out), and it re-declares the LIGHT shadcn
+    // tokens, because `index.html` sets `<html class="dark">` for the game's own chrome and stock
+    // shadcn components would otherwise resolve their semantic tokens dark on a light surface.
+    // Without it the console renders the game's parchment `#f4f0df` text on white — verified in a
+    // real browser, and invisible to the test suite, which runs with `css: false`.
+    <div className="admin-root flex h-svh flex-col">
       {/* `/admin` is not under the game's own chrome effects, so nothing else applies the
         dark/light class to <html> — without this, the dark-mode toggle below would flip the atom
         but no subscriber would ever paint it. */}
