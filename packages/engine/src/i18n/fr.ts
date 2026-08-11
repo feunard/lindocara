@@ -1958,6 +1958,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.registry.delete.confirm.body":
     "Les pages d’événement qui en dépendent liront Non pour un état oui/non ou 0 pour un compteur. Aucune autre donnée ne sera utilisée par erreur : la condition cessera simplement d’être vraie.",
   "editor.shell.status.saved": "Enregistré",
+  "editor.shell.status.sandbox": "Pas encore enregistré",
   "editor.shell.status.cursor": "Largeur X {col} · Hauteur Y {row}",
 
   // Erreurs de l'API des aventures

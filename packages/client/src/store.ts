@@ -14,13 +14,19 @@ import type { Input } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { create } from "zustand";
 import type { AdventureDraft } from "./adventure-draft.js";
+import type { MapPayload } from "./api.js";
 
 export interface AdventureEditorSession {
+  /** `null` while the session is an unsaved local sandbox: entering the editor writes nothing, and
+   *  the first save is what creates the adventure row (see `sandboxMap`). */
   adventureId: string | null;
   draftId: string;
   draft: AdventureDraft;
   invalidatedLinks: string[];
   savedDraft: string | null;
+  /** The unsaved map a sandbox session opens with — the editor's whole content until the first save
+   *  turns it into a stored row. Absent for every session backed by an adventure. */
+  sandboxMap?: MapPayload;
   /** UX wave #14: set true when the picker creates an adventure with the default title and drops the
    *  author straight into the editor. The editor seeds a local flag from it so the first explicit save
    *  prompts for the real name; every reloaded session (map/graph refreshes) omits it, defaulting to

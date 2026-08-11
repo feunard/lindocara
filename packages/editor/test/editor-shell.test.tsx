@@ -8,6 +8,7 @@ import {
 import { MainMenu } from "@lindocara/client/ui/MainMenu.js";
 import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game/editor-state.js";
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
+import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-session.js";
 import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
@@ -273,46 +274,14 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
   });
 }
 
-/** Every `POST /api/adventures` a fetch mock saw — one row minted per entry, and an abandoned
- *  scratch adventure is deliberately never cleaned up, so the count is the whole assertion. */
+/** Every `POST /api/adventures` a fetch mock saw. Entering the editor and File → New adventure open
+ *  a local sandbox and must send NONE; the author's first save sends exactly one, carrying the map
+ *  (see the first-save describe below). */
 function adventurePosts(mock: ReturnType<typeof vi.fn>): unknown[] {
   return mock.mock.calls.filter(
     ([url, init]) =>
       url === "/api/adventures" && (init as RequestInit | undefined)?.method === "POST",
   );
-}
-
-/**
- * `mapsBackend` plus the one route File → New adventure needs: `POST /api/adventures`, answering
- * with a fresh adventure and its inline default map (the shape `ensureScratchAdventure` reads).
- * `gate`, when supplied, parks every POST until it resolves, so a test can fire a second
- * invocation while the first is still in flight.
- */
-function scratchBackend(gate?: Promise<void>) {
-  const base = mapsBackend(twoMaps);
-  let minted = 0;
-  return vi.fn((url: string, init?: RequestInit) => {
-    const method = init?.method ?? "GET";
-    if (url === "/api/adventures" && method === "POST") {
-      minted += 1;
-      const id = `adv-new-${minted}`;
-      const mapId = `map-new-${minted}`;
-      const created = {
-        id,
-        accountId: "acct",
-        title: "New adventure",
-        maxPlayers: 4,
-        version: 1,
-        mapIds: [mapId],
-        graph: { start: null, links: [] },
-        registry: { switches: [], variables: [] },
-        defaultMap: { ...payloadFor({ ...(twoMaps[0] as MapSummary), id: mapId }) },
-      };
-      const response = () => jsonResponse(created, 201);
-      return gate ? gate.then(response) : Promise.resolve(response());
-    }
-    return base(url, init);
-  });
 }
 
 /** The status strip: its mode echo (`t("editor.shell.mode.*")`) renders the same text as the
@@ -783,8 +752,8 @@ describe("AdventureEditorScreen shell", () => {
     confirm.mockRestore();
   });
 
-  it("mints exactly one adventure when File → New adventure is confirmed over dirty edits", async () => {
-    const mock = scratchBackend();
+  it("opens a fresh sandbox when File → New adventure is confirmed over dirty edits", async () => {
+    const mock = mapsBackend(twoMaps);
     vi.stubGlobal("fetch", mock);
     await mountReady(alepha);
     await screen.findByRole("button", { name: "Frostfen" });
@@ -795,33 +764,32 @@ describe("AdventureEditorScreen shell", () => {
     expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
     confirm.mockRestore();
 
-    await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-new-1"),
-    );
-    expect(adventurePosts(mock)).toHaveLength(1);
+    // A new adventure is a local sandbox: no row, no id, and a map to paint on straight away.
+    await waitFor(() => {
+      const session = alepha.store.get(adventureEditorSessionAtom);
+      expect(session?.adventureId).toBeNull();
+      expect(session?.sandboxMap).toBeDefined();
+    });
+    expect(adventurePosts(mock)).toHaveLength(0);
+    expect(alepha.store.get(adventureEditorSessionAtom)?.draftId).not.toBe("draft-1");
   });
 
-  it("mints one adventure, not two, when File → New adventure is invoked twice in flight", async () => {
-    let release: (() => void) | undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const mock = scratchBackend(gate);
+  it("opens an independent sandbox each time File → New adventure is invoked, writing nothing", async () => {
+    const mock = mapsBackend(twoMaps);
     vi.stubGlobal("fetch", mock);
     await mountReady(alepha);
     await screen.findByRole("button", { name: "Frostfen" });
 
-    // Two invocations before the first POST resolves. Without the in-flight latch each one mints its
-    // own adventure, and an abandoned scratch is never cleaned up — the extra row is permanent.
     await openNewAdventure();
+    const first = alepha.store.get(adventureEditorSessionAtom);
     await openNewAdventure();
-    expect(adventurePosts(mock)).toHaveLength(1);
+    const second = alepha.store.get(adventureEditorSessionAtom);
 
-    release?.();
-    await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-new-1"),
-    );
-    expect(adventurePosts(mock)).toHaveLength(1);
+    // Repeated invocations used to mint one untitled adventure each, permanently — a sandbox costs
+    // nothing, so the only thing left to prove is that each is its own session.
+    expect(adventurePosts(mock)).toHaveLength(0);
+    expect(second?.draftId).not.toBe(first?.draftId);
+    expect(second?.sandboxMap?.id).not.toBe(first?.sandboxMap?.id);
   });
 
   it("ignores an older map response that arrives after a newer selection", async () => {
@@ -2135,6 +2103,105 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
     // No standalone title PUT at all: the name was confirmed once inside the map write.
     expect(adventurePutCalls(mock)).toHaveLength(0);
+  });
+
+  /** The sandbox the editor now opens with: no adventure row, its one map only in memory. */
+  function seedSandbox(): void {
+    alepha.store.set(adventureEditorSessionAtom, createSandboxSession());
+  }
+
+  /** Answers the sandbox's first save: `POST /api/adventures` carrying the map, which comes back as
+   *  the adventure plus the stored row the map became. */
+  function sandboxBackend() {
+    const created = {
+      id: "adv-new",
+      accountId: "acct",
+      title: "Ashen Keep",
+      maxPlayers: 4,
+      version: 1,
+      mapIds: ["m-new"],
+      graph: { start: null, links: [] },
+      registry: { switches: [], variables: [] },
+      defaultMap: payloadFor({ ...(oneMap[0] as MapSummary), id: "m-new" }),
+    };
+    return vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url === "/api/adventures" && method === "POST")
+        return Promise.resolve(jsonResponse(created, 201));
+      if (url === "/api/maps/m-new" && method === "GET")
+        return Promise.resolve(jsonResponse(created.defaultMap));
+      if (url === "/api/maps/m-new" && method === "PUT")
+        return Promise.resolve(jsonResponse({ id: "m-new", revision: 2 }));
+      if (url.startsWith("/api/maps?adventure=") && method === "GET")
+        return Promise.resolve(jsonResponse([{ ...oneMap[0], id: "m-new" }]));
+      if (url === "/api/adventures/adv-new" && method === "GET")
+        return Promise.resolve(jsonResponse({ ...adventurePayload, id: "adv-new" }));
+      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+    });
+  }
+
+  function mapPutsAnywhere(mock: ReturnType<typeof sandboxBackend>): unknown[][] {
+    return mock.mock.calls.filter(
+      ([url, init]) =>
+        String(url).startsWith("/api/maps/") && (init as RequestInit | undefined)?.method === "PUT",
+    );
+  }
+
+  it("creates the adventure and its map in ONE request at a sandbox's first save", async () => {
+    seedSandbox();
+    const mock = sandboxBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady(alepha);
+
+    // Nothing has been written yet: the stage is open on a map that exists only in memory.
+    expect(adventurePosts(mock)).toHaveLength(0);
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByLabelText(t("adventure.name"));
+    await userEvent.clear(title);
+    await userEvent.type(title, "Ashen Keep");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.firstSave.confirm") }),
+    );
+
+    await waitFor(() => expect(adventurePosts(mock)).toHaveLength(1));
+    const [, post] = adventurePosts(mock)[0] as [string, RequestInit];
+    const body = JSON.parse(String(post.body)) as { title: string; map?: { name: string } };
+    // The name the author just typed, and the work they were doing, in the same request.
+    expect(body.title).toBe("Ashen Keep");
+    expect(body.map?.name).toBe("Verdant Reach");
+    // Nothing was updated: the map did not exist before this request.
+    expect(mapPutsAnywhere(mock)).toHaveLength(0);
+
+    const session = alepha.store.get(adventureEditorSessionAtom);
+    expect(session?.adventureId).toBe("adv-new");
+    expect(session?.titleUntouched).toBe(false);
+  });
+
+  it("saves straight through to the stored map after that first save", async () => {
+    seedSandbox();
+    const mock = sandboxBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady(alepha);
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(t("adventure.name")), "!");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.firstSave.confirm") }),
+    );
+    await waitFor(() => expect(adventurePosts(mock)).toHaveLength(1));
+    // The created row replaces the sandbox map, so the stage reopens on it (from the same edits).
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+
+    // A PUT on the created map, no second adventure, and no re-prompt for the name.
+    await waitFor(() => expect(mapPutsAnywhere(mock)).toHaveLength(1));
+    expect(String(mapPutsAnywhere(mock)[0]?.[0])).toBe("/api/maps/m-new");
+    expect(adventurePosts(mock)).toHaveLength(1);
+    expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
   });
 
   it("cancel aborts the whole save: neither the title nor the map is written", async () => {

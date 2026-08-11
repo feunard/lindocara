@@ -96,19 +96,23 @@ export function AdventureSettingsDialog({
   }
 
   async function save(): Promise<void> {
-    if (!session?.adventureId || saving) return;
+    if (!session || saving) return;
     if (!draft) return;
     const input = toAdventureInput(draft);
     if (!input) return;
+    // An unsaved sandbox has no adventure to PUT: naming it here IS its first save, and only the
+    // editor's own `onSaveDraft` can perform that (it creates the adventure and the map together).
+    // Without that seam there is nothing this dialog could write.
+    if (!session.adventureId && !onSaveDraft) return;
     setSaving(true);
     setError(null);
     try {
       let savedDraft: AdventureDraft | null;
       if (onSaveDraft) savedDraft = await onSaveDraft(draft);
-      else {
+      else if (session.adventureId) {
         await updateAdventureApi(session.adventureId, input);
         savedDraft = draft;
-      }
+      } else savedDraft = null;
       if (!savedDraft) return;
       const latest = alepha.store.get(adventureEditorSessionAtom);
       if (latest) {
@@ -145,6 +149,9 @@ export function AdventureSettingsDialog({
           <EditForm
             draft={draft}
             saving={saving}
+            // Nothing to delete while the session is an unsaved sandbox: no row exists yet, and a
+            // dead destructive button reads as a broken one.
+            deletable={session?.adventureId != null}
             onUpdate={(next) => {
               if (next) setDraft(next);
             }}
@@ -197,12 +204,15 @@ export function AdventureSettingsDialog({
 function EditForm({
   draft,
   saving,
+  deletable,
   onUpdate,
   onSave,
   onDelete,
 }: {
   draft: AdventureDraft;
   saving: boolean;
+  /** False for an unsaved sandbox: there is no stored adventure to delete. */
+  deletable: boolean;
   onUpdate(draft: AdventureDraft | null): void;
   onSave(): void;
   onDelete(): void;
@@ -249,9 +259,11 @@ function EditForm({
       </section>
 
       <div className="flex items-center justify-end gap-2">
-        <Button variant="destructive" disabled={saving} onClick={onDelete}>
-          {t("editor.delete")}
-        </Button>
+        {deletable && (
+          <Button variant="destructive" disabled={saving} onClick={onDelete}>
+            {t("editor.delete")}
+          </Button>
+        )}
         <Button disabled={!canSave || saving} onClick={onSave}>
           {t("editor.save")}
         </Button>

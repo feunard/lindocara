@@ -1,100 +1,44 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { ensureScratchAdventure } from "@lindocara/editor/ui/editor/adventure-session.js";
+import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-session.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-/** A minimal `MapPayload` shaped enough for `solidMaskFromMapPayload` and the event readers. */
-function blankMap(id: string) {
-  return {
-    id,
-    name: "Map 1",
-    revision: 1,
-    tilesetId: "tiny-swords",
-    cols: 2,
-    rows: 2,
-    layers: [[], [], []],
-    elements: [],
-    events: [],
-    markers: [],
-    spawn: { col: 0, row: 0 },
-    heightfield: "",
-  };
-}
-
-describe("ensureScratchAdventure", () => {
+describe("createSandboxSession", () => {
   beforeEach(() => setLocale("en"));
 
-  it("creates one adventure with the default title and needs no second request", async () => {
-    const mock = vi.fn((url: string, init?: RequestInit) => {
-      if (url === "/api/adventures" && init?.method === "POST") {
-        return Promise.resolve(
-          jsonResponse(
-            {
-              id: "adv-scratch",
-              accountId: "acct",
-              title: t("adventure.default_title"),
-              maxPlayers: 4,
-              version: 1,
-              mapIds: ["map-1"],
-              graph: { start: null, links: [] },
-              registry: { switches: [], variables: [] },
-              defaultMap: blankMap("map-1"),
-            },
-            201,
-          ),
-        );
-      }
-      return Promise.resolve(jsonResponse({ error: "unexpected_request" }, 500));
-    });
+  it("opens a complete editable session without writing anything", () => {
+    const mock = vi.fn(() => Promise.resolve(new Response(null, { status: 500 })));
     vi.stubGlobal("fetch", mock);
 
-    const session = await ensureScratchAdventure();
+    const session = createSandboxSession();
 
-    expect(session.adventureId).toBe("adv-scratch");
+    // The whole point: entering the editor no longer creates an untitled adventure row.
+    expect(mock).not.toHaveBeenCalled();
+    expect(session.adventureId).toBeNull();
+    expect(session.savedDraft).toBeNull();
+    // Unnamed, so the first save prompts for the real name (`FirstSaveDialog`).
     expect(session.titleUntouched).toBe(true);
     expect(session.draft.title).toBe(t("adventure.default_title"));
-    expect(session.draft.members.map((member) => member.mapId)).toEqual(["map-1"]);
-    // Exactly one call, and it is the POST: no follow-up GET of the adventure or its maps.
-    expect(mock).toHaveBeenCalledTimes(1);
-    const [url, init] = mock.mock.calls[0] ?? [];
-    expect(url).toBe("/api/adventures");
-    expect((init as RequestInit | undefined)?.method).toBe("POST");
+
+    // A real map to paint on, and a draft that already tracks it as its one member.
+    const map = session.sandboxMap;
+    expect(map).toBeDefined();
+    if (!map) return;
+    expect(map.revision).toBe(0);
+    expect(map.heightfield).toBeNull();
+    expect(map.cols).toBeGreaterThan(0);
+    expect(map.layers.length).toBeGreaterThan(0);
+    expect(session.draft.members.map((member) => member.mapId)).toEqual([map.id]);
   });
 
-  it("sends the localized default title", async () => {
+  it("mints an independent sandbox each time", () => {
+    const first = createSandboxSession();
+    const second = createSandboxSession();
+    expect(second.draftId).not.toBe(first.draftId);
+    expect(second.sandboxMap?.id).not.toBe(first.sandboxMap?.id);
+  });
+
+  it("names the sandbox with the active locale's default title", () => {
     setLocale("fr");
-    const bodies: string[] = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((_url: string, init?: RequestInit) => {
-        bodies.push(String(init?.body ?? ""));
-        return Promise.resolve(
-          jsonResponse(
-            {
-              id: "adv-fr",
-              accountId: "acct",
-              title: "Nouvelle aventure",
-              maxPlayers: 4,
-              version: 1,
-              mapIds: ["map-1"],
-              graph: { start: null, links: [] },
-              registry: { switches: [], variables: [] },
-              defaultMap: blankMap("map-1"),
-            },
-            201,
-          ),
-        );
-      }),
-    );
-
-    await ensureScratchAdventure();
-
-    expect(JSON.parse(bodies[0] ?? "{}").title).toBe("Nouvelle aventure");
+    expect(createSandboxSession().draft.title).toBe(t("adventure.default_title"));
   });
 });

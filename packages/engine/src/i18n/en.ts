@@ -1934,6 +1934,7 @@ export const en = {
   "editor.registry.delete.confirm.body":
     "Dependent event pages will read No for a yes/no state or 0 for a counter. They never point at another value by mistake; the condition simply stops holding.",
   "editor.shell.status.saved": "Saved",
+  "editor.shell.status.sandbox": "Not saved yet",
   "editor.shell.status.cursor": "Width X {col} · Height Y {row}",
 
   // Adventure API errors

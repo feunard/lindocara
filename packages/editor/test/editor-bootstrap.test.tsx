@@ -10,22 +10,21 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** `AdventureEditorScreen` reads `adventureEditorSessionAtom` and calls `useRouter()` directly (Task
- *  6) — both need a real Alepha instance with `AlephaReact` registered to mount at all. None of these
- *  tests click the bootstrap's "Quit" button, so a bare `AlephaReact` (no full `AppRouter` page tree)
- *  is enough — but `ReactRouter` still has to be injected HERE, before `start()` locks the container:
- *  a component's first `useRouter()` call happens after that lock, and `alepha.react.router`'s module
- *  is only ever registered by touching one of its services first (mirrors `AppRouter`'s own eager
- *  `reactAuth = $inject(ReactAuth)` field — see its docblock).
+ *  6) — both need a real Alepha instance with `AlephaReact` registered to mount at all. A bare
+ *  `AlephaReact` (no full `AppRouter` page tree) is enough, but `ReactRouter` still has to be
+ *  injected HERE, before `start()` locks the container: a component's first `useRouter()` call
+ *  happens after that lock, and `alepha.react.router`'s module is only ever registered by touching
+ *  one of its services first (mirrors `AppRouter`'s own eager `reactAuth = $inject(ReactAuth)`
+ *  field — see its docblock).
  *
  *  This mounts by hand instead of using `renderWithAlepha`, and the ordering is load-bearing: it must
  *  match `ReactPageProvider.root` (`.vendor/alepha/src/react/router/providers/ReactPageProvider.ts`),
  *  which wraps `<StrictMode>` OUTSIDE `<AlephaContext.Provider>` — the real router root every `$page`
  *  (including `editor`) mounts under, with `strictMode` defaulting `true` and never overridden in this
  *  app. `renderWithAlepha`'s own `wrapper` option nests the opposite way (inside the Alepha provider),
- *  which does not reproduce React's real mount→cleanup→mount dance in this environment — a bug this
- *  latched effect actually hit in `npm run dev` and that a prior version of this suite failed to
- *  catch. Composing the tree in the ORDER THE APP ACTUALLY USES is what makes `AdventureEditorScreen`
- *  strict-mode-tested for real. */
+ *  which does not reproduce React's real mount→cleanup→mount dance in this environment. Composing the
+ *  tree in the ORDER THE APP ACTUALLY USES is what makes the entry path strict-mode-tested for real:
+ *  the sandbox is minted in an effect, and a second invocation would discard the first one's map. */
 async function mountScreen() {
   const alepha = Alepha.create().with(AlephaReact);
   alepha.inject(ReactRouter);
@@ -40,38 +39,62 @@ async function mountScreen() {
   return { ...result, alepha };
 }
 
+/** The sandbox map is mounted straight into the stage, so entry now reaches it — a bare `vi.fn()`
+ *  would return `undefined` where the screen calls `.then()`. Only the calls the open path makes
+ *  are needed. */
 const stageMock = vi.hoisted(() => ({ openMapEditorStage: vi.fn() }));
 vi.mock("@lindocara/editor/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
+  defaultDimForMode: (mode: string) => mode !== "field",
 }));
 vi.mock("@lindocara/editor/game/map-preview.js", () => ({ startMapPreview: vi.fn() }));
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(body === undefined ? null : JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-function adventurePayload(id: string, title: string): Record<string, unknown> {
+function stageHandle() {
   return {
-    id,
-    accountId: "acct",
-    title,
-    maxPlayers: 4,
-    version: 1,
-    mapIds: [],
-    graph: { start: null, links: [] },
-    registry: { switches: [], variables: [] },
+    setTool: vi.fn(),
+    setActiveMode: vi.fn(),
+    setDim: vi.fn(),
+    setGrid: vi.fn(),
+    setCollisions: vi.fn(),
+    setZoom: vi.fn(),
+    // Read during render (the inspector's live map), so it must answer with a map, not undefined.
+    current: vi.fn(() => ({
+      name: "Sandbox",
+      layers: [],
+      elements: [],
+      spawn: { col: 0, row: 0 },
+      markers: [],
+      events: [],
+    })),
+    setName: vi.fn(),
+    setAudio: vi.fn(),
+    setHeroSettings: vi.fn(),
+    setLighting: vi.fn(),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    markSaved: vi.fn(),
+    selected: vi.fn(() => null),
+    clearSelection: vi.fn(),
+    moveSelected: vi.fn(),
+    setSelectedElementAsset: vi.fn(),
+    deleteSelected: vi.fn(),
+    beginEventDraft: vi.fn(),
+    commitEventDraft: vi.fn(),
+    deleteEvent: vi.fn(),
+    highlightEvent: vi.fn(),
+    selectEvent: vi.fn(),
+    dispose: vi.fn(),
   };
 }
 
-describe("AdventureEditorScreen scratch entry", () => {
+describe("AdventureEditorScreen sandbox entry", () => {
   let alephaInstances: Array<{ stop(): Promise<void> }> = [];
 
   beforeEach(() => {
     setLocale("en");
     localStorage.clear();
+    stageMock.openMapEditorStage.mockReset();
+    stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
   });
 
   afterEach(async () => {
@@ -79,154 +102,50 @@ describe("AdventureEditorScreen scratch entry", () => {
     alephaInstances = [];
   });
 
-  function scratchResponse() {
-    return jsonResponse(
-      {
-        ...adventurePayload("adv-scratch", t("adventure.default_title")),
-        mapIds: ["map-1"],
-        defaultMap: {
-          id: "map-1",
-          name: "Map 1",
-          revision: 1,
-          tilesetId: "tiny-swords",
-          cols: 2,
-          rows: 2,
-          layers: [[], [], []],
-          elements: [],
-          events: [],
-          markers: [],
-          spawn: { col: 0, row: 0 },
-          heightfield: "",
-        },
-      },
-      201,
-    );
-  }
-
-  it("mints exactly one scratch adventure on entry and never renders a picker", async () => {
-    const mock = vi.fn((url: string, init?: RequestInit) => {
-      if (url === "/api/adventures" && init?.method === "POST") {
-        return Promise.resolve(scratchResponse());
-      }
-      if (url === "/api/maps/map-1") {
-        return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
-      }
-      return Promise.resolve(jsonResponse([], 200));
-    });
+  it("opens a local sandbox on entry, writing nothing and never rendering a picker", async () => {
+    const mock = vi.fn(() => Promise.resolve(new Response("[]", { status: 200 })));
     vi.stubGlobal("fetch", mock);
 
     const { alepha } = await mountScreen();
     alephaInstances.push(alepha);
 
-    await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-scratch"),
-    );
-    expect(alepha.store.get(adventureEditorSessionAtom)?.titleUntouched).toBe(true);
-    // The latch: strict mode double-invokes the effect, and every extra POST is a stray
-    // untitled adventure that nothing ever cleans up.
-    expect(
-      mock.mock.calls.filter(
-        ([url, init]) => url === "/api/adventures" && (init as RequestInit)?.method === "POST",
-      ),
-    ).toHaveLength(1);
-  });
-
-  it("shows a retry instead of a blank stage when the create fails", async () => {
-    let attempts = 0;
-    const mock = vi.fn((url: string, init?: RequestInit) => {
-      if (url === "/api/adventures" && init?.method === "POST") {
-        attempts += 1;
-        if (attempts === 1) return Promise.resolve(jsonResponse({ error: "server_error" }, 500));
-        return Promise.resolve(scratchResponse());
-      }
-      return Promise.resolve(jsonResponse([], 200));
-    });
-    vi.stubGlobal("fetch", mock);
-
-    const { alepha } = await mountScreen();
-    alephaInstances.push(alepha);
-
-    const retry = await screen.findByRole("button", { name: t("editor.retry") });
-    expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
-
-    await userEvent.click(retry);
-    await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-scratch"),
+    await waitFor(() => expect(alepha.store.get(adventureEditorSessionAtom)).not.toBeNull());
+    const session = alepha.store.get(adventureEditorSessionAtom);
+    // The whole point of the sandbox: entering the editor creates no adventure row. Untitled rows
+    // used to accumulate one per visit, and nothing ever cleaned them up.
+    expect(session?.adventureId).toBeNull();
+    expect(session?.sandboxMap).toBeDefined();
+    expect(session?.titleUntouched).toBe(true);
+    expect(mock).not.toHaveBeenCalled();
+    // Strict mode double-invokes the mount effect; a second sandbox would discard this one's map.
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalled());
+    expect(alepha.store.get(adventureEditorSessionAtom)?.sandboxMap?.id).toBe(
+      session?.sandboxMap?.id,
     );
   });
 
-  // `UnauthorizedError` is what this server actually sends: Alepha's `$secure()` throws that class
-  // and `HttpError.toJSON` puts its name in the `error` field. `session_expired`/`unauthorized` are
-  // the retired hand-rolled Worker's spellings, kept only so an old response shape still reads as a
-  // dead session. Both are exercised: a guard that knew only the retired codes answered a REAL
-  // expired session with a local error banner on top of the global `/auth` redirect.
-  it.each(["UnauthorizedError", "session_expired", "unauthorized"])(
-    "shows no error banner when the session is dead (%s)",
-    async (code) => {
-      const mock = vi.fn((url: string, init?: RequestInit) => {
-        if (url === "/api/adventures" && init?.method === "POST") {
-          return Promise.resolve(jsonResponse({ error: code }, 401));
-        }
-        return Promise.resolve(jsonResponse([], 200));
-      });
-      vi.stubGlobal("fetch", mock);
-
-      const { alepha } = await mountScreen();
-      alephaInstances.push(alepha);
-
-      await waitFor(() => expect(mock).toHaveBeenCalled());
-      expect(screen.queryByRole("button", { name: t("editor.retry") })).toBeNull();
-      expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
-    },
-  );
-
-  // The dirty guard's two directions are covered where the stage (and therefore a dirty edit) can be
-  // faked: declined in `editor-shell.test.tsx`'s "guards File → New adventure with the dirty
-  // confirm", confirmed in its "mints exactly one adventure … over dirty edits". This one proves
-  // only that the menu item reaches `ensureScratchAdventure` and swaps the session.
-  it("mints another scratch from File → New adventure", async () => {
-    let created = 0;
-    const mock = vi.fn((url: string, init?: RequestInit) => {
-      if (url === "/api/adventures" && init?.method === "POST") {
-        created += 1;
-        return Promise.resolve(
-          created === 1
-            ? scratchResponse()
-            : jsonResponse(
-                {
-                  ...adventurePayload("adv-second", t("adventure.default_title")),
-                  mapIds: [],
-                  defaultMap: {
-                    id: "map-2",
-                    name: "Map 1",
-                    revision: 1,
-                    tilesetId: "tiny-swords",
-                    cols: 2,
-                    rows: 2,
-                    layers: [[], [], []],
-                    elements: [],
-                    events: [],
-                    markers: [],
-                    spawn: { col: 0, row: 0 },
-                    heightfield: "",
-                  },
-                },
-                201,
-              ),
-        );
-      }
-      if (url.startsWith("/api/maps/")) {
-        return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
-      }
-      return Promise.resolve(jsonResponse([], 200));
-    });
+  it("mounts the sandbox's own map in the stage, with no map request", async () => {
+    const mock = vi.fn(() => Promise.resolve(new Response("[]", { status: 200 })));
     vi.stubGlobal("fetch", mock);
 
     const { alepha } = await mountScreen();
     alephaInstances.push(alepha);
-    await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-scratch"),
-    );
+
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
+    const opened = stageMock.openMapEditorStage.mock.calls[0]?.[0] as { name: string };
+    expect(opened.name).toBe(alepha.store.get(adventureEditorSessionAtom)?.sandboxMap?.name);
+    // No `/api/maps?adventure=…` list and no map fetch: there is nothing stored to fetch.
+    expect(mock).not.toHaveBeenCalled();
+  });
+
+  it("opens another sandbox from File → New adventure, still writing nothing", async () => {
+    const mock = vi.fn(() => Promise.resolve(new Response("[]", { status: 200 })));
+    vi.stubGlobal("fetch", mock);
+
+    const { alepha } = await mountScreen();
+    alephaInstances.push(alepha);
+    await waitFor(() => expect(alepha.store.get(adventureEditorSessionAtom)).not.toBeNull());
+    const first = alepha.store.get(adventureEditorSessionAtom);
 
     // The File-menu idiom used throughout `editor-shell.test.tsx`: focus the trigger, press Enter,
     // then click the item. A plain click on the trigger does not open this menubar.
@@ -237,8 +156,11 @@ describe("AdventureEditorScreen scratch entry", () => {
     );
 
     await waitFor(() =>
-      expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-second"),
+      expect(alepha.store.get(adventureEditorSessionAtom)?.draftId).not.toBe(first?.draftId),
     );
-    expect(created).toBe(2);
+    const second = alepha.store.get(adventureEditorSessionAtom);
+    expect(second?.adventureId).toBeNull();
+    expect(second?.sandboxMap?.id).not.toBe(first?.sandboxMap?.id);
+    expect(mock).not.toHaveBeenCalled();
   });
 });
