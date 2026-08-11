@@ -14,6 +14,7 @@ import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import { createFoam, FOAM_SPREAD } from "@lindocara/hd2d/terrain/foam.js";
 import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
+import { createWaterfall } from "@lindocara/hd2d/terrain/waterfall.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
@@ -33,6 +34,7 @@ import {
   openDoor,
   sayLine,
   setAmbience,
+  setCascadeDistance,
   setFireDistance,
   setZoneMusic,
   stopLine,
@@ -45,16 +47,22 @@ import {
   AURORE,
   BLIZZARD,
   CAMERA,
+  FALLS_FOG,
   MOOD_FADE,
   MOODS,
+  MOUNTAIN,
+  MOUNTAIN_FACE_Z,
   NEIGE_CHUTE,
   NORD,
+  RAINBOW,
   SPAWN,
   SUN_DRIFT,
   TARGET_FPS,
   TEXTURE_URLS,
   WATER,
+  WATERFALLS,
   WORLD,
+  ZONE_FALLS,
   ZONE_LARGE,
   ZONE_POLAIRE,
   ZONES,
@@ -73,6 +81,7 @@ import { mapToHeightField } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
 import { populate, windPhase } from "./world/props.js";
 import { createSnowNpc } from "./world/snow-npc.js";
+import { createWaterfallFx } from "./world/waterfall-fx.js";
 import { type Zone, zoneAt } from "./world/zones.js";
 
 // Task 10 : l'île n'est plus générée au démarrage, elle est CHARGÉE — `world/island.ts`
@@ -247,6 +256,67 @@ const foam = createFoam(ctx, field, {
   waterLevel: WORLD.waterLevel,
 });
 scene.add(foam.group);
+
+// The waterfall: ONE sheet straight down the mountain's sheer south face, from the summit to the
+// ground. See `WATERFALLS` (`settings.ts`) for why south, why one, and why these numbers are
+// measured rather than derived.
+const waterfalls = WATERFALLS.map((w) =>
+  createWaterfall(ctx, {
+    texture: textures.get("/tex/water.png"),
+    x: w.x,
+    z: w.z,
+    width: w.width,
+    topY: w.topLevel * WORLD.levelHeight,
+    bottomY: w.bottomLevel * WORLD.levelHeight,
+    facing: w.facing,
+    poolOffset: w.poolOffset,
+  }),
+);
+for (const w of waterfalls) scene.add(w.group);
+
+// The two pools are REAL WATER — `createWater`, the same surface the sea is made of, given a
+// `center` and a `level` so it can sit somewhere other than the world origin and higher than zero.
+// They were flat shaded discs first, and read as blue paint: what makes the sea in this scene look
+// wet is its four crossed swells, its sparkle and its mood-driven colours, and a bespoke shader has
+// none of those. `shallow: 1` because a pool is all bank — the field's depth gradient answers a
+// question ("how far to the nearest land") that means nothing this small.
+// The spring is exactly the fall's width, so the water that pours over the lip is the water that
+// falls. Derived from the placement rather than typed twice: they cannot drift apart.
+const SPRING_SIZE = WATERFALLS[0]?.width ?? 3;
+
+const pools = [
+  // ONLY the summit spring is a placed surface. The plunge pool at the foot of the fall is CUT INTO
+  // the terrain instead (`isPlungePool`, `world/island.ts`) — it lands at level 0, a hair above the
+  // global water level, so the sea itself shows through the hole and `createFoam` rings it with
+  // foam for free. A pool at ELEVATION cannot be cut that way: the hole would open a shaft to the
+  // sea 3.6 units below. That is what `center`/`level` are for, and this is the one that needs it.
+  createWater(ctx, field, {
+    texture: textures.get("/tex/water.png"),
+    level: 4 * WORLD.levelHeight + 0.02,
+    // As wide as the fall, and reaching exactly to the lip: its SOUTH edge sits on
+    // `MOUNTAIN_FACE_Z`, so the spring runs to the cliff and pours over the sheet's top rather
+    // than stopping a metre short with a band of bare rock between the two — which is what a
+    // centre chosen by eye left, and which read as a pond that happened to be near a waterfall.
+    size: SPRING_SIZE,
+    segment: 0.35,
+    depthRange: WATER.depthRange,
+    roughness: WATER.roughness,
+    center: [MOUNTAIN.x, MOUNTAIN_FACE_Z - SPRING_SIZE / 2],
+    // Not fully shallow: a flat single tone reads as painted mint. Mid-depth lets the swell
+    // normals and the sparkle actually show, which is what says "water" at this size.
+    shallow: 0.55,
+  }),
+];
+for (const p of pools) scene.add(p.mesh);
+
+// Mist, spray and the rainbow: anchored to the fall's own impact point rather than recomputing it
+// from the placement, so the effects can never drift from where the water actually lands.
+const waterfallFx = createWaterfallFx(
+  ctx,
+  waterfalls.map((w) => w.impact),
+  textures.get("/tex/water-fog.png"),
+);
+scene.add(waterfallFx.group);
 
 // `colliders` est créé ICI, dans le composition root, parce que le héros — créé juste après
 // Grota — doit voir la MÊME instance que celle que Grota/Nanuq peuplent ensuite : contrairement au
@@ -565,6 +635,14 @@ function pushMood(): void {
   water.colors.shallow.copy(m.water.shallow);
   water.colors.deep.copy(m.water.deep);
   water.setSparkle(m.water.sparkle);
+  // The falls' pools are the same substance as the sea and must take the same ambience with it —
+  // a pool that stayed daytime turquoise under a night mood would be the one thing on the island
+  // that never got dark.
+  for (const p of pools) {
+    p.colors.shallow.copy(m.water.shallow);
+    p.colors.deep.copy(m.water.deep);
+    p.setSparkle(m.water.sparkle);
+  }
   // Le halo du foyer suit l'ambiance : en plein jour, un feu de camp ne fait pas de flaque de
   // lumière, il n'a que sa flamme. Les deux couches pèsent le même poids : donner le dessus à la
   // petite lui rendait aussitôt son statut de tache principale, et le rond revenait.
@@ -878,6 +956,9 @@ props.flock.onExplode = () => shake(0.26);
 // position du héros.
 let auroraAmount = 0;
 let fogPulseAmount = 0;
+// The falls zone's own low fog, on its own fade — a second contribution to the same `fog.far`
+// multiplier the blizzard drives, never a second mechanism.
+let fallsFogAmount = 0;
 
 // Son de rafale (Correction 1 de la revue de cette task) : `rafalePrec` retient la valeur du signal
 // visuel calculée à l'image précédente, pour repérer son FRANCHISSEMENT ASCENDANT du seuil
@@ -896,8 +977,12 @@ function updateCamera(
   cmd: InputSample,
   move: { x: number; z: number },
   t: number,
-  enPolaire: boolean,
+  zone: Zone,
 ): void {
+  // Derived here rather than passed in as a flag per zone: the signature stopped growing a boolean
+  // every time the lab gained an ambience. The falls need no flag of their own here — their fog
+  // rides `fallsFogAmount`, which the frame loop already fades by zone.
+  const enPolaire = zone === ZONE_POLAIRE;
   distance = THREE.MathUtils.clamp(distance + cmd.zoom, CAMERA.zoom.min, CAMERA.zoom.max);
   // La rotation n'est qu'un coup d'oeil : elle revient d'elle-même une fois le bouton relâché,
   // pour que l'axe des commandes reste celui qu'on connaît.
@@ -970,7 +1055,12 @@ function updateCamera(
   // teinte plus bas (`sky.update`) ou ici la resserre du brouillard au-delà de ce que `intensite`
   // prévoit.
   const pulse = Math.min(1, mood.value.fogPulse + fogPulseAmount) * rafale * BLIZZARD.intensite;
-  fog.far = mood.value.fog.far * k ** CAMERA.fogFar * (1 - pulse);
+  // The falls' own slow breath, on its own period. MULTIPLIED with the blizzard's rather than
+  // summed into it, so neither zone can push `fog.far` negative however the two are retuned — and
+  // the two are never non-zero at once anyway, being dozens of units apart.
+  const respire = 0.5 + 0.5 * Math.sin(((t / FALLS_FOG.periode) % 1) * Math.PI * 2);
+  const pulseFalls = fallsFogAmount * respire * FALLS_FOG.intensite;
+  fog.far = mood.value.fog.far * k ** CAMERA.fogFar * (1 - pulse) * (1 - pulseFalls);
   // Reculer doit renforcer l'effet maquette, pas l'aplatir.
   pipeline.setTiltShiftZoom(k);
 
@@ -1016,9 +1106,10 @@ updateCamera(
   },
   { x: 0, z: 0 },
   0,
-  // Pas encore en zone polaire à cet instant (le spawn ne l'est pas) : aucun son de rafale à ce
-  // premier cadrage à vide.
-  false,
+  // The spawn is in neither special zone, so this empty first framing triggers no gust sound and
+  // no zone fog. Passing the zone itself rather than a flag is what stopped this call growing a
+  // boolean every time the lab gained an ambience.
+  ZONE_LARGE,
 );
 pushMood();
 applyMood("day");
@@ -1114,6 +1205,7 @@ function frame(now = performance.now()): void {
   // posent que sur la matière "neige", géographiquement confinée à cette même île — voir
   // `world/island.ts`) ; le souffle et les flocons ont besoin de ce drapeau explicite.
   const enPolaire = zone === ZONE_POLAIRE;
+  const enCascade = zone === ZONE_FALLS;
   // Aurore et pulse de blizzard suivent la zone avec leur propre fondu — voir la déclaration de
   // `auroraAmount`/`fogPulseAmount` plus haut. L'aurore, en plus, exige la NUIT (un ruban vert dans
   // un ciel de plein jour serait absurde) ; le blizzard, lui, souffle à toute heure.
@@ -1121,6 +1213,8 @@ function frame(now = performance.now()): void {
   auroraAmount += (auroraCible - auroraAmount) * (1 - Math.exp(-dt / AURORE.fade));
   const fogPulseCible = enPolaire ? 1 : 0;
   fogPulseAmount += (fogPulseCible - fogPulseAmount) * (1 - Math.exp(-dt / BLIZZARD.fade));
+  const fallsFogCible = enCascade ? 1 : 0;
+  fallsFogAmount += (fallsFogCible - fallsFogAmount) * (1 - Math.exp(-dt / FALLS_FOG.fade));
   hero.update(dt, {
     x: fige ? 0 : move.x,
     z: fige ? 0 : move.z,
@@ -1138,6 +1232,8 @@ function frame(now = performance.now()): void {
   parler(cmd.action, cmd.cancel);
   dialog.update(dt);
   water.update(dt);
+  for (const w of waterfalls) w.update(dt);
+  for (const p of pools) p.update(dt);
   foam.update(dt);
   clouds.update(dt);
   particles.update(dt);
@@ -1148,6 +1244,13 @@ function frame(now = performance.now()): void {
     neigeCentre.set(hero.position.x, hero.position.y + 1, hero.position.z);
     neige.update(dt);
   }
+  // Mist, spray and the rainbow (Tasks 6-7). Gated on the zone like the snowfall above: outside
+  // the falls the pools neither update nor draw. The daylight term is the rainbow's own gate,
+  // times the sun's drift — `SUN_DRIFT` already swings the azimuth ±22° over 96 s, and an arc that
+  // ignored where the sun stands would betray that nothing is being computed.
+  const solaire = 0.5 + 0.5 * Math.sin((elapsed / SUN_DRIFT.period) * Math.PI * 2);
+  const daylight = mood.name === "day" ? 1 - RAINBOW.sunSwing + RAINBOW.sunSwing * solaire : 0;
+  waterfallFx.update(dt, enCascade, daylight);
   debugView.update(hero);
   chest.update(hero.position);
   interior.update(dt, elapsed);
@@ -1161,7 +1264,7 @@ function frame(now = performance.now()): void {
   // Recopié à CHAQUE image, pas seulement au fondu d'ambiance : `sky.horizon` change aussi avec
   // l'aurore, qui suit son propre fondu (`AURORE.fade`) indépendant de celui du jour/nuit.
   fog.color.copy(sky.horizon);
-  updateCamera(dt, cmd, move, elapsed, enPolaire);
+  updateCamera(dt, cmd, move, elapsed, zone);
   // L'ambiance se fond : tant qu'elle bouge, il faut la repousser partout.
   if (mood.update(dt)) pushMood();
 
@@ -1171,6 +1274,12 @@ function frame(now = performance.now()): void {
 
   // Le foyer s'entend d'autant plus qu'on en est près.
   setFireDistance(hero.position.distanceTo(props.firePosition));
+  // The falls are heard from the NEAREST drop, not from the island's centre: walking up the
+  // terraces should keep the roar close rather than fading it as you leave the middle.
+  let nearestFall = Number.POSITIVE_INFINITY;
+  for (const w of waterfalls)
+    nearestFall = Math.min(nearestFall, hero.position.distanceTo(w.impact));
+  setCascadeDistance(nearestFall);
 
   props.fireLight.intensity = mood.value.fire * ((props.fireLight.userData.flicker as number) ?? 1);
   props.springLight.intensity =

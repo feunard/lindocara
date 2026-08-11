@@ -228,6 +228,122 @@ The glider's canopy (`public/tex/glider.png`, `world/hero.ts`) follows the same 
 sprite path â€” a single frame, no `Clip`/animator, cut with `scripts/sprite.py` â€” but is not snow-
 island content: it belongs to the separate glider chantier (`.superpowers/sdd/2026-08-04-glider/`).
 
+## The waterfall island
+
+A fifth island, `ILES[4]` in `world/island.ts`, west of the main one (`WEST`, `settings.ts`) and
+reached only by swimming. It carries a **terraced mountain** and a **three-drop cascade** with its
+own zone, roar, mist, spray and rainbow. Design and plan:
+[spec](../../docs/superpowers/specs/2026-08-11-mountain-waterfall-design.md),
+[plan](../../docs/superpowers/plans/2026-08-11-mountain-waterfall.md).
+
+**The face is a CUT, not a tangent.** Four concentric relief discs a cell apart (6/5/4/3, so every
+wall is one level), sliced along `MOUNTAIN_FACE_Z` by the island's `carve` hook. An earlier shape
+aligned every disc's south EDGE instead, which also gives a sheer face — but a circle is tangent at
+its own edge, so the face narrowed to the smallest disc's tangent: three cells wide with no rock at
+all beside the water. Cutting with a straight line makes the face as wide as the discs are AT that
+line: five cells of summit, one cell of rock flanking the three-cell fall.
+
+**The pool is a CHANNEL that reaches the sea.** Water that falls has to go somewhere. It is cut into
+the terrain (`carveWestIsland`), exactly as wide as the fall, running from the foot of the cliff out
+to open water — so `meshTerrain` leaves a hole, the sea shows through, `createFoam` banks it, and
+the hero swims down it. It was an enclosed disc first, which is a pond, not a plunge pool.
+
+**`carve` is the island's own hook, and scoping it matters.** Neither the cut nor the channel can be
+expressed as a disc, and a global "flatten everything south of z = 12" would also flatten the
+southern island at z = 24.
+
+**The churn at the foot is a generated flip-book.** `/tex/water-fog.png` — four frames cropped from
+a studio sprite generation and cut out on LUMINANCE, not by `scripts/sprite.py`'s edge-propagation
+key: fog has no silhouette, and a flat colour key gives it a crisp edge, the one thing a cloud must
+not have. It gives MASS where the recycled puff pools give drift; both run together.
+
+**The mountain's south face is SHEER, and that is what the waterfall needs.** Four relief discs of
+shrinking radius whose SOUTH edges all coincide (`MOUNTAIN_RELIEFS`, `world/island.ts`): the south
+side drops from level 4 straight to level 0 in one 3.6-unit cliff, while the north and the flanks
+keep their terraces and stay climbable one 0.9 jump at a time. Concentric discs — built first —
+give a pretty terraced cone and no waterfall at all: each step is 0.9 units, far too short to read
+as falling water, and a sheet dropped from the summit's south edge lands INSIDE the terrace below
+rather than in front of it. The cost of the sheer face is that `mesh.ts` stretches one UV cell over
+a wall's full drop, so the rock is stretched 4x where the water does not cover it; accepted
+deliberately, because the alternative is no cliff to fall down.
+
+**SOUTH, because this camera cannot see any other face.** The rig sits due south of its target at
+yaw 0, 38° above the horizon, looking north (`CAMERA`). A south-facing wall is seen 38° off normal
+— nearly full-on. An east-facing wall is seen EXACTLY edge-on. The first version of this chantier
+hung three sheets on the east face and they rendered as thin vertical slivers: correct geometry
+viewed at 90°. The same trap caught the rainbow independently. Anything flat and upright added to
+this lab belongs in the world XY plane unless you have checked otherwise.
+
+**One tall fall, not a tiered cascade.** Levels ≥3 render with the `roche` atlas — a RENDER band
+added to `renderMaterialAt`/`LEVEL_SET`, **not** a `TerrainMaterial`, so the mountain's rock costs
+zero rule changes.
+
+**The streaks are long vertical lines, generated in the shader.** They are the whole legibility of
+a falling sheet, and two attempts got them wrong before one worked: sampling `water.png`'s grain
+gives a flat pale rectangle (it is a gentle tiling surface, and its contrast vanishes stretched
+over three world units), and varying brightness quickly along BOTH axes makes the two beat against
+each other into a chequerboard of dots. What works is brightness chosen per COLUMN and held down
+the fall, breathed only by a sine whose wavelength is longer than the fall is tall.
+
+**The pools are WATER, not a shader that imitates it.** Two kinds, and the difference is the whole
+lesson. The plunge pool at the foot of the fall is CUT INTO the terrain (`isPlungePool`,
+`world/island.ts`): its cells are marked water, so `meshTerrain` leaves a hole, the sea shows
+through, `createFoam` rings it with foam because foam is derived from exactly that land/water
+boundary, and the hero swims in it — none of which had to be written. The summit spring cannot be
+cut that way (the hole would open a shaft to the sea 3.6 units below), so it is a real `createWater`
+surface given a `center` and a `level`: **water at elevation**, the same material, swells, sparkle
+and mood colours as the ocean, just somewhere else and higher up. `boot.ts` pushes the mood to it
+alongside the sea, or it would be the one thing on the island that never got dark.
+
+Both replaced a bespoke flat-shaded disc, which read as blue paint however it was tinted — it had
+no swells, no sparkle and no mood, and a hard edge against the grass that said nothing about the
+ground stopping. A carved pool needs a BANK all the way round or it drains into the ocean; the
+first offset/radius did exactly that through a one-cell gap at its southern lip, and
+`test/waterfall-placement.test.ts` now flood-fills the pool to prove no cell of it touches the sea.
+
+**`@lindocara/hd2d/terrain/waterfall.ts` is authored, never derived.** `foam.ts` can find a
+shoreline by asking the height field where land meets water, but nothing in the field knows about
+water ABOVE ground — `waterLevel` is one global scalar. So a fall is a placement its caller
+declares (`WATERFALLS`, `settings.ts`), and its basins are **decorative by construction**: the hero
+wades through them, because teaching `TerrainQuery` about per-cell water height would change a
+contract shared with the game's authoritative server for the sake of a visual feature.
+
+Three render traps were each paid for once here, and each now has a test:
+
+- **`ShaderMaterial` defaults to `FrontSide`.** A single quad's facing depends on winding AND yaw;
+  get it wrong and the sheet is backface-culled into total invisibility while still sitting in the
+  scene graph with a correct bounding box. Both the sheet and the basin render `DoubleSide`.
+- **Coplanar surfaces z-fight, and `renderOrder` does not fix it** — it decides draw order, not
+  depth comparison. `FACE_CLEARANCE` stands each sheet a hair proud of its wall and each basin a
+  hair above its terrace.
+- **`THREE.RingGeometry` maps its uvs PLANARLY across the bounding square, not by (angle, radius).**
+  The rainbow's spectrum is painted across the band's width, so on a `RingGeometry` almost all of it
+  landed in the strip's transparent ends and the whole arc rendered as one thin vertical line.
+  `arcBand()` (`world/waterfall-fx.ts`) builds the half-annulus by hand with radial uvs.
+
+**The rainbow faces the CAMERA, not the valley.** Rotating it to face east — the way the water
+flows, the intuitive choice — puts its plane nearly edge-on to a rig sitting 38° above the horizon
+looking north, and it collapses to a one-pixel line. It stands in the world XY plane instead.
+
+**Two sounds, opposite halves of one pair.** `BOUCLES.cascade` is the roar: a HELD sound whose gain
+follows distance (`setCascadeDistance`, `PORTEE_CASCADE` = 22), never a zone soundscape — the same
+shape as the campfire's `setFireDistance` and the skid's `setSkid`. `BOUCLES.falls` IS the zone
+soundscape, raised by `setAmbience`. `test/waterfall-placement.test.ts` asserts no zone ever claims
+the roar's key, which would make it blare across the island at full gain regardless of distance.
+
+`ZONE_FALLS` follows `ZONE_POLAIRE`'s rule: its radius runs past the island's widest shoreline
+(`WEST_REACH_MAX`) so the theme and the bed install themselves DURING the swim, and
+`test/zone-precede-matiere.test.ts` pins that relation against the real symbols. Its low fog rides
+the same `MoodConfig.fogPulse` channel the blizzard uses — a second contribution, not a second
+mechanism — and `updateCamera` now takes the `Zone` itself rather than a `enPolaire` boolean, so
+the signature stops growing a flag per ambience.
+
+**Every particle here is a recycled pool**, like the hot spring's steam and the hero's breath —
+`world/waterfall-fx.ts` shares ONE mist pool and ONE spray pool across all three impact points,
+round-robin, because the total is what costs. Its settings were judged on screen, not on paper: the
+first pass (`MIST.taille` 0.85, opacity 0.38) put a bright haze over the whole mountain, because
+the puffs are unlit billboards with the pipeline's bloom on top of them.
+
 ## The load-testing harness
 
 `bench.ts` answers S1's one open question: does a game-scale population (four players, dozens of
@@ -357,7 +473,8 @@ LAB_SFX_PACK=/path/to/pack apps/lab/scripts/sync-assets.sh
 
 ## Graph
 
-- **Depends on:** `@lindocara/engine` (its `hd2d/` subfolder only), `@lindocara/hd2d`, `three`.
+- **Depends on:** `@lindocara/engine` (its `hd2d/` subfolder only), `@lindocara/hd2d`,
+  `@lindocara/audio` (the sample bank the game and the lab share), `three`.
   Nothing else â€” see "witness, not a frozen copy" above.
 
 ## Deployed as a static site

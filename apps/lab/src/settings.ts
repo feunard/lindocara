@@ -48,13 +48,74 @@ export const NORD = { x: 0, z: -26, r: 7.5 } as const;
  *  separate it from the main island's shore at the closest point, and 3.30 units of sea remain
  *  between its own shore and the edge of the grid — so `WORLD.size` stays at 72 and the terrain
  *  mesh does not grow by a quarter for one island. */
-export const WEST = { x: -25, z: 10, r: 7 } as const;
+export const WEST = { x: -25, z: 10, r: 8.5 } as const;
 
-/** The mountain's centre, shifted WEST of the island's own. Two things come out of that offset:
- *  the eastern beach widens to 3 units — the face the hero swims toward, and the one the falls
- *  run down, needs somewhere to stand and look up from — while the western side keeps a 0.85-unit
- *  strip, which is exactly the narrow shelf the lowest basin spills across into the sea. */
-export const MOUNTAIN = { x: WEST.x - 1.4, z: WEST.z } as const;
+/** The mountain's centre. Sits NORTH of the cliff line so all four relief discs cross it — see
+ *  `MOUNTAIN_FACE_Z`. */
+export const MOUNTAIN = { x: -26.5, z: 10.5 } as const;
+
+/**
+ * The z of the mountain's sheer south face. Everything south of it on this island is flattened to
+ * level 0 — the shelf — and the mountain is CUT along this line rather than ending where its discs
+ * happen to run out.
+ *
+ * The cut is the whole trick, and the previous shape got it wrong in a way worth recording. Aligning
+ * every disc's south EDGE gives a sheer face, but a circle is tangent at its own edge, so the face
+ * is a point that widens going north: the top tier was three cells across at the face and zero
+ * either side of the water. Cutting the discs with a straight line instead makes the face as wide
+ * as the discs are AT that line — five cells of summit, with one cell of rock flanking the
+ * three-cell fall.
+ */
+export const MOUNTAIN_FACE_Z = 12;
+
+/** One authored fall on the west island. Authored rather than derived: nothing in the height field
+ *  knows about water above ground (`waterLevel` is one global scalar), so a fall cannot be detected
+ *  the way `foamPlacements` detects a shoreline. */
+export interface WaterfallPlacement {
+  x: number;
+  z: number;
+  /** Width of the sheet at its lip, world units. */
+  width: number;
+  /** The level it falls FROM and the one it lands ON. */
+  topLevel: number;
+  bottomLevel: number;
+  facing: "east" | "west" | "north" | "south";
+  /** How far out from the cliff the impact ring and the fx anchor sit, world units. The POOL is
+   *  not a radius: it is the channel below, exactly as wide as the fall. */
+  poolOffset: number;
+}
+
+/**
+ * ONE fall, straight down the mountain's SHEER SOUTH FACE, from the summit to the ground.
+ *
+ * **South, because this camera cannot see any other face.** The rig sits due south of its target
+ * at yaw 0, 38° above the horizon, looking north (`CAMERA`): a south-facing wall is seen 38° off
+ * normal — nearly full-on — while an east-facing one is seen EXACTLY edge-on. The first version of
+ * this put three sheets on the east face, where they rendered as thin vertical slivers. They were
+ * correct geometry seen at 90°.
+ *
+ * **One tall drop, not three short ones.** A terrace step here is 0.9 units; a sheet that short is
+ * wider than it is tall and reads as water spilling over a kerb. This one falls the mountain's
+ * whole 3.6 units against a 2.6-unit width — the proportions of an actual waterfall.
+ *
+ * **The numbers are cell boundaries, measured, not derived.** `makeHeightmap` tests cell CENTRES
+ * against each relief disc, so the sheer face lands on the integer boundary between two cells, not
+ * at `MOUNTAIN.z + 4.2`. Measured against the real height field, the level-4 band runs x −28..−25
+ * and the face is at z = 12. `test/waterfall-placement.test.ts` re-measures both on every run
+ * rather than trusting these numbers to stay true.
+ */
+export const WATERFALLS: readonly WaterfallPlacement[] = [
+  {
+    x: MOUNTAIN.x,
+    z: MOUNTAIN_FACE_Z,
+    // THREE cells wide, on a face five cells wide: one cell of rock flanks the water on each side.
+    width: 3,
+    topLevel: 4,
+    bottomLevel: 0,
+    facing: "south",
+    poolOffset: 1.2,
+  },
+];
 
 /** La zone polaire, autour de `NORD` — voir `world/zones.ts` (Task 4 de l'île de neige). Rayon
  *  élargi de 3 unités au-delà du littoral gelé (`NORD.r`) : l'ambiance doit s'installer PENDANT la
@@ -75,6 +136,23 @@ export const ZONE_POLAIRE: Zone = {
   souffle: 2,
 };
 
+/** The falls zone, around the west island (`WEST`). Its radius runs past the island's widest
+ *  shoreline (`WEST_REACH_MAX`, `world/island.ts`) so the theme and the soundscape install
+ *  themselves DURING the swim, before the first step ashore — the same reason `ZONE_POLAIRE` is
+ *  `NORD.r + 3`, and `test/zone-precede-matiere.test.ts` pins both relations against the real
+ *  symbols rather than against copied numbers.
+ *
+ *  `souffle: 1`, deliberately: the doubled breath drain belongs to the polar chantier's icy water,
+ *  and there is no reason this water is crueller than the open sea. */
+export const ZONE_FALLS: Zone = {
+  nom: "falls",
+  centre: [WEST.x, WEST.z],
+  rayon: WEST.r + 3,
+  musique: "falls",
+  nappe: "falls",
+  souffle: 1,
+};
+
 /** La zone par défaut : tout le reste du monde. Rayon infini et EN DERNIER dans `ZONES` — c'est le
  *  filet qui capte tout point qu'aucune zone plus spécifique n'a pris (voir `zoneAt`,
  *  `world/zones.ts`). */
@@ -88,7 +166,7 @@ export const ZONE_LARGE: Zone = {
 };
 
 /** L'ordre EST la priorité (voir `zoneAt`) : la polaire d'abord, la zone par défaut en dernier. */
-export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_LARGE];
+export const ZONES: readonly Zone[] = [ZONE_POLAIRE, ZONE_FALLS, ZONE_LARGE];
 
 /** Chute de neige (Task 8 de l'île de neige, `main.ts`) — un `createPetalFall` recoloré/redensifié
  *  (voir `packages/hd2d/src/particles.ts`, `PetalFallOptions.color`/`count`/`size`). */
@@ -217,6 +295,122 @@ export const VAPEUR_SOURCE: VapeurSourceSettings = {
   expansion: 1.6,
   opaciteInitiale: 0.5,
   emission: 0.2,
+};
+
+/** The mist rising off each landing (Task 6 of the waterfall chantier) — the hot spring's recycled
+ *  puff pool (`VAPEUR_SOURCE`, `world/props.ts`), retuned: denser, wider, faster-rising, and cool
+ *  instead of warm. Same machine, new settings; no allocation during play. */
+export interface MistSettings {
+  /** Size of the recycled pool — never an allocation mid-game. */
+  count: number;
+  /** Lifetime of one puff, seconds. */
+  vie: number;
+  /** World height of a puff. */
+  taille: number;
+  /** Radius of the disc around the impact point where a puff can be born. */
+  rayon: number;
+  /** Rise speed, units per second. */
+  montee: number;
+  /** End-of-life expansion factor (0 = original size at the end, 1 = doubled). */
+  expansion: number;
+  /** Opacity at emission; falls linearly to 0 afterwards. */
+  opaciteInitiale: number;
+  /** Seconds between two puffs. Continuous — a fall does not stop falling. */
+  emission: number;
+}
+export const MIST: MistSettings = {
+  count: 26,
+  // Judged on screen. The first pass (vie 3.2, taille 0.85, opacity 0.38, expansion 2.2) put a
+  // large bright haze over the whole mountain: the puffs are unlit billboards and the pipeline's
+  // bloom sits on top of them, so a value that looks like thin mist as a number reads as fog on
+  // screen. Smaller, shorter-lived and much fainter, expanding less as they go.
+  vie: 2.2,
+  taille: 0.5,
+  rayon: 0.4,
+  montee: 0.65,
+  expansion: 1.4,
+  opaciteInitiale: 0.2,
+  emission: 0.14,
+};
+
+/** The spray bursting where a sheet strikes its basin (Task 6): short-lived, fast, low. Where the
+ *  mist above drifts upward and lingers, this is the hard scatter at the point of impact — the two
+ *  read as one phenomenon only because they share an origin, not a pool. */
+export interface SpraySettings {
+  count: number;
+  vie: number;
+  taille: number;
+  /** Horizontal launch speed, units per second. */
+  vitesse: number;
+  /** Upward launch speed, units per second. */
+  montee: number;
+  /** Downward acceleration, units per second squared. */
+  gravite: number;
+  opaciteInitiale: number;
+  emission: number;
+}
+/** The animated foam cloud at the foot of the fall — the generated sheet, played as a billboard.
+ *  It does the job the recycled particle puffs cannot: a dense, continuous churn where the water
+ *  strikes, rather than a scatter of individual specks. The two run together, the sheet for the
+ *  mass and the pools for the drift above it. */
+export const WATER_FOG = {
+  /** Frames in `/tex/water-fog.png`, laid out in one row. */
+  frames: 4,
+  fps: 7,
+  /** World width and height of one frame. Wide and short: it is a cloud lying on the water, not a
+   *  puff rising off it. */
+  width: 3.4,
+  height: 0.8,
+  /** How far out from the cliff it sits, world units — just proud of the sheet's own base. */
+  avance: 0.4,
+  /** Vertical centre above the water it sits on. */
+  hauteur: 0.24,
+  // Judged on screen. At 0.85 the cloud was a solid white slab that swallowed the foot of the fall
+  // and the channel behind it — it is unlit and the pipeline's bloom sits on top of it, so an
+  // opacity that reads as "dense mist" as a number reads as paint.
+  opacite: 0.45,
+};
+
+export const SPRAY: SpraySettings = {
+  count: 34,
+  vie: 0.75,
+  taille: 0.14,
+  vitesse: 1.2,
+  montee: 1.7,
+  gravite: 5.5,
+  opaciteInitiale: 0.75,
+  emission: 0.05,
+};
+
+/** The low fog that hangs in the falls zone (Task 6). Rides the SAME `fogPulse` channel the
+ *  blizzard uses (`BLIZZARD`) — a second contribution, not a second mechanism — but with its own
+ *  period and depth: this one breathes slowly and shallowly, where a blizzard gusts. The two zones
+ *  are dozens of units apart and are never both active. */
+export const FALLS_FOG = {
+  /** Seconds to settle in / lift when entering or leaving the zone. */
+  fade: 2,
+  /** Period of one full breath, seconds. */
+  periode: 14,
+  /** Maximum fraction by which the fog's reach (`fog.far`) closes at the peak. */
+  intensite: 0.22,
+};
+
+/** The rainbow in the main drop's mist (Task 7). Procedural, not a generated asset: a spectrum arc
+ *  is a gradient, and a canvas one can be tuned by eye in the browser instead of regenerated.
+ *  Gated to DAYTIME and to the zone, mirroring `applyAurora`'s night-and-polar gate across the
+ *  day/night line. */
+export const RAINBOW = {
+  /** Seconds to fade in / out when the gate opens or closes. */
+  fade: 2.5,
+  /** World radius of the arc. */
+  rayon: 2.6,
+  /** Thickness of the band, world units. */
+  epaisseur: 0.8,
+  /** Peak opacity. Deliberately low — a rainbow that reads clearly is a rainbow that reads fake. */
+  opacite: 0.28,
+  /** How far the arc's brightness swings as the sun drifts (`SUN_DRIFT`), 0..1: a rainbow depends
+   *  on where the sun stands, and one that never changes betrays that nothing is being computed. */
+  sunSwing: 0.55,
 };
 
 /** Aurore boréale (Task 9 de l'île de neige) — le canal `MoodConfig.aurora` (`@lindocara/hd2d`)
@@ -611,6 +805,11 @@ export const TEXTURE_URLS: readonly TextureSpec[] = [
   // is mandatory like every other tileset — with mipmaps the lower levels blend neighbouring tiles
   // and the borders bleed (see `docs/hd2d-rendering.md`).
   { url: "/tex/tileset-roche.png", atlas: true },
+  // The churn at the foot of the fall (the waterfall chantier): four frames of foam cloud,
+  // generated by the studio and cut out on LUMINANCE rather than by `scripts/sprite.py`'s
+  // edge-propagation key — fog has no silhouette, and a flat colour key gives it a crisp edge,
+  // which is the one thing a cloud must not have.
+  { url: "/tex/water-fog.png" },
   { url: "/tex/water.png" },
   { url: "/tex/foam.png", atlas: true },
   { url: "/tex/warrior.png" },

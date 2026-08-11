@@ -1,7 +1,18 @@
 import { Button } from "@alepha/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@alepha/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@alepha/ui/components/ui/tooltip";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import {
   Blocks,
   CircleHelp,
@@ -15,6 +26,7 @@ import {
   Pencil,
   Play,
   Square,
+  SunMoon,
   ZoomIn,
 } from "lucide-react";
 import type { ComponentProps, ComponentType } from "react";
@@ -23,6 +35,7 @@ import { EditorModeControl } from "./EditorModeControl.js";
 
 /** The six canvas tools the toolbar exposes as buttons. `stairs` and scenery live in the palette. */
 export type EditorPaintTool = "select" | "pan" | "pencil" | "rect" | "fill" | "eraser";
+export type EditorLightingSelection = "cycle" | MapFixedLighting;
 
 /** The i18n key for every selectable tool key's label, shared with the status bar. */
 export const TOOL_LABEL_KEYS: Record<EditorPaintTool | "stairs", MessageKey> = {
@@ -49,6 +62,14 @@ const PAINT_TOOLS: { key: EditorPaintTool; icon: ComponentType }[] = [
   { key: "eraser", icon: Eraser },
 ];
 
+const LIGHTING_OPTIONS: { value: EditorLightingSelection; label: MessageKey }[] = [
+  { value: "cycle", label: "editor.dayNightCycle.mode.cycle" },
+  { value: "day", label: "editor.dayNightCycle.mode.day" },
+  { value: "night-start", label: "editor.dayNightCycle.mode.nightStart" },
+  { value: "night-middle", label: "editor.dayNightCycle.mode.nightMiddle" },
+  { value: "night-full", label: "editor.dayNightCycle.mode.nightFull" },
+];
+
 interface EditorToolbarProps {
   activeTool: EditorPaintTool | null;
   mode: EditorMode;
@@ -57,6 +78,9 @@ interface EditorToolbarProps {
   /** D18: the collision-visualisation overlay toggle — shades solid tiles and outlines element
    *  colliders. Off by default, threaded to the stage exactly like `showGrid`/`showDim`. */
   showCollisions: boolean;
+  dayNightCycle: boolean;
+  fixedLighting: MapFixedLighting;
+  dayNightCycleAvailable: boolean;
   zoom: number;
   onNewMap(): void;
   onSelectTool(tool: EditorPaintTool): void;
@@ -64,6 +88,7 @@ interface EditorToolbarProps {
   onToggleGrid(): void;
   onToggleDim(): void;
   onToggleCollisions(): void;
+  onSelectLighting(value: EditorLightingSelection): void;
   onCycleZoom(): void;
   onTest(): void;
   onOpenHelp(): void;
@@ -106,6 +131,9 @@ export function EditorToolbar({
   showGrid,
   showDim,
   showCollisions,
+  dayNightCycle,
+  fixedLighting,
+  dayNightCycleAvailable,
   zoom,
   onNewMap,
   onSelectTool,
@@ -113,6 +141,7 @@ export function EditorToolbar({
   onToggleGrid,
   onToggleDim,
   onToggleCollisions,
+  onSelectLighting,
   onCycleZoom,
   onTest,
   onOpenHelp,
@@ -145,6 +174,41 @@ export function EditorToolbar({
 
       <Separator />
 
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex" />}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  aria-label={t("editor.dayNightCycle.settings")}
+                  variant={dayNightCycle ? "secondary" : "outline"}
+                  size="icon"
+                  disabled={!dayNightCycleAvailable}
+                />
+              }
+            >
+              <SunMoon />
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{t("editor.dayNightCycle.settings")}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>{t("editor.dayNightCycle.settings")}</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuRadioGroup
+            value={dayNightCycle ? "cycle" : fixedLighting}
+            onValueChange={(value) => onSelectLighting(value as EditorLightingSelection)}
+          >
+            {LIGHTING_OPTIONS.map((option) => (
+              <DropdownMenuRadioItem key={option.value} value={option.value}>
+                {t(option.label)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <ToolbarIconButton
         label={t("editor.shell.grid.aria")}
         variant={showGrid ? "secondary" : "ghost"}

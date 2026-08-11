@@ -82,6 +82,27 @@ export interface WaterOptions {
    *  dans le PoC). La répétition posée sur la texture vaut `size / textureWorldSize` : exprimé
    *  ainsi, un appelant qui ignore tout du PoC ne peut pas se tromper en changeant `size`. */
   textureWorldSize?: number;
+  /**
+   * World `[x, z]` centre of the surface. Defaults to the world origin, which is where the sea
+   * belongs.
+   *
+   * Giving it a centre is what lets water exist somewhere OTHER than the sea — a pool at the foot
+   * of a waterfall, a spring on a summit. Combined with `level`, it is what "water at elevation"
+   * means here: the same material, the same four crossed swells, the same mood-driven colours and
+   * sparkle as the ocean, just somewhere else and higher up. A pool faked with its own flat shader
+   * reads as a painted disc no matter how it is tinted, because it has none of that.
+   */
+  center?: readonly [number, number];
+  /**
+   * Constant shallowness (0 = open sea, 1 = right against the shore), replacing the depth gradient
+   * derived from the height field.
+   *
+   * A small pool needs this. The gradient answers "how far is the nearest land", which is the right
+   * question for an ocean and a meaningless one for a body of water that is entirely within a few
+   * feet of its own bank — worse, a pool sitting ON land samples distance 0 everywhere and would
+   * come out uniformly shore-coloured by accident rather than by intent. Say it explicitly instead.
+   */
+  shallow?: number;
 }
 
 export interface Water {
@@ -120,7 +141,8 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
   const position = geo.attributes.position;
   if (!position) throw new Error("PlaneGeometry sans attribut position");
   const shallow = new Float32Array(position.count);
-  for (let k = 0; k < position.count; k++) {
+  if (opts.shallow !== undefined) shallow.fill(opts.shallow);
+  for (let k = 0; opts.shallow === undefined && k < position.count; k++) {
     const i = Math.floor(position.getX(k) + cx);
     const j = Math.floor(position.getZ(k) + cz);
     // Le plan mesure trois fois la grille : la plupart de ses sommets tombent DEHORS. Les compter
@@ -221,7 +243,8 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
   material.customProgramCacheKey = () => "sea";
 
   const mesh = new THREE.Mesh(geo, material);
-  mesh.position.y = opts.level;
+  const [centreX, centreZ] = opts.center ?? [0, 0];
+  mesh.position.set(centreX, opts.level, centreZ);
   mesh.receiveShadow = true;
 
   let temps = 0;

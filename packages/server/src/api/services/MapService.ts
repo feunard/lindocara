@@ -36,6 +36,7 @@ import {
   parseNpcRoutine,
 } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
+import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { $inject } from "alepha";
@@ -142,6 +143,8 @@ export interface MapPayload {
   events: MapEvent[];
   audio: ReturnType<typeof decodeMapAudio>;
   heroSettings: MapHeroSettings;
+  dayNightCycle: boolean;
+  fixedLighting: MapFixedLighting;
   /** JSON-encoded `MapData` heightfield (`engine/hd2d/map-data.ts`), or `null` if this map has
    *  none yet — the empty-string column sentinel normalised away at this boundary (see
    *  `saveHeightfield`'s docblock). */
@@ -234,6 +237,8 @@ export class MapService {
       markers: markersJson(data.markers),
       audio: JSON.stringify(data.audio),
       heroSettings: JSON.stringify(data.heroSettings),
+      dayNightCycle: data.dayNightCycle,
+      fixedLighting: data.fixedLighting,
       heightfield,
       isFirst: firstCountForAccount === 0,
     });
@@ -328,6 +333,8 @@ export class MapService {
           ...(input.heroSettings !== undefined
             ? { heroSettings: JSON.stringify(data.heroSettings) }
             : {}),
+          ...(input.dayNightCycle !== undefined ? { dayNightCycle: data.dayNightCycle } : {}),
+          ...(input.fixedLighting !== undefined ? { fixedLighting: data.fixedLighting } : {}),
           heightfield,
           revision: sql`revision + 1`,
         },
@@ -383,6 +390,10 @@ export class MapService {
         input.heroSettings === undefined
           ? decodeMapHeroSettings(existing.heroSettings)
           : data.heroSettings,
+      dayNightCycle:
+        input.dayNightCycle === undefined ? existing.dayNightCycle : data.dayNightCycle,
+      fixedLighting:
+        input.fixedLighting === undefined ? existing.fixedLighting : data.fixedLighting,
       heightfield,
     };
   }
@@ -696,6 +707,8 @@ export class MapService {
       events,
       audio: decodeMapAudio(row.audio),
       heroSettings: decodeMapHeroSettings(row.heroSettings),
+      dayNightCycle: row.dayNightCycle,
+      fixedLighting: row.fixedLighting,
       heightfield: heightfieldOfRow(row.heightfield),
     };
   }

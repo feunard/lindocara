@@ -6,7 +6,7 @@ import {
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
-import { MOUNTAIN, NORD, WEST, WORLD } from "../settings.js";
+import { MOUNTAIN, MOUNTAIN_FACE_Z, NORD, WATERFALLS, WEST, WORLD } from "../settings.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
  *  `generateIsland` ci-dessous. Sorti au niveau module (et exporté) pour que
@@ -46,6 +46,54 @@ interface IslandShape {
   r: number;
   onde(a: number): number;
   reliefs: readonly IslandRelief[];
+  /**
+   * Optional per-cell override, applied INSTEAD of the relief discs: a level, or `null` for water.
+   * Return `undefined` to let the discs decide.
+   *
+   * The hook exists because a disc cannot express either of the two shapes this chantier needs — a
+   * cliff cut along a straight line, and a channel of water running out to the sea — and because
+   * scoping them to one island matters: a global "flatten everything south of z = 12" would also
+   * flatten the southern island at z = 24.
+   */
+  carve?(x: number, z: number): number | null | undefined;
+}
+
+/**
+ * The mountain: four CONCENTRIC discs, cut along `MOUNTAIN_FACE_Z`.
+ *
+ * The tiers are a cell apart (6.0 / 5.0 / 4.0 / 3.0) so every wall is exactly one level, which is
+ * what keeps `mesh.ts` from stretching one UV cell over a multi-level face. The sheer south face is
+ * not made by shaping the discs at all — it is the straight cut in `carveWestIsland` below. An
+ * earlier version aligned every disc's south EDGE instead, and a circle is tangent at its edge, so
+ * the face narrowed to the width of the smallest disc's tangent: three cells with no rock at all
+ * flanking the water.
+ */
+const MOUNTAIN_RELIEFS: readonly IslandRelief[] = [
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 6, h: 1 },
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 5, h: 2 },
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 4, h: 3 },
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 3, h: 4 },
+];
+
+/**
+ * The west island's two authored shapes, both impossible to express with a disc.
+ *
+ * South of `MOUNTAIN_FACE_Z` the mountain is CUT: the cliff becomes one straight sheer wall, five
+ * cells of summit wide, and everything beyond it is the flat shelf the water lands on.
+ *
+ * Down the middle of that shelf runs the CHANNEL — water, exactly as wide as the fall — from the
+ * foot of the cliff out to the sea. It is cut into the terrain rather than laid on top of it, which
+ * is what makes it real water: `meshTerrain` leaves a hole, the sea shows through, `createFoam`
+ * banks it with foam because foam is derived from exactly this land/water boundary, and the hero
+ * swims in it. An earlier version made the pool a small enclosed disc; this one runs to the sea,
+ * because water that falls has to go somewhere.
+ */
+function carveWestIsland(x: number, z: number): number | null | undefined {
+  if (z <= MOUNTAIN_FACE_Z) return undefined;
+  for (const fall of WATERFALLS) {
+    if (Math.abs(x - fall.x) < fall.width / 2) return null;
+  }
+  return 0;
 }
 
 // Les îles sont décrites en coordonnées MONDE, pas en fractions de grille : agrandir la carte n'en
@@ -95,24 +143,16 @@ const ILES: readonly IslandShape[] = [
     onde: (a) => 0.12 * Math.sin(a * 3 - 1.1) + 0.05 * Math.sin(a * 5 + 0.7),
     reliefs: [{ x: NORD.x + 4.5, z: NORD.z - 3.5, r: 2, h: 1 }],
   },
-  // The fifth, west (see `WEST`, `settings.ts`): a terraced mountain, reached only by swimming.
-  // Four CONCENTRIC relief discs of shrinking radius give levels 1 to 4, so every wall on this
-  // island is exactly one level (0.9) tall. That is not decoration — `mesh.ts` stretches ONE UV
-  // cell over a wall's full drop ("preserving a single tall-block silhouette"), which is right for
-  // a level-2 cliff and would smear the rock over 3.6 units on a mountain face. Keeping the discs
-  // concentric rather than staggered also stacks the three waterfall drops in one clean vertical
-  // line down the east face.
+  // The fifth, west (see `WEST`, `settings.ts`): a mountain with a SHEER SOUTH FACE, reached only
+  // by swimming. See `MOUNTAIN_RELIEFS` just below for why the discs are staggered rather than
+  // concentric — it is the whole reason the waterfall reads as one.
   {
     x: WEST.x,
     z: WEST.z,
     r: WEST.r,
     onde: westShoreWave,
-    reliefs: [
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 4.2, h: 1 },
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 3.2, h: 2 },
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 2.2, h: 3 },
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 1.2, h: 4 },
-    ],
+    reliefs: MOUNTAIN_RELIEFS,
+    carve: carveWestIsland,
   },
 ];
 
@@ -149,6 +189,11 @@ function makeHeightmap(size: number): (number | null)[] {
         const dz = z - ile.z;
         const d = Math.hypot(dx, dz) / ile.r + ile.onde(Math.atan2(dz, dx));
         if (d >= 0.94) continue;
+        const carved = ile.carve?.(x, z);
+        if (carved !== undefined) {
+          cells[j * size + i] = carved;
+          break;
+        }
         let h = 0;
         for (const r of ile.reliefs) if (Math.hypot(x - r.x, z - r.z) < r.r) h = Math.max(h, r.h);
         cells[j * size + i] = h;

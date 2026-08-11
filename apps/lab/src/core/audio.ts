@@ -82,7 +82,7 @@ type Ambiance = "jour" | "nuit";
 // polaire et la glisse — partagent la même infrastructure (`demarrerBoucles`, `boucles`, plus
 // bas) : un seul type nommé plutôt que répéter l'union à quatre endroits, ce qui aurait fini par
 // en oublier un le jour où une cinquième boucle s'ajoute.
-type BoucleKey = Ambiance | "mer" | "feu" | "polaire" | "glisse";
+type BoucleKey = Ambiance | "mer" | "feu" | "polaire" | "glisse" | "cascade" | "falls";
 
 // Une piste par clef. La clef n'est plus l'heure du jour : depuis l'île de neige (Task 5), c'est
 // une ZONE (`Zone.musique`, `world/zones.ts`) qui la choisit, via `setZoneMusic` — le cycle
@@ -97,6 +97,12 @@ const MUSIQUE: Record<string, string> = {
   // entrée douce et sa fin qui s'éteint TOUTE SEULE — voir le rapport de la task : c'est ce qui
   // rend la pause de trente secondes qui suit indiscernable de la fin naturelle du morceau.
   neige: "/music/neige.ogg",
+  // The falls theme (Task 5 of the waterfall chantier), generated with `--no-theme`: the studio's
+  // art-direction injection pushes toward heroic instrumentation, which is exactly wrong for a
+  // piece meant to sit beneath falling water. Picked, like the polar theme, for an ending that
+  // fades out on its own — that is what makes `MUSIQUE_PAUSE`'s thirty seconds of silence read as
+  // the piece ending rather than being cut off.
+  falls: "/music/falls.ogg",
 };
 
 // Les répliques doublées, une prise par ligne — Grota, puis Nanuq (Task 12 de l'île de neige).
@@ -126,6 +132,15 @@ const BOUCLES: Record<BoucleKey, string> = {
   // (plus bas) la crée une fois, silencieuse par défaut puisque `ambiance` ne vaut jamais
   // "glisse" — exactement comme le foyer avant que `setFireDistance` ne lui donne un gain.
   glisse: skidLoopUrl(),
+  // The waterfall's roar (Task 4 of the waterfall chantier): NOT a zone soundscape — a held sound
+  // whose gain follows the hero's distance to the nearest drop, driven by `setCascadeDistance`
+  // below. It borrows this loop infrastructure rather than inventing a second one, exactly as
+  // `glisse` does: `demarrerBoucles` creates it once, silent, because `ambiance` never takes the
+  // value "cascade". `test/waterfall-placement.test.ts` asserts no zone ever claims it.
+  cascade: "/sfx/cascade.ogg",
+  // The falls zone's soundscape (Task 5), written to sit UNDER the roar rather than compete with
+  // it. This one IS a zone `nappe`, raised by `setAmbience` — the opposite half of the pair above.
+  falls: "/sfx/amb-falls.ogg",
 };
 
 // `glisse`/`polaire` sont exportées avec une marge de queue au-delà du point de bouclage réel
@@ -141,6 +156,10 @@ const LOOP_END_S: Partial<Record<BoucleKey, number>> = {
   // that produced it must never drift apart, and the game needs the same number for the same file.
   glisse: SKID_LOOP_END_SECONDS,
   polaire: 17.5,
+  // Same tail margin as `polaire`, for the same reason: Opus deforms the last samples of an
+  // encoded stream, and looping through them clicks audibly at the seam.
+  cascade: 19.5,
+  falls: 19.5,
 };
 
 /** Tout ce que le son a besoin de charger — l'écran de chargement le pèse. */
@@ -160,6 +179,10 @@ const NIVEAUX: Record<BoucleKey, number> = {
   // Le plafond de la glisse à pleine intensité — `setSkid` le multiplie par le dérapage (0..1),
   // jamais utilisé directement comme les autres nappes.
   glisse: 0.6,
+  // The roar's ceiling at zero distance. Below the polar bed (0.42) on purpose: standing at the
+  // foot of the falls should not drown the zone's own theme.
+  cascade: 0.55,
+  falls: 0.38,
 };
 // La musique se fait attendre : elle entre en fondu long, et laisse un vrai
 // silence entre deux passages. Une boucle sans respiration s'entend au bout de
@@ -171,6 +194,9 @@ const MUSIQUE_SORTIE = 2; // secondes de descente quand on l'éteint
 const MUSIQUE_NIVEAU = 0.4;
 const MUSIQUE_BASCULE = 2.5; // secondes pour croiser jour et nuit
 const PORTEE_FEU = 13; // au-delà, on n'entend plus le foyer
+// Beyond this, the falls are inaudible. Wider than the fire's 13: a waterfall carries much further
+// than a campfire, and the hero should already hear it while swimming toward the island.
+const PORTEE_CASCADE = 22;
 
 interface Boucle {
   gain: GainNode;
@@ -626,6 +652,22 @@ export function setFireDistance(d: number): void {
   if (!feu || !ctx) return;
   const v = Math.max(0, 1 - d / PORTEE_FEU) ** 2;
   feu.gain.gain.setTargetAtTime(NIVEAUX.feu * v, ctx.currentTime, 0.15);
+}
+
+/**
+ * The waterfall's roar, by distance — the same shape as `setFireDistance` above, with its own
+ * range (`PORTEE_CASCADE`, 22 against the fire's 13). Squared falloff, so the sound builds late
+ * and fast on the approach rather than sitting at half volume across the whole bay.
+ *
+ * A HELD sound, never a zone soundscape: `ambiance` never takes the value "cascade", so
+ * `demarrerBoucles` creates this loop silent and only this setter ever gives it a gain — exactly
+ * how `glisse` works. `test/waterfall-placement.test.ts` pins that no zone claims the key.
+ */
+export function setCascadeDistance(d: number): void {
+  const cascade = boucles.cascade;
+  if (!cascade || !ctx) return;
+  const v = Math.max(0, 1 - d / PORTEE_CASCADE) ** 2;
+  cascade.gain.gain.setTargetAtTime(NIVEAUX.cascade * v, ctx.currentTime, 0.15);
 }
 
 /**

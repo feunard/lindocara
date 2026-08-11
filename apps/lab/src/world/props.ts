@@ -12,7 +12,7 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
-import { CAMERA, NORD, VAPEUR_SOURCE, WORLD } from "../settings.js";
+import { CAMERA, NORD, VAPEUR_SOURCE, WATERFALLS, WORLD } from "../settings.js";
 import { mulberry32 } from "./island.js";
 import { createFlock, type Flock } from "./sheep.js";
 
@@ -270,6 +270,20 @@ export function decidePlacements(
   ];
   for (let dj = -2; dj <= 2; dj++)
     for (let di = -2; di <= 2; di++) taken.add(key(sourceCell[0] + di, sourceCell[1] + dj));
+
+  // The waterfall's clearing (the waterfall chantier). Reserved for the same reason the hot spring
+  // above is, and found the same way — on screen: the scatter dropped a pine squarely in front of
+  // the fall, hiding the one thing the island exists to show. The band runs the sheet's full width
+  // and covers the shelf in front of it, so both the water and the pool stay unobstructed.
+  for (const fall of WATERFALLS) {
+    const half = Math.ceil(fall.width / 2) + 1;
+    // Down the whole shelf: the channel runs from the cliff to the sea, and a tree anywhere along
+    // it would stand in the water.
+    const reach = 8;
+    const cell: [number, number] = [Math.floor(fall.x + size / 2), Math.floor(fall.z + size / 2)];
+    for (let dj = -1; dj <= reach; dj++)
+      for (let di = -half; di <= half; di++) taken.add(key(cell[0] + di, cell[1] + dj));
+  }
 
   // `materials`, quand fourni, est une liste D'AUTORISATION exclusive : seules ces matières
   // passent. Sans elle, le tirage garde son comportement d'origine (la plage reste nue) ET

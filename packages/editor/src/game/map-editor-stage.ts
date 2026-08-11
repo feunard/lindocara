@@ -16,11 +16,13 @@ import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
+import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import {
   type EditorAssetId,
   editorAsset,
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import { fixedLightingOverride } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { authoredSkyAltitude } from "@lindocara/renderer/hd2d/static-content.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
@@ -71,6 +73,7 @@ export interface MapEditorStageHandle {
   setName(name: string): void;
   setAudio(audio: MapAudioConfig): void;
   setHeroSettings(settings: MapHeroSettings): void;
+  setLighting(dayNightCycle: boolean, fixedLighting: MapFixedLighting): void;
   undo(): void;
   redo(): void;
   markSaved(saved?: EditorMap): void;
@@ -184,9 +187,6 @@ export function openMapEditorStage(
     // opposite of what authoring needs: zooming out is how an author inspects the whole map, and it
     // was hiding exactly the detail they pulled back to see. Off for the whole session.
     renderer.setFogEnabled(false);
-    // L’auteur doit toujours distinguer matières, raccords et aperçus, quelle que soit la phase
-    // propre à la map. Seul le test complet peut ensuite choisir explicitement jour ou nuit.
-    renderer.setDayCycleOverride("day");
     let history = createEditorHistory(initial);
     let map = initial;
     let tool: EditorTool = { kind: "select" };
@@ -288,6 +288,10 @@ export function openMapEditorStage(
         map.events,
         heightfield.size,
         heightfield.waterLevel,
+      );
+      // The authoring stage reflects the stored map policy, including every fixed night degree.
+      renderer.setDayCycleOverride(
+        map.dayNightCycle ? null : fixedLightingOverride(map.fixedLighting),
       );
       renderer.configureMapTerrain("editor", [], ++revision, heightfield);
       renderer.preloadWorldEventAssets(renderedEvents);
@@ -657,6 +661,14 @@ export function openMapEditorStage(
         const next = { ...map, heroSettings };
         history = commitEditorHistory({ ...history, present: map }, next);
         map = next;
+        notify();
+      },
+      setLighting(dayNightCycle, fixedLighting) {
+        if (dayNightCycle === map.dayNightCycle && fixedLighting === map.fixedLighting) return;
+        const next = { ...map, dayNightCycle, fixedLighting };
+        history = commitEditorHistory({ ...history, present: map }, next);
+        map = next;
+        renderer.setDayCycleOverride(dayNightCycle ? null : fixedLightingOverride(fixedLighting));
         notify();
       },
       undo() {

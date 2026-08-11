@@ -60,3 +60,42 @@ describe("createWater", () => {
     water.dispose();
   });
 });
+
+describe("water somewhere other than the sea", () => {
+  const field = fieldFrom(["0000", "0000", "0000", "0000"]);
+  const opts = {
+    texture: new THREE.Texture(),
+    level: 3.6,
+    size: 2,
+    segment: 0.5,
+    depthRange: 7,
+    roughness: 0.46,
+  };
+
+  // What "water at elevation" means: the same surface the ocean is made of, placed somewhere else
+  // and higher up — a pool at the foot of a waterfall, a spring on a summit. Before `center`, every
+  // body of water in the world was pinned to the origin, so anything else had to be faked with its
+  // own flat shader, which reads as painted-on blue however it is tinted.
+  it("sits at the centre and level it is given", () => {
+    const w = createWater(CTX, field, { ...opts, center: [-26.5, 13.4] });
+    expect(w.mesh.position.x).toBeCloseTo(-26.5, 5);
+    expect(w.mesh.position.y).toBeCloseTo(3.6, 5);
+    expect(w.mesh.position.z).toBeCloseTo(13.4, 5);
+  });
+
+  it("still defaults to the world origin, where the sea belongs", () => {
+    const w = createWater(CTX, field, opts);
+    expect(w.mesh.position.x).toBe(0);
+    expect(w.mesh.position.z).toBe(0);
+  });
+
+  // A pool is all bank, so it states its shallowness outright rather than deriving it from a
+  // distance-to-land gradient that means nothing at this scale — and that would read 0 everywhere
+  // for a pool sitting ON land, making it uniformly shore-coloured by accident rather than intent.
+  it("takes a constant shallowness when given one, instead of the field gradient", () => {
+    const w = createWater(CTX, field, { ...opts, shallow: 1 });
+    const attr = w.mesh.geometry.getAttribute("aShallow");
+    expect(attr.count).toBeGreaterThan(0);
+    for (let k = 0; k < attr.count; k++) expect(attr.getX(k)).toBe(1);
+  });
+});
