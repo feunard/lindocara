@@ -1,6 +1,8 @@
+import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
+
 export const DAY_CYCLE_MS = 24 * 60 * 1_000;
 
-export type DayCycleOverride = "day" | "night" | null;
+export type DayCycleOverride = "day" | "night-start" | "night-middle" | "night" | null;
 
 export interface DayCycleState {
   hour: number;
@@ -42,6 +44,14 @@ export function mapDayCycleAt(
   override: DayCycleOverride = null,
 ): DayCycleState {
   if (override === "day") return dayCycleAt(12 * 60_000);
+  if (override === "night-start") return dayCycleAt(18 * 60_000);
+  if (override === "night-middle") return dayCycleAt(18.5 * 60_000);
   if (override === "night") return dayCycleAt(0);
   return dayCycleAt(epochMs + mapDayCycleOffset(mapId));
+}
+
+/** Converts the persisted authoring vocabulary to the renderer's fixed clock positions. */
+export function fixedLightingOverride(fixedLighting: MapFixedLighting): DayCycleOverride {
+  if (fixedLighting === "night-full") return "night";
+  return fixedLighting;
 }

@@ -81,6 +81,7 @@ import { tinySwordsSourceUrl } from "../tiny-swords-assets.js";
 import { WorldEventMotionTracker } from "../world-event-motion.js";
 import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.js";
 import { createBillboardRegistry } from "./billboards.js";
+import type { DayCycleOverride } from "./day-cycle.js";
 import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
 import type { StaticContent, StaticSpriteArt } from "./static-content.js";
@@ -582,7 +583,7 @@ export class Hd2dRenderer implements RendererLike {
   /** Built on the first `configureMapTerrain` carrying a heightfield, not at construction: the map
    *  only exists once the welcome has landed. */
   #scene: Hd2dScene | null = null;
-  #dayCycleOverride: "day" | "night" | null = null;
+  #dayCycleOverride: DayCycleOverride = null;
   /** Lives and dies with the scene: its billboards are parented to that scene's graph. */
   #actors: BillboardRegistry | null = null;
   /** The map's scenery, placed once per map. Lives and dies with the scene, like the actors. */
@@ -745,7 +746,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#syncWorldEventContent(this.#worldEvents, true);
   }
 
-  setDayCycleOverride(override: "day" | "night" | null): void {
+  setDayCycleOverride(override: DayCycleOverride): void {
     this.#dayCycleOverride = override;
     this.#scene?.setDayCycleOverride(override);
   }

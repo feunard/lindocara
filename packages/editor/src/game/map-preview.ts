@@ -20,6 +20,10 @@ import type { MapData } from "@lindocara/engine/map-data.js";
 import { guardEvents, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
+import {
+  DEFAULT_MAP_FIXED_LIGHTING,
+  type MapFixedLighting,
+} from "@lindocara/engine/map-lighting.js";
 import type {
   GuardSnapshot,
   MonsterSnapshot,
@@ -28,6 +32,7 @@ import type {
 } from "@lindocara/engine/protocol.js";
 import { BODY_RADIUS, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import type { AmbienceConfig } from "@lindocara/renderer/ambience.js";
+import { fixedLightingOverride } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { trackInput } from "@lindocara/renderer/input.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
@@ -68,6 +73,7 @@ let previewGeneration = 0;
 export interface MapPreviewOptions {
   heroSettings?: MapHeroSettings;
   dayNightCycle?: boolean;
+  fixedLighting?: MapFixedLighting;
   playerChrome?: boolean;
   /** Retained for callers; HD-2D ambience is part of the scene rather than a preview-only switch. */
   ambience?: AmbienceConfig;
@@ -114,7 +120,11 @@ export async function startMapPreview(
     return { stop() {} };
   }
 
-  renderer.setDayCycleOverride(options.dayNightCycle === false ? "day" : null);
+  renderer.setDayCycleOverride(
+    options.dayNightCycle === false
+      ? fixedLightingOverride(options.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING)
+      : null,
+  );
   renderer.configureMapTerrain(`preview:${generation}`, [], generation, heightfield);
   renderer.setSelfId(SELF_ID);
 

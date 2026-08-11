@@ -152,9 +152,12 @@ describe("HD-2D map preview", () => {
     expect(state.stopInput).toHaveBeenCalledOnce();
   });
 
-  it("fixes a cycle-disabled map preview in daylight", async () => {
-    const preview = await startMapPreview(OPEN_ROOM, [], { dayNightCycle: false });
-    expect(state.renderer.setDayCycleOverride).toHaveBeenCalledWith("day");
+  it("uses the selected fixed ambience for a cycle-disabled map preview", async () => {
+    const preview = await startMapPreview(OPEN_ROOM, [], {
+      dayNightCycle: false,
+      fixedLighting: "night-full",
+    });
+    expect(state.renderer.setDayCycleOverride).toHaveBeenCalledWith("night");
     preview.stop();
   });
 

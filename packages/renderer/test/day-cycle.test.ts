@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DAY_CYCLE_MS,
   dayCycleAt,
+  fixedLightingOverride,
   mapDayCycleAt,
   mapDayCycleOffset,
 } from "../src/hd2d/day-cycle.js";
@@ -32,8 +33,14 @@ describe("24-minute day/night cycle", () => {
     );
   });
 
-  it("lets editor tests force exact day or night without changing the map clock", () => {
+  it("supports stable day and graduated night overrides without changing the map clock", () => {
     expect(mapDayCycleAt(123_456, "map-forest", "day")).toEqual(dayCycleAt(12 * 60_000));
+    const nightStart = mapDayCycleAt(123_456, "map-forest", "night-start");
+    const nightMiddle = mapDayCycleAt(123_456, "map-forest", "night-middle");
+    expect(nightStart.nightWeight).toBeGreaterThan(0);
+    expect(nightStart.nightWeight).toBeLessThan(nightMiddle.nightWeight);
+    expect(nightMiddle.nightWeight).toBeLessThan(1);
     expect(mapDayCycleAt(123_456, "map-forest", "night")).toEqual(dayCycleAt(0));
+    expect(fixedLightingOverride("night-full")).toBe("night");
   });
 });

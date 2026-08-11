@@ -283,6 +283,7 @@ describe("server protocol", () => {
     layers: [layer, layer, layer],
     events: [],
     dayNightCycle: false,
+    fixedLighting: "night-start",
     heightfield: encodeMap(heightfield),
     size: WORLD_SIZE,
     questNpc: { id: "mira", x: 16, y: 16 },
@@ -606,6 +607,7 @@ describe("server protocol", () => {
       { ...world, elements: [{ col: 0, row: 0, kind: "dragon", variant: 0 }] },
       { ...world, elements: [{ col: 0.5, row: 0, kind: "tree", variant: 0 }] },
       { ...world, dayNightCycle: "sometimes" },
+      { ...world, fixedLighting: "night-ish" },
     ];
     for (const broken of bad) {
       expect(

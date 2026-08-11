@@ -1,0 +1,1 @@
+ALTER TABLE `maps` ADD `fixed_lighting` text DEFAULT 'day' NOT NULL;

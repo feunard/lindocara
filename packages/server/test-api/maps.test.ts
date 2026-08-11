@@ -771,21 +771,31 @@ describe("list, get, update, delete", () => {
     });
   });
 
-  test("persists the per-map day/night cycle policy", async () => {
+  test("persists the per-map day/night cycle and fixed ambience policy", async () => {
     const { userId, token } = await registerAndLogin("mapclock");
     const id = await newMapId(await newAdventure(userId), token);
 
     const initial = await authedFetch(`/api/maps/${id}`, token);
     expect(initial.status).toBe(200);
-    expect(await initial.json()).toMatchObject({ dayNightCycle: true });
+    expect(await initial.json()).toMatchObject({ dayNightCycle: true, fixedLighting: "day" });
 
-    const updated = await putMap(id, token, mapBody({ dayNightCycle: false }));
+    const updated = await putMap(
+      id,
+      token,
+      mapBody({ dayNightCycle: false, fixedLighting: "night-middle" }),
+    );
     expect(updated.status).toBe(200);
-    expect(await updated.json()).toMatchObject({ dayNightCycle: false });
+    expect(await updated.json()).toMatchObject({
+      dayNightCycle: false,
+      fixedLighting: "night-middle",
+    });
 
     const fetched = await authedFetch(`/api/maps/${id}`, token);
     expect(fetched.status).toBe(200);
-    expect(await fetched.json()).toMatchObject({ dayNightCycle: false });
+    expect(await fetched.json()).toMatchObject({
+      dayNightCycle: false,
+      fixedLighting: "night-middle",
+    });
   });
 
   test("upgrades a persisted four-class hero profile without dropping its overrides", async () => {

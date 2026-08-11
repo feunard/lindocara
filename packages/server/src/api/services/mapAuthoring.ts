@@ -47,6 +47,11 @@ import {
   parseMapHeroSettings,
 } from "@lindocara/engine/map-hero-settings.js";
 import {
+  DEFAULT_MAP_FIXED_LIGHTING,
+  type MapFixedLighting,
+  parseMapFixedLighting,
+} from "@lindocara/engine/map-lighting.js";
+import {
   MAP_MAX_COLS,
   MAP_MAX_ROWS,
   MAP_MIN_COLS,
@@ -83,6 +88,8 @@ export interface MapInput {
   heroSettings?: MapHeroSettings | undefined;
   /** Missing keeps legacy writers on the historical cycle-enabled behaviour. */
   dayNightCycle?: boolean | undefined;
+  /** Missing keeps disabled legacy maps fixed in daylight. */
+  fixedLighting?: MapFixedLighting | undefined;
   /** Encoded HD-2D terrain derived or authored by the editor. Omission preserves stored terrain. */
   heightfield?: string | undefined;
 }
@@ -117,6 +124,7 @@ export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MI
     audio: EMPTY_MAP_AUDIO,
     heroSettings: defaultMapHeroSettings(),
     dayNightCycle: true,
+    fixedLighting: DEFAULT_MAP_FIXED_LIGHTING,
   };
 }
 
@@ -127,6 +135,7 @@ export function validateMapInput(input: MapInput): MapData & {
   audio: MapAudioConfig;
   heroSettings: MapHeroSettings;
   dayNightCycle: boolean;
+  fixedLighting: MapFixedLighting;
 } {
   const name = input.name.trim();
   if (name.length === 0 || name.length > MAP_NAME_MAX) {
@@ -207,7 +216,11 @@ export function validateMapInput(input: MapInput): MapData & {
   if (typeof dayNightCycle !== "boolean") {
     throw new Error("day_night_cycle: must be a boolean");
   }
-  return { ...data, markers, name, events, audio, heroSettings, dayNightCycle };
+  const fixedLighting = parseMapFixedLighting(input.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING);
+  if (!fixedLighting) {
+    throw new Error("fixed_lighting: must be day, night-start, night-middle, or night-full");
+  }
+  return { ...data, markers, name, events, audio, heroSettings, dayNightCycle, fixedLighting };
 }
 
 /**
@@ -239,6 +252,10 @@ export function parseMapBody(body: unknown): MapInput | null {
   }
   const rawDayNightCycle = (body as { dayNightCycle?: unknown } | null)?.dayNightCycle;
   if (rawDayNightCycle !== undefined && typeof rawDayNightCycle !== "boolean") return null;
+  const rawFixedLighting = (body as { fixedLighting?: unknown } | null)?.fixedLighting;
+  const fixedLighting =
+    rawFixedLighting === undefined ? undefined : parseMapFixedLighting(rawFixedLighting);
+  if (fixedLighting === null) return null;
   return {
     name,
     tilesetId: data.tilesetId,
@@ -252,6 +269,7 @@ export function parseMapBody(body: unknown): MapInput | null {
     ...(audio ? { audio } : {}),
     ...(heroSettings ? { heroSettings } : {}),
     ...(rawDayNightCycle === undefined ? {} : { dayNightCycle: rawDayNightCycle }),
+    ...(fixedLighting === undefined ? {} : { fixedLighting }),
   };
 }
 

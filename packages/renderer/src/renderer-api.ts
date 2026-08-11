@@ -32,6 +32,7 @@ import type {
 } from "@lindocara/engine/protocol.js";
 import type { MonsterImpactSound } from "./combat-art.js";
 import type { HealthBarMode } from "./display-settings.js";
+import type { DayCycleOverride } from "./hd2d/day-cycle.js";
 import type { SceneSample } from "./scene-sample.js";
 
 /**
@@ -73,7 +74,7 @@ export interface RendererLike {
     appearance?: { tilesetId: string; layers: readonly string[] },
   ): void;
   /** Used only by an editor test session; null restores the map's own running clock. */
-  setDayCycleOverride?(override: "day" | "night" | null): void;
+  setDayCycleOverride?(override: DayCycleOverride): void;
   configureMerchant(merchant: MerchantDefinition | null): void;
   destroy(): void;
   diagnostics(): Record<string, number>;
