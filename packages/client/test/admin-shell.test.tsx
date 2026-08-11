@@ -61,6 +61,8 @@ function stubFetch(permissions: string[] = []): void {
 
 describe("AdminShell route", () => {
   let alepha: Alepha | undefined;
+  /** Promises the fetch stubs hand back, so `afterEach` can drain them before teardown. */
+  const inFlight: Promise<unknown>[] = [];
 
   beforeEach(() => {
     setLocale("en");
@@ -71,6 +73,22 @@ describe("AdminShell route", () => {
   });
 
   afterEach(async () => {
+    // Drain what `bootPing` deliberately left in flight, BEFORE tearing anything down.
+    //
+    // Two tests below stub `/_auth/userinfo` to resolve LATER than the 2500ms boot cap — that is
+    // their whole point. `bootPing` does not await that late resolution, by design, so when it
+    // lands it writes `currentUserAtom` and React schedules a render. If the environment is gone by
+    // then, the scheduler throws `ReferenceError: window is not defined`; vitest reports it as an
+    // unhandled error and fails the RUN while every test still passes. That is exactly how it
+    // presented on CI (2518 passed, 1 error) while passing locally, where the box simply lost the
+    // race the other way — a green local run is NOT evidence here.
+    //
+    // Awaiting the stub's own promises is deterministic: it waits exactly as long as the delays
+    // this file actually stubs, rather than sleeping a guessed interval and measuring the machine.
+    await Promise.allSettled(inFlight);
+    inFlight.length = 0;
+    // One macrotask so React flushes the render that late write scheduled, still inside jsdom.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await alepha?.stop();
     alepha = undefined;
   });
@@ -278,7 +296,12 @@ describe("AdminShell route", () => {
         vi.fn(async (input: RequestInfo | URL) => {
           const path = String(input);
           if (path.startsWith("/_auth/userinfo")) {
-            await new Promise((resolve) => setTimeout(resolve, 3_500));
+            // Registered so `afterEach` can await it: this promise outlives the test body on
+            // purpose, and its late resolution is what would otherwise render into a torn-down
+            // jsdom (see the drain in `afterEach`).
+            const slow = new Promise((resolve) => setTimeout(resolve, 3_500));
+            inFlight.push(slow);
+            await slow;
             return new Response(
               JSON.stringify({
                 user: { id: "acc-1", username: "nico" },
