@@ -12,12 +12,13 @@ describe("the authored fall hangs on a real sheer face", () => {
   // each disc, so the wall lands on the integer boundary between two cells. Deriving the placement
   // from the radii instead buried the sheet inside the rock — invisible on screen, with every unit
   // test still green, because nothing was asking the terrain where its walls actually are.
-  it("has the summit behind the lip and open ground in front of the base", () => {
+  it("has the summit behind the lip and the pool in front of the base", () => {
     for (const w of WATERFALLS) {
       // Behind the lip (north of a south-facing wall) the terrain stands at the top level...
       expect(field.levelAt(toCell(w.x), toCell(w.z - 0.5))).toBe(w.topLevel);
-      // ...and in front of the base it has dropped all the way to the bottom level.
-      expect(field.levelAt(toCell(w.x), toCell(w.z + 0.5))).toBe(w.bottomLevel);
+      // ...and in front of the base it is WATER: the plunge pool is cut into the terrain, not laid
+      // on top of it, so the sea shows through and the bank gets its own foam. See `isPlungePool`.
+      expect(field.levelAt(toCell(w.x), toCell(w.z + w.poolOffset))).toBeNull();
     }
   });
 
@@ -38,18 +39,49 @@ describe("the authored fall hangs on a real sheer face", () => {
     }
   });
 
-  // The pool sits on open ground in front of the cliff — the shelf the camera can see — and the
-  // whole disc has to be on it, not half-buried in the rock or hanging over the shore.
-  it("lands in a pool that sits entirely on the ground in front of the cliff", () => {
+  // The pool is a hole cut in the shelf, and it must be ENCLOSED: no pool cell may touch a water
+  // cell that is not part of the pool, or the plunge pool drains into the ocean and stops being a
+  // pool at all. At the first offset/radius it did exactly that, through a one-cell gap at its
+  // southern lip — visible on the baked map, invisible on screen at a glance.
+  //
+  // Flood-filled from the pool's centre rather than tested at a radius: the pool's cells are
+  // whatever the carve produced, and asking the terrain is the only way to be sure.
+  it("is enclosed by its own bank and never touches the sea", () => {
     for (const w of WATERFALLS) {
-      expect(w.poolOffset).toBeGreaterThanOrEqual(w.poolRadius * 0.9);
-      for (const dz of [-w.poolRadius, 0, w.poolRadius]) {
-        for (const dx of [-w.poolRadius, 0, w.poolRadius]) {
-          expect(field.levelAt(toCell(w.x + dx), toCell(w.z + w.poolOffset + dz))).toBe(
-            w.bottomLevel,
-          );
+      const start: [number, number] = [toCell(w.x), toCell(w.z + w.poolOffset)];
+      expect(field.levelAt(start[0], start[1])).toBeNull();
+
+      const inPool = (i: number, j: number): boolean => {
+        const x = i + 0.5 - WORLD.size / 2;
+        const z = j + 0.5 - WORLD.size / 2;
+        return Math.hypot(x - w.x, z - (w.z + w.poolOffset)) < w.poolRadius;
+      };
+
+      const seen = new Set<number>();
+      const queue: [number, number][] = [start];
+      while (queue.length) {
+        const cell = queue.pop();
+        if (!cell) break;
+        const [i, j] = cell;
+        const k = j * WORLD.size + i;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        for (const [di, dj] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
+          const ni = i + di;
+          const nj = j + dj;
+          const neighbour = field.levelAt(ni, nj);
+          if (neighbour !== null) continue; // bank: exactly what we want to find
+          // Water next to the pool that is NOT the pool is the sea leaking in.
+          expect(inPool(ni, nj)).toBe(true);
+          queue.push([ni, nj]);
         }
       }
+      expect(seen.size).toBeGreaterThan(0);
     }
   });
 

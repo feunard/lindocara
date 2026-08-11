@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { createHd2dContext } from "../src/context.js";
 import {
   createWaterfall,
-  createWaterfallBasin,
   createWaterfallSheet,
   type WaterfallSheetOptions,
 } from "../src/terrain/waterfall.js";
@@ -100,45 +99,6 @@ describe("createWaterfallSheet", () => {
   });
 });
 
-describe("createWaterfallBasin", () => {
-  const basin = () =>
-    createWaterfallBasin(createHd2dContext(), {
-      texture: texture(),
-      x: -22.5,
-      z: 10,
-      radius: 0.45,
-      y: 1.8,
-    });
-
-  // Flat, and a hair ABOVE the terrace it sits on rather than exactly at it: a disc coplanar with
-  // the ground z-fights it just as a sheet coplanar with a wall does. The gap has to be small
-  // enough that the water still reads as lying ON the rock, which is what the upper bound pins.
-  it("lies flat, just clear of the terrace it sits on", () => {
-    const b = basin();
-    b.mesh.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(b.mesh);
-    expect(box.min.y).toBeCloseTo(box.max.y, 6);
-    expect(box.min.y).toBeGreaterThan(1.8);
-    expect(box.min.y).toBeLessThan(1.85);
-  });
-
-  it("spans its own diameter", () => {
-    const b = basin();
-    b.mesh.updateMatrixWorld(true);
-    const size = new THREE.Box3().setFromObject(b.mesh).getSize(new THREE.Vector3());
-    expect(size.x).toBeCloseTo(0.9, 2);
-    expect(size.z).toBeCloseTo(0.9, 2);
-  });
-
-  it("animates its surface over time", () => {
-    const b = basin();
-    const uniform = (b.mesh.material as THREE.ShaderMaterial).uniforms.uTime;
-    const before = uniform?.value as number;
-    b.update(0.5);
-    expect((uniform?.value as number) > before).toBe(true);
-  });
-});
-
 describe("createWaterfall", () => {
   const fall = () =>
     createWaterfall(createHd2dContext(), {
@@ -149,11 +109,13 @@ describe("createWaterfall", () => {
       topY: 1.8,
       bottomY: 0.9,
       facing: "east",
-      basinRadius: 0.45,
+      poolOffset: 0.5,
     });
 
-  it("groups a sheet, a basin and a plunge ring", () => {
-    expect(fall().group.children).toHaveLength(3);
+  // Two children, not three: the POOL is not built here. It is real water — `createWater` with a
+  // `center` and a `level` — because a pool given its own flat shader reads as a painted disc.
+  it("groups a sheet and a plunge ring, and builds no pool of its own", () => {
+    expect(fall().group.children).toHaveLength(2);
   });
 
   it("reports the impact point at the foot of the sheet, where the water lands", () => {
@@ -163,32 +125,11 @@ describe("createWaterfall", () => {
     expect(f.impact.z).toBeCloseTo(10, 5);
   });
 
-  // The basin must sit ENTIRELY on the one-cell terrace the sheet lands on — centred on that cell,
-  // half a cell out from the wall. Offsetting by the RADIUS instead (the first attempt) put the
-  // near edge on the wall and the far edge two radii out, which overhung the terrace and left the
-  // disc floating in the air over the next drop. Nothing geometric caught it; the screen did.
-  it("centres the basin on the terrace cell, half a cell clear of the wall", () => {
-    const basin = fall().group.children[1];
-    expect(basin).toBeDefined();
-    expect(basin?.position.x).toBeCloseTo(-22.5, 5);
-    expect(basin?.position.z).toBeCloseTo(10, 5);
-  });
-
-  it("keeps the whole basin inside the terrace cell it stands on", () => {
-    const basin = fall().group.children[1];
-    expect(basin).toBeDefined();
-    // The cell runs from the wall at x = -23 to x = -22; the disc must not cross either edge.
-    expect((basin?.position.x ?? 0) - 0.45).toBeGreaterThanOrEqual(-23);
-    expect((basin?.position.x ?? 0) + 0.45).toBeLessThanOrEqual(-22);
-  });
-
-  it("advances every part on update", () => {
-    const f = fall();
-    const before = f.group.children.map((c) =>
-      c instanceof THREE.Mesh && !Array.isArray(c.material) ? c.material.uuid : "",
-    );
-    f.update(0.5);
-    expect(before.filter(Boolean)).toHaveLength(3);
+  it("puts the impact ring out from the cliff by the pool offset, on the water it strikes", () => {
+    const ring = fall().group.children[1];
+    expect(ring).toBeDefined();
+    expect(ring?.position.x).toBeCloseTo(-22.5, 5);
+    expect(ring?.position.z).toBeCloseTo(10, 5);
   });
 
   it("disposes every part", () => {
@@ -202,6 +143,6 @@ describe("createWaterfall", () => {
       }
     });
     f.dispose();
-    expect(disposed).toBe(3);
+    expect(disposed).toBe(2);
   });
 });

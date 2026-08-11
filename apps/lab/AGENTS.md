@@ -264,6 +264,22 @@ over three world units), and varying brightness quickly along BOTH axes makes th
 each other into a chequerboard of dots. What works is brightness chosen per COLUMN and held down
 the fall, breathed only by a sine whose wavelength is longer than the fall is tall.
 
+**The pools are WATER, not a shader that imitates it.** Two kinds, and the difference is the whole
+lesson. The plunge pool at the foot of the fall is CUT INTO the terrain (`isPlungePool`,
+`world/island.ts`): its cells are marked water, so `meshTerrain` leaves a hole, the sea shows
+through, `createFoam` rings it with foam because foam is derived from exactly that land/water
+boundary, and the hero swims in it — none of which had to be written. The summit spring cannot be
+cut that way (the hole would open a shaft to the sea 3.6 units below), so it is a real `createWater`
+surface given a `center` and a `level`: **water at elevation**, the same material, swells, sparkle
+and mood colours as the ocean, just somewhere else and higher up. `boot.ts` pushes the mood to it
+alongside the sea, or it would be the one thing on the island that never got dark.
+
+Both replaced a bespoke flat-shaded disc, which read as blue paint however it was tinted — it had
+no swells, no sparkle and no mood, and a hard edge against the grass that said nothing about the
+ground stopping. A carved pool needs a BANK all the way round or it drains into the ocean; the
+first offset/radius did exactly that through a one-cell gap at its southern lip, and
+`test/waterfall-placement.test.ts` now flood-fills the pool to prove no cell of it touches the sea.
+
 **`@lindocara/hd2d/terrain/waterfall.ts` is authored, never derived.** `foam.ts` can find a
 shoreline by asking the height field where land meets water, but nothing in the field knows about
 water ABOVE ground — `waterLevel` is one global scalar. So a fall is a placement its caller

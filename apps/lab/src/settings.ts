@@ -103,10 +103,12 @@ export const WATERFALLS: readonly WaterfallPlacement[] = [
     topLevel: 4,
     bottomLevel: 0,
     facing: "south",
-    poolRadius: 1.3,
-    // Far enough out that the whole pool clears the cliff and sits on the open shelf in front of
-    // it, where the camera sees it — not tucked against the rock where the fall would hide it.
-    poolOffset: 1.4,
+    // The pool is CUT INTO the shelf (`isPlungePool`, `world/island.ts`), so it has to fit with a
+    // bank all the way round: far enough from the cliff that the fall does not hide it, near
+    // enough that it does not reach the shore and merge into the sea. At 1.4/1.3 it did exactly
+    // that — the plunge pool drained into the ocean through a one-cell gap at its southern lip.
+    poolRadius: 0.9,
+    poolOffset: 1.0,
   },
 ];
 

@@ -14,7 +14,7 @@ import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import { createFoam, FOAM_SPREAD } from "@lindocara/hd2d/terrain/foam.js";
 import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
-import { createWaterfall, createWaterfallBasin } from "@lindocara/hd2d/terrain/waterfall.js";
+import { createWaterfall } from "@lindocara/hd2d/terrain/waterfall.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
@@ -251,9 +251,8 @@ const foam = createFoam(ctx, field, {
 scene.add(foam.group);
 
 // The waterfall: ONE sheet straight down the mountain's sheer south face, from the summit to the
-// ground, with the pool it lands in on the open shelf in front. It shares the sea's own texture on
-// purpose — a fall and the sea it ends in must read as one substance. See `WATERFALLS`
-// (`settings.ts`) for why south, why one, and why these numbers are measured rather than derived.
+// ground. See `WATERFALLS` (`settings.ts`) for why south, why one, and why these numbers are
+// measured rather than derived.
 const waterfalls = WATERFALLS.map((w) =>
   createWaterfall(ctx, {
     texture: textures.get("/tex/water.png"),
@@ -263,22 +262,37 @@ const waterfalls = WATERFALLS.map((w) =>
     topY: w.topLevel * WORLD.levelHeight,
     bottomY: w.bottomLevel * WORLD.levelHeight,
     facing: w.facing,
-    basinRadius: w.poolRadius,
-    basinOffset: w.poolOffset,
+    poolOffset: w.poolOffset,
   }),
 );
 for (const w of waterfalls) scene.add(w.group);
 
-// The lip pool on the summit: a basin with no sheet above it, which is what closes the chain at
-// the top. A fall whose source is off-screen reads as a leak rather than a spring.
-const springPool = createWaterfallBasin(ctx, {
-  texture: textures.get("/tex/water.png"),
-  x: MOUNTAIN.x,
-  z: MOUNTAIN.z + 2.2,
-  radius: 0.7,
-  y: 4 * WORLD.levelHeight,
-});
-scene.add(springPool.mesh);
+// The two pools are REAL WATER — `createWater`, the same surface the sea is made of, given a
+// `center` and a `level` so it can sit somewhere other than the world origin and higher than zero.
+// They were flat shaded discs first, and read as blue paint: what makes the sea in this scene look
+// wet is its four crossed swells, its sparkle and its mood-driven colours, and a bespoke shader has
+// none of those. `shallow: 1` because a pool is all bank — the field's depth gradient answers a
+// question ("how far to the nearest land") that means nothing this small.
+const pools = [
+  // ONLY the summit spring is a placed surface. The plunge pool at the foot of the fall is CUT INTO
+  // the terrain instead (`isPlungePool`, `world/island.ts`) — it lands at level 0, a hair above the
+  // global water level, so the sea itself shows through the hole and `createFoam` rings it with
+  // foam for free. A pool at ELEVATION cannot be cut that way: the hole would open a shaft to the
+  // sea 3.6 units below. That is what `center`/`level` are for, and this is the one that needs it.
+  createWater(ctx, field, {
+    texture: textures.get("/tex/water.png"),
+    level: 4 * WORLD.levelHeight + 0.02,
+    size: 1.7,
+    segment: 0.35,
+    depthRange: WATER.depthRange,
+    roughness: WATER.roughness,
+    center: [MOUNTAIN.x, MOUNTAIN.z + 2.4],
+    // Not fully shallow: a flat single tone reads as painted mint. Mid-depth lets the swell
+    // normals and the sparkle actually show, which is what says "water" at this size.
+    shallow: 0.55,
+  }),
+];
+for (const p of pools) scene.add(p.mesh);
 
 // Mist, spray and the rainbow: anchored to the fall's own impact point rather than recomputing it
 // from the placement, so the effects can never drift from where the water actually lands.
@@ -605,6 +619,14 @@ function pushMood(): void {
   water.colors.shallow.copy(m.water.shallow);
   water.colors.deep.copy(m.water.deep);
   water.setSparkle(m.water.sparkle);
+  // The falls' pools are the same substance as the sea and must take the same ambience with it —
+  // a pool that stayed daytime turquoise under a night mood would be the one thing on the island
+  // that never got dark.
+  for (const p of pools) {
+    p.colors.shallow.copy(m.water.shallow);
+    p.colors.deep.copy(m.water.deep);
+    p.setSparkle(m.water.sparkle);
+  }
   // Le halo du foyer suit l'ambiance : en plein jour, un feu de camp ne fait pas de flaque de
   // lumière, il n'a que sa flamme. Les deux couches pèsent le même poids : donner le dessus à la
   // petite lui rendait aussitôt son statut de tache principale, et le rond revenait.
@@ -1195,7 +1217,7 @@ function frame(now = performance.now()): void {
   dialog.update(dt);
   water.update(dt);
   for (const w of waterfalls) w.update(dt);
-  springPool.update(dt);
+  for (const p of pools) p.update(dt);
   foam.update(dt);
   clouds.update(dt);
   particles.update(dt);

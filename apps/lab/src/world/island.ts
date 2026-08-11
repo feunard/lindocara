@@ -6,7 +6,7 @@ import {
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
-import { MOUNTAIN, NORD, WEST, WORLD } from "../settings.js";
+import { MOUNTAIN, NORD, WATERFALLS, WEST, WORLD } from "../settings.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
  *  `generateIsland` ci-dessous. Sorti au niveau module (et exporté) pour que
@@ -161,6 +161,30 @@ export const WEST_REACH_MAX = ((): number => {
   return max;
 })();
 
+/**
+ * The plunge pool, CUT INTO the terrain rather than laid on top of it.
+ *
+ * A water surface placed over the ground reads as a decal however it is shaded — it has a hard
+ * edge against the grass, and nothing about it says the ground stops there. Marking the cells as
+ * water instead makes the pool the same thing the sea is: `meshTerrain` leaves a hole, the bank
+ * gets its own walls, `createFoam` draws foam around it because foam is derived from exactly this
+ * land/water boundary, and the hero swims in it. None of that had to be written.
+ *
+ * It works here because the fall lands at level 0, a hair above the global water level, so the sea
+ * itself shows through the hole. A pool at ELEVATION cannot be cut this way — the hole would open a
+ * shaft all the way down — and is a real water surface positioned by `createWater`'s `center` and
+ * `level` instead. Both are in this island; the summit spring is the second kind.
+ */
+function isPlungePool(x: number, z: number): boolean {
+  for (const fall of WATERFALLS) {
+    if (fall.bottomLevel !== 0) continue;
+    const dx = x - fall.x;
+    const dz = z - (fall.z + fall.poolOffset);
+    if (Math.hypot(dx, dz) < fall.poolRadius) return true;
+  }
+  return false;
+}
+
 /** Palier par case, ou `null` si c'est de l'eau. */
 function makeHeightmap(size: number): (number | null)[] {
   const c = size / 2;
@@ -176,7 +200,8 @@ function makeHeightmap(size: number): (number | null)[] {
         if (d >= 0.94) continue;
         let h = 0;
         for (const r of ile.reliefs) if (Math.hypot(x - r.x, z - r.z) < r.r) h = Math.max(h, r.h);
-        cells[j * size + i] = h;
+        // The plunge pool is water, not ground — see `isPlungePool` above.
+        cells[j * size + i] = isPlungePool(x, z) ? null : h;
         break;
       }
     }
