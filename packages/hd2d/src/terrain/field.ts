@@ -7,6 +7,15 @@ export interface HeightField {
   levelAt(i: number, j: number): number | null;
   /** Clé de matière — sert à choisir l'atlas et à ouvrir les arêtes entre matières. */
   materialAt(i: number, j: number): string | null;
+  /**
+   * For a WATER cell (`levelAt` is `null`), the level its surface sits at — or `null`/absent when
+   * that water is the world's own sea.
+   *
+   * This is what lets water exist somewhere other than sea level. Without it a hole in the terrain
+   * always means "the ocean, far below": `wallDrop` sends the surrounding walls down their full
+   * height, and a pool cut into a summit opens a shaft to the sea rather than holding water.
+   */
+  waterAt?(i: number, j: number): number | null;
 }
 
 /** Assombrissement apporté par UN voisin plus haut touchant un coin. */
@@ -84,6 +93,12 @@ export function wallDrop(field: HeightField, i: number, j: number, di: number, d
   const h = field.levelAt(i, j);
   if (h === null) return 0;
   const n = field.levelAt(i + di, j + dj);
-  if (n === null) return h;
+  if (n === null) {
+    // Water. It stops the wall at its own surface, not at the sea: a pool cut into a summit is a
+    // hole one would otherwise see all the way down to the ocean, through a four-level shaft.
+    const water = field.waterAt?.(i + di, j + dj);
+    if (water === null || water === undefined) return h;
+    return water < h ? h - water : 0;
+  }
   return n < h ? h - n : 0;
 }

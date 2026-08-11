@@ -252,6 +252,24 @@ the hero swims down it. It was an enclosed disc first, which is a pond, not a pl
 expressed as a disc, and a global "flatten everything south of z = 12" would also flatten the
 southern island at z = 24.
 
+**Water at elevation is a real capability now, not a patch laid on the ground.** The summit spring
+is water in every sense the sea is: the terrain has a HOLE there, the ocean's own material fills it,
+`createFoam` rings it with the animated shore border, and the hero SWIMS in it, breath gauge and
+all. Three pieces had to learn about it, and each was pinned to sea level before:
+
+- `HeightField.waterAt(i, j)` (`@lindocara/hd2d`) — the LEVEL a water cell's surface sits at, or
+  `null` for the world's sea. Without it `wallDrop` sends the walls around a hole down their full
+  height, and a pool cut into a summit opens a four-level shaft to the ocean.
+- `foamPlacements` carries that level out with each placement, so a shore cell beside an elevated
+  pool gets its foam at the POOL's surface instead of buried inside the mountain.
+- `TerrainQuery.waterLevelAt(wx, wz)` (`@lindocara/engine`), and `stepHero` now asks it at the
+  hero's position everywhere it used to read one global `world.waterLevel` — ten sites. A map with
+  no elevated water answers the same constant everywhere and behaves exactly as before, which is
+  every authored game map.
+
+The rule stays pure: `waterLevelAt` is a function of position, no clock and no randomness, so the
+port of `stepHero` onto the server is no more expensive than it was.
+
 **Small water needs a bowl and its own texture density, or it is a blue rectangle.** The summit
 spring uses the sea's exact material and still read as a flat block, for two reasons that have
 nothing to do with the shader. A CONSTANT `shallow` makes `mix(deep, shallow, k)` one colour across

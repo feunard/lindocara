@@ -52,6 +52,7 @@ import {
   MOODS,
   MOUNTAIN,
   MOUNTAIN_FACE_Z,
+  MOUNTAIN_TOP_LEVEL,
   NEIGE_CHUTE,
   NORD,
   RAINBOW,
@@ -77,7 +78,7 @@ import {
   SAKURA_RADIUS,
 } from "./world/house.js";
 import { createInterior } from "./world/interior.js";
-import { mapToHeightField } from "./world/island.js";
+import { isSpring, mapToHeightField } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
 import { populate, windPhase } from "./world/props.js";
 import { createSnowNpc } from "./world/snow-npc.js";
@@ -150,7 +151,17 @@ if (!carte)
   throw new Error(`Carte invalide : ${MAP_URL} (relancer "npm run build:map -w @lindocara/lab")`);
 
 const field = mapToHeightField(carte);
-const query = createTerrainQuery(mapToQuerySource(carte));
+// The summit spring is water at ELEVATION, so the query needs to know where its surface is — the
+// movement rule asks per position now, and without this the hero would swim at sea level inside
+// the mountain. Derived from the authored footprint for the same reason `mapToHeightField` does it:
+// `MapData` carries no per-cell water level.
+const query = createTerrainQuery({
+  ...mapToQuerySource(carte),
+  waterAt: (i, j) => {
+    const [x, z] = [i + 0.5 - carte.size / 2, j + 0.5 - carte.size / 2];
+    return isSpring(x, z) ? MOUNTAIN_TOP_LEVEL : null;
+  },
+});
 
 // Un atlas par clé de matière (voir `HeightField.materialAt`, `island.ts`). `TerrainAtlas.block`
 // dit quel bloc 4x4 l'image contient (voir `atlas.ts`) : dans le tileset du Free Pack, le palier 0
@@ -254,6 +265,7 @@ const foam = createFoam(ctx, field, {
   fps: 7,
   spread: FOAM_SPREAD,
   waterLevel: WORLD.waterLevel,
+  levelHeight: WORLD.levelHeight,
 });
 scene.add(foam.group);
 

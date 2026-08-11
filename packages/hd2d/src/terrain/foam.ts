@@ -32,6 +32,9 @@ export const FOAM_SPREAD = 1.42;
 const FOAM_MARGIN_ABOVE_WATER = 0.02;
 
 export interface FoamOptions {
+  /** Height of one level tier, in world units — needed to place foam at an ELEVATED water surface
+   *  (see `HeightField.waterAt`). The sea's own foam only ever needs `waterLevel`. */
+  levelHeight: number;
   /** La bande de frames de l'écume — DÉCLARÉE `atlas: true` au registre de textures (voir
    *  `textures.ts`) : c'est une bande de plusieurs frames échantillonnée par sous-rectangles comme
    *  un tileset, et ses mipmaps moyenneraient les frames entre elles sans ce réglage. */
@@ -65,13 +68,31 @@ export interface Foam {
  * au ras de l'eau, au pied de la falaise. Le restreindre au palier 0 laissait une falaise plonger
  * dans la mer sur un trait net, sans une vague.
  */
-export function foamPlacements(field: HeightField): readonly { i: number; j: number }[] {
-  const placements: { i: number; j: number }[] = [];
+export function foamPlacements(
+  field: HeightField,
+): readonly { i: number; j: number; water: number | null }[] {
+  const placements: { i: number; j: number; water: number | null }[] = [];
   for (let j = 0; j < field.rows; j++) {
     for (let i = 0; i < field.cols; i++) {
       if (field.levelAt(i, j) === null) continue;
-      const touchesWater = NEIGHBORS_4.some(([di, dj]) => field.levelAt(i + di, j + dj) === null);
-      if (touchesWater) placements.push({ i, j });
+      // `water` is the LEVEL of the water this cell touches, or `null` for the sea. A shore cell
+      // beside an elevated pool needs its foam drawn at the POOL's surface, not at sea level three
+      // metres below, where it would be buried inside the mountain.
+      let water: number | null | undefined;
+      let touches = false;
+      for (const [di, dj] of NEIGHBORS_4) {
+        if (field.levelAt(i + di, j + dj) !== null) continue;
+        touches = true;
+        const w = field.waterAt?.(i + di, j + dj);
+        // The sea wins if the cell touches both: it is the lower surface, and the one whose foam
+        // belongs at the cell's foot.
+        if (w === null || w === undefined) {
+          water = null;
+          break;
+        }
+        water = water === undefined ? w : Math.min(water ?? w, w);
+      }
+      if (touches) placements.push({ i, j, water: water ?? null });
     }
   }
   return placements;
@@ -88,7 +109,7 @@ export function createFoam(ctx: Hd2dContext, field: HeightField, opts: FoamOptio
   const size = opts.spread / FOAM_OPAQUE;
   const y = opts.waterLevel + FOAM_MARGIN_ABOVE_WATER;
 
-  const sprites = foamPlacements(field).map(({ i, j }) => {
+  const sprites = foamPlacements(field).map(({ i, j, water }) => {
     const sprite = makeFlatSprite(ctx, {
       texture: opts.texture,
       cols: opts.frames,
@@ -96,7 +117,9 @@ export function createFoam(ctx: Hd2dContext, field: HeightField, opts: FoamOptio
       size,
       alphaTest: 0.5,
     });
-    sprite.mesh.position.set(i + 0.5 - cx, y, j + 0.5 - cz);
+    // Elevated water gets its foam at its OWN surface; the sea keeps the global level.
+    const surface = water === null ? y : water * opts.levelHeight + FOAM_MARGIN_ABOVE_WATER;
+    sprite.mesh.position.set(i + 0.5 - cx, surface, j + 0.5 - cz);
     return sprite;
   });
 

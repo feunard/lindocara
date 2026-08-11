@@ -70,3 +70,41 @@ describe("stepHero — swimming", () => {
     expect(evts2.some((e) => e.t === "pas")).toBe(false);
   });
 });
+
+describe("stepHero — water at elevation", () => {
+  // The rule used to read ONE global water level, so a pool on a summit would have put the hero
+  // swimming at sea level inside the mountain. It now asks the terrain where the surface is at the
+  // point it is testing, which is what lets a spring exist 3.6 units up and still behave as water.
+  const HIGH = 3.6;
+
+  /** A summit plateau at 3.6 with a pool cut into it, whose surface sits at the plateau's height. */
+  const summit = () =>
+    depsPlates({
+      hauteur: (x) => (Math.abs(x) < 1 ? null : HIGH),
+      eau: (x) => (Math.abs(x) < 1 ? HIGH : 0),
+    });
+
+  it("enters the elevated pool at ITS surface, not at sea level", () => {
+    const deps = summit();
+    const state = createHeroState(-1.6, 0, HIGH, 10, 2.2);
+    const events: string[] = [];
+    for (let k = 0; k < 40; k++) {
+      for (const e of stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps)) events.push(e.t);
+      if (state.swimming) break;
+    }
+    expect(state.swimming).toBe(true);
+    expect(events).toContain("entree-eau");
+    // The whole point: it floats at the summit's height, not at the sea 3.6 units below.
+    expect(state.y).toBeCloseTo(HIGH, 5);
+  });
+
+  it("still uses the sea's level where there is no elevated water", () => {
+    const deps = depsPlates({ hauteur: (x) => (Math.abs(x) < 1 ? null : 0) });
+    const state = createHeroState(-1.6, 0, 0, 10, 2.2);
+    for (let k = 0; k < 40 && !state.swimming; k++) {
+      stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
+    }
+    expect(state.swimming).toBe(true);
+    expect(state.y).toBeCloseTo(0, 5);
+  });
+});

@@ -64,6 +64,15 @@ export interface TerrainQuery {
   canTraverseRamp(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): boolean;
   /** World center of a cell. */
   cellCenter(i: number, j: number): [number, number];
+  /**
+   * World height of the water surface at a point.
+   *
+   * Almost always the world's own sea. The exception is water at ELEVATION — a spring on a summit,
+   * a pool part-way up a cliff — which the movement rule has to be able to find, or the hero would
+   * swim at sea level inside a mountain. A map with no elevated water answers the same constant
+   * everywhere and behaves exactly as it did before this existed.
+   */
+  waterLevelAt(wx: number, wz: number): number;
 }
 
 /** What `createTerrainQuery` needs: the same CELL-indexed accessors as `HeightField` (see
@@ -80,6 +89,9 @@ export interface TerrainQuerySource {
   at(i: number, j: number): number | null;
   /** Material of cell (i, j), or `null` off-grid / water. */
   kindAt(i: number, j: number): TerrainMaterial | null;
+  /** For a WATER cell, the LEVEL tier its surface sits at — or `null`/absent for the world's sea.
+   *  See `TerrainQuery.waterLevelAt`. */
+  waterAt?(i: number, j: number): number | null;
   ramps?: readonly TerrainRamp[];
   platforms?: readonly TerrainPlatform[];
 }
@@ -123,7 +135,7 @@ const THREELESS_CLAMP = (value: number): number => Math.max(0, Math.min(1, value
  * the cell-indexed accessors, this function only converts them into WORLD-coordinate queries.
  */
 export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
-  const { size, levelHeight, waterLevel, at, kindAt, ramps = [], platforms = [] } = source;
+  const { size, levelHeight, waterLevel, at, kindAt, waterAt, ramps = [], platforms = [] } = source;
   const c = size / 2;
   const toCell = (w: number) => Math.floor(w + c);
   const groundHeightAt = (wx: number, wz: number): number | null => {
@@ -219,6 +231,10 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     },
     cellCenter(i, j) {
       return [i + 0.5 - c, j + 0.5 - c];
+    },
+    waterLevelAt(wx, wz) {
+      const w = waterAt?.(toCell(wx), toCell(wz));
+      return w === null || w === undefined ? waterLevel : w * levelHeight;
     },
   };
 }
