@@ -10,6 +10,7 @@ import { MapController } from "./controllers/MapController.js";
 import { MeController } from "./controllers/MeController.js";
 import { PartyController } from "./controllers/PartyController.js";
 import { TestSessionController } from "./controllers/TestSessionController.js";
+import { AdminRoleProvider } from "./providers/AdminRoleProvider.js";
 import { AppSecurityProvider } from "./providers/AppSecurityProvider.js";
 import { HeightfieldBackfillProvider } from "./providers/HeightfieldBackfillProvider.js";
 import { PartyRoom } from "./realtime/PartyRoom.js";
@@ -62,6 +63,7 @@ export const LindocaraApi = $module({
   services: [
     HealthController,
     AppSecurityProvider,
+    AdminRoleProvider,
     HeightfieldBackfillProvider,
     MeController,
     MapController,
