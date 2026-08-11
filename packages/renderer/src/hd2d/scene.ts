@@ -166,7 +166,13 @@ export function terrainGroupFor(
   map: MapData,
   atlases: Record<string, TerrainAtlas>,
 ): { group: THREE.Group; dispose(): void } {
-  return meshTerrain(ctx, heightFieldFor(map), { atlases, levelHeight: map.levelHeight });
+  // The ramps go to the MESHER too, not only to `meshStairs`: it is what opens the cliff face at
+  // each ramp's mouth, so a slope arrives on the plateau instead of into a drawn wall.
+  return meshTerrain(ctx, heightFieldFor(map), {
+    atlases,
+    levelHeight: map.levelHeight,
+    ramps: map.ramps ?? [],
+  });
 }
 
 /** The serialized grid, read as the field the mesher consumes. `null` levels stay water: they are

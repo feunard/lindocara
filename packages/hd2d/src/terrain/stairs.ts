@@ -137,25 +137,40 @@ export function meshStairs(
     const top = fillUV(atlas);
     const cheek = cheekUV(atlas);
 
-    // --- le dessus : un seul quad incliné, la surface que le héros parcourt ----------------------
-    // Normale de la pente, dans le plan xz=constant : la dénivelée sur la largeur.
+    // --- le dessus : la surface que le héros parcourt --------------------------------------------
+    // UNE TUILE PAR CASE, pas un seul quad tendu sur toute la rampe. L'atlas est échantillonné en
+    // ClampToEdge (voir `textures.ts`), donc une seule cellule d'UV étirée sur deux cases dessine
+    // une herbe deux fois trop grande — la rampe se lit alors comme une surface étrangère posée sur
+    // un sol dont elle ne partage plus la densité.
     const slope = new THREE.Vector3(-(eastY - westY), ramp.width, 0).normalize();
-    builder.quad(
-      [
-        [x0, westY, z0],
-        [x0, westY, z1],
-        [x1, eastY, z1],
-        [x1, eastY, z0],
-      ],
-      [slope.x, slope.y, slope.z],
-      [
-        [top.u0, top.v1],
-        [top.u0, top.v0],
-        [top.u1, top.v0],
-        [top.u1, top.v1],
-      ],
-      [pied(westY), pied(westY), pied(eastY), pied(eastY)],
-    );
+    const yAt = (x: number): number =>
+      westY + ((eastY - westY) * (x - x0)) / Math.max(ramp.width, 1e-9);
+    for (let cz = 0; cz < Math.max(1, Math.round(ramp.depth)); cz += 1) {
+      for (let cx = 0; cx < Math.max(1, Math.round(ramp.width)); cx += 1) {
+        const a0 = x0 + cx;
+        const a1 = Math.min(a0 + 1, x1);
+        const b0 = z0 + cz;
+        const b1 = Math.min(b0 + 1, z1);
+        const yA = yAt(a0);
+        const yB = yAt(a1);
+        builder.quad(
+          [
+            [a0, yA, b0],
+            [a0, yA, b1],
+            [a1, yB, b1],
+            [a1, yB, b0],
+          ],
+          [slope.x, slope.y, slope.z],
+          [
+            [top.u0, top.v1],
+            [top.u0, top.v0],
+            [top.u1, top.v0],
+            [top.u1, top.v1],
+          ],
+          [pied(yA), pied(yA), pied(yB), pied(yB)],
+        );
+      }
+    }
 
     // --- les flancs : deux triangles, dégénérés du côté bas --------------------------------------
     // Émis comme des quads dont deux sommets coïncident : le même accumulateur sert, et une arête

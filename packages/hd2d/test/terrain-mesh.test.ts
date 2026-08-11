@@ -198,6 +198,25 @@ describe("meshTerrain", () => {
     built.dispose();
   });
 
+  it("ouvre la paroi là où une rampe vient s'y raccorder", () => {
+    // Sans ça, la pente monte DANS un mur : la collision laisse passer (`canTraverseRamp`) et le
+    // rendu dessine une falaise en travers de la bouche de l'escalier. C'est ce que le pinceau de
+    // l'éditeur fait déjà côté tuiles — « the brush clears both joined cliff faces » — et que le
+    // mailleur du champ de hauteur ne faisait pas.
+    const field = fieldFrom(["01"]);
+    const opts = { atlases: { herbe: atlas() }, levelHeight: 0.9 };
+    const closed = meshTerrain(createHd2dContext(), field, opts);
+    const opened = meshTerrain(createHd2dContext(), field, {
+      ...opts,
+      // La case (0,0) est au palier 0, la case (1,0) au palier 1 : la rampe couvre la berge basse
+      // et monte vers l'est, donc contre la face ouest de la case (1,0).
+      ramps: [{ x: -1, z: -1, width: 1, depth: 1, direction: "east", lowLevel: 0 }],
+    });
+    expect(wallV(opened.group).length).toBeLessThan(wallV(closed.group).length);
+    closed.dispose();
+    opened.dispose();
+  });
+
   it("ferme les découpes transparentes des falaises avec une coque continue reculée", () => {
     const ctx = createHd2dContext();
     const { group } = meshTerrain(ctx, flat(1, 1, 3), {

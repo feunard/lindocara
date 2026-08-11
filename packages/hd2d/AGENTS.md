@@ -5,6 +5,25 @@ scene â€” the technique behind Octopath Traveler and The Adventures of Elli
 Swords. Ported verbatim from the `poc-hd-2d` PoC, now retired (Task 1-10 of the
 [S1 spec](../../docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)).
 
+## The terrain sheet has two cliff feet, and a ramp is a slope
+
+Two things about `terrain/` that no amount of reading the code will tell you, and that cost real
+time once each:
+
+- **`wallRow` vs `wallRowInWater`.** Pixel Frog draws the cliff face twice — footed on land (grass
+  tufts at its base) and footed in water (a foam scallop). They are alternatives chosen by what is
+  BELOW the cliff, not a band and its repeat. `mesh.ts` picks per wall segment. Foam
+  (`foam.ts`) is placed on a shore cell at any level for the same reason: half a waterline is worse
+  than none.
+- **A ramp is real sloped geometry, and it opens the wall it meets.** `meshStairs` builds the same
+  slope `rampSampleAt` walks the hero up, off the same `progress` convention — they cannot disagree.
+  Pass the ramps to `meshTerrain` too (`MeshTerrainOptions.ramps`) or the height field draws a cliff
+  across the ramp's mouth. Do NOT go back to slicing Pixel Frog's 64x128 ramp strip across box tops:
+  it is a side ELEVATION, half transparent, and horizontal slices of it draw neither tread nor slope.
+
+See `docs/hd2d-rendering.md` for the full sheet anatomy, and
+`scripts/build-showcase-map.ts` for a map that exercises every case (`npm run adventure:showcase`).
+
 ## The boundary
 
 `hd2d` knows nothing about lindocara or its protocol â€” no party, no hero, no `WorldRoom`, no wire

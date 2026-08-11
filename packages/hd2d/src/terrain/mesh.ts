@@ -12,6 +12,7 @@ import {
   openEdge,
   wallDrop,
 } from "./field.js";
+import type { StairRampGeometry } from "./stairs.js";
 
 // Teinte par vertex, très basse fréquence : casse l'aplat de couleur des grandes étendues, là où
 // l'autotiling ne s'occupe que des bordures. Portée telle quelle depuis le PoC (`tintAt`).
@@ -131,6 +132,43 @@ export interface MeshTerrainOptions {
    *  par palier ("herbe0"/"herbe1"/...) ou un seul pour toute son étendue. */
   atlases: Record<string, TerrainAtlas>;
   levelHeight: number;
+  /**
+   * Les rampes authorées, pour OUVRIR la paroi là où l'une d'elles vient s'y raccorder.
+   *
+   * Le champ de hauteur ne sait pas qu'un escalier existe : il voit un voisin plus bas et pose une
+   * falaise, en travers de la bouche de la rampe. La collision, elle, laisse passer
+   * (`canTraverseRamp`), si bien que le héros marchait À TRAVERS un mur dessiné. C'est exactement
+   * ce que le pinceau de l'éditeur fait déjà côté tuiles, en dégageant les deux faces jointes.
+   *
+   * Facultatif : une carte sans escalier n'a rien à ouvrir.
+   */
+  ramps?: readonly StairRampGeometry[];
+}
+
+/**
+ * Les faces de paroi qu'une rampe vient boucher, en clés `i,j,di,dj`.
+ *
+ * Une rampe monte le long de x. Son arête HAUTE touche la case voisine du palier supérieur : à
+ * l'est de la rampe si elle monte vers l'est, à l'ouest sinon — et c'est la paroi de CETTE case,
+ * du côté qui regarde la rampe, qu'il faut taire.
+ */
+function rampMouths(
+  ramps: readonly StairRampGeometry[],
+  cx: number,
+  cz: number,
+): ReadonlySet<string> {
+  const mouths = new Set<string>();
+  for (const ramp of ramps) {
+    const climbsEast = ramp.direction === "east";
+    // La case du haut est au-delà de l'arête haute, et regarde la rampe par sa face opposée.
+    const i = climbsEast ? Math.round(ramp.x + ramp.width + cx) : Math.round(ramp.x + cx) - 1;
+    const di = climbsEast ? -1 : 1;
+    const j0 = Math.round(ramp.z + cz);
+    for (let k = 0; k < Math.max(1, Math.round(ramp.depth)); k += 1) {
+      mouths.add(`${i},${j0 + k},${di},0`);
+    }
+  }
+  return mouths;
 }
 
 /**
@@ -152,6 +190,7 @@ export function meshTerrain(
 ): { group: THREE.Group; dispose(): void } {
   const cx = field.cols / 2;
   const cz = field.rows / 2;
+  const mouths = rampMouths(opts.ramps ?? [], cx, cz);
   const geo = new Map<string, QuadBuilder>();
   // Les pixels transparents aux extrémités des tuiles de falaise sont utiles pour le dessin, mais
   // deux façades raccordées les laissaient voir le ciel à l’orbite. Cette coque ne contient QUE les
@@ -212,6 +251,7 @@ export function meshTerrain(
       ] as const) {
         const drop = wallDrop(field, i, j, di, dj);
         if (drop === 0) continue;
+        if (mouths.has(`${i},${j},${di},${dj}`)) continue;
         const bottomY = (h - drop) * opts.levelHeight;
 
         // Arête orientée pour que la normale pointe vers le voisin. Le vecteur U de la paroi vaut
