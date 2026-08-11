@@ -100,6 +100,15 @@ jobs:
           # need their fallbacks because an empty string is neither a boolean nor an integer and
           # would stop Alepha booting; a text key has no such edge.
           SIGIL_KEY: ${{ secrets.SIGIL_KEY }}
+          # The accounts that hold the `admin` role, reconciled at boot by `AdminRoleProvider`.
+          # Listed here for the same reason as `SIGIL_KEY`: the collection above prefers
+          # `apps/main/.env.production`, which is gitignored and therefore absent on a runner, so a
+          # key living only there would ship from a laptop and never from CI.
+          #
+          # No `|| ''` fallback: the schema defaults it to `""`, and empty is its documented
+          # "do nothing at all" state — no grants AND no revocations. That is the safe default, so
+          # an unset secret degrades to inert rather than to a mass demotion.
+          ADMIN_USERNAMES: ${{ secrets.ADMIN_USERNAMES }}
         run: npm run deploy -w @lindocara/main
 
   # The HD-2D witness, deployed beside the game as a SITE rather than a service:
