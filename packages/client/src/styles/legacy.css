@@ -1618,7 +1618,6 @@ kbd {
   color: #ffc2bc;
 }
 
-#help,
 #status {
   position: fixed;
   z-index: 3;
@@ -1627,29 +1626,6 @@ kbd {
   font-size: 0.72rem;
   text-shadow: var(--game-text-shadow);
   pointer-events: none;
-}
-
-#help {
-  left: calc(0.75rem + var(--safe-left));
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.32rem 0.5rem;
-  align-items: center;
-  width: fit-content;
-  max-width: min(22rem, calc(50vw - 1.5rem - var(--safe-left)));
-  padding: 0.36rem 0.55rem;
-  border: 1px solid rgb(184 211 190 / 22%);
-  border-radius: 0.35rem;
-  background: rgb(3 17 13 / 82%);
-  box-shadow: 0 0.3rem 1rem rgb(0 0 0 / 36%);
-  backdrop-filter: blur(4px);
-}
-
-.help-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  white-space: nowrap;
 }
 
 #status {
@@ -3132,7 +3108,6 @@ kbd {
   }
 
   #minimap,
-  #help,
   #status {
     display: none;
   }
