@@ -80,7 +80,14 @@ describe("AdminShell route", () => {
   // and close enough to vitest's 5000ms default to time out under load when the whole suite runs
   // in parallel (observed: comfortably under 2s alone, ~5s+ inside a full `npm test -w
   // @lindocara/client` run). A generous explicit timeout avoids that flakiness.
-  const TEST_TIMEOUT_MS = 15_000;
+  //
+  // Raised from 15s: the last two tests deliberately wait out `BOOT_PING_TIMEOUT_MS` (2500ms)
+  // BEFORE their own `waitFor` even starts, so their budget is the sum, not the max. At 15s with
+  // a 5s inner wait, a loaded machine had roughly 7s of slack for a lazy route import plus a
+  // React render — and one of them was observed going red at 7.6s under `npm run check`.
+  const TEST_TIMEOUT_MS = 30_000;
+  /** Inner waits in the two timeout-dependent tests, which start AFTER the boot race resolves. */
+  const SLOW_RENDER_TIMEOUT_MS = 15_000;
 
   it(
     "refuses a session without admin:ui with a 403, never a stuck 401",
@@ -212,17 +219,17 @@ describe("AdminShell route", () => {
         }),
       );
 
-      const startedAt = Date.now();
       alepha = Alepha.create().with(AlephaReact).with(AppRouter);
       await act(async () => {
         await alepha?.start();
       });
-      const elapsedMs = Date.now() - startedAt;
 
-      // Bounded well under "forever", and comfortably above `BOOT_PING_TIMEOUT_MS` (2500ms) so
-      // this isn't just asserting the timeout constant back at itself — it proves `alepha.start()`
-      // actually returned instead of hanging on the dead request.
-      expect(elapsedMs).toBeLessThan(6_000);
+      // No wall-clock assertion here, deliberately. "`start()` returned instead of hanging on the
+      // dead request" is already proven by this test COMPLETING at all: the request never resolves,
+      // so a `bootPing` that failed to bound itself would hang `start()` and the test would fail on
+      // `TEST_TIMEOUT_MS`. An extra `elapsed < 6000` check proved nothing further and measured the
+      // machine instead of the code — it was the one assertion in this file observed going red
+      // under `npm run check`'s parallel load while passing in isolation.
 
       // With `currentUserAtom` still empty (the real ping never returns in this test), `/admin`'s
       // guard denies the ANONYMOUS branch — and since fix round 3 renamed the sign-in route to
@@ -234,7 +241,7 @@ describe("AdminShell route", () => {
         () => {
           expect(document.body.textContent).not.toBe("");
         },
-        { timeout: 5_000 },
+        { timeout: SLOW_RENDER_TIMEOUT_MS },
       );
       expect(screen.queryByText("Users")).toBeNull();
     },
@@ -322,7 +329,7 @@ describe("AdminShell route", () => {
         () => {
           expect(document.querySelector(".auth-shell")).toBeTruthy();
         },
-        { timeout: 5_000 },
+        { timeout: SLOW_RENDER_TIMEOUT_MS },
       );
       expect(screen.queryByText(/authentication required/i)).toBeNull();
       expect(screen.queryByText(/you do not have permission/i)).toBeNull();
