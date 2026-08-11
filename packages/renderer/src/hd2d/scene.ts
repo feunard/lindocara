@@ -115,12 +115,18 @@ export function terrainAtlasKey(material: string, level: number): string {
  * and deliberately resolves to the same ice atlas.
  */
 export function terrainAtlases(textures: TextureRegistry): Record<string, TerrainAtlas> {
+  // `wallRowInWater` only for the 9x6 sheets, which are the ones that carry a wall band at all:
+  // rows 4 and 5 are the same cliff face footed on land and footed in water, and the mesher picks
+  // between them per wall segment. The 10x4 sand sheet has neither, and must not be handed a row 5
+  // that does not exist in it — sand never descends (level 0 emits no wall), so an unread but
+  // out-of-range row would be a landmine rather than a harmless default.
   const sheet = (name: string, block: TerrainAtlas["block"], cols: number, rows: number) => ({
     texture: textures.get(`${TERRAIN_ROOT}/${name}`),
     cols,
     rows,
     block,
     wallRow: 4,
+    ...(rows > 5 ? { wallRowInWater: 5 } : {}),
     tilePx: 64,
   });
   const palette = groundPaletteOverride ? `Tilemap_${groundPaletteOverride}.png` : null;
@@ -160,7 +166,13 @@ export function terrainGroupFor(
   map: MapData,
   atlases: Record<string, TerrainAtlas>,
 ): { group: THREE.Group; dispose(): void } {
-  return meshTerrain(ctx, heightFieldFor(map), { atlases, levelHeight: map.levelHeight });
+  // The ramps go to the MESHER too, not only to `meshStairs`: it is what opens the cliff face at
+  // each ramp's mouth, so a slope arrives on the plateau instead of into a drawn wall.
+  return meshTerrain(ctx, heightFieldFor(map), {
+    atlases,
+    levelHeight: map.levelHeight,
+    ramps: map.ramps ?? [],
+  });
 }
 
 /** The serialized grid, read as the field the mesher consumes. `null` levels stay water: they are
@@ -330,13 +342,16 @@ export function createHd2dScene(
   const query = createTerrainQuery(mapToQuerySource(map));
 
   const atlases = terrainAtlases(textures);
-  const stairsAtlas = atlases.lvl0;
-  if (!stairsAtlas) throw new Error("The level-0 terrain atlas is required for authored stairs");
+  const fallbackAtlas = atlases.lvl0;
+  if (!fallbackAtlas) throw new Error("The level-0 terrain atlas is required for authored stairs");
   const terrain = terrainGroupFor(ctx, map, atlases);
   scene.add(terrain.group);
   const stairs = meshStairs(map.ramps ?? [], {
     levelHeight: map.levelHeight,
-    atlas: stairsAtlas,
+    // A ramp draws in the hue of the bank it climbs to, the same way `terrainAtlasKey` gives each
+    // altitude its own sheet. Handing every ramp the level-0 atlas — as this did — painted a ramp
+    // climbing 1 to 2 in level 0's green.
+    atlasFor: (level) => atlases[terrainAtlasKey("herbe", level)] ?? fallbackAtlas,
   });
   scene.add(stairs.group);
 

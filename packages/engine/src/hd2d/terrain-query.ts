@@ -14,8 +14,9 @@
 export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace";
 
 /** A two-cell authored staircase. Its rectangle covers the low bank; `direction` names the edge
- * that meets the immediately higher plateau. Collision samples it as a continuous slope while the
- * renderer turns the same rectangle into discrete visible steps. */
+ * that meets the immediately higher plateau. Collision samples it as a continuous slope, and so
+ * does the renderer: `meshStairs` builds the same slope this describes, off the same `progress`
+ * convention, so what is drawn and what is walked cannot disagree. */
 export interface TerrainRamp {
   x: number;
   z: number;

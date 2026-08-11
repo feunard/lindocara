@@ -252,9 +252,41 @@ Une arÃªte est Â« ouverte Â» face au vide, face Ã  un voisin plus bas, o
 autre matiÃ¨re de mÃªme niveau. Un voisin *plus haut* ne l'ouvre pas : on est au
 pied de sa falaise, c'est elle qui porte la bordure.
 
-Les parois suivent la mÃªme logique horizontalement (about gauche, morceau
-courant, about droit) et sont dÃ©coupÃ©es en un quad par palier franchi : le
-premier porte la retombÃ©e sous l'arÃªte, les suivants une bande rÃ©pÃ©table.
+### The wall band: two feet, not a band and its repeat
+
+This section used to say the wall was "cut into one quad per level crossed, the first carrying the
+drop under the edge, the following ones a repeatable band." That was wrong, and it cost the game
+every shoreline cliff it had.
+
+`Tilemap_color1..5.png` (9x6, and every composed sheet reuses its geometry) holds:
+
+| Region | Contents |
+| --- | --- |
+| cols 0-3, rows 0-3 | grass, 4x4 `edge16`, **white foam rim** — the block that borders **water** |
+| cols 5-8, rows 0-3 | grass, 4x4 `edge16`, **tufted dark rim** — the block that **caps a cliff** |
+| cols 5-8, **row 4** | cliff face **footed on land** — grass tufts sprouting at its base |
+| cols 5-8, **row 5** | cliff face **footed in water** — a white foam scallop at its base |
+| cols 0 and 3, rows 4-5 | the two 64x128 **ramps** (col 0 climbs right, col 3 climbs left) |
+| col 4 | empty, a separator |
+
+Rows 4 and 5 are **alternatives chosen by what lies at the foot of the cliff**, not a band and its
+repetition. Their tops are identical; only their bases differ. `meshTerrain` picks per wall segment:
+the foot is in water exactly when the neighbour across that side has no level at all
+(`levelAt === null` answers for both open sea and off-grid), which is precisely the side `wallDrop`
+sends all the way down. `TerrainAtlas.wallRowInWater` is optional, because the 10x4 sand sheet has
+no wall band at all and sand never descends.
+
+One UV cell still stretches over the whole drop rather than stacking one tile per level: the Free
+Pack ships no plain repeat band, only these two feet, so stacking would sprinkle grass tufts halfway
+up a two-level cliff.
+
+Walls otherwise follow the same logic horizontally — left end, running piece, right end — through
+`run4`.
+
+An authored ramp OPENS the wall it arrives at (`MeshTerrainOptions.ramps`). Without that the height
+field, which knows nothing about stairs, draws a cliff straight across the ramp's mouth while
+`canTraverseRamp` happily lets the hero through it: a slope running into a wall. The editor's tile
+brush already clears both joined faces; this is the height field's half of the same rule.
 
 Le pack livre ce tileset en **cinq teintes**. Chaque palier prend la sienne
 (`LEVEL_URL`) : l'altitude se lit Ã  la couleur de l'herbe elle-mÃªme, pas Ã  une

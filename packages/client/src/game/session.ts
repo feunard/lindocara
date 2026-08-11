@@ -1316,6 +1316,20 @@ async function startGameIdentity(
       },
       attack: () => attack(),
       renderStats: () => renderer.diagnostics(),
+      /**
+       * Pin the light, or hand it back to the clock.
+       *
+       * A map's phase is `mapDayCycleOffset(mapId)` against the wall clock, so which light a given
+       * map opens in is effectively arbitrary and a full cycle is 24 real minutes. That is fine for
+       * play and useless for looking at terrain: a screenshot of a cliff face is a screenshot of a
+       * black rectangle for half the day, and "wait twelve minutes" is not a workflow. The
+       * adventure-test overlay already owns exactly this switch (`setTestDayCycle`); this only
+       * reaches it from outside React, the way the rest of this handle reaches the simulation.
+       */
+      setDayCycle: (override: DayCycleOverride) => {
+        audioDayCycleOverride = override;
+        renderer.setDayCycleOverride?.(override);
+      },
     };
   }
 }

@@ -5,6 +5,7 @@ import type { TerrainAtlas } from "../src/terrain/atlas.js";
 import type { HeightField } from "../src/terrain/field.js";
 import { AO_WALL, AO_WALL_HEIGHT, cornerOcclusion } from "../src/terrain/field.js";
 import { meshTerrain, tintAt } from "../src/terrain/mesh.js";
+import { fieldFrom } from "./helpers/field.js";
 
 function atlas(): TerrainAtlas {
   return {
@@ -13,8 +14,31 @@ function atlas(): TerrainAtlas {
     rows: 6,
     block: "cliff-edge",
     wallRow: 4,
+    wallRowInWater: 5,
     tilePx: 64,
   };
+}
+
+/**
+ * Les V de toutes les faces VERTICALES du groupe. Un quad de paroi a deux Y distincts, un quad de
+ * dessus un seul : c'est ce qui les sépare sans dépendre du découpage en accumulateurs ni de
+ * l'ordre des sommets. Sur une feuille 9x6, la rangée 4 occupe la bande V [1-5/6, 1-4/6] et la
+ * rangée 5 la bande [0, 1-5/6] — deux intervalles disjoints, donc lire un seul V suffit à dire
+ * laquelle a été choisie.
+ */
+function wallV(group: THREE.Group): number[] {
+  const vs: number[] = [];
+  for (const child of group.children) {
+    if (!(child instanceof THREE.Mesh)) continue;
+    const pos = child.geometry.getAttribute("position");
+    const uv = child.geometry.getAttribute("uv");
+    for (let quad = 0; quad + 3 < pos.count; quad += 4) {
+      const ys = [0, 1, 2, 3].map((k) => pos.getY(quad + k));
+      if (Math.max(...ys) - Math.min(...ys) < 1e-6) continue;
+      for (let k = 0; k < 4; k++) vs.push(uv.getY(quad + k));
+    }
+  }
+  return vs;
 }
 
 function flat(cols: number, rows: number, level: number): HeightField {
@@ -127,6 +151,70 @@ describe("meshTerrain", () => {
     });
     expect(vertexCount(high.group)).toBe(vertexCount(low.group));
     expect(Math.max(...allY(high.group))).toBeCloseTo(2.7);
+  });
+
+  // Le pack dessine DEUX parois, l'une sous l'autre : rangée 4 le pied sur la terre (petites
+  // touffes d'herbe), rangée 5 le pied dans l'eau (feston d'écume). Ce sont des variantes
+  // ALTERNATIVES, pas une bande et sa répétition — c'est ce que `atlas.ts` a longtemps mal dit, et
+  // c'est pourquoi toute falaise qui plongeait en mer portait de l'herbe au ras des vagues.
+  const ROW_5_MAX_V = 1 / 6;
+
+  it("prend la paroi à pied d'eau quand la falaise tombe dans le vide", () => {
+    const ctx = createHd2dContext();
+    const built = meshTerrain(ctx, flat(1, 1, 1), {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    const vs = wallV(built.group);
+    expect(vs.length).toBeGreaterThan(0);
+    for (const v of vs) expect(v).toBeLessThan(ROW_5_MAX_V);
+    built.dispose();
+  });
+
+  it("garde la paroi à pied de terre du côté qui domine un voisin plus bas", () => {
+    const ctx = createHd2dContext();
+    // Case (0,0) au palier 1 : à l'est un voisin au palier 0 — donc de la terre — et sur les trois
+    // autres côtés le vide, donc la mer. La même case porte les deux rangées à la fois.
+    const built = meshTerrain(ctx, fieldFrom(["10"]), {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    const vs = wallV(built.group);
+    expect(vs.some((v) => v > ROW_5_MAX_V)).toBe(true);
+    expect(vs.some((v) => v < ROW_5_MAX_V)).toBe(true);
+    built.dispose();
+  });
+
+  it("ne descend aucune paroi depuis le palier 0", () => {
+    // Ce que le sable dépend de : sa feuille (10x4) n'a aucune bande de paroi, donc son atlas ne
+    // déclare pas de rangée à pied d'eau. C'est sans conséquence tant que le palier 0 n'en émet
+    // aucune — assertion plutôt que raisonnement.
+    const ctx = createHd2dContext();
+    const built = meshTerrain(ctx, fieldFrom([".0."]), {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    expect(wallV(built.group)).toHaveLength(0);
+    built.dispose();
+  });
+
+  it("ouvre la paroi là où une rampe vient s'y raccorder", () => {
+    // Sans ça, la pente monte DANS un mur : la collision laisse passer (`canTraverseRamp`) et le
+    // rendu dessine une falaise en travers de la bouche de l'escalier. C'est ce que le pinceau de
+    // l'éditeur fait déjà côté tuiles — « the brush clears both joined cliff faces » — et que le
+    // mailleur du champ de hauteur ne faisait pas.
+    const field = fieldFrom(["01"]);
+    const opts = { atlases: { herbe: atlas() }, levelHeight: 0.9 };
+    const closed = meshTerrain(createHd2dContext(), field, opts);
+    const opened = meshTerrain(createHd2dContext(), field, {
+      ...opts,
+      // La case (0,0) est au palier 0, la case (1,0) au palier 1 : la rampe couvre la berge basse
+      // et monte vers l'est, donc contre la face ouest de la case (1,0).
+      ramps: [{ x: -1, z: -1, width: 1, depth: 1, direction: "east", lowLevel: 0 }],
+    });
+    expect(wallV(opened.group).length).toBeLessThan(wallV(closed.group).length);
+    closed.dispose();
+    opened.dispose();
   });
 
   it("ferme les découpes transparentes des falaises avec une coque continue reculée", () => {

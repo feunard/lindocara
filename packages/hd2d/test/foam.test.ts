@@ -19,8 +19,16 @@ describe("foamPlacements", () => {
     expect(posees).not.toContainEqual({ i: 1, j: 1 });
   });
 
-  it("ne pose rien sur une case en hauteur : l'écume est un liseré de rivage", () => {
-    expect(foamPlacements(fieldFrom([".1."]))).toEqual([]);
+  it("pose une tache au pied d'une falaise qui plonge dans la mer", () => {
+    // L'écume est le liseré de TOUT terrain qui touche l'eau, pas seulement du palier 0 : une
+    // falaise qui tombe droit dans la mer en porte une, sinon sa base est un trait net posé sur
+    // l'eau. La tache reste au niveau de la mer et le volume de l'île la masque (la coque de paroi
+    // de `mesh.ts` ferme les découpes) : seul son débord dépasse au pied de la falaise.
+    expect(foamPlacements(fieldFrom([".1."]))).toEqual([{ i: 1, j: 0 }]);
+  });
+
+  it("pose une tache quel que soit le palier du rivage", () => {
+    expect(foamPlacements(fieldFrom(["2"]))).toEqual([{ i: 0, j: 0 }]);
   });
 
   it("ne pose rien sur une carte sans terre", () => {

@@ -168,6 +168,7 @@ const atlases: Record<string, TerrainAtlas> = {
     rows: 6,
     block: "water-edge",
     wallRow: 4,
+    wallRowInWater: 5,
     tilePx: 64,
   },
   lvl1: {
@@ -176,6 +177,7 @@ const atlases: Record<string, TerrainAtlas> = {
     rows: 6,
     block: "cliff-edge",
     wallRow: 4,
+    wallRowInWater: 5,
     tilePx: 64,
   },
   lvl2: {
@@ -184,6 +186,7 @@ const atlases: Record<string, TerrainAtlas> = {
     rows: 6,
     block: "cliff-edge",
     wallRow: 4,
+    wallRowInWater: 5,
     tilePx: 64,
   },
   // Jamais de paroi pour le sable (toujours au palier 0) : `wallRow` n'est ici jamais lu, gardé à
@@ -204,6 +207,7 @@ const atlases: Record<string, TerrainAtlas> = {
     rows: 6,
     block: "water-edge",
     wallRow: 4,
+    wallRowInWater: 5,
     tilePx: 64,
   },
   glace: {
@@ -212,6 +216,7 @@ const atlases: Record<string, TerrainAtlas> = {
     rows: 6,
     block: "cliff-edge",
     wallRow: 4,
+    wallRowInWater: 5,
     tilePx: 64,
   },
   // The mountain's rock (Task 1 of the waterfall chantier). `block: "cliff-edge"` like `lvl1`/
@@ -223,6 +228,7 @@ const atlases: Record<string, TerrainAtlas> = {
     rows: 6,
     block: "cliff-edge",
     wallRow: 4,
+    wallRowInWater: 5,
     tilePx: 64,
   },
 };

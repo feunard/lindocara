@@ -37,6 +37,8 @@
     "map:build": "tsx scripts/build-map.ts",
     "map:proving": "tsx scripts/build-proving-map.ts",
     "adventure:proving": "tsx scripts/seed-proving-adventure.ts",
+    "map:showcase": "tsx scripts/build-showcase-map.ts",
+    "adventure:showcase": "tsx scripts/seed-showcase-adventure.ts",
     "seed:brumeval": "tsx scripts/legacy/seed-brumeval.ts",
     "seed:sombregue": "tsx scripts/legacy/seed-sombregue.ts",
     "adventure:build:liin": "tsx scripts/legacy/liin-adventure/build.ts && biome format --write adventures/legacy/liin-adventure-ia.json",

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { applyCloudShadow } from "../clouds.js";
 import type { Hd2dContext } from "../context.js";
 import type { TerrainAtlas } from "./atlas.js";
-import { tileUV } from "./atlas.js";
+import { blockOrigin, CLIFF_EDGE_COL, tileUV } from "./atlas.js";
 import type { HeightField } from "./field.js";
 import {
   AO_WALL,
@@ -12,23 +12,20 @@ import {
   openEdge,
   wallDrop,
 } from "./field.js";
-
-// Colonne d'origine du bloc 4x4 dans le tileset, selon ce que la bordure regarde (voir
-// `atlas.ts`, `TerrainAtlas.block`) : 0 pour le bloc bordé d'EAU (le liseré d'écume y est déjà
-// peint), 5 pour le bloc bordé de VIDE (bordure touffue, faite pour coiffer une paroi — les
-// parois elles-mêmes s'y raccordent toujours, quel que soit le bloc du dessus).
-const WATER_EDGE_COL = 0;
-const CLIFF_EDGE_COL = 5;
+import type { StairRampGeometry } from "./stairs.js";
 
 // Teinte par vertex, très basse fréquence : casse l'aplat de couleur des grandes étendues, là où
 // l'autotiling ne s'occupe que des bordures. Portée telle quelle depuis le PoC (`tintAt`).
 const TINT_DARK: readonly [number, number, number] = [0.84, 0.89, 0.82];
 /**
- * Reste un détail d'implémentation de `mesh.ts` — exportée uniquement pour que
- * `terrain-mesh.test.ts` puisse recalculer la couleur ATTENDUE d'un sommet connu et la comparer à
- * celle produite, plutôt que de recopier cette formule dans le test (une seconde source de vérité
- * qui dériverait sans qu'aucun test ne le remarque — exactement le mode de panne qu'`AO_CORNER`
- * a démontré : personne ne l'assertait contre le PoC, seulement contre lui-même).
+ * La teinte procédurale du sol, partagée par tout ce qui doit se lire COMME du sol.
+ *
+ * Deux consommateurs, tous deux légitimes : `stairs.ts`, dont la pente doit porter exactement la
+ * même teinte que le terrain qu'elle relie — sinon la rampe se lit comme une pièce rapportée — et
+ * `terrain-mesh.test.ts`, qui recalcule la couleur ATTENDUE d'un sommet connu plutôt que de
+ * recopier cette formule (une seconde source de vérité qui dériverait sans qu'aucun test ne le
+ * remarque — exactement le mode de panne qu'`AO_CORNER` a démontré : personne ne l'assertait
+ * contre le PoC, seulement contre lui-même).
  */
 export function tintAt(x: number, z: number): readonly [number, number, number] {
   const n =
@@ -111,14 +108,6 @@ function into(map: Map<string, QuadBuilder>, key: string): QuadBuilder {
   return builder;
 }
 
-/** Colonne de base du bloc 4x4 selon ce que porte cet atlas, ou `null` pour `"flat"` — une seule
- *  tuile, sans autotiling. */
-function blockOrigin(atlas: TerrainAtlas): number | null {
-  if (atlas.block === "water-edge") return WATER_EDGE_COL;
-  if (atlas.block === "cliff-edge") return CLIFF_EDGE_COL;
-  return null;
-}
-
 /**
  * Une paroi existe sur le côté (di,dj) d'une case de hauteur h si le voisin est plus bas. Sert à
  * savoir si la paroi voisine continue, donc si CE côté-ci de la paroi courante a besoin d'un about
@@ -143,6 +132,43 @@ export interface MeshTerrainOptions {
    *  par palier ("herbe0"/"herbe1"/...) ou un seul pour toute son étendue. */
   atlases: Record<string, TerrainAtlas>;
   levelHeight: number;
+  /**
+   * Les rampes authorées, pour OUVRIR la paroi là où l'une d'elles vient s'y raccorder.
+   *
+   * Le champ de hauteur ne sait pas qu'un escalier existe : il voit un voisin plus bas et pose une
+   * falaise, en travers de la bouche de la rampe. La collision, elle, laisse passer
+   * (`canTraverseRamp`), si bien que le héros marchait À TRAVERS un mur dessiné. C'est exactement
+   * ce que le pinceau de l'éditeur fait déjà côté tuiles, en dégageant les deux faces jointes.
+   *
+   * Facultatif : une carte sans escalier n'a rien à ouvrir.
+   */
+  ramps?: readonly StairRampGeometry[];
+}
+
+/**
+ * Les faces de paroi qu'une rampe vient boucher, en clés `i,j,di,dj`.
+ *
+ * Une rampe monte le long de x. Son arête HAUTE touche la case voisine du palier supérieur : à
+ * l'est de la rampe si elle monte vers l'est, à l'ouest sinon — et c'est la paroi de CETTE case,
+ * du côté qui regarde la rampe, qu'il faut taire.
+ */
+function rampMouths(
+  ramps: readonly StairRampGeometry[],
+  cx: number,
+  cz: number,
+): ReadonlySet<string> {
+  const mouths = new Set<string>();
+  for (const ramp of ramps) {
+    const climbsEast = ramp.direction === "east";
+    // La case du haut est au-delà de l'arête haute, et regarde la rampe par sa face opposée.
+    const i = climbsEast ? Math.round(ramp.x + ramp.width + cx) : Math.round(ramp.x + cx) - 1;
+    const di = climbsEast ? -1 : 1;
+    const j0 = Math.round(ramp.z + cz);
+    for (let k = 0; k < Math.max(1, Math.round(ramp.depth)); k += 1) {
+      mouths.add(`${i},${j0 + k},${di},0`);
+    }
+  }
+  return mouths;
 }
 
 /**
@@ -164,6 +190,7 @@ export function meshTerrain(
 ): { group: THREE.Group; dispose(): void } {
   const cx = field.cols / 2;
   const cz = field.rows / 2;
+  const mouths = rampMouths(opts.ramps ?? [], cx, cz);
   const geo = new Map<string, QuadBuilder>();
   // Les pixels transparents aux extrémités des tuiles de falaise sont utiles pour le dessin, mais
   // deux façades raccordées les laissaient voir le ciel à l’orbite. Cette coque ne contient QUE les
@@ -224,6 +251,7 @@ export function meshTerrain(
       ] as const) {
         const drop = wallDrop(field, i, j, di, dj);
         if (drop === 0) continue;
+        if (mouths.has(`${i},${j},${di},${dj}`)) continue;
         const bottomY = (h - drop) * opts.levelHeight;
 
         // Arête orientée pour que la normale pointe vers le voisin. Le vecteur U de la paroi vaut
@@ -258,9 +286,19 @@ export function meshTerrain(
         const pied = (elevation: number): number =>
           1 - AO_WALL * (1 - Math.min(1, (elevation - bottomY) / AO_WALL_HEIGHT));
 
-        // Repeating rows 4/5 once per crossed level made a level-2 cliff read as two cubes. One
-        // UV cell now stretches over the full drop, preserving a single tall-block silhouette.
-        const w = tileUV(atlas, wallCol, atlas.wallRow);
+        // Deux variantes de paroi, choisies par ce que la falaise touche EN BAS : le pied dans
+        // l'eau porte un feston d'écume, le pied sur la terre de petites touffes (voir
+        // `TerrainAtlas.wallRowInWater`). Un voisin sans palier EST la mer — `levelAt` répond
+        // `null` aussi bien sur l'eau qu'hors grille — et c'est exactement le côté que `wallDrop`
+        // fait descendre jusqu'en bas.
+        const footInWater = field.levelAt(i + di, j + dj) === null;
+        const wallRow = footInWater ? (atlas.wallRowInWater ?? atlas.wallRow) : atlas.wallRow;
+
+        // Une seule cellule d'UV s'étire sur toute la chute : répéter la rangée une fois par palier
+        // franchi faisait lire une falaise de palier 2 comme deux cubes empilés. La feuille du Free
+        // Pack n'a de toute façon aucune bande de paroi RÉPÉTABLE — seulement ces deux pieds — donc
+        // empiler sèmerait des touffes d'herbe à mi-hauteur.
+        const w = tileUV(atlas, wallCol, wallRow);
         const [ab, ah] = [pied(bottomY), pied(y)];
         const vertices = [
           [p0[0], bottomY, p0[1]],
