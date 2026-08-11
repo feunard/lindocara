@@ -51,6 +51,7 @@ import {
   MOOD_FADE,
   MOODS,
   MOUNTAIN,
+  MOUNTAIN_FACE_Z,
   NEIGE_CHUTE,
   NORD,
   RAINBOW,
@@ -273,6 +274,10 @@ for (const w of waterfalls) scene.add(w.group);
 // wet is its four crossed swells, its sparkle and its mood-driven colours, and a bespoke shader has
 // none of those. `shallow: 1` because a pool is all bank — the field's depth gradient answers a
 // question ("how far to the nearest land") that means nothing this small.
+// The spring is exactly the fall's width, so the water that pours over the lip is the water that
+// falls. Derived from the placement rather than typed twice: they cannot drift apart.
+const SPRING_SIZE = WATERFALLS[0]?.width ?? 3;
+
 const pools = [
   // ONLY the summit spring is a placed surface. The plunge pool at the foot of the fall is CUT INTO
   // the terrain instead (`isPlungePool`, `world/island.ts`) — it lands at level 0, a hair above the
@@ -282,13 +287,15 @@ const pools = [
   createWater(ctx, field, {
     texture: textures.get("/tex/water.png"),
     level: 4 * WORLD.levelHeight + 0.02,
-    size: 2.4,
+    // As wide as the fall, and reaching exactly to the lip: its SOUTH edge sits on
+    // `MOUNTAIN_FACE_Z`, so the spring runs to the cliff and pours over the sheet's top rather
+    // than stopping a metre short with a band of bare rock between the two — which is what a
+    // centre chosen by eye left, and which read as a pond that happened to be near a waterfall.
+    size: SPRING_SIZE,
     segment: 0.35,
     depthRange: WATER.depthRange,
     roughness: WATER.roughness,
-    // ON the summit, north of the cliff line. Offsetting it SOUTH put its centre past
-    // `MOUNTAIN_FACE_Z` — a slab of water hanging in the air over the shelf, 3.6 units up.
-    center: [MOUNTAIN.x, MOUNTAIN.z - 0.5],
+    center: [MOUNTAIN.x, MOUNTAIN_FACE_Z - SPRING_SIZE / 2],
     // Not fully shallow: a flat single tone reads as painted mint. Mid-depth lets the swell
     // normals and the sparkle actually show, which is what says "water" at this size.
     shallow: 0.55,
