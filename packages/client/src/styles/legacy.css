@@ -4417,6 +4417,16 @@ kbd {
   padding-top: 0.72rem;
 }
 
+/* On desktop the item D-pad makes both dock groups equally tall. Centre the shorter skill row
+   inside that shared height instead of pinning it to the D-pad's lower edge. The compact layout
+   hides the item group, so it keeps the title clearance supplied by the rule above. */
+@media (min-width: 901px) {
+  .action-dock__group--skills {
+    align-content: center;
+    padding-top: 0;
+  }
+}
+
 .action-dock__group + .action-dock__group {
   padding-left: 0.35rem;
   border-left: 1px solid rgb(214 179 96 / 22%);
