@@ -220,29 +220,28 @@ git commit -m "feat(admin): grant the admin role from ADMIN_USERNAMES at boot"
 
 - [ ] **Step 1: Write the failing test**
 
+**RULING (pre-flight, human-decided): the NEGATIVE branch only.** A session with no permissions is
+the real provider's default state, so this test needs no harness and no mock. Seeding
+`has("admin:*")` would mean seeding alepha's `LinkProvider` internals — a harness coupled to a
+vendored provider's private shape that the next `vendor sync` could break. The positive branch (three
+tabs render for a real admin) is proven in Task 4's browser pass, where a real admin session exists.
+**Do not write a `renderWithAlepha` permission harness.**
+
 ```tsx
 describe("AdminScreen", () => {
   it("renders the not-authorised panel when the session lacks admin", () => {
     // A courtesy, not a security boundary: the server's $secure guards every route regardless.
     // This exists so a non-admin sees one honest sentence instead of a page of failed requests.
-    renderWithAlepha(<AdminScreen />, { permissions: [] });
+    render(<AdminScreen />);
     expect(screen.getByText(/not authorised/i)).toBeTruthy();
     expect(screen.queryByRole("tab", { name: /users/i })).toBeNull();
-  });
-
-  it("renders the three admin tabs for an admin session", () => {
-    renderWithAlepha(<AdminScreen />, { permissions: ["admin:*"] });
-    expect(screen.getByRole("tab", { name: /users/i })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /sessions/i })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /audits/i })).toBeTruthy();
   });
 });
 ```
 
-`renderWithAlepha` is whatever the package's existing jsdom tests use to mount a component inside
-the Alepha React providers — find it in `packages/client/test/` and reuse it rather than inventing a
-second harness. If none exists that can seed permissions, the honest minimum is the first test only,
-driving `has()` through the real provider.
+Mount it the way the package's existing jsdom tests mount a component inside the Alepha React
+providers — find that pattern in `packages/client/test/` (e.g. `launch-screens.test.tsx`,
+`app-router.test.tsx`) and reuse it. Do not invent a second harness.
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -318,15 +317,29 @@ git commit -m "feat(admin): an /admin console over alepha's users, sessions and 
 - Test: `packages/client/test/main-menu.test.tsx`
 
 **Interfaces:**
-- Consumes: `useAuth()` from Task 2's notes — `logout()` and `has(permission)`.
+- Consumes: `getGameNavigation()` from `packages/client/src/state/navigation.js`, whose
+  `GameNavigation` interface already declares `logout(): void`; `useAuth().has(permission)` from
+  `alepha/react/auth` for the admin corner button only.
 - Produces: nothing other tasks depend on.
 
+**RULING (pre-flight, human-decided): QUIT goes through the NAVIGATION SEAM, not `useAuth()`.**
+`AppRouter.tsx:231` already wires `logout: () => alepha.inject(ReactAuth).logout()`, so production
+behaviour is identical either way — but the seam is the one CLAUDE.md documents as the thing "a test
+installs a plain fake by reassignment" into. That keeps the plan's `No vi.mock` constraint intact
+instead of amending it. Do not call `useAuth().logout()` from `MainMenu`.
+
 - [ ] **Step 1: Write the failing test**
+
+Install a plain fake navigation by reassignment — the seam's documented test path. Read
+`packages/client/src/state/navigation.ts` for the setter's real name and the full `GameNavigation`
+shape, and follow whatever existing test already installs a fake (grep the suite for it) rather than
+inventing a second way.
 
 ```tsx
 it("logs out when QUIT is activated", async () => {
   const logout = vi.fn();
-  renderMainMenu({ logout });
+  installFakeNavigation({ logout });
+  renderMainMenu();
   await userEvent.click(screen.getByRole("button", { name: /quit/i }));
   expect(logout).toHaveBeenCalledTimes(1);
 });
@@ -335,7 +348,8 @@ it("does NOT log out when Escape is pressed", async () => {
   // onBack and QUIT are the same harmless action today, and the hints row labels Escape "Quit".
   // Fusing them once QUIT logs out means a stray Escape on the main menu signs the player out.
   const logout = vi.fn();
-  renderMainMenu({ logout });
+  installFakeNavigation({ logout });
+  renderMainMenu();
   await userEvent.keyboard("{Escape}");
   expect(logout).not.toHaveBeenCalled();
 });
@@ -348,8 +362,9 @@ Expected: FAIL — QUIT currently pushes `title` and calls no logout.
 
 - [ ] **Step 3: Make the three edits**
 
-1. The QUIT item's `onActivate` becomes `() => logout()` from `useAuth()`. Leave the `menu.quit`
-   label and the `⎋` icon alone — the button is still called Quit.
+1. The QUIT item's `onActivate` becomes `() => getGameNavigation()?.logout()` (see the ruling
+   above — NOT `useAuth().logout()`). Leave the `menu.quit` label and the `⎋` icon alone — the
+   button is still called Quit.
 2. `<MenuNav onBack={() => void router.push("title")}>` stays **exactly as it is**.
 3. The hint at line 151 changes from `{t("menu.quit")}` to `{t("menu.hint.back")}` — it labels the
    Escape/B key, which still goes back to the title screen, so it must stop claiming to quit.
