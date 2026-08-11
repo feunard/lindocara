@@ -54,16 +54,22 @@ export interface Foam {
 }
 
 /**
- * L'écume est un liseré de RIVAGE, pas une bordure de falaise : seule une case de terre au palier 0
- * porte une tache, et seulement si l'un de ses quatre voisins directs est de l'eau. Le bord de la
- * carte compte comme de l'eau (`HeightField.levelAt` répond `null` hors grille, voir `field.ts`) :
- * sans ça, le rivage d'une île qui touche le bord de la grille perdrait son liseré.
+ * L'écume est le liseré de TOUT terrain qui touche l'eau : une case de terre en porte une dès que
+ * l'un de ses quatre voisins directs est de l'eau, à N'IMPORTE quel palier. Le bord de la carte
+ * compte comme de l'eau (`HeightField.levelAt` répond `null` hors grille, voir `field.ts`) : sans
+ * ça, le rivage d'une île qui touche le bord de la grille perdrait son liseré.
+ *
+ * Le palier ne change rien au placement parce qu'il ne change rien au DESSIN : la tache se pose au
+ * niveau de la mer (voir `FOAM_MARGIN_ABOVE_WATER`) et le volume de l'île la masque — la coque de
+ * paroi de `mesh.ts` ferme les découpes transparentes des falaises — donc seul son débord dépasse,
+ * au ras de l'eau, au pied de la falaise. Le restreindre au palier 0 laissait une falaise plonger
+ * dans la mer sur un trait net, sans une vague.
  */
 export function foamPlacements(field: HeightField): readonly { i: number; j: number }[] {
   const placements: { i: number; j: number }[] = [];
   for (let j = 0; j < field.rows; j++) {
     for (let i = 0; i < field.cols; i++) {
-      if (field.levelAt(i, j) !== 0) continue;
+      if (field.levelAt(i, j) === null) continue;
       const touchesWater = NEIGHBORS_4.some(([di, dj]) => field.levelAt(i + di, j + dj) === null);
       if (touchesWater) placements.push({ i, j });
     }
