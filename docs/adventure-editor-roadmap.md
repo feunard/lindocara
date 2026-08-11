@@ -312,18 +312,25 @@ tileset entry, no map migration — and gains a consumer the moment the interpre
 the hero standing on". Counter needs redesigning for continuous movement rather than transposing
 from XP's grid.
 
-## Entry flow — the scratch adventure (2026-08-10)
+## Entry flow — the scratch adventure (2026-08-10), then the sandbox (2026-08-11)
 
-The editor no longer opens on a list. Entering it mints a fresh unsaved adventure
-(`ensureScratchAdventure()`) and drops you on its blank map; `File → Open` reaches an existing one
-and `File → New adventure` starts another, both dirty-guarded. `AdventurePickerScreen` is deleted,
-and so is `editor-last-adventure.ts` — an orphan that solved this same problem by reopening the last
-adventure, a premise this rejects.
-
-Untitled scratches are deliberately never collected: they are deleted by hand from the Open dialog,
-so nothing unsaved can disappear unasked. Expect the Open list to accumulate them.
-
+The editor no longer opens on a list. Entering it drops you straight onto a blank map;
+`File → Open` reaches an existing adventure and `File → New adventure` starts another, both
+dirty-guarded. `AdventurePickerScreen` is deleted, and so is `editor-last-adventure.ts` — an orphan
+that solved this same problem by reopening the last adventure, a premise this rejects.
 See [the design](./superpowers/specs/2026-08-10-editor-entry-flow-design.md).
+
+**That blank map is no longer a row.** The first cut minted a real adventure on entry
+(`ensureScratchAdventure()`, one `POST /api/adventures`) and deliberately never collected the
+untitled ones, so the Open list accumulated one per visit — which is what the author actually
+noticed. Entry now opens an in-memory **sandbox** instead (`createSandboxSession()`): the same blank
+map, minted from the engine's own template, with nothing written anywhere. The first save creates
+the adventure and that map together, in one request that carries both.
+
+The trade is deliberate and it runs the other way from the old rule: a sandbox lives only in the
+tab, so closing it loses the work, where an abandoned scratch could always be found and finished.
+**A localStorage backup of the sandbox draft is the obvious next step** — that is what would make
+this strictly better than what it replaced rather than a different trade.
 
 ## How to work
 

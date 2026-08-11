@@ -655,11 +655,24 @@ The `adventures` and `map-editor` screens are gone: one `adventure-editor` scree
 `TerrainPalette` left, the WYSIWYG HD-2D stage centre (rebuilt on the shared renderer;
 rebuild), `MapListPanel` right) / status bar.
 
-Entering the editor opens a fresh unsaved adventure rather than a picker: `AdventureEditorScreen`'s
-no-session branch calls `ensureScratchAdventure()`, which is one atomic `POST /api/adventures`
-(the route returns the default map with it, so there is no second round trip). `File → Open` reaches
-an existing adventure and `File → New adventure` starts another; both are dirty-guarded. Untitled
-scratches accumulate by design and are deleted by hand from the Open dialog.
+Entering the editor opens an **unsaved local sandbox** rather than a picker, and WRITES NOTHING:
+`AdventureEditorScreen`'s no-session branch calls `createSandboxSession()`, which is pure and
+synchronous — a map minted from the engine's own `defaultMapInput` template, a draft that tracks it,
+and `adventureId: null`. The stage compiles that map's terrain itself (`compileAuthoredMap`), so a
+sandbox paints, previews and plays exactly like a stored map. The author's **first save creates
+both**: `POST /api/adventures` carrying the map (`AdventureController.createAdventure`'s optional
+`map` body) makes the adventure and its one map in a single transaction — a create-then-PUT pair
+could persist a named adventure and then fail the map. `File → Open` reaches an existing adventure
+and `File → New adventure` starts another sandbox; both are dirty-guarded.
+
+`adventureId === null` is the flag every server-backed surface reads. Test routes through the
+first-save popup and continues into the launch (with the just-created id passed explicitly — the
+handler's own `adventureId` is still the render's `null`); the settings dialog saves through the same
+create seam and hides Delete; New map stays disabled; the status bar reads "Not saved yet" instead of
+a green tick, because "no unsaved edits" is vacuously true for a map that was never written at all.
+This reversed the old rule that abandoned scratches are never cleaned up: a sandbox is memory-only,
+so closing the tab loses it. `AdventureEditorInner` is keyed by `draftId`, NOT `adventureId` — the
+first save gives the session an id, and remounting there would throw the stage away mid-save.
 
 Adventure metadata lives in `AdventureSettingsDialog`, off the canvas. All chrome is stock shadcn â€”
 the old floating asset palette was the last Tiny import inside a creator surface, and it died with

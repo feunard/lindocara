@@ -12,24 +12,39 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - `src/game/editor-state.ts` owns pure editor mutations and serialization.
 - The package composes `@lindocara/engine`, `@lindocara/renderer`, `@lindocara/client` and
   `@alepha/ui`; it must not duplicate their movement, terrain or rendering rules.
-- Entering the editor mints a fresh **unsaved scratch adventure** (`ensureScratchAdventure()` in
-  `src/ui/editor/adventure-session.ts`) and opens it. There is no landing/picker page: reaching an
-  existing adventure is `File → Open`, and starting another is `File → New adventure`. Abandoned
-  scratches are deliberately NOT cleaned up — they are deleted by hand from the Open dialog, so no
-  unsaved work can vanish unasked.
+- Entering the editor opens an **unsaved local sandbox** (`createSandboxSession()` in
+  `src/ui/editor/adventure-session.ts`) and WRITES NOTHING. There is no landing/picker page:
+  reaching an existing adventure is `File → Open`, and starting another sandbox is
+  `File → New adventure`. The sandbox's map comes from the engine's `defaultMapInput` — the SAME
+  template `MapService.createMap` uses, so it is born on terrain the server would have produced —
+  and the first save creates the adventure and that map in one `POST /api/adventures` carrying the
+  map. This replaced a `POST` on entry that left one untitled row per visit behind, never cleaned
+  up; the trade is that a sandbox is memory-only, so closing the tab loses it.
+- **`adventureId === null` means "sandbox"**, and every server-backed surface must read it rather
+  than assume a row exists: Test routes through the first-save popup and continues into the launch,
+  the settings dialog saves through `onSaveDraft` (the create seam) and hides Delete, New map is
+  disabled, the maps panel lists the sandbox's own map without rename/delete, and the status bar
+  says "Not saved yet" rather than showing the green `saved` tick — `saved` only means "no unsaved
+  EDITS", which is vacuously true for a map that has never been written at all.
+- **`AdventureEditorInner` is keyed by `draftId`, never `adventureId`.** The first save gives the
+  session an id, and keying on that would remount the whole editor — stage, history, camera — in
+  the middle of the save. `draftId` changes only on a genuine session swap (File → New / Open),
+  which is exactly when that reset is wanted, so `refreshSession()` must PRESERVE it: a map
+  create/rename/delete refresh is the same session, and minting a new id there remounts on every
+  one.
 - Leaving the editor goes through `AdventureEditorScreen`'s `leave()` (passed to the inner screen as
   `onLeave`), never a bare `setSession(null)`: the route swap lands AFTER this render, so clearing
-  the session on the way out would otherwise drop straight into the bootstrap and mint a stray
-  adventure — permanently, since abandoned scratches are never cleaned up. Clearing the session to
-  STAY in the editor (the open adventure was just deleted) still calls `setSession(null)` directly
-  and still wants a fresh scratch: the two are different intents.
-- The entry bootstrap's two refs (`AdventureEditorScreen.tsx`) each guard against strict mode's
-  double-invoked effect, in different ways: `startedRef` is the fire-once latch — drop it and you
-  get a silent second `POST`, two untitled adventures per visit. `aliveRef` owns cancellation,
-  reasserted at the top of every effect run rather than a per-closure flag — drop it, or simplify
-  it into one, and the screen instead hangs forever on "Preparing…" after the adventure WAS
-  created, because the synthetic first-mount cleanup discards its own still-in-flight result. See
-  the docblock above the component for the full strict-mode rationale.
+  the session on the way out would otherwise drop straight into the bootstrap and open a sandbox the
+  author never asked for. Clearing the session to STAY in the editor (the open adventure was just
+  deleted) still calls `setSession(null)` directly and still wants a fresh sandbox: the two are
+  different intents.
+- The entry bootstrap keeps ONE ref: `startedRef`, the fire-once latch against strict mode's
+  double-invoked effect — drop it and the second invocation replaces the sandbox with a different
+  one, discarding the first's map id while the draft still points at it. Its former twin `aliveRef`
+  (cancellation, reasserted per effect run) died with the request it guarded: minting a sandbox is
+  synchronous, so there is nothing in flight for a synthetic cleanup to discard. Do not reintroduce
+  a `POST` here without bringing that ref back — the docblock above the component records why a
+  per-closure `cancelled` flag is not equivalent.
 
 - The authoring camera can turn: `[`/`]` step a quarter turn (snapping to the nearest quarter
   first, so they also straighten a freely-orbited view), and **right**-drag orbits to any angle with
