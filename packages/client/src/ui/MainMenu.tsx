@@ -4,7 +4,6 @@
  * editor is a deliberately discreet corner button, kept out of the controller path.
  */
 import { useStore } from "alepha/react";
-import { useAuth } from "alepha/react/auth";
 import { useRouter } from "alepha/react/router";
 import { useEffect, useState } from "react";
 import { fetchParties } from "../api.js";
@@ -15,7 +14,6 @@ import {
 } from "../game/audio-settings.js";
 import { t } from "../i18n.js";
 import { adventureEditorSessionAtom } from "../state/atoms.js";
-import { getGameNavigation } from "../state/navigation.js";
 import { useUiStore } from "../store.js";
 import type { AppRouter } from "./AppRouter.js";
 import { Hint, MenuHints } from "./MenuHints.js";
@@ -53,10 +51,6 @@ export function MainMenu() {
   const router = useRouter<AppRouter>();
   const [, setEditorSession] = useStore(adventureEditorSessionAtom);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  // UI affordance only, per the ruling in `.superpowers/sdd/2026-08-11-admin-console-and-logout/
-  // task-3-brief.md`: hiding the button is not a fence — `/admin` stays reachable by URL and the
-  // server's `$secure` guard is what actually refuses a non-admin session.
-  const isAdmin = useAuth().has("admin:*");
   // "Continue" is hidden until we know the account has at least one save — no dead entry that
   // opens onto an empty carousel. Ordering leaves a gap at 0 when hidden; MenuNav sorts by order,
   // so the remaining items still focus correctly.
@@ -122,37 +116,20 @@ export function MainMenu() {
           order={5}
           icon="⎋"
           label={t("menu.quit")}
-          // Goes through the navigation seam, not `useAuth().logout()` directly — see
-          // `state/navigation.ts`'s docblock: it is the seam a test installs a plain fake into by
-          // reassignment, which is what keeps this covered without `vi.mock`. `onBack` below stays
-          // on `router.push("title")`: it shares a key (Escape / gamepad B) with this button, and a
-          // stray Escape on the main menu must never sign the player out.
-          onActivate={() => getGameNavigation()?.logout()}
+          onActivate={() => void router.push("title")}
         />
       </MenuNav>
 
-      <div className="main-menu__corner main-menu__corner--left">
-        <button
-          type="button"
-          className="main-menu__editor"
-          onClick={() => {
-            setEditorSession(null);
-            void router.push("editor");
-          }}
-        >
-          {t("menu.editor")}
-        </button>
-
-        {isAdmin && (
-          <button
-            type="button"
-            className="main-menu__admin"
-            onClick={() => void router.push("admin")}
-          >
-            {t("menu.admin")}
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        className="main-menu__editor"
+        onClick={() => {
+          setEditorSession(null);
+          void router.push("editor");
+        }}
+      >
+        {t("menu.editor")}
+      </button>
 
       <button
         type="button"
@@ -171,9 +148,7 @@ export function MainMenu() {
       <MenuHints>
         <Hint keyLabel="↕ / D-Pad">{t("menu.hint.navigate")}</Hint>
         <Hint keyLabel="A / Enter">{t("menu.hint.select")}</Hint>
-        {/* Labels the Escape/B key, which still just goes back to the title screen — it must not
-            claim to quit now that the QUIT button itself logs out. */}
-        <Hint keyLabel="B / Esc">{t("menu.hint.back")}</Hint>
+        <Hint keyLabel="B / Esc">{t("menu.quit")}</Hint>
       </MenuHints>
     </main>
   );

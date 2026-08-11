@@ -60,7 +60,6 @@
     "test/adventure-test-overlay.test.tsx",
     "test/auth-screen.test.tsx",
     "test/launch-screens.test.tsx",
-    "test/admin-shell.test.tsx",
-    "test/main-menu.test.tsx"
+    "test/admin-shell.test.tsx"
   ]
 }
