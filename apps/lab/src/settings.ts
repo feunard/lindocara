@@ -275,6 +275,100 @@ export const VAPEUR_SOURCE: VapeurSourceSettings = {
   emission: 0.2,
 };
 
+/** The mist rising off each landing (Task 6 of the waterfall chantier) — the hot spring's recycled
+ *  puff pool (`VAPEUR_SOURCE`, `world/props.ts`), retuned: denser, wider, faster-rising, and cool
+ *  instead of warm. Same machine, new settings; no allocation during play. */
+export interface MistSettings {
+  /** Size of the recycled pool — never an allocation mid-game. */
+  count: number;
+  /** Lifetime of one puff, seconds. */
+  vie: number;
+  /** World height of a puff. */
+  taille: number;
+  /** Radius of the disc around the impact point where a puff can be born. */
+  rayon: number;
+  /** Rise speed, units per second. */
+  montee: number;
+  /** End-of-life expansion factor (0 = original size at the end, 1 = doubled). */
+  expansion: number;
+  /** Opacity at emission; falls linearly to 0 afterwards. */
+  opaciteInitiale: number;
+  /** Seconds between two puffs. Continuous — a fall does not stop falling. */
+  emission: number;
+}
+export const MIST: MistSettings = {
+  count: 26,
+  // Judged on screen. The first pass (vie 3.2, taille 0.85, opacity 0.38, expansion 2.2) put a
+  // large bright haze over the whole mountain: the puffs are unlit billboards and the pipeline's
+  // bloom sits on top of them, so a value that looks like thin mist as a number reads as fog on
+  // screen. Smaller, shorter-lived and much fainter, expanding less as they go.
+  vie: 2.2,
+  taille: 0.5,
+  rayon: 0.4,
+  montee: 0.65,
+  expansion: 1.4,
+  opaciteInitiale: 0.2,
+  emission: 0.14,
+};
+
+/** The spray bursting where a sheet strikes its basin (Task 6): short-lived, fast, low. Where the
+ *  mist above drifts upward and lingers, this is the hard scatter at the point of impact — the two
+ *  read as one phenomenon only because they share an origin, not a pool. */
+export interface SpraySettings {
+  count: number;
+  vie: number;
+  taille: number;
+  /** Horizontal launch speed, units per second. */
+  vitesse: number;
+  /** Upward launch speed, units per second. */
+  montee: number;
+  /** Downward acceleration, units per second squared. */
+  gravite: number;
+  opaciteInitiale: number;
+  emission: number;
+}
+export const SPRAY: SpraySettings = {
+  count: 34,
+  vie: 0.75,
+  taille: 0.14,
+  vitesse: 1.2,
+  montee: 1.7,
+  gravite: 5.5,
+  opaciteInitiale: 0.75,
+  emission: 0.05,
+};
+
+/** The low fog that hangs in the falls zone (Task 6). Rides the SAME `fogPulse` channel the
+ *  blizzard uses (`BLIZZARD`) — a second contribution, not a second mechanism — but with its own
+ *  period and depth: this one breathes slowly and shallowly, where a blizzard gusts. The two zones
+ *  are dozens of units apart and are never both active. */
+export const FALLS_FOG = {
+  /** Seconds to settle in / lift when entering or leaving the zone. */
+  fade: 2,
+  /** Period of one full breath, seconds. */
+  periode: 14,
+  /** Maximum fraction by which the fog's reach (`fog.far`) closes at the peak. */
+  intensite: 0.22,
+};
+
+/** The rainbow in the main drop's mist (Task 7). Procedural, not a generated asset: a spectrum arc
+ *  is a gradient, and a canvas one can be tuned by eye in the browser instead of regenerated.
+ *  Gated to DAYTIME and to the zone, mirroring `applyAurora`'s night-and-polar gate across the
+ *  day/night line. */
+export const RAINBOW = {
+  /** Seconds to fade in / out when the gate opens or closes. */
+  fade: 2.5,
+  /** World radius of the arc. */
+  rayon: 2.6,
+  /** Thickness of the band, world units. */
+  epaisseur: 0.8,
+  /** Peak opacity. Deliberately low — a rainbow that reads clearly is a rainbow that reads fake. */
+  opacite: 0.28,
+  /** How far the arc's brightness swings as the sun drifts (`SUN_DRIFT`), 0..1: a rainbow depends
+   *  on where the sun stands, and one that never changes betrays that nothing is being computed. */
+  sunSwing: 0.55,
+};
+
 /** Aurore boréale (Task 9 de l'île de neige) — le canal `MoodConfig.aurora` (`@lindocara/hd2d`)
  *  vaut 0 dans les deux ambiances du labo (`MOODS` plus bas) : c'est `main.ts` qui l'allume, en
  *  zone polaire ET de nuit seulement, avec son propre fondu d'entrée/sortie de zone — indépendant

@@ -47,11 +47,13 @@ import {
   AURORE,
   BLIZZARD,
   CAMERA,
+  FALLS_FOG,
   MOOD_FADE,
   MOODS,
   MOUNTAIN,
   NEIGE_CHUTE,
   NORD,
+  RAINBOW,
   SPAWN,
   SUN_DRIFT,
   TARGET_FPS,
@@ -59,6 +61,7 @@ import {
   WATER,
   WATERFALLS,
   WORLD,
+  ZONE_FALLS,
   ZONE_LARGE,
   ZONE_POLAIRE,
   ZONES,
@@ -77,6 +80,7 @@ import { mapToHeightField } from "./world/island.js";
 import { createGrota } from "./world/npc.js";
 import { populate, windPhase } from "./world/props.js";
 import { createSnowNpc } from "./world/snow-npc.js";
+import { createWaterfallFx } from "./world/waterfall-fx.js";
 import { type Zone, zoneAt } from "./world/zones.js";
 
 // Task 10 : l'île n'est plus générée au démarrage, elle est CHARGÉE — `world/island.ts`
@@ -277,6 +281,14 @@ const springPool = createWaterfallBasin(ctx, {
   y: 4 * WORLD.levelHeight,
 });
 scene.add(springPool.mesh);
+
+// Mist, spray and the rainbow (Tasks 6-7): anchored to the drops' own impact points rather than
+// recomputing them from the placements, so the effects can never drift from where the water lands.
+const waterfallFx = createWaterfallFx(
+  ctx,
+  waterfalls.map((w) => w.impact),
+);
+scene.add(waterfallFx.group);
 
 // `colliders` est créé ICI, dans le composition root, parce que le héros — créé juste après
 // Grota — doit voir la MÊME instance que celle que Grota/Nanuq peuplent ensuite : contrairement au
@@ -908,6 +920,9 @@ props.flock.onExplode = () => shake(0.26);
 // position du héros.
 let auroraAmount = 0;
 let fogPulseAmount = 0;
+// The falls zone's own low fog, on its own fade — a second contribution to the same `fog.far`
+// multiplier the blizzard drives, never a second mechanism.
+let fallsFogAmount = 0;
 
 // Son de rafale (Correction 1 de la revue de cette task) : `rafalePrec` retient la valeur du signal
 // visuel calculée à l'image précédente, pour repérer son FRANCHISSEMENT ASCENDANT du seuil
@@ -926,8 +941,12 @@ function updateCamera(
   cmd: InputSample,
   move: { x: number; z: number },
   t: number,
-  enPolaire: boolean,
+  zone: Zone,
 ): void {
+  // Derived here rather than passed in as a flag per zone: the signature stopped growing a boolean
+  // every time the lab gained an ambience. The falls need no flag of their own here — their fog
+  // rides `fallsFogAmount`, which the frame loop already fades by zone.
+  const enPolaire = zone === ZONE_POLAIRE;
   distance = THREE.MathUtils.clamp(distance + cmd.zoom, CAMERA.zoom.min, CAMERA.zoom.max);
   // La rotation n'est qu'un coup d'oeil : elle revient d'elle-même une fois le bouton relâché,
   // pour que l'axe des commandes reste celui qu'on connaît.
@@ -1000,7 +1019,12 @@ function updateCamera(
   // teinte plus bas (`sky.update`) ou ici la resserre du brouillard au-delà de ce que `intensite`
   // prévoit.
   const pulse = Math.min(1, mood.value.fogPulse + fogPulseAmount) * rafale * BLIZZARD.intensite;
-  fog.far = mood.value.fog.far * k ** CAMERA.fogFar * (1 - pulse);
+  // The falls' own slow breath, on its own period. MULTIPLIED with the blizzard's rather than
+  // summed into it, so neither zone can push `fog.far` negative however the two are retuned — and
+  // the two are never non-zero at once anyway, being dozens of units apart.
+  const respire = 0.5 + 0.5 * Math.sin(((t / FALLS_FOG.periode) % 1) * Math.PI * 2);
+  const pulseFalls = fallsFogAmount * respire * FALLS_FOG.intensite;
+  fog.far = mood.value.fog.far * k ** CAMERA.fogFar * (1 - pulse) * (1 - pulseFalls);
   // Reculer doit renforcer l'effet maquette, pas l'aplatir.
   pipeline.setTiltShiftZoom(k);
 
@@ -1046,9 +1070,10 @@ updateCamera(
   },
   { x: 0, z: 0 },
   0,
-  // Pas encore en zone polaire à cet instant (le spawn ne l'est pas) : aucun son de rafale à ce
-  // premier cadrage à vide.
-  false,
+  // The spawn is in neither special zone, so this empty first framing triggers no gust sound and
+  // no zone fog. Passing the zone itself rather than a flag is what stopped this call growing a
+  // boolean every time the lab gained an ambience.
+  ZONE_LARGE,
 );
 pushMood();
 applyMood("day");
@@ -1144,6 +1169,7 @@ function frame(now = performance.now()): void {
   // posent que sur la matière "neige", géographiquement confinée à cette même île — voir
   // `world/island.ts`) ; le souffle et les flocons ont besoin de ce drapeau explicite.
   const enPolaire = zone === ZONE_POLAIRE;
+  const enCascade = zone === ZONE_FALLS;
   // Aurore et pulse de blizzard suivent la zone avec leur propre fondu — voir la déclaration de
   // `auroraAmount`/`fogPulseAmount` plus haut. L'aurore, en plus, exige la NUIT (un ruban vert dans
   // un ciel de plein jour serait absurde) ; le blizzard, lui, souffle à toute heure.
@@ -1151,6 +1177,8 @@ function frame(now = performance.now()): void {
   auroraAmount += (auroraCible - auroraAmount) * (1 - Math.exp(-dt / AURORE.fade));
   const fogPulseCible = enPolaire ? 1 : 0;
   fogPulseAmount += (fogPulseCible - fogPulseAmount) * (1 - Math.exp(-dt / BLIZZARD.fade));
+  const fallsFogCible = enCascade ? 1 : 0;
+  fallsFogAmount += (fallsFogCible - fallsFogAmount) * (1 - Math.exp(-dt / FALLS_FOG.fade));
   hero.update(dt, {
     x: fige ? 0 : move.x,
     z: fige ? 0 : move.z,
@@ -1180,6 +1208,13 @@ function frame(now = performance.now()): void {
     neigeCentre.set(hero.position.x, hero.position.y + 1, hero.position.z);
     neige.update(dt);
   }
+  // Mist, spray and the rainbow (Tasks 6-7). Gated on the zone like the snowfall above: outside
+  // the falls the pools neither update nor draw. The daylight term is the rainbow's own gate,
+  // times the sun's drift — `SUN_DRIFT` already swings the azimuth ±22° over 96 s, and an arc that
+  // ignored where the sun stands would betray that nothing is being computed.
+  const solaire = 0.5 + 0.5 * Math.sin((elapsed / SUN_DRIFT.period) * Math.PI * 2);
+  const daylight = mood.name === "day" ? 1 - RAINBOW.sunSwing + RAINBOW.sunSwing * solaire : 0;
+  waterfallFx.update(dt, enCascade, daylight);
   debugView.update(hero);
   chest.update(hero.position);
   interior.update(dt, elapsed);
@@ -1193,7 +1228,7 @@ function frame(now = performance.now()): void {
   // Recopié à CHAQUE image, pas seulement au fondu d'ambiance : `sky.horizon` change aussi avec
   // l'aurore, qui suit son propre fondu (`AURORE.fade`) indépendant de celui du jour/nuit.
   fog.color.copy(sky.horizon);
-  updateCamera(dt, cmd, move, elapsed, enPolaire);
+  updateCamera(dt, cmd, move, elapsed, zone);
   // L'ambiance se fond : tant qu'elle bouge, il faut la repousser partout.
   if (mood.update(dt)) pushMood();
 
