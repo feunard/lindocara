@@ -225,7 +225,9 @@ export function MapListPanel({
   const listed: MapSummary[] = stored
     ? maps
     : sandboxMap
-      ? [{ ...sandboxMap, revision: 0, isFirst: true }]
+      ? // No author: nothing has been stored, so no account owns this row yet. The empty string is
+        // the sandbox's signature here — a listed map always carries its creator's username.
+        [{ ...sandboxMap, author: "", revision: 0, isFirst: true }]
       : [];
 
   const deleting = maps.find((map) => map.id === confirmDeleteId);
@@ -284,9 +286,11 @@ export function MapListPanel({
                   <span className="rounded bg-zinc-200/80 px-1 tabular-nums">
                     {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
                   </span>
-                  <span className="truncate">
-                    {t("editor.picker.author", { author: map.author })}
-                  </span>
+                  {map.author && (
+                    <span className="truncate">
+                      {t("editor.picker.author", { author: map.author })}
+                    </span>
+                  )}
                 </span>
               </button>
               {/* Rename and delete both act on a STORED row (they PUT/DELETE by id), so the
