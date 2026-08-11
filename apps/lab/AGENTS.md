@@ -228,6 +228,74 @@ The glider's canopy (`public/tex/glider.png`, `world/hero.ts`) follows the same 
 sprite path â€” a single frame, no `Clip`/animator, cut with `scripts/sprite.py` â€” but is not snow-
 island content: it belongs to the separate glider chantier (`.superpowers/sdd/2026-08-04-glider/`).
 
+## The waterfall island
+
+A fifth island, `ILES[4]` in `world/island.ts`, west of the main one (`WEST`, `settings.ts`) and
+reached only by swimming. It carries a **terraced mountain** and a **three-drop cascade** with its
+own zone, roar, mist, spray and rainbow. Design and plan:
+[spec](../../docs/superpowers/specs/2026-08-11-mountain-waterfall-design.md),
+[plan](../../docs/superpowers/plans/2026-08-11-mountain-waterfall.md).
+
+**The mountain is four concentric relief discs, and the concentricity is load-bearing.** Levels 1
+to 4 come from discs of shrinking radius centred on `MOUNTAIN`, so **every wall on this island is
+exactly one level (0.9) tall**. That is not a stylistic choice: `mesh.ts` stretches ONE UV cell
+over a wall's full drop ("preserving a single tall-block silhouette"), which is right for a level-2
+cliff and would smear the rock over 3.6 units on a mountain face. It also makes every step exactly
+one jump (apex 1.35 against 0.9), so the summit is reachable without `meshStairs`, which the lab
+still does not use. Levels ≥3 render with a new `roche` atlas — a RENDER band added to
+`renderMaterialAt`/`LEVEL_SET`, **not** a `TerrainMaterial`, so the mountain's rock costs zero rule
+changes.
+
+**A drop sits on a CELL BOUNDARY, not on its relief disc's radius.** `makeHeightmap` tests cell
+CENTRES against each disc, so the wall lands on the integer boundary between two cells. Deriving
+`WATERFALLS`' x from the radii (`MOUNTAIN.x + 3.2`) put every sheet 0.16 units inside the rock —
+invisible on screen, with every unit test still green.
+`test/waterfall-placement.test.ts` now re-measures the real height field on every run instead of
+trusting the three numbers.
+
+**`@lindocara/hd2d/terrain/waterfall.ts` is authored, never derived.** `foam.ts` can find a
+shoreline by asking the height field where land meets water, but nothing in the field knows about
+water ABOVE ground — `waterLevel` is one global scalar. So a fall is a placement its caller
+declares (`WATERFALLS`, `settings.ts`), and its basins are **decorative by construction**: the hero
+wades through them, because teaching `TerrainQuery` about per-cell water height would change a
+contract shared with the game's authoritative server for the sake of a visual feature.
+
+Three render traps were each paid for once here, and each now has a test:
+
+- **`ShaderMaterial` defaults to `FrontSide`.** A single quad's facing depends on winding AND yaw;
+  get it wrong and the sheet is backface-culled into total invisibility while still sitting in the
+  scene graph with a correct bounding box. Both the sheet and the basin render `DoubleSide`.
+- **Coplanar surfaces z-fight, and `renderOrder` does not fix it** — it decides draw order, not
+  depth comparison. `FACE_CLEARANCE` stands each sheet a hair proud of its wall and each basin a
+  hair above its terrace.
+- **`THREE.RingGeometry` maps its uvs PLANARLY across the bounding square, not by (angle, radius).**
+  The rainbow's spectrum is painted across the band's width, so on a `RingGeometry` almost all of it
+  landed in the strip's transparent ends and the whole arc rendered as one thin vertical line.
+  `arcBand()` (`world/waterfall-fx.ts`) builds the half-annulus by hand with radial uvs.
+
+**The rainbow faces the CAMERA, not the valley.** Rotating it to face east — the way the water
+flows, the intuitive choice — puts its plane nearly edge-on to a rig sitting 38° above the horizon
+looking north, and it collapses to a one-pixel line. It stands in the world XY plane instead.
+
+**Two sounds, opposite halves of one pair.** `BOUCLES.cascade` is the roar: a HELD sound whose gain
+follows distance (`setCascadeDistance`, `PORTEE_CASCADE` = 22), never a zone soundscape — the same
+shape as the campfire's `setFireDistance` and the skid's `setSkid`. `BOUCLES.falls` IS the zone
+soundscape, raised by `setAmbience`. `test/waterfall-placement.test.ts` asserts no zone ever claims
+the roar's key, which would make it blare across the island at full gain regardless of distance.
+
+`ZONE_FALLS` follows `ZONE_POLAIRE`'s rule: its radius runs past the island's widest shoreline
+(`WEST_REACH_MAX`) so the theme and the bed install themselves DURING the swim, and
+`test/zone-precede-matiere.test.ts` pins that relation against the real symbols. Its low fog rides
+the same `MoodConfig.fogPulse` channel the blizzard uses — a second contribution, not a second
+mechanism — and `updateCamera` now takes the `Zone` itself rather than a `enPolaire` boolean, so
+the signature stops growing a flag per ambience.
+
+**Every particle here is a recycled pool**, like the hot spring's steam and the hero's breath —
+`world/waterfall-fx.ts` shares ONE mist pool and ONE spray pool across all three impact points,
+round-robin, because the total is what costs. Its settings were judged on screen, not on paper: the
+first pass (`MIST.taille` 0.85, opacity 0.38) put a bright haze over the whole mountain, because
+the puffs are unlit billboards with the pipeline's bloom on top of them.
+
 ## The load-testing harness
 
 `bench.ts` answers S1's one open question: does a game-scale population (four players, dozens of
@@ -357,7 +425,8 @@ LAB_SFX_PACK=/path/to/pack apps/lab/scripts/sync-assets.sh
 
 ## Graph
 
-- **Depends on:** `@lindocara/engine` (its `hd2d/` subfolder only), `@lindocara/hd2d`, `three`.
+- **Depends on:** `@lindocara/engine` (its `hd2d/` subfolder only), `@lindocara/hd2d`,
+  `@lindocara/audio` (the sample bank the game and the lab share), `three`.
   Nothing else â€” see "witness, not a frozen copy" above.
 
 ## Deployed as a static site
