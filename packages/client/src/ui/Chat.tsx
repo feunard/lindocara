@@ -4,18 +4,25 @@ import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
 import { currentLocale, t, useLocale } from "../i18n.js";
 import { type ChatLine, useUiStore } from "../store.js";
 
-const CHAT_HEIGHT_STORAGE_KEY = "lindocara.chat.messagesHeight";
+const CHAT_SIZE_STORAGE_KEY = "lindocara.chat.size.v1";
 const CHAT_FILTER_STORAGE_KEY = "lindocara.chat.filter";
 const CHAT_TIMESTAMPS_STORAGE_KEY = "lindocara.chat.timestamps";
-const COLLAPSED_HEIGHT_PX = 58;
-const DEFAULT_OPEN_HEIGHT_PX = 160;
-const MIN_OPEN_HEIGHT_PX = 132;
-const MAX_OPEN_HEIGHT_PX = 440;
+const DEFAULT_CHAT_WIDTH_PX = 720;
+const DEFAULT_CHAT_HEIGHT_PX = 300;
+const MIN_CHAT_WIDTH_PX = 360;
+const MIN_CHAT_HEIGHT_PX = 180;
+const MAX_CHAT_WIDTH_PX = 1040;
+const MAX_CHAT_HEIGHT_PX = 600;
 const SCROLL_PIN_THRESHOLD_PX = 20;
 const MAX_COMMAND_HISTORY = 30;
 const CHAT_FILTERS = ["local", "party", "system"] as const;
 
 type ChatFilter = (typeof CHAT_FILTERS)[number];
+
+interface ChatSize {
+  width: number;
+  height: number;
+}
 
 function readStoredChatFilter(): ChatFilter {
   try {
@@ -41,19 +48,41 @@ function rememberCommand(history: string[], command: string): string[] {
   return [...history, trimmed].slice(-MAX_COMMAND_HISTORY);
 }
 
-function clampHeight(value: number): number {
-  return Math.min(MAX_OPEN_HEIGHT_PX, Math.max(MIN_OPEN_HEIGHT_PX, value));
+function clampChatSize(size: ChatSize): ChatSize {
+  const viewportWidth = typeof window === "undefined" ? MAX_CHAT_WIDTH_PX : window.innerWidth - 24;
+  const viewportHeight =
+    typeof window === "undefined" ? MAX_CHAT_HEIGHT_PX : window.innerHeight - 160;
+  const maxWidth = Math.min(MAX_CHAT_WIDTH_PX, Math.max(280, viewportWidth));
+  const maxHeight = Math.min(MAX_CHAT_HEIGHT_PX, Math.max(160, viewportHeight));
+  const minWidth = Math.min(MIN_CHAT_WIDTH_PX, maxWidth);
+  const minHeight = Math.min(MIN_CHAT_HEIGHT_PX, maxHeight);
+  return {
+    width: Math.min(maxWidth, Math.max(minWidth, size.width)),
+    height: Math.min(maxHeight, Math.max(minHeight, size.height)),
+  };
 }
 
-function readStoredChatHeight(): number {
+function readStoredChatSize(): ChatSize {
+  const fallback = clampChatSize({ width: DEFAULT_CHAT_WIDTH_PX, height: DEFAULT_CHAT_HEIGHT_PX });
   try {
-    const raw = localStorage.getItem(CHAT_HEIGHT_STORAGE_KEY);
-    if (!raw) return DEFAULT_OPEN_HEIGHT_PX;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return DEFAULT_OPEN_HEIGHT_PX;
-    return clampHeight(parsed);
+    const raw = localStorage.getItem(CHAT_SIZE_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("width" in parsed) ||
+      !("height" in parsed) ||
+      typeof parsed.width !== "number" ||
+      typeof parsed.height !== "number" ||
+      !Number.isFinite(parsed.width) ||
+      !Number.isFinite(parsed.height)
+    ) {
+      return fallback;
+    }
+    return clampChatSize({ width: parsed.width, height: parsed.height });
   } catch {
-    return DEFAULT_OPEN_HEIGHT_PX;
+    return fallback;
   }
 }
 
@@ -94,7 +123,7 @@ export function Chat() {
   const game = useUiStore((s) => s.game);
   const [value, setValue] = useState("");
   const [open, setOpen] = useState(false);
-  const [messagesHeight, setMessagesHeight] = useState(readStoredChatHeight);
+  const [chatSize, setChatSize] = useState(readStoredChatSize);
   const [jumpToBottom, setJumpToBottom] = useState(false);
   const [pendingBelow, setPendingBelow] = useState(0);
   const [filter, setFilter] = useState<ChatFilter>(readStoredChatFilter);
@@ -102,14 +131,19 @@ export function Chat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
-  const messagesHeightRef = useRef(messagesHeight);
-  const resizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const chatSizeRef = useRef(chatSize);
+  const resizeRef = useRef<{
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
   const commandHistoryRef = useRef<string[]>([]);
   const commandHistoryIndexRef = useRef<number | null>(null);
   const commandDraftRef = useRef("");
   const filterRef = useRef(filter);
 
-  messagesHeightRef.current = messagesHeight;
+  chatSizeRef.current = chatSize;
   filterRef.current = filter;
 
   const visibleChat = chat.filter((line) => matchesChatFilter(line, filter));
@@ -176,6 +210,12 @@ export function Chat() {
     });
   }, [party, filter]);
 
+  useEffect(() => {
+    const fitToViewport = () => setChatSize((current) => clampChatSize(current));
+    window.addEventListener("resize", fitToViewport);
+    return () => window.removeEventListener("resize", fitToViewport);
+  }, []);
+
   function handleMessagesScroll(): void {
     const element = messagesRef.current;
     if (!element) return;
@@ -210,9 +250,9 @@ export function Chat() {
     setPendingBelow(0);
   }
 
-  function persistMessagesHeight(height: number): void {
+  function persistChatSize(size: ChatSize): void {
     try {
-      localStorage.setItem(CHAT_HEIGHT_STORAGE_KEY, String(height));
+      localStorage.setItem(CHAT_SIZE_STORAGE_KEY, JSON.stringify(size));
     } catch {
       // Ignore storage failures in private browsing or locked-down environments.
     }
@@ -220,20 +260,26 @@ export function Chat() {
 
   function startResize(event: React.PointerEvent<HTMLButtonElement>): void {
     event.preventDefault();
-    resizeRef.current = { startY: event.clientY, startHeight: messagesHeight };
+    resizeRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: chatSize.width,
+      startHeight: chatSize.height,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function moveResize(event: React.PointerEvent<HTMLButtonElement>): void {
     if (!resizeRef.current) return;
-    const delta = resizeRef.current.startY - event.clientY;
-    setMessagesHeight(clampHeight(resizeRef.current.startHeight + delta));
+    const width = resizeRef.current.startWidth + event.clientX - resizeRef.current.startX;
+    const height = resizeRef.current.startHeight + resizeRef.current.startY - event.clientY;
+    setChatSize(clampChatSize({ width, height }));
   }
 
   function endResize(event: React.PointerEvent<HTMLButtonElement>): void {
     if (!resizeRef.current) return;
     resizeRef.current = null;
-    persistMessagesHeight(messagesHeightRef.current);
+    persistChatSize(chatSizeRef.current);
     event.currentTarget.releasePointerCapture(event.pointerId);
     scrollToLatest();
   }
@@ -309,15 +355,16 @@ export function Chat() {
   }
 
   const className = `panel${visibleChat.length > 0 ? " has-chat" : ""}${open ? " chat-open" : ""}`;
-  const messagesStyle = {
-    "--chat-messages-height": open ? `${messagesHeight}px` : `${COLLAPSED_HEIGHT_PX}px`,
+  const chatStyle = {
+    "--chat-width": `${chatSize.width}px`,
+    "--chat-messages-height": `${chatSize.height}px`,
   } as React.CSSProperties;
 
   const jumpLabel =
     pendingBelow > 0 ? t("chat.newMessages", { count: pendingBelow }) : t("chat.jumpToBottom");
 
   return (
-    <section id="chat" className={className}>
+    <section id="chat" className={className} style={chatStyle}>
       {open && (
         <button
           type="button"
@@ -368,7 +415,6 @@ export function Chat() {
         <div
           id="chat-messages"
           ref={messagesRef}
-          style={messagesStyle}
           onScroll={handleMessagesScroll}
           aria-live="polite"
         >
