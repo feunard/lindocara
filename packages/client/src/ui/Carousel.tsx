@@ -53,6 +53,7 @@ export function Carousel({
   onSelect,
   onBack,
   extraHints,
+  secondaryContent,
 }: {
   title: string;
   cards: CarouselCard[];
@@ -61,6 +62,8 @@ export function Carousel({
   onSelect: (id: string) => void;
   onBack: () => void;
   extraHints?: ReactNode;
+  /** Optional non-selectable content associated with the carousel, such as completed saves. */
+  secondaryContent?: ReactNode;
 }) {
   return (
     <main className="carousel-screen">
@@ -86,6 +89,8 @@ export function Carousel({
           ))
         )}
       </MenuNav>
+
+      {secondaryContent}
 
       <MenuHints>
         <Hint keyLabel="↔ / D-Pad">{t("menu.hint.navigate")}</Hint>

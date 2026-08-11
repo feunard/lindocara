@@ -59,6 +59,15 @@ const PARTIES: PartyFixture[] = [
     mine: false,
   },
   {
+    id: "p-mine-completed",
+    adventureId: "adv-mine-done",
+    adventureTitle: "Finished Adventure",
+    maxPlayers: 4,
+    status: "completed",
+    colors: ["blue"],
+    mine: true,
+  },
+  {
     id: "p-other-full",
     adventureId: "adv-full",
     adventureTitle: "Other Full",
@@ -139,10 +148,13 @@ describe("launch screens (loader-driven routes)", () => {
     alepha = undefined;
   });
 
-  it("playContinue renders only my saved parties from the loader", async () => {
+  it("playContinue keeps active saves selectable and archives my completed adventures", async () => {
     ({ alepha } = await mountAt("/play/continue"));
 
     await waitFor(() => expect(screen.getByText("Mine Adventure")).toBeTruthy());
+    expect(screen.getByRole("heading", { name: t("continue.archive.title") })).toBeTruthy();
+    expect(screen.getByText("Finished Adventure")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Finished Adventure/ })).toBeNull();
     expect(screen.queryByText("Other Open")).toBeNull();
     expect(screen.queryByText("Other Full")).toBeNull();
     expect(screen.queryByText("Other Completed")).toBeNull();

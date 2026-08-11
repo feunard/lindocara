@@ -318,6 +318,53 @@
   outline: none;
 }
 
+.continue-archive {
+  width: min(92vw, 64rem);
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(107, 83, 53, 0.75);
+  border-radius: 12px;
+  background: rgba(12, 11, 10, 0.6);
+}
+
+.continue-archive__title {
+  margin: 0 0 0.65rem;
+  color: rgba(244, 233, 210, 0.78);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+}
+
+.continue-archive__list {
+  display: flex;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.continue-archive__item {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 12rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(107, 83, 53, 0.45);
+  border-radius: 8px;
+  background: rgba(58, 48, 42, 0.45);
+}
+
+.continue-archive__name {
+  color: rgba(244, 233, 210, 0.84);
+  font-size: 0.8rem;
+}
+
+.continue-archive__status {
+  color: rgba(232, 195, 122, 0.7);
+  font-family: system-ui, sans-serif;
+  font-size: 0.72rem;
+}
+
 /* Five classes must remain visible on a laptop-sized viewport. The original flex row was sized
    for four fixed-width cards, so adding the Peasant left its label beyond the initial scroll
    position. Keep adventure/party carousels scrollable, but let the finite class roster share the

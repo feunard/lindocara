@@ -95,9 +95,11 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
   const accountId = user?.id ?? null;
   const [pending, setPending] = useState<PartyListing | null>(null);
   const { items, loading } = useLaunchList(parties, loadMyParties);
+  const activeParties = items.filter((party) => party.status === "open");
+  const completedParties = items.filter((party) => party.status === "completed");
 
   async function enter(id: string) {
-    const party = items.find((p) => p.id === id);
+    const party = activeParties.find((p) => p.id === id);
     if (!party) return;
     const heroes = await fetchHeroes(party.id);
     const mine = heroes.find((h) => h.accountId === accountId);
@@ -111,13 +113,10 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
 
   if (pending) return <HeroCreate party={pending} onBack={() => setPending(null)} />;
 
-  const cards: CarouselCard[] = items.map((p) => ({
+  const cards: CarouselCard[] = activeParties.map((p) => ({
     id: p.id,
     title: p.adventureTitle,
-    subtitle:
-      p.status === "completed"
-        ? t("parties.completed")
-        : t("parties.slots", { used: p.colors.length, max: p.maxPlayers }),
+    subtitle: t("parties.slots", { used: p.colors.length, max: p.maxPlayers }),
     accent: accentFor(p.adventureId),
   }));
 
@@ -128,6 +127,23 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
       emptyLabel={loading ? t("common.loading") : t("continue.empty")}
       onSelect={(id) => void enter(id)}
       onBack={() => void router.push("menu")}
+      secondaryContent={
+        completedParties.length > 0 ? (
+          <section className="continue-archive" aria-labelledby="continue-archive-title">
+            <h2 id="continue-archive-title" className="continue-archive__title">
+              {t("continue.archive.title")}
+            </h2>
+            <ul className="continue-archive__list">
+              {completedParties.map((party) => (
+                <li key={party.id} className="continue-archive__item">
+                  <span className="continue-archive__name">{party.adventureTitle}</span>
+                  <span className="continue-archive__status">{t("parties.completed")}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null
+      }
     />
   );
 }
