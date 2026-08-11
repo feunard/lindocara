@@ -282,11 +282,13 @@ const pools = [
   createWater(ctx, field, {
     texture: textures.get("/tex/water.png"),
     level: 4 * WORLD.levelHeight + 0.02,
-    size: 1.7,
+    size: 2.4,
     segment: 0.35,
     depthRange: WATER.depthRange,
     roughness: WATER.roughness,
-    center: [MOUNTAIN.x, MOUNTAIN.z + 2.4],
+    // ON the summit, north of the cliff line. Offsetting it SOUTH put its centre past
+    // `MOUNTAIN_FACE_Z` — a slab of water hanging in the air over the shelf, 3.6 units up.
+    center: [MOUNTAIN.x, MOUNTAIN.z - 0.5],
     // Not fully shallow: a flat single tone reads as painted mint. Mid-depth lets the swell
     // normals and the sparkle actually show, which is what says "water" at this size.
     shallow: 0.55,
@@ -299,6 +301,7 @@ for (const p of pools) scene.add(p.mesh);
 const waterfallFx = createWaterfallFx(
   ctx,
   waterfalls.map((w) => w.impact),
+  textures.get("/tex/water-fog.png"),
 );
 scene.add(waterfallFx.group);
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WATERFALLS, WORLD, ZONES } from "../src/settings.js";
+import { WATERFALLS, WEST, WORLD, ZONES } from "../src/settings.js";
 import { generateIsland } from "../src/world/island.js";
 
 const toCell = (w: number) => Math.floor(w + WORLD.size / 2);
@@ -39,49 +39,47 @@ describe("the authored fall hangs on a real sheer face", () => {
     }
   });
 
-  // The pool is a hole cut in the shelf, and it must be ENCLOSED: no pool cell may touch a water
-  // cell that is not part of the pool, or the plunge pool drains into the ocean and stops being a
-  // pool at all. At the first offset/radius it did exactly that, through a one-cell gap at its
-  // southern lip — visible on the baked map, invisible on screen at a glance.
-  //
-  // Flood-filled from the pool's centre rather than tested at a radius: the pool's cells are
-  // whatever the carve produced, and asking the terrain is the only way to be sure.
-  it("is enclosed by its own bank and never touches the sea", () => {
+  // The channel is water, exactly as wide as the fall, and it RUNS TO THE SEA — water that falls
+  // has to go somewhere. An earlier version made it a small enclosed disc with a bank all the way
+  // round, which is a pond, not a plunge pool.
+  it("lands in a channel of water as wide as itself", () => {
     for (const w of WATERFALLS) {
-      const start: [number, number] = [toCell(w.x), toCell(w.z + w.poolOffset)];
-      expect(field.levelAt(start[0], start[1])).toBeNull();
-
-      const inPool = (i: number, j: number): boolean => {
-        const x = i + 0.5 - WORLD.size / 2;
-        const z = j + 0.5 - WORLD.size / 2;
-        return Math.hypot(x - w.x, z - (w.z + w.poolOffset)) < w.poolRadius;
-      };
-
-      const seen = new Set<number>();
-      const queue: [number, number][] = [start];
-      while (queue.length) {
-        const cell = queue.pop();
-        if (!cell) break;
-        const [i, j] = cell;
-        const k = j * WORLD.size + i;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        for (const [di, dj] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ] as const) {
-          const ni = i + di;
-          const nj = j + dj;
-          const neighbour = field.levelAt(ni, nj);
-          if (neighbour !== null) continue; // bank: exactly what we want to find
-          // Water next to the pool that is NOT the pool is the sea leaking in.
-          expect(inPool(ni, nj)).toBe(true);
-          queue.push([ni, nj]);
-        }
+      for (const dx of [-w.width / 2 + 0.2, 0, w.width / 2 - 0.2]) {
+        expect(field.levelAt(toCell(w.x + dx), toCell(w.z + w.poolOffset))).toBeNull();
       }
-      expect(seen.size).toBeGreaterThan(0);
+      // And rock immediately outside it, so the channel has banks rather than being open shore.
+      expect(
+        field.levelAt(toCell(w.x - w.width / 2 - 0.5), toCell(w.z + w.poolOffset)),
+      ).not.toBeNull();
+      expect(
+        field.levelAt(toCell(w.x + w.width / 2 + 0.5), toCell(w.z + w.poolOffset)),
+      ).not.toBeNull();
+    }
+  });
+
+  // Reaching the sea is the point: the channel must be one connected body of water from the foot
+  // of the fall out to open ocean, not a puddle that stops short.
+  it("connects to the sea", () => {
+    for (const w of WATERFALLS) {
+      let z = w.z + 0.5;
+      let steps = 0;
+      while (field.levelAt(toCell(w.x), toCell(z)) === null && steps < 40) {
+        z += 1;
+        steps += 1;
+      }
+      // It walked south through water the whole way and left the island's cells entirely.
+      expect(steps).toBeGreaterThan(2);
+      expect(Math.hypot(w.x - WEST.x, z - WEST.z)).toBeGreaterThan(WEST.r * 0.6);
+    }
+  });
+
+  // The face is FIVE cells of summit for a THREE-cell fall: one cell of rock flanking the water on
+  // each side. A circle is tangent at its own edge, so an earlier shape that aligned the discs'
+  // south edges gave a face exactly as wide as the water and no rock beside it at all.
+  it("has rock flanking the fall on both sides of the face", () => {
+    for (const w of WATERFALLS) {
+      expect(field.levelAt(toCell(w.x - w.width / 2 - 0.5), toCell(w.z - 0.5))).toBe(w.topLevel);
+      expect(field.levelAt(toCell(w.x + w.width / 2 + 0.5), toCell(w.z - 0.5))).toBe(w.topLevel);
     }
   });
 

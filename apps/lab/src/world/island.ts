@@ -6,7 +6,7 @@ import {
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
-import { MOUNTAIN, NORD, WATERFALLS, WEST, WORLD } from "../settings.js";
+import { MOUNTAIN, MOUNTAIN_FACE_Z, NORD, WATERFALLS, WEST, WORLD } from "../settings.js";
 
 /** Seuil d'appartenance à l'île du nord (lac + glace fine + neige) — voir son usage dans
  *  `generateIsland` ci-dessous. Sorti au niveau module (et exporté) pour que
@@ -46,41 +46,55 @@ interface IslandShape {
   r: number;
   onde(a: number): number;
   reliefs: readonly IslandRelief[];
+  /**
+   * Optional per-cell override, applied INSTEAD of the relief discs: a level, or `null` for water.
+   * Return `undefined` to let the discs decide.
+   *
+   * The hook exists because a disc cannot express either of the two shapes this chantier needs — a
+   * cliff cut along a straight line, and a channel of water running out to the sea — and because
+   * scoping them to one island matters: a global "flatten everything south of z = 12" would also
+   * flatten the southern island at z = 24.
+   */
+  carve?(x: number, z: number): number | null | undefined;
 }
 
-/** How far south of `MOUNTAIN` every relief disc reaches. All four share this edge — that is what
- *  makes the south face sheer. */
-const MOUNTAIN_SOUTH_EDGE = 4.2;
+/**
+ * The mountain: four CONCENTRIC discs, cut along `MOUNTAIN_FACE_Z`.
+ *
+ * The tiers are a cell apart (6.0 / 5.0 / 4.0 / 3.0) so every wall is exactly one level, which is
+ * what keeps `mesh.ts` from stretching one UV cell over a multi-level face. The sheer south face is
+ * not made by shaping the discs at all — it is the straight cut in `carveWestIsland` below. An
+ * earlier version aligned every disc's south EDGE instead, and a circle is tangent at its edge, so
+ * the face narrowed to the width of the smallest disc's tangent: three cells with no rock at all
+ * flanking the water.
+ */
+const MOUNTAIN_RELIEFS: readonly IslandRelief[] = [
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 6, h: 1 },
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 5, h: 2 },
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 4, h: 3 },
+  { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 3, h: 4 },
+];
 
 /**
- * The mountain: four discs of shrinking radius whose SOUTH edges all coincide.
+ * The west island's two authored shapes, both impossible to express with a disc.
  *
- * Concentric discs — the obvious construction, and the first one built — give a wedding-cake
- * terraced cone with a one-level step on every side. That is lovely for climbing and useless for a
- * waterfall: each step is 0.9 units, far too short to read as falling water, and a sheet dropped
- * from the summit's south edge lands INSIDE the terrace below it rather than in front.
+ * South of `MOUNTAIN_FACE_Z` the mountain is CUT: the cliff becomes one straight sheer wall, five
+ * cells of summit wide, and everything beyond it is the flat shelf the water lands on.
  *
- * Staggering each disc's centre north by `edge − r` instead aligns all four south edges, so the
- * south side drops from level 4 straight to level 0 in one 3.6-unit cliff, while the north and
- * flanks keep their terraces and stay climbable one jump at a time. That single sheer face is what
- * the waterfall hangs on.
- *
- * The one real cost: `mesh.ts` stretches ONE UV cell over a wall's full drop, so the rock on this
- * face is stretched 4× vertically where the water does not cover it. Accepted deliberately —
- * the alternative is no cliff to fall down.
+ * Down the middle of that shelf runs the CHANNEL — water, exactly as wide as the fall — from the
+ * foot of the cliff out to the sea. It is cut into the terrain rather than laid on top of it, which
+ * is what makes it real water: `meshTerrain` leaves a hole, the sea shows through, `createFoam`
+ * banks it with foam because foam is derived from exactly this land/water boundary, and the hero
+ * swims in it. An earlier version made the pool a small enclosed disc; this one runs to the sea,
+ * because water that falls has to go somewhere.
  */
-const tier = (r: number, h: number): IslandRelief => ({
-  x: MOUNTAIN.x,
-  z: MOUNTAIN.z + MOUNTAIN_SOUTH_EDGE - r,
-  r,
-  h,
-});
-const MOUNTAIN_RELIEFS: readonly IslandRelief[] = [
-  tier(4.2, 1),
-  tier(3.2, 2),
-  tier(2.2, 3),
-  tier(1.6, 4),
-];
+function carveWestIsland(x: number, z: number): number | null | undefined {
+  if (z <= MOUNTAIN_FACE_Z) return undefined;
+  for (const fall of WATERFALLS) {
+    if (Math.abs(x - fall.x) < fall.width / 2) return null;
+  }
+  return 0;
+}
 
 // Les îles sont décrites en coordonnées MONDE, pas en fractions de grille : agrandir la carte n'en
 // change donc ni la taille ni la position.
@@ -138,6 +152,7 @@ const ILES: readonly IslandShape[] = [
     r: WEST.r,
     onde: westShoreWave,
     reliefs: MOUNTAIN_RELIEFS,
+    carve: carveWestIsland,
   },
 ];
 
@@ -161,30 +176,6 @@ export const WEST_REACH_MAX = ((): number => {
   return max;
 })();
 
-/**
- * The plunge pool, CUT INTO the terrain rather than laid on top of it.
- *
- * A water surface placed over the ground reads as a decal however it is shaded — it has a hard
- * edge against the grass, and nothing about it says the ground stops there. Marking the cells as
- * water instead makes the pool the same thing the sea is: `meshTerrain` leaves a hole, the bank
- * gets its own walls, `createFoam` draws foam around it because foam is derived from exactly this
- * land/water boundary, and the hero swims in it. None of that had to be written.
- *
- * It works here because the fall lands at level 0, a hair above the global water level, so the sea
- * itself shows through the hole. A pool at ELEVATION cannot be cut this way — the hole would open a
- * shaft all the way down — and is a real water surface positioned by `createWater`'s `center` and
- * `level` instead. Both are in this island; the summit spring is the second kind.
- */
-function isPlungePool(x: number, z: number): boolean {
-  for (const fall of WATERFALLS) {
-    if (fall.bottomLevel !== 0) continue;
-    const dx = x - fall.x;
-    const dz = z - (fall.z + fall.poolOffset);
-    if (Math.hypot(dx, dz) < fall.poolRadius) return true;
-  }
-  return false;
-}
-
 /** Palier par case, ou `null` si c'est de l'eau. */
 function makeHeightmap(size: number): (number | null)[] {
   const c = size / 2;
@@ -198,10 +189,14 @@ function makeHeightmap(size: number): (number | null)[] {
         const dz = z - ile.z;
         const d = Math.hypot(dx, dz) / ile.r + ile.onde(Math.atan2(dz, dx));
         if (d >= 0.94) continue;
+        const carved = ile.carve?.(x, z);
+        if (carved !== undefined) {
+          cells[j * size + i] = carved;
+          break;
+        }
         let h = 0;
         for (const r of ile.reliefs) if (Math.hypot(x - r.x, z - r.z) < r.r) h = Math.max(h, r.h);
-        // The plunge pool is water, not ground — see `isPlungePool` above.
-        cells[j * size + i] = isPlungePool(x, z) ? null : h;
+        cells[j * size + i] = h;
         break;
       }
     }

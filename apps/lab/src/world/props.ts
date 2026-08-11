@@ -277,7 +277,9 @@ export function decidePlacements(
   // and covers the shelf in front of it, so both the water and the pool stay unobstructed.
   for (const fall of WATERFALLS) {
     const half = Math.ceil(fall.width / 2) + 1;
-    const reach = Math.ceil(fall.poolOffset + fall.poolRadius) + 1;
+    // Down the whole shelf: the channel runs from the cliff to the sea, and a tree anywhere along
+    // it would stand in the water.
+    const reach = 8;
     const cell: [number, number] = [Math.floor(fall.x + size / 2), Math.floor(fall.z + size / 2)];
     for (let dj = -1; dj <= reach; dj++)
       for (let di = -half; di <= half; di++) taken.add(key(cell[0] + di, cell[1] + dj));

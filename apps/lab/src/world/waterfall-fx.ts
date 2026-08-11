@@ -1,7 +1,7 @@
-import { type Billboard, makeBillboard } from "@lindocara/hd2d/billboard.js";
+import { type Billboard, createAnimator, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
-import { MIST, RAINBOW, SPRAY } from "../settings.js";
+import { MIST, RAINBOW, SPRAY, WATER_FOG } from "../settings.js";
 
 // Procedural textures, built once in canvas and never rebuilt — the same pattern as
 // `textureVapeur` (`world/props.ts`) and `textureHaleine`/`textureTrace` (`world/hero.ts`).
@@ -135,8 +135,36 @@ export interface WaterfallFx {
 export function createWaterfallFx(
   ctx: Hd2dContext,
   impacts: readonly THREE.Vector3[],
+  fogTexture?: THREE.Texture,
 ): WaterfallFx {
   const group = new THREE.Group();
+
+  // --- the churn at the foot of the fall ---------------------------------------------------------
+  // The generated foam sheet (`/tex/water-fog.png`), played as a flip-book. The recycled puff pools
+  // below give DRIFT — individual specks rising and fading — and cannot give mass: a dense
+  // continuous cloud where the water strikes is one sprite, not thirty. Both run together.
+  const fogs = fogTexture
+    ? impacts.map((at) => {
+        const billboard = makeBillboard(ctx, {
+          texture: fogTexture,
+          cols: WATER_FOG.frames,
+          rows: 1,
+          height: WATER_FOG.height,
+          aspect: WATER_FOG.width / WATER_FOG.height,
+          foot: 0.5,
+          lit: false,
+        });
+        billboard.mesh.position.set(at.x, at.y + WATER_FOG.hauteur, at.z + WATER_FOG.avance);
+        (billboard.mesh.material as THREE.MeshBasicMaterial).opacity = WATER_FOG.opacite;
+        (billboard.mesh.material as THREE.MeshBasicMaterial).transparent = true;
+        group.add(billboard.mesh);
+        return createAnimator(
+          billboard,
+          { row: 0, frames: WATER_FOG.frames, fps: WATER_FOG.fps },
+          WATER_FOG.frames,
+        );
+      })
+    : [];
 
   const makePool = <T extends Puff>(
     count: number,
@@ -245,6 +273,8 @@ export function createWaterfallFx(
     update(dt, active, daylight) {
       group.visible = active;
       if (!active) return;
+
+      for (const fog of fogs) fog.update(dt);
 
       mistTimer -= dt;
       sprayTimer -= dt;

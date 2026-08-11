@@ -48,15 +48,25 @@ export const NORD = { x: 0, z: -26, r: 7.5 } as const;
  *  separate it from the main island's shore at the closest point, and 3.30 units of sea remain
  *  between its own shore and the edge of the grid — so `WORLD.size` stays at 72 and the terrain
  *  mesh does not grow by a quarter for one island. */
-export const WEST = { x: -25, z: 10, r: 7 } as const;
+export const WEST = { x: -25, z: 10, r: 8.5 } as const;
 
-/** The mountain's base centre, north-west of the island's own.
+/** The mountain's centre. Sits NORTH of the cliff line so all four relief discs cross it — see
+ *  `MOUNTAIN_FACE_Z`. */
+export const MOUNTAIN = { x: -26.5, z: 10.5 } as const;
+
+/**
+ * The z of the mountain's sheer south face. Everything south of it on this island is flattened to
+ * level 0 — the shelf — and the mountain is CUT along this line rather than ending where its discs
+ * happen to run out.
  *
- *  Pushed NORTH (`z` below the island's 10) to leave three cells of open ground south of the cliff
- *  — the shelf the fall lands on, and the only place a pool can sit where the camera actually sees
- *  it. Pushed WEST for the same reason the beach is wider on the east: somewhere to stand and look
- *  back at the mountain from. */
-export const MOUNTAIN = { x: WEST.x - 1.4, z: 8 } as const;
+ * The cut is the whole trick, and the previous shape got it wrong in a way worth recording. Aligning
+ * every disc's south EDGE gives a sheer face, but a circle is tangent at its own edge, so the face
+ * is a point that widens going north: the top tier was three cells across at the face and zero
+ * either side of the water. Cutting the discs with a straight line instead makes the face as wide
+ * as the discs are AT that line — five cells of summit, with one cell of rock flanking the
+ * three-cell fall.
+ */
+export const MOUNTAIN_FACE_Z = 12;
 
 /** One authored fall on the west island. Authored rather than derived: nothing in the height field
  *  knows about water above ground (`waterLevel` is one global scalar), so a fall cannot be detected
@@ -70,9 +80,8 @@ export interface WaterfallPlacement {
   topLevel: number;
   bottomLevel: number;
   facing: "east" | "west" | "north" | "south";
-  /** Radius of the pool it lands in, world units. */
-  poolRadius: number;
-  /** How far out from the cliff the pool's centre sits, world units. */
+  /** How far out from the cliff the impact ring and the fx anchor sit, world units. The POOL is
+   *  not a radius: it is the channel below, exactly as wide as the fall. */
   poolOffset: number;
 }
 
@@ -97,18 +106,14 @@ export interface WaterfallPlacement {
  */
 export const WATERFALLS: readonly WaterfallPlacement[] = [
   {
-    x: -26.5,
-    z: 12,
-    width: 2.6,
+    x: MOUNTAIN.x,
+    z: MOUNTAIN_FACE_Z,
+    // THREE cells wide, on a face five cells wide: one cell of rock flanks the water on each side.
+    width: 3,
     topLevel: 4,
     bottomLevel: 0,
     facing: "south",
-    // The pool is CUT INTO the shelf (`isPlungePool`, `world/island.ts`), so it has to fit with a
-    // bank all the way round: far enough from the cliff that the fall does not hide it, near
-    // enough that it does not reach the shore and merge into the sea. At 1.4/1.3 it did exactly
-    // that — the plunge pool drained into the ocean through a one-cell gap at its southern lip.
-    poolRadius: 0.9,
-    poolOffset: 1.0,
+    poolOffset: 1.2,
   },
 ];
 
@@ -344,6 +349,28 @@ export interface SpraySettings {
   opaciteInitiale: number;
   emission: number;
 }
+/** The animated foam cloud at the foot of the fall — the generated sheet, played as a billboard.
+ *  It does the job the recycled particle puffs cannot: a dense, continuous churn where the water
+ *  strikes, rather than a scatter of individual specks. The two run together, the sheet for the
+ *  mass and the pools for the drift above it. */
+export const WATER_FOG = {
+  /** Frames in `/tex/water-fog.png`, laid out in one row. */
+  frames: 4,
+  fps: 7,
+  /** World width and height of one frame. Wide and short: it is a cloud lying on the water, not a
+   *  puff rising off it. */
+  width: 3.4,
+  height: 0.8,
+  /** How far out from the cliff it sits, world units — just proud of the sheet's own base. */
+  avance: 0.4,
+  /** Vertical centre above the water it sits on. */
+  hauteur: 0.24,
+  // Judged on screen. At 0.85 the cloud was a solid white slab that swallowed the foot of the fall
+  // and the channel behind it — it is unlit and the pipeline's bloom sits on top of it, so an
+  // opacity that reads as "dense mist" as a number reads as paint.
+  opacite: 0.45,
+};
+
 export const SPRAY: SpraySettings = {
   count: 34,
   vie: 0.75,
@@ -778,6 +805,11 @@ export const TEXTURE_URLS: readonly TextureSpec[] = [
   // is mandatory like every other tileset — with mipmaps the lower levels blend neighbouring tiles
   // and the borders bleed (see `docs/hd2d-rendering.md`).
   { url: "/tex/tileset-roche.png", atlas: true },
+  // The churn at the foot of the fall (the waterfall chantier): four frames of foam cloud,
+  // generated by the studio and cut out on LUMINANCE rather than by `scripts/sprite.py`'s
+  // edge-propagation key — fog has no silhouette, and a flat colour key gives it a crisp edge,
+  // which is the one thing a cloud must not have.
+  { url: "/tex/water-fog.png" },
   { url: "/tex/water.png" },
   { url: "/tex/foam.png", atlas: true },
   { url: "/tex/warrior.png" },

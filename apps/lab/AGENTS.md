@@ -236,6 +236,27 @@ own zone, roar, mist, spray and rainbow. Design and plan:
 [spec](../../docs/superpowers/specs/2026-08-11-mountain-waterfall-design.md),
 [plan](../../docs/superpowers/plans/2026-08-11-mountain-waterfall.md).
 
+**The face is a CUT, not a tangent.** Four concentric relief discs a cell apart (6/5/4/3, so every
+wall is one level), sliced along `MOUNTAIN_FACE_Z` by the island's `carve` hook. An earlier shape
+aligned every disc's south EDGE instead, which also gives a sheer face — but a circle is tangent at
+its own edge, so the face narrowed to the smallest disc's tangent: three cells wide with no rock at
+all beside the water. Cutting with a straight line makes the face as wide as the discs are AT that
+line: five cells of summit, one cell of rock flanking the three-cell fall.
+
+**The pool is a CHANNEL that reaches the sea.** Water that falls has to go somewhere. It is cut into
+the terrain (`carveWestIsland`), exactly as wide as the fall, running from the foot of the cliff out
+to open water — so `meshTerrain` leaves a hole, the sea shows through, `createFoam` banks it, and
+the hero swims down it. It was an enclosed disc first, which is a pond, not a plunge pool.
+
+**`carve` is the island's own hook, and scoping it matters.** Neither the cut nor the channel can be
+expressed as a disc, and a global "flatten everything south of z = 12" would also flatten the
+southern island at z = 24.
+
+**The churn at the foot is a generated flip-book.** `/tex/water-fog.png` — four frames cropped from
+a studio sprite generation and cut out on LUMINANCE, not by `scripts/sprite.py`'s edge-propagation
+key: fog has no silhouette, and a flat colour key gives it a crisp edge, the one thing a cloud must
+not have. It gives MASS where the recycled puff pools give drift; both run together.
+
 **The mountain's south face is SHEER, and that is what the waterfall needs.** Four relief discs of
 shrinking radius whose SOUTH edges all coincide (`MOUNTAIN_RELIEFS`, `world/island.ts`): the south
 side drops from level 4 straight to level 0 in one 3.6-unit cliff, while the north and the flanks
