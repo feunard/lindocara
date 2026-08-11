@@ -32,6 +32,21 @@ export interface TerrainAtlas {
   tilePx: number;
 }
 
+// Colonne d'origine du bloc 4x4 dans le tileset, selon ce que la bordure regarde (voir
+// `TerrainAtlas.block`) : 0 pour le bloc bordé d'EAU (le liseré d'écume y est déjà peint), 5 pour
+// le bloc bordé de VIDE (bordure touffue, faite pour coiffer une paroi — les parois elles-mêmes
+// s'y raccordent toujours, quel que soit le bloc du dessus).
+export const WATER_EDGE_COL = 0;
+export const CLIFF_EDGE_COL = 5;
+
+/** Colonne de base du bloc 4x4 selon ce que porte cet atlas, ou `null` pour `"flat"` — une seule
+ *  tuile, sans autotiling. */
+export function blockOrigin(atlas: TerrainAtlas): number | null {
+  if (atlas.block === "water-edge") return WATER_EDGE_COL;
+  if (atlas.block === "cliff-edge") return CLIFF_EDGE_COL;
+  return null;
+}
+
 /**
  * Rectangle UV d'une tuile, rentré d'un demi-texel pour ne pas mordre la voisine : un atlas sans
  * mipmaps (voir `textures.ts`, atlas = pas de mipmaps) échantillonné par sous-rectangles bave sur

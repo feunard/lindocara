@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { applyCloudShadow } from "../clouds.js";
 import type { Hd2dContext } from "../context.js";
 import type { TerrainAtlas } from "./atlas.js";
-import { tileUV } from "./atlas.js";
+import { blockOrigin, CLIFF_EDGE_COL, tileUV } from "./atlas.js";
 import type { HeightField } from "./field.js";
 import {
   AO_WALL,
@@ -12,13 +12,6 @@ import {
   openEdge,
   wallDrop,
 } from "./field.js";
-
-// Colonne d'origine du bloc 4x4 dans le tileset, selon ce que la bordure regarde (voir
-// `atlas.ts`, `TerrainAtlas.block`) : 0 pour le bloc bordé d'EAU (le liseré d'écume y est déjà
-// peint), 5 pour le bloc bordé de VIDE (bordure touffue, faite pour coiffer une paroi — les
-// parois elles-mêmes s'y raccordent toujours, quel que soit le bloc du dessus).
-const WATER_EDGE_COL = 0;
-const CLIFF_EDGE_COL = 5;
 
 // Teinte par vertex, très basse fréquence : casse l'aplat de couleur des grandes étendues, là où
 // l'autotiling ne s'occupe que des bordures. Portée telle quelle depuis le PoC (`tintAt`).
@@ -109,14 +102,6 @@ function into(map: Map<string, QuadBuilder>, key: string): QuadBuilder {
     map.set(key, builder);
   }
   return builder;
-}
-
-/** Colonne de base du bloc 4x4 selon ce que porte cet atlas, ou `null` pour `"flat"` — une seule
- *  tuile, sans autotiling. */
-function blockOrigin(atlas: TerrainAtlas): number | null {
-  if (atlas.block === "water-edge") return WATER_EDGE_COL;
-  if (atlas.block === "cliff-edge") return CLIFF_EDGE_COL;
-  return null;
 }
 
 /**
