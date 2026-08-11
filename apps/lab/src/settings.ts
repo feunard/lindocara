@@ -44,6 +44,18 @@ export const SPAWN: readonly [number, number] = [-2, 4];
  *  c'est voulu — on arrive sur la banquise essoufflé, et la musique change à ce moment-là. */
 export const NORD = { x: 0, z: -26, r: 7.5 } as const;
 
+/** The west island. Reached only by swimming, like the frozen one: 5.70 units of open water
+ *  separate it from the main island's shore at the closest point, and 3.30 units of sea remain
+ *  between its own shore and the edge of the grid — so `WORLD.size` stays at 72 and the terrain
+ *  mesh does not grow by a quarter for one island. */
+export const WEST = { x: -25, z: 10, r: 7 } as const;
+
+/** The mountain's centre, shifted WEST of the island's own. Two things come out of that offset:
+ *  the eastern beach widens to 3 units — the face the hero swims toward, and the one the falls
+ *  run down, needs somewhere to stand and look up from — while the western side keeps a 0.85-unit
+ *  strip, which is exactly the narrow shelf the lowest basin spills across into the sea. */
+export const MOUNTAIN = { x: WEST.x - 1.4, z: WEST.z } as const;
+
 /** La zone polaire, autour de `NORD` — voir `world/zones.ts` (Task 4 de l'île de neige). Rayon
  *  élargi de 3 unités au-delà du littoral gelé (`NORD.r`) : l'ambiance doit s'installer PENDANT la
  *  traversée à la nage, avant que le héros ne pose le pied sur la banquise, sinon le changement de
@@ -594,6 +606,11 @@ export const TEXTURE_URLS: readonly TextureSpec[] = [
   // bordures (voir `docs/hd2d-rendering.md`).
   { url: "/tex/tileset-neige.png", atlas: true },
   { url: "/tex/tileset-glace.png", atlas: true },
+  // The mountain's rock (Task 1 of the waterfall chantier): a generated surface on the original
+  // Tiny Swords block geometry, same path as `tileset-neige`/`tileset-glace` above. `atlas: true`
+  // is mandatory like every other tileset — with mipmaps the lower levels blend neighbouring tiles
+  // and the borders bleed (see `docs/hd2d-rendering.md`).
+  { url: "/tex/tileset-roche.png", atlas: true },
   { url: "/tex/water.png" },
   { url: "/tex/foam.png", atlas: true },
   { url: "/tex/warrior.png" },

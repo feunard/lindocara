@@ -205,6 +205,17 @@ const atlases: Record<string, TerrainAtlas> = {
     wallRow: 4,
     tilePx: 64,
   },
+  // The mountain's rock (Task 1 of the waterfall chantier). `block: "cliff-edge"` like `lvl1`/
+  // `lvl2`: a rock terrace always overlooks a lower neighbour, never the sea directly, so it needs
+  // the tufted border block that joins onto a wall — not the water-edge one with foam painted in.
+  roche: {
+    texture: textures.get("/tex/tileset-roche.png"),
+    cols: 9,
+    rows: 6,
+    block: "cliff-edge",
+    wallRow: 4,
+    tilePx: 64,
+  },
 };
 
 const terrainMesh = meshTerrain(ctx, field, { atlases, levelHeight: WORLD.levelHeight });
