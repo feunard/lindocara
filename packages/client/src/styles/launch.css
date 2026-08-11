@@ -318,8 +318,59 @@
   outline: none;
 }
 
-.continue-archive {
+.carousel-card-shell {
+  display: flex;
+  flex: 0 0 auto;
+  width: 12rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  scroll-snap-align: center;
+}
+
+.carousel-card-shell > .carousel-card {
+  width: 100%;
+}
+
+.carousel-card__action {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgba(190, 96, 76, 0.72);
+  border-radius: 8px;
+  background: rgba(84, 31, 24, 0.58);
+  color: #f2b6a8;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: var(--tiny-cursor-link, pointer);
+}
+
+.carousel-card__action:hover,
+.carousel-card__action:focus-visible {
+  border-color: #ef9a86;
+  background: rgba(119, 42, 31, 0.72);
+  outline: none;
+}
+
+.carousel-card__action:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.continue-secondary {
+  display: flex;
   width: min(92vw, 64rem);
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.continue-abandon-error {
+  margin: 0;
+  color: #f2b6a8;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.continue-archive {
+  width: 100%;
   padding: 0.85rem 1rem;
   border: 1px solid rgba(107, 83, 53, 0.75);
   border-radius: 12px;

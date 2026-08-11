@@ -129,6 +129,10 @@ keeps writes safe regardless.
   cap`** via `Repository.query()`, then classify a zero-row result (already-member vs. full vs. a
   race-artifact color clash) against a follow-up read — never a `count()` read followed by a separate
   `create()` call.
+- Party abandonment follows the same D1 rule: `PartyService.abandonParty` deletes the caller's
+  heroes and membership, then uses one conditional `DELETE ... NOT EXISTS` for empty-party cleanup
+  and one subquery-backed conditional `UPDATE` for host transfer. Do not turn either write into a
+  read-then-write pair; concurrent join/leave requests would make the read stale.
 
 ## Graph
 

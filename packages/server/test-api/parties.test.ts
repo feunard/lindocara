@@ -107,6 +107,7 @@ describe("session gate", () => {
       ["GET", "/api/parties"],
       ["POST", "/api/parties"],
       ["POST", "/api/parties/whatever/join"],
+      ["DELETE", "/api/parties/whatever/membership"],
       ["DELETE", "/api/parties/whatever"],
     ];
     for (const [method, path] of routes) {
@@ -391,6 +392,68 @@ describe("deleteParty", () => {
     expect(deleted.status).toBe(204);
     expect(revoked).toEqual([hero.id]);
     expect(await probe.heroes.findById(hero.id)).toBeUndefined();
+  });
+});
+
+describe("abandonParty", () => {
+  test("releases each member slot, transfers the host, and removes the party when it becomes empty", async () => {
+    const { userId: hostId, token: hostToken } = await registerAndLogin("leavehost");
+    const adventureId = await newPlayableAdventure(hostToken);
+    const created = await authedFetch("/api/parties", hostToken, {
+      method: "POST",
+      body: JSON.stringify({ adventureId }),
+    });
+    const party = (await created.json()) as { id: string };
+
+    const { userId: guestId, token: guestToken } = await registerAndLogin("leaveguest");
+    expect(
+      (await authedFetch(`/api/parties/${party.id}/join`, guestToken, { method: "POST" })).status,
+    ).toBe(204);
+
+    const hostHeroResponse = await authedFetch(`/api/parties/${party.id}/heroes`, hostToken, {
+      method: "POST",
+      body: JSON.stringify({ name: "Host hero", class: "warrior" }),
+    });
+    const hostHero = (await hostHeroResponse.json()) as { id: string };
+    const guestHeroResponse = await authedFetch(`/api/parties/${party.id}/heroes`, guestToken, {
+      method: "POST",
+      body: JSON.stringify({ name: "Guest hero", class: "ranger" }),
+    });
+    const guestHero = (await guestHeroResponse.json()) as { id: string };
+
+    const revoked: string[] = [];
+    alepha.inject(HeroService).onHeroDeleted = (heroId: string) => {
+      revoked.push(heroId);
+    };
+
+    const hostLeft = await authedFetch(`/api/parties/${party.id}/membership`, hostToken, {
+      method: "DELETE",
+    });
+    expect(hostLeft.status).toBe(204);
+    expect(await probe.parties.findById(party.id)).toMatchObject({ hostUserId: guestId });
+    expect(await probe.partyMembers.findMany({ where: { partyId: { eq: party.id } } })).toEqual([
+      expect.objectContaining({ userId: guestId }),
+    ]);
+    expect(await probe.heroes.findById(hostHero.id)).toBeUndefined();
+    expect(await probe.heroes.findById(guestHero.id)).toBeDefined();
+    expect(revoked).toEqual([hostHero.id]);
+
+    const guestLeft = await authedFetch(`/api/parties/${party.id}/membership`, guestToken, {
+      method: "DELETE",
+    });
+    expect(guestLeft.status).toBe(204);
+    expect(await probe.parties.findById(party.id)).toBeUndefined();
+    expect(await probe.partyMembers.findMany({ where: { partyId: { eq: party.id } } })).toEqual([]);
+    expect(await probe.heroes.findById(guestHero.id)).toBeUndefined();
+    expect(revoked).toEqual([hostHero.id, guestHero.id]);
+
+    // The original host is no longer a member either; a stale repeat is indistinguishable from an
+    // unknown party and cannot delete anything else.
+    const stale = await authedFetch(`/api/parties/${party.id}/membership`, hostToken, {
+      method: "DELETE",
+    });
+    expect(stale.status).toBe(404);
+    expect(hostId).not.toBe(guestId);
   });
 });
 

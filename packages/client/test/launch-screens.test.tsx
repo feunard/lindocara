@@ -171,6 +171,24 @@ describe("launch screens (loader-driven routes)", () => {
     expect(router.state.url.pathname).toBe("/menu");
   });
 
+  it("playContinue can abandon an active save after confirmation", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    ({ alepha } = await mountAt("/play/continue"));
+    await waitFor(() => expect(screen.getByText("Mine Adventure")).toBeTruthy());
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("continue.abandon")} Mine Adventure` }),
+    );
+
+    await waitFor(() => expect(screen.queryByText("Mine Adventure")).toBeNull());
+    expect(screen.getByText(t("continue.empty"))).toBeTruthy();
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/parties/p-mine/membership",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    confirm.mockRestore();
+  });
+
   it("playNew renders the playable adventures from the loader", async () => {
     ({ alepha } = await mountAt("/play/new"));
 

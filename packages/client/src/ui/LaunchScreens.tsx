@@ -16,6 +16,7 @@ import { useRouter } from "alepha/react/router";
 import { useEffect, useState } from "react";
 import {
   type AdventureSummary,
+  abandonPartyApi,
   fetchHeroes,
   fetchParties,
   fetchPlayableAdventures,
@@ -94,9 +95,13 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
   const { user } = useAuth();
   const accountId = user?.id ?? null;
   const [pending, setPending] = useState<PartyListing | null>(null);
+  const [abandoningId, setAbandoningId] = useState<string | null>(null);
+  const [abandonError, setAbandonError] = useState(false);
+  const [abandonedIds, setAbandonedIds] = useState<Set<string>>(() => new Set());
   const { items, loading } = useLaunchList(parties, loadMyParties);
-  const activeParties = items.filter((party) => party.status === "open");
-  const completedParties = items.filter((party) => party.status === "completed");
+  const visibleItems = items.filter((party) => !abandonedIds.has(party.id));
+  const activeParties = visibleItems.filter((party) => party.status === "open");
+  const completedParties = visibleItems.filter((party) => party.status === "completed");
 
   async function enter(id: string) {
     const party = activeParties.find((p) => p.id === id);
@@ -111,6 +116,22 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
     }
   }
 
+  async function abandon(id: string) {
+    const party = activeParties.find((candidate) => candidate.id === id);
+    if (!party || abandoningId !== null) return;
+    if (!window.confirm(t("continue.abandon.confirm", { title: party.adventureTitle }))) return;
+    setAbandoningId(id);
+    setAbandonError(false);
+    try {
+      await abandonPartyApi(id);
+      setAbandonedIds((current) => new Set(current).add(id));
+    } catch {
+      setAbandonError(true);
+    } finally {
+      setAbandoningId(null);
+    }
+  }
+
   if (pending) return <HeroCreate party={pending} onBack={() => setPending(null)} />;
 
   const cards: CarouselCard[] = activeParties.map((p) => ({
@@ -118,6 +139,8 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
     title: p.adventureTitle,
     subtitle: t("parties.slots", { used: p.colors.length, max: p.maxPlayers }),
     accent: accentFor(p.adventureId),
+    actionLabel: t("continue.abandon"),
+    actionDisabled: abandoningId !== null,
   }));
 
   return (
@@ -126,22 +149,32 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
       cards={cards}
       emptyLabel={loading ? t("common.loading") : t("continue.empty")}
       onSelect={(id) => void enter(id)}
+      onAction={(id) => void abandon(id)}
       onBack={() => void router.push("menu")}
       secondaryContent={
-        completedParties.length > 0 ? (
-          <section className="continue-archive" aria-labelledby="continue-archive-title">
-            <h2 id="continue-archive-title" className="continue-archive__title">
-              {t("continue.archive.title")}
-            </h2>
-            <ul className="continue-archive__list">
-              {completedParties.map((party) => (
-                <li key={party.id} className="continue-archive__item">
-                  <span className="continue-archive__name">{party.adventureTitle}</span>
-                  <span className="continue-archive__status">{t("parties.completed")}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+        abandonError || completedParties.length > 0 ? (
+          <div className="continue-secondary">
+            {abandonError ? (
+              <p className="continue-abandon-error" role="alert">
+                {t("continue.abandon.error")}
+              </p>
+            ) : null}
+            {completedParties.length > 0 ? (
+              <section className="continue-archive" aria-labelledby="continue-archive-title">
+                <h2 id="continue-archive-title" className="continue-archive__title">
+                  {t("continue.archive.title")}
+                </h2>
+                <ul className="continue-archive__list">
+                  {completedParties.map((party) => (
+                    <li key={party.id} className="continue-archive__item">
+                      <span className="continue-archive__name">{party.adventureTitle}</span>
+                      <span className="continue-archive__status">{t("parties.completed")}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </div>
         ) : null
       }
     />
