@@ -4,43 +4,60 @@ import { generateIsland } from "../src/world/island.js";
 
 const toCell = (w: number) => Math.floor(w + WORLD.size / 2);
 
-describe("the authored waterfall drops sit on real terrace walls", () => {
+describe("the authored fall hangs on a real sheer face", () => {
   const { field } = generateIsland({ size: WORLD.size, seed: WORLD.seed });
 
-  it("spans exactly one level each — the only wall height this island has", () => {
-    for (const w of WATERFALLS) expect(w.topLevel - w.bottomLevel).toBe(1);
-  });
-
-  // The test that matters. A drop's x is a CELL BOUNDARY, not a relief-disc radius: the discs are
-  // centred at MOUNTAIN with radii 4.2/3.2/2.2/1.2, but `makeHeightmap` tests cell CENTRES against
-  // them, so the wall lands on the integer boundary between two cells. Deriving the placements from
-  // the radii instead buried every sheet 0.16 units inside the rock — invisible on screen, with
-  // every unit test still green, because nothing was asking the terrain where its walls actually
-  // are. This does.
-  it("has the terrace above behind the lip and the terrace below in front of the base", () => {
+  // The test that matters, and the one the first version of this chantier did not have. A fall's
+  // x and z are CELL BOUNDARIES, not relief-disc radii: `makeHeightmap` tests cell CENTRES against
+  // each disc, so the wall lands on the integer boundary between two cells. Deriving the placement
+  // from the radii instead buried the sheet inside the rock — invisible on screen, with every unit
+  // test still green, because nothing was asking the terrain where its walls actually are.
+  it("has the summit behind the lip and open ground in front of the base", () => {
     for (const w of WATERFALLS) {
-      expect(field.levelAt(toCell(w.x - 0.5), toCell(w.z))).toBe(w.topLevel);
-      expect(field.levelAt(toCell(w.x + 0.5), toCell(w.z))).toBe(w.bottomLevel);
+      // Behind the lip (north of a south-facing wall) the terrain stands at the top level...
+      expect(field.levelAt(toCell(w.x), toCell(w.z - 0.5))).toBe(w.topLevel);
+      // ...and in front of the base it has dropped all the way to the bottom level.
+      expect(field.levelAt(toCell(w.x), toCell(w.z + 0.5))).toBe(w.bottomLevel);
     }
   });
 
-  it("chains: each drop lands on the terrace the next one falls from", () => {
-    for (let k = 1; k < WATERFALLS.length; k++) {
-      const above = WATERFALLS[k - 1];
-      const below = WATERFALLS[k];
-      expect(above).toBeDefined();
-      expect(below).toBeDefined();
-      expect(below?.topLevel).toBe(above?.bottomLevel);
+  // A waterfall has to be TALLER than it is wide or it reads as water spilling over a kerb, which
+  // is exactly what three 0.9-unit tiers looked like. This pins the proportion, not the numbers.
+  it("falls further than it is wide", () => {
+    for (const w of WATERFALLS) {
+      const drop = (w.topLevel - w.bottomLevel) * WORLD.levelHeight;
+      expect(drop).toBeGreaterThan(w.width);
     }
   });
 
-  // The whole width of every sheet must hang on wall, not overhang into open air at its ends.
-  it("is backed by the higher terrace across its whole width", () => {
+  it("is backed by the summit across its whole width, with no overhang at either end", () => {
     for (const w of WATERFALLS) {
-      for (const dz of [-w.width / 2 + 0.1, 0, w.width / 2 - 0.1]) {
-        expect(field.levelAt(toCell(w.x - 0.5), toCell(w.z + dz))).toBe(w.topLevel);
+      for (const dx of [-w.width / 2 + 0.1, 0, w.width / 2 - 0.1]) {
+        expect(field.levelAt(toCell(w.x + dx), toCell(w.z - 0.5))).toBe(w.topLevel);
       }
     }
+  });
+
+  // The pool sits on open ground in front of the cliff — the shelf the camera can see — and the
+  // whole disc has to be on it, not half-buried in the rock or hanging over the shore.
+  it("lands in a pool that sits entirely on the ground in front of the cliff", () => {
+    for (const w of WATERFALLS) {
+      expect(w.poolOffset).toBeGreaterThanOrEqual(w.poolRadius * 0.9);
+      for (const dz of [-w.poolRadius, 0, w.poolRadius]) {
+        for (const dx of [-w.poolRadius, 0, w.poolRadius]) {
+          expect(field.levelAt(toCell(w.x + dx), toCell(w.z + w.poolOffset + dz))).toBe(
+            w.bottomLevel,
+          );
+        }
+      }
+    }
+  });
+
+  // South, because this camera cannot see any other face: the rig sits due south of its target at
+  // yaw 0, so a south-facing wall is seen 38° off normal and an east-facing one EXACTLY edge-on.
+  // The first version put three sheets on the east face and they rendered as vertical slivers.
+  it("faces south, the only face this camera sees full-on", () => {
+    for (const w of WATERFALLS) expect(w.facing).toBe("south");
   });
 });
 

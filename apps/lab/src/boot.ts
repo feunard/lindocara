@@ -250,13 +250,10 @@ const foam = createFoam(ctx, field, {
 });
 scene.add(foam.group);
 
-// The waterfall (Task 3 of the waterfall chantier): one complete drop per authored placement —
-// sheet, catch basin, plunge ring. It shares the sea's own texture on purpose: a fall and the sea
-// it ends in must read as one substance.
-//
-// `basinRadius` 0.4 with the default half-cell offset keeps every disc inside the one-cell terrace
-// it lands on. Sizing it from the sheet's width instead (the first attempt) made the widest drop's
-// basin overhang its terrace and float over the drop below.
+// The waterfall: ONE sheet straight down the mountain's sheer south face, from the summit to the
+// ground, with the pool it lands in on the open shelf in front. It shares the sea's own texture on
+// purpose — a fall and the sea it ends in must read as one substance. See `WATERFALLS`
+// (`settings.ts`) for why south, why one, and why these numbers are measured rather than derived.
 const waterfalls = WATERFALLS.map((w) =>
   createWaterfall(ctx, {
     texture: textures.get("/tex/water.png"),
@@ -266,24 +263,25 @@ const waterfalls = WATERFALLS.map((w) =>
     topY: w.topLevel * WORLD.levelHeight,
     bottomY: w.bottomLevel * WORLD.levelHeight,
     facing: w.facing,
-    basinRadius: 0.4,
+    basinRadius: w.poolRadius,
+    basinOffset: w.poolOffset,
   }),
 );
 for (const w of waterfalls) scene.add(w.group);
 
-// The spring pool on the summit: a basin with no sheet above it, which is what closes the chain at
+// The lip pool on the summit: a basin with no sheet above it, which is what closes the chain at
 // the top. A fall whose source is off-screen reads as a leak rather than a spring.
 const springPool = createWaterfallBasin(ctx, {
   texture: textures.get("/tex/water.png"),
   x: MOUNTAIN.x,
-  z: MOUNTAIN.z,
-  radius: 0.5,
+  z: MOUNTAIN.z + 2.2,
+  radius: 0.7,
   y: 4 * WORLD.levelHeight,
 });
 scene.add(springPool.mesh);
 
-// Mist, spray and the rainbow (Tasks 6-7): anchored to the drops' own impact points rather than
-// recomputing them from the placements, so the effects can never drift from where the water lands.
+// Mist, spray and the rainbow: anchored to the fall's own impact point rather than recomputing it
+// from the placement, so the effects can never drift from where the water actually lands.
 const waterfallFx = createWaterfallFx(
   ctx,
   waterfalls.map((w) => w.impact),

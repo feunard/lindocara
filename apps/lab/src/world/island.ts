@@ -48,6 +48,40 @@ interface IslandShape {
   reliefs: readonly IslandRelief[];
 }
 
+/** How far south of `MOUNTAIN` every relief disc reaches. All four share this edge — that is what
+ *  makes the south face sheer. */
+const MOUNTAIN_SOUTH_EDGE = 4.2;
+
+/**
+ * The mountain: four discs of shrinking radius whose SOUTH edges all coincide.
+ *
+ * Concentric discs — the obvious construction, and the first one built — give a wedding-cake
+ * terraced cone with a one-level step on every side. That is lovely for climbing and useless for a
+ * waterfall: each step is 0.9 units, far too short to read as falling water, and a sheet dropped
+ * from the summit's south edge lands INSIDE the terrace below it rather than in front.
+ *
+ * Staggering each disc's centre north by `edge − r` instead aligns all four south edges, so the
+ * south side drops from level 4 straight to level 0 in one 3.6-unit cliff, while the north and
+ * flanks keep their terraces and stay climbable one jump at a time. That single sheer face is what
+ * the waterfall hangs on.
+ *
+ * The one real cost: `mesh.ts` stretches ONE UV cell over a wall's full drop, so the rock on this
+ * face is stretched 4× vertically where the water does not cover it. Accepted deliberately —
+ * the alternative is no cliff to fall down.
+ */
+const tier = (r: number, h: number): IslandRelief => ({
+  x: MOUNTAIN.x,
+  z: MOUNTAIN.z + MOUNTAIN_SOUTH_EDGE - r,
+  r,
+  h,
+});
+const MOUNTAIN_RELIEFS: readonly IslandRelief[] = [
+  tier(4.2, 1),
+  tier(3.2, 2),
+  tier(2.2, 3),
+  tier(1.6, 4),
+];
+
 // Les îles sont décrites en coordonnées MONDE, pas en fractions de grille : agrandir la carte n'en
 // change donc ni la taille ni la position.
 const ILES: readonly IslandShape[] = [
@@ -95,24 +129,15 @@ const ILES: readonly IslandShape[] = [
     onde: (a) => 0.12 * Math.sin(a * 3 - 1.1) + 0.05 * Math.sin(a * 5 + 0.7),
     reliefs: [{ x: NORD.x + 4.5, z: NORD.z - 3.5, r: 2, h: 1 }],
   },
-  // The fifth, west (see `WEST`, `settings.ts`): a terraced mountain, reached only by swimming.
-  // Four CONCENTRIC relief discs of shrinking radius give levels 1 to 4, so every wall on this
-  // island is exactly one level (0.9) tall. That is not decoration — `mesh.ts` stretches ONE UV
-  // cell over a wall's full drop ("preserving a single tall-block silhouette"), which is right for
-  // a level-2 cliff and would smear the rock over 3.6 units on a mountain face. Keeping the discs
-  // concentric rather than staggered also stacks the three waterfall drops in one clean vertical
-  // line down the east face.
+  // The fifth, west (see `WEST`, `settings.ts`): a mountain with a SHEER SOUTH FACE, reached only
+  // by swimming. See `MOUNTAIN_RELIEFS` just below for why the discs are staggered rather than
+  // concentric — it is the whole reason the waterfall reads as one.
   {
     x: WEST.x,
     z: WEST.z,
     r: WEST.r,
     onde: westShoreWave,
-    reliefs: [
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 4.2, h: 1 },
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 3.2, h: 2 },
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 2.2, h: 3 },
-      { x: MOUNTAIN.x, z: MOUNTAIN.z, r: 1.2, h: 4 },
-    ],
+    reliefs: MOUNTAIN_RELIEFS,
   },
 ];
 

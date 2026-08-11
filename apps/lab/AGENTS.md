@@ -236,22 +236,33 @@ own zone, roar, mist, spray and rainbow. Design and plan:
 [spec](../../docs/superpowers/specs/2026-08-11-mountain-waterfall-design.md),
 [plan](../../docs/superpowers/plans/2026-08-11-mountain-waterfall.md).
 
-**The mountain is four concentric relief discs, and the concentricity is load-bearing.** Levels 1
-to 4 come from discs of shrinking radius centred on `MOUNTAIN`, so **every wall on this island is
-exactly one level (0.9) tall**. That is not a stylistic choice: `mesh.ts` stretches ONE UV cell
-over a wall's full drop ("preserving a single tall-block silhouette"), which is right for a level-2
-cliff and would smear the rock over 3.6 units on a mountain face. It also makes every step exactly
-one jump (apex 1.35 against 0.9), so the summit is reachable without `meshStairs`, which the lab
-still does not use. Levels ≥3 render with a new `roche` atlas — a RENDER band added to
-`renderMaterialAt`/`LEVEL_SET`, **not** a `TerrainMaterial`, so the mountain's rock costs zero rule
-changes.
+**The mountain's south face is SHEER, and that is what the waterfall needs.** Four relief discs of
+shrinking radius whose SOUTH edges all coincide (`MOUNTAIN_RELIEFS`, `world/island.ts`): the south
+side drops from level 4 straight to level 0 in one 3.6-unit cliff, while the north and the flanks
+keep their terraces and stay climbable one 0.9 jump at a time. Concentric discs — built first —
+give a pretty terraced cone and no waterfall at all: each step is 0.9 units, far too short to read
+as falling water, and a sheet dropped from the summit's south edge lands INSIDE the terrace below
+rather than in front of it. The cost of the sheer face is that `mesh.ts` stretches one UV cell over
+a wall's full drop, so the rock is stretched 4x where the water does not cover it; accepted
+deliberately, because the alternative is no cliff to fall down.
 
-**A drop sits on a CELL BOUNDARY, not on its relief disc's radius.** `makeHeightmap` tests cell
-CENTRES against each disc, so the wall lands on the integer boundary between two cells. Deriving
-`WATERFALLS`' x from the radii (`MOUNTAIN.x + 3.2`) put every sheet 0.16 units inside the rock —
-invisible on screen, with every unit test still green.
-`test/waterfall-placement.test.ts` now re-measures the real height field on every run instead of
-trusting the three numbers.
+**SOUTH, because this camera cannot see any other face.** The rig sits due south of its target at
+yaw 0, 38° above the horizon, looking north (`CAMERA`). A south-facing wall is seen 38° off normal
+— nearly full-on. An east-facing wall is seen EXACTLY edge-on. The first version of this chantier
+hung three sheets on the east face and they rendered as thin vertical slivers: correct geometry
+viewed at 90°. The same trap caught the rainbow independently. Anything flat and upright added to
+this lab belongs in the world XY plane unless you have checked otherwise.
+
+**One tall fall, not a tiered cascade.** Levels ≥3 render with the `roche` atlas — a RENDER band
+added to `renderMaterialAt`/`LEVEL_SET`, **not** a `TerrainMaterial`, so the mountain's rock costs
+zero rule changes.
+
+**The streaks are long vertical lines, generated in the shader.** They are the whole legibility of
+a falling sheet, and two attempts got them wrong before one worked: sampling `water.png`'s grain
+gives a flat pale rectangle (it is a gentle tiling surface, and its contrast vanishes stretched
+over three world units), and varying brightness quickly along BOTH axes makes the two beat against
+each other into a chequerboard of dots. What works is brightness chosen per COLUMN and held down
+the fall, breathed only by a sine whose wavelength is longer than the fall is tall.
 
 **`@lindocara/hd2d/terrain/waterfall.ts` is authored, never derived.** `foam.ts` can find a
 shoreline by asking the height field where land meets water, but nothing in the field knows about

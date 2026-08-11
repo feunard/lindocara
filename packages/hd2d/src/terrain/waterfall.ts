@@ -115,12 +115,12 @@ export function createWaterfallSheet(
     uniforms: {
       uMap: { value: map },
       uScroll: { value: 0 },
-      // Two tones, like the sea's shallow/deep pair, and pitched at the same DEPTH as the sea's:
-      // this material is unlit and the pipeline puts bloom over it, so a colour picked to look
-      // right as a swatch blows out to a flat white slab on screen. The first pass used #4fb8cd
-      // and read as a lit panel bolted to the cliff rather than as water.
-      uCore: { value: new THREE.Color("#1f8fa5") },
-      uFoam: { value: new THREE.Color("#cfeef7") },
+      // Three tones, and all of them pitched DARK: this material is unlit and the pipeline puts
+      // bloom over it, so a colour picked to look right as a swatch blows out to a flat white slab
+      // on screen. `uDeep` is the fast core, `uCore` the flanks, `uFoam` the threads and the churn.
+      uDeep: { value: new THREE.Color("#15556e") },
+      uCore: { value: new THREE.Color("#2e86a8") },
+      uFoam: { value: new THREE.Color("#d6f2fb") },
       // How many times the texture repeats down the fall. Derived from the drop so a tall sheet
       // does not stretch one tile over its whole height — the very smear `mesh.ts` accepts for a
       // cliff face and which would read as a frozen curtain here.
@@ -137,22 +137,62 @@ export function createWaterfallSheet(
       uniform sampler2D uMap;
       uniform float uScroll;
       uniform vec3 uCore;
+      uniform vec3 uDeep;
       uniform vec3 uFoam;
       uniform float uRepeat;
       varying vec2 vUv;
+
+      float hash(float n) { return fract(sin(n) * 43758.5453123); }
+
       void main() {
-        // Minus, so the texture travels DOWN as uScroll grows: falling water, never rising.
-        vec2 uv = vec2(vUv.x, vUv.y * uRepeat - uScroll);
-        float grain = texture2D(uMap, uv).r;
-        // Foam in two THIN bands — the lateral edges where the sheet frays, and the base where it
-        // strikes. Wide bands (the first pass used 0.28 and 0.3) leave almost no core visible, and
-        // the whole sheet reads as one pale rectangle.
-        float edges = smoothstep(0.38, 0.5, abs(vUv.x - 0.5));
-        float base = smoothstep(0.16, 0.0, vUv.y);
-        // Vertical streaking: the scrolled grain is what says "this is moving", so let it bite
-        // harder in the core than the foam does.
-        float streak = 0.55 + 0.55 * grain;
-        vec3 col = mix(uCore * streak, uFoam, clamp(edges + base, 0.0, 1.0));
+        // --- vertical streaking, procedural ------------------------------------------------------
+        // The falling sheet's whole legibility is the STREAKS. Relying on the sea texture's grain
+        // for them (the first version did) produces a flat pale rectangle: water.png is a gentle
+        // tiling surface meant to be seen edge-on under a sun, and its contrast vanishes stretched
+        // over three world units of vertical fall. So the columns are generated here.
+        // (No backticks in this comment on purpose: it lives inside a JS template literal, and one
+        // stray backtick terminates the shader string with a parse error twenty lines away.)
+        //
+        // Streaks are LONG VERTICAL LINES, and that is the whole trick. Brightness is chosen per
+        // COLUMN and held down the fall, modulated only slowly as it scrolls. Varying it quickly
+        // along Y instead — the obvious way to write "moving water" — makes the two axes beat
+        // against each other and the sheet renders as a chequerboard of dots, which is exactly
+        // what the first attempt at this looked like.
+        float wide = floor(vUv.x * 11.0);
+        float fine = floor(vUv.x * 31.0);
+        float hWide = hash(wide);
+        float hFine = hash(fine + 17.0);
+        float slowV = vUv.y * uRepeat - uScroll;
+        float fastV = vUv.y * uRepeat * 1.6 - uScroll * 1.5;
+
+        // Per-column base brightness, held; the sine only breathes it, at a wavelength longer than
+        // the fall is tall, so a column never breaks into segments.
+        float bodyStreak = (0.3 + 0.7 * hWide) * (0.8 + 0.2 * sin(slowV * 0.55 + hWide * 6.28));
+
+        // Bright threads: only some columns have one, and it runs the column's whole height.
+        float threadStreak = step(0.7, hFine) * (0.55 + 0.45 * sin(fastV * 0.7 + hFine * 6.28));
+
+        // A little of the sea's own grain on top, so the fall shares its substance.
+        float grain = texture2D(uMap, vec2(vUv.x, slowV * 0.35)).r;
+
+        // Dark in the fast core, lighter toward the flanks: the shape of a real fall in section.
+        float flank = smoothstep(0.0, 0.55, abs(vUv.x - 0.5) * 2.0);
+        vec3 col = mix(uDeep, uCore, flank * 0.6 + bodyStreak * 0.5 + grain * 0.12);
+
+        // The bright threads.
+        col = mix(col, uFoam, clamp(threadStreak, 0.0, 1.0) * 0.45);
+
+        // The lip: water going over an edge catches the light in one bright line.
+        col = mix(col, uFoam, smoothstep(0.93, 1.0, vUv.y) * 0.7);
+
+        // The churn where it lands — wider and stronger than the lip, and the reason the base does
+        // not read as a sawn-off rectangle.
+        float churn = smoothstep(0.22, 0.0, vUv.y);
+        col = mix(col, uFoam, churn * (0.55 + 0.45 * threadStreak));
+
+        // The fraying lateral edges.
+        col = mix(col, uFoam, smoothstep(0.42, 0.5, abs(vUv.x - 0.5)) * 0.5);
+
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -337,12 +377,12 @@ export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Water
   // The plunge ring: a flat annulus that grows and fades on a loop, the way `makeRipple` animates
   // the hero's swim wake. Built here rather than reusing `makeRipple` because that one is sized
   // and paced for a single stroke, and a plunge pool ripples continuously.
-  const ringGeometry = new THREE.RingGeometry(0.35, 0.5, 24);
+  const ringGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
   ringGeometry.rotateX(-Math.PI / 2);
   const ringMaterial = new THREE.MeshBasicMaterial({
     color: 0xdff4fb,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.32,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
@@ -361,8 +401,8 @@ export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Water
       sheet.update(dt);
       basin.update(dt);
       phase = (phase + dt * 0.9) % 1;
-      ring.scale.setScalar(0.4 + phase * 1.6);
-      ringMaterial.opacity = 0.5 * (1 - phase);
+      ring.scale.setScalar(0.5 + phase * 1.5);
+      ringMaterial.opacity = 0.32 * (1 - phase);
     },
     dispose() {
       sheet.dispose();

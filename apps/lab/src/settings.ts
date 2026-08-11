@@ -50,49 +50,64 @@ export const NORD = { x: 0, z: -26, r: 7.5 } as const;
  *  mesh does not grow by a quarter for one island. */
 export const WEST = { x: -25, z: 10, r: 7 } as const;
 
-/** The mountain's centre, shifted WEST of the island's own. Two things come out of that offset:
- *  the eastern beach widens to 3 units — the face the hero swims toward, and the one the falls
- *  run down, needs somewhere to stand and look up from — while the western side keeps a 0.85-unit
- *  strip, which is exactly the narrow shelf the lowest basin spills across into the sea. */
-export const MOUNTAIN = { x: WEST.x - 1.4, z: WEST.z } as const;
-
-/** One authored drop of the west island's cascade. Authored rather than derived: nothing in the
- *  height field knows about water above ground (`waterLevel` is one global scalar), so a fall
- *  cannot be detected the way `foamPlacements` detects a shoreline.
+/** The mountain's base centre, north-west of the island's own.
  *
- *  Every drop spans exactly ONE level, because every wall on this island does — see the concentric
- *  relief discs in `ILES[4]` (`world/island.ts`). A sheet spanning two levels would have no wall
- *  to hang on. */
+ *  Pushed NORTH (`z` below the island's 10) to leave three cells of open ground south of the cliff
+ *  — the shelf the fall lands on, and the only place a pool can sit where the camera actually sees
+ *  it. Pushed WEST for the same reason the beach is wider on the east: somewhere to stand and look
+ *  back at the mountain from. */
+export const MOUNTAIN = { x: WEST.x - 1.4, z: 8 } as const;
+
+/** One authored fall on the west island. Authored rather than derived: nothing in the height field
+ *  knows about water above ground (`waterLevel` is one global scalar), so a fall cannot be detected
+ *  the way `foamPlacements` detects a shoreline. */
 export interface WaterfallPlacement {
   x: number;
   z: number;
   /** Width of the sheet at its lip, world units. */
   width: number;
-  /** The terrace it falls FROM and the one it lands ON. `topLevel === bottomLevel + 1`. */
+  /** The level it falls FROM and the one it lands ON. */
   topLevel: number;
   bottomLevel: number;
-  facing: "east";
+  facing: "east" | "west" | "north" | "south";
+  /** Radius of the pool it lands in, world units. */
+  poolRadius: number;
+  /** How far out from the cliff the pool's centre sits, world units. */
+  poolOffset: number;
 }
 
-/** The three drops, stacked down the mountain's EAST face — the one the hero swims toward, and
- *  the one whose beach is 3 units wide instead of 0.85 (see `MOUNTAIN`).
+/**
+ * ONE fall, straight down the mountain's SHEER SOUTH FACE, from the summit to the ground.
  *
- *  **A drop sits on a CELL BOUNDARY, not on its relief disc's radius.** The discs are centred at
- *  `MOUNTAIN` (x = −26.4) with radii 4.2/3.2/2.2/1.2, but terrain is cells: `makeHeightmap` tests
- *  each cell CENTRE against the disc, so the wall that results falls on the integer boundary
- *  between two cells, not at 26.4 − 3.2. Deriving these from the radii put every sheet 0.16 units
- *  inside the rock, invisible, with nothing failing. Measured against the real height field along
- *  z = 10, the steps down are at x = −25 (4→3), −24 (3→2) and −23 (2→1);
- *  `test/waterfall-placement.test.ts` re-measures that on every run rather than trusting these
- *  three numbers to stay true.
+ * **South, because this camera cannot see any other face.** The rig sits due south of its target
+ * at yaw 0, 38° above the horizon, looking north (`CAMERA`): a south-facing wall is seen 38° off
+ * normal — nearly full-on — while an east-facing one is seen EXACTLY edge-on. The first version of
+ * this put three sheets on the east face, where they rendered as thin vertical slivers. They were
+ * correct geometry seen at 90°.
  *
- *  The chain is closed at both ends without a fourth sheet: a spring pool on the summit feeds the
- *  first drop (a basin with no sheet above it), and the lowest basin sits on the level-1 terrace,
- *  one cell from the shore, so it reads as draining into the sea across the existing beach. */
+ * **One tall drop, not three short ones.** A terrace step here is 0.9 units; a sheet that short is
+ * wider than it is tall and reads as water spilling over a kerb. This one falls the mountain's
+ * whole 3.6 units against a 2.6-unit width — the proportions of an actual waterfall.
+ *
+ * **The numbers are cell boundaries, measured, not derived.** `makeHeightmap` tests cell CENTRES
+ * against each relief disc, so the sheer face lands on the integer boundary between two cells, not
+ * at `MOUNTAIN.z + 4.2`. Measured against the real height field, the level-4 band runs x −28..−25
+ * and the face is at z = 12. `test/waterfall-placement.test.ts` re-measures both on every run
+ * rather than trusting these numbers to stay true.
+ */
 export const WATERFALLS: readonly WaterfallPlacement[] = [
-  { x: -25, z: MOUNTAIN.z, width: 0.9, topLevel: 4, bottomLevel: 3, facing: "east" },
-  { x: -24, z: MOUNTAIN.z, width: 1.8, topLevel: 3, bottomLevel: 2, facing: "east" },
-  { x: -23, z: MOUNTAIN.z, width: 1.4, topLevel: 2, bottomLevel: 1, facing: "east" },
+  {
+    x: -26.5,
+    z: 12,
+    width: 2.6,
+    topLevel: 4,
+    bottomLevel: 0,
+    facing: "south",
+    poolRadius: 1.3,
+    // Far enough out that the whole pool clears the cliff and sits on the open shelf in front of
+    // it, where the camera sees it — not tucked against the rock where the fall would hide it.
+    poolOffset: 1.4,
+  },
 ];
 
 /** La zone polaire, autour de `NORD` — voir `world/zones.ts` (Task 4 de l'île de neige). Rayon
