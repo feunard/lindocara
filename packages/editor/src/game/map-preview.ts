@@ -67,6 +67,7 @@ let previewGeneration = 0;
 
 export interface MapPreviewOptions {
   heroSettings?: MapHeroSettings;
+  dayNightCycle?: boolean;
   playerChrome?: boolean;
   /** Retained for callers; HD-2D ambience is part of the scene rather than a preview-only switch. */
   ambience?: AmbienceConfig;
@@ -113,6 +114,7 @@ export async function startMapPreview(
     return { stop() {} };
   }
 
+  renderer.setDayCycleOverride(options.dayNightCycle === false ? "day" : null);
   renderer.configureMapTerrain(`preview:${generation}`, [], generation, heightfield);
   renderer.setSelfId(SELF_ID);
 

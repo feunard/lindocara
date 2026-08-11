@@ -17,6 +17,7 @@ const state = vi.hoisted(() => {
     preloadWorldEventAssets: vi.fn(),
     render: vi.fn((sample: PreviewSample) => state.renders.push(sample)),
     setCameraZoom: vi.fn(),
+    setDayCycleOverride: vi.fn(),
     setSelfId: vi.fn(),
   };
   return {
@@ -139,6 +140,7 @@ describe("HD-2D map preview", () => {
 
   it("owns and tears down its HD-2D renderer and input tracker", async () => {
     const preview = await startMapPreview(OPEN_ROOM);
+    expect(state.renderer.setDayCycleOverride).toHaveBeenCalledWith(null);
     expect(state.renderer.configureMapTerrain).toHaveBeenCalledWith(
       expect.stringMatching(/^preview:/),
       [],
@@ -148,6 +150,12 @@ describe("HD-2D map preview", () => {
     preview.stop();
     expect(state.renderer.destroy).toHaveBeenCalledOnce();
     expect(state.stopInput).toHaveBeenCalledOnce();
+  });
+
+  it("fixes a cycle-disabled map preview in daylight", async () => {
+    const preview = await startMapPreview(OPEN_ROOM, [], { dayNightCycle: false });
+    expect(state.renderer.setDayCycleOverride).toHaveBeenCalledWith("day");
+    preview.stop();
   });
 
   it("renders authored guards as real HD-2D actors in the playable preview", async () => {

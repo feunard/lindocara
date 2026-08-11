@@ -1857,6 +1857,9 @@ export class WorldRoom {
       events: [...state.activeEvents],
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
       ...(definition.heroSettings === undefined ? {} : { heroSettings: definition.heroSettings }),
+      ...(definition.dayNightCycle === undefined
+        ? {}
+        : { dayNightCycle: definition.dayNightCycle }),
       size: definition.terrain.size,
       questNpc: definition.quests[0]?.giver ?? { id: "none", x: 0, y: 0 },
       questNpcs: definition.quests.map((quest) => quest.giver),

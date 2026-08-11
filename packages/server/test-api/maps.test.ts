@@ -771,6 +771,23 @@ describe("list, get, update, delete", () => {
     });
   });
 
+  test("persists the per-map day/night cycle policy", async () => {
+    const { userId, token } = await registerAndLogin("mapclock");
+    const id = await newMapId(await newAdventure(userId), token);
+
+    const initial = await authedFetch(`/api/maps/${id}`, token);
+    expect(initial.status).toBe(200);
+    expect(await initial.json()).toMatchObject({ dayNightCycle: true });
+
+    const updated = await putMap(id, token, mapBody({ dayNightCycle: false }));
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ dayNightCycle: false });
+
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    expect(await fetched.json()).toMatchObject({ dayNightCycle: false });
+  });
+
   test("upgrades a persisted four-class hero profile without dropping its overrides", async () => {
     const { userId, token } = await registerAndLogin("maphlegacy");
     const id = await newMapId(await newAdventure(userId), token);

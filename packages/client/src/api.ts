@@ -158,6 +158,8 @@ export interface MapPayload {
   audio?: MapAudioConfig;
   /** Per-map authoritative class stats and disabled ability slots. */
   heroSettings?: MapHeroSettings;
+  /** Whether this map follows its independent 24-minute day/night clock. */
+  dayNightCycle: boolean;
   /** Authored events, ordered by ordinal; pages ordered by position. */
   events: readonly MapEvent[];
   /** Encoded HD-2D terrain. A malformed legacy row may still return `null` until repaired. */

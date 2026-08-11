@@ -109,6 +109,8 @@ export interface ZoneDefinition {
   readonly audio?: AdventureAudioConfig;
   /** Authored hero balance for this map. Catalogue zones inherit code-owned defaults. */
   readonly heroSettings?: MapHeroSettings;
+  /** Authored maps may freeze their ambience in daylight instead of advancing the clock. */
+  readonly dayNightCycle?: boolean;
   /**
    * JSON-encoded `MapData` heightfield (`hd2d/map-data.ts`), or `null` when this map has none.
    * Undefined for every catalogue zone (they carry no map row at all).

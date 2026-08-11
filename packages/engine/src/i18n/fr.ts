@@ -1333,6 +1333,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.audio.none": "Aucun son",
   "editor.audio.noProfile": "Aucun profil dynamique",
   "editor.audio.mapButton": "Sons de la carte",
+  "editor.dayNightCycle.enable": "Activer le cycle jour/nuit",
+  "editor.dayNightCycle.disable": "Désactiver le cycle jour/nuit",
   "editor.heroSettings.button": "Stats des héros",
   "editor.heroSettings.title": "Réglages des héros — {name}",
   "editor.heroSettings.hint":

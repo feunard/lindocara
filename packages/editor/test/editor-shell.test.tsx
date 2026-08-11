@@ -68,6 +68,8 @@ const stageMock = vi.hoisted(() => ({
   current: vi.fn(),
   setName: vi.fn(),
   setAudio: vi.fn(),
+  setHeroSettings: vi.fn(),
+  setDayNightCycle: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),
   markSaved: vi.fn(),
@@ -101,6 +103,8 @@ function stageHandle() {
     current: stageMock.current,
     setName: stageMock.setName,
     setAudio: stageMock.setAudio,
+    setHeroSettings: stageMock.setHeroSettings,
+    setDayNightCycle: stageMock.setDayNightCycle,
     undo: stageMock.undo,
     redo: stageMock.redo,
     markSaved: stageMock.markSaved,
@@ -194,6 +198,7 @@ function payloadFor(summary: MapSummary): MapPayload {
     name: summary.name,
     revision: summary.revision,
     heightfield: null,
+    dayNightCycle: true,
     tilesetId: TINY_SWORDS_TILESET_ID,
     cols: 40,
     rows: 30,
@@ -232,6 +237,7 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
         name: "New map",
         revision: 1,
         heightfield: null,
+        dayNightCycle: true,
         tilesetId: TINY_SWORDS_TILESET_ID,
         cols: 40,
         rows: 30,
@@ -335,6 +341,7 @@ describe("AdventureEditorScreen shell", () => {
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
     stageMock.current.mockReturnValue({
       name: "Verdant Reach",
+      dayNightCycle: true,
       layers: [],
       elements: [],
       spawn: { col: 20, row: 15 },
@@ -421,6 +428,17 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(toggle());
     expect(stageMock.setCollisions).toHaveBeenLastCalledWith(false);
     expect(toggle()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("toggles the active map's day/night cycle from the toolbar", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+
+    const toggle = screen.getByRole("button", { name: t("editor.dayNightCycle.disable") });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(toggle);
+
+    expect(stageMock.setDayNightCycle).toHaveBeenCalledWith(false);
   });
 
   it("keeps selection exclusive: a terrain pick clears the spawn tool and vice versa (UX wave #11)", async () => {
@@ -967,6 +985,7 @@ describe("AdventureEditorScreen shell", () => {
     const edited = {
       name: "Verdant Reach",
       audio: EMPTY_MAP_AUDIO,
+      dayNightCycle: true,
       layers: OPEN_TILE_LAYERS,
       elements: [
         {
@@ -1011,6 +1030,7 @@ describe("AdventureEditorScreen shell", () => {
         ambience: "swamp-ambience" as const,
         combatMusic: "boss-1" as const,
       },
+      dayNightCycle: true,
       layers: OPEN_TILE_LAYERS,
       elements: [],
       spawn: { col: 20, row: 15 },
@@ -1049,6 +1069,7 @@ describe("AdventureEditorScreen shell", () => {
     const savedSnapshot = {
       name: "Before request",
       audio: EMPTY_MAP_AUDIO,
+      dayNightCycle: true,
       layers: OPEN_TILE_LAYERS,
       elements: [],
       spawn: { col: 20, row: 15 },
@@ -1105,6 +1126,7 @@ describe("AdventureEditorScreen shell", () => {
     const edited = {
       name: "Verdant Reach",
       audio: EMPTY_MAP_AUDIO,
+      dayNightCycle: true,
       layers: OPEN_TILE_LAYERS,
       elements: [
         {
@@ -1129,7 +1151,10 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.quick.action") }));
     await waitFor(() =>
       // Events ride alongside the terrain so the preview can draw the authored NPCs and monsters.
-      expect(previewMock.startMapPreview).toHaveBeenCalledWith(toMapData(edited), edited.events),
+      expect(previewMock.startMapPreview).toHaveBeenCalledWith(toMapData(edited), edited.events, {
+        heroSettings: undefined,
+        dayNightCycle: true,
+      }),
     );
     expect(screen.queryByRole("button", { name: t("editor.shell.test") })).not.toBeInTheDocument();
 

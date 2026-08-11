@@ -1317,6 +1317,8 @@ export const en = {
   "editor.audio.none": "No sound",
   "editor.audio.noProfile": "No dynamic profile",
   "editor.audio.mapButton": "Map audio",
+  "editor.dayNightCycle.enable": "Enable day/night cycle",
+  "editor.dayNightCycle.disable": "Disable day/night cycle",
   "editor.heroSettings.button": "Hero stats",
   "editor.heroSettings.title": "Hero settings — {name}",
   "editor.heroSettings.hint":

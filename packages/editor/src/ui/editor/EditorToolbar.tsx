@@ -15,6 +15,7 @@ import {
   Pencil,
   Play,
   Square,
+  SunMoon,
   ZoomIn,
 } from "lucide-react";
 import type { ComponentProps, ComponentType } from "react";
@@ -57,6 +58,8 @@ interface EditorToolbarProps {
   /** D18: the collision-visualisation overlay toggle — shades solid tiles and outlines element
    *  colliders. Off by default, threaded to the stage exactly like `showGrid`/`showDim`. */
   showCollisions: boolean;
+  dayNightCycle: boolean;
+  dayNightCycleAvailable: boolean;
   zoom: number;
   onNewMap(): void;
   onSelectTool(tool: EditorPaintTool): void;
@@ -64,6 +67,7 @@ interface EditorToolbarProps {
   onToggleGrid(): void;
   onToggleDim(): void;
   onToggleCollisions(): void;
+  onToggleDayNightCycle(): void;
   onCycleZoom(): void;
   onTest(): void;
   onOpenHelp(): void;
@@ -106,6 +110,8 @@ export function EditorToolbar({
   showGrid,
   showDim,
   showCollisions,
+  dayNightCycle,
+  dayNightCycleAvailable,
   zoom,
   onNewMap,
   onSelectTool,
@@ -113,6 +119,7 @@ export function EditorToolbar({
   onToggleGrid,
   onToggleDim,
   onToggleCollisions,
+  onToggleDayNightCycle,
   onCycleZoom,
   onTest,
   onOpenHelp,
@@ -145,6 +152,16 @@ export function EditorToolbar({
 
       <Separator />
 
+      <ToolbarIconButton
+        label={t(dayNightCycle ? "editor.dayNightCycle.disable" : "editor.dayNightCycle.enable")}
+        variant={dayNightCycle ? "secondary" : "ghost"}
+        size="icon"
+        aria-pressed={dayNightCycle}
+        disabled={!dayNightCycleAvailable}
+        onClick={onToggleDayNightCycle}
+      >
+        <SunMoon />
+      </ToolbarIconButton>
       <ToolbarIconButton
         label={t("editor.shell.grid.aria")}
         variant={showGrid ? "secondary" : "ghost"}

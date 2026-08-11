@@ -92,6 +92,8 @@ export interface EditorMap {
   audio: MapAudioConfig;
   /** Authoritative class balance and ability availability for this map. */
   heroSettings?: MapHeroSettings;
+  /** Whether the map advances through its independent day/night clock. */
+  dayNightCycle: boolean;
   /** Exactly `MAP_LAYERS`, all the same size. Index 0 is the ground, index 1 the cliff faces. */
   layers: TileLayer[];
   elements: MapElement[];
@@ -798,6 +800,7 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
     name,
     audio: EMPTY_MAP_AUDIO,
     heroSettings: defaultMapHeroSettings(),
+    dayNightCycle: true,
     layers,
     elements: [],
     spawn: { col: Math.floor(cols / 2), row: Math.floor(rows / 2) },
@@ -872,6 +875,7 @@ export function toSaveInput(map: EditorMap): {
   events: readonly MapEvent[];
   audio: MapAudioConfig;
   heroSettings: MapHeroSettings;
+  dayNightCycle: boolean;
   heightfield: string;
 } {
   const data = toMapData(map);
@@ -879,6 +883,7 @@ export function toSaveInput(map: EditorMap): {
     name: map.name,
     audio: map.audio,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
+    dayNightCycle: map.dayNightCycle,
     tilesetId: data.tilesetId,
     cols: data.cols,
     rows: data.rows,

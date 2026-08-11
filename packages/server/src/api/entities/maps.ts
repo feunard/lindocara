@@ -45,6 +45,8 @@ export const maps = $entity({
     audio: db.default(z.string(), ""),
     /** JSON MapHeroSettings. Empty string makes pre-feature maps inherit current defaults. */
     heroSettings: db.default(z.string(), ""),
+    /** Whether this map follows its independent 24-minute day/night clock. */
+    dayNightCycle: db.default(z.boolean(), true),
     /**
      * JSON-encoded `MapData` (`engine/hd2d/map-data.ts`) — the terrain as a heightfield, in tile
      * units. Empty string is the "no heightfield" sentinel, same convention as `audio` above.

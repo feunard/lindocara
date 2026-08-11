@@ -81,6 +81,8 @@ export interface MapInput {
   events?: readonly MapEvent[] | undefined;
   audio?: MapAudioConfig | undefined;
   heroSettings?: MapHeroSettings | undefined;
+  /** Missing keeps legacy writers on the historical cycle-enabled behaviour. */
+  dayNightCycle?: boolean | undefined;
   /** Encoded HD-2D terrain derived or authored by the editor. Omission preserves stored terrain. */
   heightfield?: string | undefined;
 }
@@ -114,6 +116,7 @@ export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MI
     events: [],
     audio: EMPTY_MAP_AUDIO,
     heroSettings: defaultMapHeroSettings(),
+    dayNightCycle: true,
   };
 }
 
@@ -123,6 +126,7 @@ export function validateMapInput(input: MapInput): MapData & {
   events: MapEvent[];
   audio: MapAudioConfig;
   heroSettings: MapHeroSettings;
+  dayNightCycle: boolean;
 } {
   const name = input.name.trim();
   if (name.length === 0 || name.length > MAP_NAME_MAX) {
@@ -199,7 +203,11 @@ export function validateMapInput(input: MapInput): MapData & {
   if (!audio) throw new Error("audio: malformed map audio configuration");
   const heroSettings = parseMapHeroSettings(input.heroSettings);
   if (!heroSettings) throw new Error("hero_settings: malformed hero configuration");
-  return { ...data, markers, name, events, audio, heroSettings };
+  const dayNightCycle = input.dayNightCycle ?? true;
+  if (typeof dayNightCycle !== "boolean") {
+    throw new Error("day_night_cycle: must be a boolean");
+  }
+  return { ...data, markers, name, events, audio, heroSettings, dayNightCycle };
 }
 
 /**
@@ -229,6 +237,8 @@ export function parseMapBody(body: unknown): MapInput | null {
     if (parsed === null) return null;
     heroSettings = parsed;
   }
+  const rawDayNightCycle = (body as { dayNightCycle?: unknown } | null)?.dayNightCycle;
+  if (rawDayNightCycle !== undefined && typeof rawDayNightCycle !== "boolean") return null;
   return {
     name,
     tilesetId: data.tilesetId,
@@ -241,6 +251,7 @@ export function parseMapBody(body: unknown): MapInput | null {
     events,
     ...(audio ? { audio } : {}),
     ...(heroSettings ? { heroSettings } : {}),
+    ...(rawDayNightCycle === undefined ? {} : { dayNightCycle: rawDayNightCycle }),
   };
 }
 

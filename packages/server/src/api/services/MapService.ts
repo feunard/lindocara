@@ -142,6 +142,7 @@ export interface MapPayload {
   events: MapEvent[];
   audio: ReturnType<typeof decodeMapAudio>;
   heroSettings: MapHeroSettings;
+  dayNightCycle: boolean;
   /** JSON-encoded `MapData` heightfield (`engine/hd2d/map-data.ts`), or `null` if this map has
    *  none yet — the empty-string column sentinel normalised away at this boundary (see
    *  `saveHeightfield`'s docblock). */
@@ -234,6 +235,7 @@ export class MapService {
       markers: markersJson(data.markers),
       audio: JSON.stringify(data.audio),
       heroSettings: JSON.stringify(data.heroSettings),
+      dayNightCycle: data.dayNightCycle,
       heightfield,
       isFirst: firstCountForAccount === 0,
     });
@@ -328,6 +330,7 @@ export class MapService {
           ...(input.heroSettings !== undefined
             ? { heroSettings: JSON.stringify(data.heroSettings) }
             : {}),
+          ...(input.dayNightCycle !== undefined ? { dayNightCycle: data.dayNightCycle } : {}),
           heightfield,
           revision: sql`revision + 1`,
         },
@@ -383,6 +386,8 @@ export class MapService {
         input.heroSettings === undefined
           ? decodeMapHeroSettings(existing.heroSettings)
           : data.heroSettings,
+      dayNightCycle:
+        input.dayNightCycle === undefined ? existing.dayNightCycle : data.dayNightCycle,
       heightfield,
     };
   }
@@ -696,6 +701,7 @@ export class MapService {
       events,
       audio: decodeMapAudio(row.audio),
       heroSettings: decodeMapHeroSettings(row.heroSettings),
+      dayNightCycle: row.dayNightCycle,
       heightfield: heightfieldOfRow(row.heightfield),
     };
   }

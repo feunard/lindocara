@@ -124,6 +124,12 @@ describe("blankMap", () => {
     }
     expect(map.elements).toEqual([]);
     expect(map.spawn).toEqual({ col: 10, row: 7 });
+    expect(map.dayNightCycle).toBe(true);
+  });
+
+  it("serializes a disabled day/night cycle with the map", () => {
+    const map = { ...blankMap("m", 20, 15), dayNightCycle: false };
+    expect(toSaveInput(map).dayNightCycle).toBe(false);
   });
 });
 

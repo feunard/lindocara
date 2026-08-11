@@ -191,6 +191,7 @@ function toEditorMap(map: MapPayload): EditorMap {
     name: map.name,
     audio: map.audio ?? EMPTY_MAP_AUDIO,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
+    dayNightCycle: map.dayNightCycle ?? true,
     layers: editorLayersFromPayload(map),
     elements: map.elements,
     spawn: map.spawn,
@@ -706,9 +707,10 @@ function AdventureEditorInner({
     let preview: { stop(): void } | null = null;
     // Events ride alongside the terrain: the preview draws the authored NPCs and monsters at rest
     // so an author can judge scale and composition without launching a party.
-    const previewStart = edited.heroSettings
-      ? startMapPreview(data, edited.events, { heroSettings: edited.heroSettings })
-      : startMapPreview(data, edited.events);
+    const previewStart = startMapPreview(data, edited.events, {
+      heroSettings: edited.heroSettings,
+      dayNightCycle: edited.dayNightCycle,
+    });
     void previewStart
       .then((started) => {
         if (stopped) {
@@ -1056,6 +1058,12 @@ function AdventureEditorInner({
       handleRef.current?.setCollisions(next);
       return next;
     });
+  }
+
+  function toggleDayNightCycle(): void {
+    const handle = handleRef.current;
+    if (!handle) return;
+    handle.setDayNightCycle(!handle.current().dayNightCycle);
   }
 
   function setEditorZoom(percent: number): void {
@@ -1620,6 +1628,8 @@ function AdventureEditorInner({
           showGrid={showGrid}
           showDim={showDim}
           showCollisions={showCollisions}
+          dayNightCycle={currentMap?.dayNightCycle ?? true}
+          dayNightCycleAvailable={currentMap !== null}
           zoom={zoom}
           onNewMap={() => setNewMapOpen(true)}
           onSelectTool={selectTool}
@@ -1627,6 +1637,7 @@ function AdventureEditorInner({
           onToggleGrid={toggleGrid}
           onToggleDim={toggleDim}
           onToggleCollisions={toggleCollisions}
+          onToggleDayNightCycle={toggleDayNightCycle}
           onCycleZoom={cycleZoom}
           onTest={test}
           onOpenHelp={() => openHelp()}

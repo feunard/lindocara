@@ -71,6 +71,7 @@ export interface MapEditorStageHandle {
   setName(name: string): void;
   setAudio(audio: MapAudioConfig): void;
   setHeroSettings(settings: MapHeroSettings): void;
+  setDayNightCycle(enabled: boolean): void;
   undo(): void;
   redo(): void;
   markSaved(saved?: EditorMap): void;
@@ -184,9 +185,6 @@ export function openMapEditorStage(
     // opposite of what authoring needs: zooming out is how an author inspects the whole map, and it
     // was hiding exactly the detail they pulled back to see. Off for the whole session.
     renderer.setFogEnabled(false);
-    // L’auteur doit toujours distinguer matières, raccords et aperçus, quelle que soit la phase
-    // propre à la map. Seul le test complet peut ensuite choisir explicitement jour ou nuit.
-    renderer.setDayCycleOverride("day");
     let history = createEditorHistory(initial);
     let map = initial;
     let tool: EditorTool = { kind: "select" };
@@ -289,6 +287,9 @@ export function openMapEditorStage(
         heightfield.size,
         heightfield.waterLevel,
       );
+      // The authoring stage reflects the stored map policy: a disabled clock is fixed at noon,
+      // while an enabled one follows the same independent phase the playable renderer will use.
+      renderer.setDayCycleOverride(map.dayNightCycle ? null : "day");
       renderer.configureMapTerrain("editor", [], ++revision, heightfield);
       renderer.preloadWorldEventAssets(renderedEvents);
       renderer.setCameraFocus(cameraX, cameraZ);
@@ -657,6 +658,14 @@ export function openMapEditorStage(
         const next = { ...map, heroSettings };
         history = commitEditorHistory({ ...history, present: map }, next);
         map = next;
+        notify();
+      },
+      setDayNightCycle(enabled) {
+        if (enabled === map.dayNightCycle) return;
+        const next = { ...map, dayNightCycle: enabled };
+        history = commitEditorHistory({ ...history, present: map }, next);
+        map = next;
+        renderer.setDayCycleOverride(enabled ? null : "day");
         notify();
       },
       undo() {

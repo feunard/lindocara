@@ -82,7 +82,7 @@ describe("HD-2D map editor stage", () => {
     expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledOnce();
     expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledWith(false);
     expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledOnce();
-    expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledWith("day");
+    expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledWith(null);
     // Play tightens the fog band as the camera pulls back; authoring pulls back precisely to see
     // more, so the stage turns it off for the session.
     expect(mock.renderer.setFogEnabled).toHaveBeenCalledOnce();
@@ -97,6 +97,24 @@ describe("HD-2D map editor stage", () => {
     expect(mock.renderer.setEditorOverlay).toHaveBeenCalledWith(
       expect.objectContaining({ cols: 20, rows: 15, showGrid: true }),
     );
+    stage.dispose();
+  });
+
+  it("stores the map clock toggle in history and fixes disabled maps at noon", async () => {
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
+
+    stage.setDayNightCycle(false);
+    expect(stage.current().dayNightCycle).toBe(false);
+    expect(mock.renderer.setDayCycleOverride).toHaveBeenLastCalledWith("day");
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dayNightCycle: false }),
+      expect.objectContaining({ canUndo: true, dirty: true }),
+    );
+
+    stage.undo();
+    expect(stage.current().dayNightCycle).toBe(true);
+    expect(mock.renderer.setDayCycleOverride).toHaveBeenLastCalledWith(null);
     stage.dispose();
   });
 

@@ -687,6 +687,8 @@ export interface WorldInfo {
   audio?: AdventureAudioConfig;
   /** Server-authored class balance and ability availability for this map. */
   heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
+  /** Missing preserves compatibility with rooms created before maps could disable their clock. */
+  dayNightCycle?: boolean;
   /**
    * The grid's side, in cells — the whole extent of the world, because a heightfield is square and
    * centred on the origin. Coordinates therefore run `-size/2`..`+size/2` on both ground axes.
@@ -1792,6 +1794,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     ) &&
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
+    (value.dayNightCycle === undefined || typeof value.dayNightCycle === "boolean") &&
     isNpc(value.questNpc) &&
     Array.isArray(value.questNpcs) &&
     value.questNpcs.every(isNpc) &&

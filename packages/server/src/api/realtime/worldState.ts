@@ -189,6 +189,7 @@ export function zoneFromMapPayload(
     events: payload.events,
     audio: resolveMapAudio(adventureAudio, payload.audio),
     heroSettings: payload.heroSettings,
+    dayNightCycle: payload.dayNightCycle,
     // The heightfield the room actually baked its terrain from — reaching this line at all means it
     // decoded, so the string and the collision the two sides run cannot disagree.
     heightfield: payload.heightfield,

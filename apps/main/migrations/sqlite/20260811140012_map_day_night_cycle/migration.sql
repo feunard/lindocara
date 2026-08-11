@@ -1,0 +1,1 @@
+ALTER TABLE `maps` ADD `day_night_cycle` integer DEFAULT true NOT NULL;
