@@ -203,107 +203,126 @@ git commit -m "feat(admin): grant the admin role from ADMIN_USERNAMES at boot"
 
 ---
 
-### Task 2: The `/admin` screen and route
+### Task 2: The admin shell — sidebar, five pages, audits and API keys
+
+**SUPERSEDES the tabs screen shipped in `43ff732d`.** That commit built a three-tab
+`AdminScreen` whose Audits tab was wired to `AdminAuditController` — a controller in
+`alepha/api/audits`, a module this app never registered. Opening it 401s, and `AppRouter`'s global
+401 handler turns that into a bounce to `/auth`, effectively logging the admin out. Rather than drop
+the tab, the human directed: enable audits AND API keys for real, and rebuild the screen as a
+sidebar shell modelled on `~/git/alepha/apps/lore/src/web/admin/`.
 
 **Files:**
-- Create: `packages/client/src/ui/admin/AdminScreen.tsx`
-- Modify: `packages/client/src/ui/AppRouter.tsx` (a new `admin = $page({...})` beside `editor`)
-- Modify: `packages/client/tsconfig.json` (add the file to `exclude`) and
-  `packages/client/tsconfig.api.json` (add it to `include`)
-- Test: `packages/client/test/admin-screen.test.tsx`
+- Modify: `packages/server/src/api/providers/AppSecurityProvider.ts` (add `features`)
+- Create: `apps/main/migrations/sqlite/<timestamp>_admin_audits_and_keys/` (see Step 2)
+- Delete: `packages/client/src/ui/admin/AdminScreen.tsx` and `packages/client/test/admin-screen.test.tsx`
+- Create: `packages/client/src/ui/admin/AdminRouter.tsx` and `packages/client/src/ui/admin/AdminShell.tsx`
+- Modify: `packages/client/src/ui/AppRouter.tsx` (mount the admin subtree in place of the single route)
+- Modify: `packages/client/tsconfig.json` / `tsconfig.api.json` (swap the deleted paths for the new ones)
+- Test: `packages/client/test/admin-shell.test.tsx`
 
 **Interfaces:**
-- Consumes: `useAuth()` from `alepha/react/auth`, which returns
-  `{ user, logout(), login(), has(permission: string): boolean }`.
-- Produces: `export function AdminScreen(): JSX.Element`, and the router route name `"admin"` at
-  path `/admin` for `router.push("admin")`.
+- Consumes: `AdminRoleProvider` from Task 1 (grants the `admin` role, whose permission is `*`).
+- Produces: the route name `"admin"` at `/admin`, redirecting to `/admin/users`.
 
-- [ ] **Step 1: Write the failing test**
+**THE MODEL — read it before writing anything:**
+`~/git/alepha/apps/lore/src/web/admin/AppAdminRouter.tsx` and `AppAdminLayout.tsx`. Copy their
+shape, not their content. The essentials:
 
-**RULING (pre-flight, human-decided): the NEGATIVE branch only.** A session with no permissions is
-the real provider's default state, so this test needs no harness and no mock. Seeding
-`has("admin:*")` would mean seeding alepha's `LinkProvider` internals — a harness coupled to a
-vendored provider's private shape that the next `vendor sync` could break. The positive branch (three
-tabs render for a real admin) is proven in Task 4's browser pass, where a real admin session exists.
-**Do not write a `renderWithAlepha` permission harness.**
+- A layout page anchors the shell:
+  `$page({ name: "admin", path: "/admin", use: [$secure({ permissions: ["admin:ui"] })], nav: { label: "Admin" }, loader: redirect "/admin" -> "/admin/users", lazy: () => import("./AdminShell.js") })`.
+- Every leaf is `navPage` from `@alepha/ui/components/nav-shell/nav-page`, carrying its own
+  `permission` and `nav: { label, icon, group, order }`, with `parent: this.adminLayout`.
+  **The sidebar and breadcrumbs are DERIVED from this tree by `<NavShell root="admin">`** — there is
+  no hand-maintained nav list, and you must not write one.
+- `AdminShell` renders `<NavShell root="admin" fill brand={...} topbarActions={...} />`, plus
+  `<ColorScheme />` (the admin subtree is not under the game's layout, so nothing else applies the
+  dark class) and `<Spotlight root="admin" />`.
 
-```tsx
-describe("AdminScreen", () => {
-  it("renders the not-authorised panel when the session lacks admin", () => {
-    // A courtesy, not a security boundary: the server's $secure guards every route regardless.
-    // This exists so a non-admin sees one honest sentence instead of a page of failed requests.
-    render(<AdminScreen />);
-    expect(screen.getByText(/not authorised/i)).toBeTruthy();
-    expect(screen.queryByRole("tab", { name: /users/i })).toBeNull();
-  });
-});
-```
+**The five pages**, all lazy-imported straight from `@alepha/ui/components/admin/`:
 
-Mount it the way the package's existing jsdom tests mount a component inside the Alepha React
-providers — find that pattern in `packages/client/test/` (e.g. `launch-screens.test.tsx`,
-`app-router.test.tsx`) and reuse it. Do not invent a second harness.
+| path | component | permission | nav group |
+| --- | --- | --- | --- |
+| `/admin/users` | `admin-users` | `admin:user:read` | Identity |
+| `/admin/users/:id` | `admin-user-detail` | `admin:user:read` | (no `nav` — routed, not listed) |
+| `/admin/sessions` | `admin-sessions` | `admin:session:read` | Identity |
+| `/admin/keys` | `admin-keys` | `admin:api-key:read` | Identity |
+| `/admin/audits` | `admin-audits` | `admin:audit:read` | Operations |
 
-- [ ] **Step 2: Run to verify it fails**
+`/admin/users/:id` takes `schema: { params: z.object({ id: z.uuid() }) }`. Adding it also fixes the
+dead "View profile" link the Task 2 review flagged as a known limitation.
 
-Run: `npm test -w @lindocara/client -- admin-screen`
-Expected: FAIL — module not found.
-
-- [ ] **Step 3: Write the screen**
-
-```tsx
-import { AdminAudits } from "@alepha/ui/components/admin/admin-audits";
-import { AdminSessions } from "@alepha/ui/components/admin/admin-sessions";
-import { AdminUsers } from "@alepha/ui/components/admin/admin-users";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@alepha/ui/components/ui/tabs";
-import { useAuth } from "alepha/react/auth";
-```
-
-Three tabs — Users, Sessions, Audits — each rendering the matching component. Not jobs, files,
-notifications or payments: this app registers none of those alepha subsystems, so they would render
-empty or erroring shells.
-
-`AdminUsers` takes `defaultHiddenColumns`; pass `["firstName", "lastName", "email"]` — this realm is
+Pass `defaultHiddenColumns={["firstName", "lastName", "email"]}` to `admin-users`: this realm is
 username-only (`AppSecurityProvider` sets `email: "none"`), so those columns are always blank.
 
-Gate the whole thing on `useAuth().has("admin:*")`, rendering a short panel with a link back to the
-menu otherwise.
+**`$secure` on the layout route replaces the hand-rolled `has("admin:*")` check.** That also
+resolves the Important finding against `43ff732d` — a synchronous `has()` gate rendered "not
+authorised" to a real admin on first paint, before `ReactAuth.ping()` resolved. Do not reintroduce
+a manual guard.
 
-- [ ] **Step 4: Add the route**
+- [ ] **Step 1: Enable the two features**
 
-In `AppRouter.tsx`, beside `editor`:
+In `packages/server/src/api/providers/AppSecurityProvider.ts`, add to the existing `$realm({...})`
+call, beside `settings` and `identities`:
 
 ```ts
-  admin = $page({
-    path: "/admin",
-    lazy: async () => {
-      const module = await import("./admin/AdminScreen.js");
-      return { default: module.AdminScreen };
+    features: {
+      audits: true,
+      apiKeys: true,
     },
-  });
 ```
 
-Lazy for the same reason `editor` is: the game shell should not carry the admin bundle. Note
-`$page`'s `lazy` contract is `() => Promise<{ default: FC }>` and `AdminScreen` is a named export —
-the reshaping return is required, not decoration.
+This is the whole server change — `audits` and `apiKeys` are `$realm` FEATURE FLAGS, not modules to
+register. Read `~/git/alepha/apps/lore/src/api/providers/AppSecurityProvider.ts` for the precedent
+and `.vendor/alepha/src/api/users/primitives/$realm.ts` (around line 76) for how `features` merges
+with defaults. Extend the class docblock to say what the two flags turn on and that the admin UI
+depends on them.
 
-- [ ] **Step 5: Fix the tsconfig split**
+- [ ] **Step 2: Write the migration by hand**
 
-Add `"src/ui/admin/AdminScreen.tsx"` to `packages/client/tsconfig.json`'s `exclude` and to
-`packages/client/tsconfig.api.json`'s `include`, beside the existing `src/ui/MainMenu.tsx` entries.
+Enabling those features brings new entities, so the database needs new tables. **`npm run
+db:generate` is BROKEN repo-wide** (a top-level `await` inside an `if` in `apps/main/src/main.ts`
+defeats drizzle-kit's esbuild bundling, and every `alepha db` command boots that entry) — this is
+documented in the root `CLAUDE.md`. So hand-write the migration under
+`apps/main/migrations/sqlite/`, following the shape of the two most recent existing migration
+directories exactly (both a `migration.sql` and a `snapshot.json`).
 
-- [ ] **Step 6: Run to verify it passes**
+The gate is `npm run check:migrations -w @lindocara/main`, which is NOT affected by the drizzle-kit
+breakage. It must pass. Derive the table shapes from the entities the two features register — read
+them under `.vendor/alepha/src/api/`, do not invent columns.
+
+If you cannot make `check:migrations` pass by hand, STOP and report BLOCKED with what you tried.
+Do not commit a migration you have not verified against that check.
+
+- [ ] **Step 3: Delete the superseded screen and write the shell**
+
+Delete `AdminScreen.tsx` and `admin-screen.test.tsx`. Write `AdminRouter.tsx` and `AdminShell.tsx`
+per the model above, and mount the subtree from `AppRouter.tsx` in place of the single `admin` route.
+Read `AppRouter.tsx`'s existing `editor` route and its `children()` array to see how routes are
+registered here — lindocara's router is one class, so adapt lore's separate-router shape to whatever
+this codebase actually supports rather than forcing lore's file layout.
+
+Update both tsconfigs: remove the two deleted paths, add the new ones to `tsconfig.api.json`'s
+`include` and `tsconfig.json`'s `exclude`. Both new files import `alepha`, so both need the split.
+
+- [ ] **Step 4: Test what is testable**
+
+Keep the ruling from before: **negative branch only.** With `$secure` now gating the route, a
+session without `admin:ui` should not reach the shell at all. Assert that — a non-admin landing on
+`/admin` does not render the sidebar. Mount the real `AppRouter` the way
+`packages/client/test/admin-screen.test.tsx` did before you delete it (that harness was reviewed and
+found sound — reuse its `/_auth/userinfo` stub pattern rather than inventing another). Do not build a
+permission-seeding harness; the admin path is proven in Task 4's browser pass.
+
+- [ ] **Step 5: Verify and commit**
 
 ```bash
-npm test -w @lindocara/client -- admin-screen
-npm run typecheck:client
-```
-Expected: PASS, and both client programs typecheck.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add packages/client
-git commit -m "feat(admin): an /admin console over alepha's users, sessions and audits"
+npm run check:migrations -w @lindocara/main
+npm test -w @lindocara/client
+npm run typecheck
+npm run lint
+git add -A
+git commit -m "feat(admin): a sidebar admin shell with users, sessions, API keys and audits"
 ```
 
 ---
