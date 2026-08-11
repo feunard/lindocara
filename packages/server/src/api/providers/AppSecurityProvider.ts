@@ -36,9 +36,26 @@ import { $realm } from "alepha/api/users";
  * - The login window also keeps the retired Worker's two production guards:
  * 30 failed attempts per source IP and 8 per account in 60 seconds. Their
  * counters use the D1-backed cache selected by `LindocaraApi`.
+ *
+ * `features` (`.vendor/alepha/src/api/users/primitives/$realm.ts`, merged
+ * over a default that leaves every flag `false`):
+ * - `audits: true` — registers `alepha.api.audits` (`UserAudits`/
+ *   `SessionAudits` log to it) and its `AdminAuditController`, so the admin
+ *   shell's Audits page (`admin-audits`, `packages/client/src/ui/admin/
+ *   AdminRouter.tsx`) has a real controller to call instead of 401ing.
+ * - `apiKeys: true` — registers `alepha.api.keys` (`ApiKeyService` +
+ *   `AdminApiKeyController`), backing the admin shell's API keys page
+ *   (`admin-keys`).
+ * Both add a table (`audits`, `api_keys` — see
+ * `apps/main/migrations/sqlite/`); neither is a module this app imports
+ * directly — `$realm`'s own `features` merge is what turns them on.
  */
 export class AppSecurityProvider {
   realm = $realm({
+    features: {
+      audits: true,
+      apiKeys: true,
+    },
     settings: {
       username: "required",
       usernameRegExp: "^[A-Za-z0-9_-]{3,16}$",

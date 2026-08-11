@@ -41,6 +41,7 @@ import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/n
 import { useUiStore } from "../store.js";
 import { AdventureTestOverlay } from "./AdventureTestOverlay.js";
 import { AuthScreen } from "./AuthScreen.js";
+import { AdminRouter } from "./admin/AdminRouter.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { CreditsScreen } from "./CreditsScreen.js";
@@ -87,6 +88,13 @@ import { WorldMap } from "./WorldMap.js";
  * reads as if `/game` should join this set too; that is a plan-text bug against the verified
  * pre-migration behaviour (`git show 61836eb:packages/client/src/ui/App.tsx`, `immersive` never
  * included `"game"`), not a deviation this task introduces — see the Task 5 report.
+ *
+ * `/admin` isn't a member of this exact-match `Set` because its subtree has nested paths
+ * (`/admin/users`, `/admin/users/:id`, ...) that a `Set.has()` lookup can never match — see the
+ * `pathname.startsWith("/admin")` check folded into `immersive` below instead. Same dense,
+ * full-viewport reasoning as `/editor`: `AdminShell`'s own `@alepha/ui` `NavShell` sidebar/topbar
+ * is the surface's real chrome, and the floating Tiny Swords `LocaleToggle`/`StatusBar` would
+ * otherwise render on top of it.
  */
 const IMMERSIVE_PATHS = new Set<string>([
   "/",
@@ -277,7 +285,7 @@ function AppLayout() {
     stopActiveGameSession({ navigate: false });
   }, [pathname]);
 
-  const immersive = IMMERSIVE_PATHS.has(pathname);
+  const immersive = IMMERSIVE_PATHS.has(pathname) || pathname.startsWith("/admin");
 
   return (
     <>
@@ -299,6 +307,16 @@ export class AppRouter {
   // out registering `AlephaReactAuth` explicitly in `main.browser.ts` instead. Named `reactAuth`,
   // not `auth`: the route map below already claims that field name for the `/auth` `$page`.
   reactAuth = $inject(ReactAuth);
+
+  /**
+   * The `/admin` route subtree, owned by a separate class (`AdminRouter.tsx`) rather than declared
+   * inline here — its own docblock explains why (the "pages from an injected router in another
+   * package" shape `PagePrimitiveOptions.children` documents). Eagerly injected, like `reactAuth`
+   * above: `AdminRouter`'s field initializers are what register its six `$page`s with
+   * `ReactPageService`, and that must happen during boot, before Alepha's container locks — not
+   * only if/when something else happens to inject `AdminRouter` first.
+   */
+  adminRouter = $inject(AdminRouter);
 
   /**
    * The lore idiom (`AppRouter.ts:133-150` there): global 401 recovery for every request that goes
@@ -340,7 +358,7 @@ export class AppRouter {
       this.playJoin,
       this.game,
       this.editor,
-      this.admin,
+      this.adminRouter.adminLayout,
     ],
   });
 
@@ -461,21 +479,6 @@ export class AppRouter {
     lazy: async () => {
       const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
       return { default: module.AdventureEditorScreen };
-    },
-  });
-
-  /**
-   * The `/admin` console over alepha's own admin components (`ui/admin/AdminScreen.tsx`) — users,
-   * sessions and audits. Lazy for the same reason `editor` is: the game shell should not carry the
-   * admin bundle (`@alepha/ui`'s admin components, `AlephaTable`, …) into every player's download.
-   * `$page`'s `lazy` contract is `() => Promise<{ default: FC }>` and `AdminScreen` is a named
-   * export, so the reshaping return below is required, not decoration.
-   */
-  admin = $page({
-    path: "/admin",
-    lazy: async () => {
-      const module = await import("./admin/AdminScreen.js");
-      return { default: module.AdminScreen };
     },
   });
 }

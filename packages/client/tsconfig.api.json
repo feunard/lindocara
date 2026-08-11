@@ -51,7 +51,8 @@
     "src/ui/TitleScreen.tsx",
     "src/ui/MainMenu.tsx",
     "src/ui/CreditsScreen.tsx",
-    "src/ui/admin/AdminScreen.tsx",
+    "src/ui/admin/AdminRouter.tsx",
+    "src/ui/admin/AdminShell.tsx",
     "test/atoms.test.tsx",
     "test/hud.test.tsx",
     "test/quest-journal-overlay.test.tsx",
@@ -59,6 +60,6 @@
     "test/adventure-test-overlay.test.tsx",
     "test/auth-screen.test.tsx",
     "test/launch-screens.test.tsx",
-    "test/admin-screen.test.tsx"
+    "test/admin-shell.test.tsx"
   ]
 }
