@@ -667,10 +667,10 @@ kbd {
   z-index: 4;
   left: calc(0.75rem + var(--safe-left));
   bottom: 6.1rem;
-  width: min(22rem, calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
-  padding: 0.58rem 0.65rem 0.65rem;
+  width: min(var(--chat-width, 45rem), calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
+  padding: 0.52rem 0.6rem 0.6rem;
   color: #f4f7ef;
-  opacity: 0.96;
+  opacity: 0.98;
   filter: drop-shadow(0 0.8rem 1.4rem rgb(0 0 0 / 55%));
   text-shadow: var(--game-text-shadow, 0 1px 2px #000);
   transition:
@@ -680,23 +680,22 @@ kbd {
 }
 
 #chat.chat-open {
-  width: min(32rem, calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
   opacity: 1;
   filter: drop-shadow(0 1rem 1.8rem rgb(0 0 0 / 68%));
 }
 
 .chat-resize-handle {
   position: absolute;
-  top: -0.2rem;
-  left: 0.45rem;
-  right: 0.45rem;
-  height: 0.55rem;
+  top: -0.35rem;
+  right: -0.35rem;
+  width: 1.35rem;
+  height: 1.35rem;
   padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  cursor: ns-resize;
-  opacity: 0;
+  border: 1px solid rgb(214 189 119 / 48%);
+  border-radius: 0.3rem;
+  background: rgb(5 17 15 / 92%);
+  cursor: nesw-resize;
+  opacity: 0.64;
   transition: opacity 160ms ease;
 }
 
@@ -709,14 +708,12 @@ kbd {
 .chat-resize-handle::after {
   content: "";
   display: block;
-  width: 2.6rem;
-  height: 0.18rem;
-  margin: 0.16rem auto 0;
-  border-radius: 999px;
-  background: #d6bd77;
-  box-shadow:
-    0 0 0 1px rgb(8 27 23 / 85%),
-    0 0 0.4rem rgb(232 203 124 / 24%);
+  width: 0.55rem;
+  height: 0.55rem;
+  margin: 0.18rem 0.18rem 0 auto;
+  border-top: 2px solid #d6bd77;
+  border-right: 2px solid #d6bd77;
+  opacity: 0.9;
 }
 
 .chat-title {
@@ -826,9 +823,9 @@ kbd {
   overflow: hidden auto;
   display: flex;
   flex-direction: column;
-  padding: 0.35rem 0.12rem 0.25rem;
+  padding: 0.45rem 0.12rem 0.3rem;
   font:
-    500 0.86rem / 1.45 Inter,
+    500 0.84rem / 1.35 Inter,
     ui-sans-serif,
     system-ui,
     sans-serif;
@@ -846,7 +843,7 @@ kbd {
 .chat-messages-log {
   display: flex;
   flex-direction: column;
-  gap: 0.32rem;
+  gap: 0.08rem;
   margin-top: auto;
   width: 100%;
 }
@@ -874,12 +871,10 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.12rem 0.38rem;
-  padding: 0.35rem 0.48rem;
-  border-left: 3px solid rgb(128 210 153 / 62%);
-  border-radius: 0.22rem;
-  background: rgb(2 14 11 / 44%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+  gap: 0.08rem 0.32rem;
+  padding: 0.14rem 0.3rem;
+  border-left: 2px solid transparent;
+  background: transparent;
 }
 
 .chat-line-local {
@@ -893,7 +888,7 @@ kbd {
 
 .chat-line-party {
   border-left-color: #e4bd57;
-  background: rgb(44 34 12 / 46%);
+  background: rgb(44 34 12 / 22%);
   color: #fff2c5;
 }
 
@@ -930,7 +925,7 @@ kbd {
 
 .chat-line-system {
   border-left-color: #8eaaa0;
-  background: rgb(22 34 31 / 58%);
+  background: rgb(22 34 31 / 24%);
   color: #dde7e0;
 }
 
@@ -949,7 +944,7 @@ kbd {
 
 .chat-line-system.chat-tone-bad {
   border-left-color: #f08378;
-  background: rgb(58 20 18 / 55%);
+  background: rgb(58 20 18 / 28%);
   color: #ffc1bb;
 }
 
@@ -1618,7 +1613,6 @@ kbd {
   color: #ffc2bc;
 }
 
-#help,
 #status {
   position: fixed;
   z-index: 3;
@@ -1627,29 +1621,6 @@ kbd {
   font-size: 0.72rem;
   text-shadow: var(--game-text-shadow);
   pointer-events: none;
-}
-
-#help {
-  left: calc(0.75rem + var(--safe-left));
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.32rem 0.5rem;
-  align-items: center;
-  width: fit-content;
-  max-width: min(22rem, calc(50vw - 1.5rem - var(--safe-left)));
-  padding: 0.36rem 0.55rem;
-  border: 1px solid rgb(184 211 190 / 22%);
-  border-radius: 0.35rem;
-  background: rgb(3 17 13 / 82%);
-  box-shadow: 0 0.3rem 1rem rgb(0 0 0 / 36%);
-  backdrop-filter: blur(4px);
-}
-
-.help-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  white-space: nowrap;
 }
 
 #status {
@@ -3132,7 +3103,6 @@ kbd {
   }
 
   #minimap,
-  #help,
   #status {
     display: none;
   }
@@ -4440,7 +4410,15 @@ kbd {
 }
 
 .quick-item-bar.panel {
-  gap: 0.24rem;
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    ". up ."
+    "left core right"
+    ". down .";
+  grid-template-columns: repeat(3, 2.65rem);
+  grid-template-rows: repeat(3, 2.65rem);
+  gap: 0.04rem;
   padding: 0;
   border: 0;
   background: transparent;
@@ -4450,13 +4428,158 @@ kbd {
 
 /* biome-ignore lint/style/noDescendingSpecificity: game quick slots intentionally refine the global controls. */
 .quick-item-bar button {
-  width: 3.35rem;
-  height: 3.5rem;
-  border-color: #806039;
-  border-radius: 0.28rem;
+  z-index: 2;
+  width: 2.65rem;
+  height: 2.65rem;
+  overflow: visible;
+  border-color: #a27a3e;
+  border-radius: 50%;
   background:
-    linear-gradient(rgb(43 52 40 / 96%), rgb(12 24 19 / 99%)),
+    radial-gradient(circle at 42% 32%, rgb(90 104 68 / 72%), transparent 38%),
+    linear-gradient(rgb(37 58 43 / 99%), rgb(7 24 18 / 100%)),
     var(--tiny-slot) center / cover no-repeat;
+  box-shadow:
+    inset 0 0 0 2px rgb(4 16 12 / 78%),
+    inset 0 0 0 3px rgb(231 197 111 / 12%),
+    0 0 0 2px rgb(34 21 13 / 82%),
+    0 0.22rem 0.45rem rgb(0 0 0 / 48%);
+}
+
+.quick-item-bar__slot--up {
+  grid-area: up;
+}
+
+.quick-item-bar__slot--left {
+  grid-area: left;
+}
+
+.quick-item-bar__slot--right {
+  grid-area: right;
+}
+
+.quick-item-bar__slot--down {
+  grid-area: down;
+}
+
+.quick-item-bar__core {
+  position: relative;
+  z-index: 1;
+  grid-area: core;
+  place-self: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgb(178 132 61 / 68%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #cfaa59 0 10%, transparent 12%),
+    linear-gradient(145deg, #334a37, #0a2018);
+  box-shadow:
+    inset 0 0 0 2px rgb(3 15 11 / 70%),
+    0 0 0 2px rgb(38 23 13 / 72%);
+}
+
+.quick-item-bar__core::before,
+.quick-item-bar__core::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  background: linear-gradient(90deg, #162e22, #35503a, #162e22);
+}
+
+.quick-item-bar__core::before {
+  top: 0.5rem;
+  right: -2rem;
+  left: -2rem;
+  height: 0.9rem;
+}
+
+.quick-item-bar__core::after {
+  top: -2rem;
+  bottom: -2rem;
+  left: 0.5rem;
+  width: 0.9rem;
+}
+
+.quick-item-bar__inventory {
+  color: #f0d58c;
+}
+
+.quick-item-bar__bag {
+  position: relative;
+  display: block;
+  width: 1.2rem;
+  height: 1rem;
+  margin: 0.18rem auto 0;
+  border: 0.15rem solid currentColor;
+  border-radius: 0.22rem 0.22rem 0.3rem 0.3rem;
+  box-shadow: inset 0 -0.22rem 0 rgb(183 131 53 / 45%);
+}
+
+.quick-item-bar__bag::before {
+  position: absolute;
+  top: -0.58rem;
+  left: 0.18rem;
+  width: 0.52rem;
+  height: 0.42rem;
+  border: 0.13rem solid currentColor;
+  border-bottom: 0;
+  border-radius: 0.28rem 0.28rem 0 0;
+  content: "";
+}
+
+.quick-item-bar__bag::after {
+  position: absolute;
+  top: 0.28rem;
+  right: -0.15rem;
+  left: -0.15rem;
+  height: 0.12rem;
+  background: currentColor;
+  content: "";
+  opacity: 0.72;
+}
+
+.quick-item-bar button[aria-pressed="true"] {
+  border-color: #ffe184;
+  box-shadow:
+    inset 0 0 0 2px rgb(4 16 12 / 72%),
+    0 0 0 2px rgb(111 81 34 / 92%),
+    0 0 0.8rem rgb(240 196 94 / 42%);
+}
+
+.quick-item-bar button em {
+  border-radius: 50%;
+}
+
+.quick-item-bar__slot--up .quick-item-bar__key,
+.quick-item-bar__slot--down .quick-item-bar__key {
+  right: 0;
+  left: 0;
+  width: max-content;
+  margin-inline: auto;
+}
+
+.quick-item-bar__slot--up .quick-item-bar__key {
+  top: -0.36rem;
+}
+
+.quick-item-bar__slot--down .quick-item-bar__key {
+  top: auto;
+  bottom: -0.36rem;
+}
+
+.quick-item-bar__slot--left .quick-item-bar__key,
+.quick-item-bar__slot--right .quick-item-bar__key {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+.quick-item-bar__slot--left .quick-item-bar__key {
+  left: -0.28rem;
+}
+
+.quick-item-bar__slot--right .quick-item-bar__key {
+  right: -0.28rem;
+  left: auto;
 }
 
 .peasant-resources.panel {

@@ -1,7 +1,8 @@
 /**
  * The parties API on Alepha: cursor-paginated public listing, create-from-any-adventure (server-
- * assigned colour, creator auto-joined), join (colour server-assigned, never client-chosen), and
- * host-only delete. Ported from the `/api/parties*` routes in `packages/server/src/index.ts`
+ * assigned colour, creator auto-joined), join (colour server-assigned, never client-chosen),
+ * member abandonment, and host-only delete. Ported from the `/api/parties*` routes in
+ * `packages/server/src/index.ts`
  * (`:971`-`:1037`), same loose-schema idiom as `MapController`/`AdventureController` — see
  * `MapController`'s own docblock for why `join`/`delete` declare no body schema and `createParty`'s
  * body is `z.any()` rather than a tight shape: the real semantic gate is `PartyService` + the ported
@@ -75,6 +76,21 @@ export class PartyController {
     handler: async ({ params, user }) => {
       try {
         await this.partyService.joinParty(user.id, params.id);
+      } catch (error) {
+        rethrowAsPartyError(error);
+      }
+    },
+  });
+
+  /** `DELETE /api/parties/:id/membership` -> 204. Removes only the caller from an open party. */
+  abandonParty = $action({
+    method: "DELETE",
+    path: "/parties/:id/membership",
+    use: [$secure({}), $transactional()],
+    schema: { params: z.object({ id: z.string() }) },
+    handler: async ({ params, user }) => {
+      try {
+        await this.partyService.abandonParty(user.id, params.id);
       } catch (error) {
         rethrowAsPartyError(error);
       }

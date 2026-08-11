@@ -143,9 +143,10 @@ export function ControlsSettings() {
       const pressed = gamepad ? pressedGamepadBinding(gamepad) : null;
       if (!armed) armed = pressed === null;
       else if (pressed) {
-        setGamepadBinding(capture.control, pressed);
-        setCapture(null);
-        return;
+        if (setGamepadBinding(capture.control, pressed)) {
+          setCapture(null);
+          return;
+        }
       }
       frame = window.requestAnimationFrame(poll);
     };

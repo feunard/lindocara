@@ -6,7 +6,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("Chat", () => {
-  beforeEach(() => setLocale("en"));
+  beforeEach(() => {
+    setLocale("en");
+    localStorage.clear();
+  });
 
   it("renders lines and sends trimmed input through the game handle", async () => {
     const sendChat = vi.fn();
@@ -57,6 +60,30 @@ describe("Chat", () => {
 
     await userEvent.click(screen.getByRole("textbox"));
     expect(screen.getByRole("button", { name: "Resize chat" })).toBeInTheDocument();
+  });
+
+  it("starts wide and persists two-dimensional resizing", async () => {
+    useUiStore.setState({ chat: [], party: null, game: null });
+    render(<Chat />);
+    const chat = document.getElementById("chat");
+    if (!chat) throw new Error("expected chat panel");
+    expect(chat.style.getPropertyValue("--chat-width")).toBe("720px");
+    expect(chat.style.getPropertyValue("--chat-messages-height")).toBe("300px");
+
+    await userEvent.click(screen.getByRole("textbox"));
+    const handle = screen.getByRole("button", { name: "Resize chat" });
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 720, clientY: 300 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 820, clientY: 200 });
+    expect(chat.style.getPropertyValue("--chat-width")).toBe("820px");
+    expect(chat.style.getPropertyValue("--chat-messages-height")).toBe("400px");
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 820, clientY: 200 });
+
+    expect(JSON.parse(localStorage.getItem("lindocara.chat.size.v1") ?? "null")).toEqual({
+      width: 820,
+      height: 400,
+    });
   });
 
   it("shows a jump control after scrolling up and receiving new lines", async () => {

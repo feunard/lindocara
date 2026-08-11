@@ -1,8 +1,8 @@
 /**
  * Parties as stored things on Alepha: cursor-paginated public listing, create-from-any-adventure
  * (the play flow is not owner-fenced, exactly like legacy), server-assigned-colour join, and
- * host-only delete. Ported from `packages/server/src/parties.ts`, function-by-function, onto
- * `$repository` calls instead of raw Drizzle/D1 statements.
+ * host-only delete, and per-member abandonment. Ported from `packages/server/src/parties.ts`,
+ * function-by-function, onto `$repository` calls instead of raw Drizzle/D1 statements.
  *
  * **Colour is always server-assigned**, on create AND on join — legacy's `CreatePartyInput.color`
  * (client-suppliable, defaulting `"blue"`) is deliberately NOT read here: the task brief calls for
@@ -304,6 +304,66 @@ export class PartyService {
       throw new Error("color_taken: that colour is taken");
     }
     throw new Error("full: party admission lost its atomic guard");
+  }
+
+  /**
+   * Leave an open playthrough without requiring host privileges. The caller's heroes are deleted
+   * with its membership, the oldest remaining member becomes host, and an empty party is removed.
+   *
+   * Empty cleanup and host transfer are each one conditional SQL statement. D1 does not provide a
+   * transaction here, so a read-then-write pair could otherwise delete a concurrently joining
+   * member or promote someone who concurrently left. SQLite serializes each statement; the
+   * subqueries therefore decide against the membership state at the exact write boundary.
+   */
+  async abandonParty(userId: string, partyId: string): Promise<void> {
+    const row = await this.parties.findById(partyId);
+    if (row?.status !== "open") throw new Error("not_found: no such open party");
+    const membership = await this.partyMembers.findOne({
+      where: { partyId: { eq: partyId }, userId: { eq: userId } },
+    });
+    if (!membership) throw new Error("not_found: no such party membership");
+
+    const allHeroRows = await this.heroes.findMany({ where: { partyId: { eq: partyId } } });
+    const ownHeroRows = allHeroRows.filter((hero) => hero.userId === userId);
+    await this.heroes.deleteMany({ partyId: { eq: partyId }, userId: { eq: userId } });
+    await this.partyMembers.deleteById(membership.id);
+
+    const members = this.partyMembers.table;
+    const deleted = await this.parties.query(
+      (table) => sql`
+        DELETE FROM ${table}
+        WHERE ${table.id} = ${partyId}
+          AND NOT EXISTS (
+            SELECT 1 FROM ${members} WHERE ${members.partyId} = ${partyId}
+          )
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+
+    if (deleted.length === 0 && row.hostUserId === userId) {
+      await this.parties.query(
+        (table) => sql`
+          UPDATE ${table}
+          SET ${sql.raw(table.hostUserId.name)} = (
+            SELECT ${members.userId} FROM ${members}
+            WHERE ${members.partyId} = ${partyId}
+            ORDER BY ${members.joinedAt} ASC, ${members.id} ASC
+            LIMIT 1
+          )
+          WHERE ${table.id} = ${partyId}
+            AND ${table.hostUserId} = ${userId}
+            AND EXISTS (
+              SELECT 1 FROM ${members} WHERE ${members.partyId} = ${partyId}
+            )
+          RETURNING ${table.id}
+        `,
+        ID_ROW_SCHEMA,
+      );
+    }
+
+    const revoked = deleted.length > 0 ? allHeroRows : ownHeroRows;
+    for (const hero of revoked) await this.heroService.onHeroDeleted(hero.id);
   }
 
   /** Ported from `deleteParty`: host-only. `partyMembers`/`heroes` cascade off `parties.id` via FK,

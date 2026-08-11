@@ -16,19 +16,24 @@ export interface CarouselCard {
   emblem?: string;
   /** A stable accent (e.g. per-adventure), 0..5, so cards read as distinct without a colour picker. */
   accent?: number;
+  /** Optional mouse/keyboard action displayed beneath the primary selection card. */
+  actionLabel?: string;
+  actionDisabled?: boolean;
 }
 
 function Card({
   card,
   order,
   onSelect,
+  onAction,
 }: {
   card: CarouselCard;
   order: number;
   onSelect: () => void;
+  onAction?: () => void;
 }) {
   const { focused, ref, itemProps } = useMenuItem({ onActivate: onSelect, order });
-  return (
+  const primary = (
     <button
       ref={ref}
       type="button"
@@ -43,6 +48,21 @@ function Card({
       {card.subtitle && <span className="carousel-card__subtitle">{card.subtitle}</span>}
     </button>
   );
+  if (!card.actionLabel || !onAction) return primary;
+  return (
+    <div className="carousel-card-shell">
+      {primary}
+      <button
+        type="button"
+        className="carousel-card__action"
+        aria-label={`${card.actionLabel} ${card.title}`}
+        disabled={card.actionDisabled}
+        onClick={onAction}
+      >
+        {card.actionLabel}
+      </button>
+    </div>
+  );
 }
 
 export function Carousel({
@@ -51,16 +71,21 @@ export function Carousel({
   loading,
   emptyLabel,
   onSelect,
+  onAction,
   onBack,
   extraHints,
+  secondaryContent,
 }: {
   title: string;
   cards: CarouselCard[];
   loading?: boolean;
   emptyLabel: string;
   onSelect: (id: string) => void;
+  onAction?: (id: string) => void;
   onBack: () => void;
   extraHints?: ReactNode;
+  /** Optional non-selectable content associated with the carousel, such as completed saves. */
+  secondaryContent?: ReactNode;
 }) {
   return (
     <main className="carousel-screen">
@@ -82,10 +107,18 @@ export function Carousel({
           <p className="carousel-screen__status">{emptyLabel}</p>
         ) : (
           cards.map((card, index) => (
-            <Card key={card.id} card={card} order={index} onSelect={() => onSelect(card.id)} />
+            <Card
+              key={card.id}
+              card={card}
+              order={index}
+              onSelect={() => onSelect(card.id)}
+              {...(onAction ? { onAction: () => onAction(card.id) } : {})}
+            />
           ))
         )}
       </MenuNav>
+
+      {secondaryContent}
 
       <MenuHints>
         <Hint keyLabel="↔ / D-Pad">{t("menu.hint.navigate")}</Hint>

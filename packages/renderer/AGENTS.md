@@ -21,7 +21,10 @@ authoring stage was rebuilt on `Hd2dRenderer` and shares this package's renderin
 - All `*-art` (`character-art`, `enemy-art`, `combat-art`, `portrait-art`, `tiny-swords-art`,
   `tiny-swords-assets`) â€” sprite/texture *resolution*: which sheet, which frame, how big. Data and
   arithmetic, no engine types.
-- `input`/`input-settings` â€” keyboard tracking. `locale.ts` â€” the non-React locale core (`t`,
+- `input`/`input-settings` â€” keyboard and controller tracking. In gameplay, the left stick owns
+  movement while the D-pad is reserved for remappable actions (quick items by default); do not add
+  D-pad buttons back to the default movement bindings. Standard gamepad button 0 (the physical
+  south face button) is jump by default. `locale.ts` â€” the non-React locale core (`t`,
   `onLocaleChange`, `applyLocale`); the client's i18n adds the React hook on top.
 - `scene-sample.ts` â€” the interpolated-frame view type (built from engine snapshot types); the
   client's `net` re-exports it. `server-clock`, `display-settings`.

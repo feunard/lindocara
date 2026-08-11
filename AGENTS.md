@@ -908,6 +908,10 @@ is routed by `PartyRoom` across map rooms.
 Useful healing means actual missing HP restored; overhealing never creates threat or contribution.
 Personal loot is protected twice: it is omitted from every other player's AOI/delta and collection
 also checks `ownerId`. Persistent party membership and colour survive disconnects and handoffs;
+`DELETE /api/parties/:id/membership` is the explicit abandon path for an open save: it removes the
+caller's heroes and seat, transfers hosting to the oldest remaining member, and conditionally
+deletes the party when its last member leaves. Those empty-cleanup and host-transfer writes are
+single SQL statements so D1's no-op transaction middleware cannot create a join/leave race.
 temporary combat contribution state remains room-local. See
 [`docs/cooperative-combat.md`](./docs/cooperative-combat.md) for formulas and resource costs.
 

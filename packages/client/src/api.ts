@@ -133,6 +133,8 @@ export async function register(username: string, password: string): Promise<Me> 
 export interface MapSummary {
   id: string;
   name: string;
+  /** Username of the account that created the map. */
+  author: string;
   revision: number;
   cols: number;
   rows: number;
@@ -334,6 +336,8 @@ export const joinPartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}/join`, { method: "POST" });
 export const deletePartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}`, { method: "DELETE" });
+export const abandonPartyApi = (partyId: string) =>
+  api<void>(`/api/parties/${partyId}/membership`, { method: "DELETE" });
 export const fetchHeroes = (partyId: string) => api<StoredHero[]>(`/api/parties/${partyId}/heroes`);
 export const createHeroApi = (partyId: string, input: { name: string; class: PlayerClass }) =>
   api<StoredHero>(`/api/parties/${partyId}/heroes`, {

@@ -180,17 +180,41 @@ const OPEN_TILE_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".r
 const OPEN_LAYERS = OPEN_TILE_LAYERS.map(encodeTileLayer);
 
 const oneMap: MapSummary[] = [
-  { id: "m1", name: "Verdant Reach", revision: 1, cols: 40, rows: 30, isFirst: true },
+  {
+    id: "m1",
+    name: "Verdant Reach",
+    author: "MapMaker",
+    revision: 1,
+    cols: 40,
+    rows: 30,
+    isFirst: true,
+  },
 ];
 
 const twoMaps: MapSummary[] = [
-  { id: "m1", name: "Verdant Reach", revision: 1, cols: 40, rows: 30, isFirst: true },
-  { id: "m2", name: "Frostfen", revision: 1, cols: 40, rows: 30, isFirst: false },
+  oneMap[0] as MapSummary,
+  {
+    id: "m2",
+    name: "Frostfen",
+    author: "MapMaker",
+    revision: 1,
+    cols: 40,
+    rows: 30,
+    isFirst: false,
+  },
 ];
 
 const threeMaps: MapSummary[] = [
   ...twoMaps,
-  { id: "m3", name: "Ashen Keep", revision: 1, cols: 40, rows: 30, isFirst: false },
+  {
+    id: "m3",
+    name: "Ashen Keep",
+    author: "MapMaker",
+    revision: 1,
+    cols: 40,
+    rows: 30,
+    isFirst: false,
+  },
 ];
 
 function payloadFor(summary: MapSummary): MapPayload {
@@ -250,7 +274,15 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
         markers: EMPTY_MARKERS,
         events: [],
       };
-      list.push({ id: "new", name: "New map", revision: 1, cols: 40, rows: 30, isFirst: false });
+      list.push({
+        id: "new",
+        name: "New map",
+        author: "MapMaker",
+        revision: 1,
+        cols: 40,
+        rows: 30,
+        isFirst: false,
+      });
       return Promise.resolve(jsonResponse(created, 201));
     }
     const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
@@ -1768,6 +1800,7 @@ describe("AdventureEditorScreen shell", () => {
       const m2b: MapSummary = {
         id: "m2b",
         name: "Map1",
+        author: "MapMaker",
         revision: 1,
         cols: 40,
         rows: 30,
