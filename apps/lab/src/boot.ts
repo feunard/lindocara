@@ -14,6 +14,7 @@ import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import { createFoam, FOAM_SPREAD } from "@lindocara/hd2d/terrain/foam.js";
 import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
+import { createWaterfallSheet } from "@lindocara/hd2d/terrain/waterfall.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import {
@@ -54,6 +55,7 @@ import {
   TARGET_FPS,
   TEXTURE_URLS,
   WATER,
+  WATERFALLS,
   WORLD,
   ZONE_LARGE,
   ZONE_POLAIRE,
@@ -241,6 +243,21 @@ const foam = createFoam(ctx, field, {
   waterLevel: WORLD.waterLevel,
 });
 scene.add(foam.group);
+
+// The waterfall (Task 2 of the waterfall chantier): one sheet per authored drop. It shares the
+// sea's own texture on purpose — a fall and the sea it ends in must read as one substance.
+const waterfalls = WATERFALLS.map((w) =>
+  createWaterfallSheet(ctx, {
+    texture: textures.get("/tex/water.png"),
+    x: w.x,
+    z: w.z,
+    width: w.width,
+    topY: w.topLevel * WORLD.levelHeight,
+    bottomY: w.bottomLevel * WORLD.levelHeight,
+    facing: w.facing,
+  }),
+);
+for (const w of waterfalls) scene.add(w.mesh);
 
 // `colliders` est créé ICI, dans le composition root, parce que le héros — créé juste après
 // Grota — doit voir la MÊME instance que celle que Grota/Nanuq peuplent ensuite : contrairement au
@@ -1132,6 +1149,7 @@ function frame(now = performance.now()): void {
   parler(cmd.action, cmd.cancel);
   dialog.update(dt);
   water.update(dt);
+  for (const w of waterfalls) w.update(dt);
   foam.update(dt);
   clouds.update(dt);
   particles.update(dt);

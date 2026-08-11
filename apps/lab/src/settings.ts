@@ -56,6 +56,45 @@ export const WEST = { x: -25, z: 10, r: 7 } as const;
  *  strip, which is exactly the narrow shelf the lowest basin spills across into the sea. */
 export const MOUNTAIN = { x: WEST.x - 1.4, z: WEST.z } as const;
 
+/** One authored drop of the west island's cascade. Authored rather than derived: nothing in the
+ *  height field knows about water above ground (`waterLevel` is one global scalar), so a fall
+ *  cannot be detected the way `foamPlacements` detects a shoreline.
+ *
+ *  Every drop spans exactly ONE level, because every wall on this island does — see the concentric
+ *  relief discs in `ILES[4]` (`world/island.ts`). A sheet spanning two levels would have no wall
+ *  to hang on. */
+export interface WaterfallPlacement {
+  x: number;
+  z: number;
+  /** Width of the sheet at its lip, world units. */
+  width: number;
+  /** The terrace it falls FROM and the one it lands ON. `topLevel === bottomLevel + 1`. */
+  topLevel: number;
+  bottomLevel: number;
+  facing: "east";
+}
+
+/** The three drops, stacked down the mountain's EAST face — the one the hero swims toward, and
+ *  the one whose beach is 3 units wide instead of 0.85 (see `MOUNTAIN`).
+ *
+ *  **A drop sits on a CELL BOUNDARY, not on its relief disc's radius.** The discs are centred at
+ *  `MOUNTAIN` (x = −26.4) with radii 4.2/3.2/2.2/1.2, but terrain is cells: `makeHeightmap` tests
+ *  each cell CENTRE against the disc, so the wall that results falls on the integer boundary
+ *  between two cells, not at 26.4 − 3.2. Deriving these from the radii put every sheet 0.16 units
+ *  inside the rock, invisible, with nothing failing. Measured against the real height field along
+ *  z = 10, the steps down are at x = −25 (4→3), −24 (3→2) and −23 (2→1);
+ *  `test/waterfall-placement.test.ts` re-measures that on every run rather than trusting these
+ *  three numbers to stay true.
+ *
+ *  The chain is closed at both ends without a fourth sheet: a spring pool on the summit feeds the
+ *  first drop (a basin with no sheet above it), and the lowest basin sits on the level-1 terrace,
+ *  one cell from the shore, so it reads as draining into the sea across the existing beach. */
+export const WATERFALLS: readonly WaterfallPlacement[] = [
+  { x: -25, z: MOUNTAIN.z, width: 0.9, topLevel: 4, bottomLevel: 3, facing: "east" },
+  { x: -24, z: MOUNTAIN.z, width: 1.8, topLevel: 3, bottomLevel: 2, facing: "east" },
+  { x: -23, z: MOUNTAIN.z, width: 1.4, topLevel: 2, bottomLevel: 1, facing: "east" },
+];
+
 /** La zone polaire, autour de `NORD` — voir `world/zones.ts` (Task 4 de l'île de neige). Rayon
  *  élargi de 3 unités au-delà du littoral gelé (`NORD.r`) : l'ambiance doit s'installer PENDANT la
  *  traversée à la nage, avant que le héros ne pose le pied sur la banquise, sinon le changement de
