@@ -54,21 +54,24 @@ describe("Chat", () => {
       game: null,
     });
     render(<Chat />);
+    expect(screen.getByText("Local")).toBeInTheDocument();
+    expect(document.getElementById("chat")).not.toHaveClass("chat-open");
     expect(screen.getByText("line 0")).toBeInTheDocument();
     expect(screen.getByText("line 19")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resize chat" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("textbox"));
+    expect(document.getElementById("chat")).toHaveClass("chat-open");
     expect(screen.getByRole("button", { name: "Resize chat" })).toBeInTheDocument();
   });
 
-  it("starts wide and persists two-dimensional resizing", async () => {
+  it("starts 30% smaller and persists two-dimensional resizing", async () => {
     useUiStore.setState({ chat: [], party: null, game: null });
     render(<Chat />);
     const chat = document.getElementById("chat");
     if (!chat) throw new Error("expected chat panel");
-    expect(chat.style.getPropertyValue("--chat-width")).toBe("720px");
-    expect(chat.style.getPropertyValue("--chat-messages-height")).toBe("300px");
+    expect(chat.style.getPropertyValue("--chat-width")).toBe("504px");
+    expect(chat.style.getPropertyValue("--chat-messages-height")).toBe("210px");
 
     await userEvent.click(screen.getByRole("textbox"));
     const handle = screen.getByRole("button", { name: "Resize chat" });
@@ -76,14 +79,23 @@ describe("Chat", () => {
     handle.releasePointerCapture = vi.fn();
     fireEvent.pointerDown(handle, { pointerId: 1, clientX: 720, clientY: 300 });
     fireEvent.pointerMove(handle, { pointerId: 1, clientX: 820, clientY: 200 });
-    expect(chat.style.getPropertyValue("--chat-width")).toBe("820px");
-    expect(chat.style.getPropertyValue("--chat-messages-height")).toBe("400px");
+    expect(chat.style.getPropertyValue("--chat-width")).toBe("604px");
+    expect(chat.style.getPropertyValue("--chat-messages-height")).toBe("310px");
     fireEvent.pointerUp(handle, { pointerId: 1, clientX: 820, clientY: 200 });
 
-    expect(JSON.parse(localStorage.getItem("lindocara.chat.size.v1") ?? "null")).toEqual({
-      width: 820,
-      height: 400,
+    expect(JSON.parse(localStorage.getItem("lindocara.chat.size.v2") ?? "null")).toEqual({
+      width: 604,
+      height: 310,
     });
+  });
+
+  it("reduces a validated legacy chat size by 30%", () => {
+    localStorage.setItem("lindocara.chat.size.v1", JSON.stringify({ width: 800, height: 400 }));
+    useUiStore.setState({ chat: [], party: null, game: null });
+    render(<Chat />);
+    const chat = document.getElementById("chat");
+    expect(chat?.style.getPropertyValue("--chat-width")).toBe("560px");
+    expect(chat?.style.getPropertyValue("--chat-messages-height")).toBe("280px");
   });
 
   it("shows a jump control after scrolling up and receiving new lines", async () => {
@@ -97,6 +109,7 @@ describe("Chat", () => {
       game: null,
     });
     render(<Chat />);
+    await userEvent.click(screen.getByRole("textbox"));
     const messages = document.getElementById("chat-messages");
     if (!messages) throw new Error("expected chat messages container");
 

@@ -430,7 +430,7 @@ export const en = {
   "prompt.quest_site": "[E] Interact: {name}",
 
   // Chat, help, status
-  "chat.title": "Campfire voices",
+  "chat.title": "Local",
   "chat.placeholder": "Enter: chat...",
   "chat.party": "Party",
   "chat.resize": "Resize chat",

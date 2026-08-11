@@ -435,7 +435,7 @@ export const fr: Record<keyof typeof en, string> = {
   "prompt.quest_site": "[E] Interagir : {name}",
 
   // Discussion, aide, statut
-  "chat.title": "Voix du feu de camp",
+  "chat.title": "Local",
   "chat.placeholder": "Entrée : discuter...",
   "chat.party": "Groupe",
   "chat.resize": "Redimensionner le chat",

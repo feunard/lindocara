@@ -4,11 +4,12 @@ import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
 import { currentLocale, t, useLocale } from "../i18n.js";
 import { type ChatLine, useUiStore } from "../store.js";
 
-const CHAT_SIZE_STORAGE_KEY = "lindocara.chat.size.v1";
+const CHAT_SIZE_STORAGE_KEY = "lindocara.chat.size.v2";
+const LEGACY_CHAT_SIZE_STORAGE_KEY = "lindocara.chat.size.v1";
 const CHAT_FILTER_STORAGE_KEY = "lindocara.chat.filter";
 const CHAT_TIMESTAMPS_STORAGE_KEY = "lindocara.chat.timestamps";
-const DEFAULT_CHAT_WIDTH_PX = 720;
-const DEFAULT_CHAT_HEIGHT_PX = 300;
+const DEFAULT_CHAT_WIDTH_PX = 504;
+const DEFAULT_CHAT_HEIGHT_PX = 210;
 const MIN_CHAT_WIDTH_PX = 360;
 const MIN_CHAT_HEIGHT_PX = 180;
 const MAX_CHAT_WIDTH_PX = 1040;
@@ -62,25 +63,34 @@ function clampChatSize(size: ChatSize): ChatSize {
   };
 }
 
+function parseStoredChatSize(raw: string | null): ChatSize | null {
+  if (!raw) return null;
+  const parsed: unknown = JSON.parse(raw);
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("width" in parsed) ||
+    !("height" in parsed) ||
+    typeof parsed.width !== "number" ||
+    typeof parsed.height !== "number" ||
+    !Number.isFinite(parsed.width) ||
+    !Number.isFinite(parsed.height)
+  ) {
+    return null;
+  }
+  return { width: parsed.width, height: parsed.height };
+}
+
 function readStoredChatSize(): ChatSize {
   const fallback = clampChatSize({ width: DEFAULT_CHAT_WIDTH_PX, height: DEFAULT_CHAT_HEIGHT_PX });
   try {
-    const raw = localStorage.getItem(CHAT_SIZE_STORAGE_KEY);
-    if (!raw) return fallback;
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      !("width" in parsed) ||
-      !("height" in parsed) ||
-      typeof parsed.width !== "number" ||
-      typeof parsed.height !== "number" ||
-      !Number.isFinite(parsed.width) ||
-      !Number.isFinite(parsed.height)
-    ) {
-      return fallback;
+    const current = parseStoredChatSize(localStorage.getItem(CHAT_SIZE_STORAGE_KEY));
+    if (current) return clampChatSize(current);
+    const legacy = parseStoredChatSize(localStorage.getItem(LEGACY_CHAT_SIZE_STORAGE_KEY));
+    if (legacy) {
+      return clampChatSize({ width: legacy.width * 0.7, height: legacy.height * 0.7 });
     }
-    return clampChatSize({ width: parsed.width, height: parsed.height });
+    return fallback;
   } catch {
     return fallback;
   }
@@ -378,8 +388,8 @@ export function Chat() {
       )}
       <div className="chat-title">
         <span>{t("chat.title")}</span>
-        <div className="chat-title-actions">
-          {open && (
+        {open && (
+          <div className="chat-title-actions">
             <button
               type="button"
               className={`chat-time-toggle${showTimestamps ? " chat-time-toggle-active" : ""}`}
@@ -390,9 +400,9 @@ export function Chat() {
             >
               {t("chat.timestamps")}
             </button>
-          )}
-          <TinyKbd>Enter</TinyKbd>
-        </div>
+            <TinyKbd>Enter</TinyKbd>
+          </div>
+        )}
       </div>
       {open && (
         <div className="chat-filters" role="tablist" aria-label={t("chat.title")}>
@@ -438,7 +448,7 @@ export function Chat() {
             ))}
           </div>
         </div>
-        {jumpToBottom && (
+        {jumpToBottom && open && (
           <button
             type="button"
             className="chat-jump-bottom"

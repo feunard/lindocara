@@ -31,11 +31,18 @@
   border-image-width: 18px;
 }
 
-/* Chat follows the wide translucent in-world log treatment: a restrained gold edge and dark glass
-   keep many lines readable without turning the lower-left viewport into another carved menu. */
+/* The resting chat is only text over the world. Its dark glass and controls return while writing,
+   so conversation stays readable without permanently occupying the lower-left viewport. */
 .game-ui #chat.panel {
-  border: 1px solid rgb(213 183 106 / 42%);
+  border: 0;
   border-image: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.game-ui #chat.panel.chat-open {
+  border: 1px solid rgb(213 183 106 / 42%);
   border-radius: 0.45rem;
   background:
     linear-gradient(180deg, rgb(5 17 15 / 82%), rgb(2 10 9 / 72%)),

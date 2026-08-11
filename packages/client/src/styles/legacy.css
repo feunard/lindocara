@@ -668,10 +668,10 @@ kbd {
   left: calc(0.75rem + var(--safe-left));
   bottom: 6.1rem;
   width: min(var(--chat-width, 45rem), calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
-  padding: 0.52rem 0.6rem 0.6rem;
+  padding: 0;
   color: #f4f7ef;
-  opacity: 0.98;
-  filter: drop-shadow(0 0.8rem 1.4rem rgb(0 0 0 / 55%));
+  opacity: 1;
+  filter: none;
   text-shadow: var(--game-text-shadow, 0 1px 2px #000);
   transition:
     width 160ms ease,
@@ -680,6 +680,7 @@ kbd {
 }
 
 #chat.chat-open {
+  padding: 0.52rem 0.6rem 0.6rem;
   opacity: 1;
   filter: drop-shadow(0 1rem 1.8rem rgb(0 0 0 / 68%));
 }
@@ -730,6 +731,12 @@ kbd {
     serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+#chat:not(.chat-open) .chat-title {
+  width: fit-content;
+  padding: 0 0.3rem 0.3rem;
+  border-bottom: 0;
 }
 
 .chat-title-actions {
@@ -950,6 +957,11 @@ kbd {
 
 .chat-line-system.chat-tone-bad .chat-channel {
   color: #ffaaa2;
+}
+
+#chat:not(.chat-open) .chat-line {
+  border-left: 0;
+  background: transparent;
 }
 
 #chat-form {
