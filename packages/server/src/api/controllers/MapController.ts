@@ -42,6 +42,7 @@ import {
 const mapSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
+  author: z.string(),
   revision: z.integer(),
   cols: z.integer(),
   rows: z.integer(),

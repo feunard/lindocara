@@ -104,14 +104,30 @@ describe("AdventureEditorScreen map picker", () => {
       if (url === "/api/maps?adventure=adv-1") {
         return Promise.resolve(
           jsonResponse([
-            { id: "map-1", name: "Moon Gate", revision: 1, cols: 20, rows: 15, isFirst: true },
+            {
+              id: "map-1",
+              name: "Moon Gate",
+              author: "MapMaker",
+              revision: 1,
+              cols: 20,
+              rows: 15,
+              isFirst: true,
+            },
           ]),
         );
       }
       if (url === "/api/maps?adventure=adv-2") {
         return Promise.resolve(
           jsonResponse([
-            { id: "map-2", name: "Flooded Path", revision: 1, cols: 24, rows: 18, isFirst: false },
+            {
+              id: "map-2",
+              name: "Flooded Path",
+              author: "MapMaker",
+              revision: 1,
+              cols: 24,
+              rows: 18,
+              isFirst: false,
+            },
           ]),
         );
       }
@@ -124,6 +140,7 @@ describe("AdventureEditorScreen map picker", () => {
 
     expect(await screen.findByRole("heading", { name: t("editor.picker.title") })).toBeVisible();
     expect(await screen.findByText("Moon Gate")).toBeVisible();
+    expect(screen.getAllByText(t("editor.picker.author", { author: "MapMaker" }))).toHaveLength(2);
     expect(screen.getByText("Flooded Path")).toBeVisible();
     expect(alepha.store.get(adventureEditorSessionAtom)).toBeNull();
     expect(
@@ -148,7 +165,15 @@ describe("AdventureEditorScreen map picker", () => {
       if (url === "/api/maps?adventure=adv-2") {
         return Promise.resolve(
           jsonResponse([
-            { id: "map-2", name: "Flooded Path", revision: 1, cols: 20, rows: 15, isFirst: true },
+            {
+              id: "map-2",
+              name: "Flooded Path",
+              author: "MapMaker",
+              revision: 1,
+              cols: 20,
+              rows: 15,
+              isFirst: true,
+            },
           ]),
         );
       }

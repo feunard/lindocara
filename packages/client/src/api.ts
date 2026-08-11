@@ -133,6 +133,8 @@ export async function register(username: string, password: string): Promise<Me> 
 export interface MapSummary {
   id: string;
   name: string;
+  /** Username of the account that created the map. */
+  author: string;
   revision: number;
   cols: number;
   rows: number;

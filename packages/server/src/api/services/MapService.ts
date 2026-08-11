@@ -40,6 +40,7 @@ import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { $inject } from "alepha";
+import { users } from "alepha/api/users";
 import { $repository, sql } from "alepha/orm";
 // Pure, D1-free helper: reused as-is rather than re-ported (see its own docblock).
 import {
@@ -118,6 +119,7 @@ function decodeHarvestProfileColumn(text: string | null | undefined): HarvestPro
 export interface MapSummary {
   id: string;
   name: string;
+  author: string;
   revision: number;
   cols: number;
   rows: number;
@@ -155,6 +157,7 @@ export class MapService {
   heroService = $inject(HeroService);
 
   maps = $repository(maps);
+  users = $repository(users);
   adventures = $repository(adventures);
   mapElements = $repository(mapElements);
   mapEvents = $repository(mapEvents);
@@ -168,14 +171,17 @@ export class MapService {
       where: { adventureId: { eq: adventureId } },
       orderBy: "createdAt",
     });
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      revision: row.revision,
-      cols: row.cols,
-      rows: row.rows,
-      isFirst: row.isFirst,
-    }));
+    return Promise.all(
+      rows.map(async (row) => ({
+        id: row.id,
+        name: row.name,
+        author: (await this.users.findById(row.userId))?.username ?? "unknown",
+        revision: row.revision,
+        cols: row.cols,
+        rows: row.rows,
+        isFirst: row.isFirst,
+      })),
+    );
   }
 
   /** HTTP-facing list: an adventure id is not a capability to enumerate another author's maps. */
@@ -184,9 +190,11 @@ export class MapService {
       where: { adventureId: { eq: adventureId }, userId: { eq: userId } },
       orderBy: "createdAt",
     });
+    const author = (await this.users.findById(userId))?.username ?? "unknown";
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      author,
       revision: row.revision,
       cols: row.cols,
       rows: row.rows,

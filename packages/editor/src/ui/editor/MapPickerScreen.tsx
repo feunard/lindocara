@@ -144,6 +144,9 @@ export function MapPickerScreen() {
                     <span className="mt-1 truncate text-xs text-zinc-500">
                       {choice.adventure.title}
                     </span>
+                    <span className="mt-1 truncate text-xs text-zinc-500">
+                      {t("editor.picker.author", { author: choice.map.author })}
+                    </span>
                     <span className="mt-3 text-[11px] tabular-nums text-zinc-400">
                       {t("editor.shell.maps.dims", {
                         cols: choice.map.cols,

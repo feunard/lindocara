@@ -15,8 +15,24 @@ const OPEN_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat
 );
 
 const twoMaps: MapSummary[] = [
-  { id: "m1", name: "Verdant Reach", revision: 1, cols: 40, rows: 30, isFirst: true },
-  { id: "m2", name: "Frostfen", revision: 1, cols: 48, rows: 32, isFirst: false },
+  {
+    id: "m1",
+    name: "Verdant Reach",
+    author: "MapMaker",
+    revision: 1,
+    cols: 40,
+    rows: 30,
+    isFirst: true,
+  },
+  {
+    id: "m2",
+    name: "Frostfen",
+    author: "MapMaker",
+    revision: 1,
+    cols: 48,
+    rows: 32,
+    isFirst: false,
+  },
 ];
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -69,7 +85,15 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
         markers: EMPTY_MARKERS,
         events: [],
       };
-      list.push({ id: "new", name: "New map", revision: 1, cols: 40, rows: 30, isFirst: false });
+      list.push({
+        id: "new",
+        name: "New map",
+        author: "MapMaker",
+        revision: 1,
+        cols: 40,
+        rows: 30,
+        isFirst: false,
+      });
       return Promise.resolve(jsonResponse(created, 201));
     }
     const idMatch = url.split("?")[0]?.match(/^\/api\/maps\/([^/]+)$/);
@@ -283,8 +307,24 @@ describe("MapListPanel", () => {
 
   it("skips MapN names already taken (UX wave #16)", async () => {
     const takenMaps: MapSummary[] = [
-      { id: "a", name: "Map1", revision: 1, cols: 40, rows: 30, isFirst: true },
-      { id: "b", name: "Map2", revision: 1, cols: 40, rows: 30, isFirst: false },
+      {
+        id: "a",
+        name: "Map1",
+        author: "MapMaker",
+        revision: 1,
+        cols: 40,
+        rows: 30,
+        isFirst: true,
+      },
+      {
+        id: "b",
+        name: "Map2",
+        author: "MapMaker",
+        revision: 1,
+        cols: 40,
+        rows: 30,
+        isFirst: false,
+      },
     ];
     vi.stubGlobal("fetch", mapsBackend(takenMaps));
     render(<Harness />);
