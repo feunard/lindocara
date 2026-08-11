@@ -1326,7 +1326,7 @@ async function startGameIdentity(
        * adventure-test overlay already owns exactly this switch (`setTestDayCycle`); this only
        * reaches it from outside React, the way the rest of this handle reaches the simulation.
        */
-      setDayCycle: (override: "day" | "night" | null) => {
+      setDayCycle: (override: DayCycleOverride) => {
         audioDayCycleOverride = override;
         renderer.setDayCycleOverride?.(override);
       },
