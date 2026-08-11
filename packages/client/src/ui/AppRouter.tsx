@@ -340,6 +340,7 @@ export class AppRouter {
       this.playJoin,
       this.game,
       this.editor,
+      this.admin,
     ],
   });
 
@@ -460,6 +461,21 @@ export class AppRouter {
     lazy: async () => {
       const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
       return { default: module.AdventureEditorScreen };
+    },
+  });
+
+  /**
+   * The `/admin` console over alepha's own admin components (`ui/admin/AdminScreen.tsx`) — users,
+   * sessions and audits. Lazy for the same reason `editor` is: the game shell should not carry the
+   * admin bundle (`@alepha/ui`'s admin components, `AlephaTable`, …) into every player's download.
+   * `$page`'s `lazy` contract is `() => Promise<{ default: FC }>` and `AdminScreen` is a named
+   * export, so the reshaping return below is required, not decoration.
+   */
+  admin = $page({
+    path: "/admin",
+    lazy: async () => {
+      const module = await import("./admin/AdminScreen.js");
+      return { default: module.AdminScreen };
     },
   });
 }
