@@ -434,6 +434,13 @@
   background: rgba(58, 48, 42, 0.45);
 }
 
+.continue-archive__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
 .continue-archive__name {
   color: rgba(244, 233, 210, 0.84);
   font-size: 0.8rem;
@@ -443,6 +450,30 @@
   color: rgba(232, 195, 122, 0.7);
   font-family: system-ui, sans-serif;
   font-size: 0.72rem;
+}
+
+.continue-archive__purge {
+  align-self: center;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(190, 96, 76, 0.55);
+  border-radius: 6px;
+  background: rgba(84, 31, 24, 0.42);
+  color: #f2b6a8;
+  font: inherit;
+  font-size: 0.68rem;
+  cursor: var(--tiny-cursor-link, pointer);
+}
+
+.continue-archive__purge:hover,
+.continue-archive__purge:focus-visible {
+  border-color: #ef9a86;
+  background: rgba(119, 42, 31, 0.68);
+  outline: none;
+}
+
+.continue-archive__purge:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 /* Five classes must remain visible on a laptop-sized viewport. The original flex row was sized

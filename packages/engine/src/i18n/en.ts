@@ -2040,6 +2040,10 @@ export const en = {
   "credits.sfx": "Sound effects",
   "continue.empty": "No adventure in progress. Start a new one.",
   "continue.archive.title": "Completed adventures",
+  "continue.purge": "Delete",
+  "continue.purge.confirm":
+    "Delete {title} from your completed adventures? Your heroes in this adventure will be deleted.",
+  "continue.purge.error": "Could not delete this completed adventure. Try again.",
   "continue.abandon": "Abandon",
   "continue.abandon.confirm": "Abandon {title}? Your heroes in this adventure will be deleted.",
   "continue.abandon.error": "Could not abandon this adventure. Try again.",

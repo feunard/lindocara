@@ -338,6 +338,8 @@ export const deletePartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}`, { method: "DELETE" });
 export const abandonPartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}/membership`, { method: "DELETE" });
+export const purgeCompletedPartyApi = (partyId: string) =>
+  api<void>(`/api/parties/${partyId}/archive`, { method: "DELETE" });
 export const fetchHeroes = (partyId: string) => api<StoredHero[]>(`/api/parties/${partyId}/heroes`);
 export const createHeroApi = (partyId: string, input: { name: string; class: PlayerClass }) =>
   api<StoredHero>(`/api/parties/${partyId}/heroes`, {

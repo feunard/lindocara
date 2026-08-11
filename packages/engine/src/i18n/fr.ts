@@ -2064,6 +2064,10 @@ export const fr: Record<keyof typeof en, string> = {
   "credits.sfx": "Effets sonores",
   "continue.empty": "Aucune aventure en cours. Lance une nouvelle aventure.",
   "continue.archive.title": "Aventures terminées",
+  "continue.purge": "Supprimer",
+  "continue.purge.confirm":
+    "Supprimer {title} de vos aventures terminées ? Vos héros de cette aventure seront supprimés.",
+  "continue.purge.error": "Impossible de supprimer cette aventure terminée. Réessaie.",
   "continue.abandon": "Abandonner",
   "continue.abandon.confirm": "Abandonner {title} ? Vos héros de cette aventure seront supprimés.",
   "continue.abandon.error": "Impossible d’abandonner cette aventure. Réessaie.",

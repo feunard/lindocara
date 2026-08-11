@@ -21,6 +21,7 @@ import {
   fetchParties,
   fetchPlayableAdventures,
   type PartyListing,
+  purgeCompletedPartyApi,
 } from "../api.js";
 import { t } from "../i18n.js";
 import type { AppRouter } from "./AppRouter.js";
@@ -96,10 +97,12 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
   const accountId = user?.id ?? null;
   const [pending, setPending] = useState<PartyListing | null>(null);
   const [abandoningId, setAbandoningId] = useState<string | null>(null);
+  const [purgingId, setPurgingId] = useState<string | null>(null);
   const [abandonError, setAbandonError] = useState(false);
-  const [abandonedIds, setAbandonedIds] = useState<Set<string>>(() => new Set());
+  const [purgeError, setPurgeError] = useState(false);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
   const { items, loading } = useLaunchList(parties, loadMyParties);
-  const visibleItems = items.filter((party) => !abandonedIds.has(party.id));
+  const visibleItems = items.filter((party) => !removedIds.has(party.id));
   const activeParties = visibleItems.filter((party) => party.status === "open");
   const completedParties = visibleItems.filter((party) => party.status === "completed");
 
@@ -124,11 +127,27 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
     setAbandonError(false);
     try {
       await abandonPartyApi(id);
-      setAbandonedIds((current) => new Set(current).add(id));
+      setRemovedIds((current) => new Set(current).add(id));
     } catch {
       setAbandonError(true);
     } finally {
       setAbandoningId(null);
+    }
+  }
+
+  async function purge(id: string) {
+    const party = completedParties.find((candidate) => candidate.id === id);
+    if (!party || purgingId !== null) return;
+    if (!window.confirm(t("continue.purge.confirm", { title: party.adventureTitle }))) return;
+    setPurgingId(id);
+    setPurgeError(false);
+    try {
+      await purgeCompletedPartyApi(id);
+      setRemovedIds((current) => new Set(current).add(id));
+    } catch {
+      setPurgeError(true);
+    } finally {
+      setPurgingId(null);
     }
   }
 
@@ -152,11 +171,11 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
       onAction={(id) => void abandon(id)}
       onBack={() => void router.push("menu")}
       secondaryContent={
-        abandonError || completedParties.length > 0 ? (
+        abandonError || purgeError || completedParties.length > 0 ? (
           <div className="continue-secondary">
-            {abandonError ? (
+            {abandonError || purgeError ? (
               <p className="continue-abandon-error" role="alert">
-                {t("continue.abandon.error")}
+                {t(abandonError ? "continue.abandon.error" : "continue.purge.error")}
               </p>
             ) : null}
             {completedParties.length > 0 ? (
@@ -167,8 +186,19 @@ export function ContinueScreen({ parties }: { parties: PartyListing[] | null }) 
                 <ul className="continue-archive__list">
                   {completedParties.map((party) => (
                     <li key={party.id} className="continue-archive__item">
-                      <span className="continue-archive__name">{party.adventureTitle}</span>
-                      <span className="continue-archive__status">{t("parties.completed")}</span>
+                      <span className="continue-archive__copy">
+                        <span className="continue-archive__name">{party.adventureTitle}</span>
+                        <span className="continue-archive__status">{t("parties.completed")}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="continue-archive__purge"
+                        aria-label={`${t("continue.purge")} ${party.adventureTitle}`}
+                        disabled={purgingId !== null}
+                        onClick={() => void purge(party.id)}
+                      >
+                        {t("continue.purge")}
+                      </button>
                     </li>
                   ))}
                 </ul>

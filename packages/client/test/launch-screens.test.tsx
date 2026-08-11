@@ -154,7 +154,9 @@ describe("launch screens (loader-driven routes)", () => {
     await waitFor(() => expect(screen.getByText("Mine Adventure")).toBeTruthy());
     expect(screen.getByRole("heading", { name: t("continue.archive.title") })).toBeTruthy();
     expect(screen.getByText("Finished Adventure")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Finished Adventure/ })).toBeNull();
+    expect(document.querySelector(".carousel-track")?.textContent).not.toContain(
+      "Finished Adventure",
+    );
     expect(screen.queryByText("Other Open")).toBeNull();
     expect(screen.queryByText("Other Full")).toBeNull();
     expect(screen.queryByText("Other Completed")).toBeNull();
@@ -184,6 +186,23 @@ describe("launch screens (loader-driven routes)", () => {
     expect(screen.getByText(t("continue.empty"))).toBeTruthy();
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       "/api/parties/p-mine/membership",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    confirm.mockRestore();
+  });
+
+  it("playContinue can purge a completed adventure from the current account", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    ({ alepha } = await mountAt("/play/continue"));
+    await waitFor(() => expect(screen.getByText("Finished Adventure")).toBeTruthy());
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("continue.purge")} Finished Adventure` }),
+    );
+
+    await waitFor(() => expect(screen.queryByText("Finished Adventure")).toBeNull());
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/parties/p-mine-completed/archive",
       expect.objectContaining({ method: "DELETE" }),
     );
     confirm.mockRestore();

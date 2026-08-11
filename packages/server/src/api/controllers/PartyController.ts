@@ -1,7 +1,8 @@
 /**
  * The parties API on Alepha: cursor-paginated public listing, create-from-any-adventure (server-
  * assigned colour, creator auto-joined), join (colour server-assigned, never client-chosen),
- * member abandonment, and host-only delete. Ported from the `/api/parties*` routes in
+ * member abandonment, per-account completed-save purge, and host-only delete. Ported from the
+ * `/api/parties*` routes in
  * `packages/server/src/index.ts`
  * (`:971`-`:1037`), same loose-schema idiom as `MapController`/`AdventureController` — see
  * `MapController`'s own docblock for why `join`/`delete` declare no body schema and `createParty`'s
@@ -91,6 +92,21 @@ export class PartyController {
     handler: async ({ params, user }) => {
       try {
         await this.partyService.abandonParty(user.id, params.id);
+      } catch (error) {
+        rethrowAsPartyError(error);
+      }
+    },
+  });
+
+  /** `DELETE /api/parties/:id/archive` -> 204. Removes the caller's completed save only. */
+  purgeCompletedParty = $action({
+    method: "DELETE",
+    path: "/parties/:id/archive",
+    use: [$secure({}), $transactional()],
+    schema: { params: z.object({ id: z.string() }) },
+    handler: async ({ params, user }) => {
+      try {
+        await this.partyService.purgeCompletedParty(user.id, params.id);
       } catch (error) {
         rethrowAsPartyError(error);
       }

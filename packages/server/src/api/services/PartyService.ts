@@ -1,7 +1,8 @@
 /**
  * Parties as stored things on Alepha: cursor-paginated public listing, create-from-any-adventure
  * (the play flow is not owner-fenced, exactly like legacy), server-assigned-colour join, and
- * host-only delete, and per-member abandonment. Ported from `packages/server/src/parties.ts`,
+ * host-only delete, per-member abandonment, and per-account completed-save purge. Ported from
+ * `packages/server/src/parties.ts`,
  * function-by-function, onto `$repository` calls instead of raw Drizzle/D1 statements.
  *
  * **Colour is always server-assigned**, on create AND on join — legacy's `CreatePartyInput.color`
@@ -352,6 +353,68 @@ export class PartyService {
             LIMIT 1
           )
           WHERE ${table.id} = ${partyId}
+            AND ${table.hostUserId} = ${userId}
+            AND EXISTS (
+              SELECT 1 FROM ${members} WHERE ${members.partyId} = ${partyId}
+            )
+          RETURNING ${table.id}
+        `,
+        ID_ROW_SCHEMA,
+      );
+    }
+
+    const revoked = deleted.length > 0 ? allHeroRows : ownHeroRows;
+    for (const hero of revoked) await this.heroService.onHeroDeleted(hero.id);
+  }
+
+  /**
+   * Remove one account's completed save without erasing the archive for the other participants.
+   * As with abandonment, the caller's heroes leave with its membership. The shared party row is
+   * deleted only after the last membership is gone, and host ownership follows the oldest
+   * remaining member so a purged host never leaves a dangling archive owner.
+   *
+   * The empty cleanup and host transfer stay conditional single statements for D1, whose
+   * `$transactional()` wrapper cannot provide a multi-statement transaction.
+   */
+  async purgeCompletedParty(userId: string, partyId: string): Promise<void> {
+    const row = await this.parties.findById(partyId);
+    if (row?.status !== "completed") throw new Error("not_found: no such completed party");
+    const membership = await this.partyMembers.findOne({
+      where: { partyId: { eq: partyId }, userId: { eq: userId } },
+    });
+    if (!membership) throw new Error("not_found: no such party membership");
+
+    const allHeroRows = await this.heroes.findMany({ where: { partyId: { eq: partyId } } });
+    const ownHeroRows = allHeroRows.filter((hero) => hero.userId === userId);
+    await this.heroes.deleteMany({ partyId: { eq: partyId }, userId: { eq: userId } });
+    await this.partyMembers.deleteById(membership.id);
+
+    const members = this.partyMembers.table;
+    const deleted = await this.parties.query(
+      (table) => sql`
+        DELETE FROM ${table}
+        WHERE ${table.id} = ${partyId}
+          AND ${table.status} = 'completed'
+          AND NOT EXISTS (
+            SELECT 1 FROM ${members} WHERE ${members.partyId} = ${partyId}
+          )
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+
+    if (deleted.length === 0 && row.hostUserId === userId) {
+      await this.parties.query(
+        (table) => sql`
+          UPDATE ${table}
+          SET ${sql.raw(table.hostUserId.name)} = (
+            SELECT ${members.userId} FROM ${members}
+            WHERE ${members.partyId} = ${partyId}
+            ORDER BY ${members.joinedAt} ASC, ${members.id} ASC
+            LIMIT 1
+          )
+          WHERE ${table.id} = ${partyId}
+            AND ${table.status} = 'completed'
             AND ${table.hostUserId} = ${userId}
             AND EXISTS (
               SELECT 1 FROM ${members} WHERE ${members.partyId} = ${partyId}
