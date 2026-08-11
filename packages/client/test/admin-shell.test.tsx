@@ -96,14 +96,19 @@ describe("AdminShell route", () => {
       // guard — the superseded `AdminScreen`'s hand-rolled `has("admin:*")` check is gone, and there
       // is no manual guard to reintroduce.
       //
-      // The assertion is POSITIVE (matches the exact text `ReactPageProvider.denyGuardedPage`
-      // renders for an authenticated-but-forbidden visitor) rather than only checking that the
-      // sidebar's nav labels are absent. A labels-absent-only check passes just as happily if
-      // `AdminRouter` never registered, a `lazy: import()` path were wrong, or `AdminShell` threw —
-      // none of those are the guard doing its job, and a bare 404/import-failure is indistinguishable
-      // from a correct denial to that assertion alone.
+      // The assertion is POSITIVE (the status `ReactPageProvider.denyGuardedPage` renders for an
+      // authenticated-but-forbidden visitor) rather than only checking that the sidebar's nav
+      // labels are absent. A labels-absent-only check passes just as happily if `AdminRouter` never
+      // registered, a `lazy: import()` path were wrong, or `AdminShell` threw — none of those are
+      // the guard doing its job, and a bare 404/import-failure is indistinguishable from a correct
+      // denial to that assertion alone.
       //
-      // The status matters too, not just the message: this session (real userinfo response, empty
+      // It asserts the STATUS, not the framework's prose: the "you do not have permission…"
+      // sentence belongs to the vendored DEV error page, so a routine `npx alepha vendor sync`
+      // could reword it and redden this test without anything in this repo changing. `403` carries
+      // the same load and is a contract rather than copy.
+      //
+      // That status is exactly the point: this session (real userinfo response, empty
       // `permissions`) is AUTHENTICATED — so `denyGuardedPage` takes its 403 branch, never the 401
       // ("Authentication required") one an anonymous visitor would get. Seeing 403 here is also the
       // proof that `currentUserAtom` was populated BEFORE this route's first transition evaluated
@@ -117,9 +122,8 @@ describe("AdminShell route", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/you do not have permission to access this page/i)).toBeTruthy();
+        expect(screen.getByText("403")).toBeTruthy();
       });
-      expect(screen.getByText("403")).toBeTruthy();
       expect(screen.queryByText(/authentication required/i)).toBeNull();
 
       // The sidebar is derived from `AdminRouter`'s `navPage` tree — none of its nav labels
@@ -292,12 +296,14 @@ describe("AdminShell route", () => {
               { status: 200, headers: { "Content-Type": "application/json" } },
             );
           }
-          // `bootPing`'s guest-registration fallback fires in the background regardless (it
-          // cannot know the slow `ping()` above will eventually succeed) — stubbed here purely so
-          // that fire-and-forget chain resolves cleanly instead of throwing on an unexpected shape
-          // and hitting the total-failure `window.location.href` branch, which has no bearing on
-          // this test's own assertions but would otherwise log jsdom's noisy "not implemented:
-          // navigation" warning.
+          // Registration/login stubs kept as a TRIPWIRE's safety net, not because this test needs
+          // them: `bootPing` used to fire its guest-registration fallback the moment the race
+          // timed out, which is the HIGH finding the final whole-branch review caught — a
+          // slow-but-real session being replaced by a guest account. It now waits for the ping's
+          // own resolution, so nothing below is reached at all here. `app-router.test.tsx`'s
+          // "boot ping" suite asserts that absence directly; these branches only keep a regression
+          // from turning into jsdom's noisy "not implemented: navigation" warning via the
+          // fallback's total-failure `window.location.href` branch.
           if (path.startsWith("/api/users/register") && !path.includes("complete")) {
             return new Response(JSON.stringify({ intentId: "guest-intent" }), {
               status: 200,

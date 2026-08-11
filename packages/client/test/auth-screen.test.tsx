@@ -115,11 +115,11 @@ describe("AuthScreen", () => {
     document.title = "";
     document.head.innerHTML = "";
     document.body.innerHTML = '<div id="root"></div>';
-    // Mount directly at `/auth`, BEFORE `alepha.start()` — `ReactBrowserProvider`'s first render
-    // reads `window.location` synchronously, so the layout's boot effect sees `/auth` on its very
-    // first run and skips its own automatic ping/guest-fallback entirely (`AppRouter.tsx`'s
-    // docblock). Without this, that boot effect would race every test below with its OWN
-    // `continueAsGuest()`/`ping()` calls against the exact same stubbed endpoints.
+    // Mount directly at `/auth`, BEFORE `alepha.start()` — `AppRouter.bootPing` (a `$hook({ on:
+    // "start" })` since Task 2's fix round 1, not a React effect) reads `window.location`
+    // synchronously, so it sees `/auth` and skips its own automatic ping/guest-fallback entirely
+    // (`AppRouter.tsx`'s docblock). Without this, that hook would race every test below with its
+    // OWN `continueAsGuest()`/`ping()` calls against the exact same stubbed endpoints.
     history.pushState({}, "", "/auth");
   });
 

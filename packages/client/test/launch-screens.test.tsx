@@ -15,9 +15,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * route's `loader` (`ui/AppRouter.tsx`) instead of their own `useEffect` fetch. These tests boot the
  * real `AppRouter` (the same harness `app-router.test.tsx`/`auth-screen.test.tsx` use) and land
  * directly on a play route via `history.pushState` before `alepha.start()` — the same technique
- * `auth-screen.test.tsx` uses to land on `/auth` — so the layout's boot ping sees the target
- * pathname on its very first render and MainMenu's own "has saves" probe never mounts, keeping each
- * stubbed `/api/parties`/`/api/adventures` response exact to what the loader under test needs.
+ * `auth-screen.test.tsx` uses to land on `/auth` — so `AppRouter.bootPing` (a `$hook({ on:
+ * "start" })`, not a React effect) sees the target pathname and MainMenu's own "has saves" probe
+ * never mounts, keeping each stubbed `/api/parties`/`/api/adventures` response exact to what the
+ * loader under test needs.
  */
 
 interface PartyFixture {
@@ -89,8 +90,8 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-/** Authenticated `/_auth/userinfo` (skips the boot effect's guest fallback) plus the loader's own
- *  `/api/parties`/`/api/adventures` calls. */
+/** Authenticated `/_auth/userinfo` (skips `AppRouter.bootPing`'s guest fallback) plus the loader's
+ *  own `/api/parties`/`/api/adventures` calls. */
 function stubFetch(): void {
   vi.stubGlobal(
     "fetch",

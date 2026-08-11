@@ -16,6 +16,8 @@
 import { ApiError, login, type Me, register } from "./api.js";
 
 const STORAGE_KEY = "lindocara.guest";
+/** The one-shot "you just signed out, do not re-guest me" marker — see `suppressGuestForNextBoot`. */
+const SUPPRESS_KEY = "lindocara.guest.suppressed";
 /** Matches the server's USERNAME_PATTERN alphabet, lowercased since accounts are stored that way. */
 const USERNAME_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 const PASSWORD_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -95,6 +97,44 @@ export function forgetGuest(): void {
     localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Nothing to do — the caller is already on its way out.
+  }
+}
+
+/**
+ * Signing out has to survive the reload it causes.
+ *
+ * `ReactAuth.logout()` revokes the session with a form POST whose redirect lands the browser back
+ * on `/` — a FRESH DOCUMENT, so nothing held in memory survives it. That fresh document runs
+ * `AppRouter.bootPing`, which finds no user and would immediately sign the visitor back in as a
+ * guest: with the stored credential still present, the very account they just left; with it
+ * cleared, a brand-new junk account minted on every QUIT. Either way "log out" lasted about a
+ * second and never reached an anonymous title screen.
+ *
+ * So QUIT clears the credential (`forgetGuest`) AND leaves this one-shot marker behind, which the
+ * next boot consumes to skip its automatic guest fallback exactly once. `sessionStorage`, not
+ * `localStorage`, is what makes "once" true in both directions: it survives a same-tab navigation
+ * (which is all the logout redirect is) yet cannot leak into another tab, and it dies with the tab
+ * rather than suppressing the guest fallback forever on a browser that never gets a clean boot.
+ * Signing in, or reloading again, is unaffected — the marker is gone after the first read.
+ */
+export function suppressGuestForNextBoot(): void {
+  try {
+    sessionStorage.setItem(SUPPRESS_KEY, "1");
+  } catch {
+    // Storage disabled (private window, blocked cookies): the sign-out itself still happens, the
+    // next boot just re-guests. A degraded logout, never a broken one.
+  }
+}
+
+/** Reads and CLEARS the marker above — one boot only, whatever that boot then decides to do. */
+export function consumeGuestSuppression(): boolean {
+  try {
+    const raw = sessionStorage.getItem(SUPPRESS_KEY);
+    sessionStorage.removeItem(SUPPRESS_KEY);
+    return raw === "1";
+  } catch {
+    // Same as above: unreadable storage reads as "not suppressed", the pre-existing behaviour.
+    return false;
   }
 }
 

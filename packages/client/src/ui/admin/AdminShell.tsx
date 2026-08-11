@@ -1,10 +1,8 @@
-import { ButtonDark } from "@alepha/ui/components/button-dark/button-dark";
 import { ButtonLanguage } from "@alepha/ui/components/button-language/button-language";
 import { ButtonUser } from "@alepha/ui/components/button-user/button-user";
 import { NavShell } from "@alepha/ui/components/nav-shell/nav-shell";
 import { Spotlight } from "@alepha/ui/components/nav-shell/spotlight";
 import { useRouter } from "alepha/react/router";
-import { ColorScheme } from "alepha/react/ui";
 import { ArrowLeft, LayoutDashboard, Search } from "lucide-react";
 import { useState } from "react";
 import type { AppRouter } from "../AppRouter.js";
@@ -14,7 +12,8 @@ import type { AppRouter } from "../AppRouter.js";
  * sidebar nav and breadcrumb trail are derived from the admin route subtree (anchored at the
  * `admin` layout page, `AdminRouter.adminLayout`) by `<NavShell>` — each page carries its own
  * `nav` metadata in `AdminRouter.tsx`, so there is no hand-synced nav list here. This component
- * only supplies the chrome: brand, language / dark-mode toggles and the account menu.
+ * only supplies the chrome: brand, the language toggle and the account menu. No dark-mode toggle —
+ * see the topbar comment below for why the console is deliberately light-only.
  *
  * This is a NON-GAME, creator-tools surface, so it uses `@alepha/ui` exclusively — never
  * `ui/tiny-swords/` (see the repo CLAUDE.md's two-component-trees rule).
@@ -35,10 +34,6 @@ export function AdminShell() {
     // Without it the console renders the game's parchment `#f4f0df` text on white — verified in a
     // real browser, and invisible to the test suite, which runs with `css: false`.
     <div className="admin-root flex h-svh flex-col">
-      {/* `/admin` is not under the game's own chrome effects, so nothing else applies the
-        dark/light class to <html> — without this, the dark-mode toggle below would flip the atom
-        but no subscriber would ever paint it. */}
-      <ColorScheme />
       <NavShell
         root="admin"
         fill
@@ -73,7 +68,16 @@ export function AdminShell() {
             </button>
             <div aria-hidden="true" className="bg-border mx-1 h-5 w-px shrink-0" />
             <ButtonLanguage />
-            <ButtonDark />
+            {/* No `<ButtonDark />`, deliberately — the console is LIGHT-ONLY, exactly like
+              `.editor-root`. `.admin-root` re-declares the light shadcn tokens directly on the
+              element (`styles/legacy.css`), and an element-level declaration beats anything
+              `html.dark` sets on an ancestor, so a dark-mode toggle here could flip the atom and
+              still repaint nothing. Its companion `<ColorScheme />` went with it: its only job was
+              to mirror that atom onto `<html>`, which — since `index.html` hardcodes
+              `<html class="dark">` for the game's own chrome and nothing else manages it — meant a
+              route-local component silently mutating the whole document's theme class and never
+              restoring it on the way out. Making the toggle work would take a `.dark .admin-root`
+              token block; that is a deliberate non-goal, not an oversight. */}
             {/* No `onAdminClick`: unlike the game menu's corner button (which enters `/admin`),
               this button is already inside `/admin` — there is nowhere useful for it to send the
               user, so the default menu's "Admin Panel" item stays hidden and only Logout shows. */}

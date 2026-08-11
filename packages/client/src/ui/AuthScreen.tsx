@@ -28,8 +28,8 @@ export function AuthScreen() {
     try {
       // `continueAsGuest()` is the same plain-fetch two-phase register/login as before (`guest.ts`
       // has no Alepha instance to reach) — it authenticates the session cookie but never touches
-      // `currentUserAtom` itself, so a re-`ping()` syncs it the same way the layout's boot effect
-      // does for its own automatic guest fallback (`AppRouter.tsx`'s docblock).
+      // `currentUserAtom` itself, so a re-`ping()` syncs it the same way `AppRouter.bootPing` (the
+      // `$hook({ on: "start" })`) does for its own automatic guest fallback.
       await continueAsGuest();
       await alepha.inject(ReactAuth).ping();
       await router.push("menu");

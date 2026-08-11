@@ -46,10 +46,29 @@ export class AdminRoleProvider {
   userService = $inject(UserService);
   log = $logger();
 
+  /**
+   * Reconciliation is a BOOT CHORE, not a boot requirement, so it can never refuse to serve.
+   *
+   * Alepha aborts startup when a `ready` hook rejects (`Alepha.ts`), and everything this walk
+   * touches is out of its own control: the database may be mid-migration, slow, briefly
+   * unreachable, or `findUsers` may simply fail on one page of a large realm. Left unguarded, any
+   * of those turns "an admin's role is momentarily out of date" into "the game is down" — a
+   * strictly worse outcome, and a live one, since `ADMIN_USERNAMES` is set in production. The role
+   * grant is also self-healing: the next boot reconciles again, and the `admin` role governs one
+   * console, not a player's ability to play.
+   *
+   * Logged at error level rather than swallowed — a reconciliation that never succeeds must be
+   * visible in Bay's logs, because the silent failure mode is an admin who cannot get in and a
+   * revoked account that is still an admin.
+   */
   ready = $hook({
     on: "ready",
     handler: async () => {
-      await this.reconcile();
+      try {
+        await this.reconcile();
+      } catch (error) {
+        this.log.error("admin role reconciliation failed; continuing to boot", { error });
+      }
     },
   });
 

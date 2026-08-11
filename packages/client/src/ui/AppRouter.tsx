@@ -39,7 +39,12 @@ import { HttpError } from "alepha/server";
 import { useEffect } from "react";
 import { menuAudio } from "../game/menu-audio.js";
 import { stopActiveGameSession } from "../game/session.js";
-import { continueAsGuest } from "../guest.js";
+import {
+  consumeGuestSuppression,
+  continueAsGuest,
+  forgetGuest,
+  suppressGuestForNextBoot,
+} from "../guest.js";
 import { useLocale } from "../i18n.js";
 import { activePartyAtom, adventureTestSessionAtom, quickItemsAtom } from "../state/atoms.js";
 import type { GameNavigation } from "../state/navigation.js";
@@ -97,7 +102,7 @@ import { WorldMap } from "./WorldMap.js";
  *
  * `/admin` isn't a member of this exact-match `Set` because its subtree has nested paths
  * (`/admin/users`, `/admin/users/:id`, ...) that a `Set.has()` lookup can never match — see the
- * `pathname.startsWith("/admin")` check folded into `immersive` below instead. Same dense,
+ * `isAdminPath` check folded into `immersive` below instead. Same dense,
  * full-viewport reasoning as `/editor`: `AdminShell`'s own `@alepha/ui` `NavShell` sidebar/topbar
  * is the surface's real chrome, and the floating Tiny Swords `LocaleToggle`/`StatusBar` would
  * otherwise render on top of it.
@@ -111,6 +116,15 @@ const IMMERSIVE_PATHS = new Set<string>([
   "/play/join",
   "/editor",
 ]);
+
+/**
+ * The `/admin` subtree, as a pathname test — the console's own nested routes (`/admin/users`,
+ * `/admin/users/:id`, ...) are why `IMMERSIVE_PATHS`' exact-match `Set` cannot cover it. A bare
+ * `startsWith("/admin")` would also swallow any unrelated future `/administration`-shaped route, so
+ * the segment boundary is spelled out: the console's own root, or something genuinely under it.
+ */
+const isAdminPath = (pathname: string): boolean =>
+  pathname === "/admin" || pathname.startsWith("/admin/");
 
 /**
  * The in-game React tree (Task 5) — every component the old zustand-screen-machine shell (`App.tsx`,
@@ -218,7 +232,18 @@ function AppLayout() {
       setAdventureTestSession: (session) => alepha.store.set(adventureTestSessionAtom, session),
       getAdventureTestSession: () => alepha.store.get(adventureTestSessionAtom),
       getQuickItems: () => alepha.store.get(quickItemsAtom),
-      logout: () => alepha.inject(ReactAuth).logout(),
+      // Signing out must LEAVE the player signed out. `ReactAuth.logout()` revokes the session and
+      // redirects to `/` — a fresh document, whose `bootPing` below finds no user and would sign
+      // the visitor straight back in as a guest (the same account with a stored credential, a
+      // brand-new junk account without one). So the two guards go on BEFORE the navigation, in the
+      // one place logout is implemented: drop the stored credential, and mark the next boot as
+      // "no automatic guest" (see `guest.ts`'s `suppressGuestForNextBoot` for why that marker has
+      // to live in storage rather than in memory). QUIT then lands on an anonymous title screen.
+      logout: () => {
+        forgetGuest();
+        suppressGuestForNextBoot();
+        alepha.inject(ReactAuth).logout();
+      },
     };
     setGameNavigation(nav);
     setOnUnauthorized(() => {
@@ -267,7 +292,7 @@ function AppLayout() {
     stopActiveGameSession({ navigate: false });
   }, [pathname]);
 
-  const immersive = IMMERSIVE_PATHS.has(pathname) || pathname.startsWith("/admin");
+  const immersive = IMMERSIVE_PATHS.has(pathname) || isAdminPath(pathname);
 
   return (
     <>
@@ -369,21 +394,38 @@ export class AppRouter {
    *   hook that never resolves means the app never reaches `"ready"` at all: a permanently blank
    *   page, strictly worse than the pre-fix behaviour (renders fine, only auth degrades).
    *
-   * So: the first `ping()` is raced against `BOOT_PING_TIMEOUT_MS` — a timeout counts as "no user
-   * yet," exactly like a rejection, and lets mount proceed either way. The guest-registration
-   * fallback (`continueAsGuest()` + a second `ping()`) then runs COMPLETELY UNAWAITED, as a
-   * fire-and-forget background chain: if the visitor turns out to be anonymous, they see the app
-   * render first and the guest session attach a moment later (or, on total failure — both the real
-   * ping AND guest registration failing — get sent to the sign-in screen via a hard
-   * `window.location` assignment a moment later; still not `router.push`, since React has not
-   * mounted yet when this hook runs and there is no live SPA router to push through). The race's
-   * LOSING timer callback calling `resolve()` on an already-settled promise is a harmless no-op —
-   * nothing needs to cancel it.
+   * So: the first `ping()` is raced against `BOOT_PING_TIMEOUT_MS`, and mount proceeds whichever
+   * side wins. The guest-registration fallback (`continueAsGuest()` + a second `ping()`) then runs
+   * COMPLETELY UNAWAITED, as a fire-and-forget background chain: if the visitor turns out to be
+   * anonymous, they see the app render first and the guest session attach a moment later (or, on
+   * total failure — both the real ping AND guest registration failing — get sent to the sign-in
+   * screen via a hard `window.location` assignment a moment later; still not `router.push`, since
+   * React has not mounted yet when this hook runs and there is no live SPA router to push through).
+   *
+   * **The timeout unblocks the MOUNT; it never answers the question.** That distinction is the
+   * whole shape of the race below, and collapsing it was a real regression (found by the final
+   * whole-branch review): a timeout used to count as "no user," exactly like a rejection, so the
+   * guest chain fired on a SLOW-but-real session too. `continueAsGuest()` logs in or REGISTERS, and
+   * either way the server sets a NEW session cookie — so a returning player on a slow network was
+   * silently replaced by a guest account (their saves gone from under them, a junk account minted,
+   * an admin's `admin` role lost). Nothing failed; nothing logged. So the winner of the race decides
+   * only whether to WAIT: timing out hands the decision to `ping`'s own eventual resolution, which
+   * is the only thing that can distinguish "nobody is signed in" from "the answer is late." The
+   * loser's timer is cleared rather than left to fire into an already-settled race.
+   *
+   * **The one-shot logout suppression.** `consumeGuestSuppression()` (`guest.ts`) is read — and
+   * cleared — on every boot, before anything else this hook does. QUIT sets it just before
+   * `ReactAuth.logout()` navigates (see the navigation seam's `logout` above), because otherwise
+   * signing out reloads straight into this hook and this hook signs the player back in as a guest
+   * a second later. When it is set, the ping still runs (a session that somehow survived logout
+   * should still be honoured) but the guest fallback does not, so QUIT lands on an anonymous title
+   * screen. It is consumed even on the `/auth` early return below, so a stale marker can never
+   * suppress the guest fallback on some later, unrelated boot.
    *
    * **Fix round 3, for a `$secure`-guarded route specifically (e.g. `/admin`): a SLOW-but-real
-   * session (`ping()` genuinely resolving, just after `BOOT_PING_TIMEOUT_MS`) is NOT the same
-   * outcome as an anonymous one, even though `bootPing` treats them identically at this point —
-   * and that used to matter. Any bounded timeout necessarily has a "the real answer arrives a
+   * session (`ping()` genuinely resolving, just after `BOOT_PING_TIMEOUT_MS`) reaches the guard's
+   * first evaluation with the SAME empty `currentUserAtom` an anonymous visitor does — and that
+   * used to matter. Any bounded timeout necessarily has a "the real answer arrives a
    * moment after the cap" case, and — before fix round 3 — that case dead-ended: `currentUserAtom`
    * was still empty at the guard's FIRST evaluation, `denyGuardedPage` threw a plain 401
    * `AlephaError`, and `NestedView`'s `ErrorBoundary` (`resetKeys` = only the URL pathname) LATCHED
@@ -416,24 +458,49 @@ export class AppRouter {
     on: "start",
     handler: async () => {
       if (!this.alepha.isBrowser()) return;
+      // Read before the `/auth` return below, so the marker is consumed on EVERY boot it is set
+      // for and can never linger into a later one.
+      const guestSuppressed = consumeGuestSuppression();
       if (window.location.pathname === "/auth") return;
-
-      const user = await Promise.race([
-        this.reactAuth.ping().catch(() => undefined),
-        new Promise<undefined>((resolve) => setTimeout(resolve, BOOT_PING_TIMEOUT_MS)),
-      ]);
-      if (user) return;
 
       // Deliberately fire-and-forget — see this field's own docblock for why blocking mount on
       // this chain is exactly the regression fix round 2 closed.
-      void (async () => {
-        try {
-          await continueAsGuest();
-          await this.reactAuth.ping();
-        } catch {
-          window.location.href = "/auth";
-        }
-      })();
+      const fallbackToGuest = () => {
+        if (guestSuppressed) return;
+        void (async () => {
+          try {
+            await continueAsGuest();
+            await this.reactAuth.ping();
+          } catch {
+            window.location.href = "/auth";
+          }
+        })();
+      };
+
+      // ONE ping, kept as a live promise: the race below may abandon waiting on it, but never it.
+      const ping = this.reactAuth.ping().catch(() => undefined);
+      // A sentinel rather than `undefined`, because `undefined` is already a real answer here —
+      // "resolved, nobody is signed in" — and conflating the two is precisely the bug this shape
+      // exists to prevent (see this field's docblock).
+      const TIMED_OUT = Symbol("boot-ping-timed-out");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const raced = await Promise.race([
+        ping,
+        new Promise<typeof TIMED_OUT>((resolve) => {
+          timer = setTimeout(() => resolve(TIMED_OUT), BOOT_PING_TIMEOUT_MS);
+        }),
+      ]);
+      clearTimeout(timer);
+
+      if (raced === TIMED_OUT) {
+        // Mount now, decide later: only the ping's own resolution can tell an anonymous visitor
+        // from a slow one, and guessing wrong replaces a real session with a guest account.
+        void ping.then((late) => {
+          if (!late) fallbackToGuest();
+        });
+        return;
+      }
+      if (!raced) fallbackToGuest();
     },
   });
 
