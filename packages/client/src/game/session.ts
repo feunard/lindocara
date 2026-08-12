@@ -63,6 +63,7 @@ import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import type { PartyListing, StoredHero } from "../api.js";
 import { t } from "../i18n.js";
 import { questTrackerNotifications } from "../quest-presentation.js";
+import { cancelHudLayoutEdit, isHudLayoutEditing } from "../state/hud-layout.js";
 import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { ChestFeedbackTracker } from "./chest-feedback.js";
@@ -157,7 +158,8 @@ export function isGameplayInputPaused(): boolean {
     store.merchantOpen ||
     store.eventDialogue !== null ||
     store.questDialogue !== null ||
-    store.heroLoading !== null
+    store.heroLoading !== null ||
+    isHudLayoutEditing()
   );
 }
 
@@ -831,6 +833,7 @@ async function startGameIdentity(
     canvas.classList.remove("sheep-hover");
     sound.stopAmbient();
     renderer.destroy();
+    cancelHudLayoutEdit();
     if (stopActiveSession === stopSession) stopActiveSession = null;
     // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal
     // disconnect and reappears full-screen the instant the next character's world loads, over a

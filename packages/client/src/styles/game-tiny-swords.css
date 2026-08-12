@@ -144,3 +144,253 @@
 #stage.sheep-hover:not([data-cursor]) {
   cursor: var(--tiny-cursor-interact, pointer);
 }
+
+/* Player-authored HUD layout. Every editable box is a viewport-relative fixed widget so a saved
+   layout scales across resolutions. The quest stack and peasant resource readout remain ordinary
+   game information: the editor only exposes the boxes listed in Settings > Interface. */
+.game-ui #hud {
+  display: contents;
+  filter: none;
+}
+
+.hud-quest-stack {
+  position: fixed;
+  z-index: 4;
+  top: calc(7.2rem + var(--safe-top));
+  left: calc(0.7rem + var(--safe-left));
+  display: grid;
+  width: min(20rem, calc(100vw - 1.4rem - var(--safe-left) - var(--safe-right)));
+  gap: 0.42rem;
+  filter: drop-shadow(0 0.6rem 0.8rem rgb(0 0 0 / 42%));
+  pointer-events: auto;
+}
+
+.hud-layout-widget {
+  position: fixed;
+  z-index: 4;
+  width: max-content;
+  height: max-content;
+  transform: translate(-50%, -50%) scale(var(--hud-widget-scale, 1));
+  transform-origin: center;
+  pointer-events: none;
+  transition:
+    left 140ms ease,
+    top 140ms ease,
+    transform 140ms ease;
+}
+
+.hud-layout-widget__content {
+  position: relative;
+  pointer-events: auto;
+}
+
+.hud-layout-widget[data-hud-editing="true"] {
+  z-index: 72;
+  transition: none;
+}
+
+.hud-layout-widget[data-hud-editing="true"] .hud-layout-widget__content {
+  pointer-events: none;
+  user-select: none;
+}
+
+.hud-layout-widget__move {
+  position: absolute;
+  z-index: 10;
+  inset: -0.48rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0;
+  border: 2px dashed rgb(255 222 125 / 92%);
+  border-radius: 0.5rem;
+  background: rgb(28 64 49 / 13%);
+  outline: 1px solid rgb(3 15 11 / 76%);
+  cursor: var(--tiny-cursor-move, move);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.hud-layout-widget__move:focus-visible {
+  border-style: solid;
+  outline: 3px solid rgb(255 239 181 / 42%);
+  outline-offset: 2px;
+}
+
+.hud-layout-widget__move > span {
+  max-width: calc(100% - 1rem);
+  margin-top: -1.05rem;
+  overflow: hidden;
+  padding: 0.16rem 0.48rem;
+  border: 1px solid #d5ab50;
+  border-radius: 999px;
+  background: rgb(5 24 18 / 98%);
+  color: #fff0b7;
+  font:
+    800 0.58rem var(--font-display),
+    Georgia,
+    serif;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px #000;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hud-layout-widget__resize {
+  position: absolute;
+  z-index: 12;
+  right: -0.86rem;
+  bottom: -0.86rem;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: 2px solid #f4d06f;
+  border-radius: 0.28rem;
+  background:
+    linear-gradient(135deg, transparent 35%, #f4d06f 36% 45%, transparent 46% 55%, #f4d06f 56%),
+    #123126;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 62%);
+  cursor: nwse-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.game-ui .hud-layout-widget #chat,
+.game-ui .hud-layout-widget #minimap {
+  position: relative;
+  inset: auto;
+}
+
+.game-ui .hud-layout-widget #chat {
+  bottom: auto;
+  left: auto;
+}
+
+.game-ui .hud-layout-widget #minimap {
+  top: auto;
+  right: auto;
+}
+
+.hud-layout-widget--hero .identity {
+  grid-column: auto;
+  grid-row: auto;
+  width: 100%;
+}
+
+.hud-layout-widget--hero .hud-layout-widget__content {
+  width: min(20rem, calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
+}
+
+.hud-layout-widget--chat[data-hud-editing="true"] #chat:not(.chat-open) {
+  width: min(var(--chat-width, 45rem), calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
+  height: auto;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.hud-layout-widget--minimap[data-hud-editing="true"] #minimap {
+  display: block;
+}
+
+.hud-layout-widget--quick-items .action-dock__group {
+  padding-top: 0.72rem;
+}
+
+.hud-layout-widget--xp .hud-layout-widget__content {
+  width: min(32rem, calc(100vw - 1.4rem - var(--safe-left) - var(--safe-right)));
+}
+
+.hud-layout-widget--xp .action-dock__experience {
+  width: 100%;
+}
+
+.game-ui .skill-bar.panel {
+  display: contents;
+  filter: none;
+}
+
+.peasant-resources-dock {
+  position: fixed;
+  z-index: 3;
+  bottom: calc(13.5rem + var(--safe-bottom));
+  left: 50%;
+  width: min(34rem, calc(100vw - 1.4rem - var(--safe-left) - var(--safe-right)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.peasant-resources-dock .peasant-resources {
+  width: 100%;
+  pointer-events: auto;
+}
+
+.settings-edit-interface {
+  width: 100%;
+}
+
+.hud-layout-editor.tiny-panel {
+  position: fixed;
+  z-index: 90;
+  top: calc(0.65rem + var(--safe-top));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(52rem, calc(100vw - 1.3rem - var(--safe-left) - var(--safe-right)));
+  gap: 1rem;
+  padding: 0.72rem 0.9rem;
+  transform: translateX(-50%);
+  color: #f4ecd4;
+  filter: drop-shadow(0 0.8rem 1.4rem rgb(0 0 0 / 58%));
+  pointer-events: auto;
+}
+
+.hud-layout-editor__copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.hud-layout-editor__copy strong {
+  color: #ffe7a0;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+}
+
+.hud-layout-editor__copy span {
+  color: #d5dfd2;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.hud-layout-editor__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+}
+
+@media (max-width: 760px) {
+  .hud-layout-editor.tiny-panel {
+    top: calc(0.35rem + var(--safe-top));
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .hud-layout-editor__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hud-layout-editor__actions .tiny-button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 0.35rem;
+  }
+
+  .hud-quest-stack {
+    top: calc(6.4rem + var(--safe-top));
+  }
+}

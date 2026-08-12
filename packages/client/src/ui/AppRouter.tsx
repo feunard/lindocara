@@ -59,6 +59,8 @@ import { CreditsScreen } from "./CreditsScreen.js";
 import { EventLog } from "./EventLog.js";
 import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
 import { Hud } from "./hud/Hud.js";
+import { HudLayoutEditor } from "./hud/HudLayoutEditor.js";
+import { HudLayoutWidget } from "./hud/HudLayoutWidget.js";
 import { Minimap } from "./hud/Minimap.js";
 import { QuestDialoguePanel } from "./hud/QuestDialoguePanel.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
@@ -137,8 +139,13 @@ function GameScreen() {
   return (
     <div className="game-ui" data-ui-skin="tiny-swords">
       <Hud />
-      <Minimap />
-      <Chat />
+      <HudLayoutWidget id="minimap">
+        <Minimap />
+      </HudLayoutWidget>
+      <HudLayoutWidget id="chat">
+        <Chat />
+      </HudLayoutWidget>
+      <HudLayoutEditor />
       <EventLog />
       <Prompt />
       <InteriorOverlay />

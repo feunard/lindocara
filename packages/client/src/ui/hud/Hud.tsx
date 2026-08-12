@@ -12,6 +12,7 @@ import { Bar } from "./Bar.js";
 import { CampBankPanel } from "./CampBankPanel.js";
 import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
+import { HudLayoutWidget } from "./HudLayoutWidget.js";
 import { UnitPortrait } from "./UnitPortrait.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
@@ -98,107 +99,115 @@ export function Hud() {
       <DeathOverlay />
       <CampBankPanel />
       <aside id="hud">
-        <section className="panel identity">
-          <UnitPortrait portrait={playerPortrait(self.class, self.appearance)} />
-          <div className="identity-copy">
-            <strong>{self.nick}</strong>
-            <span>{t("hud.level", { level: self.level })}</span>
-            <span>{t(`class.${self.class}`)}</span>
-          </div>
-          {/* biome-ignore lint/a11y/noLabelWithoutControl: reuses the legacy `.identity label`
-            grid layout (styles/legacy.css); the row labels a read-only <Bar> progressbar, not a
-            form control, so there is nothing to htmlFor. */}
-          <label>
-            <span>{t("hud.vit")}</span>
-            <Bar value={self.hp} max={self.maxHp} variant="hp" />
-            <span>
-              {self.hp}/{self.maxHp}
-            </span>
-          </label>
-          {selfState.resource && (
-            // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching the rows above/below.
-            <label>
-              <span>{t(`resource.${selfState.resource.kind}` as MessageKey)}</span>
-              <Bar value={selfState.resource.current} max={selfState.resource.max} variant="mana" />
-              <span>
-                {Math.floor(selfState.resource.current)}/{selfState.resource.max}
-              </span>
-            </label>
-          )}
-          {self.breath && (
-            // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching HP.
-            <label>
-              <span>{t("hud.breath")}</span>
-              <Bar value={self.breath.current} max={self.breath.max} variant="mana" />
-              <span>
-                {self.breath.current}/{self.breath.max}
-              </span>
-            </label>
-          )}
-        </section>
-
-        {!activeParty && (
-          <section
-            key={questPulseKey}
-            className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
-          >
-            <div className="panel-title">
-              <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-              <strong>{t(`quest.${questChapter}.name` as MessageKey)}</strong>
+        <HudLayoutWidget id="hero">
+          <section className="panel identity">
+            <UnitPortrait portrait={playerPortrait(self.class, self.appearance)} />
+            <div className="identity-copy">
+              <strong>{self.nick}</strong>
+              <span>{t("hud.level", { level: self.level })}</span>
+              <span>{t(`class.${self.class}`)}</span>
             </div>
-            <span>{questText(quest)}</span>
-            {showQuestBar && (
-              <Bar
-                value={quest.status === "ready" ? quest.target : quest.progress}
-                max={quest.target}
-                variant="quest"
-              />
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: reuses the legacy `.identity label`
+              grid layout (styles/legacy.css); the row labels a read-only <Bar> progressbar, not a
+              form control, so there is nothing to htmlFor. */}
+            <label>
+              <span>{t("hud.vit")}</span>
+              <Bar value={self.hp} max={self.maxHp} variant="hp" />
+              <span>
+                {self.hp}/{self.maxHp}
+              </span>
+            </label>
+            {selfState.resource && (
+              // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching the rows above/below.
+              <label>
+                <span>{t(`resource.${selfState.resource.kind}` as MessageKey)}</span>
+                <Bar
+                  value={selfState.resource.current}
+                  max={selfState.resource.max}
+                  variant="mana"
+                />
+                <span>
+                  {Math.floor(selfState.resource.current)}/{selfState.resource.max}
+                </span>
+              </label>
             )}
-            {quest.timerEndsAt !== undefined && (
-              <strong className="quest-timer" aria-live="polite">
-                {t("quest.timer", { seconds: remainingSeconds })}
-              </strong>
+            {self.breath && (
+              // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching HP.
+              <label>
+                <span>{t("hud.breath")}</span>
+                <Bar value={self.breath.current} max={self.breath.max} variant="mana" />
+                <span>
+                  {self.breath.current}/{self.breath.max}
+                </span>
+              </label>
             )}
           </section>
-        )}
+        </HudLayoutWidget>
 
-        {authoredQuests.length > 0 && (
-          <button
-            type="button"
-            className="panel quest-journal-launch"
-            onClick={() => setQuestJournalOpen(true)}
-          >
-            <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-            <strong>{t("quest.journal.open")}</strong>
-            <span className="quest-journal-launch__hint">{t("quest.journal.openHint")}</span>
-          </button>
-        )}
-
-        {trackedAuthoredQuests.map((authored) => (
-          <section
-            key={`${authored.id}:${authored.status}:${authored.objectives
-              .map((objective) => objective.progress)
-              .join("-")}`}
-            className="panel quest pulse"
-          >
-            <div className="panel-title">
-              <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-              <strong>{authored.title}</strong>
-            </div>
-            {(authored.journalSummary || authored.description) && (
-              <span>{authored.journalSummary || authored.description}</span>
-            )}
-            {authored.objectives.map((objective) => (
-              <div key={objective.id} className="flex flex-col gap-1">
-                <span>{questObjectiveProgressText(objective)}</span>
-                <Bar value={objective.progress} max={objective.target} variant="quest" />
+        <div className="hud-quest-stack">
+          {!activeParty && (
+            <section
+              key={questPulseKey}
+              className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
+            >
+              <div className="panel-title">
+                <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+                <strong>{t(`quest.${questChapter}.name` as MessageKey)}</strong>
               </div>
-            ))}
-            {authored.status === "ready" && <strong>{t("quest.ready")}</strong>}
-          </section>
-        ))}
+              <span>{questText(quest)}</span>
+              {showQuestBar && (
+                <Bar
+                  value={quest.status === "ready" ? quest.target : quest.progress}
+                  max={quest.target}
+                  variant="quest"
+                />
+              )}
+              {quest.timerEndsAt !== undefined && (
+                <strong className="quest-timer" aria-live="polite">
+                  {t("quest.timer", { seconds: remainingSeconds })}
+                </strong>
+              )}
+            </section>
+          )}
 
-        {self.class === "priest" && <HealCooldownBar />}
+          {authoredQuests.length > 0 && (
+            <button
+              type="button"
+              className="panel quest-journal-launch"
+              onClick={() => setQuestJournalOpen(true)}
+            >
+              <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+              <strong>{t("quest.journal.open")}</strong>
+              <span className="quest-journal-launch__hint">{t("quest.journal.openHint")}</span>
+            </button>
+          )}
+
+          {trackedAuthoredQuests.map((authored) => (
+            <section
+              key={`${authored.id}:${authored.status}:${authored.objectives
+                .map((objective) => objective.progress)
+                .join("-")}`}
+              className="panel quest pulse"
+            >
+              <div className="panel-title">
+                <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+                <strong>{authored.title}</strong>
+              </div>
+              {(authored.journalSummary || authored.description) && (
+                <span>{authored.journalSummary || authored.description}</span>
+              )}
+              {authored.objectives.map((objective) => (
+                <div key={objective.id} className="flex flex-col gap-1">
+                  <span>{questObjectiveProgressText(objective)}</span>
+                  <Bar value={objective.progress} max={objective.target} variant="quest" />
+                </div>
+              ))}
+              {authored.status === "ready" && <strong>{t("quest.ready")}</strong>}
+            </section>
+          ))}
+
+          {self.class === "priest" && <HealCooldownBar />}
+        </div>
       </aside>
       <ActionDock />
     </>

@@ -11,6 +11,7 @@ import {
   subscribeAudioSettings,
 } from "../game/audio-settings.js";
 import { setLocale, t, useLocale } from "../i18n.js";
+import { beginHudLayoutEdit } from "../state/hud-layout.js";
 import { getGameNavigation } from "../state/navigation.js";
 import { useUiStore } from "../store.js";
 import { ControlsSettings } from "./ControlsSettings.js";
@@ -253,6 +254,20 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
                     </TinySelect>
                   </label>
                 </SettingsMenuItem>
+
+                {inGame && (
+                  <SettingsMenuItem
+                    order={23}
+                    onActivate={() => {
+                      beginHudLayoutEdit();
+                      setSettingsOpen(false);
+                    }}
+                  >
+                    <TinyButton type="button" className="settings-edit-interface">
+                      {t("settings.edit_interface")}
+                    </TinyButton>
+                  </SettingsMenuItem>
+                )}
               </div>
             )}
 

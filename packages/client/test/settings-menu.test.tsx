@@ -1,5 +1,10 @@
 import { getAudioSettings, setAudioSettings } from "@lindocara/client/game/audio-settings.js";
 import { currentLocale, setLocale } from "@lindocara/client/i18n.js";
+import {
+  cancelHudLayoutEdit,
+  isHudLayoutEditing,
+  reloadHudLayout,
+} from "@lindocara/client/state/hud-layout.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { SettingsMenu } from "@lindocara/client/ui/SettingsMenu.js";
 import { getDisplaySettings, setDisplaySettings } from "@lindocara/renderer/display-settings.js";
@@ -14,6 +19,8 @@ describe("SettingsMenu", () => {
     setAudioSettings({ muted: false, sfxVolume: 0.65, ambientVolume: 0.45 });
     setDisplaySettings({ healthBars: "both", grid: false });
     resetInputBindings();
+    localStorage.clear();
+    reloadHudLayout();
     useUiStore.setState({ settingsOpen: false, game: null });
   });
 
@@ -69,6 +76,17 @@ describe("SettingsMenu", () => {
     render(<SettingsMenu inGame />);
     await userEvent.click(screen.getByRole("button", { name: /resume/i }));
     expect(useUiStore.getState().settingsOpen).toBe(false);
+  });
+
+  it("returns to the game in interface edit mode from the interface pane", async () => {
+    useUiStore.setState({ settingsOpen: true });
+    render(<SettingsMenu inGame />);
+    await userEvent.click(screen.getByRole("tab", { name: "Interface" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit interface" }));
+
+    expect(useUiStore.getState().settingsOpen).toBe(false);
+    expect(isHudLayoutEditing()).toBe(true);
+    cancelHudLayoutEdit();
   });
 
   it("keeps remapping behind the controls tab and captures a new key", async () => {

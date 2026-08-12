@@ -1,6 +1,7 @@
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";
+import { HudLayoutWidget } from "./HudLayoutWidget.js";
 import { PeasantResourcesPanel } from "./PeasantResourcesPanel.js";
 import { QuickItemBar } from "./QuickItemBar.js";
 import { SkillBar } from "./SkillBar.js";
@@ -9,20 +10,19 @@ export function ActionDock() {
   useLocale();
   const selfState = useUiStore((state) => state.selfState);
   return (
-    <aside className="action-dock" aria-label={t("hud.action_dock")}>
-      <PeasantResourcesPanel />
-      <div className="action-dock__main">
-        <div className="action-dock__controls">
-          <div className="action-dock__group action-dock__group--items">
-            <strong className="action-dock__title">{t("inventory.quickbar")}</strong>
-            <QuickItemBar />
-          </div>
-          <div className="action-dock__group action-dock__group--skills">
-            <strong className="action-dock__title">{t("hud.abilities")}</strong>
-            <SkillBar />
-          </div>
+    <>
+      <aside className="peasant-resources-dock" aria-label={t("hud.action_dock")}>
+        <PeasantResourcesPanel />
+      </aside>
+      <HudLayoutWidget id="quick-items">
+        <div className="action-dock__group action-dock__group--items">
+          <strong className="action-dock__title">{t("inventory.quickbar")}</strong>
+          <QuickItemBar />
         </div>
-        {selfState && (
+      </HudLayoutWidget>
+      <SkillBar />
+      {selfState && (
+        <HudLayoutWidget id="xp">
           <div className="action-dock__experience">
             <strong>{t("hud.spark")}</strong>
             <Bar
@@ -32,8 +32,8 @@ export function ActionDock() {
               label={`${selfState.xp}/${selfState.xpToNext}`}
             />
           </div>
-        )}
-      </div>
-    </aside>
+        </HudLayoutWidget>
+      )}
+    </>
   );
 }

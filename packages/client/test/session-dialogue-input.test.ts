@@ -1,8 +1,14 @@
 import { isGameplayInputPaused } from "@lindocara/client/game/session.js";
+import {
+  beginHudLayoutEdit,
+  cancelHudLayoutEdit,
+  reloadHudLayout,
+} from "@lindocara/client/state/hud-layout.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 function closeBlockingSurfaces(): void {
+  cancelHudLayoutEdit();
   useUiStore.setState({
     interiorDoorId: null,
     settingsOpen: false,
@@ -17,6 +23,7 @@ function closeBlockingSurfaces(): void {
 }
 
 beforeEach(closeBlockingSurfaces);
+beforeEach(reloadHudLayout);
 afterEach(closeBlockingSurfaces);
 
 describe("dialogue gameplay input", () => {
@@ -41,5 +48,13 @@ describe("dialogue gameplay input", () => {
       },
     });
     expect(isGameplayInputPaused()).toBe(true);
+  });
+
+  it("pauses movement and actions while the HUD layout is being edited", () => {
+    expect(isGameplayInputPaused()).toBe(false);
+    beginHudLayoutEdit();
+    expect(isGameplayInputPaused()).toBe(true);
+    cancelHudLayoutEdit();
+    expect(isGameplayInputPaused()).toBe(false);
   });
 });

@@ -63,6 +63,10 @@ describe("Hud", () => {
     expect(
       document.querySelector('.action-dock__experience [data-variant="xp"]'),
     ).toBeInTheDocument();
+    expect(document.querySelector('[data-hud-widget="hero"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-hud-widget="quick-items"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-hud-widget="xp"]')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-hud-widget^="skill-"]')).toHaveLength(4);
     expect(document.querySelector('#hud [data-variant="xp"]')).not.toBeInTheDocument();
     expect(
       screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),

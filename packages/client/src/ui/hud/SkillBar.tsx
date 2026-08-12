@@ -21,6 +21,7 @@ import { activeReactivationDeadline } from "../../game/cooldown-sync.js";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { controlBindingLabels, useInputModeSettings } from "../input-hints.js";
+import { HudLayoutWidget } from "./HudLayoutWidget.js";
 
 export const SKILL_PAD_LAYOUT: Readonly<
   Record<SkillSlot, { row: 1 | 2 | 3; column: 1 | 2 | 3; numpad: 1 | 2 | 3 | 4 | 5 }>
@@ -45,6 +46,21 @@ const MATERIAL_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
   iron: "material.iron",
   meat: "material.meat",
 };
+
+function skillWidgetId(slot: SkillSlot): "skill-2" | "skill-3" | "skill-4" | "skill-5" | null {
+  switch (slot) {
+    case 2:
+      return "skill-2";
+    case 3:
+      return "skill-3";
+    case 4:
+      return "skill-4";
+    case 5:
+      return "skill-5";
+    default:
+      return null;
+  }
+}
 
 function materialCostText(cost: Readonly<PartyMaterialAmounts>): string {
   return PARTY_MATERIAL_TYPES.flatMap((material) => {
@@ -216,108 +232,111 @@ export function SkillBar() {
         const keyBindings = inputSettings.keyboard[control];
         const layout = SKILL_PAD_LAYOUT[skill.slot];
         const displayedLabel = controlBindingLabels(control, mode, inputSettings)[0] ?? "-";
+        const widgetId = skillWidgetId(skill.slot);
+        if (!widgetId) return null;
         const iconStyle = {
           backgroundImage: `url("${icon.source}")`,
           backgroundSize: `${icon.frames * 100}% 100%`,
           backgroundPosition: `${icon.frames === 1 ? 0 : (icon.frame / (icon.frames - 1)) * 100}% center`,
         } satisfies CSSProperties;
         return (
-          <button
-            type="button"
-            key={skill.id}
-            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${support && !affordable ? " unaffordable" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady || afterimageReady || danceRepositionReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
-            style={{ gridRow: layout.row, gridColumn: layout.column }}
-            data-numpad={layout.numpad}
-            data-evolution-variant={evolution?.variantId}
-            data-shadow-return-ready={shadowReturnReady || undefined}
-            data-afterimage-ready={afterimageReady || undefined}
-            data-dance-reposition-ready={danceRepositionReady || undefined}
-            data-material-affordable={support ? String(affordable) : undefined}
-            disabled={!game || self.life !== "alive" || unavailable}
-            onPointerDown={
-              heldSkill
-                ? (event) => {
-                    event.currentTarget.setPointerCapture?.(event.pointerId);
-                    heldPointer.current = { pointerId: event.pointerId, slot: skill.slot };
-                    game?.castSkill(skill.slot);
-                  }
-                : undefined
-            }
-            onClick={(event) => {
-              if (!heldSkill) game?.castSkill(skill.slot);
-              else if (event.detail === 0) {
-                game?.castSkill(skill.slot);
-                game?.releaseSkill?.(skill.slot);
+          <HudLayoutWidget key={skill.id} id={widgetId}>
+            <button
+              type="button"
+              className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${support && !affordable ? " unaffordable" : ""}${guardToggle && ironGuardActive ? " active" : ""}${shadowReturnReady || afterimageReady || danceRepositionReady ? " return-ready" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
+              style={{ gridRow: layout.row, gridColumn: layout.column }}
+              data-numpad={layout.numpad}
+              data-evolution-variant={evolution?.variantId}
+              data-shadow-return-ready={shadowReturnReady || undefined}
+              data-afterimage-ready={afterimageReady || undefined}
+              data-dance-reposition-ready={danceRepositionReady || undefined}
+              data-material-affordable={support ? String(affordable) : undefined}
+              disabled={!game || self.life !== "alive" || unavailable}
+              onPointerDown={
+                heldSkill
+                  ? (event) => {
+                      event.currentTarget.setPointerCapture?.(event.pointerId);
+                      heldPointer.current = { pointerId: event.pointerId, slot: skill.slot };
+                      game?.castSkill(skill.slot);
+                    }
+                  : undefined
               }
-            }}
-            aria-pressed={guardToggle ? ironGuardActive : undefined}
-            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}${danceRepositionReady ? `. ${t("skill.rogue.dance_master.ready")}` : ""}${supportText ? `. ${supportText}` : ""}`}
-            aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
-            title={
-              !enabledOnMap
-                ? `${name} — ${t("skill.disabled_on_map")}`
-                : unlocked
-                  ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}`
-                  : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
-            }
-          >
-            <span className="skill-slot__key">{displayedLabel}</span>
-            <span
-              className={`skill-slot__icon skill-slot__icon--${icon.variant}`}
-              style={iconStyle}
-              aria-hidden="true"
-            />
-            <span className="skill-slot__name">{name}</span>
-            {evolution?.variantId && (
-              <span className="skill-slot__variant" aria-hidden="true">
-                {evolution.variantId.toUpperCase()}
+              onClick={(event) => {
+                if (!heldSkill) game?.castSkill(skill.slot);
+                else if (event.detail === 0) {
+                  game?.castSkill(skill.slot);
+                  game?.releaseSkill?.(skill.slot);
+                }
+              }}
+              aria-pressed={guardToggle ? ironGuardActive : undefined}
+              aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}${danceRepositionReady ? `. ${t("skill.rogue.dance_master.ready")}` : ""}${supportText ? `. ${supportText}` : ""}`}
+              aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
+              title={
+                !enabledOnMap
+                  ? `${name} — ${t("skill.disabled_on_map")}`
+                  : unlocked
+                    ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}`
+                    : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
+              }
+            >
+              <span className="skill-slot__key">{displayedLabel}</span>
+              <span
+                className={`skill-slot__icon skill-slot__icon--${icon.variant}`}
+                style={iconStyle}
+                aria-hidden="true"
+              />
+              <span className="skill-slot__name">{name}</span>
+              {evolution?.variantId && (
+                <span className="skill-slot__variant" aria-hidden="true">
+                  {evolution.variantId.toUpperCase()}
+                </span>
+              )}
+              {manaCost > 0 && <span className="skill-slot__cost">{manaCost}</span>}
+              {support && (
+                <span className="skill-slot__material-costs" aria-hidden="true">
+                  {PARTY_MATERIAL_TYPES.flatMap((material) => {
+                    const amount = support.cost[material] ?? 0;
+                    if (amount <= 0) return [];
+                    const missing = (materials?.[material] ?? 0) < amount;
+                    return [
+                      <span
+                        key={material}
+                        className={`skill-slot__material-cost${missing ? " missing" : ""}`}
+                        data-material-cost={material}
+                        aria-hidden="true"
+                      >
+                        {t(MATERIAL_SHORT_LABEL[material])}
+                        {amount}
+                      </span>,
+                    ];
+                  })}
+                </span>
+              )}
+              {!unlocked && <span className="skill-slot__lock">{requiredLevel}</span>}
+              {unlocked && !enabledOnMap && <span className="skill-slot__lock">×</span>}
+              {shadowReturnReady && (
+                <span className="skill-slot__return">{t("skill.rogue.shadow_return.ready")}</span>
+              )}
+              {afterimageReady && (
+                <span className="skill-slot__return">{t("skill.ranger.afterimage.ready")}</span>
+              )}
+              {danceRepositionReady && (
+                <span className="skill-slot__return">{t("skill.rogue.dance_master.ready")}</span>
+              )}
+              {cooling && (
+                <span className="skill-slot__cooldown" aria-hidden="true">
+                  {(remaining / 1000).toFixed(remaining < 950 ? 1 : 0)}
+                </span>
+              )}
+              <span className="skill-slot__tooltip" role="tooltip">
+                {!enabledOnMap
+                  ? t("skill.disabled_on_map")
+                  : unlocked
+                    ? `${description}${manaText ? ` · ${manaText}` : ""}`
+                    : t("skill.unlock_at", { level: requiredLevel })}
               </span>
-            )}
-            {manaCost > 0 && <span className="skill-slot__cost">{manaCost}</span>}
-            {support && (
-              <span className="skill-slot__material-costs" aria-hidden="true">
-                {PARTY_MATERIAL_TYPES.flatMap((material) => {
-                  const amount = support.cost[material] ?? 0;
-                  if (amount <= 0) return [];
-                  const missing = (materials?.[material] ?? 0) < amount;
-                  return [
-                    <span
-                      key={material}
-                      className={`skill-slot__material-cost${missing ? " missing" : ""}`}
-                      data-material-cost={material}
-                      aria-hidden="true"
-                    >
-                      {t(MATERIAL_SHORT_LABEL[material])}
-                      {amount}
-                    </span>,
-                  ];
-                })}
-              </span>
-            )}
-            {!unlocked && <span className="skill-slot__lock">{requiredLevel}</span>}
-            {unlocked && !enabledOnMap && <span className="skill-slot__lock">×</span>}
-            {shadowReturnReady && (
-              <span className="skill-slot__return">{t("skill.rogue.shadow_return.ready")}</span>
-            )}
-            {afterimageReady && (
-              <span className="skill-slot__return">{t("skill.ranger.afterimage.ready")}</span>
-            )}
-            {danceRepositionReady && (
-              <span className="skill-slot__return">{t("skill.rogue.dance_master.ready")}</span>
-            )}
-            {cooling && (
-              <span className="skill-slot__cooldown" aria-hidden="true">
-                {(remaining / 1000).toFixed(remaining < 950 ? 1 : 0)}
-              </span>
-            )}
-            <span className="skill-slot__tooltip" role="tooltip">
-              {!enabledOnMap
-                ? t("skill.disabled_on_map")
-                : unlocked
-                  ? `${description}${manaText ? ` · ${manaText}` : ""}`
-                  : t("skill.unlock_at", { level: requiredLevel })}
-            </span>
-          </button>
+            </button>
+          </HudLayoutWidget>
         );
       })}
     </section>
