@@ -215,14 +215,7 @@ function peasantAbilityEffect(
 ): CombatSheetArt {
   const art = PEASANT_ABILITY_SHEETS[skillId];
   return {
-    ...sheet(
-      art.source,
-      art.frameWidth,
-      art.frameHeight,
-      art.frames,
-      durationMs,
-      art.activeFrame,
-    ),
+    ...sheet(art.source, art.frameWidth, art.frameHeight, art.frames, durationMs, art.activeFrame),
     scale,
   };
 }

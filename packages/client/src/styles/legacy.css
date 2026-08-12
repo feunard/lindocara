@@ -4648,8 +4648,7 @@ kbd {
   border-image-width: 14px;
   background-image:
     radial-gradient(circle at 14% 0%, rgb(74 92 56 / 35%), transparent 34%),
-    linear-gradient(110deg, rgb(11 34 27 / 99%), rgb(3 16 13 / 100%)),
-    var(--text-surface-dialogue);
+    linear-gradient(110deg, rgb(11 34 27 / 99%), rgb(3 16 13 / 100%)), var(--text-surface-dialogue);
   box-shadow:
     0 0 0 1px #d2a957,
     0 0 0 4px rgb(35 19 12 / 92%),
