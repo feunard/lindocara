@@ -80,7 +80,13 @@ import {
   type QuestSite,
 } from "./game.js";
 import type { GroundVector } from "./ground.js";
-import { HARVEST_PROFILE_LIMITS, isPeasantCarryKind, type PeasantCarryKind } from "./harvest.js";
+import {
+  HARVEST_PROFILE_LIMITS,
+  type HarvestTool,
+  isHarvestTool,
+  isPeasantCarryKind,
+  type PeasantCarryKind,
+} from "./harvest.js";
 import { decodeMap, MAX_HEIGHTFIELD_SIZE } from "./hd2d/map-data.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
@@ -417,6 +423,8 @@ export interface CombatActionSnapshot {
   id: string;
   kind: CombatActionKind;
   skillId?: string;
+  /** Contextual tool selected by the authority for the Peasant's basic attack. */
+  peasantTool?: HarvestTool;
   direction: GroundVector;
   startedAt: number;
   impactAt: number;
@@ -464,6 +472,8 @@ export interface CombatAnimation {
   actorId: string;
   action: "attack" | "skill";
   skillId?: string;
+  /** Contextual tool selected by the authority for the Peasant's basic attack. */
+  peasantTool?: HarvestTool;
   /** Server-authored: this cast owns at least one active talent for its skill slot. */
   talented?: true;
   /** Server-authored: the branch's named final technique is active for this cast. */
@@ -1264,6 +1274,11 @@ function isActionSnapshot(
       (!isFiniteNumber(value.channelEndsAt) ||
         value.channelEndsAt < value.impactAt ||
         value.channelEndsAt > value.recoveryEndsAt)) ||
+    (value.peasantTool !== undefined &&
+      (!isHarvestTool(value.peasantTool) ||
+        actorKind !== "player" ||
+        value.kind !== "basic" ||
+        value.skillId !== "woodcutters_swing")) ||
     typeof value.resolved !== "boolean"
   ) {
     return false;
@@ -2264,6 +2279,11 @@ export function parseServerMessage(raw: string): ServerMessage | null {
         isCombatImpactTimes(value.impactTimes, value.impactAt, value.recoveryEndsAt)) &&
       (value.talented === undefined || value.talented === true) &&
       (value.evolved === undefined || value.evolved === true) &&
+      (value.peasantTool === undefined ||
+        (value.actorKind === "player" &&
+          value.action === "attack" &&
+          value.skillId === "woodcutters_swing" &&
+          isHarvestTool(value.peasantTool))) &&
       ((value.actorKind === "monster" &&
         ((value.action === "attack" && value.skillId === undefined) ||
           (value.action === "skill" &&

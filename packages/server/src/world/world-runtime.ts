@@ -30,7 +30,7 @@ import {
   maxHpForLevel,
 } from "@lindocara/engine/game.js";
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
-import type { PeasantCarryKind } from "@lindocara/engine/harvest.js";
+import type { HarvestTool, PeasantCarryKind } from "@lindocara/engine/harvest.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
 import type { MonsterNavigationState } from "@lindocara/engine/navigation.js";
 import type {
@@ -156,6 +156,8 @@ export interface CombatActionRuntime {
   id: string;
   kind: CombatActionKind;
   skillId?: string;
+  /** Frozen contextual tool for a Peasant basic attack. */
+  peasantTool?: HarvestTool;
   slot?: number;
   direction: GroundVector;
   startedAt: number;

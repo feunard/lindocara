@@ -56,6 +56,7 @@ import {
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import {
   BODY_RADIUS,
   canStand,
@@ -646,7 +647,7 @@ async function completeHarvestAction(input: {
   state: WorldRoomState;
   clock: FakeClock;
   event: MapEvent;
-  slot: 1 | 2 | 3;
+  slot: 1;
 }): Promise<void> {
   const { engine, socket, state, clock, event, slot } = input;
   const before = state.adventureState.state.harvestNodes?.[event.id]?.hits ?? 0;
@@ -663,7 +664,7 @@ async function completeHarvestAction(input: {
   const movement = state.npcMovement.get(event.id);
   if (movement) movement.nextMoveTick = state.tick + 20;
   await engine.message(socket.id, { t: "skill", slot });
-  // All three rapid tool anticipations are <= 160ms. The following tick starts the server-owned job.
+  // The contextual basic attack's anticipation finishes before the following job-start tick.
   await advanceElapsedSettled(clock, 400);
   // Integration profiles use an immediate channel except the dedicated disconnect case below;
   // depending on tick order the zero-duration job may already be committed here.
@@ -724,12 +725,15 @@ async function completeWarPigCarcassHit(input: {
     ),
   ).toBe(true);
 
-  // Respect the real knife cooldown between hits; a helper must never make a refused action look
+  // Respect the real contextual-attack cooldown between hits; a helper must never make a refused action look
   // like a harvesting failure or mutate the authoritative deadline to bypass it.
-  const cooldownRemaining = Math.max(0, (player.skillCooldowns[2] ?? 0) - clock.now());
+  const cooldownRemaining = Math.max(
+    0,
+    player.lastAttackAt + (CLASS_SKILLS.peasant[0]?.cooldownMs ?? 0) - clock.now(),
+  );
   await advanceElapsedSettled(clock, Math.max(400, cooldownRemaining));
-  await engine.message(socket.id, { t: "skill", slot: 3 });
-  expect(player.action).toMatchObject({ skillId: "butchers_cut" });
+  await engine.message(socket.id, { t: "skill", slot: 1 });
+  expect(player.action).toMatchObject({ skillId: "woodcutters_swing", peasantTool: "knife" });
   await advanceElapsedSettled(clock, 300);
   // The zero-duration job may commit on this exact impact tick. Advance one deterministic
   // simulation beat so its detached coordinator settlement is fully observed.
@@ -1261,7 +1265,7 @@ describe("world room events (FakeClock)", () => {
       state,
       clock,
       event: stone,
-      slot: 2,
+      slot: 1,
     });
     await completeHarvestAction({
       engine,
@@ -1269,7 +1273,7 @@ describe("world room events (FakeClock)", () => {
       state,
       clock,
       event: iron,
-      slot: 2,
+      slot: 1,
     });
     await completeHarvestAction({
       engine,
@@ -1277,7 +1281,7 @@ describe("world room events (FakeClock)", () => {
       state,
       clock,
       event: smallGold,
-      slot: 2,
+      slot: 1,
     });
     await completeHarvestAction({
       engine,
@@ -1285,7 +1289,7 @@ describe("world room events (FakeClock)", () => {
       state,
       clock,
       event: largeGold,
-      slot: 2,
+      slot: 1,
     });
     await completeHarvestAction({
       engine,
@@ -1293,7 +1297,7 @@ describe("world room events (FakeClock)", () => {
       state,
       clock,
       event: sheep,
-      slot: 3,
+      slot: 1,
     });
 
     await vi.waitFor(async () => {

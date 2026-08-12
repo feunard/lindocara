@@ -115,7 +115,11 @@ export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): U
   }
   if (player.class === "peasant") {
     if (motion === "attack" && player.action?.skillId && isPeasantSkillId(player.action.skillId)) {
-      return peasantCasterSheet(player.appearance.primaryColor, player.action.skillId);
+      return peasantCasterSheet(
+        player.appearance.primaryColor,
+        player.action.skillId,
+        player.action.peasantTool,
+      );
     }
     if (motion !== "attack" && player.peasantCarry) {
       return peasantCarrySheet(player.appearance.primaryColor, player.peasantCarry.kind, motion);

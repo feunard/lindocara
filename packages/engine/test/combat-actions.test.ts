@@ -30,7 +30,7 @@ describe("directional class kit contract", () => {
       325, 4_500, 14_000, 6_000, 11_000,
     ]);
     expect(CLASS_SKILLS.peasant.map((skill) => skill.cooldownMs)).toEqual([
-      420, 520, 460, 12_000, 10_000,
+      420, 6_500, 4_800, 12_000, 10_000,
     ]);
   });
 
@@ -59,11 +59,11 @@ describe("directional class kit contract", () => {
     });
   });
 
-  it("declares five typed Peasant tools with rapid harvesting action contracts", () => {
+  it("keeps harvesting on the contextual basic attack and makes the other Peasant skills support", () => {
     expect(CLASS_SKILLS.peasant).toMatchObject([
       { id: "woodcutters_swing", slot: 1, effect: "harvest", range: 54 / TILE_SIZE, power: 0 },
-      { id: "prospectors_pick", slot: 2, effect: "harvest", power: 6 },
-      { id: "butchers_cut", slot: 3, effect: "harvest", power: 4 },
+      { id: "prospectors_pick", slot: 2, effect: "area_buff", power: 12 },
+      { id: "butchers_cut", slot: 3, effect: "area_heal", power: 18 },
       {
         id: "makeshift_camp",
         slot: 4,
@@ -84,14 +84,14 @@ describe("directional class kit contract", () => {
     ]);
     expect(PLAYER_ACTIONS.peasant.map((action) => action.shape)).toEqual([
       "arc",
-      "arc",
-      "arc",
+      "area_buff",
+      "area_heal",
       "construction",
       "homemade_bomb",
     ]);
     expect(
       PLAYER_ACTIONS.peasant.slice(0, 3).map((action) => action.anticipationMs + action.recoveryMs),
-    ).toEqual([420, 460, 400]);
+    ).toEqual([420, 750, 840]);
   });
 
   it("declares the Rogue kit without any client-authored target contract", () => {

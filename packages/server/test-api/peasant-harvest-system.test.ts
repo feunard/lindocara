@@ -196,7 +196,7 @@ describe("Peasant harvest target selection", () => {
     expect(hasPeasantHarvestLineOfSight(origin, target, withThirdParty, 0)).toBe(false);
   });
 
-  it("requires the Peasant, matching tool, effective range, facing arc and line of sight", () => {
+  it("restricts harvesting to the Peasant basic attack and selects its tool from the resource", () => {
     const peasant = player();
     const input = {
       player: peasant,
@@ -215,13 +215,19 @@ describe("Peasant harvest target selection", () => {
         slot: 2,
         view: mapView({ ...WOOD, resource: "stone", tool: "pickaxe" }),
       }),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       selectPeasantHarvestTarget({
         ...input,
         view: mapView({ ...WOOD, resource: "stone", tool: "pickaxe" }),
       }),
-    ).toBeNull();
+    ).toMatchObject({ profile: { resource: "stone", tool: "pickaxe" } });
+    expect(
+      selectPeasantHarvestTarget({
+        ...input,
+        view: mapView({ ...WOOD, resource: "meat", tool: "knife" }),
+      }),
+    ).toMatchObject({ profile: { resource: "meat", tool: "knife" } });
     const distant = player();
     distant.x = a(0 + 16);
     expect(
@@ -265,7 +271,7 @@ describe("Peasant harvest target selection", () => {
     const meat = { ...WOOD, resource: "meat" as const, tool: "knife" as const };
     const target = selectPeasantHarvestTarget({
       player: player(),
-      slot: 3,
+      slot: 1,
       direction: { x: 1, z: 0 },
       skillRange: 50 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
@@ -304,7 +310,7 @@ describe("Peasant harvest target selection", () => {
     }
     const target = selectPeasantHarvestTarget({
       player: player(),
-      slot: 3,
+      slot: 1,
       direction: { x: 1, z: 0 },
       skillRange: 50 / TILE_SIZE,
       halfAngleRadians: Math.PI / 3,
@@ -454,6 +460,7 @@ describe("Peasant harvest target selection", () => {
       revalidatePeasantHarvestTarget({
         player: peasant,
         slot: 1,
+        tool: secondary.profile.tool,
         direction: { x: 1, z: 0 },
         skillRange: 54 / TILE_SIZE,
         halfAngleRadians: Math.PI / 3,

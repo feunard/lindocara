@@ -16,6 +16,7 @@ export type SkillEffect =
   | "guard"
   | "single_heal"
   | "area_heal"
+  | "area_buff"
   | "nova"
   | "teleport"
   | "shadow_step"
@@ -260,20 +261,24 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
     {
       id: "prospectors_pick",
       slot: 2,
-      effect: "harvest",
-      cooldownMs: 520,
-      range: 54 / TILE_SIZE,
-      power: 6,
-      icon: "⛏",
+      effect: "area_buff",
+      cooldownMs: 6_500,
+      range: 144 / TILE_SIZE,
+      radius: 144 / TILE_SIZE,
+      durationMs: 6_000,
+      power: 12,
+      icon: "🐓",
     },
     {
       id: "butchers_cut",
       slot: 3,
-      effect: "harvest",
-      cooldownMs: 460,
-      range: 50 / TILE_SIZE,
-      power: 4,
-      icon: "🔪",
+      effect: "area_heal",
+      cooldownMs: 4_800,
+      range: 128 / TILE_SIZE,
+      radius: 128 / TILE_SIZE,
+      durationMs: 4_000,
+      power: 18,
+      icon: "🧺",
     },
     {
       id: "makeshift_camp",

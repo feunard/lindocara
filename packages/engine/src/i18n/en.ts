@@ -160,7 +160,7 @@ export const en = {
   "class.ranger.blurb": "Hits light, from afar.",
   "class.priest.blurb": "Hits light, mends allies [F].",
   "class.rogue.blurb": "Opens from shadow, bursts, then escapes.",
-  "class.peasant.blurb": "Gathers, builds, and makes do.",
+  "class.peasant.blurb": "Tinkers, feeds, and causes cheerful trouble.",
   "class.warrior.role": "Front-line guardian",
   "class.ranger.role": "Long-range scout",
   "class.priest.role": "Protective healer",
@@ -177,7 +177,7 @@ export const en = {
   "class.rogue.description":
     "Prepare a brief opening, deliver a decisive close-range burst, then reposition.",
   "class.peasant.description":
-    "Trade raw combat power for harvesting, practical tools, and support for the whole party.",
+    "Automatically grab the right tool at close range, then support the party with shouts, snacks, camps, and questionable explosives.",
   "class.warrior.skill.1": "Reliable melee strike",
   "class.warrior.skill.2": "Defensive guard",
   "class.warrior.skill.3": "Enemy disruption",
@@ -198,9 +198,9 @@ export const en = {
   "class.rogue.skill.3": "Complete disappearance",
   "class.rogue.skill.4": "Persistent poison",
   "class.rogue.skill.5": "Rapid multi-target finisher",
-  "class.peasant.skill.1": "Axe strike and woodcutting",
-  "class.peasant.skill.2": "Pick strike and prospecting",
-  "class.peasant.skill.3": "Knife strike and butchery",
+  "class.peasant.skill.1": "Contextual attack and harvest tool",
+  "class.peasant.skill.2": "Goofy rallying shout",
+  "class.peasant.skill.3": "Party snack delivery",
   "class.peasant.skill.4": "Useful field construction",
   "class.peasant.skill.5": "Devastating auto-aimed explosive",
   "skill.warrior.cleave.name": "Cleave",
@@ -256,17 +256,17 @@ export const en = {
   "skill.rogue.shadow_dance.description":
     "Leap rapidly through five reachable enemies and strike each as you pass.",
   "skill.rogue.shadow_return.ready": "Return ready",
-  "skill.peasant.woodcutters_swing.name": "Woodcutter's Swing",
-  "skill.peasant.prospectors_pick.name": "Prospector's Pick",
-  "skill.peasant.butchers_cut.name": "Butcher's Cut",
+  "skill.peasant.woodcutters_swing.name": "Automatic Odds and Ends",
+  "skill.peasant.prospectors_pick.name": "Union Cock-a-doodle-doo",
+  "skill.peasant.butchers_cut.name": "Catapulted Lunch",
   "skill.peasant.makeshift_camp.name": "Makeshift Camp",
   "skill.peasant.homemade_bomb.name": "Homemade Bomb",
   "skill.peasant.woodcutters_swing.description":
-    "Swing a worn axe at nearby enemies or harvestable trees.",
+    "Attack in front; when touching a resource, automatically pull out the axe, pick, or knife and collect the matching material.",
   "skill.peasant.prospectors_pick.description":
-    "Strike weakly with a pick or work a compatible mineral deposit.",
+    "Deliver a highly professional cock-a-doodle-doo that boosts nearby allies and restores class resource.",
   "skill.peasant.butchers_cut.description":
-    "Use a short blade against nearby enemies or explicit meat sources.",
+    "Catapult an improvised lunch that heals and encourages the nearby party.",
   "skill.peasant.makeshift_camp.description":
     "Build a camp that restores allied health and mana, with a shared gold chest.",
   "skill.peasant.homemade_bomb.description":

@@ -70,12 +70,6 @@ function authoredReach(pixels: number): number {
   return pixels / TILE_SIZE;
 }
 
-const PEASANT_TOOL_BY_SLOT: Readonly<Partial<Record<SkillSlot, HarvestTool>>> = {
-  1: "axe",
-  2: "pickaxe",
-  3: "knife",
-};
-
 export type HarvestTargetKind = "map_event" | "animal_carcass";
 
 export interface PeasantHarvestTarget {
@@ -139,9 +133,8 @@ export function cancelPeasantHarvestJob(
   return jobs.delete(heroId);
 }
 
-export function peasantHarvestTool(player: PlayerRuntime, slot: SkillSlot): HarvestTool | null {
-  if (player.class !== "peasant") return null;
-  return PEASANT_TOOL_BY_SLOT[slot] ?? null;
+export function canPeasantHarvest(player: PlayerRuntime, slot: SkillSlot): boolean {
+  return player.class === "peasant" && slot === 1;
 }
 
 /** Explicit reward-to-sheet mapping. Gold wins over meat, then wood; unsupported ore has no fake. */
@@ -348,13 +341,11 @@ export function sheepHarvestTargetForClick(input: {
 function targetMatchesAction(
   player: PlayerRuntime,
   direction: GroundVector,
-  tool: HarvestTool,
   skillRange: number,
   halfAngleRadians: number,
   target: PeasantHarvestTarget,
   view: PeasantHarvestView,
 ): boolean {
-  if (target.profile.tool !== tool) return false;
   // A tile-unit position IS the body's centre; the old `+ PLAYER_SIZE / 2` recentred a corner.
   const center = { x: player.x, z: player.z };
   // The narrower of the swing's reach and the node's own, both in tile units — see `authoredReach`.
@@ -370,15 +361,16 @@ function targetMatchesAction(
 export function selectPeasantHarvestTarget(input: {
   player: PlayerRuntime;
   slot: SkillSlot;
+  /** Omitted while choosing the contextual tool; frozen for impact/revalidation. */
+  tool?: HarvestTool;
   direction: GroundVector;
   skillRange: number;
   halfAngleRadians: number;
   view: PeasantHarvestView;
   now: number;
 }): PeasantHarvestTarget | null {
-  const tool = peasantHarvestTool(input.player, input.slot);
   if (
-    !tool ||
+    !canPeasantHarvest(input.player, input.slot) ||
     !input.player.authorized ||
     input.player.transitioning ||
     input.player.life !== "alive"
@@ -386,11 +378,11 @@ export function selectPeasantHarvestTarget(input: {
     return null;
   }
   const candidates = peasantHarvestTargets(input.view, input.now)
+    .filter((target) => input.tool === undefined || target.profile.tool === input.tool)
     .filter((target) =>
       targetMatchesAction(
         input.player,
         input.direction,
-        tool,
         input.skillRange,
         input.halfAngleRadians,
         target,
@@ -422,9 +414,9 @@ export function selectPeasantHarvestTargets(input: {
 }): PlannedPeasantHarvestTarget[] {
   const primary = selectPeasantHarvestTarget(input);
   if (!primary) return [];
-  const tool = peasantHarvestTool(input.player, input.slot);
-  if (!tool) return [];
-  const effects = peasantTalentEffects(input.player.talents, input.slot);
+  const tool = primary.profile.tool;
+  // Every old tool branch now modifies the contextual base attack for its matching resource.
+  const effects = peasantTalentEffects(input.player.talents);
   const primaryPlan = resolvePeasantHarvestPlan(primary.profile, effects);
   const plannedPrimary: PlannedPeasantHarvestTarget = {
     ...primary,
@@ -461,6 +453,7 @@ export function selectPeasantHarvestTargets(input: {
 export function revalidatePeasantHarvestTarget(input: {
   player: PlayerRuntime;
   slot: SkillSlot;
+  tool: HarvestTool;
   direction: GroundVector;
   skillRange: number;
   halfAngleRadians: number;
@@ -470,9 +463,8 @@ export function revalidatePeasantHarvestTarget(input: {
   view: PeasantHarvestView;
   now: number;
 }): PeasantHarvestTarget | null {
-  const tool = peasantHarvestTool(input.player, input.slot);
   if (
-    !tool ||
+    !canPeasantHarvest(input.player, input.slot) ||
     !input.player.authorized ||
     input.player.transitioning ||
     input.player.life !== "alive"
@@ -486,12 +478,11 @@ export function revalidatePeasantHarvestTarget(input: {
       candidate.nodeId === input.target.nodeId &&
       candidate.generation === input.target.generation,
   );
-  if (!target || target.profile.tool !== tool) return null;
+  if (!target || target.profile.tool !== input.tool) return null;
   if (input.target.primary) {
     return targetMatchesAction(
       input.player,
       input.direction,
-      tool,
       input.skillRange,
       input.halfAngleRadians,
       target,
@@ -515,8 +506,7 @@ export function createPeasantHarvestJob(input: {
   targets?: readonly PlannedPeasantHarvestTarget[];
   now: number;
 }): PeasantHarvestJob | null {
-  const tool = peasantHarvestTool(input.player, input.slot);
-  const effects = peasantTalentEffects(input.player.talents, input.slot);
+  const effects = peasantTalentEffects(input.player.talents);
   const plannedTargets =
     input.targets ??
     (input.target
@@ -529,7 +519,13 @@ export function createPeasantHarvestJob(input: {
         ]
       : []);
   const primary = plannedTargets[0];
-  if (!tool || !primary || plannedTargets.length > primary.plan.maximumTargets) return null;
+  if (
+    !canPeasantHarvest(input.player, input.slot) ||
+    !primary ||
+    plannedTargets.length > primary.plan.maximumTargets
+  )
+    return null;
+  const tool = primary.profile.tool;
   const completesAt =
     input.now + Math.max(...plannedTargets.map((target) => target.plan.harvestDurationMs));
   if (!Number.isSafeInteger(completesAt)) return null;

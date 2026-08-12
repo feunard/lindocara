@@ -19,6 +19,7 @@ import {
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import {
   allUnitSheets,
+  PEASANT_ABILITY_SHEETS,
   PEASANT_CARRY_PRIORITY,
   PEASANT_SKILL_IDS,
   PEASANT_TOOL_SPECS,
@@ -112,26 +113,33 @@ describe("Tiny Swords directional combat art", () => {
 
   it("maps every Peasant skill to an explicit visual source", () => {
     expect(PEASANT_SKILL_IDS).toEqual(CLASS_SKILLS.peasant.map((skill) => skill.id));
-    const expectedTools = {
+    const expectedCasters = {
       woodcutters_swing: ["Pawn_Interact Axe.png", 6, 3],
-      prospectors_pick: ["Pawn_Interact Pickaxe.png", 6, 3],
-      butchers_cut: ["Pawn_Interact Knife.png", 4, 2],
+      prospectors_pick: ["Pawn_Idle.png", 8, 0],
+      butchers_cut: ["Pawn_Idle.png", 8, 0],
       makeshift_camp: ["Pawn_Interact Hammer.png", 3, 1],
+      homemade_bomb: ["Pawn_Idle.png", 8, 0],
     } as const;
 
     for (const color of ["azure", "ember", "moss", "violet"] as const) {
       const visualSources = new Set<string>();
-      for (const [skillId, [file, frames, activeFrame]] of Object.entries(expectedTools)) {
+      for (const [skillId, [file, frames, activeFrame]] of Object.entries(expectedCasters)) {
         const art = combatArt("peasant", skillId, color);
         expect(decodeURI(art.caster.source)).toContain(file);
         expect(art.caster).toMatchObject({ frames, activeFrame });
+        const effect = art.impact ?? art.zone;
+        expect(effect).toMatchObject({
+          source: PEASANT_ABILITY_SHEETS[skillId as keyof typeof PEASANT_ABILITY_SHEETS].source,
+          frames: 6,
+          frameWidth: 256,
+          frameHeight: 256,
+        });
         expect(art.fallback ?? "").not.toContain("Axe fournit le geste générique");
-        visualSources.add(art.caster.source);
+        visualSources.add(effect?.source ?? "");
       }
       const bomb = combatArt("peasant", "homemade_bomb", color);
       expect(decodeURI(bomb.caster.source)).toContain("Pawn_Idle.png");
       expect(decodeURI(bomb.projectile?.source ?? "")).toContain("Bomb_Spinning.png");
-      visualSources.add(bomb.projectile?.source ?? "");
       expect(visualSources.size).toBe(5);
     }
     expect(() => combatArt("peasant", "unknown_skill", "azure")).toThrow(
@@ -214,9 +222,9 @@ describe("Tiny Swords directional combat art", () => {
       activeFrame: 0,
     });
     expect(peasantBomb.impact).toMatchObject({
-      source: TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.source,
-      frames: 8,
-      activeFrame: 2,
+      source: PEASANT_ABILITY_SHEETS.homemade_bomb.source,
+      frames: 6,
+      activeFrame: 4,
     });
     expect(enemyBomb).toMatchObject({
       frameWidth: 192,
@@ -231,7 +239,8 @@ describe("Tiny Swords directional combat art", () => {
     expect(enemyBomb.source).not.toBe(peasantBomb.projectile?.source);
 
     const preloaded = new Set(allCombatSheets().map((entry) => entry.source));
-    for (const sheet of Object.values(TINY_SWORDS_PEASANT_BOMB_SHEETS)) {
+    expect(preloaded.has(TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.source)).toBe(true);
+    for (const sheet of Object.values(PEASANT_ABILITY_SHEETS)) {
       expect(preloaded.has(sheet.source)).toBe(true);
     }
   });
@@ -392,16 +401,16 @@ describe("Tiny Swords directional combat art", () => {
       skillIconArt("peasant", slot as 1 | 2 | 3 | 4 | 5),
     );
     for (const [index, file] of [
-      "Pawn_Interact Axe.png",
-      "Pawn_Interact Pickaxe.png",
-      "Pawn_Interact Knife.png",
-      "Pawn_Interact Hammer.png",
-      "Bomb_FuseLit.png",
+      "contextual-tools.png",
+      "rally-rooster.png",
+      "ration-basket.png",
+      "makeshift-camp.png",
+      "turnip-bomb.png",
     ].entries()) {
       expect(decodeURI(peasantIcons[index]?.source ?? "")).toContain(file);
     }
-    expect(peasantIcons.map((icon) => icon.frames)).toEqual([6, 6, 4, 3, 4]);
-    expect(peasantIcons.map((icon) => icon.frame)).toEqual([3, 3, 2, 1, 0]);
+    expect(peasantIcons.map((icon) => icon.frames)).toEqual([6, 6, 6, 6, 6]);
+    expect(peasantIcons.map((icon) => icon.frame)).toEqual([5, 4, 3, 5, 4]);
     expect(new Set(peasantIcons.map((icon) => icon.source)).size).toBe(5);
     expect(peasantIcons.map((icon) => icon.variant)).toEqual([
       "woodcutters-swing",

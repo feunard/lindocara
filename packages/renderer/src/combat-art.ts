@@ -13,6 +13,7 @@ import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import type { ServerCombatTimeline } from "./server-clock.js";
 import {
   isPeasantSkillId,
+  PEASANT_ABILITY_SHEETS,
   peasantCasterSheet,
   peasantSkillActiveFrame,
   TINY_SWORDS_PEASANT_BOMB_SHEETS,
@@ -207,6 +208,25 @@ const MAGIC_IMPACT = sheet(HEX_SHAMAN_IMPACT_SOURCE, 128, 128, 9, 620, 2);
 
 const GREEN_MAGIC = 0x62e68f;
 
+function peasantAbilityEffect(
+  skillId: keyof typeof PEASANT_ABILITY_SHEETS,
+  durationMs: number,
+  scale: number,
+): CombatSheetArt {
+  const art = PEASANT_ABILITY_SHEETS[skillId];
+  return {
+    ...sheet(
+      art.source,
+      art.frameWidth,
+      art.frameHeight,
+      art.frames,
+      durationMs,
+      art.activeFrame,
+    ),
+    scale,
+  };
+}
+
 /** The original makeshift-camp illustration survived the PixiJS retirement in the renderer
  * package. Keep it in the combat preload set: the camp is a persistent consequence of a hero
  * skill, not generic map scenery, and must be ready on the first authoritative camp frame. */
@@ -227,14 +247,6 @@ function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {
   return { ...art, tint, scale };
 }
 
-const PEASANT_BOMB_ICON = sheet(
-  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.source,
-  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frameWidth,
-  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frameHeight,
-  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frames,
-  520,
-  TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.activeFrame,
-);
 const PEASANT_BOMB_PROJECTILE: CombatProjectileArt = {
   ...sheet(
     TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.source,
@@ -248,18 +260,7 @@ const PEASANT_BOMB_PROJECTILE: CombatProjectileArt = {
   scale: 0.58,
   trail: { color: 0xff8d4a, length: 18, width: 3, glowRadius: 6 },
 };
-const PEASANT_BOMB_IMPACT = styled(
-  sheet(
-    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.source,
-    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.frameWidth,
-    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.frameHeight,
-    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.frames,
-    620,
-    TINY_SWORDS_PEASANT_BOMB_SHEETS.impact.activeFrame,
-  ),
-  0xe89b52,
-  0.8,
-);
+const PEASANT_BOMB_IMPACT = peasantAbilityEffect("homemade_bomb", 720, 1.28);
 
 /** Visual-only impact vocabulary. Every special technique is named explicitly: no asset name,
  * path or species heuristic selects gameplay or presentation. */
@@ -603,22 +604,33 @@ export function combatArt(
     };
   }
   if (playerClass === "peasant") {
+    if (skillId === "woodcutters_swing")
+      return {
+        caster,
+        impact: peasantAbilityEffect("woodcutters_swing", 520, 0.92),
+      };
+    if (skillId === "prospectors_pick")
+      return {
+        caster,
+        zone: peasantAbilityEffect("prospectors_pick", 820, 1.28),
+      };
+    if (skillId === "butchers_cut")
+      return {
+        caster,
+        zone: peasantAbilityEffect("butchers_cut", 780, 1.18),
+      };
     if (skillId === "makeshift_camp")
       return {
         caster,
-        zone: styled(DUST, 0xc6a66a, 1.35),
-        fallback:
-          "Tiny Swords ne fournit pas de pelle Pawn : le marteau d'interaction est l'outil de chantier explicite.",
+        zone: peasantAbilityEffect("makeshift_camp", 940, 1.34),
       };
     if (skillId === "homemade_bomb")
       return {
         caster,
         projectile: PEASANT_BOMB_PROJECTILE,
         impact: PEASANT_BOMB_IMPACT,
-        fallback:
-          "Tiny Swords ne fournit pas de lancer Pawn : le projectile Bomb_Spinning porte l'action explicite.",
       };
-    return { caster, impact: styled(DUST, 0xc6a66a, 0.78) };
+    throw new Error(`Unknown Peasant skill art: ${skillId}`);
   }
   if (skillId === "radiant_bolt")
     return {
@@ -694,7 +706,6 @@ export function allCombatSheets(): CombatSheetArt[] {
     const projectile = projectileArt(kind, "ember");
     unique.set(projectile.source, projectile);
   }
-  unique.set(PEASANT_BOMB_ICON.source, PEASANT_BOMB_ICON);
   for (const profile of Object.values(MONSTER_SPECIAL_IMPACT_ART)) {
     const definition: MonsterSpecialImpactArtDefinition = profile;
     unique.set(definition.effect.source, definition.effect);

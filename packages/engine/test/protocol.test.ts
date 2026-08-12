@@ -901,6 +901,35 @@ describe("event messages", () => {
 });
 
 describe("combat animation messages", () => {
+  it("round-trips only an authoritative contextual tool on the Peasant basic attack", () => {
+    const animation = {
+      t: "animation",
+      actionId: "action-peasant-1",
+      actorKind: "player",
+      actorId: "peasant-1",
+      action: "attack",
+      skillId: "woodcutters_swing",
+      peasantTool: "pickaxe",
+      direction: { x: 1, z: 0 },
+      startedAt: 100,
+      impactAt: 260,
+      recoveryEndsAt: 520,
+    } as const;
+
+    expect(parseServerMessage(encodeServerMessage(animation))).toMatchObject({
+      t: "animation",
+      peasantTool: "pickaxe",
+    });
+    for (const invalid of [
+      { ...animation, peasantTool: "hammer" },
+      { ...animation, action: "skill" },
+      { ...animation, skillId: "prospectors_pick" },
+      { ...animation, actorKind: "monster" },
+    ]) {
+      expect(parseServerMessage(JSON.stringify(invalid))).toBeNull();
+    }
+  });
+
   it("round-trips server-authored player and monster animations", () => {
     const player = encodeServerMessage({
       t: "animation",

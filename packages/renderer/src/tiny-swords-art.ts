@@ -1,6 +1,7 @@
 import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/engine/character.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
+import type { HarvestTool } from "@lindocara/engine/harvest.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { tinySwordsSourceUrl } from "./tiny-swords-assets.js";
 
@@ -333,22 +334,53 @@ export interface SkillIconArt {
   variant: string;
 }
 
+export const PEASANT_ABILITY_SHEETS = {
+  woodcutters_swing: {
+    source: new URL("./assets/peasant/abilities/contextual-tools.png", import.meta.url).href,
+    frames: 6,
+    frameWidth: 256,
+    frameHeight: 256,
+    activeFrame: 5,
+  },
+  prospectors_pick: {
+    source: new URL("./assets/peasant/abilities/rally-rooster.png", import.meta.url).href,
+    frames: 6,
+    frameWidth: 256,
+    frameHeight: 256,
+    activeFrame: 4,
+  },
+  butchers_cut: {
+    source: new URL("./assets/peasant/abilities/ration-basket.png", import.meta.url).href,
+    frames: 6,
+    frameWidth: 256,
+    frameHeight: 256,
+    activeFrame: 3,
+  },
+  makeshift_camp: {
+    source: new URL("./assets/peasant/abilities/makeshift-camp.png", import.meta.url).href,
+    frames: 6,
+    frameWidth: 256,
+    frameHeight: 256,
+    activeFrame: 5,
+  },
+  homemade_bomb: {
+    source: new URL("./assets/peasant/abilities/turnip-bomb.png", import.meta.url).href,
+    frames: 6,
+    frameWidth: 256,
+    frameHeight: 256,
+    activeFrame: 4,
+  },
+} as const;
+
 /** Mirrors the actual combat asset/effect used by each skill instead of generic inventory icons. */
 export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIconArt {
   if (playerClass === "peasant") {
     const skillId = peasantSkillIdForSlot(slot);
-    if (skillId === "homemade_bomb")
-      return {
-        source: TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.source,
-        frames: TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.frames,
-        frame: TINY_SWORDS_PEASANT_BOMB_SHEETS.icon.activeFrame,
-        variant: "homemade-bomb",
-      };
-    const tool = peasantToolSheet("azure", skillId);
+    const ability = PEASANT_ABILITY_SHEETS[skillId];
     return {
-      source: tool.source,
-      frames: tool.frames,
-      frame: peasantSkillActiveFrame(skillId),
+      source: ability.source,
+      frames: ability.frames,
+      frame: ability.activeFrame,
       variant: skillId.replaceAll("_", "-"),
     };
   }
@@ -482,7 +514,7 @@ export const PEASANT_SKILL_IDS = [
   "homemade_bomb",
 ] as const;
 export type PeasantSkillId = (typeof PEASANT_SKILL_IDS)[number];
-export type PeasantToolSkillId = Exclude<PeasantSkillId, "homemade_bomb">;
+export type PeasantToolSkillId = "woodcutters_swing" | "makeshift_camp";
 
 const PEASANT_SKILL_BY_SLOT: Readonly<Record<SkillSlot, PeasantSkillId>> = {
   1: "woodcutters_swing",
@@ -511,18 +543,6 @@ export const PEASANT_TOOL_SPECS = {
     footOffset: 57,
     activeFrame: 3,
   },
-  prospectors_pick: {
-    file: "Pawn_Interact Pickaxe.png",
-    frames: 6,
-    footOffset: 57,
-    activeFrame: 3,
-  },
-  butchers_cut: {
-    file: "Pawn_Interact Knife.png",
-    frames: 4,
-    footOffset: 51,
-    activeFrame: 2,
-  },
   makeshift_camp: {
     file: "Pawn_Interact Hammer.png",
     frames: 3,
@@ -530,6 +550,22 @@ export const PEASANT_TOOL_SPECS = {
     activeFrame: 1,
   },
 } as const satisfies Readonly<Record<PeasantToolSkillId, PeasantToolSpec>>;
+
+export const PEASANT_CONTEXT_TOOL_SPECS = {
+  axe: PEASANT_TOOL_SPECS.woodcutters_swing,
+  pickaxe: {
+    file: "Pawn_Interact Pickaxe.png",
+    frames: 6,
+    footOffset: 57,
+    activeFrame: 3,
+  },
+  knife: {
+    file: "Pawn_Interact Knife.png",
+    frames: 4,
+    footOffset: 51,
+    activeFrame: 2,
+  },
+} as const satisfies Readonly<Record<HarvestTool, PeasantToolSpec>>;
 
 const PEASANT_BASE_FILES = {
   idle: ["Pawn_Idle.png", 8, 57],
@@ -605,8 +641,14 @@ export function peasantSkillIdForSlot(slot: SkillSlot): PeasantSkillId {
   return PEASANT_SKILL_BY_SLOT[slot];
 }
 
-export function peasantSkillActiveFrame(skillId: PeasantSkillId): number {
-  return skillId === "homemade_bomb" ? 0 : PEASANT_TOOL_SPECS[skillId].activeFrame;
+export function peasantSkillActiveFrame(
+  skillId: PeasantSkillId,
+  contextualTool: HarvestTool = "axe",
+): number {
+  if (skillId === "woodcutters_swing")
+    return PEASANT_CONTEXT_TOOL_SPECS[contextualTool].activeFrame;
+  if (skillId === "makeshift_camp") return PEASANT_TOOL_SPECS.makeshift_camp.activeFrame;
+  return 0;
 }
 
 export function peasantToolSheet(color: PrimaryColor, skillId: PeasantToolSkillId): UnitSheet {
@@ -614,9 +656,19 @@ export function peasantToolSheet(color: PrimaryColor, skillId: PeasantToolSkillI
   return peasantSheet(color, spec.file, spec.frames, spec.footOffset);
 }
 
-export function peasantCasterSheet(color: PrimaryColor, skillId: PeasantSkillId): UnitSheet {
-  if (skillId === "homemade_bomb") return peasantUnitSheet(color, "idle");
-  return peasantToolSheet(color, skillId);
+export function peasantContextToolSheet(color: PrimaryColor, tool: HarvestTool): UnitSheet {
+  const spec = PEASANT_CONTEXT_TOOL_SPECS[tool];
+  return peasantSheet(color, spec.file, spec.frames, spec.footOffset);
+}
+
+export function peasantCasterSheet(
+  color: PrimaryColor,
+  skillId: PeasantSkillId,
+  contextualTool: HarvestTool = "axe",
+): UnitSheet {
+  if (skillId === "woodcutters_swing") return peasantContextToolSheet(color, contextualTool);
+  if (skillId === "makeshift_camp") return peasantToolSheet(color, skillId);
+  return peasantUnitSheet(color, "idle");
 }
 
 /** Selects at most one carried-resource strip without making asset availability a gameplay rule. */
@@ -685,6 +737,10 @@ export function allUnitSheets(): UnitSheet[] {
   for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
     for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
       const tool = peasantToolSheet(primaryColor, skillId);
+      result.set(tool.source, tool);
+    }
+    for (const contextualTool of Object.keys(PEASANT_CONTEXT_TOOL_SPECS) as HarvestTool[]) {
+      const tool = peasantContextToolSheet(primaryColor, contextualTool);
       result.set(tool.source, tool);
     }
     for (const kind of PEASANT_CARRY_PRIORITY) {

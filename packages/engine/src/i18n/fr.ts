@@ -157,7 +157,7 @@ export const fr: Record<keyof typeof en, string> = {
   "class.ranger.blurb": "Frappe léger, de loin.",
   "class.priest.blurb": "Frappe léger, soigne les alliés [F].",
   "class.rogue.blurb": "Surgit de l'ombre, frappe, puis s'échappe.",
-  "class.peasant.blurb": "Récolte, construit et se débrouille.",
+  "class.peasant.blurb": "Bricole, nourrit et sème un joyeux bazar.",
   "class.warrior.role": "Gardien de première ligne",
   "class.ranger.role": "Éclaireur à distance",
   "class.priest.role": "Soigneur protecteur",
@@ -176,7 +176,7 @@ export const fr: Record<keyof typeof en, string> = {
   "class.rogue.description":
     "Préparez une brève ouverture, frappez très fort au corps à corps, puis repositionnez-vous.",
   "class.peasant.description":
-    "Échangez la puissance brute contre la récolte, des outils pratiques et du soutien pour tout le groupe.",
+    "Choisissez automatiquement le bon outil au contact, puis soutenez le groupe avec cris, casse-croûte, camp et explosifs douteux.",
   "class.warrior.skill.1": "Frappe de mêlée fiable",
   "class.warrior.skill.2": "Garde défensive",
   "class.warrior.skill.3": "Perturbation ennemie",
@@ -197,9 +197,9 @@ export const fr: Record<keyof typeof en, string> = {
   "class.rogue.skill.3": "Disparition totale",
   "class.rogue.skill.4": "Poison persistant",
   "class.rogue.skill.5": "Finisseur rapide multi-cibles",
-  "class.peasant.skill.1": "Coup de hache et bûcheronnage",
-  "class.peasant.skill.2": "Coup de pioche et prospection",
-  "class.peasant.skill.3": "Coup de couteau et dépeçage",
+  "class.peasant.skill.1": "Attaque et outil de récolte contextuel",
+  "class.peasant.skill.2": "Cri de ralliement loufoque",
+  "class.peasant.skill.3": "Casse-croûte de groupe",
   "class.peasant.skill.4": "Construction utile de terrain",
   "class.peasant.skill.5": "Explosif artisanal dévastateur à visée automatique",
   "skill.warrior.cleave.name": "Fendoir",
@@ -260,17 +260,17 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.rogue.shadow_dance.description":
     "Bondissez rapidement entre cinq ennemis accessibles et frappez chacun à votre passage.",
   "skill.rogue.shadow_return.ready": "Retour prêt",
-  "skill.peasant.woodcutters_swing.name": "Coup du bûcheron",
-  "skill.peasant.prospectors_pick.name": "Pioche du prospecteur",
-  "skill.peasant.butchers_cut.name": "Découpe du boucher",
+  "skill.peasant.woodcutters_swing.name": "Bric-à-brac automatique",
+  "skill.peasant.prospectors_pick.name": "Cocorico syndical",
+  "skill.peasant.butchers_cut.name": "Casse-croûte catapulte",
   "skill.peasant.makeshift_camp.name": "Camp de fortune",
   "skill.peasant.homemade_bomb.name": "Bombe artisanale",
   "skill.peasant.woodcutters_swing.description":
-    "Frappez avec une hache usée les ennemis proches ou les arbres récoltables.",
+    "Attaquez devant vous ; au contact d’une ressource, le Paysan sort automatiquement hache, pioche ou couteau et ramasse le bon matériau.",
   "skill.peasant.prospectors_pick.description":
-    "Donnez un faible coup de pioche ou exploitez un gisement compatible.",
+    "Poussez un cocorico très professionnel qui renforce les dégâts et rend de la ressource de classe aux alliés proches.",
   "skill.peasant.butchers_cut.description":
-    "Utilisez une lame courte contre un ennemi proche ou une source de viande explicite.",
+    "Catapultez un casse-croûte improvisé qui soigne et encourage tout le groupe proche.",
   "skill.peasant.makeshift_camp.description":
     "Construisez un camp qui régénère la vie et le mana des alliés, avec un coffre d’or partagé.",
   "skill.peasant.homemade_bomb.description":

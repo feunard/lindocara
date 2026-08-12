@@ -118,6 +118,7 @@ import {
 import {
   mergePeasantMaterialRewards,
   resolvePeasantHarvestPlan,
+  resolvePeasantRationPlan,
 } from "@lindocara/engine/peasant.js";
 import type {
   ClientMessage,
@@ -154,6 +155,7 @@ import {
 } from "@lindocara/engine/skills.js";
 import {
   evolvedTalent,
+  peasantTalentEffects,
   skillWithTalents,
   type TalentEffect,
   talentEffect,
@@ -226,6 +228,7 @@ import {
   type PeasantHarvestJob,
   type PeasantHarvestJobTarget,
   revalidatePeasantHarvestTarget,
+  selectPeasantHarvestTarget,
   selectPeasantHarvestTargets,
   sheepHarvestTargetForClick,
 } from "../../world/peasant-harvest-system.js";
@@ -3137,6 +3140,27 @@ export function startPlayerAction(
       ? talentEffect(player.class, player.talents, "sworn_prey", slot)
       : undefined;
   const swornTarget = swornPrey ? projectileTarget : null;
+  const peasantHarvestTarget =
+    player.class === "peasant" && slot === 1
+      ? selectPeasantHarvestTarget({
+          player,
+          slot,
+          direction: player.facing,
+          skillRange: skill.range,
+          // Basic attack means “the resource I am touching”, independent of the previous facing.
+          halfAngleRadians: Math.PI,
+          view: {
+            zoneId: w.state.location?.zoneId ?? zone(w.state).id,
+            events: zone(w.state).events ?? [],
+            activeEvents: w.state.activeEvents,
+            adventureState: w.state.adventureState.state,
+            monsters: w.state.monsters,
+            terrain: zone(w.state).terrain,
+            staticColliderIndex: w.state.staticColliderIndex,
+          },
+          now,
+        })
+      : null;
   const shadowDanceTarget =
     shadowDance?.ok === true ? shadowDance.plan.strikes[0]?.targetPosition : undefined;
   const direction =
@@ -3163,7 +3187,15 @@ export function startPlayerAction(
                 { x: chargeTarget.x - player.x, z: chargeTarget.z - player.z },
                 player.facing,
               )
-            : player.facing;
+            : peasantHarvestTarget
+              ? normalizeGround(
+                  {
+                    x: peasantHarvestTarget.position.x - player.x,
+                    z: peasantHarvestTarget.position.z - player.z,
+                  },
+                  player.facing,
+                )
+              : player.facing;
   const cyclone =
     definition.shape === "area_damage"
       ? talentEffect(player.class, player.talents, "cyclone", slot)
@@ -3192,6 +3224,7 @@ export function startPlayerAction(
         : {}),
   });
   if (!action) return false;
+  if (peasantHarvestTarget) action.peasantTool = peasantHarvestTarget.profile.tool;
   if (chargeFollowup) {
     action.warriorChargeFollowup = { excludedTargetId: chargeFollowup.excludedTargetId };
     player.warriorChargeFollowup = null;
@@ -3253,6 +3286,7 @@ export function startPlayerAction(
       actorId: player.id,
       action: slot === 1 ? "attack" : "skill",
       skillId: skill.id,
+      ...(action.peasantTool ? { peasantTool: action.peasantTool } : {}),
       ...(slot > 1 && talentEffects(player.class, player.talents, slot).length > 0
         ? { talented: true as const }
         : {}),
@@ -3898,6 +3932,7 @@ export function resolvePlayerAction(
       const harvestTargets = selectPeasantHarvestTargets({
         player,
         slot: slot as SkillSlot,
+        ...(action.peasantTool ? { tool: action.peasantTool } : {}),
         direction: action.direction,
         skillRange: skill.range,
         halfAngleRadians: definition.halfAngleRadians ?? Math.PI / 3,
@@ -3996,6 +4031,31 @@ export function resolvePlayerAction(
   }
   if (definition.shape === "heal_projectile") {
     spawnPlayerProjectiles(w, player, action, skill, definition, "wounded_allies", now);
+    return;
+  }
+  if (definition.shape === "area_buff") {
+    const radius = skill.radius ?? skill.range;
+    const durationMs = skill.durationMs ?? 6_000;
+    const powerBonus = Math.max(0, skill.power) / 100;
+    for (const [targetConnectionId, target] of w.state.players) {
+      if (
+        target.life !== "alive" ||
+        !target.authorized ||
+        !areCombatAllies(player, target) ||
+        groundDistance(player, target) > radius ||
+        !groundLineOfSight(terrain, player, target)
+      )
+        continue;
+      applyBoundedPowerBuff(target, powerBonus, durationMs, now);
+      if (target.resource && target.resource.current < target.resource.max) {
+        target.resource.current = Math.min(
+          target.resource.max,
+          target.resource.current + Math.max(1, Math.ceil(target.resource.max * 0.12)),
+        );
+        target.dirty = true;
+      }
+      sendStateTo(w, targetConnectionId, target);
+    }
     return;
   }
   if (definition.shape === "area_taunt") {
@@ -4192,6 +4252,27 @@ export function resolvePlayerAction(
       );
     }
   }
+  if (definition.shape === "area_heal" && player.class === "peasant") {
+    const ration = resolvePeasantRationPlan(peasantTalentEffects(player.talents, 3));
+    const picnicSkill: SkillDefinition = {
+      ...skill,
+      power: Math.max(skill.power, ration.healing),
+      radius: Math.max(skill.radius ?? skill.range, ration.radius),
+    };
+    areaHeal(w, connectionId, player, picnicSkill, now);
+    for (const target of w.state.players.values()) {
+      if (
+        target.life !== "alive" ||
+        !target.authorized ||
+        !areCombatAllies(player, target) ||
+        groundDistance(player, target) > (picnicSkill.radius ?? picnicSkill.range) ||
+        !groundLineOfSight(terrain, player, target)
+      )
+        continue;
+      applyBoundedPowerBuff(target, ration.powerBonusRatio, ration.buffDurationMs, now);
+    }
+    return;
+  }
   if (definition.shape === "area_heal" || definition.shape === "nova") {
     areaHeal(w, connectionId, player, skill, now, novaMultipliers.healing);
     const soulAnchor = talentEffect(player.class, player.talents, "soul_anchor", slot as SkillSlot);
@@ -4248,6 +4329,7 @@ function harvestTargetForJob(
   return revalidatePeasantHarvestTarget({
     player,
     slot: job.slot,
+    tool: job.tool,
     direction: job.direction,
     skillRange: skill.range,
     halfAngleRadians: definition.halfAngleRadians ?? Math.PI / 3,

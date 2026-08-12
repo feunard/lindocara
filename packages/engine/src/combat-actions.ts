@@ -14,6 +14,7 @@ export type DirectionalActionShape =
   | "heal_projectile"
   | "teleport"
   | "area_heal"
+  | "area_buff"
   | "nova"
   | "shadow_step"
   | "stealth"
@@ -217,19 +218,15 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
     },
     {
       skillId: "prospectors_pick",
-      shape: "arc",
-      anticipationMs: 160,
-      recoveryMs: 300,
-      halfAngleRadians: (48 * Math.PI) / 180,
-      hitboxRadius: 13 / TILE_SIZE,
+      shape: "area_buff",
+      anticipationMs: 300,
+      recoveryMs: 450,
     },
     {
       skillId: "butchers_cut",
-      shape: "arc",
-      anticipationMs: 130,
-      recoveryMs: 270,
-      halfAngleRadians: (48 * Math.PI) / 180,
-      hitboxRadius: 12 / TILE_SIZE,
+      shape: "area_heal",
+      anticipationMs: 340,
+      recoveryMs: 500,
     },
     {
       skillId: "makeshift_camp",

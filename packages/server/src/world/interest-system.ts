@@ -51,6 +51,7 @@ function combatActionSnapshot(
     id: action.id,
     kind: action.kind,
     ...(action.skillId === undefined ? {} : { skillId: action.skillId }),
+    ...(action.peasantTool === undefined ? {} : { peasantTool: action.peasantTool }),
     direction: { x: action.direction.x, z: action.direction.z },
     startedAt: action.startedAt,
     impactAt: action.impactAt,

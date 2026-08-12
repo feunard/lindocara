@@ -340,10 +340,10 @@ function installDepletedNode(w: WorldGlue, eventId: string, generation = 0): voi
 describe("tick-driven Peasant harvest jobs", () => {
   it.each([
     ["wood", "axe", 1, 4, 0],
-    ["stone", "pickaxe", 2, 4, 0],
-    ["iron", "pickaxe", 2, 4, 0],
-    ["gold", "pickaxe", 2, 0, 25],
-    ["meat", "knife", 3, 4, 0],
+    ["stone", "pickaxe", 1, 4, 0],
+    ["iron", "pickaxe", 1, 4, 0],
+    ["gold", "pickaxe", 1, 0, 25],
+    ["meat", "knife", 1, 4, 0],
   ] as const)(
     "maps %s only to the %s tool and anchors its target at the visible foot",
     (resource, tool, expectedSlot, yieldAmount, goldValue) => {
@@ -364,8 +364,7 @@ describe("tick-driven Peasant harvest jobs", () => {
           },
         ],
       });
-      const wrongSlot = expectedSlot === 1 ? 2 : 1;
-      resolveTool(value.w, wrongSlot);
+      resolveTool(value.w, 2);
       expect(value.w.state.harvestJobs.has(HERO_ID)).toBe(false);
 
       value.player.action = null;
@@ -654,7 +653,7 @@ describe("tick-driven Peasant harvest jobs", () => {
       return result;
     };
 
-    resolveTool(value.w, 2);
+    resolveTool(value.w, 1);
     expect(value.w.state.harvestJobs.get(HERO_ID)?.targets.map((target) => target.nodeId)).toEqual([
       EVENT_ID,
       EVENT_C,
