@@ -567,6 +567,7 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.layout.widget.hero": "Portrait du héros",
   "hud.layout.widget.chat": "Discussion",
   "hud.layout.widget.quick_items": "Objets rapides",
+  "hud.layout.widget.peasant_resources": "Ressources du paysan",
   "hud.layout.widget.xp": "Barre d’expérience",
   "hud.layout.widget.minimap": "Mini-carte",
   "talent.title": "Talents",

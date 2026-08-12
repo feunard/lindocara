@@ -13,6 +13,7 @@ export const HUD_WIDGET_IDS = [
   "hero",
   "chat",
   "quick-items",
+  "peasant-resources",
   "skill-2",
   "skill-3",
   "skill-4",
@@ -80,11 +81,17 @@ export function defaultHudLayout(
   const quickCenterX = width / 2 - dockOffset;
   const skillCenterX = width / 2 + dockOffset;
   const minimapRadius = 88;
+  const resourceWidth = Math.min(256, width - 24);
 
   return {
     hero: placement(heroCenterX / width, heroCenterY / height),
     chat: placement((12 + chatWidth / 2) / width, (height - 97 - chatHeight / 2) / height),
     "quick-items": placement(quickCenterX / width, (height - 135) / height),
+    "peasant-resources": placement(
+      (width - 12 - resourceWidth / 2) / width,
+      Math.max(180, height * 0.5) / height,
+      0.82,
+    ),
     "skill-2": placement((skillCenterX + 50) / width, (height - 135) / height),
     "skill-3": placement(skillCenterX / width, (height - 85) / height),
     "skill-4": placement((skillCenterX - 50) / width, (height - 135) / height),

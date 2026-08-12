@@ -11,9 +11,9 @@ export function ActionDock() {
   const selfState = useUiStore((state) => state.selfState);
   return (
     <>
-      <aside className="peasant-resources-dock" aria-label={t("hud.action_dock")}>
+      <HudLayoutWidget id="peasant-resources">
         <PeasantResourcesPanel />
-      </aside>
+      </HudLayoutWidget>
       <HudLayoutWidget id="quick-items">
         <div className="action-dock__group action-dock__group--items">
           <strong className="action-dock__title">{t("inventory.quickbar")}</strong>

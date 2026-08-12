@@ -39,7 +39,7 @@ export function WorldMap() {
 
   return (
     <div id="world-map">
-      <div className="world-map-panel">
+      <div className="world-map-panel" data-text-surface="information">
         <header className="world-map-header">
           <h2>{zoneNameKey ? t(zoneNameKey) : t("hud.map.title")}</h2>
           <TinyButton type="button" size="sm" onClick={() => setMapOpen(false)}>

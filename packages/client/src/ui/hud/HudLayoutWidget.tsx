@@ -14,6 +14,7 @@ const WIDGET_LABELS: Readonly<Record<HudWidgetId, MessageKey>> = {
   hero: "hud.layout.widget.hero",
   chat: "hud.layout.widget.chat",
   "quick-items": "hud.layout.widget.quick_items",
+  "peasant-resources": "hud.layout.widget.peasant_resources",
   "skill-2": "settings.controls.skill_2",
   "skill-3": "settings.controls.skill_3",
   "skill-4": "settings.controls.skill_4",

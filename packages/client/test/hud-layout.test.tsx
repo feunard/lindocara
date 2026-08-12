@@ -68,6 +68,11 @@ describe("HUD layout editor", () => {
     expect(getHudLayoutSnapshot().layout.chat).toEqual({ x: 0.7, y: 0.3, scale: 1.4 });
     expect(getHudLayoutSnapshot().layout.minimap).toEqual(defaults.minimap);
     expect(getHudLayoutSnapshot().layout["quick-items"]).toEqual(defaults["quick-items"]);
+    expect(getHudLayoutSnapshot().layout["peasant-resources"]).toEqual(
+      defaults["peasant-resources"],
+    );
+    expect(defaults["peasant-resources"].x).toBeGreaterThan(0.75);
+    expect(defaults["peasant-resources"].scale).toBeLessThan(1);
   });
 
   it("moves and resizes one widget without changing the others", () => {
@@ -100,6 +105,10 @@ describe("HUD layout editor", () => {
     beginHudLayoutEdit();
     const view = render(<HudLayoutEditor />);
     expect(screen.getByRole("dialog", { name: "Interface editor" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Interface editor" })).toHaveAttribute(
+      "data-text-surface",
+      "information",
+    );
     expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));

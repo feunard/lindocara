@@ -4,8 +4,7 @@ import type * as React from "react";
 export function TinyPanel({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      data-tiny-panel="ui.panel.carved"
-      data-tiny-slice="64 64 64 64"
+      data-text-surface="information"
       className={cn("tiny-panel framed", className)}
       {...props}
     />

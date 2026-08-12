@@ -1,22 +1,22 @@
 .framed {
   border: 24px solid transparent;
-  border-image-source: var(--tiny-panel-carved);
-  border-image-slice: 64 fill;
+  border-image-source: var(--text-surface-information);
+  border-image-slice: 10% 7% fill;
   border-image-width: 24px;
   border-image-repeat: stretch;
   background: transparent;
   background-clip: padding-box;
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 
 :where(.panel, .world-map-panel, .connection-overlay__panel) {
   border: 12px solid transparent;
-  border-image-source: var(--tiny-panel-carved);
-  border-image-slice: 64 fill;
+  border-image-source: var(--text-surface-information);
+  border-image-slice: 10% 7% fill;
   border-image-width: 12px;
   border-image-repeat: stretch;
   background-clip: padding-box;
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 
 .parchment {
@@ -279,8 +279,8 @@
   min-height: 3rem;
   padding: 0.45rem 3rem 0.45rem 0.75rem;
   border: 12px solid transparent;
-  border-image-source: var(--tiny-panel-carved);
-  border-image-slice: 64 fill;
+  border-image-source: var(--text-surface-information);
+  border-image-slice: 10% 7% fill;
   border-image-width: 12px;
   color: #f8edcf;
   background-color: transparent;
@@ -515,12 +515,12 @@ select:disabled {
   overflow: auto;
   padding: 0.75rem;
   border: 16px solid transparent;
-  border-image-source: var(--tiny-panel-carved);
-  border-image-slice: 64 fill;
+  border-image-source: var(--text-surface-information);
+  border-image-slice: 10% 7% fill;
   border-image-width: 16px;
   color: #f8edcf;
   background: rgb(5 24 20 / 94%);
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 
 .editor-palette__header {

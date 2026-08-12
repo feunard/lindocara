@@ -65,6 +65,7 @@ describe("Hud", () => {
     ).toBeInTheDocument();
     expect(document.querySelector('[data-hud-widget="hero"]')).toBeInTheDocument();
     expect(document.querySelector('[data-hud-widget="quick-items"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-hud-widget="peasant-resources"]')).toBeInTheDocument();
     expect(document.querySelector('[data-hud-widget="xp"]')).toBeInTheDocument();
     expect(document.querySelectorAll('[data-hud-widget^="skill-"]')).toHaveLength(4);
     expect(document.querySelector('#hud [data-variant="xp"]')).not.toBeInTheDocument();

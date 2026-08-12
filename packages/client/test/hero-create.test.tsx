@@ -25,7 +25,7 @@ describe("hero creation class cards", () => {
     expect(rogue).toBeEnabled();
 
     const peasant = screen.getByRole("button", {
-      name: /Peasant\s*Gathers, builds, and makes do\./,
+      name: /Peasant\s*Tinkers, feeds, and causes cheerful trouble\./,
     });
     const peasantPortrait = peasant.querySelector<HTMLElement>(
       '[data-hero-class="peasant"] .class-card__portrait-sprite',

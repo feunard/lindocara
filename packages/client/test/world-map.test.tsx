@@ -44,6 +44,10 @@ describe("WorldMap", () => {
     const canvas = view.container.querySelector(".world-map-canvas");
 
     expect(canvas).toBeInstanceOf(HTMLCanvasElement);
+    expect(view.container.querySelector(".world-map-panel")).toHaveAttribute(
+      "data-text-surface",
+      "information",
+    );
     expect(game.attachWorldMap).toHaveBeenCalledTimes(1);
     expect(game.attachWorldMap).toHaveBeenCalledWith(canvas);
   });

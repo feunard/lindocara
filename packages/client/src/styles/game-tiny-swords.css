@@ -17,13 +17,13 @@
     .death-overlay
   ) {
   border: 12px solid transparent;
-  border-image-source: var(--tiny-panel-carved);
-  border-image-slice: 64 fill;
+  border-image-source: var(--text-surface-information);
+  border-image-slice: 10% 7% fill;
   border-image-width: 12px;
   border-image-repeat: stretch;
   border-radius: 0;
   background-clip: padding-box;
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 
 .game-ui :is(.world-map-panel, .victory-overlay__panel, .talent-panel, .quest-journal__panel) {
@@ -56,7 +56,7 @@
 /* Reading-heavy game windows use the same ink-green centre as chat. The carved border remains,
    but its parchment fill is deliberately removed so it cannot wash out pale interface copy. */
 .game-ui :is(.quest-journal__panel.panel, .talent-panel, .item-overlay.panel) {
-  border-image-slice: 64;
+  border-image-slice: 10% 7%;
   background:
     radial-gradient(circle at 12% 0%, rgb(82 108 72 / 22%), transparent 38%),
     linear-gradient(145deg, rgb(10 35 27 / 99%), rgb(3 16 13 / 100%));
@@ -146,8 +146,7 @@
 }
 
 /* Player-authored HUD layout. Every editable box is a viewport-relative fixed widget so a saved
-   layout scales across resolutions. The quest stack and peasant resource readout remain ordinary
-   game information: the editor only exposes the boxes listed in Settings > Interface. */
+   layout scales across resolutions. The quest stack remains ordinary game information. */
 .game-ui #hud {
   display: contents;
   filter: none;
@@ -311,19 +310,51 @@
   filter: none;
 }
 
-.peasant-resources-dock {
-  position: fixed;
-  z-index: 3;
-  bottom: calc(13.5rem + var(--safe-bottom));
-  left: 50%;
-  width: min(34rem, calc(100vw - 1.4rem - var(--safe-left) - var(--safe-right)));
-  transform: translateX(-50%);
-  pointer-events: none;
+.hud-layout-widget--peasant-resources .hud-layout-widget__content {
+  width: min(16rem, calc(100vw - 1.4rem - var(--safe-left) - var(--safe-right)));
 }
 
-.peasant-resources-dock .peasant-resources {
+.game-ui .hud-layout-widget--peasant-resources .peasant-resources.panel {
   width: 100%;
-  pointer-events: auto;
+  grid-template-columns: 1fr;
+  gap: 0.3rem;
+  padding: 0.34rem 0.42rem;
+  border-width: 8px;
+  border-image-width: 8px;
+  opacity: 0.9;
+  box-shadow: 0 0.4rem 0.9rem rgb(0 0 0 / 38%);
+}
+
+.hud-layout-widget--peasant-resources .peasant-resources__heading {
+  min-width: 0;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem;
+}
+
+.hud-layout-widget--peasant-resources .peasant-resources__heading span {
+  align-self: center;
+  text-align: right;
+}
+
+.hud-layout-widget--peasant-resources .peasant-resources__list {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.2rem;
+}
+
+.hud-layout-widget--peasant-resources .peasant-resource {
+  grid-template-columns: 0.9rem 1fr;
+  gap: 0.14rem;
+  padding: 0.18rem 0.24rem;
+}
+
+.hud-layout-widget--peasant-resources
+  .peasant-resource
+  > span:not(.peasant-resource__glyph) {
+  display: none;
+}
+
+.hud-layout-widget--peasant-resources .peasant-resource strong {
+  text-align: right;
 }
 
 .settings-edit-interface {

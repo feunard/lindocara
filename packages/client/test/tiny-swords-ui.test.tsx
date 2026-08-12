@@ -31,7 +31,7 @@ describe("Tiny Swords UI foundation", () => {
     expect(action).toHaveBeenCalledOnce();
   });
 
-  it("publishes cursor fallbacks and an extensible panel slice", () => {
+  it("publishes cursor fallbacks and gives panels the readable information surface", () => {
     const root = document.createElement("div");
     applyTinySwordsTheme(root);
     expect(root.style.getPropertyValue("--tiny-cursor-default")).toBe(
@@ -44,7 +44,8 @@ describe("Tiny Swords UI foundation", () => {
     expect(root.style.getPropertyValue("--tiny-cursor-move")).toMatch(/, grab$/);
     expect(root.style.getPropertyValue("--tiny-cursor-unavailable")).toMatch(/, not-allowed$/);
     render(<TinyPanel data-testid="panel" />);
-    expect(screen.getByTestId("panel")).toHaveAttribute("data-tiny-slice", "64 64 64 64");
+    expect(screen.getByTestId("panel")).toHaveAttribute("data-text-surface", "information");
+    expect(root.style.getPropertyValue("--tiny-panel-carved")).toBe("");
   });
 
   it("assembles range tracks from the authored left, middle and right bar cells", () => {
