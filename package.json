@@ -67,7 +67,7 @@
     "check": "npm run catalog:check && npm run music:check && npm run map:check && npm run lint && npm run typecheck && npm run test",
     "check:runtime": "npm run lint && npm run typecheck && npm run test:runtime && npm run test:ui:runtime && npm run build",
     "typecheck:catalog": "tsc -p packages/catalog/tsconfig.json",
-    "clean": "rm -rf apps/main/dist apps/lab/dist apps/lab/dist-client",
+    "clean": "node -e \"const fs=require('node:fs'); for (const path of ['apps/main/dist','apps/lab/dist','apps/lab/dist-client']) fs.rmSync(path,{recursive:true,force:true})\"",
     "smoke": "tsx scripts/smoke-boot.ts",
     "verify": "alepha verify",
     "v": "alepha verify"
