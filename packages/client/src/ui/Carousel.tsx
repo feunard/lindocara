@@ -110,9 +110,13 @@ export function Carousel({
         onBack={onBack}
       >
         {loading ? (
-          <p className="carousel-screen__status">{t("common.loading")}</p>
+          <p className="carousel-screen__status" data-text-surface="loading">
+            {t("common.loading")}
+          </p>
         ) : cards.length === 0 ? (
-          <p className="carousel-screen__status">{emptyLabel}</p>
+          <p className="carousel-screen__status" data-text-surface="information">
+            {emptyLabel}
+          </p>
         ) : (
           cards.map((card, index) => (
             <Card

@@ -1,0 +1,247 @@
+/* Semantic reading surfaces for player-facing copy.
+ *
+ * These generated images are 9-slice frames, not illustrations. Their centres are intentionally
+ * low contrast so authored prose, translated hints and status copy never compete with the art.
+ * Creator tooling is outside these explicit selectors and keeps the sober shadcn vocabulary. */
+
+[data-text-surface] {
+  --text-surface-image: var(--text-surface-information);
+  --text-surface-centre: #081612;
+  box-sizing: border-box;
+  border: 8px solid transparent;
+  border-image-source: var(--text-surface-image);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  background-color: var(--text-surface-centre);
+  background-clip: padding-box;
+  image-rendering: auto;
+}
+
+[data-text-surface="dialogue"] {
+  --text-surface-image: var(--text-surface-dialogue);
+  --text-surface-centre: #071813;
+}
+
+[data-text-surface="guidance"] {
+  --text-surface-image: var(--text-surface-guidance);
+  --text-surface-centre: #102f39;
+}
+
+[data-text-surface="loading"] {
+  --text-surface-image: var(--text-surface-loading);
+  --text-surface-centre: #081a18;
+}
+
+/* Dialogue and quest prose share the roomiest reading frame. The generated centre replaces the
+ * old pale diagonal weave; an opaque fallback remains underneath if the image is still loading. */
+.game-ui .event-dialogue.tiny-panel[data-text-surface="dialogue"] {
+  border: 16px solid transparent;
+  border-image-source: var(--text-surface-dialogue);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 16px;
+  border-image-repeat: stretch;
+  background: #071813;
+  box-shadow:
+    0 0 0 1px rgb(222 184 94 / 56%),
+    0 0 0 4px rgb(30 17 11 / 86%),
+    0 1.3rem 3.2rem rgb(0 0 0 / 68%);
+  image-rendering: auto;
+}
+
+.game-ui .event-dialogue__name {
+  margin-top: -1.35rem;
+  color: #ffe7a6;
+}
+
+.game-ui .event-dialogue__text {
+  max-width: 48rem;
+  color: #f8f5eb;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(0.96rem, 0.9rem + 0.16vw, 1.06rem);
+  font-weight: 500;
+  line-height: 1.62;
+  letter-spacing: 0.006em;
+  text-wrap: pretty;
+}
+
+.game-ui .quest-dialogue__entry {
+  border-color: rgb(230 198 119 / 24%);
+  background: rgb(2 13 11 / 54%);
+}
+
+/* Help, hints and tips use one cooler, friendlier frame. */
+#prompt[data-text-surface="guidance"] {
+  max-width: min(38rem, calc(100vw - 1rem - var(--safe-left) - var(--safe-right)));
+  padding: 0.42rem 0.9rem;
+  border: 10px solid transparent;
+  border-image-source: var(--text-surface-guidance);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 10px;
+  border-radius: 0;
+  background: #102f39;
+  color: #fff9df;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  box-shadow: 0 0.7rem 1.7rem rgb(0 0 0 / 52%);
+}
+
+.menu-hints[data-text-surface="guidance"] {
+  left: 50%;
+  width: max-content;
+  max-width: min(54rem, calc(100vw - 1rem));
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem 1.25rem;
+  padding: 0.35rem 0.85rem;
+  border: 10px solid transparent;
+  border-image-source: var(--text-surface-guidance);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 10px;
+  background: #102f39;
+  color: #f7f4e8;
+  line-height: 1.35;
+  translate: -50% 0;
+  box-shadow: 0 0.65rem 1.5rem rgb(0 0 0 / 42%);
+}
+
+.menu-hints .menu-hint__key {
+  border-color: rgb(240 202 104 / 70%);
+  background: rgb(3 19 23 / 86%);
+  color: #ffe7a0;
+}
+
+.game-ui .skill-slot__tooltip[data-text-surface="guidance"] {
+  padding: 0.42rem 0.58rem;
+  border: 8px solid transparent;
+  border-image-source: var(--text-surface-guidance);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 8px;
+  background: #102f39;
+  color: #fffdf3;
+  box-shadow: 0 0.7rem 1.8rem rgb(0 0 0 / 65%);
+}
+
+:is(.item-overlay__hint, .talent-hint, .controls-hint)[data-text-surface="guidance"] {
+  padding: 0.35rem 0.6rem;
+  border: 8px solid transparent;
+  border-image-source: var(--text-surface-guidance);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 8px;
+  background: #102f39;
+  color: #f4f7ef;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* Notifications share a neutral forged frame; the thin inset rule carries their tone without
+ * duplicating three nearly identical image assets. */
+#event-log .event[data-text-surface="information"] {
+  --text-tone: #77c9d0;
+  position: relative;
+  padding: 0.42rem 0.7rem 0.42rem 0.82rem;
+  border: 10px solid transparent;
+  border-image-source: var(--text-surface-information);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 10px;
+  background: #081612;
+  color: #f4f8f4;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  box-shadow: 0 0.45rem 1.1rem rgb(0 0 0 / 42%);
+}
+
+#event-log .event[data-text-surface="information"]::before {
+  position: absolute;
+  top: 0.28rem;
+  bottom: 0.28rem;
+  left: 0.18rem;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--text-tone);
+  box-shadow: 0 0 0.55rem color-mix(in srgb, var(--text-tone) 62%, transparent);
+  content: "";
+}
+
+#event-log .event.good {
+  --text-tone: #84e39c;
+  color: #d7f9dc;
+}
+
+#event-log .event.bad {
+  --text-tone: #ff8278;
+  color: #ffd2ce;
+}
+
+.carousel-screen__status[data-text-surface] {
+  max-width: min(34rem, calc(100vw - 2rem));
+  margin: auto;
+  padding: 0.7rem 1.1rem;
+  border: 12px solid transparent;
+  border-image-source: var(--text-surface-image);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  background: var(--text-surface-centre);
+  color: #f5f7ef;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  text-align: center;
+  text-shadow: 0 1px 2px #000;
+  box-shadow: 0 0.9rem 2rem rgb(0 0 0 / 46%);
+}
+
+/* Loading, reconnect and transition copy share a travel-case frame. */
+.game-ui .connection-overlay__panel[data-text-surface="loading"] {
+  padding: 1rem 1.25rem 1.15rem;
+  border: 16px solid transparent;
+  border-image-source: var(--text-surface-loading);
+  border-image-slice: 11% 7% fill;
+  border-image-width: 16px;
+  border-image-repeat: stretch;
+  background: #081a18;
+  color: #f7f2df;
+  box-shadow: 0 0.9rem 2.8rem rgb(0 0 0 / 62%);
+  image-rendering: auto;
+}
+
+.game-ui .connection-overlay__panel[data-text-surface="loading"] h2 {
+  color: #fff0bd;
+  font-family: var(--font-display);
+}
+
+.game-ui .hero-loading__panel[data-text-surface="loading"] > p {
+  color: #e4e9dc;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .game-ui .event-dialogue.tiny-panel[data-text-surface="dialogue"] {
+    padding: 0.75rem 0.85rem 0.7rem;
+    border-width: 12px;
+    border-image-width: 12px;
+  }
+
+  .game-ui .event-dialogue__name {
+    margin-top: -1rem;
+  }
+
+  .menu-hints[data-text-surface="guidance"] {
+    bottom: 0.45rem;
+    gap: 0.3rem 0.75rem;
+    padding: 0.25rem 0.55rem;
+    border-width: 8px;
+    border-image-width: 8px;
+    font-size: 0.74rem;
+  }
+
+  .menu-hints .menu-hint__key {
+    font-size: 0.68rem;
+  }
+}

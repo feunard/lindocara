@@ -18,6 +18,8 @@ describe("EventLog", () => {
     const lines = screen.getAllByText(/first|second/);
     expect(lines[0]).toHaveTextContent("! second");
     expect(lines[1]).toHaveTextContent("+ first");
+    expect(lines[0]).toHaveAttribute("data-text-surface", "information");
+    expect(lines[0]).toHaveAttribute("data-text-tone", "bad");
     act(() => vi.advanceTimersByTime(6_100));
     expect(screen.queryByText(/first/)).not.toBeInTheDocument();
   });

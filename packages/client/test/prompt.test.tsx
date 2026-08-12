@@ -21,7 +21,7 @@ describe("Prompt", () => {
       prompt: { key: "prompt.hunt" },
     });
     render(<Prompt />);
-    expect(screen.getByText(/quest trail/)).toBeInTheDocument();
+    expect(screen.getByText(/quest trail/)).toHaveAttribute("data-text-surface", "guidance");
   });
 
   it("shows the active controller interaction button", () => {

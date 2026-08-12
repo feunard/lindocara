@@ -224,7 +224,7 @@ export function ControlsSettings() {
         </div>
       )}
 
-      <p className="controls-hint">
+      <p className="controls-hint" data-text-surface="guidance">
         {t(
           device === "keyboard"
             ? "settings.controls.keyboard_hint"

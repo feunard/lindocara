@@ -44,6 +44,7 @@ describe("QuestDialoguePanel", () => {
     render(<QuestDialoguePanel />);
     expect(screen.getByText("Warden Mira")).toBeInTheDocument();
     expect(screen.getByText("Mira's request")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-text-surface", "dialogue");
     expect(screen.queryByText("0001")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Accept" }));
     expect(questAction).toHaveBeenCalledWith("conversation-1", "accept", "0001", undefined);

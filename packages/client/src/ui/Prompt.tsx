@@ -14,5 +14,9 @@ export function Prompt() {
     "[E]",
     `[${controlBindingLabel("interact", mode, settings)}]`,
   );
-  return <div id="prompt">{text}</div>;
+  return (
+    <div id="prompt" data-text-surface="guidance">
+      {text}
+    </div>
+  );
 }

@@ -38,6 +38,7 @@ export function QuestDialoguePanel() {
         className="event-dialogue quest-dialogue"
         role="dialog"
         aria-label={t("quest.dialogue.title")}
+        data-text-surface="dialogue"
       >
         {dialogue.kind === "result" ? (
           <>

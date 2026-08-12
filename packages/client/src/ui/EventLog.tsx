@@ -15,7 +15,15 @@ function EventItem({ line }: { line: EventLine }) {
     return () => window.clearTimeout(timer);
   }, [line.id, removeEvent]);
 
-  return <div className={`event ${line.tone}`}>{`${MARKERS[line.tone]}${line.text}`}</div>;
+  return (
+    <div
+      className={`event ${line.tone}`}
+      data-text-surface="information"
+      data-text-tone={line.tone}
+    >
+      {`${MARKERS[line.tone]}${line.text}`}
+    </div>
+  );
 }
 
 export function EventLog() {

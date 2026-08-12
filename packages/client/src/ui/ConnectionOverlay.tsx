@@ -100,7 +100,7 @@ export function ConnectionOverlay() {
             />
           </span>
         </div>
-        <div className="connection-overlay__panel hero-loading__panel">
+        <div className="connection-overlay__panel hero-loading__panel" data-text-surface="loading">
           <p className="hero-loading__kicker">{t("loading.hero.eyebrow")}</p>
           <h2>{t("loading.hero.title", { name: loading.name })}</h2>
           <p>{t(phaseKey)}</p>
@@ -125,7 +125,7 @@ export function ConnectionOverlay() {
   const transition = reconnect.kind === "transition";
   return (
     <section className="connection-overlay" role="status" aria-live="polite">
-      <div className="connection-overlay__panel">
+      <div className="connection-overlay__panel" data-text-surface="loading">
         <h2>{t(transition ? "transition.title" : "reconnect.title")}</h2>
         <p>
           {t(

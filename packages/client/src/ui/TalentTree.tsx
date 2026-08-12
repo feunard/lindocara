@@ -151,7 +151,9 @@ export function TalentTree() {
           </TinyButton>
         </header>
 
-        <p className="talent-hint">{t("talent.hint")}</p>
+        <p className="talent-hint" data-text-surface="guidance">
+          {t("talent.hint")}
+        </p>
         <div className="talent-branches">
           {branches.map((slot) => {
             const skill = skillFor(self.class, slot);

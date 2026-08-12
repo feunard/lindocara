@@ -80,7 +80,9 @@ export function MerchantOverlay() {
           {t("common.close")}
         </TinyButton>
       </header>
-      <p className="item-overlay__hint">{t("merchant.hint")}</p>
+      <p className="item-overlay__hint" data-text-surface="guidance">
+        {t("merchant.hint")}
+      </p>
       <div className="item-grid">
         {CONSUMABLE_IDS.map((item, index) => {
           const definition = CONSUMABLES[item];

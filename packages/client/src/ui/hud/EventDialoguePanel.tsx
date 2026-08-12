@@ -150,6 +150,7 @@ export function EventDialoguePanel() {
       className="event-dialogue"
       role="dialog"
       aria-label={t("dialogue.title")}
+      data-text-surface="dialogue"
       data-dialogue-kind={dialogue.kind}
     >
       <MenuNav orientation="vertical" confirmControl="interact">

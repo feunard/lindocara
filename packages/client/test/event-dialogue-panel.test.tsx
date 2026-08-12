@@ -49,6 +49,7 @@ describe("EventDialoguePanel", () => {
     render(<EventDialoguePanel />);
     expect(screen.getByText("Hail, traveller.")).toBeInTheDocument();
     expect(screen.getByText("Keeper")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-text-surface", "dialogue");
 
     fireEvent.click(screen.getByRole("button"));
     expect(eventAdvance).toHaveBeenCalledWith("run-1");

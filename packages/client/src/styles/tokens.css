@@ -60,4 +60,10 @@
   --tiny-surface-ink: #f7ead0;
   --tiny-surface-sunken: #3a2f22;
   --tiny-surface-sunken-ink: #cdb98a;
+  /* Generated text surfaces. Each image is authored as a responsive 9-slice: ornament lives on
+   * the rails while the centre stays deliberately quiet for translated runtime copy. */
+  --text-surface-dialogue: url("/assets/lindocara/ui-text/dialogue.webp");
+  --text-surface-guidance: url("/assets/lindocara/ui-text/guidance.webp");
+  --text-surface-information: url("/assets/lindocara/ui-text/information.webp");
+  --text-surface-loading: url("/assets/lindocara/ui-text/loading.webp");
 }

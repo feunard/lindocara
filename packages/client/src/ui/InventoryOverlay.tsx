@@ -109,8 +109,10 @@ export function InventoryOverlay() {
           {t("common.close")}
         </TinyButton>
       </header>
-      <p className="item-overlay__hint">{t("inventory.hint")}</p>
-      <p className="item-overlay__hint item-overlay__hint--controller">
+      <p className="item-overlay__hint" data-text-surface="guidance">
+        {t("inventory.hint")}
+      </p>
+      <p className="item-overlay__hint item-overlay__hint--controller" data-text-surface="guidance">
         {t("inventory.controller_hint")}
       </p>
       <div className="item-grid">

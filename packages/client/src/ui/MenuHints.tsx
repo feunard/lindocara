@@ -11,7 +11,11 @@ import type { ReactNode } from "react";
  * module has zero reason to force them into `tsconfig.api.json` too.
  */
 export function MenuHints({ children }: { children: ReactNode }) {
-  return <footer className="menu-hints">{children}</footer>;
+  return (
+    <footer className="menu-hints" data-text-surface="guidance">
+      {children}
+    </footer>
+  );
 }
 
 export function Hint({ keyLabel, children }: { keyLabel: string; children: ReactNode }) {

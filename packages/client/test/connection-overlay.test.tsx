@@ -35,6 +35,10 @@ describe("ConnectionOverlay", () => {
     expect(view.container.querySelector(".hero-loading__journey")).not.toBeNull();
     expect(view.container.querySelectorAll(".hero-loading__trail")).toHaveLength(2);
     expect(view.container.querySelector(".hero-loading__clash")).toBeNull();
+    expect(view.container.querySelector(".hero-loading__panel")).toHaveAttribute(
+      "data-text-surface",
+      "loading",
+    );
   });
 
   it("distinguishes network reconnection from a zone transition", async () => {

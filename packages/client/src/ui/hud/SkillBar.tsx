@@ -328,7 +328,7 @@ export function SkillBar() {
                   {(remaining / 1000).toFixed(remaining < 950 ? 1 : 0)}
                 </span>
               )}
-              <span className="skill-slot__tooltip" role="tooltip">
+              <span className="skill-slot__tooltip" role="tooltip" data-text-surface="guidance">
                 {!enabledOnMap
                   ? t("skill.disabled_on_map")
                   : unlocked
