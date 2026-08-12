@@ -1922,9 +1922,6 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.harvest.preview.hide": "La ressource disparaît immédiatement.",
   "editor.harvest.validation.invalid":
     "La configuration de récolte est invalide. Vérifiez les assets requis, les quantités et les durées.",
-  "editor.element.decorativeOnly.heading": "Un décor n’est pas une ressource récoltable",
-  "editor.element.decorativeOnly.body":
-    "Placer ici un arbre, un minerai ou de la viande ne fait que décorer la carte. Utilisez Événements → Ressource récoltable pour le gameplay du Paysan.",
   "editor.event.kind.spawn": "Départ de l’aventure",
   "editor.event.kind.seaGuardian.hint":
     "Ce monstre spécial permanent patrouille son eau connectée, ne peut pas être blessé et engloutit instantanément les nageurs qu’il atteint.",

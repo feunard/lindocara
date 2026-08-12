@@ -2,11 +2,11 @@ import { cloneHarvestProfile, type HarvestProfile } from "./harvest.js";
 import type { EditorAssetId } from "./tiny-swords-catalog.js";
 
 /**
- * Stable authoring templates for harvestable map events.
+ * Stable native-resource definitions for scenery assets.
  *
- * The preset id carries semantics; asset ids are only the two appearances an author starts with.
- * Runtime code consumes the persisted HarvestProfile and never attempts to recover it from either
- * image id, its source filename, or its directory.
+ * This list is the explicit gameplay catalogue: resource semantics are never inferred from a file
+ * name, directory or broad catalogue category. Placing one of these exact assets as scenery makes
+ * it a Peasant resource by default; legacy harvestable events keep their persisted profile.
  */
 export const HARVEST_PRESET_IDS = [
   "tree_tall",
@@ -313,6 +313,9 @@ export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
 ];
 
 const HARVEST_PRESET_BY_ID = new Map(HARVEST_PRESETS.map((preset) => [preset.id, preset]));
+const HARVEST_PRESET_BY_ASSET = new Map(
+  HARVEST_PRESETS.map((preset) => [preset.intactAssetId, preset]),
+);
 
 export function isHarvestPresetId(value: unknown): value is HarvestPresetId {
   return typeof value === "string" && HARVEST_PRESET_BY_ID.has(value as HarvestPresetId);
@@ -326,6 +329,23 @@ export function harvestPreset(id: HarvestPresetId): HarvestPresetDefinition {
 /** A detached profile lets each placed map instance override every authored value independently. */
 export function harvestProfileFromPreset(id: HarvestPresetId): HarvestProfile {
   return cloneHarvestProfile(harvestPreset(id).profile);
+}
+
+/** The curated native-resource definition for one exact scenery asset. */
+export function nativeHarvestPresetForAsset(
+  assetId: EditorAssetId,
+): HarvestPresetDefinition | null {
+  return HARVEST_PRESET_BY_ASSET.get(assetId) ?? null;
+}
+
+export function isNativeHarvestAsset(assetId: EditorAssetId): boolean {
+  return HARVEST_PRESET_BY_ASSET.has(assetId);
+}
+
+/** A detached runtime profile so no node can mutate the shared catalogue definition. */
+export function nativeHarvestProfileForAsset(assetId: EditorAssetId): HarvestProfile | null {
+  const preset = nativeHarvestPresetForAsset(assetId);
+  return preset ? cloneHarvestProfile(preset.profile) : null;
 }
 
 function isLegacyGoldPresetFamily(profile: HarvestProfile): boolean {

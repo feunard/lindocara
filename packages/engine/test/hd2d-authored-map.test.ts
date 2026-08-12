@@ -34,7 +34,7 @@ function authored(): MapData {
         row: 1,
         offsetX: 1,
         offsetY: 2,
-        assetId: "resource.terrain-resources-wood-trees.tree3",
+        assetId: "decoration.terrain-decorations-rocks.rock2",
       },
     ],
     spawn: { col: 0, row: 0 },
@@ -78,7 +78,7 @@ describe("compileAuthoredMap", () => {
     expect(compiled.spawns).toEqual([{ name: "default", x: -1, z: -1 }]);
     expect(compiled.elements).toEqual([
       {
-        assetId: "resource.terrain-resources-wood-trees.tree3",
+        assetId: "decoration.terrain-decorations-rocks.rock2",
         x: 0.25,
         z: 1,
       },
@@ -92,6 +92,23 @@ describe("compileAuthoredMap", () => {
         graphicAssetId: "resource.terrain-resources-wood-trees.tree3",
       },
     ]);
+  });
+
+  it("leaves native resources out of static content and collision", () => {
+    const source = authored();
+    source.elements = [
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        col: 1,
+        row: 1,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: "resource.terrain-resources-wood-trees.tree3",
+      },
+    ];
+    const compiled = compileAuthoredMap(source);
+    expect(compiled.elements).toEqual([]);
+    expect(compiled.colliders).toEqual([]);
   });
 
   it("compiles a complete two-half stair stamp into one world-space ramp", () => {

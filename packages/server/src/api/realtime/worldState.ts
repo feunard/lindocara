@@ -15,21 +15,24 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { type AdventureAudioConfig, resolveMapAudio } from "@lindocara/engine/audio-catalog.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
+import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
 import {
   type ColliderIndex,
   type ColliderRect,
   createColliderIndex,
 } from "@lindocara/engine/hd2d/collider-index.js";
-import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
+import { decodeMap, encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
-import { MAP_LAYERS } from "@lindocara/engine/map-data.js";
+import { elementWorldCollider, MAP_LAYERS } from "@lindocara/engine/map-data.js";
 import { authoredCellCentreGround, seaGuardianEvents } from "@lindocara/engine/map-events.js";
+import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import type { QuestEventReference } from "@lindocara/engine/quests.js";
 import { seaGuardianRuntimeId } from "@lindocara/engine/sea-guardian.js";
 import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
 import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
@@ -110,6 +113,51 @@ function blankAppearance(size: number): { layers: string[] } {
 }
 
 /**
+ * Maps compiled before native resources existed may still contain their scenery and collider in the
+ * stored heightfield. Strip only the exact authored resource placements while assembling the room;
+ * the live event projection then owns intact/depleted visuals and collision. Custom heightfield
+ * terrain, unrelated props and colliders remain byte-for-byte equivalent.
+ */
+function withoutStaticNativeResources(
+  heightfield: NonNullable<ReturnType<typeof decodeMap>>,
+  payload: MapPayload,
+): NonNullable<ReturnType<typeof decodeMap>> {
+  const resourceElements = payload.elements.filter((element) =>
+    isNativeHarvestAsset(element.assetId),
+  );
+  if (resourceElements.length === 0) return heightfield;
+  const resourceAssets = new Set<string>(resourceElements.map((element) => element.assetId));
+  const staleColliders = resourceElements.flatMap((element) => {
+    const rect = elementWorldCollider(element);
+    return rect
+      ? [
+          {
+            x: rect.x / TILE_SIZE - heightfield.size / 2,
+            z: rect.y / TILE_SIZE - heightfield.size / 2,
+            w: rect.width / TILE_SIZE,
+            h: rect.height / TILE_SIZE,
+          },
+        ]
+      : [];
+  });
+  const sameCollider = (
+    left: { x: number; z: number; w: number; h: number },
+    right: { x: number; z: number; w: number; h: number },
+  ) =>
+    Math.abs(left.x - right.x) < 1e-6 &&
+    Math.abs(left.z - right.z) < 1e-6 &&
+    Math.abs(left.w - right.w) < 1e-6 &&
+    Math.abs(left.h - right.h) < 1e-6;
+  return {
+    ...heightfield,
+    elements: heightfield.elements.filter((element) => !resourceAssets.has(element.assetId)),
+    colliders: heightfield.colliders.filter(
+      (collider) => !staleColliders.some((stale) => sameCollider(collider, stale)),
+    ),
+  };
+}
+
+/**
  * A stored map (as the Alepha API round-trips it) into the `ZoneDefinition` the world systems run
  * on. Port of `zoneFromMap`, with its terrain rebuilt: collision is the map's own heightfield,
  * queried in tile units with the grid centre as origin, and the tile path that used to bake it
@@ -127,7 +175,10 @@ export function zoneFromMapPayload(
   payload: MapPayload,
   adventureAudio: AdventureAudioConfig,
 ): ZoneDefinition {
-  const heightfield = payload.heightfield === null ? null : decodeMap(payload.heightfield);
+  const decodedHeightfield = payload.heightfield === null ? null : decodeMap(payload.heightfield);
+  const heightfield = decodedHeightfield
+    ? withoutStaticNativeResources(decodedHeightfield, payload)
+    : null;
   if (heightfield === null) {
     // Absent and corrupt are distinguished in the message because they need different answers: one
     // map was never given a heightfield, the other has one the server refuses to parse — and a
@@ -136,8 +187,12 @@ export function zoneFromMapPayload(
     const reason = payload.heightfield === null ? "absent" : "failed to decode";
     throw new Error(`map ${payload.id} has no usable heightfield (${reason})`);
   }
+  const events = [
+    ...payload.events,
+    ...nativeHarvestEvents(payload.elements, payload.events.length + 1),
+  ];
   if (
-    payload.events.some(
+    events.some(
       (event) =>
         event.col < 0 ||
         event.row < 0 ||
@@ -147,7 +202,7 @@ export function zoneFromMapPayload(
   ) {
     throw new Error(`map ${payload.id} has an authored event outside its heightfield`);
   }
-  for (const guardianEvent of seaGuardianEvents(payload.events)) {
+  for (const guardianEvent of seaGuardianEvents(events)) {
     if (heightfield.levels[guardianEvent.row * heightfield.size + guardianEvent.col] !== null) {
       throw new Error(`map ${payload.id} has a sea guardian outside water`);
     }
@@ -186,14 +241,14 @@ export function zoneFromMapPayload(
     revision: payload.revision,
     tilesetId: payload.tilesetId,
     layers: appearance.layers,
-    events: payload.events,
+    events,
     audio: resolveMapAudio(adventureAudio, payload.audio),
     heroSettings: payload.heroSettings,
     dayNightCycle: payload.dayNightCycle,
     fixedLighting: payload.fixedLighting,
     // The heightfield the room actually baked its terrain from — reaching this line at all means it
     // decoded, so the string and the collision the two sides run cannot disagree.
-    heightfield: payload.heightfield,
+    heightfield: encodeMap(heightfield),
   };
 }
 

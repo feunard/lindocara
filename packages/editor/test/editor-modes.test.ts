@@ -120,8 +120,8 @@ describe("editor modes", () => {
 describe("stacked decorations", () => {
   it("stacks two decorations in one cell at different offsets", () => {
     let map = grassMap();
-    map = placeElement(map, CELL.col, CELL.row, 0, 0, TREE);
-    map = placeElement(map, CELL.col, CELL.row, 3, 1, TREE);
+    map = placeElement(map, CELL.col, CELL.row, 0, 0, BUSH);
+    map = placeElement(map, CELL.col, CELL.row, 3, 1, BUSH);
     expect(map.elements).toHaveLength(2);
     const offsets = map.elements.map((e) => `${e.offsetX},${e.offsetY}`).sort();
     expect(offsets).toEqual(["0,0", "3,1"]);

@@ -15,6 +15,7 @@ import {
   type HarvestProfile,
   parseHarvestProfile,
 } from "@lindocara/engine/harvest.js";
+import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
 import { compileAuthoredMap, isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
@@ -161,6 +162,7 @@ interface EditorEventToolBase {
 
 export type EditorEventTool =
   | (EditorEventToolBase & {
+      /** Legacy-only compatibility for old authored maps; no editor palette creates this tool. */
       eventKind: "harvestable";
       graphic: EditorAssetId;
       harvestProfile: HarvestProfile;
@@ -1267,7 +1269,20 @@ export function applyTool(
       // Element placement is quarter-cell: the stage resolves the pointer to a cell plus a 0..3
       // sub-step per axis and threads it here. Field/Event callers leave the offsets at 0, so those
       // modes stay grid-forced.
-      const placed: MapElement = { col, row, offsetX, offsetY, assetId: tool.assetId };
+      const nativeResource = isNativeHarvestAsset(tool.assetId);
+      const resourceOffset = nativeResource ? 0 : null;
+      const slot = {
+        col,
+        row,
+        offsetX: resourceOffset ?? offsetX,
+        offsetY: resourceOffset ?? offsetY,
+      };
+      const replaced = map.elements.find((element) => sameElementSlot(element, slot));
+      const placed: MapElement = {
+        ...(replaced?.id ? { id: replaced.id } : {}),
+        ...slot,
+        assetId: tool.assetId,
+      };
       if (!placementFitsMap(map, placed)) return null;
       if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
       // Identity is the full sub-position now, so a new `(col, row, offsetX, offsetY)` ADDS and only an
@@ -1462,6 +1477,8 @@ export function applyTool(
           ],
         };
       }
+      // Compatibility path for old editor sessions/tests. New resources are placed through the
+      // scenery catalogue and the public Event palette never constructs this tool.
       if (tool.eventKind === "harvestable") {
         const profile = parseHarvestProfile(tool.harvestProfile);
         if (!profile) return null;

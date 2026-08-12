@@ -628,6 +628,7 @@ export class MapService {
     if (elements.length === 0) return;
     await this.mapElements.createMany(
       elements.map((element) => ({
+        id: element.id ?? crypto.randomUUID(),
         mapId,
         col: element.col,
         row: element.row,

@@ -80,8 +80,6 @@ describe("editor asset catalogue", () => {
         npcGraphic={DEFAULT_NPC_MODEL_ASSET_ID}
         enemyGraphic={null}
         guardGraphic={DEFAULT_GUARD_APPEARANCE_ASSET_ID}
-        harvestPreset="tree"
-        harvestGraphic="resource.terrain-resources-wood-trees.tree1"
         events={[]}
         selectedEventId={null}
         onSelectPreset={() => {}}
@@ -91,8 +89,6 @@ describe("editor asset catalogue", () => {
         onSelectNpcGraphic={() => {}}
         onSelectEnemyGraphic={() => {}}
         onSelectGuardGraphic={() => {}}
-        onSelectHarvestPreset={() => {}}
-        onSelectHarvestGraphic={() => {}}
         onHoverEvent={() => {}}
         onSelectEvent={() => {}}
       />,

@@ -8,6 +8,7 @@
  * about the retired Pixi/tile render path.
  */
 
+import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
   type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
@@ -142,12 +143,17 @@ export function compileAuthoredMap(
     }
   }
 
-  const elements = authored.elements.map((element) => ({
+  // Native resources are live world events: keeping a static copy here would draw the intact asset
+  // over its depleted state and leave an immortal collider behind after harvesting.
+  const staticElements = authored.elements.filter(
+    (element) => !isNativeHarvestAsset(element.assetId),
+  );
+  const elements = staticElements.map((element) => ({
     assetId: element.assetId,
     ...authoredElementGroundPoint(element, size),
   }));
 
-  const colliders = authored.elements.flatMap((element) => {
+  const colliders = staticElements.flatMap((element) => {
     const rect = elementWorldCollider(element);
     const asset = editorAsset(element.assetId);
     const level = levels[element.row * size + element.col] ?? null;

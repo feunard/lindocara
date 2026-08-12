@@ -24,6 +24,7 @@ import {
   DEFAULT_MAP_FIXED_LIGHTING,
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
+import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import type {
   GuardSnapshot,
   MonsterSnapshot,
@@ -91,7 +92,8 @@ export async function startMapPreview(
   const canvas = document.querySelector<HTMLCanvasElement>("#stage");
   if (!canvas) throw new Error("The HD-2D preview requires the #stage canvas");
 
-  const heightfield = compileAuthoredMap(data, events);
+  const runtimeEvents = [...events, ...nativeHarvestEvents(data.elements, events.length + 1)];
+  const heightfield = compileAuthoredMap(data, runtimeEvents);
   const staticTerrain = zoneTerrainFromHeightfield(heightfield);
   const spawn = heightfield.spawns.find((candidate) => candidate.name === "default") ??
     heightfield.spawns[0] ?? { x: 0, z: 0 };
@@ -99,7 +101,7 @@ export async function startMapPreview(
   const colliders = createColliderIndex();
   for (const collider of staticTerrain.colliders.all) colliders.add(collider);
   const pendingHarvestColliders = new Map<string, ColliderRect>();
-  for (const event of events) {
+  for (const event of runtimeEvents) {
     if (event.kind !== "harvestable" || !event.harvestProfile) continue;
     const collider = harvestGroundColliderAt(
       event.harvestProfile,
@@ -229,7 +231,7 @@ export async function startMapPreview(
       },
     ];
   });
-  const worldEvents = authoredEventPreviewSnapshots(events, "playable-preview");
+  const worldEvents = authoredEventPreviewSnapshots(runtimeEvents, "playable-preview");
   const previewSeaGuardians = authoredSeaGuardianPreviewSnapshots(
     events,
     heightfield.size,

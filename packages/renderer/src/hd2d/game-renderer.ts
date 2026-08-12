@@ -927,7 +927,9 @@ export class Hd2dRenderer implements RendererLike {
             {
               id: event.id,
               x: event.col + 0.5 - map.size / 2,
-              z: event.row + 0.5 - map.size / 2,
+              // Native scenery is bottom-anchored on the cell's lower edge, exactly like authored
+              // map elements. Marker events stay centred in their logical cell.
+              z: event.row + (event.presentation === "native" ? 1 : 0.5) - map.size / 2,
               graphicAssetId: assetId,
             },
           ];

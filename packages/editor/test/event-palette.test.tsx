@@ -7,7 +7,6 @@ import {
   MAX_RUNTIME_EVENTS_PER_MAP,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
-import { SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   DEFAULT_NPC_MODEL_ASSET_ID,
@@ -50,8 +49,6 @@ function baseProps() {
     npcGraphic: DEFAULT_NPC_MODEL_ASSET_ID,
     enemyGraphic: null,
     guardGraphic: DEFAULT_GUARD_APPEARANCE_ASSET_ID,
-    harvestPreset: "tree" as const,
-    harvestGraphic: "resource.terrain-resources-wood-trees.tree1" as const,
     events: [] as MapEvent[],
     selectedEventId: null,
     onSelectPreset: () => {},
@@ -61,8 +58,6 @@ function baseProps() {
     onSelectNpcGraphic: () => {},
     onSelectEnemyGraphic: () => {},
     onSelectGuardGraphic: () => {},
-    onSelectHarvestPreset: () => {},
-    onSelectHarvestGraphic: () => {},
     onHoverEvent: () => {},
     onSelectEvent: () => {},
   };
@@ -146,57 +141,11 @@ describe("EventPalette (D13/D14)", () => {
     ).toBeEnabled();
   });
 
-  it("offers explicit harvest presets and keeps the appearance picker independent", () => {
+  it("does not expose harvestable resources as event kinds", () => {
     setLocale("en");
-    const onSelectHarvestPreset = vi.fn();
-    const onSelectHarvestGraphic = vi.fn();
-    render(
-      <EventPalette
-        {...baseProps()}
-        eventKind="harvestable"
-        onSelectHarvestPreset={onSelectHarvestPreset}
-        onSelectHarvestGraphic={onSelectHarvestGraphic}
-      />,
-    );
-
-    const harvest = screen.getByTestId("harvest-presets");
-    expect(within(harvest).getByTestId("harvest-gameplay-hint")).toHaveTextContent(
-      t("editor.harvest.palette.gameplayHint"),
-    );
-    const sheepPreset = within(harvest).getByRole("button", {
-      name: t("editor.harvest.preset.sheep"),
-    });
-    expect(sheepPreset).toHaveTextContent(
-      t("editor.harvest.preset.requirement", {
-        tool: t("editor.harvest.tool.knife"),
-        level: SKILL_UNLOCK_LEVEL[3],
-      }),
-    );
-    expect(
-      within(harvest).getByRole("button", { name: t("editor.harvest.preset.stone") }),
-    ).toHaveTextContent(
-      t("editor.harvest.preset.requirement", {
-        tool: t("editor.harvest.tool.pickaxe"),
-        level: SKILL_UNLOCK_LEVEL[2],
-      }),
-    );
-    fireEvent.click(sheepPreset);
-    expect(onSelectHarvestPreset).toHaveBeenCalledWith("sheep");
-
-    fireEvent.click(
-      within(harvest).getByText(t("editor.harvest.appearance.intact"), {
-        selector: "summary",
-      }),
-    );
-    fireEvent.change(within(harvest).getByRole("searchbox"), {
-      target: { value: "HappySheep Idle" },
-    });
-    const happySheep = within(harvest)
-      .getAllByRole("button")
-      .find((button) => button.dataset.assetId === "resource.resources-sheep.happysheep-idle");
-    expect(happySheep).toBeDefined();
-    if (happySheep) fireEvent.click(happySheep);
-    expect(onSelectHarvestGraphic).toHaveBeenCalledWith("resource.resources-sheep.happysheep-idle");
+    render(<EventPalette {...baseProps()} />);
+    expect(screen.queryByTestId("harvest-presets")).toBeNull();
+    expect(screen.queryByRole("button", { name: t("editor.event.kind.harvestable") })).toBeNull();
   });
 
   it("offers allied guards with a radius but without monster species", () => {

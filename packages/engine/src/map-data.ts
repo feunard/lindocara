@@ -12,6 +12,7 @@
 import { colliderIndexFrom } from "./collider.js";
 import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
+import { isUuid } from "./identifiers.js";
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
@@ -27,6 +28,8 @@ export const ELEMENT_OFFSET_STEPS = 4;
 export const ELEMENT_OFFSET_PX = TILE_SIZE / ELEMENT_OFFSET_STEPS;
 
 export interface MapElement {
+  /** Durable row identity; optional only while opening payloads written by older clients. */
+  id?: string;
   col: number;
   row: number;
   /** Integer in `0..ELEMENT_OFFSET_STEPS - 1`, quarter tiles right of the cell origin. */
@@ -448,7 +451,8 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return null;
     const item = raw as Record<string, unknown>;
-    const { col, row } = item;
+    const { id, col, row } = item;
+    if (id !== undefined && !isUuid(id)) return null;
     if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
     if ((col as number) < 0 || (col as number) >= cols) return null;
     if ((row as number) < 0 || (row as number) >= rows) return null;
@@ -460,7 +464,14 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     else if (isElementKind(item.kind) && Number.isSafeInteger(item.variant)) {
       assetId = legacyElementAssetId(item.kind, item.variant as number);
     } else return null;
-    parsed.push({ col: col as number, row: row as number, offsetX, offsetY, assetId });
+    parsed.push({
+      ...(typeof id === "string" ? { id } : {}),
+      col: col as number,
+      row: row as number,
+      offsetX,
+      offsetY,
+      assetId,
+    });
   }
   return parsed;
 }

@@ -74,8 +74,10 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - Keep editor chrome dense, sober and keyboard-efficient. Use the existing React/Radix primitives;
   Tiny Swords art belongs in the stage, previews and restrained accents.
 - Preserve the existing handle API and editor history semantics when adding tools.
-- Markers remain deliberately quarantined in the legacy map model. Entries, exits, monsters and
-  harvest nodes are authored as typed map events.
+- Markers remain deliberately quarantined in the legacy map model. Entries, exits and monsters are
+  typed map events. Peasant resources are curated native scenery assets defined by
+  `@lindocara/engine/harvest-presets`; the Event palette must not author new harvestable events.
+  Legacy harvestable events remain readable/editable only for saved-map compatibility.
 
 ## Tests
 

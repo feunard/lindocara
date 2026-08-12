@@ -10,7 +10,6 @@ import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-session.js";
 import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
-import { harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -954,21 +953,12 @@ describe("AdventureEditorScreen shell", () => {
     );
   });
 
-  it("arms an explicit sheep harvest tool with meat semantics before stage placement", async () => {
+  it("does not offer harvestable resources in Event mode", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.harvestable") }));
-    await userEvent.click(screen.getByRole("button", { name: t("editor.harvest.preset.sheep") }));
-
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({
-      kind: "event",
-      eventKind: "harvestable",
-      graphic: "resource.terrain-resources-meat-sheep.sheep-idle",
-      harvestProfile: harvestProfileFromPreset("sheep"),
-      presetName: t("editor.harvest.preset.sheep"),
-    });
+    expect(screen.queryByRole("button", { name: t("editor.event.kind.harvestable") })).toBeNull();
   });
 
   it("re-arms free-NPC placement after the selection tool", async () => {

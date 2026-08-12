@@ -1900,9 +1900,6 @@ export const en = {
   "editor.harvest.preview.hide": "The resource disappears immediately.",
   "editor.harvest.validation.invalid":
     "The harvest configuration is invalid. Check required assets, amounts and timing bounds.",
-  "editor.element.decorativeOnly.heading": "Scenery is not a harvestable resource",
-  "editor.element.decorativeOnly.body":
-    "Placing a tree, ore or meat asset here only decorates the map. Use Events → Harvestable resource for Peasant gameplay.",
   "editor.event.kind.spawn": "Adventure start",
   "editor.event.kind.seaGuardian.hint":
     "This permanent special monster patrols its connected water, cannot be harmed and instantly devours swimmers it reaches.",

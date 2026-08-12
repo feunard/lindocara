@@ -477,6 +477,7 @@ export function graphWithoutMap(graphJson: string, mapId: string): string {
  *  modern editor asset id round-trips as-is, a legacy tree/bush/stone kind+variant pair is
  *  normalized, and anything this build cannot draw is dropped rather than failing the whole map. */
 export function elementToWire(row: {
+  id: string;
   col: number;
   row: number;
   offsetX: number;
@@ -486,6 +487,7 @@ export function elementToWire(row: {
 }): MapElement | null {
   if (isEditorAssetId(row.kind)) {
     return {
+      id: row.id,
       col: row.col,
       row: row.row,
       offsetX: row.offsetX,
@@ -495,6 +497,7 @@ export function elementToWire(row: {
   }
   if (isElementKind(row.kind)) {
     return {
+      id: row.id,
       col: row.col,
       row: row.row,
       offsetX: row.offsetX,

@@ -259,7 +259,7 @@ describe("HD-2D map editor stage", () => {
     const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
     const canvas = document.querySelector<HTMLCanvasElement>("#stage");
     if (!canvas) throw new Error("fixture canvas missing");
-    const tree = "resource.terrain-resources-wood-trees.tree3" as const;
+    const tree = "decoration.terrain-decorations-bushes.bushe1" as const;
     stage.setActiveMode("element");
     stage.setTool({ kind: "element", assetId: tree });
     canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
@@ -284,7 +284,7 @@ describe("HD-2D map editor stage", () => {
     const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
     const canvas = document.querySelector<HTMLCanvasElement>("#stage");
     if (!canvas) throw new Error("fixture canvas missing");
-    const tree = "resource.terrain-resources-wood-trees.tree3" as const;
+    const tree = "decoration.terrain-decorations-bushes.bushe1" as const;
     stage.setActiveMode("element");
     stage.setTool({ kind: "element", assetId: tree });
 

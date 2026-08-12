@@ -6,6 +6,8 @@ import {
   harvestPreset,
   harvestProfileFromPreset,
   isHarvestPresetId,
+  isNativeHarvestAsset,
+  nativeHarvestProfileForAsset,
 } from "../src/harvest-presets.js";
 import { editorAsset } from "../src/tiny-swords-catalog.js";
 
@@ -128,7 +130,7 @@ describe("semantic harvest presets", () => {
     }
   });
 
-  it("returns detached per-instance profiles and never derives semantics from an appearance", () => {
+  it("returns detached profiles and maps only explicitly curated native appearances", () => {
     const first = harvestProfileFromPreset("tree");
     const second = harvestProfileFromPreset("tree");
     expect(first).toEqual(second);
@@ -140,6 +142,13 @@ describe("semantic harvest presets", () => {
     const customAppearance = harvestPreset("happy_sheep").intactAssetId;
     expect(customAppearance).not.toBe(harvestPreset("tree").intactAssetId);
     expect(first).toMatchObject({ resource: "wood", tool: "axe" });
+    expect(isNativeHarvestAsset(harvestPreset("happy_sheep").intactAssetId)).toBe(true);
+    expect(nativeHarvestProfileForAsset(harvestPreset("happy_sheep").intactAssetId)).toMatchObject({
+      resource: "meat",
+      tool: "knife",
+      actorBehavior: "wander",
+    });
+    expect(isNativeHarvestAsset("decoration.terrain-decorations-rocks.rock2")).toBe(false);
   });
 
   it("accepts only central stable ids", () => {

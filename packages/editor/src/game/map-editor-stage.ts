@@ -17,6 +17,7 @@ import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
+import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import {
   type EditorAssetId,
   editorAsset,
@@ -216,7 +217,11 @@ export function openMapEditorStage(
     let orbiting = false;
     let disposed = false;
     let lastCursorKey = "";
-    let renderedEvents = authoredEventPreviewSnapshots(map.events, "map-editor");
+    const visualEvents = (): MapEvent[] => [
+      ...map.events,
+      ...nativeHarvestEvents(map.elements, map.events.length + 1),
+    ];
+    let renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
     let renderedSeaGuardians: SceneSample["seaGuardians"] = [];
 
     const dimensions = () => editorMapSize(map);
@@ -283,7 +288,7 @@ export function openMapEditorStage(
 
     const redraw = (): void => {
       const heightfield = compiled();
-      renderedEvents = authoredEventPreviewSnapshots(map.events, "map-editor");
+      renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
       renderedSeaGuardians = authoredSeaGuardianPreviewSnapshots(
         map.events,
         heightfield.size,

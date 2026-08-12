@@ -127,8 +127,8 @@ export interface HarvestProfile {
 
 /**
  * Explicit carcass gameplay catalogue. Species opt in here; artwork, display names and monster
- * kinds are deliberately irrelevant. Sheep stay authored `harvestable` map events with their own
- * meat profile, while a defeated war pig uses this server-owned default.
+ * kinds are deliberately irrelevant. Native sheep scenery is curated in `harvest-presets.ts` with
+ * its own meat profile, while a defeated war pig uses this server-owned default.
  */
 export const HARVESTABLE_ANIMAL_SPECIES = ["war_pig"] as const satisfies readonly MonsterSpecies[];
 
