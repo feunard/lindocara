@@ -5,19 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { t, useLocale } from "../../i18n.js";
 import { quickItemsAtom } from "../../state/atoms.js";
 import { useUiStore } from "../../store.js";
-import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 
 const QUICK_SLOT_KEYS = ["quick-item-1", "quick-item-2", "quick-item-3"] as const;
-const QUICK_SLOT_CONTROLS = ["item1", "item2", "item3"] as const;
 const QUICK_SLOT_DIRECTIONS = ["left", "up", "right"] as const;
-
-function compactBindingLabel(label: string): string {
-  return label.replace(/^D-pad\s+/, "");
-}
 
 export function QuickItemBar() {
   useLocale();
-  const { mode, settings } = useInputModeSettings();
   const game = useUiStore((state) => state.game);
   const self = useUiStore((state) => state.self);
   const selfState = useUiStore((state) => state.selfState);
@@ -63,11 +56,6 @@ export function QuickItemBar() {
                 : t("inventory.empty")
             }
           >
-            <span className="quick-item-bar__key">
-              {compactBindingLabel(
-                controlBindingLabel(QUICK_SLOT_CONTROLS[index] ?? "item1", mode, settings),
-              )}
-            </span>
             {item ? (
               <img src={consumableIconSource(item)} alt="" />
             ) : (
@@ -86,9 +74,6 @@ export function QuickItemBar() {
         aria-pressed={inventoryOpen}
         onClick={() => setInventoryOpen(!inventoryOpen)}
       >
-        <span className="quick-item-bar__key">
-          {compactBindingLabel(controlBindingLabel("inventory", mode, settings))}
-        </span>
         <span className="quick-item-bar__bag" aria-hidden="true" />
       </button>
     </section>

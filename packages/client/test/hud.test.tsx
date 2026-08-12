@@ -49,6 +49,7 @@ describe("Hud", () => {
         inventory: { potions: 2, gold: 9, crystals: 1 },
         quest: { status: "active", progress: 1, target: 3 },
       },
+      attackCooldownUntil: performance.now() + 1_000,
     });
     await renderHud();
     expect(document.querySelector('[data-portrait-kind="unit"]')).toBeInTheDocument();
@@ -68,6 +69,8 @@ describe("Hud", () => {
     ).toBeInTheDocument();
     expect(document.querySelector("#hud .inventory")).not.toBeInTheDocument();
     expect(document.querySelector("#hud .party")).not.toBeInTheDocument();
+    expect(document.querySelector("#hud .combat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Strike")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Switch character" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     // FR toggle re-renders live
@@ -223,8 +226,8 @@ describe("Hud", () => {
     await renderHud();
     expect(screen.getByText(/WARD RUN: 1[45]s/)).toBeInTheDocument();
     expect(
-      screen.getByText("A reliable close-range sweep in your facing direction."),
-    ).toBeInTheDocument();
+      screen.queryByText("A reliable close-range sweep in your facing direction."),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText("Unlocks at level 5").length).toBeGreaterThan(0);
   });
 

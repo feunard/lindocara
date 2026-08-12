@@ -1,7 +1,6 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import { type GameHandle, useUiStore } from "@lindocara/client/store.js";
 import { QuickItemBar } from "@lindocara/client/ui/hud/QuickItemBar.js";
-import { resetInputBindings, setInputMode } from "@lindocara/renderer/input-settings.js";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithAlepha } from "alepha/react/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,8 +10,6 @@ describe("QuickItemBar", () => {
 
   beforeEach(() => {
     setLocale("en");
-    resetInputBindings("gamepad");
-    setInputMode("gamepad");
     useUiStore.setState({
       self: {
         nick: "D-pad tester",
@@ -40,29 +37,21 @@ describe("QuickItemBar", () => {
   });
 
   afterEach(async () => {
-    setInputMode("keyboard");
     await stopAlepha?.();
     stopAlepha = null;
   });
 
-  it("lays out three items and the inventory action as a directional pad", async () => {
+  it("lays out three items and the inventory action without mapped-key labels", async () => {
     const { alepha } = await renderWithAlepha(<QuickItemBar />);
     stopAlepha = () => alepha.stop();
 
     const bar = document.querySelector(".quick-item-bar");
     expect(bar).toBeInTheDocument();
-    expect(
-      bar?.querySelector(".quick-item-bar__slot--left .quick-item-bar__key"),
-    ).toHaveTextContent("←");
-    expect(bar?.querySelector(".quick-item-bar__slot--up .quick-item-bar__key")).toHaveTextContent(
-      "↑",
-    );
-    expect(
-      bar?.querySelector(".quick-item-bar__slot--right .quick-item-bar__key"),
-    ).toHaveTextContent("→");
-    expect(
-      bar?.querySelector(".quick-item-bar__slot--down .quick-item-bar__key"),
-    ).toHaveTextContent("↓");
+    expect(bar?.querySelector(".quick-item-bar__slot--left")).toBeInTheDocument();
+    expect(bar?.querySelector(".quick-item-bar__slot--up")).toBeInTheDocument();
+    expect(bar?.querySelector(".quick-item-bar__slot--right")).toBeInTheDocument();
+    expect(bar?.querySelector(".quick-item-bar__slot--down")).toBeInTheDocument();
+    expect(bar?.querySelectorAll(".quick-item-bar__key")).toHaveLength(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Inventory" }));
     expect(useUiStore.getState().inventoryOpen).toBe(true);

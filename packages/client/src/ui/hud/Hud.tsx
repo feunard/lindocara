@@ -10,7 +10,6 @@ import { useUiStore } from "../../store.js";
 import { ActionDock } from "./ActionDock.js";
 import { Bar } from "./Bar.js";
 import { CampBankPanel } from "./CampBankPanel.js";
-import { CooldownBar } from "./CooldownBar.js";
 import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
 import { UnitPortrait } from "./UnitPortrait.js";
@@ -199,7 +198,6 @@ export function Hud() {
           </section>
         ))}
 
-        <CooldownBar />
         {self.class === "priest" && <HealCooldownBar />}
       </aside>
       <ActionDock />

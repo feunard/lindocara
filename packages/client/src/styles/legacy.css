@@ -1998,14 +1998,6 @@ kbd {
   font-style: normal;
   font-weight: 800;
 }
-.quick-item-bar__key {
-  position: absolute;
-  left: 0.2rem;
-  top: 0.06rem;
-  z-index: 1;
-  font-size: 0.68rem;
-}
-
 /* Dialogue is a focused game surface: the carved Tiny Swords border stays visible while a dark
    centre keeps authored prose and keyboard choices readable over every map palette. */
 .event-dialogue.tiny-panel {
@@ -2719,25 +2711,6 @@ kbd {
     monospace;
 }
 
-.skill-slot__pad {
-  position: absolute;
-  right: 0.45rem;
-  bottom: 0.35rem;
-  display: grid;
-  place-items: center;
-  min-width: 1.65rem;
-  min-height: 1rem;
-  padding: 0 0.18rem;
-  border: 1px solid rgb(236 205 121 / 58%);
-  border-radius: 999px;
-  background: rgb(4 18 14 / 88%);
-  color: #f6dda0;
-  font:
-    700 0.48rem ui-monospace,
-    monospace;
-  letter-spacing: -0.04em;
-}
-
 .skill-slot__cost {
   position: absolute;
   top: 0.18rem;
@@ -3112,18 +3085,8 @@ kbd {
   }
 
   .skill-slot__name,
-  .skill-slot__key,
   .skill-slot__tooltip {
     display: none;
-  }
-
-  .skill-slot__pad {
-    top: -0.12rem;
-    right: -0.12rem;
-    bottom: auto;
-    min-width: 1.35rem;
-    min-height: 1.05rem;
-    font-size: 0.42rem;
   }
 
   .skill-slot__cost {
@@ -4404,16 +4367,6 @@ kbd {
   padding-top: 0.72rem;
 }
 
-/* On desktop the item D-pad makes both dock groups equally tall. Centre the shorter skill row
-   inside that shared height instead of pinning it to the D-pad's lower edge. The compact layout
-   hides the item group, so it keeps the title clearance supplied by the rule above. */
-@media (min-width: 901px) {
-  .action-dock__group--skills {
-    align-content: center;
-    padding-top: 0;
-  }
-}
-
 .action-dock__group + .action-dock__group {
   padding-left: 0.35rem;
   border-left: 1px solid rgb(214 179 96 / 22%);
@@ -4448,9 +4401,6 @@ kbd {
 }
 
 .skill-slot {
-  /* biome-ignore lint/complexity/noImportantStyles: the controller diamond is authored inline;
-     desktop HUD layout deliberately flattens those cells into one action row. */
-  grid-area: auto !important;
   width: 3.5rem;
   min-width: 3.5rem;
   min-height: 3.5rem;
@@ -4473,12 +4423,6 @@ kbd {
 .skill-slot__key {
   top: 0.08rem;
   left: 0.22rem;
-}
-
-.skill-slot__pad {
-  right: 0.14rem;
-  bottom: 0.12rem;
-  min-width: 1.3rem;
 }
 
 .quick-item-bar.panel {
@@ -4686,53 +4630,6 @@ kbd {
   border-radius: 50%;
 }
 
-.quick-item-bar__slot--up .quick-item-bar__key,
-.quick-item-bar__slot--down .quick-item-bar__key {
-  right: 0;
-  left: 0;
-  width: max-content;
-  margin-inline: auto;
-}
-
-.quick-item-bar__slot--up .quick-item-bar__key {
-  top: 0.12rem;
-}
-
-.quick-item-bar__slot--down .quick-item-bar__key {
-  top: auto;
-  bottom: 0.12rem;
-}
-
-.quick-item-bar__slot--left .quick-item-bar__key,
-.quick-item-bar__slot--right .quick-item-bar__key {
-  top: 50%;
-  translate: 0 -50%;
-}
-
-.quick-item-bar__slot--left .quick-item-bar__key {
-  left: 0.12rem;
-}
-
-.quick-item-bar__slot--right .quick-item-bar__key {
-  right: 0.12rem;
-  left: auto;
-}
-
-.quick-item-bar__key {
-  display: grid;
-  min-width: 1.05rem;
-  min-height: 1.05rem;
-  place-items: center;
-  padding: 0.08rem 0.18rem;
-  border: 1px solid rgb(224 192 108 / 48%);
-  border-radius: 0.25rem;
-  background: rgb(2 15 11 / 82%);
-  color: #f7dea0;
-  font-size: 0.62rem;
-  line-height: 1;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 56%);
-}
-
 .peasant-resources.panel {
   justify-self: center;
   width: min(34rem, 100%);
@@ -4834,27 +4731,23 @@ kbd {
     padding: 0.25rem;
   }
 
-  .action-dock__group--items {
-    display: none;
-  }
-
   .action-dock__group + .action-dock__group {
     padding-left: 0;
     border-left: 0;
   }
 
   .skill-bar.panel {
-    grid-template-columns: repeat(5, 3.15rem);
-    grid-template-rows: 3.35rem;
-    grid-auto-columns: 3.15rem;
-    grid-auto-flow: column;
+    grid-template-columns: repeat(3, 2.7rem);
+    grid-template-rows: repeat(3, 2.7rem);
+    grid-auto-columns: 2.7rem;
+    grid-auto-flow: row;
     gap: 0.22rem;
   }
 
   .skill-slot {
-    width: 3.15rem;
-    min-width: 3.15rem;
-    min-height: 3.35rem;
+    width: 2.7rem;
+    min-width: 2.7rem;
+    min-height: 2.7rem;
   }
 
   .event-dialogue.tiny-panel {
@@ -5189,12 +5082,20 @@ kbd {
 
 /* Skills */
 .action-dock .action-dock__controls {
-  align-items: stretch;
+  align-items: flex-end;
   gap: 0.72rem;
   padding-inline: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.action-dock__group--items {
+  order: 1;
+}
+
+.action-dock__group--skills {
+  order: 2;
 }
 
 .action-dock .action-dock__group + .action-dock__group {
@@ -5231,30 +5132,29 @@ kbd {
 }
 
 .skill-bar.panel {
-  grid-template-columns: repeat(5, 4.4rem);
-  grid-template-rows: 4.55rem;
-  grid-auto-columns: 4.4rem;
-  gap: 0.16rem;
-  padding: 0.38rem;
-  border: 1px solid rgb(186 139 67 / 68%);
-  border-radius: 0.62rem;
-  background:
-    linear-gradient(180deg, rgb(18 43 32 / 74%), rgb(3 18 13 / 82%)),
-    var(--tiny-panel-carved) center / cover no-repeat;
-  box-shadow:
-    inset 0 0 0 2px rgb(255 232 165 / 7%),
-    0 0 0 2px rgb(26 16 10 / 54%),
-    0 0.55rem 1rem rgb(0 0 0 / 32%);
+  grid-template-columns: repeat(3, 3.1rem);
+  grid-template-rows: repeat(3, 3.1rem);
+  grid-auto-columns: 3.1rem;
+  grid-auto-flow: row;
+  gap: 0.08rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 0.45rem 0.65rem rgb(0 0 0 / 58%));
 }
 
 .skill-slot {
-  width: 4.4rem;
-  min-width: 4.4rem;
-  min-height: 4.55rem;
-  padding: 0.4rem 0.28rem 0.3rem;
+  z-index: 2;
+  width: 3.1rem;
+  min-width: 3.1rem;
+  min-height: 3.1rem;
+  height: 3.1rem;
+  padding: 0.32rem 0.2rem 0.24rem;
   overflow: visible;
   border-color: rgb(205 168 83 / 58%);
-  border-radius: 0.38rem;
+  border-radius: 50%;
   background:
     radial-gradient(circle at 50% 38%, rgb(92 125 83 / 20%), transparent 48%),
     linear-gradient(145deg, rgb(29 61 44 / 98%), rgb(4 20 15 / 100%));
@@ -5275,8 +5175,8 @@ kbd {
 }
 
 .skill-slot__icon {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2rem;
+  height: 2rem;
   filter: drop-shadow(0 2px 2px rgb(0 0 0 / 75%));
 }
 
@@ -5287,7 +5187,7 @@ kbd {
   left: 0.22rem;
   max-width: none;
   color: #fff1bc;
-  font-size: 0.58rem;
+  font-size: 0.48rem;
   font-weight: 800;
   line-height: 1.15;
   text-shadow:
@@ -5296,8 +5196,7 @@ kbd {
 }
 
 .skill-slot__key,
-.skill-slot__cost,
-.skill-slot__pad {
+.skill-slot__cost {
   border: 1px solid rgb(226 190 104 / 54%);
   border-radius: 0.2rem;
   background: rgb(1 12 9 / 90%);
@@ -5322,10 +5221,6 @@ kbd {
   padding: 0.16rem 0.2rem;
   color: #ccecc2;
   font-size: 0.58rem;
-}
-
-.skill-slot__pad {
-  display: none;
 }
 
 .skill-slot__tooltip {
@@ -5665,20 +5560,21 @@ kbd {
 
 @media (max-width: 900px) {
   .skill-bar.panel {
-    grid-template-columns: repeat(5, 3.35rem);
-    grid-template-rows: 3.55rem;
-    grid-auto-columns: 3.35rem;
+    grid-template-columns: repeat(3, 2.7rem);
+    grid-template-rows: repeat(3, 2.7rem);
+    grid-auto-columns: 2.7rem;
   }
 
   .skill-slot {
-    width: 3.35rem;
-    min-width: 3.35rem;
-    min-height: 3.55rem;
+    width: 2.7rem;
+    min-width: 2.7rem;
+    min-height: 2.7rem;
+    height: 2.7rem;
   }
 
   .skill-slot__icon {
-    width: 2.05rem;
-    height: 2.05rem;
+    width: 1.8rem;
+    height: 1.8rem;
   }
 
   .skill-slot__key {
@@ -5687,9 +5583,5 @@ kbd {
 
   .skill-slot__cost {
     font-size: 0.54rem;
-  }
-
-  .skill-slot__pad {
-    font-size: 0.49rem;
   }
 }

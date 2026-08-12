@@ -48,7 +48,7 @@ describe("skill bar cooldowns", () => {
     });
   });
 
-  it("uses the dedicated basic-attack deadline for slot one", () => {
+  it("hides the primary attack while keeping the other abilities actionable", () => {
     const game = gameHandle();
     useUiStore.setState({
       game,
@@ -56,21 +56,17 @@ describe("skill bar cooldowns", () => {
     });
     render(<SkillBar />);
 
-    const primary = screen.getByRole("button", { name: "1. Quick Shot" });
     const secondary = screen.getByRole("button", { name: "2. Piercing Arrow" });
-    expect(primary).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "1. Quick Shot" })).not.toBeInTheDocument();
     expect(secondary).toBeEnabled();
 
-    fireEvent.click(primary);
     fireEvent.click(secondary);
     expect(game.castSkill).toHaveBeenCalledOnce();
     expect(game.castSkill).toHaveBeenCalledWith(2);
-    expect(primary.querySelector(".skill-slot__icon--quick-shot")).not.toBeNull();
     expect(secondary.querySelector(".skill-slot__icon--piercing-arrow")).not.toBeNull();
-    expect(primary.querySelector(".skill-slot__key")).toHaveTextContent("O");
-    expect(primary.querySelector(".skill-slot__pad")).toHaveTextContent("Num 5");
     expect(secondary.querySelector(".skill-slot__key")).toHaveTextContent("M");
-    expect(secondary.querySelector(".skill-slot__pad")).toHaveTextContent("Num 3");
+    expect(secondary.querySelector(".skill-slot__key")).not.toHaveTextContent("Num 3");
+    expect(secondary.querySelector(".skill-slot__pad")).not.toBeInTheDocument();
   });
 
   it("updates disabled and re-enabled abilities immediately when map settings change", () => {
@@ -100,18 +96,20 @@ describe("skill bar cooldowns", () => {
     expect(game.castSkill).toHaveBeenCalledWith(2);
   });
 
-  it("mirrors the five default numpad positions as a controller-style button cluster", () => {
+  it("places the four visible abilities in an Xbox face-button diamond", () => {
     useUiStore.setState({ game: gameHandle() });
     render(<SkillBar />);
 
     expect(SKILL_PAD_LAYOUT).toEqual({
-      1: { row: 1, column: 2, numpad: 5 },
+      1: { row: 2, column: 2, numpad: 5 },
       2: { row: 2, column: 3, numpad: 3 },
-      3: { row: 2, column: 2, numpad: 2 },
+      3: { row: 3, column: 2, numpad: 2 },
       4: { row: 2, column: 1, numpad: 1 },
-      5: { row: 1, column: 1, numpad: 4 },
+      5: { row: 1, column: 2, numpad: 4 },
     });
-    for (const [slot, expected] of Object.entries(SKILL_PAD_LAYOUT)) {
+    expect(screen.queryByRole("button", { name: /^1\./ })).not.toBeInTheDocument();
+    for (const slot of [2, 3, 4, 5] as const) {
+      const expected = SKILL_PAD_LAYOUT[slot];
       const button = screen.getByRole("button", { name: new RegExp(`^${slot}\\.`) });
       expect(button).toHaveStyle({
         gridRow: String(expected.row),
@@ -144,7 +142,7 @@ describe("skill bar cooldowns", () => {
     expect(guard).toBeEnabled();
     expect(guard).toHaveAttribute("aria-pressed", "true");
     expect(guard).toHaveClass("active");
-    expect(screen.getByRole("button", { name: "1. Cleave" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "1. Cleave" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "3. Shield Bash" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "4. Battle Cry" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "5. Whirlwind" })).toBeDisabled();

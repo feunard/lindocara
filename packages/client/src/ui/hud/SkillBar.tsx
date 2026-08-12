@@ -15,22 +15,21 @@ import {
   peasantConstructionTalentPlan,
   talentEffect,
 } from "@lindocara/engine/talents.js";
-import { keyboardBindingLabel } from "@lindocara/renderer/input-settings.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { activeReactivationDeadline } from "../../game/cooldown-sync.js";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
-import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
+import { controlBindingLabels, useInputModeSettings } from "../input-hints.js";
 
 export const SKILL_PAD_LAYOUT: Readonly<
-  Record<SkillSlot, { row: 1 | 2; column: 1 | 2 | 3; numpad: 1 | 2 | 3 | 4 | 5 }>
+  Record<SkillSlot, { row: 1 | 2 | 3; column: 1 | 2 | 3; numpad: 1 | 2 | 3 | 4 | 5 }>
 > = {
-  1: { row: 1, column: 2, numpad: 5 },
+  1: { row: 2, column: 2, numpad: 5 },
   2: { row: 2, column: 3, numpad: 3 },
-  3: { row: 2, column: 2, numpad: 2 },
+  3: { row: 3, column: 2, numpad: 2 },
   4: { row: 2, column: 1, numpad: 1 },
-  5: { row: 1, column: 1, numpad: 4 },
+  5: { row: 1, column: 2, numpad: 4 },
 };
 
 const MATERIAL_SHORT_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
@@ -58,7 +57,6 @@ export function SkillBar() {
   const self = useUiStore((state) => state.self);
   const game = useUiStore((state) => state.game);
   const selfState = useUiStore((state) => state.selfState);
-  const attackCooldownUntil = useUiStore((state) => state.attackCooldownUntil);
   const cooldowns = useUiStore((state) => state.skillCooldowns);
   const mapHeroSettings = useUiStore((state) => state.mapHeroSettings);
   const { mode, settings: inputSettings } = useInputModeSettings();
@@ -108,7 +106,6 @@ export function SkillBar() {
 
   useEffect(() => {
     const latestDeadline = Math.max(
-      attackCooldownUntil,
       shadowReturnLocalDeadline,
       afterimageLocalDeadline,
       danceMarksLocalAvailableAt,
@@ -133,7 +130,6 @@ export function SkillBar() {
     };
   }, [
     afterimageLocalDeadline,
-    attackCooldownUntil,
     cooldowns,
     danceMarksLocalAvailableAt,
     danceMarksLocalDeadline,
@@ -150,11 +146,12 @@ export function SkillBar() {
           bomb: peasantBombTalentPlan(selfState?.talents?.selected ?? []).support,
         }
       : null;
+  const visibleSkills = CLASS_SKILLS[self.class].filter((skill) => skill.slot !== 1);
 
   return (
     <section className="skill-bar panel" aria-label={t("hud.abilities")}>
-      {CLASS_SKILLS[self.class].map((skill) => {
-        const cooldownUntil = skill.slot === 1 ? attackCooldownUntil : cooldowns[skill.slot];
+      {visibleSkills.map((skill) => {
+        const cooldownUntil = cooldowns[skill.slot];
         const remaining = Math.max(0, cooldownUntil - now);
         const shadowReturnReady =
           self.class === "rogue" && skill.slot === 2 && now < shadowReturnLocalDeadline;
@@ -218,15 +215,7 @@ export function SkillBar() {
         const control = `skill${skill.slot}` as const;
         const keyBindings = inputSettings.keyboard[control];
         const layout = SKILL_PAD_LAYOUT[skill.slot];
-        const numpadLabel =
-          keyBindings
-            .filter((binding) => binding.code.startsWith("Numpad"))
-            .map(keyboardBindingLabel)[0] ?? `Num ${layout.numpad}`;
-        const primaryLabels = keyBindings
-          .filter((binding) => !binding.code.startsWith("Numpad"))
-          .map(keyboardBindingLabel);
-        const displayedLabels =
-          mode === "gamepad" ? [controlBindingLabel(control, mode, inputSettings)] : primaryLabels;
+        const displayedLabel = controlBindingLabels(control, mode, inputSettings)[0] ?? "-";
         const iconStyle = {
           backgroundImage: `url("${icon.source}")`,
           backgroundSize: `${icon.frames * 100}% 100%`,
@@ -272,12 +261,7 @@ export function SkillBar() {
                   : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
             }
           >
-            <span className="skill-slot__key">{displayedLabels.join(" / ")}</span>
-            {mode === "keyboard" && (
-              <span className="skill-slot__pad" aria-hidden="true">
-                {numpadLabel}
-              </span>
-            )}
+            <span className="skill-slot__key">{displayedLabel}</span>
             <span
               className={`skill-slot__icon skill-slot__icon--${icon.variant}`}
               style={iconStyle}
