@@ -4186,6 +4186,7 @@ kbd {
   height: 3.4rem;
   border-color: #c39a50;
   border-radius: 0.2rem;
+  translate: 0.25rem 0.3rem;
 }
 
 #hud .identity-copy {
@@ -5081,8 +5082,13 @@ kbd {
 }
 
 /* Skills */
+.action-dock__main {
+  width: min(32rem, calc(100vw - 1.4rem - var(--safe-left) - var(--safe-right)));
+}
+
 .action-dock .action-dock__controls {
   align-items: flex-end;
+  justify-content: space-between;
   gap: 0.72rem;
   padding-inline: 0;
   border: 0;
