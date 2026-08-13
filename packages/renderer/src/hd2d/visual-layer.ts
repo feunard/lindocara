@@ -1650,6 +1650,17 @@ export class Hd2dVisualLayer {
     for (const entry of this.#powerBuffs.values()) disposeObject(entry.object);
     for (const entry of this.#healingAuras.values()) disposeObject(entry.object);
     disposeObject(this.#root);
+    // `disposeObject(this.#root)` only walks ATTACHED descendants via `Object3D.traverse`. The
+    // cached grid is deliberately detached (not disposed) whenever the grid toggle is off or the
+    // overlay is cleared — see `setEditorOverlay` — so it must be freed here explicitly, or its
+    // BufferGeometry/LineBasicMaterial leak their GPU buffers every time a session is torn down (or
+    // its terrain is reconfigured, which discards this whole layer) while the grid happened to be
+    // toggled off. `disposeObject`'s geometry/material `.dispose()` calls are idempotent, so this is
+    // safe even on the (still attached, already-disposed-once) common case too.
+    if (this.#gridLines) {
+      disposeObject(this.#gridLines);
+      this.#gridLines = null;
+    }
     this.#effects.length = 0;
     this.#loot.clear();
     this.#projectiles.clear();
