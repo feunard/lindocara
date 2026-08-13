@@ -31,6 +31,8 @@ interface EditorMenuBarProps {
    *  the shell, exactly like `onOpenLoad`. */
   onNewAdventure(): void;
   onNewMap(): void;
+  canGenerateMap: boolean;
+  onGenerateMap(): void;
   onSave(): void;
   onOpenSettings(): void;
   onOpenQuests(): void;
@@ -65,6 +67,8 @@ export function EditorMenuBar({
   onOpenLoad,
   onNewAdventure,
   onNewMap,
+  canGenerateMap,
+  onGenerateMap,
   onSave,
   onOpenSettings,
   onOpenQuests,
@@ -180,6 +184,10 @@ export function EditorMenuBar({
             </MenubarItem>
             <MenubarItem onClick={() => onSelectTool("eraser")}>
               {t("editor.tool.eraser")}
+            </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem disabled={!canGenerateMap} onClick={onGenerateMap}>
+              {t("editor.generator.action")}
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>

@@ -72,6 +72,8 @@ export interface MapEditorStageHandle {
   /** A quarter turn left (-1) or right (+1), snapped to the nearest quarter first. */
   rotateQuarter(direction: 1 | -1): void;
   current(): EditorMap;
+  /** Replace the authored content as one undoable operation (procedural generation/import). */
+  replaceMap(map: EditorMap): void;
   setName(name: string): void;
   setAudio(audio: MapAudioConfig): void;
   setHeroSettings(settings: MapHeroSettings): void;
@@ -241,6 +243,11 @@ export function openMapEditorStage(
       if (!rectCache || rectCache.map !== map) rectCache = { map, rect: derivedMapRect(map) };
       return rectCache.rect;
     };
+    const sameRect = (left: MapRect, right: MapRect): boolean =>
+      left.col === right.col &&
+      left.row === right.row &&
+      left.cols === right.cols &&
+      left.rows === right.rows;
     const centreCamera = (): void => {
       const { cols, rows } = dimensions();
       const size = Math.max(cols, rows);
@@ -677,6 +684,23 @@ export function openMapEditorStage(
         rotateQuarter(direction);
       },
       current: () => map,
+      replaceMap(next) {
+        stopStroke();
+        const currentHistory = { ...history, present: map };
+        const nextHistory = commitEditorHistory(currentHistory, next);
+        if (nextHistory === currentHistory) return;
+        history = nextHistory;
+        map = next;
+        selected = null;
+        highlightedEventId = null;
+        hover = null;
+        reportCursor(null, null);
+        // A whole generated map is a new composition even though both documents use the same
+        // 256x256 working canvas. Open on its authored content immediately.
+        centreCamera();
+        redraw();
+        notify();
+      },
       setName(name) {
         if (name === map.name) return;
         map = { ...map, name };
@@ -706,23 +730,27 @@ export function openMapEditorStage(
       },
       undo() {
         stopStroke();
+        const previousRect = derivedRect();
         const next = undoEditorHistory(history);
         if (next === history) return;
         history = next;
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
         selected = null;
+        if (!sameRect(previousRect, derivedRect())) centreCamera();
         redraw();
         notify();
       },
       redo() {
         stopStroke();
+        const previousRect = derivedRect();
         const next = redoEditorHistory(history);
         if (next === history) return;
         history = next;
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
         selected = null;
+        if (!sameRect(previousRect, derivedRect())) centreCamera();
         redraw();
         notify();
       },

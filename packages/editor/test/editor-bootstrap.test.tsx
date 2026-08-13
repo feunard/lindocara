@@ -66,6 +66,7 @@ function stageHandle() {
       markers: [],
       events: [],
     })),
+    replaceMap: vi.fn(),
     setName: vi.fn(),
     setAudio: vi.fn(),
     setHeroSettings: vi.fn(),

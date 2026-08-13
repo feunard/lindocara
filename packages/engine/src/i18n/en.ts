@@ -1093,6 +1093,38 @@ export const en = {
   // Map editor
   "editor.title": "Map editor",
   "editor.new": "New map",
+  "editor.generator.title": "Procedural map generator",
+  "editor.generator.hint":
+    "Choose a recipe before generation. The same seed and settings always recreate the same map.",
+  "editor.generator.genre": "Genre",
+  "editor.generator.genre.forest": "Wild forest",
+  "editor.generator.genre.archipelago": "Archipelago",
+  "editor.generator.genre.highlands": "Highlands",
+  "editor.generator.genre.tundra": "Frozen tundra",
+  "editor.generator.genre.forest.hint":
+    "A broad wooded island with beaches, hill groves and winding clear routes.",
+  "editor.generator.genre.archipelago.hint":
+    "Several irregular islands linked by sandy crossings, with rich coastal scenery.",
+  "editor.generator.genre.highlands.hint":
+    "Layered ridges, lakes, rocky plateaus and snow on the highest ground.",
+  "editor.generator.genre.tundra.hint":
+    "Snowfields, frozen basins, ice roads and sparse hostile landmarks.",
+  "editor.generator.size": "Size",
+  "editor.generator.size.compact": "Compact",
+  "editor.generator.size.standard": "Standard",
+  "editor.generator.size.large": "Large",
+  "editor.generator.size.epic": "Epic",
+  "editor.generator.complexity": "Density",
+  "editor.generator.complexity.light": "Light",
+  "editor.generator.complexity.balanced": "Balanced",
+  "editor.generator.complexity.dense": "Dense",
+  "editor.generator.seed": "Seed",
+  "editor.generator.seed.random": "Roll another seed",
+  "editor.generator.contents":
+    "Includes relief, connected routes, harvest resources, scenery, treasure, an NPC and encounters.",
+  "editor.generator.warning":
+    "Generating will replace the terrain, scenery and events on {name}. You can undo it once the dialog closes.",
+  "editor.generator.action": "Generate map",
   "editor.name": "Name",
   "editor.cols": "Width X",
   "editor.rows": "Height Y",

@@ -6,7 +6,7 @@ import {
 } from "@lindocara/editor/game/map-editor-stage.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
-import { MAP_MAX_COLS } from "@lindocara/engine/map-limits.js";
+import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mock = vi.hoisted(() => {
@@ -139,6 +139,33 @@ describe("HD-2D map editor stage", () => {
     stage.undo();
     expect(stage.current().dayNightCycle).toBe(true);
     expect(mock.renderer.setDayCycleOverride).toHaveBeenLastCalledWith(null);
+    stage.dispose();
+  });
+
+  it("installs a generated canvas as one undoable edit and recentres its content", async () => {
+    const changes = vi.fn();
+    const original = canvasEditorMap(blankMap("Map", 20, 15));
+    const stage = await openMapEditorStage(original, changes);
+    const generated = canvasEditorMap(blankMap("Map", 40, 30));
+
+    stage.replaceMap(generated);
+
+    expect(stage.current().layers[0]).toMatchObject({ cols: MAP_MAX_COLS, rows: MAP_MAX_ROWS });
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.objectContaining({ layers: expect.any(Array) }),
+      expect.objectContaining({ canUndo: true, dirty: true }),
+    );
+    expect(mock.renderer.configureMapTerrain).toHaveBeenLastCalledWith(
+      "editor",
+      [],
+      2,
+      expect.objectContaining({ size: MAP_MAX_COLS }),
+    );
+    expect(mock.renderer.setCameraFocus).toHaveBeenLastCalledWith(0, 0);
+
+    stage.undo();
+    expect(stage.current()).toEqual(original);
+    expect(mock.renderer.setCameraFocus).toHaveBeenLastCalledWith(0, -0.5);
     stage.dispose();
   });
 

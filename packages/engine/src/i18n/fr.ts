@@ -1107,6 +1107,38 @@ export const fr: Record<keyof typeof en, string> = {
   // Éditeur de cartes
   "editor.title": "Éditeur de cartes",
   "editor.new": "Nouvelle carte",
+  "editor.generator.title": "Générateur de carte procédurale",
+  "editor.generator.hint":
+    "Choisissez une recette avant la génération. La même graine et les mêmes réglages recréent toujours la même carte.",
+  "editor.generator.genre": "Genre",
+  "editor.generator.genre.forest": "Forêt sauvage",
+  "editor.generator.genre.archipelago": "Archipel",
+  "editor.generator.genre.highlands": "Hautes terres",
+  "editor.generator.genre.tundra": "Toundra gelée",
+  "editor.generator.genre.forest.hint":
+    "Une vaste île boisée avec plages, bosquets en hauteur et routes dégagées sinueuses.",
+  "editor.generator.genre.archipelago.hint":
+    "Plusieurs îles irrégulières reliées par des passages sableux, avec un littoral riche.",
+  "editor.generator.genre.highlands.hint":
+    "Des crêtes étagées, des lacs, des plateaux rocheux et de la neige sur les sommets.",
+  "editor.generator.genre.tundra.hint":
+    "Des étendues enneigées, des bassins gelés, des routes de glace et des lieux hostiles clairsemés.",
+  "editor.generator.size": "Taille",
+  "editor.generator.size.compact": "Compacte",
+  "editor.generator.size.standard": "Standard",
+  "editor.generator.size.large": "Grande",
+  "editor.generator.size.epic": "Épique",
+  "editor.generator.complexity": "Densité",
+  "editor.generator.complexity.light": "Légère",
+  "editor.generator.complexity.balanced": "Équilibrée",
+  "editor.generator.complexity.dense": "Dense",
+  "editor.generator.seed": "Graine",
+  "editor.generator.seed.random": "Tirer une autre graine",
+  "editor.generator.contents":
+    "Inclut relief, routes connectées, ressources récoltables, décors, trésors, un PNJ et des rencontres.",
+  "editor.generator.warning":
+    "La génération remplacera le terrain, les décors et les événements de {name}. Vous pourrez annuler après la fermeture du dialogue.",
+  "editor.generator.action": "Générer la carte",
   "editor.name": "Nom",
   "editor.cols": "Largeur X",
   "editor.rows": "Hauteur Y",

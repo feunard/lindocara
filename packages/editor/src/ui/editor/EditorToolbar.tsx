@@ -27,6 +27,7 @@ import {
   Play,
   Square,
   SunMoon,
+  WandSparkles,
   ZoomIn,
 } from "lucide-react";
 import type { ComponentProps, ComponentType } from "react";
@@ -83,6 +84,8 @@ interface EditorToolbarProps {
   dayNightCycleAvailable: boolean;
   zoom: number;
   onNewMap(): void;
+  canGenerateMap: boolean;
+  onGenerateMap(): void;
   onSelectTool(tool: EditorPaintTool): void;
   onSelectMode(mode: EditorMode): void;
   onToggleGrid(): void;
@@ -136,6 +139,8 @@ export function EditorToolbar({
   dayNightCycleAvailable,
   zoom,
   onNewMap,
+  canGenerateMap,
+  onGenerateMap,
   onSelectTool,
   onSelectMode,
   onToggleGrid,
@@ -151,6 +156,15 @@ export function EditorToolbar({
     <div className="flex h-[42px] flex-none items-center gap-1 border-b border-zinc-200 bg-white px-2">
       <ToolbarIconButton label={t("editor.new")} variant="ghost" size="icon" onClick={onNewMap}>
         <FilePlus />
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label={t("editor.generator.action")}
+        variant="ghost"
+        size="icon"
+        disabled={!canGenerateMap}
+        onClick={onGenerateMap}
+      >
+        <WandSparkles />
       </ToolbarIconButton>
 
       <Separator />

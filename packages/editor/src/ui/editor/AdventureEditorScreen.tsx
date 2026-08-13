@@ -36,6 +36,7 @@ import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/advent
 import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import { derivedMapRect } from "@lindocara/engine/map-canvas.js";
 import { EMPTY_MARKERS, type MapData, sameElementSlot } from "@lindocara/engine/map-data.js";
 import {
   type EventKind,
@@ -88,6 +89,7 @@ import {
   openMapEditorStage,
 } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
+import { generateProceduralMap, type ProceduralMapOptions } from "../../game/procedural-map.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
 import { createSandboxSession, loadAdventureSession } from "./adventure-session.js";
@@ -105,6 +107,7 @@ import { MapAudioDialog } from "./MapAudioDialog.js";
 import { MapHeroSettingsDialog } from "./MapHeroSettingsDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
+import { ProceduralMapDialog } from "./ProceduralMapDialog.js";
 import { QuestWorkspaceDialog } from "./QuestWorkspaceDialog.js";
 import { bindQuestTarget, type QuestMapCatalog } from "./quest-editor-model.js";
 import { RegistryDialog } from "./RegistryDialog.js";
@@ -447,6 +450,7 @@ function AdventureEditorInner({
   // Right-pane / dialog coordination, lifted here so the menu bar, toolbar and map panel all reach
   // the same new-map dialog, delete confirm and settings dialog.
   const [newMapOpen, setNewMapOpen] = useState(false);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mapAudioOpen, setMapAudioOpen] = useState(false);
@@ -979,6 +983,13 @@ function AdventureEditorInner({
     setEditorZoom(next);
   }
 
+  function generateMap(options: ProceduralMapOptions): void {
+    const handle = handleRef.current;
+    if (!handle || stageStatus !== "ready" || savingMapRef.current) return;
+    handle.replaceMap(generateProceduralMap(handle.current(), options));
+    setCursor(null);
+  }
+
   function test(): void {
     if (stageStatus !== "ready") return;
     setTestError(null);
@@ -1358,6 +1369,7 @@ function AdventureEditorInner({
     if (stageStatus !== "ready" || savingMap) return;
     if (
       newMapOpen ||
+      generatorOpen ||
       confirmDeleteId !== null ||
       settingsOpen ||
       mapHeroSettingsOpen ||
@@ -1482,6 +1494,7 @@ function AdventureEditorInner({
     if (related !== null && related !== document.body) return;
     if (
       newMapOpen ||
+      generatorOpen ||
       confirmDeleteId !== null ||
       settingsOpen ||
       mapHeroSettingsOpen ||
@@ -1510,13 +1523,22 @@ function AdventureEditorInner({
   // reflects the latest positions.
   const currentMap: EditorMap | null =
     handleRef.current?.current() ?? editedRef.current ?? (map ? toEditorMap(map) : null);
+  const currentRect = useMemo(() => (currentMap ? derivedMapRect(currentMap) : null), [currentMap]);
+  const currentSize = currentRect
+    ? { cols: currentRect.cols, rows: currentRect.rows }
+    : { cols: 0, rows: 0 };
+  const liveTeleportMaps = teleportMaps.map((candidate) =>
+    candidate.mapId === map?.id
+      ? { ...candidate, cols: currentSize.cols, rows: currentSize.rows }
+      : candidate,
+  );
   const currentQuestMap: QuestMapCatalog | null =
     map && currentMap
       ? {
           mapId: map.id,
           name: currentMap.name,
-          cols: map.cols,
-          rows: map.rows,
+          cols: currentSize.cols,
+          rows: currentSize.rows,
           events: currentMap.events,
         }
       : null;
@@ -1560,6 +1582,8 @@ function AdventureEditorInner({
           onOpenLoad={() => setLoadOpen(true)}
           onNewAdventure={() => newAdventure()}
           onNewMap={() => setNewMapOpen(true)}
+          canGenerateMap={stageStatus === "ready" && currentMap !== null && !savingMap}
+          onGenerateMap={() => setGeneratorOpen(true)}
           onSave={() => void save()}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenQuests={() => setQuestWorkspaceOpen(true)}
@@ -1587,6 +1611,8 @@ function AdventureEditorInner({
           dayNightCycleAvailable={currentMap !== null}
           zoom={zoom}
           onNewMap={() => setNewMapOpen(true)}
+          canGenerateMap={stageStatus === "ready" && currentMap !== null && !savingMap}
+          onGenerateMap={() => setGeneratorOpen(true)}
           onSelectTool={selectTool}
           onSelectMode={selectMode}
           onToggleGrid={toggleGrid}
@@ -1743,8 +1769,8 @@ function AdventureEditorInner({
                   ? {
                       id: map.id,
                       name: currentMap?.name ?? map.name,
-                      cols: map.cols,
-                      rows: map.rows,
+                      cols: currentSize.cols,
+                      rows: currentSize.rows,
                     }
                   : undefined
               }
@@ -1778,6 +1804,15 @@ function AdventureEditorInner({
             setMapsRefreshNonce((n) => n + 1);
           }}
         />
+
+        {currentMap && (
+          <ProceduralMapDialog
+            open={generatorOpen}
+            mapName={currentMap.name}
+            onOpenChange={setGeneratorOpen}
+            onGenerate={generateMap}
+          />
+        )}
 
         {currentMap && (
           <MapAudioDialog
@@ -1870,7 +1905,7 @@ function AdventureEditorInner({
             key={eventDraft.id}
             event={eventDraft}
             registry={registry}
-            maps={teleportMaps}
+            maps={liveTeleportMaps}
             onOpenHelp={() => openHelp("story")}
             onCommit={(draft) => {
               handleRef.current?.commitEventDraft(draft);
@@ -1937,8 +1972,8 @@ function AdventureEditorInner({
 
         <EditorStatusBar
           mapName={map?.name ?? "—"}
-          cols={map?.cols ?? 0}
-          rows={map?.rows ?? 0}
+          cols={currentSize.cols}
+          rows={currentSize.rows}
           cursor={cursor}
           saved={map !== null && !dirty && stageStatus === "ready"}
           sandbox={adventureId === null && map !== null}

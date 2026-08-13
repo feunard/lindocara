@@ -6,7 +6,12 @@ import {
   adventureTestSessionAtom,
 } from "@lindocara/client/state/atoms.js";
 import { MainMenu } from "@lindocara/client/ui/MainMenu.js";
-import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game/editor-state.js";
+import {
+  blankMap,
+  defaultEventPage,
+  toMapData,
+  toSaveInput,
+} from "@lindocara/editor/game/editor-state.js";
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-session.js";
 import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
@@ -66,6 +71,7 @@ const stageMock = vi.hoisted(() => ({
   setCollisions: vi.fn(),
   setZoom: vi.fn(),
   current: vi.fn(),
+  replaceMap: vi.fn(),
   setName: vi.fn(),
   setAudio: vi.fn(),
   setHeroSettings: vi.fn(),
@@ -101,6 +107,7 @@ function stageHandle() {
     setCollisions: stageMock.setCollisions,
     setZoom: stageMock.setZoom,
     current: stageMock.current,
+    replaceMap: stageMock.replaceMap,
     setName: stageMock.setName,
     setAudio: stageMock.setAudio,
     setHeroSettings: stageMock.setHeroSettings,
@@ -389,6 +396,46 @@ describe("AdventureEditorScreen shell", () => {
 
     await user.click(screen.getByRole("button", { name: t("editor.tool.eraser") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
+  });
+
+  it("asks for a procedural recipe before replacing the open map as one edit", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    stageMock.current.mockReturnValue(blankMap("Verdant Reach", 20, 15));
+    await mountReady(alepha);
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.generator.action") }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(t("editor.generator.title"))).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/replace the terrain, scenery and events/i),
+    ).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(t("editor.generator.seed")), {
+      target: { value: "SHELL-SEED" },
+    });
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.generator.action") }),
+    );
+
+    expect(stageMock.replaceMap).toHaveBeenCalledTimes(1);
+    expect(stageMock.replaceMap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Verdant Reach",
+        layers: [
+          expect.objectContaining({ cols: 256, rows: 256 }),
+          expect.anything(),
+          expect.anything(),
+        ],
+        elements: expect.not.arrayContaining([
+          expect.objectContaining({ assetId: expect.stringContaining("stump") }),
+        ]),
+        events: expect.arrayContaining([
+          expect.objectContaining({ kind: "spawn" }),
+          expect.objectContaining({ kind: "monster" }),
+        ]),
+      }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("mounts the shell under the light-only editor scope (UX wave #1)", async () => {
