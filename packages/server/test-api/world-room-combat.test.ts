@@ -710,6 +710,57 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("Casse-croûte catapulte spends three meat and each landed ration restores ten percent health and five percent mana", async () => {
+    const host = await newPlayableHero("pration", "peasant");
+    const guest = await joinAsSecondHero(host, "prationguest");
+    await seedPartyMaterials(host.partyId, host.heroId, { meat: 3 });
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const hostSocket = fakeSocket(host.userId, host.heroId);
+    const guestSocket = fakeSocket(guest.userId, guest.heroId);
+    await engine.join(hostSocket);
+    await engine.join(guestSocket);
+    const state = roomState(engine);
+    const peasant = playerOf(state, host.heroId);
+    const target = playerOf(state, guest.heroId);
+    peasant.level = 20;
+    target.level = 20;
+
+    await engine.message(hostSocket.id, { t: "skill", slot: 3 });
+    const action = peasant.action;
+    if (!action) throw new Error("ration action was not accepted");
+    expect(action.skillId).toBe("butchers_cut");
+    expect(state.adventureState.state.materials).toMatchObject({ meat: 0 });
+
+    let now = action.impactAt;
+    const { w, sent } = testGlue(state, () => now);
+    advanceWorldTick(w);
+    expect(state.peasantSupport.rations).toHaveLength(3);
+    expect(
+      sentTo(sent, host.heroId).filter((message) => message.t === "peasant.ration"),
+    ).toHaveLength(3);
+    const ration = state.peasantSupport.rations[0];
+    if (!ration) throw new Error("ration did not land");
+    const previous = { x: target.x, z: target.z };
+    target.x = ration.x;
+    target.z = ration.z;
+    state.playerGrid.update(target, previous);
+    const maximumHealth = maxHpForLevel(target.level);
+    target.hp = maximumHealth - 50;
+    target.resource = { kind: "mana", current: 20, max: 100 };
+
+    now = ration.landsAt;
+    advanceWorldTick(w);
+    expect(target.hp).toBe(maximumHealth - 50 + Math.ceil(maximumHealth * 0.1));
+    expect(target.resource.current).toBe(25);
+    expect(state.peasantSupport.rations).toHaveLength(2);
+    expect(sentTo(sent, host.heroId)).toContainEqual({
+      t: "peasant.ration_removed",
+      id: ration.id,
+    });
+    engine.dispose();
+  });
+
   test("Powder Keg applies exact fragments and crowd control once while respecting LOS", async () => {
     const host = await newPlayableHero("pbomb", "peasant");
     await seedPartyMaterials(host.partyId, host.heroId, { stone: 2, iron: 2 });

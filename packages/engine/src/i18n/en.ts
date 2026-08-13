@@ -266,7 +266,7 @@ export const en = {
   "skill.peasant.prospectors_pick.description":
     "Deliver a highly professional cock-a-doodle-doo that boosts nearby allies and restores class resource.",
   "skill.peasant.butchers_cut.description":
-    "Catapult an improvised lunch that heals and encourages the nearby party.",
+    "Catapult three meat rations within 20 m. Catch one in flight or pick it up for 10% health and 5% mana; missed rations remain for 30 seconds.",
   "skill.peasant.makeshift_camp.description":
     "Build a camp that restores allied health and mana, with a shared gold chest.",
   "skill.peasant.homemade_bomb.description":

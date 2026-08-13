@@ -72,6 +72,8 @@ export interface StaticSpriteArt {
   /** Full-loop duration for a catalogue entry explicitly classified as `animated`. Technical
    * multi-state sheets omit it and remain pinned to frame zero. */
   animationDurationMs?: number;
+  /** Number of populated animation cells when the rectangular sheet grid contains padding. */
+  animationFrameCount?: number;
   /** Sky art is a horizontal world-space plane, never a camera-facing billboard. */
   renderLayer?: "object" | "canopy" | "sky";
   renderMode?: "billboard" | "flat" | "cloud-volume" | "fixed-volume";
@@ -257,7 +259,7 @@ export function placeStaticContent(
     scene.root.add(billboard.mesh);
     placed.push({
       sprite: billboard,
-      frames: (sprite.cols ?? 1) * (sprite.rows ?? 1),
+      frames: sprite.animationFrameCount ?? (sprite.cols ?? 1) * (sprite.rows ?? 1),
       durationMs: sprite.animationDurationMs ?? 0,
       phaseMs: sprite.animationDurationMs
         ? placementPhase(assetId, x, z, sprite.animationDurationMs)

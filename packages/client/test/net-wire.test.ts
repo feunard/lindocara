@@ -172,6 +172,8 @@ function handlers(): ConnectionHandlers {
     onPeasantCamp: vi.fn(),
     onPeasantCampBank: vi.fn(),
     onPeasantCampRemoved: vi.fn(),
+    onPeasantRation: vi.fn(),
+    onPeasantRationRemoved: vi.fn(),
     onPeasantBombImpact: vi.fn(),
     onEvent: vi.fn(),
     onEventSay: vi.fn(),
@@ -301,6 +303,23 @@ describe("WorldClient on the alepha wire", () => {
     const bank = { t: "peasant.camp_bank" as const, id: camp.id, gold: 75, opened: true };
     socket?.message(bank);
     socket?.message({ t: "peasant.camp_removed", id: camp.id });
+    const ration = {
+      t: "peasant.ration" as const,
+      id: "ration-1",
+      actorId: "hero-1",
+      originX: 0,
+      originY: 0.4,
+      originZ: 0,
+      x: 8,
+      y: 0.2,
+      z: -4,
+      launchedAt: 1_000,
+      landsAt: 1_900,
+      fadeAt: 31_900,
+      expiresAt: 32_900,
+    };
+    socket?.message(ration);
+    socket?.message({ t: "peasant.ration_removed", id: ration.id });
     // The blast's GROUND point, `x` and `z`. It used to be `x` beside the projectile's ELEVATION,
     // which typechecked and drew the explosion on the horizon.
     const impact = {
@@ -325,6 +344,11 @@ describe("WorldClient on the alepha wire", () => {
     expect(callbacks.onPeasantCampRemoved).toHaveBeenCalledWith({
       t: "peasant.camp_removed",
       id: camp.id,
+    });
+    expect(callbacks.onPeasantRation).toHaveBeenCalledWith(ration);
+    expect(callbacks.onPeasantRationRemoved).toHaveBeenCalledWith({
+      t: "peasant.ration_removed",
+      id: ration.id,
     });
     expect(callbacks.onPeasantBombImpact).toHaveBeenCalledOnce();
     expect(callbacks.onPeasantBombImpact).toHaveBeenCalledWith(impact);

@@ -124,6 +124,7 @@ export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerS
     ...(player.peasantCarry && player.peasantCarry.until > now
       ? { peasantCarry: { ...player.peasantCarry } }
       : {}),
+    ...(player.damageBoostUntil > now ? { powerBuffUntil: player.damageBoostUntil } : {}),
     action: combatActionSnapshot(player.action),
   };
 }

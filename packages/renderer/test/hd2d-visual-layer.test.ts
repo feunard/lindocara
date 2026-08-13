@@ -228,6 +228,44 @@ describe("Hd2dVisualLayer hero movement", () => {
 });
 
 describe("Hd2dVisualLayer restored authored effects", () => {
+  it("keeps the light power aura attached only while an authoritative buff is live", () => {
+    const { layer } = harness();
+    layer.syncPowerBuffs([{ id: "hero-1", x: 2, z: 3, endsAt: 2_000 }], 1_000);
+    expect(layer.diagnostics().powerBuffs).toBe(1);
+    layer.syncPowerBuffs([], 1_100);
+    expect(layer.diagnostics().powerBuffs).toBe(0);
+    layer.dispose();
+  });
+
+  it("tracks a catapulted meat ration until its authoritative removal", () => {
+    const { layer } = harness();
+    layer.showRation(
+      {
+        t: "peasant.ration",
+        id: "ration-1",
+        actorId: "peasant-1",
+        originX: 0,
+        originY: 0.4,
+        originZ: 0,
+        x: 8,
+        y: 0.2,
+        z: -4,
+        launchedAt: 1_000,
+        landsAt: 1_900,
+        fadeAt: 31_900,
+        expiresAt: 32_900,
+      },
+      1_000,
+      1_900,
+      31_900,
+      32_900,
+    );
+    expect(layer.diagnostics().rations).toBe(1);
+    layer.removeRation("ration-1");
+    expect(layer.diagnostics().rations).toBe(0);
+    layer.dispose();
+  });
+
   it("plants upright authored sheets above the terrain instead of burying their lower edge", () => {
     expect(AUTHORED_EFFECT_FOOT).toBe(0);
     expect(AUTHORED_EFFECT_GROUND_CLEARANCE).toBeGreaterThan(0);

@@ -310,13 +310,25 @@ describe("staticAssetSpec", () => {
     expect(spec?.url).toContain("Tree3");
   });
 
-  it("keeps all three native tree wind strips animated", () => {
-    for (const tree of ["tree1", "tree2", "tree3"]) {
+  it("keeps all four free-pack tree wind strips animated", () => {
+    for (const tree of ["tree1", "tree2", "tree3", "tree4"]) {
       expect(staticAssetSpec(`resource.terrain-resources-wood-trees.${tree}`)).toMatchObject({
         cols: 8,
         rows: 1,
         animationDurationMs: 960,
         renderLayer: "canopy",
+      });
+    }
+  });
+
+  it("keeps the canonical water-rock family animated", () => {
+    for (const variant of ["01", "02", "03", "04"]) {
+      expect(
+        staticAssetSpec(`decoration.terrain-decorations-rocks-in-the-water.water-rocks-${variant}`),
+      ).toMatchObject({
+        cols: 16,
+        rows: 1,
+        animationDurationMs: 1_400,
       });
     }
   });
@@ -386,23 +398,32 @@ describe("staticAssetSpec", () => {
     expect(mesh.rotation.y).toBe(0);
   });
 
-  it("frames an asset cropped out of a shared sheet", () => {
-    // The six Update-010 trees all live in one 768x576 image, each an `editor.sourceRect` of it. A
-    // The adapter derives the shared image extent from its sibling catalogue entries and hands the
-    // normalized crop to the domain-free billboard rather than drawing all six trees as one sprite.
+  it("recombines the six duplicate Update 010 crops into one animated tree", () => {
+    // Six tree frames fill the first six cells of a 4x2 region. The sheet's third row is excluded
+    // because it contains the stump, and animationFrameCount skips the two unpopulated cells.
     const spec = staticAssetSpec("resource.resources-trees.tree-1");
     expect(spec).toMatchObject({
-      cols: 1,
-      rows: 1,
+      cols: 4,
+      rows: 2,
+      animationFrameCount: 6,
+      animationDurationMs: 960,
       height: 3,
       aspect: 1,
       uvRect: {
         offsetX: 0,
-        repeatX: 1 / 4,
-        repeatY: 1 / 3,
+        offsetY: 1 / 3,
+        repeatX: 1,
+        repeatY: 2 / 3,
       },
     });
-    expect(spec?.uvRect?.offsetY).toBeCloseTo(2 / 3);
+    for (const alias of [2, 3, 4, 5, 6]) {
+      expect(staticAssetSpec(`resource.resources-trees.tree-${alias}`)).toMatchObject({
+        cols: 4,
+        rows: 2,
+        animationFrameCount: 6,
+        animationDurationMs: 960,
+      });
+    }
   });
 
   it("refuses an id the catalogue does not answer to", () => {

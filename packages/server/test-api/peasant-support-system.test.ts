@@ -1,6 +1,7 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { actionForClassSlot } from "@lindocara/engine/combat-actions.js";
 import { maxHpForLevel } from "@lindocara/engine/game.js";
+import { groundDistance } from "@lindocara/engine/ground.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
@@ -8,12 +9,14 @@ import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advancePeasantCamps,
+  advancePeasantRations,
   beginPeasantSupportRequest,
   canActivatePeasantSupportRequest,
   commitPeasantSupportRequest,
   createPeasantSupportRuntime,
   damageAfterPeasantCampProtection,
   isPeasantBombProjectile,
+  peasantRationPositionAt,
   peasantSupportPlans,
   placePeasantCamp,
   refundPeasantCampGold,
@@ -128,10 +131,11 @@ function monster(id: string, x: number): MonsterRuntime {
 }
 
 function supportSkills() {
+  const ration = CLASS_SKILLS.peasant[2];
   const camp = CLASS_SKILLS.peasant[3];
   const bomb = CLASS_SKILLS.peasant[4];
-  if (!camp || !bomb) throw new Error("Peasant support skills missing");
-  return { camp, bomb };
+  if (!ration || !camp || !bomb) throw new Error("Peasant support skills missing");
+  return { ration, camp, bomb };
 }
 
 function supportPlans(selectedTalents: readonly string[] = []) {
@@ -139,6 +143,91 @@ function supportPlans(selectedTalents: readonly string[] = []) {
 }
 
 describe("authoritative Peasant support", () => {
+  it("spends three meat portions and launches three consumable rations within twenty metres", () => {
+    const runtime = createPeasantSupportRuntime();
+    const owner = player("owner");
+    const world = terrain();
+    const { ration } = supportSkills();
+    const plan = supportPlans().ration;
+    expect(plan.cost).toEqual({ meat: 3 });
+    expect(plan.launchRadius).toBe(20);
+
+    const requested = beginPeasantSupportRequest({
+      runtime,
+      connectionId: owner.connectionId,
+      player: owner,
+      slot: 3,
+      skill: ration,
+      definition: actionForClassSlot("peasant", 3),
+      plan,
+      terrain: world,
+      projectiles: [],
+      now: 1_000,
+    });
+    if (!requested.ok) throw new Error(`request rejected: ${requested.reason}`);
+    const action = commitPeasantSupportRequest(runtime, requested.request, owner, 1_000);
+    if (!action) throw new Error("ration action was not committed");
+    const resolved = resolvePeasantSupportAction(
+      runtime,
+      [],
+      owner,
+      action,
+      owner.roomKey,
+      1_900,
+      world,
+    );
+    expect(resolved?.kind).toBe("ration");
+    expect(runtime.rations).toHaveLength(3);
+    expect(runtime.rations.every((entry) => groundDistance(owner, entry) <= 20)).toBe(true);
+    expect(runtime.rations.every((entry) => entry.landsAt === 2_800)).toBe(true);
+    expect(runtime.rations.every((entry) => entry.fadeAt - entry.landsAt === 30_000)).toBe(true);
+    expect(runtime.rations.every((entry) => entry.expiresAt - entry.fadeAt === 1_000)).toBe(true);
+
+    const consumed = vi.fn();
+    const removed = vi.fn();
+    const airborne = runtime.rations[0];
+    if (!airborne) throw new Error("airborne ration missing");
+    const catchAt = 2_350;
+    const catchPosition = peasantRationPositionAt(airborne, catchAt);
+    owner.x = catchPosition.x;
+    owner.y = catchPosition.y - 0.75;
+    owner.z = catchPosition.z;
+    advancePeasantRations({
+      runtime,
+      players: [owner],
+      now: catchAt,
+      consumed,
+      removed,
+    });
+    expect(consumed).toHaveBeenCalledWith(airborne, owner);
+    expect(removed).toHaveBeenCalledWith(airborne);
+    expect(runtime.rations).toHaveLength(2);
+
+    const missed = runtime.rations[0];
+    if (!missed) throw new Error("missed ration missing");
+    owner.x = missed.x + 5;
+    owner.y = missed.y;
+    owner.z = missed.z + 5;
+    advancePeasantRations({
+      runtime,
+      players: [owner],
+      now: missed.fadeAt - 1,
+      consumed,
+      removed,
+    });
+    expect(runtime.rations).toHaveLength(2);
+    advancePeasantRations({
+      runtime,
+      players: [owner],
+      now: missed.expiresAt,
+      consumed,
+      removed,
+    });
+    expect(consumed).toHaveBeenCalledOnce();
+    expect(removed).toHaveBeenCalledTimes(3);
+    expect(runtime.rations).toHaveLength(0);
+  });
+
   it("invalidates a frozen request after movement, facing, disconnect or epoch changes", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");

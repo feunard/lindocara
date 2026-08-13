@@ -118,8 +118,11 @@ import {
 import {
   mergePeasantMaterialRewards,
   resolvePeasantHarvestPlan,
-  resolvePeasantRationPlan,
 } from "@lindocara/engine/peasant.js";
+import {
+  PEASANT_RATION_HEAL_RATIO,
+  PEASANT_RATION_MANA_RATIO,
+} from "@lindocara/engine/peasant-support.js";
 import type {
   ClientMessage,
   MoveMessage,
@@ -155,7 +158,6 @@ import {
 } from "@lindocara/engine/skills.js";
 import {
   evolvedTalent,
-  peasantTalentEffects,
   skillWithTalents,
   type TalentEffect,
   talentEffect,
@@ -234,12 +236,14 @@ import {
 } from "../../world/peasant-harvest-system.js";
 import {
   advancePeasantCamps,
+  advancePeasantRations,
   beginPeasantSupportRequest,
   commitPeasantSupportRequest,
   damageAfterPeasantCampProtection,
   isPeasantBombProjectile,
   nearbyAlliedPeasantCamp,
   type PeasantCampRuntime,
+  type PeasantRationRuntime,
   type PeasantSupportRequest,
   peasantSupportPlans,
   refundPeasantCampGold,
@@ -667,6 +671,38 @@ export function sendPeasantCampsTo(w: WorldGlue, connectionId: string, now: numb
       startedAt: camp.startedAt,
       expiresAt: camp.expiresAt,
     });
+  }
+}
+
+function peasantRationMessage(ration: PeasantRationRuntime): ServerMessage {
+  return {
+    t: "peasant.ration",
+    id: ration.id,
+    actorId: ration.ownerId,
+    originX: ration.originX,
+    originY: ration.originY,
+    originZ: ration.originZ,
+    x: ration.x,
+    y: ration.y,
+    z: ration.z,
+    launchedAt: ration.launchedAt,
+    landsAt: ration.landsAt,
+    fadeAt: ration.fadeAt,
+    expiresAt: ration.expiresAt,
+  };
+}
+
+function sendPeasantRationEvent(w: WorldGlue, message: ServerMessage): void {
+  for (const [connectionId, player] of w.state.players) {
+    if (player.authorized) w.deps.send(connectionId, message);
+  }
+}
+
+/** Idempotent ration replay for admission and the slow AOI catch-up heartbeat. */
+export function sendPeasantRationsTo(w: WorldGlue, connectionId: string, now: number): void {
+  for (const ration of w.state.peasantSupport.rations) {
+    if (ration.expiresAt <= now) continue;
+    w.deps.send(connectionId, peasantRationMessage(ration));
   }
 }
 
@@ -2633,7 +2669,7 @@ export function preparePeasantSupportRequest(
   player: PlayerRuntime,
   slot: SkillSlot,
 ): PeasantSupportRequest | null {
-  if (player.class !== "peasant" || (slot !== 4 && slot !== 5)) return null;
+  if (player.class !== "peasant" || (slot !== 3 && slot !== 4 && slot !== 5)) return null;
   const skill = configuredSkill(w, player, slot);
   if (!isSkillUnlocked(player.level, slot)) {
     w.deps.send(connectionId, {
@@ -2656,6 +2692,7 @@ export function preparePeasantSupportRequest(
   if (!canAct(player.life) || !player.authorized || player.transitioning || !player.partyId)
     return null;
   const plans = peasantSupportPlans({
+    ration: configuredSkill(w, player, 3),
     camp: configuredSkill(w, player, 4),
     bomb: configuredSkill(w, player, 5),
     selectedTalents: player.talents,
@@ -2682,7 +2719,7 @@ export function preparePeasantSupportRequest(
     slot,
     skill,
     definition: actionForClassSlot(player.class, slot),
-    plan: slot === 4 ? plans.camp : plans.bomb,
+    plan: slot === 3 ? plans.ration : slot === 4 ? plans.camp : plans.bomb,
     terrain,
     projectiles: w.state.projectiles,
     now,
@@ -3755,8 +3792,14 @@ export function resolvePlayerAction(
     action,
     player.roomKey,
     now,
+    zone(w.state).terrain,
   );
   if (peasantSupport) {
+    if (peasantSupport.kind === "ration") {
+      for (const ration of peasantSupport.rations) {
+        sendPeasantRationEvent(w, peasantRationMessage(ration));
+      }
+    }
     if (peasantSupport.kind === "camp" && peasantSupport.placement) {
       const { camp, replaced } = peasantSupport.placement;
       if (replaced) {
@@ -4251,27 +4294,6 @@ export function resolvePlayerAction(
         false,
       );
     }
-  }
-  if (definition.shape === "area_heal" && player.class === "peasant") {
-    const ration = resolvePeasantRationPlan(peasantTalentEffects(player.talents, 3));
-    const picnicSkill: SkillDefinition = {
-      ...skill,
-      power: Math.max(skill.power, ration.healing),
-      radius: Math.max(skill.radius ?? skill.range, ration.radius),
-    };
-    areaHeal(w, connectionId, player, picnicSkill, now);
-    for (const target of w.state.players.values()) {
-      if (
-        target.life !== "alive" ||
-        !target.authorized ||
-        !areCombatAllies(player, target) ||
-        groundDistance(player, target) > (picnicSkill.radius ?? picnicSkill.range) ||
-        !groundLineOfSight(terrain, player, target)
-      )
-        continue;
-      applyBoundedPowerBuff(target, ration.powerBonusRatio, ration.buffDurationMs, now);
-    }
-    return;
   }
   if (definition.shape === "area_heal" || definition.shape === "nova") {
     areaHeal(w, connectionId, player, skill, now, novaMultipliers.healing);
@@ -6690,6 +6712,30 @@ export function advanceWorldTick(w: WorldGlue): void {
     },
     (sanctuary) => resolveSanctuaryTick(w, sanctuary, now),
   );
+  advancePeasantRations({
+    runtime: state.peasantSupport,
+    players: state.players.values(),
+    now,
+    consumed: (ration, target) => {
+      const maximumHealth = maxHpForLevel(target.level);
+      target.hp = Math.min(
+        maximumHealth,
+        target.hp + Math.max(1, Math.ceil(maximumHealth * PEASANT_RATION_HEAL_RATIO)),
+      );
+      if (target.resource?.kind === "mana") {
+        target.resource.current = Math.min(
+          target.resource.max,
+          target.resource.current +
+            Math.max(1, Math.ceil(target.resource.max * PEASANT_RATION_MANA_RATIO)),
+        );
+      }
+      applyBoundedPowerBuff(target, ration.powerBonusRatio, ration.buffDurationMs, now);
+      target.dirty = true;
+      const targetConnectionId = connectionOf(state, target.id);
+      if (targetConnectionId !== undefined) sendStateTo(w, targetConnectionId, target);
+    },
+    removed: (ration) => sendPeasantRationEvent(w, { t: "peasant.ration_removed", id: ration.id }),
+  });
   advancePeasantCamps({
     runtime: state.peasantSupport,
     players: state.players.values(),
@@ -6761,7 +6807,10 @@ export function advanceWorldTick(w: WorldGlue): void {
   });
   if (state.tick % TICK_HZ === 0) {
     for (const [connectionId, player] of state.players) {
-      if (player.authorized) sendPeasantCampsTo(w, connectionId, now);
+      if (player.authorized) {
+        sendPeasantCampsTo(w, connectionId, now);
+        sendPeasantRationsTo(w, connectionId, now);
+      }
     }
   }
   advancePolarityOrbs(state.polarityOrbs, now, (orb, fromRadius, toRadius, returning) =>

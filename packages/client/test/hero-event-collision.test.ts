@@ -45,4 +45,22 @@ describe("live authored-event collision", () => {
     for (let frame = 0; frame < 60; frame += 1) hero.step(east, FRAME);
     expect(hero.state.x).toBeGreaterThan(0.5);
   });
+
+  it("adds and removes the solid footprint of an authoritative Peasant camp", () => {
+    const base = flatTerrain();
+    const blocked = withWorldEventColliders(base, [], [{ x: 0, z: 0 }]);
+    const hero = createHeroController({
+      terrain: blocked,
+      spawn: { x: -2, y: 0, z: 0 },
+      speed: 4,
+    });
+    const east = { x: 1, z: 0, jump: false };
+
+    for (let frame = 0; frame < 120; frame += 1) hero.step(east, FRAME);
+    expect(hero.state.x).toBeLessThan(-0.7);
+
+    hero.setTerrain(withWorldEventColliders(base, []));
+    for (let frame = 0; frame < 60; frame += 1) hero.step(east, FRAME);
+    expect(hero.state.x).toBeGreaterThan(0.5);
+  });
 });

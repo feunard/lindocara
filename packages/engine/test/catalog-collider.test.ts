@@ -1,5 +1,9 @@
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { CURATED_EDITOR_ASSET_IDS, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  CURATED_EDITOR_ASSET_IDS,
+  editorAsset,
+  PLACEABLE_EDITOR_ASSETS,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 describe("catalogue colliders", () => {
@@ -51,5 +55,48 @@ describe("catalogue colliders", () => {
     if (!collider) return;
     expect(collider.y).toBeLessThan(0);
     expect(collider.y + collider.height).toBeLessThanOrEqual(0);
+  });
+
+  it("offers the Update 010 animation once while preserving duplicate ids for old maps", () => {
+    const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
+    expect(placeableIds).toContain("resource.resources-trees.tree-1");
+    for (const duplicateId of [
+      "resource.resources-trees.tree-2",
+      "resource.resources-trees.tree-3",
+      "resource.resources-trees.tree-4",
+      "resource.resources-trees.tree-5",
+      "resource.resources-trees.tree-6",
+    ]) {
+      expect(placeableIds).not.toContain(duplicateId);
+      expect(editorAsset(duplicateId)).not.toBeNull();
+    }
+  });
+
+  it("hides redundant resource cards while keeping their saved-map identities readable", () => {
+    const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
+    const hiddenDuplicates = [
+      "resource.resources-resources.g-idle-noshadow",
+      "resource.resources-resources.m-idle-noshadow",
+      "resource.resources-resources.w-idle-noshadow",
+      "terrain.terrain-water-rocks.rocks-01",
+      "terrain.terrain-water-rocks.rocks-02",
+      "terrain.terrain-water-rocks.rocks-03",
+      "terrain.terrain-water-rocks.rocks-04",
+    ];
+    for (const duplicateId of hiddenDuplicates) {
+      expect(placeableIds).not.toContain(duplicateId);
+      expect(editorAsset(duplicateId)).not.toBeNull();
+    }
+    for (const canonicalId of [
+      "resource.resources-resources.g-idle",
+      "resource.resources-resources.m-idle",
+      "resource.resources-resources.w-idle",
+      "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01",
+      "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02",
+      "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03",
+      "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04",
+    ]) {
+      expect(placeableIds).toContain(canonicalId);
+    }
   });
 });

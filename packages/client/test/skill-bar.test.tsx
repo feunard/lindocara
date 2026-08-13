@@ -381,8 +381,11 @@ describe("skill bar cooldowns", () => {
     expect(screen.getByLabelText("Iron: 0")).toBeInTheDocument();
     expect(screen.getByLabelText("Meat: 1")).toBeInTheDocument();
 
+    const ration = screen.getByRole("button", { name: /^3\. Catapulted Lunch/ });
     const camp = screen.getByRole("button", { name: /^4\. Makeshift Camp/ });
     const bomb = screen.getByRole("button", { name: /^5\. Homemade Bomb/ });
+    expect(ration).toHaveAttribute("data-material-affordable", "false");
+    expect(ration.querySelector('[data-material-cost="meat"]')).toHaveTextContent("M3");
     expect(camp).toBeEnabled();
     expect(camp).toHaveClass("unaffordable");
     expect(camp).toHaveAttribute("data-material-affordable", "false");
@@ -408,12 +411,13 @@ describe("skill bar cooldowns", () => {
         displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 0, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
-        materials: { wood: 1, stone: 1, iron: 1, meat: 1 },
+        materials: { wood: 1, stone: 1, iron: 1, meat: 3 },
       });
     });
 
     expect(screen.getByLabelText("Wood: 1")).toBeInTheDocument();
     expect(screen.getByLabelText("Iron: 1")).toBeInTheDocument();
+    expect(ration).toHaveAttribute("data-material-affordable", "true");
     expect(camp).not.toHaveClass("unaffordable");
     expect(camp).toHaveAttribute("data-material-affordable", "true");
     expect(bomb).not.toHaveClass("unaffordable");

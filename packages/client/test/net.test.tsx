@@ -168,6 +168,8 @@ function handlers(): ConnectionHandlers {
     onPeasantCamp: vi.fn(),
     onPeasantCampBank: vi.fn(),
     onPeasantCampRemoved: vi.fn(),
+    onPeasantRation: vi.fn(),
+    onPeasantRationRemoved: vi.fn(),
     onPeasantBombImpact: vi.fn(),
     onEvent: vi.fn(),
     onEventSay: vi.fn(),

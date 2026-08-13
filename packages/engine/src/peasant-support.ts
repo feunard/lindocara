@@ -5,10 +5,21 @@ import {
 } from "./party-harvest-state.js";
 import { TILE_SIZE } from "./tilemap.js";
 
-export const PEASANT_SUPPORT_SKILL_SLOTS = [4, 5] as const;
+export const PEASANT_SUPPORT_SKILL_SLOTS = [3, 4, 5] as const;
 export type PeasantSupportSkillSlot = (typeof PEASANT_SUPPORT_SKILL_SLOTS)[number];
 
-export type PeasantSupportSkillId = "makeshift_camp" | "homemade_bomb";
+export type PeasantSupportSkillId = "butchers_cut" | "makeshift_camp" | "homemade_bomb";
+
+export const PEASANT_RATION_DROP_COUNT = 3;
+export const PEASANT_RATION_LAUNCH_RADIUS = 20;
+export const PEASANT_RATION_FLIGHT_MS = 900;
+export const PEASANT_RATION_ARC_HEIGHT = 2;
+/** Time a missed ration remains fully visible and collectible after touching the ground. */
+export const PEASANT_RATION_GROUND_LIFETIME_MS = 30_000;
+/** Short authoritative grace period during which the grounded ration fades out. */
+export const PEASANT_RATION_FADE_MS = 1_000;
+export const PEASANT_RATION_HEAL_RATIO = 0.1;
+export const PEASANT_RATION_MANA_RATIO = 0.05;
 
 export interface PeasantSupportSkillConfig {
   id: PeasantSupportSkillId;
@@ -32,6 +43,14 @@ export interface PeasantSupportSkillConfig {
 export const PEASANT_SUPPORT_SKILLS: Readonly<
   Record<PeasantSupportSkillSlot, PeasantSupportSkillConfig>
 > = {
+  3: {
+    id: "butchers_cut",
+    slot: 3,
+    cost: { meat: PEASANT_RATION_DROP_COUNT },
+    radius: PEASANT_RATION_LAUNCH_RADIUS,
+    durationMs: PEASANT_RATION_GROUND_LIFETIME_MS,
+    power: PEASANT_RATION_HEAL_RATIO * 100,
+  },
   4: {
     id: "makeshift_camp",
     slot: 4,

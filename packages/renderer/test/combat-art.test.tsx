@@ -13,6 +13,7 @@ import {
   monsterSpecialImpactPosition,
   multiImpactActionFrameIndex,
   PEASANT_CAMP_ART,
+  PEASANT_RATION_ART,
   projectileArt,
   teleportEffectArt,
 } from "@lindocara/renderer/combat-art.js";
@@ -220,11 +221,14 @@ describe("Tiny Swords directional combat art", () => {
       frameHeight: 128,
       frames: 4,
       activeFrame: 0,
+      scale: 0.38,
     });
     expect(peasantBomb.impact).toMatchObject({
       source: PEASANT_ABILITY_SHEETS.homemade_bomb.source,
       frames: 6,
       activeFrame: 4,
+      durationMs: 820,
+      scale: 0.56,
     });
     expect(enemyBomb).toMatchObject({
       frameWidth: 192,
@@ -245,15 +249,29 @@ describe("Tiny Swords directional combat art", () => {
     }
   });
 
+  it("keeps Peasant support props near hero scale and leaves the rally readable", () => {
+    const rally = combatArt("peasant", "prospectors_pick", "moss").zone;
+    const ration = combatArt("peasant", "butchers_cut", "moss").zone;
+
+    expect(rally).toMatchObject({ scale: 0.58, durationMs: 1_800 });
+    expect(ration).toMatchObject({ scale: 0.54, durationMs: 1_500 });
+    expect(rally?.scale).toBeLessThan(1);
+    expect(ration?.scale).toBeLessThan(1);
+  });
+
   it("preloads the original persistent makeshift-camp illustration", () => {
     expect(PEASANT_CAMP_ART).toMatchObject({
       source: expect.stringContaining("makeshift-camp.png"),
       frames: 1,
       frameWidth: 1_254,
       frameHeight: 1_254,
+      anchor: { x: 0.5, y: 0.145 },
     });
     expect(new Set(allCombatSheets().map((entry) => entry.source))).toContain(
       PEASANT_CAMP_ART.source,
+    );
+    expect(new Set(allCombatSheets().map((entry) => entry.source))).toContain(
+      PEASANT_RATION_ART.source,
     );
   });
 

@@ -63,7 +63,7 @@ describe("directional class kit contract", () => {
     expect(CLASS_SKILLS.peasant).toMatchObject([
       { id: "woodcutters_swing", slot: 1, effect: "harvest", range: 54 / TILE_SIZE, power: 0 },
       { id: "prospectors_pick", slot: 2, effect: "area_buff", power: 12 },
-      { id: "butchers_cut", slot: 3, effect: "area_heal", power: 18 },
+      { id: "butchers_cut", slot: 3, effect: "area_heal", power: 10 },
       {
         id: "makeshift_camp",
         slot: 4,

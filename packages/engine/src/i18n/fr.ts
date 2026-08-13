@@ -270,7 +270,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.peasant.prospectors_pick.description":
     "Poussez un cocorico très professionnel qui renforce les dégâts et rend de la ressource de classe aux alliés proches.",
   "skill.peasant.butchers_cut.description":
-    "Catapultez un casse-croûte improvisé qui soigne et encourage tout le groupe proche.",
+    "Catapultez trois rations de viande dans un rayon de 20 m. Attrapez-en une au vol ou ramassez-la pour récupérer 10 % de vie et 5 % de mana ; les rations manquées restent 30 secondes.",
   "skill.peasant.makeshift_camp.description":
     "Construisez un camp qui régénère la vie et le mana des alliés, avec un coffre d’or partagé.",
   "skill.peasant.homemade_bomb.description":

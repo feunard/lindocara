@@ -1,5 +1,6 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { PartyMaterialAmounts } from "@lindocara/engine/party-harvest-state.js";
+import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
 import { isSkillUnlocked, skillFor } from "@lindocara/engine/skills.js";
 import {
   CLASS_TALENTS,
@@ -95,6 +96,7 @@ export function TalentTree() {
   const classNodes = CLASS_TALENTS[self.class];
   const materialCostForSlot = (slot: number): Readonly<PartyMaterialAmounts> | null => {
     if (self.class !== "peasant") return null;
+    if (slot === 3) return PEASANT_SUPPORT_SKILLS[3].cost;
     if (slot === 4) return peasantConstructionTalentPlan(talentState.selected).support.cost;
     if (slot === 5) return peasantBombTalentPlan(talentState.selected).support.cost;
     return null;

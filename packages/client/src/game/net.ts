@@ -25,6 +25,8 @@ import {
   type PeasantCampBankVisual,
   type PeasantCampRemovedVisual,
   type PeasantCampVisual,
+  type PeasantRationRemovedVisual,
+  type PeasantRationVisual,
   type PlayerSnapshot,
   type PriestLumenPortalVisual,
   type PriestLumenTrailVisual,
@@ -167,6 +169,8 @@ export interface ConnectionHandlers {
   onPeasantCamp(camp: PeasantCampVisual): void;
   onPeasantCampBank(bank: PeasantCampBankVisual): void;
   onPeasantCampRemoved(camp: PeasantCampRemovedVisual): void;
+  onPeasantRation(ration: PeasantRationVisual): void;
+  onPeasantRationRemoved(ration: PeasantRationRemovedVisual): void;
   onPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
    *  close that ends the run. `text`/`name`/`prompt`/`options` are authored prose, not i18n codes. */
@@ -257,6 +261,9 @@ export class WorldClient {
    * as every other collection. Kept off the interpolation buffer: the renderer presents each
    * authoritative NPC step locally. */
   #events: readonly WorldEventSnapshot[] = [];
+  /** Persistent camp frames are also movement geometry. They stay outside the interpolated world
+   * cache, but every authoritative add/remove immediately rebuilds the local collision index. */
+  readonly #peasantCamps = new Map<string, PeasantCampVisual>();
   /**
    * The hero itself. It owns its own `HeroState` and runs `stepHero` — the client is the authority
    * on where this one body is (the S3 spec, decision 4), and the server stores what it reports.
@@ -570,11 +577,14 @@ export class WorldClient {
 
   #syncEventTerrain(): void {
     if (!this.#hero || !this.#terrain) return;
-    this.#hero.setTerrain(withWorldEventColliders(this.#terrain, this.#events));
+    this.#hero.setTerrain(
+      withWorldEventColliders(this.#terrain, this.#events, [...this.#peasantCamps.values()]),
+    );
   }
 
   #handle(message: ServerMessage, handlers: ConnectionHandlers): void {
     if (message.t === "welcome") {
+      this.#peasantCamps.clear();
       this.#selfId = message.selfId;
       this.#corpses = message.corpses;
       // Collide against the terrain the server sent, not a copy this build happens to have
@@ -756,6 +766,8 @@ export class WorldClient {
       return;
     }
     if (message.t === "peasant.camp") {
+      this.#peasantCamps.set(message.id, message);
+      this.#syncEventTerrain();
       handlers.onPeasantCamp(message);
       return;
     }
@@ -764,7 +776,17 @@ export class WorldClient {
       return;
     }
     if (message.t === "peasant.camp_removed") {
+      this.#peasantCamps.delete(message.id);
+      this.#syncEventTerrain();
       handlers.onPeasantCampRemoved(message);
+      return;
+    }
+    if (message.t === "peasant.ration") {
+      handlers.onPeasantRation(message);
+      return;
+    }
+    if (message.t === "peasant.ration_removed") {
+      handlers.onPeasantRationRemoved(message);
       return;
     }
     if (message.t === "peasant.bomb_impact") {

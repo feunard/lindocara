@@ -28,6 +28,8 @@ import type {
   PeasantCampBankVisual,
   PeasantCampRemovedVisual,
   PeasantCampVisual,
+  PeasantRationRemovedVisual,
+  PeasantRationVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestLumenTrailVisual,
@@ -648,6 +650,9 @@ async function startGameIdentity(
       const store = useUiStore.getState();
       if (store.campBank?.id === camp.id) store.setCampBank(null);
     },
+    onPeasantRation: (ration: PeasantRationVisual) => renderer.showPeasantRation(ration),
+    onPeasantRationRemoved: (ration: PeasantRationRemovedVisual) =>
+      renderer.removePeasantRation(ration.id),
     onPeasantBombImpact: (impact: PeasantBombImpactVisual) =>
       renderer.playPeasantBombImpact(impact),
     // The dialogue panel (spec Decision 4): the server pushes beats to THIS player, the store holds

@@ -230,10 +230,27 @@ export const PEASANT_CAMP_ART: CombatSheetArt = {
   frames: 1,
   durationMs: 1_000,
   activeFrame: 0,
-  anchor: { x: 0.5, y: 0.09 },
+  // The illustration keeps transparent pixels below its painted ground patch. Lower the quad by
+  // that fraction so the patch, not the texture frame, touches the terrain.
+  anchor: { x: 0.5, y: 0.145 },
   // 1 254 px at the ordinary effect ratio would fill the screen. This preserves the old camp's
   // landmark footprint while speaking the HD-2D scene's tile scale.
   scale: 0.205,
+};
+
+export const PEASANT_RATION_ART: CombatSheetArt = {
+  ...sheet(
+    new URL(
+      "../../catalog/assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Meat Resource/Meat Resource.png",
+      import.meta.url,
+    ).href,
+    64,
+    64,
+    1,
+    1_000,
+    0,
+  ),
+  scale: 0.72,
 };
 
 function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {
@@ -250,10 +267,10 @@ const PEASANT_BOMB_PROJECTILE: CombatProjectileArt = {
     TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.activeFrame,
   ),
   rotationOffset: 0,
-  scale: 0.58,
+  scale: 0.38,
   trail: { color: 0xff8d4a, length: 18, width: 3, glowRadius: 6 },
 };
-const PEASANT_BOMB_IMPACT = peasantAbilityEffect("homemade_bomb", 720, 1.28);
+const PEASANT_BOMB_IMPACT = peasantAbilityEffect("homemade_bomb", 820, 0.56);
 
 /** Visual-only impact vocabulary. Every special technique is named explicitly: no asset name,
  * path or species heuristic selects gameplay or presentation. */
@@ -600,22 +617,22 @@ export function combatArt(
     if (skillId === "woodcutters_swing")
       return {
         caster,
-        impact: peasantAbilityEffect("woodcutters_swing", 520, 0.92),
+        impact: peasantAbilityEffect("woodcutters_swing", 620, 0.72),
       };
     if (skillId === "prospectors_pick")
       return {
         caster,
-        zone: peasantAbilityEffect("prospectors_pick", 820, 1.28),
+        zone: peasantAbilityEffect("prospectors_pick", 1_800, 0.58),
       };
     if (skillId === "butchers_cut")
       return {
         caster,
-        zone: peasantAbilityEffect("butchers_cut", 780, 1.18),
+        zone: peasantAbilityEffect("butchers_cut", 1_500, 0.54),
       };
     if (skillId === "makeshift_camp")
       return {
         caster,
-        zone: peasantAbilityEffect("makeshift_camp", 940, 1.34),
+        zone: peasantAbilityEffect("makeshift_camp", 1_100, 0.68),
       };
     if (skillId === "homemade_bomb")
       return {
@@ -707,5 +724,6 @@ export function allCombatSheets(): CombatSheetArt[] {
   const teleport = teleportEffectArt();
   unique.set(teleport.source, teleport);
   unique.set(PEASANT_CAMP_ART.source, PEASANT_CAMP_ART);
+  unique.set(PEASANT_RATION_ART.source, PEASANT_RATION_ART);
   return [...unique.values()];
 }

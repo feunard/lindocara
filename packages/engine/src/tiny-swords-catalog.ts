@@ -294,10 +294,33 @@ function effectiveAssetSize(asset: EditorAssetDefinition): { width: number; heig
   };
 }
 
+/**
+ * Update 010 stores one six-frame tree animation as six crop-shaped catalogue identities. Keep the
+ * old identities resolvable for saved maps, but offer only the first/canonical identity for new
+ * scenery placement so the editor does not show the same tree six times.
+ */
+const DUPLICATE_EDITOR_ASSET_IDS: ReadonlySet<string> = new Set([
+  "resource.resources-trees.tree-2",
+  "resource.resources-trees.tree-3",
+  "resource.resources-trees.tree-4",
+  "resource.resources-trees.tree-5",
+  "resource.resources-trees.tree-6",
+  // Shadow/no-shadow files are the same prop; the shadowed source is the canonical HD-2D entry.
+  "resource.resources-resources.g-idle-noshadow",
+  "resource.resources-resources.m-idle-noshadow",
+  "resource.resources-resources.w-idle-noshadow",
+  // Free-pack water rocks already expose the same four silhouettes as smoother 16-frame strips.
+  "terrain.terrain-water-rocks.rocks-01",
+  "terrain.terrain-water-rocks.rocks-02",
+  "terrain.terrain-water-rocks.rocks-03",
+  "terrain.terrain-water-rocks.rocks-04",
+]);
+
 /** Palette-safe scenery. Technical source sheets stay resolvable for old maps but are not offered
  * as placeable objects; an author sees only individually cropped props with bounded footprints. */
 export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
   (asset) => {
+    if (DUPLICATE_EDITOR_ASSET_IDS.has(asset.id)) return false;
     if (asset.role === "event-state") return false;
     if (asset.domain === "character" || asset.domain === "enemy") return false;
     // Raw tilemaps/foam/shadow stay automatic terrain sources, but the pack's dedicated animated

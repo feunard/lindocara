@@ -622,11 +622,14 @@ must not redo. Everything below was found while porting terrain, actors and scen
   bush eight frames wide, and each carries its own measured ground line. Guessing there draws a house
   as a 3Ã—3 square and stands a tree in the ground â€” the catalogue already holds all four numbers and
   they must be read, not inferred.
-- **A `cols Ã— rows` billboard cannot frame a sub-rectangle of a shared sheet.** Nine of the
-  catalogue's 144 placeable assets are crops out of one image (the six Update-010 trees share a
-  768Ã—576 PNG). They are skipped with one warning each, and a map dressed mostly out of them comes up
-  sparse. Fixing it needs a second framing path in `makeBillboard` â€” an explicit UV rect rather than
-  a grid index.
+- **The six Update-010 tree crops are one animation, not six props.** The 768Ã—576 source holds six
+  tree frames across the first two rows and a stump on the third. Old crop ids remain resolvable for
+  saved maps, but the editor offers only `tree-1`; the renderer binds the top 4Ã—2 UV region and loops
+  its six populated cells, never the two empty cells or the stump.
+- **Resource aliases stay readable, not placeable.** The Update-010 `NoShadow` gold/meat/wood props
+  duplicate their ordinary variants, while its four water-rock strips duplicate the smoother
+  16-frame Free-pack family. The palette hides those aliases but old maps still resolve them. Spawn
+  strips are one-shot effects rather than idle loops, so the canonical props remain honestly static.
 - **Warn once per asset id, not once per placement.** The first version of the scenery placer logged
   a line per prop, so exactly the map that trips the pitfall above â€” dozens of the same unsupported
   tree â€” is the map that floods the console and hides everything else.
@@ -639,9 +642,9 @@ must not redo. Everything below was found while porting terrain, actors and scen
   every one of those behaviours is about things that move. Scenery is placed once when the map lands
   and given back when the map goes. Folding it into the registry costs either a per-frame diff over
   hundreds of immobile trees or a second lifecycle inside it; both were refused.
-- **Draw one thing per frame of a prop sheet: frame 0.** A tree's sheet also holds its felling and
-  its stump; a bush is padded with duplicates of its first frame. Nothing animates on this path yet,
-  and when it does it must animate the measured run, not the sheet.
+- **Animate only catalogue-declared runs.** Free-pack trees and bushes use their measured frame
+  strips. Update-010's irregular tree grid declares six populated cells explicitly; technical
+  multi-state sheets without an animation duration remain pinned to frame zero.
 
 ### What `renderer.ts` knew, and where that knowledge is now
 

@@ -215,6 +215,8 @@ export interface PlayerSnapshot {
   silhouette?: boolean;
   /** Short server-authored success flourish; shared stock remains authoritative elsewhere. */
   peasantCarry?: { kind: PeasantCarryKind; until: number };
+  /** Absolute server deadline for the bounded damage/power buff currently affecting this hero. */
+  powerBuffUntil?: number;
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -577,6 +579,28 @@ export interface PeasantCampVisual {
 
 export interface PeasantCampRemovedVisual {
   t: "peasant.camp_removed";
+  id: string;
+}
+
+/** One authoritative ration launched by Casse-croûte catapulte. */
+export interface PeasantRationVisual {
+  t: "peasant.ration";
+  id: string;
+  actorId: string;
+  originX: number;
+  originY: number;
+  originZ: number;
+  x: number;
+  y: number;
+  z: number;
+  launchedAt: number;
+  landsAt: number;
+  fadeAt: number;
+  expiresAt: number;
+}
+
+export interface PeasantRationRemovedVisual {
+  t: "peasant.ration_removed";
   id: string;
 }
 
@@ -972,6 +996,8 @@ export type ServerMessage =
   | PriestPolarityOrbVisual
   | PeasantCampVisual
   | PeasantCampRemovedVisual
+  | PeasantRationVisual
+  | PeasantRationRemovedVisual
   | PeasantCampBankVisual
   | PeasantBombImpactVisual
   /**
@@ -1207,6 +1233,53 @@ function isPeasantCampRemovedVisual(value: unknown): value is PeasantCampRemoved
   );
 }
 
+function isPeasantRationVisual(value: unknown): value is PeasantRationVisual {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "t",
+      "id",
+      "actorId",
+      "originX",
+      "originY",
+      "originZ",
+      "x",
+      "y",
+      "z",
+      "launchedAt",
+      "landsAt",
+      "fadeAt",
+      "expiresAt",
+    ]) &&
+    value.t === "peasant.ration" &&
+    isWireId(value.id) &&
+    isWireId(value.actorId) &&
+    isFiniteNumber(value.originX) &&
+    isFiniteNumber(value.originY) &&
+    isFiniteNumber(value.originZ) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.z) &&
+    isFiniteNumber(value.launchedAt) &&
+    isFiniteNumber(value.landsAt) &&
+    isFiniteNumber(value.fadeAt) &&
+    isFiniteNumber(value.expiresAt) &&
+    value.launchedAt <= value.landsAt &&
+    value.landsAt <= value.fadeAt &&
+    value.fadeAt <= value.expiresAt &&
+    value.expiresAt - value.launchedAt <= 120_000
+  );
+}
+
+function isPeasantRationRemovedVisual(value: unknown): value is PeasantRationRemovedVisual {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["t", "id"]) &&
+    value.t === "peasant.ration_removed" &&
+    isWireId(value.id)
+  );
+}
+
 function isPeasantCampBankVisual(value: unknown): value is PeasantCampBankVisual {
   return (
     isRecord(value) &&
@@ -1333,6 +1406,8 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
         isPeasantCarryKind(value.peasantCarry.kind) &&
         Number.isSafeInteger(value.peasantCarry.until) &&
         (value.peasantCarry.until as number) >= 0)) &&
+    (value.powerBuffUntil === undefined ||
+      (Number.isSafeInteger(value.powerBuffUntil) && (value.powerBuffUntil as number) >= 0)) &&
     (value.action === null || isActionSnapshot(value.action, "player"))
   );
 }
@@ -2329,6 +2404,8 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (
       isPeasantCampVisual(value) ||
       isPeasantCampRemovedVisual(value) ||
+      isPeasantRationVisual(value) ||
+      isPeasantRationRemovedVisual(value) ||
       isPeasantCampBankVisual(value) ||
       isPeasantBombImpactVisual(value)
     )

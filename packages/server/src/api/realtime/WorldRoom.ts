@@ -159,6 +159,7 @@ import {
   recordMapEntered,
   selfStateFor,
   sendPeasantCampsTo,
+  sendPeasantRationsTo,
   sendPriestLumenEffectsTo,
   sendResyncTo,
   sendStateTo,
@@ -553,6 +554,7 @@ export class WorldRoom {
       self: selfStateFor(w, player),
     });
     sendPeasantCampsTo(w, conn.id, Date.now());
+    sendPeasantRationsTo(w, conn.id, Date.now());
     sendPriestLumenEffectsTo(w, conn.id, Date.now());
   }
 
@@ -733,7 +735,10 @@ export class WorldRoom {
     }
     if (message.t === "skill") {
       if (state.peasantSupport.pendingByOwner.has(player.id)) return;
-      if (player.class === "peasant" && (message.slot === 4 || message.slot === 5)) {
+      if (
+        player.class === "peasant" &&
+        (message.slot === 3 || message.slot === 4 || message.slot === 5)
+      ) {
         const request = preparePeasantSupportRequest(w, connectionId, player, message.slot);
         return request
           ? this.startPeasantSupportSkill(room, state, connectionId, player, request)

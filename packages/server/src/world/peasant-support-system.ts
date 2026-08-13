@@ -16,10 +16,19 @@ import {
   resolvePeasantConstructionPlan,
   resolvePeasantRationPlan,
 } from "@lindocara/engine/peasant.js";
-import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
+import {
+  PEASANT_RATION_ARC_HEIGHT,
+  PEASANT_RATION_DROP_COUNT,
+  PEASANT_RATION_FADE_MS,
+  PEASANT_RATION_FLIGHT_MS,
+  PEASANT_RATION_GROUND_LIFETIME_MS,
+  PEASANT_RATION_LAUNCH_RADIUS,
+  PEASANT_SUPPORT_SKILLS,
+} from "@lindocara/engine/peasant-support.js";
 import type { SkillDefinition, SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
 import {
+  BODY_RADIUS,
   canStand,
   groundLineOfSight,
   groundUnder,
@@ -47,6 +56,12 @@ export const PEASANT_CAMP_PROTECTION_RATIO = 0.12;
 export const PEASANT_CAMP_MANA_RATIO = 0.6;
 export const PEASANT_CAMP_GOLD_LIMIT = 999_999_999;
 export const PEASANT_BOMB_SPEED = 520 / TILE_SIZE;
+export const PEASANT_RATION_PICKUP_RADIUS = 22 / TILE_SIZE;
+/** Prevents the caster from immediately re-collecting a ration at the catapult origin. */
+export const PEASANT_RATION_CATCH_DELAY_MS = 120;
+/** The ration may touch any point from the hero's feet to just above their upper body. */
+export const PEASANT_RATION_CATCH_HEIGHT = 1.55;
+export const PEASANT_RATION_CATCH_MARGIN = 0.2;
 
 export interface PeasantCampPlan {
   readonly kind: "camp";
@@ -54,6 +69,17 @@ export interface PeasantCampPlan {
   readonly placementDistance: number;
   readonly pulseIntervalMs: number;
   readonly construction: Readonly<PeasantConstructionPlan>;
+  readonly ration: Readonly<PeasantRationPlan>;
+}
+
+export interface PeasantRationSupportPlan {
+  readonly kind: "ration";
+  readonly cost: Readonly<PartyMaterialAmounts>;
+  readonly count: number;
+  readonly launchRadius: number;
+  readonly flightMs: number;
+  readonly groundLifetimeMs: number;
+  readonly fadeMs: number;
   readonly ration: Readonly<PeasantRationPlan>;
 }
 
@@ -66,15 +92,20 @@ export interface PeasantBombSupportPlan {
   readonly bomb: Readonly<EnginePeasantBombPlan>;
 }
 
-export type PeasantSupportPlan = PeasantCampPlan | PeasantBombSupportPlan;
+export type PeasantSupportPlan =
+  | PeasantRationSupportPlan
+  | PeasantCampPlan
+  | PeasantBombSupportPlan;
 
 export interface PeasantSupportPlans {
+  readonly ration: PeasantRationSupportPlan;
   readonly camp: PeasantCampPlan;
   readonly bomb: PeasantBombSupportPlan;
 }
 
 /** Resolves and freezes the complete typed talent plan before material reservation begins. */
 export function peasantSupportPlans(skills: {
+  readonly ration?: SkillDefinition;
   readonly camp: SkillDefinition;
   readonly bomb: SkillDefinition;
   readonly selectedTalents: readonly string[];
@@ -95,6 +126,16 @@ export function peasantSupportPlans(skills: {
     durationMs: skills.bomb.durationMs ?? PEASANT_SUPPORT_SKILLS[5].durationMs,
   });
   return {
+    ration: {
+      kind: "ration",
+      cost: PEASANT_SUPPORT_SKILLS[3].cost,
+      count: PEASANT_RATION_DROP_COUNT,
+      launchRadius: PEASANT_RATION_LAUNCH_RADIUS,
+      flightMs: PEASANT_RATION_FLIGHT_MS,
+      groundLifetimeMs: PEASANT_RATION_GROUND_LIFETIME_MS,
+      fadeMs: PEASANT_RATION_FADE_MS,
+      ration: resolvePeasantRationPlan(peasantTalentEffects(skills.selectedTalents, 3)),
+    },
     camp: {
       kind: "camp",
       cost: construction.cost,
@@ -149,6 +190,21 @@ export interface PeasantBombRuntime {
   readonly knockbackDistance: number;
 }
 
+export interface PeasantRationRuntime extends WorldPosition {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly ownerPartyId: string;
+  readonly originX: number;
+  readonly originY: number;
+  readonly originZ: number;
+  readonly launchedAt: number;
+  readonly landsAt: number;
+  readonly fadeAt: number;
+  readonly expiresAt: number;
+  readonly powerBonusRatio: number;
+  readonly buffDurationMs: number;
+}
+
 export interface PeasantSupportRequest {
   readonly id: string;
   readonly ownerId: string;
@@ -158,7 +214,7 @@ export interface PeasantSupportRequest {
   readonly partyId: string;
   readonly actorPosition: WorldPosition;
   readonly actorFacing: GroundVector;
-  readonly slot: 4 | 5;
+  readonly slot: 3 | 4 | 5;
   readonly skill: SkillDefinition;
   readonly definition: PlayerActionDefinition;
   readonly direction: GroundVector;
@@ -173,6 +229,7 @@ export interface PeasantSupportActionPlan {
 }
 
 export interface PeasantSupportRuntime {
+  readonly rations: PeasantRationRuntime[];
   readonly camps: PeasantCampRuntime[];
   readonly bombs: Map<string, PeasantBombRuntime>;
   readonly pendingByOwner: Map<string, PeasantSupportRequest>;
@@ -181,6 +238,7 @@ export interface PeasantSupportRuntime {
 
 export function createPeasantSupportRuntime(): PeasantSupportRuntime {
   return {
+    rations: [],
     camps: [],
     bombs: new Map(),
     pendingByOwner: new Map(),
@@ -240,10 +298,12 @@ export function beginPeasantSupportRequest(options: {
   const { runtime, player, slot, skill, definition, plan, now } = options;
   if (
     player.class !== "peasant" ||
-    (slot !== 4 && slot !== 5) ||
+    (slot !== 3 && slot !== 4 && slot !== 5) ||
     skill.slot !== slot ||
+    (slot === 3) !== (plan.kind === "ration") ||
     (slot === 4) !== (plan.kind === "camp") ||
-    skill.id !== (slot === 4 ? "makeshift_camp" : "homemade_bomb")
+    (slot === 5) !== (plan.kind === "bomb") ||
+    skill.id !== (slot === 3 ? "butchers_cut" : slot === 4 ? "makeshift_camp" : "homemade_bomb")
   )
     return { ok: false, reason: "invalid" };
   if (runtime.pendingByOwner.has(player.id) || (player.action?.recoveryEndsAt ?? 0) > now)
@@ -318,6 +378,7 @@ export function canActivatePeasantSupportRequest(options: {
   )
     return false;
   if (request.plan.kind === "bomb") return canSpawnProjectile(options.projectiles, player.id);
+  if (request.plan.kind === "ration") return true;
   const placement = peasantCampPosition(player, request.direction, request.plan, options.terrain);
   return (
     placement !== null &&
@@ -421,6 +482,84 @@ export function placePeasantCamp(
   return { camp, replaced };
 }
 
+function rationAngleSeed(value: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return ((hash >>> 0) / 0xffff_ffff) * Math.PI * 2;
+}
+
+function rationLanding(
+  owner: PlayerRuntime,
+  actionId: string,
+  index: number,
+  total: number,
+  radius: number,
+  terrain: ZoneTerrain,
+): WorldPosition {
+  const baseAngle = rationAngleSeed(actionId) + (index * Math.PI * 2) / Math.max(1, total);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const ring = Math.max(0.16, 0.86 - Math.floor(attempt / 4) * 0.16);
+    const angle = baseAngle + (attempt % 4) * 0.41;
+    const x = owner.x + Math.cos(angle) * radius * ring;
+    const z = owner.z + Math.sin(angle) * radius * ring;
+    const y = terrain.query.heightAt(x, z);
+    if (y !== null) return { x, y, z };
+  }
+  const fallbackAngle = baseAngle + 0.27;
+  const x = owner.x + Math.cos(fallbackAngle) * 0.6;
+  const z = owner.z + Math.sin(fallbackAngle) * 0.6;
+  return { x, y: terrain.query.heightAt(x, z) ?? owner.y, z };
+}
+
+export function launchPeasantRations(
+  runtime: PeasantSupportRuntime,
+  owner: PlayerRuntime,
+  action: CombatActionRuntime,
+  plan: PeasantRationSupportPlan,
+  terrain: ZoneTerrain,
+  now: number,
+): PeasantRationRuntime[] {
+  if (!owner.partyId) return [];
+  const extraTalentPortions = Math.max(0, Math.floor(plan.ration.portions) - 1);
+  const count = Math.max(1, Math.floor(plan.count) + extraTalentPortions);
+  const created: PeasantRationRuntime[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const landing = rationLanding(
+      owner,
+      action.id,
+      index,
+      count,
+      Math.max(0, plan.launchRadius),
+      terrain,
+    );
+    const ration: PeasantRationRuntime = {
+      id: `${action.id}:ration:${index}`,
+      ownerId: owner.id,
+      ownerPartyId: owner.partyId,
+      originX: owner.x,
+      originY: owner.y,
+      originZ: owner.z,
+      ...landing,
+      launchedAt: now,
+      landsAt: now + Math.max(1, plan.flightMs),
+      fadeAt: now + Math.max(1, plan.flightMs) + Math.max(0, plan.groundLifetimeMs),
+      expiresAt:
+        now +
+        Math.max(1, plan.flightMs) +
+        Math.max(0, plan.groundLifetimeMs) +
+        Math.max(1, plan.fadeMs),
+      powerBonusRatio: Math.max(0, plan.ration.powerBonusRatio),
+      buffDurationMs: Math.max(0, plan.ration.buffDurationMs),
+    };
+    runtime.rations.push(ration);
+    created.push(ration);
+  }
+  return created;
+}
+
 export function spawnPeasantBomb(
   runtime: PeasantSupportRuntime,
   projectiles: ProjectileRuntime[],
@@ -473,6 +612,7 @@ export function spawnPeasantBomb(
 }
 
 export type ResolvePeasantSupportResult =
+  | { readonly kind: "ration"; readonly rations: readonly PeasantRationRuntime[] }
   | { readonly kind: "camp"; readonly placement: PeasantCampPlacementResult | null }
   | { readonly kind: "bomb"; readonly projectile: ProjectileRuntime | null }
   | null;
@@ -484,6 +624,7 @@ export function resolvePeasantSupportAction(
   action: CombatActionRuntime,
   roomKey: string,
   now: number,
+  terrain?: ZoneTerrain,
 ): ResolvePeasantSupportResult {
   const frozen = runtime.actions.get(action.id);
   if (!frozen || frozen.ownerId !== owner.id) return null;
@@ -495,6 +636,14 @@ export function resolvePeasantSupportAction(
       placement: position
         ? placePeasantCamp(runtime, owner, action.id, position, frozen.plan, now)
         : null,
+    };
+  }
+  if (frozen.plan.kind === "ration") {
+    return {
+      kind: "ration",
+      rations: terrain
+        ? launchPeasantRations(runtime, owner, action, frozen.plan, terrain, now)
+        : [],
     };
   }
   return {
@@ -714,6 +863,54 @@ export function advancePeasantCamps(options: {
       }
     }
   }
+}
+
+export function advancePeasantRations(options: {
+  readonly runtime: PeasantSupportRuntime;
+  readonly players: Iterable<PlayerRuntime>;
+  readonly now: number;
+  readonly consumed: (ration: PeasantRationRuntime, target: PlayerRuntime) => void;
+  readonly removed: (ration: PeasantRationRuntime) => void;
+}): void {
+  const players = [...options.players];
+  for (let index = options.runtime.rations.length - 1; index >= 0; index -= 1) {
+    const ration = options.runtime.rations[index];
+    if (!ration) continue;
+    if (ration.expiresAt <= options.now) {
+      options.runtime.rations.splice(index, 1);
+      options.removed(ration);
+      continue;
+    }
+    if (options.now < ration.launchedAt + PEASANT_RATION_CATCH_DELAY_MS) continue;
+    const position = peasantRationPositionAt(ration, options.now);
+    const target = players.find(
+      (candidate) =>
+        candidate.authorized &&
+        candidate.life === "alive" &&
+        candidate.partyId === ration.ownerPartyId &&
+        groundDistance(candidate, position) <= BODY_RADIUS + PEASANT_RATION_PICKUP_RADIUS &&
+        position.y >= candidate.y - PEASANT_RATION_CATCH_MARGIN &&
+        position.y <= candidate.y + PEASANT_RATION_CATCH_HEIGHT + PEASANT_RATION_CATCH_MARGIN,
+    );
+    if (!target) continue;
+    options.runtime.rations.splice(index, 1);
+    options.consumed(ration, target);
+    options.removed(ration);
+  }
+}
+
+/** The shared authoritative catapult curve used for in-flight collection checks. */
+export function peasantRationPositionAt(ration: PeasantRationRuntime, now: number): WorldPosition {
+  const duration = Math.max(1, ration.landsAt - ration.launchedAt);
+  const progress = Math.max(0, Math.min(1, (now - ration.launchedAt) / duration));
+  return {
+    x: ration.originX + (ration.x - ration.originX) * progress,
+    y:
+      ration.originY +
+      (ration.y - ration.originY) * progress +
+      Math.sin(progress * Math.PI) * PEASANT_RATION_ARC_HEIGHT,
+    z: ration.originZ + (ration.z - ration.originZ) * progress,
+  };
 }
 
 /** Strongest camp only; protection never stacks and never reduces a positive hit below one. */

@@ -22,6 +22,7 @@ import type {
   MonsterSpecialImpact,
   PeasantBombImpactVisual,
   PeasantCampVisual,
+  PeasantRationVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestLumenTrailVisual,
@@ -113,6 +114,7 @@ export interface RendererLike {
   playTeleportEffect(x?: number, z?: number): void;
   preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void;
   removePeasantCamp(id: string): void;
+  removePeasantRation(id: string): void;
   render(sample: SceneSample, context: RenderContext): void;
   /** Adds a local yaw delta around the followed hero. */
   rotateCamera(deltaRadians: number): void;
@@ -131,6 +133,7 @@ export interface RendererLike {
   setSelfId(id: string): void;
   showPeasantBombAim(origin: GroundVector, direction: GroundVector, range: number): void;
   showPeasantCamp(camp: PeasantCampVisual): void;
+  showPeasantRation(ration: PeasantRationVisual): void;
   showWorldEvent(
     text: string,
     tone: "info" | "good" | "bad",

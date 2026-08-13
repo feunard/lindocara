@@ -4,9 +4,11 @@ import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
+import { PEASANT_RATION_ARC_HEIGHT } from "@lindocara/engine/peasant-support.js";
 import type {
   LootSnapshot,
   PeasantCampVisual,
+  PeasantRationVisual,
   PlayerSnapshot,
   ProjectileSnapshot,
   WorldEventSnapshot,
@@ -21,6 +23,7 @@ import {
   type CombatProjectileArt,
   type CombatSheetArt,
   PEASANT_CAMP_ART,
+  PEASANT_RATION_ART,
   projectileArt,
 } from "../combat-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS } from "../feedback.js";
@@ -79,6 +82,21 @@ interface CampEntry {
   endsAt: number;
   startedAt: number;
   expiresAt: number;
+}
+
+interface RationEntry {
+  object: THREE.Group;
+  billboard: Billboard | null;
+  ration: PeasantRationVisual;
+  launchedAt: number;
+  landsAt: number;
+  fadeAt: number;
+  endsAt: number;
+}
+
+interface PowerBuffEntry {
+  object: THREE.Group;
+  phase: number;
 }
 
 interface LootEntry {
@@ -273,6 +291,8 @@ export class Hd2dVisualLayer {
   readonly #projectiles = new Map<string, ProjectileEntry>();
   readonly #eventMarkers = new Map<string, THREE.Object3D>();
   readonly #camps = new Map<string, CampEntry>();
+  readonly #rations = new Map<string, RationEntry>();
+  readonly #powerBuffs = new Map<string, PowerBuffEntry>();
   readonly #questMarkers = new Map<string, THREE.Object3D>();
   readonly #hiddenQuestSites = new Map<string, number>();
   readonly #labels: LabelVisual[] = [];
@@ -710,6 +730,45 @@ export class Hd2dVisualLayer {
     }
   }
 
+  /** Keeps a restrained gold aura attached to every hero whose authoritative power buff is live. */
+  syncPowerBuffs(
+    buffs: readonly { id: string; x: number; z: number; endsAt: number }[],
+    now: number,
+  ): void {
+    const present = new Set<string>();
+    for (const buff of buffs) {
+      if (buff.endsAt <= now) continue;
+      present.add(buff.id);
+      let entry = this.#powerBuffs.get(buff.id);
+      if (!entry) {
+        const object = new THREE.Group();
+        const inner = new THREE.Mesh(
+          new THREE.RingGeometry(0.34, 0.41, 40),
+          transparentMaterial(0xffd66b, 0.26),
+        );
+        const outer = new THREE.Mesh(
+          new THREE.RingGeometry(0.53, 0.57, 40),
+          transparentMaterial(0xffedaa, 0.13),
+        );
+        inner.rotation.x = -Math.PI / 2;
+        outer.rotation.x = -Math.PI / 2;
+        object.add(inner, outer);
+        this.#root.add(object);
+        entry = { object, phase: phaseFor(buff.id) };
+        this.#powerBuffs.set(buff.id, entry);
+      }
+      entry.object.position.set(buff.x, this.#groundY(buff.x, buff.z, 0.045), buff.z);
+      const pulse = 1 + Math.sin(now / 320 + entry.phase) * 0.08;
+      entry.object.scale.setScalar(pulse);
+      materialOpacity(entry.object, Math.min(0.28, Math.max(0.08, (buff.endsAt - now) / 700)));
+    }
+    for (const [id, entry] of this.#powerBuffs) {
+      if (present.has(id)) continue;
+      disposeObject(entry.object);
+      this.#powerBuffs.delete(id);
+    }
+  }
+
   setMerchant(merchant: MerchantDefinition | null): void {
     if (this.#merchant) disposeObject(this.#merchant);
     this.#merchant = null;
@@ -738,7 +797,7 @@ export class Hd2dVisualLayer {
         texture: this.#textures.get(PEASANT_CAMP_ART.source),
         height: (PEASANT_CAMP_ART.frameHeight / 192) * 2.6 * (PEASANT_CAMP_ART.scale ?? 1),
         aspect: PEASANT_CAMP_ART.frameWidth / PEASANT_CAMP_ART.frameHeight,
-        foot: AUTHORED_EFFECT_FOOT,
+        foot: PEASANT_CAMP_ART.anchor.y,
         pitch: HD2D_CAMERA.pitch,
       });
       billboard.placeAt(0, 0, 0);
@@ -751,11 +810,7 @@ export class Hd2dVisualLayer {
     range.rotation.x = -Math.PI / 2;
     range.scale.setScalar(camp.radius);
     group.add(range);
-    group.position.set(
-      camp.x,
-      this.#groundY(camp.x, camp.z, AUTHORED_EFFECT_GROUND_CLEARANCE),
-      camp.z,
-    );
+    group.position.set(camp.x, this.#groundY(camp.x, camp.z, 0.02), camp.z);
     this.#root.add(group);
     this.#camps.set(camp.id, {
       object: group,
@@ -765,6 +820,86 @@ export class Hd2dVisualLayer {
       expiresAt: camp.expiresAt,
     });
     return true;
+  }
+
+  showRation(
+    ration: PeasantRationVisual,
+    launchedAt: number,
+    landsAt: number,
+    fadeAt: number,
+    endsAt: number,
+  ): boolean {
+    const current = this.#rations.get(ration.id);
+    if (current) {
+      current.fadeAt = fadeAt;
+      current.endsAt = endsAt;
+      return false;
+    }
+    const object = new THREE.Group();
+    let billboard: Billboard | null = null;
+    if (this.#textures) {
+      billboard = makeBillboard(this.#scene.ctx, {
+        texture: this.#textures.get(PEASANT_RATION_ART.source),
+        height: (PEASANT_RATION_ART.frameHeight / 192) * 2.6 * (PEASANT_RATION_ART.scale ?? 1),
+        aspect: PEASANT_RATION_ART.frameWidth / PEASANT_RATION_ART.frameHeight,
+        foot: 0.28,
+        lit: true,
+        pitch: HD2D_CAMERA.pitch,
+      });
+      billboard.placeAt(0, 0, 0);
+      object.add(billboard.mesh);
+    }
+    this.#root.add(object);
+    this.#rations.set(ration.id, {
+      object,
+      billboard,
+      ration,
+      launchedAt,
+      landsAt,
+      fadeAt,
+      endsAt,
+    });
+    return true;
+  }
+
+  removeRation(id: string): void {
+    const entry = this.#rations.get(id);
+    if (!entry) return;
+    if (entry.billboard) {
+      entry.object.remove(entry.billboard.mesh);
+      entry.billboard.dispose();
+    }
+    disposeObject(entry.object);
+    this.#rations.delete(id);
+  }
+
+  #updateRations(now: number): void {
+    for (const [id, entry] of this.#rations) {
+      if (now >= entry.endsAt) {
+        this.removeRation(id);
+        continue;
+      }
+      const flightDuration = Math.max(1, entry.landsAt - entry.launchedAt);
+      const progress = THREE.MathUtils.clamp((now - entry.launchedAt) / flightDuration, 0, 1);
+      const x = THREE.MathUtils.lerp(entry.ration.originX, entry.ration.x, progress);
+      const baseY = THREE.MathUtils.lerp(entry.ration.originY, entry.ration.y, progress);
+      const z = THREE.MathUtils.lerp(entry.ration.originZ, entry.ration.z, progress);
+      const landed = now >= entry.landsAt;
+      const y = landed
+        ? entry.ration.y + 0.08 + Math.sin(now / 280 + phaseFor(id)) * 0.035
+        : baseY + 0.08 + Math.sin(progress * Math.PI) * PEASANT_RATION_ARC_HEIGHT;
+      entry.object.position.set(x, y, z);
+      const opacity =
+        now <= entry.fadeAt
+          ? 1
+          : THREE.MathUtils.clamp(
+              (entry.endsAt - now) / Math.max(1, entry.endsAt - entry.fadeAt),
+              0,
+              1,
+            );
+      materialOpacity(entry.object, opacity);
+      if (entry.billboard) entry.billboard.mesh.rotation.z = landed ? 0 : progress * Math.PI * 4;
+    }
   }
 
   removeCamp(id: string): void {
@@ -843,6 +978,7 @@ export class Hd2dVisualLayer {
     this.#syncLoot(sample, now);
     this.#syncProjectiles(sample, now);
     this.#syncEventMarkers(sample.events);
+    this.#updateRations(now);
     const eventById = new Map(sample.events.map((event) => [event.id, event]));
     const questVisualKey = this.#questState
       .map((marker) => {
@@ -1384,6 +1520,8 @@ export class Hd2dVisualLayer {
     return {
       actorsSecondary: this.#loot.size + this.#projectiles.size,
       camps: this.#camps.size,
+      rations: this.#rations.size,
+      powerBuffs: this.#powerBuffs.size,
       effects: this.#effects.length,
       movementSurfaces:
         Number(this.#swimDisc.visible) +
@@ -1403,12 +1541,16 @@ export class Hd2dVisualLayer {
     for (const entry of this.#loot.values()) this.#dropLoot(entry);
     for (const entry of this.#projectiles.values()) this.#dropProjectile(entry);
     for (const id of [...this.#camps.keys()]) this.removeCamp(id);
+    for (const id of [...this.#rations.keys()]) this.removeRation(id);
+    for (const entry of this.#powerBuffs.values()) disposeObject(entry.object);
     disposeObject(this.#root);
     this.#effects.length = 0;
     this.#loot.clear();
     this.#projectiles.clear();
     this.#eventMarkers.clear();
     this.#camps.clear();
+    this.#rations.clear();
+    this.#powerBuffs.clear();
     this.#questMarkers.clear();
     this.#hiddenQuestSites.clear();
     this.#merchant = null;

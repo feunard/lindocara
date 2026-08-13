@@ -107,6 +107,18 @@ export interface WorldEventColliderView {
   harvest?: { collider: readonly [number, number, number, number] | null };
 }
 
+export interface PeasantCampColliderView {
+  x: number;
+  z: number;
+}
+
+/** The solid part of the camp illustration, in tile units. The support radius is deliberately not
+ * used as collision: it describes healing/protection around the camp, not the tent and chest. */
+export const PEASANT_CAMP_COLLIDER = {
+  width: 80 / TILE_SIZE,
+  depth: 52 / TILE_SIZE,
+} as const;
+
 /**
  * Compose the static heightfield with the authoritative harvest footprints currently advertised
  * on the wire. The tuple remains in authored pixel coordinates for editor tooling; this is the one
@@ -115,6 +127,7 @@ export interface WorldEventColliderView {
 export function withWorldEventColliders(
   terrain: ZoneTerrain,
   events: readonly WorldEventColliderView[],
+  camps: readonly PeasantCampColliderView[] = [],
 ): ZoneTerrain {
   const colliders = createColliderIndex();
   for (const collider of terrain.colliders.all) colliders.add(collider);
@@ -127,6 +140,14 @@ export function withWorldEventColliders(
       z: tuple[1] / TILE_SIZE - half,
       w: tuple[2] / TILE_SIZE,
       h: tuple[3] / TILE_SIZE,
+    });
+  }
+  for (const camp of camps) {
+    colliders.add({
+      x: camp.x - PEASANT_CAMP_COLLIDER.width / 2,
+      z: camp.z - PEASANT_CAMP_COLLIDER.depth / 2,
+      w: PEASANT_CAMP_COLLIDER.width,
+      h: PEASANT_CAMP_COLLIDER.depth,
     });
   }
   return { ...terrain, colliders };

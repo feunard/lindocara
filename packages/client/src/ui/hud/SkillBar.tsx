@@ -4,6 +4,7 @@ import {
   PARTY_MATERIAL_TYPES,
   spendPartyMaterials,
 } from "@lindocara/engine/party-harvest-state.js";
+import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
 import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
@@ -136,6 +137,7 @@ export function SkillBar() {
   const peasantPlans =
     self.class === "peasant"
       ? {
+          ration: { cost: PEASANT_SUPPORT_SKILLS[3].cost },
           camp: peasantConstructionTalentPlan(selfState?.talents?.selected ?? []).support,
           bomb: peasantBombTalentPlan(selfState?.talents?.selected ?? []).support,
         }
@@ -195,7 +197,13 @@ export function SkillBar() {
         const unavailable = !unlocked || !enabledOnMap || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
         const support =
-          skill.slot === 4 ? peasantPlans?.camp : skill.slot === 5 ? peasantPlans?.bomb : null;
+          skill.slot === 3
+            ? peasantPlans?.ration
+            : skill.slot === 4
+              ? peasantPlans?.camp
+              : skill.slot === 5
+                ? peasantPlans?.bomb
+                : null;
         const affordable =
           support == null ||
           (materials !== undefined && spendPartyMaterials(materials, support.cost) !== null);

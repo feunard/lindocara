@@ -25,6 +25,7 @@ import type {
   MonsterSpecialImpact,
   PeasantBombImpactVisual,
   PeasantCampVisual,
+  PeasantRationVisual,
   PlayerSnapshot,
   PriestLumenPortalVisual,
   PriestLumenTrailVisual,
@@ -455,7 +456,11 @@ const NATIVE_TREE_ASSET_IDS = new Set([
   "resource.terrain-resources-wood-trees.tree1",
   "resource.terrain-resources-wood-trees.tree2",
   "resource.terrain-resources-wood-trees.tree3",
+  "resource.terrain-resources-wood-trees.tree4",
 ]);
+const UPDATE_TREE_ASSET_IDS: ReadonlySet<string> = new Set(
+  [1, 2, 3, 4, 5, 6].map((index) => `resource.resources-trees.tree-${index}`),
+);
 
 function snowTreeSpec(): StaticAssetSpec {
   return {
@@ -524,6 +529,34 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   }
   const definition = editorAsset(assetId);
   if (!definition) return null;
+  if (UPDATE_TREE_ASSET_IDS.has(assetId)) {
+    let url: string;
+    try {
+      url = tinySwordsSourceUrl(definition.sourcePath);
+    } catch {
+      return null;
+    }
+    return {
+      url,
+      // The source is a 4x3 grid: six tree frames occupy the first two rows and the stump sits in
+      // row three. Bind only the top two rows and stop at frame six so the two empty cells never
+      // flash. All six historical crop ids resolve to this canonical animation.
+      cols: 4,
+      rows: 2,
+      animationFrameCount: 6,
+      animationDurationMs: 960,
+      height: 3,
+      aspect: 1,
+      foot: definition.footOffset / 192,
+      renderLayer: "canopy",
+      uvRect: {
+        offsetX: 0,
+        offsetY: 1 / 3,
+        repeatX: 1,
+        repeatY: 2 / 3,
+      },
+    };
+  }
   const frame = definition.frame;
   const crop = definition.editor.sourceRect;
   const sourceExtent = crop
@@ -544,7 +577,7 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   };
   if (framePx.width <= 0 || framePx.height <= 0) return null;
   const count = Math.max(1, frame?.count ?? 1);
-  const nativeTreeStrip = /\/Trees\/Tree[1-3]\.png$/.test(
+  const nativeTreeStrip = /\/Trees\/Tree[1-4]\.png$/.test(
     definition.sourcePath.replaceAll("\\", "/"),
   );
   const alongX = (frame?.axis ?? "x") === "x";
@@ -1054,6 +1087,21 @@ export class Hd2dRenderer implements RendererLike {
     this.#content?.update(context.now);
     this.#eventContent?.update(context.now);
     this.#visuals?.syncLocalHero(context.self ?? null, context.movement ?? null, context.now);
+    this.#visuals?.syncPowerBuffs(
+      sample.players.flatMap((player) =>
+        player.powerBuffUntil === undefined
+          ? []
+          : [
+              {
+                id: player.id,
+                x: player.x,
+                z: player.z,
+                endsAt: this.#localDeadline(player.powerBuffUntil, 6_000),
+              },
+            ],
+      ),
+      context.now,
+    );
     this.#visuals?.sync(sample, context.now);
 
     // The camera follows the local player, and only it: every other actor is drawn where the
@@ -1560,15 +1608,22 @@ export class Hd2dRenderer implements RendererLike {
       if (animation.talented) {
         const flourish = art.accent ?? art.zone ?? art.impact;
         if (flourish) {
+          const restrainedPeasant = position.playerClass === "peasant";
           this.#visuals.playSheet(
-            { ...flourish, scale: (flourish.scale ?? 1) * 1.28 },
+            {
+              ...flourish,
+              scale: (flourish.scale ?? 1) * (restrainedPeasant ? 1.08 : 1.28),
+            },
             position.x,
             position.z,
             flourish.durationMs,
             timeline.impactAt,
           );
           this.#visuals.playSheet(
-            { ...flourish, scale: (flourish.scale ?? 1) * 0.72 },
+            {
+              ...flourish,
+              scale: (flourish.scale ?? 1) * (restrainedPeasant ? 0.78 : 0.72),
+            },
             position.x,
             position.z,
             flourish.durationMs * 0.82,
@@ -1576,7 +1631,10 @@ export class Hd2dRenderer implements RendererLike {
           );
           if (animation.evolved) {
             this.#visuals.playSheet(
-              { ...flourish, scale: (flourish.scale ?? 1) * 1.68 },
+              {
+                ...flourish,
+                scale: (flourish.scale ?? 1) * (restrainedPeasant ? 1.32 : 1.68),
+              },
               position.x,
               position.z,
               flourish.durationMs * 1.18,
@@ -1712,10 +1770,10 @@ export class Hd2dRenderer implements RendererLike {
     const art = combatArt("peasant", "homemade_bomb", "ember").impact;
     if (art) {
       this.#visuals?.playSheet(
-        { ...art, scale: (art.scale ?? 1) * 1.65 },
+        { ...art, scale: (art.scale ?? 1) * 1.05 },
         impact.x,
         impact.z,
-        art.durationMs * 1.2,
+        art.durationMs * 1.05,
       );
     }
     const self = this.#selfId ? this.#position(this.#selfId) : null;
@@ -1830,6 +1888,10 @@ export class Hd2dRenderer implements RendererLike {
     this.#visuals?.removeCamp(id);
   }
 
+  removePeasantRation(id: string): void {
+    this.#visuals?.removeRation(id);
+  }
+
   /** Exact sprite picking, matching the lab: only an intact sheep billboard can answer. */
   pickSheep(clientX: number, clientY: number): string | null {
     if (!this.#scene || !this.#actors) return null;
@@ -1934,6 +1996,16 @@ export class Hd2dRenderer implements RendererLike {
     const color = this.#position(camp.actorId)?.primaryColor ?? "moss";
     const zone = combatArt("peasant", "makeshift_camp", color).zone;
     if (zone) this.#visuals?.playSheet(zone, camp.x, camp.z);
+  }
+
+  showPeasantRation(ration: PeasantRationVisual): void {
+    this.#visuals?.showRation(
+      ration,
+      this.#localDeadline(ration.launchedAt, 0),
+      this.#localDeadline(ration.landsAt, 900),
+      this.#localDeadline(ration.fadeAt, 30_900),
+      this.#localDeadline(ration.expiresAt, 31_900),
+    );
   }
 
   showWorldEvent(

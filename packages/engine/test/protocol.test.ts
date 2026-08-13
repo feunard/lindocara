@@ -359,6 +359,7 @@ describe("server protocol", () => {
       class: "peasant",
       equipment: { mainHand: "worn_toolkit", offHand: null },
       peasantCarry: { kind: "wood", until: 5_000 },
+      powerBuffUntil: 8_000,
     };
     expect(
       parseServerMessage(JSON.stringify({ ...welcomeBase, world, players: [peasant] })),
@@ -369,6 +370,7 @@ describe("server protocol", () => {
           class: "peasant",
           equipment: { mainHand: "worn_toolkit", offHand: null },
           peasantCarry: { kind: "wood", until: 5_000 },
+          powerBuffUntil: 8_000,
         },
       ],
     });
@@ -379,6 +381,11 @@ describe("server protocol", () => {
           world,
           players: [{ ...peasant, peasantCarry: { kind: "stone", until: 5_000 } }],
         }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, players: [{ ...peasant, powerBuffUntil: -1 }] }),
       ),
     ).toBeNull();
     expect(
@@ -1286,6 +1293,28 @@ describe("Peasant support visual messages", () => {
       t: "peasant.camp_removed",
       id: camp.id,
     });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "peasant.ration",
+          id: "ration-1",
+          actorId: "peasant-1",
+          originX: 0,
+          originY: 0.4,
+          originZ: 0,
+          x: 12,
+          y: 0.2,
+          z: -8,
+          launchedAt: 1_000,
+          landsAt: 1_900,
+          fadeAt: 31_900,
+          expiresAt: 32_900,
+        }),
+      ),
+    ).toMatchObject({ t: "peasant.ration", id: "ration-1", landsAt: 1_900 });
+    expect(
+      parseServerMessage(JSON.stringify({ t: "peasant.ration_removed", id: "ration-1" })),
+    ).toEqual({ t: "peasant.ration_removed", id: "ration-1" });
     expect(
       parseServerMessage(
         JSON.stringify({ t: "peasant.camp_bank", id: camp.id, gold: 120, opened: true }),
