@@ -1,3 +1,4 @@
+import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import {
   MONSTER_SPECIAL_TECHNIQUES,
   MONSTER_SPECIES_KIND,
@@ -20,6 +21,7 @@ import {
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import {
   allUnitSheets,
+  consumableIconSource,
   PEASANT_ABILITY_SHEETS,
   PEASANT_CARRY_PRIORITY,
   PEASANT_SKILL_IDS,
@@ -35,6 +37,12 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("Tiny Swords directional combat art", () => {
+  it("gives every quick item its own generated consumable icon", () => {
+    const sources = CONSUMABLE_IDS.map(consumableIconSource);
+    expect(new Set(sources)).toHaveLength(CONSUMABLE_IDS.length);
+    for (const source of sources) expect(source).toMatch(/assets\/consumables\/.+\.png$/);
+  });
+
   it("uses dedicated caster sheets for all five playable classes", () => {
     expect(combatArt("warrior", "cleave", "azure").caster).toMatchObject({
       source: expect.stringContaining("units/blue/warrior/Warrior_Attack1.png"),

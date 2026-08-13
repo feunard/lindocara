@@ -236,17 +236,19 @@ export const TINY_SWORDS_SKILL_ICONS = Array.from(
   (_, index) => `${TINY_SWORDS_ROOT}/ui/Icon_${String(index + 1).padStart(2, "0")}.png`,
 );
 
-const CONSUMABLE_ICON_INDEX: Readonly<Record<ConsumableId, number>> = {
-  health_potion: 10,
-  mana_potion: 3,
-  damage_elixir: 5,
-  oblivion_draught: 12,
-  invisibility_potion: 8,
-  resurrection_potion: 4,
+const CONSUMABLE_ICON_SOURCE: Readonly<Record<ConsumableId, string>> = {
+  health_potion: new URL("./assets/consumables/health-potion.png", import.meta.url).href,
+  mana_potion: new URL("./assets/consumables/mana-potion.png", import.meta.url).href,
+  damage_elixir: new URL("./assets/consumables/damage-elixir.png", import.meta.url).href,
+  oblivion_draught: new URL("./assets/consumables/oblivion-draught.png", import.meta.url).href,
+  invisibility_potion: new URL("./assets/consumables/invisibility-potion.png", import.meta.url)
+    .href,
+  resurrection_potion: new URL("./assets/consumables/resurrection-potion.png", import.meta.url)
+    .href,
 };
 
 export function consumableIconSource(item: ConsumableId): string {
-  return `${TINY_SWORDS_ROOT}/ui/Icon_${String(CONSUMABLE_ICON_INDEX[item]).padStart(2, "0")}.png`;
+  return CONSUMABLE_ICON_SOURCE[item];
 }
 
 export const TINY_SWORDS_HUD = {

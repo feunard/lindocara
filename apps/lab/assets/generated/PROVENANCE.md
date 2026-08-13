@@ -30,6 +30,26 @@ Le modèle rend une illustration lissée à 768², pas du pixel art : c'est la
 réduction en moyenne qui fabrique les pixels. Sans elle, le coffre serait dix
 fois plus détaillé que les arbres qui l'entourent.
 
+## Icônes de consommables (2026-08-14)
+
+Générées localement en un lot reproductible par `python studio/studio.py sprite --manifest
+studio/pixel-art/consumable-icons.json` avec `black-forest-labs/FLUX.2-klein-4B`, le LoRA Tiny
+Swords `studio/models/tinyswords-v2-4000.safetensors` à l'échelle 1,4, quatre étapes et le thème
+`T1NYSW0RDS`. Les sources 768×768 sont conservées dans `consumables/*-raw.png`.
+
+| Sortie | Graine | Invite spécifique |
+| --- | ---: | --- |
+| `health-potion-raw.png` | 3101 | one squat heartroot health tonic bottle, red healing liquid, heart-shaped root wrapped around the cork, readable fantasy inventory icon, centered isolated object, no text, no frame |
+| `mana-potion-raw.png` | 3102 | one slender lumen mana phial, bright blue magical liquid and a small crescent crystal stopper, readable fantasy inventory icon, centered isolated object, no text, no frame |
+| `damage-elixir-raw.png` | 3103 | one sturdy giantblood damage elixir flask, thick crimson liquid, broad shoulders and a tiny giant fang tied to the neck, readable fantasy inventory icon, centered isolated object, no text, no frame |
+| `oblivion-draught-raw.png` | 3104 | one dark oblivion draught bottle, smoky violet liquid spiralling inward beneath a black wax stopper, readable fantasy inventory icon, centered isolated object, no text, no frame |
+| `invisibility-potion-raw.png` | 3105 | one delicate veil invisibility tincture bottle, pale turquoise liquid fading to transparent with a wispy cloth ribbon, readable fantasy inventory icon, centered isolated object, no text, no frame |
+| `resurrection-potion-raw.png` | 3106 | one phoenix resurrection cordial bottle, glowing orange-gold liquid, flame-shaped stopper and two tiny wing ornaments, readable fantasy inventory icon, centered isolated object, no text, no frame |
+
+Les icônes jouables sous `packages/renderer/src/assets/consumables/` passent ensuite par
+`python apps/lab/scripts/sprite.py INPUT OUTPUT 64 16` : détourage du fond, recadrage, réduction
+BOX à 64 px de haut, alpha binaire, palette de 16 couleurs et contour Tiny Swords.
+
 ## campfire-base.png
 
 Graine **43**. Invite :
