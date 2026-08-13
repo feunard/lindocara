@@ -183,6 +183,13 @@
   pointer-events: auto;
 }
 
+/* Each ability is an independent transformed HUD widget (and therefore its own stacking context).
+   Lift the whole hovered/focused widget so its tooltip cannot be painted below sibling abilities,
+   resource panels, the minimap, or the chat. */
+.hud-layout-widget:has(.skill-slot:hover, .skill-slot:focus-visible) {
+  z-index: 100;
+}
+
 .hud-layout-widget[data-hud-editing="true"] {
   z-index: 72;
   transition: none;
