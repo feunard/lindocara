@@ -8,7 +8,9 @@ import {
   DEFAULT_ADVENTURE_AUDIO,
   MUSIC_PROFILE_FIELDS,
 } from "@lindocara/engine/audio-catalog.js";
+import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
+import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MonsterImpactSound } from "@lindocara/renderer/combat-art.js";
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
@@ -16,6 +18,7 @@ import {
   COMBAT_SAMPLES,
   type CombatSampleKey,
   castSampleForSkill,
+  consumeSample,
   impactSampleForClass,
   monsterImpactSample,
   type SampleSpec,
@@ -255,10 +258,14 @@ export class GameSound {
     this.#unlocked = false;
   }
 
-  skillCast(skillId: string): void {
+  skillCast(skillId: string, peasantResource?: HarvestResourceKind): void {
     this.#lastCast = { skillId, at: performance.now() };
-    const key = castSampleForSkill(skillId);
+    const key = castSampleForSkill(skillId, peasantResource);
     if (key) void this.#playKey(key);
+  }
+
+  consume(item: ConsumableId): void {
+    void this.#playKey(consumeSample(item));
   }
 
   combatImpact(playerClass: PlayerClass): void {

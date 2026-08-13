@@ -1,6 +1,6 @@
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
-import type { ConsumableId } from "@lindocara/engine/consumables.js";
+import { type ConsumableId, isConsumableId } from "@lindocara/engine/consumables.js";
 import { isSpirit } from "@lindocara/engine/death.js";
 import {
   INTERACTION_RANGE,
@@ -620,7 +620,7 @@ async function startGameIdentity(
     onAnimation: (animation: CombatAnimation) => {
       renderer.playCombatAnimation(animation);
       if (animation.actorKind === "monster") sound.monsterAttack();
-      else if (animation.skillId) sound.skillCast(animation.skillId);
+      else if (animation.skillId) sound.skillCast(animation.skillId, animation.peasantResource);
     },
     onMonsterSpecialImpact: (impact: MonsterSpecialImpact) => {
       const impactSound = renderer.playMonsterSpecialImpact(impact);
@@ -769,8 +769,11 @@ async function startGameIdentity(
         case "authored_quest.reward":
         case "quest.accepted":
         case "quest.site_harvested":
-        case "item.used":
           sound.loot();
+          break;
+        case "item.used":
+          if (isConsumableId(params?.item)) sound.consume(params.item);
+          else sound.loot();
           break;
         case "heal.received":
           sound.healReceived();
