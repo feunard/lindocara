@@ -121,6 +121,7 @@ describe("Hd2dVisualLayer authored event markers", () => {
       corpses: [],
       events: [nativeHarvest],
     };
+    const { harvest: _harvest, ...nativeEventWithoutHarvest } = nativeHarvest;
 
     layer.sync(sample, 0);
     expect(layer.diagnostics().eventMarkers).toBe(0);
@@ -141,7 +142,7 @@ describe("Hd2dVisualLayer authored event markers", () => {
     layer.sync(
       {
         ...sample,
-        events: [{ ...nativeHarvest, id: "marker", presentation: "marker", harvest: undefined }],
+        events: [{ ...nativeEventWithoutHarvest, id: "marker", presentation: "marker" }],
       },
       2,
     );

@@ -332,7 +332,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.makeshift_camp.stockade",
         expected: {
-          cost: { wood: 3, stone: 2, meat: 2 },
+          cost: { wood: 1, stone: 1, meat: 1 },
           radius: t(96),
           durationMs: 61_250,
           protectionRatio: 0.27,
@@ -342,7 +342,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.makeshift_camp.campfire",
         expected: {
-          cost: { wood: 4, stone: 2, meat: 2 },
+          cost: { wood: 1, stone: 1, meat: 1 },
           radius: t(120),
           durationMs: 43_750,
           protectionRatio: 0.2,
@@ -352,7 +352,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.makeshift_camp.complete_encampment",
         expected: {
-          cost: { wood: 2, stone: 1, meat: 1 },
+          cost: { wood: 1, stone: 1, meat: 1 },
           radius: t(144),
           durationMs: 80_000,
           protectionRatio: 0.22,
@@ -588,7 +588,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.homemade_bomb.shrapnel",
         expected: {
-          cost: { iron: 2, stone: 2 },
+          cost: { iron: 1, stone: 1 },
           power: 85,
           radius: t(121),
           fragments: 4,
@@ -601,7 +601,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.homemade_bomb.concussion",
         expected: {
-          cost: { iron: 2, stone: 2 },
+          cost: { iron: 1, stone: 1 },
           power: 77,
           radius: t(132),
           fragments: 0,

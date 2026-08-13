@@ -34,7 +34,7 @@ function authored(): MapData {
         row: 1,
         offsetX: 1,
         offsetY: 2,
-        assetId: "decoration.terrain-decorations-rocks.rock2",
+        assetId: "building.buildings-black-buildings.house1",
       },
     ],
     spawn: { col: 0, row: 0 },
@@ -78,7 +78,7 @@ describe("compileAuthoredMap", () => {
     expect(compiled.spawns).toEqual([{ name: "default", x: -1, z: -1 }]);
     expect(compiled.elements).toEqual([
       {
-        assetId: "decoration.terrain-decorations-rocks.rock2",
+        assetId: "building.buildings-black-buildings.house1",
         x: 0.25,
         z: 1,
       },

@@ -50,7 +50,7 @@ describe("native harvest scenery", () => {
           row: 1,
           offsetX: 0,
           offsetY: 0,
-          assetId: "decoration.terrain-decorations-bushes.bush1",
+          assetId: "decoration.terrain-decorations-bushes.bushe1",
         },
       ]),
     ).toEqual([]);
