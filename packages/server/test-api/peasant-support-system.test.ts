@@ -16,6 +16,7 @@ import {
   createPeasantSupportRuntime,
   damageAfterPeasantCampProtection,
   isPeasantBombProjectile,
+  PEASANT_RATION_CATCH_DELAY_MS,
   peasantRationPositionAt,
   peasantSupportPlans,
   placePeasantCamp,
@@ -146,6 +147,7 @@ describe("authoritative Peasant support", () => {
   it("spends three meat portions and launches three consumable rations within twenty metres", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");
+    const ally = player("ally");
     const world = terrain();
     const { ration } = supportSkills();
     const plan = supportPlans().ration;
@@ -185,21 +187,40 @@ describe("authoritative Peasant support", () => {
 
     const consumed = vi.fn();
     const removed = vi.fn();
+    advancePeasantRations({
+      runtime,
+      players: [owner],
+      now: runtime.rations[0]!.launchedAt + PEASANT_RATION_CATCH_DELAY_MS,
+      consumed,
+      removed,
+    });
+    expect(consumed).not.toHaveBeenCalled();
+    expect(runtime.rations).toHaveLength(3);
+    advancePeasantRations({
+      runtime,
+      players: [owner],
+      now: 2_500,
+      consumed,
+      removed,
+    });
+    expect(consumed).not.toHaveBeenCalled();
+    expect(runtime.rations).toHaveLength(3);
+
     const airborne = runtime.rations[0];
     if (!airborne) throw new Error("airborne ration missing");
     const catchAt = 2_700;
     const catchPosition = peasantRationPositionAt(airborne, catchAt);
-    owner.x = catchPosition.x;
-    owner.y = catchPosition.y - 0.75;
-    owner.z = catchPosition.z;
+    ally.x = catchPosition.x;
+    ally.y = catchPosition.y - 0.75;
+    ally.z = catchPosition.z;
     advancePeasantRations({
       runtime,
-      players: [owner],
+      players: [owner, ally],
       now: catchAt,
       consumed,
       removed,
     });
-    expect(consumed).toHaveBeenCalledWith(airborne, owner);
+    expect(consumed).toHaveBeenCalledWith(airborne, ally);
     expect(removed).toHaveBeenCalledWith(airborne);
     expect(runtime.rations).toHaveLength(2);
 
@@ -208,6 +229,9 @@ describe("authoritative Peasant support", () => {
     owner.x = missed.x + 5;
     owner.y = missed.y;
     owner.z = missed.z + 5;
+    ally.x = missed.x + 5;
+    ally.y = missed.y;
+    ally.z = missed.z + 5;
     advancePeasantRations({
       runtime,
       players: [owner],

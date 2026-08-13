@@ -57,8 +57,8 @@ export const PEASANT_CAMP_MANA_RATIO = 0.6;
 export const PEASANT_CAMP_GOLD_LIMIT = 999_999_999;
 export const PEASANT_BOMB_SPEED = 520 / TILE_SIZE;
 export const PEASANT_RATION_PICKUP_RADIUS = 22 / TILE_SIZE;
-/** Prevents the caster from immediately re-collecting a ration at the catapult origin. */
-export const PEASANT_RATION_CATCH_DELAY_MS = 120;
+/** Lets the volley visibly clear the caster before an overlapping ally may catch it. */
+export const PEASANT_RATION_CATCH_DELAY_MS = 350;
 /** The ration may touch any point from the hero's feet to just above their upper body. */
 export const PEASANT_RATION_CATCH_HEIGHT = 1.55;
 export const PEASANT_RATION_CATCH_MARGIN = 0.2;
@@ -501,10 +501,10 @@ function rationLanding(
 ): WorldPosition {
   const baseAngle = rationAngleSeed(actionId) + (index * Math.PI * 2) / Math.max(1, total);
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    // Keep the three default landings inside the visible play area (roughly 5, 8 and 11 metres)
-    // while respecting the authoritative 20 m cap. The old fixed 86% ring threw every ration
-    // almost off-screen in 900 ms, making a successful cast look completely empty.
-    const preferredRing = 0.24 + (index % 3) * 0.16;
+    // Keep the three default landings inside the visible play area (roughly 3.6, 5 and 6.4 metres)
+    // while respecting the authoritative 20 m cap. Wider rings made the outer ration leave the
+    // camera before its short flight had visually established the three-piece volley.
+    const preferredRing = 0.18 + (index % 3) * 0.07;
     const ring = Math.max(0.12, preferredRing - Math.floor(attempt / 4) * 0.08);
     const angle = baseAngle + (attempt % 4) * 0.41;
     const x = owner.x + Math.cos(angle) * radius * ring;
@@ -540,7 +540,9 @@ export function launchPeasantRations(
       terrain,
     );
     const ration: PeasantRationRuntime = {
-      id: `${action.id}:ration:${index}`,
+      // Wire ids deliberately reject punctuation such as `:`. Keep this deterministic replay id
+      // inside the protocol's `[A-Za-z0-9_-]` alphabet so the client does not discard the ration.
+      id: `${action.id}-ration-${index}`,
       ownerId: owner.id,
       ownerPartyId: owner.partyId,
       originX: owner.x,
@@ -900,6 +902,10 @@ export function advancePeasantRations(options: {
         candidate.authorized &&
         candidate.life === "alive" &&
         candidate.partyId === ration.ownerPartyId &&
+        // The volley originates inside the caster's body. The caster may collect their own ration
+        // once it lands, but only allies intercept it in flight; otherwise ordinary server ticks
+        // vacuum all three pieces back into an idle caster before the launch is readable.
+        (candidate.id !== ration.ownerId || options.now >= ration.landsAt) &&
         groundDistance(candidate, position) <= BODY_RADIUS + PEASANT_RATION_PICKUP_RADIUS &&
         position.y >= candidate.y - PEASANT_RATION_CATCH_MARGIN &&
         position.y <= candidate.y + PEASANT_RATION_CATCH_HEIGHT + PEASANT_RATION_CATCH_MARGIN,

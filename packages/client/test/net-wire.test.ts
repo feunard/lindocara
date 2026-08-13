@@ -305,7 +305,9 @@ describe("WorldClient on the alepha wire", () => {
     socket?.message({ t: "peasant.camp_removed", id: camp.id });
     const ration = {
       t: "peasant.ration" as const,
-      id: "ration-1",
+      // Match the deterministic id emitted by `launchPeasantRations`; its former `:ration:`
+      // separators were rejected by `isWireId`, so all three otherwise-valid frames vanished.
+      id: "12543353-2459-4507-ad8d-fba7f263467b-ration-0",
       actorId: "hero-1",
       originX: 0,
       originY: 0.4,
