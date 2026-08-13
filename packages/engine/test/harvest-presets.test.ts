@@ -12,7 +12,7 @@ import {
 import { editorAsset } from "../src/tiny-swords-catalog.js";
 
 describe("semantic harvest presets", () => {
-  it("defines one valid explicit profile and two valid appearances for every stable preset", () => {
+  it("defines one valid explicit profile and valid catalogue appearances for every stable preset", () => {
     expect(new Set(HARVEST_PRESET_IDS).size).toBe(HARVEST_PRESET_IDS.length);
     expect(HARVEST_PRESETS.map((preset) => preset.id)).toEqual(HARVEST_PRESET_IDS);
     for (const preset of HARVEST_PRESETS) {
@@ -79,36 +79,36 @@ describe("semantic harvest presets", () => {
         id: "tree_tall",
         intact: "resource.terrain-resources-wood-trees.tree2",
         exhausted: "resource.terrain-resources-wood-trees.stump-2",
-        yieldAmount: 10,
+        yieldAmount: 3,
         hitsRequired: 4,
       },
       {
         id: "tree",
         intact: "resource.terrain-resources-wood-trees.tree1",
         exhausted: "resource.terrain-resources-wood-trees.stump-1",
-        yieldAmount: 8,
-        hitsRequired: 3,
+        yieldAmount: 3,
+        hitsRequired: 4,
       },
       {
         id: "tree_medium",
         intact: "resource.terrain-resources-wood-trees.tree3",
         exhausted: "resource.terrain-resources-wood-trees.stump-3",
-        yieldAmount: 6,
+        yieldAmount: 2,
         hitsRequired: 3,
       },
       {
         id: "tree_small",
         intact: "resource.terrain-resources-wood-trees.tree4",
         exhausted: "resource.terrain-resources-wood-trees.stump-4",
-        yieldAmount: 4,
+        yieldAmount: 1,
         hitsRequired: 2,
       },
       ...([1, 2, 3, 4, 5, 6] as const).map((variant) => ({
         id: `tree_update_${variant}`,
         intact: `resource.resources-trees.tree-${variant}`,
         exhausted: "resource.resources-trees.stump",
-        yieldAmount: 7,
-        hitsRequired: 3,
+        yieldAmount: 3,
+        hitsRequired: 4,
       })),
     ]);
   });
@@ -116,11 +116,11 @@ describe("semantic harvest presets", () => {
   it("maps the small and large gold presets to the correctly-sized appearances", () => {
     expect(harvestPreset("gold_small")).toMatchObject({
       intactAssetId: "resource.terrain-resources-gold-gold-resource.gold-resource",
-      profile: { goldValue: 25, hitsRequired: 2 },
+      profile: { goldValue: 1, hitsRequired: 1 },
     });
     expect(harvestPreset("gold_large")).toMatchObject({
       intactAssetId: "resource.terrain-resources-gold-gold-stones.gold-stone-6",
-      profile: { goldValue: 100, hitsRequired: 5 },
+      profile: { goldValue: 3, hitsRequired: 3 },
     });
   });
 
@@ -148,7 +148,18 @@ describe("semantic harvest presets", () => {
       tool: "knife",
       actorBehavior: "wander",
     });
-    expect(isNativeHarvestAsset("decoration.terrain-decorations-rocks.rock2")).toBe(false);
+    expect(isNativeHarvestAsset("decoration.terrain-decorations-rocks.rock2")).toBe(true);
+  });
+
+  it("caps every native harvest reward at three units and keeps sheep at one meat", () => {
+    for (const preset of HARVEST_PRESETS) {
+      const reward =
+        preset.profile.resource === "gold" ? preset.profile.goldValue : preset.profile.yieldAmount;
+      expect(reward).toBeGreaterThanOrEqual(1);
+      expect(reward).toBeLessThanOrEqual(3);
+    }
+    expect(harvestPreset("sheep").profile.yieldAmount).toBe(1);
+    expect(harvestPreset("happy_sheep").profile.yieldAmount).toBe(1);
   });
 
   it("accepts only central stable ids", () => {

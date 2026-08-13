@@ -40,6 +40,26 @@ describe("editor asset catalogue", () => {
     expect(editorAsset("decoration.terrain-decorations-bushes.bushe2")).not.toBeNull();
   });
 
+  it("labels native harvest scenery with its exact resource and reward", () => {
+    setLocale("en");
+    render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);
+    const search = screen.getByRole("searchbox", { name: "Search placeable assets" });
+
+    fireEvent.change(search, { target: { value: "rock3" } });
+    const ironRock = screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId === "decoration.terrain-decorations-rocks.rock3");
+    expect(ironRock).toBeDefined();
+    expect(within(ironRock as HTMLElement).getByText("Iron +2")).toBeVisible();
+
+    fireEvent.change(search, { target: { value: "deco 04" } });
+    const smallStone = screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId === "decoration.deco.04");
+    expect(smallStone).toBeDefined();
+    expect(within(smallStone as HTMLElement).getByText("Stone +1")).toBeVisible();
+  });
+
   it("offers every actor model to free NPCs, including native colours, workers and the Rogue thief", () => {
     setLocale("en");
     render(<CatalogueAssetPicker usage="character" value={null} onSelectAsset={() => {}} />);

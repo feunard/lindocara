@@ -1,5 +1,6 @@
 import { Input } from "@alepha/ui/components/ui/input";
 import { t, useLocale } from "@lindocara/client/i18n.js";
+import { nativeHarvestPresetForAsset } from "@lindocara/engine/harvest-presets.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import {
   EDITOR_ASSETS,
@@ -280,6 +281,12 @@ function AssetChoice({
   disabled: boolean;
 }) {
   const collides = asset.editor.collider !== undefined;
+  const harvestPreset = nativeHarvestPresetForAsset(asset.id as EditorAssetId);
+  const harvestAmount = harvestPreset
+    ? harvestPreset.profile.resource === "gold"
+      ? harvestPreset.profile.goldValue
+      : harvestPreset.profile.yieldAmount
+    : null;
   const displayName = assetDisplayName(asset);
   const terrainNames = asset.editor.allowedTerrain.map((terrain: EditorTerrain) =>
     t(`editor.palette.terrain.${terrain}` as MessageKey),
@@ -305,6 +312,14 @@ function AssetChoice({
       <small className="w-full truncate text-[9.5px] text-zinc-400">
         {terrainNames.join(" · ")}
       </small>
+      {harvestPreset && harvestAmount !== null && (
+        <span
+          data-harvest-resource={harvestPreset.profile.resource}
+          className="text-[9px] font-semibold text-emerald-700"
+        >
+          {t(`editor.harvest.resource.${harvestPreset.profile.resource}`)} +{harvestAmount}
+        </span>
+      )}
       {collides && (
         <span className="text-[9px] font-medium text-amber-600">
           {t("editor.palette.collision")}

@@ -1,4 +1,9 @@
-import { cloneHarvestProfile, type HarvestProfile } from "./harvest.js";
+import {
+  cloneHarvestProfile,
+  type HarvestProfile,
+  type HarvestResourceKind,
+  type HarvestTool,
+} from "./harvest.js";
 import type { EditorAssetId } from "./tiny-swords-catalog.js";
 
 /**
@@ -19,11 +24,41 @@ export const HARVEST_PRESET_IDS = [
   "tree_update_4",
   "tree_update_5",
   "tree_update_6",
+  "wood_stump_1",
+  "wood_stump_2",
+  "wood_stump_3",
+  "wood_stump_4",
+  "wood_update_stump",
+  "wood_cache",
+  "wood_update_cache",
+  "wood_update_cache_noshadow",
   "stone_outcrop",
+  "stone_rock_2",
   "iron_outcrop",
+  "iron_rock_4",
+  "stone_deco_small",
+  "stone_deco_medium",
+  "stone_deco_large",
+  "stone_water_free_1",
+  "stone_water_free_2",
+  "iron_water_free_3",
+  "iron_water_free_4",
+  "stone_water_update_1",
+  "stone_water_update_2",
+  "iron_water_update_3",
+  "iron_water_update_4",
   "gold_small",
+  "gold_stone_1",
+  "gold_stone_2",
+  "gold_stone_3",
+  "gold_stone_4",
+  "gold_stone_5",
   "gold_large",
+  "gold_update_cache",
+  "gold_update_cache_noshadow",
   "meat_cache",
+  "meat_update_cache",
+  "meat_update_cache_noshadow",
   "sheep",
   "happy_sheep",
 ] as const;
@@ -41,237 +76,104 @@ const SMALL_GOLD_ASSET_ID: EditorAssetId =
 const LARGE_GOLD_ASSET_ID: EditorAssetId =
   "resource.terrain-resources-gold-gold-stones.gold-stone-6";
 
-export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
-  {
-    id: "tree_tall",
-    intactAssetId: "resource.terrain-resources-wood-trees.tree2",
+type ResourceSize = 1 | 2 | 3;
+
+const TOOL_BY_RESOURCE: Readonly<Record<HarvestResourceKind, HarvestTool>> = {
+  wood: "axe",
+  stone: "pickaxe",
+  iron: "pickaxe",
+  gold: "pickaxe",
+  meat: "knife",
+};
+
+const RESOURCE_COLLISION = {
+  1: { offsetX: -14, offsetY: -12, width: 28, height: 12 },
+  2: { offsetX: -20, offsetY: -17, width: 40, height: 17 },
+  3: { offsetX: -26, offsetY: -22, width: 52, height: 22 },
+} as const;
+
+function staticResourcePreset(
+  id: HarvestPresetId,
+  intactAssetId: EditorAssetId,
+  resource: HarvestResourceKind,
+  size: ResourceSize,
+): HarvestPresetDefinition {
+  return {
+    id,
+    intactAssetId,
+    profile: {
+      resource,
+      tool: TOOL_BY_RESOURCE[resource],
+      yieldAmount: resource === "gold" ? 0 : size,
+      goldValue: resource === "gold" ? size : 0,
+      hitsRequired: size,
+      range: resource === "wood" ? 96 : resource === "meat" ? 80 : 88,
+      harvestDurationMs: 0,
+      exhaustedAssetId: null,
+      exhaustionBehavior: resource === "meat" ? "hide" : "fade",
+      respawn: "permanent",
+      respawnDelayMs: 0,
+      fadeDurationMs: 350 + size * 100,
+      collision: {
+        intact: { ...RESOURCE_COLLISION[size] },
+        depleted: null,
+      },
+    },
+  };
+}
+
+function treePreset(
+  id: HarvestPresetId,
+  intactAssetId: EditorAssetId,
+  exhaustedAssetId: EditorAssetId,
+  size: ResourceSize,
+): HarvestPresetDefinition {
+  const collision = RESOURCE_COLLISION[size];
+  return {
+    id,
+    intactAssetId,
     profile: {
       resource: "wood",
       tool: "axe",
-      yieldAmount: 10,
+      yieldAmount: size,
       goldValue: 0,
-      hitsRequired: 4,
+      hitsRequired: size + 1,
       range: 96,
       harvestDurationMs: 0,
-      exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-2",
+      exhaustedAssetId,
       exhaustionBehavior: "replace",
       respawn: "permanent",
       respawnDelayMs: 0,
       fadeDurationMs: 350,
       collision: {
-        intact: { offsetX: -30, offsetY: -44, width: 60, height: 44 },
-        depleted: { offsetX: -22, offsetY: -16, width: 44, height: 16 },
-      },
-    },
-  },
-  {
-    id: "tree",
-    intactAssetId: "resource.terrain-resources-wood-trees.tree1",
-    profile: {
-      resource: "wood",
-      tool: "axe",
-      yieldAmount: 8,
-      goldValue: 0,
-      hitsRequired: 3,
-      range: 96,
-      harvestDurationMs: 0,
-      exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-1",
-      exhaustionBehavior: "replace",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 350,
-      collision: {
-        intact: { offsetX: -26, offsetY: -36, width: 52, height: 36 },
-        depleted: { offsetX: -20, offsetY: -15, width: 40, height: 15 },
-      },
-    },
-  },
-  {
-    id: "tree_medium",
-    intactAssetId: "resource.terrain-resources-wood-trees.tree3",
-    profile: {
-      resource: "wood",
-      tool: "axe",
-      yieldAmount: 6,
-      goldValue: 0,
-      hitsRequired: 3,
-      range: 96,
-      harvestDurationMs: 0,
-      exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-3",
-      exhaustionBehavior: "replace",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 350,
-      collision: {
-        intact: { offsetX: -22, offsetY: -30, width: 44, height: 30 },
-        depleted: { offsetX: -18, offsetY: -14, width: 36, height: 14 },
-      },
-    },
-  },
-  {
-    id: "tree_small",
-    intactAssetId: "resource.terrain-resources-wood-trees.tree4",
-    profile: {
-      resource: "wood",
-      tool: "axe",
-      yieldAmount: 4,
-      goldValue: 0,
-      hitsRequired: 2,
-      range: 96,
-      harvestDurationMs: 0,
-      exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-4",
-      exhaustionBehavior: "replace",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 350,
-      collision: {
-        intact: { offsetX: -18, offsetY: -24, width: 36, height: 24 },
-        depleted: { offsetX: -15, offsetY: -12, width: 30, height: 12 },
-      },
-    },
-  },
-  ...([1, 2, 3, 4, 5, 6] as const).map(
-    (variant): HarvestPresetDefinition => ({
-      id: `tree_update_${variant}`,
-      intactAssetId: `resource.resources-trees.tree-${variant}`,
-      profile: {
-        resource: "wood",
-        tool: "axe",
-        yieldAmount: 7,
-        goldValue: 0,
-        hitsRequired: 3,
-        range: 96,
-        harvestDurationMs: 0,
-        exhaustedAssetId: "resource.resources-trees.stump",
-        exhaustionBehavior: "replace",
-        respawn: "permanent",
-        respawnDelayMs: 0,
-        fadeDurationMs: 350,
-        collision: {
-          intact: { offsetX: -25, offsetY: -35, width: 50, height: 35 },
-          depleted: { offsetX: -16, offsetY: -12, width: 32, height: 12 },
+        intact: {
+          offsetX: collision.offsetX,
+          offsetY: collision.offsetY - size * 4,
+          width: collision.width,
+          height: collision.height + size * 4,
         },
-      },
-    }),
-  ),
-  {
-    id: "stone_outcrop",
-    intactAssetId: "decoration.terrain-decorations-rocks.rock1",
-    profile: {
-      resource: "stone",
-      tool: "pickaxe",
-      yieldAmount: 6,
-      goldValue: 0,
-      hitsRequired: 4,
-      range: 88,
-      harvestDurationMs: 0,
-      exhaustedAssetId: null,
-      exhaustionBehavior: "fade",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 450,
-      collision: {
-        intact: { offsetX: -24, offsetY: -20, width: 48, height: 20 },
-        depleted: null,
+        depleted:
+          size === 1
+            ? { offsetX: -12, offsetY: -10, width: 24, height: 10 }
+            : { offsetX: -15, offsetY: -12, width: 30, height: 12 },
       },
     },
-  },
-  {
-    id: "iron_outcrop",
-    intactAssetId: "decoration.terrain-decorations-rocks.rock3",
-    profile: {
-      resource: "iron",
-      tool: "pickaxe",
-      yieldAmount: 4,
-      goldValue: 0,
-      hitsRequired: 5,
-      range: 88,
-      harvestDurationMs: 0,
-      exhaustedAssetId: null,
-      exhaustionBehavior: "fade",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 500,
-      collision: {
-        intact: { offsetX: -26, offsetY: -24, width: 52, height: 24 },
-        depleted: null,
-      },
-    },
-  },
-  {
-    id: "gold_small",
-    intactAssetId: SMALL_GOLD_ASSET_ID,
-    profile: {
-      resource: "gold",
-      tool: "pickaxe",
-      yieldAmount: 0,
-      goldValue: 25,
-      hitsRequired: 2,
-      range: 88,
-      harvestDurationMs: 0,
-      exhaustedAssetId: null,
-      exhaustionBehavior: "fade",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 500,
-      collision: {
-        intact: { offsetX: -18, offsetY: -18, width: 36, height: 18 },
-        depleted: null,
-      },
-    },
-  },
-  {
-    id: "gold_large",
-    intactAssetId: LARGE_GOLD_ASSET_ID,
-    profile: {
-      resource: "gold",
-      tool: "pickaxe",
-      yieldAmount: 0,
-      goldValue: 100,
-      hitsRequired: 5,
-      range: 88,
-      harvestDurationMs: 0,
-      exhaustedAssetId: null,
-      exhaustionBehavior: "fade",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 650,
-      collision: {
-        intact: { offsetX: -29, offsetY: -28, width: 58, height: 28 },
-        depleted: null,
-      },
-    },
-  },
-  {
-    id: "meat_cache",
-    intactAssetId: "resource.terrain-resources-meat-meat-resource.meat-resource",
+  };
+}
+
+function sheepPreset(
+  id: "sheep" | "happy_sheep",
+  intactAssetId: EditorAssetId,
+): HarvestPresetDefinition {
+  return {
+    id,
+    intactAssetId,
     profile: {
       resource: "meat",
       tool: "knife",
-      yieldAmount: 4,
+      yieldAmount: 1,
       goldValue: 0,
-      hitsRequired: 1,
-      range: 80,
-      harvestDurationMs: 0,
-      exhaustedAssetId: null,
-      exhaustionBehavior: "hide",
-      respawn: "permanent",
-      respawnDelayMs: 0,
-      fadeDurationMs: 350,
-      collision: {
-        intact: { offsetX: -20, offsetY: -16, width: 40, height: 16 },
-        depleted: null,
-      },
-    },
-  },
-  {
-    id: "sheep",
-    intactAssetId: "resource.terrain-resources-meat-sheep.sheep-idle",
-    profile: {
-      resource: "meat",
-      tool: "knife",
-      yieldAmount: 6,
-      goldValue: 0,
+      // Warcraft-style critter interaction stays four deliberate clicks; only its reward changes.
       hitsRequired: 4,
       range: 80,
       harvestDurationMs: 0,
@@ -286,30 +188,153 @@ export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
       },
       actorBehavior: "wander",
     },
-  },
-  {
-    id: "happy_sheep",
-    intactAssetId: "resource.resources-sheep.happysheep-idle",
-    profile: {
-      resource: "meat",
-      tool: "knife",
-      yieldAmount: 8,
-      goldValue: 0,
-      hitsRequired: 4,
-      range: 80,
-      harvestDurationMs: 0,
-      exhaustedAssetId: null,
-      exhaustionBehavior: "hide",
-      respawn: "timed",
-      respawnDelayMs: 300_000,
-      fadeDurationMs: 450,
-      collision: {
-        intact: { offsetX: -26, offsetY: -30, width: 52, height: 30 },
-        depleted: null,
-      },
-      actorBehavior: "wander",
-    },
-  },
+  };
+}
+
+export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
+  treePreset(
+    "tree_tall",
+    "resource.terrain-resources-wood-trees.tree2",
+    "resource.terrain-resources-wood-trees.stump-2",
+    3,
+  ),
+  treePreset(
+    "tree",
+    "resource.terrain-resources-wood-trees.tree1",
+    "resource.terrain-resources-wood-trees.stump-1",
+    3,
+  ),
+  treePreset(
+    "tree_medium",
+    "resource.terrain-resources-wood-trees.tree3",
+    "resource.terrain-resources-wood-trees.stump-3",
+    2,
+  ),
+  treePreset(
+    "tree_small",
+    "resource.terrain-resources-wood-trees.tree4",
+    "resource.terrain-resources-wood-trees.stump-4",
+    1,
+  ),
+  ...([1, 2, 3, 4, 5, 6] as const).map((variant) =>
+    treePreset(
+      `tree_update_${variant}`,
+      `resource.resources-trees.tree-${variant}`,
+      "resource.resources-trees.stump",
+      3,
+    ),
+  ),
+  ...([1, 2, 3, 4] as const).map((variant) =>
+    staticResourcePreset(
+      `wood_stump_${variant}`,
+      `resource.terrain-resources-wood-trees.stump-${variant}`,
+      "wood",
+      1,
+    ),
+  ),
+  staticResourcePreset("wood_update_stump", "resource.resources-trees.stump", "wood", 1),
+  staticResourcePreset(
+    "wood_cache",
+    "resource.terrain-resources-wood-wood-resource.wood-resource",
+    "wood",
+    1,
+  ),
+  staticResourcePreset("wood_update_cache", "resource.resources-resources.w-idle", "wood", 1),
+  staticResourcePreset(
+    "wood_update_cache_noshadow",
+    "resource.resources-resources.w-idle-noshadow",
+    "wood",
+    1,
+  ),
+  staticResourcePreset("stone_outcrop", "decoration.terrain-decorations-rocks.rock1", "stone", 1),
+  staticResourcePreset("stone_rock_2", "decoration.terrain-decorations-rocks.rock2", "stone", 2),
+  staticResourcePreset("iron_outcrop", "decoration.terrain-decorations-rocks.rock3", "iron", 2),
+  staticResourcePreset("iron_rock_4", "decoration.terrain-decorations-rocks.rock4", "iron", 3),
+  staticResourcePreset("stone_deco_small", "decoration.deco.04", "stone", 1),
+  staticResourcePreset("stone_deco_medium", "decoration.deco.05", "stone", 2),
+  staticResourcePreset("stone_deco_large", "decoration.deco.06", "stone", 3),
+  staticResourcePreset(
+    "stone_water_free_1",
+    "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01",
+    "stone",
+    1,
+  ),
+  staticResourcePreset(
+    "stone_water_free_2",
+    "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02",
+    "stone",
+    2,
+  ),
+  staticResourcePreset(
+    "iron_water_free_3",
+    "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03",
+    "iron",
+    1,
+  ),
+  staticResourcePreset(
+    "iron_water_free_4",
+    "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04",
+    "iron",
+    3,
+  ),
+  staticResourcePreset("stone_water_update_1", "terrain.terrain-water-rocks.rocks-01", "stone", 1),
+  staticResourcePreset("stone_water_update_2", "terrain.terrain-water-rocks.rocks-02", "stone", 1),
+  staticResourcePreset("iron_water_update_3", "terrain.terrain-water-rocks.rocks-03", "iron", 2),
+  staticResourcePreset("iron_water_update_4", "terrain.terrain-water-rocks.rocks-04", "iron", 3),
+  staticResourcePreset("gold_small", SMALL_GOLD_ASSET_ID, "gold", 1),
+  staticResourcePreset(
+    "gold_stone_1",
+    "resource.terrain-resources-gold-gold-stones.gold-stone-1",
+    "gold",
+    1,
+  ),
+  staticResourcePreset(
+    "gold_stone_2",
+    "resource.terrain-resources-gold-gold-stones.gold-stone-2",
+    "gold",
+    1,
+  ),
+  staticResourcePreset(
+    "gold_stone_3",
+    "resource.terrain-resources-gold-gold-stones.gold-stone-3",
+    "gold",
+    2,
+  ),
+  staticResourcePreset(
+    "gold_stone_4",
+    "resource.terrain-resources-gold-gold-stones.gold-stone-4",
+    "gold",
+    2,
+  ),
+  staticResourcePreset(
+    "gold_stone_5",
+    "resource.terrain-resources-gold-gold-stones.gold-stone-5",
+    "gold",
+    3,
+  ),
+  staticResourcePreset("gold_large", LARGE_GOLD_ASSET_ID, "gold", 3),
+  staticResourcePreset("gold_update_cache", "resource.resources-resources.g-idle", "gold", 1),
+  staticResourcePreset(
+    "gold_update_cache_noshadow",
+    "resource.resources-resources.g-idle-noshadow",
+    "gold",
+    1,
+  ),
+  staticResourcePreset(
+    "meat_cache",
+    "resource.terrain-resources-meat-meat-resource.meat-resource",
+    "meat",
+    1,
+  ),
+  staticResourcePreset("meat_update_cache", "resource.resources-resources.m-idle", "meat", 1),
+  staticResourcePreset(
+    "meat_update_cache_noshadow",
+    "resource.resources-resources.m-idle-noshadow",
+    "meat",
+    1,
+  ),
+  sheepPreset("sheep", "resource.terrain-resources-meat-sheep.sheep-idle"),
+  sheepPreset("happy_sheep", "resource.resources-sheep.happysheep-idle"),
 ];
 
 const HARVEST_PRESET_BY_ID = new Map(HARVEST_PRESETS.map((preset) => [preset.id, preset]));
