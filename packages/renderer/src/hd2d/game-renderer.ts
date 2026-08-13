@@ -461,6 +461,7 @@ const NATIVE_TREE_ASSET_IDS = new Set([
 const UPDATE_TREE_ASSET_IDS: ReadonlySet<string> = new Set(
   [1, 2, 3, 4, 5, 6].map((index) => `resource.resources-trees.tree-${index}`),
 );
+const LARGE_TREE_ANIMATION_MS = 2_800;
 
 function snowTreeSpec(): StaticAssetSpec {
   return {
@@ -538,22 +539,21 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     }
     return {
       url,
-      // The source is a 4x3 grid: six tree frames occupy the first two rows and the stump sits in
-      // row three. Bind only the top two rows and stop at frame six so the two empty cells never
-      // flash. All six historical crop ids resolve to this canonical animation.
-      cols: 4,
-      rows: 2,
-      animationFrameCount: 6,
-      animationDurationMs: 960,
+      // This is a 4x3 ATLAS of six different tree silhouettes plus a stump, not an animation.
+      // Swapping those silhouettes caused violent jumps and a large per-frame workload. Saved
+      // aliases now resolve to the first tree, animated only by an almost imperceptible slow sway.
+      cols: 1,
+      rows: 1,
       height: 3,
       aspect: 1,
       foot: definition.footOffset / 192,
       renderLayer: "canopy",
+      sway: { amplitudeRadians: THREE.MathUtils.degToRad(0.28), durationMs: 9_000 },
       uvRect: {
         offsetX: 0,
-        offsetY: 1 / 3,
-        repeatX: 1,
-        repeatY: 2 / 3,
+        offsetY: 2 / 3,
+        repeatX: 1 / 4,
+        repeatY: 1 / 3,
       },
     };
   }
@@ -599,7 +599,11 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     renderLayer:
       definition.editor.renderLayer === "ground" ? "object" : definition.editor.renderLayer,
     ...(definition.nature === "animated" && !crop && count > 1
-      ? { animationDurationMs: nativeTreeStrip ? 960 : (frame?.durationMs ?? count * 145) }
+      ? {
+          animationDurationMs: nativeTreeStrip
+            ? LARGE_TREE_ANIMATION_MS
+            : (frame?.durationMs ?? count * 145),
+        }
       : {}),
     ...(crop
       ? {
@@ -1045,7 +1049,6 @@ export class Hd2dRenderer implements RendererLike {
     const map = this.#map;
     const textures = this.#eventTextures;
     if (!scene || !map || !textures) return;
-    this.#eventContent?.dispose();
     const events = this.#worldEvents.flatMap((event) => {
       const assetId = worldEventAsset(event);
       return assetId === null || authoredActorSheet(assetId, "idle")
@@ -1061,16 +1064,22 @@ export class Hd2dRenderer implements RendererLike {
             },
           ];
     });
-    this.#eventContent = placeStaticContent(
-      scene.ctx,
-      this.#sceneFor(scene, map),
-      { ...map, elements: [], events },
-      (assetId) => {
-        const spec = staticAssetSpec(assetId);
-        if (!spec) return null;
-        return materializeStaticSpec(spec, textures);
-      },
-    );
+    if (this.#eventContent) {
+      // Harvesting changes one event. Preserve every other tree/rock mesh and update only that id;
+      // rebuilding hundreds of billboards here caused a frame hitch and a white GPU-upload flash.
+      this.#eventContent.syncEvents(events);
+    } else {
+      this.#eventContent = placeStaticContent(
+        scene.ctx,
+        this.#sceneFor(scene, map),
+        { ...map, elements: [], events },
+        (assetId) => {
+          const spec = staticAssetSpec(assetId);
+          if (!spec) return null;
+          return materializeStaticSpec(spec, textures);
+        },
+      );
+    }
     this.#eventVisualKey = visualKey;
   }
 

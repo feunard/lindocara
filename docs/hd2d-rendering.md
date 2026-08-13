@@ -622,10 +622,11 @@ must not redo. Everything below was found while porting terrain, actors and scen
   bush eight frames wide, and each carries its own measured ground line. Guessing there draws a house
   as a 3Ã—3 square and stands a tree in the ground â€” the catalogue already holds all four numbers and
   they must be read, not inferred.
-- **The six Update-010 tree crops are one animation, not six props.** The 768Ã—576 source holds six
-  tree frames across the first two rows and a stump on the third. Old crop ids remain resolvable for
-  saved maps, but the editor offers only `tree-1`; the renderer binds the top 4Ã—2 UV region and loops
-  its six populated cells, never the two empty cells or the stump.
+- **The six Update-010 tree crops are variants, not animation frames.** The 768Ã—576 source holds six
+  different tree silhouettes across the first two rows and a stump on the third. Old crop ids remain
+  resolvable for saved maps, but the editor offers only `tree-1`; the renderer binds that one crop
+  and gives it a tiny slow procedural sway. Cycling the six silhouettes makes the canopy jump,
+  allocates work across every large tree and is forbidden.
 - **Resource aliases stay readable, not placeable.** The Update-010 `NoShadow` gold/meat/wood props
   duplicate their ordinary variants, while its four water-rock strips duplicate the smoother
   16-frame Free-pack family. The palette hides those aliases but old maps still resolve them. Spawn
@@ -643,8 +644,9 @@ must not redo. Everything below was found while porting terrain, actors and scen
   and given back when the map goes. Folding it into the registry costs either a per-frame diff over
   hundreds of immobile trees or a second lifecycle inside it; both were refused.
 - **Animate only catalogue-declared runs.** Free-pack trees and bushes use their measured frame
-  strips. Update-010's irregular tree grid declares six populated cells explicitly; technical
-  multi-state sheets without an animation duration remain pinned to frame zero.
+  strips, with large-tree wind deliberately slow. Update-010's irregular tree atlas stays on one
+  crop with a sub-degree sway; technical multi-state sheets without an animation duration remain
+  pinned to frame zero.
 
 ### What `renderer.ts` knew, and where that knowledge is now
 

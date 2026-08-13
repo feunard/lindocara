@@ -26,7 +26,7 @@
  * actor sheets and the terrain atlases do. This file only ever sees the resolved `StaticSpriteArt`.
  */
 
-import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import type { HeightfieldEvent, MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { Billboard, CardVolume, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
 import {
   makeBillboard,
@@ -74,6 +74,9 @@ export interface StaticSpriteArt {
   animationDurationMs?: number;
   /** Number of populated animation cells when the rectangular sheet grid contains padding. */
   animationFrameCount?: number;
+  /** Gentle procedural movement for a single-frame canopy. Kept deliberately tiny: it is wind,
+   * not a substitute for swapping unrelated tree silhouettes. */
+  sway?: { amplitudeRadians: number; durationMs: number };
   /** Sky art is a horizontal world-space plane, never a camera-facing billboard. */
   renderLayer?: "object" | "canopy" | "sky";
   renderMode?: "billboard" | "flat" | "cloud-volume" | "fixed-volume";
@@ -94,6 +97,8 @@ export type StaticArtResolver = (assetId: string) => StaticSpriteArt | null;
 
 export interface StaticContent {
   setFireMood(intensity: number): void;
+  /** Incrementally updates authored-event sprites without rebuilding every resource on the map. */
+  syncEvents(events: readonly HeightfieldEvent[]): void;
   update(now: number): void;
   dispose(): void;
 }
@@ -164,13 +169,18 @@ export function placeStaticContent(
   resolve: StaticArtResolver,
 ): StaticContent {
   const placed: {
+    contentKey: string | null;
     sprite: Billboard | CardVolume | Sprite;
     frames: number;
     durationMs: number;
     phaseMs: number;
+    lastFrame: number;
+    swayAmplitude: number;
+    swayDurationMs: number;
     anchorX: number;
     anchorY: number;
     anchorZ: number;
+    depthKey: string;
     wind: boolean;
   }[] = [];
   /** Unresolved ids, counted rather than reported one by one. A map dressed entirely out of assets
@@ -183,6 +193,7 @@ export function placeStaticContent(
   // between both textures. Only coplanar siblings receive a bias: different rows keep real depth.
   const depthLayers = new Map<string, number>();
   const fireSources: {
+    contentKey: string | null;
     light: THREE.PointLight;
     glow: THREE.Mesh | null;
     halo: THREE.Mesh | null;
@@ -193,9 +204,16 @@ export function placeStaticContent(
     phase: number;
     shadow: boolean;
   }[] = [];
+  const eventVisuals = new Map<string, string>();
   let fireMood = 1.1;
 
-  function placeArt(assetId: string, sprite: StaticSpriteArt, x: number, z: number): void {
+  function placeArt(
+    assetId: string,
+    sprite: StaticSpriteArt,
+    x: number,
+    z: number,
+    contentKey: string | null,
+  ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
     const volume =
@@ -258,15 +276,23 @@ export function placeStaticContent(
     }
     scene.root.add(billboard.mesh);
     placed.push({
+      contentKey,
       sprite: billboard,
       frames: sprite.animationFrameCount ?? (sprite.cols ?? 1) * (sprite.rows ?? 1),
       durationMs: sprite.animationDurationMs ?? 0,
-      phaseMs: sprite.animationDurationMs
-        ? placementPhase(assetId, x, z, sprite.animationDurationMs)
-        : 0,
+      phaseMs: placementPhase(
+        assetId,
+        x,
+        z,
+        sprite.animationDurationMs ?? sprite.sway?.durationMs ?? 1,
+      ),
+      lastFrame: 0,
+      swayAmplitude: Math.max(0, sprite.sway?.amplitudeRadians ?? 0),
+      swayDurationMs: Math.max(0, sprite.sway?.durationMs ?? 0),
       anchorX: x,
       anchorY,
       anchorZ: z,
+      depthKey,
       wind: sky,
     });
     if (sprite.fireLight) {
@@ -284,6 +310,7 @@ export function placeStaticContent(
       if (glow) scene.root.add(glow);
       if (halo) scene.root.add(halo);
       fireSources.push({
+        contentKey,
         light,
         glow,
         halo,
@@ -296,10 +323,12 @@ export function placeStaticContent(
         shadow: fireSources.length === 0,
       });
     }
-    for (const companion of sprite.companions ?? []) placeArt(assetId, companion, x, z);
+    for (const companion of sprite.companions ?? []) {
+      placeArt(assetId, companion, x, z, contentKey);
+    }
   }
 
-  function place(assetId: string, x: number, z: number): void {
+  function place(assetId: string, x: number, z: number, contentKey: string | null): void {
     const resolved = resolve(assetId);
     if (!resolved) {
       skipped.set(assetId, (skipped.get(assetId) ?? 0) + 1);
@@ -309,29 +338,102 @@ export function placeStaticContent(
       isColdBiomeMaterial(authoredMaterialAt(map, x, z)) && resolved.coldVariant
         ? resolved.coldVariant
         : resolved;
-    placeArt(assetId, sprite, x, z);
+    placeArt(assetId, sprite, x, z, contentKey);
   }
 
-  for (const element of map.elements) place(element.assetId, element.x, element.z);
+  for (const element of map.elements) place(element.assetId, element.x, element.z, null);
   for (const event of map.events) {
     // No graphic is an authored choice, not a missing asset: a bare trigger cell draws nothing and
     // says nothing. Warning here would fill the console on any map that uses invisible triggers.
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}`;
+    eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
-    place(event.graphicAssetId, event.x, event.z);
+    place(event.graphicAssetId, event.x, event.z, `event:${event.id}`);
   }
-  for (const [assetId, count] of skipped) {
-    console.warn(`[hd2d] no art for asset id "${assetId}": skipped ${count} placement(s)`);
+  function flushSkipped(): void {
+    for (const [assetId, count] of skipped) {
+      console.warn(`[hd2d] no art for asset id "${assetId}": skipped ${count} placement(s)`);
+    }
+    skipped.clear();
   }
+
+  function disposePlacement(index: number): void {
+    const placement = placed[index];
+    if (!placement) return;
+    scene.root.remove(placement.sprite.mesh);
+    placement.sprite.dispose();
+    const depthCount = depthLayers.get(placement.depthKey) ?? 1;
+    if (depthCount <= 1) depthLayers.delete(placement.depthKey);
+    else depthLayers.set(placement.depthKey, depthCount - 1);
+    placed.splice(index, 1);
+  }
+
+  function disposeFireSource(index: number): void {
+    const source = fireSources[index];
+    if (!source) return;
+    source.light.removeFromParent();
+    for (const glow of [source.glow, source.halo]) {
+      if (!glow) continue;
+      glow.removeFromParent();
+      glow.geometry.dispose();
+      const materials = Array.isArray(glow.material) ? glow.material : [glow.material];
+      for (const material of materials) material.dispose();
+    }
+    fireSources.splice(index, 1);
+  }
+
+  function dropContentKey(contentKey: string): void {
+    for (let index = placed.length - 1; index >= 0; index -= 1) {
+      if (placed[index]?.contentKey === contentKey) disposePlacement(index);
+    }
+    for (let index = fireSources.length - 1; index >= 0; index -= 1) {
+      if (fireSources[index]?.contentKey === contentKey) disposeFireSource(index);
+    }
+    for (let index = 0; index < fireSources.length; index += 1) {
+      const source = fireSources[index];
+      if (source) source.shadow = index === 0;
+    }
+  }
+  flushSkipped();
 
   return {
     setFireMood(intensity) {
       fireMood = Math.max(0, intensity);
     },
+    syncEvents(events) {
+      const desiredIds = new Set(events.map((event) => event.id));
+      for (const id of eventVisuals.keys()) {
+        if (desiredIds.has(id)) continue;
+        dropContentKey(`event:${id}`);
+        eventVisuals.delete(id);
+      }
+      for (const event of events) {
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}`;
+        if (eventVisuals.get(event.id) === visual) continue;
+        dropContentKey(`event:${event.id}`);
+        eventVisuals.set(event.id, visual);
+        if (event.graphicAssetId !== null) {
+          place(event.graphicAssetId, event.x, event.z, `event:${event.id}`);
+        }
+      }
+      flushSkipped();
+    },
     update(now) {
       for (const placement of placed) {
-        placement.sprite.setFrame(
-          staticAnimationFrame(now, placement.durationMs, placement.frames, placement.phaseMs),
+        const frame = staticAnimationFrame(
+          now,
+          placement.durationMs,
+          placement.frames,
+          placement.phaseMs,
         );
+        if (frame !== placement.lastFrame) {
+          placement.sprite.setFrame(frame);
+          placement.lastFrame = frame;
+        }
+        if (placement.swayDurationMs > 0 && placement.swayAmplitude > 0) {
+          const phase = ((now + placement.phaseMs) / placement.swayDurationMs) * Math.PI * 2;
+          placement.sprite.mesh.rotation.z = Math.sin(phase) * placement.swayAmplitude;
+        }
         if (placement.wind) {
           const wind = authoredCloudWind(now, placement.phaseMs);
           placement.sprite.mesh.position.set(
@@ -365,22 +467,9 @@ export function placeStaticContent(
       }
     },
     dispose() {
-      for (const placement of placed) {
-        scene.root.remove(placement.sprite.mesh);
-        placement.sprite.dispose();
-      }
-      placed.length = 0;
-      for (const source of fireSources) {
-        source.light.removeFromParent();
-        for (const glow of [source.glow, source.halo]) {
-          if (!glow) continue;
-          glow.removeFromParent();
-          glow.geometry.dispose();
-          const materials = Array.isArray(glow.material) ? glow.material : [glow.material];
-          for (const material of materials) material.dispose();
-        }
-      }
-      fireSources.length = 0;
+      for (let index = placed.length - 1; index >= 0; index -= 1) disposePlacement(index);
+      for (let index = fireSources.length - 1; index >= 0; index -= 1) disposeFireSource(index);
+      eventVisuals.clear();
     },
   };
 }

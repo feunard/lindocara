@@ -195,6 +195,34 @@ describe("static map content", () => {
     expect(placed.map((mesh) => mesh.position.x)).toEqual([-1.5, 0.5]);
   });
 
+  it("updates one harvested event without rebuilding every other resource billboard", () => {
+    const npc = art();
+    const stump = art({ cols: 1, height: 1 });
+    const events = [
+      { id: "a", x: -1.5, z: -1.5, graphicAssetId: "npc" },
+      { id: "b", x: 0.5, z: -1.5, graphicAssetId: "npc" },
+    ];
+    const map = flatMap(4, { events });
+    const scene = sceneFor(map);
+    const content = placeStaticContent(
+      createHd2dContext(),
+      scene,
+      map,
+      resolverFor({ npc, stump }),
+    );
+    const firstEvent = events[0];
+    const secondEvent = events[1];
+    if (!firstEvent || !secondEvent) throw new Error("event fixtures missing");
+    const untouched = meshes(scene.root).find((mesh) => mesh.position.x === 0.5);
+    if (!untouched) throw new Error("untouched resource missing");
+
+    content.syncEvents([{ ...firstEvent, graphicAssetId: "stump" }, secondEvent]);
+
+    expect(meshes(scene.root)).toHaveLength(2);
+    expect(meshes(scene.root).find((mesh) => mesh.position.x === 0.5)).toBe(untouched);
+    content.dispose();
+  });
+
   it("gives coplanar overlapping scenery a stable depth order without biasing other rows", () => {
     const map = flatMap(4, {
       elements: [
@@ -304,7 +332,7 @@ describe("staticAssetSpec", () => {
       height: 3,
       aspect: 1,
       foot: 22 / 192,
-      animationDurationMs: 960,
+      animationDurationMs: 2_800,
       renderLayer: "canopy",
     });
     expect(spec?.url).toContain("Tree3");
@@ -315,7 +343,7 @@ describe("staticAssetSpec", () => {
       expect(staticAssetSpec(`resource.terrain-resources-wood-trees.${tree}`)).toMatchObject({
         cols: 8,
         rows: 1,
-        animationDurationMs: 960,
+        animationDurationMs: 2_800,
         renderLayer: "canopy",
       });
     }
@@ -398,30 +426,26 @@ describe("staticAssetSpec", () => {
     expect(mesh.rotation.y).toBe(0);
   });
 
-  it("recombines the six duplicate Update 010 crops into one animated tree", () => {
-    // Six tree frames fill the first six cells of a 4x2 region. The sheet's third row is excluded
-    // because it contains the stump, and animationFrameCount skips the two unpopulated cells.
+  it("keeps Update 010 variants on one stable tree with only a gentle slow sway", () => {
     const spec = staticAssetSpec("resource.resources-trees.tree-1");
     expect(spec).toMatchObject({
-      cols: 4,
-      rows: 2,
-      animationFrameCount: 6,
-      animationDurationMs: 960,
+      cols: 1,
+      rows: 1,
+      sway: { amplitudeRadians: THREE.MathUtils.degToRad(0.28), durationMs: 9_000 },
       height: 3,
       aspect: 1,
       uvRect: {
         offsetX: 0,
-        offsetY: 1 / 3,
-        repeatX: 1,
-        repeatY: 2 / 3,
+        offsetY: 2 / 3,
+        repeatX: 1 / 4,
+        repeatY: 1 / 3,
       },
     });
     for (const alias of [2, 3, 4, 5, 6]) {
       expect(staticAssetSpec(`resource.resources-trees.tree-${alias}`)).toMatchObject({
-        cols: 4,
-        rows: 2,
-        animationFrameCount: 6,
-        animationDurationMs: 960,
+        cols: 1,
+        rows: 1,
+        sway: { durationMs: 9_000 },
       });
     }
   });
