@@ -25,9 +25,10 @@ export type PeasantTalentEffect =
       maximumTargets: number;
     }
   | {
-      kind: "peasant_rich_vein";
-      ironFromStone: number;
-      goldValueBonusRatio: number;
+      kind: "peasant_rally";
+      powerBonusRatio: number;
+      radiusBonus: number;
+      durationBonusMs: number;
     }
   | {
       kind: "peasant_ration";
@@ -63,7 +64,7 @@ export const PEASANT_TALENT_EFFECT_KINDS = [
   "peasant_harvest_yield",
   "peasant_harvest_efficiency",
   "peasant_harvest_area",
-  "peasant_rich_vein",
+  "peasant_rally",
   "peasant_ration",
   "peasant_construction",
   "peasant_bomb",
@@ -76,7 +77,6 @@ export const PEASANT_TALENT_EFFECT_KINDS = [
 export const PEASANT_HARVEST_EXPERIENCE_BASIS_POINTS = {
   wood: 300,
   stone: 400,
-  iron: 600,
   gold: 800,
   meat: 500,
 } as const satisfies Readonly<Record<HarvestResourceKind, number>>;
@@ -111,23 +111,24 @@ export const PEASANT_TALENT_BALANCE = {
     sweepingFell: { radius: 84 / TILE_SIZE, maximumTargets: 3 },
     greatFelling: { yieldBonusRatio: 0.4, radius: 128 / TILE_SIZE, maximumTargets: 6 },
   },
-  prospectorsPick: {
-    earlyYieldBonusRatio: 0.2,
+  unionRooster: {
+    earlyPowerBonusRatio: 0.25,
     cooldownReductionRatio: 0.12,
-    powerBonusRatio: 0.15,
-    richVein: { yieldBonusRatio: 0.3, ironFromStone: 1, goldValueBonusRatio: 0.2 },
-    fragmentation: {
-      hitsReduction: 1,
-      durationReductionRatio: 0.15,
-      radius: 72 / TILE_SIZE,
-      maximumTargets: 3,
+    reachBonusRatio: 0.5,
+    battleChorus: {
+      powerBonusRatio: 0.12,
+      radiusBonus: 0,
+      durationBonusMs: 2_000,
     },
-    motherLode: {
-      yieldBonusRatio: 0.4,
-      ironFromStone: 2,
-      goldValueBonusRatio: 0.3,
-      radius: 110 / TILE_SIZE,
-      maximumTargets: 5,
+    lastingEcho: {
+      powerBonusRatio: 0,
+      radiusBonus: 2,
+      durationBonusMs: 4_000,
+    },
+    grandUnion: {
+      powerBonusRatio: 0.08,
+      radiusBonus: 1.5,
+      durationBonusMs: 3_000,
     },
   },
   butchersCut: {
@@ -171,7 +172,7 @@ export const PEASANT_TALENT_BALANCE = {
     stockade: {
       durabilityBonusRatio: 0.75,
       durationBonusMs: 5_000,
-      radius: 96 / TILE_SIZE,
+      radius: 12,
       powerBonusRatio: 0,
       protectionRatio: 0.15,
       slowRatio: 0.2,
@@ -180,7 +181,7 @@ export const PEASANT_TALENT_BALANCE = {
     campfire: {
       durabilityBonusRatio: 0.25,
       durationBonusMs: 5_000,
-      radius: 120 / TILE_SIZE,
+      radius: 14,
       powerBonusRatio: 0.5,
       protectionRatio: 0.08,
       slowRatio: 0,
@@ -189,7 +190,7 @@ export const PEASANT_TALENT_BALANCE = {
     completeEncampment: {
       durabilityBonusRatio: 1,
       durationBonusMs: 10_000,
-      radius: 144 / TILE_SIZE,
+      radius: 16,
       powerBonusRatio: 0.5,
       protectionRatio: 0.1,
       slowRatio: 0.2,
@@ -290,8 +291,6 @@ export function resolvePeasantHarvestPlan(
   let durationReductionRatio = 0;
   let areaRadius = 0;
   let maximumTargets = 1;
-  let ironFromStone = 0;
-  let goldValueBonusRatio = 0;
 
   for (const effect of effects) {
     if (effect.kind === "peasant_harvest_yield" && effect.tool === profile.tool) {
@@ -302,9 +301,6 @@ export function resolvePeasantHarvestPlan(
     } else if (effect.kind === "peasant_harvest_area" && effect.tool === profile.tool) {
       areaRadius = Math.max(areaRadius, effect.radius);
       maximumTargets = Math.max(maximumTargets, effect.maximumTargets);
-    } else if (effect.kind === "peasant_rich_vein" && profile.tool === "pickaxe") {
-      ironFromStone += effect.ironFromStone;
-      goldValueBonusRatio += effect.goldValueBonusRatio;
     }
   }
 
@@ -312,10 +308,7 @@ export function resolvePeasantHarvestPlan(
   const yieldAmount =
     profile.resource === "gold" ? 0 : Math.ceil(profile.yieldAmount * rewardMultiplier);
   const primaryReward = primaryMaterialReward(profile.resource, yieldAmount);
-  const bonusReward: PartyMaterialAmounts =
-    profile.resource === "stone" && ironFromStone > 0
-      ? { iron: Math.max(0, Math.floor(ironFromStone)) }
-      : {};
+  const bonusReward: PartyMaterialAmounts = {};
   return {
     resource: profile.resource,
     tool: profile.tool,
@@ -324,7 +317,7 @@ export function resolvePeasantHarvestPlan(
       profile.resource === "gold"
         ? Math.min(
             HARVEST_PROFILE_LIMITS.goldValue.max,
-            Math.ceil(profile.goldValue * Math.max(0, rewardMultiplier + goldValueBonusRatio)),
+            Math.ceil(profile.goldValue * rewardMultiplier),
           )
         : 0,
     primaryMaterialReward: primaryReward,
@@ -337,6 +330,38 @@ export function resolvePeasantHarvestPlan(
     ),
     areaRadius: Math.max(0, areaRadius),
     maximumTargets: Math.max(1, Math.floor(maximumTargets)),
+  };
+}
+
+export interface PeasantRallyPlan {
+  powerBonusRatio: number;
+  radius: number;
+  durationMs: number;
+}
+
+/** Resolve Cocorico syndical as an ally-damage rally with no resource mutation. */
+export function resolvePeasantRallyPlan(
+  effects: readonly PeasantTalentEffect[],
+  skill: {
+    readonly power: number;
+    readonly range: number;
+    readonly radius?: number;
+    readonly durationMs?: number;
+  },
+): PeasantRallyPlan {
+  let powerBonusRatio = Math.max(0, skill.power) / 100;
+  let radiusBonus = 0;
+  let durationBonusMs = 0;
+  for (const effect of effects) {
+    if (effect.kind !== "peasant_rally") continue;
+    powerBonusRatio += effect.powerBonusRatio;
+    radiusBonus += effect.radiusBonus;
+    durationBonusMs += effect.durationBonusMs;
+  }
+  return {
+    powerBonusRatio: Math.max(0, powerBonusRatio),
+    radius: Math.max(0, (skill.radius ?? skill.range) + radiusBonus),
+    durationMs: Math.max(0, (skill.durationMs ?? 6_000) + durationBonusMs),
   };
 }
 

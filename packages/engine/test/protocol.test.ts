@@ -433,12 +433,12 @@ describe("server protocol", () => {
         JSON.stringify({
           ...welcomeBase,
           world,
-          self: { ...self, materials: { wood: 3, stone: 2, iron: 1, meat: 4 } },
+          self: { ...self, materials: { wood: 3, stone: 2, meat: 4 } },
         }),
       ),
     ).toMatchObject({
       t: "welcome",
-      self: { materials: { wood: 3, stone: 2, iron: 1, meat: 4 } },
+      self: { materials: { wood: 3, stone: 2, meat: 4 } },
     });
     expect(
       parseServerMessage(
@@ -917,6 +917,7 @@ describe("combat animation messages", () => {
       action: "attack",
       skillId: "woodcutters_swing",
       peasantTool: "pickaxe",
+      peasantResource: "gold",
       direction: { x: 1, z: 0 },
       startedAt: 100,
       impactAt: 260,
@@ -926,9 +927,12 @@ describe("combat animation messages", () => {
     expect(parseServerMessage(encodeServerMessage(animation))).toMatchObject({
       t: "animation",
       peasantTool: "pickaxe",
+      peasantResource: "gold",
     });
     for (const invalid of [
       { ...animation, peasantTool: "hammer" },
+      { ...animation, peasantResource: "iron" },
+      { ...animation, peasantTool: undefined, peasantResource: "gold" },
       { ...animation, action: "skill" },
       { ...animation, skillId: "prospectors_pick" },
       { ...animation, actorKind: "monster" },

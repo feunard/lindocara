@@ -1211,7 +1211,7 @@ describe("world room events (FakeClock)", () => {
       hitsRequired: 1,
       harvestDurationMs: 0,
     });
-    const iron = harvestPresetEvent(crypto.randomUUID(), 7, 2, "iron_outcrop", {
+    const legacyStone = harvestPresetEvent(crypto.randomUUID(), 7, 2, "iron_outcrop", {
       yieldAmount: 4,
       hitsRequired: 1,
       harvestDurationMs: 0,
@@ -1230,7 +1230,7 @@ describe("world room events (FakeClock)", () => {
       harvestDurationMs: 0,
       respawnDelayMs: 1_000,
     });
-    const resources = [tree, stone, iron, smallGold, largeGold, sheep];
+    const resources = [tree, stone, legacyStone, smallGold, largeGold, sheep];
     const fixture = await newPlayableParty("harvestmap", resources, "peasant");
     const ally = await joinPartyWithHero("harvestmapally", fixture.partyId, "peasant");
     const clock = new FakeClock();
@@ -1285,7 +1285,7 @@ describe("world room events (FakeClock)", () => {
       socket: hostSocket,
       state,
       clock,
-      event: iron,
+      event: legacyStone,
       slot: 1,
     });
     await completeHarvestAction({
@@ -1316,7 +1316,7 @@ describe("world room events (FakeClock)", () => {
     let awardedGold = 0;
     await vi.waitFor(async () => {
       const held = await heldPartyState(fixture.partyId);
-      expect(held.materials).toEqual({ wood: 13, stone: 3, iron: 4, meat: 5 });
+      expect(held.materials).toEqual({ wood: 13, stone: 7, meat: 5 });
       awardedGold = await partyRoom.adventureStateService.harvestGoldLedgerTotal(fixture.heroId);
       expect(awardedGold).toBeGreaterThanOrEqual(95);
       expect(awardedGold).toBeLessThanOrEqual(125);
@@ -1324,7 +1324,7 @@ describe("world room events (FakeClock)", () => {
     const expectedExperience =
       treeExperience +
       peasantHarvestExperience("stone", 10) +
-      peasantHarvestExperience("iron", 10) +
+      peasantHarvestExperience("stone", 10) +
       peasantHarvestExperience("gold", 10) * 2 +
       peasantHarvestExperience("meat", 10);
     expect(playerOf(state, fixture.heroId).xp + playerOf(state, ally.heroId).xp).toBe(
@@ -1384,8 +1384,7 @@ describe("world room events (FakeClock)", () => {
     });
     expect(reconnectState.adventureState.state.materials).toEqual({
       wood: 13,
-      stone: 3,
-      iron: 4,
+      stone: 7,
       meat: 5,
     });
     expect(playerOf(reconnectState, fixture.heroId).inventory.gold).toBe(awardedGold);
@@ -1581,7 +1580,6 @@ describe("world room events (FakeClock)", () => {
     expect(state.adventureState.state.materials).toEqual({
       wood: 0,
       stone: 0,
-      iron: 0,
       meat: 0,
     });
     expect(messagesOf(socket).some((message) => message.t === "welcome")).toBe(true);

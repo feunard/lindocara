@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { nativeHarvestEvents } from "../src/native-harvest.js";
 
 describe("native harvest scenery", () => {
-  it("projects tree, stone, iron, gold and sheep assets into the harvest runtime", () => {
+  it("projects tree, both rock variants, gold and sheep assets into the harvest runtime", () => {
     const assets = [
       "resource.terrain-resources-wood-trees.tree1",
       "decoration.terrain-decorations-rocks.rock1",
@@ -24,7 +24,7 @@ describe("native harvest scenery", () => {
     expect(events.map((event) => event.harvestProfile?.resource)).toEqual([
       "wood",
       "stone",
-      "iron",
+      "stone",
       "gold",
       "meat",
     ]);

@@ -6,16 +6,17 @@ storage and gameplay decisions that must remain stable across maps, reconnects, 
 
 ## Economy and ownership
 
-- Wood, stone, iron, and meat are a shared party stock in `PartyAdventureState`. A harvested unit
+- Wood, stone, and meat are a shared party stock in `PartyAdventureState`. A harvested unit
   benefits every party member and follows the adventure save across maps.
+- Iron is retired. Compatibility parsing adds every unit from an old persisted `iron` counter to
+  `stone`; new snapshots, rewards, and costs never expose a separate iron resource.
 - Gold is not a party material. Gold harvests credit the existing per-hero gold economy through its
   epoch-fenced, idempotent ledger; there is no parallel currency counter.
 - Support costs are resolved from typed skill/talent data and spent only by the party coordinator.
   A durable support-spend journal makes debit, compensation, and acknowledgement replay
   idempotent; the browser never submits a cost or quantity.
-- Wood, stone, and meat fund the makeshift camp and its rations. Iron and stone fund the homemade
-  bomb. Materials therefore have gameplay uses in the first implementation rather than serving as
-  decorative counters.
+- Wood, stone, and meat fund the makeshift camp and its rations. The homemade bomb costs two stone.
+  Materials therefore have gameplay uses rather than serving as decorative counters.
 
 Shared stock was chosen because the class is a cooperative economic role and party adventure state
 already provides the correct cross-map ownership boundary. Personal materials would duplicate that
@@ -23,7 +24,7 @@ storage and make one Peasant's contribution unavailable to teammates.
 
 Harvest progression remains personal: the Peasant who authoritatively exhausts a node earns a
 resource-specific share of the XP required for their current level (wood 3%, stone 4%, meat 5%,
-iron 6%, gold 8%). Intermediate hits, cancelled channels, stale generations, and losing a concurrent
+gold 8%). Intermediate hits, cancelled channels, stale generations, and losing a concurrent
 reservation grant no XP. This percentage-based curve keeps gathering useful at later levels without
 letting the support class level faster than specialized combat heroes.
 
@@ -35,8 +36,9 @@ value, hit count, range, channel duration, exhaustion behavior, optional exhaust
 fade duration, and permanent or timed respawn policy. Presets provide editable defaults only. Each
 placed instance persists its detached overrides.
 
-The initial semantic presets are four tree sizes, stone outcrop, iron outcrop, small gold, large
-gold, meat cache, sheep, and happy sheep. Both sheep appearances are explicitly mapped to meat profiles. Dead
+The initial semantic presets are four tree sizes, stone outcrop, legacy stone outcrop, small gold,
+large gold, meat cache, sheep, and happy sheep. The stable legacy preset id remains readable, but
+its resource is normalized to stone. Both sheep appearances are explicitly mapped to meat profiles. Dead
 monster harvesting is also explicit: only species in the typed animal allowlist create carcass
 nodes; the current monster roster contributes `war_pig`. Ordinary monsters never become meat just
 because their art looks animal-like.
@@ -76,11 +78,11 @@ late knife hit cannot leave the next death stuck behind a delayed harvest genera
 
 | Slot | Skill | Tool/presentation | Authoritative role |
 | --- | --- | --- | --- |
-| 1 | Woodcutter's Swing | Axe | Weak arc attack; harvests wood. |
-| 2 | Prospector's Pick | Pickaxe | Weak arc attack; harvests stone, iron, and gold. |
-| 3 | Butcher's Cut | Knife | Very weak arc attack; harvests explicit meat sources and animal carcasses. |
-| 4 | Makeshift Camp | Hammer | Spends shared stock to heal/protect allies, serve finite rations, and optionally slow enemies. |
-| 5 | Homemade Bomb | Bomb | Spends iron/stone; server launches and resolves a modest delayed area explosion. |
+| 1 | Automatic Odds and Ends | Axe/pickaxe/knife | Selects the contextual tool and harvests wood, stone, gold, or meat. |
+| 2 | Union Cock-a-doodle-doo | Rally | Gives nearby allies a temporary damage buff and never grants resources. |
+| 3 | Catapulted Lunch | Food catapult | Launches three visible meat rations that can be caught or collected from the ground. |
+| 4 | Makeshift Camp | Hammer | Heals allies in a 10 m zone and exposes its shared bank from every side. |
+| 5 | Homemade Bomb | Bomb | Spends two stone; server launches and resolves a delayed area explosion. |
 
 The editor exposes four semantic tree presets without coupling their rules to artwork: very tall
 (Tree 2/Stump 2), large legacy `tree` (Tree 1/Stump 1), medium (Tree 3/Stump 3), and small
@@ -92,11 +94,11 @@ Tiny Swords has no Pawn shovel interaction strip. Construction deliberately uses
 `Pawn_Interact Hammer.png`; this is an explicit skill-to-art mapping, not a name-based fallback.
 The other strips are `Pawn_Interact Axe.png`, `Pawn_Interact Pickaxe.png`, and
 `Pawn_Interact Knife.png`; the bomb uses the existing Enemy Pack bomb art. Carry presentation uses
-a deterministic priority (gold, meat, then wood) and does not invent stone or iron sprites.
+a deterministic priority (gold, meat, then wood) and does not invent a stone carry sprite.
 
-No new binary or external asset was added for the Peasant. The project uses the existing local Tiny
-Swords packs. Their provenance is recorded in `packages/catalog/assets/README.md`; that file also
-records the pre-existing requirement to verify the original pack terms before redistribution.
+Generated skill, consumable, and harvesting sounds come from the repository's local asset studio.
+Generated consumable icons are retained with their prompt and seed provenance beside the existing
+lab generations. Tiny Swords vendor provenance remains recorded in `packages/catalog/assets/README.md`.
 
 ## Talent branches
 
@@ -105,8 +107,8 @@ Its five data-driven branches are:
 
 - Axe: Wood Bounty / readiness / reach, then Clean Cut or Sweeping Fell, with **Great Felling** as
   the ultimate.
-- Pickaxe: Ore Share / readiness / force, then Rich Vein or Rock Fragmentation, with
-  **Mother Lode** as the ultimate.
+- Rally: stronger chorus / readiness / far-carrying voice, then **Battle Chorus** (stronger and
+  longer) or **Lasting Echo** (wider and longer), with **Grand Union** as the final support point.
 - Knife: Meat Share / readiness / force, then Preservation or Field Feast, with **Grand Feast** as
   the ultimate.
 - Camp: reach / readiness / Reinforcement, then Stockade or Campfire, with
@@ -120,5 +122,6 @@ id conditionals through combat or persistence code.
 ## Compatibility boundary
 
 Old maps have no harvestable events and continue to load unchanged. Old party saves have no
-materials, node state, or support journal and normalize each to an empty value. New persisted fields
-are added by explicit SQLite/D1 migrations before the code that reads them is deployed.
+materials, node state, or support journal and normalize each to an empty value. Saves with iron are
+migrated at the parser boundary by folding it into stone. New persisted fields are added by explicit
+SQLite migrations before the code that reads them is deployed.

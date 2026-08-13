@@ -69,7 +69,7 @@ describe("directional class kit contract", () => {
         slot: 4,
         effect: "construction",
         power: 60,
-        radius: 96 / TILE_SIZE,
+        radius: 10,
         durationMs: 30_000,
       },
       {

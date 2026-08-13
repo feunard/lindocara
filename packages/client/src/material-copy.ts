@@ -10,14 +10,12 @@ import { t } from "./i18n.js";
 export const MATERIAL_SHORT_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
   wood: "material.short.wood",
   stone: "material.short.stone",
-  iron: "material.short.iron",
   meat: "material.short.meat",
 };
 
 const MATERIAL_LABEL: Readonly<Record<HarvestResourceKind, MessageKey>> = {
   wood: "material.wood",
   stone: "material.stone",
-  iron: "material.iron",
   gold: "material.gold",
   meat: "material.meat",
 };

@@ -16,12 +16,12 @@ const held: PartyMaterialReservationResult = {
   ok: true,
   reservationId: "reservation-1",
   status: "held",
-  materials: { wood: 4, stone: 2, iron: 0, meat: 2 },
+  materials: { wood: 4, stone: 2, meat: 2 },
 };
 const committed: PartyMaterialReservationResult = {
   ...held,
   status: "committed",
-  materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+  materials: { wood: 0, stone: 0, meat: 0 },
 };
 const released: PartyMaterialReservationResult = {
   ...held,

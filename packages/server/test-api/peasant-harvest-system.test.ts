@@ -169,7 +169,7 @@ describe("Peasant harvest target selection", () => {
   it("rolls native resource ranges at both inclusive bounds on the server", () => {
     for (const [presetId, low, high] of [
       ["tree", { wood: 1 }, { wood: 3 }],
-      ["iron_outcrop", { iron: 1 }, { iron: 3 }],
+      ["iron_outcrop", { stone: 1 }, { stone: 3 }],
       ["sheep", { meat: 1 }, { meat: 5 }],
     ] as const) {
       const profile = harvestPreset(presetId).profile;
@@ -553,7 +553,7 @@ describe("Peasant harvest target selection", () => {
     expect(peasantCarryKindForReward({ wood: 1, meat: 1 }, 5)).toBe("gold");
     expect(peasantCarryKindForReward({ wood: 1, meat: 1 }, 0)).toBe("meat");
     expect(peasantCarryKindForReward({ wood: 1 }, 0)).toBe("wood");
-    expect(peasantCarryKindForReward({ stone: 1, iron: 1 }, 0)).toBeNull();
+    expect(peasantCarryKindForReward({ stone: 2 }, 0)).toBeNull();
 
     const peasant = player();
     expect(grantPeasantCarry(peasant, { wood: 4 }, 0, NOW)).toBe("wood");

@@ -82,7 +82,9 @@ import {
 import type { GroundVector } from "./ground.js";
 import {
   HARVEST_PROFILE_LIMITS,
+  type HarvestResourceKind,
   type HarvestTool,
+  isHarvestResourceKind,
   isHarvestTool,
   isPeasantCarryKind,
   type PeasantCarryKind,
@@ -478,6 +480,8 @@ export interface CombatAnimation {
   skillId?: string;
   /** Contextual tool selected by the authority for the Peasant's basic attack. */
   peasantTool?: HarvestTool;
+  /** Resource actually under that tool, used only to select the matching harvest presentation. */
+  peasantResource?: HarvestResourceKind;
   /** Server-authored: this cast owns at least one active talent for its skill slot. */
   talented?: true;
   /** Server-authored: the branch's named final technique is active for this cast. */
@@ -2363,6 +2367,8 @@ export function parseServerMessage(raw: string): ServerMessage | null {
           value.action === "attack" &&
           value.skillId === "woodcutters_swing" &&
           isHarvestTool(value.peasantTool))) &&
+      (value.peasantResource === undefined ||
+        (value.peasantTool !== undefined && isHarvestResourceKind(value.peasantResource))) &&
       ((value.actorKind === "monster" &&
         ((value.action === "attack" && value.skillId === undefined) ||
           (value.action === "skill" &&

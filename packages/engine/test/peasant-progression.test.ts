@@ -11,7 +11,6 @@ describe("Peasant harvest progression", () => {
     expect(PEASANT_HARVEST_EXPERIENCE_BASIS_POINTS).toEqual({
       wood: 300,
       stone: 400,
-      iron: 600,
       gold: 800,
       meat: 500,
     });
@@ -21,14 +20,14 @@ describe("Peasant harvest progression", () => {
           (resource) => [resource, peasantHarvestExperience(resource, 1)],
         ),
       ),
-    ).toEqual({ wood: 3, stone: 4, iron: 6, gold: 8, meat: 5 });
+    ).toEqual({ wood: 3, stone: 4, gold: 8, meat: 5 });
     expect(
       Object.fromEntries(
         (Object.keys(PEASANT_HARVEST_EXPERIENCE_BASIS_POINTS) as HarvestResourceKind[]).map(
           (resource) => [resource, peasantHarvestExperience(resource, 10)],
         ),
       ),
-    ).toEqual({ wood: 19, stone: 26, iron: 38, gold: 51, meat: 32 });
+    ).toEqual({ wood: 19, stone: 26, gold: 51, meat: 32 });
   });
 
   it("keeps harvesting relevant as the level threshold grows", () => {

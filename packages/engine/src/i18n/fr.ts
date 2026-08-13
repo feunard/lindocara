@@ -268,11 +268,11 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.peasant.woodcutters_swing.description":
     "Attaquez devant vous ; au contact d’une ressource, le Paysan sort automatiquement hache, pioche ou couteau et ramasse le bon matériau.",
   "skill.peasant.prospectors_pick.description":
-    "Poussez un cocorico très professionnel qui renforce les dégâts et rend de la ressource de classe aux alliés proches.",
+    "Poussez un cocorico très professionnel qui renforce temporairement les dégâts des alliés proches.",
   "skill.peasant.butchers_cut.description":
     "Catapultez trois rations de viande dans un rayon de 20 m. Attrapez-en une au vol ou ramassez-la pour récupérer 10 % de vie et 5 % de mana ; les rations manquées restent 30 secondes.",
   "skill.peasant.makeshift_camp.description":
-    "Construisez un camp qui régénère la vie et le mana des alliés, avec un coffre d’or partagé.",
+    "Construisez un camp qui régénère la vie et le mana des alliés dans un rayon de 10 m, avec un coffre d’or partagé.",
   "skill.peasant.homemade_bomb.description":
     "Lance vers l'ennemi le plus proche au même niveau et s'arrête au premier obstacle.",
 
@@ -461,12 +461,10 @@ export const fr: Record<keyof typeof en, string> = {
   "resource.mana": "MP",
   "material.wood": "Bois",
   "material.stone": "Pierre",
-  "material.iron": "Fer",
   "material.gold": "Or",
   "material.meat": "Viande",
   "material.short.wood": "B",
   "material.short.stone": "P",
-  "material.short.iron": "F",
   "material.short.meat": "V",
   "skill.mana_cost": "{cost} mana",
   "skill.material_cost": "Coût : {cost}",
@@ -859,15 +857,15 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.ultimate.peasant.woodcutters_swing.name": "Grand abattage",
   "talent.ultimate.peasant.woodcutters_swing.description":
     "Augmente fortement le bois produit et étend l'action de hache à six ressources compatibles.",
-  "talent.evolution.peasant.prospectors_pick.a.name": "Filon riche",
+  "talent.evolution.peasant.prospectors_pick.a.name": "Chœur de bataille",
   "talent.evolution.peasant.prospectors_pick.a.description":
-    "Extrait davantage de minerai, trouve du fer garanti dans la pierre et augmente la valeur d'or configurée.",
-  "talent.evolution.peasant.prospectors_pick.b.name": "Fragmentation rocheuse",
+    "Ajoute 12 points de dégâts au cocorico et prolonge son renfort de 2 secondes.",
+  "talent.evolution.peasant.prospectors_pick.b.name": "Écho durable",
   "talent.evolution.peasant.prospectors_pick.b.description":
-    "Brise plusieurs gisements compatibles proches avec des coups de pioche moins nombreux et plus rapides.",
-  "talent.ultimate.peasant.prospectors_pick.name": "Filon-mère",
+    "Étend le soutien de 2 m et prolonge son renfort de 4 secondes.",
+  "talent.ultimate.peasant.prospectors_pick.name": "Grande union",
   "talent.ultimate.peasant.prospectors_pick.description":
-    "Travaille cinq gisements proches à la fois et améliore fortement les récompenses de minerai et d'or.",
+    "Ajoute 8 points de dégâts, 1,5 m de portée et 3 secondes au cocorico, en plus de l’évolution choisie.",
   "talent.evolution.peasant.butchers_cut.a.name": "Conservation",
   "talent.evolution.peasant.butchers_cut.a.description":
     "Prépare davantage de rations avec la viande compatible et améliore leur soin immédiat.",
@@ -1919,7 +1917,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.harvest.preset.treeUpdate5": "Sapin V",
   "editor.harvest.preset.treeUpdate6": "Sapin VI",
   "editor.harvest.preset.stone": "Gisement de pierre",
-  "editor.harvest.preset.iron": "Gisement de fer",
+  "editor.harvest.preset.iron": "Ancien gisement de pierre",
   "editor.harvest.preset.goldSmall": "Petit gisement d’or",
   "editor.harvest.preset.goldLarge": "Grand gisement d’or",
   "editor.harvest.preset.meat": "Réserve de viande",
@@ -1931,7 +1929,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.harvest.resource": "Type de ressource",
   "editor.harvest.resource.wood": "Bois",
   "editor.harvest.resource.stone": "Pierre",
-  "editor.harvest.resource.iron": "Fer",
+  "editor.harvest.resource.iron": "Pierre (ancien fer)",
   "editor.harvest.resource.gold": "Or",
   "editor.harvest.resource.meat": "Viande",
   "editor.harvest.tool": "Outil requis",

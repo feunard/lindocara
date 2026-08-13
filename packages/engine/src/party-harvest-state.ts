@@ -4,14 +4,13 @@ import { isUuid } from "./identifiers.js";
  * Party-wide crafting materials. Gold deliberately does not live here: it remains part of the
  * existing hero economy and must be credited through its fenced server path.
  */
-export const PARTY_MATERIAL_TYPES = ["wood", "stone", "iron", "meat"] as const;
+export const PARTY_MATERIAL_TYPES = ["wood", "stone", "meat"] as const;
 
 export type PartyMaterialType = (typeof PARTY_MATERIAL_TYPES)[number];
 
 export interface PartyMaterials {
   wood: number;
   stone: number;
-  iron: number;
   meat: number;
 }
 
@@ -23,7 +22,6 @@ export const MAX_PARTY_MATERIAL_AMOUNT = 999_999;
 export const EMPTY_PARTY_MATERIALS: PartyMaterials = {
   wood: 0,
   stone: 0,
-  iron: 0,
   meat: 0,
 };
 
@@ -90,12 +88,15 @@ export function parsePartyMaterials(value: unknown): PartyMaterials | null {
   if (value === undefined) return { ...EMPTY_PARTY_MATERIALS };
   if (!isPlainObject(value)) return null;
   for (const [key, amount] of Object.entries(value)) {
-    if (!isKnownMaterialType(key) || !isBoundedAmount(amount)) return null;
+    if ((!isKnownMaterialType(key) && key !== "iron") || !isBoundedAmount(amount)) return null;
   }
+  const stone =
+    ((value.stone as number | undefined) ?? 0) + ((value.iron as number | undefined) ?? 0);
+  if (!isBoundedAmount(stone)) return null;
   return {
     wood: (value.wood as number | undefined) ?? 0,
-    stone: (value.stone as number | undefined) ?? 0,
-    iron: (value.iron as number | undefined) ?? 0,
+    // Compatibility migration: every durable unit from the retired iron counter becomes stone.
+    stone,
     meat: (value.meat as number | undefined) ?? 0,
   };
 }
@@ -105,7 +106,8 @@ export function isPartyMaterials(value: unknown): value is PartyMaterials {
   return (
     parsePartyMaterials(value) !== null &&
     isPlainObject(value) &&
-    PARTY_MATERIAL_TYPES.every((type) => Object.hasOwn(value, type))
+    PARTY_MATERIAL_TYPES.every((type) => Object.hasOwn(value, type)) &&
+    Object.keys(value).every(isKnownMaterialType)
   );
 }
 
@@ -114,8 +116,11 @@ export function parsePartyMaterialAmounts(value: unknown): PartyMaterialAmounts 
   if (!isPlainObject(value)) return null;
   const amounts: PartyMaterialAmounts = {};
   for (const [key, amount] of Object.entries(value)) {
-    if (!isKnownMaterialType(key) || !isBoundedAmount(amount)) return null;
-    amounts[key] = amount;
+    if ((!isKnownMaterialType(key) && key !== "iron") || !isBoundedAmount(amount)) return null;
+    const type: PartyMaterialType = key === "iron" ? "stone" : key;
+    const total = (amounts[type] ?? 0) + amount;
+    if (!isBoundedAmount(total)) return null;
+    amounts[type] = total;
   }
   return amounts;
 }
@@ -150,7 +155,6 @@ export function spendPartyMaterials(
   return {
     wood: materials.wood - (costs.wood ?? 0),
     stone: materials.stone - (costs.stone ?? 0),
-    iron: materials.iron - (costs.iron ?? 0),
     meat: materials.meat - (costs.meat ?? 0),
   };
 }

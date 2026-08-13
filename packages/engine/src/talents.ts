@@ -1063,84 +1063,49 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       2,
       [
         {
-          key: "ore_share",
-          label: "mastery",
-          effects: [
-            {
-              kind: "peasant_harvest_yield",
-              tool: "pickaxe",
-              bonusRatio: PEASANT_TALENT_BALANCE.prospectorsPick.earlyYieldBonusRatio,
-            },
-          ],
+          key: "stronger_chorus",
+          label: "power",
+          effects: [power(PEASANT_TALENT_BALANCE.unionRooster.earlyPowerBonusRatio)],
         },
         {
           key: "readiness",
           label: "cooldown",
-          effects: [cooldown(PEASANT_TALENT_BALANCE.prospectorsPick.cooldownReductionRatio)],
+          effects: [cooldown(PEASANT_TALENT_BALANCE.unionRooster.cooldownReductionRatio)],
         },
         {
-          key: "force",
-          label: "power",
-          effects: [power(PEASANT_TALENT_BALANCE.prospectorsPick.powerBonusRatio)],
+          key: "far_carrying",
+          label: "range",
+          effects: [range(PEASANT_TALENT_BALANCE.unionRooster.reachBonusRatio)],
         },
         {
-          key: "rich_vein",
+          key: "battle_chorus",
           label: "mastery",
           effects: [
             {
-              kind: "peasant_harvest_yield",
-              tool: "pickaxe",
-              bonusRatio: PEASANT_TALENT_BALANCE.prospectorsPick.richVein.yieldBonusRatio,
-            },
-            {
-              kind: "peasant_rich_vein",
-              ironFromStone: PEASANT_TALENT_BALANCE.prospectorsPick.richVein.ironFromStone,
-              goldValueBonusRatio:
-                PEASANT_TALENT_BALANCE.prospectorsPick.richVein.goldValueBonusRatio,
+              kind: "peasant_rally",
+              ...PEASANT_TALENT_BALANCE.unionRooster.battleChorus,
             },
           ],
         },
         {
-          key: "fragmentation",
+          key: "lasting_echo",
           label: "mastery",
           effects: [
             {
-              kind: "peasant_harvest_efficiency",
-              tool: "pickaxe",
-              hitsReduction: PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.hitsReduction,
-              durationReductionRatio:
-                PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.durationReductionRatio,
-            },
-            {
-              kind: "peasant_harvest_area",
-              tool: "pickaxe",
-              radius: PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.radius,
-              maximumTargets: PEASANT_TALENT_BALANCE.prospectorsPick.fragmentation.maximumTargets,
+              kind: "peasant_rally",
+              ...PEASANT_TALENT_BALANCE.unionRooster.lastingEcho,
             },
           ],
         },
       ],
       {
         ultimate: {
-          key: "mother_lode",
+          key: "grand_union",
           label: "ultimate",
           effects: [
             {
-              kind: "peasant_harvest_yield",
-              tool: "pickaxe",
-              bonusRatio: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.yieldBonusRatio,
-            },
-            {
-              kind: "peasant_rich_vein",
-              ironFromStone: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.ironFromStone,
-              goldValueBonusRatio:
-                PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.goldValueBonusRatio,
-            },
-            {
-              kind: "peasant_harvest_area",
-              tool: "pickaxe",
-              radius: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.radius,
-              maximumTargets: PEASANT_TALENT_BALANCE.prospectorsPick.motherLode.maximumTargets,
+              kind: "peasant_rally",
+              ...PEASANT_TALENT_BALANCE.unionRooster.grandUnion,
             },
           ],
         },

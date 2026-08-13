@@ -275,8 +275,10 @@ describe("Rogue runtime contract", () => {
   it("includes authoritative party materials only when supplied by the room snapshot", () => {
     const player = rogue();
     expect(selfState(player).materials).toBeUndefined();
-    expect(
-      selfState(player, undefined, [], [], { wood: 3, stone: 2, iron: 1, meat: 4 }).materials,
-    ).toEqual({ wood: 3, stone: 2, iron: 1, meat: 4 });
+    expect(selfState(player, undefined, [], [], { wood: 3, stone: 2, meat: 4 }).materials).toEqual({
+      wood: 3,
+      stone: 2,
+      meat: 4,
+    });
   });
 });

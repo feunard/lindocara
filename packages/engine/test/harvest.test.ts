@@ -155,7 +155,6 @@ describe("harvest profile", () => {
       "axe",
       "pickaxe",
       "pickaxe",
-      "pickaxe",
       "knife",
     ]);
     expect(harvestToolMatchesResource("wood", "axe")).toBe(true);

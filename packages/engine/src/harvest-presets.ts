@@ -92,14 +92,12 @@ export const GOLD_VALUE_RANGE_BY_SIZE = {
 export const NATIVE_MATERIAL_YIELD_RANGES = {
   wood: { min: 1, max: 3 },
   stone: { min: 1, max: 3 },
-  iron: { min: 1, max: 3 },
   meat: { min: 1, max: 5 },
 } as const;
 
 const TOOL_BY_RESOURCE: Readonly<Record<HarvestResourceKind, HarvestTool>> = {
   wood: "axe",
   stone: "pickaxe",
-  iron: "pickaxe",
   gold: "pickaxe",
   meat: "knife",
 };
@@ -261,8 +259,8 @@ export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
   ),
   staticResourcePreset("stone_outcrop", "decoration.terrain-decorations-rocks.rock1", "stone", 1),
   staticResourcePreset("stone_rock_2", "decoration.terrain-decorations-rocks.rock2", "stone", 2),
-  staticResourcePreset("iron_outcrop", "decoration.terrain-decorations-rocks.rock3", "iron", 2),
-  staticResourcePreset("iron_rock_4", "decoration.terrain-decorations-rocks.rock4", "iron", 3),
+  staticResourcePreset("iron_outcrop", "decoration.terrain-decorations-rocks.rock3", "stone", 2),
+  staticResourcePreset("iron_rock_4", "decoration.terrain-decorations-rocks.rock4", "stone", 3),
   staticResourcePreset("stone_deco_small", "decoration.deco.04", "stone", 1),
   staticResourcePreset("stone_deco_medium", "decoration.deco.05", "stone", 2),
   staticResourcePreset("stone_deco_large", "decoration.deco.06", "stone", 3),
@@ -281,19 +279,19 @@ export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
   staticResourcePreset(
     "iron_water_free_3",
     "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03",
-    "iron",
+    "stone",
     1,
   ),
   staticResourcePreset(
     "iron_water_free_4",
     "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04",
-    "iron",
+    "stone",
     3,
   ),
   staticResourcePreset("stone_water_update_1", "terrain.terrain-water-rocks.rocks-01", "stone", 1),
   staticResourcePreset("stone_water_update_2", "terrain.terrain-water-rocks.rocks-02", "stone", 1),
-  staticResourcePreset("iron_water_update_3", "terrain.terrain-water-rocks.rocks-03", "iron", 2),
-  staticResourcePreset("iron_water_update_4", "terrain.terrain-water-rocks.rocks-04", "iron", 3),
+  staticResourcePreset("iron_water_update_3", "terrain.terrain-water-rocks.rocks-03", "stone", 2),
+  staticResourcePreset("iron_water_update_4", "terrain.terrain-water-rocks.rocks-04", "stone", 3),
   staticResourcePreset("gold_small", SMALL_GOLD_ASSET_ID, "gold", 1),
   staticResourcePreset(
     "gold_stone_1",

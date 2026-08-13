@@ -364,7 +364,7 @@ describe("shared party materials and harvest nodes", () => {
     expect(loaded).toMatchObject({
       version: 0,
       state: {
-        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+        materials: { wood: 0, stone: 0, meat: 0 },
         harvestNodes: {},
       },
     });
@@ -410,7 +410,7 @@ describe("shared party materials and harvest nodes", () => {
 
     const row = await probe.partyAdventureStates.findById(partyId);
     expect(row?.version).toBe(1);
-    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 5, stone: 0, iron: 0, meat: 0 });
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 5, stone: 0, meat: 0 });
     expect(JSON.parse(row?.harvestNodes ?? "{}")).toEqual({
       [EVENT_A]: {
         eventId: EVENT_A,
@@ -433,7 +433,7 @@ describe("shared party materials and harvest nodes", () => {
     expect(reloaded).toMatchObject({
       version: 1,
       state: {
-        materials: { wood: 5, stone: 0, iron: 0, meat: 0 },
+        materials: { wood: 5, stone: 0, meat: 0 },
         harvestNodes: { [EVENT_A]: { generation: 0, depleted: true } },
       },
     });
@@ -462,7 +462,7 @@ describe("shared party materials and harvest nodes", () => {
       ok: true,
       rewarded: true,
       goldValue: 0,
-      materials: { wood: 0, stone: 0, iron: 0, meat: 3 },
+      materials: { wood: 0, stone: 0, meat: 3 },
     });
     expect(
       await hitHarvestNode(partyId, {
@@ -472,7 +472,7 @@ describe("shared party materials and harvest nodes", () => {
       }),
     ).toEqual({ ok: false, reason: "reservation" });
     const row = await probe.partyAdventureStates.findById(partyId);
-    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, iron: 0, meat: 3 });
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, meat: 3 });
     expect(JSON.parse(row?.harvestNodes ?? "{}")[eventId]).toMatchObject({
       generation: 0,
       depleted: true,
@@ -501,7 +501,7 @@ describe("shared party materials and harvest nodes", () => {
       ok: true,
       rewarded: true,
       goldValue: 25,
-      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      materials: { wood: 0, stone: 0, meat: 0 },
     });
     expect(
       await hitHarvestNode(partyId, {
@@ -511,7 +511,7 @@ describe("shared party materials and harvest nodes", () => {
       }),
     ).toEqual({ ok: false, reason: "reservation" });
     const row = await probe.partyAdventureStates.findById(partyId);
-    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, iron: 0, meat: 0 });
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, meat: 0 });
     expect(JSON.parse(row?.harvestNodes ?? "{}")[EVENT_B]).toMatchObject({
       generation: 0,
       depleted: true,
@@ -761,7 +761,7 @@ describe("shared party materials and harvest nodes", () => {
       eventId: EVENT_A,
       generation: 0,
       requiredHits: 1,
-      reward: { iron: 2 },
+      reward: { stone: 2 },
       respawnDelayMs: null,
     });
     if (!reservation.ok) throw new Error("reservation rejected");
@@ -774,17 +774,17 @@ describe("shared party materials and harvest nodes", () => {
     ).toMatchObject({ ok: true, rewarded: true });
 
     const spent = (await Promise.all([
-      partyRoom.room.call(partyId, "consumePartyMaterials", { iron: 2 }),
-      partyRoom.room.call(partyId, "consumePartyMaterials", { iron: 2 }),
+      partyRoom.room.call(partyId, "consumePartyMaterials", { stone: 2 }),
+      partyRoom.room.call(partyId, "consumePartyMaterials", { stone: 2 }),
     ])) as ConsumePartyMaterialsResult[];
     expect(spent.filter((result) => result.ok)).toEqual([
-      { ok: true, materials: { wood: 0, stone: 0, iron: 0, meat: 0 } },
+      { ok: true, materials: { wood: 0, stone: 0, meat: 0 } },
     ]);
     expect(spent.filter((result) => !result.ok)).toEqual([{ ok: false, reason: "insufficient" }]);
 
     const row = await probe.partyAdventureStates.findById(partyId);
     expect(row?.version).toBe(2);
-    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, iron: 0, meat: 0 });
+    expect(JSON.parse(row?.materials ?? "{}")).toEqual({ wood: 0, stone: 0, meat: 0 });
   });
 
   test("support reservations serialize shared stock and explicit abort refunds exactly once", async () => {
@@ -815,7 +815,7 @@ describe("shared party materials and harvest nodes", () => {
       {
         ok: false,
         reason: "insufficient",
-        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+        materials: { wood: 0, stone: 0, meat: 0 },
       },
     ]);
     const acceptedId = raced[0]?.ok ? reservationA : reservationB;
@@ -879,7 +879,7 @@ describe("shared party materials and harvest nodes", () => {
     ).toEqual({
       ok: false,
       reason: "insufficient",
-      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      materials: { wood: 0, stone: 0, meat: 0 },
     });
     expect(await partyRoom.room.call(partyId, "releasePartyMaterials", identity)).toMatchObject({
       ok: true,
@@ -920,10 +920,10 @@ describe("shared party materials and harvest nodes", () => {
   test("a lost settlement acknowledgement reloads as settled after coordinator eviction", async () => {
     const { partyId, heroId } = await newPartyWithHero("supsetack");
     partyRoom.now = () => 21_000;
-    await grantMaterials(partyId, heroId, { iron: 2 });
+    await grantMaterials(partyId, heroId, { stone: 2 });
     const reservationId = "aaaaaaaa-1111-4111-8111-111111111111";
-    const identity = materialIdentity(partyId, reservationId, heroId, { iron: 2 });
-    await reserveMaterials(partyId, reservationId, heroId, { iron: 2 });
+    const identity = materialIdentity(partyId, reservationId, heroId, { stone: 2 });
+    await reserveMaterials(partyId, reservationId, heroId, { stone: 2 });
     await partyRoom.room.call(partyId, "commitPartyMaterials", identity);
 
     const service = partyRoom.adventureStateService;
@@ -945,7 +945,7 @@ describe("shared party materials and harvest nodes", () => {
         roomKey: `${partyId}:${SUPPORT_MAP_A}`,
         activatedIds: [reservationId],
       }),
-    ).toMatchObject({ ok: true, materials: { iron: 0 } });
+    ).toMatchObject({ ok: true, materials: { stone: 0 } });
     const row = await probe.partyAdventureStates.findById(partyId);
     expect(JSON.parse(row?.supportSpends ?? "{}")[reservationId]).toMatchObject({
       status: "settled",
@@ -1116,10 +1116,10 @@ describe("shared party materials and harvest nodes", () => {
   test("malformed public or private coordinator JSON fails closed without changing stock", async () => {
     const { partyId, heroId } = await newPartyWithHero("supbad");
     partyRoom.now = () => 27_000;
-    await grantMaterials(partyId, heroId, { iron: 2 });
+    await grantMaterials(partyId, heroId, { stone: 2 });
     const reservationId = "aaaaaaaa-9999-4999-8999-999999999999";
-    const identity = materialIdentity(partyId, reservationId, heroId, { iron: 2 });
-    await reserveMaterials(partyId, reservationId, heroId, { iron: 2 });
+    const identity = materialIdentity(partyId, reservationId, heroId, { stone: 2 });
+    await reserveMaterials(partyId, reservationId, heroId, { stone: 2 });
     await partyRoom.room.call(partyId, "commitPartyMaterials", identity);
     await probe.partyAdventureStates.updateById(partyId, { switches: "[" });
     evictPartyRoom(partyId);
@@ -1130,16 +1130,16 @@ describe("shared party materials and harvest nodes", () => {
       }),
     ).rejects.toThrow("cannot load coordinator from invalid_json party state");
     let row = await probe.partyAdventureStates.findById(partyId);
-    expect(JSON.parse(row?.materials ?? "{}").iron).toBe(0);
+    expect(JSON.parse(row?.materials ?? "{}").stone).toBe(0);
     expect(JSON.parse(row?.supportSpends ?? "{}")[reservationId].status).toBe("committed");
 
     await probe.partyAdventureStates.updateById(partyId, { switches: "{}", supportSpends: "[" });
     evictPartyRoom(partyId);
     await expect(
-      reserveMaterials(partyId, "bbbbbbbb-1111-4111-8111-111111111111", heroId, { iron: 1 }),
+      reserveMaterials(partyId, "bbbbbbbb-1111-4111-8111-111111111111", heroId, { stone: 1 }),
     ).rejects.toThrow("cannot load invalid support-spend JSON");
     row = await probe.partyAdventureStates.findById(partyId);
-    expect(JSON.parse(row?.materials ?? "{}").iron).toBe(0);
+    expect(JSON.parse(row?.materials ?? "{}").stone).toBe(0);
   });
 
   test("timed respawn advances generation before accepting another hit", async () => {

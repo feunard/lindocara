@@ -256,7 +256,7 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       variables: { "0001": 5, "0002": -3 },
       selfSwitches: { [`${EVENT_A}:A`]: true, [`${EVENT_B}:A`]: false },
       defeatedMonsters: { [EVENT_A]: true },
-      materials: { wood: 2, stone: 1, iron: 0, meat: 3 },
+      materials: { wood: 2, stone: 1, meat: 3 },
       harvestNodes: {
         [EVENT_A]: {
           eventId: EVENT_A,
@@ -296,7 +296,7 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       switches: {},
       variables: { "0001": Number.MAX_SAFE_INTEGER, "0002": -Number.MAX_SAFE_INTEGER },
       selfSwitches: {},
-      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      materials: { wood: 0, stone: 0, meat: 0 },
       harvestNodes: {},
     };
     expect(parsePartyAdventureState(value)).toEqual(value);
@@ -312,7 +312,7 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       switches: {},
       variables: {},
       selfSwitches,
-      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      materials: { wood: 0, stone: 0, meat: 0 },
       harvestNodes: {},
     };
     expect(parsePartyAdventureState(value)).toEqual(value);

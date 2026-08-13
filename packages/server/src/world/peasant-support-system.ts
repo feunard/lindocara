@@ -662,14 +662,10 @@ function playerCenterDistance(point: GroundVector, player: GroundVector): number
   return groundDistance(point, player);
 }
 
-function campSeesPlayer(camp: PeasantCampRuntime, player: PlayerRuntime, terrain: ZoneTerrain) {
-  return groundLineOfSight(terrain, camp, player);
-}
-
 export function nearbyAlliedPeasantCamp(
   runtime: PeasantSupportRuntime,
   player: PlayerRuntime,
-  terrain: ZoneTerrain,
+  _terrain: ZoneTerrain,
   now: number,
 ): PeasantCampRuntime | null {
   if (!player.partyId || player.life !== "alive" || !player.authorized) return null;
@@ -679,8 +675,7 @@ export function nearbyAlliedPeasantCamp(
         (camp) =>
           camp.expiresAt > now &&
           camp.ownerPartyId === player.partyId &&
-          playerCenterDistance(camp, player) <= INTERACTION_RANGE &&
-          campSeesPlayer(camp, player, terrain),
+          playerCenterDistance(camp, player) <= INTERACTION_RANGE,
       )
       .sort(
         (left, right) =>
@@ -756,7 +751,7 @@ function rationTargets(
   camp: PeasantCampRuntime,
   owner: PlayerRuntime,
   players: readonly PlayerRuntime[],
-  terrain: ZoneTerrain,
+  _terrain: ZoneTerrain,
   areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean,
   now: number,
 ): PlayerRuntime[] {
@@ -777,12 +772,10 @@ function rationTargets(
     if (!healingUseful && !buffUseful) return false;
 
     // A radius of zero means an owner-only ration, not an infinite-range delivery. The owner must
-    // still be standing inside and visible from the camp when the portion is actually served.
+    // still be standing inside the camp when the portion is actually served.
     if (camp.rationRadius <= 0 && target.id !== owner.id) return false;
     const effectiveRadius = camp.rationRadius > 0 ? camp.rationRadius : camp.radius;
-    return (
-      playerCenterDistance(camp, target) <= effectiveRadius && campSeesPlayer(camp, target, terrain)
-    );
+    return playerCenterDistance(camp, target) <= effectiveRadius;
   });
   return candidates
     .sort((left, right) => {
@@ -841,8 +834,7 @@ export function advancePeasantCamps(options: {
           target.life !== "alive" ||
           !target.authorized ||
           !options.areAllies(owner, target) ||
-          playerCenterDistance(camp, target) > camp.radius ||
-          !campSeesPlayer(camp, target, options.terrain)
+          playerCenterDistance(camp, target) > camp.radius
         ),
     );
     for (const target of healingTargets) options.markHealingZone?.(camp, owner, target);
@@ -936,7 +928,7 @@ export function damageAfterPeasantCampProtection(
   target: PlayerRuntime,
   rawDamage: number,
   camps: readonly PeasantCampRuntime[],
-  terrain: ZoneTerrain,
+  _terrain: ZoneTerrain,
   now: number,
 ): number {
   if (rawDamage <= 0) return 0;
@@ -946,8 +938,7 @@ export function damageAfterPeasantCampProtection(
       camp.expiresAt <= now ||
       target.partyId === null ||
       camp.ownerPartyId !== target.partyId ||
-      playerCenterDistance(camp, target) > camp.radius ||
-      !campSeesPlayer(camp, target, terrain)
+      playerCenterDistance(camp, target) > camp.radius
     )
       continue;
     reduction = Math.max(reduction, camp.protectionRatio);

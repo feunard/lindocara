@@ -1,4 +1,4 @@
-import { HARVEST_PROFILE_LIMITS, type HarvestProfile } from "@lindocara/engine/harvest.js";
+import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import { dictionaries } from "@lindocara/engine/i18n/index.js";
 import {
   isPeasantTalentEffect,
@@ -6,10 +6,11 @@ import {
   resolvePeasantBombPlan,
   resolvePeasantConstructionPlan,
   resolvePeasantHarvestPlan,
+  resolvePeasantRallyPlan,
   resolvePeasantRationPlan,
 } from "@lindocara/engine/peasant.js";
 import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
-import { SKILL_UNLOCK_LEVEL, type SkillSlot } from "@lindocara/engine/skills.js";
+import { SKILL_UNLOCK_LEVEL, type SkillSlot, skillFor } from "@lindocara/engine/skills.js";
 import {
   CLASS_TALENTS,
   normalizeTalentSelection,
@@ -46,7 +47,7 @@ describe("Peasant talents", () => {
     expect(talentBranchSlots("peasant")).toEqual([1, 2, 3, 4, 5]);
     const expected = {
       1: ["clean_cut", "sweeping_fell", "great_felling"],
-      2: ["rich_vein", "fragmentation", "mother_lode"],
+      2: ["battle_chorus", "lasting_echo", "grand_union"],
       3: ["preservation", "field_feast", "grand_feast"],
       4: ["stockade", "campfire", "complete_encampment"],
       5: ["shrapnel", "concussion", "powder_keg"],
@@ -186,55 +187,39 @@ describe("Peasant talents", () => {
     expect(profile).toEqual(original);
   });
 
-  it("merges rich-vein material bonuses and preserves gold as existing currency", () => {
-    const effects = peasantTalentEffects(
-      [
-        "peasant.prospectors_pick.ore_share",
-        "peasant.prospectors_pick.rich_vein",
-        "peasant.prospectors_pick.mother_lode",
-      ],
-      2,
-    );
-    const stone = resolvePeasantHarvestPlan(
+  it("resolves both Cocorico support branches and the final point without creating materials", () => {
+    const base = skillFor("peasant", 2);
+    expect(
+      resolvePeasantRallyPlan(
+        peasantTalentEffects(["peasant.prospectors_pick.battle_chorus"], 2),
+        base,
+      ),
+    ).toEqual({ powerBonusRatio: 0.24, radius: base.radius, durationMs: 8_000 });
+    expect(
+      resolvePeasantRallyPlan(
+        peasantTalentEffects(["peasant.prospectors_pick.lasting_echo"], 2),
+        base,
+      ),
+    ).toEqual({ powerBonusRatio: 0.12, radius: base.radius + 2, durationMs: 10_000 });
+    expect(
+      resolvePeasantRallyPlan(
+        peasantTalentEffects(
+          ["peasant.prospectors_pick.battle_chorus", "peasant.prospectors_pick.grand_union"],
+          2,
+        ),
+        base,
+      ),
+    ).toEqual({ powerBonusRatio: 0.32, radius: base.radius + 1.5, durationMs: 11_000 });
+
+    const legacyPickaxeHarvest = resolvePeasantHarvestPlan(
       harvestProfile({ resource: "stone", tool: "pickaxe", yieldAmount: 8 }),
-      effects,
+      peasantTalentEffects(["peasant.prospectors_pick.grand_union"], 2),
     );
-    expect(stone).toMatchObject({
-      yieldAmount: 16,
-      primaryMaterialReward: { stone: 16 },
-      bonusMaterialReward: { iron: 3 },
-      materialReward: { stone: 16, iron: 3 },
-      areaRadius: 110 / TILE_SIZE,
-      maximumTargets: 5,
-    });
-
-    const gold = resolvePeasantHarvestPlan(
-      harvestProfile({
-        resource: "gold",
-        tool: "pickaxe",
-        yieldAmount: 0,
-        goldValue: 100,
-      }),
-      effects,
-    );
-    expect(gold).toMatchObject({
-      yieldAmount: 0,
-      goldValue: 240,
-      primaryMaterialReward: {},
+    expect(legacyPickaxeHarvest).toMatchObject({
+      primaryMaterialReward: { stone: 8 },
       bonusMaterialReward: {},
-      materialReward: {},
+      materialReward: { stone: 8 },
     });
-
-    const maximumGold = resolvePeasantHarvestPlan(
-      harvestProfile({
-        resource: "gold",
-        tool: "pickaxe",
-        yieldAmount: 0,
-        goldValue: HARVEST_PROFILE_LIMITS.goldValue.max,
-      }),
-      effects,
-    );
-    expect(maximumGold.goldValue).toBe(HARVEST_PROFILE_LIMITS.goldValue.max);
   });
 
   it("turns ration effects into bounded healing, portions and group utility", () => {
@@ -258,16 +243,12 @@ describe("Peasant talents", () => {
     );
     expect(sweeping).toMatchObject({ areaRadius: 84 / TILE_SIZE, maximumTargets: 3 });
 
-    const fragmentation = resolvePeasantHarvestPlan(
-      harvestProfile({ resource: "stone", tool: "pickaxe", yieldAmount: 8 }),
-      peasantTalentEffects(["peasant.prospectors_pick.fragmentation"], 2),
-    );
-    expect(fragmentation).toMatchObject({
-      hitsRequired: 3,
-      harvestDurationMs: 850,
-      areaRadius: 72 / TILE_SIZE,
-      maximumTargets: 3,
-    });
+    expect(
+      resolvePeasantRallyPlan(
+        peasantTalentEffects(["peasant.prospectors_pick.lasting_echo"], 2),
+        skillFor("peasant", 2),
+      ),
+    ).toMatchObject({ radius: (skillFor("peasant", 2).radius ?? 0) + 2, durationMs: 10_000 });
 
     const meat = resolvePeasantHarvestPlan(
       harvestProfile({ resource: "meat", tool: "knife" }),
@@ -292,7 +273,7 @@ describe("Peasant talents", () => {
       power: 90,
       durabilityMultiplier: 1.25,
       durationMs: 35_000,
-      radius: 120 / TILE_SIZE,
+      radius: 14,
       protectionRatio: 0.08,
       slowRatio: 0,
       costMultiplier: 1,
@@ -302,7 +283,7 @@ describe("Peasant talents", () => {
       resolvePeasantBombPlan(peasantTalentEffects(["peasant.homemade_bomb.shrapnel"], 5)),
     ).toEqual({
       id: "homemade_bomb",
-      cost: { iron: 1, stone: 1 },
+      cost: { stone: 2 },
       power: 85,
       radius: 121 / TILE_SIZE,
       fragments: 4,
@@ -330,15 +311,14 @@ describe("Peasant talents", () => {
       "peasant.makeshift_camp.stockade",
       "peasant.makeshift_camp.complete_encampment",
     ]);
-    // 72 px * 1.2 = 86.4 px and 96 px * 1.2 = 115.2 px, in tiles.
-    expect(camp.skill).toMatchObject({ cooldownMs: 10_200, range: 1.35, radius: 1.8 });
+    expect(camp.skill).toMatchObject({ cooldownMs: 10_200, range: 1.35, radius: 12 });
     expect(camp.support).toEqual({
       id: "makeshift_camp",
       cost: { wood: 1, stone: 1, meat: 1 },
       power: 90,
       durabilityMultiplier: 3,
       durationMs: 48_000,
-      radius: 144 / TILE_SIZE,
+      radius: 16,
       protectionRatio: 0.25,
       slowRatio: 0.4,
       costMultiplier: 0.5,
@@ -362,7 +342,7 @@ describe("Peasant talents", () => {
     expect(bomb.skill).toMatchObject({ cooldownMs: 8_800, range: 5.25, power: 95, radius: 1.925 });
     expect(bomb.support).toEqual({
       id: "homemade_bomb",
-      cost: { iron: 1, stone: 1 },
+      cost: { stone: 1 },
       power: 119,
       // 110 px * 1.736; the pixel table rounded this to 191 px, tile units keep the exact product.
       radius: 2.98375,

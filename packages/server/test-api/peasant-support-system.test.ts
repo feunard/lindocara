@@ -16,6 +16,7 @@ import {
   createPeasantSupportRuntime,
   damageAfterPeasantCampProtection,
   isPeasantBombProjectile,
+  nearbyAlliedPeasantCamp,
   PEASANT_RATION_CATCH_DELAY_MS,
   peasantRationPositionAt,
   peasantSupportPlans,
@@ -187,10 +188,14 @@ describe("authoritative Peasant support", () => {
 
     const consumed = vi.fn();
     const removed = vi.fn();
+    const firstRation = runtime.rations[0];
+    if (!firstRation) {
+      throw new Error("expected the first launched ration");
+    }
     advancePeasantRations({
       runtime,
       players: [owner],
-      now: runtime.rations[0]!.launchedAt + PEASANT_RATION_CATCH_DELAY_MS,
+      now: firstRation.launchedAt + PEASANT_RATION_CATCH_DELAY_MS,
       consumed,
       removed,
     });
@@ -387,6 +392,19 @@ describe("authoritative Peasant support", () => {
     )?.camp;
     if (!camp) throw new Error("camp fixture missing");
 
+    for (const [x, z] of [
+      [camp.x - t(32), camp.z],
+      [camp.x + t(32), camp.z],
+      [camp.x, camp.z - t(32)],
+      [camp.x, camp.z + t(32)],
+    ] as const) {
+      ally.x = x;
+      ally.z = z;
+      expect(nearbyAlliedPeasantCamp(runtime, ally, world, 1_001)?.id).toBe(camp.id);
+    }
+    ally.x = t(32);
+    ally.z = t(32);
+
     expect(
       transferPeasantCampGold({
         runtime,
@@ -452,7 +470,7 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.makeshift_camp.stockade",
         expected: {
           cost: { wood: 1, stone: 1, meat: 1 },
-          radius: t(96),
+          radius: 12,
           durationMs: 61_250,
           protectionRatio: 0.27,
           slowRatio: 0.2,
@@ -462,7 +480,7 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.makeshift_camp.campfire",
         expected: {
           cost: { wood: 1, stone: 1, meat: 1 },
-          radius: t(120),
+          radius: 14,
           durationMs: 43_750,
           protectionRatio: 0.2,
           slowRatio: 0,
@@ -472,7 +490,7 @@ describe("authoritative Peasant support", () => {
         talent: "peasant.makeshift_camp.complete_encampment",
         expected: {
           cost: { wood: 1, stone: 1, meat: 1 },
-          radius: t(144),
+          radius: 16,
           durationMs: 80_000,
           protectionRatio: 0.22,
           slowRatio: 0.2,
@@ -533,7 +551,7 @@ describe("authoritative Peasant support", () => {
     }
   });
 
-  it("serves finite rations deterministically and slows only monsters inside the camp", () => {
+  it("serves finite rations deterministically and slows monsters inside the expanded camp", () => {
     const runtime = createPeasantSupportRuntime();
     const owner = player("owner");
     const allies = [
@@ -580,10 +598,10 @@ describe("authoritative Peasant support", () => {
     advance(1_000);
     expect(served).toEqual(["ally-a", "ally-b", "ally-c", "ally-d"]);
     expect(camp.rationPortionsRemaining).toBe(0);
-    expect(slowedIds).toEqual(["slowed"]);
+    expect(slowedIds).toEqual(["slowed", "far"]);
     advance(3_000);
     expect(served).toHaveLength(4);
-    expect(slowedIds).toEqual(["slowed", "slowed"]);
+    expect(slowedIds).toEqual(["slowed", "far", "slowed", "far"]);
   });
 
   it("conserves owner-only rations until they provide healing inside the camp", () => {
@@ -707,7 +725,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.homemade_bomb.shrapnel",
         expected: {
-          cost: { iron: 1, stone: 1 },
+          cost: { stone: 2 },
           power: 85,
           radius: t(121),
           fragments: 4,
@@ -720,7 +738,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.homemade_bomb.concussion",
         expected: {
-          cost: { iron: 1, stone: 1 },
+          cost: { stone: 2 },
           power: 77,
           radius: t(132),
           fragments: 0,
@@ -733,7 +751,7 @@ describe("authoritative Peasant support", () => {
       {
         talent: "peasant.homemade_bomb.powder_keg",
         expected: {
-          cost: { iron: 1, stone: 1 },
+          cost: { stone: 1 },
           power: 115,
           // 110 px * 1.35; tile units keep the exact product where the pixel table rounded.
           radius: 2.320313,

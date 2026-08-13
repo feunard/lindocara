@@ -164,7 +164,7 @@ describe("TalentTree", () => {
     expect(screen.getByRole("button", { name: /Mercy\./ })).toBeInTheDocument();
   });
 
-  it("shows the exact one-unit support costs in the Peasant talent branches", () => {
+  it("shows the exact shared support costs in the Peasant talent branches", () => {
     const self = useUiStore.getState().self;
     if (!self) throw new Error("Peasant talent fixture missing");
     useUiStore.setState({
@@ -175,9 +175,9 @@ describe("TalentTree", () => {
     render(<TalentTree />);
 
     expect(screen.getByText("Cost: Wood 1 · Stone 1 · Meat 1")).toBeVisible();
-    expect(screen.getByText("Cost: Stone 1 · Iron 1")).toBeVisible();
+    expect(screen.getByText("Cost: Stone 2")).toBeVisible();
     expect(screen.getByRole("button", { name: /Makeshift Camp\..*Cost: Wood 1/ })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Homemade Bomb\..*Cost: Stone 1/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Homemade Bomb\..*Cost: Stone 2/ })).toBeVisible();
   });
 
   it("renders the unlocked Shadow Step ultimate on the generic fifth row", async () => {

@@ -337,7 +337,6 @@ function sameMaterialAmounts(left: PartyMaterialAmounts, right: PartyMaterialAmo
   return (
     (left.wood ?? 0) === (right.wood ?? 0) &&
     (left.stone ?? 0) === (right.stone ?? 0) &&
-    (left.iron ?? 0) === (right.iron ?? 0) &&
     (left.meat ?? 0) === (right.meat ?? 0)
   );
 }

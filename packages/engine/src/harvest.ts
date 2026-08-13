@@ -2,10 +2,10 @@ import type { MonsterRespawnMode, MonsterSpecies, Rect } from "./game.js";
 import { TILE_SIZE } from "./tilemap.js";
 import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
 
-export const HARVEST_RESOURCE_KINDS = ["wood", "stone", "iron", "gold", "meat"] as const;
+export const HARVEST_RESOURCE_KINDS = ["wood", "stone", "gold", "meat"] as const;
 export type HarvestResourceKind = (typeof HARVEST_RESOURCE_KINDS)[number];
 
-/** Pawn carry-sheet variants that actually exist; stone and iron deliberately have no fake. */
+/** Pawn carry-sheet variants that actually exist; stone deliberately has no fake. */
 export const PEASANT_CARRY_KINDS = ["wood", "meat", "gold"] as const;
 export type PeasantCarryKind = (typeof PEASANT_CARRY_KINDS)[number];
 export const PEASANT_CARRY_DURATION_MS = 3_000;
@@ -45,7 +45,6 @@ export const MIN_TIMED_HARVEST_RESPAWN_MS = 1_000;
 export const HARVEST_TOOL_BY_RESOURCE: Readonly<Record<HarvestResourceKind, HarvestTool>> = {
   wood: "axe",
   stone: "pickaxe",
-  iron: "pickaxe",
   gold: "pickaxe",
   meat: "knife",
 };
@@ -87,10 +86,6 @@ export const DEFAULT_HARVEST_COLLISIONS: Readonly<
     depleted: { offsetX: -18, offsetY: -14, width: 36, height: 14 },
   },
   stone: {
-    intact: { offsetX: -24, offsetY: -22, width: 48, height: 22 },
-    depleted: { offsetX: -20, offsetY: -12, width: 40, height: 12 },
-  },
-  iron: {
     intact: { offsetX: -24, offsetY: -22, width: 48, height: 22 },
     depleted: { offsetX: -20, offsetY: -12, width: 40, height: 12 },
   },
@@ -247,10 +242,13 @@ function boundedAmountRange(
   return min === null || max === null || min > max ? null : { min, max };
 }
 
-type LegacyHarvestTimingSignature = Pick<
-  HarvestProfile,
-  "resource" | "tool" | "harvestDurationMs" | "exhaustionBehavior" | "respawn"
->;
+type LegacyHarvestTimingSignature = Omit<
+  Pick<
+    HarvestProfile,
+    "resource" | "tool" | "harvestDurationMs" | "exhaustionBehavior" | "respawn"
+  >,
+  "resource"
+> & { resource: HarvestResourceKind | "iron" };
 
 /**
  * Exact gameplay signatures shipped by the original eight editor presets. Those presets added a
@@ -548,8 +546,9 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     actorBehavior,
   } = record;
 
-  if (!isHarvestResourceKind(resource) || !isHarvestTool(tool)) return null;
-  if (!harvestToolMatchesResource(resource, tool)) return null;
+  const normalizedResource = resource === "iron" ? "stone" : resource;
+  if (!isHarvestResourceKind(normalizedResource) || !isHarvestTool(tool)) return null;
+  if (!harvestToolMatchesResource(normalizedResource, tool)) return null;
   if (!isHarvestExhaustionBehavior(exhaustionBehavior) || !isHarvestRespawnMode(respawn)) {
     return null;
   }
@@ -586,7 +585,7 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
 
   // Gold enters the existing economy, never a second material counter. Every other profile yields
   // material units and cannot silently mint currency as a side effect.
-  if (resource === "gold") {
+  if (normalizedResource === "gold") {
     if (
       parsedYield !== 0 ||
       parsedGold < 1 ||
@@ -614,7 +613,7 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
   // remain presentation-only and never participate in this decision.
   const legacySheep =
     actorBehavior === undefined &&
-    resource === "meat" &&
+    normalizedResource === "meat" &&
     tool === "knife" &&
     parsedGold === 0 &&
     parsedRange === 80 &&
@@ -623,11 +622,15 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     exhaustionBehavior === "replace" &&
     respawn === "timed" &&
     ((parsedYield === 6 && parsedHits === 3) || (parsedYield === 8 && parsedHits === 4));
-  const parsedCollision = parseHarvestCollisionProfile(collision, resource, exhaustionBehavior);
+  const parsedCollision = parseHarvestCollisionProfile(
+    collision,
+    normalizedResource,
+    exhaustionBehavior,
+  );
   if (!parsedCollision) return null;
   const normalizedDuration = migrateLegacyHarvestDuration(
     {
-      resource,
+      resource: resource as HarvestResourceKind | "iron",
       tool,
       harvestDurationMs: parsedDuration,
       exhaustionBehavior,
@@ -637,7 +640,7 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
   );
 
   return {
-    resource,
+    resource: normalizedResource,
     tool,
     yieldAmount: parsedYield,
     ...(parsedYieldRange === undefined ? {} : { yieldRange: parsedYieldRange }),

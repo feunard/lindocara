@@ -264,11 +264,11 @@ export const en = {
   "skill.peasant.woodcutters_swing.description":
     "Attack in front; when touching a resource, automatically pull out the axe, pick, or knife and collect the matching material.",
   "skill.peasant.prospectors_pick.description":
-    "Deliver a highly professional cock-a-doodle-doo that boosts nearby allies and restores class resource.",
+    "Deliver a highly professional cock-a-doodle-doo that temporarily boosts nearby allies' damage.",
   "skill.peasant.butchers_cut.description":
     "Catapult three meat rations within 20 m. Catch one in flight or pick it up for 10% health and 5% mana; missed rations remain for 30 seconds.",
   "skill.peasant.makeshift_camp.description":
-    "Build a camp that restores allied health and mana, with a shared gold chest.",
+    "Build a camp that restores allied health and mana within 10 m, with a shared gold chest.",
   "skill.peasant.homemade_bomb.description":
     "Throw at the nearest enemy on your level, stopping at the first obstacle.",
 
@@ -456,12 +456,10 @@ export const en = {
   "resource.mana": "MP",
   "material.wood": "Wood",
   "material.stone": "Stone",
-  "material.iron": "Iron",
   "material.gold": "Gold",
   "material.meat": "Meat",
   "material.short.wood": "W",
   "material.short.stone": "S",
-  "material.short.iron": "I",
   "material.short.meat": "M",
   "skill.mana_cost": "{cost} mana",
   "skill.material_cost": "Cost: {cost}",
@@ -850,15 +848,15 @@ export const en = {
   "talent.ultimate.peasant.woodcutters_swing.name": "Great Felling",
   "talent.ultimate.peasant.woodcutters_swing.description":
     "Greatly increase wood yield and extend the axe action to six compatible resources.",
-  "talent.evolution.peasant.prospectors_pick.a.name": "Rich Vein",
+  "talent.evolution.peasant.prospectors_pick.a.name": "Battle Chorus",
   "talent.evolution.peasant.prospectors_pick.a.description":
-    "Extract more ore, find guaranteed iron in stone and increase authored gold value.",
-  "talent.evolution.peasant.prospectors_pick.b.name": "Rock Fragmentation",
+    "Adds 12 damage points to the rally and extends its buff by 2 seconds.",
+  "talent.evolution.peasant.prospectors_pick.b.name": "Lasting Echo",
   "talent.evolution.peasant.prospectors_pick.b.description":
-    "Break several nearby compatible deposits with fewer and faster pick strikes.",
-  "talent.ultimate.peasant.prospectors_pick.name": "Mother Lode",
+    "Extends the rally by 2 metres and its buff by 4 seconds.",
+  "talent.ultimate.peasant.prospectors_pick.name": "Grand Union",
   "talent.ultimate.peasant.prospectors_pick.description":
-    "Work five nearby deposits at once and substantially improve ore and gold rewards.",
+    "Adds 8 damage points, 1.5 metres and 3 seconds to the rally on top of the chosen evolution.",
   "talent.evolution.peasant.butchers_cut.a.name": "Preservation",
   "talent.evolution.peasant.butchers_cut.a.description":
     "Prepare more rations from compatible meat and improve their immediate healing.",
@@ -1896,7 +1894,7 @@ export const en = {
   "editor.harvest.preset.treeUpdate5": "Pine tree V",
   "editor.harvest.preset.treeUpdate6": "Pine tree VI",
   "editor.harvest.preset.stone": "Stone outcrop",
-  "editor.harvest.preset.iron": "Iron outcrop",
+  "editor.harvest.preset.iron": "Legacy stone outcrop",
   "editor.harvest.preset.goldSmall": "Small gold deposit",
   "editor.harvest.preset.goldLarge": "Large gold deposit",
   "editor.harvest.preset.meat": "Meat cache",
@@ -1908,7 +1906,7 @@ export const en = {
   "editor.harvest.resource": "Resource type",
   "editor.harvest.resource.wood": "Wood",
   "editor.harvest.resource.stone": "Stone",
-  "editor.harvest.resource.iron": "Iron",
+  "editor.harvest.resource.iron": "Stone (legacy iron)",
   "editor.harvest.resource.gold": "Gold",
   "editor.harvest.resource.meat": "Meat",
   "editor.harvest.tool": "Required tool",

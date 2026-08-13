@@ -19,11 +19,10 @@ const CARCASS_ID = "carcass:verdant-reach:road-war-pig";
 describe("party material validation", () => {
   it("normalizes missing persisted keys and round-trips explicit stock", () => {
     expect(parsePartyMaterials(undefined)).toEqual(EMPTY_PARTY_MATERIALS);
-    expect(parsePartyMaterials({ wood: 3 })).toEqual({ wood: 3, stone: 0, iron: 0, meat: 0 });
+    expect(parsePartyMaterials({ wood: 3 })).toEqual({ wood: 3, stone: 0, meat: 0 });
     expect(parsePartyMaterials({ wood: 3, stone: 2, iron: 1, meat: 4 })).toEqual({
       wood: 3,
-      stone: 2,
-      iron: 1,
+      stone: 3,
       meat: 4,
     });
   });
@@ -37,28 +36,26 @@ describe("party material validation", () => {
   });
 
   it("adds and consumes stock without partial or overflowing mutations", () => {
+    expect(addPartyMaterials({ wood: 3, stone: 3, meat: 4 }, { wood: 2, stone: 1 })).toEqual({
+      wood: 5,
+      stone: 4,
+      meat: 4,
+    });
     expect(
-      addPartyMaterials({ wood: 3, stone: 2, iron: 1, meat: 4 }, { wood: 2, iron: 1 }),
-    ).toEqual({ wood: 5, stone: 2, iron: 2, meat: 4 });
-    expect(
-      addPartyMaterials(
-        { wood: MAX_PARTY_MATERIAL_AMOUNT, stone: 0, iron: 0, meat: 0 },
-        { wood: 1 },
-      ),
+      addPartyMaterials({ wood: MAX_PARTY_MATERIAL_AMOUNT, stone: 0, meat: 0 }, { wood: 1 }),
     ).toBeNull();
-    expect(
-      spendPartyMaterials({ wood: 3, stone: 2, iron: 1, meat: 4 }, { wood: 2, stone: 2 }),
-    ).toEqual({ wood: 1, stone: 0, iron: 1, meat: 4 });
-    expect(spendPartyMaterials({ wood: 1, stone: 2, iron: 1, meat: 4 }, { wood: 2 })).toBeNull();
+    expect(spendPartyMaterials({ wood: 3, stone: 3, meat: 4 }, { wood: 2, stone: 2 })).toEqual({
+      wood: 1,
+      stone: 1,
+      meat: 4,
+    });
+    expect(spendPartyMaterials({ wood: 1, stone: 3, meat: 4 }, { wood: 2 })).toBeNull();
   });
 
   it("reports the exact resources missing from an atomic spend", () => {
     expect(
-      missingPartyMaterialAmounts(
-        { wood: 0, stone: 1, iron: 0, meat: 3 },
-        { wood: 1, stone: 1, iron: 1, meat: 1 },
-      ),
-    ).toEqual({ wood: 1, iron: 1 });
+      missingPartyMaterialAmounts({ wood: 0, stone: 1, meat: 3 }, { wood: 1, stone: 2, meat: 1 }),
+    ).toEqual({ wood: 1, stone: 1 });
   });
 });
 
@@ -154,7 +151,7 @@ describe("harvest node state", () => {
     expect(final).toMatchObject({
       ok: true,
       rewarded: true,
-      materials: { wood: 3, stone: 0, iron: 0, meat: 0 },
+      materials: { wood: 3, stone: 0, meat: 0 },
       node: {
         hits: 2,
         lastHitAt: 1_001,

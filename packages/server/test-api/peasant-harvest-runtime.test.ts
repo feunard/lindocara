@@ -1,7 +1,6 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import {
-  HARVEST_PROFILE_LIMITS,
   type HarvestProfile,
   harvestColliderAt,
   PEASANT_CARRY_DURATION_MS,
@@ -249,7 +248,7 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
           depletedAt: null,
           respawnAt: null,
         },
-        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+        materials: { wood: 0, stone: 0, meat: 0 },
       };
     },
     hitHarvestNode: async (request) => {
@@ -272,7 +271,7 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
           depletedAt: rewarded ? NOW : null,
           respawnAt: null,
         },
-        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+        materials: { wood: 0, stone: 0, meat: 0 },
         rewarded,
         reward: rewarded ? reservation.reward : {},
         goldValue: rewarded ? reservation.goldValue : 0,
@@ -342,7 +341,6 @@ describe("tick-driven Peasant harvest jobs", () => {
   it.each([
     ["wood", "axe", 1, 4, 0],
     ["stone", "pickaxe", 1, 4, 0],
-    ["iron", "pickaxe", 1, 4, 0],
     ["gold", "pickaxe", 1, 0, 25],
     ["meat", "knife", 1, 4, 0],
   ] as const)(
@@ -467,7 +465,7 @@ describe("tick-driven Peasant harvest jobs", () => {
         depletedAt: null,
         respawnAt: null,
       },
-      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      materials: { wood: 0, stone: 0, meat: 0 },
     });
     await Promise.all(value.pending);
     expect(value.calls).toMatchObject({ hit: 0, cancel: 1 });
@@ -503,7 +501,7 @@ describe("tick-driven Peasant harvest jobs", () => {
         depletedAt: NOW,
         respawnAt: null,
       },
-      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      materials: { wood: 0, stone: 0, meat: 0 },
       rewarded: true,
       reward: {},
       goldValue: 25,
@@ -592,13 +590,13 @@ describe("tick-driven Peasant harvest jobs", () => {
     expect(withReach.w.state.harvestJobs.get(HERO_ID)?.targets).toHaveLength(1);
   });
 
-  it("commits rich-vein area targets separately, keeps its own committing job and aggregates carry", async () => {
+  it("commits great-felling area targets separately, keeps its own committing job and aggregates carry", async () => {
     const talents = [
-      "peasant.prospectors_pick.ore_share",
-      "peasant.prospectors_pick.readiness",
-      "peasant.prospectors_pick.force",
-      "peasant.prospectors_pick.rich_vein",
-      "peasant.prospectors_pick.mother_lode",
+      "peasant.woodcutters_swing.bounty",
+      "peasant.woodcutters_swing.readiness",
+      "peasant.woodcutters_swing.reach",
+      "peasant.woodcutters_swing.sweeping_fell",
+      "peasant.woodcutters_swing.great_felling",
     ];
     const nodes = [
       {
@@ -606,8 +604,6 @@ describe("tick-driven Peasant harvest jobs", () => {
         col: 1,
         row: 0,
         profile: profile({
-          resource: "stone",
-          tool: "pickaxe",
           yieldAmount: 4,
           hitsRequired: 1,
           harvestDurationMs: 0,
@@ -618,10 +614,7 @@ describe("tick-driven Peasant harvest jobs", () => {
         col: 0,
         row: 1,
         profile: profile({
-          resource: "gold",
-          tool: "pickaxe",
-          yieldAmount: 0,
-          goldValue: 50,
+          yieldAmount: 5,
           hitsRequired: 1,
           harvestDurationMs: 0,
           collision: AREA_SECONDARY_COLLISION,
@@ -632,10 +625,7 @@ describe("tick-driven Peasant harvest jobs", () => {
         col: 1,
         row: 1,
         profile: profile({
-          resource: "gold",
-          tool: "pickaxe",
-          yieldAmount: 0,
-          goldValue: HARVEST_PROFILE_LIMITS.goldValue.max,
+          yieldAmount: 6,
           hitsRequired: 1,
           harvestDurationMs: 0,
           collision: AREA_TERTIARY_COLLISION,
@@ -669,28 +659,19 @@ describe("tick-driven Peasant harvest jobs", () => {
       {
         eventId: EVENT_ID,
         requiredHits: 1,
-        reward: { stone: 8, iron: 3 },
+        reward: { wood: 7 },
         goldValue: 0,
       },
       {
         eventId: EVENT_C,
-        reward: {},
-        goldValue: HARVEST_PROFILE_LIMITS.goldValue.max,
+        reward: { wood: 10 },
+        goldValue: 0,
       },
-      { eventId: EVENT_B, reward: {}, goldValue: 120 },
+      { eventId: EVENT_B, reward: { wood: 8 }, goldValue: 0 },
     ]);
     expect(new Set(value.calls.reserveRequests.map((request) => request.eventId)).size).toBe(3);
-    expect(
-      value.calls.reserveRequests.slice(1).map(({ eventId, goldValue }) => ({
-        eventId,
-        goldValue,
-      })),
-    ).toEqual([
-      { eventId: EVENT_C, goldValue: HARVEST_PROFILE_LIMITS.goldValue.max },
-      { eventId: EVENT_B, goldValue: 120 },
-    ]);
     expect(value.player.peasantCarry).toEqual({
-      kind: "gold",
+      kind: "wood",
       until: NOW + PEASANT_CARRY_DURATION_MS,
     });
     expect(value.w.state.harvestJobs.size).toBe(0);
@@ -824,7 +805,7 @@ describe("tick-driven Peasant harvest jobs", () => {
           depletedAt: null,
           respawnAt: null,
         },
-        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+        materials: { wood: 0, stone: 0, meat: 0 },
       };
     };
     value.w.deps.hitHarvestNode = async (request) => {
@@ -851,7 +832,7 @@ describe("tick-driven Peasant harvest jobs", () => {
           depletedAt: NOW,
           respawnAt: null,
         },
-        materials: { wood: 7, stone: 0, iron: 0, meat: 0 },
+        materials: { wood: 7, stone: 0, meat: 0 },
         rewarded: true,
         reward: { wood: 7 },
         goldValue: 0,

@@ -278,6 +278,7 @@ async function newPlayableHero(prefix: string, heroClass = "warrior"): Promise<F
 async function joinAsSecondHero(
   host: Fixture,
   prefix: string,
+  heroClass = "warrior",
 ): Promise<{ userId: string; heroId: string }> {
   const { token, userId } = await registerAndLogin(prefix);
   const authed = authedFetch(token);
@@ -285,7 +286,7 @@ async function joinAsSecondHero(
   expect(joinResponse.status).toBe(204);
   const heroResponse = await authed(`/api/parties/${host.partyId}/heroes`, {
     name: "Liin",
-    class: "warrior",
+    class: heroClass,
   });
   expect(heroResponse.status).toBe(201);
   const heroId = ((await heroResponse.json()) as { id: string }).id;
@@ -295,7 +296,7 @@ async function joinAsSecondHero(
 async function seedPartyMaterials(
   partyId: string,
   heroId: string,
-  reward: { wood?: number; stone?: number; iron?: number; meat?: number },
+  reward: { wood?: number; stone?: number; meat?: number },
 ): Promise<void> {
   const partyRoom = alepha.inject(PartyRoom);
   partyRoom.now = () => Date.now();
@@ -322,7 +323,7 @@ async function seedPartyMaterials(
 async function partyMaterials(partyId: string) {
   const partyRoom = alepha.inject(PartyRoom);
   const state = (await partyRoom.room.call(partyId, "getAdventureState")) as {
-    state: { materials: { wood: number; stone: number; iron: number; meat: number } };
+    state: { materials: { wood: number; stone: number; meat: number } };
   };
   return state.state.materials;
 }
@@ -492,6 +493,47 @@ describe("world room combat (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("Cocorico broadcasts its cue room-wide and buffs ally damage without restoring resources", async () => {
+    const host = await newPlayableHero("prally", "peasant");
+    const guest = await joinAsSecondHero(host, "prallyally", "priest");
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const hostSocket = fakeSocket(host.userId, host.heroId);
+    const guestSocket = fakeSocket(guest.userId, guest.heroId);
+    await engine.join(hostSocket);
+    await engine.join(guestSocket);
+    const state = roomState(engine);
+    const peasant = playerOf(state, host.heroId);
+    const ally = playerOf(state, guest.heroId);
+    peasant.level = 20;
+    peasant.talents = ["peasant.prospectors_pick.battle_chorus"];
+
+    // Start outside the support radius: receiving the animation proves the rooster cue is a room
+    // broadcast rather than an incidental nearby event.
+    ally.x = peasant.x + 10;
+    await engine.message(hostSocket.id, { t: "skill", slot: 2 });
+    const action = peasant.action;
+    if (!action) throw new Error("Cocorico action was not accepted");
+    expect(
+      guestSocket.sent
+        .map(parseServerMessage)
+        .some((message) => message?.t === "animation" && message.skillId === "prospectors_pick"),
+    ).toBe(true);
+
+    ally.x = peasant.x;
+    ally.z = peasant.z;
+    if (!ally.resource) throw new Error("priest resource fixture missing");
+    ally.resource.current = 0;
+    const resourceBefore = structuredClone(ally.resource);
+    const { w } = testGlue(state, () => action.impactAt);
+    resolvePlayerAction(w, peasant, action, action.impactAt);
+
+    expect(ally.rallyPowerMultiplier).toBeCloseTo(0.24);
+    expect(ally.rallyPowerUntil).toBe(action.impactAt + 8_000);
+    expect(ally.resource).toEqual(resourceBefore);
+    engine.dispose();
+  });
+
   test("support rejection never spends materials or cooldown for stock, placement or cap", async () => {
     const host = await newPlayableHero("psupportdeny", "peasant");
     const clock = new FakeClock();
@@ -505,7 +547,7 @@ describe("world room combat (FakeClock)", () => {
     await engine.message(socket.id, { t: "skill", slot: 4 });
     expect(peasant.action).toBeNull();
     expect(peasant.skillCooldowns[3]).toBe(0);
-    expect(await partyMaterials(host.partyId)).toEqual({ wood: 0, stone: 0, iron: 0, meat: 0 });
+    expect(await partyMaterials(host.partyId)).toEqual({ wood: 0, stone: 0, meat: 0 });
     expect(
       socket.sent
         .map(parseServerMessage)
@@ -521,8 +563,7 @@ describe("world room combat (FakeClock)", () => {
 
     await seedPartyMaterials(host.partyId, host.heroId, {
       wood: 4,
-      stone: 4,
-      iron: 2,
+      stone: 6,
       meat: 2,
     });
     const stocked = await partyMaterials(host.partyId);
@@ -651,10 +692,8 @@ describe("world room combat (FakeClock)", () => {
     expect(state.peasantSupport.camps).toHaveLength(1);
     const camp = state.peasantSupport.camps[0];
     if (!camp) throw new Error("camp did not resolve");
-    // Both radii are the exact quotients of the pixel table's 144 and 180 by `TILE_SIZE`: the same
-    // ground covered, measured with the tile ruler the whole world now uses.
     expect(camp).toMatchObject({
-      radius: 144 / TILE_SIZE,
+      radius: 16,
       protectionRatio: 0.22,
       slowRatio: 0.2,
       rationHealing: 21,
@@ -763,7 +802,7 @@ describe("world room combat (FakeClock)", () => {
 
   test("Powder Keg applies exact fragments and crowd control once while respecting LOS", async () => {
     const host = await newPlayableHero("pbomb", "peasant");
-    await seedPartyMaterials(host.partyId, host.heroId, { stone: 2, iron: 2 });
+    await seedPartyMaterials(host.partyId, host.heroId, { stone: 4 });
     const clock = new FakeClock();
     const engine = createEngine(host.roomId, clock);
     const socket = fakeSocket(host.userId, host.heroId);
@@ -806,7 +845,7 @@ describe("world room combat (FakeClock)", () => {
     const action = peasant.action;
     if (!action) throw new Error("bomb action was not accepted");
     expect(action.skillId).toBe("homemade_bomb");
-    expect(state.adventureState.state.materials).toMatchObject({ stone: 1, iron: 1 });
+    expect(state.adventureState.state.materials).toMatchObject({ stone: 3 });
 
     let now = action.impactAt;
     const { w, sent } = testGlue(state, () => now);

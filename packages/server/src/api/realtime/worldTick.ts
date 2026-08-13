@@ -118,6 +118,7 @@ import {
 import {
   mergePeasantMaterialRewards,
   resolvePeasantHarvestPlan,
+  resolvePeasantRallyPlan,
 } from "@lindocara/engine/peasant.js";
 import {
   PEASANT_RATION_HEAL_RATIO,
@@ -158,6 +159,7 @@ import {
 } from "@lindocara/engine/skills.js";
 import {
   evolvedTalent,
+  peasantTalentEffects,
   skillWithTalents,
   type TalentEffect,
   talentEffect,
@@ -895,6 +897,13 @@ function sendSpatialEvent(w: WorldGlue, message: ServerMessage, position: Ground
     if (!recipient.authorized) continue;
     const connectionId = connectionOf(w.state, recipient.id);
     if (connectionId !== undefined) w.deps.send(connectionId, message);
+  }
+}
+
+/** Broadcast an event to every authorized hero currently present in this room. */
+function sendRoomEvent(w: WorldGlue, message: ServerMessage): void {
+  for (const [connectionId, player] of w.state.players) {
+    if (player.authorized) w.deps.send(connectionId, message);
   }
 }
 
@@ -3315,30 +3324,29 @@ export function startPlayerAction(
     x: player.x,
     z: player.z,
   });
-  sendSpatialEvent(
-    w,
-    {
-      t: "animation",
-      actionId: action.id,
-      actorKind: "player",
-      actorId: player.id,
-      action: slot === 1 ? "attack" : "skill",
-      skillId: skill.id,
-      ...(action.peasantTool ? { peasantTool: action.peasantTool } : {}),
-      ...(slot > 1 && talentEffects(player.class, player.talents, slot).length > 0
-        ? { talented: true as const }
-        : {}),
-      ...(slot > 1 && evolvedTalent(player.class, player.talents, slot)
-        ? { evolved: true as const }
-        : {}),
-      direction: { x: action.direction.x, z: action.direction.z },
-      startedAt: action.startedAt,
-      impactAt: action.impactAt,
-      ...(cyclone ? { impactTimes: cycloneImpactTimes(cyclone, action.impactAt) } : {}),
-      recoveryEndsAt: action.recoveryEndsAt,
-    },
-    player,
-  );
+  const animation: ServerMessage = {
+    t: "animation",
+    actionId: action.id,
+    actorKind: "player",
+    actorId: player.id,
+    action: slot === 1 ? "attack" : "skill",
+    skillId: skill.id,
+    ...(action.peasantTool ? { peasantTool: action.peasantTool } : {}),
+    ...(peasantHarvestTarget ? { peasantResource: peasantHarvestTarget.profile.resource } : {}),
+    ...(slot > 1 && talentEffects(player.class, player.talents, slot).length > 0
+      ? { talented: true as const }
+      : {}),
+    ...(slot > 1 && evolvedTalent(player.class, player.talents, slot)
+      ? { evolved: true as const }
+      : {}),
+    direction: { x: action.direction.x, z: action.direction.z },
+    startedAt: action.startedAt,
+    impactAt: action.impactAt,
+    ...(cyclone ? { impactTimes: cycloneImpactTimes(cyclone, action.impactAt) } : {}),
+    recoveryEndsAt: action.recoveryEndsAt,
+  };
+  if (skill.id === "prospectors_pick") sendRoomEvent(w, animation);
+  else sendSpatialEvent(w, animation, player);
   return true;
 }
 
@@ -4078,26 +4086,20 @@ export function resolvePlayerAction(
     return;
   }
   if (definition.shape === "area_buff") {
-    const radius = skill.radius ?? skill.range;
-    const durationMs = skill.durationMs ?? 6_000;
-    const powerBonus = Math.max(0, skill.power) / 100;
+    const rally = resolvePeasantRallyPlan(
+      peasantTalentEffects(player.talents, slot as SkillSlot),
+      skill,
+    );
     for (const [targetConnectionId, target] of w.state.players) {
       if (
         target.life !== "alive" ||
         !target.authorized ||
         !areCombatAllies(player, target) ||
-        groundDistance(player, target) > radius ||
+        groundDistance(player, target) > rally.radius ||
         !groundLineOfSight(terrain, player, target)
       )
         continue;
-      applyBoundedPowerBuff(target, powerBonus, durationMs, now);
-      if (target.resource && target.resource.current < target.resource.max) {
-        target.resource.current = Math.min(
-          target.resource.max,
-          target.resource.current + Math.max(1, Math.ceil(target.resource.max * 0.12)),
-        );
-        target.dirty = true;
-      }
+      applyBoundedPowerBuff(target, rally.powerBonusRatio, rally.durationMs, now);
       sendStateTo(w, targetConnectionId, target);
     }
     return;
