@@ -69,7 +69,7 @@ describe("procedural map authoring", () => {
     const harvestResources = new Set(
       nativeHarvestEvents(generated.elements).map((event) => event.harvestProfile?.resource),
     );
-    expect(harvestResources).toEqual(new Set(["wood", "stone", "iron", "meat", "gold"]));
+    expect(harvestResources).toEqual(new Set(["wood", "stone", "meat", "gold"]));
     expect(generated.elements.some((element) => element.assetId.includes("stump"))).toBe(false);
   });
 

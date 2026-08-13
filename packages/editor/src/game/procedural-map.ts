@@ -110,7 +110,7 @@ const GENRE_MONSTERS: Record<ProceduralMapGenre, readonly MonsterSpecies[]> = {
   tundra: ["skull_warden", "hex_shaman", "gate_troll"],
 };
 
-const RESOURCE_VARIETY: readonly HarvestResourceKind[] = ["wood", "stone", "iron", "meat", "gold"];
+const RESOURCE_VARIETY: readonly HarvestResourceKind[] = ["wood", "stone", "meat", "gold"];
 
 function hashText(value: string): number {
   let hash = 0x811c9dc5;
