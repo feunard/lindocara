@@ -49,6 +49,11 @@ import { applyExperience, CEMETERIES, maxHpForLevel } from "@lindocara/engine/ga
 import type { WorldPosition } from "@lindocara/engine/ground.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
+import {
+  EMPTY_PARTY_MATERIALS,
+  missingPartyMaterialAmounts,
+  type PartyMaterials,
+} from "@lindocara/engine/party-harvest-state.js";
 import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
 import {
   type ClientMessage,
@@ -769,6 +774,12 @@ export class WorldRoom {
       roomKey: state.roomKey,
       costs: request.plan.cost,
     };
+    let insufficientMaterials: PartyMaterials | undefined;
+    const observeMaterials = (result: PartyMaterialReservationResult): void => {
+      if (!result.ok && result.reason === "insufficient") {
+        insufficientMaterials = result.materials;
+      }
+    };
     const installMaterials = (result: PartyMaterialReservationResult): void => {
       if (!result.ok) return;
       state.adventureState = {
@@ -795,11 +806,13 @@ export class WorldRoom {
     const outcome = await runPeasantSupportSaga({
       reserve: async () => {
         await this.reconcilePartyMaterialSpendsUnlocked(state);
-        return (await this.partyRoom.room.call(
+        const result = (await this.partyRoom.room.call(
           state.partyId,
           "reservePartyMaterials",
           identity,
         )) as PartyMaterialReservationResult;
+        observeMaterials(result);
+        return result;
       },
       commit: async () => {
         const result = (await this.partyRoom.room.call(
@@ -807,6 +820,7 @@ export class WorldRoom {
           "commitPartyMaterials",
           identity,
         )) as PartyMaterialReservationResult;
+        observeMaterials(result);
         installMaterials(result);
         return result;
       },
@@ -839,13 +853,18 @@ export class WorldRoom {
         }),
     });
     if (outcome === "insufficient" || outcome === "unavailable") {
+      const missing = missingPartyMaterialAmounts(
+        insufficientMaterials ?? state.adventureState.state.materials ?? EMPTY_PARTY_MATERIALS,
+        request.plan.cost,
+      );
       this.send(room, connectionId, {
         t: "event",
         code:
           outcome === "insufficient"
             ? "peasant.materials_insufficient"
             : "peasant.support_unavailable",
-        tone: "info",
+        ...(outcome === "insufficient" ? { params: missing } : {}),
+        tone: outcome === "insufficient" ? "bad" : "info",
       });
       return;
     }
@@ -1241,10 +1260,18 @@ export class WorldRoom {
         const activeConnectionId = state.connectionIdByHeroId.get(player.id);
         if (activeConnectionId !== undefined && state.players.get(activeConnectionId) === player) {
           if (harvestExperience > 0) {
+            const gained =
+              result.ok && resource === "gold"
+                ? result.goldValue > 0
+                  ? { gold: result.goldValue }
+                  : {}
+                : result.ok
+                  ? result.reward
+                  : {};
             this.send(room, activeConnectionId, {
               t: "event",
               code: "peasant.harvested",
-              params: { xp: harvestExperience },
+              params: { ...gained, xp: harvestExperience, targetId: player.id },
               tone: "good",
             });
           }

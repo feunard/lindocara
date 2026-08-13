@@ -2,8 +2,6 @@ import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { isMapSkillEnabled } from "@lindocara/engine/map-hero-settings.js";
 import {
   PARTY_MATERIAL_TYPES,
-  type PartyMaterialAmounts,
-  type PartyMaterialType,
   spendPartyMaterials,
 } from "@lindocara/engine/party-harvest-state.js";
 import { skillResourceCost } from "@lindocara/engine/resources.js";
@@ -19,6 +17,7 @@ import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { activeReactivationDeadline } from "../../game/cooldown-sync.js";
 import { t } from "../../i18n.js";
+import { MATERIAL_SHORT_LABEL, partyMaterialCostText } from "../../material-copy.js";
 import { useUiStore } from "../../store.js";
 import { controlBindingLabels, useInputModeSettings } from "../input-hints.js";
 import { HudLayoutWidget } from "./HudLayoutWidget.js";
@@ -31,20 +30,6 @@ export const SKILL_PAD_LAYOUT: Readonly<
   3: { row: 3, column: 2, numpad: 2 },
   4: { row: 2, column: 1, numpad: 1 },
   5: { row: 1, column: 2, numpad: 4 },
-};
-
-const MATERIAL_SHORT_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
-  wood: "material.short.wood",
-  stone: "material.short.stone",
-  iron: "material.short.iron",
-  meat: "material.short.meat",
-};
-
-const MATERIAL_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
-  wood: "material.wood",
-  stone: "material.stone",
-  iron: "material.iron",
-  meat: "material.meat",
 };
 
 function skillWidgetId(slot: SkillSlot): "skill-2" | "skill-3" | "skill-4" | "skill-5" | null {
@@ -60,13 +45,6 @@ function skillWidgetId(slot: SkillSlot): "skill-2" | "skill-3" | "skill-4" | "sk
     default:
       return null;
   }
-}
-
-function materialCostText(cost: Readonly<PartyMaterialAmounts>): string {
-  return PARTY_MATERIAL_TYPES.flatMap((material) => {
-    const amount = cost[material] ?? 0;
-    return amount > 0 ? [`${t(MATERIAL_LABEL[material])} ${amount}`] : [];
-  }).join(" · ");
 }
 
 export function SkillBar() {
@@ -221,7 +199,7 @@ export function SkillBar() {
         const affordable =
           support == null ||
           (materials !== undefined && spendPartyMaterials(materials, support.cost) !== null);
-        const supportCost = support ? materialCostText(support.cost) : null;
+        const supportCost = support ? partyMaterialCostText(support.cost) : null;
         const supportText = supportCost
           ? `${t("skill.material_cost", { cost: supportCost })}${
               affordable ? "" : ` · ${t("skill.materials_insufficient")}`
@@ -275,7 +253,7 @@ export function SkillBar() {
                 !enabledOnMap
                   ? `${name} — ${t("skill.disabled_on_map")}`
                   : unlocked
-                    ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}`
+                    ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}${supportText ? ` · ${supportText}` : ""}`
                     : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
               }
             >
@@ -332,7 +310,7 @@ export function SkillBar() {
                 {!enabledOnMap
                   ? t("skill.disabled_on_map")
                   : unlocked
-                    ? `${description}${manaText ? ` · ${manaText}` : ""}`
+                    ? `${description}${manaText ? ` · ${manaText}` : ""}${supportText ? ` · ${supportText}` : ""}`
                     : t("skill.unlock_at", { level: requiredLevel })}
               </span>
             </button>

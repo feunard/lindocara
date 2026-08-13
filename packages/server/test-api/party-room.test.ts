@@ -811,7 +811,13 @@ describe("shared party materials and harvest nodes", () => {
       reserveMaterials(partyId, reservationB, OTHER_HERO, { wood: 4 }),
     ]);
     expect(raced.filter((result) => result.ok)).toHaveLength(1);
-    expect(raced.filter((result) => !result.ok)).toEqual([{ ok: false, reason: "insufficient" }]);
+    expect(raced.filter((result) => !result.ok)).toEqual([
+      {
+        ok: false,
+        reason: "insufficient",
+        materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+      },
+    ]);
     const acceptedId = raced[0]?.ok ? reservationA : reservationB;
     const acceptedHero = raced[0]?.ok ? heroId : OTHER_HERO;
     const identity = materialIdentity(partyId, acceptedId, acceptedHero, { wood: 4 });
@@ -870,7 +876,11 @@ describe("shared party materials and harvest nodes", () => {
     now += 60_001;
     expect(
       await reserveMaterials(partyId, "88888888-8888-4888-8888-888888888888", heroId, { stone: 1 }),
-    ).toEqual({ ok: false, reason: "insufficient" });
+    ).toEqual({
+      ok: false,
+      reason: "insufficient",
+      materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
+    });
     expect(await partyRoom.room.call(partyId, "releasePartyMaterials", identity)).toMatchObject({
       ok: true,
       status: "refunded",

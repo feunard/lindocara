@@ -35,7 +35,7 @@ export const PEASANT_SUPPORT_SKILLS: Readonly<
   4: {
     id: "makeshift_camp",
     slot: 4,
-    cost: { wood: 4, stone: 2, meat: 2 },
+    cost: { wood: 1, stone: 1, meat: 1 },
     radius: 96 / TILE_SIZE,
     durationMs: 30_000,
     power: 60,
@@ -43,7 +43,7 @@ export const PEASANT_SUPPORT_SKILLS: Readonly<
   5: {
     id: "homemade_bomb",
     slot: 5,
-    cost: { iron: 2, stone: 2 },
+    cost: { iron: 1, stone: 1 },
     radius: 110 / TILE_SIZE,
     durationMs: 650,
     power: 85,

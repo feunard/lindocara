@@ -274,6 +274,7 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
         },
         materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
         rewarded,
+        reward: rewarded ? reservation.reward : {},
         goldValue: rewarded ? reservation.goldValue : 0,
       };
     },
@@ -504,6 +505,7 @@ describe("tick-driven Peasant harvest jobs", () => {
       },
       materials: { wood: 0, stone: 0, iron: 0, meat: 0 },
       rewarded: true,
+      reward: {},
       goldValue: 25,
     });
     await Promise.all(value.pending);
@@ -851,6 +853,7 @@ describe("tick-driven Peasant harvest jobs", () => {
         },
         materials: { wood: 7, stone: 0, iron: 0, meat: 0 },
         rewarded: true,
+        reward: { wood: 7 },
         goldValue: 0,
       };
     };

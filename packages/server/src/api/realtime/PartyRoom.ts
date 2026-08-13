@@ -139,6 +139,7 @@ export type HitHarvestNodeResult =
       readonly node: HarvestNodeState;
       readonly materials: PartyMaterials;
       readonly rewarded: boolean;
+      readonly reward: PartyMaterialAmounts;
       readonly goldValue: number;
       readonly goldPending?: boolean;
     }
@@ -175,6 +176,8 @@ export type PartyMaterialReservationResult =
   | {
       readonly ok: false;
       readonly reason: "invalid" | "party" | "insufficient" | "reservation";
+      /** Present when authority can report the exact stock that failed the attempted spend. */
+      readonly materials?: PartyMaterials;
     };
 
 export interface ReconcilePartyMaterialSpendsRequest {
@@ -1028,6 +1031,7 @@ export class PartyRoom {
         node: { ...result.node },
         materials: { ...result.materials },
         rewarded: result.rewarded,
+        reward: result.rewarded ? { ...reservation.reward } : {},
         goldValue: result.rewarded && goldSettled ? reservation.goldValue : 0,
         ...(result.rewarded && reservation.goldValue > 0 && !goldSettled
           ? { goldPending: true }
@@ -1154,7 +1158,11 @@ export class PartyRoom {
         state.materialReservations.values(),
       );
       if (!available || !spendPartyMaterials(available, request.costs))
-        return { ok: false, reason: "insufficient" };
+        return {
+          ok: false,
+          reason: "insufficient",
+          materials: { ...(available ?? EMPTY_PARTY_MATERIALS) },
+        };
       const reservation: PartyMaterialReservation = {
         ...request,
         status: "held",
@@ -1203,7 +1211,12 @@ export class PartyRoom {
         current.state.materials ?? EMPTY_PARTY_MATERIALS,
         reservation.costs,
       );
-      if (!materials) return { ok: false, reason: "insufficient" };
+      if (!materials)
+        return {
+          ok: false,
+          reason: "insufficient",
+          materials: { ...(current.state.materials ?? EMPTY_PARTY_MATERIALS) },
+        };
       const heldCount = [...state.materialReservations.values()].filter(
         (candidate) =>
           candidate.status === "held" && candidate.reservationId !== identity.reservationId,

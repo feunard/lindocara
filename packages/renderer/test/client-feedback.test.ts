@@ -10,6 +10,7 @@ describe("world feedback readability", () => {
   it("keeps only spatial combat outcomes above actors", () => {
     expect(shouldFloatEvent("combat.hit")).toBe(true);
     expect(shouldFloatEvent("heal.received")).toBe(true);
+    expect(shouldFloatEvent("peasant.harvested")).toBe(true);
     for (const code of [
       "loot.picked",
       "quest.progress",

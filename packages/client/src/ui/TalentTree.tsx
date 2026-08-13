@@ -1,8 +1,11 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { PartyMaterialAmounts } from "@lindocara/engine/party-harvest-state.js";
 import { isSkillUnlocked, skillFor } from "@lindocara/engine/skills.js";
 import {
   CLASS_TALENTS,
   conflictingExclusiveTalent,
+  peasantBombTalentPlan,
+  peasantConstructionTalentPlan,
   type TalentEffect,
   type TalentLabel,
   talentBranchSlots,
@@ -11,6 +14,7 @@ import {
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useState } from "react";
 import { t, useLocale } from "../i18n.js";
+import { partyMaterialCostText } from "../material-copy.js";
 import { useUiStore } from "../store.js";
 import { TinyButton } from "./tiny-swords/TinyButton.js";
 
@@ -89,6 +93,12 @@ export function TalentTree() {
   const selected = new Set(talentState.selected);
   const branches = talentBranchSlots(self.class);
   const classNodes = CLASS_TALENTS[self.class];
+  const materialCostForSlot = (slot: number): Readonly<PartyMaterialAmounts> | null => {
+    if (self.class !== "peasant") return null;
+    if (slot === 4) return peasantConstructionTalentPlan(talentState.selected).support.cost;
+    if (slot === 5) return peasantBombTalentPlan(talentState.selected).support.cost;
+    return null;
+  };
   const inspectedNode =
     classNodes.find((node) => node.id === inspectedNodeId) ?? classNodes.find((node) => node.root);
   const copyFor = (node: (typeof classNodes)[number]) => {
@@ -158,6 +168,10 @@ export function TalentTree() {
           {branches.map((slot) => {
             const skill = skillFor(self.class, slot);
             const skillName = t(`skill.${self.class}.${skill.id}.name` as MessageKey);
+            const materialCost = materialCostForSlot(slot);
+            const materialCostCopy = materialCost
+              ? t("skill.material_cost", { cost: partyMaterialCostText(materialCost) })
+              : null;
             const nodes = classNodes.filter((node) => node.slot === slot);
             const icon = skillIconArt(self.class, slot);
             const iconStyle = {
@@ -168,6 +182,7 @@ export function TalentTree() {
             return (
               <article className="talent-branch" key={skill.id}>
                 <h3>{skillName}</h3>
+                {materialCostCopy && <p className="talent-branch__cost">{materialCostCopy}</p>}
                 <p className="talent-branch__choice">{t("talent.choice")}</p>
                 <div className="talent-grid">
                   {nodes.map((node) => {
@@ -210,8 +225,8 @@ export function TalentTree() {
                           setInspectedNodeId(node.id);
                           if (available) game?.unlockTalent?.(node.id);
                         }}
-                        aria-label={`${name}.${variantLabel ? ` ${variantLabel}.` : ""} ${description} ${status}.`}
-                        title={`${name} — ${description}`}
+                        aria-label={`${name}.${variantLabel ? ` ${variantLabel}.` : ""} ${description}${materialCostCopy ? ` ${materialCostCopy}.` : ""} ${status}.`}
+                        title={`${name} — ${description}${materialCostCopy ? ` · ${materialCostCopy}` : ""}`}
                       >
                         <span className="talent-node__icon" style={iconStyle} aria-hidden="true" />
                         {!node.root && (
@@ -243,6 +258,13 @@ export function TalentTree() {
               <p>{inspectedCopy.skillName}</p>
               <h3>{inspectedCopy.name}</h3>
               <span>{inspectedCopy.description}</span>
+              {materialCostForSlot(inspectedNode.slot) && (
+                <span className="talent-detail__material-cost">
+                  {t("skill.material_cost", {
+                    cost: partyMaterialCostText(materialCostForSlot(inspectedNode.slot) ?? {}),
+                  })}
+                </span>
+              )}
             </div>
             <strong>
               {inspectedNode.root || selected.has(inspectedNode.id)

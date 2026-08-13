@@ -29,6 +29,7 @@ describe("top-right event log policy", () => {
     "death.reclaimed",
     "death.resurrected",
     "resurrect.cast",
+    "peasant.materials_insufficient",
     "level_up",
     "quest.fulfilled",
     "party.kicked",

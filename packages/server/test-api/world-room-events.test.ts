@@ -1410,7 +1410,7 @@ describe("world room events (FakeClock)", () => {
       {
         t: "event",
         code: "peasant.harvested",
-        params: { xp: experience },
+        params: { wood: 3, xp: experience, targetId: fixture.heroId },
         tone: "good",
       },
     ]);

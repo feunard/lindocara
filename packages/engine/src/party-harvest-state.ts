@@ -155,6 +155,19 @@ export function spendPartyMaterials(
   };
 }
 
+/** Exact per-resource shortage for one attempted atomic material spend. */
+export function missingPartyMaterialAmounts(
+  materials: PartyMaterials,
+  costs: Readonly<PartyMaterialAmounts>,
+): PartyMaterialAmounts {
+  const missing: PartyMaterialAmounts = {};
+  for (const type of PARTY_MATERIAL_TYPES) {
+    const amount = Math.max(0, (costs[type] ?? 0) - materials[type]);
+    if (amount > 0) missing[type] = amount;
+  }
+  return missing;
+}
+
 function parseHarvestNodeState(eventId: string, value: unknown): HarvestNodeState | null {
   if (!isPlainObject(value)) return null;
   const keys = Object.keys(value);

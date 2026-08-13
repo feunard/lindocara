@@ -506,6 +506,18 @@ describe("world room combat (FakeClock)", () => {
     expect(peasant.action).toBeNull();
     expect(peasant.skillCooldowns[3]).toBe(0);
     expect(await partyMaterials(host.partyId)).toEqual({ wood: 0, stone: 0, iron: 0, meat: 0 });
+    expect(
+      socket.sent
+        .map(parseServerMessage)
+        .filter(
+          (message) => message?.t === "event" && message.code === "peasant.materials_insufficient",
+        ),
+    ).toContainEqual({
+      t: "event",
+      code: "peasant.materials_insufficient",
+      params: { wood: 1, stone: 1, meat: 1 },
+      tone: "bad",
+    });
 
     await seedPartyMaterials(host.partyId, host.heroId, {
       wood: 4,
@@ -601,7 +613,7 @@ describe("world room combat (FakeClock)", () => {
     expect(state.activatedSupportSpendIds.size).toBe(0);
     const recovered = await service.loadCoordinatorState(host.partyId);
     expect(recovered.supportSpends[reservationId]?.status).toBe("settled");
-    expect(recovered.state.materials).toMatchObject({ wood: 0, stone: 0, meat: 0 });
+    expect(recovered.state.materials).toMatchObject({ wood: 3, stone: 1, meat: 1 });
     engine.dispose();
   });
 
@@ -631,7 +643,7 @@ describe("world room combat (FakeClock)", () => {
     const action = peasant.action;
     if (!action) throw new Error("camp action was not accepted");
     expect(action.skillId).toBe("makeshift_camp");
-    expect(state.adventureState.state.materials).toMatchObject({ wood: 2, stone: 1, meat: 1 });
+    expect(state.adventureState.state.materials).toMatchObject({ wood: 3, stone: 1, meat: 1 });
 
     let now = action.impactAt;
     const { w, sent } = testGlue(state, () => now);

@@ -288,7 +288,7 @@ describe("Peasant talents", () => {
       resolvePeasantConstructionPlan(peasantTalentEffects(["peasant.makeshift_camp.campfire"], 4)),
     ).toEqual({
       id: "makeshift_camp",
-      cost: { wood: 4, stone: 2, meat: 2 },
+      cost: { wood: 1, stone: 1, meat: 1 },
       power: 90,
       durabilityMultiplier: 1.25,
       durationMs: 35_000,
@@ -302,7 +302,7 @@ describe("Peasant talents", () => {
       resolvePeasantBombPlan(peasantTalentEffects(["peasant.homemade_bomb.shrapnel"], 5)),
     ).toEqual({
       id: "homemade_bomb",
-      cost: { iron: 2, stone: 2 },
+      cost: { iron: 1, stone: 1 },
       power: 85,
       radius: 121 / TILE_SIZE,
       fragments: 4,
@@ -334,7 +334,7 @@ describe("Peasant talents", () => {
     expect(camp.skill).toMatchObject({ cooldownMs: 10_200, range: 1.35, radius: 1.8 });
     expect(camp.support).toEqual({
       id: "makeshift_camp",
-      cost: { wood: 2, stone: 1, meat: 1 },
+      cost: { wood: 1, stone: 1, meat: 1 },
       power: 90,
       durabilityMultiplier: 3,
       durationMs: 48_000,

@@ -462,6 +462,7 @@ export const fr: Record<keyof typeof en, string> = {
   "material.wood": "Bois",
   "material.stone": "Pierre",
   "material.iron": "Fer",
+  "material.gold": "Or",
   "material.meat": "Viande",
   "material.short.wood": "B",
   "material.short.stone": "P",
@@ -1043,8 +1044,9 @@ export const fr: Record<keyof typeof en, string> = {
   "event.skill.locked": "{skill} se débloque au niveau {level}.",
   "event.skill.disabled": "{skill} est désactivée sur cette carte.",
   "event.resource.insufficient": "Mana insuffisant.",
-  "event.peasant.materials_insufficient": "Le groupe n’a pas assez de matériaux.",
-  "event.peasant.harvested": "Récolte terminée : +{xp} XP.",
+  "event.peasant.materials_insufficient":
+    "Pas assez de {missing} ({count} ressource(s) manquante(s)).",
+  "event.peasant.harvested": "Récolte terminée : {gain} · +{xp} XP.",
   "event.peasant.support_unavailable": "Cette action de soutien n’est plus disponible.",
   "event.peasant.camp_gold_unavailable":
     "Approchez-vous du coffre d’un camp allié pour échanger de l’or.",

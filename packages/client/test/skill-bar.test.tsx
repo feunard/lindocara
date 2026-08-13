@@ -365,7 +365,7 @@ describe("skill bar cooldowns", () => {
         displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 0, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
-        materials: { wood: 3, stone: 2, iron: 1, meat: 2 },
+        materials: { wood: 0, stone: 1, iron: 0, meat: 1 },
       },
     });
     render(
@@ -376,22 +376,25 @@ describe("skill bar cooldowns", () => {
     );
 
     expect(screen.getByRole("status", { name: "Peasant resources" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Wood: 3")).toBeInTheDocument();
-    expect(screen.getByLabelText("Stone: 2")).toBeInTheDocument();
-    expect(screen.getByLabelText("Iron: 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("Meat: 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Wood: 0")).toBeInTheDocument();
+    expect(screen.getByLabelText("Stone: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Iron: 0")).toBeInTheDocument();
+    expect(screen.getByLabelText("Meat: 1")).toBeInTheDocument();
 
     const camp = screen.getByRole("button", { name: /^4\. Makeshift Camp/ });
     const bomb = screen.getByRole("button", { name: /^5\. Homemade Bomb/ });
     expect(camp).toBeEnabled();
     expect(camp).toHaveClass("unaffordable");
     expect(camp).toHaveAttribute("data-material-affordable", "false");
-    expect(camp).toHaveAccessibleName(/Cost: Wood 4 · Stone 2 · Meat 2/);
+    expect(camp).toHaveAccessibleName(/Cost: Wood 1 · Stone 1 · Meat 1/);
     expect(camp).toHaveAccessibleName(/Insufficient shared materials/);
-    expect(camp.querySelector('[data-material-cost="wood"]')).toHaveTextContent("W4");
+    expect(camp.querySelector('[data-material-cost="wood"]')).toHaveTextContent("W1");
     expect(bomb).toBeEnabled();
     expect(bomb).toHaveAttribute("data-material-affordable", "false");
-    expect(bomb.querySelector('[data-material-cost="iron"]')).toHaveTextContent("I2");
+    expect(bomb.querySelector('[data-material-cost="iron"]')).toHaveTextContent("I1");
+    expect(camp.querySelector('[role="tooltip"]')).toHaveTextContent(
+      "Cost: Wood 1 · Stone 1 · Meat 1",
+    );
 
     fireEvent.click(camp);
     expect(game.castSkill).toHaveBeenCalledWith(4);
@@ -405,12 +408,12 @@ describe("skill bar cooldowns", () => {
         displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 0, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
-        materials: { wood: 4, stone: 2, iron: 2, meat: 2 },
+        materials: { wood: 1, stone: 1, iron: 1, meat: 1 },
       });
     });
 
-    expect(screen.getByLabelText("Wood: 4")).toBeInTheDocument();
-    expect(screen.getByLabelText("Iron: 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Wood: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Iron: 1")).toBeInTheDocument();
     expect(camp).not.toHaveClass("unaffordable");
     expect(camp).toHaveAttribute("data-material-affordable", "true");
     expect(bomb).not.toHaveClass("unaffordable");
@@ -457,7 +460,7 @@ describe("skill bar cooldowns", () => {
     const camp = screen.getByRole("button", { name: /^4\./ });
     const bomb = screen.getByRole("button", { name: /^5\./ });
     expect(camp).toHaveAttribute("data-material-affordable", "true");
-    expect(camp.querySelector('[data-material-cost="wood"]')).toHaveTextContent("W2");
+    expect(camp.querySelector('[data-material-cost="wood"]')).toHaveTextContent("W1");
     expect(camp.querySelector('[data-material-cost="stone"]')).toHaveTextContent("S1");
     expect(camp.querySelector('[data-material-cost="meat"]')).toHaveTextContent("M1");
     expect(bomb).toHaveAttribute("data-material-affordable", "true");

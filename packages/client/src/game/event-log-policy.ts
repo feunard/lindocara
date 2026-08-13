@@ -27,6 +27,7 @@ const IMPORTANT_EVENT_CODES = new Set<EventCode>([
   "resurrect.cast",
   "peasant.camp_gold_deposited",
   "peasant.camp_gold_withdrawn",
+  "peasant.materials_insufficient",
   "talent.unlocked",
   "talent.reset",
   "party.created",

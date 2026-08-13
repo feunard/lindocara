@@ -14,6 +14,7 @@ export function shouldFloatEvent(code: EventCode): boolean {
     code === "combat.hurt" ||
     code === "heal.cast" ||
     code === "heal.received" ||
+    code === "peasant.harvested" ||
     code === "level_up"
   );
 }

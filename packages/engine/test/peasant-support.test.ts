@@ -13,7 +13,7 @@ describe("Peasant support contract", () => {
       4: {
         id: "makeshift_camp",
         slot: 4,
-        cost: { wood: 4, stone: 2, meat: 2 },
+        cost: { wood: 1, stone: 1, meat: 1 },
         radius: 96 / TILE_SIZE,
         durationMs: 30_000,
         power: 60,
@@ -21,7 +21,7 @@ describe("Peasant support contract", () => {
       5: {
         id: "homemade_bomb",
         slot: 5,
-        cost: { iron: 2, stone: 2 },
+        cost: { iron: 1, stone: 1 },
         radius: 110 / TILE_SIZE,
         durationMs: 650,
         power: 85,
@@ -44,13 +44,13 @@ describe("Peasant support contract", () => {
   });
 
   it("reports affordability at exact thresholds without mutating authoritative stock", () => {
-    const exactCamp = { wood: 4, stone: 2, iron: 0, meat: 2 };
-    const exactBomb = { wood: 0, stone: 2, iron: 2, meat: 0 };
+    const exactCamp = { wood: 1, stone: 1, iron: 0, meat: 1 };
+    const exactBomb = { wood: 0, stone: 1, iron: 1, meat: 0 };
     expect(canAffordPeasantSupportSkill(exactCamp, 4)).toBe(true);
-    expect(canAffordPeasantSupportSkill({ ...exactCamp, meat: 1 }, 4)).toBe(false);
+    expect(canAffordPeasantSupportSkill({ ...exactCamp, meat: 0 }, 4)).toBe(false);
     expect(canAffordPeasantSupportSkill(exactBomb, 5)).toBe(true);
-    expect(canAffordPeasantSupportSkill({ ...exactBomb, iron: 1 }, 5)).toBe(false);
-    expect(exactCamp).toEqual({ wood: 4, stone: 2, iron: 0, meat: 2 });
+    expect(canAffordPeasantSupportSkill({ ...exactBomb, iron: 0 }, 5)).toBe(false);
+    expect(exactCamp).toEqual({ wood: 1, stone: 1, iron: 0, meat: 1 });
   });
 
   it("rejects missing snapshots and non-support slots", () => {

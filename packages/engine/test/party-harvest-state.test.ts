@@ -4,6 +4,7 @@ import {
   EMPTY_PARTY_MATERIALS,
   isHarvestNodeId,
   MAX_PARTY_MATERIAL_AMOUNT,
+  missingPartyMaterialAmounts,
   parseHarvestNodeStates,
   parsePartyMaterialAmounts,
   parsePartyMaterials,
@@ -49,6 +50,15 @@ describe("party material validation", () => {
       spendPartyMaterials({ wood: 3, stone: 2, iron: 1, meat: 4 }, { wood: 2, stone: 2 }),
     ).toEqual({ wood: 1, stone: 0, iron: 1, meat: 4 });
     expect(spendPartyMaterials({ wood: 1, stone: 2, iron: 1, meat: 4 }, { wood: 2 })).toBeNull();
+  });
+
+  it("reports the exact resources missing from an atomic spend", () => {
+    expect(
+      missingPartyMaterialAmounts(
+        { wood: 0, stone: 1, iron: 0, meat: 3 },
+        { wood: 1, stone: 1, iron: 1, meat: 1 },
+      ),
+    ).toEqual({ wood: 1, iron: 1 });
   });
 });
 

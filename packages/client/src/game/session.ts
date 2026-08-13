@@ -15,6 +15,10 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
+import {
+  PARTY_MATERIAL_TYPES,
+  type PartyMaterialAmounts,
+} from "@lindocara/engine/party-harvest-state.js";
 import type {
   CombatAnimation,
   EventCode,
@@ -62,6 +66,7 @@ import type { RenderContext, RendererLike } from "@lindocara/renderer/renderer-a
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import type { PartyListing, StoredHero } from "../api.js";
 import { t } from "../i18n.js";
+import { localizedHarvestGain, localizedMissingMaterials } from "../material-copy.js";
 import { questTrackerNotifications } from "../quest-presentation.js";
 import { cancelHudLayoutEdit, isHudLayoutEditing } from "../state/hud-layout.js";
 import { getGameNavigation } from "../state/navigation.js";
@@ -260,6 +265,17 @@ function eventText(
   if (typeof resolved.nameKey === "string") {
     resolved.name = t(resolved.nameKey as MessageKey);
   }
+  if (code === "peasant.materials_insufficient") {
+    const missing: PartyMaterialAmounts = {};
+    for (const material of PARTY_MATERIAL_TYPES) {
+      const amount = resolved[material];
+      if (typeof amount === "number" && amount > 0) missing[material] = amount;
+    }
+    const copy = localizedMissingMaterials(missing);
+    resolved.missing = copy.missing || t("skill.materials_insufficient");
+    resolved.count = copy.count;
+  }
+  if (code === "peasant.harvested") resolved.gain = localizedHarvestGain(resolved);
   return t(`event.${code}` as MessageKey, resolved);
 }
 
@@ -701,7 +717,9 @@ async function startGameIdentity(
             ? `-${String(params?.damage ?? "")}`
             : code === "heal.cast" || code === "heal.received"
               ? `+${String(params?.amount ?? "")}`
-              : text;
+              : code === "peasant.harvested" && params
+                ? localizedHarvestGain(params)
+                : text;
         renderer.showWorldEvent(
           compact,
           tone,
