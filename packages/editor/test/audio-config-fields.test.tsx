@@ -1,9 +1,6 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import { AudioConfigFields } from "@lindocara/editor/ui/editor/AudioConfigFields.js";
-import {
-  DEFAULT_ADVENTURE_AUDIO,
-  musicTracksForProfile,
-} from "@lindocara/engine/audio-catalog.js";
+import { DEFAULT_ADVENTURE_AUDIO, musicTracksForProfile } from "@lindocara/engine/audio-catalog.js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,9 +61,7 @@ describe("AudioConfigFields", () => {
     expect(FakeAudio.created).toHaveLength(1);
     expect(audio?.play).toHaveBeenCalledTimes(2);
 
-    rerender(
-      <AudioConfigFields variant="map" value={{ music: "forest-1" }} onChange={vi.fn()} />,
-    );
+    rerender(<AudioConfigFields variant="map" value={{ music: "forest-1" }} onChange={vi.fn()} />);
     await waitFor(() => expect(audio?.pause).toHaveBeenCalledTimes(2));
   });
 
@@ -76,11 +71,7 @@ describe("AudioConfigFields", () => {
     if (!expected) throw new Error("missing default exploration music");
 
     render(
-      <AudioConfigFields
-        variant="adventure"
-        value={DEFAULT_ADVENTURE_AUDIO}
-        onChange={vi.fn()}
-      />,
+      <AudioConfigFields variant="adventure" value={DEFAULT_ADVENTURE_AUDIO} onChange={vi.fn()} />,
     );
 
     await user.click(screen.getByRole("button", { name: /Listen Main Exploration/i }));
