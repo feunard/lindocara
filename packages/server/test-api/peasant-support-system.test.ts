@@ -179,7 +179,7 @@ describe("authoritative Peasant support", () => {
     expect(resolved?.kind).toBe("ration");
     expect(runtime.rations).toHaveLength(3);
     expect(runtime.rations.every((entry) => groundDistance(owner, entry) <= 20)).toBe(true);
-    expect(runtime.rations.every((entry) => entry.landsAt === 2_800)).toBe(true);
+    expect(runtime.rations.every((entry) => entry.landsAt === 3_500)).toBe(true);
     expect(runtime.rations.every((entry) => entry.fadeAt - entry.landsAt === 30_000)).toBe(true);
     expect(runtime.rations.every((entry) => entry.expiresAt - entry.fadeAt === 1_000)).toBe(true);
 
@@ -187,7 +187,7 @@ describe("authoritative Peasant support", () => {
     const removed = vi.fn();
     const airborne = runtime.rations[0];
     if (!airborne) throw new Error("airborne ration missing");
-    const catchAt = 2_350;
+    const catchAt = 2_700;
     const catchPosition = peasantRationPositionAt(airborne, catchAt);
     owner.x = catchPosition.x;
     owner.y = catchPosition.y - 0.75;
@@ -302,6 +302,7 @@ describe("authoritative Peasant support", () => {
 
     const heal = vi.fn();
     const restoreResource = vi.fn();
+    const markHealingZone = vi.fn();
     advancePeasantCamps({
       runtime,
       players: [owner, ally, outsider],
@@ -310,6 +311,7 @@ describe("authoritative Peasant support", () => {
       now: 1_100,
       isOwnerActive: () => true,
       areAllies: (source, target) => source.partyId === target.partyId,
+      markHealingZone,
       heal,
       restoreResource,
       serveRation: vi.fn(),
@@ -317,6 +319,10 @@ describe("authoritative Peasant support", () => {
     });
     expect(heal.mock.calls.map((call) => (call[2] as PlayerRuntime).id)).toEqual(["owner", "ally"]);
     expect(restoreResource.mock.calls.map((call) => (call[2] as PlayerRuntime).id)).toEqual([
+      "owner",
+      "ally",
+    ]);
+    expect(markHealingZone.mock.calls.map((call) => (call[2] as PlayerRuntime).id)).toEqual([
       "owner",
       "ally",
     ]);

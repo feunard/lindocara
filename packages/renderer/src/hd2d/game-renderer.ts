@@ -1111,6 +1111,21 @@ export class Hd2dRenderer implements RendererLike {
       ),
       context.now,
     );
+    this.#visuals?.syncHealingAuras(
+      sample.players.flatMap((player) =>
+        player.healingAuraUntil === undefined
+          ? []
+          : [
+              {
+                id: player.id,
+                x: player.x,
+                z: player.z,
+                endsAt: this.#localDeadline(player.healingAuraUntil, 150),
+              },
+            ],
+      ),
+      context.now,
+    );
     this.#visuals?.sync(sample, context.now);
 
     // The camera follows the local player, and only it: every other actor is drawn where the
@@ -2011,9 +2026,9 @@ export class Hd2dRenderer implements RendererLike {
     this.#visuals?.showRation(
       ration,
       this.#localDeadline(ration.launchedAt, 0),
-      this.#localDeadline(ration.landsAt, 900),
-      this.#localDeadline(ration.fadeAt, 30_900),
-      this.#localDeadline(ration.expiresAt, 31_900),
+      this.#localDeadline(ration.landsAt, 1_600),
+      this.#localDeadline(ration.fadeAt, 31_600),
+      this.#localDeadline(ration.expiresAt, 32_600),
     );
   }
 

@@ -6750,6 +6750,9 @@ export function advanceWorldTick(w: WorldGlue): void {
       return Boolean(owner?.authorized && !owner.transitioning && owner.life === "alive");
     },
     areAllies: (owner, target) => areCombatAllies(owner, target),
+    markHealingZone: (_camp, _owner, target) => {
+      target.campHealingUntil = now + Math.ceil(3_000 / TICK_HZ);
+    },
     heal: (camp, owner, target) => {
       const ownerConnectionId = connectionOf(state, owner.id);
       const targetConnectionId = connectionOf(state, target.id);

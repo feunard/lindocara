@@ -217,6 +217,8 @@ export interface PlayerSnapshot {
   peasantCarry?: { kind: PeasantCarryKind; until: number };
   /** Absolute server deadline for the bounded damage/power buff currently affecting this hero. */
   powerBuffUntil?: number;
+  /** Refreshed while the hero is inside an allied Peasant camp's real healing radius. */
+  healingAuraUntil?: number;
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -1408,6 +1410,8 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
         (value.peasantCarry.until as number) >= 0)) &&
     (value.powerBuffUntil === undefined ||
       (Number.isSafeInteger(value.powerBuffUntil) && (value.powerBuffUntil as number) >= 0)) &&
+    (value.healingAuraUntil === undefined ||
+      (Number.isSafeInteger(value.healingAuraUntil) && (value.healingAuraUntil as number) >= 0)) &&
     (value.action === null || isActionSnapshot(value.action, "player"))
   );
 }

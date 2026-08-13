@@ -99,6 +99,11 @@ interface PowerBuffEntry {
   phase: number;
 }
 
+interface HealingAuraEntry {
+  object: THREE.Group;
+  phase: number;
+}
+
 interface LootEntry {
   object: THREE.Group;
   billboard: Billboard | null;
@@ -293,6 +298,7 @@ export class Hd2dVisualLayer {
   readonly #camps = new Map<string, CampEntry>();
   readonly #rations = new Map<string, RationEntry>();
   readonly #powerBuffs = new Map<string, PowerBuffEntry>();
+  readonly #healingAuras = new Map<string, HealingAuraEntry>();
   readonly #questMarkers = new Map<string, THREE.Object3D>();
   readonly #hiddenQuestSites = new Map<string, number>();
   readonly #labels: LabelVisual[] = [];
@@ -769,6 +775,44 @@ export class Hd2dVisualLayer {
     }
   }
 
+  /** Soft green floor light attached only while the server confirms camp-zone membership. */
+  syncHealingAuras(
+    auras: readonly { id: string; x: number; z: number; endsAt: number }[],
+    now: number,
+  ): void {
+    const present = new Set<string>();
+    for (const aura of auras) {
+      if (aura.endsAt <= now) continue;
+      present.add(aura.id);
+      let entry = this.#healingAuras.get(aura.id);
+      if (!entry) {
+        const object = new THREE.Group();
+        const inner = new THREE.Mesh(
+          new THREE.RingGeometry(0.3, 0.36, 36),
+          transparentMaterial(0x86ef9f, 0.18),
+        );
+        const outer = new THREE.Mesh(
+          new THREE.RingGeometry(0.46, 0.5, 36),
+          transparentMaterial(0xc4f7cf, 0.08),
+        );
+        inner.rotation.x = -Math.PI / 2;
+        outer.rotation.x = -Math.PI / 2;
+        object.add(inner, outer);
+        this.#root.add(object);
+        entry = { object, phase: phaseFor(`heal:${aura.id}`) };
+        this.#healingAuras.set(aura.id, entry);
+      }
+      entry.object.position.set(aura.x, this.#groundY(aura.x, aura.z, 0.05), aura.z);
+      entry.object.scale.setScalar(1 + Math.sin(now / 460 + entry.phase) * 0.045);
+      materialOpacity(entry.object, Math.min(0.2, Math.max(0.06, (aura.endsAt - now) / 500)));
+    }
+    for (const [id, entry] of this.#healingAuras) {
+      if (present.has(id)) continue;
+      disposeObject(entry.object);
+      this.#healingAuras.delete(id);
+    }
+  }
+
   setMerchant(merchant: MerchantDefinition | null): void {
     if (this.#merchant) disposeObject(this.#merchant);
     this.#merchant = null;
@@ -843,12 +887,15 @@ export class Hd2dVisualLayer {
         height: (PEASANT_RATION_ART.frameHeight / 192) * 2.6 * (PEASANT_RATION_ART.scale ?? 1),
         aspect: PEASANT_RATION_ART.frameWidth / PEASANT_RATION_ART.frameHeight,
         foot: 0.28,
-        lit: true,
+        // UI-like food needs to remain readable under every map mood; lighting previously made
+        // this tiny sprite nearly black at night even though the authoritative ration existed.
+        lit: false,
         pitch: HD2D_CAMERA.pitch,
       });
       billboard.placeAt(0, 0, 0);
       object.add(billboard.mesh);
     }
+    object.position.set(ration.originX, ration.originY + 0.08, ration.originZ);
     this.#root.add(object);
     this.#rations.set(ration.id, {
       object,
@@ -1522,6 +1569,7 @@ export class Hd2dVisualLayer {
       camps: this.#camps.size,
       rations: this.#rations.size,
       powerBuffs: this.#powerBuffs.size,
+      healingAuras: this.#healingAuras.size,
       effects: this.#effects.length,
       movementSurfaces:
         Number(this.#swimDisc.visible) +
@@ -1543,6 +1591,7 @@ export class Hd2dVisualLayer {
     for (const id of [...this.#camps.keys()]) this.removeCamp(id);
     for (const id of [...this.#rations.keys()]) this.removeRation(id);
     for (const entry of this.#powerBuffs.values()) disposeObject(entry.object);
+    for (const entry of this.#healingAuras.values()) disposeObject(entry.object);
     disposeObject(this.#root);
     this.#effects.length = 0;
     this.#loot.clear();
@@ -1551,6 +1600,7 @@ export class Hd2dVisualLayer {
     this.#camps.clear();
     this.#rations.clear();
     this.#powerBuffs.clear();
+    this.#healingAuras.clear();
     this.#questMarkers.clear();
     this.#hiddenQuestSites.clear();
     this.#merchant = null;

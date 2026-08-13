@@ -501,7 +501,11 @@ function rationLanding(
 ): WorldPosition {
   const baseAngle = rationAngleSeed(actionId) + (index * Math.PI * 2) / Math.max(1, total);
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const ring = Math.max(0.16, 0.86 - Math.floor(attempt / 4) * 0.16);
+    // Keep the three default landings inside the visible play area (roughly 5, 8 and 11 metres)
+    // while respecting the authoritative 20 m cap. The old fixed 86% ring threw every ration
+    // almost off-screen in 900 ms, making a successful cast look completely empty.
+    const preferredRing = 0.24 + (index % 3) * 0.16;
+    const ring = Math.max(0.12, preferredRing - Math.floor(attempt / 4) * 0.08);
     const angle = baseAngle + (attempt % 4) * 0.41;
     const x = owner.x + Math.cos(angle) * radius * ring;
     const z = owner.z + Math.sin(angle) * radius * ring;
@@ -540,7 +544,7 @@ export function launchPeasantRations(
       ownerId: owner.id,
       ownerPartyId: owner.partyId,
       originX: owner.x,
-      originY: owner.y,
+      originY: owner.y + 0.9,
       originZ: owner.z,
       ...landing,
       launchedAt: now,
@@ -795,6 +799,11 @@ export function advancePeasantCamps(options: {
   readonly now: number;
   readonly isOwnerActive: (ownerId: string) => boolean;
   readonly areAllies: (owner: PlayerRuntime, target: PlayerRuntime) => boolean;
+  readonly markHealingZone?: (
+    camp: PeasantCampRuntime,
+    owner: PlayerRuntime,
+    target: PlayerRuntime,
+  ) => void;
   readonly heal: (camp: PeasantCampRuntime, owner: PlayerRuntime, target: PlayerRuntime) => void;
   readonly restoreResource: (
     camp: PeasantCampRuntime,
@@ -824,17 +833,20 @@ export function advancePeasantCamps(options: {
       options.removed?.(camp);
       continue;
     }
+    const healingTargets = players.filter(
+      (target) =>
+        !(
+          target.life !== "alive" ||
+          !target.authorized ||
+          !options.areAllies(owner, target) ||
+          playerCenterDistance(camp, target) > camp.radius ||
+          !campSeesPlayer(camp, target, options.terrain)
+        ),
+    );
+    for (const target of healingTargets) options.markHealingZone?.(camp, owner, target);
     if (camp.nextPulseAt > options.now) continue;
     camp.nextPulseAt = options.now + camp.pulseIntervalMs;
-    for (const target of players) {
-      if (
-        target.life !== "alive" ||
-        !target.authorized ||
-        !options.areAllies(owner, target) ||
-        playerCenterDistance(camp, target) > camp.radius ||
-        !campSeesPlayer(camp, target, options.terrain)
-      )
-        continue;
+    for (const target of healingTargets) {
       options.heal(camp, owner, target);
       options.restoreResource(camp, owner, target);
     }

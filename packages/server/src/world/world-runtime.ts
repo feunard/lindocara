@@ -369,6 +369,8 @@ export interface PlayerRuntime extends PlayerProfile {
   rangerAfterimage: RangerAfterimageRuntime | null;
   /** Room-local visual reward flourish. Shared materials never live on the player. */
   peasantCarry: { kind: PeasantCarryKind; until: number } | null;
+  /** Short room-local marker refreshed while this hero truly stands inside an allied camp. */
+  campHealingUntil: number;
   priestLifeLinks: PriestLifeLinkRuntime[];
   priestSoulAnchor: PriestSoulAnchorRuntime | null;
   /** Server-only Rogue windows. They are reset on every runtime/session boundary. */
@@ -752,6 +754,7 @@ export function newPlayer(
     rangerVolleySequence: null,
     rangerAfterimage: null,
     peasantCarry: null,
+    campHealingUntil: 0,
     priestLifeLinks: [],
     priestSoulAnchor: null,
     opening: null,

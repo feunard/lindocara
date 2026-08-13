@@ -237,6 +237,15 @@ describe("Hd2dVisualLayer restored authored effects", () => {
     layer.dispose();
   });
 
+  it("keeps a restrained healing aura only around heroes inside an allied camp", () => {
+    const { layer } = harness();
+    layer.syncHealingAuras([{ id: "hero-1", x: 2, z: 3, endsAt: 1_200 }], 1_000);
+    expect(layer.diagnostics().healingAuras).toBe(1);
+    layer.syncHealingAuras([], 1_100);
+    expect(layer.diagnostics().healingAuras).toBe(0);
+    layer.dispose();
+  });
+
   it("tracks a catapulted meat ration until its authoritative removal", () => {
     const { layer } = harness();
     layer.showRation(

@@ -12,7 +12,7 @@ export type PeasantSupportSkillId = "butchers_cut" | "makeshift_camp" | "homemad
 
 export const PEASANT_RATION_DROP_COUNT = 3;
 export const PEASANT_RATION_LAUNCH_RADIUS = 20;
-export const PEASANT_RATION_FLIGHT_MS = 900;
+export const PEASANT_RATION_FLIGHT_MS = 1_600;
 export const PEASANT_RATION_ARC_HEIGHT = 2;
 /** Time a missed ration remains fully visible and collectible after touching the ground. */
 export const PEASANT_RATION_GROUND_LIFETIME_MS = 30_000;

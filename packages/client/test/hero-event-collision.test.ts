@@ -59,6 +59,16 @@ describe("live authored-event collision", () => {
     for (let frame = 0; frame < 120; frame += 1) hero.step(east, FRAME);
     expect(hero.state.x).toBeLessThan(-0.7);
 
+    const rearApproach = createHeroController({
+      terrain: blocked,
+      spawn: { x: 0, y: 0, z: 2.5 },
+      speed: 4,
+    });
+    for (let frame = 0; frame < 120; frame += 1) {
+      rearApproach.step({ x: 0, z: -1, jump: false }, FRAME);
+    }
+    expect(rearApproach.state.z).toBeGreaterThan(1.2);
+
     hero.setTerrain(withWorldEventColliders(base, []));
     for (let frame = 0; frame < 60; frame += 1) hero.step(east, FRAME);
     expect(hero.state.x).toBeGreaterThan(0.5);

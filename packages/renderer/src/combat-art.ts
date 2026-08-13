@@ -250,7 +250,7 @@ export const PEASANT_RATION_ART: CombatSheetArt = {
     1_000,
     0,
   ),
-  scale: 0.72,
+  scale: 1.05,
 };
 
 function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {

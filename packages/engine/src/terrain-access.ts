@@ -115,8 +115,10 @@ export interface PeasantCampColliderView {
 /** The solid part of the camp illustration, in tile units. The support radius is deliberately not
  * used as collision: it describes healing/protection around the camp, not the tent and chest. */
 export const PEASANT_CAMP_COLLIDER = {
-  width: 80 / TILE_SIZE,
-  depth: 52 / TILE_SIZE,
+  // Covers the tent, chest and bedroll across the painted ground patch. The former shallow box
+  // stopped only the foreground and let heroes walk through the rear half of the billboard.
+  width: 156 / TILE_SIZE,
+  depth: 140 / TILE_SIZE,
 } as const;
 
 /**
