@@ -1906,7 +1906,7 @@ export const en = {
   "editor.harvest.resource": "Resource type",
   "editor.harvest.resource.wood": "Wood",
   "editor.harvest.resource.stone": "Stone",
-  "editor.harvest.resource.iron": "Stone (legacy iron)",
+  "editor.harvest.resource.iron": "Stone",
   "editor.harvest.resource.gold": "Gold",
   "editor.harvest.resource.meat": "Meat",
   "editor.harvest.tool": "Required tool",

@@ -1929,7 +1929,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.harvest.resource": "Type de ressource",
   "editor.harvest.resource.wood": "Bois",
   "editor.harvest.resource.stone": "Pierre",
-  "editor.harvest.resource.iron": "Pierre (ancien fer)",
+  "editor.harvest.resource.iron": "Pierre",
   "editor.harvest.resource.gold": "Or",
   "editor.harvest.resource.meat": "Viande",
   "editor.harvest.tool": "Outil requis",
