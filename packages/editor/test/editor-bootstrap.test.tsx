@@ -1,6 +1,7 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Alepha } from "alepha";
@@ -63,7 +64,7 @@ function stageHandle() {
       layers: [],
       elements: [],
       spawn: { col: 0, row: 0 },
-      markers: [],
+      markers: EMPTY_MARKERS,
       events: [],
     })),
     replaceMap: vi.fn(),
