@@ -189,6 +189,7 @@ describe("Peasant talents", () => {
 
   it("resolves both Cocorico support branches and the final point without creating materials", () => {
     const base = skillFor("peasant", 2);
+    if (base.radius === undefined) throw new Error("Cocorico must define an ally radius");
     expect(
       resolvePeasantRallyPlan(
         peasantTalentEffects(["peasant.prospectors_pick.battle_chorus"], 2),
