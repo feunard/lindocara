@@ -1,20 +1,18 @@
 # Audio credits
 
-**All music is generated in-house** — see "Generated in-house" below. The third-party music this
-project used to ship (seven OpenGameArt tracks) was removed along with its catalogue entries; do
-not reintroduce borrowed music without adding it back here first.
+**All music and menu SFX are generated in-house** — see "Generated in-house" below. The
+third-party music this project used to ship (seven OpenGameArt tracks) was removed along with its
+catalogue entries, and the CC-BY leohpaz menu SFX set (*"10 Retro RPG Menu Sounds"*) was replaced
+by the in-house `sfx/ui-*.ogg` files below; do not reintroduce borrowed audio without adding it
+back here first.
 
-What remains third-party is the menu SFX and the two ambience beds, listed here with their licence.
+What remains third-party is the two ambience beds, listed here with their licence.
 
 ## Menu / title
 
-- **`sfx/title-confirm.mp3`** (confirm / select), **`sfx/title-hover.mp3`** (cursor move) and
-  **`sfx/title-back.mp3`** (back) — the menu UI sounds. From *"10 Retro RPG Menu Sounds"* by
-  **leohpaz** (`013_Confirm_03`, `001_Hover_01`, `029_Decline_09`), OpenGameArt.
-  Licence: **CC-BY 4.0** — attribution required.
-  https://opengameart.org/content/10-retro-rpg-menu-sounds
-
-The menu music bed is now `menu_1.mp3`, generated in-house.
+The menu UI sounds (`sfx/ui-confirm.ogg`, `sfx/ui-back.ogg`) and the menu music bed
+(`menu_1.mp3`) are generated in-house — see below. Cursor moves are deliberately silent: a
+per-step hover sample pool was tried and removed.
 
 ## Adventure and map soundscapes
 
@@ -70,3 +68,18 @@ runtime catalogue.
 All six legacy files are 140 s, 48 kHz, peak-normalised to −1 dBFS, and **none of them loops** — each has an
 intro and an ending, so a loop still has to be cut out of the middle at a bar line. The lossless
 WAV masters are not in the repo; regenerate from the captions above if they are needed.
+
+### Menu UI sounds
+
+Generated with the studio's sfx lane (MOSS-SoundEffect v2.0, Apache 2.0):
+`python3 studio/studio.py sfx --prompt "<prompt>" --duration <d> --out <path>.wav`, then trimmed,
+peak-normalised to −1 dBFS, given a short fade-out and encoded to Ogg Vorbis (libsndfile). The
+default theme suffix applies (no `--no-theme`). Played by `menu-audio.ts` at its own per-sound
+gains.
+
+- **`sfx/ui-confirm.ogg`** (confirm / select) — seed **42**, duration 2, kept 0–0.85 s.
+  Prompt: *a small bright glass chime struck once, two quick ascending notes, sharp attack,
+  quick decay*.
+- **`sfx/ui-back.ogg`** (back) — seed **42**, duration 2, kept 0–1.15 s.
+  Prompt: *a small muted glass chime struck once, two quick descending notes, soft attack,
+  quick decay*.

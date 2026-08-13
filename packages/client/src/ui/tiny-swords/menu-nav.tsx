@@ -82,16 +82,8 @@ export function MenuNav({
   const focusedRef = useRef<string | null>(null);
   focusedRef.current = focusedId;
 
-  // Cursor-move sound: on every focus change except the initial auto-focus (null → first item),
-  // so keyboard, gamepad and mouse-hover all click the same way. The initial landing is silent.
-  const prevFocused = useRef<string | null>(null);
-  useEffect(() => {
-    if (focusedId && prevFocused.current !== null && focusedId !== prevFocused.current) {
-      menuAudio.playHover();
-    }
-    prevFocused.current = focusedId;
-  }, [focusedId]);
-
+  // Cursor moves are deliberately SILENT (the hover sample pool was tried and removed — it read
+  // as noise, not feedback). Only confirm and back speak, below.
   const ordered = useCallback(
     () => [...items.current].filter((i) => !i.disabled).sort((a, b) => a.order - b.order),
     [],

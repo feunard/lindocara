@@ -17,17 +17,16 @@
  */
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 
-// The 16-bit JRPG menu SFX (CC-BY leohpaz — see audio/CREDITS.md). Each is a one-shot sample
-// played through the AudioContext, gated by mute + the sfx slider (not the music toggle).
+// The menu UI SFX, generated in-house with the studio sfx lane — prompts, seeds and mastering
+// are recorded in audio/CREDITS.md (they replaced the CC-BY leohpaz set). Each is a one-shot
+// sample played through the AudioContext, gated by mute + the sfx slider (not the music toggle).
 /** The title→menu confirm and menu-item select. */
-const CONFIRM_SRC = "/assets/lindocara/audio/sfx/title-confirm.mp3";
-/** Moving the menu cursor (focus change). Quieter — it fires on every step. */
-const HOVER_SRC = "/assets/lindocara/audio/sfx/title-hover.mp3";
+const CONFIRM_SRC = "/assets/lindocara/audio/sfx/ui-confirm.ogg";
 /** Backing out of a menu (Escape / B / the Back item). */
-const BACK_SRC = "/assets/lindocara/audio/sfx/title-back.mp3";
-/** Pre-slider gains, before the sfx slider scales them. */
+const BACK_SRC = "/assets/lindocara/audio/sfx/ui-back.ogg";
+/** Pre-slider gains, before the sfx slider scales them. There is deliberately NO cursor-move
+ *  sound: a per-step sample pool was tried and removed — it read as noise, not feedback. */
 const CONFIRM_VOLUME = 0.8;
-const HOVER_VOLUME = 0.35;
 const BACK_VOLUME = 0.6;
 
 /** The looping menu bed. Generated in-house (see audio/CREDITS.md). Swap this to change it. */
@@ -140,11 +139,6 @@ class MenuAudio {
   /** The title→menu hand-off / menu-item select. Resumes audio inside the title gesture. */
   playConfirm(): void {
     this.#playSample(CONFIRM_SRC, CONFIRM_VOLUME);
-  }
-
-  /** Menu cursor move (focus change). */
-  playHover(): void {
-    this.#playSample(HOVER_SRC, HOVER_VOLUME);
   }
 
   /** Backing out of a menu. */
