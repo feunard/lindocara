@@ -20,8 +20,8 @@ import type {
   AdminSessionController,
   AdminUserController,
   IdentityResource,
+  RealmController,
   SessionResource,
-  UpdateUser,
 } from "alepha/api/users";
 import { useAction, useClient, useQuery } from "alepha/react";
 import { useAuth } from "alepha/react/auth";
@@ -41,6 +41,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { passwordSchema } from "./admin-user-detail-password-schema.ts";
+import {
+  type ProfileIssue,
+  profileIssues,
+  profilePolicy,
+  profileUpdateBody,
+} from "./admin-user-detail-profile-policy.ts";
 import {
   type ProfileForm,
   profileSchema,
@@ -64,6 +70,23 @@ type TabKey = "overview" | "security" | "sessions" | "audits";
 const tabSchema = z.object({ tab: z.string().optional() });
 
 /**
+ * Resolves the id param for this page, preferring `:userId` (the param name
+ * `AdminRouter`'s own route declares) and falling back to `:id` (the name
+ * this component read exclusively before `AdminRouter` existed).
+ *
+ * The fallback exists for `~/git/club/apps/platform`, which vendors
+ * `@alepha/ui` and declares its own user-detail route as `/users/:id` against
+ * this same component. Without it, that application's next upgrade of
+ * `@alepha/ui` would resolve `userId` to `undefined`, fall through to the
+ * empty string, and load `AdminUserDetail` with no id at all instead of
+ * failing to build.
+ */
+export const resolveUserDetailId = (params: {
+  userId?: string;
+  id?: string;
+}): string => String(params.userId ?? params.id ?? "");
+
+/**
  * Composition root for the admin user detail page.
  *
  * Owns the data (queries, forms, mutations) and the shell — top bar, tab
@@ -73,11 +96,12 @@ const tabSchema = z.object({ tab: z.string().optional() });
 export const AdminUserDetail = (props: AdminUserDetailProps) => {
   const router = useRouter();
   const routerState = useRouterState();
-  const userId = String(routerState.params.id ?? "");
+  const userId = resolveUserDetailId(routerState.params);
   const userClient = useClient<AdminUserController>();
   const sessionClient = useClient<AdminSessionController>();
   const identityClient = useClient<AdminIdentityController>();
   const auditClient = useClient<AdminAuditController>();
+  const realmClient = useClient<RealmController>();
   const { tr } = useI18n();
   const toast = useToast();
   const { user: currentUser } = useAuth();
@@ -151,7 +175,48 @@ export const AdminUserDetail = (props: AdminUserDetailProps) => {
   );
   const identities = identitiesQuery.data?.content ?? [];
 
+  const realmQuery = useQuery(
+    {
+      // The realm config query param is `realmName`; the admin endpoints
+      // spell the same thing `userRealmName`.
+      handler: ({ signal }) =>
+        realmClient.getRealmConfig(
+          { query: { realmName: props.userRealmName } },
+          { request: { signal } },
+        ),
+      // Realm settings only shape which profile fields are offered — a
+      // failure must not block the page. `profilePolicy` degrades to
+      // "everything optional" without them.
+      onError: () => {},
+    },
+    [realmClient, props.userRealmName],
+  );
+
+  // What the realm collects decides what this form offers and demands.
+  // Hardcoding "email is required" here made every save fail — a role change
+  // included — on a realm that signs users in by username alone.
+  const policy = profilePolicy(realmQuery.data?.settings, user);
+
   // -- Profile form ---------------------------------------------------------
+
+  const issueMessage = (issue: ProfileIssue): string => {
+    if (issue.field === "username") {
+      return issue.reason === "required"
+        ? tr("admin.userDetail.usernameRequired", {
+            default: "Username is required",
+          })
+        : tr("admin.userDetail.usernameCannotBeCleared", {
+            default: "Username cannot be removed once set",
+          });
+    }
+    return issue.reason === "required"
+      ? tr("admin.userDetail.emailRequired", {
+          default: "Email is required",
+        })
+      : tr("admin.userDetail.emailCannotBeCleared", {
+          default: "Email cannot be removed once set",
+        });
+  };
 
   const form = useForm({
     schema: profileSchema,
@@ -164,39 +229,17 @@ export const AdminUserDetail = (props: AdminUserDetailProps) => {
       roles: user?.roles ?? [],
     },
     handler: async (values: ProfileForm) => {
-      // Required-field guards (kept in handler, not in schema, so
-      // useForm's initial-decode doesn't crash on the empty mount).
-      const username = (values.username ?? "").trim();
-      const email = (values.email ?? "").trim();
-      if (!username) {
+      // Field guards live in the handler, not in the schema, so useForm's
+      // initial decode doesn't crash on the empty mount.
+      const issue = profileIssues(values, policy, user)[0];
+      if (issue) {
         throw new FormValidationError({
-          message: tr("admin.userDetail.usernameRequired", {
-            default: "Username is required",
-          }),
-          path: "/username",
-        });
-      }
-      if (!email) {
-        throw new FormValidationError({
-          message: tr("admin.userDetail.emailRequired", {
-            default: "Email is required",
-          }),
-          path: "/email",
+          message: issueMessage(issue),
+          path: `/${issue.field}`,
         });
       }
 
-      // Changing the email invalidates the verified flag — server-side
-      // enforcement is also recommended, but mirror it client-side so
-      // the UI is immediately consistent.
-      const emailChanged = user && email !== (user.email ?? "");
-      const body: UpdateUser = {
-        username,
-        email,
-        firstName: (values.firstName ?? "").trim(),
-        lastName: (values.lastName ?? "").trim(),
-        roles: values.roles ?? [],
-        emailVerified: emailChanged ? false : Boolean(values.emailVerified),
-      };
+      const body = profileUpdateBody(values, policy, user);
 
       try {
         await userClient.updateUser({
@@ -567,6 +610,7 @@ export const AdminUserDetail = (props: AdminUserDetailProps) => {
           <AdminUserDetailOverviewTab
             form={form}
             availableRoles={availableRoles}
+            policy={policy}
           />
         )}
 

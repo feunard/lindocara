@@ -108,6 +108,7 @@ export class BuildManifestTask extends BuildTask {
     // means the app doesn't use that resource.
     let hasDatabase = false;
     let hasBucket = false;
+    let hasAnalytics = false;
     let hasKV = false;
     let hasQueue = false;
     let crons: string[] = [];
@@ -143,6 +144,22 @@ export class BuildManifestTask extends BuildTask {
     // exactly as `$storage` would.
     if (!hasBucket && process.env.R2_BUCKET_NAME) {
       hasBucket = true;
+    }
+
+    try {
+      hasAnalytics = ctx.alepha.primitives("$analytics").length > 0;
+    } catch {}
+
+    // Same escape hatch as R2 above, for the same reason: an app can want
+    // the dataset provisioned without a `$analytics` primitive to detect —
+    // typically because `CLOUDFLARE_ANALYTICS_DATASET` is already set by
+    // hand from before this mechanism existed. There is no equivalent to
+    // R2's "inject the provider directly" route here (`WaeAnalyticsProvider`
+    // is only ever selected internally, by `AlephaAnalytics`'s own
+    // `register()`), but honoring an explicit value costs nothing and keeps
+    // a hand-set `.env.production` working exactly as it did before.
+    if (!hasAnalytics && process.env.CLOUDFLARE_ANALYTICS_DATASET) {
+      hasAnalytics = true;
     }
 
     try {
@@ -211,9 +228,47 @@ export class BuildManifestTask extends BuildTask {
     // start/ready hooks), so this is the full env surface — used by the
     // deploy `secrets` step as the worker-secret allowlist.
     let env: string[] = [];
+    let publicVars: string[] | undefined;
     try {
-      env = Object.keys(ctx.alepha.dump().env).sort();
+      const dumped = ctx.alepha.dump().env;
+      env = Object.keys(dumped).sort();
+      // Only the declassified keys are recorded: everything else on `env` is a
+      // secret, so a companion `secrets` list would just be the complement, and
+      // two lists obliged to agree eventually don't. Left undefined rather than
+      // `[]` so "never annotated" stays legible in the artifact.
+      const declassified = env.filter((key) => dumped[key]?.secret === false);
+      publicVars = declassified.length ? declassified : undefined;
     } catch {}
+
+    /*
+      ⚠️ The env surface above is the graph as instantiated HERE — under node.
+      A key declared only by a provider that exists only on workerd is
+      therefore absent from it, and since this list is the allowlist the
+      deploy `secrets` step pushes from, such a key can never reach the
+      worker. The operator sets it in `.env.production`, `platform up` reports
+      success, and the worker boots without it.
+
+      That is the same node-cannot-see-workerd hazard the bucket and dataset
+      detection above document, one layer over: not a missing binding, a
+      missing SECRET — and a missing secret fails at request time rather than
+      at boot, so it surfaces as a broken feature rather than a failed deploy.
+      It cost a production outage: `WaeAnalyticsProvider` declares
+      `CLOUDFLARE_ANALYTICS_TOKEN`, is selected only under workerd, and every
+      analytics read 500'd on a credential the deploy had quietly refused to
+      push.
+
+      Detection is the right fix because detection is the one thing that DOES
+      work from node: `hasAnalytics` is already known above, and it is exactly
+      the condition under which the runtime will demand these keys.
+      `CLOUDFLARE_ANALYTICS_DATASET` is deliberately not added — the platform
+      supplies it as a plain var and `EXCLUDED_SECRET_KEYS` drops it from
+      every push.
+    */
+    if (hasAnalytics) {
+      for (const key of ["CLOUDFLARE_ANALYTICS_TOKEN", "CLOUDFLARE_ACCOUNT_ID"])
+        if (!env.includes(key)) env.push(key);
+      env.sort();
+    }
 
     // Capture the CF email binding so manifest-mode deploys (Rocket) can
     // re-emit `send_email` — `enhanceEmail` can't introspect there.
@@ -254,6 +309,7 @@ export class BuildManifestTask extends BuildTask {
       resources: {
         hasDatabase,
         hasBucket,
+        hasAnalytics,
         hasKV,
         hasQueue,
         hasCron: crons.length > 0,
@@ -263,6 +319,7 @@ export class BuildManifestTask extends BuildTask {
       websocketPaths,
       email,
       env,
+      publicVars,
     };
 
     // `writeFile` does not create parent directories. This used to be safe by

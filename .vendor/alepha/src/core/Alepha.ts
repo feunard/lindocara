@@ -485,14 +485,31 @@ export class Alepha {
   }
 
   /**
+   * True when the named environment variable is set to an "on" value.
+   *
+   * Environment values are strings, and `!!"false"` is `true` — which is how
+   * `MIGRATE=false` used to *activate* a `$mode`. This is the truthiness
+   * check every env flag must go through: absent, `""`, `"false"` and `"0"`
+   * (case-insensitive) are off; anything else is on.
+   */
+  public isEnvEnabled(name: string): boolean {
+    const value = this.env[name];
+    if (value === undefined || value === false) {
+      return false;
+    }
+    const str = String(value).trim().toLowerCase();
+    return str !== "" && str !== "false" && str !== "0";
+  }
+
+  /**
    * True if the App is running in a Continuous Integration environment.
    */
   public isCI(): boolean {
-    if (this.env.GITHUB_ACTIONS) {
+    if (this.isEnvEnabled("GITHUB_ACTIONS")) {
       return true;
     }
 
-    return !!this.env.CI;
+    return this.isEnvEnabled("CI");
   }
 
   /**
@@ -510,7 +527,7 @@ export class Alepha {
       return false;
     }
 
-    return !!this.env.VITE_ALEPHA_DEV;
+    return this.isEnvEnabled("VITE_ALEPHA_DEV");
   }
 
   /**
@@ -528,12 +545,12 @@ export class Alepha {
       return false;
     }
 
-    if (this.env.ALEPHA_SERVERLESS) {
+    if (this.isEnvEnabled("ALEPHA_SERVERLESS")) {
       return true;
     }
 
     // Vercel support
-    if (this.env.VERCEL_REGION) {
+    if (this.isEnvEnabled("VERCEL_REGION")) {
       return true;
     }
 
@@ -677,9 +694,7 @@ export class Alepha {
         return this;
       }
 
-      this.log?.info(
-        `App is now ready [${Math.round(performance.now() - now)}ms]`,
-      );
+      this.log?.info(this.readyMessage(performance.now() - now));
 
       this.ready = true;
       return this;
@@ -697,6 +712,32 @@ export class Alepha {
       this.resetStartup();
       throw error;
     }
+  }
+
+  /**
+   * Format the "ready" line, reporting the boot duration only when the runtime
+   * was actually able to measure it.
+   *
+   * On workerd the clock does not advance during pure-CPU work — it only moves
+   * after I/O — and container boot performs none: bindings (D1, KV, R2,
+   * Analytics Engine) are bound, never connected. So `performance.now()` is
+   * identical either side of the whole boot and the delta is exactly zero.
+   *
+   * Measured on a deployed Worker: 12 of 12 cold starts emitted every boot log
+   * line under a single identical timestamp while burning 30-216ms of CPU, and
+   * all of them printed "[0ms]". That number is not "boot was free", it is
+   * "the runtime could not see boot" — and reporting it hid a real ~45ms of
+   * per-cold-start CPU behind a zero. Say nothing rather than say zero.
+   *
+   * A sub-millisecond boot under Node still rounds to 0 but has a non-zero
+   * delta, so it keeps its bracket and stays distinguishable.
+   */
+  protected readyMessage(elapsedMs: number): string {
+    if (elapsedMs <= 0) {
+      return "App is now ready";
+    }
+
+    return `App is now ready [${Math.round(elapsedMs)}ms]`;
   }
 
   /**
@@ -1052,9 +1093,13 @@ export class Alepha {
 
     const index = this.pendingInstantiations.indexOf(service);
     if (index !== -1 && !transient) {
+      // slice(index), not slice(0, index): the cycle is the stack FROM the
+      // repeated service onward. The old slice reported the callers above the
+      // cycle and dropped the cycle itself (empty when the cycle starts the
+      // stack).
       throw new CircularDependencyError(
         service.name,
-        this.pendingInstantiations.slice(0, index).map((it) => it.name),
+        this.pendingInstantiations.slice(index).map((it) => it.name),
       );
     }
 
@@ -1157,7 +1202,9 @@ export class Alepha {
   /**
    * Applies environment variables to the provided schema and state object.
    *
-   * It replaces also all templated $ENV inside string values.
+   * It replaces also all templated $ENV inside string values. Write `$$KEY`
+   * for a literal `$KEY` — e.g. a password containing `$PORT` declared as
+   * `$$PORT` survives substitution untouched.
    *
    * @param schema - The schema object to apply environment variables to.
    * @return The schema object with environment variables applied.
@@ -1181,8 +1228,43 @@ export class Alepha {
     ) as Record<string, any>;
 
     // Sort keys longest-first to prevent substring collisions
-    // (e.g. $PORT must not match inside $PORT_NAME).
-    const sortedKeys = Object.keys(config).sort((a, b) => b.length - a.length);
+    // (e.g. $PORT must not match inside $PORT_NAME). Patterns are compiled
+    // once per key, outside the pass loop — and the key is regex-escaped:
+    // keys are user input, and an unescaped `(` used to blow up the RegExp
+    // constructor while `.` silently matched any character.
+    const patterns = Object.keys(config)
+      .sort((a, b) => b.length - a.length)
+      .map((key) => {
+        const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return {
+          key,
+          // `$$KEY` is the escape spelling for a literal `$KEY`.
+          escape: new RegExp(`\\$\\$${escaped}(?![A-Z0-9_])`, "g"),
+          // Word-boundary match, so a value referencing an UNDECLARED
+          // `$PORTX` is not rewritten by the declared `PORT`.
+          subst: new RegExp(`\\$${escaped}(?![A-Z0-9_])`, "g"),
+        };
+      });
+
+    // Neutralize `$$KEY` escapes BEFORE any substitution pass. The dollar is
+    // parked as a sentinel so the multi-pass loop below can never see (and
+    // substitute) the unescaped `$KEY` it protects — the old single-regex
+    // approach unescaped and substituted in the same passes, so an escaped
+    // `$$PORT` still came out as `$3000`. The sentinel survives transitively
+    // (an escape inside a substituted value stays inert) and is restored
+    // after the last pass.
+    const ESCAPED_DOLLAR = "\u0000alepha:dollar\u0000";
+    for (const key in config) {
+      if (typeof config[key] !== "string") continue;
+      for (const p of patterns) {
+        // Function replacement on purpose: a replacement STRING gives `$`
+        // sequences (`$&`, `$'`) special meaning.
+        config[key] = (config[key] as string).replace(
+          p.escape,
+          () => `${ESCAPED_DOLLAR}${p.key}`,
+        );
+      }
+    }
 
     let changed = true;
 
@@ -1194,21 +1276,25 @@ export class Alepha {
       changed = false;
       for (const key in config) {
         if (typeof config[key] !== "string") continue;
-        for (const env of sortedKeys) {
+        for (const p of patterns) {
           const before = config[key] as string;
-          // Word-boundary match, so a value referencing an UNDECLARED
-          // `$PORTX` is not rewritten by the declared `PORT`. `$$` escapes a
-          // literal `$`, so a password containing `$PORT` can be written
-          // `$$PORT` and survives.
-          config[key] = before.replace(
-            new RegExp(`(\\$\\$)?\\$${env}(?![A-Z0-9_])`, "g"),
-            (match, escaped) =>
-              escaped ? match.slice(1) : String(config[env] ?? ""),
+          config[key] = before.replace(p.subst, () =>
+            String(config[p.key] ?? ""),
           );
           if (config[key] !== before) {
             changed = true;
           }
         }
+      }
+    }
+
+    // Restore escaped dollars: `$$PORT` has now safely become `$PORT`.
+    for (const key in config) {
+      if (
+        typeof config[key] === "string" &&
+        (config[key] as string).includes(ESCAPED_DOLLAR)
+      ) {
+        config[key] = (config[key] as string).replaceAll(ESCAPED_DOLLAR, "$");
       }
     }
 
@@ -1327,6 +1413,14 @@ export class Alepha {
           enum: enumValues?.length
             ? ([...enumValues] as Array<string>)
             : undefined,
+          // Inner-then-wrapper, for the same reason as `description`: a
+          // `z.text({ secret: false }).optional()` tagged the string, and the
+          // ZodOptional wrapping it carries no meta of its own. `??` rather
+          // than `||` so the inner schema's explicit `false` is not skipped
+          // over in favour of the wrapper's absent one — and the final `?? true`
+          // is what makes "nobody said" mean secret.
+          secret:
+            this.declaredSecret(inner) ?? this.declaredSecret(value) ?? true,
         };
       }
     }
@@ -1335,6 +1429,18 @@ export class Alepha {
       env,
       providers,
     };
+  }
+
+  /**
+   * The `secret` marker a schema declared, or `undefined` if it declared none.
+   *
+   * A non-boolean `secret` in `.meta()` is dropped rather than coerced, so it
+   * falls back to secret. Coercing would let `secret: "no"` — truthy, and
+   * plainly meant as an opt-out — decide the question either way by accident.
+   */
+  protected declaredSecret(schema: unknown): boolean | undefined {
+    const value = z.schema.meta(schema).secret;
+    return typeof value === "boolean" ? value : undefined;
   }
 
   public services<T extends object>(base: Service<T>): Array<T> {
@@ -1386,42 +1492,50 @@ export class Alepha {
     __alephaRef.alepha = this;
     __alephaRef.service = service;
 
-    const instance: T = isClass(service)
-      ? new service(...args)
-      : (((service as RunFunction)(...args) ?? {}) as T);
+    // The finally block is what keeps a THROWING constructor from corrupting
+    // the container. Without it, the service stayed forever in
+    // `pendingInstantiations` — every later inject() of it reported a phantom
+    // CircularDependencyError that masked the original failure — and the
+    // leaked `__alephaRef` cursor made `$context()` usable outside any
+    // instantiation.
+    try {
+      const instance: T = isClass(service)
+        ? new service(...args)
+        : (((service as RunFunction)(...args) ?? {}) as T);
 
-    const obj = instance as unknown as Record<string, any>;
-    for (const [key, value] of Object.entries(obj)) {
-      if (value instanceof Primitive) {
-        this.processPrimitive(value, key);
+      const obj = instance as unknown as Record<string, any>;
+      for (const [key, value] of Object.entries(obj)) {
+        if (value instanceof Primitive) {
+          this.processPrimitive(value, key);
+        }
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          typeof value[OPTIONS] === "object" &&
+          "getter" in value[OPTIONS]
+        ) {
+          // `$store` hands over the Atom/Computed itself, not its key: a computed
+          // has a `key` but no store entry under it. `StateManager.get` is
+          // overloaded on `Computed | Atom | string`, so the object resolves both.
+          const getter = value[OPTIONS].getter;
+          Object.defineProperty(obj, key, {
+            get: () => this.store.get(getter),
+          });
+        }
       }
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        typeof value[OPTIONS] === "object" &&
-        "getter" in value[OPTIONS]
-      ) {
-        // `$store` hands over the Atom/Computed itself, not its key: a computed
-        // has a `key` but no store entry under it. `StateManager.get` is
-        // overloaded on `Computed | Atom | string`, so the object resolves both.
-        const getter = value[OPTIONS].getter;
-        Object.defineProperty(obj, key, {
-          get: () => this.store.get(getter),
-        });
+
+      return instance;
+    } finally {
+      this.pendingInstantiations.pop();
+
+      // tree is empty, now we can clean the global cursor
+      if (this.pendingInstantiations.length === 0) {
+        __alephaRef.alepha = undefined;
       }
+
+      __alephaRef.service =
+        this.pendingInstantiations[this.pendingInstantiations.length - 1];
     }
-
-    this.pendingInstantiations.pop();
-
-    // tree is empty, now we can clean the global cursor
-    if (this.pendingInstantiations.length === 0) {
-      __alephaRef.alepha = undefined;
-    }
-
-    __alephaRef.service =
-      this.pendingInstantiations[this.pendingInstantiations.length - 1];
-
-    return instance;
   }
 
   protected processPrimitive(value: Primitive, propertyKey = "") {
@@ -1467,6 +1581,24 @@ export interface AlephaDumpEnvVariable {
   default?: string;
   required?: boolean;
   enum?: Array<string>;
+  /**
+   * Whether the value is sensitive. **`true` unless declassified.**
+   *
+   * Opt OUT with `z.text({ secret: false })` (or `.meta({ secret: false })`)
+   * for a var that is genuinely safe in plaintext — a public URL, a log level.
+   * `secret: true` is accepted and is the default, so writing it is
+   * documentation rather than a behaviour change.
+   *
+   * Secret-by-default for two reasons. It is what already happens: every
+   * declared key is pushed to a deploy target as an encrypted binding today,
+   * so an app that annotates nothing keeps exactly the behaviour it has. And
+   * it is the only default that survives being forgotten — the annotation is
+   * new, it WILL be missed, and a missed annotation must not be what exposes a
+   * key. Always present rather than optional for the same reason: a consumer
+   * writing `if (v.secret)` gets the safe answer without having to know that
+   * absent meant "closed".
+   */
+  secret: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
