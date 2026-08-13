@@ -52,6 +52,10 @@ describe("QuickItemBar", () => {
     expect(bar?.querySelector(".quick-item-bar__slot--right")).toBeInTheDocument();
     expect(bar?.querySelector(".quick-item-bar__slot--down")).toBeInTheDocument();
     expect(bar?.querySelectorAll(".quick-item-bar__key")).toHaveLength(0);
+    expect(bar?.querySelectorAll('[role="tooltip"]')).toHaveLength(4);
+    expect(bar?.querySelector('[role="tooltip"]')).toHaveTextContent("Heartroot tonic");
+    expect(bar?.querySelector('[role="tooltip"]')).toHaveTextContent("Restores 45 health");
+    expect(screen.getByRole("button", { name: "Inventory" })).not.toHaveAttribute("title");
 
     fireEvent.click(screen.getByRole("button", { name: "Inventory" }));
     expect(useUiStore.getState().inventoryOpen).toBe(true);

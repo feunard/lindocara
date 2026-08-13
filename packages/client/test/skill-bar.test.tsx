@@ -79,7 +79,10 @@ describe("skill bar cooldowns", () => {
     const piercingArrow = screen.getByRole("button", { name: "2. Piercing Arrow" });
     const volley = screen.getByRole("button", { name: "3. Volley" });
     expect(piercingArrow).toBeDisabled();
-    expect(piercingArrow).toHaveAttribute("title", "Piercing Arrow — Disabled on this map");
+    expect(piercingArrow).not.toHaveAttribute("title");
+    expect(piercingArrow.querySelector('[role="tooltip"]')).toHaveTextContent(
+      "Disabled on this map",
+    );
     expect(piercingArrow.querySelector(".skill-slot__lock")).toHaveTextContent("×");
     fireEvent.click(piercingArrow);
     expect(game.castSkill).not.toHaveBeenCalled();
@@ -365,7 +368,7 @@ describe("skill bar cooldowns", () => {
         displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 0, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
-        materials: { wood: 0, stone: 1, iron: 0, meat: 1 },
+        materials: { wood: 0, stone: 1, meat: 1 },
       },
     });
     render(
@@ -378,7 +381,6 @@ describe("skill bar cooldowns", () => {
     expect(screen.getByRole("status", { name: "Peasant resources" })).toBeInTheDocument();
     expect(screen.getByLabelText("Wood: 0")).toBeInTheDocument();
     expect(screen.getByLabelText("Stone: 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("Iron: 0")).toBeInTheDocument();
     expect(screen.getByLabelText("Meat: 1")).toBeInTheDocument();
 
     const ration = screen.getByRole("button", { name: /^3\. Catapulted Lunch/ });
@@ -394,7 +396,7 @@ describe("skill bar cooldowns", () => {
     expect(camp.querySelector('[data-material-cost="wood"]')).toHaveTextContent("W1");
     expect(bomb).toBeEnabled();
     expect(bomb).toHaveAttribute("data-material-affordable", "false");
-    expect(bomb.querySelector('[data-material-cost="iron"]')).toHaveTextContent("I1");
+    expect(bomb.querySelector('[data-material-cost="stone"]')).toHaveTextContent("S2");
     expect(camp.querySelector('[role="tooltip"]')).toHaveTextContent(
       "Cost: Wood 1 · Stone 1 · Meat 1",
     );
@@ -411,12 +413,12 @@ describe("skill bar cooldowns", () => {
         displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 0, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
-        materials: { wood: 1, stone: 1, iron: 1, meat: 3 },
+        materials: { wood: 1, stone: 2, meat: 3 },
       });
     });
 
     expect(screen.getByLabelText("Wood: 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("Iron: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Stone: 2")).toBeInTheDocument();
     expect(ration).toHaveAttribute("data-material-affordable", "true");
     expect(camp).not.toHaveClass("unaffordable");
     expect(camp).toHaveAttribute("data-material-affordable", "true");
@@ -448,7 +450,7 @@ describe("skill bar cooldowns", () => {
         displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 0, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
-        materials: { wood: 2, stone: 1, iron: 1, meat: 1 },
+        materials: { wood: 2, stone: 1, meat: 1 },
         talents: {
           selected: [
             "peasant.makeshift_camp.complete_encampment",
@@ -468,7 +470,6 @@ describe("skill bar cooldowns", () => {
     expect(camp.querySelector('[data-material-cost="stone"]')).toHaveTextContent("S1");
     expect(camp.querySelector('[data-material-cost="meat"]')).toHaveTextContent("M1");
     expect(bomb).toHaveAttribute("data-material-affordable", "true");
-    expect(bomb.querySelector('[data-material-cost="iron"]')).toHaveTextContent("I1");
     expect(bomb.querySelector('[data-material-cost="stone"]')).toHaveTextContent("S1");
   });
 
@@ -494,7 +495,7 @@ describe("skill bar cooldowns", () => {
         displacement: { seq: 0, x: 0, y: 0, z: 0 },
         inventory: { potions: 0, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
-        materials: { wood: 8, stone: 6, iron: 4, meat: 3 },
+        materials: { wood: 8, stone: 10, meat: 3 },
       },
     });
     render(

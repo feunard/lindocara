@@ -9,14 +9,12 @@ import { useUiStore } from "../../store.js";
 const MATERIAL_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {
   wood: "material.wood",
   stone: "material.stone",
-  iron: "material.iron",
   meat: "material.meat",
 };
 
 const MATERIAL_GLYPH: Readonly<Record<PartyMaterialType, string>> = {
   wood: "W",
   stone: "S",
-  iron: "I",
   meat: "M",
 };
 
@@ -24,7 +22,6 @@ export function PeasantResourcesPanel() {
   useLocale();
   const isPeasant = useUiStore((state) => state.self?.class === "peasant");
   const materials = useUiStore((state) => state.selfState?.materials);
-  const gold = useUiStore((state) => state.selfState?.inventory.gold ?? 0);
   if (!isPeasant || !materials) return null;
 
   return (
@@ -53,16 +50,6 @@ export function PeasantResourcesPanel() {
             <strong>{materials[material]}</strong>
           </output>
         ))}
-        <output
-          className="peasant-resource peasant-resource--gold"
-          aria-label={`${t("item.gold")}: ${gold}`}
-        >
-          <span className="peasant-resource__glyph" aria-hidden="true">
-            G
-          </span>
-          <span>{t("item.gold")}</span>
-          <strong>{gold}</strong>
-        </output>
       </div>
     </section>
   );

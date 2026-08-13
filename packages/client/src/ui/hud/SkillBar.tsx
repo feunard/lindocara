@@ -257,13 +257,6 @@ export function SkillBar() {
               aria-pressed={guardToggle ? ironGuardActive : undefined}
               aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}${shadowReturnReady ? `. ${t("skill.rogue.shadow_return.ready")}` : ""}${afterimageReady ? `. ${t("skill.ranger.afterimage.ready")}` : ""}${danceRepositionReady ? `. ${t("skill.rogue.dance_master.ready")}` : ""}${supportText ? `. ${supportText}` : ""}`}
               aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
-              title={
-                !enabledOnMap
-                  ? `${name} — ${t("skill.disabled_on_map")}`
-                  : unlocked
-                    ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}${supportText ? ` · ${supportText}` : ""}`
-                    : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
-              }
             >
               <span className="skill-slot__key">{displayedLabel}</span>
               <span

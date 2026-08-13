@@ -43,6 +43,8 @@ export function QuickItemBar() {
       {quickItems.map((item, index) => {
         const unavailable = !item || counts[item] <= 0 || remaining > 0 || self.life === "ghost";
         const direction = QUICK_SLOT_DIRECTIONS[index] ?? "left";
+        const itemName = item ? t(`consumable.${item}.name`) : t("inventory.empty");
+        const itemDescription = item ? t(`consumable.${item}.description`) : t("inventory.empty");
         return (
           <button
             type="button"
@@ -50,11 +52,7 @@ export function QuickItemBar() {
             className={`quick-item-bar__slot quick-item-bar__slot--${direction}`}
             disabled={unavailable}
             onClick={() => item && consumeQuickItem?.(item)}
-            aria-label={
-              item
-                ? t("inventory.use", { item: t(`consumable.${item}.name`) })
-                : t("inventory.empty")
-            }
+            aria-label={item ? t("inventory.use", { item: itemName }) : t("inventory.empty")}
           >
             {item ? (
               <img src={consumableIconSource(item)} alt="" />
@@ -63,6 +61,10 @@ export function QuickItemBar() {
             )}
             {item && <b>×{counts[item]}</b>}
             {remaining > 0 && <em>{(remaining / 1_000).toFixed(remaining < 950 ? 1 : 0)}</em>}
+            <span className="quick-item-bar__tooltip" role="tooltip" data-text-surface="guidance">
+              <strong>{itemName}</strong>
+              <span>{itemDescription}</span>
+            </span>
           </button>
         );
       })}
@@ -75,6 +77,9 @@ export function QuickItemBar() {
         onClick={() => setInventoryOpen(!inventoryOpen)}
       >
         <span className="quick-item-bar__bag" aria-hidden="true" />
+        <span className="quick-item-bar__tooltip" role="tooltip" data-text-surface="guidance">
+          <strong>{t("inventory.title")}</strong>
+        </span>
       </button>
     </section>
   );
