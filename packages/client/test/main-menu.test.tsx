@@ -96,6 +96,9 @@ describe("MainMenu", () => {
     setGameNavigation(null);
     await alepha?.stop();
     alepha = undefined;
+    // The backdrop toggle persists through `backdropVersionAtom` — don't leak a v2 choice
+    // (or any other persisted atom) into the next test's boot.
+    localStorage.clear();
   });
 
   it("logs out when QUIT is activated", async () => {
@@ -133,5 +136,39 @@ describe("MainMenu", () => {
   it("hides the admin corner button for a non-admin session", async () => {
     await renderMainMenu([]);
     expect(screen.queryByRole("button", { name: t("menu.admin") })).not.toBeInTheDocument();
+  });
+
+  it("toggles the living backdrop and persists the choice", async () => {
+    await renderMainMenu();
+    // v1 by default: the Tiny Swords diorama, with a corner button offering V2.
+    expect(document.querySelector(".menu-scene")).toBeTruthy();
+    expect(document.querySelector(".launch-backdrop")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: t("menu.backdrop.v2") }));
+    expect(document.querySelector(".launch-backdrop")).toBeTruthy();
+    expect(document.querySelector(".menu-scene")).toBeNull();
+    expect(localStorage.getItem("lindocara.backdropVersion")).toBe(JSON.stringify("v2"));
+
+    // The same button now offers the way back.
+    await userEvent.click(screen.getByRole("button", { name: t("menu.backdrop.v1") }));
+    expect(document.querySelector(".menu-scene")).toBeTruthy();
+    expect(document.querySelector(".launch-backdrop")).toBeNull();
+    expect(localStorage.getItem("lindocara.backdropVersion")).toBe(JSON.stringify("v1"));
+  });
+
+  it("boots straight into the v2 backdrop when the choice was persisted", async () => {
+    localStorage.setItem("lindocara.backdropVersion", JSON.stringify("v2"));
+    await renderMainMenu();
+    expect(document.querySelector(".launch-backdrop")).toBeTruthy();
+    expect(screen.getByRole("button", { name: t("menu.backdrop.v1") })).toBeInTheDocument();
+  });
+
+  it("hides the Credits entry on v2 and restores it on v1", async () => {
+    await renderMainMenu();
+    expect(screen.getByRole("button", { name: /credits/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: t("menu.backdrop.v2") }));
+    expect(screen.queryByRole("button", { name: /credits/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: t("menu.backdrop.v1") }));
+    expect(screen.getByRole("button", { name: /credits/i })).toBeInTheDocument();
   });
 });

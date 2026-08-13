@@ -14,10 +14,11 @@ import {
   subscribeAudioSettings,
 } from "../game/audio-settings.js";
 import { t } from "../i18n.js";
-import { adventureEditorSessionAtom } from "../state/atoms.js";
+import { adventureEditorSessionAtom, backdropVersionAtom } from "../state/atoms.js";
 import { getGameNavigation } from "../state/navigation.js";
 import { useUiStore } from "../store.js";
 import type { AppRouter } from "./AppRouter.js";
+import { LaunchBackdrop } from "./LaunchBackdrop.js";
 import { Hint, MenuHints } from "./MenuHints.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
@@ -52,6 +53,7 @@ function MenuItemButton({
 export function MainMenu() {
   const router = useRouter<AppRouter>();
   const [, setEditorSession] = useStore(adventureEditorSessionAtom);
+  const [backdrop, setBackdrop] = useStore(backdropVersionAtom);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   // UI affordance only, per the ruling in `.superpowers/sdd/2026-08-11-admin-console-and-logout/
   // task-3-brief.md`: hiding the button is not a fence — `/admin` stays reachable by URL and the
@@ -73,9 +75,11 @@ export function MainMenu() {
   useEffect(() => subscribeAudioSettings(() => setMusicOn(getAudioSettings().musicEnabled)), []);
 
   return (
-    <main className="main-menu">
-      {/* Reuse the login screen's illustrated backdrop, a courtyard variant for the settled menu. */}
-      <TinySwordsMenuScene variant="courtyard" />
+    // Same `data-backdrop` contrast seam as TitleScreen — see launch.css's v2 legibility rules.
+    <main className="main-menu" data-backdrop={backdrop}>
+      {/* v1 reuses the login screen's illustrated backdrop (a courtyard variant for the settled
+          menu); v2 is the launch-gate living backdrop, toggled by the corner button below. */}
+      {backdrop === "v2" ? <LaunchBackdrop /> : <TinySwordsMenuScene variant="courtyard" />}
       <div className="main-menu__brand">
         <h1 className="main-menu__logo">Lindocara</h1>
       </div>
@@ -112,12 +116,16 @@ export function MainMenu() {
           label={t("menu.options")}
           onActivate={() => setSettingsOpen(true)}
         />
-        <MenuItemButton
-          order={4}
-          icon="✎"
-          label={t("menu.credits")}
-          onActivate={() => void router.push("credits")}
-        />
+        {/* v2 drops Credits from the menu (the credits ROUTE stays reachable; only this entry
+            hides). MenuNav sorts by order, so the gap at 4 is as harmless as the one at 0. */}
+        {backdrop !== "v2" && (
+          <MenuItemButton
+            order={4}
+            icon="✎"
+            label={t("menu.credits")}
+            onActivate={() => void router.push("credits")}
+          />
+        )}
         <MenuItemButton
           order={5}
           icon="⎋"
@@ -152,6 +160,18 @@ export function MainMenu() {
             {t("menu.admin")}
           </button>
         )}
+
+        {/* The backdrop version toggle: labelled with the version it switches TO. The atom is
+            localStorage-persisted, so the choice survives reloads and also drives TitleScreen. */}
+        <button
+          type="button"
+          className="main-menu__backdrop"
+          aria-pressed={backdrop === "v2"}
+          title={t(backdrop === "v2" ? "menu.backdrop.to_v1" : "menu.backdrop.to_v2")}
+          onClick={() => setBackdrop(backdrop === "v2" ? "v1" : "v2")}
+        >
+          {t(backdrop === "v2" ? "menu.backdrop.v1" : "menu.backdrop.v2")}
+        </button>
       </div>
 
       <button

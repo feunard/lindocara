@@ -97,6 +97,20 @@ export const quickItemsAtom = $atom({
   persist: "localStorage",
 });
 
+/**
+ * Which title/menu backdrop is shown: `v1` is the Tiny Swords diorama (`TinySwordsMenuScene`),
+ * `v2` the launch-gate living backdrop (`LaunchBackdrop`, the painted parallax landscape).
+ * `localStorage`-persisted for the same reason as `quickItemsAtom` — a look preference should
+ * survive a reload — and carries a real `z.enum` rather than a passthrough for the same reason
+ * too: a persisted value is corruption surface, and a bad key must fall back to `v1`.
+ */
+export const backdropVersionAtom = $atom({
+  name: "lindocara.backdropVersion",
+  schema: z.enum(["v1", "v2"]),
+  default: "v1" as const,
+  persist: "localStorage",
+});
+
 /** Per-session player overrides for the tracked authored-quest set; absent means active/ready
  *  quests are tracked by default (see `Hud.tsx`). Deliberately NOT persisted: it resets with every
  *  fresh game session, same as before. */

@@ -3,15 +3,20 @@
  * click drops into the main menu. Full-screen art; no chrome, no cursor hunt.
  */
 import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
+import { useStore } from "alepha/react";
 import { useRouter } from "alepha/react/router";
 import { useEffect } from "react";
 import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
+import { backdropVersionAtom } from "../state/atoms.js";
 import type { AppRouter } from "./AppRouter.js";
+import { LaunchBackdrop } from "./LaunchBackdrop.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 export function TitleScreen() {
   const router = useRouter<AppRouter>();
+  // Read-only here: the toggle lives on the main menu's corner, but the choice covers both screens.
+  const [backdrop] = useStore(backdropVersionAtom);
 
   useEffect(() => {
     const start = () => {
@@ -42,9 +47,12 @@ export function TitleScreen() {
   }, [router]);
 
   return (
-    <main className="title-screen">
-      {/* The same illustrated Tiny Swords diorama the login screen uses as its backdrop. */}
-      <TinySwordsMenuScene variant="gate" />
+    // `data-backdrop` lets the stylesheet re-tune text contrast per backdrop: the gold brand
+    // that reads fine on the diorama's teal washes out on v2's bright dawn sky.
+    <main className="title-screen" data-backdrop={backdrop}>
+      {/* v1: the same illustrated Tiny Swords diorama the login screen uses as its backdrop.
+          v2: the launch-gate living backdrop, chosen by the menu's corner toggle. */}
+      {backdrop === "v2" ? <LaunchBackdrop /> : <TinySwordsMenuScene variant="gate" />}
       <div className="title-screen__brand">
         <h1 className="title-screen__logo">Lindocara</h1>
       </div>

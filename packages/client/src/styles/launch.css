@@ -175,7 +175,8 @@
 }
 
 .main-menu__editor,
-.main-menu__admin {
+.main-menu__admin,
+.main-menu__backdrop {
   padding: 0.4rem 0.85rem;
   border: 1px solid rgba(232, 195, 122, 0.25);
   border-radius: 8px;
@@ -217,7 +218,8 @@
   text-decoration: line-through;
 }
 .main-menu__editor:hover,
-.main-menu__admin:hover {
+.main-menu__admin:hover,
+.main-menu__backdrop:hover {
   opacity: 1;
 }
 
@@ -662,4 +664,240 @@
   position: static;
   color: #e68a7f;
   font-family: system-ui, sans-serif;
+}
+
+/* ── Living backdrop (v2) ──────────────────────────────────────────────── */
+/* The launch-gate spec's painted parallax landscape (`LaunchBackdrop.tsx`), toggled against the
+   Tiny Swords diorama by the corner V2 button. Layer WebPs are cut from the backdrop master by
+   `scripts/cut-launch-backdrop.py`. Budget: only transform and opacity are ever animated — the
+   whole thing is compositor work, no layout, no rAF. */
+
+.launch-backdrop {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Letterbox safety behind the canvas, matched to the painting's dusk blues. */
+  background: #131b2c;
+}
+
+/* Same below-the-chrome slot the diorama uses on these two screens. */
+.title-screen > .launch-backdrop,
+.main-menu > .launch-backdrop {
+  z-index: -1;
+}
+
+/* A fixed 16:9 stage covering the viewport, with 4% overscan so the drifting layers never pull
+   their edges into view. Every layer positions in % of this canvas, so they stay mutually
+   aligned at any viewport aspect. */
+.launch-backdrop__canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  aspect-ratio: 1536 / 864;
+  width: calc(max(100vw, 177.78vh) * 1.04);
+}
+
+/* Each layer is the painting from its band's top row down, bottom-anchored on the canvas.
+   Heights are (864 - band top) / 864 of the master. */
+.launch-backdrop__layer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  will-change: transform;
+  animation: launch-drift var(--drift-duration, 90s) ease-in-out infinite alternate;
+  animation-delay: var(--drift-delay, 0s);
+}
+
+/* Peak parallax offset (--drift-amp) must stay under ~1.5% of layer width: past that a layer
+   slides far enough to expose the horizontal band cut behind it (the spec's hard ceiling —
+   raising it for drama tears the mountains). Slowest at the back. */
+.launch-backdrop__layer--sky {
+  height: 100%;
+  background-image: url("/assets/lindocara/ui/launch-backdrop-sky.webp");
+  --drift-amp: 0.15%;
+  --drift-duration: 64s;
+}
+.launch-backdrop__layer--far {
+  height: 82.64%;
+  background-image: url("/assets/lindocara/ui/launch-backdrop-far.webp");
+  --drift-amp: 0.4%;
+  --drift-duration: 58s;
+  --drift-delay: -31s;
+}
+.launch-backdrop__layer--mid {
+  height: 60.65%;
+  background-image: url("/assets/lindocara/ui/launch-backdrop-mid.webp");
+  --drift-amp: 0.85%;
+  --drift-duration: 52s;
+  --drift-delay: -35s;
+}
+.launch-backdrop__layer--fore {
+  height: 45.6%;
+  background-image: url("/assets/lindocara/ui/launch-backdrop-fore.webp");
+  --drift-amp: 1.4%;
+  --drift-duration: 46s;
+  --drift-delay: -12s;
+}
+
+@keyframes launch-drift {
+  from {
+    transform: translateX(calc(-1 * var(--drift-amp)));
+  }
+  to {
+    transform: translateX(var(--drift-amp));
+  }
+}
+
+/* The tileable cloud strip, twice, at different speeds and opacities. The element is two tiles
+   wide (background-size 50%), so translating by exactly one tile (-50%) loops seamlessly with
+   transform alone — no background-position animation, which would repaint every frame. */
+.launch-backdrop__clouds {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 26.6%; /* the strip's 230-row sky band */
+  background: url("/assets/lindocara/ui/launch-backdrop-clouds.webp") repeat-x;
+  background-size: 50% 100%;
+  mix-blend-mode: screen;
+  will-change: transform;
+  animation: launch-clouds var(--cloud-duration) linear infinite;
+}
+.launch-backdrop__clouds--slow {
+  opacity: 0.5;
+  --cloud-duration: 190s;
+}
+/* The near pass: bigger tiles (60% of the element, so the shift below must match) moving at
+   ~20 px/s — the one motion meant to be consciously visible while reading the menu. */
+.launch-backdrop__clouds--fast {
+  top: 3%;
+  opacity: 0.75;
+  background-size: 60% 100%;
+  --cloud-shift: -60%;
+  --cloud-duration: 95s;
+}
+
+/* Shifting by exactly one tile (the background-size fraction) is what loops seamlessly. */
+@keyframes launch-clouds {
+  to {
+    transform: translateX(var(--cloud-shift, -50%));
+  }
+}
+
+/* Sun position on the canvas: the warm glow behind the left ridge in the painting. Rays and
+   bloom are pure gradients on a slow opacity pulse — no geometry, no canvas. */
+.launch-backdrop__rays,
+.launch-backdrop__bloom {
+  position: absolute;
+  inset: 0;
+  --sun-x: 14%;
+  --sun-y: 36%;
+  mix-blend-mode: screen;
+}
+.launch-backdrop__rays {
+  background: repeating-conic-gradient(
+    from 96deg at var(--sun-x) var(--sun-y),
+    rgba(255, 226, 166, 0) 0deg 7deg,
+    rgba(255, 226, 166, 0.16) 10deg 12deg,
+    rgba(255, 226, 166, 0) 15deg 26deg
+  );
+  mask-image: radial-gradient(
+    circle at var(--sun-x) var(--sun-y),
+    rgb(0 0 0 / 90%),
+    transparent 52%
+  );
+  animation: launch-glow-pulse 11s ease-in-out infinite alternate;
+}
+.launch-backdrop__bloom {
+  background: radial-gradient(
+    ellipse 40% 32% at var(--sun-x) var(--sun-y),
+    rgba(255, 216, 150, 0.5),
+    rgba(255, 186, 130, 0.18) 45%,
+    transparent 70%
+  );
+  animation: launch-glow-pulse 9s ease-in-out infinite alternate;
+  animation-delay: -4s;
+}
+
+@keyframes launch-glow-pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Viewport-wide, not canvas-wide: the vignette frames the screen, not the painting. */
+.launch-backdrop__vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 42%, transparent 55%, rgba(8, 12, 22, 0.5) 100%);
+}
+
+/* Text contrast over the v2 sky. The brand's stock treatment — pale gold with a WARM glow —
+   vanishes into the bright dawn: warm-on-warm. Against this backdrop the glow flips dark
+   (halo, not shine) and the brand block gets a soft dark scrim, per the spec's rule that
+   contrast is checked against the actual backdrop, not a flat colour. */
+.title-screen[data-backdrop="v2"] .title-screen__logo,
+.main-menu[data-backdrop="v2"] .main-menu__logo {
+  text-shadow:
+    0 2px 2px rgb(43 30 12 / 90%),
+    0 0 16px rgb(40 28 12 / 80%),
+    0 6px 30px rgb(20 16 8 / 60%);
+}
+.title-screen[data-backdrop="v2"] .title-screen__prompt {
+  color: var(--launch-gold-bright);
+  text-shadow:
+    0 1px 2px rgb(20 16 8 / 85%),
+    0 0 12px rgb(20 16 8 / 65%);
+}
+
+/* v2 menu chrome: the hints bar's own language — the `guidance` 9-slice frame with gold chips
+   on dark glass (`.menu-hints[data-text-surface="guidance"]`, text-surfaces.css) — instead of
+   v1's brown stone panel. Scoped on `data-backdrop`, so v1 is untouched. */
+.main-menu[data-backdrop="v2"] .main-menu__panel {
+  border: 10px solid transparent;
+  border-image-source: var(--text-surface-guidance);
+  border-image-slice: 10% 7% fill;
+  border-image-width: 10px;
+  border-radius: 0;
+  background: #102f39;
+  box-shadow: 0 1.2rem 2.6rem rgb(0 0 0 / 48%);
+}
+/* Buttons echo the bar's key chips: thin gold hairline on near-black. Focus is carried by the
+   border/glow/colour flip — the stone look's slide-and-scale is dropped with it. */
+.main-menu[data-backdrop="v2"] .menu-button {
+  border: 1px solid rgb(240 202 104 / 26%);
+  border-radius: 8px;
+  background: rgb(3 19 23 / 86%);
+  color: #e9eede;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    color 0.12s ease;
+}
+.main-menu[data-backdrop="v2"] .menu-button--focused {
+  border-color: rgb(240 202 104 / 85%);
+  box-shadow:
+    0 0 0 1px rgb(240 202 104 / 35%),
+    0 0 18px rgb(240 202 104 / 25%);
+  color: #ffe7a0;
+  transform: none;
+}
+
+/* Still scene for reduced motion; paused (not reset) when the tab is hidden — the component
+   toggles `data-paused` on visibilitychange, mirroring `menu-audio.ts`. */
+@media (prefers-reduced-motion: reduce) {
+  .launch-backdrop * {
+    animation: none;
+  }
+}
+.launch-backdrop[data-paused] * {
+  animation-play-state: paused;
 }
