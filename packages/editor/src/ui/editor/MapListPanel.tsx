@@ -24,12 +24,7 @@ import {
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
-import {
-  MAP_MAX_COLS,
-  MAP_MAX_ROWS,
-  MAP_MIN_COLS,
-  MAP_MIN_ROWS,
-} from "@lindocara/engine/map-limits.js";
+import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { nextMapName } from "@lindocara/engine/map-naming.js";
 import { Music2, Pencil, Plus, Settings2, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -109,8 +104,6 @@ export function MapListPanel({
   const [maps, setMaps] = useState<MapSummary[]>([]);
   const [renaming, setRenaming] = useState<MapSummary | null>(null);
   const [newName, setNewName] = useState("");
-  const [newCols, setNewCols] = useState(40);
-  const [newRows, setNewRows] = useState(30);
   const [renameValue, setRenameValue] = useState("");
   const [busy, setBusy] = useState(false);
   const refreshGenerationRef = useRef(0);
@@ -149,8 +142,6 @@ export function MapListPanel({
   useEffect(() => {
     if (newMapOpen) {
       setNewName(nextMapName(maps.map((map) => map.name)));
-      setNewCols(40);
-      setNewRows(30);
     }
   }, [newMapOpen]);
 
@@ -159,7 +150,7 @@ export function MapListPanel({
     onError("");
     setBusy(true);
     try {
-      const created = await createMapApi(adventureId, newName.trim(), newCols, newRows);
+      const created = await createMapApi(adventureId, newName.trim(), MAP_MIN_COLS, MAP_MIN_ROWS);
       onNewMapOpenChange(false);
       setNewName("");
       await refresh();
@@ -231,13 +222,6 @@ export function MapListPanel({
       : [];
 
   const deleting = maps.find((map) => map.id === confirmDeleteId);
-  const validNewSize =
-    Number.isSafeInteger(newCols) &&
-    Number.isSafeInteger(newRows) &&
-    newCols >= MAP_MIN_COLS &&
-    newCols <= MAP_MAX_COLS &&
-    newRows >= MAP_MIN_ROWS &&
-    newRows <= MAP_MAX_ROWS;
 
   return (
     <aside
@@ -392,38 +376,7 @@ export function MapListPanel({
                 onChange={(event) => setNewName(event.currentTarget.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="new-map-cols">{t("editor.cols")}</Label>
-                <Input
-                  id="new-map-cols"
-                  type="number"
-                  min={MAP_MIN_COLS}
-                  max={MAP_MAX_COLS}
-                  value={newCols}
-                  onChange={(event) => setNewCols(Number(event.currentTarget.value))}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="new-map-rows">{t("editor.rows")}</Label>
-                <Input
-                  id="new-map-rows"
-                  type="number"
-                  min={MAP_MIN_ROWS}
-                  max={MAP_MAX_ROWS}
-                  value={newRows}
-                  onChange={(event) => setNewRows(Number(event.currentTarget.value))}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {t("editor.shell.maps.size_hint", {
-                minCols: MAP_MIN_COLS,
-                minRows: MAP_MIN_ROWS,
-                maxCols: MAP_MAX_COLS,
-                maxRows: MAP_MAX_ROWS,
-              })}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("editor.shell.maps.ocean_hint")}</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onNewMapOpenChange(false)}>
@@ -435,8 +388,7 @@ export function MapListPanel({
                 maps.length >= MAX_ADVENTURE_MAPS ||
                 busy ||
                 locked ||
-                !newName.trim() ||
-                !validNewSize
+                !newName.trim()
               }
               onClick={() => void create()}
             >

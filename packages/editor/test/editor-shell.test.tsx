@@ -16,6 +16,7 @@ import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEdit
 import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-session.js";
 import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -1360,8 +1361,9 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mock);
     await mountReady(alepha);
 
-    // A map belongs to one adventure and the server builds its empty template from the requested
-    // dimensions. The name is prefilled with the default MapN; clear it to type a custom name.
+    // A map belongs to one adventure and the server builds its empty template at the engine
+    // minimum — the map grows by painting, so there is nothing to size at creation time. The name
+    // is prefilled with the default MapN; clear it to type a custom name.
     await userEvent.click(
       screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
     );
@@ -1378,8 +1380,8 @@ describe("AdventureEditorScreen shell", () => {
           body: JSON.stringify({
             adventureId: "adv-1",
             name: "Third map",
-            cols: 40,
-            rows: 30,
+            cols: MAP_MIN_COLS,
+            rows: MAP_MIN_ROWS,
           }),
         }),
       ),

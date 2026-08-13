@@ -1354,7 +1354,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.maps.dims": "{cols}×{rows}",
   "editor.shell.maps.rename": "Renommer",
   "editor.shell.maps.create": "Créer la carte",
-  "editor.shell.maps.size_hint": "De {minCols}×{minRows} à {maxCols}×{maxRows} tuiles.",
+  "editor.shell.maps.ocean_hint":
+    "Peignez où vous voulez — la taille de la carte suit vos tuiles, et les cases vides sont l'océan.",
   "editor.picker.open": "Ouvrir",
   "editor.picker.maps": "{count} cartes",
   "editor.picker.author": "par {author}",

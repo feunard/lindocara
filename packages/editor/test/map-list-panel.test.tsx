@@ -2,6 +2,7 @@ import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { MapListPanel } from "@lindocara/editor/ui/editor/MapListPanel.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -267,29 +268,27 @@ describe("MapListPanel", () => {
           body: JSON.stringify({
             adventureId: "adv-1",
             name: "Map1",
-            cols: 40,
-            rows: 30,
+            cols: MAP_MIN_COLS,
+            rows: MAP_MIN_ROWS,
           }),
         }),
       ),
     );
   });
 
-  it("lets the author choose a larger map size at creation", async () => {
+  it("the new-map dialog has no size inputs and creates at the engine minimum", async () => {
     const mock = mapsBackend();
     vi.stubGlobal("fetch", mock);
     render(<Harness />);
     await screen.findByRole("button", { name: "Frostfen" });
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.new") }));
-    const cols = await screen.findByLabelText(t("editor.cols"));
-    const rows = screen.getByLabelText(t("editor.rows"));
-    await userEvent.clear(cols);
-    await userEvent.type(cols, "256");
-    await userEvent.clear(rows);
-    await userEvent.type(rows, "192");
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
+    await screen.findByLabelText(t("editor.name"));
+    // A map grows by painting — there is nothing to size at creation time.
+    expect(screen.queryByLabelText(/Width X/i)).toBeNull();
+    expect(screen.queryByLabelText(/Height Y/i)).toBeNull();
 
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
     await waitFor(() =>
       expect(mock).toHaveBeenCalledWith(
         "/api/maps",
@@ -298,8 +297,8 @@ describe("MapListPanel", () => {
           body: JSON.stringify({
             adventureId: "adv-1",
             name: "Map1",
-            cols: 256,
-            rows: 192,
+            cols: MAP_MIN_COLS,
+            rows: MAP_MIN_ROWS,
           }),
         }),
       ),

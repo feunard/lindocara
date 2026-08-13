@@ -1337,7 +1337,8 @@ export const en = {
   "editor.shell.maps.dims": "{cols}×{rows}",
   "editor.shell.maps.rename": "Rename",
   "editor.shell.maps.create": "Create map",
-  "editor.shell.maps.size_hint": "From {minCols}×{minRows} to {maxCols}×{maxRows} tiles.",
+  "editor.shell.maps.ocean_hint":
+    "Paint anywhere — the map's size follows your tiles, and empty cells are ocean.",
   "editor.picker.open": "Open",
   "editor.picker.maps": "{count} maps",
   "editor.picker.author": "by {author}",
