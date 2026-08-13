@@ -13,6 +13,7 @@ import {
   compileAuthoredMap,
 } from "@lindocara/engine/hd2d/authored-map.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import { derivedMapRect, type MapRect } from "@lindocara/engine/map-canvas.js";
 import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
@@ -141,12 +142,19 @@ function selectionPoint(map: EditorMap, selection: EditorSelection | null) {
   return authoredElementGroundPoint(selection, size);
 }
 
-function blockedCells(map: EditorMap, levels: readonly (number | null)[]): ColliderRect[] {
+/** Every blocked cell inside `rect` — deliberately NOT the whole canvas: a 256×256 document is
+ *  mostly ocean outside the derived save rect, and marking all of it as red collision would be
+ *  noise rather than signal. */
+function blockedCells(
+  map: EditorMap,
+  levels: readonly (number | null)[],
+  rect: MapRect,
+): ColliderRect[] {
   const { cols, rows } = editorMapSize(map);
   const size = Math.max(cols, rows);
   const cells: ColliderRect[] = [];
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
+  for (let row = rect.row; row < rect.row + rect.rows; row += 1) {
+    for (let col = rect.col; col < rect.col + rect.cols; col += 1) {
       if (levels[row * size + col] !== null) continue;
       cells.push({ x: col - size / 2, z: row - size / 2, w: 1, h: 1 });
     }
@@ -225,11 +233,22 @@ export function openMapEditorStage(
     let renderedSeaGuardians: SceneSample["seaGuardians"] = [];
 
     const dimensions = () => editorMapSize(map);
+    // The rect a save would store, memoized per document identity: the map is immutable per edit
+    // (every mutator returns a fresh object), so recomputing `derivedMapRect` — a full scan of every
+    // layer, element, event and marker — on each hover would repeat the same O(cells) walk for free.
+    let rectCache: { map: EditorMap; rect: MapRect } | null = null;
+    const derivedRect = (): MapRect => {
+      if (!rectCache || rectCache.map !== map) rectCache = { map, rect: derivedMapRect(map) };
+      return rectCache.rect;
+    };
     const centreCamera = (): void => {
       const { cols, rows } = dimensions();
       const size = Math.max(cols, rows);
-      cameraX = cols / 2 - size / 2;
-      cameraZ = rows / 2 - size / 2;
+      // Content-centered, not canvas-centered: the canvas is a fixed 256×256 ocean document and an
+      // author should open on what they authored, not on the middle of the ocean around it.
+      const rect = derivedRect();
+      cameraX = rect.col + rect.cols / 2 - size / 2;
+      cameraZ = rect.row + rect.rows / 2 - size / 2;
       renderer.setCameraFocus(cameraX, cameraZ);
     };
 
@@ -248,13 +267,22 @@ export function openMapEditorStage(
         : null;
       const previewAssetId = editorToolPreviewAssetId(tool);
       const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;
+      const rect = derivedRect();
       renderer.setEditorOverlay({
         cols,
         rows,
         showGrid: gridVisible,
         showCollisions: collisionsVisible,
         dim,
-        colliders: [...heightfield.colliders, ...blockedCells(map, heightfield.levels)],
+        // Bounded to the derived rect: a 256×256 canvas is mostly ocean, and flooding it all with
+        // red collision would swamp the actually-useful signal near the authored content.
+        colliders: [...heightfield.colliders, ...blockedCells(map, heightfield.levels, rect)],
+        saveRect: {
+          x: rect.col - size / 2,
+          z: rect.row - size / 2,
+          cols: rect.cols,
+          rows: rect.rows,
+        },
         hover: hoverPoint,
         selection: focusSelection,
         // The cursor outlines the unit the active mode actually places on: a whole cell for field

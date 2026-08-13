@@ -1,4 +1,4 @@
-import { blankMap, toMapData } from "@lindocara/editor/game/editor-state.js";
+import { blankMap, canvasEditorMap, toMapData } from "@lindocara/editor/game/editor-state.js";
 import {
   defaultDimForMode,
   editorToolPreviewAssetId,
@@ -6,6 +6,7 @@ import {
 } from "@lindocara/editor/game/map-editor-stage.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
+import { MAP_MAX_COLS } from "@lindocara/engine/map-limits.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mock = vi.hoisted(() => {
@@ -97,6 +98,28 @@ describe("HD-2D map editor stage", () => {
     expect(mock.renderer.setEditorOverlay).toHaveBeenCalledWith(
       expect.objectContaining({ cols: 20, rows: 15, showGrid: true }),
     );
+    stage.dispose();
+  });
+
+  it("the overlay carries the derived save rect and bounds the collision overlay to it", async () => {
+    const map = canvasEditorMap(blankMap("m", 20, 15));
+    const stage = await openMapEditorStage(map, vi.fn());
+    const overlay = mock.renderer.setEditorOverlay.mock.lastCall?.[0];
+    const size = MAP_MAX_COLS; // the canvas is square at 256
+    const expected = {
+      x: 116 - size / 2,
+      z: 118 - size / 2,
+      cols: 24,
+      rows: 19,
+    };
+    expect(overlay.saveRect).toEqual(expected);
+    // Ocean outside the derived rect must NOT be marked blocked: every collider stays inside it.
+    for (const cell of overlay.colliders) {
+      expect(cell.x).toBeGreaterThanOrEqual(expected.x - 1);
+      expect(cell.x).toBeLessThanOrEqual(expected.x + expected.cols + 1);
+      expect(cell.z).toBeGreaterThanOrEqual(expected.z - 1);
+      expect(cell.z).toBeLessThanOrEqual(expected.z + expected.rows + 1);
+    }
     stage.dispose();
   });
 

@@ -140,6 +140,9 @@ export interface Hd2dEditorOverlay {
     valid: boolean;
     skyAltitude?: number;
   } | null;
+  /** World-coordinate outline of the rect a save would store — origin corner + size in cells.
+   *  Drawn as a bright boundary so the author always sees what will be saved. */
+  saveRect?: { x: number; z: number; cols: number; rows: number } | null;
 }
 
 function disposeObject(object: THREE.Object3D): void {
@@ -314,6 +317,10 @@ export class Hd2dVisualLayer {
   #aim: THREE.Object3D | null = null;
   #nextRippleAt = 0;
   #editorOverlay: Hd2dEditorOverlay | null = null;
+  /** The editor grid, cached: a 256×256 canvas is ~263k vertices, each with a `#groundY` terrain
+   *  lookup, and `setEditorOverlay` runs on every hover — rebuilding it there stalls the pointer. */
+  #gridLines: THREE.LineSegments | null = null;
+  #gridKey = "";
   readonly #editorPreviews: {
     sprite: Billboard | Sprite;
     art: StaticSpriteArt;
@@ -331,6 +338,10 @@ export class Hd2dVisualLayer {
     this.#scene = scene;
     this.#canvas = canvas;
     this.#size = size;
+    // The grid hugs the terrain via `#groundY`, so a fresh terrain (this constructor runs once per
+    // `configureMapTerrain` call — `game-renderer.ts` builds a whole new `Hd2dVisualLayer` rather than
+    // reusing one) must never keep a stale cached grid alive across it.
+    this.#gridKey = "";
     this.#waterLevel = waterLevel;
     this.#textures = textures;
     this.#materialAt = materialAt;
@@ -1325,8 +1336,44 @@ export class Hd2dVisualLayer {
     return point;
   }
 
+  /** Builds the editor grid's `LineSegments` for the given overlay dimensions. Split out of
+   *  `setEditorOverlay` so it can be cached rather than rebuilt on every hover — see `#gridLines`. */
+  #buildEditorGrid(overlay: Hd2dEditorOverlay, half: number, lift: number): THREE.LineSegments {
+    const positions: number[] = [];
+    const point = (x: number, z: number): void => {
+      positions.push(x, this.#groundY(x, z, lift), z);
+    };
+    for (let col = 0; col <= overlay.cols; col += 1) {
+      const x = col - half;
+      for (let row = 0; row < overlay.rows; row += 1) {
+        point(x, row - half);
+        point(x, row + 1 - half);
+      }
+    }
+    for (let row = 0; row <= overlay.rows; row += 1) {
+      const z = row - half;
+      for (let col = 0; col < overlay.cols; col += 1) {
+        point(col - half, z);
+        point(col + 1 - half, z);
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    const material = new THREE.LineBasicMaterial({
+      color: overlay.dim ? 0x9fc4c0 : 0xdce8cb,
+      transparent: true,
+      opacity: overlay.dim ? 0.5 : 0.3,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    return new THREE.LineSegments(geometry, material);
+  }
+
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
     this.#editorOverlay = overlay;
+    // Detached BEFORE the clear loop so `disposeObject` does not tear down the cached grid along
+    // with everything else the overlay redraws every time.
+    if (this.#gridLines) this.#gridLines.removeFromParent();
     for (const child of [...this.#editorRoot.children]) disposeObject(child);
     this.#editorRoot.clear();
     if (!overlay) {
@@ -1337,34 +1384,17 @@ export class Hd2dVisualLayer {
     const half = this.#size / 2;
     const lift = overlay.dim ? 0.085 : 0.06;
     if (overlay.showGrid) {
-      const positions: number[] = [];
-      const point = (x: number, z: number): void => {
-        positions.push(x, this.#groundY(x, z, lift), z);
-      };
-      for (let col = 0; col <= overlay.cols; col += 1) {
-        const x = col - half;
-        for (let row = 0; row < overlay.rows; row += 1) {
-          point(x, row - half);
-          point(x, row + 1 - half);
-        }
+      // The grid is by far the heaviest overlay child — a 256×256 canvas is ~263k vertices, each
+      // with a `#groundY` terrain lookup — and this runs on every hover. Rebuild only when its
+      // inputs actually change; `#gridKey` also resets whenever the constructor learns of a fresh
+      // terrain, so a cached grid can never survive onto a map it does not hug.
+      const key = `${overlay.cols}:${overlay.rows}:${overlay.dim}:${this.#size}`;
+      if (!this.#gridLines || this.#gridKey !== key) {
+        if (this.#gridLines) disposeObject(this.#gridLines);
+        this.#gridLines = this.#buildEditorGrid(overlay, half, lift);
+        this.#gridKey = key;
       }
-      for (let row = 0; row <= overlay.rows; row += 1) {
-        const z = row - half;
-        for (let col = 0; col < overlay.cols; col += 1) {
-          point(col - half, z);
-          point(col + 1 - half, z);
-        }
-      }
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-      const material = new THREE.LineBasicMaterial({
-        color: overlay.dim ? 0x9fc4c0 : 0xdce8cb,
-        transparent: true,
-        opacity: overlay.dim ? 0.5 : 0.3,
-        depthWrite: false,
-        toneMapped: false,
-      });
-      this.#editorRoot.add(new THREE.LineSegments(geometry, material));
+      this.#editorRoot.add(this.#gridLines);
     }
 
     if (overlay.showCollisions) {
@@ -1379,6 +1409,38 @@ export class Hd2dVisualLayer {
         mesh.position.set(x, this.#groundY(x, z, 0.1), z);
         this.#editorRoot.add(mesh);
       }
+    }
+
+    if (overlay.saveRect) {
+      const rect = overlay.saveRect;
+      const positions: number[] = [];
+      const point = (x: number, z: number): void => {
+        positions.push(x, this.#groundY(x, z, lift + 0.04), z);
+      };
+      // One segment per cell, like the grid, so the outline follows the terrain instead of
+      // clipping through cliffs.
+      for (let col = 0; col < rect.cols; col += 1) {
+        point(rect.x + col, rect.z);
+        point(rect.x + col + 1, rect.z);
+        point(rect.x + col, rect.z + rect.rows);
+        point(rect.x + col + 1, rect.z + rect.rows);
+      }
+      for (let row = 0; row < rect.rows; row += 1) {
+        point(rect.x, rect.z + row);
+        point(rect.x, rect.z + row + 1);
+        point(rect.x + rect.cols, rect.z + row);
+        point(rect.x + rect.cols, rect.z + row + 1);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      const material = new THREE.LineBasicMaterial({
+        color: 0x57d6ff,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      this.#editorRoot.add(new THREE.LineSegments(geometry, material));
     }
 
     // One cell unless the caller says otherwise — element mode marks a quarter cell, which is the
