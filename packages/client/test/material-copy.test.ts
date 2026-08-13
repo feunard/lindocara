@@ -11,7 +11,7 @@ describe("Peasant material copy", () => {
     setLocale("fr");
     expect(localizedHarvestGain({ iron: 1 })).toBe("+1 Fer");
     expect(localizedHarvestGain({ wood: 2 })).toBe("+2 Bois");
-    expect(localizedHarvestGain({ gold: 3 })).toBe("+3 Or");
+    expect(localizedHarvestGain({ gold: 100 })).toBe("+100 Or");
     expect(localizedHarvestGain({ meat: 1 })).toBe("+1 Viande");
   });
 

@@ -45,6 +45,7 @@ import {
   type HarvestPresetId,
   harvestPreset,
   harvestProfileFromPreset,
+  NATIVE_HARVEST_RESPAWN_MS,
 } from "@lindocara/engine/harvest-presets.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import {
@@ -1209,12 +1210,10 @@ describe("world room events (FakeClock)", () => {
       harvestDurationMs: 0,
     });
     const smallGold = harvestPresetEvent(crypto.randomUUID(), 9, 2, "gold_small", {
-      goldValue: 7,
       hitsRequired: 1,
       harvestDurationMs: 0,
     });
     const largeGold = harvestPresetEvent(crypto.randomUUID(), 11, 2, "gold_large", {
-      goldValue: 31,
       hitsRequired: 1,
       harvestDurationMs: 0,
     });
@@ -1252,6 +1251,11 @@ describe("world room events (FakeClock)", () => {
       hits: 1,
       depleted: true,
     });
+    const depletedTree = state.adventureState.state.harvestNodes?.[tree.id];
+    if (depletedTree?.depletedAt === null || depletedTree?.respawnAt === null || !depletedTree) {
+      throw new Error("native tree did not receive a timed respawn deadline");
+    }
+    expect(depletedTree.respawnAt - depletedTree.depletedAt).toBe(NATIVE_HARVEST_RESPAWN_MS);
     expect(state.activeEvents.find((event) => event.id === tree.id)).toMatchObject({
       graphicAssetId: tree.harvestProfile?.exhaustedAssetId,
       harvest: { state: "depleted" },
@@ -1305,7 +1309,9 @@ describe("world room events (FakeClock)", () => {
     await vi.waitFor(async () => {
       const held = await heldPartyState(fixture.partyId);
       expect(held.materials).toEqual({ wood: 13, stone: 3, iron: 4, meat: 5 });
-      expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(fixture.heroId)).toBe(38);
+      expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(fixture.heroId)).toBe(
+        110,
+      );
     });
     const expectedExperience =
       treeExperience +
@@ -1374,7 +1380,7 @@ describe("world room events (FakeClock)", () => {
       iron: 4,
       meat: 5,
     });
-    expect(playerOf(reconnectState, fixture.heroId).inventory.gold).toBe(38);
+    expect(playerOf(reconnectState, fixture.heroId).inventory.gold).toBe(110);
     expect(playerOf(reconnectState, fixture.heroId)).toMatchObject(hostProgress);
     reconnectEngine.dispose();
   });

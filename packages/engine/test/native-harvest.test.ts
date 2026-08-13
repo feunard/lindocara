@@ -55,4 +55,25 @@ describe("native harvest scenery", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("ignores standalone tree stumps", () => {
+    const stumpAssets = [
+      "resource.terrain-resources-wood-trees.stump-1",
+      "resource.terrain-resources-wood-trees.stump-2",
+      "resource.terrain-resources-wood-trees.stump-3",
+      "resource.terrain-resources-wood-trees.stump-4",
+      "resource.resources-trees.stump",
+    ] as const;
+    expect(
+      nativeHarvestEvents(
+        stumpAssets.map((assetId, index) => ({
+          col: index,
+          row: 1,
+          offsetX: 0,
+          offsetY: 0,
+          assetId,
+        })),
+      ),
+    ).toEqual([]);
+  });
 });

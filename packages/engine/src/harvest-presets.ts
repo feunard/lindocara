@@ -24,11 +24,6 @@ export const HARVEST_PRESET_IDS = [
   "tree_update_4",
   "tree_update_5",
   "tree_update_6",
-  "wood_stump_1",
-  "wood_stump_2",
-  "wood_stump_3",
-  "wood_stump_4",
-  "wood_update_stump",
   "wood_cache",
   "wood_update_cache",
   "wood_update_cache_noshadow",
@@ -78,6 +73,15 @@ const LARGE_GOLD_ASSET_ID: EditorAssetId =
 
 type ResourceSize = 1 | 2 | 3;
 
+/** Native scenery returns five real-time minutes after its party depletes it. */
+export const NATIVE_HARVEST_RESPAWN_MS = 5 * 60 * 1_000;
+
+const GOLD_VALUE_BY_SIZE: Readonly<Record<ResourceSize, 10 | 50 | 100>> = {
+  1: 10,
+  2: 50,
+  3: 100,
+};
+
 const TOOL_BY_RESOURCE: Readonly<Record<HarvestResourceKind, HarvestTool>> = {
   wood: "axe",
   stone: "pickaxe",
@@ -105,14 +109,14 @@ function staticResourcePreset(
       resource,
       tool: TOOL_BY_RESOURCE[resource],
       yieldAmount: resource === "gold" ? 0 : size,
-      goldValue: resource === "gold" ? size : 0,
+      goldValue: resource === "gold" ? GOLD_VALUE_BY_SIZE[size] : 0,
       hitsRequired: size,
       range: resource === "wood" ? 96 : resource === "meat" ? 80 : 88,
       harvestDurationMs: 0,
       exhaustedAssetId: null,
       exhaustionBehavior: resource === "meat" ? "hide" : "fade",
-      respawn: "permanent",
-      respawnDelayMs: 0,
+      respawn: "timed",
+      respawnDelayMs: NATIVE_HARVEST_RESPAWN_MS,
       fadeDurationMs: 350 + size * 100,
       collision: {
         intact: { ...RESOURCE_COLLISION[size] },
@@ -142,8 +146,8 @@ function treePreset(
       harvestDurationMs: 0,
       exhaustedAssetId,
       exhaustionBehavior: "replace",
-      respawn: "permanent",
-      respawnDelayMs: 0,
+      respawn: "timed",
+      respawnDelayMs: NATIVE_HARVEST_RESPAWN_MS,
       fadeDurationMs: 350,
       collision: {
         intact: {
@@ -180,7 +184,7 @@ function sheepPreset(
       exhaustedAssetId: null,
       exhaustionBehavior: "hide",
       respawn: "timed",
-      respawnDelayMs: 300_000,
+      respawnDelayMs: NATIVE_HARVEST_RESPAWN_MS,
       fadeDurationMs: 450,
       collision: {
         intact: { offsetX: -24, offsetY: -28, width: 48, height: 28 },
@@ -224,15 +228,6 @@ export const HARVEST_PRESETS: readonly HarvestPresetDefinition[] = [
       3,
     ),
   ),
-  ...([1, 2, 3, 4] as const).map((variant) =>
-    staticResourcePreset(
-      `wood_stump_${variant}`,
-      `resource.terrain-resources-wood-trees.stump-${variant}`,
-      "wood",
-      1,
-    ),
-  ),
-  staticResourcePreset("wood_update_stump", "resource.resources-trees.stump", "wood", 1),
   staticResourcePreset(
     "wood_cache",
     "resource.terrain-resources-wood-wood-resource.wood-resource",

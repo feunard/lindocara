@@ -542,6 +542,9 @@ describe("Peasant harvest target selection", () => {
       until: NOW + PEASANT_CARRY_DURATION_MS,
     });
     expect(playerSnapshot(peasant, NOW + PEASANT_CARRY_DURATION_MS).peasantCarry).toBeUndefined();
+    peasant.damageBoostUntil = NOW + 4_000;
+    expect(playerSnapshot(peasant, NOW).powerBuffUntil).toBe(NOW + 4_000);
+    expect(playerSnapshot(peasant, NOW + 4_000).powerBuffUntil).toBeUndefined();
     expect(expirePeasantCarry(peasant, NOW + PEASANT_CARRY_DURATION_MS - 1)).toBe(false);
     expect(expirePeasantCarry(peasant, NOW + PEASANT_CARRY_DURATION_MS)).toBe(true);
     expect(peasant.peasantCarry).toBeNull();

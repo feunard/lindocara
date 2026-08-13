@@ -7,6 +7,7 @@ import {
   harvestProfileFromPreset,
   isHarvestPresetId,
   isNativeHarvestAsset,
+  NATIVE_HARVEST_RESPAWN_MS,
   nativeHarvestProfileForAsset,
 } from "../src/harvest-presets.js";
 import { editorAsset } from "../src/tiny-swords-catalog.js";
@@ -116,12 +117,31 @@ describe("semantic harvest presets", () => {
   it("maps the small and large gold presets to the correctly-sized appearances", () => {
     expect(harvestPreset("gold_small")).toMatchObject({
       intactAssetId: "resource.terrain-resources-gold-gold-resource.gold-resource",
-      profile: { goldValue: 1, hitsRequired: 1 },
+      profile: { goldValue: 10, hitsRequired: 1 },
     });
     expect(harvestPreset("gold_large")).toMatchObject({
       intactAssetId: "resource.terrain-resources-gold-gold-stones.gold-stone-6",
-      profile: { goldValue: 3, hitsRequired: 3 },
+      profile: { goldValue: 100, hitsRequired: 3 },
     });
+  });
+
+  it("values native gold at 10, 50, or 100 according to its explicit size", () => {
+    expect(
+      HARVEST_PRESETS.filter((preset) => preset.profile.resource === "gold").map((preset) => [
+        preset.id,
+        preset.profile.goldValue,
+      ]),
+    ).toEqual([
+      ["gold_small", 10],
+      ["gold_stone_1", 10],
+      ["gold_stone_2", 10],
+      ["gold_stone_3", 50],
+      ["gold_stone_4", 50],
+      ["gold_stone_5", 100],
+      ["gold_large", 100],
+      ["gold_update_cache", 10],
+      ["gold_update_cache_noshadow", 10],
+    ]);
   });
 
   it("registers default tool hits at the authoritative action impact", () => {
@@ -151,15 +171,40 @@ describe("semantic harvest presets", () => {
     expect(isNativeHarvestAsset("decoration.terrain-decorations-rocks.rock2")).toBe(true);
   });
 
-  it("caps every native harvest reward at three units and keeps sheep at one meat", () => {
+  it("caps materials at three units, gold at 100, and keeps sheep at one meat", () => {
     for (const preset of HARVEST_PRESETS) {
-      const reward =
-        preset.profile.resource === "gold" ? preset.profile.goldValue : preset.profile.yieldAmount;
-      expect(reward).toBeGreaterThanOrEqual(1);
-      expect(reward).toBeLessThanOrEqual(3);
+      if (preset.profile.resource === "gold") {
+        expect(preset.profile.goldValue).toBeGreaterThanOrEqual(10);
+        expect(preset.profile.goldValue).toBeLessThanOrEqual(100);
+      } else {
+        expect(preset.profile.yieldAmount).toBeGreaterThanOrEqual(1);
+        expect(preset.profile.yieldAmount).toBeLessThanOrEqual(3);
+      }
     }
     expect(harvestPreset("sheep").profile.yieldAmount).toBe(1);
     expect(harvestPreset("happy_sheep").profile.yieldAmount).toBe(1);
+  });
+
+  it("respawns every native resource after five real-time minutes", () => {
+    for (const preset of HARVEST_PRESETS) {
+      expect(preset.profile).toMatchObject({
+        respawn: "timed",
+        respawnDelayMs: NATIVE_HARVEST_RESPAWN_MS,
+      });
+    }
+  });
+
+  it("never treats a standalone tree stump as a native harvest resource", () => {
+    for (const assetId of [
+      "resource.terrain-resources-wood-trees.stump-1",
+      "resource.terrain-resources-wood-trees.stump-2",
+      "resource.terrain-resources-wood-trees.stump-3",
+      "resource.terrain-resources-wood-trees.stump-4",
+      "resource.resources-trees.stump",
+    ] as const) {
+      expect(isNativeHarvestAsset(assetId)).toBe(false);
+      expect(nativeHarvestProfileForAsset(assetId)).toBeNull();
+    }
   });
 
   it("accepts only central stable ids", () => {
