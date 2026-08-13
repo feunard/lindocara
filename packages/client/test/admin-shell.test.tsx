@@ -1,5 +1,7 @@
+import { adminRouterOptionsAtom } from "@alepha/ui/components/admin/admin-router-options";
 import { setLocale } from "@lindocara/client/i18n.js";
 import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
+import { lindocaraAdminOptions } from "@lindocara/client/ui/admin/adminChrome.js";
 import { screen, waitFor } from "@testing-library/dom";
 import { Alepha } from "alepha";
 import { AlephaReact } from "alepha/react";
@@ -9,8 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Mounts the real `AppRouter` at `/admin` directly (the same technique `auth-screen.test.tsx` uses
  * to land on `/auth`), so `AppRouter`'s own `bootPing` `$hook({ on: "start" })` — not a React
- * effect — resolves against `/admin` as the cold-load target, and the lazy `AdminRouter`/
- * `AdminShell` route resolves through the real dynamic `import()`. No `vi.mock`.
+ * effect — resolves against `/admin` as the cold-load target, and the lazy vendored admin route
+ * (`@alepha/ui/components/admin/admin-router`, which replaced this app's hand-written
+ * `AdminRouter.tsx`/`AdminShell.tsx`) resolves through the real dynamic `import()`. No `vi.mock`.
  *
  * `stubFetch`'s `permissions` argument is the SAME wire field
  * `PermissionRegistryProvider.granted` reads (`apiRegistryResponseSchema.permissions`,
@@ -40,9 +43,25 @@ function stubFetch(permissions: string[] = []): void {
               // test is asserting on. The path value itself is irrelevant (this stub answers every
               // path with a benign `{}` below); only the KEY needs to exist for resolution to
               // succeed.
+              //
+              // The vendored `AdminRouter` additionally gates each SIDEBAR entry with a `can()`
+              // check against this same registry (`this.userApi.findUsers.can()`, …), so every
+              // page whose nav label a test asserts needs its backing action listed here — the
+              // same five the real server registers to an authenticated admin: users/sessions via
+              // the realm itself, keys/audits via `AppSecurityProvider`'s `features`, and jobs via
+              // alepha's scheduler (`listJobs` — the framework's own cron jobs run in this app;
+              // verified against the live `/api/_links` of a real admin session, 2026-08-13). The
+              // vendored pages this app does NOT back (notifications, files, parameters,
+              // payments) are deliberately absent: their entries hiding is the `can()` design
+              // working, and the positive test below asserts that absence.
               actions: {
                 findUsers: { path: "/_admin/users" },
                 findRoles: { path: "/_admin/roles" },
+                getUser: { path: "/_admin/users/detail" },
+                findSessions: { path: "/_admin/sessions" },
+                findApiKeys: { path: "/_admin/keys" },
+                findAudits: { path: "/_admin/audits" },
+                listJobs: { path: "/_admin/jobs" },
               },
               permissions,
             },
@@ -63,6 +82,18 @@ describe("AdminShell route", () => {
   let alepha: Alepha | undefined;
   /** Promises the fetch stubs hand back, so `afterEach` can drain them before teardown. */
   const inFlight: Promise<unknown>[] = [];
+
+  /**
+   * Mirrors `apps/main/src/main.browser.ts`: the vendored admin shell reads its chrome and
+   * per-page props from `adminRouterOptionsAtom`, so setting it here is what makes these tests
+   * render the SAME shell production renders — the `.admin-root` fence, the light-only topbar,
+   * the seam logout — rather than the vendored defaults.
+   */
+  const createApp = () => {
+    const app = Alepha.create().with(AlephaReact).with(AppRouter);
+    app.set(adminRouterOptionsAtom, lindocaraAdminOptions);
+    return app;
+  };
 
   beforeEach(() => {
     setLocale("en");
@@ -110,9 +141,9 @@ describe("AdminShell route", () => {
   it(
     "refuses a session without admin:ui with a 403, never a stuck 401",
     async () => {
-      // `$secure({ permissions: ["admin:ui"] })` on `AdminRouter.adminLayout` is the route's ONLY
-      // guard — the superseded `AdminScreen`'s hand-rolled `has("admin:*")` check is gone, and there
-      // is no manual guard to reintroduce.
+      // `$secure({ permissions: ["admin:ui"] })` on the vendored `AdminRouter.layout` is the
+      // route's ONLY guard — the superseded `AdminScreen`'s hand-rolled `has("admin:*")` check is
+      // gone, and there is no manual guard to reintroduce.
       //
       // The assertion is POSITIVE (the status `ReactPageProvider.denyGuardedPage` renders for an
       // authenticated-but-forbidden visitor) rather than only checking that the sidebar's nav
@@ -134,7 +165,7 @@ describe("AdminShell route", () => {
       // produced the 401 branch instead, which is exactly the cold-load regression the next test
       // guards against directly.
       stubFetch([]);
-      alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+      alepha = createApp();
       await act(async () => {
         await alepha?.start();
       });
@@ -144,7 +175,7 @@ describe("AdminShell route", () => {
       });
       expect(screen.queryByText(/authentication required/i)).toBeNull();
 
-      // The sidebar is derived from `AdminRouter`'s `navPage` tree — none of its nav labels
+      // The sidebar is derived from `AdminRouter`'s `$pageNav` tree — none of its nav labels
       // (Users / Sessions / API keys / Audit log) may appear when the route was refused.
       expect(screen.queryByText("Users")).toBeNull();
       expect(screen.queryByText("Sessions")).toBeNull();
@@ -175,8 +206,9 @@ describe("AdminShell route", () => {
         "admin:session:read",
         "admin:api-key:read",
         "admin:audit:read",
+        "admin:job:read",
       ]);
-      alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+      alepha = createApp();
       await act(async () => {
         await alepha?.start();
       });
@@ -192,6 +224,25 @@ describe("AdminShell route", () => {
       expect(screen.getByText("Audit log")).toBeTruthy();
       expect(screen.queryByText(/authentication required/i)).toBeNull();
       expect(screen.queryByText(/you do not have permission/i)).toBeNull();
+
+      // The vendored shell mounts ALL of its built-in pages and the `can()` gate decides the
+      // sidebar, both ways. Jobs IS backed (see the stub's `listJobs` note) and must show — the
+      // hand-written router's five-page allowlist silently hid this working page, which is the
+      // staleness the vendored design exists to prevent. The four this app does not back must
+      // hide (their actions are absent from the stubbed registry, exactly as they are absent
+      // from the real server's `/api/_links`) — one of them visible here would mean the gate
+      // regressed into permission-only gating.
+      expect(screen.getByText("Jobs")).toBeTruthy();
+      expect(screen.queryByText("Notifications")).toBeNull();
+      expect(screen.queryByText("Files")).toBeNull();
+      expect(screen.queryByText("Parameters")).toBeNull();
+      expect(screen.queryByText("Payments")).toBeNull();
+
+      // `lindocaraAdminOptions` actually reached the vendored layout: `className: "admin-root"`
+      // (the vignette-lift + light-tokens fence, `styles/legacy.css`) is on the shell root. This
+      // is the one assertion tying the options atom to the rendered DOM — the suite runs with
+      // `css: false`, so the fence's visual effect itself is only verifiable in a browser.
+      expect(document.querySelector(".admin-root")).toBeTruthy();
     },
     TEST_TIMEOUT_MS,
   );
@@ -241,7 +292,7 @@ describe("AdminShell route", () => {
         }),
       );
 
-      alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+      alepha = createApp();
       await act(async () => {
         await alepha?.start();
       });
@@ -346,7 +397,7 @@ describe("AdminShell route", () => {
         }),
       );
 
-      alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+      alepha = createApp();
       await act(async () => {
         await alepha?.start();
       });

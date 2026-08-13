@@ -29,6 +29,7 @@
  * directly, since that event never fires for them.
  */
 
+import { AdminRouter } from "@alepha/ui/components/admin/admin-router";
 import { $hook, $inject, Alepha } from "alepha";
 import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
@@ -52,7 +53,6 @@ import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/n
 import { useUiStore } from "../store.js";
 import { AdventureTestOverlay } from "./AdventureTestOverlay.js";
 import { AuthScreen } from "./AuthScreen.js";
-import { AdminRouter } from "./admin/AdminRouter.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { CreditsScreen } from "./CreditsScreen.js";
@@ -102,7 +102,7 @@ import { WorldMap } from "./WorldMap.js";
  * `/admin` isn't a member of this exact-match `Set` because its subtree has nested paths
  * (`/admin/users`, `/admin/users/:id`, ...) that a `Set.has()` lookup can never match — see the
  * `isAdminPath` check folded into `immersive` below instead. Same dense,
- * full-viewport reasoning as `/editor`: `AdminShell`'s own `@alepha/ui` `NavShell` sidebar/topbar
+ * full-viewport reasoning as `/editor`: the vendored admin shell's own `NavShell` sidebar/topbar
  * is the surface's real chrome, and the floating Tiny Swords `StatusBar` would otherwise render on
  * top of it.
  */
@@ -320,12 +320,24 @@ export class AppRouter {
   reactAuth = $inject(ReactAuth);
 
   /**
-   * The `/admin` route subtree, owned by a separate class (`AdminRouter.tsx`) rather than declared
-   * inline here — its own docblock explains why (the "pages from an injected router in another
-   * package" shape `PagePrimitiveOptions.children` documents). Eagerly injected, like `reactAuth`
-   * above: `AdminRouter`'s field initializers are what register its six `$page`s with
-   * `ReactPageService`, and that must happen during boot, before Alepha's container locks — not
-   * only if/when something else happens to inject `AdminRouter` first.
+   * The `/admin` route subtree — the VENDORED admin shell (`@alepha/ui/components/admin/
+   * admin-router`), which replaced this app's hand-written `AdminRouter.tsx`/`AdminShell.tsx`
+   * pair. It mounts the whole shell and its built-in pages; the ones this app does not back
+   * (notifications, files, parameters, payments) hide themselves through each page's `can()`
+   * gate, which resolves against the actions the server actually registered (`/api/_links`) —
+   * no allowlist to keep in sync here. That gate cuts both ways: Jobs turned out to be genuinely
+   * backed (alepha's scheduler registers `listJobs`, and this app really runs the framework's
+   * cron jobs — verification cleanup, audit retention), so the vendored shell SHOWS a working
+   * page the hand-written router's five-page list had silently omitted — the exact staleness its
+   * design docblock warns an allowlist invites. Everything that was app-specific about
+   * the deleted pair now rides `adminRouterOptionsAtom` instead, set on the browser entry from
+   * `./admin/adminChrome.tsx` (the `.admin-root` fence class, the `colorScheme: false` opt-out,
+   * the back-to-menu brand, the seam logout, the hidden user columns — each documented there).
+   *
+   * Eagerly injected, like `reactAuth` above: `AdminRouter`'s field initializers are what
+   * register its `$page`s with `ReactPageService`, and that must happen during boot, before
+   * Alepha's container locks — not only if/when something else happens to inject `AdminRouter`
+   * first.
    */
   adminRouter = $inject(AdminRouter);
 
@@ -530,7 +542,7 @@ export class AppRouter {
       this.playJoin,
       this.game,
       this.editor,
-      this.adminRouter.adminLayout,
+      this.adminRouter.layout,
     ],
   });
 
@@ -554,8 +566,9 @@ export class AppRouter {
    * types is a separate concern from the route's internal name, and this repo's own sign-in screen
    * is still reached at `/auth`. Every caller that used to `push`/`path` the route by its old name
    * (`AppRouter.tsx`'s own navigation seam and 401 recovery, `AdminShell.tsx`'s `ButtonUser`) was
-   * updated to `"login"` alongside this rename — grepped for every remaining `"auth"` route-name
-   * reference (not `/auth` path literals, which stay put) before trusting this change was complete.
+   * updated to `"login"` alongside this rename (today that `ButtonUser` lives in
+   * `admin/adminChrome.tsx`) — grepped for every remaining `"auth"` route-name reference (not
+   * `/auth` path literals, which stay put) before trusting this change was complete.
    */
   login = $page({ path: "/auth", component: AuthScreen });
 

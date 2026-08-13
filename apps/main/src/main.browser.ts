@@ -10,8 +10,10 @@
 // is safe). `?preview` takes the whole page over itself and returns `false`, so the router never
 // mounts on top of it.
 import { AlephaSigil } from "@alepha/sigil";
+import { adminRouterOptionsAtom } from "@alepha/ui/components/admin/admin-router-options";
 import { bootClient } from "@lindocara/client/main.js";
 import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
+import { lindocaraAdminOptions } from "@lindocara/client/ui/admin/adminChrome.js";
 import { Alepha, run } from "alepha";
 import { reactBrowserOptions } from "alepha/react/router";
 
@@ -22,6 +24,10 @@ if (bootClient()) {
   // full-viewport view with nothing to scroll, so restoration is manual (there is no "top" to
   // snap back to that isn't already there).
   alepha.set(reactBrowserOptions, { scrollRestoration: "manual", interceptAnchorClicks: false });
+  // The vendored admin shell's chrome and per-page props (lore's `adminChrome.tsx` pattern) —
+  // browser entry only: the root layout is `ssr: false`, so the atom's one reader renders in the
+  // browser, and the object carries React nodes an SSR payload could not hold anyway.
+  alepha.set(adminRouterOptionsAtom, lindocaraAdminOptions);
   alepha.with(AppRouter);
   // Registered on BOTH entries, because they are two containers. The server
   // half of `AlephaSigil` is the same-origin proxy that forwards to the sink;

@@ -1203,6 +1203,20 @@ realm's `audits` and `apiKeys` features - see `AppSecurityProvider`'s docblock, 
 `apiKeys` opens a second authentication path into the whole API and that leaving it open to every
 account was a deliberate decision.
 
+The console itself is the VENDORED admin shell — `@alepha/ui/components/admin/admin-router`,
+injected by `AppRouter` — not app code: the hand-written `AdminRouter.tsx`/`AdminShell.tsx` pair is
+deleted. Pages this app does not back (notifications, files, parameters, payments) hide themselves
+through each page's `can()` gate against `/api/_links`; there is no allowlist to maintain. The gate
+cuts both ways: Jobs is genuinely backed (alepha's scheduler registers `listJobs`; the framework's
+own cron jobs — verification cleanup, audit retention — run in this app), so the vendored shell
+shows a working Jobs page the hand-written router's five-page list had silently omitted. Everything app-specific rides `adminRouterOptionsAtom`, set on the browser entry from
+`packages/client/src/ui/admin/adminChrome.tsx` — the `.admin-root` fence class (vignette lift +
+light tokens, `legacy.css`), `colorScheme: false` (the game owns `<html class="dark">`), the
+back-to-menu brand, the seam logout (never `useAuth().logout()` directly — it would mint a junk
+guest account per press), and the hidden username-only user columns. To add an admin page, use
+`$pageAdmin` (`@alepha/ui/components/admin/admin-router-page`) with `order: 100`+ or an own
+`nav.group`, gated by `can`.
+
 ## Conventions
 
 - Browser checks (running the app, screenshots, driving the editor UI): use the `playwright-cli`

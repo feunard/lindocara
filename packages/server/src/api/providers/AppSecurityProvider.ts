@@ -41,8 +41,9 @@ import { $realm } from "alepha/api/users";
  * over a default that leaves every flag `false`):
  * - `audits: true` — registers `alepha.api.audits` (`UserAudits`/
  *   `SessionAudits` log to it) and its `AdminAuditController`, so the admin
- *   shell's Audits page (`admin-audits`, `packages/client/src/ui/admin/
- *   AdminRouter.tsx`) has a real controller to call instead of 401ing.
+ *   shell's Audits page (`admin-audits`, mounted by the vendored
+ *   `@alepha/ui/components/admin/admin-router`) has a real controller to
+ *   call instead of 401ing.
  * - `apiKeys: true` — backs the admin shell's API keys page (`admin-keys`,
  *   `AdminApiKeyController`), but that is the SMALLER half of what this flag
  *   does. It also opens a SECOND, standing authentication path into the
