@@ -8,6 +8,7 @@ import { monsterBodyHitbox } from "@lindocara/engine/game.js";
 import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import {
   animalCarcassHarvestProfile,
+  HARVEST_PROFILE_LIMITS,
   type HarvestProfile,
   type HarvestTool,
   PEASANT_CARRY_DURATION_MS,
@@ -21,7 +22,11 @@ import {
   type PartyMaterialAmounts,
   refreshHarvestNode,
 } from "@lindocara/engine/party-harvest-state.js";
-import { type PeasantHarvestPlan, resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
+import {
+  mergePeasantMaterialRewards,
+  type PeasantHarvestPlan,
+  resolvePeasantHarvestPlan,
+} from "@lindocara/engine/peasant.js";
 import { isSheepAssetId } from "@lindocara/engine/sheep.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
@@ -135,6 +140,50 @@ export function cancelPeasantHarvestJob(
 
 export function canPeasantHarvest(player: PlayerRuntime, slot: SkillSlot): boolean {
   return player.class === "peasant" && slot === 1;
+}
+
+export interface RolledPeasantHarvestReward {
+  goldValue: number;
+  materialReward: PartyMaterialAmounts;
+}
+
+function randomInteger(minimum: number, maximum: number, random: () => number): number {
+  const sample = random();
+  const normalized = Number.isFinite(sample) ? Math.max(0, Math.min(0.999_999_999, sample)) : 0;
+  return minimum + Math.floor(normalized * (maximum - minimum + 1));
+}
+
+/** Rolls only the base native range. Talent multipliers and bonus ore remain those of the frozen
+ * authoritative plan, so reconnects and client messages can never influence the result. */
+export function rollPeasantHarvestReward(
+  profile: HarvestProfile,
+  plan: PeasantHarvestPlan,
+  random: () => number = Math.random,
+): RolledPeasantHarvestReward {
+  if (profile.resource === "gold") {
+    const range = profile.goldValueRange ?? { min: profile.goldValue, max: profile.goldValue };
+    const base = randomInteger(range.min, range.max, random);
+    const multiplier = profile.goldValue > 0 ? plan.goldValue / profile.goldValue : 0;
+    return {
+      goldValue: Math.min(
+        HARVEST_PROFILE_LIMITS.goldValue.max,
+        Math.max(0, Math.ceil(base * multiplier)),
+      ),
+      materialReward: {},
+    };
+  }
+  const range = profile.yieldRange ?? { min: profile.yieldAmount, max: profile.yieldAmount };
+  const base = randomInteger(range.min, range.max, random);
+  const multiplier = profile.yieldAmount > 0 ? plan.yieldAmount / profile.yieldAmount : 0;
+  const amount = Math.min(
+    HARVEST_PROFILE_LIMITS.yieldAmount.max,
+    Math.max(0, Math.ceil(base * multiplier)),
+  );
+  const primary = amount > 0 ? ({ [profile.resource]: amount } as PartyMaterialAmounts) : {};
+  return {
+    goldValue: 0,
+    materialReward: mergePeasantMaterialRewards(primary, plan.bonusMaterialReward),
+  };
 }
 
 /** Explicit reward-to-sheet mapping. Gold wins over meat, then wood; unsupported ore has no fake. */

@@ -443,6 +443,13 @@ function harvestPresetEvent(
   overrides: Partial<HarvestProfile> = {},
 ): MapEvent {
   const preset = harvestPreset(presetId);
+  const harvestProfile: HarvestProfile = { ...harvestProfileFromPreset(presetId), ...overrides };
+  if (overrides.yieldAmount !== undefined && overrides.yieldRange === undefined) {
+    delete harvestProfile.yieldRange;
+  }
+  if (overrides.goldValue !== undefined && overrides.goldValueRange === undefined) {
+    delete harvestProfile.goldValueRange;
+  }
   return {
     id,
     col,
@@ -452,7 +459,7 @@ function harvestPresetEvent(
     kind: "harvestable",
     species: null,
     patrolRadius: null,
-    harvestProfile: { ...harvestProfileFromPreset(presetId), ...overrides },
+    harvestProfile,
     pages: [page({ graphicAssetId: preset.intactAssetId })],
   };
 }
@@ -1306,12 +1313,13 @@ describe("world room events (FakeClock)", () => {
       slot: 1,
     });
 
+    let awardedGold = 0;
     await vi.waitFor(async () => {
       const held = await heldPartyState(fixture.partyId);
       expect(held.materials).toEqual({ wood: 13, stone: 3, iron: 4, meat: 5 });
-      expect(await partyRoom.adventureStateService.harvestGoldLedgerTotal(fixture.heroId)).toBe(
-        110,
-      );
+      awardedGold = await partyRoom.adventureStateService.harvestGoldLedgerTotal(fixture.heroId);
+      expect(awardedGold).toBeGreaterThanOrEqual(95);
+      expect(awardedGold).toBeLessThanOrEqual(125);
     });
     const expectedExperience =
       treeExperience +
@@ -1380,7 +1388,7 @@ describe("world room events (FakeClock)", () => {
       iron: 4,
       meat: 5,
     });
-    expect(playerOf(reconnectState, fixture.heroId).inventory.gold).toBe(110);
+    expect(playerOf(reconnectState, fixture.heroId).inventory.gold).toBe(awardedGold);
     expect(playerOf(reconnectState, fixture.heroId)).toMatchObject(hostProgress);
     reconnectEngine.dispose();
   });
@@ -1410,18 +1418,24 @@ describe("world room events (FakeClock)", () => {
       hp: maxHpForLevel(11),
       dirty: true,
     });
-    expect(
-      messagesOf(socket).filter(
-        (message) => message.t === "event" && message.code === "peasant.harvested",
-      ),
-    ).toEqual([
-      {
-        t: "event",
-        code: "peasant.harvested",
-        params: { wood: 3, xp: experience, targetId: fixture.heroId },
-        tone: "good",
-      },
-    ]);
+    const harvestMessages = messagesOf(socket).filter(
+      (message) => message.t === "event" && message.code === "peasant.harvested",
+    );
+    expect(harvestMessages).toHaveLength(1);
+    const harvestMessage = harvestMessages[0];
+    if (harvestMessage?.t !== "event") {
+      throw new Error("harvest event missing");
+    }
+    expect(harvestMessage).toMatchObject({
+      t: "event",
+      code: "peasant.harvested",
+      params: { xp: experience, targetId: fixture.heroId },
+      tone: "good",
+    });
+    const harvestedWood = harvestMessage.params?.wood;
+    expect(typeof harvestedWood).toBe("number");
+    expect(harvestedWood).toBeGreaterThanOrEqual(1);
+    expect(harvestedWood).toBeLessThanOrEqual(3);
     expect(
       messagesOf(socket).filter((message) => message.t === "event" && message.code === "level_up"),
     ).toEqual([{ t: "event", code: "level_up", params: { level: 11 }, tone: "good" }]);

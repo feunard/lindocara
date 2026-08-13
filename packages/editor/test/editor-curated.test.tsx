@@ -50,14 +50,14 @@ describe("editor asset catalogue", () => {
       .getAllByRole("button")
       .find((button) => button.dataset.assetId === "decoration.terrain-decorations-rocks.rock3");
     expect(ironRock).toBeDefined();
-    expect(within(ironRock as HTMLElement).getByText("Iron +2")).toBeVisible();
+    expect(within(ironRock as HTMLElement).getByText("Iron +1–3")).toBeVisible();
 
     fireEvent.change(search, { target: { value: "deco 04" } });
     const smallStone = screen
       .getAllByRole("button")
       .find((button) => button.dataset.assetId === "decoration.deco.04");
     expect(smallStone).toBeDefined();
-    expect(within(smallStone as HTMLElement).getByText("Stone +1")).toBeVisible();
+    expect(within(smallStone as HTMLElement).getByText("Stone +1–3")).toBeVisible();
   });
 
   it("offers every actor model to free NPCs, including native colours, workers and the Rogue thief", () => {

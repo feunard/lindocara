@@ -816,12 +816,26 @@ function HarvestEventFields({
   const exhaustedAsset = profile.exhaustedAssetId ? editorAsset(profile.exhaustedAssetId) : null;
   const patch = (next: Partial<HarvestProfile>): void => onProfileChange({ ...profile, ...next });
   const changeResource = (resource: HarvestResourceKind): void => {
-    patch({
+    const nextProfile: HarvestProfile = {
+      ...profile,
       resource,
       tool: harvestToolForResource(resource),
       yieldAmount: resource === "gold" ? 0 : Math.max(1, profile.yieldAmount),
       goldValue: resource === "gold" ? Math.max(1, profile.goldValue || 25) : 0,
-    });
+    };
+    delete nextProfile.yieldRange;
+    delete nextProfile.goldValueRange;
+    onProfileChange(nextProfile);
+  };
+  const changeYieldAmount = (yieldAmount: number): void => {
+    const nextProfile: HarvestProfile = { ...profile, yieldAmount };
+    delete nextProfile.yieldRange;
+    onProfileChange(nextProfile);
+  };
+  const changeGoldValue = (goldValue: number): void => {
+    const nextProfile: HarvestProfile = { ...profile, goldValue };
+    delete nextProfile.goldValueRange;
+    onProfileChange(nextProfile);
   };
   const changeExhaustion = (exhaustionBehavior: HarvestExhaustionBehavior): void => {
     patch({
@@ -879,7 +893,7 @@ function HarvestEventFields({
             value={profile.goldValue}
             min={1}
             max={HARVEST_PROFILE_LIMITS.goldValue.max}
-            onChange={(goldValue) => patch({ goldValue })}
+            onChange={changeGoldValue}
           />
         ) : (
           <HarvestNumberField
@@ -888,7 +902,7 @@ function HarvestEventFields({
             value={profile.yieldAmount}
             min={1}
             max={HARVEST_PROFILE_LIMITS.yieldAmount.max}
-            onChange={(yieldAmount) => patch({ yieldAmount })}
+            onChange={changeYieldAmount}
           />
         )}
         <HarvestNumberField

@@ -69,6 +69,11 @@ export interface HarvestCollisionProfile {
   depleted: HarvestCollisionBox | null;
 }
 
+export interface HarvestAmountRange {
+  min: number;
+  max: number;
+}
+
 /**
  * Compatibility defaults for maps authored before harvest collision became configurable. They
  * are keyed only by the explicit resource kind. New profiles should persist their own collision
@@ -104,8 +109,12 @@ export interface HarvestProfile {
   tool: HarvestTool;
   /** Material units granted on completion. Gold profiles keep this at zero. */
   yieldAmount: number;
+  /** Optional authoritative random base range. Missing authored profiles keep their fixed amount. */
+  yieldRange?: HarvestAmountRange;
   /** Existing hero-gold currency granted on completion. Non-gold profiles keep this at zero. */
   goldValue: number;
+  /** Optional authoritative random currency range for native gold deposits. */
+  goldValueRange?: HarvestAmountRange;
   hitsRequired: number;
   range: number;
   harvestDurationMs: number;
@@ -136,6 +145,7 @@ const WAR_PIG_CARCASS_PROFILE: HarvestProfile = {
   resource: "meat",
   tool: "knife",
   yieldAmount: 3,
+  yieldRange: { min: 1, max: 5 },
   goldValue: 0,
   hitsRequired: 2,
   range: 50,
@@ -222,6 +232,19 @@ function boundedInteger(
   if (!Number.isSafeInteger(value)) return null;
   const amount = value as number;
   return amount >= limits.min && amount <= limits.max ? amount : null;
+}
+
+function boundedAmountRange(
+  value: unknown,
+  limits: { readonly min: number; readonly max: number },
+): HarvestAmountRange | null | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).some((key) => key !== "min" && key !== "max")) return null;
+  const min = boundedInteger(record.min, limits);
+  const max = boundedInteger(record.max, limits);
+  return min === null || max === null || min > max ? null : { min, max };
 }
 
 type LegacyHarvestTimingSignature = Pick<
@@ -375,6 +398,8 @@ export function cloneHarvestProfile(profile: HarvestProfile): HarvestProfile {
   const collision = harvestCollisionProfile(profile);
   return {
     ...profile,
+    ...(profile.yieldRange ? { yieldRange: { ...profile.yieldRange } } : {}),
+    ...(profile.goldValueRange ? { goldValueRange: { ...profile.goldValueRange } } : {}),
     collision: {
       intact: { ...collision.intact },
       depleted: collision.depleted ? { ...collision.depleted } : null,
@@ -508,7 +533,9 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     resource,
     tool,
     yieldAmount,
+    yieldRange,
     goldValue,
+    goldValueRange,
     hitsRequired,
     range,
     harvestDurationMs,
@@ -533,6 +560,8 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
 
   const parsedYield = boundedInteger(yieldAmount, HARVEST_PROFILE_LIMITS.yieldAmount);
   const parsedGold = boundedInteger(goldValue, HARVEST_PROFILE_LIMITS.goldValue);
+  const parsedYieldRange = boundedAmountRange(yieldRange, HARVEST_PROFILE_LIMITS.yieldAmount);
+  const parsedGoldRange = boundedAmountRange(goldValueRange, HARVEST_PROFILE_LIMITS.goldValue);
   const parsedHits = boundedInteger(hitsRequired, HARVEST_PROFILE_LIMITS.hitsRequired);
   const parsedRange = boundedInteger(range, HARVEST_PROFILE_LIMITS.range);
   const parsedDuration = boundedInteger(
@@ -544,6 +573,8 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
   if (
     parsedYield === null ||
     parsedGold === null ||
+    parsedYieldRange === null ||
+    parsedGoldRange === null ||
     parsedHits === null ||
     parsedRange === null ||
     parsedDuration === null ||
@@ -556,8 +587,19 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
   // Gold enters the existing economy, never a second material counter. Every other profile yields
   // material units and cannot silently mint currency as a side effect.
   if (resource === "gold") {
-    if (parsedYield !== 0 || parsedGold < 1) return null;
+    if (
+      parsedYield !== 0 ||
+      parsedGold < 1 ||
+      parsedYieldRange !== undefined ||
+      (parsedGoldRange !== undefined && parsedGoldRange.min < 1)
+    )
+      return null;
   } else if (parsedYield < 1 || parsedGold !== 0) {
+    return null;
+  } else if (
+    parsedGoldRange !== undefined ||
+    (parsedYieldRange !== undefined && parsedYieldRange.min < 1)
+  ) {
     return null;
   }
 
@@ -598,7 +640,9 @@ export function parseHarvestProfile(value: unknown): HarvestProfile | null {
     resource,
     tool,
     yieldAmount: parsedYield,
+    ...(parsedYieldRange === undefined ? {} : { yieldRange: parsedYieldRange }),
     goldValue: parsedGold,
+    ...(parsedGoldRange === undefined ? {} : { goldValueRange: parsedGoldRange }),
     // The lab's critter contract is four clicks. Normalize the one shipped three-hit sheep profile
     // while it is already being identified for its movement/exhaustion compatibility repair.
     hitsRequired: legacySheep ? 4 : parsedHits,

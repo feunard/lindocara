@@ -1444,7 +1444,7 @@ describe("AdventureEditorScreen shell", () => {
     // The author-facing name deliberately excludes the dotted catalogue id. The terrain and
     // collision badges still make the matching result unambiguous without exposing implementation
     // vocabulary (a tree blocks only its trunk, not the whole cell).
-    await userEvent.click(screen.getByRole("button", { name: /tree3.*wood.*2.*collision/i }));
+    await userEvent.click(screen.getByRole("button", { name: /tree3.*wood.*1.*3.*collision/i }));
     await waitFor(() =>
       expect(stageMock.setTool).toHaveBeenCalledWith({
         kind: "element",

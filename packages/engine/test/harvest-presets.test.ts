@@ -117,30 +117,30 @@ describe("semantic harvest presets", () => {
   it("maps the small and large gold presets to the correctly-sized appearances", () => {
     expect(harvestPreset("gold_small")).toMatchObject({
       intactAssetId: "resource.terrain-resources-gold-gold-resource.gold-resource",
-      profile: { goldValue: 10, hitsRequired: 1 },
+      profile: { goldValue: 10, goldValueRange: { min: 10, max: 25 }, hitsRequired: 1 },
     });
     expect(harvestPreset("gold_large")).toMatchObject({
       intactAssetId: "resource.terrain-resources-gold-gold-stones.gold-stone-6",
-      profile: { goldValue: 100, hitsRequired: 3 },
+      profile: { goldValue: 100, goldValueRange: { min: 85, max: 100 }, hitsRequired: 3 },
     });
   });
 
-  it("values native gold at 10, 50, or 100 according to its explicit size", () => {
+  it("assigns an explicit random range to every native gold size", () => {
     expect(
       HARVEST_PRESETS.filter((preset) => preset.profile.resource === "gold").map((preset) => [
         preset.id,
-        preset.profile.goldValue,
+        preset.profile.goldValueRange,
       ]),
     ).toEqual([
-      ["gold_small", 10],
-      ["gold_stone_1", 10],
-      ["gold_stone_2", 10],
-      ["gold_stone_3", 50],
-      ["gold_stone_4", 50],
-      ["gold_stone_5", 100],
-      ["gold_large", 100],
-      ["gold_update_cache", 10],
-      ["gold_update_cache_noshadow", 10],
+      ["gold_small", { min: 10, max: 25 }],
+      ["gold_stone_1", { min: 10, max: 25 }],
+      ["gold_stone_2", { min: 10, max: 25 }],
+      ["gold_stone_3", { min: 45, max: 65 }],
+      ["gold_stone_4", { min: 45, max: 65 }],
+      ["gold_stone_5", { min: 85, max: 100 }],
+      ["gold_large", { min: 85, max: 100 }],
+      ["gold_update_cache", { min: 10, max: 25 }],
+      ["gold_update_cache_noshadow", { min: 10, max: 25 }],
     ]);
   });
 
@@ -171,18 +171,18 @@ describe("semantic harvest presets", () => {
     expect(isNativeHarvestAsset("decoration.terrain-decorations-rocks.rock2")).toBe(true);
   });
 
-  it("caps materials at three units, gold at 100, and keeps sheep at one meat", () => {
+  it("rolls native materials within their resource-specific limits", () => {
     for (const preset of HARVEST_PRESETS) {
       if (preset.profile.resource === "gold") {
-        expect(preset.profile.goldValue).toBeGreaterThanOrEqual(10);
-        expect(preset.profile.goldValue).toBeLessThanOrEqual(100);
+        expect(preset.profile.goldValueRange?.min).toBeGreaterThanOrEqual(10);
+        expect(preset.profile.goldValueRange?.max).toBeLessThanOrEqual(100);
       } else {
-        expect(preset.profile.yieldAmount).toBeGreaterThanOrEqual(1);
-        expect(preset.profile.yieldAmount).toBeLessThanOrEqual(3);
+        expect(preset.profile.yieldRange?.min).toBe(1);
+        expect(preset.profile.yieldRange?.max).toBe(preset.profile.resource === "meat" ? 5 : 3);
       }
     }
-    expect(harvestPreset("sheep").profile.yieldAmount).toBe(1);
-    expect(harvestPreset("happy_sheep").profile.yieldAmount).toBe(1);
+    expect(harvestPreset("sheep").profile.yieldRange).toEqual({ min: 1, max: 5 });
+    expect(harvestPreset("happy_sheep").profile.yieldRange).toEqual({ min: 1, max: 5 });
   });
 
   it("respawns every native resource after five real-time minutes", () => {

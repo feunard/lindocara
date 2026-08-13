@@ -82,6 +82,20 @@ const GOLD_VALUE_BY_SIZE: Readonly<Record<ResourceSize, 10 | 50 | 100>> = {
   3: 100,
 };
 
+/** Native deposits roll once on the server when the node is actually depleted. */
+export const GOLD_VALUE_RANGE_BY_SIZE = {
+  1: { min: 10, max: 25 },
+  2: { min: 45, max: 65 },
+  3: { min: 85, max: 100 },
+} as const satisfies Readonly<Record<ResourceSize, { min: number; max: number }>>;
+
+export const NATIVE_MATERIAL_YIELD_RANGES = {
+  wood: { min: 1, max: 3 },
+  stone: { min: 1, max: 3 },
+  iron: { min: 1, max: 3 },
+  meat: { min: 1, max: 5 },
+} as const;
+
 const TOOL_BY_RESOURCE: Readonly<Record<HarvestResourceKind, HarvestTool>> = {
   wood: "axe",
   stone: "pickaxe",
@@ -109,7 +123,9 @@ function staticResourcePreset(
       resource,
       tool: TOOL_BY_RESOURCE[resource],
       yieldAmount: resource === "gold" ? 0 : size,
+      ...(resource === "gold" ? {} : { yieldRange: NATIVE_MATERIAL_YIELD_RANGES[resource] }),
       goldValue: resource === "gold" ? GOLD_VALUE_BY_SIZE[size] : 0,
+      ...(resource === "gold" ? { goldValueRange: GOLD_VALUE_RANGE_BY_SIZE[size] } : {}),
       hitsRequired: size,
       range: resource === "wood" ? 96 : resource === "meat" ? 80 : 88,
       harvestDurationMs: 0,
@@ -140,6 +156,7 @@ function treePreset(
       resource: "wood",
       tool: "axe",
       yieldAmount: size,
+      yieldRange: NATIVE_MATERIAL_YIELD_RANGES.wood,
       goldValue: 0,
       hitsRequired: size + 1,
       range: 96,
@@ -176,6 +193,7 @@ function sheepPreset(
       resource: "meat",
       tool: "knife",
       yieldAmount: 1,
+      yieldRange: NATIVE_MATERIAL_YIELD_RANGES.meat,
       goldValue: 0,
       // Warcraft-style critter interaction stays four deliberate clicks; only its reward changes.
       hitsRequired: 4,

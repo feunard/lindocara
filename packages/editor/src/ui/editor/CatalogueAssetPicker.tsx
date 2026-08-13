@@ -282,10 +282,17 @@ function AssetChoice({
 }) {
   const collides = asset.editor.collider !== undefined;
   const harvestPreset = nativeHarvestPresetForAsset(asset.id as EditorAssetId);
-  const harvestAmount = harvestPreset
+  const harvestRange = harvestPreset
     ? harvestPreset.profile.resource === "gold"
-      ? harvestPreset.profile.goldValue
-      : harvestPreset.profile.yieldAmount
+      ? harvestPreset.profile.goldValueRange
+      : harvestPreset.profile.yieldRange
+    : undefined;
+  const harvestAmount = harvestPreset
+    ? harvestRange
+      ? `${harvestRange.min}–${harvestRange.max}`
+      : harvestPreset.profile.resource === "gold"
+        ? harvestPreset.profile.goldValue
+        : harvestPreset.profile.yieldAmount
     : null;
   const displayName = assetDisplayName(asset);
   const terrainNames = asset.editor.allowedTerrain.map((terrain: EditorTerrain) =>

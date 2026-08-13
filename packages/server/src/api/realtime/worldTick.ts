@@ -230,6 +230,7 @@ import {
   type PeasantHarvestJob,
   type PeasantHarvestJobTarget,
   revalidatePeasantHarvestTarget,
+  rollPeasantHarvestReward,
   selectPeasantHarvestTarget,
   selectPeasantHarvestTargets,
   sheepHarvestTargetForClick,
@@ -4392,14 +4393,15 @@ async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Pr
       try {
         const liveTarget = harvestTargetForJob(w, job, target, w.deps.now());
         if (!liveTarget) continue;
+        const rolledReward = rollPeasantHarvestReward(liveTarget.profile, target.plan);
         const reserved = await w.deps.reserveHarvestNode({
           heroId: job.heroId,
           sessionEpoch: actor.sessionEpoch,
           eventId: target.nodeId,
           generation: target.generation,
           requiredHits: target.plan.hitsRequired,
-          reward: target.plan.materialReward,
-          goldValue: target.plan.goldValue,
+          reward: rolledReward.materialReward,
+          goldValue: rolledReward.goldValue,
           respawnDelayMs:
             liveTarget.profile.respawn === "timed" && liveTarget.respawnAt === null
               ? liveTarget.profile.respawnDelayMs
@@ -4440,7 +4442,7 @@ async function commitPeasantHarvestJob(w: WorldGlue, job: PeasantHarvestJob): Pr
         if (hit.goldValue > 0) {
           goldValue += hit.goldValue;
         } else {
-          materialReward = mergePeasantMaterialRewards(materialReward, target.plan.materialReward);
+          materialReward = mergePeasantMaterialRewards(materialReward, rolledReward.materialReward);
         }
         rewarded = true;
         if (w.state.harvestJobs.get(job.heroId) !== job) break;
@@ -4492,14 +4494,15 @@ export async function handleSheepHit(
   const target = sheepHarvestTargetForClick({ player, eventId, view, now });
   if (!target) return;
   const plan = resolvePeasantHarvestPlan(target.profile, []);
+  const rolledReward = rollPeasantHarvestReward(target.profile, plan);
   const reserved = await w.deps.reserveHarvestNode({
     heroId: player.id,
     sessionEpoch: player.sessionEpoch,
     eventId: target.nodeId,
     generation: target.generation,
     requiredHits: plan.hitsRequired,
-    reward: plan.materialReward,
-    goldValue: plan.goldValue,
+    reward: rolledReward.materialReward,
+    goldValue: rolledReward.goldValue,
     respawnDelayMs:
       target.profile.respawn === "timed" && target.respawnAt === null
         ? target.profile.respawnDelayMs

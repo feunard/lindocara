@@ -5,9 +5,11 @@ import {
   harvestColliderAt,
   PEASANT_CARRY_DURATION_MS,
 } from "@lindocara/engine/harvest.js";
+import { harvestPreset } from "@lindocara/engine/harvest-presets.js";
 import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
+import { resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
 import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
@@ -20,6 +22,7 @@ import {
   hasPeasantHarvestLineOfSight,
   peasantCarryKindForReward,
   revalidatePeasantHarvestTarget,
+  rollPeasantHarvestReward,
   selectPeasantHarvestTarget,
   selectPeasantHarvestTargets,
 } from "../src/world/peasant-harvest-system.ts";
@@ -163,6 +166,23 @@ function mapView(profile: HarvestProfile = WOOD, worldTerrain = terrain()) {
 }
 
 describe("Peasant harvest target selection", () => {
+  it("rolls native resource ranges at both inclusive bounds on the server", () => {
+    for (const [presetId, low, high] of [
+      ["tree", { wood: 1 }, { wood: 3 }],
+      ["iron_outcrop", { iron: 1 }, { iron: 3 }],
+      ["sheep", { meat: 1 }, { meat: 5 }],
+    ] as const) {
+      const profile = harvestPreset(presetId).profile;
+      const plan = resolvePeasantHarvestPlan(profile, []);
+      expect(rollPeasantHarvestReward(profile, plan, () => 0).materialReward).toEqual(low);
+      expect(rollPeasantHarvestReward(profile, plan, () => 0.999_999).materialReward).toEqual(high);
+    }
+    const gold = harvestPreset("gold_large").profile;
+    const goldPlan = resolvePeasantHarvestPlan(gold, []);
+    expect(rollPeasantHarvestReward(gold, goldPlan, () => 0).goldValue).toBe(85);
+    expect(rollPeasantHarvestReward(gold, goldPlan, () => 0.999_999).goldValue).toBe(100);
+  });
+
   it("ignores only the target footprint while keeping third-party sub-cell obstacles opaque", () => {
     const open = mapView();
     const target = selectPeasantHarvestTarget({

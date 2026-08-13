@@ -3,6 +3,7 @@ import { defaultEventPage } from "@lindocara/editor/game/editor-state.js";
 import { EventDialog } from "@lindocara/editor/ui/editor/EventDialog.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { MONSTER_RESPAWN_MS } from "@lindocara/engine/game.js";
+import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import {
@@ -671,8 +672,10 @@ describe("EventDialog harvest authoring", () => {
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
     expect(onCommit).toHaveBeenCalledTimes(1);
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
-    expect(committed.harvestProfile).toEqual({
-      ...harvestProfileFromPreset("sheep"),
+    const sheepProfile = harvestProfileFromPreset("sheep");
+    if (!sheepProfile.collision) throw new Error("sheep collision fixture missing");
+    const expectedProfile: HarvestProfile = {
+      ...sheepProfile,
       resource: "gold",
       tool: "pickaxe",
       yieldAmount: 0,
@@ -685,10 +688,12 @@ describe("EventDialog harvest authoring", () => {
       respawnDelayMs: 91_000,
       fadeDurationMs: 777,
       collision: {
-        ...harvestProfileFromPreset("sheep").collision,
+        ...sheepProfile.collision,
         depleted: null,
       },
-    });
+    };
+    delete expectedProfile.yieldRange;
+    expect(committed.harvestProfile).toEqual(expectedProfile);
     expect(committed.pages[0]?.graphicAssetId).toBe("resource.terrain-resources-wood-trees.tree1");
   }, 15_000);
 
