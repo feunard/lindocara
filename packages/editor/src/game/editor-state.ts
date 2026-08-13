@@ -19,6 +19,7 @@ import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
 import { compileAuthoredMap, isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
+import { cropMapToRect, derivedMapRect, padMapToCanvas } from "@lindocara/engine/map-canvas.js";
 import {
   bakeCollision,
   ELEMENT_OFFSET_STEPS,
@@ -818,6 +819,19 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
   };
 }
 
+/** The whole-canvas working document a session edits: the stored map centered in the maximum
+ *  authorable rect. Every cell is paintable; empty cells are ocean. Applied ONCE at session open —
+ *  coordinates never shift again for the life of the session. */
+export function canvasEditorMap(map: EditorMap): EditorMap {
+  return { ...map, ...padMapToCanvas(map) };
+}
+
+/** What a save stores: the derived content rect (+ ocean margin) cropped out of the canvas. Also
+ *  what the playable preview and the member thumbnail read, so they match the runtime exactly. */
+export function croppedForSave(map: EditorMap): EditorMap {
+  return { ...map, ...cropMapToRect(map, derivedMapRect(map)) };
+}
+
 /**
  * A fresh event page, matching the wireframe's `defPage` (`wireframes/RPG Editor.dc.html`): no
  * graphic, all conditions cleared, movement Fixed at speed 4 / frequency 3, only Move-Anim on, and
@@ -888,7 +902,8 @@ export function toSaveInput(map: EditorMap): {
   fixedLighting: MapFixedLighting;
   heightfield: string;
 } {
-  const data = toMapData(map);
+  const cropped = croppedForSave(map);
+  const data = toMapData(cropped);
   return {
     name: map.name,
     audio: map.audio,
@@ -899,16 +914,16 @@ export function toSaveInput(map: EditorMap): {
     cols: data.cols,
     rows: data.rows,
     layers: data.layers.map(encodeTileLayer),
-    elements: map.elements,
-    spawn: map.spawn,
+    elements: cropped.elements,
+    spawn: cropped.spawn,
     // Markers are QUARANTINED: the editor never authors one, so it always sends `EMPTY_MARKERS`. The
     // functional meaning lives in `events` now.
     markers: EMPTY_MARKERS,
     // The `MapEvent` shape carries every condition field as an explicit `null`, so `JSON.stringify`
     // emits `"condSwitchId":null` rather than dropping the key. The wire parser rejects a page with
     // an ABSENT condition field, so this fullness is load-bearing, not cosmetic.
-    events: map.events,
-    heightfield: encodeMap(compileAuthoredMap(data, map.events)),
+    events: cropped.events,
+    heightfield: encodeMap(compileAuthoredMap(data, cropped.events)),
   };
 }
 

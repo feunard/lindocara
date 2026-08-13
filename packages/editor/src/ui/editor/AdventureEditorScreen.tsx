@@ -70,6 +70,8 @@ import {
   useState,
 } from "react";
 import {
+  canvasEditorMap,
+  croppedForSave,
   type EditorMap,
   type EditorMode,
   type EditorSelection,
@@ -178,7 +180,7 @@ function eventToolFor(
 }
 
 function toEditorMap(map: MapPayload): EditorMap {
-  return {
+  return canvasEditorMap({
     name: map.name,
     audio: map.audio ?? EMPTY_MAP_AUDIO,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
@@ -191,7 +193,7 @@ function toEditorMap(map: MapPayload): EditorMap {
     // carries and never authors one, so it opens with `EMPTY_MARKERS` and saves the same.
     markers: EMPTY_MARKERS,
     events: map.events ?? [],
-  };
+  });
 }
 
 /** Draft-facing facts from the exact in-memory map being saved. This is the bridge that lets a new
@@ -205,7 +207,7 @@ function memberInfoFromEditor(mapId: string, revision: number, edited: EditorMap
     mapId,
     name: edited.name,
     revision,
-    solid: solidMaskFromMapPayload(toMapData(edited)),
+    solid: solidMaskFromMapPayload(toMapData(croppedForSave(edited))),
     monsterCount: monsterEvents(edited.events).length,
     entryIds: entries.map((event) => event.id),
     exitIds: exits.map((event) => event.id),
@@ -643,12 +645,13 @@ function AdventureEditorInner({
     if (!previewing) return;
     const edited = editedRef.current;
     if (!edited) return;
-    const data: MapData = toMapData(edited);
+    const cropped = croppedForSave(edited);
+    const data: MapData = toMapData(cropped);
     let stopped = false;
     let preview: { stop(): void } | null = null;
     // Events ride alongside the terrain: the preview draws the authored NPCs and monsters at rest
     // so an author can judge scale and composition without launching a party.
-    const previewStart = startMapPreview(data, edited.events, {
+    const previewStart = startMapPreview(data, cropped.events, {
       heroSettings: edited.heroSettings,
       dayNightCycle: edited.dayNightCycle,
       fixedLighting: edited.fixedLighting,

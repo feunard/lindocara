@@ -2,6 +2,7 @@ import {
   applyTool,
   beginEventDraft,
   blankMap,
+  canvasEditorMap,
   commitEditorHistory,
   commitEventDraft,
   convertElementToEvent,
@@ -12,6 +13,7 @@ import {
   type EditorMode,
   type EditorTool,
   editorLayersFromPayload,
+  editorMapSize,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
@@ -27,6 +29,7 @@ import {
   updateEventDraftPage,
 } from "@lindocara/editor/game/editor-state.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
 import {
@@ -36,6 +39,7 @@ import {
   MAX_RUNTIME_EVENTS_PER_MAP,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
+import { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import {
   eraseRect,
   paintRectAutotile,
@@ -1666,5 +1670,44 @@ describe("placementLegalAt: fill short-circuit (perf)", () => {
     const probe2 = countingGroundReads(blankMap("m", 20, 15));
     place(probe2.map, FILL_GRASS, 3, 4, true);
     expect(probe2.reads()).toBeGreaterThan(0);
+  });
+});
+
+describe("dynamic map size", () => {
+  it("canvasEditorMap pads the document to the full canvas", () => {
+    const canvas = canvasEditorMap(blankMap("m", 20, 15));
+    expect(editorMapSize(canvas)).toEqual({ cols: MAP_MAX_COLS, rows: MAP_MAX_ROWS });
+  });
+
+  it("toSaveInput saves the derived rect, not the canvas", () => {
+    const canvas = canvasEditorMap(blankMap("m", 20, 15));
+    const saved = toSaveInput(canvas);
+    expect(saved.cols).toBe(20 + 2 * MAP_OCEAN_MARGIN);
+    expect(saved.rows).toBe(15 + 2 * MAP_OCEAN_MARGIN);
+    // Spawn was dead centre of the 20×15 grass; the crop keeps it there, margin included.
+    expect(saved.spawn).toEqual({ col: 10 + MAP_OCEAN_MARGIN, row: 7 + MAP_OCEAN_MARGIN });
+    // The heightfield is compiled from the CROPPED map, so its square side follows the crop.
+    const heightfield = decodeMap(saved.heightfield);
+    if (!heightfield) throw new Error("failed to decode saved heightfield");
+    expect(heightfield.size).toBe(Math.max(saved.cols, saved.rows));
+  });
+
+  it("painting far out on the canvas grows the next save", () => {
+    const canvas = canvasEditorMap(blankMap("m", 20, 15));
+    const ground = canvas.layers[0];
+    if (!ground) throw new Error("missing ground layer");
+    const ids = [...ground.ids];
+    // One grass tile 30 cells east of the padded content.
+    const col = 118 + 20 + 30;
+    const row = 120 + 7;
+    ids[row * ground.cols + col] = ids[120 * ground.cols + 118] ?? 0;
+    const painted = { ...canvas, layers: [{ ...ground, ids }, ...canvas.layers.slice(1)] };
+    const saved = toSaveInput(painted);
+    expect(saved.cols).toBeGreaterThan(20 + 2 * MAP_OCEAN_MARGIN + 25);
+  });
+
+  it("erasing the outlier shrinks the save back (pure derivation)", () => {
+    const canvas = canvasEditorMap(blankMap("m", 20, 15));
+    expect(toSaveInput(canvas).cols).toBe(20 + 2 * MAP_OCEAN_MARGIN);
   });
 });
