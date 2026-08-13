@@ -2,7 +2,13 @@ import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { NPC_MODEL_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 import { TINY_SWORDS_ENEMIES } from "../src/enemy-art.js";
-import { authoredActorSheet, guardSheet, monsterActorSheet } from "../src/hd2d/game-renderer.js";
+import {
+  authoredActorSheet,
+  guardSheet,
+  HD2D_ACTOR_TEXTURE_URLS,
+  monsterActorSheet,
+  SHEEP_ACTOR_FRAME_MS,
+} from "../src/hd2d/game-renderer.js";
 import { tinySwordsSourceUrl } from "../src/tiny-swords-assets.js";
 
 describe("authored HD-2D actor art", () => {
@@ -37,6 +43,35 @@ describe("authored HD-2D actor art", () => {
       footOffset: asset.motions.attack.footOffset,
       axis: asset.motions.attack.frame.axis,
     });
+  });
+
+  it("renders both harvestable sheep as smoothly tweened actors with their native hop strips", () => {
+    const happyIdle = authoredActorSheet("resource.resources-sheep.happysheep-idle", "idle");
+    const happyRun = authoredActorSheet("resource.resources-sheep.happysheep-idle", "run");
+    const freeRun = authoredActorSheet("resource.terrain-resources-meat-sheep.sheep-idle", "run");
+    if (!happyIdle || !happyRun || !freeRun) throw new Error("sheep actor sheets are missing");
+
+    expect(happyIdle).toMatchObject({ frames: 8, frameWidth: 128, frameHeight: 128 });
+    expect(happyRun).toEqual({
+      source: tinySwordsSourceUrl(
+        "Tiny Swords (Update 010)/Resources/Sheep/HappySheep_Bouncing.png",
+      ),
+      frames: 6,
+      frameWidth: 128,
+      frameHeight: 128,
+      footOffset: 42,
+      axis: "x",
+    });
+    expect(freeRun).toMatchObject({
+      source: tinySwordsSourceUrl(
+        "Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Move.png",
+      ),
+      frames: 4,
+    });
+    expect(SHEEP_ACTOR_FRAME_MS.run).toBeCloseTo(1_000 / 9);
+    expect(HD2D_ACTOR_TEXTURE_URLS.map((texture) => texture.url)).toEqual(
+      expect.arrayContaining([happyIdle.source, happyRun.source, freeRun.source]),
+    );
   });
 
   it("keeps the species sheet for missing or invalid authored assets", () => {

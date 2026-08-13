@@ -32,7 +32,11 @@ import type {
   RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
-import { isSheepAssetId, SHEEP_RENDER_HEIGHT } from "@lindocara/engine/sheep.js";
+import {
+  isSheepAssetId,
+  type SHEEP_ASSET_IDS,
+  SHEEP_RENDER_HEIGHT,
+} from "@lindocara/engine/sheep.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   EDITOR_ASSETS,
@@ -158,10 +162,62 @@ export interface BillboardActorSheet {
 
 const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
 
+const SHEEP_ACTOR_SHEETS: Readonly<
+  Record<(typeof SHEEP_ASSET_IDS)[number], Readonly<Record<"idle" | "run", BillboardActorSheet>>>
+> = {
+  "resource.terrain-resources-meat-sheep.sheep-idle": {
+    idle: {
+      source: tinySwordsSourceUrl(
+        "Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Idle.png",
+      ),
+      frames: 6,
+      frameWidth: 128,
+      frameHeight: 128,
+      footOffset: 44,
+      axis: "x",
+    },
+    run: {
+      source: tinySwordsSourceUrl(
+        "Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Move.png",
+      ),
+      frames: 4,
+      frameWidth: 128,
+      frameHeight: 128,
+      footOffset: 44,
+      axis: "x",
+    },
+  },
+  "resource.resources-sheep.happysheep-idle": {
+    idle: {
+      source: tinySwordsSourceUrl("Tiny Swords (Update 010)/Resources/Sheep/HappySheep_Idle.png"),
+      frames: 8,
+      frameWidth: 128,
+      frameHeight: 128,
+      footOffset: 42,
+      axis: "x",
+    },
+    run: {
+      source: tinySwordsSourceUrl(
+        "Tiny Swords (Update 010)/Resources/Sheep/HappySheep_Bouncing.png",
+      ),
+      frames: 6,
+      frameWidth: 128,
+      frameHeight: 128,
+      footOffset: 42,
+      axis: "x",
+    },
+  },
+};
+
+export const SHEEP_ACTOR_FRAME_MS = { idle: 1_000 / 6, run: 1_000 / 9 } as const;
+
 export function authoredActorSheet(
   graphicAssetId: string | null | undefined,
   motion: ActorMotion,
 ): BillboardActorSheet | null {
+  if (isSheepAssetId(graphicAssetId)) {
+    return SHEEP_ACTOR_SHEETS[graphicAssetId][motion === "run" ? "run" : "idle"];
+  }
   if (!graphicAssetId || !NPC_MODEL_ASSET_IDS.has(graphicAssetId)) return null;
   const asset = editorAsset(graphicAssetId);
   if (!asset) return null;
@@ -355,6 +411,10 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
       tinySwordsSourceUrl(asset.sourcePath),
       ...(asset.motions?.run ? [tinySwordsSourceUrl(asset.motions.run.sourcePath)] : []),
       ...(asset.motions?.attack ? [tinySwordsSourceUrl(asset.motions.attack.sourcePath)] : []),
+    ]),
+    ...Object.values(SHEEP_ACTOR_SHEETS).flatMap((sheets) => [
+      sheets.idle.source,
+      sheets.run.source,
     ]),
     ...Object.values(TINY_SWORDS_ENEMIES).flatMap((art) => [
       art.idle.source,
@@ -565,6 +625,15 @@ function worldEventAsset(event: WorldEventSnapshot): string | null {
   return null;
 }
 
+/** Keep one texture request alive while repeated render frames ask for the same event assets. */
+export function shouldStartWorldEventTextureLoad(
+  assetKey: string,
+  loadingAssetKey: string,
+  hasDesiredTextures: boolean,
+): boolean {
+  return !hasDesiredTextures && assetKey !== loadingAssetKey;
+}
+
 interface ActorPosition {
   x: number;
   z: number;
@@ -600,6 +669,8 @@ export class Hd2dRenderer implements RendererLike {
   #eventTextures: TextureRegistry | null = null;
   #eventToken = 0;
   #eventAssetKey = "";
+  #eventLoadingAssetKey = "";
+  #eventRequestedVisualKey = "";
   #eventVisualKey = "";
   #editorPreviewAssetId: string | null = null;
   #editorPreviewArt: StaticSpriteArt | null = null;
@@ -858,39 +929,54 @@ export class Hd2dRenderer implements RendererLike {
       ...new Set(
         events.flatMap((event) =>
           [event.graphicAssetId, event.harvest?.exhaustedAssetId ?? null].filter(
-            (assetId): assetId is string => assetId !== null,
+            (assetId): assetId is string =>
+              assetId !== null && authoredActorSheet(assetId, "idle") === null,
           ),
         ),
       ),
     ].sort();
     const assetKey = assetIds.join("|");
+    this.#eventRequestedVisualKey = visualKey;
     if (!force && visualKey === this.#eventVisualKey && assetKey === this.#eventAssetKey) return;
     if (!this.#scene || !this.#map) return;
+    if (assetIds.length === 0) {
+      this.#eventToken += 1;
+      this.#eventContent?.dispose();
+      this.#eventContent = null;
+      this.#eventTextures?.dispose();
+      this.#eventTextures = null;
+      this.#eventAssetKey = "";
+      this.#eventLoadingAssetKey = "";
+      this.#eventVisualKey = visualKey;
+      return;
+    }
     if (assetKey === this.#eventAssetKey && this.#eventTextures) {
       this.#placeWorldEventContent(visualKey);
       return;
     }
+    if (
+      !shouldStartWorldEventTextureLoad(
+        assetKey,
+        this.#eventLoadingAssetKey,
+        assetKey === this.#eventAssetKey && this.#eventTextures !== null,
+      )
+    )
+      return;
     this.#eventAssetKey = assetKey;
+    this.#eventLoadingAssetKey = assetKey;
     this.#eventVisualKey = "";
     const token = ++this.#eventToken;
     this.#eventContent?.dispose();
     this.#eventContent = null;
     this.#eventTextures?.dispose();
     this.#eventTextures = null;
-    if (assetIds.length === 0) {
-      this.#eventVisualKey = visualKey;
-      return;
-    }
-    void this.#loadWorldEventTextures(assetIds, token, visualKey).catch((error: unknown) => {
+    void this.#loadWorldEventTextures(assetIds, token).catch((error: unknown) => {
+      if (token === this.#eventToken) this.#eventLoadingAssetKey = "";
       console.warn("[hd2d] world-event art could not be loaded", error);
     });
   }
 
-  async #loadWorldEventTextures(
-    assetIds: readonly string[],
-    token: number,
-    visualKey: string,
-  ): Promise<void> {
+  async #loadWorldEventTextures(assetIds: readonly string[], token: number): Promise<void> {
     const specsByAsset = new Map<string, StaticAssetSpec>();
     for (const assetId of assetIds) {
       const spec = staticAssetSpec(assetId);
@@ -900,7 +986,10 @@ export class Hd2dRenderer implements RendererLike {
       ...new Set([...specsByAsset.values()].flatMap(staticSpecUrls)),
     ].map((url) => ({ url }));
     if (specs.length === 0) {
-      if (token === this.#eventToken) this.#eventVisualKey = visualKey;
+      if (token === this.#eventToken) {
+        this.#eventLoadingAssetKey = "";
+        this.#eventVisualKey = this.#eventRequestedVisualKey;
+      }
       return;
     }
     const blobs = await fetchAll(
@@ -914,7 +1003,8 @@ export class Hd2dRenderer implements RendererLike {
       return;
     }
     this.#eventTextures = textures;
-    this.#placeWorldEventContent(visualKey);
+    this.#eventLoadingAssetKey = "";
+    this.#placeWorldEventContent(this.#eventRequestedVisualKey);
   }
 
   #placeWorldEventContent(visualKey: string): void {
@@ -1248,7 +1338,9 @@ export class Hd2dRenderer implements RendererLike {
         ...actorSheetView(sheet),
         ...(isSheepAssetId(assetId) ? { renderHeight: SHEEP_RENDER_HEIGHT } : {}),
         animationTimeMs,
-        frameDurationMs: ACTOR_FRAME_MS[motion],
+        frameDurationMs: isSheepAssetId(assetId)
+          ? SHEEP_ACTOR_FRAME_MS[motion]
+          : ACTOR_FRAME_MS[motion],
         animationLoop: true,
       });
     }
@@ -1358,6 +1450,8 @@ export class Hd2dRenderer implements RendererLike {
     this.#eventTextures?.dispose();
     this.#eventTextures = null;
     this.#eventAssetKey = "";
+    this.#eventLoadingAssetKey = "";
+    this.#eventRequestedVisualKey = "";
     this.#eventVisualKey = "";
     this.#visuals?.dispose();
     this.#visuals = null;

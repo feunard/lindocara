@@ -262,6 +262,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
     const projectedHits = depleted
       ? profile?.hitsRequired
       : Math.min(harvestNode?.hits ?? 0, Math.max(0, (profile?.hitsRequired ?? 1) - 1));
+    const wanderingHarvest = profile && harvestActorBehavior(profile) === "wander";
     active.push({
       id: event.id,
       col: eventCol,
@@ -269,8 +270,8 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       graphicAssetId,
       graphicTint: page.graphicTint ?? 0xffffff,
       onTop: page.optOnTop,
-      moveSpeed: page.moveSpeed,
-      moveFrequency: page.moveFreq,
+      moveSpeed: wanderingHarvest ? 2 : page.moveSpeed,
+      moveFrequency: wanderingHarvest ? 2 : page.moveFreq,
       moveAnimation: page.optMoveAnim,
       directionFixed: page.optDirFix,
       ...(page.trigger === "action" ? { interactive: true as const } : {}),
@@ -293,7 +294,6 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
           }
         : {}),
     });
-    const wanderingHarvest = profile && harvestActorBehavior(profile) === "wander";
     // Static resources remain scenery. Explicit wandering resources join the same harmless,
     // deterministic NPC motion model as authored characters.
     if (event.kind !== "harvestable" || wanderingHarvest) {

@@ -37,4 +37,20 @@ describe("WorldEventMotionTracker", () => {
     tracker.retain(new Set());
     expect(tracker.sample({ ...event, col: 8 }, 20)).toMatchObject({ col: 8, moving: false });
   });
+
+  it("keeps the lab sheep cadence continuous between server cells", () => {
+    const tracker = new WorldEventMotionTracker();
+    const sheep = { ...event, id: "sheep", moveSpeed: 2, moveFrequency: 2 };
+    tracker.sample(sheep, 0);
+    const moved = { ...sheep, col: 3 };
+    const duration = npcMovementDurationMs(2, 2);
+
+    expect([
+      tracker.sample(moved, 100).col,
+      tracker.sample(moved, 100 + duration / 4).col,
+      tracker.sample(moved, 100 + duration / 2).col,
+      tracker.sample(moved, 100 + (duration * 3) / 4).col,
+      tracker.sample(moved, 100 + duration).col,
+    ]).toEqual([2, 2.25, 2.5, 2.75, 3]);
+  });
 });

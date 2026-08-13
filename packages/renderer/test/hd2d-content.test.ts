@@ -11,7 +11,7 @@ import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 import type { BillboardScene } from "../src/hd2d/billboards.js";
-import { staticAssetSpec } from "../src/hd2d/game-renderer.js";
+import { shouldStartWorldEventTextureLoad, staticAssetSpec } from "../src/hd2d/game-renderer.js";
 import { HD2D_CAMERA } from "../src/hd2d/scene.js";
 import type { StaticSpriteArt } from "../src/hd2d/static-content.js";
 import { placeStaticContent } from "../src/hd2d/static-content.js";
@@ -87,6 +87,15 @@ function resolverFor(known: Record<string, StaticSpriteArt>) {
 function meshes(root: THREE.Object3D): THREE.Mesh[] {
   return root.children.filter((child): child is THREE.Mesh => child instanceof THREE.Mesh);
 }
+
+describe("world-event texture loading", () => {
+  it("does not restart the same in-flight request on every render frame", () => {
+    expect(shouldStartWorldEventTextureLoad("tree|rock", "", false)).toBe(true);
+    expect(shouldStartWorldEventTextureLoad("tree|rock", "tree|rock", false)).toBe(false);
+    expect(shouldStartWorldEventTextureLoad("tree|rock", "", true)).toBe(false);
+    expect(shouldStartWorldEventTextureLoad("tree|gold", "tree|rock", false)).toBe(true);
+  });
+});
 
 /** How far below the ground a billboard's mesh origin sits, given the art it was built from. */
 function footOffsetOf(ctx: ReturnType<typeof createHd2dContext>, sprite: StaticSpriteArt): number {

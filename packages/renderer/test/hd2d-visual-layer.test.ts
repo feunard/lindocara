@@ -83,6 +83,73 @@ describe("Hd2dVisualLayer screen ray", () => {
   });
 });
 
+describe("Hd2dVisualLayer authored event markers", () => {
+  it("does not draw a generated ground ring under native harvest scenery", () => {
+    const { layer } = harness();
+    const nativeHarvest = {
+      id: "harvest-tree",
+      col: 4,
+      row: 5,
+      graphicAssetId: "resource.terrain-resources-wood-trees.tree1",
+      onTop: false,
+      moveSpeed: 4,
+      moveFrequency: 3,
+      moveAnimation: true,
+      directionFixed: false,
+      presentation: "native" as const,
+      harvest: {
+        state: "intact" as const,
+        generation: 0,
+        hits: 0,
+        hitsRequired: 3,
+        lastHitAt: null,
+        depletedAt: null,
+        respawnAt: null,
+        exhaustionBehavior: "replace" as const,
+        exhaustedAssetId: "resource.terrain-resources-wood-trees.stump-1" as const,
+        fadeDurationMs: 350,
+        collider: null,
+      },
+    };
+    const sample = {
+      players: [],
+      seaGuardians: [],
+      monsters: [],
+      guards: [],
+      loot: [],
+      projectiles: [],
+      corpses: [],
+      events: [nativeHarvest],
+    };
+
+    layer.sync(sample, 0);
+    expect(layer.diagnostics().eventMarkers).toBe(0);
+    layer.sync(
+      {
+        ...sample,
+        events: [
+          {
+            ...nativeHarvest,
+            graphicAssetId: null,
+            harvest: { ...nativeHarvest.harvest, state: "depleted" },
+          },
+        ],
+      },
+      1,
+    );
+    expect(layer.diagnostics().eventMarkers).toBe(0);
+    layer.sync(
+      {
+        ...sample,
+        events: [{ ...nativeHarvest, id: "marker", presentation: "marker", harvest: undefined }],
+      },
+      2,
+    );
+    expect(layer.diagnostics().eventMarkers).toBe(1);
+    layer.dispose();
+  });
+});
+
 describe("Hd2dVisualLayer hero movement", () => {
   const hero = {
     x: 0,

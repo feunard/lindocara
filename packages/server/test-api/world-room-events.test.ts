@@ -862,6 +862,8 @@ describe("world room events (FakeClock)", () => {
     });
     expect(state.activeEvents.find((event) => event.id === sheep.id)).toMatchObject({
       presentation: "native",
+      moveSpeed: 2,
+      moveFrequency: 2,
       harvest: { collider: expect.any(Array) },
     });
 
