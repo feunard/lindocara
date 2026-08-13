@@ -1,6 +1,10 @@
 /** Pure map-editor mutations. Placement, footprints and collision all come from the shared
  * catalogue, so the browser and authoritative map API cannot disagree. */
 
+/** Undo depth. Canvas documents make snapshots heavy (one changed 256×256 layer each), so history
+ *  is bounded: the oldest snapshot falls off rather than the tab growing without limit. */
+export const EDITOR_HISTORY_LIMIT = 100;
+
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
@@ -282,7 +286,8 @@ export function commitEditorHistory(history: EditorHistory, next: EditorMap): Ed
   if (next === history.present || serializedMap(next) === serializedMap(history.present)) {
     return history;
   }
-  return { ...history, past: [...history.past, history.present], present: next, future: [] };
+  const past = [...history.past, history.present].slice(-EDITOR_HISTORY_LIMIT);
+  return { ...history, past, present: next, future: [] };
 }
 
 export function undoEditorHistory(history: EditorHistory): EditorHistory {

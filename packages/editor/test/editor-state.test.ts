@@ -9,6 +9,7 @@ import {
   createEditorHistory,
   defaultEventPage,
   deleteSelection,
+  EDITOR_HISTORY_LIMIT,
   type EditorMap,
   type EditorMode,
   type EditorTool,
@@ -886,6 +887,17 @@ describe("markers are quarantined on the editor map", () => {
 });
 
 describe("editor history", () => {
+  it("history keeps at most EDITOR_HISTORY_LIMIT undo steps", () => {
+    const base = blankMap("m", 20, 15);
+    let history = createEditorHistory(base);
+    for (let step = 0; step < EDITOR_HISTORY_LIMIT + 5; step += 1) {
+      history = commitEditorHistory(history, { ...history.present, name: `m${step}` });
+    }
+    expect(history.past.length).toBe(EDITOR_HISTORY_LIMIT);
+    // The oldest snapshots fell off the far end; the newest survive.
+    expect(history.past[history.past.length - 1]?.name).toBe(`m${EDITOR_HISTORY_LIMIT + 3}`);
+  });
+
   it("undoes and redoes one committed operation", () => {
     const base = blankMap("m", 20, 15);
     const painted = place(base, { kind: "block", block: "water" }, 1, 1) as EditorMap;
