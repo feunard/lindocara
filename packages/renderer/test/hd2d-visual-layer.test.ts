@@ -238,9 +238,24 @@ describe("Hd2dVisualLayer restored authored effects", () => {
   });
 
   it("keeps a restrained healing aura only around heroes inside an allied camp", () => {
-    const { layer } = harness();
+    const { layer, root } = harness();
+    const ringsBefore: THREE.RingGeometry[] = [];
+    root.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.geometry instanceof THREE.RingGeometry) {
+        ringsBefore.push(object.geometry);
+      }
+    });
     layer.syncHealingAuras([{ id: "hero-1", x: 2, z: 3, endsAt: 1_200 }], 1_000);
     expect(layer.diagnostics().healingAuras).toBe(1);
+    const healingSpheres: THREE.SphereGeometry[] = [];
+    const ringsAfter: THREE.RingGeometry[] = [];
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      if (object.geometry instanceof THREE.SphereGeometry) healingSpheres.push(object.geometry);
+      if (object.geometry instanceof THREE.RingGeometry) ringsAfter.push(object.geometry);
+    });
+    expect(healingSpheres).toHaveLength(1);
+    expect(ringsAfter).toHaveLength(ringsBefore.length);
     layer.syncHealingAuras([], 1_100);
     expect(layer.diagnostics().healingAuras).toBe(0);
     layer.dispose();

@@ -786,7 +786,7 @@ export class Hd2dVisualLayer {
     }
   }
 
-  /** Soft green floor light attached only while the server confirms camp-zone membership. */
+  /** Soft green body glow attached only while the server confirms camp-zone membership. */
   syncHealingAuras(
     auras: readonly { id: string; x: number; z: number; endsAt: number }[],
     now: number,
@@ -798,22 +798,24 @@ export class Hd2dVisualLayer {
       let entry = this.#healingAuras.get(aura.id);
       if (!entry) {
         const object = new THREE.Group();
-        const inner = new THREE.Mesh(
-          new THREE.RingGeometry(0.3, 0.36, 36),
-          transparentMaterial(0x86ef9f, 0.18),
+        const glow = new THREE.Mesh(
+          new THREE.SphereGeometry(0.42, 16, 10),
+          new THREE.MeshBasicMaterial({
+            color: 0x8fffb0,
+            transparent: true,
+            opacity: 0.14,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+          }),
         );
-        const outer = new THREE.Mesh(
-          new THREE.RingGeometry(0.46, 0.5, 36),
-          transparentMaterial(0xc4f7cf, 0.08),
-        );
-        inner.rotation.x = -Math.PI / 2;
-        outer.rotation.x = -Math.PI / 2;
-        object.add(inner, outer);
+        glow.scale.y = 1.55;
+        object.add(glow);
         this.#root.add(object);
         entry = { object, phase: phaseFor(`heal:${aura.id}`) };
         this.#healingAuras.set(aura.id, entry);
       }
-      entry.object.position.set(aura.x, this.#groundY(aura.x, aura.z, 0.05), aura.z);
+      entry.object.position.set(aura.x, this.#groundY(aura.x, aura.z, 0.62), aura.z);
       entry.object.scale.setScalar(1 + Math.sin(now / 460 + entry.phase) * 0.045);
       materialOpacity(entry.object, Math.min(0.2, Math.max(0.06, (aura.endsAt - now) / 500)));
     }
@@ -858,13 +860,6 @@ export class Hd2dVisualLayer {
       billboard.placeAt(0, 0, 0);
       group.add(billboard.mesh);
     }
-    const range = new THREE.Mesh(
-      new THREE.RingGeometry(0.97, 1, 48),
-      transparentMaterial(0xf2c879, 0.38),
-    );
-    range.rotation.x = -Math.PI / 2;
-    range.scale.setScalar(camp.radius);
-    group.add(range);
     group.position.set(camp.x, this.#groundY(camp.x, camp.z, 0.02), camp.z);
     this.#root.add(group);
     this.#camps.set(camp.id, {

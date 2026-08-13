@@ -343,7 +343,7 @@ describe("staticAssetSpec", () => {
       expect(staticAssetSpec(`resource.terrain-resources-wood-trees.${tree}`)).toMatchObject({
         cols: 8,
         rows: 1,
-        animationDurationMs: 2_800,
+        animationDurationMs: tree === "tree1" ? 2_200 : 2_800,
         renderLayer: "canopy",
       });
     }

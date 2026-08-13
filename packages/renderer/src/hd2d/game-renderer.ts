@@ -462,6 +462,7 @@ const UPDATE_TREE_ASSET_IDS: ReadonlySet<string> = new Set(
   [1, 2, 3, 4, 5, 6].map((index) => `resource.resources-trees.tree-${index}`),
 );
 const LARGE_TREE_ANIMATION_MS = 2_800;
+const TREE1_ANIMATION_MS = 2_200;
 
 function snowTreeSpec(): StaticAssetSpec {
   return {
@@ -601,7 +602,9 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     ...(definition.nature === "animated" && !crop && count > 1
       ? {
           animationDurationMs: nativeTreeStrip
-            ? LARGE_TREE_ANIMATION_MS
+            ? assetId === "resource.terrain-resources-wood-trees.tree1"
+              ? TREE1_ANIMATION_MS
+              : LARGE_TREE_ANIMATION_MS
             : (frame?.durationMs ?? count * 145),
         }
       : {}),
