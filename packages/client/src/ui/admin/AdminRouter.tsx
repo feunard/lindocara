@@ -1,4 +1,4 @@
-import { navPage } from "@alepha/ui/components/nav-shell/nav-page";
+import { $pageNav } from "@alepha/ui/components/nav-shell/nav-page";
 import { z } from "alepha";
 import { $page, Redirection } from "alepha/react/router";
 import { $secure } from "alepha/security";
@@ -12,7 +12,7 @@ import { KeyRound, ShieldAlert, ShieldCheck, UsersIcon } from "lucide-react";
  * `PagePrimitiveOptions.children`'s own docblock, which documents exactly this "pages from an
  * injected router in another package" case).
  *
- * Each leaf is `navPage` from `@alepha/ui/components/nav-shell/nav-page`, which co-locates the
+ * Each leaf is `$pageNav` from `@alepha/ui/components/nav-shell/nav-page`, which co-locates the
  * page's permission (wired into both the `$secure` route gate and the nav-entry gate) and its
  * `nav` metadata (label / icon / group / order). **The sidebar and breadcrumbs in `AdminShell` are
  * DERIVED from this tree by `<NavShell root="admin">`** — there is no separate hand-maintained nav
@@ -43,7 +43,7 @@ export class AdminRouter {
     lazy: () => import("./AdminShell.js"),
   });
 
-  adminUsers = navPage({
+  adminUsers = $pageNav({
     path: "/users",
     head: { title: "Users" },
     permission: "admin:user:read",
@@ -57,7 +57,7 @@ export class AdminRouter {
     parent: this.adminLayout,
   });
 
-  adminUserDetail = navPage({
+  adminUserDetail = $pageNav({
     path: "/users/:id",
     head: { title: "User" },
     permission: "admin:user:read",
@@ -74,7 +74,7 @@ export class AdminRouter {
     parent: this.adminLayout,
   });
 
-  adminSessions = navPage({
+  adminSessions = $pageNav({
     path: "/sessions",
     head: { title: "Sessions" },
     permission: "admin:session:read",
@@ -88,7 +88,7 @@ export class AdminRouter {
     parent: this.adminLayout,
   });
 
-  adminKeys = navPage({
+  adminKeys = $pageNav({
     path: "/keys",
     head: { title: "API keys" },
     permission: "admin:api-key:read",
@@ -103,7 +103,7 @@ export class AdminRouter {
     parent: this.adminLayout,
   });
 
-  adminAudits = navPage({
+  adminAudits = $pageNav({
     path: "/audits",
     head: { title: "Audit log" },
     permission: "admin:audit:read",
