@@ -230,6 +230,65 @@ def report(kind, path, elapsed):
 def cmd_sprite(args):
     theme = load_json("theme.json")
     t, b = lane_config(theme, "pixel_art")
+    if args.manifest:
+        if args.prompt or args.out or args.character or args.variants != 1:
+            sys.exit("sprite --manifest cannot be combined with prompt, out, character, or variants")
+        try:
+            with open(args.manifest, encoding="utf-8") as source:
+                raw_jobs = json.load(source)
+        except (OSError, ValueError) as exc:
+            sys.exit("cannot read sprite manifest %s (%s)" % (args.manifest, exc))
+        if not isinstance(raw_jobs, list) or not raw_jobs:
+            sys.exit("sprite manifest must contain a non-empty JSON list")
+        if BACKEND == "mlx":
+            sys.exit("sprite batch manifests currently require the CUDA backend")
+        jobs = []
+        for index, raw in enumerate(raw_jobs, start=1):
+            if not isinstance(raw, dict):
+                sys.exit("sprite manifest job %d is not an object" % index)
+            raw_prompt = raw.get("prompt")
+            out = raw.get("out")
+            if not isinstance(raw_prompt, str) or not raw_prompt or not isinstance(out, str) or not out:
+                sys.exit("sprite manifest job %d needs non-empty prompt and out strings" % index)
+            prompt = raw_prompt if args.no_theme else " ".join(
+                [t["trigger"], raw_prompt.rstrip(". ") + ".", t["prompt_suffix"]]
+            )
+            width = raw.get("width", args.width or t["width"])
+            height = raw.get("height", args.height or t["height"])
+            seed = raw.get("seed", args.seed + index - 1)
+            if not isinstance(width, int) or not isinstance(height, int) or not isinstance(seed, int):
+                sys.exit("sprite manifest job %d has invalid dimensions or seed" % index)
+            ensure_parent(out)
+            jobs.append({"prompt": prompt, "width": width, "height": height, "seed": seed, "out": out})
+        if DRY_RUN:
+            print("[dry-run] diffusers batch runner\n  %d sprites from %s" % (len(jobs), args.manifest))
+            return
+        with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False) as target:
+            json.dump(jobs, target)
+            runtime_manifest = target.name
+        try:
+            elapsed = run(
+                runner_cmd("sprite", [
+                    "--model", b["model"],
+                    "--dtype", b.get("dtype", "bfloat16"),
+                    "--steps", str(t["steps"]),
+                    "--guidance", str(b.get("guidance", 4.0)),
+                    "--lora", rooted(t["lora"]),
+                    "--lora-scale", str(args.lora_scale or t["lora_scale"]),
+                    "--batch-manifest", runtime_manifest,
+                ]),
+                "diffusers batch runner",
+            )
+        finally:
+            try:
+                os.unlink(runtime_manifest)
+            except OSError:
+                pass
+        for job in jobs:
+            report("sprite", job["out"], elapsed / len(jobs))
+        return
+    if not args.prompt or not args.out:
+        sys.exit("sprite needs --prompt with --out, or --manifest")
     char = get_character(args.character)
 
     if args.no_theme:
@@ -300,6 +359,70 @@ def cmd_sprite(args):
 def cmd_sfx(args):
     theme = load_json("theme.json")
     t, b = lane_config(theme, "sounds")
+    if args.manifest:
+        if args.prompt or args.out or args.variants != 1:
+            sys.exit("--manifest cannot be combined with --prompt, --out, or --variants")
+        try:
+            with open(args.manifest, encoding="utf-8") as source:
+                raw_jobs = json.load(source)
+        except (OSError, ValueError) as exc:
+            sys.exit("cannot read SFX manifest %s (%s)" % (args.manifest, exc))
+        if not isinstance(raw_jobs, list) or not raw_jobs:
+            sys.exit("SFX manifest must contain a non-empty JSON list")
+        jobs = []
+        crunch_by_output = {}
+        for index, raw in enumerate(raw_jobs, start=1):
+            if not isinstance(raw, dict):
+                sys.exit("SFX manifest job %d is not an object" % index)
+            prompt = raw.get("prompt")
+            out = raw.get("out")
+            if not isinstance(prompt, str) or not prompt or not isinstance(out, str) or not out:
+                sys.exit("SFX manifest job %d needs non-empty prompt and out strings" % index)
+            duration = raw.get("duration", args.duration or t["default_duration"])
+            seed = raw.get("seed", args.seed + index - 1)
+            crunch = raw.get("crunch", args.crunch or t.get("crunch", "off"))
+            if not isinstance(duration, int) or duration <= 0 or not isinstance(seed, int):
+                sys.exit("SFX manifest job %d has invalid duration or seed" % index)
+            if crunch not in ("off", "light", "heavy"):
+                sys.exit("SFX manifest job %d has invalid crunch preset" % index)
+            text = prompt if args.no_theme else "%s. %s" % (prompt.rstrip(". "), t["prompt_suffix"])
+            ensure_parent(out)
+            jobs.append({"text": text, "seconds": duration, "seed": seed, "out": out})
+            crunch_by_output[out] = crunch
+        if DRY_RUN:
+            print("[dry-run] moss batch runner\n  %d sound effects from %s" % (len(jobs), args.manifest))
+            return
+        if BACKEND == "mlx":
+            sys.exit("SFX batch manifests currently require the CUDA backend")
+        with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False) as target:
+            json.dump(jobs, target)
+            runtime_manifest = target.name
+        runner_args = [
+            "--model", b["model"],
+            "--steps", str(b.get("steps", 100)),
+            "--cfg-scale", str(b.get("cfg_scale", 4.0)),
+            "--batch-manifest", runtime_manifest,
+        ]
+        if args.skip_existing:
+            runner_args.append("--skip-existing")
+        try:
+            elapsed = run(
+                runner_cmd("sfx", runner_args),
+                "moss batch runner",
+            )
+        finally:
+            try:
+                os.unlink(runtime_manifest)
+            except OSError:
+                pass
+        for job in jobs:
+            postprocess(job["out"], 0, 1.0, crunch_by_output[job["out"]], theme)
+            report("sfx", job["out"], elapsed / len(jobs))
+        return
+    if not args.prompt or not args.out:
+        sys.exit("sfx needs --prompt with --out, or --manifest")
+    if args.skip_existing:
+        sys.exit("--skip-existing is only valid with --manifest")
     text = args.prompt if args.no_theme else "%s. %s" % (args.prompt.rstrip(". "), t["prompt_suffix"])
     crunch = args.crunch or t.get("crunch", "off")
     duration = str(args.duration or t["default_duration"])
@@ -648,8 +771,8 @@ def cmd_doctor(args):
 # --------------------------------------------------------------------------- cli
 
 
-def add_common(sub, with_duration=False):
-    sub.add_argument("--out", required=True, help="Output path, inside the game project.")
+def add_common(sub, with_duration=False, out_required=True):
+    sub.add_argument("--out", required=out_required, help="Output path, inside the game project.")
     sub.add_argument("--seed", type=int, default=42)
     sub.add_argument("--variants", type=int, default=1, help="Generate N, suffixed _1.._N.")
     sub.add_argument("--no-theme", action="store_true", help="Send the raw prompt, no theme injection.")
@@ -664,19 +787,26 @@ def main():
     subs = ap.add_subparsers(dest="cmd")
 
     p = subs.add_parser("sprite", help="Pixel art sprite via FLUX.2-klein + the Tiny Swords LoRA.")
-    p.add_argument("--prompt", required=True)
+    p.add_argument("--prompt")
+    p.add_argument("--manifest", help="JSON list of themed sprite jobs kept in one warm model run.")
     p.add_argument("--character", help="Name from characters.json — adds its description and sprite_ref.")
     p.add_argument("--no-ref", action="store_true", help="Ignore the character's sprite_ref.")
     p.add_argument("--width", type=int, default=None)
     p.add_argument("--height", type=int, default=None)
     p.add_argument("--lora-scale", type=float, default=None)
-    add_common(p)
+    add_common(p, out_required=False)
     p.set_defaults(func=cmd_sprite)
 
     p = subs.add_parser("sfx", help="Sound effect via MOSS-SoundEffect.")
-    p.add_argument("--prompt", required=True)
+    p.add_argument("--prompt")
+    p.add_argument("--manifest", help="JSON list of themed SFX jobs kept in one warm model run.")
+    p.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Resume an interrupted SFX manifest without regenerating completed WAV files.",
+    )
     p.add_argument("--crunch", choices=["off", "light", "heavy"], default=None)
-    add_common(p, with_duration=True)
+    add_common(p, with_duration=True, out_required=False)
     p.set_defaults(func=cmd_sfx)
 
     p = subs.add_parser("voice", help="Voice line via Kokoro, or Qwen3-TTS when a voice_ref exists.")

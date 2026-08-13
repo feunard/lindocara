@@ -1,0 +1,247 @@
+[
+  {
+    "prompt": "One broad steel sword cleave through the air followed by a solid close-range impact, decisive and heavy",
+    "duration": 2,
+    "seed": 2101,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/warrior-cleave.wav"
+  },
+  {
+    "prompt": "A large iron shield snaps into a defensive brace with a deep metal lock and short protective resonance",
+    "duration": 2,
+    "seed": 2102,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/warrior-iron-guard.wav"
+  },
+  {
+    "prompt": "An armored warrior surges forward and slams a shield, fast heavy footsteps, rushing plate armor and one blunt impact",
+    "duration": 2,
+    "seed": 2103,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/warrior-shield-bash.wav"
+  },
+  {
+    "prompt": "A short fierce wordless warrior battle cry with a low war-horn accent, intimidating nearby enemies",
+    "duration": 2,
+    "seed": 2104,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/warrior-battle-cry.wav"
+  },
+  {
+    "prompt": "A warrior spins through several enemies, a rapid circular chain of broad sword swishes and three weighty impacts",
+    "duration": 2,
+    "seed": 2105,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/warrior-whirlwind.wav"
+  },
+  {
+    "prompt": "A light bowstring snaps and one quick arrow whistles away, agile and precise",
+    "duration": 2,
+    "seed": 2111,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/ranger-quick-shot.wav"
+  },
+  {
+    "prompt": "A strongly drawn longbow releases one powerful piercing arrow with a sharp string crack and long cutting whistle",
+    "duration": 2,
+    "seed": 2112,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/ranger-piercing-arrow.wav"
+  },
+  {
+    "prompt": "A ranger releases a wide fan of arrows at once, clustered bow twangs followed by many brief arrow whistles",
+    "duration": 2,
+    "seed": 2113,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/ranger-volley.wav"
+  },
+  {
+    "prompt": "A nimble backward combat dash, quick leather footwork with a compact rush of air and cloth",
+    "duration": 2,
+    "seed": 2114,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/ranger-dash.wav"
+  },
+  {
+    "prompt": "A massive bow draw under tension releases a devastating arrow, deep string snap and intense rising projectile whistle",
+    "duration": 2,
+    "seed": 2115,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/ranger-heartseeker.wav"
+  },
+  {
+    "prompt": "A compact radiant magic bolt launches with a bright glassy chime, warm holy shimmer and focused energy tail",
+    "duration": 2,
+    "seed": 2121,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/priest-radiant-bolt.wav"
+  },
+  {
+    "prompt": "A green healing light blossoms with a gentle liquid sparkle, soft ascending chimes and warm restorative pulse",
+    "duration": 2,
+    "seed": 2122,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/priest-mend.wav"
+  },
+  {
+    "prompt": "A priest dissolves into an invulnerable cloud of light, airy magical whoosh, crystalline shimmer and soft rematerializing pop",
+    "duration": 2,
+    "seed": 2123,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/priest-blink.wav"
+  },
+  {
+    "prompt": "A circular wave of restorative holy energy expands outward, layered delicate bells and a calm luminous pulse",
+    "duration": 2,
+    "seed": 2124,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/priest-prayer.wav"
+  },
+  {
+    "prompt": "A brilliant divine nova erupts in one wide pulse, powerful sacred chime, radiant burst and simultaneous healing sparkle",
+    "duration": 2,
+    "seed": 2125,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/priest-divine-nova.wav"
+  },
+  {
+    "prompt": "Two daggers slash simultaneously from opposite sides, paired sharp blade swishes and two tight impacts",
+    "duration": 2,
+    "seed": 2131,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/rogue-dual-slash.wav"
+  },
+  {
+    "prompt": "A rogue blinks through a curl of shadow beside a target, fast smoky whoosh with a subtle dagger ring",
+    "duration": 2,
+    "seed": 2132,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/rogue-shadow-step.wav"
+  },
+  {
+    "prompt": "A rogue vanishes instantly in a compact smoke puff, muted dark shimmer and fading cloth flutter",
+    "duration": 2,
+    "seed": 2133,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/rogue-vanish.wav"
+  },
+  {
+    "prompt": "A poisoned dagger makes one close sharp stab followed by a wet venom hiss and five tiny toxic pulses",
+    "duration": 2,
+    "seed": 2134,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/rogue-poisoned-shiv.wav"
+  },
+  {
+    "prompt": "A rogue ricochets rapidly through five targets, alternating shadow whooshes and five crisp dagger strikes",
+    "duration": 2,
+    "seed": 2135,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/rogue-shadow-dance.wav"
+  },
+  {
+    "prompt": "A farm worker rapidly rummages through a wooden toolkit and swings the selected hand tool with one useful chunky hit",
+    "duration": 2,
+    "seed": 2141,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/peasant-woodcutters-swing.wav"
+  },
+  {
+    "prompt": "A short comical rooster cock-a-doodle-doo, exaggerated farmyard crow with a bouncy wooden toy squeak and a tiny triumphant puff at the end",
+    "duration": 2,
+    "seed": 2202,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/peasant-prospectors-pick.wav"
+  },
+  {
+    "prompt": "A spring-loaded wooden food catapult releases three meat rations, elastic boing followed by three soft flying thumps",
+    "duration": 2,
+    "seed": 2143,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/peasant-butchers-cut.wav"
+  },
+  {
+    "prompt": "A tiny field camp is assembled very quickly, wooden stakes hammered, canvas snap and a cozy healing sparkle at the end",
+    "duration": 2,
+    "seed": 2144,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/peasant-makeshift-camp.wav"
+  },
+  {
+    "prompt": "A homemade round bomb fuse sputters, the bomb is lobbed with a comic whistle and ends in a compact punchy blast",
+    "duration": 2,
+    "seed": 2145,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/peasant-homemade-bomb.wav"
+  },
+  {
+    "prompt": "A cork pops from a heartroot tonic bottle, one quick gulp followed by a warm red healing sparkle",
+    "duration": 2,
+    "seed": 2151,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/consumable-health-potion.wav"
+  },
+  {
+    "prompt": "A small glass lumen phial opens and pours with a clear liquid glug followed by a cool blue arcane chime",
+    "duration": 2,
+    "seed": 2152,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/consumable-mana-potion.wav"
+  },
+  {
+    "prompt": "A thick giantblood elixir bottle opens, forceful gulp followed by a deep heartbeat and brief power surge",
+    "duration": 2,
+    "seed": 2153,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/consumable-damage-elixir.wav"
+  },
+  {
+    "prompt": "A dark oblivion draught is swallowed, hollow glass tone followed by a soft magical memory wipe sweeping away",
+    "duration": 2,
+    "seed": 2154,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/consumable-oblivion-draught.wav"
+  },
+  {
+    "prompt": "A veil tincture bottle opens and fizzes, quick sip followed by a silky transparent shimmer fading into silence",
+    "duration": 2,
+    "seed": 2155,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/consumable-invisibility-potion.wav"
+  },
+  {
+    "prompt": "A phoenix cordial bottle opens, fiery liquid gulp followed by a small rising flame whoosh and hopeful rebirth chime",
+    "duration": 2,
+    "seed": 2156,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/consumable-resurrection-potion.wav"
+  },
+  {
+    "prompt": "A hand axe chops solid wood once, crisp blade bite, trunk knock and a few bark chips falling",
+    "duration": 2,
+    "seed": 2161,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/harvest-wood.wav"
+  },
+  {
+    "prompt": "A metal pickaxe strikes a hard stone outcrop once, bright mineral clink and several small rock fragments scattering",
+    "duration": 2,
+    "seed": 2162,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/harvest-stone.wav"
+  },
+  {
+    "prompt": "A metal pickaxe cracks a rich gold vein once, dense ore impact followed by a brief bright coinlike sparkle",
+    "duration": 2,
+    "seed": 2163,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/harvest-gold.wav"
+  },
+  {
+    "prompt": "A butcher knife makes one quick clean cut through a hanging piece of meat on a wooden board, soft slice and board tap",
+    "duration": 2,
+    "seed": 2164,
+    "crunch": "light",
+    "out": "packages/client/public/assets/lindocara/audio/sfx/harvest-meat.wav"
+  }
+]

@@ -7,6 +7,8 @@ Both produce the same thing from the same prompt, LoRA and seed.
 Not invoked directly: `python3 studio.py sprite ...` builds the command line.
 """
 import argparse
+import json
+import os
 import sys
 
 
@@ -33,7 +35,7 @@ def load_tinyswords_lora(pipe, path):
 def main():
     ap = argparse.ArgumentParser(description="Generate one sprite with FLUX.2-klein + a LoRA.")
     ap.add_argument("--model", required=True)
-    ap.add_argument("--prompt", required=True)
+    ap.add_argument("--prompt")
     ap.add_argument("--lora", required=True)
     ap.add_argument("--lora-scale", type=float, default=1.4)
     ap.add_argument("--steps", type=int, default=4)
@@ -45,8 +47,30 @@ def main():
     ap.add_argument("--image", help="Reference image — locks a character's look between generations.")
     ap.add_argument("--offload", action="store_true",
                     help="Stream the model from system RAM. Only for cards under ~10 GB: it is slow.")
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out")
+    ap.add_argument(
+        "--batch-manifest",
+        help="JSON list of {prompt, width, height, seed, out}; keeps FLUX warm across sprites.",
+    )
     args = ap.parse_args()
+    if args.batch_manifest:
+        with open(args.batch_manifest, encoding="utf-8") as source:
+            jobs = json.load(source)
+        if not isinstance(jobs, list) or not jobs:
+            ap.error("--batch-manifest must contain a non-empty JSON list")
+    elif args.prompt and args.out:
+        jobs = [
+            {
+                "prompt": args.prompt,
+                "width": args.width,
+                "height": args.height,
+                "seed": args.seed,
+                "out": args.out,
+                **({"image": args.image} if args.image else {}),
+            }
+        ]
+    else:
+        ap.error("provide --prompt with --out, or --batch-manifest")
 
     try:
         import torch
@@ -79,20 +103,35 @@ def main():
     load_tinyswords_lora(pipe, args.lora)
     pipe.set_adapters("tinyswords", adapter_weights=args.lora_scale)
 
-    call = {
-        "prompt": args.prompt,
-        "height": args.height,
-        "width": args.width,
-        "num_inference_steps": args.steps,
-        "guidance_scale": args.guidance,
-        "generator": torch.Generator(device="cuda").manual_seed(args.seed),
-    }
-    if args.image:
-        from PIL import Image
-        call["image"] = [Image.open(args.image).convert("RGB")]
-
-    pipe(**call).images[0].save(args.out)
-    print("wrote %s" % args.out)
+    for index, job in enumerate(jobs, start=1):
+        if not isinstance(job, dict):
+            sys.exit("batch job %d is not an object" % index)
+        prompt = job.get("prompt")
+        out = job.get("out")
+        width = job.get("width", args.width)
+        height = job.get("height", args.height)
+        seed = job.get("seed", args.seed)
+        if not isinstance(prompt, str) or not prompt or not isinstance(out, str) or not out:
+            sys.exit("batch job %d needs non-empty prompt and out strings" % index)
+        if not isinstance(width, int) or not isinstance(height, int) or not isinstance(seed, int):
+            sys.exit("batch job %d has invalid dimensions or seed" % index)
+        parent = os.path.dirname(os.path.abspath(out))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        call = {
+            "prompt": prompt,
+            "height": height,
+            "width": width,
+            "num_inference_steps": args.steps,
+            "guidance_scale": args.guidance,
+            "generator": torch.Generator(device="cuda").manual_seed(seed),
+        }
+        image = job.get("image")
+        if image:
+            from PIL import Image
+            call["image"] = [Image.open(image).convert("RGB")]
+        pipe(**call).images[0].save(out)
+        print("wrote %s (%d/%d)" % (out, index, len(jobs)), flush=True)
 
 
 if __name__ == "__main__":

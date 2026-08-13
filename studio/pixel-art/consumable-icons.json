@@ -1,0 +1,32 @@
+[
+  {
+    "prompt": "one squat heartroot health tonic bottle, red healing liquid, heart-shaped root wrapped around the cork, readable fantasy inventory icon, centered isolated object, no text, no frame",
+    "seed": 3101,
+    "out": "apps/lab/assets/generated/consumables/health-potion-raw.png"
+  },
+  {
+    "prompt": "one slender lumen mana phial, bright blue magical liquid and a small crescent crystal stopper, readable fantasy inventory icon, centered isolated object, no text, no frame",
+    "seed": 3102,
+    "out": "apps/lab/assets/generated/consumables/mana-potion-raw.png"
+  },
+  {
+    "prompt": "one sturdy giantblood damage elixir flask, thick crimson liquid, broad shoulders and a tiny giant fang tied to the neck, readable fantasy inventory icon, centered isolated object, no text, no frame",
+    "seed": 3103,
+    "out": "apps/lab/assets/generated/consumables/damage-elixir-raw.png"
+  },
+  {
+    "prompt": "one dark oblivion draught bottle, smoky violet liquid spiralling inward beneath a black wax stopper, readable fantasy inventory icon, centered isolated object, no text, no frame",
+    "seed": 3104,
+    "out": "apps/lab/assets/generated/consumables/oblivion-draught-raw.png"
+  },
+  {
+    "prompt": "one delicate veil invisibility tincture bottle, pale turquoise liquid fading to transparent with a wispy cloth ribbon, readable fantasy inventory icon, centered isolated object, no text, no frame",
+    "seed": 3105,
+    "out": "apps/lab/assets/generated/consumables/invisibility-potion-raw.png"
+  },
+  {
+    "prompt": "one phoenix resurrection cordial bottle, glowing orange-gold liquid, flame-shaped stopper and two tiny wing ornaments, readable fantasy inventory icon, centered isolated object, no text, no frame",
+    "seed": 3106,
+    "out": "apps/lab/assets/generated/consumables/resurrection-potion-raw.png"
+  }
+]
