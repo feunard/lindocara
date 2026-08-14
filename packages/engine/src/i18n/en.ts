@@ -1100,26 +1100,26 @@ export const en = {
   "editor.generator.genre.highlands": "Highlands",
   "editor.generator.genre.tundra": "Frozen tundra",
   "editor.generator.genre.forest.hint":
-    "A broad wooded island with beaches, hill groves and winding clear routes.",
+    "A wooded province with a river, village roads, defended goblin camps and layered groves.",
   "editor.generator.genre.archipelago.hint":
-    "Several irregular islands linked by sandy crossings, with rich coastal scenery.",
+    "Settled islands and channels linked by bridges, coastal roads and marauder outposts.",
   "editor.generator.genre.highlands.hint":
-    "Layered ridges, lakes, rocky plateaus and snow on the highest ground.",
+    "Layered ridges around a fortified settlement, mountain roads, bridges and hostile keeps.",
   "editor.generator.genre.tundra.hint":
-    "Snowfields, frozen basins, ice roads and sparse hostile landmarks.",
+    "A lived-in frozen territory with an icebound village, crossings and fortified enemy zones.",
   "editor.generator.size": "Size",
   "editor.generator.size.compact": "Compact",
   "editor.generator.size.standard": "Standard",
   "editor.generator.size.large": "Large",
   "editor.generator.size.epic": "Epic",
-  "editor.generator.complexity": "Density",
+  "editor.generator.complexity": "Complexity",
   "editor.generator.complexity.light": "Light",
   "editor.generator.complexity.balanced": "Balanced",
   "editor.generator.complexity.dense": "Dense",
   "editor.generator.seed": "Seed",
   "editor.generator.seed.random": "Roll another seed",
   "editor.generator.contents":
-    "Includes relief, connected routes, harvest resources, scenery, treasure, an NPC and encounters.",
+    "Builds a village with routed NPCs, river bridges, roads, relief walls, natural resources, landmarks and fortified monster zones.",
   "editor.generator.warning":
     "Generating will replace the terrain, scenery and events on {name}. You can undo it once the dialog closes.",
   "editor.generator.action": "Generate map",

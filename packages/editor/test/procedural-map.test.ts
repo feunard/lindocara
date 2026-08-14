@@ -11,12 +11,14 @@ import {
   PROCEDURAL_MAP_SIZES,
   type ProceduralMapOptions,
 } from "@lindocara/editor/game/procedural-map.js";
+import { nativeHarvestProfileForAsset } from "@lindocara/engine/harvest-presets.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { parseMapData, sameElementSlot } from "@lindocara/engine/map-data.js";
 import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import { EMPTY_TILE } from "@lindocara/engine/tileset.js";
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 const BASE_OPTIONS: ProceduralMapOptions = {
@@ -25,6 +27,16 @@ const BASE_OPTIONS: ProceduralMapOptions = {
   size: "standard",
   seed: "LINDOCARA-42",
 };
+
+function isForbiddenGeneratedResource(assetId: string): boolean {
+  const profile = nativeHarvestProfileForAsset(assetId as EditorAssetId);
+  return (
+    /stump|gold/i.test(assetId) ||
+    (/meat/i.test(assetId) && !/sheep/i.test(assetId)) ||
+    profile?.resource === "gold" ||
+    (profile?.resource === "meat" && !/sheep/i.test(assetId))
+  );
+}
 
 describe("procedural map authoring", () => {
   it("is deterministic and preserves the open map's shell settings", () => {
@@ -69,8 +81,55 @@ describe("procedural map authoring", () => {
     const harvestResources = new Set(
       nativeHarvestEvents(generated.elements).map((event) => event.harvestProfile?.resource),
     );
-    expect(harvestResources).toEqual(new Set(["wood", "stone", "meat", "gold"]));
-    expect(generated.elements.some((element) => element.assetId.includes("stump"))).toBe(false);
+    expect(harvestResources).toEqual(new Set(["wood", "stone", "meat"]));
+    expect(
+      generated.elements.some((element) => isForbiddenGeneratedResource(element.assetId)),
+    ).toBe(false);
+
+    const category = (value: string): string | null => editorAsset(value)?.editor.category ?? null;
+    const buildings = generated.elements.filter(
+      (element) => category(element.assetId) === "buildings",
+    );
+    const bridges = generated.elements.filter((element) => category(element.assetId) === "bridges");
+    const villagers = generated.events.filter((event) => event.kind === "npc");
+    expect(buildings.length).toBeGreaterThanOrEqual(4);
+    expect(bridges.length).toBeGreaterThanOrEqual(1);
+    expect(generated.elements.some((element) => category(element.assetId) === "trees")).toBe(true);
+    expect(generated.elements.some((element) => category(element.assetId) === "small-decor")).toBe(
+      true,
+    );
+    expect(villagers.length).toBeGreaterThanOrEqual(1);
+    expect(
+      villagers.every(
+        (villager) =>
+          villager.pages[0]?.moveType === "custom" &&
+          (villager.pages[0]?.moveRoute?.length ?? 0) >= 4,
+      ),
+    ).toBe(true);
+
+    // A bridge deck is authored over actual water; its terrain override is what makes that river
+    // crossing walkable in the compiled map.
+    for (const bridge of bridges) {
+      const asset = editorAsset(bridge.assetId);
+      expect(asset?.editor.terrainOverride).toBe("walkable");
+      for (const offset of asset?.editor.visualFootprint ?? []) {
+        const index = (bridge.row + offset.row) * MAP_MAX_COLS + bridge.col + offset.col;
+        expect(generated.layers[0]?.ids[index]).toBe(EMPTY_TILE);
+      }
+    }
+
+    const hostileBuildings = buildings.filter((element) =>
+      /goblin|buildings-(?:red|black)-buildings/i.test(element.assetId),
+    );
+    const monsters = generated.events.filter((event) => event.kind === "monster");
+    expect(hostileBuildings.length).toBeGreaterThanOrEqual(1);
+    expect(
+      monsters.every((monster) =>
+        hostileBuildings.some(
+          (building) => Math.hypot(building.col - monster.col, building.row - monster.row) <= 8,
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("makes every size selectable and changes topology with genre and seed", () => {
@@ -126,21 +185,60 @@ describe("procedural map authoring", () => {
         keyof typeof PROCEDURAL_MAP_SIZES
       >) {
         for (const complexity of PROCEDURAL_MAP_COMPLEXITIES) {
-          const generated = generateProceduralMap(blankMap("Generated", 20, 15), {
-            genre,
-            size,
-            complexity,
-            seed: "EXHAUSTIVE",
-          });
-          const saved = toSaveInput(generated);
-          const context = `${genre}/${size}/${complexity}`;
-          expect(parseMapData(saved), context).not.toBeNull();
-          expect(parseMapEvents(saved.events, saved.cols, saved.rows), context).not.toBeNull();
-          expect(
-            generated.elements.some((element, index) =>
-              generated.elements.slice(0, index).some((other) => sameElementSlot(other, element)),
-            ),
-          ).toBe(false);
+          for (const seed of ["EXHAUSTIVE", "LOGIC-CHECK"]) {
+            const generated = generateProceduralMap(blankMap("Generated", 20, 15), {
+              genre,
+              size,
+              complexity,
+              seed,
+            });
+            const saved = toSaveInput(generated);
+            const context = `${genre}/${size}/${complexity}/${seed}`;
+            expect(parseMapData(saved), context).not.toBeNull();
+            expect(parseMapEvents(saved.events, saved.cols, saved.rows), context).not.toBeNull();
+            expect(
+              generated.elements.some((element) => isForbiddenGeneratedResource(element.assetId)),
+              context,
+            ).toBe(false);
+            expect(
+              generated.elements.some(
+                (element) => editorAsset(element.assetId)?.editor.category === "buildings",
+              ),
+              context,
+            ).toBe(true);
+            expect(
+              generated.elements.some(
+                (element) => editorAsset(element.assetId)?.editor.category === "bridges",
+              ),
+              context,
+            ).toBe(true);
+            for (const category of ["trees", "small-decor", "rocks"]) {
+              expect(
+                generated.elements.some(
+                  (element) => editorAsset(element.assetId)?.editor.category === category,
+                ),
+                `${context}/${category}`,
+              ).toBe(true);
+            }
+            expect(
+              generated.events.some((event) => event.kind === "monster"),
+              context,
+            ).toBe(true);
+            expect(
+              generated.events.some(
+                (event) =>
+                  event.kind === "npc" &&
+                  event.pages[0]?.moveType === "custom" &&
+                  (event.pages[0]?.moveRoute?.length ?? 0) >= 4,
+              ),
+              context,
+            ).toBe(true);
+            expect(
+              generated.elements.some((element, index) =>
+                generated.elements.slice(0, index).some((other) => sameElementSlot(other, element)),
+              ),
+            ).toBe(false);
+          }
         }
       }
     }

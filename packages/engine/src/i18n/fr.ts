@@ -1114,26 +1114,26 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.generator.genre.highlands": "Hautes terres",
   "editor.generator.genre.tundra": "Toundra gelée",
   "editor.generator.genre.forest.hint":
-    "Une vaste île boisée avec plages, bosquets en hauteur et routes dégagées sinueuses.",
+    "Une province boisée avec rivière, routes de village, camps gobelins fortifiés et bosquets étagés.",
   "editor.generator.genre.archipelago.hint":
-    "Plusieurs îles irrégulières reliées par des passages sableux, avec un littoral riche.",
+    "Des îles habitées et des chenaux reliés par des ponts, routes côtières et avant-postes de pillards.",
   "editor.generator.genre.highlands.hint":
-    "Des crêtes étagées, des lacs, des plateaux rocheux et de la neige sur les sommets.",
+    "Des crêtes autour d'un village fortifié, avec routes de montagne, ponts et bastions hostiles.",
   "editor.generator.genre.tundra.hint":
-    "Des étendues enneigées, des bassins gelés, des routes de glace et des lieux hostiles clairsemés.",
+    "Un territoire gelé habité, avec village pris dans les glaces, passages et zones ennemies fortifiées.",
   "editor.generator.size": "Taille",
   "editor.generator.size.compact": "Compacte",
   "editor.generator.size.standard": "Standard",
   "editor.generator.size.large": "Grande",
   "editor.generator.size.epic": "Épique",
-  "editor.generator.complexity": "Densité",
+  "editor.generator.complexity": "Complexité",
   "editor.generator.complexity.light": "Légère",
   "editor.generator.complexity.balanced": "Équilibrée",
   "editor.generator.complexity.dense": "Dense",
   "editor.generator.seed": "Graine",
   "editor.generator.seed.random": "Tirer une autre graine",
   "editor.generator.contents":
-    "Inclut relief, routes connectées, ressources récoltables, décors, trésors, un PNJ et des rencontres.",
+    "Construit un village avec routines PNJ, rivières et ponts, routes, murs de relief, ressources naturelles, lieux d'intérêt et zones de monstres fortifiées.",
   "editor.generator.warning":
     "La génération remplacera le terrain, les décors et les événements de {name}. Vous pourrez annuler après la fermeture du dialogue.",
   "editor.generator.action": "Générer la carte",
