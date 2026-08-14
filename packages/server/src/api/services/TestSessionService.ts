@@ -16,8 +16,9 @@
  * ownership-fenced (a session's own `userId`), matching legacy `deleteAdventureTestSession`.
  *
  * **The hero-creation path is not forked.** `HeroService.createHero` already resolves the
- * adventure's default start (its own `resolveHeroStart`, the full 3-tier port of legacy
- * `resolveAdventureStart`) as part of every normal hero create — this reuses that path unchanged
+ * adventure's default start (its own `resolveHeroStart`, now two tiers: the adventure's
+ * `startMapId` when it still names a member map, else the earliest-created member map) as part of
+ * every normal hero create — this reuses that path unchanged
  * for the "adventure global start" case (`input.startMapId === null`) and only relocates the freshly
  * created hero afterward when the caller chose a specific member map, exactly mirroring legacy's own
  * `createHero` + conditional relocate-and-reload sequence.

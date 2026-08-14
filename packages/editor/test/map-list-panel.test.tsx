@@ -203,6 +203,24 @@ describe("MapListPanel", () => {
     expect(onSetStartMap).toHaveBeenCalledWith("m2");
   });
 
+  it("with a null start, marks the earliest-created map as the derived start — the server's own tier-2 fallback", async () => {
+    vi.stubGlobal("fetch", mapsBackend());
+    const onSetStartMap = vi.fn();
+    render(<Harness startMapId={null} onSetStartMap={onSetStartMap} />);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    // `twoMaps` lists Verdant Reach (m1) before Frostfen (m2) — server order is oldest-first, so the
+    // FIRST map is the one a hero actually starts on when no explicit start is authored.
+    expect(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.start")} Verdant Reach` }),
+    ).toBeDisabled();
+    // The second map still offers to become the explicit start.
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.setStart")} Frostfen` }),
+    );
+    expect(onSetStartMap).toHaveBeenCalledWith("m2");
+  });
+
   it("asks for confirmation before deleting, then refreshes the list", async () => {
     const mock = mapsBackend();
     vi.stubGlobal("fetch", mock);

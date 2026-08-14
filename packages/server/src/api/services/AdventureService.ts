@@ -35,6 +35,7 @@ import {
   prepareAdventureRegistry,
 } from "../../adventure-registry.js";
 import { type Adventure, adventures } from "../entities/adventures.ts";
+import { adventureTestSessions } from "../entities/adventureTestSessions.ts";
 import { heroes } from "../entities/heroes.ts";
 import { mapElements } from "../entities/mapElements.ts";
 import { mapEventPages } from "../entities/mapEventPages.ts";
@@ -89,6 +90,7 @@ export class AdventureService {
   parties = $repository(parties);
   heroes = $repository(heroes);
   users = $repository(users);
+  adventureTestSessions = $repository(adventureTestSessions);
 
   /** The owner-scoped editor listing (default, no `scope`). Ported from `listAdventures`. */
   async listAdventures(userId: string): Promise<AdventureSummary[]> {
@@ -183,8 +185,9 @@ export class AdventureService {
       }
     }
     if (input.startMapId !== undefined && (row.startMapId ?? null) !== (input.startMapId ?? null)) {
-      const used = await this.parties.findMany({ where: { adventureId: { eq: id } }, limit: 1 });
-      if (used.length > 0) throw new Error("in_use: a party still references this adventure");
+      if (await this.isAdventureInUseByARealParty(id)) {
+        throw new Error("in_use: a party still references this adventure");
+      }
     }
 
     const proposedGraph = input.graph;
@@ -207,11 +210,9 @@ export class AdventureService {
             nextStart.mapId !== storedStart.mapId ||
             nextStart.entryId !== storedStart.entryId;
       if (startMoved) {
-        const used = await this.parties.findMany({
-          where: { adventureId: { eq: id } },
-          limit: 1,
-        });
-        if (used.length > 0) throw new Error("in_use: a party still references this adventure");
+        if (await this.isAdventureInUseByARealParty(id)) {
+          throw new Error("in_use: a party still references this adventure");
+        }
       }
     }
 
@@ -270,6 +271,25 @@ export class AdventureService {
   }
 
   // ---------------------------------------------------------------------------------------------
+
+  /**
+   * True when a party OTHER than an editor test-session's own hidden envelope references this
+   * adventure. The start-map guard exists to stop a live save's start from moving out from under
+   * another party — not to fence the author's own transient playtest.
+   * `TestSessionService.createTestSession` provisions a REAL `parties` row for every playtest (see
+   * its own docblock), and `adventureTestSessions.partyId` is the only marker that identifies one:
+   * there is no flag on `parties` itself. A party id present in `adventureTestSessions` is excluded;
+   * any remaining party means a real save is in play.
+   */
+  private async isAdventureInUseByARealParty(id: string): Promise<boolean> {
+    const used = await this.parties.findMany({ where: { adventureId: { eq: id } } });
+    if (used.length === 0) return false;
+    const testSessions = await this.adventureTestSessions.findMany({
+      where: { partyId: { inArray: used.map((party) => party.id) } },
+    });
+    const testSessionPartyIds = new Set(testSessions.map((session) => session.partyId));
+    return used.some((party) => !testSessionPartyIds.has(party.id));
+  }
 
   private async toSummary(
     row: Adventure,

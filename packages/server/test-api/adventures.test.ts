@@ -679,3 +679,45 @@ describe("start map: author, foreign refusal, clear", () => {
     expect(await cleared.json()).toMatchObject({ startMapId: null });
   });
 });
+
+describe("start map: the in_use guard excludes the editor's own test-session party", () => {
+  test("adventure_in_use: refuses moving the start map while a REAL party references the adventure", async () => {
+    const { userId, token } = await registerAndLogin("advstartinuse");
+    const created = (await (await createAdventure(token)).json()) as {
+      id: string;
+      defaultMap: { id: string };
+    };
+
+    await probe.parties.create({
+      adventureId: created.id,
+      adventureVersion: 1,
+      maxPlayers: 4,
+      hostUserId: userId,
+      status: "open",
+    });
+
+    const blocked = await putAdventure(created.id, token, { startMapId: created.defaultMap.id });
+    expect(blocked.status).toBe(409);
+    expect(await blocked.json()).toMatchObject({ error: "adventure_in_use" });
+  });
+
+  // TestSessionService.createTestSession provisions a REAL `parties` row for every playtest — an
+  // author who plays their own draft and returns to the editor must still be able to move the start.
+  test("moving the start map succeeds while only the caller's own test-session party references the adventure", async () => {
+    const { token } = await registerAndLogin("advstarttest");
+    const created = (await (await createAdventure(token)).json()) as {
+      id: string;
+      defaultMap: { id: string };
+    };
+
+    const session = await authedFetch(`/api/adventures/${created.id}/test-sessions`, token, {
+      method: "POST",
+      body: JSON.stringify({ startMapId: null, heroClass: "warrior" }),
+    });
+    expect(session.status).toBe(201);
+
+    const moved = await putAdventure(created.id, token, { startMapId: created.defaultMap.id });
+    expect(moved.status).toBe(200);
+    expect(await moved.json()).toMatchObject({ startMapId: created.defaultMap.id });
+  });
+});

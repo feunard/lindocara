@@ -8,6 +8,14 @@
 -- that is what a NULL column already means, and writing it would freeze a fallback that should stay
 -- live. Without this backfill, deleting tier 1 in the next commit would silently restart every
 -- published adventure on its oldest map.
+--
+-- The second UPDATE's `json_valid(adventures.graph)` guard is load-bearing, not decoration:
+-- `adventures.graph` is `text NOT NULL` with no DEFAULT or CHECK, so nothing in the schema stops a
+-- row from carrying `''` or otherwise malformed JSON. A bare `json_extract` on such a row raises
+-- "malformed JSON" and aborts this whole statement, which aborts the migration run, which is a Bay
+-- boot loop once this migration is deployed (an applied migration cannot be edited afterward). The
+-- guard changes no result: a row whose graph cannot be parsed has no `graph.start` to backfill
+-- either way, so it is correctly skipped and its `start_map_id` stays NULL (tier 3, derive).
 ALTER TABLE `adventures` ADD `start_map_id` text;--> statement-breakpoint
 UPDATE `adventures` SET `start_map_id` = (
   SELECT m.`id` FROM `maps` m
@@ -19,5 +27,6 @@ UPDATE `adventures` SET `start_map_id` = (
 UPDATE `adventures` SET `start_map_id` = (
   SELECT m.`id` FROM `maps` m
   WHERE m.`adventure_id` = `adventures`.`id`
+    AND json_valid(`adventures`.`graph`)
     AND m.`id` = json_extract(`adventures`.`graph`, '$.start.mapId')
 ) WHERE `start_map_id` IS NULL;

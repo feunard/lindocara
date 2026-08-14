@@ -253,10 +253,19 @@ export function MapListPanel({
       </div>
 
       <div className="flex flex-1 flex-col gap-1 overflow-auto p-2">
-        {listed.map((map) => {
+        {listed.map((map, index) => {
           // A sandbox's one listed map is the start by construction — no row to write, so it always
-          // reads as the (disabled) start. A stored row compares against the draft's authored value.
-          const isStart = stored ? map.id === startMapId : true;
+          // reads as the (disabled) start. A stored row compares against the draft's authored value
+          // when one is set; a null `startMapId` means the server DERIVES the start instead (its own
+          // tier-2 fallback: the earliest-created member map), and `listed` is already server-ordered
+          // oldest-first, so index 0 is that same map. Marking every row as "not the start" here — or
+          // worse, all of them — would put the panel in direct disagreement with where a hero actually
+          // lands, right after the save that was supposed to make the start explicit.
+          const isStart = stored
+            ? startMapId !== null
+              ? map.id === startMapId
+              : index === 0
+            : true;
           const startLabel = isStart
             ? t("editor.shell.maps.start")
             : t("editor.shell.maps.setStart");
