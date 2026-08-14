@@ -1943,13 +1943,10 @@ export const en = {
   "editor.harvest.preview.hide": "The resource disappears immediately.",
   "editor.harvest.validation.invalid":
     "The harvest configuration is invalid. Check required assets, amounts and timing bounds.",
-  "editor.event.kind.spawn": "Adventure start",
   "editor.event.kind.seaGuardian.hint":
     "This permanent special monster patrols its connected water, cannot be harmed and instantly devours swimmers it reaches.",
   "editor.event.kind.anchor.hint":
     "Legacy anchor retained for compatibility with older adventures.",
-  "editor.event.kind.spawn.hint":
-    "This is the adventure’s global starting point. It is separate from each map’s technical fallback.",
   "editor.event.kind.guard.hint":
     "Server-driven allied combatant. Conditional pages determine its presence, its radius bounds movement, and page actions can add dialogue.",
   "editor.event.kind.npc.hint":

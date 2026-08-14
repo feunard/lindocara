@@ -447,13 +447,18 @@ describe("Liin — Les Dettes de l’Aube", () => {
 
     const eventIds = BUNDLE.maps.flatMap((map) => map.events.map((event) => event.id));
     expect(new Set(eventIds).size).toBe(eventIds.length);
-    const spawns = BUNDLE.maps.flatMap((map) =>
-      map.events
-        .filter((event) => event.kind === "spawn")
-        .map((event) => ({ map: map.name, event })),
+
+    // `adventures/legacy/liin-adventure-ia.json` still carries one stored `"spawn"` event on disk
+    // (the adventure's old start anchor, superseded by `adventures.startMapId`). `parseMapEvents`
+    // now drops a retired-kind event instead of rejecting the whole map, so it never reaches this
+    // typed bundle at all — the cast is only to compare against a kind the `EventKind` union no
+    // longer contains. This is the regression guard: if the drop ever regressed back to a reject,
+    // `parseAdventureBundle` above would have returned `null` and the whole suite would already
+    // have thrown before this test ran.
+    const spawnEvents = BUNDLE.maps.flatMap((map) =>
+      map.events.filter((event) => (event.kind as string) === "spawn"),
     );
-    expect(spawns).toHaveLength(1);
-    expect(spawns[0]?.map).toBe(MAP_NAMES[0]);
+    expect(spawnEvents).toHaveLength(0);
   });
 
   it("keeps every map, event and teleport on reachable collision-safe cells", () => {

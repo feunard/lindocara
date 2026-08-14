@@ -114,7 +114,7 @@ function reachableCells(
 }
 
 export interface BundleValidationOptions {
-  /** The map a party starts on. Defaults to the map carrying a `spawn` event, like the server. */
+  /** The map a party starts on. Defaults to the bundle's own `adventure.startMapId`, like the server. */
   startMapId?: string;
   /**
    * Least share of a map's TOTAL cells a hero must be able to walk. A blunt density floor: it
@@ -265,11 +265,8 @@ export function validateBundleMaps(
     }
   }
 
-  const startMapId =
-    options.startMapId ??
-    bundle.adventure.startMapId ??
-    bundle.maps.find((map) => map.events.some((event) => event.kind === "spawn"))?.id;
-  if (!startMapId) throw new Error("no start map: no map carries a spawn event");
+  const startMapId = options.startMapId ?? bundle.adventure.startMapId;
+  if (!startMapId) throw new Error("no start map: adventure.startMapId is unset");
   const reached = new Set<string>([startMapId]);
   const queue = [startMapId];
   for (let head = 0; head < queue.length; head += 1) {

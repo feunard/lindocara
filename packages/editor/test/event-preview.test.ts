@@ -30,7 +30,6 @@ describe("authored event preview projection", () => {
       "sea-guardian",
       "guard",
       "harvestable",
-      "spawn",
     ];
     const events = kinds.map(event);
 

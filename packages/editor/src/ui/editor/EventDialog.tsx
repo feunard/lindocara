@@ -1281,15 +1281,11 @@ export function EventDialog({
             </p>
           )}
 
-        {/* Entry/exit/spawn events are pure anchors: their only field is the label (the header Name
+        {/* Entry/exit events are pure anchors: their only field is the label (the header Name
             input), so no body is shown — a hint states what the placement binds. */}
-        {(draft.kind === "entry" || draft.kind === "exit" || draft.kind === "spawn") && (
+        {(draft.kind === "entry" || draft.kind === "exit") && (
           <p className="border-y border-zinc-200 py-3 text-[12.5px] text-muted-foreground">
-            {t(
-              draft.kind === "spawn"
-                ? "editor.event.kind.spawn.hint"
-                : "editor.event.kind.anchor.hint",
-            )}
+            {t("editor.event.kind.anchor.hint")}
           </p>
         )}
         {draft.kind === "sea-guardian" && (

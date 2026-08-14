@@ -32,14 +32,14 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
 };
 
 /** The kind-tagged placements shown alongside the command PRESETS. Entry/exit are GONE from authoring
- *  (the adventure graph is no longer authored — a teleporter preset replaces an exit, and a hero
- *  spawns on a placed `spawn` event); `normal` is absent because presets are how a custom event
- *  is placed. What remains here are the non-monster placements that map to live runtime behaviour:
- *  `spawn` (D25's adventure-start anchor) and `guard` (a conditional allied combatant). Monsters
- *  have their own visible catalogue below so every supported species is directly selectable.
- *  Existing entry/exit events on an old adventure's map still render and list — they just cannot be
- *  authored anew. */
-const FUNCTIONAL_KINDS = ["npc", "spawn", "guard"] as const;
+ *  (the adventure graph is no longer authored — a teleporter preset replaces an exit, and the
+ *  adventure's start map is now authored directly as `adventures.startMapId`, not by placing an
+ *  event); `normal` is absent because presets are how a custom event is placed. What remains here
+ *  are the non-monster placements that map to live runtime behaviour: `npc` (a free routine actor)
+ *  and `guard` (a conditional allied combatant). Monsters have their own visible catalogue below so
+ *  every supported species is directly selectable. Existing entry/exit events on an old adventure's
+ *  map still render and list — they just cannot be authored anew. */
+const FUNCTIONAL_KINDS = ["npc", "guard"] as const;
 
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   normal: "editor.event.kind.normal",
@@ -50,7 +50,6 @@ const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   "sea-guardian": "editor.event.kind.seaGuardian",
   guard: "editor.event.kind.guard",
   harvestable: "editor.event.kind.harvestable",
-  spawn: "editor.event.kind.spawn",
 };
 
 /** The wireframe's `EV{ordinal}` chip text, zero-padded to three digits — display only, identity is

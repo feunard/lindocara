@@ -300,8 +300,11 @@ describe("EventPalette (D13/D14)", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       `${MAX_RUNTIME_EVENTS_PER_MAP}-active-entity safety limit`,
     );
+    // Every kind this palette still offers (presets, npc, guard, monsters, sea-guardian) is a
+    // runtime kind now that spawn is retired, so there is no longer a placement button that stays
+    // enabled past the runtime cap to assert against here — `editor-state.test.ts` still covers a
+    // non-runtime kind (`entry`) surviving the same cap at the pure state-mutation level.
     expect(screen.getByRole("button", { name: t("editor.event.kind.npc") })).toBeDisabled();
-    expect(screen.getByRole("button", { name: t("editor.event.kind.spawn") })).toBeEnabled();
   });
 
   it("shows an empty-state hint with no events", () => {

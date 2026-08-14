@@ -57,12 +57,8 @@ import {
  * - `monster` — a monster spawn: `species` + `patrolRadius` ride the event.
  * - `guard`   — an allied combatant. Its conditional pages decide whether the reinforcement exists
  *   in the current party state; `patrolRadius` is its authoritative leash.
- * - `spawn`  — the adventure's START anchor (D25): the map that carries a spawn event IS the first
- *   map, and heroes spawn on that event's cell. Unlike `entry`, a spawn is not bound by the graph —
- *   `resolveAdventureStart` (server/adventures.ts) derives the first map from it directly, so a
- *   spawn-driven adventure needs no `graph.start` at all. Inert at runtime, like `entry`.
  *
- * Entry/exit/spawn events stay single-page anchors. Monsters and guards deliberately keep
+ * Entry/exit events stay single-page anchors. Monsters and guards deliberately keep
  * conditional pages: a confrontation or an ally can appear when the shared party state calls for
  * it without a second combat system or an autonomous event runner. A monster page runs its command
  * program on defeat; a guard page selects presence and may run dialogue on interaction.
@@ -76,13 +72,27 @@ export const EVENT_KINDS = [
   "sea-guardian",
   "guard",
   "harvestable",
-  "spawn",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 export function isEventKind(value: unknown): value is EventKind {
   return typeof value === "string" && (EVENT_KINDS as readonly string[]).includes(value);
 }
+
+/**
+ * The retired adventure-start anchor kind, still readable from storage.
+ *
+ * `parseMapEvents` rejects the WHOLE LIST on one unknown kind — the entire map, not the one event —
+ * so simply dropping `"spawn"` from `EVENT_KINDS` would have made every map that ever carried one
+ * unparseable, and with it every adventure that owns that map. Dropping the event is the entire
+ * migration: a spawn event was inert at runtime (it only ever selected which map an adventure
+ * started on, and `adventures.startMapId` holds that now), so a dropped one loses nothing an author
+ * or a player could observe. Same discipline as `"glace-fine"` in `hd2d/map-data.ts`.
+ *
+ * Safe to delete once no stored map contains one — which nothing in this repo can prove, since
+ * authored maps live in the database.
+ */
+const RETIRED_SPAWN_KIND = "spawn";
 
 export const EVENT_TRIGGERS = [
   "action",
@@ -355,11 +365,6 @@ export function isActiveWorldEventKind(kind: EventKind): boolean {
 /** Event kinds whose action-triggered page can be run by an interacting hero. */
 export function isInteractiveWorldEventKind(kind: EventKind): boolean {
   return kind === "normal" || kind === "npc" || kind === "guard";
-}
-
-/** The adventure-start anchors on a map (D25). A map with at least one is a candidate first map. */
-export function spawnEvents(events: readonly MapEvent[]): MapEvent[] {
-  return events.filter((event) => event.kind === "spawn");
 }
 
 /**
@@ -649,6 +654,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     if (parsedName === null) return null;
     if (!Number.isSafeInteger(ordinal) || (ordinal as number) < 0) return null;
 
+    // A stored spawn event is dropped, not rejected — see `RETIRED_SPAWN_KIND`'s docblock. This
+    // must run before the `isEventKind` check below, which would otherwise reject the whole list.
+    if (record.kind === RETIRED_SPAWN_KIND) continue;
+
     // `kind` is a validated enum; an old client that predates typed events omits it and means
     // `normal`. Everything below keeps `parseMapEvents` total — a bad kind, a monster without a
     // species, or a functional anchor carrying pages it may not have is rejected outright.
@@ -836,9 +845,9 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       normalizedPages.length !== 1
     )
       return null;
-    // Nothing over the wire may smuggle scripted behaviour onto an entry/exit/spawn anchor.
+    // Nothing over the wire may smuggle scripted behaviour onto an entry/exit anchor.
     if (
-      (kind === "entry" || kind === "exit" || kind === "spawn") &&
+      (kind === "entry" || kind === "exit") &&
       normalizedPages.some((page) => page.commands.length > 0)
     ) {
       return null;

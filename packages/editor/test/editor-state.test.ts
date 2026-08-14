@@ -1238,7 +1238,7 @@ describe("applyTool: functional event kinds", () => {
     const full: EditorMap = { ...base, events };
 
     expect(place(full, { kind: "event", eventKind: "npc", patrolRadius: 96 }, 19, 14)).toBeNull();
-    expect(place(full, { kind: "event", eventKind: "spawn" }, 19, 14)).not.toBeNull();
+    expect(place(full, { kind: "event", eventKind: "entry" }, 19, 14)).not.toBeNull();
   });
 
   it("still refuses a second event on an occupied cell, whatever the kind", () => {

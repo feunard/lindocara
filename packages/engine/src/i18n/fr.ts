@@ -1963,13 +1963,10 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.harvest.preview.hide": "La ressource disparaît immédiatement.",
   "editor.harvest.validation.invalid":
     "La configuration de récolte est invalide. Vérifiez les assets requis, les quantités et les durées.",
-  "editor.event.kind.spawn": "Départ de l’aventure",
   "editor.event.kind.seaGuardian.hint":
     "Ce monstre spécial permanent patrouille son eau connectée, ne peut pas être blessé et engloutit instantanément les nageurs qu’il atteint.",
   "editor.event.kind.anchor.hint":
     "Ancrage hérité conservé pour compatibilité avec les anciennes aventures.",
-  "editor.event.kind.spawn.hint":
-    "Ce point est le départ global de l’aventure. Il est distinct du repli technique de chaque carte.",
   "editor.event.kind.guard.hint":
     "Combattant allié géré par le serveur. Ses pages conditionnelles déterminent sa présence, son rayon limite ses déplacements et les actions de page permettent d’ajouter du dialogue.",
   "editor.event.kind.npc.hint":

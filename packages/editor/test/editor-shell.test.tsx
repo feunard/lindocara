@@ -940,68 +940,13 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2);
   });
 
-  it("places a spawn EVENT: the EV spawn kind places one, and the inspector deletes it", async () => {
-    vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady(alepha);
-
-    // Enter EV mode, then pick the spawn anchor — the event tool it pushes carries eventKind: "spawn".
-    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.spawn") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "spawn" });
-
-    // A selected event lights the inspector: its EV id shows, and Delete reaches deleteSelected.
-    stageMock.current.mockReturnValue({
-      name: "Verdant Reach",
-      layers: [],
-      elements: [],
-      spawn: { col: 20, row: 15 },
-      markers: EMPTY_MARKERS,
-      events: [
-        {
-          id: "ev-door",
-          col: 1,
-          row: 1,
-          name: "Hero start",
-          ordinal: 1,
-          kind: "spawn",
-          species: null,
-          patrolRadius: null,
-          pages: [defaultEventPage()],
-        },
-      ],
-    });
-    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
-    act(() => {
-      callback?.(payloadFor(oneMap[0] as MapSummary), {
-        canUndo: false,
-        canRedo: false,
-        dirty: false,
-        selection: { kind: "event", id: "ev-door" },
-      });
-    });
-
-    // The inspector shows the entry event (its EV id and name), and Delete reaches deleteSelected.
-    // Scoped to the inspector: the D14 sidebar event list now also carries this event's EV001 chip.
-    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
-    expect(within(inspector).getByText(/EV001/)).toBeInTheDocument();
-    await userEvent.click(
-      within(inspector).getByRole("button", { name: t("editor.inspector.close") }),
-    );
-    expect(stageMock.clearSelection).toHaveBeenCalledTimes(1);
-    await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
-    expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
-  });
-
-  it("places the spawn/monster events and forwards monster species and radius to the stage", async () => {
+  it("forwards monster species and radius to the stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.event") }));
 
-    // Entry/exit authoring is gone; the spawn anchor and the monster placement remain.
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.spawn") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "spawn" });
-
+    // Entry/exit authoring is gone; the monster placement remains.
     await userEvent.click(screen.getByRole("button", { name: t("monster.spear_goblin") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "event",

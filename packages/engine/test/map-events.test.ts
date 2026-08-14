@@ -357,6 +357,26 @@ describe("parseMapEvents: totality — every malformed field lands on null, neve
   }
 });
 
+describe("parseMapEvents: retired spawn kind", () => {
+  it("drops a stored spawn event instead of rejecting the whole map", () => {
+    // `parseMapEvents` rejects the ENTIRE list on an unknown kind (one bad kind, no map), and
+    // stored spawn events exist in the database and in the checked-in legacy bundles. Dropping is
+    // the migration: a spawn event was inert at runtime, so losing it loses nothing observable.
+    // Same discipline as `"glace-fine"` in `hd2d/map-data.ts`.
+    const events = parseMapEvents(
+      [
+        event({ id: ID_A, col: 1, row: 1, ordinal: 1, kind: "spawn" as never }),
+        event({ id: ID_B, col: 2, row: 2, ordinal: 2, kind: "normal" }),
+      ],
+      COLS,
+      ROWS,
+    );
+    expect(events).not.toBeNull();
+    expect(events).toHaveLength(1);
+    expect(events?.[0]?.kind).toBe("normal");
+  });
+});
+
 describe("parseMapEvents: commands thread through pages", () => {
   const program = [
     { t: "say", text: "Bonjour", name: null },
