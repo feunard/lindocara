@@ -162,6 +162,8 @@ describe("events on the wire", () => {
       maxHp: 900,
       destructible: true,
       destroyed: false,
+      interactive: true,
+      collider: { x: -1, z: -1, w: 2, h: 2 },
     };
     expect(parseServerMessage(JSON.stringify(welcome([], [building])))).not.toBeNull();
     expect(

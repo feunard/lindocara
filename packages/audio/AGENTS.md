@@ -35,7 +35,8 @@ context, buffers and destination. The lab opens one and the game opens another.
   `loopEnd` for the Opus tail margin (below).
 - `movement.ts` — which ground makes which footstep, and at what level. Takes the material as a
   plain string so the package keeps depending on nothing.
-- `assets.ts` — the `import.meta.glob` over `assets/`, and the movement bank's manifest. **Vite-only
+- `assets.ts` — the `import.meta.glob` over `assets/`, the movement bank's manifest and shared door
+  takes. **Vite-only
   and kept out of `bank.ts` on purpose**: the glob does not exist under the Node test runner, so the
   bank takes urls and knows nothing about where they came from.
 
@@ -56,7 +57,7 @@ this bank exists to prevent.
 ## Assets
 
 `assets/` holds only what BOTH apps play: footsteps (grass, sand, snow, ice), swimming, jump,
-landing, water entry/exit, the glider canopy, and the skid loop. Lab-only content — its doors, its dialogue tick, its ambience beds, its NPC voices, its blade
+landing, water entry/exit, the glider canopy, the skid loop and building doors. Lab-only content — its dialogue tick, its ambience beds, its NPC voices, its blade
 whoosh — stays in `apps/lab/public/sfx`.
 
 `apps/lab/scripts/sync-assets.sh` is still the single generator for the pack-derived files and

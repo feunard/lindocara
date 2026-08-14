@@ -1185,7 +1185,7 @@ export class WorldRoom {
         // drain sees the claim and refuses (`world.ts:4965-4969`). `dispatchTeleport` in
         // `worldTick.ts` calls this dep directly with no wrapping of its own, so the claim has to be
         // the first synchronous statement here.
-        teleportCrossMap: (connectionId, player, mapId, col, row, now, eventId) => {
+        teleportCrossMap: (connectionId, player, mapId, col, row, now, eventId, category) => {
           player.transitioning = true;
           void this.teleportCrossMap(
             room,
@@ -1197,11 +1197,34 @@ export class WorldRoom {
             row,
             now,
             eventId,
+            category,
           ).catch((error) => {
             this.logError("event_teleport_transition_failed", error, {
               heroId: player.id,
               roomKey: player.roomKey,
               eventId,
+            });
+          });
+        },
+        enterBuilding: (connectionId, player, mapId, now, buildingId) => {
+          player.transitioning = true;
+          void this.teleportCrossMap(
+            room,
+            state,
+            connectionId,
+            player,
+            mapId,
+            0,
+            0,
+            now,
+            `building:${buildingId}`,
+            "interior",
+            true,
+          ).catch((error) => {
+            this.logError("building_interior_transition_failed", error, {
+              heroId: player.id,
+              roomKey: player.roomKey,
+              buildingId,
             });
           });
         },
@@ -1560,6 +1583,8 @@ export class WorldRoom {
     row: number,
     now: number,
     eventId: string,
+    category: import("@lindocara/engine/event-commands.js").TransitionCategory = "geographic",
+    buildingEntry = false,
   ): Promise<void> {
     const partyId = player.partyId;
     let claimedAuthorization = false;
@@ -1626,7 +1651,10 @@ export class WorldRoom {
         {
           t: "event",
           code: "zone.transition",
-          params: { teleport: 1 },
+          params: {
+            ...(buildingEntry ? { building: 1 } : { teleport: 1 }),
+            ...(category === "interior" ? { interior: 1 } : {}),
+          },
           tone: "good",
           // The departure point, for the client's teleport flourish. A body's own centre IS its
           // position in tile units; the pixel world had to add half a body because its coordinate
@@ -1634,7 +1662,7 @@ export class WorldRoom {
           x: player.x,
           z: player.z,
         },
-        "event teleport",
+        buildingEntry ? "building interior" : "event teleport",
       );
     } finally {
       player.transitioning = false;

@@ -35,6 +35,8 @@ export function buildingSnapshot(building: BuildingRuntime): WorldBuildingSnapsh
     maxHp: building.maxHp,
     destructible: building.destructible,
     destroyed: building.destroyed,
+    interactive: Boolean(building.interiorMapId) && !building.destroyed,
+    collider: { ...building.collider },
   };
 }
 

@@ -1,3 +1,4 @@
+import type { GroundVector } from "./ground.js";
 import { isUuid } from "./identifiers.js";
 import {
   type EditorAssetDefinition,
@@ -22,7 +23,24 @@ export interface ZoneBuildingDefinition extends BuildingSettings {
   standingAssetId: EditorAssetId;
   destroyedAssetId: EditorAssetId;
   /** The original solid footprint remains authoritative after destruction: a ruin is still solid. */
-  collider: { x: number; z: number; w: number; h: number };
+  collider: BuildingCollider;
+}
+
+export interface BuildingCollider {
+  x: number;
+  z: number;
+  w: number;
+  h: number;
+}
+
+/** Shortest ground distance to a solid building base; zero while the point is inside the base. */
+export function distanceToBuildingCollider(
+  point: GroundVector,
+  collider: BuildingCollider,
+): number {
+  const dx = Math.max(collider.x - point.x, 0, point.x - (collider.x + collider.w));
+  const dz = Math.max(collider.z - point.z, 0, point.z - (collider.z + collider.h));
+  return Math.hypot(dx, dz);
 }
 
 export const MIN_BUILDING_HP = 1;

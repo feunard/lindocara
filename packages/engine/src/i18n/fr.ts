@@ -433,6 +433,7 @@ export const fr: Record<keyof typeof en, string> = {
   "prompt.hunt": "Suivez la piste de quête à travers les Terres Sauvages",
   "prompt.approach": "Approchez du repère de quête doré [E]",
   "prompt.quest_site": "[E] Interagir : {name}",
+  "prompt.enter_building": "[E] Entrer dans le bâtiment",
 
   // Discussion, aide, statut
   "chat.title": "Local",

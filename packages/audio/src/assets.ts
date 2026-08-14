@@ -85,6 +85,11 @@ export function skidLoopUrl(): string {
   return audioAssetUrl("glisse.ogg");
 }
 
+/** The two wooden-door takes first selected for the lab, now shared with building transitions. */
+export function doorOpenSampleUrls(): readonly string[] {
+  return takes("door-open", 2);
+}
+
 /**
  * Where `glisse.ogg` actually turns around.
  *

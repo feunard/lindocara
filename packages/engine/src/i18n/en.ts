@@ -428,6 +428,7 @@ export const en = {
   "prompt.hunt": "Follow the quest trail across the Everwild",
   "prompt.approach": "Approach the golden quest marker [E]",
   "prompt.quest_site": "[E] Interact: {name}",
+  "prompt.enter_building": "[E] Enter the building",
 
   // Chat, help, status
   "chat.title": "Local",

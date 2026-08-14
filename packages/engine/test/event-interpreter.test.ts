@@ -139,7 +139,7 @@ describe("stepEventRun — the per-opcode table", () => {
     ];
     const drained = drain(run(program), state());
     expect(drained.effects.filter((e) => e.kind !== "closeDialogue")).toEqual([
-      { kind: "teleport", mapId: MAP_ID, col: 4, row: 5 },
+      { kind: "teleport", mapId: MAP_ID, col: 4, row: 5, category: "geographic" },
       { kind: "changeGold", amount: -10 },
       { kind: "changeItems", itemId: "health_potion", count: 2 },
     ]);

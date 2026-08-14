@@ -175,6 +175,7 @@ function glue(
     cheatsEnabled: false,
     transitionAdventureExit: () => {},
     teleportCrossMap: () => {},
+    enterBuilding: () => {},
     claimQuestReward: async () => false,
     reserveHarvestNode: async () => ({ ok: false, reason: "invalid" }),
     hitHarvestNode: async () => ({ ok: false, reason: "reservation" }),

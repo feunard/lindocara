@@ -1,4 +1,9 @@
-import { movementSampleKeys, SKID_LOOP_END_SECONDS, skidLoopUrl } from "@lindocara/audio/assets.js";
+import {
+  doorOpenSampleUrls,
+  movementSampleKeys,
+  SKID_LOOP_END_SECONDS,
+  skidLoopUrl,
+} from "@lindocara/audio/assets.js";
 import { createSampleBank, type SampleBank } from "@lindocara/audio/bank.js";
 import type { HeldLoop } from "@lindocara/audio/held-loop.js";
 import { SKID_MAX_GAIN } from "@lindocara/audio/movement.js";
@@ -41,6 +46,7 @@ const SHEEP_BLEATS = [1, 2, 3, 4].map((index) => `/assets/lindocara/sfx/bleat-${
 const SHEEP_POPS = [1, 2, 3].map((index) => `/assets/lindocara/sfx/pop-${index}.ogg`);
 const CHEST_OPEN = [1, 2].map((index) => `/assets/lindocara/sfx/chest-${index}.ogg`);
 const CHEST_CLOSE = [1, 2].map((index) => `/assets/lindocara/sfx/chest-close-${index}.ogg`);
+const DOOR_OPEN = doorOpenSampleUrls();
 
 type SceneAudioInput = Pick<AdventureAudioConfig, "music" | "ambience" | "combatMusic"> &
   Partial<AdventureAudioConfig>;
@@ -467,6 +473,7 @@ export class GameSound {
           ...SHEEP_POPS,
           ...CHEST_OPEN,
           ...CHEST_CLOSE,
+          ...DOOR_OPEN,
           SEA_GUARDIAN_DEVOUR,
         ]),
       ].map(async (src) => {
@@ -523,6 +530,11 @@ export class GameSound {
 
   interact(): void {
     void this.#playUi("interact");
+  }
+
+  doorOpen(): void {
+    const src = DOOR_OPEN[Math.floor(Math.random() * DOOR_OPEN.length)];
+    if (src) void this.#playSpec({ src, volume: 0.85 });
   }
 
   death(): void {

@@ -230,6 +230,7 @@ function runtime(duration = 750, options: RuntimeOptions = {}) {
     cheatsEnabled: false,
     transitionAdventureExit: () => {},
     teleportCrossMap: () => {},
+    enterBuilding: () => {},
     claimQuestReward: async () => false,
     reserveHarvestNode: async (request) => {
       calls.reserve += 1;

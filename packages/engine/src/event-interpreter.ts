@@ -49,7 +49,12 @@ import {
   switchIsOn,
   variableAtLeast,
 } from "./adventure-state.js";
-import type { ChoiceOption, EventCommand, EventCondition } from "./event-commands.js";
+import type {
+  ChoiceOption,
+  EventCommand,
+  EventCondition,
+  TransitionCategory,
+} from "./event-commands.js";
 
 /**
  * One block of the running program. `commands` is the block's ordered command list (the root
@@ -215,6 +220,7 @@ export type EventEffect =
       readonly mapId: string;
       readonly col: number;
       readonly row: number;
+      readonly category: TransitionCategory;
     }
   | { readonly kind: "endAdventure" }
   /** Open the consumables shop for the triggering hero, anchored at this event's cell. */
@@ -433,7 +439,15 @@ function executeCommand(
     case "teleport":
       return {
         context: running(context, advanceTop(frames)),
-        effects: [{ kind: "teleport", mapId: command.mapId, col: command.col, row: command.row }],
+        effects: [
+          {
+            kind: "teleport",
+            mapId: command.mapId,
+            col: command.col,
+            row: command.row,
+            category: command.category ?? "geographic",
+          },
+        ],
       };
     case "endAdventure":
       // Emit the end-of-adventure effect and carry on; `World` marks the party's save complete and

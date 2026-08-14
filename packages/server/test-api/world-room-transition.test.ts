@@ -432,6 +432,85 @@ interface TeleportFixture {
   eventsA: readonly MapEvent[];
 }
 
+interface BuildingInteriorFixture {
+  userId: string;
+  exteriorMapId: string;
+  interiorMapId: string;
+  partyId: string;
+  heroId: string;
+  exteriorRoomId: string;
+  interiorRoomId: string;
+}
+
+async function buildingInteriorAdventure(prefix: string): Promise<BuildingInteriorFixture> {
+  const { token, userId } = await registerAndLogin(prefix);
+  const api = authed(token);
+  const adventureResponse = await api("/api/adventures", {
+    method: "POST",
+    body: JSON.stringify({ title: "Maison", maxPlayers: 4 }),
+  });
+  expect(adventureResponse.status).toBe(201);
+  const adventure = (await adventureResponse.json()) as { id: string; defaultMap: { id: string } };
+  const exteriorMapId = adventure.defaultMap.id;
+  const entry = ev(crypto.randomUUID(), "entry", 5, 5);
+  const building = {
+    col: 8,
+    row: 8,
+    offsetX: 0,
+    offsetY: 0,
+    assetId: "building.factions-knights-buildings-house.house-blue",
+    building: { destructible: true, maxHp: 900 },
+  };
+  const putExterior = await api(`/api/maps/${exteriorMapId}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      name: "Village",
+      ...grassTerrain(),
+      elements: [building],
+      events: [entry],
+      spawn: { col: 5, row: 5 },
+    }),
+  });
+  expect(putExterior.status).toBe(200);
+  const interiorResponse = await api(`/api/maps/${exteriorMapId}/interiors`, {
+    method: "POST",
+    body: JSON.stringify({ col: 8, row: 8, offsetX: 0, offsetY: 0 }),
+  });
+  expect(interiorResponse.status).toBe(200);
+  const interiorMapId = ((await interiorResponse.json()) as { interiorMap: { id: string } })
+    .interiorMap.id;
+  const graphResponse = await api(`/api/adventures/${adventure.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      title: "Maison",
+      maxPlayers: 4,
+      graph: { start: { mapId: exteriorMapId, entryId: entry.id }, links: [] },
+    }),
+  });
+  expect(graphResponse.status).toBe(200);
+  const partyResponse = await api("/api/parties", {
+    method: "POST",
+    body: JSON.stringify({ adventureId: adventure.id }),
+  });
+  expect(partyResponse.status).toBe(201);
+  const partyId = ((await partyResponse.json()) as { id: string }).id;
+  const heroResponse = await api(`/api/parties/${partyId}/heroes`, {
+    method: "POST",
+    body: JSON.stringify({ name: "Mira", class: "warrior" }),
+  });
+  expect(heroResponse.status).toBe(201);
+  const heroId = ((await heroResponse.json()) as { id: string }).id;
+  return {
+    userId,
+    exteriorMapId,
+    interiorMapId,
+    partyId,
+    heroId,
+    exteriorRoomId: `${partyId}:${exteriorMapId}`,
+    interiorRoomId: `${partyId}:${interiorMapId}`,
+  };
+}
+
 /** A member map B with nothing but walkable grass, and map A carrying a scripted `action` event
  *  whose program teleports straight to a cell on B — no exit anchor or graph link involved, proving
  *  the authored-teleport path rides the same handoff independently of the exit-graph path. */
@@ -1065,6 +1144,59 @@ describe("world room transitions (FakeClock)", () => {
     expect(row?.y).toBe(0);
     expect(row?.z).toBe(MAP_B_SPAWN.z);
     engine.dispose();
+  });
+
+  test("an adjacent building enters its linked map and its exit returns through a door transition", async () => {
+    const fixture = await buildingInteriorAdventure("buildingdoor");
+    const clock = new FakeClock();
+    const exteriorEngine = createEngine(fixture.exteriorRoomId, clock);
+    const exteriorSocket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await exteriorEngine.join(exteriorSocket);
+    const exteriorState = roomState(exteriorEngine);
+    clock.advanceTicks(20);
+    const player = playerOf(exteriorState, fixture.heroId);
+    const building = exteriorState.buildings[0];
+    if (!building) throw new Error("authored building missing from exterior room");
+    const previous = { x: player.x, z: player.z };
+    player.x = building.collider.x - 0.5;
+    player.z = building.collider.z + building.collider.h / 2;
+    exteriorState.playerGrid.update(player, previous);
+
+    await exteriorEngine.message(exteriorSocket.id, { t: "interact" });
+    await vi.waitFor(() => expect(exteriorSocket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION));
+    expect((await probe.heroes.findById(fixture.heroId))?.mapId).toBe(fixture.interiorMapId);
+    expect(messagesOf(exteriorSocket)).toContainEqual(
+      expect.objectContaining({
+        t: "event",
+        code: "zone.transition",
+        params: expect.objectContaining({ building: 1, interior: 1 }),
+      }),
+    );
+
+    const interiorEngine = createEngine(fixture.interiorRoomId, clock);
+    const interiorSocket = fakeSocket(fixture.userId, fixture.heroId, "c-2");
+    await interiorEngine.join(interiorSocket);
+    const interiorState = roomState(interiorEngine);
+    clock.advanceTicks(20);
+    const returningPlayer = playerOf(interiorState, fixture.heroId);
+    const exit = interiorState.location?.definition.events?.find(
+      (event) => event.name === "Sortie",
+    );
+    if (!exit) throw new Error("interior return event missing");
+    standOn(interiorState, returningPlayer, exit);
+    await interiorEngine.message(interiorSocket.id, { t: "interact" });
+    clock.advanceTicks(1);
+    await vi.waitFor(() => expect(interiorSocket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION));
+    expect((await probe.heroes.findById(fixture.heroId))?.mapId).toBe(fixture.exteriorMapId);
+    expect(messagesOf(interiorSocket)).toContainEqual(
+      expect.objectContaining({
+        t: "event",
+        code: "zone.transition",
+        params: expect.objectContaining({ teleport: 1, interior: 1 }),
+      }),
+    );
+    exteriorEngine.dispose();
+    interiorEngine.dispose();
   });
 
   test("the source room drops the player and reports roomEmptied once the socket actually leaves", async () => {

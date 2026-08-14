@@ -769,6 +769,10 @@ export interface WorldBuildingSnapshot {
   maxHp: number;
   destructible: boolean;
   destroyed: boolean;
+  /** True only while this intact building has an authored interior map. */
+  interactive: boolean;
+  /** Authoritative solid base used only to preview proximity; the server rechecks interaction. */
+  collider: import("./buildings.js").BuildingCollider;
 }
 
 export type QuestDialoguePhase = "offer" | "active" | "ready" | "completed" | "unavailable";
@@ -1943,6 +1947,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
 }
 
 function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot {
+  const collider = isRecord(value) && isRecord(value.collider) ? value.collider : null;
   return (
     isRecord(value) &&
     isWireId(value.id) &&
@@ -1957,7 +1962,17 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
     (value.hp as number) <= (value.maxHp as number) &&
     typeof value.destructible === "boolean" &&
     typeof value.destroyed === "boolean" &&
+    typeof value.interactive === "boolean" &&
+    collider !== null &&
+    isMoveCoordinate(collider.x) &&
+    isMoveCoordinate(collider.z) &&
+    isFiniteNumber(collider.w) &&
+    collider.w > 0 &&
+    isFiniteNumber(collider.h) &&
+    collider.h > 0 &&
+    hasOnlyKeys(collider, ["x", "z", "w", "h"]) &&
     (value.destroyed ? value.hp === 0 : (value.hp as number) > 0) &&
+    (!value.interactive || !value.destroyed) &&
     hasOnlyKeys(value, [
       "id",
       "x",
@@ -1968,6 +1983,8 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
       "maxHp",
       "destructible",
       "destroyed",
+      "interactive",
+      "collider",
     ])
   );
 }

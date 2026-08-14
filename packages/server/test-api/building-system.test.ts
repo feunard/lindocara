@@ -42,8 +42,14 @@ function required<T>(value: T | undefined): T {
 
 describe("building system", () => {
   it("owns HP and replaces a destroyed building with its ruin snapshot", () => {
-    const building = required(createBuildings([definition()])[0]);
-    expect(buildingSnapshot(building).graphicAssetId).toBe(standing);
+    const building = required(
+      createBuildings([definition({ interiorMapId: "f2c15465-6f9d-4ef5-80dd-e508c3642112" })])[0],
+    );
+    expect(buildingSnapshot(building)).toMatchObject({
+      graphicAssetId: standing,
+      interactive: true,
+      collider: building.collider,
+    });
 
     expect(damageBuilding(building, 40)).toEqual({ actualDamage: 40, destroyed: false });
     expect(damageBuilding(building, 80)).toEqual({ actualDamage: 60, destroyed: true });
@@ -52,6 +58,7 @@ describe("building system", () => {
       destroyed: true,
       graphicAssetId: ruined,
       destroyedAssetId: ruined,
+      interactive: false,
     });
     expect(damageBuilding(building, 1)).toBeNull();
   });
@@ -81,7 +88,11 @@ describe("building system", () => {
       offsetX: 0,
       offsetY: 0,
       assetId: standing,
-      building: { destructible: true, maxHp: 900 },
+      building: {
+        destructible: true,
+        maxHp: 900,
+        interiorMapId: "f2c15465-6f9d-4ef5-80dd-e508c3642113",
+      },
     } as const;
     const authored = { ...input, elements: [element] };
     const payload: MapPayload = {
@@ -113,6 +124,7 @@ describe("building system", () => {
         standingAssetId: standing,
         destroyedAssetId: ruined,
         maxHp: 900,
+        interiorMapId: element.building.interiorMapId,
       }),
     ]);
     expect(liveMap?.elements).toEqual([]);

@@ -204,6 +204,9 @@ function authoredBuildings(payload: MapPayload, size: number): ZoneBuildingDefin
         destroyedAssetId,
         destructible: element.building.destructible,
         maxHp: element.building.maxHp,
+        ...(element.building.interiorMapId
+          ? { interiorMapId: element.building.interiorMapId }
+          : {}),
         collider: {
           x: rect.x / TILE_SIZE - size / 2,
           z: rect.y / TILE_SIZE - size / 2,

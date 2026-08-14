@@ -395,6 +395,7 @@ function testGlue(
     cheatsEnabled: false,
     transitionAdventureExit: () => {},
     teleportCrossMap: () => {},
+    enterBuilding: () => {},
     claimQuestReward: async () => false,
     reserveHarvestNode: async () => ({ ok: false, reason: "party" }),
     hitHarvestNode: async () => ({ ok: false, reason: "party" }),

@@ -37,6 +37,7 @@ import type {
   QuestState,
   RogueShadowDanceSequence,
   SelfState,
+  WorldBuildingSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { SEA_GUARDIAN_AMBIENCE_RADIUS } from "@lindocara/engine/sea-guardian.js";
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
@@ -81,7 +82,7 @@ import {
   skillCooldownBlocksCast,
 } from "./cooldown-sync.js";
 import { shouldLogEvent } from "./event-log-policy.js";
-import { hasNearbyInteraction } from "./interaction-context.js";
+import { hasNearbyInteraction, nearestInteractiveBuilding } from "./interaction-context.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { SessionCombatAudio } from "./session-combat-audio.js";
@@ -306,6 +307,7 @@ function updatePrompt(
   interiorDoor: InteriorDoor | undefined,
   zoneId: ZoneId,
   merchant: MerchantDefinition | null,
+  building: WorldBuildingSnapshot | undefined,
 ): void {
   let result: LocalizedText | null = null;
   // Prompt.tsx hides the floating prompt whenever the interior panel is open, so a
@@ -316,6 +318,8 @@ function updatePrompt(
     result = null;
   } else if (merchant && catalogueDistance(self, merchant) <= INTERACTION_RANGE) {
     result = { key: "prompt.merchant" };
+  } else if (building) {
+    result = { key: "prompt.enter_building" };
   } else if (!isKnownZone(zoneId)) {
     result = null;
   } else {
@@ -740,7 +744,8 @@ async function startGameIdentity(
       // It intentionally has no switch branch either: only SelfState may update cooldown deadlines.
       switch (code) {
         case "zone.transition":
-          if (params?.teleport === 1) {
+          if (params?.interior === 1) sound.doorOpen();
+          if (params?.teleport === 1 && params.interior !== 1) {
             renderer.playTeleportEffect(x, z);
             if (
               params.sameMap === 1 &&
@@ -1312,6 +1317,7 @@ async function startGameIdentity(
       }, remainingMs);
     }
     const door = nearestInterior(self, activeZoneId);
+    const buildingDoor = nearestInteractiveBuilding(self, sample.buildings ?? []);
     const context: RenderContext = {
       quest: questState,
       now,
@@ -1331,7 +1337,7 @@ async function startGameIdentity(
     renderer.render(sample, context);
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse, movementStatus);
-    updatePrompt(self, questState, door, activeZoneId, currentMerchant);
+    updatePrompt(self, questState, door, activeZoneId, currentMerchant, buildingDoor);
     const interactionStore = useUiStore.getState();
     interactionNearby = hasNearbyInteraction({
       self,
@@ -1339,6 +1345,7 @@ async function startGameIdentity(
       events: sample.events,
       corpses: sample.corpses,
       camps: [...peasantCamps.values()],
+      buildings: sample.buildings ?? [],
       promptKey: interactionStore.prompt?.key,
       interiorNearby: door !== undefined,
       interactionOpen:

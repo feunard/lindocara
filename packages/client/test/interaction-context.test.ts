@@ -2,8 +2,10 @@ import { hasNearbyInteraction } from "@lindocara/client/game/interaction-context
 import type {
   PeasantCampVisual,
   PlayerSnapshot,
+  WorldBuildingSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 const self: PlayerSnapshot = {
@@ -45,6 +47,7 @@ function context(overrides: Partial<Parameters<typeof hasNearbyInteraction>[0]> 
     events: [],
     corpses: [],
     camps: [],
+    buildings: [],
     interiorNearby: false,
     interactionOpen: false,
     now: 1_000,
@@ -94,5 +97,33 @@ describe("contextual controller interaction", () => {
     };
     expect(hasNearbyInteraction(context({ camps: [camp] }))).toBe(true);
     expect(hasNearbyInteraction(context({ camps: [{ ...camp, expiresAt: 999 }] }))).toBe(false);
+  });
+
+  it("recognizes only intact interactive building bases in range", () => {
+    const building: WorldBuildingSnapshot = {
+      id: "building",
+      x: 2,
+      z: 2,
+      graphicAssetId: "building.buildings-blue-buildings.house1" as EditorAssetId,
+      destroyedAssetId:
+        "building.factions-knights-buildings-house.house-destroyed" as EditorAssetId,
+      hp: 100,
+      maxHp: 100,
+      destructible: true,
+      destroyed: false,
+      interactive: true,
+      collider: { x: 0.5, z: 0.5, w: 2, h: 2 },
+    };
+    expect(hasNearbyInteraction(context({ buildings: [building] }))).toBe(true);
+    expect(
+      hasNearbyInteraction(
+        context({ buildings: [{ ...building, collider: { x: 8, z: 8, w: 2, h: 2 } }] }),
+      ),
+    ).toBe(false);
+    expect(
+      hasNearbyInteraction(
+        context({ buildings: [{ ...building, hp: 0, destroyed: true, interactive: false }] }),
+      ),
+    ).toBe(false);
   });
 });

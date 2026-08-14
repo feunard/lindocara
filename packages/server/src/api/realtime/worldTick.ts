@@ -33,6 +33,7 @@ import {
   authoredQuestTrackers,
   EMPTY_ADVENTURE_STATE,
 } from "@lindocara/engine/adventure-state.js";
+import { distanceToBuildingCollider } from "@lindocara/engine/buildings.js";
 import { parseCheatCommand } from "@lindocara/engine/cheats.js";
 import {
   actionForClassSlot,
@@ -74,7 +75,11 @@ import {
   strikeCapsule,
   sweptProjectileEntityImpact,
 } from "@lindocara/engine/directional-combat.js";
-import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
+import {
+  DIALOGUE_CLOSE_RADIUS,
+  type EventCommand,
+  type TransitionCategory,
+} from "@lindocara/engine/event-commands.js";
 import type { StateMutation } from "@lindocara/engine/event-interpreter.js";
 import {
   applyDamage,
@@ -499,6 +504,15 @@ export interface WorldTickDeps {
     row: number,
     now: number,
     eventId: string,
+    category: TransitionCategory,
+  ): void;
+  /** An intact authored building door enters its linked ordinary member map. */
+  enterBuilding(
+    connectionId: string,
+    player: PlayerRuntime,
+    mapId: string,
+    now: number,
+    buildingId: string,
   ): void;
   /** The idempotent, epoch-fenced D1 quest-reward claim for built-in quest chapters
    *  (`HeroSaveService.claimQuestReward`, port of legacy `claimHeroQuestReward`). */
@@ -5295,6 +5309,18 @@ export async function handleInteract(
   // Standard authored quest bindings win before the same event's advanced command program. If no
   // quest has anything relevant to show, the event program remains the full-control fallback.
   if (triggerQuestTargetNearby(w, connectionId, player)) return { cooldownStarted: false };
+  const building = w.state.buildings
+    .filter((candidate) => candidate.interiorMapId && !candidate.destroyed)
+    .map((candidate) => ({
+      building: candidate,
+      distance: distanceToBuildingCollider(player, candidate.collider),
+    }))
+    .filter((candidate) => candidate.distance <= INTERACTION_RANGE)
+    .sort((left, right) => left.distance - right.distance)[0]?.building;
+  if (building?.interiorMapId) {
+    w.deps.enterBuilding(connectionId, player, building.interiorMapId, now, building.id);
+    return { cooldownStarted: false };
+  }
   // Authored `action` events sit between the life-critical resurrection above and the legacy
   // quest keepers below (see `triggerActionEventNearby`).
   if (triggerActionEventNearby(w, player)) return { cooldownStarted: false };
@@ -5997,6 +6023,7 @@ function dispatchTeleport(
         // would read as the elevation the client must not draw the flourish at.
         params: {
           teleport: 1,
+          ...(effect.category === "interior" ? { interior: 1 } : {}),
           sameMap: 1,
           fromX,
           fromZ,
@@ -6018,6 +6045,7 @@ function dispatchTeleport(
     effect.row,
     now,
     dispatch.eventId,
+    effect.category,
   );
 }
 

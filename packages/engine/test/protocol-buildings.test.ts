@@ -11,6 +11,8 @@ const building = {
   maxHp: 900,
   destructible: true,
   destroyed: false,
+  interactive: true,
+  collider: { x: 1.5, z: -2, w: 2, h: 2 },
 };
 
 describe("building state on the wire", () => {

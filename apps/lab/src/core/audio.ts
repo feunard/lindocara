@@ -7,7 +7,12 @@
 // une variante au hasard ET une hauteur légèrement différente — sans ça, cinq
 // échantillons en boucle s'entendent au bout de dix secondes.
 
-import { audioAssetUrl, SKID_LOOP_END_SECONDS, skidLoopUrl } from "@lindocara/audio/assets.js";
+import {
+  audioAssetUrl,
+  doorOpenSampleUrls,
+  SKID_LOOP_END_SECONDS,
+  skidLoopUrl,
+} from "@lindocara/audio/assets.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 
 type BankKey =
@@ -34,8 +39,7 @@ type BankKey =
 // Samples the GAME shares with this lab now live in `@lindocara/audio` and are resolved through
 // its bundler glob rather than served from `public/sfx`. Neither app can reach the other's
 // `public/`, so a shared footstep has to arrive as a package import — see that package's
-// `assets.ts`. Everything still written `/sfx/...` below is lab-only content (its doors, its
-// dialogue tick, its ambience beds) and stays where it is.
+// `assets.ts`. Everything still written `/sfx/...` below is lab-only content and stays where it is.
 const shared = (name: string): string => audioAssetUrl(`${name}.ogg`);
 
 const BANQUE: Record<BankKey, readonly string[]> = {
@@ -51,7 +55,7 @@ const BANQUE: Record<BankKey, readonly string[]> = {
   pop: [1, 2, 3].map((i) => `/sfx/pop-${i}.ogg`),
   coffre: [1, 2].map((i) => `/sfx/chest-${i}.ogg`),
   coffreFerme: [1, 2].map((i) => `/sfx/chest-close-${i}.ogg`),
-  porte: [1, 2].map((i) => `/sfx/door-open-${i}.ogg`),
+  porte: doorOpenSampleUrls(),
   porteFerme: [1, 2].map((i) => `/sfx/door-close-${i}.ogg`),
   attaque: [1, 2, 3].map((i) => `/sfx/attack-${i}.ogg`),
   // Le pack n'a pas de mouton : quatre prises maison, taillées par
