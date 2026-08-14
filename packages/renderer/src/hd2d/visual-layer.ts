@@ -325,6 +325,10 @@ export class Hd2dVisualLayer {
    *  lookup, and `setEditorOverlay` runs on every hover — rebuilding it there stalls the pointer. */
   #gridLines: THREE.LineSegments | null = null;
   #gridKey = "";
+  /** Built once and repositioned, never rebuilt: `setEditorOverlay` runs on every hover. Unlike
+   *  `#gridLines` this needs no cache key — its geometry does not depend on the map at all, only
+   *  its position does. */
+  #spawnMarker: THREE.Group | null = null;
   readonly #editorPreviews: {
     sprite: Billboard | Sprite;
     art: StaticSpriteArt;
@@ -1368,11 +1372,51 @@ export class Hd2dVisualLayer {
     return new THREE.LineSegments(geometry, material);
   }
 
+  /** The hero start marker: a tinted cell so the exact square is unambiguous, and a pole with a
+   *  camera-facing head so it still reads when the authoring camera is orbited or pulled back.
+   *  A `Sprite` rather than a quad because the editor camera turns (`[`/`]` and right-drag) and a
+   *  flat flag would vanish edge-on at two of the four quarter turns. Deliberately NOT the Warrior
+   *  sprite the palette previews with: that reads as a placed element, and the stage refuses to
+   *  select or delete this one. */
+  #buildSpawnMarker(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = "editor-spawn";
+
+    const cell = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.96, 0.96),
+      transparentMaterial(0x6fe08a, 0.3),
+    );
+    cell.rotation.x = -Math.PI / 2;
+    group.add(cell);
+
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 1, 6),
+      transparentMaterial(0xf2fbf3, 0.95),
+    );
+    pole.position.y = 0.5;
+    group.add(pole);
+
+    const head = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        color: 0x6fe08a,
+        transparent: true,
+        opacity: 0.95,
+        toneMapped: false,
+      }),
+    );
+    head.scale.set(0.42, 0.42, 1);
+    head.position.y = 1.05;
+    group.add(head);
+
+    return group;
+  }
+
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
     this.#editorOverlay = overlay;
     // Detached BEFORE the clear loop so `disposeObject` does not tear down the cached grid along
     // with everything else the overlay redraws every time.
     if (this.#gridLines) this.#gridLines.removeFromParent();
+    if (this.#spawnMarker) this.#spawnMarker.removeFromParent();
     for (const child of [...this.#editorRoot.children]) disposeObject(child);
     this.#editorRoot.clear();
     if (!overlay) {
@@ -1440,6 +1484,13 @@ export class Hd2dVisualLayer {
         toneMapped: false,
       });
       this.#editorRoot.add(new THREE.LineSegments(geometry, material));
+    }
+
+    if (overlay.spawn) {
+      this.#spawnMarker ??= this.#buildSpawnMarker();
+      const { x, z } = overlay.spawn;
+      this.#spawnMarker.position.set(x, this.#groundY(x, z, lift + 0.02), z);
+      this.#editorRoot.add(this.#spawnMarker);
     }
 
     // One cell unless the caller says otherwise — element mode marks a quarter cell, which is the
@@ -1664,6 +1715,10 @@ export class Hd2dVisualLayer {
     if (this.#gridLines) {
       disposeObject(this.#gridLines);
       this.#gridLines = null;
+    }
+    if (this.#spawnMarker) {
+      disposeObject(this.#spawnMarker);
+      this.#spawnMarker = null;
     }
     this.#effects.length = 0;
     this.#loot.clear();

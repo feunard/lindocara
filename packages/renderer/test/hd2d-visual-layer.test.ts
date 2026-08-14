@@ -367,3 +367,42 @@ describe("Hd2dVisualLayer restored authored effects", () => {
     expect(quarterBox.max.x - quarterBox.min.x).toBeCloseTo(0.25, 5);
   });
 });
+
+describe("Hd2dVisualLayer spawn marker", () => {
+  const base = {
+    cols: 20,
+    rows: 15,
+    showGrid: false,
+    showCollisions: false,
+    dim: false,
+    colliders: [],
+  };
+
+  it("draws the spawn where the overlay puts it, and nothing when there is none", () => {
+    const { layer, root } = harness();
+    layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });
+    const marker = root.getObjectByName("editor-spawn");
+    expect(marker).toBeDefined();
+    expect(marker?.position.x).toBeCloseTo(0.5);
+    expect(marker?.position.z).toBeCloseTo(-2.5);
+
+    layer.setEditorOverlay({ ...base, spawn: null });
+    expect(root.getObjectByName("editor-spawn")).toBeUndefined();
+  });
+
+  it("reuses the same marker across hovers instead of rebuilding it", () => {
+    // `setEditorOverlay` runs on every pointer move. Rebuilding a pin's geometry there is the
+    // stall `c690d0c2` paid for once already — the grid is cached for the same reason.
+    const { layer, root } = harness();
+    layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 }, hover: { x: 1.5, z: 1.5 } });
+    const first = root.getObjectByName("editor-spawn");
+    layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 }, hover: { x: 2.5, z: 2.5 } });
+    expect(root.getObjectByName("editor-spawn")).toBe(first);
+
+    // And it follows the spawn when the spawn actually moves, without being replaced.
+    layer.setEditorOverlay({ ...base, spawn: { x: -6.5, z: -5.5 } });
+    const moved = root.getObjectByName("editor-spawn");
+    expect(moved).toBe(first);
+    expect(moved?.position.x).toBeCloseTo(-6.5);
+  });
+});
