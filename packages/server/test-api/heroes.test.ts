@@ -15,17 +15,12 @@
  * THREE heroes per account per party, not one. `HeroService` ports the real legacy cap; the test
  * below exercises it at its real boundary (three succeed, a fourth is refused).
  *
- * The "createHero > spawns on..." block also covers all three tiers of `HeroService`'s ported
+ * The "createHero > spawns on..." block also covers both tiers of `HeroService`'s ported
  * `resolveHeroStart` (a fix-review addition — see `HeroService`'s own docblock for the exact
- * precedence: spawn event, then graph start, then map default).
+ * precedence: the adventure's authored `startMapId`, then the earliest member map).
  */
 
 import { MAX_HEROES_PER_PARTY } from "@lindocara/engine/hero.js";
-import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
-import type { MapEvent } from "@lindocara/engine/map-events.js";
-import { functionalEvent } from "@lindocara/engine/map-events.js";
-import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
-import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
@@ -48,21 +43,6 @@ class SeedProbe {
   heroQuests = $repository(heroQuests);
   heroSkills = $repository(heroSkills);
   itemDefinitions = $repository(itemDefinitions);
-}
-
-function blocks(): string[] {
-  return Array.from({ length: MAP_MIN_ROWS }, () => ".".repeat(MAP_MIN_COLS));
-}
-
-function mapBody(name: string, events: MapEvent[] = []): Record<string, unknown> {
-  return {
-    name,
-    ...layeredWireTerrain(blocks()),
-    elements: [],
-    spawn: { col: 0, row: 0 },
-    markers: EMPTY_MARKERS,
-    events,
-  };
 }
 
 let alepha: ReturnType<typeof createTestApp>;
@@ -190,7 +170,7 @@ describe("session gate", () => {
 });
 
 describe("createHero", () => {
-  test("Tier 3 fallback: starts at the first member map's compiled spawn", async () => {
+  test("falls back to the first member map's compiled spawn when nothing overrides it", async () => {
     const { token, userId } = await registerAndLogin("herospawn");
     const adventureId = await newPlayableAdventure(token);
     const adventureRes = await authedFetch(`/api/adventures/${adventureId}`, token);
@@ -236,83 +216,19 @@ describe("createHero", () => {
     });
   });
 
-  test("Tier 2: starts on the graph.start map, at that map's own heightfield spawn", async () => {
-    const { token } = await registerAndLogin("herograph");
-    const { adventureId, mapId } = await newPlayableAdventureWithMap(token);
-    // A SECOND map, so the tier actually chooses: the default map is the earliest-created one and
-    // would win by Tier 3 alone. Everything the three tiers read is tile-editor content, which can
-    // still name a MAP and can no longer name a position at all — an editor cell is expressed in a
-    // coordinate space a heightfield grid does not have.
-    const other = await newMap(token, adventureId, "Beyond");
-    const entryId = crypto.randomUUID();
-    const entry = functionalEvent({ id: entryId, col: 5, row: 5, ordinal: 1, kind: "entry" });
-    const authored = await authedFetch(`/api/maps/${other}`, token, {
-      method: "PUT",
-      body: JSON.stringify(mapBody("Beyond", [entry])),
-    });
-    expect(authored.status).toBe(200);
-    // The destination's OWN heightfield spawn is the only anchor left in the destination's own
-    // units, and it is what the hero row is seeded from.
-    await alepha.inject(MapService).saveHeightfield(other, spawnAt(BEYOND_SPAWN));
-    const graphed = await authedFetch(`/api/adventures/${adventureId}`, token, {
-      method: "PUT",
-      body: JSON.stringify({
-        title: "Donjon",
-        maxPlayers: 4,
-        graph: { start: { mapId: other, entryId }, links: [] },
-      }),
-    });
-    expect(graphed.status).toBe(200);
-
-    const partyId = await newParty(token, adventureId);
-    const response = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
-      method: "POST",
-      body: JSON.stringify({ name: "Trailblazer", class: "warrior" }),
-    });
-    expect(response.status).toBe(201);
-    const hero = (await response.json()) as { mapId: string; x: number; y: number; z: number };
-    expect(hero.mapId).not.toBe(mapId);
-    expect(hero).toMatchObject({ mapId: other, x: BEYOND_SPAWN.x, y: 0, z: BEYOND_SPAWN.z });
-  });
-
-  test("Tier 1: a spawn event wins over graph.start when both exist", async () => {
-    const { token } = await registerAndLogin("herospevt");
+  test("the adventure's startMapId decides the start map", async () => {
+    const { token } = await registerAndLogin("herostartmap");
     const { adventureId, mapId } = await newPlayableAdventureWithMap(token);
     const other = await newMap(token, adventureId, "Beyond");
-    const entryId = crypto.randomUUID();
-    const entry = functionalEvent({ id: entryId, col: 5, row: 5, ordinal: 1, kind: "entry" });
-    const entryAuthored = await authedFetch(`/api/maps/${mapId}`, token, {
-      method: "PUT",
-      body: JSON.stringify(mapBody("A", [entry])),
-    });
-    expect(entryAuthored.status).toBe(200);
-    // The spawn event sits on the OTHER map — the two tiers now name different maps, which is the
-    // only way their precedence is still observable. Position no longer distinguishes them: both
-    // tiers seat the hero at the chosen map's own heightfield spawn, whichever tier chose it.
-    const spawnEvent = functionalEvent({
-      id: crypto.randomUUID(),
-      col: 8,
-      row: 3,
-      ordinal: 1,
-      kind: "spawn",
-    });
-    const spawnAuthored = await authedFetch(`/api/maps/${other}`, token, {
-      method: "PUT",
-      body: JSON.stringify(mapBody("Beyond", [spawnEvent])),
-    });
-    expect(spawnAuthored.status).toBe(200);
     await alepha.inject(MapService).saveHeightfield(other, spawnAt(BEYOND_SPAWN));
-    // A graph.start is ALSO set, pointing at the entry on the FIRST map — if Tier 1 (spawn event)
-    // did not win over Tier 2 (graph start), the hero would start there instead.
-    const graphed = await authedFetch(`/api/adventures/${adventureId}`, token, {
+
+    // Pinned BEFORE any party exists: Task 1's `in_use` guard refuses moving the start map out from
+    // under a live party, exactly as the old graph-start pin did.
+    const pinned = await authedFetch(`/api/adventures/${adventureId}`, token, {
       method: "PUT",
-      body: JSON.stringify({
-        title: "Donjon",
-        maxPlayers: 4,
-        graph: { start: { mapId, entryId }, links: [] },
-      }),
+      body: JSON.stringify({ title: "Donjon", maxPlayers: 4, startMapId: other }),
     });
-    expect(graphed.status).toBe(200);
+    expect(pinned.status).toBe(200);
 
     const partyId = await newParty(token, adventureId);
     const response = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
@@ -322,7 +238,23 @@ describe("createHero", () => {
     expect(response.status).toBe(201);
     const hero = (await response.json()) as { mapId: string; x: number; y: number; z: number };
     expect(hero.mapId).not.toBe(mapId);
+    // The column decides the MAP; the position is still the destination's own heightfield spawn.
     expect(hero).toMatchObject({ mapId: other, x: BEYOND_SPAWN.x, y: 0, z: BEYOND_SPAWN.z });
+  });
+
+  test("an adventure that never chose one starts on its earliest map", async () => {
+    const { token } = await registerAndLogin("heronostartmap");
+    const { adventureId, mapId } = await newPlayableAdventureWithMap(token);
+    await newMap(token, adventureId, "Beyond");
+
+    const partyId = await newParty(token, adventureId);
+    const response = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
+      method: "POST",
+      body: JSON.stringify({ name: "Derived", class: "warrior" }),
+    });
+    expect(response.status).toBe(201);
+    // A null column is not a broken adventure — it is the derivation, and it must keep working.
+    expect((await response.json()) as { mapId: string }).toMatchObject({ mapId });
   });
 
   test("creates a hero with resolvable starter items, equipment, quest and skills", async () => {

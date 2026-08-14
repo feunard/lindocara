@@ -484,6 +484,19 @@ export class MapService {
     await this.mapEvents.deleteMany({ mapId: { eq: id } });
     await this.maps.deleteById(id);
     await this.reassignFirstIfNeeded(row.userId);
+    // One conditional single-statement write, never a read-then-write: `$transactional()` degrades
+    // to a no-op on D1, so a `findById` + `updateById` pair here would race a concurrent delete. A
+    // dangling `startMapId` would still resolve fine (`HeroService.resolveHeroStart`'s tier 1 falls
+    // through when the id no longer names a member map), but leaving it would show the editor's star
+    // on a map that no longer exists. `null`, not `undefined` — the ORM's `cast()` keeps only the
+    // scalar keys the caller's object actually has (`Object.keys`), so an `undefined` VALUE still
+    // reaches drizzle's `.set()`, which then silently drops it and leaves the stale id in place; only
+    // an explicit `null` clears the column (`AdventureService.updateAdventure` hit the identical trap
+    // — see its own comment on this exact line shape).
+    await this.adventures.updateMany(
+      { id: { eq: row.adventureId }, startMapId: { eq: id } },
+      { startMapId: null },
+    );
   }
 
   /** HTTP-facing delete. Force bypasses references, never ownership. */

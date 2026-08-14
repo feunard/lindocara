@@ -1199,6 +1199,47 @@ describe("delete conflicts", () => {
     const forced = await authedFetch(`/api/maps/${mapAId}?force=true`, token, { method: "DELETE" });
     expect(forced.status).toBe(204);
   });
+
+  test("force-deleting the start map clears startMapId, and a hero still lands somewhere real", async () => {
+    const { userId, token } = await registerAndLogin("mapstartclear");
+    const adventureId = await newAdventure(userId);
+    // Created first, so it is also the earliest-created member map — the tier the cleared column
+    // falls back to (`HeroService.resolveHeroStart`'s tier 2).
+    const survivorId = await newMapId(adventureId, token, "Survivor");
+    const startId = await newMapId(adventureId, token, "Start");
+
+    const pinned = await authedFetch(`/api/adventures/${adventureId}`, token, {
+      method: "PUT",
+      body: JSON.stringify({ title: "Adv", maxPlayers: 4, startMapId: startId }),
+    });
+    expect(pinned.status).toBe(200);
+    expect(await pinned.json()).toMatchObject({ startMapId: startId });
+
+    const forced = await authedFetch(`/api/maps/${startId}?force=true`, token, {
+      method: "DELETE",
+    });
+    expect(forced.status).toBe(204);
+
+    // Cleared at the source (`MapService.deleteMap`'s conditional `updateMany`), not just tolerated
+    // at read time: the editor's star must not keep pointing at a map that no longer exists.
+    const read = await authedFetch(`/api/adventures/${adventureId}`, token);
+    expect(await read.json()).toMatchObject({ startMapId: null });
+
+    const partyResponse = await authedFetch("/api/parties", token, {
+      method: "POST",
+      body: JSON.stringify({ adventureId }),
+    });
+    expect(partyResponse.status).toBe(201);
+    const partyId = ((await partyResponse.json()) as { id: string }).id;
+    const heroResponse = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
+      method: "POST",
+      body: JSON.stringify({ name: "Survivor", class: "warrior" }),
+    });
+    expect(heroResponse.status).toBe(201);
+    // A cleared column is not a broken adventure — the hero lands on the earliest surviving map,
+    // exactly like an adventure that never authored a start map at all.
+    expect((await heroResponse.json()) as { mapId: string }).toMatchObject({ mapId: survivorId });
+  });
 });
 
 describe("D1 chunking column-count constants stay in step with their entities", () => {

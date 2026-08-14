@@ -1,26 +1,18 @@
 /**
  * Heroes as stored things on Alepha: create in a party the caller belongs to (capped per player),
- * spawn on the party's adventure's resolved start (full legacy tiering — see below), and delete the
+ * spawn on the party's adventure's resolved start (see `resolveHeroStart` below), and delete the
  * caller's own hero. Ported from `packages/server/src/heroes.ts`, function-by-function, onto
  * `$repository` calls instead of raw Drizzle/D1 statements.
  *
- * **Spawn resolution ports legacy `resolveAdventureStart` in full** (`adventures.ts:350-387`), not
- * just its third tier — both `graph.start` and `spawn`-kind map events are reachable today through
- * the shipped API (`AdventureController` accepts a graph, `MapController` persists spawn events), so
- * a Task 10 first-pass that only read the fallback tier was silently wrong for any adventure that
- * actually authored either. In legacy's own precedence (`adventures.ts`'s docblock, verified against
- * its code, NOT the order a prior review comment paraphrased it in):
+ * **Spawn resolution reads `adventures.startMapId` first, else the earliest member map.** Both
+ * tiers name a MAP only — coordinates always come from that map's own compiled heightfield spawn
+ * (`startOn` below), never from tile-editor content. This replaces the three-tier legacy port
+ * (`spawn`-kind event, then COMPAT `graph.start`, then the earliest member map): `startMapId` is now
+ * the single authored anchor, backfilled once from those two retired tiers by a migration, and
+ * `resolveHeroStart` no longer reads either `mapEvents` or `adventures.graph` at all.
  *
- *  1. **Spawn event** — the earliest-created member map carrying a `kind: "spawn"` event; the hero
- *     spawns on that event's cell (ties on one map broken by row then col, matching legacy).
- *  2. **Graph start** — COMPAT: `adventure.graph.start` names a member map + entry-event id; the
- *     hero spawns on that entry's cell, or the map's own default spawn if the entry event is gone.
- *  3. **Map default** — the earliest-created member map, at its own authored `spawnCol`/`spawnRow`.
- *
- * `resolveHeroStart` below is the private port of `resolveAdventureStart`, re-expressed against
- * `$repository` reads instead of raw Drizzle. Coordinate math reuses the same pure helpers legacy
- * does (`eventCellCentre`, and the `spawnCol`/`spawnRow -> {x,y}` arithmetic `mapSpawnPoint` encodes
- * — inlined as `mapDefaultSpawn` here since `mapSpawnPoint` takes a full `MapData`, not a bare row).
+ * `resolveHeroStart` below is the private resolution, re-expressed against `$repository` reads
+ * instead of raw Drizzle.
  *
  * **Item-definition catalogue seeding (the carried-over Task 7 gap).** Legacy's PRIMARY hero flow
  * (`heroes.ts::createHero`) never seeds `item_definition` itself — those rows exist because a one-time
@@ -55,7 +47,6 @@
  * cheap read-then-clear-error-message experience), but the atomic INSERT is what actually enforces
  * the cap under a race.
  */
-import { type AdventureGraph, parseAdventureGraph } from "@lindocara/engine/adventure.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
 import type { WorldPosition } from "@lindocara/engine/ground.js";
@@ -74,7 +65,6 @@ import { heroItems } from "../entities/heroItems.ts";
 import { heroQuests } from "../entities/heroQuests.ts";
 import { heroSkills } from "../entities/heroSkills.ts";
 import { itemDefinitions } from "../entities/itemDefinitions.ts";
-import { mapEvents } from "../entities/mapEvents.ts";
 import { maps } from "../entities/maps.ts";
 import { parties } from "../entities/parties.ts";
 import { partyMembers } from "../entities/partyMembers.ts";
@@ -130,12 +120,11 @@ export interface HeroStart {
 /**
  * A member map, read as a starting point.
  *
- * The three tiers above all choose the map from TILE-EDITOR content — a `spawn` event, an `entry`
- * event, the map's own `spawnCol`/`spawnRow`. That content picks the map perfectly well and cannot
- * name a position at all any more: a tile-editor cell is expressed in a coordinate space a
- * heightfield grid does not have. So the position comes from the map's OWN heightfield spawn, the
- * only anchor stated in the destination's own units, and the grid centre when it has none — where
- * admission's `mapEntryPosition` will find real ground for it.
+ * Both tiers above only choose the MAP — `adventures.startMapId` or the earliest member map — and
+ * neither can name a position at all: `startMapId` is a bare map id, not a cell. So the position
+ * always comes from the map's OWN heightfield spawn, the only anchor stated in the destination's
+ * own units, and the grid centre when it has none — where admission's `mapEntryPosition` will find
+ * real ground for it.
  */
 function startOn(map: { id: string; heightfield: string } | undefined): HeroStart | null {
   if (!map) return null;
@@ -152,7 +141,6 @@ export class HeroService {
   parties = $repository(parties);
   partyMembers = $repository(partyMembers);
   maps = $repository(maps);
-  mapEvents = $repository(mapEvents);
   heroes = $repository(heroes);
   heroItems = $repository(heroItems);
   heroEquipment = $repository(heroEquipment);
@@ -310,11 +298,10 @@ export class HeroService {
   // ---------------------------------------------------------------------------------------------
 
   /**
-   * The full port of `resolveAdventureStart` (`adventures.ts:350-387`) — see this file's docblock
-   * for the three tiers and their exact precedence. Returns `null` only when the adventure has no
-   * maps at all. Public since the realtime tranche: world admission (`AdmissionService`) re-runs
-   * exactly this resolution when a hero's stored map is gone, the same way legacy `handleJoinHero`
-   * called `resolveAdventureStart` directly.
+   * The two-tier start resolution — see this file's docblock for the precedence. Returns `null`
+   * only when the adventure has no maps at all. Public since the realtime tranche: world admission
+   * (`AdmissionService`) re-runs exactly this resolution when a hero's stored map is gone, the same
+   * way legacy `handleJoinHero` called `resolveAdventureStart` directly.
    */
   async resolveHeroStart(adventureId: string): Promise<HeroStart | null> {
     const memberMaps = await this.maps.findMany({
@@ -322,34 +309,20 @@ export class HeroService {
       orderBy: "createdAt",
     });
     if (memberMaps.length === 0) return null;
-    const mapIds = memberMaps.map((row) => row.id);
 
-    // Tier 1: the earliest-created member map carrying a `spawn`-kind event.
-    const spawnRows = await this.mapEvents.findMany({
-      where: { mapId: { inArray: mapIds }, kind: { eq: "spawn" } },
-    });
-    if (spawnRows.length > 0) {
-      for (const mapId of mapIds) {
-        // Deterministic pick if an author placed more than one spawn on a single map.
-        const chosen = spawnRows
-          .filter((row) => row.mapId === mapId)
-          .sort((a, b) => a.row - b.row || a.col - b.col)[0];
-        if (chosen) return startOn(memberMaps.find((row) => row.id === mapId));
-      }
-    }
-
-    // Tier 2: the legacy graph start (an entry event on a member map).
     const adventureRow = await this.adventures.findById(adventureId);
-    const graph: AdventureGraph | null = adventureRow
-      ? parseAdventureGraph(JSON.parse(adventureRow.graph))
-      : null;
-    const start = graph?.start;
-    if (start && mapIds.includes(start.mapId)) {
-      const startMap = memberMaps.find((row) => row.id === start.mapId);
-      if (startMap) return startOn(startMap);
+
+    // Tier 1: the adventure's authored start map, when it still names a member. `startMapId`
+    // carries no foreign key (see the `adventures` entity docblock), so a deleted or foreign id
+    // falls through to tier 2 rather than failing — the same degrade `MapService.deleteMap` backs
+    // up at the source by clearing the column when its target map goes away.
+    if (adventureRow?.startMapId) {
+      const chosen = memberMaps.find((row) => row.id === adventureRow.startMapId);
+      if (chosen) return startOn(chosen);
     }
 
-    // Tier 3: the first member map at its own authored spawn point.
+    // Tier 2: the earliest-created member map. This is what a null column MEANS — an adventure that
+    // never chose is playable from its first map, exactly as before.
     return startOn(memberMaps[0]);
   }
 
