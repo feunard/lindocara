@@ -1368,17 +1368,32 @@ function AdventureEditorInner({
     })();
   }
 
-  // Written through immediately rather than parked until the settings dialog saves: the maps panel
-  // already owns its own create/rename/delete calls, and a star that needed a second, unrelated
-  // save to stick would read as broken.
-  function setStartMap(id: string): void {
+  // Written through as soon as the settings dialog is bypassed — the maps panel already owns its
+  // own create/rename/delete calls — but only AFTER the server accepts, never optimistically. A
+  // rejected 400/409 (moving the start while a party holds it, or a stale id) must leave the draft
+  // exactly where the server still has it: nothing is written speculatively, so there is nothing to
+  // roll back, and the existing `fail` banner explains the refusal. A speculative write here would
+  // also poison the NEXT unrelated save (e.g. a title edit in the settings dialog reseeds from
+  // `session.draft` and resubmits whatever `startMapId` sits there), turning one rejected star click
+  // into a silently broken later save.
+  async function setStartMap(id: string): Promise<void> {
     const latest = alepha.store.get(adventureEditorSessionAtom);
     if (!latest?.adventureId) return;
-    const draft = { ...latest.draft, startMapId: id };
-    const input = toAdventureInput(draft);
+    const input = toAdventureInput({ ...latest.draft, startMapId: id });
     if (!input) return;
-    setSession({ ...latest, draft, savedDraft: JSON.stringify(draft) });
-    void updateAdventureApi(latest.adventureId, input).catch(fail);
+    try {
+      await updateAdventureApi(latest.adventureId, input);
+    } catch (caught) {
+      fail(caught);
+      return;
+    }
+    // Re-read rather than reuse `latest`: the request may have outlived edits made elsewhere
+    // (rename, registry, settings) while it was in flight, so the write merges onto the CURRENT
+    // draft instead of rolling those back.
+    const current = alepha.store.get(adventureEditorSessionAtom);
+    if (!current || current.adventureId !== latest.adventureId) return;
+    const draft = { ...current.draft, startMapId: id };
+    setSession({ ...current, draft, savedDraft: JSON.stringify(draft) });
   }
 
   async function exit(force = false): Promise<void> {

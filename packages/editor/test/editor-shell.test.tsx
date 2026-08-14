@@ -1412,6 +1412,71 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
   });
 
+  /** `mapsBackend` answers `/api/maps*` only; this adds the adventure PUT the star click drives,
+   *  answering it with whatever response the caller supplies (success or a rejection). */
+  function mapsBackendWithAdventurePut(maps: MapSummary[], adventureResponse: () => Response) {
+    const list = maps.map((m) => ({ ...m }));
+    return vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url === "/api/adventures/adv-1" && method === "PUT") {
+        return Promise.resolve(adventureResponse());
+      }
+      if (url.startsWith("/api/maps?adventure=") && method === "GET")
+        return Promise.resolve(jsonResponse(list));
+      const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+      if (idMatch?.[1] && method === "GET") {
+        const summary = list.find((m) => m.id === idMatch[1]);
+        if (summary) return Promise.resolve(jsonResponse(payloadFor(summary)));
+      }
+      return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
+    });
+  }
+
+  it("a rejected star click leaves the start map exactly where the server still has it", async () => {
+    // Verdant Reach (m1) is the authored start; the adventure is "in use" server-side, so moving it
+    // to Frostfen (m2) is refused with 409.
+    const seeded = alepha.store.get(adventureEditorSessionAtom);
+    if (!seeded) throw new Error("expected the seeded session from beforeEach");
+    // `emptyDraft()`'s title is "" and `toAdventureInput` refuses an unsaveable draft (no title), so
+    // `setStartMap` would bail before ever calling the API — give it a real title, the way a loaded
+    // adventure always has one.
+    alepha.store.set(adventureEditorSessionAtom, {
+      ...seeded,
+      draft: { ...seeded.draft, title: "Ashen Keep", startMapId: "m1" },
+    });
+    const mock = mapsBackendWithAdventurePut(twoMaps, () =>
+      jsonResponse({ error: "adventure_in_use" }, 409),
+    );
+    vi.stubGlobal("fetch", mock);
+    await mountReady(alepha);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    expect(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.start")} Verdant Reach` }),
+    ).toBeDisabled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.setStart")} Frostfen` }),
+    );
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/adventures/adv-1",
+        expect.objectContaining({ method: "PUT" }),
+      ),
+    );
+    // The refusal reaches the visible error banner…
+    await screen.findByRole("alert");
+    // …and NOTHING moved: no optimistic write ever landed in the draft, so Verdant Reach is still
+    // the disabled start and Frostfen still only offers to become it.
+    expect(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.start")} Verdant Reach` }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.setStart")} Frostfen` }),
+    ).toBeEnabled();
+  });
+
   it("composes the toolbar tool with the palette's elevation, terrain and stairs selections", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
