@@ -814,7 +814,9 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
     name,
     audio: EMPTY_MAP_AUDIO,
     heroSettings: defaultMapHeroSettings(),
-    dayNightCycle: true,
+    // Permanent day, matching the engine's `defaultMapInput` template a stored blank map is minted
+    // from — the two describe the same "fresh map" and must not disagree.
+    dayNightCycle: false,
     fixedLighting: DEFAULT_MAP_FIXED_LIGHTING,
     layers,
     elements: [],

@@ -19,6 +19,12 @@ describe("defaultMapInput", () => {
     expect(input.layers.length).toBeGreaterThan(0);
   });
 
+  it("is born on permanent day rather than the day/night cycle", () => {
+    const input = defaultMapInput(DEFAULT_FIRST_MAP_NAME);
+    expect(input.dayNightCycle).toBe(false);
+    expect(input.fixedLighting).toBe("day");
+  });
+
   it("honours explicit dimensions", () => {
     const input = defaultMapInput("Wide", 40, 30);
     expect(input.cols).toBe(40);

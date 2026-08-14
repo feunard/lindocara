@@ -129,7 +129,8 @@ describe("blankMap", () => {
     }
     expect(map.elements).toEqual([]);
     expect(map.spawn).toEqual({ col: 10, row: 7 });
-    expect(map.dayNightCycle).toBe(true);
+    // Permanent day, not the cycle: a map an author is about to paint must not dim under them.
+    expect(map.dayNightCycle).toBe(false);
     expect(map.fixedLighting).toBe("day");
   });
 

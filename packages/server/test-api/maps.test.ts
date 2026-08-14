@@ -780,7 +780,8 @@ describe("list, get, update, delete", () => {
 
     const initial = await authedFetch(`/api/maps/${id}`, token);
     expect(initial.status).toBe(200);
-    expect(await initial.json()).toMatchObject({ dayNightCycle: true, fixedLighting: "day" });
+    // A created map comes off `defaultMapInput`, which mints permanent day rather than the cycle.
+    expect(await initial.json()).toMatchObject({ dayNightCycle: false, fixedLighting: "day" });
 
     const updated = await putMap(
       id,
@@ -799,6 +800,18 @@ describe("list, get, update, delete", () => {
       dayNightCycle: false,
       fixedLighting: "night-middle",
     });
+
+    // And back the other way — opting a map INTO the cycle persists too, which the default no
+    // longer proves on its own.
+    const cycling = await putMap(
+      id,
+      token,
+      mapBody({ dayNightCycle: true, fixedLighting: "night-middle" }),
+    );
+    expect(cycling.status).toBe(200);
+    const reread = await authedFetch(`/api/maps/${id}`, token);
+    expect(reread.status).toBe(200);
+    expect(await reread.json()).toMatchObject({ dayNightCycle: true });
   });
 
   test("upgrades a persisted four-class hero profile without dropping its overrides", async () => {

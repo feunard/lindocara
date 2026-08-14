@@ -72,7 +72,12 @@ export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MI
     events: [],
     audio: EMPTY_MAP_AUDIO,
     heroSettings: defaultMapHeroSettings(),
-    dayNightCycle: true,
+    // Permanent day, NOT the cycle. A blank map is something an author is about to paint, and a
+    // clock that dims the stage mid-stroke fights that; the cycle is a deliberate choice made in the
+    // toolbar's ambience menu, not the state a map is born in. Only the TEMPLATE moved: a stored map
+    // that never wrote the field still reads as cycle-enabled (`MapInput.dayNightCycle`'s docblock,
+    // `mapAuthoring`'s `?? true`), so nothing already authored changes ambience under its author.
+    dayNightCycle: false,
     fixedLighting: DEFAULT_MAP_FIXED_LIGHTING,
   };
 }
