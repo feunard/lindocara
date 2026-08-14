@@ -173,6 +173,11 @@ let openQueue: Promise<void> = Promise.resolve();
  *  enough to nudge a few degrees. */
 const ORBIT_RADIANS_PER_PIXEL = 0.005;
 
+/** Mid-stroke floor between two world rebuilds. Low enough that sprayed tiles keep appearing
+ *  while the drag is in flight, high enough that a fast spray costs a handful of rebuilds a
+ *  second instead of one per painted cell. */
+const STROKE_REBUILD_MS = 200;
+
 /** Yaw as a 0..359 heading for the status bar. Rounded, because the readout is for orientation,
  *  not measurement, and a free orbit would otherwise jitter its last digit every frame. */
 export function yawDegrees(yaw: number): number {
@@ -217,6 +222,13 @@ export function openMapEditorStage(
     let strokeStart: EditorMap | null = null;
     let dragSelection: EditorSelection | null = null;
     let lastPaintedKey = "";
+    // Spray throttle: a painted cell costs a full world rebuild (`configureMapTerrain` tears the
+    // scene down and rebuilds it — 12-45ms measured on a light canvas), so a fast drag rebuilding
+    // per cell saturates the main thread. Mid-stroke the rebuild runs at most once per interval;
+    // the edits themselves always land, and `stopStroke` flushes the last pending rebuild so the
+    // released stroke is never stale.
+    let strokeRebuiltAt = 0;
+    let strokeRebuildPending = false;
     let lastPointerX = 0;
     let lastPointerY = 0;
     let cameraX = 0;
@@ -360,6 +372,20 @@ export function openMapEditorStage(
       });
     };
 
+    /** Rebuild the world now if the spray throttle allows, otherwise keep the stroke visually
+     *  honest with the cheap overlay pass and leave the rebuild pending for `stopStroke`. */
+    const strokeRedraw = (): void => {
+      const now = performance.now();
+      if (now - strokeRebuiltAt >= STROKE_REBUILD_MS) {
+        strokeRebuiltAt = now;
+        strokeRebuildPending = false;
+        redraw();
+        return;
+      }
+      strokeRebuildPending = true;
+      drawOverlay();
+    };
+
     const reportCursor = (col: number | null, row: number | null): void => {
       const key = col === null || row === null ? "none" : `${col},${row}`;
       if (key === lastCursorKey) return;
@@ -486,7 +512,7 @@ export function openMapEditorStage(
         const placed = map.events.find((event) => event.col === col && event.row === row);
         if (placed) selected = { kind: "event", id: placed.id };
       }
-      redraw();
+      strokeRedraw();
       notify();
     };
 
@@ -553,6 +579,11 @@ export function openMapEditorStage(
     };
 
     const stopStroke = (): void => {
+      if (strokeRebuildPending) {
+        strokeRebuildPending = false;
+        strokeRebuiltAt = 0;
+        redraw();
+      }
       if (strokeStart && strokeStart !== map) {
         history = commitEditorHistory({ ...history, present: strokeStart }, map);
         notify();

@@ -83,7 +83,9 @@ describe("HD-2D map editor stage", () => {
     expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledOnce();
     expect(mock.renderer.setTiltShiftEnabled).toHaveBeenCalledWith(false);
     expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledOnce();
-    expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledWith(null);
+    // A blank map is born on permanent day, so the stage opens with the clock overridden — `null`
+    // (let the cycle run) is what a map that opted INTO the cycle would produce.
+    expect(mock.renderer.setDayCycleOverride).toHaveBeenCalledWith("day");
     // Play tightens the fog band as the camera pulls back; authoring pulls back precisely to see
     // more, so the stage turns it off for the session.
     expect(mock.renderer.setFogEnabled).toHaveBeenCalledOnce();
@@ -125,7 +127,10 @@ describe("HD-2D map editor stage", () => {
 
   it("stores the map lighting mode in history and previews every fixed night degree", async () => {
     const changes = vi.fn();
-    const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
+    // Opts INTO the cycle first: a blank map now starts on permanent day, and undo below must land
+    // back on a distinguishable state.
+    const cycling = { ...blankMap("Map", 20, 15), dayNightCycle: true };
+    const stage = await openMapEditorStage(cycling, changes);
 
     stage.setLighting(false, "night-middle");
     expect(stage.current().dayNightCycle).toBe(false);
@@ -184,6 +189,48 @@ describe("HD-2D map editor stage", () => {
       expect.any(Object),
       expect.objectContaining({ canUndo: true, dirty: true }),
     );
+    stage.dispose();
+  });
+
+  it("throttles world rebuilds during a spray stroke and flushes once at release", async () => {
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+
+    // One distinct cell per dispatched event: the mocked pick tracks this mutable point, so a
+    // four-cell drag inside one tick reaches four different cells the way a fast real spray does.
+    const point = { x: -8.5, z: -7.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+
+    stage.setTool({ kind: "block", block: "water" });
+    const rebuildsBeforeStroke = mock.renderer.configureMapTerrain.mock.calls.length;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    for (let step = 1; step <= 3; step += 1) {
+      point.x = -8.5 + step;
+      canvas.dispatchEvent(
+        new PointerEvent("pointermove", { clientX: 10 + step * 32, clientY: 10 }),
+      );
+    }
+    const rebuildsDuringStroke =
+      mock.renderer.configureMapTerrain.mock.calls.length - rebuildsBeforeStroke;
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    const rebuildsAfterRelease =
+      mock.renderer.configureMapTerrain.mock.calls.length - rebuildsBeforeStroke;
+
+    // The first painted cell rebuilds at once (immediate feedback); the three follow-up cells of
+    // the same-instant burst coalesce; the release flushes the pending rebuild exactly once.
+    expect(rebuildsDuringStroke).toBe(1);
+    expect(rebuildsAfterRelease).toBe(2);
+    // Every sprayed cell is painted regardless of the rebuild cadence — the throttle defers only
+    // the world rebuild, never the edit itself. Water erases the ground layer to the empty tile.
+    const ground = stage.current().layers[0];
+    for (let step = 0; step <= 3; step += 1) {
+      expect(ground?.ids[2 * 20 + 1 + step]).toBe(0);
+    }
+    // `vi.clearAllMocks` resets calls, not implementations — hand the shared pick mock its
+    // default back so the tests after this one keep receiving the fixed cell they rely on.
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
     stage.dispose();
   });
 

@@ -573,6 +573,20 @@ export function createHd2dScene(
         x: THREE.MathUtils.clamp(x, cameraMin, cameraMax),
         z: THREE.MathUtils.clamp(z, cameraMin, cameraMax),
       };
+      // The FIRST focus places the camera at call time, not at the next rendered frame. The
+      // editor rebuilds this whole scene mid-stroke (`configureMapTerrain`), and until a frame
+      // rendered, the fresh camera still sat parked over the map's spawn — so a pick landing in
+      // that one-frame window raycast through the wrong camera and painted a tile displaced by
+      // exactly the author's pan distance. Later focuses keep the damped follow in `render`.
+      if (!focusReached) {
+        target.set(
+          focus.x,
+          (query.heightAt(focus.x, focus.z) ?? map.waterLevel) + CAMERA.height,
+          focus.z,
+        );
+        focusReached = true;
+        frameCamera();
+      }
     },
     setZoom(percent: number): void {
       const safePercent = THREE.MathUtils.clamp(percent, 2, 250);
