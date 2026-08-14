@@ -41,6 +41,8 @@ export interface AdventureDraft {
   members: DraftMemberInfo[];
   /** The switch/variable registry, authored in `RegistryDialog` and persisted on the adventure PUT. */
   registry: AdventureRegistry;
+  /** The one map a new hero starts on; `null` means derive (no start authored yet). */
+  startMapId: string | null;
 }
 
 export function emptyDraft(): AdventureDraft {
@@ -50,6 +52,7 @@ export function emptyDraft(): AdventureDraft {
     audio: { ...DEFAULT_ADVENTURE_AUDIO },
     members: [],
     registry: EMPTY_REGISTRY,
+    startMapId: null,
   };
 }
 
@@ -116,6 +119,7 @@ export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
     maxPlayers: draft.maxPlayers,
     audio: draft.audio,
     registry: draft.registry,
+    startMapId: draft.startMapId,
   };
 }
 
@@ -128,6 +132,10 @@ export function draftFromAdventure(
     /** Optional so a caller round-tripping through `AdventureInput` (registry optional) still fits;
      *  a payload without one rebuilds an empty registry. */
     registry?: AdventureRegistry;
+    /** Optional so a caller round-tripping through `AdventureInput` (also optional there) still
+     *  fits; a payload without one reads as "no start authored yet", not "leave untouched" — the
+     *  draft has no tri-state, only the wire does. */
+    startMapId?: string | null;
   },
   infos: ReadonlyMap<string, DraftMemberInfo>,
 ): AdventureDraft {
@@ -141,5 +149,6 @@ export function draftFromAdventure(
     audio: payload.audio ?? { ...DEFAULT_ADVENTURE_AUDIO },
     members,
     registry: payload.registry ?? EMPTY_REGISTRY,
+    startMapId: payload.startMapId ?? null,
   };
 }

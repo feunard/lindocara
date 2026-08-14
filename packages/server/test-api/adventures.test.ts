@@ -14,6 +14,7 @@ import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { adventures } from "../src/api/entities/adventures.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
 import { mapEventPages } from "../src/api/entities/mapEventPages.ts";
 import { mapEvents } from "../src/api/entities/mapEvents.ts";
@@ -113,6 +114,7 @@ function manyEvents(count: number): { events: MapEvent[]; ids: string[] } {
  *  for post-delete cleanup assertions (maps/mapEvents/mapEventPages) — the same test-local probe
  *  idiom `maps.test.ts` established. */
 class SeedProbe {
+  adventures = $repository(adventures);
   parties = $repository(parties);
   heroes = $repository(heroes);
   maps = $repository(maps);
@@ -191,6 +193,41 @@ async function authorMap(
   });
   expect(put.status).toBe(200);
   return id;
+}
+
+/** Seeds a bare adventure row directly through the repository (same idiom `maps.test.ts` uses),
+ *  bypassing the atomic create-with-default-map route for tests that only need an id to hang a
+ *  map off of. */
+async function newAdventure(userId: string): Promise<string> {
+  const adventure = await probe.adventures.create({
+    userId,
+    title: "Adv",
+    graph: JSON.stringify({ start: null, links: [] }),
+  });
+  return adventure.id;
+}
+
+/** Creates a bare map inside `adventureId` and returns its id, without authoring any content onto
+ *  it — mirrors `maps.test.ts`'s helper of the same name. */
+async function newMapId(adventureId: string, token: string, name = "Map"): Promise<string> {
+  const response = await authedFetch("/api/maps", token, {
+    method: "POST",
+    body: JSON.stringify({ adventureId, name }),
+  });
+  expect(response.status).toBe(201);
+  return ((await response.json()) as { id: string }).id;
+}
+
+/** PUTs a patch onto an adventure, filling in the required shell fields the route always expects. */
+function putAdventure(
+  id: string,
+  token: string,
+  patch: Record<string, unknown>,
+): Promise<Response> {
+  return authedFetch(`/api/adventures/${id}`, token, {
+    method: "PUT",
+    body: JSON.stringify({ title: "Adventure", maxPlayers: 4, ...patch }),
+  });
 }
 
 describe("session gate", () => {
@@ -608,5 +645,37 @@ describe("ownership: 404 vs 400", () => {
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "adventure_invalid" });
+  });
+});
+
+describe("start map: author, foreign refusal, clear", () => {
+  test("stores an explicit start map, refuses a foreign one, and clears on null", async () => {
+    const { userId, token } = await registerAndLogin("startmap");
+    const adventureId = await newAdventure(userId);
+    const mapId = await newMapId(adventureId, token);
+
+    const initial = await authedFetch(`/api/adventures/${adventureId}`, token);
+    expect(await initial.json()).toMatchObject({ startMapId: null });
+
+    const set = await putAdventure(adventureId, token, { startMapId: mapId });
+    expect(set.status).toBe(200);
+    expect(await set.json()).toMatchObject({ startMapId: mapId });
+
+    // Omitting the field preserves it — the same "absent means preserve" contract audio and
+    // registry already use, so a title-only save cannot silently unset the start map.
+    const renamed = await putAdventure(adventureId, token, { title: "Renamed" });
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json()).toMatchObject({ startMapId: mapId, title: "Renamed" });
+
+    // A map belonging to somebody else's adventure is not a member of this one.
+    const other = await registerAndLogin("startmap2");
+    const foreignMap = await newMapId(await newAdventure(other.userId), other.token);
+    const foreign = await putAdventure(adventureId, token, { startMapId: foreignMap });
+    expect(foreign.status).toBe(400);
+    expect((await foreign.json()).error).toBe("adventure_maps");
+
+    const cleared = await putAdventure(adventureId, token, { startMapId: null });
+    expect(cleared.status).toBe(200);
+    expect(await cleared.json()).toMatchObject({ startMapId: null });
   });
 });

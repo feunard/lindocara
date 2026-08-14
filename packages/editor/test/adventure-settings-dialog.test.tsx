@@ -156,6 +156,7 @@ describe("AdventureSettingsDialog", () => {
       audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
+      startMapId: null,
     };
     const mock = backend();
     vi.stubGlobal("fetch", mock);
@@ -194,6 +195,7 @@ describe("AdventureSettingsDialog", () => {
       audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
+      startMapId: null,
     };
     const mock = backend();
     vi.stubGlobal("fetch", mock);
@@ -226,6 +228,7 @@ describe("AdventureSettingsDialog", () => {
       audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
+      startMapId: null,
     };
     const mock = backend();
     vi.stubGlobal("fetch", mock);
@@ -251,6 +254,7 @@ describe("AdventureSettingsDialog", () => {
       audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "gate")],
       registry: EMPTY_REGISTRY,
+      startMapId: null,
     };
     vi.stubGlobal("fetch", backend());
     const { alepha } = await mountDialog(sessionFixture(draft, "adv-1"));
@@ -272,6 +276,7 @@ describe("AdventureSettingsDialog", () => {
       audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "gate")],
       registry: EMPTY_REGISTRY,
+      startMapId: null,
     };
     const mock = backend();
     vi.stubGlobal("fetch", mock);

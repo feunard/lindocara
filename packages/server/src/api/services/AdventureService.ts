@@ -63,6 +63,7 @@ export interface StoredAdventure {
   graph: AdventureGraph;
   registry: AdventureRegistry;
   audio: AdventureAudioConfig;
+  startMapId: string | null;
 }
 
 export interface AdventureSummary {
@@ -172,6 +173,20 @@ export class AdventureService {
     if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
     if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
 
+    // `undefined` preserves; `null` clears; a string must name a map of THIS adventure. A foreign or
+    // deleted id would otherwise persist and resolve to nothing at join time, which reads to the
+    // player as "the adventure starts in the wrong place" with nothing logged.
+    if (typeof input.startMapId === "string") {
+      const target = await this.maps.findById(input.startMapId);
+      if (!target || target.adventureId !== id) {
+        throw new Error("maps: the start map must belong to this adventure");
+      }
+    }
+    if (input.startMapId !== undefined && (row.startMapId ?? null) !== (input.startMapId ?? null)) {
+      const used = await this.parties.findMany({ where: { adventureId: { eq: id } }, limit: 1 });
+      if (used.length > 0) throw new Error("in_use: a party still references this adventure");
+    }
+
     const proposedGraph = input.graph;
     const proposedRegistry =
       input.registry === undefined
@@ -206,6 +221,12 @@ export class AdventureService {
       ...(proposedGraph !== undefined ? { graph: JSON.stringify(proposedGraph) } : {}),
       ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
       ...(proposedRegistry !== undefined ? { registry: JSON.stringify(proposedRegistry) } : {}),
+      // NOT `?? undefined`: the update schema accepts `T | null` on an optional column
+      // (`updateSchema.ts` unions it with `z.null()`), but drizzle's `mapUpdateSet` filters out
+      // any key whose VALUE is `undefined` before building the SQL `SET` clause — so sending
+      // `undefined` here would silently no-op instead of clearing the column, which is exactly
+      // what happens if `null` is coerced to `undefined` first.
+      ...(input.startMapId !== undefined ? { startMapId: input.startMapId } : {}),
     });
     const stored = await this.loadAdventureById(id);
     if (!stored) throw new Error("not_found: adventure vanished mid-update");
@@ -295,6 +316,7 @@ export class AdventureService {
       graph,
       registry: decodeStoredAdventureRegistry(row.registry),
       audio: decodeAdventureAudio(row.audio),
+      startMapId: row.startMapId ?? null,
     };
   }
 

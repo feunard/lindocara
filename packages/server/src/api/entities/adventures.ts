@@ -34,6 +34,10 @@ export const adventures = $entity({
     registry: db.default(z.string(), ""),
     /** JSON AdventureAudioConfig. Empty string is the default/legacy sentinel. */
     audio: db.default(z.string(), ""),
+    /** The one map a new hero starts on. Null means derive — today that is the adventure's
+     *  earliest-created map. Deliberately NOT `maps.isFirst`, which is account-scoped behind a
+     *  `(userId) WHERE is_first = 1` unique index and so cannot express a second adventure. */
+    startMapId: z.string().optional(),
   }),
   indexes: [{ columns: ["userId"] }],
   constraints: [{ columns: ["maxPlayers"], check: sql`max_players BETWEEN 1 AND 4` }],

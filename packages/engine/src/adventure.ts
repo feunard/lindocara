@@ -57,6 +57,10 @@ export interface AdventureInput {
   /** The switch/variable registry, when the client sends one. `undefined` means "leave the stored
    *  registry untouched" — a PUT that omits it never wipes the column. */
   registry?: AdventureRegistry;
+  /** Tri-state: absent preserves the stored value, `null` clears it, a string sets it. The same
+   *  shape `audio` and `registry` use, plus an explicit clear — an author must be able to hand the
+   *  start map back to the derivation, not only move it. */
+  startMapId?: string | null;
 }
 
 /** What `createAdventure` accepts: just the shell. The server mints an empty draft graph. */
@@ -136,6 +140,14 @@ function parseOptionalAudio(value: unknown): { ok: true; audio?: AdventureAudioC
   return { ok: true, audio: parsed };
 }
 
+function parseOptionalStartMapId(value: unknown): { ok: true; startMapId?: string | null } | null {
+  const record = value as Record<string, unknown>;
+  if (record.startMapId === undefined) return { ok: true };
+  if (record.startMapId === null) return { ok: true, startMapId: null };
+  if (typeof record.startMapId !== "string" || !MAP_ID_PATTERN.test(record.startMapId)) return null;
+  return { ok: true, startMapId: record.startMapId };
+}
+
 export function parseCreateAdventureInput(value: unknown): CreateAdventureInput | null {
   const shell = parseShell(value);
   if (!shell) return null;
@@ -167,11 +179,14 @@ export function parseAdventureInput(value: unknown): AdventureInput | null {
   if (!registry) return null;
   const audio = parseOptionalAudio(value);
   if (!audio) return null;
+  const startMapId = parseOptionalStartMapId(value);
+  if (!startMapId) return null;
   return {
     ...shell,
     ...(graph !== undefined ? { graph } : {}),
     ...(audio.audio !== undefined ? { audio: audio.audio } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
+    ...(startMapId.startMapId !== undefined ? { startMapId: startMapId.startMapId } : {}),
   };
 }
 

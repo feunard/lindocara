@@ -2068,6 +2068,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
           },
         ],
         registry: { switches: [], variables: [] },
+        startMapId: null,
       },
       invalidatedLinks: [],
       savedDraft: null,

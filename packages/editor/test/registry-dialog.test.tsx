@@ -43,6 +43,7 @@ function completeDraft(registry: AdventureRegistry): AdventureDraft {
     audio: DEFAULT_ADVENTURE_AUDIO,
     members: [member("m1", "Verdant", "door", "east")],
     registry,
+    startMapId: null,
   };
 }
 

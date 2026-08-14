@@ -67,6 +67,7 @@ describe("adventure draft", () => {
       maxPlayers: 2,
       audio: DEFAULT_ADVENTURE_AUDIO,
       registry: { switches: [], variables: [] },
+      startMapId: null,
     });
     // An empty draft has no title, so it is not saveable and yields no input.
     expect(toAdventureInput(emptyDraft())).toBeNull();
@@ -116,5 +117,19 @@ describe("adventure draft", () => {
   it("reorders member maps for display", () => {
     const moved = moveMember(fullDraft(), "map-b", -1);
     expect(moved.members.map((member) => member.mapId)).toEqual(["map-b", "map-a"]);
+  });
+
+  it("round-trips the start map through the draft and the input", () => {
+    const draft = draftFromAdventure(
+      { title: "A", maxPlayers: 4, mapIds: ["m1"], startMapId: "m1" },
+      new Map(),
+    );
+    expect(draft.startMapId).toBe("m1");
+    expect(toAdventureInput(draft)?.startMapId).toBe("m1");
+    // An adventure that never chose one reads as null, not undefined: the wire's `null` means
+    // "clear", and a draft that said `undefined` would silently mean "preserve" instead.
+    expect(
+      draftFromAdventure({ title: "A", maxPlayers: 4, mapIds: [] }, new Map()).startMapId,
+    ).toBeNull();
   });
 });

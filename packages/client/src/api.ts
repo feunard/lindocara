@@ -231,6 +231,9 @@ export interface AdventurePayload {
   /** The switch/variable registry, editable through `RegistryDialog` and saved on the adventure
    *  PUT. Empty for adventures whose registry was never authored. */
   registry: AdventureRegistry;
+  /** The one map a new hero starts on; `null` means derive (see `adventures.ts`'s `startMapId`
+   *  docblock for the derivation this stands in for). */
+  startMapId: string | null;
 }
 
 export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");
