@@ -142,3 +142,53 @@ describe("shallowness as a bowl", () => {
     expect(centre).toBeLessThan(rim);
   });
 });
+
+describe("water reused across a rebuilt scene", () => {
+  const opts = {
+    texture: new THREE.Texture(),
+    level: 0,
+    size: 12,
+    segment: 1,
+    depthRange: 4,
+    roughness: 0.46,
+  };
+
+  // Why this method exists at all: the plane is the expensive half (385x385 vertices, 17-23 ms on
+  // the editor's 256-cell canvas) and NOTHING about the terrain moves one of its vertices — only
+  // `aShallow` follows the coast, and that is ~1 ms. The editor rebuilt the whole sea per painted
+  // cell for want of that distinction.
+  it("re-shades the coast without rebuilding the plane", () => {
+    const water = createWater(CTX, fieldFrom(["0..", "...", "..."]), opts);
+    const geometry = water.mesh.geometry;
+    const position = geometry.getAttribute("position");
+    const before = shallowAt(water.mesh, 2.5, 2.5);
+    // `needsUpdate` is write-only in three (its setter bumps `version`), so the version IS the
+    // observable "three has been told to re-upload this".
+    const versionOf = (): number => {
+      const attribute = geometry.getAttribute("aShallow");
+      if (!(attribute instanceof THREE.BufferAttribute)) throw new Error("aShallow interleaved");
+      return attribute.version;
+    };
+    const version = versionOf();
+
+    water.setField(fieldFrom(["...", "...", "..0"]));
+
+    // Same geometry object, same vertices: nothing was reallocated.
+    expect(water.mesh.geometry).toBe(geometry);
+    expect(water.mesh.geometry.getAttribute("position")).toBe(position);
+    // But the shallows moved with the land, and the GPU copy is marked stale.
+    expect(shallowAt(water.mesh, 2.5, 2.5)).toBeGreaterThan(before);
+    expect(versionOf()).toBeGreaterThan(version);
+    water.dispose();
+  });
+
+  it("leaves an authored shallowness alone, because the field never drove it", () => {
+    // The constant and function forms answer the shallowness themselves; re-reading a field they
+    // never consulted would silently replace an authored pool's tint with a coastline gradient.
+    const water = createWater(CTX, fieldFrom(["0..", "...", "..."]), { ...opts, shallow: 0.42 });
+    water.setField(fieldFrom(["...", "...", "..0"]));
+    const attr = water.mesh.geometry.getAttribute("aShallow");
+    for (let k = 0; k < attr.count; k += 1) expect(attr.getX(k)).toBeCloseTo(0.42, 5);
+    water.dispose();
+  });
+});

@@ -84,6 +84,32 @@ npm test -w @lindocara/renderer   # or: npm run test:renderer â€” jsdom
 - No React. If a change needs a hook or JSX, it belongs in `client` or `editor`.
 - One render engine. `three`, through `@lindocara/hd2d`. Two coexisting render paths is the
   arrangement S3 spent an increment ending; do not start a second one.
+- **Catalogue sheets outlive the scene.** `Hd2dRenderer.#assetTextures` is a `createTextureCache`
+  holding every scenery, world-event, editor-preview and spawn-knight texture the instance has
+  decoded; `#disposeScene` must never dispose it, and only `destroy()` frees it. It exists because
+  `configureMapTerrain` is a map-TRANSITION path that the editor calls on every terrain edit, and
+  the old per-scene registries made each edit re-download and re-decode unchanged art (~100 ms,
+  warm cache) with the props missing from the screen throughout â€” that gap is what made painting
+  blink. A load that loses its token now simply returns: the sheets stay cached, because the map
+  that lost the race is usually the same map one edit later.
+- **An edit of the map on screen keeps its scene.** `configureMapTerrain` takes the in-place branch
+  — `Hd2dScene.updateTerrain` — when the zone id is unchanged and the sea plane still matches, which
+  is every brush stroke in the editor; a different map, or a different sea plane, still gets a whole
+  new scene (the day-cycle seed is per scene, and a transition should reset the camera rather than
+  inherit the previous framing). `updateTerrain` swaps the terrain mesh, the stairs, the foam, the
+  `TerrainQuery` and the sea's gradient; the scene graph, camera, lights, sky, post-fx pipeline and
+  `Hd2dContext` all survive. Two consequences to respect: `Hd2dScene.query` is a **getter** because
+  the query is replaced — capture it and you answer heights for terrain that no longer exists — and
+  everything parented in from outside (billboards, scenery, the visual layer) is placed against the
+  OLD ground, so `#disposeSceneContents` drops exactly that much and it is rebuilt after the call.
+  Keeping the context across an edit is only safe because every billboard unregisters itself from
+  its yaw registry on dispose; measured stable at 66 entries across a dozen strokes.
+- **So does the sea.** `Hd2dRenderer.#water` is handed to each `createHd2dScene` through its `reuse`
+  argument and freed only when `waterPlaneKey` (extent + sea level) changes or the renderer dies;
+  `Hd2dScene.dispose()` deliberately does not touch it. The plane is 385x385 vertices and costs
+  17-23 ms to allocate while depending on nothing the terrain edits move — only `aShallow` follows
+  the coast, and `Water.setField` refreshes just that, in ~1 ms. Re-adding `water.dispose()` to the
+  scene's teardown would silently put the whole cost back.
 - Never import client glue (`net`, `store`, `session`, `i18n`): the graph is `client -> renderer`,
   never the reverse. Shared view types (`SceneSample`) live here and are re-exported downstream.
 - Collision comes only from the welcome's `heightfield`, through `zoneTerrainFromHeightfield` +

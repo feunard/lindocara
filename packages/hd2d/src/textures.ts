@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { fetchAll } from "./loader.js";
 
 export interface TextureSpec {
   url: string;
@@ -6,9 +7,18 @@ export interface TextureSpec {
   atlas?: boolean;
 }
 
-export interface TextureRegistry {
-  decode(blobs: Map<string, Blob>, onDecoded: (p: number) => void): Promise<void>;
+/**
+ * Ce dont un CONSOMMATEUR de textures a besoin : la recherche, et rien sur la façon dont elles sont
+ * arrivées là. Un `TextureRegistry` (le contenu d'un téléchargement) et une vue de `TextureCache`
+ * (plusieurs, partagées et réutilisées d'une scène à l'autre) le satisfont tous les deux, ce qui
+ * laisse au placement le droit d'ignorer laquelle il tient.
+ */
+export interface TextureSource {
   get(url: string, opts?: { repeat?: boolean }): THREE.Texture;
+}
+
+export interface TextureRegistry extends TextureSource {
+  decode(blobs: Map<string, Blob>, onDecoded: (p: number) => void): Promise<void>;
   urls(): readonly string[];
   dispose(): void;
 }
@@ -125,6 +135,107 @@ export function createTextureRegistry(specs: readonly TextureSpec[]): TextureReg
     dispose() {
       for (const tex of cache.values()) tex.dispose();
       cache.clear();
+    },
+  };
+}
+
+export interface TextureCache {
+  /** Les textures décodées de `specs` — ne télécharge et ne décode que ce qui manque. */
+  load(specs: readonly TextureSpec[]): Promise<TextureSource>;
+  /** Nombre de textures détenues. Pour les tests et le diagnostic. */
+  size(): number;
+  dispose(): void;
+}
+
+/** Une texture est identifiée par son url ET son filtrage : la même image échantillonnée en atlas
+ *  et en sprite n'a pas les mêmes mipmaps, et une seule entrée servirait à l'un le réglage de
+ *  l'autre — sans erreur, juste des bordures qui bavent. */
+function cacheKey(spec: TextureSpec): string {
+  return `${spec.url}#${spec.atlas ? "atlas" : "sprite"}`;
+}
+
+/** Des specs aux textures décodées. La frontière du cache : lui décide de ce qu'il GARDE, ceci sait
+ *  comment des octets deviennent une texture. C'est aussi la couture par laquelle un test vérifie
+ *  la politique sans avoir besoin d'un DOM pour décoder une image. */
+export type TextureDecoder = (specs: readonly TextureSpec[]) => Promise<TextureRegistry>;
+
+const downloadAndDecode: TextureDecoder = async (specs) => {
+  const blobs = await fetchAll(
+    specs.map((spec) => spec.url),
+    () => {},
+  );
+  const registry = createTextureRegistry(specs);
+  await registry.decode(blobs, () => {});
+  return registry;
+};
+
+/**
+ * Un cache de textures décodées qui SURVIT à la scène.
+ *
+ * Le registre ci-dessus a la durée de vie d'un téléchargement, et `Hd2dRenderer` en fabriquait un
+ * par reconstruction de scène : chaque édition de terrain jetait les feuilles du décor puis les
+ * retéléchargeait et les redécodait à l'identique — mesuré à ~90 ms de `fetch` (cache HTTP CHAUD)
+ * plus ~10 ms de décodage par reconstruction, pendant lesquelles la carte n'avait plus de décor du
+ * tout. C'est ce trou qui faisait clignoter les props sous le pinceau.
+ *
+ * Le cache appartient à l'instance qui le crée — jamais une `Map` de module, même raison que pour
+ * le registre : un jeu et un éditeur ouverts côte à côte ne partagent pas leurs textures. Il est
+ * borné par le catalogue réellement PLACÉ (une poignée de feuilles par carte), et libéré d'un coup
+ * au `dispose()` du moteur.
+ *
+ * `decoder` est injectable pour les tests ; en production c'est `fetchAll` + `createTextureRegistry`.
+ */
+export function createTextureCache(decoder: TextureDecoder = downloadAndDecode): TextureCache {
+  const cache = new Map<string, THREE.Texture>();
+  // Deux chargements concurrents (le décor et les events partent ensemble) qui demandent la même
+  // feuille ne doivent la télécharger qu'une fois : le second attend le premier au lieu d'ouvrir sa
+  // propre requête et d'écraser l'entrée avec un doublon que plus personne ne disposera.
+  const pending = new Map<string, Promise<void>>();
+
+  return {
+    async load(specs) {
+      const keys = new Map(specs.map((spec) => [spec.url, cacheKey(spec)]));
+      const missing = specs.filter(
+        (spec) => !cache.has(cacheKey(spec)) && !pending.has(cacheKey(spec)),
+      );
+      if (missing.length > 0) {
+        const job = (async () => {
+          // Le registre rendu par le décodeur est JETABLE et n'est surtout pas disposé : ses
+          // textures passent au cache, et les disposer les emporterait avec lui.
+          const registry = await decoder(missing);
+          for (const spec of missing) cache.set(cacheKey(spec), registry.get(spec.url));
+        })();
+        for (const spec of missing) pending.set(cacheKey(spec), job);
+        try {
+          await job;
+        } finally {
+          for (const spec of missing) pending.delete(cacheKey(spec));
+        }
+      }
+      // Ce que ce chargement-ci n'a pas demandé peut être en vol pour un autre : l'attendre, sinon
+      // la vue rendue promettrait une texture que `get` ne trouverait pas encore.
+      await Promise.all(specs.map((spec) => pending.get(cacheKey(spec)) ?? Promise.resolve()));
+      return {
+        get(url, opts = {}) {
+          const tex = cache.get(keys.get(url) ?? url);
+          if (!tex) throw new Error(`Texture non chargée : ${url}`);
+          if (opts.repeat) {
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+          }
+          return tex;
+        },
+      };
+    },
+
+    size() {
+      return cache.size;
+    },
+
+    dispose() {
+      for (const tex of cache.values()) tex.dispose();
+      cache.clear();
+      pending.clear();
     },
   };
 }

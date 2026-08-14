@@ -116,6 +116,18 @@ export interface Water {
    *  `THREE.Color` en place suffit, elles SONT les uniformes du shader. */
   readonly colors: { shallow: THREE.Color; deep: THREE.Color };
   setSparkle(v: number): void;
+  /**
+   * Refait le dégradé de haut-fond pour un nouveau relief, SANS reconstruire le plan.
+   *
+   * C'est toute la raison d'être de cette méthode : le plan de 385x385 sommets coûte 17-23 ms à
+   * allouer et ne dépend que de `size` — pas une seule de ses positions ne bouge quand la côte
+   * change — alors que `aShallow`, la seule chose que le relief pilote, se recalcule en ~1 ms.
+   * L'éditeur repeignait la mer entière par case peinte faute de cette distinction.
+   *
+   * Sans effet si `shallow` a été fourni en constante ou en fonction : ces deux formes ne lisent
+   * pas le champ, donc rien à y rafraîchir.
+   */
+  setField(field: HeightField): void;
   update(dt: number): void;
   dispose(): void;
 }
@@ -134,11 +146,6 @@ export interface Water {
 // prennent le `Hd2dContext` du jeu/éditeur qui les appelle (voir `sky.ts`) — un appelant n'a pas à
 // se demander au cas par cas laquelle en a réellement besoin.
 export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOptions): Water {
-  const cx = field.cols / 2;
-  const cz = field.rows / 2;
-  const dist = landDistance(field);
-  const { cols, rows } = field;
-
   const seg = Math.max(1, Math.round(opts.size / opts.segment));
   const geo = new THREE.PlaneGeometry(opts.size, opts.size, seg, seg);
   geo.rotateX(-Math.PI / 2);
@@ -146,28 +153,48 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
   const position = geo.attributes.position;
   if (!position) throw new Error("PlaneGeometry sans attribut position");
   const shallow = new Float32Array(position.count);
-  if (typeof opts.shallow === "number") shallow.fill(opts.shallow);
-  else if (typeof opts.shallow === "function") {
-    for (let k = 0; k < position.count; k++) {
-      shallow[k] = opts.shallow(position.getX(k), position.getZ(k));
+
+  /** Le dégradé de haut-fond, seule part de cette mer que le relief pilote. Séparé du plan pour
+   *  pouvoir être refait seul — voir `Water.setField`. */
+  const fillShallow = (source: HeightField): void => {
+    if (typeof opts.shallow === "number") {
+      shallow.fill(opts.shallow);
+      return;
     }
-  }
-  for (let k = 0; opts.shallow === undefined && k < position.count; k++) {
-    const i = Math.floor(position.getX(k) + cx);
-    const j = Math.floor(position.getZ(k) + cz);
-    // Le plan mesure trois fois la grille : la plupart de ses sommets tombent DEHORS. Les compter
-    // comme infiniment loin de la terre coupait net le dégradé au cadre du champ — une côte qui
-    // touche le bord perdait toute sa frange de haut-fond, tandis qu'un bord doublé d'eau à
-    // l'intérieur du cadre gardait la sienne : le liseré devenait franc d'un côté, absent de
-    // l'autre. La distance CONTINUE dehors : on se ramène à la case du bord la plus proche et on
-    // ajoute le débord, ce qui prolonge exactement la même rampe au large.
-    const ci = Math.min(cols - 1, Math.max(0, i));
-    const cj = Math.min(rows - 1, Math.max(0, j));
-    const overshoot = Math.hypot(i - ci, j - cj);
-    const d = (dist[cj * cols + ci] ?? Number.POSITIVE_INFINITY) + overshoot;
-    shallow[k] = 1 - Math.min(1, d / opts.depthRange);
-  }
-  geo.setAttribute("aShallow", new THREE.Float32BufferAttribute(shallow, 1));
+    if (typeof opts.shallow === "function") {
+      const at = opts.shallow;
+      for (let k = 0; k < position.count; k++) {
+        shallow[k] = at(position.getX(k), position.getZ(k));
+      }
+      return;
+    }
+    const cx = source.cols / 2;
+    const cz = source.rows / 2;
+    const { cols, rows } = source;
+    const dist = landDistance(source);
+    for (let k = 0; k < position.count; k++) {
+      const i = Math.floor(position.getX(k) + cx);
+      const j = Math.floor(position.getZ(k) + cz);
+      // Le plan mesure trois fois la grille : la plupart de ses sommets tombent DEHORS. Les compter
+      // comme infiniment loin de la terre coupait net le dégradé au cadre du champ — une côte qui
+      // touche le bord perdait toute sa frange de haut-fond, tandis qu'un bord doublé d'eau à
+      // l'intérieur du cadre gardait la sienne : le liseré devenait franc d'un côté, absent de
+      // l'autre. La distance CONTINUE dehors : on se ramène à la case du bord la plus proche et on
+      // ajoute le débord, ce qui prolonge exactement la même rampe au large.
+      const ci = Math.min(cols - 1, Math.max(0, i));
+      const cj = Math.min(rows - 1, Math.max(0, j));
+      const overshoot = Math.hypot(i - ci, j - cj);
+      const d = (dist[cj * cols + ci] ?? Number.POSITIVE_INFINITY) + overshoot;
+      shallow[k] = 1 - Math.min(1, d / opts.depthRange);
+    }
+  };
+
+  fillShallow(field);
+  // `BufferAttribute`, jamais `Float32BufferAttribute` : celui-ci RECOPIE le tableau qu'on lui
+  // donne (`super(new Float32Array(array), ...)`), si bien que `fillShallow` écrirait ensuite dans
+  // un tampon détaché de la géométrie — le dégradé ne bougerait plus jamais, sans rien signaler.
+  const shallowAttribute = new THREE.BufferAttribute(shallow, 1);
+  geo.setAttribute("aShallow", shallowAttribute);
 
   // Clonée, jamais mutée en place : `opts.texture` est documentée partageable (voir
   // `WaterOptions.texture`), et cette mer pose son propre wrap/repeat et fait défiler son propre
@@ -263,6 +290,11 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
     colors: { shallow: uniforms.uShallow.value, deep: uniforms.uDeep.value },
     setSparkle(v) {
       uniforms.uWave.value = v;
+    },
+    setField(next) {
+      if (opts.shallow !== undefined) return;
+      fillShallow(next);
+      shallowAttribute.needsUpdate = true;
     },
     update(dt) {
       temps += dt;

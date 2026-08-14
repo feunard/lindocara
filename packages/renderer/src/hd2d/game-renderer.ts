@@ -50,8 +50,14 @@ import {
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
-import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
-import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
+import type { Water } from "@lindocara/hd2d/terrain/water.js";
+import type {
+  TextureCache,
+  TextureRegistry,
+  TextureSource,
+  TextureSpec,
+} from "@lindocara/hd2d/textures.js";
+import { createTextureCache, createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { ACTOR_FRAME_MS, type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
 import { CameraShake, heroLandingImpulse, SHEEP_EXPLOSION_SHAKE } from "../camera-shake.js";
@@ -88,7 +94,7 @@ import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.
 import { createBillboardRegistry } from "./billboards.js";
 import type { DayCycleOverride } from "./day-cycle.js";
 import type { Hd2dScene } from "./scene.js";
-import { createHd2dScene, HD2D_TEXTURE_URLS } from "./scene.js";
+import { createHd2dScene, HD2D_TEXTURE_URLS, waterPlaneKey } from "./scene.js";
 import type { StaticContent, StaticSpriteArt } from "./static-content.js";
 import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
 import {
@@ -645,7 +651,7 @@ function staticSpecUrls(spec: StaticAssetSpec): string[] {
   ];
 }
 
-function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureRegistry): StaticSpriteArt {
+function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureSource): StaticSpriteArt {
   const { url, companions, coldVariant, ...geometry } = spec;
   return {
     texture: textures.get(url),
@@ -707,12 +713,24 @@ export class Hd2dRenderer implements RendererLike {
   #actors: BillboardRegistry | null = null;
   /** The map's scenery, placed once per map. Lives and dies with the scene, like the actors. */
   #content: StaticContent | null = null;
-  /** The scenery's own textures. A second registry rather than an addition to `#textures`: which
-   *  catalogue sheets a map needs is only known once that map has landed, and the actor/terrain
-   *  registry is fixed at construction so the first frame can be correct. */
-  #contentTextures: TextureRegistry | null = null;
+  /**
+   * Every catalogue sheet this renderer has ever decoded — scenery, world events, the editor's
+   * preview and its spawn knight — kept across scene rebuilds and freed only in `destroy`.
+   *
+   * A cache rather than a per-load registry, and it is the whole reason painting stopped blinking:
+   * `#disposeScene` used to dispose the scenery's textures, so every terrain edit re-downloaded and
+   * re-decoded sheets that had not changed — measured at ~90 ms of `fetch` against a WARM HTTP
+   * cache plus ~10 ms of decode per rebuild, with no scenery on screen in between. Which sheets a
+   * map needs is still only known once that map has landed, which is why this is separate from
+   * `#textures` (fixed at construction, so the first frame can be correct).
+   */
+  #assetTextures: TextureCache = createTextureCache();
+  /** The sea, owned here rather than by the scene because it outlives every scene built at the same
+   *  extent and sea level — see `configureMapTerrain`. `#waterKey` is those two numbers. */
+  #water: Water | null = null;
+  #waterKey = "";
   #eventContent: StaticContent | null = null;
-  #eventTextures: TextureRegistry | null = null;
+  #eventTextures: TextureSource | null = null;
   #eventToken = 0;
   #eventAssetKey = "";
   #eventLoadingAssetKey = "";
@@ -720,13 +738,11 @@ export class Hd2dRenderer implements RendererLike {
   #eventVisualKey = "";
   #editorPreviewAssetId: string | null = null;
   #editorPreviewArt: StaticSpriteArt | null = null;
-  #editorPreviewTextures: TextureRegistry | null = null;
   #editorPreviewToken = 0;
   /** The spawn marker's ghost knight — loaded at most once per renderer instance (the asset id is
    *  fixed, unlike `#editorPreviewArt`'s currently-selected palette pick) and kept alive across
    *  terrain rebuilds so switching maps in the editor never re-downloads it. */
   #spawnKnightArt: StaticSpriteArt | null = null;
-  #spawnKnightTextures: TextureRegistry | null = null;
   #spawnKnightRequested = false;
   #worldEvents: readonly WorldEventSnapshot[] = [];
   #map: MapData | null = null;
@@ -837,17 +853,43 @@ export class Hd2dRenderer implements RendererLike {
       )
     )
       return;
+    // The sea is handed forward, not rebuilt: its plane is 385x385 vertices, costs 17-23 ms, and
+    // depends on nothing but these two numbers — the coastline only drives a ~1 ms attribute the
+    // scene refreshes for us. A map of a different extent or a different sea level gets a new one.
+    const waterKey = waterPlaneKey(heightfield);
+    // An EDIT of the map already on screen — which is every brush stroke in the editor — keeps its
+    // scene and swaps only the ground. A different map, or one whose sea plane no longer matches
+    // (the sea is inside that scene), still gets a whole new one: the day-cycle seed is fixed per
+    // scene, and a transition should reset the camera rather than inherit the previous framing.
+    const editInPlace =
+      this.#scene !== null && this.#currentMapId === zoneId && this.#waterKey === waterKey;
     this.#currentMapId = zoneId;
     this.#currentMapRevision = revision;
-    this.#disposeScene();
-    const scene = createHd2dScene(this.#canvas, heightfield, this.#textures, zoneId);
+
+    let scene: Hd2dScene;
+    if (editInPlace && this.#scene) {
+      this.#disposeSceneContents();
+      scene = this.#scene;
+      scene.updateTerrain(heightfield);
+    } else {
+      this.#disposeScene();
+      if (this.#water && this.#waterKey !== waterKey) {
+        this.#water.dispose();
+        this.#water = null;
+      }
+      scene = createHd2dScene(this.#canvas, heightfield, this.#textures, zoneId, {
+        ...(this.#water ? { water: this.#water } : {}),
+      });
+      this.#water = scene.water;
+      this.#waterKey = waterKey;
+      scene.setDayCycleOverride(this.#dayCycleOverride);
+      scene.setZoom(this.#cameraZoom);
+      scene.setYaw(this.#cameraYaw);
+      scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
+      scene.setFogEnabled(this.#fogEnabled);
+      if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
+    }
     this.#scene = scene;
-    scene.setDayCycleOverride(this.#dayCycleOverride);
-    scene.setZoom(this.#cameraZoom);
-    scene.setYaw(this.#cameraYaw);
-    scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
-    scene.setFogEnabled(this.#fogEnabled);
-    if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     this.#map = heightfield;
     this.#visuals = new Hd2dVisualLayer(
       scene,
@@ -923,22 +965,11 @@ export class Hd2dRenderer implements RendererLike {
       ...new Set([...specByAsset.values()].flatMap(staticSpecUrls)),
     ].map((url) => ({ url }));
 
-    let textures: TextureRegistry | null = null;
-    if (specs.length > 0) {
-      const blobs = await fetchAll(
-        specs.map((spec) => spec.url),
-        () => {},
-      );
-      const registry = createTextureRegistry(specs);
-      await registry.decode(blobs, () => {});
-      textures = registry;
-    }
+    const textures = specs.length > 0 ? await this.#assetTextures.load(specs) : null;
 
-    if (this.#destroyed || token !== this.#contentToken || this.#scene !== scene) {
-      textures?.dispose();
-      return;
-    }
-    this.#contentTextures = textures;
+    // No `dispose` on the abandoned branch any more: the sheets belong to the cache, and a map that
+    // lost its race is very often the same map one edit later.
+    if (this.#destroyed || token !== this.#contentToken || this.#scene !== scene) return;
     this.#content = placeStaticContent(
       scene.ctx,
       this.#sceneFor(scene, heightfield),
@@ -955,41 +986,27 @@ export class Hd2dRenderer implements RendererLike {
     const spec = staticAssetSpec(assetId);
     if (!spec) return;
     const urls = [...new Set(staticSpecUrls(spec))];
-    const textureSpecs: TextureSpec[] = urls.map((url) => ({ url }));
-    const blobs = await fetchAll(urls, () => {});
-    const textures = createTextureRegistry(textureSpecs);
-    await textures.decode(blobs, () => {});
-    if (this.#destroyed || token !== this.#editorPreviewToken) {
-      textures.dispose();
-      return;
-    }
-    this.#editorPreviewTextures = textures;
+    const textures = await this.#assetTextures.load(urls.map((url) => ({ url })));
+    if (this.#destroyed || token !== this.#editorPreviewToken) return;
     this.#editorPreviewArt = materializeStaticSpec(spec, textures);
     this.#visuals?.setEditorPreviewArt(this.#editorPreviewArt);
   }
 
   /**
    * Loads the spawn marker's ghost knight, through the exact same catalogue pipeline as
-   * `#loadEditorPreviewAsset` above — `staticAssetSpec` -> `staticSpecUrls` -> `fetchAll` ->
-   * `createTextureRegistry` -> `materializeStaticSpec` — rather than a second implementation of
-   * it. Unlike the palette preview, the asset id here is fixed, so this fires at most once per
-   * renderer instance (`#spawnKnightRequested`) and the result is kept for the renderer's whole
-   * lifetime, reapplied to every fresh `Hd2dVisualLayer` a terrain rebuild creates (see
-   * `configureMapTerrain`) instead of being re-downloaded.
+   * `#loadEditorPreviewAsset` above — `staticAssetSpec` -> `staticSpecUrls` -> `#assetTextures` ->
+   * `materializeStaticSpec` — rather than a second implementation of it. Unlike the palette
+   * preview, the asset id here is fixed, so this fires at most once per renderer instance
+   * (`#spawnKnightRequested`) and the result is kept for the renderer's whole lifetime, reapplied
+   * to every fresh `Hd2dVisualLayer` a terrain rebuild creates (see `configureMapTerrain`) instead
+   * of being re-downloaded.
    */
   async #loadSpawnKnightAsset(): Promise<void> {
     const spec = staticAssetSpec(EDITOR_SPAWN_KNIGHT_ASSET_ID);
     if (!spec) return;
     const urls = [...new Set(staticSpecUrls(spec))];
-    const textureSpecs: TextureSpec[] = urls.map((url) => ({ url }));
-    const blobs = await fetchAll(urls, () => {});
-    const textures = createTextureRegistry(textureSpecs);
-    await textures.decode(blobs, () => {});
-    if (this.#destroyed) {
-      textures.dispose();
-      return;
-    }
-    this.#spawnKnightTextures = textures;
+    const textures = await this.#assetTextures.load(urls.map((url) => ({ url })));
+    if (this.#destroyed) return;
     this.#spawnKnightArt = materializeStaticSpec(spec, textures);
     this.#visuals?.setSpawnKnightArt(this.#spawnKnightArt);
   }
@@ -1022,7 +1039,8 @@ export class Hd2dRenderer implements RendererLike {
       this.#eventToken += 1;
       this.#eventContent?.dispose();
       this.#eventContent = null;
-      this.#eventTextures?.dispose();
+      // No `dispose()` here any more: `#eventTextures` is only a VIEW into `#assetTextures` now
+      // (see its field docblock), and the sheets it names outlive this reset in the shared cache.
       this.#eventTextures = null;
       this.#eventAssetKey = "";
       this.#eventLoadingAssetKey = "";
@@ -1047,7 +1065,6 @@ export class Hd2dRenderer implements RendererLike {
     const token = ++this.#eventToken;
     this.#eventContent?.dispose();
     this.#eventContent = null;
-    this.#eventTextures?.dispose();
     this.#eventTextures = null;
     void this.#loadWorldEventTextures(assetIds, token).catch((error: unknown) => {
       if (token === this.#eventToken) this.#eventLoadingAssetKey = "";
@@ -1071,16 +1088,8 @@ export class Hd2dRenderer implements RendererLike {
       }
       return;
     }
-    const blobs = await fetchAll(
-      specs.map((spec) => spec.url),
-      () => {},
-    );
-    const textures = createTextureRegistry(specs);
-    await textures.decode(blobs, () => {});
-    if (this.#destroyed || token !== this.#eventToken || !this.#scene || !this.#map) {
-      textures.dispose();
-      return;
-    }
+    const textures = await this.#assetTextures.load(specs);
+    if (this.#destroyed || token !== this.#eventToken || !this.#scene || !this.#map) return;
     this.#eventTextures = textures;
     this.#eventLoadingAssetKey = "";
     this.#placeWorldEventContent(this.#eventRequestedVisualKey);
@@ -1548,7 +1557,17 @@ export class Hd2dRenderer implements RendererLike {
     };
   }
 
-  #disposeScene(): void {
+  /**
+   * Everything placed AGAINST a heightfield: scenery, world-event art, the billboard registry, the
+   * visual layer and the per-actor animation state they carry.
+   *
+   * Split out of `#disposeScene` because a terrain edit has to drop exactly this much and no more
+   * — the scene, its camera, lights, sky, sea and post-fx describe no terrain and survive
+   * `Hd2dScene.updateTerrain`. Every billboard disposed here unregisters itself from the context's
+   * yaw registry (`ctx.unregisterBillboard`), which is what makes keeping that context across an
+   * edit safe rather than a slow leak of meshes nothing can reach.
+   */
+  #disposeSceneContents(): void {
     // Billboards first: they are parented to the scene's graph, and disposing that graph out from
     // under them would leave the context's yaw registry holding meshes nothing can reach. The
     // token bump is part of the same teardown — a scenery download still in flight belongs to a
@@ -1557,11 +1576,11 @@ export class Hd2dRenderer implements RendererLike {
     this.#eventToken += 1;
     this.#content?.dispose();
     this.#content = null;
-    this.#contentTextures?.dispose();
-    this.#contentTextures = null;
     this.#eventContent?.dispose();
     this.#eventContent = null;
-    this.#eventTextures?.dispose();
+    // Neither texture view is disposed here: both are just cached lookups into `#assetTextures`
+    // now (see its field docblock), which survives scene rebuilds on purpose — disposing it per
+    // rebuild is exactly the re-download/re-decode stall that cache was built to remove.
     this.#eventTextures = null;
     this.#eventAssetKey = "";
     this.#eventLoadingAssetKey = "";
@@ -1577,6 +1596,10 @@ export class Hd2dRenderer implements RendererLike {
     this.#combatAnimations.clear();
     this.#combatVisualAuthority.clearSnapshots();
     this.#cameraShake.clear();
+  }
+
+  #disposeScene(): void {
+    this.#disposeSceneContents();
     this.#scene?.dispose();
     this.#scene = null;
     this.#map = null;
@@ -1591,12 +1614,13 @@ export class Hd2dRenderer implements RendererLike {
     this.#frameCallbacks = [];
     this.#disposeScene();
     this.#editorPreviewToken += 1;
-    this.#editorPreviewTextures?.dispose();
-    this.#editorPreviewTextures = null;
     this.#editorPreviewArt = null;
-    this.#spawnKnightTextures?.dispose();
-    this.#spawnKnightTextures = null;
     this.#spawnKnightArt = null;
+    // The one place the catalogue sheets and the sea are actually freed: both outlive every scene
+    // this renderer built, and only the renderer's own death ends them.
+    this.#assetTextures.dispose();
+    this.#water?.dispose();
+    this.#water = null;
     this.#textures.dispose();
   }
 
@@ -2050,8 +2074,6 @@ export class Hd2dRenderer implements RendererLike {
     const token = ++this.#editorPreviewToken;
     this.#visuals?.setEditorPreviewArt(null);
     this.#editorPreviewArt = null;
-    this.#editorPreviewTextures?.dispose();
-    this.#editorPreviewTextures = null;
     if (!assetId) return;
     void this.#loadEditorPreviewAsset(assetId, token).catch((error: unknown) => {
       if (token === this.#editorPreviewToken) {

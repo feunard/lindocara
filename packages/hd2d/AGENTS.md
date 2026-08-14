@@ -60,7 +60,15 @@ lazy â€” built at first call, never at import â€” specifically so impo
   why byte-weighted, not file-count).
 - `textures.ts` â€” `createTextureRegistry`: decodes blobs into `THREE.Texture`, and `textureFiltering`,
   the atlas-vs-sprite filtering policy (no mipmaps + half-texel guard for atlases, mipmapped
-  nearest for sprites).
+  nearest for sprites). Also `createTextureCache`, a decoded-texture cache that **outlives the
+  scene**: a registry has the lifetime of one download, and `Hd2dRenderer` built one per scene
+  rebuild, so every terrain edit threw the scenery's sheets away and fetched and decoded the
+  identical bytes again â€” measured at ~90 ms of `fetch` against a WARM HTTP cache plus ~10 ms of
+  decode per rebuild, with no scenery on screen in between. Entries are keyed by url **and**
+  filtering (the same image sampled as an atlas and as a sprite needs different mipmaps), concurrent
+  loads of one sheet share a single download, and its `TextureDecoder` seam is what lets this
+  node-only test project exercise the policy without a DOM. `TextureSource` is the read side both a
+  registry and a cache view satisfy â€” take that, not `TextureRegistry`, when all you do is `get`.
 - `pipeline.ts` â€” `createPipeline`: the render chain (scene â†’ its own MSAA target â†’ bloom â†’ tilt-shift
   Ã—2 â†’ `OutputPass` â†’ grade), `render()`/`resize()`/`dispose()`.
 - `shaders.ts` â€” `TiltShiftShader`, `GradeShader`, `SkyShader`: raw GLSL, all pass-through helpers.
@@ -85,7 +93,13 @@ lazy â€” built at first call, never at import â€” specifically so impo
   to sample a tile from it.
 - `terrain/mesh.ts` â€” `meshTerrain`: turns a `HeightField` + atlas set into real 3D geometry â€”
   blocks, cliff walls, autotiled edges, vertex-color contact occlusion.
-- `terrain/water.ts` â€” `createWater`: the depth-graded sea plane with analytic swell normals.
+- `terrain/water.ts` â€” `createWater`: the depth-graded sea plane with analytic swell normals. Its
+  two halves have very different costs and only one of them depends on the terrain: the plane is
+  17-23 ms to allocate at the editor's canvas size and moves for nothing but `size`, while
+  `aShallow` â€” the coastline gradient â€” is ~1 ms. `setField` refreshes that half alone, which is
+  what lets a caller keep one sea across many scenes. `aShallow` is a bare `BufferAttribute` on
+  purpose: `Float32BufferAttribute` COPIES its array, which would leave the refresh writing into a
+  buffer the geometry no longer reads, silently.
 - `terrain/foam.ts` â€” `createFoam`: the animated shoreline foam decal.
 
 ## Comments are in French, and say WHY

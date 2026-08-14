@@ -6,7 +6,7 @@ import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { terrainAtlasKey, terrainGroupFor } from "../src/hd2d/scene.js";
+import { terrainAtlasKey, terrainGroupFor, waterPlaneKey } from "../src/hd2d/scene.js";
 
 /**
  * An atlas whose only job is to exist: `meshTerrain` reads `cols`/`rows`/`block`/`wallRow`/`tilePx`
@@ -163,5 +163,29 @@ describe("the HD-2D scene's terrain", () => {
       );
       expect(corners.size).toBe(4);
     }
+  });
+});
+
+describe("waterPlaneKey", () => {
+  const map = (size: number, waterLevel: number): MapData =>
+    ({ size, waterLevel }) as unknown as MapData;
+
+  // The sea outlives the scene: `Hd2dRenderer` hands one `Water` forward across every rebuild whose
+  // key matches, and rebuilds it when it does not. Getting this wrong is not a crash — it is a
+  // plane of the wrong extent, or one sitting at the previous map's sea level, both silent.
+  it("is the same for two maps whose sea plane is identical", () => {
+    expect(waterPlaneKey(map(256, -0.35))).toBe(waterPlaneKey(map(256, -0.35)));
+  });
+
+  it("differs when the extent or the sea level does", () => {
+    expect(waterPlaneKey(map(256, -0.35))).not.toBe(waterPlaneKey(map(128, -0.35)));
+    expect(waterPlaneKey(map(256, -0.35))).not.toBe(waterPlaneKey(map(256, 0)));
+  });
+
+  // The key must state the PLANE's extent, not the grid's: `createWater` is called with
+  // `map.size * 3`, and a key that dropped the factor would still be correct today and wrong the
+  // day that factor changes on one side only.
+  it("states the plane's own extent, three times the grid", () => {
+    expect(waterPlaneKey(map(256, 0))).toContain("768");
   });
 });

@@ -39,6 +39,7 @@ import { createFoam, FOAM_SPREAD } from "@lindocara/hd2d/terrain/foam.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
 import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
+import type { Water } from "@lindocara/hd2d/terrain/water.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
@@ -307,7 +308,41 @@ export interface Hd2dScene {
   ctx: Hd2dContext;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  query: TerrainQuery;
+  /** Answers for the terrain currently drawn — it is replaced by `updateTerrain`, so read it off
+   *  the scene at the moment you need it rather than capturing it. */
+  readonly query: TerrainQuery;
+  /** The sea this scene drew with — the one built for it, or the one it was handed. It belongs to
+   *  the CALLER either way (see `createHd2dScene`), which is why it is exposed rather than kept
+   *  private like the terrain and the sky. */
+  water: Water;
+  /**
+   * Swaps the ground for another heightfield, keeping everything that is not the ground.
+   *
+   * The scene, the camera and where it is pointed, the lights, the sky, the sea, the post-fx
+   * pipeline and the `Hd2dContext` all survive — none of them describes terrain, and rebuilding
+   * them was most of what a map edit cost. Only the terrain mesh, the stairs, the foam, the
+   * `TerrainQuery` and the sea's shallow gradient actually follow the edit.
+   *
+   * For an EDIT of the map being drawn. A different map wants a new scene: the day-cycle seed is
+   * fixed per scene (`cycleKey`), and a transition should reset the camera rather than inherit the
+   * previous map's framing.
+   *
+   * The caller still owns everything parented into this scene from outside — billboards, scenery,
+   * the visual layer. Those are placed against the OLD terrain and must be rebuilt after this call.
+   */
+  updateTerrain(map: MapData): void;
+}
+
+/**
+ * What a sea plane is made of: its extent and its level, and nothing else.
+ *
+ * Two maps agreeing on this can share one `Water` across a scene rebuild — the plane's 148k
+ * vertices are identical, and only `aShallow` has to follow the new coastline. It lives here, one
+ * screen from the `createWater` call it mirrors, so that changing the plane's extent (`map.size * 3`)
+ * without changing this key is a diff a reader can see rather than a stale cache nobody suspects.
+ */
+export function waterPlaneKey(map: MapData): string {
+  return `${map.size * 3}:${map.waterLevel}`;
 }
 
 export function cameraOrbitOffset(
@@ -323,11 +358,26 @@ export function cameraOrbitOffset(
   };
 }
 
+/**
+ * Builds the scene.
+ *
+ * **The sea outlives it.** `reuse.water` lets a caller hand back the `Water` a previous scene drew
+ * with, and this scene will then only refresh its shallow gradient instead of building a new plane.
+ * That is not a micro-optimisation: the plane is 385x385 vertices and costs 17-23 ms to allocate,
+ * it depends on nothing but `size` and `waterLevel`, and the editor calls this function on every
+ * painted cell — so the sea was being rebuilt, in full, for edits that never moved a single one of
+ * its vertices. `aShallow`, the only part the terrain drives, is ~1 ms.
+ *
+ * The consequence for ownership, and it is deliberate: **`dispose()` never disposes the water**,
+ * whether this scene built it or was handed it. The caller reads it back from `Hd2dScene.water`
+ * and frees it when its `size`/`waterLevel` stop matching, or when the caller itself dies.
+ */
 export function createHd2dScene(
   canvas: HTMLCanvasElement,
   map: MapData,
   textures: TextureRegistry,
   cycleKey = "map",
+  reuse: { water?: Water } = {},
 ): Hd2dScene {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 5000);
@@ -338,47 +388,60 @@ export function createHd2dScene(
   // `heightFieldFor` is a stateless adapter over the map's own arrays, so the one `terrainGroupFor`
   // builds for itself and this one are interchangeable — this exists because the sea and the foam
   // need a field too, not because the ground's differs from theirs.
-  const field = heightFieldFor(map);
-  const query = createTerrainQuery(mapToQuerySource(map));
+  // Everything the ground is made of is `let`, not `const`: `updateTerrain` replaces the lot in
+  // place when only the terrain changed, which is what keeps an editor edit from costing a whole
+  // scene. Read them through the closure, never capture them in one.
+  let currentMap = map;
+  let field = heightFieldFor(map);
+  let query = createTerrainQuery(mapToQuerySource(map));
 
   const atlases = terrainAtlases(textures);
   const fallbackAtlas = atlases.lvl0;
   if (!fallbackAtlas) throw new Error("The level-0 terrain atlas is required for authored stairs");
-  const terrain = terrainGroupFor(ctx, map, atlases);
+  // A ramp draws in the hue of the bank it climbs to, the same way `terrainAtlasKey` gives each
+  // altitude its own sheet. Handing every ramp the level-0 atlas — as this did — painted a ramp
+  // climbing 1 to 2 in level 0's green.
+  const stairsFor = (source: MapData): ReturnType<typeof meshStairs> =>
+    meshStairs(source.ramps ?? [], {
+      levelHeight: source.levelHeight,
+      atlasFor: (level) => atlases[terrainAtlasKey("herbe", level)] ?? fallbackAtlas,
+    });
+  let terrain = terrainGroupFor(ctx, map, atlases);
   scene.add(terrain.group);
-  const stairs = meshStairs(map.ramps ?? [], {
-    levelHeight: map.levelHeight,
-    // A ramp draws in the hue of the bank it climbs to, the same way `terrainAtlasKey` gives each
-    // altitude its own sheet. Handing every ramp the level-0 atlas — as this did — painted a ramp
-    // climbing 1 to 2 in level 0's green.
-    atlasFor: (level) => atlases[terrainAtlasKey("herbe", level)] ?? fallbackAtlas,
-  });
+  let stairs = stairsFor(map);
   scene.add(stairs.group);
 
   // A plane three times wider than the grid: enough that the sea loses itself in the fog before its
   // own edge does, at every zoom.
-  const water = createWater(ctx, field, {
-    texture: textures.get(`${TERRAIN_ROOT}/Water.png`),
-    level: map.waterLevel,
-    size: map.size * 3,
-    segment: WATER.segment,
-    depthRange: WATER.depthRange,
-    roughness: WATER.roughness,
-  });
+  const water =
+    reuse.water ??
+    createWater(ctx, field, {
+      texture: textures.get(`${TERRAIN_ROOT}/Water.png`),
+      level: map.waterLevel,
+      size: map.size * 3,
+      segment: WATER.segment,
+      depthRange: WATER.depthRange,
+      roughness: WATER.roughness,
+    });
+  // A reused sea keeps its plane and its material — only the coastline it shades has moved. `add`
+  // re-parents it out of the scene it came from, which no longer exists by the time we get here.
+  if (reuse.water) reuse.water.setField(field);
   scene.add(water.mesh);
 
-  const foam = createFoam(ctx, field, {
-    texture: textures.get(`${TERRAIN_ROOT}/Foam.png`),
-    frames: 8,
-    fps: 7,
-    spread: FOAM_SPREAD,
-    waterLevel: map.waterLevel,
-    // Authored game maps have no water at elevation — `HeightField.waterAt` answers `null`
-    // everywhere for them — so this only ever feeds the sea's own placement. It is required rather
-    // than optional so a map that DOES grow elevated water cannot silently draw its foam at sea
-    // level, buried inside the terrain.
-    levelHeight: map.levelHeight,
-  });
+  const foamFor = (source: MapData, sourceField: HeightField): ReturnType<typeof createFoam> =>
+    createFoam(ctx, sourceField, {
+      texture: textures.get(`${TERRAIN_ROOT}/Foam.png`),
+      frames: 8,
+      fps: 7,
+      spread: FOAM_SPREAD,
+      waterLevel: source.waterLevel,
+      // Authored game maps have no water at elevation — `HeightField.waterAt` answers `null`
+      // everywhere for them — so this only ever feeds the sea's own placement. It is required
+      // rather than optional so a map that DOES grow elevated water cannot silently draw its foam
+      // at sea level, buried inside the terrain.
+      levelHeight: source.levelHeight,
+    });
+  let foam = foamFor(map, field);
   scene.add(foam.group);
 
   const sky = createSky(ctx);
@@ -455,9 +518,14 @@ export function createHd2dScene(
   let cameraDistance = CAMERA.distance;
   let cameraYaw = 0;
   const wantedTarget = new THREE.Vector3();
-  const cameraInset = Math.min(4, Math.max(0, map.size / 2 - 0.5));
-  const cameraMin = -map.size / 2 + cameraInset;
-  const cameraMax = map.size / 2 - cameraInset;
+  let cameraMin = 0;
+  let cameraMax = 0;
+  const clampCameraTo = (size: number): void => {
+    const inset = Math.min(4, Math.max(0, size / 2 - 0.5));
+    cameraMin = -size / 2 + inset;
+    cameraMax = size / 2 - inset;
+  };
+  clampCameraTo(map.size);
 
   function frameCamera(): void {
     // How far back the camera sits. Zoom updates this value while preserving the camera pitch and
@@ -557,7 +625,38 @@ export function createHd2dScene(
     ctx,
     scene,
     camera,
-    query,
+    // A GETTER, not the value: `updateTerrain` replaces the query, and anything that had captured
+    // the old one would answer heights for the terrain before the edit — a hero standing in the air
+    // over a cliff that was just dug away, with nothing failing.
+    get query(): TerrainQuery {
+      return query;
+    },
+    water,
+    updateTerrain(next: MapData): void {
+      currentMap = next;
+      field = heightFieldFor(next);
+      query = createTerrainQuery(mapToQuerySource(next));
+      // `meshTerrain` and `createFoam` clear their group's children but do NOT detach the group
+      // itself (`meshStairs` does); removing all three explicitly is the one rule that reads the
+      // same for the next person as for the compiler.
+      terrain.dispose();
+      terrain.group.removeFromParent();
+      terrain = terrainGroupFor(ctx, next, atlases);
+      scene.add(terrain.group);
+      stairs.dispose();
+      stairs.group.removeFromParent();
+      stairs = stairsFor(next);
+      scene.add(stairs.group);
+      foam.dispose();
+      foam.group.removeFromParent();
+      foam = foamFor(next, field);
+      scene.add(foam.group);
+      water.setField(field);
+      clampCameraTo(next.size);
+      // The camera is deliberately NOT re-parked: `focusReached` stays true, so an author's pan
+      // survives the edit. That parking is what `focusOn`'s comment below had to work around when
+      // every painted cell built a whole new scene.
+    },
     gameHour: () => cycle.hour,
     fireIntensity: () => mood.value.fire,
     setDayCycleOverride(override): void {
@@ -581,7 +680,7 @@ export function createHd2dScene(
       if (!focusReached) {
         target.set(
           focus.x,
-          (query.heightAt(focus.x, focus.z) ?? map.waterLevel) + CAMERA.height,
+          (query.heightAt(focus.x, focus.z) ?? currentMap.waterLevel) + CAMERA.height,
           focus.z,
         );
         focusReached = true;
@@ -607,7 +706,7 @@ export function createHd2dScene(
       pipeline.setTiltShiftEnabled(enabled);
     },
     pickGround(raycaster: THREE.Raycaster): { x: number; z: number } | null {
-      const half = map.size / 2;
+      const half = currentMap.size / 2;
       for (const hit of raycaster.intersectObjects(
         [terrain.group, stairs.group, water.mesh],
         true,
@@ -636,7 +735,7 @@ export function createHd2dScene(
       if (focus) {
         wantedTarget.set(
           focus.x,
-          (query.heightAt(focus.x, focus.z) ?? map.waterLevel) + CAMERA.height,
+          (query.heightAt(focus.x, focus.z) ?? currentMap.waterLevel) + CAMERA.height,
           focus.z,
         );
         // Exponential damping, transcribed from `apps/lab/src/main.ts`'s `updateCamera`: it is
@@ -687,7 +786,10 @@ export function createHd2dScene(
     dispose(): void {
       terrain.dispose();
       stairs.dispose();
-      water.dispose();
+      // The sea is NOT disposed here — it belongs to the caller and routinely outlives this scene
+      // (see this function's docblock). Putting `water.dispose()` back would free a plane the next
+      // scene is about to be handed, and cost 17-23 ms to rebuild for nothing.
+      water.mesh.removeFromParent();
       foam.dispose();
       sky.dispose();
       pipeline.dispose();
