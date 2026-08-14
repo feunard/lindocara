@@ -1172,7 +1172,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.tool.eraser": "Gomme",
   "editor.tool.spawn": "Point d’arrivée du héros",
   "editor.tool.spawn.hint":
-    "Où un héros arrive sur cette carte — le départ de l’aventure, une sortie depuis une autre carte, une téléportation ou un test y arrivent tous. Un seul par carte.",
+    "Où un héros arrive sur cette carte — le départ de l’aventure, une sortie ou une téléportation depuis une autre carte, ou un test y arrivent tous. Une seule par carte.",
   "editor.tool.entry": "Entrée",
   "editor.tool.exit": "Sortie",
   "editor.tool.monster": "Monstre",

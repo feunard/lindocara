@@ -1157,7 +1157,7 @@ export const en = {
   "editor.tool.eraser": "Eraser",
   "editor.tool.spawn": "Hero start point",
   "editor.tool.spawn.hint":
-    "Where a hero lands on this map — the adventure start, an exit from another map, a teleport or a playtest all arrive here. One per map.",
+    "Where a hero lands on this map — the adventure start, an exit or teleport from another map, or a playtest all arrive here. One per map.",
   "editor.tool.entry": "Entry",
   "editor.tool.exit": "Exit",
   "editor.tool.monster": "Monster",
