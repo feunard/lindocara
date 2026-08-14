@@ -16,7 +16,7 @@ import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEdit
 import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-session.js";
 import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
-import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
+import { MAP_MIN_COLS, MAP_MIN_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -2249,6 +2249,35 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     const session = alepha.store.get(adventureEditorSessionAtom);
     expect(session?.adventureId).toBe("adv-new");
     expect(session?.titleUntouched).toBe(false);
+  });
+
+  it("shows the derived size, not the stored 20 × 15, for a fresh sandbox", async () => {
+    seedSandbox();
+    // The default beforeEach stubs `handle.current()` to a fixed 40×30 fixture shared by every
+    // other test in this describe (`editedMap`) — override it to `undefined` so the status bar's
+    // `currentMap` falls through to `map ? toEditorMap(map) : null`, i.e. the session's OWN
+    // `sandboxMap` (a fresh `defaultMapInput`, `MAP_MIN_COLS`×`MAP_MIN_ROWS` of solid grass),
+    // padded through the real `canvasEditorMap`/`derivedMapRect` path this finding fixes.
+    stageMock.current.mockReturnValue(undefined);
+    const mock = sandboxBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady(alepha);
+
+    // Solid grass fills the whole document, so the derived rect is exactly content + the ocean
+    // margin on every side — never the stored `MAP_MIN_COLS`×`MAP_MIN_ROWS` a stale read of
+    // `map.cols`/`map.rows` would show.
+    const derivedCols = MAP_MIN_COLS + 2 * MAP_OCEAN_MARGIN;
+    const derivedRows = MAP_MIN_ROWS + 2 * MAP_OCEAN_MARGIN;
+    expect(
+      within(statusBar(rendered)).getByText(
+        `${t("editor.cols")} ${derivedCols} × ${t("editor.rows")} ${derivedRows}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(statusBar(rendered)).queryByText(
+        `${t("editor.cols")} ${MAP_MIN_COLS} × ${t("editor.rows")} ${MAP_MIN_ROWS}`,
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("saves straight through to the stored map after that first save", async () => {

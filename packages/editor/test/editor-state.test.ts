@@ -1720,6 +1720,25 @@ describe("dynamic map size", () => {
 
   it("erasing the outlier shrinks the save back (pure derivation)", () => {
     const canvas = canvasEditorMap(blankMap("m", 20, 15));
-    expect(toSaveInput(canvas).cols).toBe(20 + 2 * MAP_OCEAN_MARGIN);
+    const ground = canvas.layers[0];
+    if (!ground) throw new Error("missing ground layer");
+    const ids = [...ground.ids];
+    // The same lone grass tile 30 cells east of the padded content the growth test above paints.
+    const col = 118 + 20 + 30;
+    const row = 120 + 7;
+    const outlierId = ids[120 * ground.cols + 118] ?? 0;
+    ids[row * ground.cols + col] = outlierId;
+    const painted = { ...canvas, layers: [{ ...ground, ids }, ...canvas.layers.slice(1)] };
+    // Painting the outlier really does grow the save first — otherwise erasing it back "shrinking"
+    // the save would be true only because nothing ever grew it.
+    expect(toSaveInput(painted).cols).toBeGreaterThan(20 + 2 * MAP_OCEAN_MARGIN);
+
+    const erasedIds = [...ids];
+    erasedIds[row * ground.cols + col] = EMPTY_TILE;
+    const erased = {
+      ...canvas,
+      layers: [{ ...ground, ids: erasedIds }, ...canvas.layers.slice(1)],
+    };
+    expect(toSaveInput(erased).cols).toBe(20 + 2 * MAP_OCEAN_MARGIN);
   });
 });
