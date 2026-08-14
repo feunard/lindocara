@@ -312,6 +312,10 @@ export function openMapEditorStage(
           cols: rect.cols,
           rows: rect.rows,
         },
+        spawn: {
+          x: map.spawn.col + 0.5 - size / 2,
+          z: map.spawn.row + 0.5 - size / 2,
+        },
         hover: hoverPoint,
         selection: focusSelection,
         // The cursor outlines the unit the active mode actually places on: a whole cell for field

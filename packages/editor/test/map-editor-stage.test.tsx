@@ -125,6 +125,25 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
+  it("the overlay carries the map's spawn, in every mode and after it moves", async () => {
+    // blankMap(20, 15) spawns dead centre at col 10 / row 7; the stage's world origin is the
+    // canvas centre, so size = max(20, 15) = 20 and the cell centre is (0.5, -2.5).
+    const map = blankMap("Map", 20, 15);
+    const stage = await openMapEditorStage(map, vi.fn());
+    expect(mock.renderer.setEditorOverlay.mock.lastCall?.[0].spawn).toEqual({ x: 0.5, z: -2.5 });
+
+    // A fact about the map, not a Field-mode tool artefact: it must survive into the two modes
+    // where an author can bury it under scenery or an event without noticing.
+    stage.setActiveMode("element");
+    expect(mock.renderer.setEditorOverlay.mock.lastCall?.[0].spawn).toEqual({ x: 0.5, z: -2.5 });
+    stage.setActiveMode("event");
+    expect(mock.renderer.setEditorOverlay.mock.lastCall?.[0].spawn).toEqual({ x: 0.5, z: -2.5 });
+
+    stage.replaceMap({ ...stage.current(), spawn: { col: 3, row: 4 } });
+    expect(mock.renderer.setEditorOverlay.mock.lastCall?.[0].spawn).toEqual({ x: -6.5, z: -5.5 });
+    stage.dispose();
+  });
+
   it("stores the map lighting mode in history and previews every fixed night degree", async () => {
     const changes = vi.fn();
     // Opts INTO the cycle first: a blank map now starts on permanent day, and undo below must land

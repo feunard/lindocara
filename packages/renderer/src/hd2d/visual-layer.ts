@@ -143,6 +143,10 @@ export interface Hd2dEditorOverlay {
   /** World-coordinate outline of the rect a save would store — origin corner + size in cells.
    *  Drawn as a bright boundary so the author always sees what will be saved. */
   saveRect?: { x: number; z: number; cols: number; rows: number } | null;
+  /** The map's one hero start cell, as a world-space cell centre. Drawn persistently rather than
+   *  as a selection: it is a fact about the map, like `saveRect`, and an author who cannot see it
+   *  buries it under scenery and then meets `keepsSpawnClear`'s refusal with no visible cause. */
+  spawn?: GroundVector | null;
 }
 
 function disposeObject(object: THREE.Object3D): void {
