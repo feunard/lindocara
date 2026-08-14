@@ -97,7 +97,7 @@ function fEvent(params: {
   col: number;
   row: number;
   name: string;
-  kind: "entry" | "exit" | "spawn" | "monster";
+  kind: "entry" | "exit" | "monster";
   species?: MonsterSpecies;
   patrolRadius?: number;
 }): MapEvent {
@@ -251,7 +251,6 @@ export function buildAbbaye(): {
     ],
   });
 
-  const spawn = fEvent({ col: 11, row: 9, name: "Départ", kind: "spawn" });
   const entrySouth = fEvent({ col: 12, row: 18, name: "Entrée sud", kind: "entry" });
   const exitSouth = fEvent({ col: 14, row: 18, name: "Vers Ronceclair", kind: "exit" });
 
@@ -274,7 +273,7 @@ export function buildAbbaye(): {
       layers: encodeLayers(layers),
       elements,
       spawn: { col: 11, row: 10 },
-      events: [spawn, entrySouth, anselme, aldric, ...monsters],
+      events: [entrySouth, anselme, aldric, ...monsters],
       exits: [{ event: exitSouth, dest: { toMap: "ronceclair", entryKey: "north" } }],
       entries: { south: entrySouth },
     },

@@ -68,7 +68,10 @@ describe("procedural map authoring", () => {
     const spawnIndex = saved.spawn.row * heightfield.size + saved.spawn.col;
 
     expect(heightfield.levels[spawnIndex]).not.toBeNull();
-    expect(generated.events.some((event) => event.kind === "spawn")).toBe(true);
+    expect(saved.spawn.col).toBeGreaterThanOrEqual(0);
+    expect(saved.spawn.col).toBeLessThan(saved.layers[0]?.cols ?? 0);
+    expect(saved.spawn.row).toBeGreaterThanOrEqual(0);
+    expect(saved.spawn.row).toBeLessThan(saved.layers[0]?.rows ?? 0);
     expect(generated.events.some((event) => event.kind === "monster")).toBe(true);
     expect(generated.events.some((event) => event.kind === "npc")).toBe(true);
     expect(

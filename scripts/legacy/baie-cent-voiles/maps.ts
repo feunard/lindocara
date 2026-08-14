@@ -494,8 +494,6 @@ function contentWrecks(g: Grounds["wrecks"], dock: Dock, refs: StoryRefs): Adven
   const s = g.spots;
   const spawn = g.dock;
 
-  e.anchor("spawn", "Grève basse", spawn, "spawn");
-
   npc(e, "sign", "Poteau de marée", s.sign, GRAPHICS.sign, [
     "GRÈVE DES ÉPAVES — cap au nord-est, Port-Fanal à une heure de rame. Le fanal est éteint : ne naviguez pas de nuit.",
   ]);

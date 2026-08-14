@@ -149,17 +149,6 @@ function monster(
   });
 }
 
-function spawnAnchor(col: number, row: number): MapEvent {
-  return functionalEvent({
-    id: crypto.randomUUID(),
-    col,
-    row,
-    ordinal: nextOrdinal(),
-    kind: "spawn",
-    name: "Départ de l’aventure",
-  });
-}
-
 /** A crossing: step on it and the teleport command carries you to another island. */
 function ferry(params: {
   col: number;
@@ -403,7 +392,6 @@ export function buildSombregue(): BuiltWorld {
       ],
     ],
   });
-  const portSpawnEvent = spawnAnchor(port.at.spawn.col, port.at.spawn.row);
 
   // ── ② La Grève aux Épaves — first blood: spear goblins among the wrecks.
   const greveArrive = { col: 6, row: 14 };
@@ -661,7 +649,7 @@ export function buildSombregue(): BuiltWorld {
       layers: encode(port.layers),
       elements: port.elements,
       spawn: port.at.spawn,
-      events: [portSpawnEvent, capitaine, frereOsmond, marchand],
+      events: [capitaine, frereOsmond, marchand],
       linkedEvents: (ids) => [
         ferry({
           ...port.at.ferry,

@@ -192,7 +192,6 @@ function rowOf(
 function routeMap(refs: StoryRefs): AdventureBundleMap {
   const factory = createEventFactory("route", refs);
   const spawn = cell(4, 19);
-  factory.anchor("spawn", "Départ de l’aventure", spawn, "spawn");
   factory.normal("captain", "Capitaine de la porte", cell(6, 16), GRAPHICS.captain, [
     page(
       [

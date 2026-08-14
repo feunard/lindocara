@@ -450,6 +450,9 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.replaceMap).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "Verdant Reach",
+        // The generator no longer mints a `spawn` event (Task 5): the hero start is the map's own
+        // `spawn` cell, which regeneration must still produce inside the generated canvas.
+        spawn: expect.objectContaining({ col: expect.any(Number), row: expect.any(Number) }),
         layers: [
           expect.objectContaining({ cols: 256, rows: 256 }),
           expect.anything(),
@@ -458,10 +461,7 @@ describe("AdventureEditorScreen shell", () => {
         elements: expect.not.arrayContaining([
           expect.objectContaining({ assetId: expect.stringContaining("stump") }),
         ]),
-        events: expect.arrayContaining([
-          expect.objectContaining({ kind: "spawn" }),
-          expect.objectContaining({ kind: "monster" }),
-        ]),
+        events: expect.arrayContaining([expect.objectContaining({ kind: "monster" })]),
       }),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

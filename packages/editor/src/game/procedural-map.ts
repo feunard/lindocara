@@ -667,16 +667,6 @@ function eventPlan(
     occupied.add(pointKey(event));
   };
   let ordinal = 1;
-  add(
-    functionalEvent({
-      id: deterministicUuid(seed, "spawn"),
-      col: plan.village.col,
-      row: plan.village.row,
-      ordinal: ordinal++,
-      kind: "spawn",
-      name: "Village square",
-    }),
-  );
 
   const routines: readonly (readonly NpcRoutineStep[])[] = [
     [

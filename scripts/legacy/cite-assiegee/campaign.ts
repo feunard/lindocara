@@ -175,7 +175,7 @@ export function createEventFactory(mapKey: MapKey, refs: StoryRefs) {
     key: string,
     name: string,
     position: { col: number; row: number },
-    kind: "spawn" | "entry" | "exit",
+    kind: "entry" | "exit",
   ): MapEvent =>
     add(
       key,

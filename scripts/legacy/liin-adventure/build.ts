@@ -32,6 +32,7 @@ const bundle: AdventureBundle = {
   adventure: {
     title: "Liin — Les Dettes de l’Aube",
     maxPlayers: 4,
+    startMapId: MAP_IDS.prologue,
     registry: {
       switches: SWITCHES,
       variables: VARIABLES,
@@ -39,8 +40,8 @@ const bundle: AdventureBundle = {
     },
   },
   maps,
-  // Modern authored travel uses explicit, conditional teleports. The spawn event derives the start;
-  // no unconditional exit graph is needed or allowed to bypass a story gate.
+  // Modern authored travel uses explicit, conditional teleports. The adventure's `startMapId` names
+  // the start; no unconditional exit graph is needed or allowed to bypass a story gate.
   graph: { start: null, links: [] },
 };
 
@@ -53,7 +54,7 @@ if (!parsed) throw new Error("generated Liin bundle envelope is invalid");
 // Verre — Les Saules » enferme 272 de ses 1738 cases marchables derrière ses bras d'eau (les quinze
 // autres cartes sont à 100 %, sauf Clairécorce à 99,4 %). Remonter ce seuil à 0.9 est la façon de
 // vérifier qu'on a bien rouvert le marais.
-validateBundleMaps(parsed, { startMapId: MAP_IDS.prologue, minConnectedRatio: 0.84 });
+validateBundleMaps(parsed, { minConnectedRatio: 0.84 });
 validateStateReferences(parsed);
 const transitionGraph = buildAuthoredTransitionGraph(parsed.maps);
 const reachableMaps = reachableTransitionMaps(transitionGraph, MAP_IDS.prologue);

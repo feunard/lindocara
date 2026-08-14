@@ -25,7 +25,7 @@ import {
   validateStateReferences,
   visitCommands,
 } from "../../lib/bundle-validate.js";
-import { S, type StoryRefs, SWITCHES, VARIABLES } from "./campaign.js";
+import { MAP_IDS, S, type StoryRefs, SWITCHES, VARIABLES } from "./campaign.js";
 import { buildMaps } from "./maps.js";
 import { buildQuests } from "./quests.js";
 import { previewScene } from "./scenery.js";
@@ -42,11 +42,12 @@ const bundle: AdventureBundle = {
   adventure: {
     title: "La Baie des Cent Voiles",
     maxPlayers: 4,
+    startMapId: MAP_IDS.wrecks,
     registry: { switches: SWITCHES, variables: VARIABLES, quests },
   },
   maps,
-  // Aucun graphe d'exits : la carte qui porte l'événement `spawn` EST la première, et tout voyage
-  // passe par une barque authorée dont la page conditionnelle décide si elle appareille.
+  // No exit graph: every crossing is an authored boat whose conditional page decides whether it
+  // sails. The party's starting map is named explicitly above, not derived from an event.
   graph: { start: null, links: [] },
 };
 

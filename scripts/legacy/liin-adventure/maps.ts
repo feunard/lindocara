@@ -1450,7 +1450,6 @@ function mapElements(
 function buildPrologue(refs: StoryRefs): AdventureBundleMap {
   const e = createEventFactory("prologue", refs);
   const spawn = cell(5, 38);
-  e.anchor("spawn", "Chemin des bornes", spawn, "spawn");
   npc(e, "lyra", "Lyra", 9, 35, GRAPHICS.lyra, [
     "Le convoi a été frappé au tournant. Iven respire encore ; aidez-le avant de fouiller les roues.",
     "Ensuite, voyez le registre avec Osric. Vos noms manquent. Je veux savoir si c’est une erreur ou un acte.",

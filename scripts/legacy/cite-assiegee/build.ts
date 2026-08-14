@@ -22,7 +22,7 @@ import {
   validateStateReferences,
   visitCommands,
 } from "../../lib/bundle-validate.js";
-import { type StoryRefs, SWITCHES, VARIABLES } from "./campaign.js";
+import { MAP_IDS, type StoryRefs, SWITCHES, VARIABLES } from "./campaign.js";
 import { buildMaps } from "./maps.js";
 
 const OUTPUT = new URL("../../../adventures/legacy/cite-assiegee.json", import.meta.url);
@@ -35,6 +35,7 @@ const bundle: AdventureBundle = {
   adventure: {
     title: "La Cité assiégée",
     maxPlayers: 4,
+    startMapId: MAP_IDS.route,
     audio: {
       ...DEFAULT_ADVENTURE_AUDIO,
       music: "plain-1",

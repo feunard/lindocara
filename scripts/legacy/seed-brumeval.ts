@@ -370,7 +370,13 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
   const graph: AdventureGraph = { start: null, links: boundLinks };
   const putAdventure = await api(config, `/api/adventures/${adventureId}`, {
     method: "PUT",
-    body: JSON.stringify({ title: config.title, maxPlayers: MAX_PLAYERS, graph, registry }),
+    body: JSON.stringify({
+      title: config.title,
+      maxPlayers: MAX_PLAYERS,
+      graph,
+      registry,
+      startMapId: mapId.abbaye,
+    }),
   });
   if (!putAdventure.response.ok) throw failure("adventure registry", putAdventure);
   console.log("saved adventure registry (switches + quests)");
@@ -381,6 +387,7 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
     mapIds?: string[];
     graph?: { links?: unknown[] };
     registry?: { quests?: unknown[]; switches?: unknown[] };
+    startMapId?: string | null;
   } | null;
   if (!adventure.response.ok || !adventureBody) throw failure("adventure verify", adventure);
   const questCount = adventureBody.registry?.quests?.length ?? 0;
@@ -388,6 +395,11 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
   if (adventureBody.mapIds?.length !== 3) throw new Error("verify: expected 3 maps");
   if (questCount !== 6) throw new Error(`verify: expected 6 quests, got ${questCount}`);
   if (linkCount !== 5) throw new Error(`verify: expected 5 graph links, got ${linkCount}`);
+  if (adventureBody.startMapId !== mapId.abbaye) {
+    throw new Error(
+      `verify: expected startMapId ${mapId.abbaye} (abbaye), got ${adventureBody.startMapId}`,
+    );
+  }
   for (const map of world.maps) {
     const stored = await api(config, `/api/maps/${mapId[map.key]}`, { method: "GET" });
     const storedBody = stored.body as { events?: unknown[]; elements?: unknown[] } | null;
@@ -398,8 +410,6 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
         `verify ${map.key}: expected ${expectedEvents} events, got ${storedBody.events?.length}`,
       );
     }
-    const spawnEvent = (storedBody.events as MapEvent[]).find((event) => event.kind === "spawn");
-    if (map.key === "abbaye" && !spawnEvent) throw new Error("verify: abbaye lost its spawn event");
   }
   console.log(`seed verified: adventure ${adventureId} — 3 maps, 5 links, 6 quests`);
 }
