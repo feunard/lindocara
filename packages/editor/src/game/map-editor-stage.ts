@@ -7,6 +7,7 @@
  */
 
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
+import type { BuildingSettings } from "@lindocara/engine/buildings.js";
 import {
   authoredElementGroundPoint,
   authoredStairsRamp,
@@ -55,6 +56,7 @@ import {
   setActiveMode,
   toMapData,
   undoEditorHistory,
+  updateSelectedBuildingSettings,
   updateSelectedElementAsset,
   updateSelectedElementOffset,
 } from "./editor-state.js";
@@ -87,6 +89,7 @@ export interface MapEditorStageHandle {
   moveSelected(col: number, row: number): boolean;
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
   setSelectedElementOffset(offsetX: number, offsetY: number): boolean;
+  setSelectedBuildingSettings(settings: BuildingSettings): boolean;
   deleteSelected(): boolean;
   beginEventDraft(id: string): MapEvent | null;
   commitEventDraft(draft: MapEvent): void;
@@ -834,6 +837,10 @@ export function openMapEditorStage(
           updateSelectedElementOffset(map, selected, offsetX, offsetY),
           nextSelection,
         );
+      },
+      setSelectedBuildingSettings(settings) {
+        if (selected?.kind !== "element") return false;
+        return commitInspectorChange(updateSelectedBuildingSettings(map, selected, settings));
       },
       deleteSelected() {
         if (!selected || selected.kind === "spawn") return false;

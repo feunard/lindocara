@@ -80,9 +80,10 @@ import {
 // chunked explicitly for the same reason. Column counts below are every column `cast()` will encode
 // for an INSERT (schema fields, including ones filled by a default rather than passed explicitly).
 const D1_BOUND_PARAM_BUDGET = 90;
-/** id, mapId, col, row, offsetX, offsetY, kind, variant. Exported so `maps.test.ts` can assert
+/** id, mapId, col, row, offsetX, offsetY, kind, variant, buildingDestructible, buildingMaxHp.
+ *  Exported so `maps.test.ts` can assert
  *  this stays in step with `mapElements`'s actual schema column count — see that test. */
-export const MAP_ELEMENT_COLUMNS = 8;
+export const MAP_ELEMENT_COLUMNS = 10;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
  *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs,
@@ -649,6 +650,8 @@ export class MapService {
         offsetY: element.offsetY,
         kind: element.assetId,
         variant: 0,
+        buildingDestructible: element.building?.destructible,
+        buildingMaxHp: element.building?.maxHp,
       })),
       { batchSize: MAP_ELEMENT_BATCH_SIZE },
     );

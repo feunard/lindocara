@@ -6,6 +6,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@alepha/ui/components/ui/resizable";
+import { Switch } from "@alepha/ui/components/ui/switch";
 import { TooltipProvider } from "@alepha/ui/components/ui/tooltip";
 import { DialogProvider, useDialog } from "@alepha/ui/components/use-dialog/use-dialog";
 import {
@@ -36,6 +37,11 @@ import {
 } from "@lindocara/client/state/atoms.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
+import {
+  type BuildingSettings,
+  defaultBuildingSettings,
+  destroyedBuildingAssetId,
+} from "@lindocara/engine/buildings.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { derivedMapRect } from "@lindocara/engine/map-canvas.js";
@@ -1816,6 +1822,9 @@ function AdventureEditorInner({
                     onSetOffset={(offsetX, offsetY) =>
                       handleRef.current?.setSelectedElementOffset(offsetX, offsetY)
                     }
+                    onSetBuilding={(settings) =>
+                      handleRef.current?.setSelectedBuildingSettings(settings)
+                    }
                     onOpenEditor={() => {
                       if (selection.kind === "event") setOpenEventId(selection.id);
                       if (selection.kind === "element") setBindingSelection(selection);
@@ -2082,6 +2091,7 @@ function SelectionInspector({
   map,
   onMove,
   onSetOffset,
+  onSetBuilding,
   onOpenEditor,
   onClose,
   onDelete,
@@ -2090,6 +2100,7 @@ function SelectionInspector({
   map: EditorMap;
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
+  onSetBuilding(settings: BuildingSettings): void;
   onOpenEditor(): void;
   onClose(): void;
   onDelete(): void;
@@ -2102,13 +2113,20 @@ function SelectionInspector({
       ? map.elements.find((element) => sameElementSlot(element, selection))
       : undefined;
   const selectedElementAsset = selectedElement ? editorAsset(selectedElement.assetId) : undefined;
+  const selectedBuilding = selectedElement
+    ? (selectedElement.building ?? defaultBuildingSettings(selectedElement.assetId))
+    : null;
+  const destroyedAsset = selectedElement
+    ? editorAsset(destroyedBuildingAssetId(selectedElement.assetId) ?? "")
+    : null;
   const position =
     selectedEvent ?? selectedElement ?? (selection.kind === "spawn" ? map.spawn : undefined);
 
   // An event's inspector title reflects its kind (Entry/Exit/Monster spawn/Event), reusing the same
   // labels the former marker inspectors used; scenery and the hero spawn keep their own titles.
-  const titleKey =
-    selectedEvent && selectedEvent.kind !== "normal"
+  const titleKey = selectedBuilding
+    ? ("editor.inspector.building" as const)
+    : selectedEvent && selectedEvent.kind !== "normal"
       ? (`editor.inspector.${selectedEvent.kind}` as const)
       : (`editor.inspector.${selection.kind}` as const);
 
@@ -2168,6 +2186,53 @@ function SelectionInspector({
             {t("editor.binding.doubleClickHint")}
           </p>
         </>
+      )}
+
+      {selectedElement && selectedBuilding && (
+        <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="inspector-building-destructible" className="text-[11px] text-zinc-600">
+              {t("editor.inspector.building.destructible")}
+            </Label>
+            <Switch
+              id="inspector-building-destructible"
+              size="sm"
+              checked={selectedBuilding.destructible}
+              onCheckedChange={(checked) =>
+                onSetBuilding({ ...selectedBuilding, destructible: checked })
+              }
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="inspector-building-hp" className="text-[11px] text-zinc-600">
+              {t("editor.inspector.building.hp")}
+            </Label>
+            <Input
+              id="inspector-building-hp"
+              key={`building-hp:${selectedBuilding.maxHp}`}
+              type="number"
+              className="h-7 text-xs"
+              min={1}
+              max={1_000_000}
+              step={50}
+              defaultValue={selectedBuilding.maxHp}
+              onBlur={(event) => {
+                const value = Number(event.currentTarget.value);
+                onSetBuilding({
+                  ...selectedBuilding,
+                  maxHp: Number.isFinite(value)
+                    ? Math.max(1, Math.min(1_000_000, Math.trunc(value)))
+                    : selectedBuilding.maxHp,
+                });
+              }}
+            />
+          </div>
+          {destroyedAsset && (
+            <p className="text-[10.5px] text-muted-foreground">
+              {t("editor.inspector.building.ruin")}: {assetDisplayName(destroyedAsset)}
+            </p>
+          )}
+        </div>
       )}
 
       {position && (

@@ -28,6 +28,7 @@ import {
   toSaveInput,
   undoEditorHistory,
   updateEventDraftPage,
+  updateSelectedBuildingSettings,
 } from "@lindocara/editor/game/editor-state.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
@@ -98,6 +99,7 @@ function place(
 
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
+const HOUSE = "building.buildings-blue-buildings.house1" as const;
 const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
 const SMALL_DECOR = "decoration.deco.01" as const;
 const SMALL_DECOR_ALT = "decoration.deco.02" as const;
@@ -1408,6 +1410,67 @@ describe("moveSelection: event", () => {
     const two = place(one, { kind: "event", eventKind: "normal" }, 5, 6) as EditorMap;
     const firstId = two.events[0]?.id ?? "";
     expect(moveSelection(two, { kind: "event", id: firstId }, 5, 6)).toBeNull();
+  });
+});
+
+describe("building element settings", () => {
+  it("places buildings destructible by default and edits their HP as one pure mutation", () => {
+    const placed = applyTool(
+      blankMap("village", 30, 30),
+      { kind: "element", assetId: HOUSE },
+      3,
+      4,
+      true,
+      "element",
+    ) as EditorMap;
+    expect(placed.elements[0]?.building).toEqual({ destructible: true, maxHp: 900 });
+
+    const selection = { kind: "element", col: 3, row: 4, offsetX: 0, offsetY: 0 } as const;
+    const edited = updateSelectedBuildingSettings(placed, selection, {
+      destructible: false,
+      maxHp: 2_750,
+    });
+    expect(edited?.elements[0]?.building).toEqual({ destructible: false, maxHp: 2_750 });
+    expect(placed.elements[0]?.building).toEqual({ destructible: true, maxHp: 900 });
+  });
+
+  it("keeps durability and durable identity when a building moves", () => {
+    const placed = applyTool(
+      blankMap("village", 30, 30),
+      { kind: "element", assetId: HOUSE },
+      3,
+      4,
+      true,
+      "element",
+    ) as EditorMap;
+    const element = placed.elements[0];
+    if (!element) throw new Error("building placement failed");
+    const configured: EditorMap = {
+      ...placed,
+      elements: [
+        {
+          ...element,
+          id: crypto.randomUUID(),
+          building: { destructible: true, maxHp: 777 },
+        },
+      ],
+    };
+    const moved = moveSelection(
+      configured,
+      { kind: "element", col: 3, row: 4, offsetX: 0, offsetY: 0 },
+      8,
+      9,
+      2,
+      1,
+    );
+    expect(moved?.elements[0]).toMatchObject({
+      id: configured.elements[0]?.id,
+      col: 8,
+      row: 9,
+      offsetX: 2,
+      offsetY: 1,
+      building: { destructible: true, maxHp: 777 },
+    });
   });
 });
 

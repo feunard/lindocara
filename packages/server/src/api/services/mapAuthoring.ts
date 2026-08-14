@@ -21,6 +21,11 @@ import {
   type MapAudioConfig,
   parseMapAudioConfig,
 } from "@lindocara/engine/audio-catalog.js";
+import {
+  defaultBuildingSettings,
+  isStandingBuildingAsset,
+  parseBuildingSettings,
+} from "@lindocara/engine/buildings.js";
 import { isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
@@ -484,8 +489,16 @@ export function elementToWire(row: {
   offsetY: number;
   kind: string;
   variant: number;
+  buildingDestructible?: boolean | null;
+  buildingMaxHp?: number | null;
 }): MapElement | null {
   if (isEditorAssetId(row.kind)) {
+    const building = isStandingBuildingAsset(row.kind)
+      ? (parseBuildingSettings({
+          destructible: row.buildingDestructible,
+          maxHp: row.buildingMaxHp,
+        }) ?? defaultBuildingSettings(row.kind))
+      : null;
     return {
       id: row.id,
       col: row.col,
@@ -493,6 +506,7 @@ export function elementToWire(row: {
       offsetX: row.offsetX,
       offsetY: row.offsetY,
       assetId: row.kind,
+      ...(building ? { building } : {}),
     };
   }
   if (isElementKind(row.kind)) {

@@ -6,6 +6,12 @@
 export const EDITOR_HISTORY_LIMIT = 100;
 
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
+import {
+  type BuildingSettings,
+  defaultBuildingSettings,
+  isStandingBuildingAsset,
+  parseBuildingSettings,
+} from "@lindocara/engine/buildings.js";
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
   defaultMonsterTuning,
@@ -431,7 +437,7 @@ export function moveSelection(
       // mode rather than depending on the UI's — otherwise the mode gate would refuse the re-place.
       // Inspector moves preserve the current sub-cell offset through the defaults above; pointer
       // drags provide the quarter-cell under the cursor so the prop follows the hand precisely.
-      return applyTool(
+      const moved = applyTool(
         without,
         { kind: "element", assetId: element.assetId },
         col,
@@ -441,6 +447,19 @@ export function moveSelection(
         offsetX,
         offsetY,
       );
+      if (!moved) return null;
+      return {
+        ...moved,
+        elements: moved.elements.map((candidate) =>
+          sameElementSlot(candidate, destination)
+            ? {
+                ...candidate,
+                ...(element.id ? { id: element.id } : {}),
+                ...(element.building ? { building: element.building } : {}),
+              }
+            : candidate,
+        ),
+      };
     }
     case "event": {
       const event = map.events.find((candidate) => candidate.id === selection.id);
@@ -479,7 +498,7 @@ export function updateSelectedElementAsset(
   // Swapping an element's asset is an Element-mode operation; it names its own mode so the gate does
   // not refuse the re-place, the same as `moveSelection`. The sub-cell slot is preserved, so the
   // selection descriptor's identity does not change.
-  return applyTool(
+  const updated = applyTool(
     without,
     { kind: "element", assetId },
     selection.col,
@@ -489,6 +508,15 @@ export function updateSelectedElementAsset(
     selection.offsetX,
     selection.offsetY,
   );
+  if (!updated) return null;
+  return {
+    ...updated,
+    elements: updated.elements.map((candidate) =>
+      sameElementSlot(candidate, selection)
+        ? { ...candidate, ...(existing.id ? { id: existing.id } : {}) }
+        : candidate,
+    ),
+  };
 }
 
 /** Re-place the selected element at its cell with a new quarter-cell offset, clamped to
@@ -505,16 +533,53 @@ export function updateSelectedElementOffset(
   const clamp = (value: number): number =>
     Math.max(0, Math.min(ELEMENT_OFFSET_STEPS - 1, Math.trunc(value)));
   const without = deleteSelection(map, selection);
-  return applyTool(
+  const destination = {
+    col: selection.col,
+    row: selection.row,
+    offsetX: clamp(offsetX),
+    offsetY: clamp(offsetY),
+  };
+  const updated = applyTool(
     without,
     { kind: "element", assetId: element.assetId },
     selection.col,
     selection.row,
     true,
     "element",
-    clamp(offsetX),
-    clamp(offsetY),
+    destination.offsetX,
+    destination.offsetY,
   );
+  if (!updated) return null;
+  return {
+    ...updated,
+    elements: updated.elements.map((candidate) =>
+      sameElementSlot(candidate, destination)
+        ? {
+            ...candidate,
+            ...(element.id ? { id: element.id } : {}),
+            ...(element.building ? { building: element.building } : {}),
+          }
+        : candidate,
+    ),
+  };
+}
+
+/** Update one building's durability without changing its placement or catalogue appearance. */
+export function updateSelectedBuildingSettings(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  settings: BuildingSettings,
+): EditorMap | null {
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (!element || !isStandingBuildingAsset(element.assetId)) return null;
+  const parsed = parseBuildingSettings(settings);
+  if (!parsed) return null;
+  return {
+    ...map,
+    elements: map.elements.map((candidate) =>
+      sameElementSlot(candidate, selection) ? { ...candidate, building: parsed } : candidate,
+    ),
+  };
 }
 
 export interface ElementEventBinding {
@@ -1309,10 +1374,19 @@ export function applyTool(
         offsetY: resourceOffset ?? offsetY,
       };
       const replaced = map.elements.find((element) => sameElementSlot(element, slot));
+      const building = defaultBuildingSettings(tool.assetId);
       const placed: MapElement = {
         ...(replaced?.id ? { id: replaced.id } : {}),
         ...slot,
         assetId: tool.assetId,
+        ...(building
+          ? {
+              building:
+                replaced?.assetId === tool.assetId && replaced.building
+                  ? replaced.building
+                  : building,
+            }
+          : {}),
       };
       if (!placementFitsMap(map, placed)) return null;
       if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;

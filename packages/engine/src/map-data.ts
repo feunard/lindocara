@@ -9,6 +9,12 @@
  * reason.
  */
 
+import {
+  type BuildingSettings,
+  defaultBuildingSettings,
+  isStandingBuildingAsset,
+  parseBuildingSettings,
+} from "./buildings.js";
 import { colliderIndexFrom } from "./collider.js";
 import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
@@ -37,6 +43,8 @@ export interface MapElement {
   /** Integer in `0..ELEMENT_OFFSET_STEPS - 1`, quarter tiles below the cell origin. */
   offsetY: number;
   assetId: EditorAssetId;
+  /** Present only on standing building assets; legacy payloads receive catalogue-derived defaults. */
+  building?: BuildingSettings;
 }
 
 export interface LegacyMapElement {
@@ -464,6 +472,17 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     else if (isElementKind(item.kind) && Number.isSafeInteger(item.variant)) {
       assetId = legacyElementAssetId(item.kind, item.variant as number);
     } else return null;
+    let building: BuildingSettings | undefined;
+    if (isStandingBuildingAsset(assetId)) {
+      const settings =
+        item.building === undefined
+          ? defaultBuildingSettings(assetId)
+          : parseBuildingSettings(item.building);
+      if (!settings) return null;
+      building = settings;
+    } else if (item.building !== undefined) {
+      return null;
+    }
     parsed.push({
       ...(typeof id === "string" ? { id } : {}),
       col: col as number,
@@ -471,6 +490,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       offsetX,
       offsetY,
       assetId,
+      ...(building ? { building } : {}),
     });
   }
   return parsed;

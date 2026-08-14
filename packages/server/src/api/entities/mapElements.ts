@@ -26,6 +26,9 @@ export const mapElements = $entity({
     /** Stable Tiny Swords editor asset id; legacy tree/bush/stone rows are normalized on read. */
     kind: z.string(),
     variant: db.default(z.integer(), 0),
+    /** Null only on non-buildings and legacy rows; reads derive catalogue defaults when absent. */
+    buildingDestructible: z.boolean().optional(),
+    buildingMaxHp: z.integer().optional(),
   }),
   indexes: [
     { columns: ["mapId"], name: "map_element_map_idx" },

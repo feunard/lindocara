@@ -45,6 +45,7 @@ const MAP_ROWS = MAP_MIN_ROWS;
 const TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree1";
 const OTHER_TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree2";
 const STUMP_ASSET_ID = "resource.terrain-resources-wood-trees.stump-1";
+const HOUSE_ASSET_ID = "building.buildings-blue-buildings.house1";
 const HARVEST_PROFILE: HarvestProfile = {
   resource: "wood",
   tool: "axe",
@@ -724,6 +725,25 @@ describe("list, get, update, delete", () => {
     const editorSave = await putMap(id, token, payload);
     expect(editorSave.status).toBe(200);
     expect(await editorSave.json()).toMatchObject({ revision: 3 });
+  });
+
+  test("round-trips authored building durability", async () => {
+    const { userId, token } = await registerAndLogin("mapbuilding");
+    const id = await newMapId(await newAdventure(userId), token, "Village");
+    const building = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: HOUSE_ASSET_ID,
+      building: { destructible: false, maxHp: 2_750 },
+    };
+
+    expect((await putMap(id, token, mapBody({ elements: [building] }))).status).toBe(200);
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as { elements: unknown[] };
+    expect(payload.elements).toEqual([expect.objectContaining(building)]);
   });
 
   test("increments revision only after a successful update", async () => {
