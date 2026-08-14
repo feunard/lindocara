@@ -37,6 +37,7 @@ import {
   type SeaGuardianSnapshot,
   type SelfState,
   type ServerMessage,
+  type WorldBuildingSnapshot,
   type WorldEventSnapshot,
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
@@ -261,6 +262,7 @@ export class WorldClient {
    * as every other collection. Kept off the interpolation buffer: the renderer presents each
    * authoritative NPC step locally. */
   #events: readonly WorldEventSnapshot[] = [];
+  #buildings: readonly WorldBuildingSnapshot[] = [];
   /** Persistent camp frames are also movement geometry. They stay outside the interpolated world
    * cache, but every authoritative add/remove immediately rebuilds the local collision index. */
   readonly #peasantCamps = new Map<string, PeasantCampVisual>();
@@ -541,12 +543,14 @@ export class WorldClient {
         corpses: [],
         projectiles: [],
         events: this.#events,
+        buildings: this.#buildings,
       };
 
     const interpolated = {
       ...this.#sampleInterpolated(now, newest),
       corpses: this.#corpses,
       events: this.#events,
+      buildings: this.#buildings,
     };
     const self = this.#sampleSelf();
     if (!self) return interpolated;
@@ -596,6 +600,7 @@ export class WorldClient {
       // Events ride inside `world`, not the top-level view; seed their baseline from there.
       seedEventCache(this.#worldCache, message.world.events);
       this.#events = message.world.events;
+      this.#buildings = message.world.buildings ?? [];
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
@@ -723,6 +728,12 @@ export class WorldClient {
     }
     if (message.t === "merchant.open") {
       handlers.onMerchantOpen();
+      return;
+    }
+    if (message.t === "building.state") {
+      const byId = new Map(this.#buildings.map((building) => [building.id, building]));
+      byId.set(message.building.id, message.building);
+      this.#buildings = [...byId.values()];
       return;
     }
     if (message.t === "sea_guardian.devour") {

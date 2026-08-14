@@ -45,7 +45,7 @@ const heightfield: MapData = {
 };
 const layer = encodeTileLayer(emptyLayer(SIZE, SIZE));
 
-function welcome(events: unknown) {
+function welcome(events: unknown, buildings?: unknown) {
   return {
     t: "welcome",
     tick: 0,
@@ -58,6 +58,7 @@ function welcome(events: unknown) {
       tilesetId: TINY_SWORDS_TILESET_ID,
       layers: [layer, layer, layer],
       events,
+      ...(buildings === undefined ? {} : { buildings }),
       heightfield: encodeMap(heightfield),
       size: SIZE,
       questNpc: { id: "none", x: 0, y: 0 },
@@ -148,6 +149,24 @@ describe("events on the wire", () => {
       parseServerMessage(JSON.stringify(delta({ upsert: [event()], remove: [] }))),
     ).not.toBeNull();
     expect(parseServerMessage(JSON.stringify(resync([event()])))).not.toBeNull();
+  });
+
+  it("accepts building durability in a welcome and rejects incoherent ruins", () => {
+    const building = {
+      id: "building-1",
+      x: 0,
+      z: 0,
+      graphicAssetId: "building.factions-knights-buildings-house.house-blue",
+      destroyedAssetId: "building.factions-knights-buildings-house.house-destroyed",
+      hp: 900,
+      maxHp: 900,
+      destructible: true,
+      destroyed: false,
+    };
+    expect(parseServerMessage(JSON.stringify(welcome([], [building])))).not.toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([], [{ ...building, hp: 0, destroyed: false }]))),
+    ).toBeNull();
   });
 
   it("rejects an invented false interaction flag", () => {

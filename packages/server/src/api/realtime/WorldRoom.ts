@@ -76,6 +76,7 @@ import {
   type RoomPrimitiveOptions,
 } from "alepha/websocket";
 import type { AuthoredQuestChange } from "../../authored-quest-system.js";
+import { buildingSnapshot } from "../../world/building-system.js";
 import { cancelCombatAction } from "../../world/combat-action-system.js";
 import { addPlayer, isRateLimited, removePlayer } from "../../world/connection-system.js";
 import { abortRunsForHero } from "../../world/event-run-system.js";
@@ -1887,6 +1888,7 @@ export class WorldRoom {
       layers: definition.layers ?? [],
       // The active page of each authored event, appearance only — evaluated at join, never here.
       events: [...state.activeEvents],
+      buildings: state.buildings.map(buildingSnapshot),
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
       ...(definition.heroSettings === undefined ? {} : { heroSettings: definition.heroSettings }),
       ...(definition.dayNightCycle === undefined

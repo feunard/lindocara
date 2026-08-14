@@ -31,6 +31,7 @@ import type {
   PriestLumenTrailVisual,
   PriestPolarityOrbVisual,
   RogueShadowDanceSequence,
+  WorldBuildingSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import {
@@ -745,6 +746,7 @@ export class Hd2dRenderer implements RendererLike {
   #spawnKnightArt: StaticSpriteArt | null = null;
   #spawnKnightRequested = false;
   #worldEvents: readonly WorldEventSnapshot[] = [];
+  #worldBuildings: readonly WorldBuildingSnapshot[] = [];
   #map: MapData | null = null;
   #visuals: Hd2dVisualLayer | null = null;
   #merchant: MerchantDefinition | null = null;
@@ -913,7 +915,7 @@ export class Hd2dRenderer implements RendererLike {
     void this.#loadStaticContent(scene, heightfield).catch((error: unknown) => {
       console.warn("[hd2d] map scenery could not be loaded", error);
     });
-    this.#syncWorldEventContent(this.#worldEvents, true);
+    this.#syncWorldEventContent(this.#worldEvents, this.#worldBuildings, true);
   }
 
   setDayCycleOverride(override: DayCycleOverride): void {
@@ -1011,23 +1013,36 @@ export class Hd2dRenderer implements RendererLike {
     this.#visuals?.setSpawnKnightArt(this.#spawnKnightArt);
   }
 
-  #syncWorldEventContent(events: readonly WorldEventSnapshot[], force = false): void {
+  #syncWorldEventContent(
+    events: readonly WorldEventSnapshot[],
+    buildings: readonly WorldBuildingSnapshot[],
+    force = false,
+  ): void {
     this.#worldEvents = events;
-    const visualKey = events
-      .map((event) => {
+    this.#worldBuildings = buildings;
+    const visualKey = [
+      ...events.map((event) => {
         const assetId = worldEventAsset(event);
         return authoredActorSheet(assetId, "idle")
-          ? `${event.id}:actor:${assetId ?? ""}`
-          : `${event.id}:${event.col}:${event.row}:${assetId ?? ""}`;
-      })
-      .join("|");
+          ? `event:${event.id}:actor:${assetId ?? ""}`
+          : `event:${event.id}:${event.col}:${event.row}:${assetId ?? ""}`;
+      }),
+      ...buildings.map(
+        (building) =>
+          `building:${building.id}:${building.x}:${building.z}:${building.graphicAssetId}`,
+      ),
+    ].join("|");
     const assetIds = [
       ...new Set(
-        events.flatMap((event) =>
-          [event.graphicAssetId, event.harvest?.exhaustedAssetId ?? null].filter(
-            (assetId): assetId is string =>
-              assetId !== null && authoredActorSheet(assetId, "idle") === null,
-          ),
+        [
+          ...events.flatMap((event) => [
+            event.graphicAssetId,
+            event.harvest?.exhaustedAssetId ?? null,
+          ]),
+          ...buildings.flatMap((building) => [building.graphicAssetId, building.destroyedAssetId]),
+        ].filter(
+          (assetId): assetId is string =>
+            assetId !== null && authoredActorSheet(assetId, "idle") === null,
         ),
       ),
     ].sort();
@@ -1115,6 +1130,14 @@ export class Hd2dRenderer implements RendererLike {
             },
           ];
     });
+    events.push(
+      ...this.#worldBuildings.map((building) => ({
+        id: `building-${building.id}`,
+        x: building.x,
+        z: building.z,
+        graphicAssetId: building.graphicAssetId,
+      })),
+    );
     if (this.#eventContent) {
       // Harvesting changes one event. Preserve every other tree/rock mesh and update only that id;
       // rebuilding hundreds of billboards here caused a frame hitch and a white GPU-upload flash.
@@ -1140,7 +1163,7 @@ export class Hd2dRenderer implements RendererLike {
     if (!scene) return;
 
     this.#actors?.sync(this.#collectActors(sample, context));
-    this.#syncWorldEventContent(sample.events);
+    this.#syncWorldEventContent(sample.events, sample.buildings ?? []);
     const fireIntensity = scene.fireIntensity();
     this.#content?.setFireMood(fireIntensity);
     this.#eventContent?.setFireMood(fireIntensity);
@@ -1973,8 +1996,11 @@ export class Hd2dRenderer implements RendererLike {
    * The point of preloading here at all is that timing: queue every replacement before the first
    * playable frame, so the swap is a texture already in memory.
    */
-  preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void {
-    this.#syncWorldEventContent(events, true);
+  preloadWorldEventAssets(
+    events: readonly WorldEventSnapshot[],
+    buildings: readonly WorldBuildingSnapshot[] = [],
+  ): void {
+    this.#syncWorldEventContent(events, buildings, true);
   }
 
   removePeasantCamp(id: string): void {

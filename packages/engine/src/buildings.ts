@@ -11,6 +11,17 @@ export interface BuildingSettings {
   maxHp: number;
 }
 
+/** One authored building projected into the heightfield room's centred, tile-unit space. */
+export interface ZoneBuildingDefinition extends BuildingSettings {
+  id: string;
+  x: number;
+  z: number;
+  standingAssetId: EditorAssetId;
+  destroyedAssetId: EditorAssetId;
+  /** The original solid footprint remains authoritative after destruction: a ruin is still solid. */
+  collider: { x: number; z: number; w: number; h: number };
+}
+
 export const MIN_BUILDING_HP = 1;
 export const MAX_BUILDING_HP = 1_000_000;
 

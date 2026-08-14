@@ -726,6 +726,8 @@ export interface WorldInfo {
    * server-side (spec Decision 3/4); the client only draws/collides with what it is told is active.
    */
   events: readonly WorldEventSnapshot[];
+  /** Room-owned building state. Omitted only by servers predating destructible scenery. */
+  buildings?: readonly WorldBuildingSnapshot[];
   /** Fully resolved room audio: map overrides have already been applied by the server. */
   audio?: AdventureAudioConfig;
   /** Server-authored class balance and ability availability for this map. */
@@ -753,6 +755,20 @@ export interface WorldInfo {
   portals: readonly { id: string; nameKey: string; x: number; y: number }[];
   /** Reserved for an explicitly authored merchant; default and authored maps currently send null. */
   merchant: MerchantDefinition | null;
+}
+
+/** A static authored building whose durability and current appearance are server-owned. */
+export interface WorldBuildingSnapshot {
+  id: string;
+  x: number;
+  z: number;
+  graphicAssetId: EditorAssetId;
+  /** Explicit ruin art advertised up front so destruction never starts a texture download. */
+  destroyedAssetId: EditorAssetId;
+  hp: number;
+  maxHp: number;
+  destructible: boolean;
+  destroyed: boolean;
 }
 
 export type QuestDialoguePhase = "offer" | "active" | "ready" | "completed" | "unavailable";
@@ -986,6 +1002,7 @@ export type ServerMessage =
   | { t: "party.invite"; inviteId: string; fromId: string; from: string; expiresAt: number }
   | { t: "party.state"; party: PartyState | null }
   | { t: "merchant.open" }
+  | { t: "building.state"; building: WorldBuildingSnapshot }
   | {
       t: "sea_guardian.devour";
       guardianId: string;
@@ -1895,6 +1912,8 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     value.events.every(
       (event) => isWorldEventSnapshot(event) && event.col < size && event.row < size,
     ) &&
+    (value.buildings === undefined ||
+      (Array.isArray(value.buildings) && value.buildings.every(isWorldBuildingSnapshot))) &&
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
     (value.dayNightCycle === undefined || typeof value.dayNightCycle === "boolean") &&
@@ -1920,6 +1939,36 @@ function isWorldInfo(value: unknown): value is WorldInfo {
         value.merchant.id === "heartroot_merchant" &&
         isFiniteNumber(value.merchant.x) &&
         isFiniteNumber(value.merchant.y)))
+  );
+}
+
+function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isMoveCoordinate(value.x) &&
+    isMoveCoordinate(value.z) &&
+    isEditorAssetId(value.graphicAssetId) &&
+    isEditorAssetId(value.destroyedAssetId) &&
+    Number.isSafeInteger(value.hp) &&
+    (value.hp as number) >= 0 &&
+    Number.isSafeInteger(value.maxHp) &&
+    (value.maxHp as number) > 0 &&
+    (value.hp as number) <= (value.maxHp as number) &&
+    typeof value.destructible === "boolean" &&
+    typeof value.destroyed === "boolean" &&
+    (value.destroyed ? value.hp === 0 : (value.hp as number) > 0) &&
+    hasOnlyKeys(value, [
+      "id",
+      "x",
+      "z",
+      "graphicAssetId",
+      "destroyedAssetId",
+      "hp",
+      "maxHp",
+      "destructible",
+      "destroyed",
+    ])
   );
 }
 
@@ -2335,6 +2384,13 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (value.t === "party.state" && (value.party === null || isPartyState(value.party)))
       return value as unknown as ServerMessage;
     if (value.t === "merchant.open" && hasOnlyKeys(value, ["t"])) return { t: "merchant.open" };
+    if (
+      value.t === "building.state" &&
+      isWorldBuildingSnapshot(value.building) &&
+      hasOnlyKeys(value, ["t", "building"])
+    ) {
+      return value as unknown as ServerMessage;
+    }
     if (
       value.t === "sea_guardian.devour" &&
       isWireId(value.guardianId) &&

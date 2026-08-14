@@ -6,6 +6,7 @@ import type {
   PlayerSnapshot,
   ProjectileSnapshot,
   SeaGuardianSnapshot,
+  WorldBuildingSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 
@@ -26,4 +27,6 @@ export interface SceneSample {
   corpses: CorpseSnapshot[];
   /** Target cells are not buffered; the renderer locally tweens moving NPCs between server steps. */
   events: readonly WorldEventSnapshot[];
+  /** Static positions with authoritative durability; updated immediately, never interpolated. */
+  buildings?: readonly WorldBuildingSnapshot[];
 }

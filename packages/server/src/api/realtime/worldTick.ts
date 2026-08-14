@@ -180,6 +180,14 @@ import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import type { AuthoredQuestChange } from "../../authored-quest-system.js";
+import {
+  type BuildingRuntime,
+  buildingAtImpact,
+  buildingIntersectsArc,
+  buildingSnapshot,
+  buildingWithinRadius,
+  damageBuilding,
+} from "../../world/building-system.js";
 import { executeCheatCommand } from "../../world/cheat-command-system.js";
 import {
   advanceCombatActions,
@@ -583,6 +591,47 @@ function configuredSkill(w: WorldGlue, player: PlayerRuntime, slot: SkillSlot): 
 function configuredAttackDamage(w: WorldGlue, player: PlayerRuntime): number {
   const stats = mapHeroClassSettings(zone(w.state).heroSettings, player.class).stats;
   return stats.attackBase + Math.max(0, player.level - 1) * stats.attackPerLevel;
+}
+
+function buildingDamagePower(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  skill: SkillDefinition,
+  basic: boolean,
+  frozenPower?: number,
+): number {
+  const base =
+    frozenPower ??
+    (basic ? configuredAttackDamage(w, player) : skill.power + Math.max(0, player.level - 1) * 2);
+  return Math.max(
+    1,
+    Math.round(
+      base *
+        (player.damageBoostUntil > w.deps.now() ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
+        (1 + activeRallyPowerMultiplier(player, w.deps.now())),
+    ),
+  );
+}
+
+function damageBuildingTarget(w: WorldGlue, building: BuildingRuntime, power: number): boolean {
+  const result = damageBuilding(building, power);
+  if (!result) return false;
+  sendRoomEvent(w, { t: "building.state", building: buildingSnapshot(building) });
+  return true;
+}
+
+function damageBuildingsWithin(
+  w: WorldGlue,
+  player: PlayerRuntime,
+  skill: SkillDefinition,
+  center: GroundVector,
+  radius: number,
+  frozenPower?: number,
+): void {
+  const power = buildingDamagePower(w, player, skill, false, frozenPower);
+  for (const building of w.state.buildings) {
+    if (buildingWithinRadius(building, center, radius)) damageBuildingTarget(w, building, power);
+  }
 }
 
 function navigationRuntime(state: WorldRoomState): NavigationRuntime {
@@ -3605,6 +3654,10 @@ function resolveShieldBash(
       };
     }
     if (terrainImpact) {
+      const building = buildingAtImpact(w.state.buildings, terrainImpact.point, BODY_RADIUS);
+      if (building) {
+        damageBuildingTarget(w, building, buildingDamagePower(w, player, skill, false));
+      }
       w.deps.send(connectionId, {
         t: "event",
         code: "skill.blocked",
@@ -3639,6 +3692,10 @@ function resolveShieldBash(
       }
     }
   } else if (first?.kind === "terrain") {
+    const building = buildingAtImpact(w.state.buildings, first.point, BODY_RADIUS);
+    if (building) {
+      damageBuildingTarget(w, building, buildingDamagePower(w, player, skill, false));
+    }
     w.deps.send(connectionId, {
       t: "event",
       code: "skill.blocked",
@@ -3980,6 +4037,12 @@ export function resolvePlayerAction(
         applyRoguePoison(w, player, monster, skill, now);
       }
     }
+    const buildingPower = buildingDamagePower(w, player, skill, slot === 1);
+    for (const building of w.state.buildings) {
+      if (buildingIntersectsArc(building, arc)) {
+        damageBuildingTarget(w, building, buildingPower);
+      }
+    }
     if (player.class === "peasant") {
       const harvestTargets = selectPeasantHarvestTargets({
         player,
@@ -4234,6 +4297,7 @@ export function resolvePlayerAction(
       slot as SkillSlot,
     );
     if (cyclone) {
+      damageBuildingsWithin(w, player, skill, center, skill.radius ?? skill.range);
       startWarriorCyclone(player, action.id, skill, cyclone, now);
       if (eyeOfTheStorm) {
         startWarriorVortex(
@@ -4257,6 +4321,7 @@ export function resolvePlayerAction(
       slot as SkillSlot,
     );
     const radius = skill.radius ?? skill.range;
+    damageBuildingsWithin(w, player, skill, center, radius);
     for (const monster of w.state.monsterGrid.queryRadius(
       center,
       radius + BODY_DIAMETER + MAX_MONSTER_BODY_REACH,
@@ -6870,8 +6935,14 @@ export function advanceWorldTick(w: WorldGlue): void {
         applyGuardDamage(guard, projectile.power);
       },
       blocked: (projectile, point) => {
-        if (!isPeasantBombProjectile(state.peasantSupport, projectile))
+        if (!isPeasantBombProjectile(state.peasantSupport, projectile)) {
+          const building = buildingAtImpact(state.buildings, point, projectile.radius);
+          const owner = projectileOwner(w, projectile);
+          if (building && owner && canAct(owner.player.life)) {
+            damageBuildingTarget(w, building, projectile.power);
+          }
           projectileBlocked(w, projectile, point);
+        }
       },
       removed: (projectile, point, _reason, impactAt) => {
         const owner = projectileOwner(w, projectile);
@@ -6913,6 +6984,16 @@ export function advanceWorldTick(w: WorldGlue): void {
           },
         });
         if (!explosion) return;
+        if (owner && canAct(owner.player.life)) {
+          damageBuildingsWithin(
+            w,
+            owner.player,
+            configuredSkill(w, owner.player, 5),
+            explosion,
+            explosion.radius,
+            explosion.power,
+          );
+        }
         sendSpatialEvent(
           w,
           {

@@ -534,7 +534,7 @@ async function startGameIdentity(
       chestFeedback.reset(world.events);
       // Harvest replacements are explicit appearance metadata in the welcome. Queue them before
       // the first playable frame so the last authoritative hit never initiates their texture load.
-      renderer.preloadWorldEventAssets(world.events);
+      renderer.preloadWorldEventAssets(world.events, world.buildings ?? []);
       activeZoneId = world.zoneId;
       activeWorldSize = world.size;
       dayNightCycleEnabled = world.dayNightCycle ?? true;

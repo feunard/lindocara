@@ -29,6 +29,7 @@ import type {
   PriestPolarityOrbVisual,
   QuestState,
   RogueShadowDanceSequence,
+  WorldBuildingSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import type { MonsterImpactSound } from "./combat-art.js";
@@ -112,7 +113,10 @@ export interface RendererLike {
   pickSheep?(clientX: number, clientY: number): string | null;
   playShadowDance(sequence: RogueShadowDanceSequence): void;
   playTeleportEffect(x?: number, z?: number): void;
-  preloadWorldEventAssets(events: readonly WorldEventSnapshot[]): void;
+  preloadWorldEventAssets(
+    events: readonly WorldEventSnapshot[],
+    buildings?: readonly WorldBuildingSnapshot[],
+  ): void;
   removePeasantCamp(id: string): void;
   removePeasantRation(id: string): void;
   render(sample: SceneSample, context: RenderContext): void;

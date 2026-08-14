@@ -14,8 +14,14 @@ import {
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
 import { type AdventureAudioConfig, resolveMapAudio } from "@lindocara/engine/audio-catalog.js";
+import {
+  destroyedBuildingAssetId,
+  isStandingBuildingAsset,
+  type ZoneBuildingDefinition,
+} from "@lindocara/engine/buildings.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
+import { authoredElementGroundPoint } from "@lindocara/engine/hd2d/authored-map.js";
 import {
   type ColliderIndex,
   type ColliderRect,
@@ -34,6 +40,7 @@ import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js"
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
+import { type BuildingRuntime, createBuildings } from "../../world/building-system.js";
 import type { DamageOverTimeRuntime } from "../../world/damage-over-time-system.js";
 import { createEventRunRuntime, type EventRunRuntime } from "../../world/event-run-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "../../world/navigation-system.js";
@@ -157,6 +164,57 @@ function withoutStaticNativeResources(
   };
 }
 
+/** Buildings are live scenery. Keep their compiled collider, but let room state own their visual. */
+function withoutStaticBuildingVisuals(
+  heightfield: NonNullable<ReturnType<typeof decodeMap>>,
+  payload: MapPayload,
+): NonNullable<ReturnType<typeof decodeMap>> {
+  const placements = payload.elements
+    .filter((element) => isStandingBuildingAsset(element.assetId))
+    .map((element) => ({
+      assetId: element.assetId,
+      ...authoredElementGroundPoint(element, heightfield.size),
+    }));
+  if (placements.length === 0) return heightfield;
+  return {
+    ...heightfield,
+    elements: heightfield.elements.filter(
+      (element) =>
+        !placements.some(
+          (placement) =>
+            placement.assetId === element.assetId &&
+            Math.abs(placement.x - element.x) < 1e-6 &&
+            Math.abs(placement.z - element.z) < 1e-6,
+        ),
+    ),
+  };
+}
+
+function authoredBuildings(payload: MapPayload, size: number): ZoneBuildingDefinition[] {
+  return payload.elements.flatMap((element) => {
+    if (!element.id || !element.building || !isStandingBuildingAsset(element.assetId)) return [];
+    const destroyedAssetId = destroyedBuildingAssetId(element.assetId);
+    const rect = elementWorldCollider(element);
+    if (!destroyedAssetId || !rect) return [];
+    return [
+      {
+        id: element.id,
+        ...authoredElementGroundPoint(element, size),
+        standingAssetId: element.assetId,
+        destroyedAssetId,
+        destructible: element.building.destructible,
+        maxHp: element.building.maxHp,
+        collider: {
+          x: rect.x / TILE_SIZE - size / 2,
+          z: rect.y / TILE_SIZE - size / 2,
+          w: rect.width / TILE_SIZE,
+          h: rect.height / TILE_SIZE,
+        },
+      },
+    ];
+  });
+}
+
 /**
  * A stored map (as the Alepha API round-trips it) into the `ZoneDefinition` the world systems run
  * on. Port of `zoneFromMap`, with its terrain rebuilt: collision is the map's own heightfield,
@@ -177,7 +235,10 @@ export function zoneFromMapPayload(
 ): ZoneDefinition {
   const decodedHeightfield = payload.heightfield === null ? null : decodeMap(payload.heightfield);
   const heightfield = decodedHeightfield
-    ? withoutStaticNativeResources(decodedHeightfield, payload)
+    ? withoutStaticBuildingVisuals(
+        withoutStaticNativeResources(decodedHeightfield, payload),
+        payload,
+      )
     : null;
   if (heightfield === null) {
     // Absent and corrupt are distinguished in the message because they need different answers: one
@@ -234,6 +295,7 @@ export function zoneFromMapPayload(
     portals: [],
     navigation: { ...DEFAULT_ZONE_NAVIGATION },
     elements: [],
+    buildings: authoredBuildings(payload, heightfield.size),
     markers: payload.markers,
     // Straight from the heightfield: the tile map's own `spawn` is authored in the other
     // coordinate space and means nothing here.
@@ -291,6 +353,8 @@ export interface WorldRoomState {
   guards: GuardRuntime[];
   loot: GroundLoot[];
   projectiles: ProjectileRuntime[];
+  /** Room-local damage state for authored building scenery. */
+  buildings: BuildingRuntime[];
   /** The untargetable sea barrier; inactive unless a `sea-guardian` event anchors it in water. */
   seaGuardian: SeaGuardianRuntime;
   /** Room-local camps, homemade bombs and in-flight material requests. */
@@ -416,6 +480,7 @@ export function createWorldRoomState(
     guards,
     loot: [],
     projectiles: [],
+    buildings: createBuildings(definition?.buildings),
     seaGuardian: createSeaGuardianRuntime(heightfield, guardianAnchors),
     peasantSupport: createPeasantSupportRuntime(),
     activatedSupportSpendIds: new Set(),

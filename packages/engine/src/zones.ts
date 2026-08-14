@@ -1,4 +1,5 @@
 import type { AdventureAudioConfig } from "./audio-catalog.js";
+import type { ZoneBuildingDefinition } from "./buildings.js";
 import { emptyColliderIndex } from "./collider.js";
 import {
   CITY_GUARDS,
@@ -77,6 +78,8 @@ export interface ZoneDefinition {
   navigation: ZoneNavigationDefinition;
   /** Scenery placed by the map editor. Undefined for every catalogue zone — none of them are D1 maps. */
   readonly elements?: readonly MapElement[];
+  /** Standing authored buildings, projected once into the live room's tile-unit coordinate space. */
+  readonly buildings?: readonly ZoneBuildingDefinition[];
   /** Functional authored anchors. They stay server-side; clients receive only visual state. */
   readonly markers?: MapMarkers;
   /**
