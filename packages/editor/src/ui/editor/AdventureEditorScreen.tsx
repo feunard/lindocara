@@ -183,20 +183,23 @@ function eventToolFor(
 }
 
 function toEditorMap(map: MapPayload): EditorMap {
-  return canvasEditorMap({
-    name: map.name,
-    audio: map.audio ?? EMPTY_MAP_AUDIO,
-    heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
-    dayNightCycle: map.dayNightCycle ?? true,
-    fixedLighting: map.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING,
-    layers: editorLayersFromPayload(map),
-    elements: map.elements,
-    spawn: map.spawn,
-    // Markers are QUARANTINED (UX wave #12): the editor ignores whatever a (legacy) payload still
-    // carries and never authors one, so it opens with `EMPTY_MARKERS` and saves the same.
-    markers: EMPTY_MARKERS,
-    events: map.events ?? [],
-  });
+  return canvasEditorMap(
+    {
+      name: map.name,
+      audio: map.audio ?? EMPTY_MAP_AUDIO,
+      heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
+      dayNightCycle: map.dayNightCycle ?? true,
+      fixedLighting: map.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING,
+      layers: editorLayersFromPayload(map),
+      elements: map.elements,
+      spawn: map.spawn,
+      // Markers are QUARANTINED (UX wave #12): the editor ignores whatever a (legacy) payload
+      // still carries and never authors one, so it opens with `EMPTY_MARKERS` and saves the same.
+      markers: EMPTY_MARKERS,
+      events: map.events ?? [],
+    },
+    map.id,
+  );
 }
 
 /** Draft-facing facts from the exact in-memory map being saved. This is the bridge that lets a new
@@ -210,7 +213,7 @@ function memberInfoFromEditor(mapId: string, revision: number, edited: EditorMap
     mapId,
     name: edited.name,
     revision,
-    solid: solidMaskFromMapPayload(toMapData(croppedForSave(edited))),
+    solid: solidMaskFromMapPayload(toMapData(croppedForSave(edited, mapId))),
     monsterCount: monsterEvents(edited.events).length,
     entryIds: entries.map((event) => event.id),
     exitIds: exits.map((event) => event.id),
@@ -649,7 +652,7 @@ function AdventureEditorInner({
     if (!previewing) return;
     const edited = editedRef.current;
     if (!edited) return;
-    const cropped = croppedForSave(edited);
+    const cropped = croppedForSave(edited, map?.id);
     const data: MapData = toMapData(cropped);
     let stopped = false;
     let preview: { stop(): void } | null = null;
@@ -685,7 +688,7 @@ function AdventureEditorInner({
       window.removeEventListener("keydown", onKeyDown);
       preview?.stop();
     };
-  }, [previewing, fail]);
+  }, [previewing, fail, map?.id]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -1118,7 +1121,7 @@ function AdventureEditorInner({
         if (!adventureInput || !baseDraft) return null;
         const created = await createAdventureApi({
           ...adventureInput,
-          map: toSaveInput(savedSnapshot),
+          map: toSaveInput(savedSnapshot, map.id),
         });
         if (mapLoadGenerationRef.current === savedMapGeneration) handle.markSaved(savedSnapshot);
         // The stored map is a new row with a server-minted id, so the stage reopens — from
@@ -1146,7 +1149,7 @@ function AdventureEditorInner({
       }
       const updated = await updateMapApi(
         map.id,
-        toSaveInput(savedSnapshot),
+        toSaveInput(savedSnapshot, map.id),
         adventureInput ?? undefined,
         map.revision,
       );
@@ -1523,7 +1526,12 @@ function AdventureEditorInner({
   // reflects the latest positions.
   const currentMap: EditorMap | null =
     handleRef.current?.current() ?? editedRef.current ?? (map ? toEditorMap(map) : null);
-  const currentRect = useMemo(() => (currentMap ? derivedMapRect(currentMap) : null), [currentMap]);
+  // `map?.id` is forwarded as `selfMapId` so a same-map teleport target that would extend the
+  // saved rect is reflected in the live derived size too, not just in the eventual save.
+  const currentRect = useMemo(
+    () => (currentMap ? derivedMapRect(currentMap, map?.id) : null),
+    [currentMap, map?.id],
+  );
   const currentSize = currentRect
     ? { cols: currentRect.cols, rows: currentRect.rows }
     : { cols: 0, rows: 0 };

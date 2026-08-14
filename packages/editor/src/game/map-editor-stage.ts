@@ -13,6 +13,7 @@ import {
   compileAuthoredMap,
 } from "@lindocara/engine/hd2d/authored-map.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapData as CompiledMapData } from "@lindocara/engine/hd2d/map-data.js";
 import { derivedMapRect, type MapRect } from "@lindocara/engine/map-canvas.js";
 import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
@@ -259,7 +260,16 @@ export function openMapEditorStage(
       renderer.setCameraFocus(cameraX, cameraZ);
     };
 
-    const compiled = () => compileAuthoredMap(toMapData(map), map.events);
+    // The heightfield a save would compile, memoized per document identity exactly like
+    // `derivedRect` above: `drawOverlay`'s default argument calls this on every pointer move, and
+    // without the cache that reran a full-canvas `compileAuthoredMap` on each one.
+    let compiledCache: { map: EditorMap; heightfield: CompiledMapData } | null = null;
+    const compiled = (): CompiledMapData => {
+      if (!compiledCache || compiledCache.map !== map) {
+        compiledCache = { map, heightfield: compileAuthoredMap(toMapData(map), map.events) };
+      }
+      return compiledCache.heightfield;
+    };
 
     const drawOverlay = (heightfield = compiled()): void => {
       const { cols, rows } = dimensions();

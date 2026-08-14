@@ -826,15 +826,19 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
 
 /** The whole-canvas working document a session edits: the stored map centered in the maximum
  *  authorable rect. Every cell is paintable; empty cells are ocean. Applied ONCE at session open —
- *  coordinates never shift again for the life of the session. */
-export function canvasEditorMap(map: EditorMap): EditorMap {
-  return { ...map, ...padMapToCanvas(map) };
+ *  coordinates never shift again for the life of the session. `selfMapId`, when given, is this
+ *  session's own map id — the one a same-map `teleport` command carries — so its authored cell
+ *  pads in step with the rest of the content instead of staying pinned to the pre-pad frame. */
+export function canvasEditorMap(map: EditorMap, selfMapId?: string): EditorMap {
+  return { ...map, ...padMapToCanvas(map, selfMapId) };
 }
 
 /** What a save stores: the derived content rect (+ ocean margin) cropped out of the canvas. Also
- *  what the playable preview and the member thumbnail read, so they match the runtime exactly. */
-export function croppedForSave(map: EditorMap): EditorMap {
-  return { ...map, ...cropMapToRect(map, derivedMapRect(map)) };
+ *  what the playable preview and the member thumbnail read, so they match the runtime exactly.
+ *  `selfMapId` is forwarded to `derivedMapRect`/`cropMapToRect` so a same-map `teleport` command's
+ *  target both keeps the rect from cropping past it and moves with the crop itself. */
+export function croppedForSave(map: EditorMap, selfMapId?: string): EditorMap {
+  return { ...map, ...cropMapToRect(map, derivedMapRect(map, selfMapId), selfMapId) };
 }
 
 /**
@@ -889,9 +893,14 @@ export function toMapData(map: EditorMap): MapData {
 
 /**
  * The editor's save body. Structurally `api.ts`'s `MapSaveInput` — spelled out here rather than
- * imported so `client/game/` keeps depending on nothing above it.
+ * imported so `client/game/` keeps depending on nothing above it. `selfMapId`, forwarded to
+ * `croppedForSave`, is this session's own map id — the caller passes it whenever it knows one, so
+ * a same-map `teleport` command's cell crops in step with the rest of the saved content.
  */
-export function toSaveInput(map: EditorMap): {
+export function toSaveInput(
+  map: EditorMap,
+  selfMapId?: string,
+): {
   name: string;
   tilesetId: string;
   cols: number;
@@ -907,7 +916,7 @@ export function toSaveInput(map: EditorMap): {
   fixedLighting: MapFixedLighting;
   heightfield: string;
 } {
-  const cropped = croppedForSave(map);
+  const cropped = croppedForSave(map, selfMapId);
   const data = toMapData(cropped);
   return {
     name: map.name,

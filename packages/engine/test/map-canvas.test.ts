@@ -1,3 +1,4 @@
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import {
   contentBounds,
   cropMapToRect,
@@ -27,7 +28,7 @@ function anyAssetId(): EditorAssetId {
   return "resource.terrain-resources-wood-trees.tree3" as const;
 }
 
-function anyEvent(): MapEvent {
+function anyEvent(commands: EventCommand[] = []): MapEvent {
   return {
     id: "11111111-1111-4111-8111-111111111111",
     col: 1,
@@ -63,7 +64,7 @@ function anyEvent(): MapEvent {
         optThrough: false,
         optOnTop: false,
         trigger: "action",
-        commands: [],
+        commands,
       },
     ],
   };
@@ -152,6 +153,44 @@ describe("contentBounds", () => {
     expect(bounds.col + bounds.cols - 1).toBe(100);
     expect(bounds.row + bounds.rows - 1).toBe(100);
   });
+
+  test("counts a same-map teleport target given selfMapId, ignoring a cross-map one", () => {
+    const selfMapId = "22222222-2222-4222-8222-222222222222";
+    const otherMapId = "33333333-3333-4333-8333-333333333333";
+    // Nested inside a loop body, to prove the recursive walk `contentBounds` runs matches the one
+    // `shiftMapContent` uses to shift these same commands.
+    const sameMapTeleport: EventCommand = {
+      t: "teleport",
+      mapId: selfMapId,
+      col: 200,
+      row: 20,
+      category: "geographic",
+    };
+    const crossMapTeleport: EventCommand = {
+      t: "teleport",
+      mapId: otherMapId,
+      col: 250,
+      row: 5,
+      category: "geographic",
+    };
+    const base = lonelyTile(100, 100);
+    const map: MapCanvasContent = {
+      ...base,
+      events: [
+        {
+          ...anyEvent([{ t: "loop", body: [sameMapTeleport] }, crossMapTeleport]),
+          col: 101,
+          row: 101,
+        },
+      ],
+    };
+    // Without `selfMapId`, no teleport target is known to be "self", so bounds stay tight around
+    // the lonely tile, the event and the spawn.
+    expect(contentBounds(map)).toEqual({ col: 100, row: 100, cols: 2, rows: 2 });
+    // With it, the same-map target (200, 20) extends the rect; the cross-map target (250, 5) —
+    // further out on both axes — must not, since the runtime never uses its authored cell.
+    expect(contentBounds(map, selfMapId)).toEqual({ col: 100, row: 20, cols: 101, rows: 82 });
+  });
 });
 
 describe("derivedMapRect", () => {
@@ -178,6 +217,30 @@ describe("derivedMapRect", () => {
     expect(rect.row).toBe(0);
     expect(rect.cols).toBe(MAP_MIN_COLS);
     expect(rect.rows).toBe(MAP_MIN_ROWS);
+  });
+
+  test("grows to include a far-away same-map teleport target given selfMapId", () => {
+    const selfMapId = "22222222-2222-4222-8222-222222222222";
+    const teleport: EventCommand = {
+      t: "teleport",
+      mapId: selfMapId,
+      col: 200,
+      row: 100,
+      category: "geographic",
+    };
+    const map: MapCanvasContent = {
+      ...lonelyTile(100, 100),
+      events: [{ ...anyEvent([teleport]), col: 100, row: 100 }],
+    };
+    // Without `selfMapId`, the far target is invisible to the derivation, so the rect floors to
+    // the 20×15 minimum around the lonely tile exactly as `lonelyTile(100, 100)` does elsewhere.
+    const withoutSelf = derivedMapRect(map);
+    expect(withoutSelf.cols).toBe(MAP_MIN_COLS);
+    // With it, the rect must widen enough east to cover the teleport's own target column — never
+    // stranding it outside the rect a save would crop to.
+    const withSelf = derivedMapRect(map, selfMapId);
+    expect(withSelf.cols).toBeGreaterThan(withoutSelf.cols);
+    expect(withSelf.col + withSelf.cols).toBeGreaterThan(200);
   });
 });
 
@@ -231,5 +294,77 @@ describe("cropMapToRect", () => {
     expect(cropped.events[0]?.col).toBe(127 - rect.col);
     expect(cropped.events[0]?.row).toBe(129 - rect.row);
     expect(cropped.markers.entries[0]?.col).toBe(128 - rect.col);
+  });
+
+  test("shifts a same-map teleport command through pad + an origin-moving crop, leaving a cross-map one untouched", () => {
+    const selfMapId = "22222222-2222-4222-8222-222222222222";
+    const otherMapId = "33333333-3333-4333-8333-333333333333";
+    const eventCol = 5;
+    const eventRow = 5;
+    const nestedTeleport: Extract<EventCommand, { t: "teleport" }> = {
+      t: "teleport",
+      mapId: selfMapId,
+      col: eventCol + 2,
+      row: eventRow + 1,
+      category: "geographic",
+    };
+    const crossMapTeleport: Extract<EventCommand, { t: "teleport" }> = {
+      t: "teleport",
+      mapId: otherMapId,
+      col: eventCol + 2,
+      row: eventRow + 1,
+      category: "geographic",
+    };
+    // Nested inside a conditional's `then` branch — the recursion `shiftCommand` runs must reach
+    // it exactly like `event-interpreter.ts` would when actually executing the program.
+    const commands: EventCommand[] = [
+      crossMapTeleport,
+      { t: "if", cond: { type: "switch", switchId: "0001" }, then: [nestedTeleport], else: [] },
+    ];
+    const input = defaultMapInput("canvas-test");
+    const withEvent: MapCanvasContent = {
+      ...input,
+      events: [{ ...anyEvent(commands), col: eventCol, row: eventRow }],
+    };
+    // A session always opens by padding, so pad first — this exercises `padMapToCanvas`'s own
+    // `selfMapId` threading, not just `cropMapToRect`'s.
+    const padded: MapCanvasContent = { ...withEvent, ...padMapToCanvas(withEvent, selfMapId) };
+
+    // Simulate painting west of the original template during the editing session, which pushes
+    // the derived rect's origin further west than the plain ocean-margin case below — the exact
+    // "painting/erasing west/north" scenario Finding 1 describes, not a uniform, symmetric shift.
+    const ground = padded.layers[0];
+    if (!ground) throw new Error("missing ground layer");
+    const ids = [...ground.ids];
+    ids[(PAD_ROW + 3) * MAP_MAX_COLS + (PAD_COL - 5)] = 500;
+    const withWestPaint: MapCanvasContent = {
+      ...padded,
+      layers: [{ ...ground, ids }, ...padded.layers.slice(1)],
+    };
+
+    const rect = derivedMapRect(withWestPaint, selfMapId);
+    expect(rect.col).toBeLessThan(PAD_COL - MAP_OCEAN_MARGIN);
+
+    const cropped = cropMapToRect(withWestPaint, rect, selfMapId);
+    const finalEvent = cropped.events[0];
+    if (!finalEvent) throw new Error("missing event");
+    const deltaCol = finalEvent.col - eventCol;
+    const deltaRow = finalEvent.row - eventRow;
+    expect(deltaCol).not.toBe(0);
+
+    const page = finalEvent.pages[0];
+    if (!page) throw new Error("missing page");
+    const [crossCmd, ifCmd] = page.commands;
+    if (crossCmd?.t !== "teleport") throw new Error("expected cross-map teleport");
+    // Cross-map: untouched by pad AND crop, still its authored cell.
+    expect(crossCmd.col).toBe(eventCol + 2);
+    expect(crossCmd.row).toBe(eventRow + 1);
+
+    if (ifCmd?.t !== "if") throw new Error("expected conditional command");
+    const nestedCmd = ifCmd.then[0];
+    if (nestedCmd?.t !== "teleport") throw new Error("expected nested same-map teleport");
+    // Same-map, nested inside the conditional: shifted exactly like its own event, end to end.
+    expect(nestedCmd.col).toBe(eventCol + 2 + deltaCol);
+    expect(nestedCmd.row).toBe(eventRow + 1 + deltaRow);
   });
 });
