@@ -29,6 +29,8 @@ export const mapElements = $entity({
     /** Null only on non-buildings and legacy rows; reads derive catalogue defaults when absent. */
     buildingDestructible: z.boolean().optional(),
     buildingMaxHp: z.integer().optional(),
+    /** Linked ordinary map. Kept scalar so deleting an interior can degrade to an unlinked door. */
+    buildingInteriorMapId: z.uuid().optional(),
   }),
   indexes: [
     { columns: ["mapId"], name: "map_element_map_idx" },

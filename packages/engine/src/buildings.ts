@@ -1,3 +1,4 @@
+import { isUuid } from "./identifiers.js";
 import {
   type EditorAssetDefinition,
   type EditorAssetId,
@@ -9,6 +10,8 @@ export interface BuildingSettings {
   /** Indestructible buildings keep their HP value so toggling destruction back on is lossless. */
   destructible: boolean;
   maxHp: number;
+  /** Ordinary authored map used as this building's editable interior. */
+  interiorMapId?: string;
 }
 
 /** One authored building projected into the heightfield room's centred, tile-unit space. */
@@ -114,10 +117,15 @@ export function defaultBuildingSettings(assetId: string): BuildingSettings | nul
 /** Strict wire parser for an explicit building configuration. */
 export function parseBuildingSettings(value: unknown): BuildingSettings | null {
   if (typeof value !== "object" || value === null) return null;
-  const { destructible, maxHp } = value as Record<string, unknown>;
+  const { destructible, maxHp, interiorMapId } = value as Record<string, unknown>;
   if (typeof destructible !== "boolean") return null;
   if (!Number.isSafeInteger(maxHp)) return null;
   const hp = maxHp as number;
   if (hp < MIN_BUILDING_HP || hp > MAX_BUILDING_HP) return null;
-  return { destructible, maxHp: hp };
+  if (interiorMapId !== undefined && !isUuid(interiorMapId)) return null;
+  return {
+    destructible,
+    maxHp: hp,
+    ...(typeof interiorMapId === "string" ? { interiorMapId } : {}),
+  };
 }

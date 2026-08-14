@@ -184,6 +184,18 @@ export const createMapApi = (adventureId: string, name: string, cols: number, ro
     method: "POST",
     body: JSON.stringify({ adventureId, name, cols, rows }),
   });
+export interface BuildingInteriorResult {
+  sourceMap: MapPayload;
+  interiorMap: MapPayload;
+}
+export const createBuildingInteriorApi = (
+  sourceMapId: string,
+  slot: { col: number; row: number; offsetX: number; offsetY: number },
+) =>
+  api<BuildingInteriorResult>(`/api/maps/${sourceMapId}/interiors`, {
+    method: "POST",
+    body: JSON.stringify(slot),
+  });
 export const updateMapApi = (
   id: string,
   input: MapSaveInput,

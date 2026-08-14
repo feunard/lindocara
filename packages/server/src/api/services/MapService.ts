@@ -18,6 +18,8 @@ import {
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import { createBuildingInteriorInput } from "@lindocara/engine/building-interior.js";
+import { isStandingBuildingAsset } from "@lindocara/engine/buildings.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   defaultMonsterTuning,
@@ -80,10 +82,11 @@ import {
 // chunked explicitly for the same reason. Column counts below are every column `cast()` will encode
 // for an INSERT (schema fields, including ones filled by a default rather than passed explicitly).
 const D1_BOUND_PARAM_BUDGET = 90;
-/** id, mapId, col, row, offsetX, offsetY, kind, variant, buildingDestructible, buildingMaxHp.
+/** id, mapId, col, row, offsetX, offsetY, kind, variant, buildingDestructible, buildingMaxHp,
+ *  buildingInteriorMapId.
  *  Exported so `maps.test.ts` can assert
  *  this stays in step with `mapElements`'s actual schema column count — see that test. */
-export const MAP_ELEMENT_COLUMNS = 10;
+export const MAP_ELEMENT_COLUMNS = 11;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
  *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs,
@@ -152,6 +155,11 @@ export interface MapPayload {
    *  none yet — the empty-string column sentinel normalised away at this boundary (see
    *  `saveHeightfield`'s docblock). */
   heightfield: string | null;
+}
+
+export interface BuildingInteriorResult {
+  sourceMap: MapPayload;
+  interiorMap: MapPayload;
 }
 
 export class MapService {
@@ -277,6 +285,69 @@ export class MapService {
     const adventure = await this.adventures.findById(adventureId);
     if (!adventure || adventure.userId !== userId) throw new Error("not_found: no such adventure");
     return this.createMap(adventureId, name, cols, rows);
+  }
+
+  /**
+   * Create and link one editable interior from an authored building slot. The new room is an
+   * ordinary member map; the source element stores only that map id.
+   */
+  async createBuildingInteriorForUser(
+    userId: string,
+    sourceMapId: string,
+    slot: { col: number; row: number; offsetX: number; offsetY: number },
+  ): Promise<BuildingInteriorResult> {
+    const source = await this.requireOwnedMap(userId, sourceMapId);
+    const element = await this.mapElements.findOne({
+      where: {
+        mapId: { eq: sourceMapId },
+        col: { eq: slot.col },
+        row: { eq: slot.row },
+        offsetX: { eq: slot.offsetX },
+        offsetY: { eq: slot.offsetY },
+      },
+    });
+    if (!element || !isStandingBuildingAsset(element.kind)) {
+      throw new Error("placement: selected element is not a standing building");
+    }
+    if (element.buildingInteriorMapId) {
+      const existing = await this.maps.findById(element.buildingInteriorMapId);
+      if (existing?.adventureId === source.adventureId && existing.userId === userId) {
+        return {
+          sourceMap: await this.toPayload(source),
+          interiorMap: await this.toPayload(existing),
+        };
+      }
+    }
+
+    const suffix = " · Intérieur";
+    const name = `${source.name.slice(0, Math.max(1, 48 - suffix.length))}${suffix}`;
+    const content = createBuildingInteriorInput({
+      name,
+      exteriorMapId: source.id,
+      exitEventId: crypto.randomUUID(),
+      // Returning to the authored exterior spawn is always safer than guessing a door cell from
+      // sprite art: the spawn already passed the map's walkability validation.
+      returnCol: source.spawnCol,
+      returnRow: source.spawnRow,
+    });
+    const interior = await this.createMap(
+      source.adventureId,
+      name,
+      content.cols,
+      content.rows,
+      content,
+    );
+    try {
+      await this.mapElements.updateById(element.id, { buildingInteriorMapId: interior.id });
+      const updatedSource = await this.maps.updateById(source.id, { revision: sql`revision + 1` });
+      return {
+        sourceMap: await this.toPayload(updatedSource),
+        interiorMap: interior,
+      };
+    } catch (error) {
+      await this.deleteMap(interior.id).catch(() => undefined);
+      throw error;
+    }
   }
 
   /** Ported from `loadMap`. */
@@ -481,6 +552,22 @@ export class MapService {
       }
     }
 
+    // Interior links are intentionally scalar rather than foreign keys: deleting a normal member
+    // map turns every door that referenced it back into an unlinked building instead of cascading
+    // into scenery deletion. Bump each affected exterior revision so an open editor cannot later
+    // overwrite that unlink with stale data unnoticed.
+    const linkedBuildings = await this.mapElements.findMany({
+      where: { buildingInteriorMapId: { eq: id } },
+    });
+    for (const building of linkedBuildings) {
+      await this.mapElements.updateById(building.id, { buildingInteriorMapId: sql`NULL` });
+    }
+    for (const sourceMapId of new Set(linkedBuildings.map((building) => building.mapId))) {
+      if (sourceMapId !== id) {
+        await this.maps.updateById(sourceMapId, { revision: sql`revision + 1` });
+      }
+    }
+
     await this.mapElements.deleteMany({ mapId: { eq: id } });
     await this.mapEvents.deleteMany({ mapId: { eq: id } });
     await this.maps.deleteById(id);
@@ -652,6 +739,7 @@ export class MapService {
         variant: 0,
         buildingDestructible: element.building?.destructible,
         buildingMaxHp: element.building?.maxHp,
+        buildingInteriorMapId: element.building?.interiorMapId,
       })),
       { batchSize: MAP_ELEMENT_BATCH_SIZE },
     );

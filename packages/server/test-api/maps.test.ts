@@ -199,6 +199,7 @@ describe("session gate", () => {
       ["GET", "/api/maps?adventure=00000000-0000-4000-8000-000000000000"],
       ["GET", "/api/maps/whatever"],
       ["POST", "/api/maps"],
+      ["POST", "/api/maps/whatever/interiors"],
       ["PUT", "/api/maps/whatever"],
       ["DELETE", "/api/maps/whatever"],
       ["POST", "/api/maps/whatever/first"],
@@ -744,6 +745,93 @@ describe("list, get, update, delete", () => {
     expect(fetched.status).toBe(200);
     const payload = (await fetched.json()) as { elements: unknown[] };
     expect(payload.elements).toEqual([expect.objectContaining(building)]);
+  });
+
+  test("creates one editable interior per building and unlinks it when deleted", async () => {
+    const { userId, token } = await registerAndLogin("mapinterior");
+    const adventureId = await newAdventure(userId);
+    const id = await newMapId(adventureId, token, "Village");
+    const building = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: HOUSE_ASSET_ID,
+      building: { destructible: true, maxHp: 1_500 },
+    };
+    expect(
+      (await putMap(id, token, mapBody({ spawn: { col: 6, row: 7 }, elements: [building] })))
+        .status,
+    ).toBe(200);
+
+    const create = () =>
+      authedFetch(`/api/maps/${id}/interiors`, token, {
+        method: "POST",
+        body: JSON.stringify({ col: 8, row: 8, offsetX: 0, offsetY: 0 }),
+      });
+    const first = await create();
+    expect(first.status).toBe(200);
+    const created = (await first.json()) as {
+      sourceMap: { revision: number; elements: { building?: { interiorMapId?: string } }[] };
+      interiorMap: {
+        id: string;
+        adventureId: string;
+        elements: unknown[];
+        events: { pages: { commands: unknown[] }[] }[];
+      };
+    };
+    expect(created.sourceMap.revision).toBe(3);
+    expect(created.sourceMap.elements[0]?.building?.interiorMapId).toBe(created.interiorMap.id);
+    expect(created.interiorMap).toMatchObject({ adventureId, elements: expect.any(Array) });
+    expect(created.interiorMap.elements.length).toBeGreaterThan(0);
+    expect(created.interiorMap.events[0]?.pages[0]?.commands).toEqual([
+      expect.objectContaining({
+        t: "teleport",
+        mapId: id,
+        col: 6,
+        row: 7,
+        category: "interior",
+      }),
+    ]);
+
+    // The slot is its idempotency key: a double-click cannot mint duplicate room maps.
+    const second = await create();
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as typeof created).interiorMap.id).toBe(created.interiorMap.id);
+    expect(await listMaps(adventureId, token)).toHaveLength(2);
+
+    expect(
+      (await authedFetch(`/api/maps/${created.interiorMap.id}`, token, { method: "DELETE" }))
+        .status,
+    ).toBe(204);
+    const exterior = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
+      revision: number;
+      elements: { building?: { interiorMapId?: string } }[];
+    };
+    expect(exterior.revision).toBe(4);
+    expect(exterior.elements[0]?.building).not.toHaveProperty("interiorMapId");
+  });
+
+  test("refuses to create an interior for a non-building slot", async () => {
+    const { userId, token } = await registerAndLogin("mapinteriorbad");
+    const id = await newMapId(await newAdventure(userId), token, "Forest");
+    expect(
+      (
+        await putMap(
+          id,
+          token,
+          mapBody({
+            elements: [{ col: 8, row: 8, offsetX: 0, offsetY: 0, assetId: TREE_ASSET_ID }],
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    const response = await authedFetch(`/api/maps/${id}/interiors`, token, {
+      method: "POST",
+      body: JSON.stringify({ col: 8, row: 8, offsetX: 0, offsetY: 0 }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "map_placement" });
   });
 
   test("increments revision only after a successful update", async () => {

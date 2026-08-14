@@ -491,12 +491,14 @@ export function elementToWire(row: {
   variant: number;
   buildingDestructible?: boolean | null;
   buildingMaxHp?: number | null;
+  buildingInteriorMapId?: string | null;
 }): MapElement | null {
   if (isEditorAssetId(row.kind)) {
     const building = isStandingBuildingAsset(row.kind)
       ? (parseBuildingSettings({
           destructible: row.buildingDestructible,
           maxHp: row.buildingMaxHp,
+          ...(row.buildingInteriorMapId ? { interiorMapId: row.buildingInteriorMapId } : {}),
         }) ?? defaultBuildingSettings(row.kind))
       : null;
     return {

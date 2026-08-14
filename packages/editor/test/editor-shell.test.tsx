@@ -112,6 +112,8 @@ const stageMock = vi.hoisted(() => ({
   clearSelection: vi.fn(),
   moveSelected: vi.fn(),
   setSelectedElementAsset: vi.fn(),
+  setSelectedElementOffset: vi.fn(),
+  setSelectedBuildingSettings: vi.fn(),
   deleteSelected: vi.fn(),
   beginEventDraft: vi.fn(),
   commitEventDraft: vi.fn(),
@@ -148,6 +150,8 @@ function stageHandle() {
     clearSelection: stageMock.clearSelection,
     moveSelected: stageMock.moveSelected,
     setSelectedElementAsset: stageMock.setSelectedElementAsset,
+    setSelectedElementOffset: stageMock.setSelectedElementOffset,
+    setSelectedBuildingSettings: stageMock.setSelectedBuildingSettings,
     deleteSelected: stageMock.deleteSelected,
     beginEventDraft: stageMock.beginEventDraft,
     commitEventDraft: stageMock.commitEventDraft,
@@ -988,6 +992,77 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.clearSelection).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
     expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates and opens an editable interior from a selected building", async () => {
+    const exterior = payloadFor(oneMap[0] as MapSummary);
+    const house = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "building.buildings-blue-buildings.house1" as const,
+      building: { destructible: true, maxHp: 1_500 },
+    };
+    const exteriorEditor = { ...blankMap("Verdant Reach", 40, 30), elements: [house] };
+    const interior = {
+      ...payloadFor({ ...(oneMap[0] as MapSummary), id: "inside", name: "Village · Interior" }),
+      name: "Village · Interior",
+    };
+    const base = mapsFetchMock();
+    const mock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/maps/m1/interiors" && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse({
+            sourceMap: {
+              ...exterior,
+              revision: 2,
+              elements: [{ ...house, building: { ...house.building, interiorMapId: "inside" } }],
+            },
+            interiorMap: interior,
+          }),
+        );
+      }
+      return base(url, init);
+    });
+    vi.stubGlobal("fetch", mock);
+    await mountReady(alepha);
+    stageMock.current.mockReturnValue(exteriorEditor);
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(exteriorEditor, {
+        canUndo: false,
+        canRedo: false,
+        dirty: false,
+        selection: { kind: "element", col: 8, row: 8, offsetX: 0, offsetY: 0 },
+      });
+    });
+
+    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
+    await userEvent.click(
+      within(inspector).getByRole("button", {
+        name: t("editor.inspector.building.interior.create"),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/maps/m1/interiors",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ col: 8, row: 8, offsetX: 0, offsetY: 0 }),
+        }),
+      ),
+    );
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
+    expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "Village · Interior" }),
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+    );
   });
 
   it("forwards monster species and radius to the stage", async () => {

@@ -20,6 +20,7 @@ import {
   authErrorText,
   createAdventureApi,
   createAdventureTestSessionApi,
+  createBuildingInteriorApi,
   deleteAdventureTestSessionApi,
   errorCode,
   fetchMap,
@@ -45,7 +46,12 @@ import {
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { derivedMapRect } from "@lindocara/engine/map-canvas.js";
-import { EMPTY_MARKERS, type MapData, sameElementSlot } from "@lindocara/engine/map-data.js";
+import {
+  EMPTY_MARKERS,
+  type MapData,
+  type MapElement,
+  sameElementSlot,
+} from "@lindocara/engine/map-data.js";
 import {
   type EventKind,
   entryEvents,
@@ -425,6 +431,8 @@ function AdventureEditorInner({
   // the focus effect below.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pendingTestOptionsRef = useRef<AdventureTestOptions | null>(null);
+  const pendingBuildingInteriorRef = useRef<MapElement | null>(null);
+  const buildingInteriorBusyRef = useRef(false);
 
   const [map, setMap] = useState<MapPayload | null>(null);
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
@@ -444,6 +452,7 @@ function AdventureEditorInner({
   const [elementCount, setElementCount] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [savingMap, setSavingMap] = useState(false);
+  const [buildingInteriorBusy, setBuildingInteriorBusy] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [selection, setSelection] = useState<EditorSelection | null>(null);
@@ -1277,9 +1286,58 @@ function AdventureEditorInner({
     setFirstSaveOpen(false);
     const pendingTest = pendingTestOptionsRef.current;
     pendingTestOptionsRef.current = null;
+    const pendingInterior = pendingBuildingInteriorRef.current;
+    pendingBuildingInteriorRef.current = null;
     // `latest.adventureId` explicitly: on the sandbox path the adventure was created a moment ago
     // by `doSaveMap`, and this closure's own `adventureId` is still the render's `null`.
     if (pendingTest) void launchAdventureTest(pendingTest, true, latest?.adventureId ?? undefined);
+    if (pendingInterior) {
+      const sourceMapId = adventureId ? map?.id : latest?.draft.members[0]?.mapId;
+      if (sourceMapId) void createAndOpenBuildingInterior(sourceMapId, pendingInterior, true);
+    }
+  }
+
+  async function createAndOpenBuildingInterior(
+    sourceMapId: string,
+    element: MapElement,
+    mapAlreadySaved = false,
+  ): Promise<void> {
+    if (buildingInteriorBusyRef.current || savingMapRef.current) return;
+    buildingInteriorBusyRef.current = true;
+    setBuildingInteriorBusy(true);
+    setError(null);
+    try {
+      if (!mapAlreadySaved && dirty) {
+        const saved = await doSaveMap();
+        if (!saved) return;
+      }
+      const created = await createBuildingInteriorApi(sourceMapId, {
+        col: element.col,
+        row: element.row,
+        offsetX: element.offsetX,
+        offsetY: element.offsetY,
+      });
+      openPayload(created.interiorMap);
+    } catch (caught) {
+      fail(caught);
+    } finally {
+      buildingInteriorBusyRef.current = false;
+      setBuildingInteriorBusy(false);
+    }
+  }
+
+  function requestBuildingInterior(element: MapElement): void {
+    const existingInteriorId = element.building?.interiorMapId;
+    if (existingInteriorId) {
+      void loadMap(existingInteriorId);
+      return;
+    }
+    if (!adventureId || titleUntouched) {
+      pendingBuildingInteriorRef.current = element;
+      setFirstSaveOpen(true);
+      return;
+    }
+    if (map) void createAndOpenBuildingInterior(map.id, element);
   }
 
   // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
@@ -1825,6 +1883,8 @@ function AdventureEditorInner({
                     onSetBuilding={(settings) =>
                       handleRef.current?.setSelectedBuildingSettings(settings)
                     }
+                    onOpenInterior={requestBuildingInterior}
+                    buildingInteriorBusy={buildingInteriorBusy}
                     onOpenEditor={() => {
                       if (selection.kind === "event") setOpenEventId(selection.id);
                       if (selection.kind === "element") setBindingSelection(selection);
@@ -1957,6 +2017,7 @@ function AdventureEditorInner({
           onConfirm={(title) => void confirmFirstSave(title)}
           onCancel={() => {
             pendingTestOptionsRef.current = null;
+            pendingBuildingInteriorRef.current = null;
             setFirstSaveOpen(false);
           }}
         />
@@ -2092,6 +2153,8 @@ function SelectionInspector({
   onMove,
   onSetOffset,
   onSetBuilding,
+  onOpenInterior,
+  buildingInteriorBusy,
   onOpenEditor,
   onClose,
   onDelete,
@@ -2101,6 +2164,8 @@ function SelectionInspector({
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
   onSetBuilding(settings: BuildingSettings): void;
+  onOpenInterior(element: MapElement): void;
+  buildingInteriorBusy: boolean;
   onOpenEditor(): void;
   onClose(): void;
   onDelete(): void;
@@ -2232,6 +2297,19 @@ function SelectionInspector({
               {t("editor.inspector.building.ruin")}: {assetDisplayName(destroyedAsset)}
             </p>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={buildingInteriorBusy}
+            onClick={() => onOpenInterior(selectedElement)}
+          >
+            {buildingInteriorBusy
+              ? t("editor.inspector.building.interior.creating")
+              : selectedBuilding.interiorMapId
+                ? t("editor.inspector.building.interior.open")
+                : t("editor.inspector.building.interior.create")}
+          </Button>
         </div>
       )}
 

@@ -100,6 +100,46 @@ export class MapController {
     },
   });
 
+  /** `POST /api/maps/:id/interiors` links an ordinary editable member map to one building slot. */
+  createBuildingInterior = $action({
+    method: "POST",
+    path: "/maps/:id/interiors",
+    use: [$secure({}), $transactional()],
+    schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
+    handler: async ({ params, body, user }) => {
+      const slot = body as Record<string, unknown> | null;
+      if (
+        !slot ||
+        !Number.isSafeInteger(slot.col) ||
+        !Number.isSafeInteger(slot.row) ||
+        !Number.isSafeInteger(slot.offsetX) ||
+        !Number.isSafeInteger(slot.offsetY) ||
+        (slot.col as number) < 0 ||
+        (slot.row as number) < 0 ||
+        (slot.offsetX as number) < 0 ||
+        (slot.offsetX as number) > 3 ||
+        (slot.offsetY as number) < 0 ||
+        (slot.offsetY as number) > 3
+      ) {
+        throw new HttpError({
+          status: 400,
+          error: "map_invalid",
+          message: "invalid building slot",
+        });
+      }
+      try {
+        return await this.mapService.createBuildingInteriorForUser(user.id, params.id, {
+          col: slot.col as number,
+          row: slot.row as number,
+          offsetX: slot.offsetX as number,
+          offsetY: slot.offsetY as number,
+        });
+      } catch (error) {
+        rethrowAsMapError(error);
+      }
+    },
+  });
+
   /** `GET /api/maps/:id` */
   getMap = $action({
     path: "/maps/:id",
