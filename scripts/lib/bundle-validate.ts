@@ -267,6 +267,7 @@ export function validateBundleMaps(
 
   const startMapId =
     options.startMapId ??
+    bundle.adventure.startMapId ??
     bundle.maps.find((map) => map.events.some((event) => event.kind === "spawn"))?.id;
   if (!startMapId) throw new Error("no start map: no map carries a spawn event");
   const reached = new Set<string>([startMapId]);

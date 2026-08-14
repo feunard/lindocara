@@ -85,6 +85,7 @@ async function exportAdventure(client: ApiClient, title: string, outFile: string
     graph: AdventureGraph;
     registry: unknown;
     audio?: AdventureAudioConfig;
+    startMapId: string | null;
   } | null;
   if (!adventure.response.ok || !adventureBody) throw client.failure("adventure read", adventure);
 
@@ -115,6 +116,7 @@ async function exportAdventure(client: ApiClient, title: string, outFile: string
       maxPlayers: adventureBody.maxPlayers,
       registry: adventureBody.registry,
       ...(adventureBody.audio === undefined ? {} : { audio: adventureBody.audio }),
+      ...(adventureBody.startMapId === null ? {} : { startMapId: adventureBody.startMapId }),
     },
     maps,
     graph: adventureBody.graph,
@@ -261,6 +263,9 @@ async function importAdventure(
       title,
       maxPlayers: bundle.adventure.maxPlayers,
       ...(bundle.adventure.audio === undefined ? {} : { audio: bundle.adventure.audio }),
+      ...(rewritten.adventure.startMapId === undefined
+        ? {}
+        : { startMapId: rewritten.adventure.startMapId }),
       graph: rewritten.graph,
       registry: {
         ...rewritten.adventure.registry,

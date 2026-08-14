@@ -56,6 +56,8 @@ export interface AdventureBundle {
     registry: AdventureRegistry;
     /** Optional for backwards-compatible v1 bundles. */
     audio?: AdventureAudioConfig;
+    /** The id of a map within this bundle's `maps`. Optional for bundles authored before it existed. */
+    startMapId?: string;
   };
   maps: readonly AdventureBundleMap[];
   graph: AdventureGraph;
@@ -120,6 +122,12 @@ export function parseAdventureBundle(value: unknown): AdventureBundle | null {
       ...(mapAudio === undefined ? {} : { audio: mapAudio }),
     });
   }
+  let startMapId: string | undefined;
+  if (value.adventure.startMapId !== undefined) {
+    if (typeof value.adventure.startMapId !== "string" || !seenIds.has(value.adventure.startMapId))
+      return null;
+    startMapId = value.adventure.startMapId;
+  }
   const graph = parseAdventureGraph(value.graph ?? { start: null, links: [] });
   if (!graph) return null;
   return {
@@ -130,6 +138,7 @@ export function parseAdventureBundle(value: unknown): AdventureBundle | null {
       maxPlayers: maxPlayers as number,
       registry,
       ...(audio === undefined ? {} : { audio }),
+      ...(startMapId === undefined ? {} : { startMapId }),
     },
     maps,
     graph,
@@ -267,6 +276,9 @@ export function rewriteBundleIds(
     ...bundle,
     adventure: {
       ...bundle.adventure,
+      ...(bundle.adventure.startMapId === undefined
+        ? {}
+        : { startMapId: mapId(mapping, bundle.adventure.startMapId) }),
       registry: {
         ...bundle.adventure.registry,
         ...(bundle.adventure.registry.quests

@@ -109,6 +109,7 @@ function fixture(): AdventureBundle {
         combatMusic: "boss-1",
       },
       registry: { switches: [], variables: [], quests: [quest] },
+      startMapId: MAP_A,
     },
     maps: [
       {
@@ -247,5 +248,10 @@ describe("adventure bundle", () => {
       mapId: "bbbb0000-0000-4000-8000-000000000002",
       entryId: eventIds.get(ENTRY_B),
     });
+
+    // The adventure's start map id is remapped exactly like graph.start.mapId.
+    const startMapId = bundle.adventure.startMapId;
+    if (!startMapId) throw new Error("expected startMapId");
+    expect(rewritten.adventure.startMapId).toBe(mapIds.get(startMapId));
   });
 });
