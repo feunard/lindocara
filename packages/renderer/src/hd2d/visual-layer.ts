@@ -329,6 +329,13 @@ export class Hd2dVisualLayer {
    *  `#gridLines` this needs no cache key — its geometry does not depend on the map at all, only
    *  its position does. */
   #spawnMarker: THREE.Group | null = null;
+  /** The marker's pulsing ground ring, named `"editor-spawn-ring"`. Kept as its own field so
+   *  `update()` can mutate its transform/material every frame without a name lookup. */
+  #spawnRing: THREE.Mesh | null = null;
+  /** The marker's ghost knight, attached only once its texture resolves — see
+   *  `setSpawnKnightArt()`. `null` while the load is still in flight or before it starts. */
+  #spawnKnight: Billboard | null = null;
+  #spawnKnightArt: StaticSpriteArt | null = null;
   readonly #editorPreviews: {
     sprite: Billboard | Sprite;
     art: StaticSpriteArt;
@@ -1372,43 +1379,80 @@ export class Hd2dVisualLayer {
     return new THREE.LineSegments(geometry, material);
   }
 
-  /** The hero start marker: a tinted cell so the exact square is unambiguous, and a pole with a
-   *  camera-facing head so it still reads when the authoring camera is orbited or pulled back.
-   *  A `Sprite` rather than a quad because the editor camera turns (`[`/`]` and right-drag) and a
-   *  flat flag would vanish edge-on at two of the four quarter turns. Deliberately NOT the Warrior
-   *  sprite the palette previews with: that reads as a placed element, and the stage refuses to
-   *  select or delete this one. */
+  /** The hero start marker, per the author's own description after seeing the first cut in the
+   *  browser: "as start icon, just use default hero (knight) but transparent with animated circle
+   *  as base". The knight is the same catalogue warrior sheet the palette itself draws with
+   *  (`EDITOR_SPAWN_KNIGHT_ASSET_ID` in `game-renderer.ts`), held translucent so it reads as a
+   *  mark on the map rather than a placed unit: the stage already refuses to select or delete this
+   *  group (`map-editor-stage.ts`, `kind: "spawn"`), and the art must agree with that.
+   *
+   *  The ring is built once here, named `"editor-spawn-ring"`, and pulses from `update()` by
+   *  mutating its transform and material only — `setEditorOverlay` runs on every hover, so nothing
+   *  on this path may allocate a new geometry or material. The knight attaches only once its
+   *  texture resolves (`setSpawnKnightArt`, driven by `Hd2dRenderer`'s async load): the marker
+   *  must not wait on a network round trip to appear, so the ring is what shows first. */
   #buildSpawnMarker(): THREE.Group {
     const group = new THREE.Group();
     group.name = "editor-spawn";
 
-    const cell = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.96, 0.96),
-      transparentMaterial(0x6fe08a, 0.3),
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.3, 0.46, 40),
+      transparentMaterial(0x6fe08a, 0.5),
     );
-    cell.rotation.x = -Math.PI / 2;
-    group.add(cell);
+    ring.name = "editor-spawn-ring";
+    ring.rotation.x = -Math.PI / 2;
+    group.add(ring);
+    this.#spawnRing = ring;
 
-    const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.035, 0.035, 1, 6),
-      transparentMaterial(0xf2fbf3, 0.95),
-    );
-    pole.position.y = 0.5;
-    group.add(pole);
-
-    const head = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        color: 0x6fe08a,
-        transparent: true,
-        opacity: 0.95,
-        toneMapped: false,
-      }),
-    );
-    head.scale.set(0.42, 0.42, 1);
-    head.position.y = 1.05;
-    group.add(head);
-
+    this.#attachSpawnKnight(group);
     return group;
+  }
+
+  /** (Re)builds the knight billboard from the currently cached art, or clears it when there is
+   *  none. Called both once the async load resolves (`setSpawnKnightArt`) and from
+   *  `#buildSpawnMarker()` in case the art already arrived before the marker was first drawn —
+   *  loading and drawing race each other and either may finish first. */
+  #attachSpawnKnight(group: THREE.Group): void {
+    this.#clearSpawnKnight();
+    const art = this.#spawnKnightArt;
+    if (!art) return;
+    const billboard = makeBillboard(this.#scene.ctx, {
+      texture: art.texture,
+      cols: art.cols ?? 1,
+      rows: art.rows ?? 1,
+      height: art.height,
+      aspect: art.aspect ?? 1,
+      foot: art.foot ?? 0,
+      lit: false,
+      pitch: HD2D_CAMERA.pitch,
+    });
+    billboard.mesh.name = "editor-spawn-knight";
+    billboard.placeAt(0, 0, 0);
+    materialOpacity(billboard.mesh, 0.5);
+    group.add(billboard.mesh);
+    this.#spawnKnight = billboard;
+  }
+
+  /** `disposeObject`'s generic traversal frees a `Billboard`'s mesh geometry/material, but not its
+   *  registration in the scene context's yaw registry — only `Billboard.dispose()` does that (see
+   *  `hd2d/billboard.ts`'s `finishBillboard`), so the knight needs this explicit teardown wherever
+   *  it is dropped or replaced, not just a generic sweep. */
+  #clearSpawnKnight(): void {
+    if (!this.#spawnKnight) return;
+    this.#spawnKnight.mesh.removeFromParent();
+    this.#spawnKnight.dispose();
+    this.#spawnKnight = null;
+  }
+
+  /** Attaches the marker's knight once its texture has resolved. `Hd2dRenderer` owns the async
+   *  load, through the same catalogue machinery every static asset uses (`staticAssetSpec` ->
+   *  `staticSpecUrls` -> `fetchAll` -> `createTextureRegistry` -> `materializeStaticSpec`) — this
+   *  layer only ever receives the resolved `StaticSpriteArt`, exactly like `setEditorPreviewArt`.
+   *  Safe to call before the marker group exists: the art is cached and applied the next time
+   *  `#buildSpawnMarker()` runs. */
+  setSpawnKnightArt(art: StaticSpriteArt | null): void {
+    this.#spawnKnightArt = art;
+    if (this.#spawnMarker) this.#attachSpawnKnight(this.#spawnMarker);
   }
 
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
@@ -1636,6 +1680,23 @@ export class Hd2dVisualLayer {
         staticAnimationFrame(now, preview.art.animationDurationMs ?? 0, frames),
       );
     }
+    // The spawn ring's continuous pulse — a transform/material mutation on a mesh built once in
+    // `#buildSpawnMarker()`, never a rebuild here: `update()` runs every frame, 60x the hover rate
+    // that already earned `#gridLines` its cache.
+    if (this.#spawnRing) {
+      const pulse = 1 + Math.sin(now / 260) * 0.22;
+      this.#spawnRing.scale.setScalar(pulse);
+      const material = this.#spawnRing.material;
+      if (material instanceof THREE.MeshBasicMaterial) {
+        material.opacity = 0.32 + Math.sin(now / 260) * 0.18;
+      }
+    }
+    if (this.#spawnKnight && this.#spawnKnightArt) {
+      const frames = (this.#spawnKnightArt.cols ?? 1) * (this.#spawnKnightArt.rows ?? 1);
+      this.#spawnKnight.setFrame(
+        staticAnimationFrame(now, this.#spawnKnightArt.animationDurationMs ?? 0, frames),
+      );
+    }
     for (let index = this.#effects.length - 1; index >= 0; index -= 1) {
       const effect = this.#effects[index];
       if (!effect) continue;
@@ -1716,10 +1777,17 @@ export class Hd2dVisualLayer {
       disposeObject(this.#gridLines);
       this.#gridLines = null;
     }
+    // The knight billboard first, and explicitly: it is a `Billboard`, not a bare mesh, and its
+    // `dispose()` also unregisters it from the scene context's yaw registry — the generic
+    // `disposeObject` traversal below only frees geometry/material, so skipping this would leave
+    // the context turning a destroyed mesh on every camera rotation. See `#clearSpawnKnight`.
+    this.#clearSpawnKnight();
     if (this.#spawnMarker) {
       disposeObject(this.#spawnMarker);
       this.#spawnMarker = null;
     }
+    this.#spawnRing = null;
+    this.#spawnKnightArt = null;
     this.#effects.length = 0;
     this.#loot.clear();
     this.#projectiles.clear();

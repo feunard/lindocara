@@ -98,6 +98,12 @@ import {
   Hd2dVisualLayer,
 } from "./visual-layer.js";
 
+/** The map-editor spawn marker's ghost knight. The exact id the palette itself draws blue warriors
+ *  with (`GUARD_ASSET_BY_COLOR.azure`, `@lindocara/engine/tiny-swords-catalog.js`) — a real
+ *  catalogue entry, not a hardcoded URL, so a future recolour of the warrior sheet updates the
+ *  marker too. */
+const EDITOR_SPAWN_KNIGHT_ASSET_ID = "character.units-blue-units-warrior.warrior-idle";
+
 // --- actor art direction --------------------------------------------------------------------------
 
 /**
@@ -716,6 +722,12 @@ export class Hd2dRenderer implements RendererLike {
   #editorPreviewArt: StaticSpriteArt | null = null;
   #editorPreviewTextures: TextureRegistry | null = null;
   #editorPreviewToken = 0;
+  /** The spawn marker's ghost knight — loaded at most once per renderer instance (the asset id is
+   *  fixed, unlike `#editorPreviewArt`'s currently-selected palette pick) and kept alive across
+   *  terrain rebuilds so switching maps in the editor never re-downloads it. */
+  #spawnKnightArt: StaticSpriteArt | null = null;
+  #spawnKnightTextures: TextureRegistry | null = null;
+  #spawnKnightRequested = false;
   #worldEvents: readonly WorldEventSnapshot[] = [];
   #map: MapData | null = null;
   #visuals: Hd2dVisualLayer | null = null;
@@ -846,6 +858,7 @@ export class Hd2dRenderer implements RendererLike {
       (x, z) => authoredMaterialAt(heightfield, x, z),
     );
     this.#visuals.setEditorPreviewArt(this.#editorPreviewArt);
+    this.#visuals.setSpawnKnightArt(this.#spawnKnightArt);
     this.#visuals.setMerchant(this.#merchant);
     this.#visuals.setQuestMarkers(this.#questMarkers);
     this.#actors = createBillboardRegistry(
@@ -953,6 +966,32 @@ export class Hd2dRenderer implements RendererLike {
     this.#editorPreviewTextures = textures;
     this.#editorPreviewArt = materializeStaticSpec(spec, textures);
     this.#visuals?.setEditorPreviewArt(this.#editorPreviewArt);
+  }
+
+  /**
+   * Loads the spawn marker's ghost knight, through the exact same catalogue pipeline as
+   * `#loadEditorPreviewAsset` above — `staticAssetSpec` -> `staticSpecUrls` -> `fetchAll` ->
+   * `createTextureRegistry` -> `materializeStaticSpec` — rather than a second implementation of
+   * it. Unlike the palette preview, the asset id here is fixed, so this fires at most once per
+   * renderer instance (`#spawnKnightRequested`) and the result is kept for the renderer's whole
+   * lifetime, reapplied to every fresh `Hd2dVisualLayer` a terrain rebuild creates (see
+   * `configureMapTerrain`) instead of being re-downloaded.
+   */
+  async #loadSpawnKnightAsset(): Promise<void> {
+    const spec = staticAssetSpec(EDITOR_SPAWN_KNIGHT_ASSET_ID);
+    if (!spec) return;
+    const urls = [...new Set(staticSpecUrls(spec))];
+    const textureSpecs: TextureSpec[] = urls.map((url) => ({ url }));
+    const blobs = await fetchAll(urls, () => {});
+    const textures = createTextureRegistry(textureSpecs);
+    await textures.decode(blobs, () => {});
+    if (this.#destroyed) {
+      textures.dispose();
+      return;
+    }
+    this.#spawnKnightTextures = textures;
+    this.#spawnKnightArt = materializeStaticSpec(spec, textures);
+    this.#visuals?.setSpawnKnightArt(this.#spawnKnightArt);
   }
 
   #syncWorldEventContent(events: readonly WorldEventSnapshot[], force = false): void {
@@ -1555,6 +1594,9 @@ export class Hd2dRenderer implements RendererLike {
     this.#editorPreviewTextures?.dispose();
     this.#editorPreviewTextures = null;
     this.#editorPreviewArt = null;
+    this.#spawnKnightTextures?.dispose();
+    this.#spawnKnightTextures = null;
+    this.#spawnKnightArt = null;
     this.#textures.dispose();
   }
 
@@ -1983,9 +2025,19 @@ export class Hd2dRenderer implements RendererLike {
     this.#scene?.setTiltShiftEnabled(enabled);
   }
 
-  /** Draws creator-only grid/collision/selection guides in the real HD-2D scene. */
+  /** Draws creator-only grid/collision/selection guides in the real HD-2D scene.
+   *
+   *  Also the trigger for the spawn marker's knight: the first overlay carrying a `spawn` starts
+   *  the one-shot load (`#spawnKnightRequested` guards repeats — this runs on every hover). Never
+   *  fires for an ordinary player, since only the editor ever calls this method at all. */
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
     this.#visuals?.setEditorOverlay(overlay);
+    if (overlay?.spawn && !this.#spawnKnightRequested) {
+      this.#spawnKnightRequested = true;
+      void this.#loadSpawnKnightAsset().catch((error: unknown) => {
+        console.warn("[hd2d] spawn marker knight could not be loaded", error);
+      });
+    }
   }
 
   /** Loads only the currently selected creator asset and keeps it alive across terrain redraws. */
