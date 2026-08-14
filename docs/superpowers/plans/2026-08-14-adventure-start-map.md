@@ -549,7 +549,14 @@ git commit -m "feat(editor): the maps panel names the adventure's start map"
 **Files:**
 - Modify: `packages/engine/src/adventure-bundle.ts:50-62` (the bundle type), `:69-137` (`parseAdventureBundle`), `:262-305` (`rewriteBundleIds`)
 - Modify: `scripts/lib/bundle-validate.ts:268-271`
+- Modify: `scripts/adventure-io.ts:116-120` (export) and `:176` (import)
 - Test: `packages/engine/test/` — add to whichever bundle suite already covers `parseAdventureBundle` round-trips
+
+**Added during execution**, from the Task 1 review's forward-risk scan: `scripts/adventure-io.ts`
+carries `graph`, `registry` and `audio` across an export/import round trip but knows nothing of
+`startMapId`. Left alone, an adventure exported and re-imported silently loses its authored start
+the moment Task 6 retires the spawn-event fallback — a data-loss bug with no error and no test
+covering it. It rides this task because it is the same carrier concern.
 
 **Interfaces:**
 - Consumes: nothing from Task 3.
@@ -589,6 +596,16 @@ Expected: FAIL on the new case.
 ```
 
 The spawn-event arm dies in Task 6; leave it here for now so this task stands alone.
+
+- [ ] **Step 4b: Carry it through the export/import CLI**
+
+`scripts/adventure-io.ts` assembles the export bundle's `adventure` object at `:116-120` (it already
+carries `registry` and, conditionally, `audio`) and re-applies it on import at `:176`. Add
+`startMapId` to both, using the same conditional-spread idiom the neighbouring `audio` line uses so
+an adventure without one exports no key at all.
+
+On IMPORT the id must be remapped, exactly as `graph.start.mapId` is — the importer mints fresh map
+ids. Use the mapping the file already threads for that purpose rather than writing a second one.
 
 - [ ] **Step 5: Run the tests**
 
