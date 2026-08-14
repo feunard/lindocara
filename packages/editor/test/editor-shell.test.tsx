@@ -25,6 +25,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { Alepha } from "alepha";
 import { AlephaReact } from "alepha/react";
+import { AlephaReactI18n } from "alepha/react/i18n";
 import { ReactRouter } from "alepha/react/router";
 import { renderWithAlepha } from "alepha/react/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,18 +35,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * `state/atoms.ts`'s `adventureEditorSessionAtom` and navigate via `useRouter()` directly (Task 6,
  * off the store's deleted `adventureEditorSession`/`setScreen`/`setAdventureEditorSession` shims and
  * the `state/navigation.ts` seam those used to route through) — every render in this file needs a
- * real Alepha instance. `mountAlepha()` builds one with just `AlephaReact` registered (no full
+ * real Alepha instance. `mountAlepha()` builds one with `AlephaReact` registered (no full
  * `AppRouter` page tree: nothing here needs a real route to resolve, only proof of WHICH name a
  * navigation reached) and replaces `push` with a spy before the container starts. Each describe
  * block below owns its own instance via `beforeEach`/`afterEach`, matching this repo's other
  * `renderWithAlepha` suites.
+ *
+ * `AlephaReactI18n` is registered for the same reason `AppRouter` eagerly injects `I18nProvider`
+ * (see its docblock): `AdventureEditorScreen` mounts `@alepha/ui`'s `DialogProvider`, which calls
+ * `useI18n()` on every render whether or not a dialog is ever opened. Reaching `I18nProvider` for
+ * the first time mid-render, after the container has locked, throws instead of auto-registering.
+ * The app registers no `$dictionary` and needs none — every label the editor passes to
+ * `useDialog` is an explicit `t(...)` string.
  */
 function mountAlepha(): {
   alepha: Alepha;
   router: ReactRouter<object>;
   pushSpy: ReturnType<typeof vi.spyOn>;
 } {
-  const alepha = Alepha.create().with(AlephaReact);
+  const alepha = Alepha.create().with(AlephaReact).with(AlephaReactI18n);
   const router = alepha.inject(ReactRouter<object>);
   const pushSpy = vi.spyOn(router, "push").mockResolvedValue(undefined);
   return { alepha, router, pushSpy };
@@ -58,6 +66,20 @@ async function mountReady(alepha: Alepha): Promise<RenderResult> {
   await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(stageMock.setTool).toHaveBeenCalled());
   return rendered;
+}
+
+/**
+ * The unsaved-edits guard is a `useDialog` AlertDialog, not `window.confirm`: it is a real element
+ * in the tree, answered by clicking one of its two explicit labels, and everything after it happens
+ * a microtask later. `discard: true` walks away from the edits, `false` keeps editing.
+ */
+async function answerDiscardGuard(discard: boolean): Promise<void> {
+  await screen.findByText(t("editor.shell.exit.confirm"));
+  await userEvent.click(
+    screen.getByRole("button", {
+      name: discard ? t("editor.discard.confirm") : t("editor.discard.cancel"),
+    }),
+  );
 }
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
@@ -788,9 +810,8 @@ describe("AdventureEditorScreen shell", () => {
     await screen.findByRole("button", { name: "Frostfen" });
     markDirty();
 
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     await userEvent.click(screen.getByRole("button", { name: "Frostfen" }));
-    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+    await answerDiscardGuard(false);
     // Cancelled: the stage was not reopened for m2, and nothing was saved.
     expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1);
     expect(mock).not.toHaveBeenCalledWith(
@@ -798,8 +819,8 @@ describe("AdventureEditorScreen shell", () => {
       expect.objectContaining({ method: "PUT" }),
     );
 
-    confirm.mockReturnValue(true);
     await userEvent.click(screen.getByRole("button", { name: "Frostfen" }));
+    await answerDiscardGuard(true);
     await waitFor(() => expect(mock).toHaveBeenCalledWith("/api/maps/m2", expect.anything()));
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
   });
@@ -821,14 +842,12 @@ describe("AdventureEditorScreen shell", () => {
     await screen.findByRole("button", { name: "Frostfen" });
     markDirty();
 
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     await openNewAdventure();
+    await answerDiscardGuard(false);
 
-    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
     // Declined: no adventure was created, and the stage was never reopened for a new one.
     expect(adventurePosts(mock)).toHaveLength(0);
     expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1);
-    confirm.mockRestore();
   });
 
   it("opens a fresh sandbox when File → New adventure is confirmed over dirty edits", async () => {
@@ -838,10 +857,8 @@ describe("AdventureEditorScreen shell", () => {
     await screen.findByRole("button", { name: "Frostfen" });
     markDirty();
 
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     await openNewAdventure();
-    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
-    confirm.mockRestore();
+    await answerDiscardGuard(true);
 
     // A new adventure is a local sandbox: no row, no id, and a map to paint on straight away.
     await waitFor(() => {
@@ -1889,15 +1906,13 @@ describe("AdventureEditorScreen shell", () => {
       markDirty();
 
       const quitButton = screen.getByRole("button", { name: t("editor.shell.exit.aria") });
-      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
       await userEvent.click(quitButton);
-      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      await answerDiscardGuard(false);
       expect(pushSpy).not.toHaveBeenCalled();
 
-      confirm.mockReturnValue(true);
       await userEvent.click(quitButton);
-      expect(pushSpy).toHaveBeenCalledWith("title");
-      confirm.mockRestore();
+      await answerDiscardGuard(true);
+      await waitFor(() => expect(pushSpy).toHaveBeenCalledWith("title"));
       // Leaving clears the session while this screen is still mounted, so the no-session branch —
       // the scratch bootstrap — must NOT take that as an invitation to mint an adventure nobody
       // asked for. Abandoned scratches are never cleaned up, so a stray row is permanent.
@@ -1938,12 +1953,10 @@ describe("AdventureEditorScreen shell", () => {
 
       const row = (await screen.findByText("Second")).closest("li");
       if (!row) throw new Error("adventure row not found");
-      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
       await userEvent.click(within(row).getByRole("button", { name: t("editor.picker.open") }));
-      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      await answerDiscardGuard(false);
       // Cancelled: still on adv-1.
       expect(alepha.store.get(adventureEditorSessionAtom)?.adventureId).toBe("adv-1");
-      confirm.mockRestore();
     });
 
     it("deletes an adventure directly from the Load dialog after confirmation", async () => {
@@ -1987,16 +2000,14 @@ describe("AdventureEditorScreen shell", () => {
         );
       };
 
-      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
       await openQuit();
-      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      await answerDiscardGuard(false);
       // Cancelled: still in the editor.
       expect(pushSpy).not.toHaveBeenCalled();
 
-      confirm.mockReturnValue(true);
       await openQuit();
-      expect(pushSpy).toHaveBeenCalledWith("title");
-      confirm.mockRestore();
+      await answerDiscardGuard(true);
+      await waitFor(() => expect(pushSpy).toHaveBeenCalledWith("title"));
       // Same fence as the menu-bar Quit button above: quitting must mint nothing.
       expect(backend).not.toHaveBeenCalledWith(
         "/api/adventures",

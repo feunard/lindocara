@@ -1,3 +1,4 @@
+import { DialogProvider } from "@alepha/ui/components/use-dialog/use-dialog";
 import { type AdventureDraft, emptyDraft } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
@@ -14,6 +15,7 @@ import { defaultEventPage, type MapEvent } from "@lindocara/engine/map-events.js
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Alepha } from "alepha";
+import { AlephaReactI18n } from "alepha/react/i18n";
 import { renderWithAlepha } from "alepha/react/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -64,10 +66,17 @@ function mountDialog(
   session: ReturnType<typeof sessionFixture>,
   props: Omit<Parameters<typeof QuestWorkspaceDialog>[0], "open" | "onOpenChange" | "onOpenHelp">,
 ) {
-  const alepha = Alepha.create();
+  // `AlephaReactI18n` + `DialogProvider`: the dialog's own close guard is a `useDialog` confirm now,
+  // and `AdventureEditorScreen` — which mounts that provider in the app — is not in this tree.
+  // Registering the i18n module up front is the same fix `AppRouter` applies (see its docblock):
+  // `DialogProvider` calls `useI18n()` on every render, and reaching `I18nProvider` for the first
+  // time mid-render, after the container has locked, throws.
+  const alepha = Alepha.create().with(AlephaReactI18n);
   alepha.store.set(adventureEditorSessionAtom, session);
   return renderWithAlepha(
-    <QuestWorkspaceDialog open onOpenChange={() => {}} onOpenHelp={() => {}} {...props} />,
+    <DialogProvider>
+      <QuestWorkspaceDialog open onOpenChange={() => {}} onOpenHelp={() => {}} {...props} />
+    </DialogProvider>,
     { alepha },
   );
 }

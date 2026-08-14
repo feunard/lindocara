@@ -1294,6 +1294,11 @@ export const en = {
   "editor.load.empty": "No adventures yet.",
   "editor.shell.exit.aria": "Exit the editor",
   "editor.shell.exit.confirm": "Leave the editor and discard the changes?",
+  // The two buttons every editor discard-guard dialog shows. `useDialog`'s own defaults are English
+  // literals (`tr("useDialog.confirm", { default: "Confirm" })` against a dictionary this app never
+  // registers), so both labels are always passed explicitly — that is what keeps the guard localized.
+  "editor.discard.confirm": "Discard changes",
+  "editor.discard.cancel": "Keep editing",
   "editor.shell.preview.hint":
     "Local preview: movement and collision only. Press Esc to return to editing.",
   "editor.shell.adventureFallback": "Adventure",

@@ -104,6 +104,15 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
         if (!summary) return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
         return Promise.resolve(jsonResponse(payloadFor(summary)));
       }
+      if (method === "PUT") {
+        // Rename writes the whole stored payload back; echo it with the new name and a bumped
+        // revision, the way the real endpoint does.
+        if (!summary) return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
+        const body = JSON.parse(String(init?.body ?? "{}")) as { name?: string };
+        summary.name = body.name ?? summary.name;
+        summary.revision += 1;
+        return Promise.resolve(jsonResponse(payloadFor(summary)));
+      }
       if (method === "DELETE") {
         const index = list.findIndex((m) => m.id === idMatch[1]);
         if (index >= 0) list.splice(index, 1);
@@ -118,7 +127,8 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
 function Harness(overrides: {
   adventureId?: string | null;
   activeMapId?: string | null;
-  dirty?: boolean;
+  /** Stands in for the screen's `useDialog` discard guard: `false` = the author kept editing. */
+  onConfirmDiscard?: () => Promise<boolean>;
   locked?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
   onOpenMapAudio?: () => void;
@@ -130,7 +140,7 @@ function Harness(overrides: {
     <MapListPanel
       adventureId={overrides.adventureId ?? "adv-1"}
       activeMapId={overrides.activeMapId ?? null}
-      dirty={overrides.dirty ?? false}
+      onConfirmDiscard={overrides.onConfirmDiscard ?? (() => Promise.resolve(true))}
       locked={overrides.locked ?? false}
       refreshNonce={0}
       newMapOpen={newMapOpen}
@@ -227,7 +237,15 @@ describe("MapListPanel", () => {
     const mock = mapsBackend();
     vi.stubGlobal("fetch", mock);
     const onOpenPayload = vi.fn();
-    render(<Harness activeMapId="m1" dirty onOpenPayload={onOpenPayload} />);
+    // The guard declines — the panel asks the screen, which owns the real `useDialog` confirm.
+    const onConfirmDiscard = vi.fn(() => Promise.resolve(false));
+    render(
+      <Harness
+        activeMapId="m1"
+        onConfirmDiscard={onConfirmDiscard}
+        onOpenPayload={onOpenPayload}
+      />,
+    );
     await screen.findByRole("button", { name: "Verdant Reach" });
 
     await userEvent.click(
@@ -235,17 +253,42 @@ describe("MapListPanel", () => {
     );
     await userEvent.type(screen.getByLabelText(t("editor.name")), " Renamed");
 
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
 
-    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+    expect(onConfirmDiscard).toHaveBeenCalled();
     // Cancelled: the open map was neither refetched (remount) nor written.
     expect(mock).not.toHaveBeenCalledWith(
       "/api/maps/m1",
       expect.objectContaining({ method: "PUT" }),
     );
     expect(onOpenPayload).not.toHaveBeenCalled();
-    confirm.mockRestore();
+  });
+
+  it("renames the open map once the discard guard accepts", async () => {
+    const mock = mapsBackend();
+    vi.stubGlobal("fetch", mock);
+    const onOpenPayload = vi.fn();
+    const onConfirmDiscard = vi.fn(() => Promise.resolve(true));
+    render(
+      <Harness
+        activeMapId="m1"
+        onConfirmDiscard={onConfirmDiscard}
+        onOpenPayload={onOpenPayload}
+      />,
+    );
+    await screen.findByRole("button", { name: "Verdant Reach" });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.rename")} Verdant Reach` }),
+    );
+    await userEvent.type(screen.getByLabelText(t("editor.name")), " Renamed");
+    await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
+
+    expect(onConfirmDiscard).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith("/api/maps/m1", expect.objectContaining({ method: "PUT" })),
+    );
+    await waitFor(() => expect(onOpenPayload).toHaveBeenCalled());
   });
 
   it("defaults a new map's name to the lowest free MapN and sends it on create (UX wave #16)", async () => {

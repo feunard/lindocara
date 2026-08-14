@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@alepha/ui/components/ui/dialog";
 import { Input } from "@alepha/ui/components/ui/input";
+import { useDialog } from "@alepha/ui/components/use-dialog/use-dialog";
 import type { AdventureDraft } from "@lindocara/client/adventure-draft.js";
 import { toAdventureInput } from "@lindocara/client/adventure-draft.js";
 import {
@@ -71,6 +72,10 @@ export function QuestWorkspaceDialog({
 }: QuestWorkspaceDialogProps) {
   useLocale();
   const alepha = useAlepha();
+  // From the `DialogProvider` `AdventureEditorScreen` mounts. This workspace is itself a modal, so
+  // the discard guard is an AlertDialog stacked over it — the same nesting `EventDialog`'s own
+  // delete confirmation already uses.
+  const dialog = useDialog();
   const [session, setSession] = useStore(adventureEditorSessionAtom);
   const [quests, setQuests] = useState<readonly AuthoredQuestDefinition[]>([]);
   const [baseline, setBaseline] = useState("[]");
@@ -145,9 +150,22 @@ export function QuestWorkspaceDialog({
     };
   }, [open, session?.adventureId]);
 
-  function requestClose(): void {
+  async function requestClose(): Promise<void> {
     if (savingRef.current) return;
-    if (dirty && !window.confirm(t("editor.quest.closeConfirm"))) return;
+    if (
+      dirty &&
+      !(await dialog.confirm({
+        title: t("editor.quest.closeConfirm"),
+        confirmLabel: t("editor.discard.confirm"),
+        cancelLabel: t("editor.discard.cancel"),
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    // Re-read the save latch: unlike `window.confirm`, the dialog yields to the event loop, so a
+    // save could have started (and could still be writing the registry) while it was open.
+    if (savingRef.current) return;
     onOpenChange(false);
   }
 
@@ -240,7 +258,7 @@ export function QuestWorkspaceDialog({
   const deletingQuest = quests.find((quest) => quest.id === confirmDeleteId) ?? null;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : requestClose())}>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : void requestClose())}>
       <DialogContent className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[96vw]">
         <DialogHeader className="border-b border-border px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
@@ -417,7 +435,12 @@ export function QuestWorkspaceDialog({
               {dirty ? t("editor.quest.unsaved") : t("editor.quest.saved")}
             </p>
             <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={requestClose} disabled={saving}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void requestClose()}
+                disabled={saving}
+              >
                 {t("editor.event.cancel")}
               </Button>
               <Button type="button" onClick={() => void save()} disabled={!canSave}>

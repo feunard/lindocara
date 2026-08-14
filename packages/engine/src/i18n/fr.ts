@@ -1310,6 +1310,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.load.empty": "Aucune aventure pour l'instant.",
   "editor.shell.exit.aria": "Quitter l'éditeur",
   "editor.shell.exit.confirm": "Quitter l'éditeur et abandonner les modifications ?",
+  "editor.discard.confirm": "Abandonner les modifications",
+  "editor.discard.cancel": "Continuer l'édition",
   "editor.shell.preview.hint":
     "Aperçu local : déplacement et collisions uniquement. Appuyez sur Échap pour revenir.",
   "editor.shell.adventureFallback": "Aventure",

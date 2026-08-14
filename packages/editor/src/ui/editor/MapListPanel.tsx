@@ -47,9 +47,13 @@ interface MapListPanelProps {
   /** The map currently mounted in the stage, so the panel marks it and knows what "delete the open
    *  map" targets. */
   activeMapId: string | null;
-  /** Whether the open map has unsaved stage edits, so renaming it in place can guard them: rename
-   *  persists the *stored* payload and re-mounts, which would otherwise drop those edits silently. */
-  dirty: boolean;
+  /** The screen's unsaved-edits guard, asked before renaming the OPEN map: rename persists the
+   *  *stored* payload and re-mounts, which would otherwise drop the stage's edits silently. Resolves
+   *  `true` when the rename may proceed — including with no dialog at all when nothing is dirty.
+   *  A callback rather than the `dirty` boolean it replaced: the guard is a `useDialog` confirm now,
+   *  and keeping it on the screen leaves this panel free of any `alepha` import (which would move it
+   *  into the package's `tsconfig.api.json` program) and keeps ONE definition of the guard. */
+  onConfirmDiscard(): Promise<boolean>;
   /** A whole-map save is in flight. Map mutations/navigation stay inert until its revision lands. */
   locked: boolean;
   /** Bumped by the screen whenever a save/create lands, so the panel refetches names and dims. */
@@ -85,7 +89,7 @@ export function MapListPanel({
   adventureId,
   sandboxMap,
   activeMapId,
-  dirty,
+  onConfirmDiscard,
   locked,
   refreshNonce,
   newMapOpen,
@@ -183,9 +187,7 @@ export function MapListPanel({
     const target = renaming;
     // Renaming the open map re-mounts it from the stored payload, so unsaved stage edits would be
     // lost — guard them the same way the screen's map-switch does.
-    if (target.id === activeMapId && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
-      return;
-    }
+    if (target.id === activeMapId && !(await onConfirmDiscard())) return;
     onError("");
     setBusy(true);
     try {

@@ -6,6 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Alepha } from "alepha";
 import { AlephaContext, AlephaReact } from "alepha/react";
+import { AlephaReactI18n } from "alepha/react/i18n";
 import { ReactRouter } from "alepha/react/router";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,7 +28,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  *  tree in the ORDER THE APP ACTUALLY USES is what makes the entry path strict-mode-tested for real:
  *  the sandbox is minted in an effect, and a second invocation would discard the first one's map. */
 async function mountScreen() {
-  const alepha = Alepha.create().with(AlephaReact);
+  // `AlephaReactI18n` for the same reason `AppRouter` eagerly injects `I18nProvider` (see its
+  // docblock): the screen mounts `@alepha/ui`'s `DialogProvider`, whose `useI18n()` would otherwise
+  // first reach `I18nProvider` mid-render, after the lock below.
+  const alepha = Alepha.create().with(AlephaReact).with(AlephaReactI18n);
   alepha.inject(ReactRouter);
   await alepha.start();
   const result = render(

@@ -7,6 +7,7 @@ import {
   ResizablePanelGroup,
 } from "@alepha/ui/components/ui/resizable";
 import { TooltipProvider } from "@alepha/ui/components/ui/tooltip";
+import { DialogProvider, useDialog } from "@alepha/ui/components/use-dialog/use-dialog";
 import {
   type AdventureDraft,
   type DraftMemberInfo,
@@ -275,24 +276,32 @@ export function AdventureEditorScreen() {
     setLeaving(true);
     setSession(null);
   }, [setSession]);
-  if (session) {
-    // Keyed by `draftId`, NOT by `adventureId`: an unsaved sandbox has no adventure id, and its
-    // first save gives it one — remounting there would throw away the stage the author is standing
-    // in mid-save. `draftId` changes only when the session is genuinely swapped (File → New /
-    // Open), which is exactly when the room-local editor state must reset. That makes it
-    // load-bearing for `refreshSession`, which must preserve it rather than mint a new one.
-    return (
-      <AdventureEditorInner
-        key={session.draftId}
-        adventureId={session.adventureId}
-        onLeave={leave}
-      />
-    );
-  }
-  // On the way out: render nothing rather than a screen that acts. The pending `router.push` owns
-  // what comes next.
-  if (leaving) return null;
-  return <AdventureEditorBootstrap />;
+  // `DialogProvider` is mounted HERE rather than around each caller: the editor's discard guards
+  // live in this screen, in `MapListPanel` and in `QuestWorkspaceDialog`, and `useDialog` reads one
+  // context. Mounting it above the keyed inner screen also means a session swap (File → New / Open)
+  // cannot remount the provider mid-confirm. Its `AlertDialog` portals to `document.body`, outside
+  // `.editor-root` — stock shadcn, so `legacy.css`'s `[data-slot]` fence already exempts it from the
+  // Tiny Swords skin.
+  return (
+    <DialogProvider>
+      {session ? (
+        // Keyed by `draftId`, NOT by `adventureId`: an unsaved sandbox has no adventure id, and its
+        // first save gives it one — remounting there would throw away the stage the author is
+        // standing in mid-save. `draftId` changes only when the session is genuinely swapped (File →
+        // New / Open), which is exactly when the room-local editor state must reset. That makes it
+        // load-bearing for `refreshSession`, which must preserve it rather than mint a new one.
+        <AdventureEditorInner
+          key={session.draftId}
+          adventureId={session.adventureId}
+          onLeave={leave}
+        />
+      ) : leaving ? // On the way out: render nothing rather than a screen that acts. The pending `router.push`
+      // owns what comes next.
+      null : (
+        <AdventureEditorBootstrap />
+      )}
+    </DialogProvider>
+  );
 }
 
 /**
@@ -345,6 +354,11 @@ function AdventureEditorInner({
   useLocale();
   const router = useRouter();
   const alepha = useAlepha();
+  // The imperative confirm/alert/prompt trio, from the `DialogProvider` mounted by
+  // `AdventureEditorScreen` above. Replaces this screen's `window.confirm` calls: the native dialog
+  // is unstyled, untranslatable and blocks the whole page, and it cannot be driven by the same
+  // shadcn tree the rest of the editor chrome is built from.
+  const dialog = useDialog();
   const [session, setSession] = useStore(adventureEditorSessionAtom);
   const [, setAdventureTestSession] = useStore(adventureTestSessionAtom);
   const [, setActiveParty] = useStore(activePartyAtom);
@@ -502,29 +516,52 @@ function AdventureEditorInner({
     setError(code);
   }, []);
 
+  /**
+   * The one unsaved-edits guard, shared by every path that would drop the stage's in-memory map:
+   * File → Open, File → New adventure, switching maps, renaming the open map (in `MapListPanel`,
+   * which gets this as a prop rather than a `dirty` boolean) and quitting.
+   *
+   * Resolves `true` when the caller may proceed — including immediately, with no dialog at all, when
+   * there is nothing to lose. Callers are therefore `async` where they used to be synchronous:
+   * `useDialog().confirm` returns a promise, unlike the `window.confirm` this replaced, so anything
+   * a caller does after the guard now happens a microtask later. That matters for the latches around
+   * it (`savingMapRef`, `swappingSessionRef`, the map/session load generations), which are all still
+   * read AFTER the await — never captured before it.
+   */
+  const confirmDiscard = useCallback(async (): Promise<boolean> => {
+    if (!dirty) return true;
+    return dialog.confirm({
+      title: t("editor.shell.exit.confirm"),
+      confirmLabel: t("editor.discard.confirm"),
+      cancelLabel: t("editor.discard.cancel"),
+      destructive: true,
+    });
+  }, [dirty, dialog]);
+
   // Load a different adventure (UX wave #15), from the File → « Charger une aventure » dialog. Guard
   // unsaved edits first, then swap the session — a new adventureId remounts this component (it is
   // keyed by it), resetting every room-local editor state cleanly.
-  function loadAdventure(id: string): void {
+  async function loadAdventure(id: string): Promise<void> {
     if (savingMapRef.current || swappingSessionRef.current) return;
     if (id === adventureId) {
       setLoadOpen(false);
       return;
     }
-    if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
+    if (!(await confirmDiscard())) return;
+    // Re-read both latches: the author may have started a save or another swap while the discard
+    // dialog was open, which the pre-await check above could not have seen.
+    if (savingMapRef.current || swappingSessionRef.current) return;
     setError(null);
     swappingSessionRef.current = true;
-    void (async () => {
-      try {
-        const loaded = await loadAdventureSession(id);
-        setSession(loaded);
-        setLoadOpen(false);
-      } catch (caught) {
-        fail(caught);
-      } finally {
-        swappingSessionRef.current = false;
-      }
-    })();
+    try {
+      const loaded = await loadAdventureSession(id);
+      setSession(loaded);
+      setLoadOpen(false);
+    } catch (caught) {
+      fail(caught);
+    } finally {
+      swappingSessionRef.current = false;
+    }
   }
 
   // File → New adventure: same dirty guard as `loadAdventure`, then swap the session for a fresh
@@ -532,9 +569,10 @@ function AdventureEditorInner({
   // state cleanly rather than leaking the previous adventure's stage. No request and no failure
   // mode: a sandbox is minted locally, and the swap latch is only read here to refuse while an
   // asynchronous `File → Open` is still landing.
-  function newAdventure(): void {
+  async function newAdventure(): Promise<void> {
     if (savingMapRef.current || swappingSessionRef.current) return;
-    if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
+    if (!(await confirmDiscard())) return;
+    if (savingMapRef.current || swappingSessionRef.current) return;
     setError(null);
     setSession(createSandboxSession());
   }
@@ -1238,22 +1276,23 @@ function AdventureEditorInner({
   }
 
   // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
-  function loadMap(id: string): void {
+  async function loadMap(id: string): Promise<void> {
     if (savingMapRef.current) return;
     if (id === map?.id) return;
-    if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
+    if (!(await confirmDiscard())) return;
+    if (savingMapRef.current) return;
+    // Claimed only after the guard resolves: bumping the generation before the dialog would cancel
+    // an in-flight load the author never chose to abandon.
     const generation = ++mapLoadGenerationRef.current;
     setError(null);
-    void (async () => {
-      try {
-        const payload = await fetchMap(id);
-        if (generation !== mapLoadGenerationRef.current) return;
-        editedRef.current = null;
-        setMap(payload);
-      } catch (caught) {
-        if (generation === mapLoadGenerationRef.current) fail(caught);
-      }
-    })();
+    try {
+      const payload = await fetchMap(id);
+      if (generation !== mapLoadGenerationRef.current) return;
+      editedRef.current = null;
+      setMap(payload);
+    } catch (caught) {
+      if (generation === mapLoadGenerationRef.current) fail(caught);
+    }
   }
 
   // Reload the editor session from the server so the draft's members reflect maps just created,
@@ -1328,11 +1367,10 @@ function AdventureEditorInner({
     })();
   }
 
-  function exit(force = false): void {
+  async function exit(force = false): Promise<void> {
     if (!force && savingMapRef.current) return;
-    if (!force && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
-      return;
-    }
+    if (!force && !(await confirmDiscard())) return;
+    if (!force && savingMapRef.current) return;
     // Clear the session; the next editor open bootstraps a fresh opening adventure (UX wave #15).
     // `onLeave`, never a bare `setSession(null)`: this screen stays mounted until the route swap
     // lands, and the no-session branch would otherwise mint a stray scratch on the way out.
@@ -1586,9 +1624,9 @@ function AdventureEditorInner({
           showGrid={showGrid}
           showDim={showDim}
           showCollisions={showCollisions}
-          onExit={() => exit()}
+          onExit={() => void exit()}
           onOpenLoad={() => setLoadOpen(true)}
-          onNewAdventure={() => newAdventure()}
+          onNewAdventure={() => void newAdventure()}
           onNewMap={() => setNewMapOpen(true)}
           canGenerateMap={stageStatus === "ready" && currentMap !== null && !savingMap}
           onGenerateMap={() => setGeneratorOpen(true)}
@@ -1783,14 +1821,14 @@ function AdventureEditorInner({
                   : undefined
               }
               activeMapId={map?.id ?? null}
-              dirty={dirty}
+              onConfirmDiscard={confirmDiscard}
               locked={savingMap}
               refreshNonce={mapsRefreshNonce}
               newMapOpen={newMapOpen}
               onNewMapOpenChange={setNewMapOpen}
               confirmDeleteId={confirmDeleteId}
               onConfirmDeleteIdChange={setConfirmDeleteId}
-              onRequestOpen={loadMap}
+              onRequestOpen={(id) => void loadMap(id)}
               onOpenPayload={openPayload}
               onActiveDeleted={activeMapDeleted}
               onOpenMapAudio={() => setMapAudioOpen(true)}
@@ -1900,7 +1938,7 @@ function AdventureEditorInner({
         <LoadAdventureDialog
           open={loadOpen}
           onOpenChange={setLoadOpen}
-          onPick={loadAdventure}
+          onPick={(id) => void loadAdventure(id)}
           onDeleted={(id) => {
             if (id !== adventureId) return;
             setLoadOpen(false);
