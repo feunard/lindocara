@@ -25,6 +25,7 @@ import {
   fetchMaps,
   isUnauthorizedCode,
   type MapPayload,
+  updateAdventureApi,
   updateMapApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
@@ -1367,6 +1368,19 @@ function AdventureEditorInner({
     })();
   }
 
+  // Written through immediately rather than parked until the settings dialog saves: the maps panel
+  // already owns its own create/rename/delete calls, and a star that needed a second, unrelated
+  // save to stick would read as broken.
+  function setStartMap(id: string): void {
+    const latest = alepha.store.get(adventureEditorSessionAtom);
+    if (!latest?.adventureId) return;
+    const draft = { ...latest.draft, startMapId: id };
+    const input = toAdventureInput(draft);
+    if (!input) return;
+    setSession({ ...latest, draft, savedDraft: JSON.stringify(draft) });
+    void updateAdventureApi(latest.adventureId, input).catch(fail);
+  }
+
   async function exit(force = false): Promise<void> {
     if (!force && savingMapRef.current) return;
     if (!force && !(await confirmDiscard())) return;
@@ -1835,6 +1849,8 @@ function AdventureEditorInner({
               onOpenHeroSettings={() => setMapHeroSettingsOpen(true)}
               onOpenSettings={() => setSettingsOpen(true)}
               onError={(code) => setError(code === "" ? null : code)}
+              startMapId={session?.draft.startMapId ?? null}
+              onSetStartMap={setStartMap}
             />
           </ResizablePanel>
         </ResizablePanelGroup>

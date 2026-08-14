@@ -26,7 +26,7 @@ import { t, useLocale } from "@lindocara/client/i18n.js";
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { nextMapName } from "@lindocara/engine/map-naming.js";
-import { Music2, Pencil, Plus, Settings2, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Music2, Pencil, Plus, Settings2, SlidersHorizontal, Star, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
@@ -74,6 +74,10 @@ interface MapListPanelProps {
   onOpenHeroSettings?(): void;
   onOpenSettings(): void;
   onError(code: string): void;
+  /** The adventure's authored start map, or null while it still derives (the earliest map). */
+  startMapId: string | null;
+  /** Make this map the start. The screen owns the write, like every other adventure-level edit. */
+  onSetStartMap(id: string): void;
 }
 
 /**
@@ -103,6 +107,8 @@ export function MapListPanel({
   onOpenHeroSettings,
   onOpenSettings,
   onError,
+  startMapId,
+  onSetStartMap,
 }: MapListPanelProps) {
   useLocale();
   const [maps, setMaps] = useState<MapSummary[]>([]);
@@ -248,6 +254,12 @@ export function MapListPanel({
 
       <div className="flex flex-1 flex-col gap-1 overflow-auto p-2">
         {listed.map((map) => {
+          // A sandbox's one listed map is the start by construction — no row to write, so it always
+          // reads as the (disabled) start. A stored row compares against the draft's authored value.
+          const isStart = stored ? map.id === startMapId : true;
+          const startLabel = isStart
+            ? t("editor.shell.maps.start")
+            : t("editor.shell.maps.setStart");
           return (
             <div
               key={map.id}
@@ -279,6 +291,26 @@ export function MapListPanel({
                   )}
                 </span>
               </button>
+              {/* The start star is a status indicator as much as a control, so unlike rename/delete
+                  below it stays always visible — an author must see which map is the start without
+                  hovering every row. */}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`${startLabel} ${map.name}`}
+                      disabled={isStart || busy || locked}
+                      className={isStart ? "text-amber-500" : "text-zinc-400"}
+                      onClick={() => onSetStartMap(map.id)}
+                    >
+                      <Star className={isStart ? "fill-current" : ""} />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{startLabel}</TooltipContent>
+              </Tooltip>
               {/* Rename and delete both act on a STORED row (they PUT/DELETE by id), so the
                   sandbox's in-memory map offers neither: its name is edited in the stage, and
                   "deleting" the only map of an adventure that does not exist yet is meaningless. */}

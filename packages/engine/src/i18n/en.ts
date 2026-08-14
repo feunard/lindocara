@@ -1341,6 +1341,8 @@ export const en = {
   "editor.shell.maps.aria": "Maps",
   "editor.shell.maps.dims": "{cols}×{rows}",
   "editor.shell.maps.rename": "Rename",
+  "editor.shell.maps.start": "Start map",
+  "editor.shell.maps.setStart": "Make this the start map",
   "editor.shell.maps.create": "Create map",
   "editor.shell.maps.ocean_hint":
     "Paint anywhere — the map's size follows your tiles, and empty cells are ocean.",

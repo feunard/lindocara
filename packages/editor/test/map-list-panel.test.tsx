@@ -133,6 +133,8 @@ function Harness(overrides: {
   onOpenPayload?: (payload: MapPayload) => void;
   onOpenMapAudio?: () => void;
   onError?: (code: string) => void;
+  startMapId?: string | null;
+  onSetStartMap?: (id: string) => void;
 }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -153,6 +155,8 @@ function Harness(overrides: {
       onOpenMapAudio={overrides.onOpenMapAudio ?? (() => {})}
       onOpenSettings={() => {}}
       onError={overrides.onError ?? (() => {})}
+      startMapId={overrides.startMapId ?? null}
+      onSetStartMap={overrides.onSetStartMap ?? (() => {})}
     />
   );
 }
@@ -183,13 +187,20 @@ describe("MapListPanel", () => {
     expect(screen.getAllByText(t("editor.picker.author", { author: "MapMaker" }))).toHaveLength(2);
   });
 
-  it("has no start affordance now — the graph is no longer authored", async () => {
+  it("marks the start map and moves it on click — the graph stays gone, this is not it", async () => {
     vi.stubGlobal("fetch", mapsBackend());
-    render(<Harness />);
+    const onSetStartMap = vi.fn();
+    render(<Harness startMapId="m1" onSetStartMap={onSetStartMap} />);
     await screen.findByRole("button", { name: "Frostfen" });
-    // The start-star (which set the adventure's graph start) is gone; where a hero spawns is derived
-    // server-side from a placed spawn event.
-    expect(screen.queryByRole("button", { name: /start/i })).toBeNull();
+
+    // The map that IS the start says so; the one that is not offers to become it.
+    expect(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.start")} Verdant Reach` }),
+    ).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.setStart")} Frostfen` }),
+    );
+    expect(onSetStartMap).toHaveBeenCalledWith("m2");
   });
 
   it("asks for confirmation before deleting, then refreshes the list", async () => {

@@ -1355,6 +1355,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.maps.aria": "Cartes",
   "editor.shell.maps.dims": "{cols}×{rows}",
   "editor.shell.maps.rename": "Renommer",
+  "editor.shell.maps.start": "Carte de départ",
+  "editor.shell.maps.setStart": "Faire de cette carte le départ",
   "editor.shell.maps.create": "Créer la carte",
   "editor.shell.maps.ocean_hint":
     "Peignez où vous voulez — la taille de la carte suit vos tuiles, et les cases vides sont l'océan.",
