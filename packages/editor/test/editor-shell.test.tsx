@@ -65,6 +65,12 @@ async function mountReady(alepha: Alepha): Promise<RenderResult> {
   const rendered = await renderWithAlepha(<AdventureEditorScreen />, { alepha });
   await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(stageMock.setTool).toHaveBeenCalled());
+  // Opening the stage resolves before React commits `stageStatus = "ready"`. Shortcut handlers
+  // intentionally reject input while that state is still loading, so tests must wait for the same
+  // visible readiness boundary an author sees instead of racing the follow-up render on CI.
+  await waitFor(() =>
+    expect(screen.queryByText(t("editor.shell.stage.loading"))).not.toBeInTheDocument(),
+  );
   return rendered;
 }
 
