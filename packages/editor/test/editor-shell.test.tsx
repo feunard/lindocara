@@ -940,6 +940,56 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2);
   });
 
+  it("the inspector's close and delete buttons reach the stage handle for any selected event", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+
+    // A selected event lights the inspector: its EV id shows, and Close/Delete reach the stage
+    // handle. The inspector's close/delete affordances are kind-agnostic — a `normal` event (the
+    // kind every scripted/preset placement produces) stands in here just as well as any other kind
+    // would, so this no longer depends on the retired `spawn` kind.
+    stageMock.current.mockReturnValue({
+      name: "Verdant Reach",
+      layers: [],
+      elements: [],
+      spawn: { col: 20, row: 15 },
+      markers: EMPTY_MARKERS,
+      events: [
+        {
+          id: "ev-door",
+          col: 1,
+          row: 1,
+          name: "Signpost",
+          ordinal: 1,
+          kind: "normal",
+          species: null,
+          patrolRadius: null,
+          pages: [defaultEventPage()],
+        },
+      ],
+    });
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(payloadFor(oneMap[0] as MapSummary), {
+        canUndo: false,
+        canRedo: false,
+        dirty: false,
+        selection: { kind: "event", id: "ev-door" },
+      });
+    });
+
+    // The inspector shows the event (its EV id and name), and Close reaches clearSelection.
+    // Scoped to the inspector: the D14 sidebar event list now also carries this event's EV001 chip.
+    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
+    expect(within(inspector).getByText(/EV001/)).toBeInTheDocument();
+    await userEvent.click(
+      within(inspector).getByRole("button", { name: t("editor.inspector.close") }),
+    );
+    expect(stageMock.clearSelection).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
+    expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
+  });
+
   it("forwards monster species and radius to the stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
