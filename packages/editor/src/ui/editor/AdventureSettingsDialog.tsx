@@ -45,7 +45,9 @@ interface AdventureSettingsDialogProps {
  * Deliberately slim since the graph teardown: there are no exit→entry bindings, no start picker and
  * no graph-validation readout any more — the adventure graph is no longer authored. Membership is
  * implicit (a map belongs to exactly one adventure, so every owned map is a member — no
- * add/remove/reorder), and where a hero spawns is derived server-side from a placed spawn event.
+ * add/remove/reorder). A placed spawn EVENT picks which map the adventure starts on; the landing
+ * CELL is always that map's own hero start point, compiled into its heightfield — the event's own
+ * cell is never read (`HeroService.startOn`).
  * Which adventure is edited is carried by the store's `adventureEditorSession` draft.
  */
 export function AdventureSettingsDialog({
