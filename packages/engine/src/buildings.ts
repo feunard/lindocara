@@ -46,7 +46,14 @@ export function distanceToBuildingCollider(
 export const MIN_BUILDING_HP = 1;
 export const MAX_BUILDING_HP = 1_000_000;
 
-export type BuildingArchetype = "house" | "tower" | "archery" | "barracks" | "monastery" | "castle";
+export type BuildingArchetype =
+  | "house"
+  | "tower"
+  | "windmill"
+  | "archery"
+  | "barracks"
+  | "monastery"
+  | "castle";
 
 const DESTROYED_HOUSE =
   "building.factions-knights-buildings-house.house-destroyed" as EditorAssetId;
@@ -74,6 +81,7 @@ export function isStandingBuildingAsset(assetId: string): assetId is EditorAsset
 export function buildingArchetype(assetId: string): BuildingArchetype | null {
   if (!isStandingBuildingAsset(assetId)) return null;
   const name = assetId.toLowerCase();
+  if (name.includes("windmill")) return "windmill";
   if (name.includes("monastery")) return "monastery";
   if (name.includes("barracks")) return "barracks";
   if (name.includes("archery")) return "archery";
@@ -95,7 +103,7 @@ export function destroyedBuildingAssetId(assetId: string): EditorAssetId | null 
     return archetype === "house" ? DESTROYED_GOBLIN_HOUSE : DESTROYED_GOBLIN_TOWER;
   }
   if (archetype === "house") return DESTROYED_HOUSE;
-  if (archetype === "tower") return DESTROYED_TOWER;
+  if (archetype === "tower" || archetype === "windmill") return DESTROYED_TOWER;
   return DESTROYED_CASTLE;
 }
 
@@ -104,6 +112,7 @@ function typeMultiplier(archetype: BuildingArchetype): number {
     case "house":
       return 1;
     case "tower":
+    case "windmill":
     case "archery":
       return 1.25;
     case "barracks":

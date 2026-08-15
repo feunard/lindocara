@@ -1,19 +1,15 @@
+import { buildingArchetype } from "./buildings.js";
+import type { MapElement } from "./map-data.js";
 import { defaultEventPage, type MapEvent } from "./map-events.js";
+import { layersFromBlocks } from "./map-migrate.js";
 import { defaultMapInput, type MapInput } from "./map-template.js";
 import { paintTerrain } from "./tile-brush.js";
 import { TINY_SWORDS_TILESET } from "./tilesets/tiny-swords.js";
-import type { EditorAssetId } from "./tiny-swords-catalog.js";
+import { type EditorAssetId, LINDOCARA_INTERIOR_ASSET_IDS } from "./tiny-swords-catalog.js";
 
 export const BUILDING_INTERIOR_COLS = 20;
 export const BUILDING_INTERIOR_ROWS = 15;
 
-const CAMPFIRE = "decoration.lindocara-lab.campfire" as EditorAssetId;
-const SMALL_DECOR = [
-  "decoration.deco.01",
-  "decoration.deco.04",
-  "decoration.deco.08",
-  "decoration.deco.12",
-] as const satisfies readonly EditorAssetId[];
 const EXIT_SIGN = "decoration.deco.17" as EditorAssetId;
 
 export interface BuildingInteriorOptions {
@@ -22,6 +18,39 @@ export interface BuildingInteriorOptions {
   exitEventId: string;
   returnCol: number;
   returnRow: number;
+  buildingAssetId: string;
+}
+
+function prop(
+  assetId: EditorAssetId,
+  col: number,
+  row: number,
+  offsetX = 0,
+  offsetY = 0,
+): MapElement {
+  return { assetId, col, row, offsetX, offsetY };
+}
+
+/** A useful editable room per exterior family. Every item is an ordinary map element. */
+function themedInteriorElements(buildingAssetId: string): MapElement[] {
+  const kind = buildingArchetype(buildingAssetId) ?? "house";
+  const { hearth, bed, table, cupboard, rug } = LINDOCARA_INTERIOR_ASSET_IDS;
+  const common = [prop(rug, 10, 7), prop(table, 11, 7, 1), prop(cupboard, 16, 3)];
+  switch (kind) {
+    case "barracks":
+      return [...common, prop(bed, 4, 4), prop(bed, 4, 9), prop(bed, 7, 4), prop(bed, 7, 9)];
+    case "archery":
+      return [...common, prop(cupboard, 3, 3), prop(table, 5, 7)];
+    case "tower":
+    case "windmill":
+      return [...common, prop(hearth, 3, 4), prop(bed, 4, 9)];
+    case "monastery":
+      return [...common, prop(hearth, 3, 4), prop(rug, 10, 4), prop(rug, 10, 10)];
+    case "castle":
+      return [...common, prop(hearth, 3, 4), prop(cupboard, 3, 9), prop(rug, 10, 4)];
+    case "house":
+      return [...common, prop(hearth, 3, 4), prop(bed, 4, 9)];
+  }
 }
 
 /**
@@ -30,21 +59,19 @@ export interface BuildingInteriorOptions {
  */
 export function createBuildingInteriorInput(options: BuildingInteriorOptions): MapInput {
   const base = defaultMapInput(options.name, BUILDING_INTERIOR_COLS, BUILDING_INTERIOR_ROWS);
-  let layers = [...base.layers];
-  for (let row = 0; row < BUILDING_INTERIOR_ROWS; row += 1) {
-    for (let col = 0; col < BUILDING_INTERIOR_COLS; col += 1) {
+  // `#` is an empty ground cell. In an interior heightfield it becomes black void rather than sea;
+  // the one-cell frame therefore closes the room without drawing exterior cliffs or water.
+  let layers = layersFromBlocks(
+    Array.from({ length: BUILDING_INTERIOR_ROWS }, (_, row) =>
+      row === 0 || row === BUILDING_INTERIOR_ROWS - 1
+        ? "#".repeat(BUILDING_INTERIOR_COLS)
+        : `#${".".repeat(BUILDING_INTERIOR_COLS - 2)}#`,
+    ),
+  ).layers;
+  for (let row = 1; row < BUILDING_INTERIOR_ROWS - 1; row += 1) {
+    for (let col = 1; col < BUILDING_INTERIOR_COLS - 1; col += 1) {
       layers = paintTerrain(layers, TINY_SWORDS_TILESET, "sable", 0, col, row);
     }
-  }
-  // A raised perimeter reads as an enclosed room and compiles through the same cliff collision as
-  // every exterior map. The southern interaction sign remains one cell inside that perimeter.
-  for (let col = 0; col < BUILDING_INTERIOR_COLS; col += 1) {
-    layers = paintTerrain(layers, TINY_SWORDS_TILESET, "sable", 1, col, 0);
-    layers = paintTerrain(layers, TINY_SWORDS_TILESET, "sable", 1, col, BUILDING_INTERIOR_ROWS - 1);
-  }
-  for (let row = 1; row < BUILDING_INTERIOR_ROWS - 1; row += 1) {
-    layers = paintTerrain(layers, TINY_SWORDS_TILESET, "sable", 1, 0, row);
-    layers = paintTerrain(layers, TINY_SWORDS_TILESET, "sable", 1, BUILDING_INTERIOR_COLS - 1, row);
   }
 
   const centre = Math.floor(BUILDING_INTERIOR_COLS / 2);
@@ -77,18 +104,10 @@ export function createBuildingInteriorInput(options: BuildingInteriorOptions): M
 
   return {
     ...base,
+    environment: "interior",
     layers,
     spawn: { col: centre, row: BUILDING_INTERIOR_ROWS - 4 },
-    elements: [
-      { col: centre, row: 6, offsetX: 0, offsetY: 0, assetId: CAMPFIRE },
-      ...SMALL_DECOR.map((assetId, index) => ({
-        col: index % 2 === 0 ? 4 : BUILDING_INTERIOR_COLS - 5,
-        row: index < 2 ? 4 : 9,
-        offsetX: 0,
-        offsetY: 0,
-        assetId,
-      })),
-    ],
+    elements: themedInteriorElements(options.buildingAssetId),
     events: [exit],
     dayNightCycle: false,
     fixedLighting: "day",

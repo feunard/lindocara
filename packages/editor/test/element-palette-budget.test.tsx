@@ -30,4 +30,20 @@ describe("ElementPalette safety budget", () => {
 
     expect(screen.queryByTestId("decorative-only-hint")).toBeNull();
   });
+
+  it("switches the scenery catalogue to interior furniture for interior maps", () => {
+    setLocale("en");
+    render(
+      <ElementPalette
+        selectedAsset={null}
+        elementCount={0}
+        environment="interior"
+        onSelectAsset={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("option", { name: "Interior furniture" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Buildings" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Trees" })).toBeNull();
+  });
 });

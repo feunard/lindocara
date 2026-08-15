@@ -12,6 +12,7 @@
  */
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "./audio-catalog.js";
 import { EMPTY_MARKERS, type MapElement, type MapMarkers } from "./map-data.js";
+import { DEFAULT_MAP_ENVIRONMENT, type MapEnvironment } from "./map-environment.js";
 import type { MapEvent } from "./map-events.js";
 import { defaultMapHeroSettings, type MapHeroSettings } from "./map-hero-settings.js";
 import { DEFAULT_MAP_FIXED_LIGHTING, type MapFixedLighting } from "./map-lighting.js";
@@ -25,6 +26,8 @@ export const DEFAULT_FIRST_MAP_NAME = "Map1";
 
 export interface MapInput {
   name: string;
+  /** Missing keeps legacy maps on the exterior presentation. */
+  environment?: MapEnvironment | undefined;
   tilesetId: string;
   cols: number;
   rows: number;
@@ -62,6 +65,7 @@ export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MI
   const spawn = { col: Math.floor(cols / 2), row: Math.floor(rows / 2) };
   return {
     name,
+    environment: DEFAULT_MAP_ENVIRONMENT,
     tilesetId: TINY_SWORDS_TILESET_ID,
     cols,
     rows,

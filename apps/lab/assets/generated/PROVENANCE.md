@@ -194,3 +194,28 @@ The project-local MOSS sound-effect lane generated the two mono 48 kHz PCM WAV f
 Those ship from `packages/client/public/assets/lindocara/audio/sfx/`. The committed runner
 compatibility changes keep the documented Windows/NVIDIA lanes usable with current Diffusers,
 PyTorch and torchaudio rather than changing either generated artifact after inference.
+
+## Bâtiments HD-2D natifs (2026-08-15)
+
+Les quatre façades ont été générées localement avec `python studio/studio.py sprite`, donc avec le
+profil FLUX.2-klein et le LoRA Tiny Swords du projet. Les sources 512×512 ont ensuite été détourées
+et normalisées avec `apps/lab/scripts/sprite.py`; seules les sorties transparentes utilisées par le
+jeu sont conservées sous `packages/client/public/assets/lindocara/hd2d/buildings/`.
+
+| Sortie | Graine | Invite spécifique |
+| --- | ---: | --- |
+| `house-front.png` | 73101 | Orthographic straight-on front elevation of a compact medieval timber cottage, blue shingle roof, cream plaster, heavy oak beams, centered complete facade, one arched door, no perspective, no ground, clean square silhouette |
+| `tower-front.png` | 73102 | Orthographic straight-on front elevation of a tall medieval stone watch tower, blue conical shingle roof, cream stone blocks, narrow windows, centered complete facade, no perspective, no ground, clean square silhouette |
+| `archery-front.png` | 73103 | Orthographic straight-on front elevation of a medieval archery guild building, timber and cream stone, blue shingle roof, crossed bow sign, open practice awning, centered complete facade, no perspective, no ground |
+| `barracks-front.png` | 73104 | Orthographic straight-on front elevation of a sturdy medieval barracks, cream stone base, heavy timber upper floor, blue shingle roof, shield crest and broad double door, centered complete facade, no perspective, no ground |
+
+La maison, la tour de pierre, la guilde d'archers et la caserne sont les quatre silhouettes de base.
+Le moulin réemploie la tour et ajoute un rotor animé en géométrie Three.js. Les monastères et
+châteaux réemploient respectivement les volumes de la guilde et de la caserne, ce qui remplace
+toutes les anciennes variantes Tiny Swords sans dupliquer des dizaines de façades quasi identiques.
+
+`wall-timber.png` et `roof-shingles.png` proviennent des générations déjà validées du Lab
+(`house-side.png` et `house-roof.png`). Le pont 3D utilise de même `interior-floor.png` comme bois de
+platelage. Les accessoires d'intérieur (`hearth`, `bed`, `table`, `cupboard`, `rug`, sol et mur)
+proviennent du même lot Lab documenté plus haut et sont copiés sous
+`packages/client/public/assets/lindocara/hd2d/interiors/` pour être servis par l'application.

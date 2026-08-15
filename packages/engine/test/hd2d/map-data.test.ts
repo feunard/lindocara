@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 const map: MapData = {
   version: 1,
+  environment: "interior",
   size: 4,
   levelHeight: 0.9,
   waterLevel: 0,
@@ -40,6 +41,11 @@ const map: MapData = {
 describe("the map codec", () => {
   it("round-trips without losing anything", () => {
     expect(decodeMap(encodeMap(map))).toEqual(map);
+  });
+
+  it("keeps legacy heightfields exterior by default", () => {
+    const { environment: _environment, ...legacy } = map;
+    expect(decodeMap(JSON.stringify(legacy))).toEqual({ ...legacy, environment: "exterior" });
   });
 
   it("never throws on a malformed input", () => {

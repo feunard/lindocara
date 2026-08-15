@@ -2,6 +2,7 @@ import { Input } from "@alepha/ui/components/ui/input";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { nativeHarvestPresetForAsset } from "@lindocara/engine/harvest-presets.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   EDITOR_ASSETS,
   type EditorAssetDefinition,
@@ -9,6 +10,8 @@ import {
   type EditorTerrain,
   EVENT_GRAPHIC_ASSETS,
   GUARD_APPEARANCE_ASSETS,
+  LINDOCARA_BUILDING_ASSET_IDS,
+  LINDOCARA_INTERIOR_ASSET_IDS,
   NPC_MODEL_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -21,6 +24,7 @@ interface CatalogueAssetPickerProps {
   onSelectNone?: (() => void) | undefined;
   noneLabel?: string | undefined;
   usage?: "scenery" | "event" | "character" | "enemy" | "guard";
+  environment?: MapEnvironment | undefined;
   disabled?: boolean | undefined;
 }
 
@@ -28,10 +32,10 @@ const ASSET_PAGE_SIZE = 12;
 
 /**
  * Décor-first category order (D3). The palette exists mainly to place scenery (trees, bushes,
- * rocks) — Buildings is simply the biggest `editor.category` (62 of 126 assets) and, in raw
- * catalogue order, its five recoloured sets come first, so an un-ordered "All categories" view
- * buries every tree behind pages of Archery/Barracks recolours. Ranking puts every non-Buildings
- * category ahead of it (both in the dropdown and in the grouped "All" view below), and is also
+ * rocks). Legacy Tiny Swords buildings once dominated the raw catalogue. The engine now keeps
+ * those ids only for
+ * stored-map compatibility and offers the compact Lindocara family for new placement. Ranking
+ * still puts Buildings after environmental scenery, and is also
  * applied to `filteredAssets` before pagination slices the first page — otherwise the first
  * `ASSET_PAGE_SIZE` items would still all be Buildings even though the *groups* are shown in the
  * right order afterwards. Unlisted categories rank last, just after Buildings (defensive, if a
@@ -48,8 +52,16 @@ const CATEGORY_ORDER = [
   "resources",
   "bridges",
   "signs",
+  "interior-furniture",
   "buildings",
 ] as const;
+
+const INTERIOR_SCENERY_CATEGORIES: ReadonlySet<string> = new Set([
+  "interior-furniture",
+  "small-decor",
+  "signs",
+  "camp-and-treasure",
+]);
 
 function categoryRank(category: string): number {
   const index = CATEGORY_ORDER.indexOf(category as (typeof CATEGORY_ORDER)[number]);
@@ -120,7 +132,22 @@ const ASSET_DISPLAY_NAMES: ReadonlyMap<EditorAssetId, string> = (() => {
   return names;
 })();
 
+const LINDOCARA_ASSET_LABELS: Readonly<Record<string, MessageKey>> = {
+  [LINDOCARA_BUILDING_ASSET_IDS.house]: "editor.asset.lindocara.house",
+  [LINDOCARA_BUILDING_ASSET_IDS.stoneTower]: "editor.asset.lindocara.stoneTower",
+  [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild]: "editor.asset.lindocara.archeryGuild",
+  [LINDOCARA_BUILDING_ASSET_IDS.barracks]: "editor.asset.lindocara.barracks",
+  [LINDOCARA_BUILDING_ASSET_IDS.windmill]: "editor.asset.lindocara.windmill",
+  [LINDOCARA_INTERIOR_ASSET_IDS.hearth]: "editor.asset.lindocara.hearth",
+  [LINDOCARA_INTERIOR_ASSET_IDS.bed]: "editor.asset.lindocara.bed",
+  [LINDOCARA_INTERIOR_ASSET_IDS.table]: "editor.asset.lindocara.table",
+  [LINDOCARA_INTERIOR_ASSET_IDS.cupboard]: "editor.asset.lindocara.cupboard",
+  [LINDOCARA_INTERIOR_ASSET_IDS.rug]: "editor.asset.lindocara.rug",
+};
+
 export function assetDisplayName(asset: EditorAssetDefinition): string {
+  const lindocaraLabel = LINDOCARA_ASSET_LABELS[asset.id];
+  if (lindocaraLabel) return t(lindocaraLabel);
   return ASSET_DISPLAY_NAMES.get(asset.id as EditorAssetId) ?? asset.id;
 }
 
@@ -133,6 +160,7 @@ export function CatalogueAssetPicker({
   onSelectNone,
   noneLabel,
   usage = "scenery",
+  environment = "exterior",
   disabled = false,
 }: CatalogueAssetPickerProps) {
   useLocale();
@@ -142,7 +170,7 @@ export function CatalogueAssetPicker({
     usage === "character" || usage === "enemy" ? NPC_MODEL_ASSETS.length : ASSET_PAGE_SIZE;
   const [visibleCount, setVisibleCount] = useState(actorPageSize);
 
-  const source =
+  const fullSource =
     usage === "event"
       ? EVENT_GRAPHIC_ASSETS
       : usage === "character" || usage === "enemy"
@@ -150,6 +178,12 @@ export function CatalogueAssetPicker({
         : usage === "guard"
           ? GUARD_APPEARANCE_ASSETS
           : PLACEABLE_EDITOR_ASSETS;
+  const source =
+    usage !== "scenery"
+      ? fullSource
+      : environment === "interior"
+        ? fullSource.filter((asset) => INTERIOR_SCENERY_CATEGORIES.has(asset.editor.category))
+        : fullSource.filter((asset) => asset.editor.category !== "interior-furniture");
   const categories = useMemo(
     () =>
       [...new Set(source.map((asset) => asset.editor.category))].sort(

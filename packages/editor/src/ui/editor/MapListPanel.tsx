@@ -155,8 +155,10 @@ export function MapListPanel({
     }
   }, [newMapOpen]);
 
+  const exteriorMapCount = maps.filter((map) => map.environment !== "interior").length;
+
   async function create(): Promise<void> {
-    if (!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy || locked) return;
+    if (!adventureId || exteriorMapCount >= MAX_ADVENTURE_MAPS || busy || locked) return;
     onError("");
     setBusy(true);
     try {
@@ -244,8 +246,8 @@ export function MapListPanel({
           variant="ghost"
           size="icon-sm"
           aria-label={t("editor.new")}
-          disabled={!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy || locked}
-          title={maps.length >= MAX_ADVENTURE_MAPS ? t("editor.error.limit") : undefined}
+          disabled={!adventureId || exteriorMapCount >= MAX_ADVENTURE_MAPS || busy || locked}
+          title={exteriorMapCount >= MAX_ADVENTURE_MAPS ? t("editor.error.limit") : undefined}
           onClick={() => onNewMapOpenChange(true)}
         >
           <Plus />
@@ -293,6 +295,11 @@ export function MapListPanel({
                   <span className="rounded bg-zinc-200/80 px-1 tabular-nums">
                     {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
                   </span>
+                  {map.environment === "interior" && (
+                    <span className="rounded bg-indigo-100 px-1 text-indigo-700">
+                      {t("editor.shell.maps.interior")}
+                    </span>
+                  )}
                   {map.author && (
                     <span className="truncate">
                       {t("editor.picker.author", { author: map.author })}
@@ -310,7 +317,7 @@ export function MapListPanel({
                       variant="ghost"
                       size="icon-xs"
                       aria-label={`${startLabel} ${map.name}`}
-                      disabled={isStart || busy || locked}
+                      disabled={isStart || map.environment === "interior" || busy || locked}
                       className={isStart ? "text-amber-500" : "text-zinc-400"}
                       onClick={() => onSetStartMap(map.id)}
                     >
@@ -428,7 +435,7 @@ export function MapListPanel({
             <Button
               disabled={
                 !adventureId ||
-                maps.length >= MAX_ADVENTURE_MAPS ||
+                exteriorMapCount >= MAX_ADVENTURE_MAPS ||
                 busy ||
                 locked ||
                 !newName.trim()

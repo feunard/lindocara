@@ -9,6 +9,7 @@ import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/aud
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
+import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
@@ -139,6 +140,8 @@ export interface MapSummary {
   cols: number;
   rows: number;
   isFirst: boolean;
+  /** Legacy summaries may omit it; those maps are exterior. */
+  environment?: MapEnvironment;
 }
 
 /**
@@ -150,6 +153,8 @@ export interface MapPayload {
   id: string;
   name: string;
   revision: number;
+  /** Missing only on legacy/test payloads; the server always returns an explicit value. */
+  environment?: MapEnvironment;
   tilesetId: string;
   cols: number;
   rows: number;
@@ -190,11 +195,17 @@ export interface BuildingInteriorResult {
 }
 export const createBuildingInteriorApi = (
   sourceMapId: string,
-  slot: { col: number; row: number; offsetX: number; offsetY: number },
+  placement: {
+    elementId?: string;
+    col: number;
+    row: number;
+    offsetX: number;
+    offsetY: number;
+  },
 ) =>
   api<BuildingInteriorResult>(`/api/maps/${sourceMapId}/interiors`, {
     method: "POST",
-    body: JSON.stringify(slot),
+    body: JSON.stringify(placement),
   });
 export const updateMapApi = (
   id: string,

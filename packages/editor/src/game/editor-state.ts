@@ -46,6 +46,7 @@ import {
   parseMapData,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
+import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   EVENT_GRAPHIC_TINT_DEFAULT,
   type EventKind,
@@ -104,6 +105,8 @@ import {
  */
 export interface EditorMap {
   name: string;
+  /** Exterior maps end in water; interior maps end in black void and use the room palette. */
+  environment?: MapEnvironment;
   /** Per-channel map overrides. Missing values inherit the adventure defaults. */
   audio: MapAudioConfig;
   /** Authoritative class balance and ability availability for this map. */
@@ -877,6 +880,7 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
   const layers = [ground, ...Array.from({ length: MAP_LAYERS - 1 }, () => emptyLayer(cols, rows))];
   return {
     name,
+    environment: "exterior",
     audio: EMPTY_MAP_AUDIO,
     heroSettings: defaultMapHeroSettings(),
     // Permanent day, matching the engine's `defaultMapInput` template a stored blank map is minted
@@ -906,6 +910,21 @@ export function canvasEditorMap(map: EditorMap, selfMapId?: string): EditorMap {
  *  target both keeps the rect from cropping past it and moves with the crop itself. */
 export function croppedForSave(map: EditorMap, selfMapId?: string): EditorMap {
   return { ...map, ...cropMapToRect(map, derivedMapRect(map, selfMapId), selfMapId) };
+}
+
+/**
+ * Resolve a canvas selection to the element slot the server actually stores after crop. Freshly
+ * placed elements have no database id yet, so their cropped slot is the only safe compatibility
+ * key for a follow-up request made in the same editor session.
+ */
+export function elementForSavedMap(
+  map: EditorMap,
+  selected: MapElement,
+  selfMapId?: string,
+): MapElement {
+  const index = map.elements.findIndex((candidate) => sameElementSlot(candidate, selected));
+  if (index < 0) return selected;
+  return croppedForSave(map, selfMapId).elements[index] ?? selected;
 }
 
 /**
@@ -949,6 +968,7 @@ export function toMapData(map: EditorMap): MapData {
   const { cols, rows } = editorMapSize(map);
   return {
     tilesetId: TINY_SWORDS_TILESET_ID,
+    environment: map.environment ?? "exterior",
     cols,
     rows,
     layers: map.layers,
@@ -969,6 +989,7 @@ export function toSaveInput(
   selfMapId?: string,
 ): {
   name: string;
+  environment: MapEnvironment;
   tilesetId: string;
   cols: number;
   rows: number;
@@ -987,6 +1008,7 @@ export function toSaveInput(
   const data = toMapData(cropped);
   return {
     name: map.name,
+    environment: map.environment ?? "exterior",
     audio: map.audio,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
     dayNightCycle: map.dayNightCycle,

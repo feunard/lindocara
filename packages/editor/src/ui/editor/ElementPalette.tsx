@@ -1,5 +1,6 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
+import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
 
@@ -7,6 +8,7 @@ interface ElementPaletteProps {
   /** The selected decoration, highlighted in the catalogue grid. */
   selectedAsset: EditorAssetId | null;
   elementCount: number;
+  environment?: MapEnvironment | undefined;
   onSelectAsset(assetId: EditorAssetId): void;
 }
 
@@ -21,6 +23,7 @@ interface ElementPaletteProps {
 export function ElementPalette({
   selectedAsset,
   elementCount,
+  environment = "exterior",
   onSelectAsset,
 }: ElementPaletteProps) {
   const locale = useLocale();
@@ -54,7 +57,12 @@ export function ElementPalette({
           </p>
         )}
         <div data-testid="catalogue-picker" className="contents">
-          <CatalogueAssetPicker value={selectedAsset} onSelectAsset={onSelectAsset} />
+          <CatalogueAssetPicker
+            key={environment}
+            value={selectedAsset}
+            environment={environment}
+            onSelectAsset={onSelectAsset}
+          />
         </div>
       </div>
     </aside>

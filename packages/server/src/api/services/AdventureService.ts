@@ -27,6 +27,7 @@ import {
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import type { AdventureAudioConfig } from "@lindocara/engine/audio-catalog.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { $inject } from "alepha";
 import { users } from "alepha/api/users";
 import { $repository } from "alepha/orm";
@@ -182,6 +183,9 @@ export class AdventureService {
       const target = await this.maps.findById(input.startMapId);
       if (!target || target.adventureId !== id) {
         throw new Error("maps: the start map must belong to this adventure");
+      }
+      if ((decodeMap(target.heightfield)?.environment ?? "exterior") === "interior") {
+        throw new Error("maps: an interior cannot be the adventure start");
       }
     }
     if (input.startMapId !== undefined && (row.startMapId ?? null) !== (input.startMapId ?? null)) {

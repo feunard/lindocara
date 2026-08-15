@@ -9,6 +9,11 @@
 // Stays PURE (no DOM, no `three`, no clock, no randomness): this file moved into
 // `@lindocara/engine` in Task 11, alongside `terrain-query.ts`, which got there first.
 
+import {
+  DEFAULT_MAP_ENVIRONMENT,
+  type MapEnvironment,
+  parseMapEnvironment,
+} from "../map-environment.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { TerrainMaterial, TerrainQuerySource, TerrainRamp } from "./terrain-query.js";
 
@@ -56,6 +61,8 @@ export const MAX_HEIGHTFIELD_SIZE = 256;
 
 export interface MapData {
   version: 1;
+  /** Exterior maps expose water around land; interior maps expose an unlit void. */
+  environment?: MapEnvironment;
   /** Grid side, in cells. At most `MAX_HEIGHTFIELD_SIZE`. */
   size: number;
   levelHeight: number;
@@ -213,6 +220,9 @@ export function decodeMap(s: string): MapData | null {
   if (!isRecord(value)) return null;
   if (value.version !== 1) return null;
 
+  const environment = parseMapEnvironment(value.environment ?? DEFAULT_MAP_ENVIRONMENT);
+  if (!environment) return null;
+
   const { size, levelHeight, waterLevel, levels, materials, colliders, spawns } = value;
   if (!Number.isInteger(size) || (size as number) <= 0 || (size as number) > MAX_HEIGHTFIELD_SIZE)
     return null;
@@ -255,6 +265,7 @@ export function decodeMap(s: string): MapData | null {
 
   return {
     version: 1,
+    environment,
     size: size as number,
     levelHeight,
     waterLevel,

@@ -764,10 +764,18 @@ describe("list, get, update, delete", () => {
         .status,
     ).toBe(200);
 
+    const storedExterior = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
+      elements: { id?: string }[];
+    };
+    const buildingId = storedExterior.elements[0]?.id;
+    expect(buildingId).toMatch(/^[0-9a-f-]{36}$/i);
+
     const create = () =>
       authedFetch(`/api/maps/${id}/interiors`, token, {
         method: "POST",
-        body: JSON.stringify({ col: 8, row: 8, offsetX: 0, offsetY: 0 }),
+        // The editor captured this slot before its preceding save moved the element. Durable row
+        // identity must still resolve the intended building instead of returning map_placement.
+        body: JSON.stringify({ elementId: buildingId, col: 3, row: 4, offsetX: 1, offsetY: 2 }),
       });
     const first = await create();
     expect(first.status).toBe(200);
@@ -776,13 +784,18 @@ describe("list, get, update, delete", () => {
       interiorMap: {
         id: string;
         adventureId: string;
+        environment: string;
         elements: unknown[];
         events: { pages: { commands: unknown[] }[] }[];
       };
     };
     expect(created.sourceMap.revision).toBe(3);
     expect(created.sourceMap.elements[0]?.building?.interiorMapId).toBe(created.interiorMap.id);
-    expect(created.interiorMap).toMatchObject({ adventureId, elements: expect.any(Array) });
+    expect(created.interiorMap).toMatchObject({
+      adventureId,
+      environment: "interior",
+      elements: expect.any(Array),
+    });
     expect(created.interiorMap.elements.length).toBeGreaterThan(0);
     expect(created.interiorMap.events[0]?.pages[0]?.commands).toEqual([
       expect.objectContaining({
@@ -794,7 +807,7 @@ describe("list, get, update, delete", () => {
       }),
     ]);
 
-    // The slot is its idempotency key: a double-click cannot mint duplicate room maps.
+    // The durable building id is its idempotency key: a double-click cannot mint duplicate rooms.
     const second = await create();
     expect(second.status).toBe(200);
     expect(((await second.json()) as typeof created).interiorMap.id).toBe(created.interiorMap.id);
@@ -810,6 +823,67 @@ describe("list, get, update, delete", () => {
     };
     expect(exterior.revision).toBe(4);
     expect(exterior.elements[0]?.building).not.toHaveProperty("interiorMapId");
+  });
+
+  test("does not let editable interiors consume exterior map slots", async () => {
+    const { userId, token } = await registerAndLogin("mapintlimit");
+    const adventureId = await newAdventure(userId);
+    const id = await newMapId(adventureId, token, "Village");
+    expect(
+      (
+        await putMap(
+          id,
+          token,
+          mapBody({
+            elements: [
+              {
+                col: 8,
+                row: 8,
+                offsetX: 0,
+                offsetY: 0,
+                assetId: HOUSE_ASSET_ID,
+              },
+            ],
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    const building = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
+      elements: { id?: string }[];
+    };
+    expect(
+      (
+        await authedFetch(`/api/maps/${id}/interiors`, token, {
+          method: "POST",
+          body: JSON.stringify({ elementId: building.elements[0]?.id }),
+        })
+      ).status,
+    ).toBe(200);
+
+    for (let index = 1; index < MAX_ADVENTURE_MAPS; index += 1) {
+      const response = await authedFetch("/api/maps", token, {
+        method: "POST",
+        body: JSON.stringify({
+          adventureId,
+          name: `Exterior ${index + 1}`,
+          cols: MAP_COLS,
+          rows: MAP_ROWS,
+        }),
+      });
+      expect(response.status).toBe(201);
+    }
+    expect(await listMaps(adventureId, token)).toHaveLength(MAX_ADVENTURE_MAPS + 1);
+    const refused = await authedFetch("/api/maps", token, {
+      method: "POST",
+      body: JSON.stringify({
+        adventureId,
+        name: "Exterior de trop",
+        cols: MAP_COLS,
+        rows: MAP_ROWS,
+      }),
+    });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ error: "map_limit" });
   });
 
   test("refuses to create an interior for a non-building slot", async () => {

@@ -3,6 +3,7 @@ import { decodeMap, encodeMap, type MapData } from "../src/hd2d/map-data.js";
 
 const base: MapData = {
   version: 1,
+  environment: "exterior",
   size: 2,
   levelHeight: 0.5,
   waterLevel: 0,

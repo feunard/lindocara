@@ -19,6 +19,11 @@ import { colliderIndexFrom } from "./collider.js";
 import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { isUuid } from "./identifiers.js";
+import {
+  DEFAULT_MAP_ENVIRONMENT,
+  type MapEnvironment,
+  parseMapEnvironment,
+} from "./map-environment.js";
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
@@ -102,6 +107,8 @@ export const MARKER_LABEL_MAX = 48;
 export const MAP_LAYERS = 3;
 
 export interface MapData {
+  /** Exterior maps end in water; interior maps end in an unlit void. */
+  environment?: MapEnvironment;
   tilesetId: string;
   cols: number;
   rows: number;
@@ -515,6 +522,8 @@ export function parseMapData(value: unknown): MapData | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
   const { tilesetId, cols, rows, layers, elements, spawn } = record;
+  const environment = parseMapEnvironment(record.environment ?? DEFAULT_MAP_ENVIRONMENT);
+  if (!environment) return null;
 
   if (typeof tilesetId !== "string") return null;
   const tileset = tilesetById(tilesetId);
@@ -550,6 +559,7 @@ export function parseMapData(value: unknown): MapData | null {
   if (!markers) return null;
 
   return {
+    environment,
     tilesetId,
     cols: width,
     rows: height,

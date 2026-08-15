@@ -188,6 +188,85 @@ export interface CatalogAssetRef {
 export const LINDOCARA_CAMPFIRE_ASSET_ID = "decoration.lindocara-lab.campfire" as const;
 export const LINDOCARA_CHEST_CLOSED_ASSET_ID = "resource.lindocara-lab.chest-closed" as const;
 export const LINDOCARA_CHEST_OPEN_ASSET_ID = "resource.lindocara-lab.chest-open" as const;
+export const LINDOCARA_BUILDING_ASSET_IDS = {
+  house: "building.lindocara.house",
+  stoneTower: "building.lindocara.stone-tower",
+  archeryGuild: "building.lindocara.archery-guild",
+  barracks: "building.lindocara.barracks",
+  windmill: "building.lindocara.windmill",
+} as const;
+const LINDOCARA_BUILDING_ASSET_ID_SET: ReadonlySet<string> = new Set(
+  Object.values(LINDOCARA_BUILDING_ASSET_IDS),
+);
+export const LINDOCARA_INTERIOR_ASSET_IDS = {
+  hearth: "decoration.lindocara-interior.hearth",
+  bed: "decoration.lindocara-interior.bed",
+  table: "decoration.lindocara-interior.table",
+  cupboard: "decoration.lindocara-interior.cupboard",
+  rug: "decoration.lindocara-interior.rug",
+} as const;
+
+function lindocaraBuilding<const Id extends string>(
+  id: Id,
+  sourcePath: string,
+  tags: readonly string[],
+  width: number,
+  height: number,
+  visualFootprint: readonly CellOffset[],
+  collider: Rect,
+) {
+  return {
+    id,
+    sourcePath,
+    pack: "LindoCara Lab",
+    domain: "building",
+    category: "Lindocara/Buildings",
+    role: "world-building",
+    tags: ["building", "generated", "hd2d", ...tags],
+    width,
+    height,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "buildings",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      visualFootprint,
+      collider,
+    },
+  } as const satisfies EditorAssetDefinition;
+}
+
+function lindocaraInteriorProp<const Id extends string>(
+  id: Id,
+  file: string,
+  width: number,
+  height: number,
+  collider?: Rect,
+) {
+  return {
+    id,
+    sourcePath: `/assets/lindocara/hd2d/interiors/${file}`,
+    pack: "LindoCara Lab",
+    domain: "decoration",
+    category: "Lindocara/Interiors",
+    role: "interior-decoration",
+    tags: ["interior", "generated", "furniture"],
+    width,
+    height,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "interior-furniture",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      visualFootprint: [{ col: 0, row: 0 }],
+      ...(collider ? { collider } : {}),
+    },
+  } as const satisfies EditorAssetDefinition;
+}
 
 const LINDOCARA_LAB_EDITOR_ASSETS = [
   {
@@ -253,6 +332,76 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
       collider: { x: -27, y: -54, width: 54, height: 54 },
     },
   },
+  lindocaraBuilding(
+    LINDOCARA_BUILDING_ASSET_IDS.house,
+    "/assets/lindocara/hd2d/buildings/house-front.png",
+    ["house", "habitable"],
+    203,
+    194,
+    [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
+    { x: -80, y: -112, width: 160, height: 112 },
+  ),
+  lindocaraBuilding(
+    LINDOCARA_BUILDING_ASSET_IDS.stoneTower,
+    "/assets/lindocara/hd2d/buildings/tower-front.png",
+    ["tower", "stone", "habitable"],
+    108,
+    258,
+    [-1, 0].flatMap((row) => [-1, 0].map((col) => ({ col, row }))),
+    { x: -54, y: -88, width: 108, height: 88 },
+  ),
+  lindocaraBuilding(
+    LINDOCARA_BUILDING_ASSET_IDS.archeryGuild,
+    "/assets/lindocara/hd2d/buildings/archery-front.png",
+    ["archery", "guild", "habitable"],
+    209,
+    210,
+    [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
+    { x: -88, y: -112, width: 176, height: 112 },
+  ),
+  lindocaraBuilding(
+    LINDOCARA_BUILDING_ASSET_IDS.barracks,
+    "/assets/lindocara/hd2d/buildings/barracks-front.png",
+    ["barracks", "habitable"],
+    209,
+    226,
+    [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
+    { x: -92, y: -120, width: 184, height: 120 },
+  ),
+  lindocaraBuilding(
+    LINDOCARA_BUILDING_ASSET_IDS.windmill,
+    "/assets/lindocara/hd2d/buildings/tower-front.png",
+    ["tower", "windmill", "mill", "habitable"],
+    192,
+    258,
+    [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
+    { x: -64, y: -96, width: 128, height: 96 },
+  ),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.hearth, "hearth.png", 80, 94, {
+    x: -34,
+    y: -46,
+    width: 68,
+    height: 46,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.bed, "bed.png", 70, 60, {
+    x: -34,
+    y: -48,
+    width: 68,
+    height: 48,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.table, "table.png", 58, 54, {
+    x: -25,
+    y: -35,
+    width: 50,
+    height: 35,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.cupboard, "cupboard.png", 49, 78, {
+    x: -23,
+    y: -32,
+    width: 46,
+    height: 32,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.rug, "rug.png", 98, 99),
 ] as const satisfies readonly EditorAssetDefinition[];
 
 export const EDITOR_ASSETS = [...GENERATED_EDITOR_ASSETS, ...LINDOCARA_LAB_EDITOR_ASSETS] as const;
@@ -323,6 +472,12 @@ export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_
     if (DUPLICATE_EDITOR_ASSET_IDS.has(asset.id)) return false;
     if (asset.role === "event-state") return false;
     if (asset.domain === "character" || asset.domain === "enemy") return false;
+    // Legacy Tiny Swords building ids stay readable for every saved map, but new authoring uses the
+    // five coherent Lindocara volumes. That is a storage-compatible replacement, not 62 recoloured
+    // cards followed by the actual production buildings on the last palette page.
+    if (asset.editor.category === "buildings" && !LINDOCARA_BUILDING_ASSET_ID_SET.has(asset.id)) {
+      return false;
+    }
     // Raw tilemaps/foam/shadow stay automatic terrain sources, but the pack's dedicated animated
     // water rocks carry explicit placement metadata and are authored offshore decorations.
     if (asset.role === "terrain-source" && asset.editor.category !== "water-decor") return false;

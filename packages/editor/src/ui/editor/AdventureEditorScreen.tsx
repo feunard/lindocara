@@ -92,6 +92,7 @@ import {
   type EditorSelection,
   type EditorTool,
   editorLayersFromPayload,
+  elementForSavedMap,
   type RectFillContent,
   solidMaskFromMapPayload,
   toMapData,
@@ -200,6 +201,7 @@ function toEditorMap(map: MapPayload): EditorMap {
   return canvasEditorMap(
     {
       name: map.name,
+      environment: map.environment ?? "exterior",
       audio: map.audio ?? EMPTY_MAP_AUDIO,
       heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
       dayNightCycle: map.dayNightCycle ?? true,
@@ -1307,15 +1309,22 @@ function AdventureEditorInner({
     setBuildingInteriorBusy(true);
     setError(null);
     try {
+      // The stage edits a padded 256×256 canvas, while save stores its derived content crop. A
+      // freshly placed building has no database id until that save returns, so send the slot from
+      // the cropped document rather than the stale canvas coordinates kept by the selection.
+      const persistedElement = handleRef.current
+        ? elementForSavedMap(handleRef.current.current(), element, sourceMapId)
+        : element;
       if (!mapAlreadySaved && dirty) {
         const saved = await doSaveMap();
         if (!saved) return;
       }
       const created = await createBuildingInteriorApi(sourceMapId, {
-        col: element.col,
-        row: element.row,
-        offsetX: element.offsetX,
-        offsetY: element.offsetY,
+        ...(persistedElement.id ? { elementId: persistedElement.id } : {}),
+        col: persistedElement.col,
+        row: persistedElement.row,
+        offsetX: persistedElement.offsetX,
+        offsetY: persistedElement.offsetY,
       });
       openPayload(created.interiorMap);
     } catch (caught) {
@@ -1789,6 +1798,7 @@ function AdventureEditorInner({
               element={{
                 selectedAsset,
                 elementCount,
+                environment: currentMap?.environment ?? "exterior",
                 onSelectAsset: selectAsset,
               }}
               event={{

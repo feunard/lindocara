@@ -45,6 +45,7 @@ import {
   parseMapMarkers,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
+import { DEFAULT_MAP_ENVIRONMENT, parseMapEnvironment } from "@lindocara/engine/map-environment.js";
 import { MAX_EVENTS_PER_MAP, type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
   defaultMapHeroSettings,
@@ -128,7 +129,10 @@ export function validateMapInput(input: MapInput): MapData & {
   if (input.elements.length > MAX_MAP_ELEMENTS) {
     throw new Error(`elements: at most ${MAX_MAP_ELEMENTS}`);
   }
+  const environment = parseMapEnvironment(input.environment ?? DEFAULT_MAP_ENVIRONMENT);
+  if (!environment) throw new Error("environment: must be exterior or interior");
   const data: MapData = {
+    environment,
     tilesetId: input.tilesetId,
     cols,
     rows,
@@ -216,8 +220,13 @@ export function parseMapBody(body: unknown): MapInput | null {
   const fixedLighting =
     rawFixedLighting === undefined ? undefined : parseMapFixedLighting(rawFixedLighting);
   if (fixedLighting === null) return null;
+  const environment = parseMapEnvironment(
+    (body as { environment?: unknown } | null)?.environment ?? DEFAULT_MAP_ENVIRONMENT,
+  );
+  if (!environment) return null;
   return {
     name,
+    environment,
     tilesetId: data.tilesetId,
     cols: data.cols,
     rows: data.rows,

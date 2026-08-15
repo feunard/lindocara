@@ -16,11 +16,13 @@ describe("building interior template", () => {
       exitEventId: "f2c15465-6f9d-4ef5-80dd-e508c3642111",
       returnCol: 10,
       returnRow: 8,
+      buildingAssetId: "building.lindocara.house",
     });
 
     expect(input).toMatchObject({
       cols: BUILDING_INTERIOR_COLS,
       rows: BUILDING_INTERIOR_ROWS,
+      environment: "interior",
       dayNightCycle: false,
     });
     expect(input.elements).toHaveLength(5);
@@ -35,6 +37,7 @@ describe("building interior template", () => {
     ]);
     const compiled = compileAuthoredMap(
       {
+        environment: input.environment ?? "exterior",
         tilesetId: input.tilesetId,
         cols: input.cols,
         rows: input.rows,
@@ -46,6 +49,8 @@ describe("building interior template", () => {
       input.events ?? [],
     );
     expect(compiled.spawns).toHaveLength(1);
+    expect(compiled.environment).toBe("interior");
+    expect(compiled.levels[0]).toBeNull();
     expect(compiled.colliders.length).toBeGreaterThan(0);
   });
 });

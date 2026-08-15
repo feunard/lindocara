@@ -28,8 +28,9 @@ import {
 } from "@lindocara/engine/game.js";
 import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
-import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
+import { decodeMap, encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { EMPTY_MARKERS, type MapElement, parseMapData } from "@lindocara/engine/map-data.js";
+import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   entryEvents,
   exitEvents,
@@ -128,6 +129,7 @@ export interface MapSummary {
   cols: number;
   rows: number;
   isFirst: boolean;
+  environment: MapEnvironment;
 }
 
 /** The wire shape a map round-trips as: `StoredMap` (`maps.ts`) with layers RLE-encoded, exactly
@@ -139,6 +141,7 @@ export interface MapPayload {
   adventureId: string;
   name: string;
   revision: number;
+  environment: MapEnvironment;
   tilesetId: string;
   cols: number;
   rows: number;
@@ -189,6 +192,7 @@ export class MapService {
         cols: row.cols,
         rows: row.rows,
         isFirst: row.isFirst,
+        environment: decodeMap(row.heightfield)?.environment ?? "exterior",
       })),
     );
   }
@@ -208,6 +212,7 @@ export class MapService {
       cols: row.cols,
       rows: row.rows,
       isFirst: row.isFirst,
+      environment: decodeMap(row.heightfield)?.environment ?? "exterior",
     }));
   }
 
@@ -228,12 +233,23 @@ export class MapService {
   ): Promise<MapPayload> {
     const owner = await this.adventures.findById(adventureId);
     if (!owner) throw new Error("not_found: no such adventure");
-    const mapCount = await this.maps.count({ adventureId: { eq: adventureId } });
-    if (mapCount >= MAX_ADVENTURE_MAPS) {
-      throw new Error(`limit: at most ${MAX_ADVENTURE_MAPS} maps per adventure`);
-    }
     const input = content ?? defaultMapInput(name, cols, rows);
     const data = validateMapInput(input);
+    const memberMaps = await this.maps.findMany({ where: { adventureId: { eq: adventureId } } });
+    const exteriorCount = memberMaps.filter(
+      (member) => (decodeMap(member.heightfield)?.environment ?? "exterior") === "exterior",
+    ).length;
+    if ((data.environment ?? "exterior") === "exterior" && exteriorCount >= MAX_ADVENTURE_MAPS) {
+      throw new Error(`limit: at most ${MAX_ADVENTURE_MAPS} maps per adventure`);
+    }
+    // Interiors no longer steal exterior authoring slots, but remain bounded against accidental
+    // recursive room creation. Four editable interiors per exterior slot is deliberately generous.
+    if (
+      (data.environment ?? "exterior") === "interior" &&
+      memberMaps.length >= MAX_ADVENTURE_MAPS * 4
+    ) {
+      throw new Error(`limit: at most ${MAX_ADVENTURE_MAPS * 4} total maps per adventure`);
+    }
     const heightfield = encodeMap(compileAuthoredMap(data, data.events));
     // NOT protected by `$transactional()` on this app's actual production target: Alepha's D1
     // provider reports `supportsTransactions: false`, so `$transactional()` degrades to a no-op
@@ -294,18 +310,39 @@ export class MapService {
   async createBuildingInteriorForUser(
     userId: string,
     sourceMapId: string,
-    slot: { col: number; row: number; offsetX: number; offsetY: number },
+    placement: {
+      elementId?: string;
+      col?: number;
+      row?: number;
+      offsetX?: number;
+      offsetY?: number;
+    },
   ): Promise<BuildingInteriorResult> {
     const source = await this.requireOwnedMap(userId, sourceMapId);
-    const element = await this.mapElements.findOne({
-      where: {
-        mapId: { eq: sourceMapId },
-        col: { eq: slot.col },
-        row: { eq: slot.row },
-        offsetX: { eq: slot.offsetX },
-        offsetY: { eq: slot.offsetY },
-      },
-    });
+    // A save may rewrite or move a selected element before this second request reaches the room.
+    // Its durable row id is therefore the primary key. The composite slot remains as a compatibility
+    // fallback for an unsaved element selected by an older client, whose first save has only just
+    // minted that id and cannot put it back into the already-captured selection object.
+    const byId = placement.elementId
+      ? await this.mapElements.findById(placement.elementId)
+      : undefined;
+    const element =
+      byId?.mapId === sourceMapId
+        ? byId
+        : placement.col !== undefined &&
+            placement.row !== undefined &&
+            placement.offsetX !== undefined &&
+            placement.offsetY !== undefined
+          ? await this.mapElements.findOne({
+              where: {
+                mapId: { eq: sourceMapId },
+                col: { eq: placement.col },
+                row: { eq: placement.row },
+                offsetX: { eq: placement.offsetX },
+                offsetY: { eq: placement.offsetY },
+              },
+            })
+          : undefined;
     if (!element || !isStandingBuildingAsset(element.kind)) {
       throw new Error("placement: selected element is not a standing building");
     }
@@ -329,6 +366,7 @@ export class MapService {
       // sprite art: the spawn already passed the map's walkability validation.
       returnCol: source.spawnCol,
       returnRow: source.spawnRow,
+      buildingAssetId: element.kind,
     });
     const interior = await this.createMap(
       source.adventureId,
@@ -462,6 +500,7 @@ export class MapService {
       adventureId: existing.adventureId,
       name: data.name,
       revision: updated.revision,
+      environment: data.environment ?? "exterior",
       tilesetId: data.tilesetId,
       cols: data.cols,
       rows: data.rows,
@@ -809,12 +848,14 @@ export class MapService {
   private async toPayload(row: MapRow): Promise<MapPayload> {
     const elementRows = await this.mapElements.findMany({ where: { mapId: { eq: row.id } } });
     const events = await this.loadEvents(row.id);
+    const heightfield = heightfieldOfRow(row.heightfield);
     return {
       id: row.id,
       accountId: row.userId,
       adventureId: row.adventureId,
       name: row.name,
       revision: row.revision,
+      environment: heightfield ? (decodeMap(heightfield)?.environment ?? "exterior") : "exterior",
       tilesetId: row.tilesetId,
       cols: row.cols,
       rows: row.rows,
@@ -830,7 +871,7 @@ export class MapService {
       heroSettings: decodeMapHeroSettings(row.heroSettings),
       dayNightCycle: row.dayNightCycle,
       fixedLighting: row.fixedLighting,
-      heightfield: heightfieldOfRow(row.heightfield),
+      heightfield,
     };
   }
 

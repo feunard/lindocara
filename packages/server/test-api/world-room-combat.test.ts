@@ -87,6 +87,7 @@ import {
   type WorldTickDeps,
 } from "../src/api/realtime/worldTick.ts";
 import { MapService } from "../src/api/services/MapService.ts";
+import { createBuildings } from "../src/world/building-system.ts";
 import { createTestApp, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -1103,6 +1104,45 @@ describe("world room combat (FakeClock)", () => {
     t = castAt + ATTACK_COOLDOWN_MS + 400;
     expect(startPlayerAction(w, connectionId, player, 1)).toBe(true);
     expect(player.lastAttackAt).toBe(t);
+    engine.dispose();
+  });
+
+  test("a basic attack damages a destructible building and broadcasts its new health", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("buildinghit");
+    const clock = new FakeClock();
+    const engine = createEngine(roomId, clock);
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const player = playerOf(state, heroId);
+    player.facing = { x: 1, z: 0 };
+    const [building] = createBuildings([
+      {
+        id: "building-hit-1",
+        x: player.x + 0.5,
+        z: player.z,
+        standingAssetId: "building.lindocara.house",
+        destroyedAssetId: "building.factions-knights-buildings-house.house-destroyed",
+        destructible: true,
+        maxHp: 900,
+        collider: { x: player.x + 0.2, z: player.z - 0.25, w: 0.5, h: 0.5 },
+      },
+    ]);
+    if (!building) throw new Error("building fixture rejected");
+    state.buildings.push(building);
+
+    const now = Date.now() + 1_000;
+    const { w, sent } = testGlue(state, () => now);
+    const connectionId = `c-${heroId}`;
+    expect(startPlayerAction(w, connectionId, player, 1)).toBe(true);
+    const action = player.action;
+    if (!action) throw new Error("basic attack did not start");
+    resolvePlayerAction(w, player, action, action.impactAt);
+
+    expect(building.hp).toBeLessThan(building.maxHp);
+    expect(sentTo(sent, heroId)).toContainEqual({
+      t: "building.state",
+      building: expect.objectContaining({ id: building.id, hp: building.hp, destroyed: false }),
+    });
     engine.dispose();
   });
 

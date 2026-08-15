@@ -7,6 +7,7 @@ import {
   commitEventDraft,
   convertElementToEvent,
   createEditorHistory,
+  croppedForSave,
   defaultEventPage,
   deleteSelection,
   EDITOR_HISTORY_LIMIT,
@@ -15,6 +16,7 @@ import {
   type EditorTool,
   editorLayersFromPayload,
   editorMapSize,
+  elementForSavedMap,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
@@ -144,6 +146,36 @@ describe("blankMap", () => {
     };
     expect(toSaveInput(map).dayNightCycle).toBe(false);
     expect(toSaveInput(map).fixedLighting).toBe("night-middle");
+  });
+
+  it("preserves an interior environment through the editable save document", () => {
+    const map = { ...blankMap("room", 20, 15), environment: "interior" as const };
+    const saved = toSaveInput(map);
+    expect(saved.environment).toBe("interior");
+    expect(decodeMap(saved.heightfield)?.environment).toBe("interior");
+  });
+});
+
+describe("elementForSavedMap", () => {
+  it("projects a fresh canvas element into its persisted cropped slot", () => {
+    const authored = place(
+      blankMap("m", 20, 15),
+      { kind: "element", assetId: "building.lindocara.house" },
+      6,
+      6,
+      false,
+      "element",
+    ) as EditorMap;
+    const canvas = canvasEditorMap(authored);
+    const selected = canvas.elements[0];
+    expect(selected).toBeDefined();
+    if (!selected) return;
+
+    expect(elementForSavedMap(canvas, selected)).toEqual(croppedForSave(canvas).elements[0]);
+    expect(elementForSavedMap(canvas, selected)).not.toMatchObject({
+      col: selected.col,
+      row: selected.row,
+    });
   });
 });
 

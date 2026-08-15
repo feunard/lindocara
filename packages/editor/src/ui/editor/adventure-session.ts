@@ -62,6 +62,7 @@ function sandboxMapPayload(): MapPayload {
     id: crypto.randomUUID(),
     name: input.name,
     revision: 0,
+    environment: input.environment ?? "exterior",
     tilesetId: input.tilesetId,
     cols: input.cols,
     rows: input.rows,

@@ -47,6 +47,7 @@ const mapSummarySchema = z.object({
   cols: z.integer(),
   rows: z.integer(),
   isFirst: z.boolean(),
+  environment: z.enum(["exterior", "interior"]),
 });
 
 export class MapController {
@@ -100,39 +101,46 @@ export class MapController {
     },
   });
 
-  /** `POST /api/maps/:id/interiors` links an ordinary editable member map to one building slot. */
+  /** `POST /api/maps/:id/interiors` links an ordinary editable member map to one building row. */
   createBuildingInterior = $action({
     method: "POST",
     path: "/maps/:id/interiors",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
     handler: async ({ params, body, user }) => {
-      const slot = body as Record<string, unknown> | null;
-      if (
-        !slot ||
-        !Number.isSafeInteger(slot.col) ||
-        !Number.isSafeInteger(slot.row) ||
-        !Number.isSafeInteger(slot.offsetX) ||
-        !Number.isSafeInteger(slot.offsetY) ||
-        (slot.col as number) < 0 ||
-        (slot.row as number) < 0 ||
-        (slot.offsetX as number) < 0 ||
-        (slot.offsetX as number) > 3 ||
-        (slot.offsetY as number) < 0 ||
-        (slot.offsetY as number) > 3
-      ) {
+      const placement = body as Record<string, unknown> | null;
+      const elementId = placement?.elementId;
+      const hasElementId = typeof elementId === "string" && isUuid(elementId);
+      const hasLegacySlot =
+        placement !== null &&
+        Number.isSafeInteger(placement.col) &&
+        Number.isSafeInteger(placement.row) &&
+        Number.isSafeInteger(placement.offsetX) &&
+        Number.isSafeInteger(placement.offsetY) &&
+        (placement.col as number) >= 0 &&
+        (placement.row as number) >= 0 &&
+        (placement.offsetX as number) >= 0 &&
+        (placement.offsetX as number) <= 3 &&
+        (placement.offsetY as number) >= 0 &&
+        (placement.offsetY as number) <= 3;
+      if (!hasElementId && !hasLegacySlot) {
         throw new HttpError({
           status: 400,
           error: "map_invalid",
-          message: "invalid building slot",
+          message: "invalid building placement",
         });
       }
       try {
         return await this.mapService.createBuildingInteriorForUser(user.id, params.id, {
-          col: slot.col as number,
-          row: slot.row as number,
-          offsetX: slot.offsetX as number,
-          offsetY: slot.offsetY as number,
+          ...(hasElementId ? { elementId } : {}),
+          ...(hasLegacySlot
+            ? {
+                col: placement.col as number,
+                row: placement.row as number,
+                offsetX: placement.offsetX as number,
+                offsetY: placement.offsetY as number,
+              }
+            : {}),
         });
       } catch (error) {
         rethrowAsMapError(error);
