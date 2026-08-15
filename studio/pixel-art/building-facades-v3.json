@@ -1,0 +1,37 @@
+[
+  {
+    "prompt": "Perfectly flat orthographic architectural FRONT ELEVATION of one compact medieval timber cottage, camera centered and level at the front door, enormous steep blue shingle roof, cream plaster wall panels, chunky irregular dark oak framing, one centered arched blue oak door, two small warm windows and one short stone chimney. Strict elevation drawing: only the front is visible, no side wall, no top surface, no receding edge, no diagonal perspective, every vertical edge is vertical and every matching horizontal edge is horizontal, complete building centered, isolated, no ground, no text",
+    "seed": 76301,
+    "out": "apps/lab/assets/generated/buildings-v3/house-front-raw.png"
+  },
+  {
+    "prompt": "Perfectly flat orthographic architectural FRONT ELEVATION of one stout medieval cream-stone watchtower, camera centered and level with the doorway, chunky open blue-stone crenellations around a visible guard deck, irregular large masonry blocks, one centered arched blue oak door and three narrow arrow slits. Strict symmetrical elevation drawing: no side wall, no top surface, no receding edge, no diagonal perspective, all vertical edges vertical, complete tower centered, isolated, no ground, no text",
+    "seed": 76302,
+    "out": "apps/lab/assets/generated/buildings-v3/tower-front-raw.png"
+  },
+  {
+    "prompt": "Perfectly flat orthographic architectural FRONT ELEVATION of one compact fully enclosed medieval archers guild lodge, camera centered and level, enormous steep blue shingle roof over the complete shell, cream plaster and stone wall, very heavy crooked dark oak framing, a deep dark front display recess containing exactly two round straw targets, one small arched blue entrance on the front right. Strict elevation drawing: only the front is visible, no side wall, no top surface, no receding edge, no diagonal perspective, all vertical edges vertical, complete closed building centered, isolated, no ground, no text",
+    "seed": 76303,
+    "out": "apps/lab/assets/generated/buildings-v3/archery-front-raw.png"
+  },
+  {
+    "prompt": "Perfectly flat orthographic architectural FRONT ELEVATION of one compact LOW one-storey medieval barracks gatehouse, camera centered and level, the complete facade is continuous cream-stone masonry with heavy dark oak corner posts, one broad centered arched blue iron gate, two narrow blue shuttered windows and one blue shield crest, a low flat roof is entirely hidden behind one short row of chunky blue-stone crenellations. Strict elevation drawing: only the front is visible, no side wall, no top surface, no upper floor, no tall wooden wall, no open courtyard, no towers, no detached structures, no receding edge, no diagonal perspective, all vertical edges vertical, complete building centered, isolated, no ground, no text",
+    "seed": 76404,
+    "out": "apps/lab/assets/generated/buildings-v3/barracks-front-raw.png"
+  },
+  {
+    "prompt": "Perfectly flat orthographic architectural FRONT ELEVATION of one true medieval windmill, camera centered and level with the doorway, tapered irregular cream-stone mill body, chunky blue shingle cap, one centered arched blue oak door, one heavy round dark timber hub and exactly four long lattice sails at right angles with small cream canvas panels. Strict symmetrical elevation drawing: only the front is visible, no side wall, no top surface, no receding edge, no diagonal perspective, every vertical edge vertical, complete mill centered, isolated, no ground, no text",
+    "seed": 76305,
+    "out": "apps/lab/assets/generated/buildings-v3/windmill-front-raw.png"
+  },
+  {
+    "prompt": "A single perfectly flat square sample of irregular cream limestone medieval masonry, large chunky hand-set blocks with dark navy mortar lines and warm cel-shaded faces, front-on orthographic material swatch, uniform detail density from edge to edge, no wall boundary, no window, no door, no roof, no object, no perspective, no ground, no text",
+    "seed": 76311,
+    "out": "apps/lab/assets/generated/buildings-v3/cream-stone-raw.png"
+  },
+  {
+    "prompt": "A single perfectly flat square sample of irregular desaturated blue-grey medieval masonry, large chunky hand-set blocks with dark navy mortar lines and cel-shaded faces, front-on orthographic material swatch, uniform detail density from edge to edge, no wall boundary, no battlement, no window, no object, no perspective, no ground, no text",
+    "seed": 76312,
+    "out": "apps/lab/assets/generated/buildings-v3/blue-stone-raw.png"
+  }
+]

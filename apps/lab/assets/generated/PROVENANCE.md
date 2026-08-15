@@ -233,3 +233,32 @@ deux poutres, six poteaux et quatre cordes courbes. Son tablier visuel est relev
 de la plateforme physique afin d'éviter le z-fighting avec les berges. Les accessoires d'intérieur
 (`hearth`, `bed`, `table`, `cupboard`, `rug`, sol et mur) proviennent du même lot Lab documenté plus
 haut et sont servis depuis `packages/client/public/assets/lindocara/hd2d/interiors/`.
+
+## Native building material pass (2026-08-15, third direction)
+
+The directional-card experiment above is retained as provenance but is superseded. A building is
+now one fixed Three.js structure with real walls, roof slopes, gables, openings, battlements and
+shadows. Its authored orientation applies one quarter-turn when it is placed; it is never a
+camera-facing billboard. The windmill rotor is four geometric sails animated independently from
+the immobile mill body.
+
+The project-local FLUX.2-klein + Tiny Swords LoRA sprite lane generated five strict orthographic
+front elevations and two tileable masonry materials. The complete prompts, seeds and output paths
+are reproducible from `studio/pixel-art/building-facades-v3.json`. Generation command:
+
+`python studio/studio.py sprite --manifest studio/pixel-art/building-facades-v3.json --width 512 --height 512`
+
+Seeds are 76301 (house), 76302 (tower), 76303 (archery lodge), 76404 (barracks), 76305
+(windmill), 76311 (cream stone) and 76312 (blue stone). Barracks seed 76304 was rejected because it
+introduced an unwanted tall plank upper floor; 76404 is the shipped low fortified gatehouse.
+
+`apps/lab/scripts/process-building-v3.py` runs the existing sprite processor with an 18-colour
+palette. Final palette previews are 199x198, 159x220, 225x202, 267x206 and 210x224 pixels. The two
+opaque masonry materials are normalized to 96x96. Raw outputs live under
+`apps/lab/assets/generated/buildings-v3/`; served outputs live under
+`packages/client/public/assets/lindocara/hd2d/buildings/`.
+
+The generated elevations are deliberately palette/reference art only. Projecting them onto a
+front plane would recreate the flat-card mismatch when the camera moves. Runtime geometry instead
+uses the generated masonry plus the retained timber and shingle materials directly on its real
+faces, with pixel filtering, Lambert lighting, cast/received shadows and inked edges.
