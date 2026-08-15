@@ -122,6 +122,27 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const collisionY = platformHeight ?? state.y;
   if (!colliders.blocked(x, empreinte(z, hero), hero.radius, collisionY)) return true;
 
+  // A one-level stump, rock or bridge rail is a jumpable finite volume, not a wall. Waiting until
+  // the feet are already above its top makes a contact jump physically too short to cross the
+  // full footprint: horizontal speed was repeatedly erased against the side. A rising jump whose
+  // computed apex clears one authored level may enter that volume, then either land on its finite
+  // top or continue over it. Level-two buildings and infinite walls never satisfy this branch.
+  const clearance = colliders.heightToClear?.(x, empreinte(z, hero), hero.radius) ?? null;
+  const jumpApex =
+    state.airborne && state.vy > 0
+      ? state.y + (state.vy * state.vy) / (2 * hero.jump.gravity)
+      : state.y;
+  if (
+    state.airborne &&
+    state.vy > 0 &&
+    clearance !== null &&
+    Number.isFinite(clearance) &&
+    clearance <= state.groundY + world.levelHeight + 1e-3 &&
+    jumpApex >= clearance + 0.02
+  ) {
+    return true;
+  }
+
   // Same escape hatch against props (an unlucky spawn, a prop added underneath).
   return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius, state.y);
 }

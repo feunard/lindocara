@@ -45,6 +45,11 @@ export interface ColliderIndex {
   /** `true` if a disc of radius `r` centered at `(x, z)` overlaps a rectangle. */
   blocked(x: number, z: number, r: number, y?: number): boolean;
   /**
+   * Height a disc must clear at this point, `Infinity` for a wall, or `null` when nothing overlaps.
+   * The movement rule uses it only for a rising jump over a one-level finite prop.
+   */
+  heightToClear(x: number, z: number, r: number): number | null;
+  /**
    * Broad phase for a SWEPT query: every distinct rectangle whose bucket the axis-aligned box
    * touches. It over-reports (a bucket is coarser than a rectangle) and never under-reports, so
    * the caller still tests each candidate exactly — which is the whole contract, because a swept
@@ -183,6 +188,16 @@ export function createColliderIndex(): ColliderIndex {
       return candidates(x, z, r).some(
         (rect) => colliderOverlapsDisc(rect, x, z, r) && blocksAt(rect, x, z, y),
       );
+    },
+    heightToClear(x, z, r) {
+      let height: number | null = null;
+      for (const rect of candidates(x, z, r)) {
+        if (!colliderOverlapsDisc(rect, x, z, r)) continue;
+        const surface = colliderSurfaceHeightNear(rect, x, z);
+        if (surface === null) return Number.POSITIVE_INFINITY;
+        height = height === null ? surface : Math.max(height, surface);
+      }
+      return height;
     },
     inBox(minX, minZ, maxX, maxZ) {
       const seen = new Set<ColliderRect>();

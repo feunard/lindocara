@@ -68,6 +68,29 @@ describe("live authored-event collision", () => {
     expect(runAt(2).x).toBeLessThan(0);
   });
 
+  it("clears a wide level-one stump when the jump starts at contact", () => {
+    const base = flatTerrain();
+    const obstacle = [SIZE * 32, (SIZE / 2 - 1) * 64, 96, 128] as const;
+    const runAt = (elevation: 1 | 2) => {
+      const terrain = withWorldEventColliders(base, [
+        { harvest: { collider: [...obstacle, elevation] } },
+      ]);
+      const hero = createHeroController({
+        terrain,
+        // BODY_RADIUS is 0.25: this starts tangent to the obstacle, with no run-up at all.
+        spawn: { x: -0.25, y: 0, z: 0 },
+        speed: 4,
+      });
+      for (let frame = 0; frame < 120; frame += 1) {
+        hero.step({ x: 1, z: 0, jump: frame < 30 }, FRAME);
+      }
+      return hero.state;
+    };
+
+    expect(runAt(1).x).toBeGreaterThan(1.75);
+    expect(runAt(2).x).toBeLessThan(0);
+  });
+
   it("keeps the hero on both slopes of a gable roof", () => {
     const map: MapData = {
       version: 1,
