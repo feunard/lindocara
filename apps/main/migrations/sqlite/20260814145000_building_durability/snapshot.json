@@ -2,7 +2,7 @@
   "dialect": "sqlite",
   "id": "602b810b-bae3-4ccb-a7ad-f1b587dab7e6",
   "prevIds": [
-    "97d8de37-700c-4efe-9888-3ee3f4ee49b2"
+    "6a45a549-ec32-4d6f-be13-af45665da639"
   ],
   "version": "7",
   "ddl": [
@@ -1357,6 +1357,16 @@
       "default": "''",
       "generated": null,
       "name": "audio",
+      "entityType": "columns",
+      "table": "adventures"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "start_map_id",
       "entityType": "columns",
       "table": "adventures"
     },

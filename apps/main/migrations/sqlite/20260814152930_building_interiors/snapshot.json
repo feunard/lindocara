@@ -1366,6 +1366,16 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "start_map_id",
+      "entityType": "columns",
+      "table": "adventures"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "id",
       "entityType": "columns",
       "table": "parties"
