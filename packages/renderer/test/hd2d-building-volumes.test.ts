@@ -65,6 +65,26 @@ describe("native HD-2D building volumes", () => {
     barracks.dispose();
   });
 
+  it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
+    "gives the %s a recessed plank door instead of a flat blue portal",
+    (archetype) => {
+      const visual = building(archetype);
+      const door = visual.mesh.getObjectByName("arched-door");
+      const leaf = door?.getObjectByName("door-leaf");
+      const recess = door?.getObjectByName("door-recess");
+      const handle = door?.getObjectByName("door-handle");
+      expect(door).toBeDefined();
+      expect(leaf?.position.z).toBeLessThan(handle?.position.z ?? 0);
+      expect(recess?.position.z).toBeLessThan(leaf?.position.z ?? 0);
+      expect(door?.getObjectsByProperty("name", "door-plank-gap")).toHaveLength(4);
+      expect(door?.getObjectsByProperty("name", "door-timber-brace")).toHaveLength(2);
+      expect(door?.getObjectsByProperty("name", "door-hinge-strap")).toHaveLength(2);
+      expect(visual.mesh.getObjectsByProperty("name", "door-arch-stone")).toHaveLength(5);
+      expect(visual.mesh.getObjectByName("door-threshold")).toBeDefined();
+      visual.dispose();
+    },
+  );
+
   it("builds the windmill as a tapered mill with four lattice sails, not a tower facade", () => {
     const visual = building("windmill");
     expect(visual.mesh.getObjectByName("mill-body")).toBeDefined();

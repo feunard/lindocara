@@ -210,44 +210,100 @@ function addDoor(
   root: THREE.Object3D,
   x: number,
   frontZ: number,
-  blue: THREE.Material,
+  leaf: THREE.Material,
   outline: THREE.Material,
+  frame: THREE.Material,
+  wood: THREE.Material,
+  metal: THREE.Material,
   scale = 1,
 ): void {
   const width = 0.62 * scale;
   const height = 1.02 * scale;
-  const door = shadow(new THREE.Mesh(archedDoorGeometry(width, height), blue));
+  const radius = width / 2;
+  const spring = height - radius;
+  const door = new THREE.Group();
   door.name = "arched-door";
   door.position.set(x, 0, frontZ);
+
+  // The dark, slightly larger arch is visible around the leaf and pushes it back into the wall.
+  // Without that reveal the blue shape reads as a painted portal rather than an opening.
+  const recess = shadow(
+    new THREE.Mesh(archedDoorGeometry(width + 0.13 * scale, height + 0.08 * scale), outline),
+  );
+  recess.name = "door-recess";
+  recess.position.z = -0.065;
+  door.add(recess);
+
+  const doorLeaf = shadow(new THREE.Mesh(archedDoorGeometry(width, height), leaf));
+  doorLeaf.name = "door-leaf";
+  doorLeaf.position.z = -0.015;
+  door.add(doorLeaf);
+
+  // Five individual vertical boards, two timber braces, iron hinges and a brass pull keep the leaf
+  // readable at game scale. The groove heights follow the arch instead of escaping its silhouette.
+  for (const offset of [-0.3, -0.1, 0.1, 0.3].map((part) => part * width)) {
+    const top = spring + Math.sqrt(Math.max(0, radius * radius - offset * offset));
+    box(
+      door,
+      "door-plank-gap",
+      [0.018 * scale, top - 0.06 * scale, 0.022],
+      [offset, top / 2, 0.044],
+      outline,
+    );
+  }
+  for (const y of [height * 0.29, height * 0.58]) {
+    box(door, "door-timber-brace", [width * 0.78, 0.075 * scale, 0.055], [0, y, 0.052], wood);
+    box(
+      door,
+      "door-hinge-strap",
+      [width * 0.28, 0.035 * scale, 0.025],
+      [-width * 0.27, y + 0.01 * scale, 0.083],
+      outline,
+    );
+  }
+  const handle = shadow(
+    new THREE.Mesh(new THREE.TorusGeometry(0.045 * scale, 0.014 * scale, 6, 12), metal),
+  );
+  handle.name = "door-handle";
+  handle.position.set(width * 0.27, height * 0.43, 0.098);
+  door.add(handle);
+
   root.add(door);
   box(
     root,
     "door-jamb",
     [0.09, height * 0.78, 0.09],
     [x - width / 2 - 0.035, height * 0.39, frontZ + 0.02],
-    outline,
+    frame,
   );
   box(
     root,
     "door-jamb",
     [0.09, height * 0.78, 0.09],
     [x + width / 2 + 0.035, height * 0.39, frontZ + 0.02],
-    outline,
+    frame,
   );
-  for (const angle of [-0.75, 0, 0.75]) {
+  for (const angle of [-0.95, -0.48, 0, 0.48, 0.95]) {
     box(
       root,
       "door-arch-stone",
-      [0.2, 0.11, 0.1],
+      [0.14 * scale, 0.11 * scale, 0.1],
       [
         x + Math.sin(angle) * width * 0.57,
         height * 0.78 + Math.cos(angle) * width * 0.46,
         frontZ + 0.02,
       ],
-      outline,
+      frame,
       [0, 0, -angle],
     );
   }
+  box(
+    root,
+    "door-threshold",
+    [width + 0.18 * scale, 0.09 * scale, 0.16],
+    [x, 0.035 * scale, frontZ + 0.015],
+    frame,
+  );
 }
 
 function addFourSideTimber(
@@ -468,6 +524,7 @@ interface Materials {
   roof: THREE.MeshLambertMaterial;
   window: THREE.MeshLambertMaterial;
   canvas: THREE.MeshLambertMaterial;
+  metal: THREE.MeshLambertMaterial;
 }
 
 function makeMaterials(art: BuildingVolumeArt): Materials {
@@ -508,7 +565,7 @@ function makeMaterials(art: BuildingVolumeArt): Materials {
     outline: new THREE.MeshLambertMaterial({ color: 0x161c2e, flatShading: true }),
     blue: new THREE.MeshLambertMaterial({
       // Doors use a clean faction colour. A brown albedo multiplied by cyan collapsed to black.
-      color: destroyed ? 0x59626a : 0x2f91aa,
+      color: destroyed ? 0x59626a : 0x326f80,
       flatShading: true,
     }),
     roof: new THREE.MeshLambertMaterial({
@@ -526,6 +583,10 @@ function makeMaterials(art: BuildingVolumeArt): Materials {
       side: THREE.DoubleSide,
       flatShading: true,
     }),
+    metal: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x6b665e : 0xd2ae59,
+      flatShading: true,
+    }),
   };
 }
 
@@ -540,7 +601,16 @@ function buildHouse(root: THREE.Group, size: BuildingVolumeDimensions, m: Materi
   addFourSideTimber(root, size, m.wood);
   addGableEnds(root, size, m.wall);
   addPitchedRoof(root, size, m.roof, m.outline);
-  addDoor(root, size.width * 0.2, size.depth / 2 + 0.045, m.blue, m.outline);
+  addDoor(
+    root,
+    size.width * 0.2,
+    size.depth / 2 + 0.045,
+    m.blue,
+    m.outline,
+    m.wood,
+    m.wood,
+    m.metal,
+  );
   addWindow(root, "front", -size.width * 0.25, 0.66, size, m.window, m.wood, 0.85);
   addWindow(root, "back", 0, 0.72, size, m.window, m.wood, 0.9);
   addWindow(root, "left", 0.05, 0.69, size, m.window, m.wood, 0.78);
@@ -580,7 +650,7 @@ function buildTower(root: THREE.Group, size: BuildingVolumeDimensions, m: Materi
     m.stoneShade,
   );
   addCircularCrenellations(root, radius, size.wallHeight, m.stone, m.deck);
-  addDoor(root, 0, radius + 0.045, m.blue, m.outline, 0.92);
+  addDoor(root, 0, radius + 0.045, m.blue, m.outline, m.stoneShade, m.wood, m.metal, 0.92);
   addWindow(root, "back", 0, 1.72, size, m.window, m.outline, 0.46);
   addWindow(root, "left", 0.05, 2.05, size, m.window, m.outline, 0.38);
   addWindow(root, "right", -0.12, 1.4, size, m.window, m.outline, 0.38);
@@ -605,7 +675,7 @@ function buildWindmill(
   roof.name = "windmill-cap";
   roof.position.y = size.wallHeight + size.roofHeight / 2;
   root.add(roof);
-  addDoor(root, 0, bodyRadius + 0.045, m.blue, m.outline, 0.82);
+  addDoor(root, 0, bodyRadius + 0.045, m.blue, m.outline, m.stoneShade, m.wood, m.metal, 0.82);
   addWindow(
     root,
     "left",
@@ -689,7 +759,17 @@ function buildHall(
     }
     addTarget(root, -size.width * 0.31, 0.72, front + 0.06, m);
     addTarget(root, -size.width * 0.04, 0.8, front + 0.06, m);
-    addDoor(root, size.width * 0.31, front + 0.015, m.blue, m.outline, 0.74);
+    addDoor(
+      root,
+      size.width * 0.31,
+      front + 0.015,
+      m.blue,
+      m.outline,
+      m.wood,
+      m.wood,
+      m.metal,
+      0.74,
+    );
   } else {
     box(
       root,
@@ -698,7 +778,7 @@ function buildHall(
       [0, size.wallHeight / 2, 0],
       m.wall,
     );
-    addDoor(root, 0, size.depth / 2 + 0.045, m.blue, m.outline, 0.9);
+    addDoor(root, 0, size.depth / 2 + 0.045, m.blue, m.outline, m.wood, m.wood, m.metal, 0.9);
     addWindow(root, "front", -size.width * 0.31, 0.8, size, m.window, m.wood, 0.7);
     addWindow(root, "front", size.width * 0.31, 0.8, size, m.window, m.wood, 0.7);
     const belfryY = size.wallHeight + size.roofHeight * 0.62;
@@ -795,7 +875,17 @@ function buildFortress(
     );
   }
   addRectangularBattlements(root, bodyWidth, bodyDepth, size.wallHeight + 0.22, m.stoneShade);
-  addDoor(root, 0, bodyDepth / 2 + 0.05, m.blue, m.outline, kind === "castle" ? 1.28 : 1.12);
+  addDoor(
+    root,
+    0,
+    bodyDepth / 2 + 0.05,
+    m.blue,
+    m.outline,
+    m.stoneShade,
+    m.wood,
+    m.metal,
+    kind === "castle" ? 1.28 : 1.12,
+  );
   addWindow(
     root,
     "back",
