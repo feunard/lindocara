@@ -1,3 +1,4 @@
+import type { ElementOrientation } from "./element-orientation.js";
 import type { GroundVector } from "./ground.js";
 import { isUuid } from "./identifiers.js";
 import {
@@ -22,6 +23,7 @@ export interface ZoneBuildingDefinition extends BuildingSettings {
   z: number;
   standingAssetId: EditorAssetId;
   destroyedAssetId: EditorAssetId;
+  orientation?: ElementOrientation;
   /** The original solid footprint remains authoritative after destruction: a ruin is still solid. */
   collider: BuildingCollider;
 }

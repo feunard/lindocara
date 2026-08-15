@@ -26,6 +26,7 @@ import {
   isStandingBuildingAsset,
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
+import { isElementOrientation } from "@lindocara/engine/element-orientation.js";
 import { isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
@@ -503,6 +504,7 @@ export function elementToWire(row: {
   buildingInteriorMapId?: string | null;
 }): MapElement | null {
   if (isEditorAssetId(row.kind)) {
+    if (!isElementOrientation(row.variant)) return null;
     const building = isStandingBuildingAsset(row.kind)
       ? (parseBuildingSettings({
           destructible: row.buildingDestructible,
@@ -517,6 +519,7 @@ export function elementToWire(row: {
       offsetX: row.offsetX,
       offsetY: row.offsetY,
       assetId: row.kind,
+      ...(row.variant === 0 ? {} : { orientation: row.variant }),
       ...(building ? { building } : {}),
     };
   }

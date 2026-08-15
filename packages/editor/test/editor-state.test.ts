@@ -31,6 +31,7 @@ import {
   undoEditorHistory,
   updateEventDraftPage,
   updateSelectedBuildingSettings,
+  updateSelectedElementOrientation,
 } from "@lindocara/editor/game/editor-state.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
@@ -1503,6 +1504,24 @@ describe("building element settings", () => {
       offsetY: 1,
       building: { destructible: true, maxHp: 777 },
     });
+  });
+
+  it("rotates a building as one pure edit and preserves the turn through a move", () => {
+    const placed = applyTool(
+      blankMap("village", 30, 30),
+      { kind: "element", assetId: HOUSE },
+      6,
+      7,
+      true,
+      "element",
+    ) as EditorMap;
+    const selection = { kind: "element", col: 6, row: 7, offsetX: 0, offsetY: 0 } as const;
+    const rotated = updateSelectedElementOrientation(placed, selection, 2);
+    expect(rotated?.elements[0]?.orientation).toBe(2);
+    expect(placed.elements[0]?.orientation).toBeUndefined();
+
+    const moved = rotated && moveSelection(rotated, selection, 10, 11);
+    expect(moved?.elements[0]).toMatchObject({ col: 10, row: 11, orientation: 2 });
   });
 });
 

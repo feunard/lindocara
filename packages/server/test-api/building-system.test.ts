@@ -88,6 +88,7 @@ describe("building system", () => {
       offsetX: 0,
       offsetY: 0,
       assetId: standing,
+      orientation: 3,
       building: {
         destructible: true,
         maxHp: 900,
@@ -124,6 +125,7 @@ describe("building system", () => {
         id: element.id,
         standingAssetId: standing,
         destroyedAssetId: ruined,
+        orientation: 3,
         maxHp: 900,
         interiorMapId: element.building.interiorMapId,
       }),

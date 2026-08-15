@@ -728,7 +728,7 @@ describe("list, get, update, delete", () => {
     expect(await editorSave.json()).toMatchObject({ revision: 3 });
   });
 
-  test("round-trips authored building durability", async () => {
+  test("round-trips authored building durability and orientation", async () => {
     const { userId, token } = await registerAndLogin("mapbuilding");
     const id = await newMapId(await newAdventure(userId), token, "Village");
     const building = {
@@ -737,6 +737,7 @@ describe("list, get, update, delete", () => {
       offsetX: 0,
       offsetY: 0,
       assetId: HOUSE_ASSET_ID,
+      orientation: 2,
       building: { destructible: false, maxHp: 2_750 },
     };
 

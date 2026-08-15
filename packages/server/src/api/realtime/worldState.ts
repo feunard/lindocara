@@ -202,6 +202,7 @@ function authoredBuildings(payload: MapPayload, size: number): ZoneBuildingDefin
         ...authoredElementGroundPoint(element, size),
         standingAssetId: element.assetId,
         destroyedAssetId,
+        ...(element.orientation ? { orientation: element.orientation } : {}),
         destructible: element.building.destructible,
         maxHp: element.building.maxHp,
         ...(element.building.interiorMapId

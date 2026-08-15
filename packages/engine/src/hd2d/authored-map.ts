@@ -204,13 +204,12 @@ export function compileAuthoredMap(
   const elements = staticElements.map((element) => ({
     assetId: element.assetId,
     ...authoredElementGroundPoint(element, size),
+    ...(element.orientation ? { orientation: element.orientation } : {}),
   }));
 
   const colliders = staticElements.flatMap((element) => {
     const rect = elementWorldCollider(element);
     const asset = editorAsset(element.assetId);
-    const level = levels[element.row * size + element.col] ?? null;
-    const base = level === null ? AUTHORED_WATER_LEVEL : level * AUTHORED_LEVEL_HEIGHT;
     if (!rect) return [];
     const collider = {
       x: groundCoordinate(rect.x, size),
@@ -224,12 +223,10 @@ export function compileAuthoredMap(
         ...bridgeRails(collider),
       ];
     }
-    return [
-      {
-        ...collider,
-        ...(asset?.editor.category === "buildings" ? { top: base + AUTHORED_LEVEL_HEIGHT } : {}),
-      },
-    ];
+    // A building is a wall volume, never a platform. Giving it a `top` makes `surfaceAt` select
+    // that roof-like surface and the collider index then deliberately allows the hero to stand on
+    // it. Only explicit walkable overrides (bridges above) may author a collider top.
+    return [collider];
   });
 
   return {

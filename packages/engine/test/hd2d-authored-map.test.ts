@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AUTHORED_LEVEL_HEIGHT, compileAuthoredMap } from "../src/hd2d/authored-map.js";
+import { compileAuthoredMap } from "../src/hd2d/authored-map.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { canStand, groundUnder, zoneTerrainFromHeightfield } from "../src/terrain-access.js";
@@ -143,14 +143,28 @@ describe("compileAuthoredMap", () => {
     ]);
   });
 
-  it("authors a one-level walkable top on building colliders only", () => {
+  it("authors buildings as solid wall volumes instead of walkable platforms", () => {
     const building = EDITOR_ASSETS.find((asset) => asset.editor.category === "buildings");
     if (!building) throw new Error("building fixture missing");
     const source = authored();
-    source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: building.id }];
+    source.elements = [
+      { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: building.id, orientation: 1 },
+    ];
     const compiled = compileAuthoredMap(source);
+    expect(compiled.elements[0]?.orientation).toBe(1);
     expect(compiled.colliders).toHaveLength(1);
-    expect(compiled.colliders[0]?.top).toBe(AUTHORED_LEVEL_HEIGHT);
+    expect(compiled.colliders[0]?.top).toBeUndefined();
+
+    const collider = compiled.colliders[0];
+    if (!collider) throw new Error("compiled building collider missing");
+    const terrain = zoneTerrainFromHeightfield(compiled);
+    const centreX = collider.x + collider.w / 2;
+    const centreZ = collider.z + collider.h / 2;
+    expect(canStand(terrain, centreX, centreZ, 0.25, 0)).toBe(false);
+    expect(canStand(terrain, collider.x - 0.2, centreZ, 0.25, 0)).toBe(false);
+    expect(canStand(terrain, collider.x + collider.w + 0.2, centreZ, 0.25, 0)).toBe(false);
+    expect(canStand(terrain, centreX, collider.z - 0.2, 0.25, 0)).toBe(false);
+    expect(canStand(terrain, centreX, collider.z + collider.h + 0.2, 0.25, 0)).toBe(false);
   });
 
   it.each([

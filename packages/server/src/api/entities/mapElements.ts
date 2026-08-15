@@ -25,6 +25,7 @@ export const mapElements = $entity({
     offsetY: db.default(z.integer(), 0),
     /** Stable Tiny Swords editor asset id; legacy tree/bush/stone rows are normalized on read. */
     kind: z.string(),
+    /** Legacy tree/bush/stone variant, or a modern asset's `ElementOrientation` quarter-turn. */
     variant: db.default(z.integer(), 0),
     /** Null only on non-buildings and legacy rows; reads derive catalogue defaults when absent. */
     buildingDestructible: z.boolean().optional(),

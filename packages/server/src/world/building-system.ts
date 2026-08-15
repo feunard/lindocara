@@ -31,6 +31,7 @@ export function buildingSnapshot(building: BuildingRuntime): WorldBuildingSnapsh
     z: building.z,
     graphicAssetId: building.destroyed ? building.destroyedAssetId : building.standingAssetId,
     destroyedAssetId: building.destroyedAssetId,
+    ...(building.orientation ? { orientation: building.orientation } : {}),
     hp: building.hp,
     maxHp: building.maxHp,
     destructible: building.destructible,

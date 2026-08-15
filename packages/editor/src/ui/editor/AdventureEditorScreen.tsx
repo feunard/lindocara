@@ -43,6 +43,7 @@ import {
   defaultBuildingSettings,
   destroyedBuildingAssetId,
 } from "@lindocara/engine/buildings.js";
+import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { derivedMapRect } from "@lindocara/engine/map-canvas.js";
@@ -479,6 +480,9 @@ function AdventureEditorInner({
     DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   );
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
+  // Inspector-only edits can leave every summary flag unchanged (dirty was already true, selection
+  // did not move). The stage revision still advances, forcing this component to reread `current()`.
+  const [, setStageRevision] = useState(0);
   const [stageEpoch, setStageEpoch] = useState(0);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -642,6 +646,7 @@ function AdventureEditorInner({
       editedRef.current ?? toEditorMap(map),
       (changed, state) => {
         editedRef.current = changed;
+        setStageRevision(state.revision);
         setError(null);
         setElementCount(changed.elements.length);
         setDirty(state.dirty);
@@ -1890,6 +1895,9 @@ function AdventureEditorInner({
                     onSetOffset={(offsetX, offsetY) =>
                       handleRef.current?.setSelectedElementOffset(offsetX, offsetY)
                     }
+                    onSetOrientation={(orientation) =>
+                      handleRef.current?.setSelectedElementOrientation(orientation)
+                    }
                     onSetBuilding={(settings) =>
                       handleRef.current?.setSelectedBuildingSettings(settings)
                     }
@@ -2162,6 +2170,7 @@ function SelectionInspector({
   map,
   onMove,
   onSetOffset,
+  onSetOrientation,
   onSetBuilding,
   onOpenInterior,
   buildingInteriorBusy,
@@ -2173,6 +2182,7 @@ function SelectionInspector({
   map: EditorMap;
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
+  onSetOrientation(orientation: ElementOrientation): void;
   onSetBuilding(settings: BuildingSettings): void;
   onOpenInterior(element: MapElement): void;
   buildingInteriorBusy: boolean;
@@ -2265,6 +2275,35 @@ function SelectionInspector({
 
       {selectedElement && selectedBuilding && (
         <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
+          <div className="flex flex-col gap-1">
+            <Label className="text-[11px] text-zinc-600">
+              {t("editor.inspector.building.orientation")}
+            </Label>
+            <div className="grid grid-cols-4 gap-1">
+              {(
+                [
+                  [0, "editor.inspector.building.orientation.front"],
+                  [1, "editor.inspector.building.orientation.right"],
+                  [2, "editor.inspector.building.orientation.back"],
+                  [3, "editor.inspector.building.orientation.left"],
+                ] as const
+              ).map(([orientation, label]) => (
+                <Button
+                  key={orientation}
+                  type="button"
+                  variant={
+                    (selectedElement.orientation ?? 0) === orientation ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="h-7 px-1 text-[10px]"
+                  aria-pressed={(selectedElement.orientation ?? 0) === orientation}
+                  onClick={() => onSetOrientation(orientation)}
+                >
+                  {t(label)}
+                </Button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="inspector-building-destructible" className="text-[11px] text-zinc-600">
               {t("editor.inspector.building.destructible")}

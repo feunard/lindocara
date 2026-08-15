@@ -16,6 +16,7 @@ import {
   parseBuildingSettings,
 } from "./buildings.js";
 import { colliderIndexFrom } from "./collider.js";
+import { type ElementOrientation, parseElementOrientation } from "./element-orientation.js";
 import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { isUuid } from "./identifiers.js";
@@ -48,6 +49,8 @@ export interface MapElement {
   /** Integer in `0..ELEMENT_OFFSET_STEPS - 1`, quarter tiles below the cell origin. */
   offsetY: number;
   assetId: EditorAssetId;
+  /** Optional quarter-turn: front (0/default), right side (1), rear (2), left side (3). */
+  orientation?: ElementOrientation;
   /** Present only on standing building assets; legacy payloads receive catalogue-derived defaults. */
   building?: BuildingSettings;
 }
@@ -278,10 +281,13 @@ export function quarterCellAt(
 export function elementCells(element: MapElement): { col: number; row: number }[] {
   const asset = editorAsset(element.assetId);
   if (!asset) return [];
-  return asset.editor.visualFootprint.map((offset) => ({
-    col: element.col + offset.col,
-    row: element.row + offset.row,
-  }));
+  const orientation = element.orientation ?? 0;
+  return asset.editor.visualFootprint.map((offset) => {
+    let col = offset.col;
+    let row = offset.row;
+    for (let turn = 0; turn < orientation; turn += 1) [col, row] = [-row, col];
+    return { col: element.col + col, row: element.row + row };
+  });
 }
 
 /**
@@ -297,12 +303,31 @@ export function elementWorldCollider(element: MapElement): Rect | null {
   if (!collider) return null;
   const footX = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
   const footY = (element.row + 1) * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX;
-  return {
-    x: footX + collider.x,
-    y: footY + collider.y,
-    width: collider.width,
-    height: collider.height,
-  };
+  const orientation = element.orientation ?? 0;
+  if (orientation === 0) {
+    return {
+      x: footX + collider.x,
+      y: footY + collider.y,
+      width: collider.width,
+      height: collider.height,
+    };
+  }
+  const corners = [
+    [collider.x, collider.y],
+    [collider.x + collider.width, collider.y],
+    [collider.x, collider.y + collider.height],
+    [collider.x + collider.width, collider.y + collider.height],
+  ].map(([sourceX, sourceY]) => {
+    let x = sourceX ?? 0;
+    let y = sourceY ?? 0;
+    for (let turn = 0; turn < orientation; turn += 1) [x, y] = [-y, x];
+    return { x, y };
+  });
+  const minX = Math.min(...corners.map((point) => point.x));
+  const maxX = Math.max(...corners.map((point) => point.x));
+  const minY = Math.min(...corners.map((point) => point.y));
+  const maxY = Math.max(...corners.map((point) => point.y));
+  return { x: footX + minX, y: footY + minY, width: maxX - minX, height: maxY - minY };
 }
 
 export function elementColliders(elements: readonly MapElement[]): Rect[] {
@@ -490,6 +515,8 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     } else if (item.building !== undefined) {
       return null;
     }
+    const orientation = parseElementOrientation(item.orientation);
+    if (orientation === null || (orientation !== 0 && !building)) return null;
     parsed.push({
       ...(typeof id === "string" ? { id } : {}),
       col: col as number,
@@ -497,6 +524,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       offsetX,
       offsetY,
       assetId,
+      ...(orientation === 0 ? {} : { orientation }),
       ...(building ? { building } : {}),
     });
   }

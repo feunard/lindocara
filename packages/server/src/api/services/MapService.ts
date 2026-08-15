@@ -775,7 +775,9 @@ export class MapService {
         offsetX: element.offsetX,
         offsetY: element.offsetY,
         kind: element.assetId,
-        variant: 0,
+        // Modern rows reuse the historical integer slot for their quarter-turn. Legacy rows still
+        // decode `kind + variant`; no schema migration or destructive rewrite is needed.
+        variant: element.orientation ?? 0,
         buildingDestructible: element.building?.destructible,
         buildingMaxHp: element.building?.maxHp,
         buildingInteriorMapId: element.building?.interiorMapId,

@@ -765,6 +765,7 @@ export interface WorldBuildingSnapshot {
   graphicAssetId: EditorAssetId;
   /** Explicit ruin art advertised up front so destruction never starts a texture download. */
   destroyedAssetId: EditorAssetId;
+  orientation?: import("./element-orientation.js").ElementOrientation;
   hp: number;
   maxHp: number;
   destructible: boolean;
@@ -1955,6 +1956,10 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
     isMoveCoordinate(value.z) &&
     isEditorAssetId(value.graphicAssetId) &&
     isEditorAssetId(value.destroyedAssetId) &&
+    (value.orientation === undefined ||
+      (Number.isSafeInteger(value.orientation) &&
+        (value.orientation as number) >= 0 &&
+        (value.orientation as number) <= 3)) &&
     Number.isSafeInteger(value.hp) &&
     (value.hp as number) >= 0 &&
     Number.isSafeInteger(value.maxHp) &&
@@ -1979,6 +1984,7 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
       "z",
       "graphicAssetId",
       "destroyedAssetId",
+      "orientation",
       "hp",
       "maxHp",
       "destructible",

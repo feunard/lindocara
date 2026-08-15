@@ -7,6 +7,7 @@ const building = {
   z: -1,
   graphicAssetId: "building.factions-knights-buildings-house.house-blue",
   destroyedAssetId: "building.factions-knights-buildings-house.house-destroyed",
+  orientation: 2,
   hp: 900,
   maxHp: 900,
   destructible: true,
@@ -30,6 +31,11 @@ describe("building state on the wire", () => {
           t: "building.state",
           building: { ...building, hp: 0, destroyed: false },
         }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ t: "building.state", building: { ...building, orientation: 9 } }),
       ),
     ).toBeNull();
     expect(

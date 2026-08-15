@@ -6,7 +6,11 @@ import {
   isStandingBuildingAsset,
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
-import { parseMapElements } from "@lindocara/engine/map-data.js";
+import { elementWorldCollider, parseMapElements } from "@lindocara/engine/map-data.js";
+import {
+  editorAsset,
+  LINDOCARA_BUILDING_ASSET_IDS,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
@@ -16,6 +20,16 @@ const RUIN = "building.factions-knights-buildings-house.house-destroyed" as cons
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 
 describe("building authoring rules", () => {
+  it.each([
+    [LINDOCARA_BUILDING_ASSET_IDS.house, { x: -88, y: -136, width: 176, height: 136 }],
+    [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, { x: -64, y: -128, width: 128, height: 128 }],
+    [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, { x: -96, y: -144, width: 192, height: 144 }],
+    [LINDOCARA_BUILDING_ASSET_IDS.barracks, { x: -96, y: -152, width: 192, height: 152 }],
+    [LINDOCARA_BUILDING_ASSET_IDS.windmill, { x: -88, y: -128, width: 176, height: 128 }],
+  ] as const)("keeps %s solid across its complete native footprint", (assetId, collider) => {
+    expect(editorAsset(assetId)?.editor.collider).toEqual(collider);
+  });
+
   it("derives default HP from both type and size", () => {
     expect(defaultBuildingMaxHp(HOUSE)).toBe(900);
     expect(defaultBuildingMaxHp(TOWER)).toBe(1_500);
@@ -43,6 +57,31 @@ describe("building authoring rules", () => {
     expect(parseMapElements([{ col: 1, row: 2, assetId: TREE }], 10, 10)?.[0]?.building).toBe(
       undefined,
     );
+  });
+
+  it("parses building quarter-turns and rotates their complete solid footprint around the foot", () => {
+    const oriented = parseMapElements(
+      [{ col: 1, row: 2, assetId: LINDOCARA_BUILDING_ASSET_IDS.house, orientation: 1 }],
+      10,
+      10,
+    )?.[0];
+    expect(oriented?.orientation).toBe(1);
+    expect(oriented && elementWorldCollider(oriented)).toEqual({
+      x: 96,
+      y: 104,
+      width: 136,
+      height: 176,
+    });
+    expect(
+      parseMapElements([{ col: 1, row: 2, assetId: TREE, orientation: 1 }], 10, 10),
+    ).toBeNull();
+    expect(
+      parseMapElements(
+        [{ col: 1, row: 2, assetId: LINDOCARA_BUILDING_ASSET_IDS.house, orientation: 4 }],
+        10,
+        10,
+      ),
+    ).toBeNull();
   });
 
   it("rejects malformed or misplaced building settings", () => {

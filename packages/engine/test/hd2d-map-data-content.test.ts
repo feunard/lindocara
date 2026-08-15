@@ -25,6 +25,17 @@ describe("MapData content", () => {
     expect(decodeMap(encodeMap(map))).toEqual(map);
   });
 
+  it("round-trips an oriented building and rejects an invalid quarter-turn", () => {
+    const map: MapData = {
+      ...base,
+      elements: [{ assetId: "building", x: 0, z: 0, orientation: 3 }],
+    };
+    expect(decodeMap(encodeMap(map))).toEqual(map);
+    expect(
+      decodeMap(JSON.stringify({ ...map, elements: [{ ...map.elements[0], orientation: 5 }] })),
+    ).toBeNull();
+  });
+
   it("round-trips an optional walkable collider top", () => {
     const map: MapData = { ...base, colliders: [{ x: -1, z: -1, w: 2, h: 2, top: 0.9 }] };
     expect(decodeMap(encodeMap(map))).toEqual(map);

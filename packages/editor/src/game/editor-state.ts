@@ -12,6 +12,7 @@ import {
   isStandingBuildingAsset,
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
+import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
   defaultMonsterTuning,
@@ -459,6 +460,7 @@ export function moveSelection(
                 ...candidate,
                 ...(element.id ? { id: element.id } : {}),
                 ...(element.building ? { building: element.building } : {}),
+                ...(element.orientation ? { orientation: element.orientation } : {}),
               }
             : candidate,
         ),
@@ -516,7 +518,13 @@ export function updateSelectedElementAsset(
     ...updated,
     elements: updated.elements.map((candidate) =>
       sameElementSlot(candidate, selection)
-        ? { ...candidate, ...(existing.id ? { id: existing.id } : {}) }
+        ? {
+            ...candidate,
+            ...(existing.id ? { id: existing.id } : {}),
+            ...(isStandingBuildingAsset(assetId) && existing.orientation
+              ? { orientation: existing.orientation }
+              : {}),
+          }
         : candidate,
     ),
   };
@@ -561,10 +569,31 @@ export function updateSelectedElementOffset(
             ...candidate,
             ...(element.id ? { id: element.id } : {}),
             ...(element.building ? { building: element.building } : {}),
+            ...(element.orientation ? { orientation: element.orientation } : {}),
           }
         : candidate,
     ),
   };
+}
+
+/** Rotate a selected building without moving its authored foot. The same mutation immediately
+ * rechecks spawn clearance against the rotated authoritative collider. */
+export function updateSelectedElementOrientation(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  orientation: ElementOrientation,
+): EditorMap | null {
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (!element || !isStandingBuildingAsset(element.assetId)) return null;
+  const next: EditorMap = {
+    ...map,
+    elements: map.elements.map((candidate) => {
+      if (!sameElementSlot(candidate, selection)) return candidate;
+      const { orientation: _previousOrientation, ...withoutOrientation } = candidate;
+      return orientation === 0 ? withoutOrientation : { ...withoutOrientation, orientation };
+    }),
+  };
+  return keepsSpawnClear(next) ? next : null;
 }
 
 /** Update one building's durability without changing its placement or catalogue appearance. */
@@ -1401,6 +1430,9 @@ export function applyTool(
         ...(replaced?.id ? { id: replaced.id } : {}),
         ...slot,
         assetId: tool.assetId,
+        ...(replaced?.assetId === tool.assetId && replaced.orientation
+          ? { orientation: replaced.orientation }
+          : {}),
         ...(building
           ? {
               building:

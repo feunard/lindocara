@@ -8,6 +8,7 @@
 
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { BuildingSettings } from "@lindocara/engine/buildings.js";
+import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import {
   authoredElementGroundPoint,
   authoredStairsRamp,
@@ -59,6 +60,7 @@ import {
   updateSelectedBuildingSettings,
   updateSelectedElementAsset,
   updateSelectedElementOffset,
+  updateSelectedElementOrientation,
 } from "./editor-state.js";
 import {
   authoredEventPreviewSnapshots,
@@ -89,6 +91,7 @@ export interface MapEditorStageHandle {
   moveSelected(col: number, row: number): boolean;
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
   setSelectedElementOffset(offsetX: number, offsetY: number): boolean;
+  setSelectedElementOrientation(orientation: ElementOrientation): boolean;
   setSelectedBuildingSettings(settings: BuildingSettings): boolean;
   deleteSelected(): boolean;
   beginEventDraft(id: string): MapEvent | null;
@@ -101,6 +104,8 @@ export interface MapEditorStageHandle {
 }
 
 export interface MapEditorStageState {
+  /** Monotone rendered document revision; lets React inspectors refresh even when summary flags stay equal. */
+  revision: number;
   canUndo: boolean;
   canRedo: boolean;
   dirty: boolean;
@@ -387,6 +392,7 @@ export function openMapEditorStage(
 
     const notify = (): void => {
       onChange(map, {
+        revision,
         canUndo: history.past.length > 0,
         canRedo: history.future.length > 0,
         dirty: isEditorHistoryDirty(history, map),
@@ -853,6 +859,10 @@ export function openMapEditorStage(
           updateSelectedElementOffset(map, selected, offsetX, offsetY),
           nextSelection,
         );
+      },
+      setSelectedElementOrientation(orientation) {
+        if (selected?.kind !== "element") return false;
+        return commitInspectorChange(updateSelectedElementOrientation(map, selected, orientation));
       },
       setSelectedBuildingSettings(settings) {
         if (selected?.kind !== "element") return false;

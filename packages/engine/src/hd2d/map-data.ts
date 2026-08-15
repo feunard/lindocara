@@ -9,6 +9,7 @@
 // Stays PURE (no DOM, no `three`, no clock, no randomness): this file moved into
 // `@lindocara/engine` in Task 11, alongside `terrain-query.ts`, which got there first.
 
+import { type ElementOrientation, parseElementOrientation } from "../element-orientation.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
   type MapEnvironment,
@@ -87,6 +88,7 @@ export interface HeightfieldElement {
   assetId: string;
   x: number;
   z: number;
+  orientation?: ElementOrientation;
 }
 
 /** An authored event's active page, appearance only. Mirrors `WorldInfo.events`. */
@@ -163,7 +165,14 @@ function toElement(value: unknown): HeightfieldElement | null {
     !isFiniteNumber(value.z)
   )
     return null;
-  return { assetId: value.assetId, x: value.x, z: value.z };
+  const orientation = parseElementOrientation(value.orientation);
+  if (orientation === null) return null;
+  return {
+    assetId: value.assetId,
+    x: value.x,
+    z: value.z,
+    ...(orientation === 0 ? {} : { orientation }),
+  };
 }
 
 function toEvent(value: unknown): HeightfieldEvent | null {
