@@ -12,6 +12,7 @@ import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
   type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
+  elementCells,
   elementWorldCollider,
   type MapElement,
 } from "../map-data.js";
@@ -31,6 +32,7 @@ import type { TerrainMaterial, TerrainRamp } from "./terrain-query.js";
 
 export const AUTHORED_LEVEL_HEIGHT = 0.9;
 export const AUTHORED_WATER_LEVEL = -0.05;
+const BRIDGE_RAIL_THICKNESS = 0.11;
 
 function groundCoordinate(pixels: number, size: number): number {
   return pixels / TILE_SIZE - size / 2;
@@ -123,6 +125,57 @@ function authoredRamps(authored: AuthoredMapData, size: number): TerrainRamp[] {
   return ramps;
 }
 
+function bridgeTop(
+  authored: AuthoredMapData,
+  element: MapElement,
+  levels: readonly (number | null)[],
+  size: number,
+): number {
+  const footprint = elementCells(element);
+  const occupied = new Set(footprint.map((cell) => `${cell.col}:${cell.row}`));
+  const counts = new Map<number, number>();
+  for (const cell of footprint) {
+    for (const [dc, dr] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ] as const) {
+      const col = cell.col + dc;
+      const row = cell.row + dr;
+      if (col < 0 || row < 0 || col >= authored.cols || row >= authored.rows) continue;
+      if (occupied.has(`${col}:${row}`)) continue;
+      const level = levels[row * size + col] ?? null;
+      if (level !== null) counts.set(level, (counts.get(level) ?? 0) + 1);
+    }
+  }
+  const level = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? 0;
+  return level * AUTHORED_LEVEL_HEIGHT;
+}
+
+function bridgeRails(collider: { x: number; z: number; w: number; h: number }) {
+  if (collider.w > collider.h) {
+    return [
+      { x: collider.x, z: collider.z, w: collider.w, h: BRIDGE_RAIL_THICKNESS },
+      {
+        x: collider.x,
+        z: collider.z + collider.h - BRIDGE_RAIL_THICKNESS,
+        w: collider.w,
+        h: BRIDGE_RAIL_THICKNESS,
+      },
+    ];
+  }
+  return [
+    { x: collider.x, z: collider.z, w: BRIDGE_RAIL_THICKNESS, h: collider.h },
+    {
+      x: collider.x + collider.w - BRIDGE_RAIL_THICKNESS,
+      z: collider.z,
+      w: BRIDGE_RAIL_THICKNESS,
+      h: collider.h,
+    },
+  ];
+}
+
 /** Compile one validated editor map and its full authored event documents into heightfield bytes. */
 export function compileAuthoredMap(
   authored: AuthoredMapData,
@@ -158,19 +211,25 @@ export function compileAuthoredMap(
     const asset = editorAsset(element.assetId);
     const level = levels[element.row * size + element.col] ?? null;
     const base = level === null ? AUTHORED_WATER_LEVEL : level * AUTHORED_LEVEL_HEIGHT;
-    return rect
-      ? [
-          {
-            x: groundCoordinate(rect.x, size),
-            z: groundCoordinate(rect.y, size),
-            w: rect.width / TILE_SIZE,
-            h: rect.height / TILE_SIZE,
-            ...(asset?.editor.category === "buildings"
-              ? { top: base + AUTHORED_LEVEL_HEIGHT }
-              : {}),
-          },
-        ]
-      : [];
+    if (!rect) return [];
+    const collider = {
+      x: groundCoordinate(rect.x, size),
+      z: groundCoordinate(rect.y, size),
+      w: rect.width / TILE_SIZE,
+      h: rect.height / TILE_SIZE,
+    };
+    if (asset?.editor.terrainOverride === "walkable") {
+      return [
+        { ...collider, top: bridgeTop(authored, element, levels, size) },
+        ...bridgeRails(collider),
+      ];
+    }
+    return [
+      {
+        ...collider,
+        ...(asset?.editor.category === "buildings" ? { top: base + AUTHORED_LEVEL_HEIGHT } : {}),
+      },
+    ];
   });
 
   return {

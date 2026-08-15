@@ -378,6 +378,25 @@ describe("Hd2dVisualLayer spawn marker", () => {
     colliders: [],
   };
 
+  it("distinguishes walkable platform tops from solid collision in the editor overlay", () => {
+    const { layer, root } = harness();
+    layer.setEditorOverlay({
+      ...base,
+      showCollisions: true,
+      colliders: [
+        { x: -1.5, z: -0.5, w: 3, h: 1, top: 0.9 },
+        { x: -1.5, z: -0.5, w: 3, h: 0.11 },
+      ],
+    });
+
+    const platform = root.getObjectByName("editor-walkable-platform");
+    const solid = root.getObjectByName("editor-solid-collision");
+    expect(platform?.position.y).toBeCloseTo(1);
+    expect(solid?.position.y).toBeCloseTo(0.1);
+    expect((platform as THREE.Mesh).material).not.toBe((solid as THREE.Mesh).material);
+    layer.dispose();
+  });
+
   it("draws the spawn where the overlay puts it, and nothing when there is none", () => {
     const { layer, root } = harness();
     layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });

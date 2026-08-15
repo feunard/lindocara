@@ -1488,12 +1488,22 @@ export class Hd2dVisualLayer {
       for (const collider of overlay.colliders) {
         const x = collider.x + collider.w / 2;
         const z = collider.z + collider.h / 2;
-        const mesh = new THREE.Mesh(
-          new THREE.PlaneGeometry(collider.w, collider.h),
-          transparentMaterial(0xd84b3e, 0.38),
+        const platformTop = collider.top;
+        const platform = platformTop !== undefined;
+        const material = transparentMaterial(
+          platform ? 0x36e0a0 : 0xd84b3e,
+          platform ? 0.52 : 0.38,
         );
+        if (platform) material.depthTest = false;
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(collider.w, collider.h), material);
+        mesh.name = platform ? "editor-walkable-platform" : "editor-solid-collision";
+        mesh.renderOrder = platform ? 31 : 30;
         mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(x, this.#groundY(x, z, 0.1), z);
+        mesh.position.set(
+          x,
+          platformTop !== undefined ? platformTop + 0.1 : this.#groundY(x, z, 0.1),
+          z,
+        );
         this.#editorRoot.add(mesh);
       }
     }

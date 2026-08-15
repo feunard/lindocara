@@ -52,9 +52,10 @@ authoring stage was rebuilt on `Hd2dRenderer` and shares this package's renderin
   ground-snapping it would make every other player's jump invisible without failing anything â€”
   `hd2d-remote-state.test.ts` is the guard. Monsters and guards are stepped by the room, on the
   ground, so all three flags are false for them. It also draws
-  `heightfield.elements`/`heightfield.events` as static billboards, appearance only: no
-  element or event ever contributes a collider, because the server bakes collision from the terrain
-  alone. Combat presentation is also on this one path: actor attack strips, authored Tiny Swords
+  `heightfield.elements`/`heightfield.events` as static scenery. Their visuals never derive gameplay
+  geometry: `compileAuthoredMap` has already baked prop footprints, building tops and walkable bridge
+  platforms into the same heightfield document read by the client and server. Combat presentation is
+  also on this one path: actor attack strips, authored Tiny Swords
   impacts and projectiles, hero mobility/stealth variants, loot, camps and transient accents all run
   through `game-renderer.ts` + `visual-layer.ts`. `screenToWorld` raycasts the visible authored
   ground and is the only renderer answer that leaves the client (the session turns it into the
@@ -112,9 +113,9 @@ npm test -w @lindocara/renderer   # or: npm run test:renderer â€” jsdom
   scene's teardown would silently put the whole cost back.
 - Never import client glue (`net`, `store`, `session`, `i18n`): the graph is `client -> renderer`,
   never the reverse. Shared view types (`SceneSample`) live here and are re-exported downstream.
-- Collision comes only from the welcome's `heightfield`, through `zoneTerrainFromHeightfield` +
-  `canStand` (`@lindocara/engine/terrain-access.js`) â€” the same function the server bakes with;
-  never derive it
-  from `layers`/`elements`/`events` (appearance only).
+- Collision comes only from the welcome's compiled `heightfield`, through
+  `zoneTerrainFromHeightfield` + `canStand` (`@lindocara/engine/terrain-access.js`). Terrain,
+  authored element footprints and walkable platform tops are compiled into that document before it
+  reaches the renderer; never infer collision from a sprite or Three.js volume at draw time.
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the renderer/editor stage-sharing contract.

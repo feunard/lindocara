@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AUTHORED_LEVEL_HEIGHT, compileAuthoredMap } from "../src/hd2d/authored-map.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
+import { canStand, groundUnder, zoneTerrainFromHeightfield } from "../src/terrain-access.js";
 import { stairsFixedIndex, stairsTilePlacements } from "../src/tile-brush.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId, fixedId } from "../src/tileset.js";
@@ -150,5 +151,66 @@ describe("compileAuthoredMap", () => {
     const compiled = compileAuthoredMap(source);
     expect(compiled.colliders).toHaveLength(1);
     expect(compiled.colliders[0]?.top).toBe(AUTHORED_LEVEL_HEIGHT);
+  });
+
+  it.each([
+    {
+      id: "terrain.bridge.wood.horizontal" as const,
+      anchor: { col: 3, row: 3 },
+      water: [
+        [2, 3],
+        [3, 3],
+        [4, 3],
+      ] as const,
+      rail: { x: 0, z: 0.46 },
+      deck: { w: 3, h: 1 },
+    },
+    {
+      id: "terrain.bridge.wood.vertical" as const,
+      anchor: { col: 3, row: 4 },
+      water: [
+        [3, 2],
+        [3, 3],
+        [3, 4],
+      ] as const,
+      rail: { x: 0.46, z: 0 },
+      deck: { w: 1, h: 3 },
+    },
+  ])("authors $id as a walkable platform with solid side rails", (fixture) => {
+    const cols = 7;
+    const rows = 7;
+    const ground = emptyLayer(cols, rows);
+    const groundIds = Array<number>(cols * rows).fill(
+      autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0),
+    );
+    for (const [col, row] of fixture.water) groundIds[row * cols + col] = 0;
+    ground.ids = groundIds;
+    const source: MapData = {
+      ...authored(),
+      cols,
+      rows,
+      layers: [ground, emptyLayer(cols, rows), emptyLayer(cols, rows)],
+      elements: [
+        {
+          ...fixture.anchor,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: fixture.id,
+        },
+      ],
+      spawn: { col: 0, row: 0 },
+    };
+
+    const compiled = compileAuthoredMap(source);
+    expect(compiled.levels[3 * cols + 3]).toBeNull();
+    expect(compiled.colliders).toHaveLength(3);
+    expect(compiled.colliders[0]).toMatchObject({ ...fixture.deck, top: 0 });
+
+    const terrain = zoneTerrainFromHeightfield(compiled);
+    expect(terrain.query.heightAt(0, 0)).toBeNull();
+    expect(terrain.query.surfaceAt?.(0, 0, 0.02)).toBe(0);
+    expect(groundUnder(terrain, 0, 0, -1)).toBe(0);
+    expect(canStand(terrain, 0, 0, 0.25, 0)).toBe(true);
+    expect(canStand(terrain, fixture.rail.x, fixture.rail.z, 0.1, 0)).toBe(false);
   });
 });

@@ -10,10 +10,9 @@
  * touches the DOM, Workers or Node — it was already pure, which is why the move cost no
  * dependency.
  *
- * `canStand` mirrors `canEnter` (`./hd2d/hero-step.ts`), the rule `apps/lab` has
- * been running at 60 Hz, restricted to what the server simulates in this increment: a GROUNDED body
- * that neither swims, jumps nor walks indoors. What it keeps from `canEnter` is what a naive port
- * drops:
+ * `canStand` mirrors the grounded landing half of `canEnter` (`./hd2d/hero-step.ts`). In addition
+ * to cell terrain it reads authored collider tops as real surfaces: roofs and bridge decks must be
+ * accepted by the same heightfield document on the reporting client and validating room.
  *
  * - the DISC test. Relief is tested with `maxHeightAround` over the body's radius, never `heightAt`
  *   at its centre — a body is a volume that moves, and a centre-point test lets it sink half of
@@ -168,19 +167,19 @@ export function canStand(
   radius: number,
   groundY: number,
 ): boolean {
-  const surface = terrain.query.heightAt(x, z);
+  const ceiling = standingCeiling(terrain, groundY);
+  const surface = terrain.query.surfaceAt?.(x, z, ceiling) ?? terrain.query.heightAt(x, z);
   // `null` is water or off the grid. Neither is ground a server-simulated body may stand on.
   if (surface === null) return false;
 
-  const ceiling = standingCeiling(terrain, groundY);
   const onRamp = terrain.query.rampAt(x, z) !== null;
   // The ground under the CENTRE decides where a foot lands, and it is a hard rule in `canEnter`
   // too: relax it and a body climbs a cliff by leaning into it.
   if (surface > ceiling && !onRamp) return false;
   // Then the body's whole footprint, so a cliff stops it at its edge rather than at its middle.
-  if (terrain.query.maxHeightAround(x, z, radius) > ceiling && !onRamp) return false;
+  if (terrain.query.maxHeightAround(x, z, radius, ceiling) > ceiling && !onRamp) return false;
 
-  return !terrain.colliders.blocked(x, z, radius);
+  return !terrain.colliders.blocked(x, z, radius, surface);
 }
 
 /**
@@ -194,7 +193,11 @@ export function canStand(
  * what stops a body whose elevation drifted from being refused every move it makes.
  */
 export function groundUnder(terrain: ZoneTerrain, x: number, z: number, fallback = 0): number {
-  return terrain.query.heightAt(x, z) ?? fallback;
+  return (
+    terrain.query.surfaceAt?.(x, z, Number.POSITIVE_INFINITY) ??
+    terrain.query.heightAt(x, z) ??
+    fallback
+  );
 }
 
 /**

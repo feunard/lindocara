@@ -57,6 +57,21 @@ describe("catalogue colliders", () => {
     expect(collider.y + collider.height).toBeLessThanOrEqual(0);
   });
 
+  it("gives both bridge orientations a full three-cell deck footprint", () => {
+    expect(editorAsset("terrain.bridge.wood.horizontal")?.editor.collider).toEqual({
+      x: -96,
+      y: -64,
+      width: 192,
+      height: 64,
+    });
+    expect(editorAsset("terrain.bridge.wood.vertical")?.editor.collider).toEqual({
+      x: -32,
+      y: -192,
+      width: 64,
+      height: 192,
+    });
+  });
+
   it("offers the Update 010 animation once while preserving duplicate ids for old maps", () => {
     const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
     expect(placeableIds).toContain("resource.resources-trees.tree-1");

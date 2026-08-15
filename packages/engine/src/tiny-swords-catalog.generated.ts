@@ -30963,6 +30963,12 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": 0
         }
       ],
+      "collider": {
+        "x": -96,
+        "y": -64,
+        "width": 192,
+        "height": 64
+      },
       "terrainOverride": "walkable",
       "sourceRect": {
         "x": 0,
@@ -31016,6 +31022,12 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": 0
         }
       ],
+      "collider": {
+        "x": -32,
+        "y": -192,
+        "width": 64,
+        "height": 192
+      },
       "terrainOverride": "walkable",
       "sourceRect": {
         "x": 0,

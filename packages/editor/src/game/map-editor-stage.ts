@@ -155,6 +155,7 @@ function blockedCells(
   map: EditorMap,
   levels: readonly (number | null)[],
   rect: MapRect,
+  platforms: readonly ColliderRect[],
 ): ColliderRect[] {
   const { cols, rows } = editorMapSize(map);
   const size = Math.max(cols, rows);
@@ -162,7 +163,19 @@ function blockedCells(
   for (let row = rect.row; row < rect.row + rect.rows; row += 1) {
     for (let col = rect.col; col < rect.col + rect.cols; col += 1) {
       if (levels[row * size + col] !== null) continue;
-      cells.push({ x: col - size / 2, z: row - size / 2, w: 1, h: 1 });
+      const x = col - size / 2;
+      const z = row - size / 2;
+      // A bridge leaves water in the terrain layer and replaces it with a collider top. Showing
+      // the water cell as solid red over that top made a working bridge look blocked in the editor.
+      const coveredByPlatform = platforms.some(
+        (platform) =>
+          platform.top !== undefined &&
+          platform.x <= x &&
+          platform.z <= z &&
+          platform.x + platform.w >= x + 1 &&
+          platform.z + platform.h >= z + 1,
+      );
+      if (!coveredByPlatform) cells.push({ x, z, w: 1, h: 1 });
     }
   }
   return cells;
@@ -308,7 +321,10 @@ export function openMapEditorStage(
         dim,
         // Bounded to the derived rect: a 256×256 canvas is mostly ocean, and flooding it all with
         // red collision would swamp the actually-useful signal near the authored content.
-        colliders: [...heightfield.colliders, ...blockedCells(map, heightfield.levels, rect)],
+        colliders: [
+          ...heightfield.colliders,
+          ...blockedCells(map, heightfield.levels, rect, heightfield.colliders),
+        ],
         saveRect: {
           x: rect.col - size / 2,
           z: rect.row - size / 2,
