@@ -370,10 +370,10 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
   ),
   lindocaraBuilding(
     LINDOCARA_BUILDING_ASSET_IDS.windmill,
-    "/assets/lindocara/hd2d/buildings/tower-front.png",
+    "/assets/lindocara/hd2d/buildings/windmill-front.png",
     ["tower", "windmill", "mill", "habitable"],
-    192,
-    258,
+    246,
+    260,
     [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
     { x: -64, y: -96, width: 128, height: 96 },
   ),

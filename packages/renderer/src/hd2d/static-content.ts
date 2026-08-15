@@ -13,11 +13,9 @@
  *
  * TWO rules bind this file, and neither is negotiable:
  *
- * - **Appearance only.** Nothing here derives a collider. Collision on this path is baked by the
- *   server from the terrain alone (`zoneTerrainFromHeightfield`, `engine/terrain-access.ts`), and
- *   the client bakes its prediction terrain from the same string; an authored element carries
- *   none — a tree you can walk through is the correct behaviour of this increment, an invisible
- *   wall around one is not.
+ * - **Appearance only.** Nothing here derives a collider. The authoring compiler has already baked
+ *   terrain, prop footprints and walkable bridge platforms into the stored heightfield; both the
+ *   client and room read that same document. This file only aligns visuals to those surfaces.
  * - **An unknown asset id is skipped, never thrown.** A map authored against a catalogue this build
  *   does not have must lose one bush, not the whole world.
  *
@@ -39,6 +37,7 @@ import * as THREE from "three";
 import type { BillboardScene } from "./billboards.js";
 import {
   type BuildingVolumeArt,
+  buildingVolumeHeight,
   makeBridgeVolume,
   makeBuildingVolume,
   type NativeStaticVisual,
@@ -278,11 +277,21 @@ export function placeStaticContent(
             ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
             pitch: HD2D_CAMERA.pitch,
           }));
-    // The ground under the piece, or the sea when there is none: an offshore rock is authored on
-    // water on purpose, and dropping it would be worse than floating it at sea level.
+    const bridgeSampleZ =
+      sprite.bridgeOrientation === "horizontal"
+        ? z - 0.5
+        : sprite.bridgeOrientation === "vertical"
+          ? z - 1.5
+          : z;
+    // A bridge receives the exact platform top authored into the heightfield. Other offshore art
+    // still falls back to the sea rather than inventing a gameplay surface from its appearance.
     const anchorY = sky
       ? authoredSkyAltitude(map)
-      : (scene.query.heightAt(x, z) ?? scene.waterLevel);
+      : sprite.bridgeOrientation
+        ? (scene.query.surfaceAt?.(x, bridgeSampleZ, Number.POSITIVE_INFINITY) ??
+          scene.query.heightAt(x, bridgeSampleZ) ??
+          scene.waterLevel)
+        : (scene.query.heightAt(x, z) ?? scene.waterLevel);
     if (native) {
       native.placeAt(x, anchorY, z);
     } else if (flat || sprite.renderMode === "cloud-volume") {
@@ -408,7 +417,11 @@ export function placeStaticContent(
       placeHealthBar(
         contentKey,
         x,
-        anchorY + (sprite.buildingVolume ? 4.35 : sprite.height + 0.4),
+        anchorY +
+          (sprite.buildingVolume
+            ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
+              0.4
+            : sprite.height + 0.4),
         z,
         health,
       );

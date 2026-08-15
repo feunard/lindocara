@@ -197,7 +197,7 @@ PyTorch and torchaudio rather than changing either generated artifact after infe
 
 ## Bâtiments HD-2D natifs (2026-08-15)
 
-Les quatre façades ont été générées localement avec `python studio/studio.py sprite`, donc avec le
+Les cinq façades ont été générées localement avec `python studio/studio.py sprite`, donc avec le
 profil FLUX.2-klein et le LoRA Tiny Swords du projet. Les sources 512×512 ont ensuite été détourées
 et normalisées avec `apps/lab/scripts/sprite.py`; seules les sorties transparentes utilisées par le
 jeu sont conservées sous `packages/client/public/assets/lindocara/hd2d/buildings/`.
@@ -208,9 +208,11 @@ jeu sont conservées sous `packages/client/public/assets/lindocara/hd2d/building
 | `tower-front.png` | 73102 | Orthographic straight-on front elevation of a tall medieval stone watch tower, blue conical shingle roof, cream stone blocks, narrow windows, centered complete facade, no perspective, no ground, clean square silhouette |
 | `archery-front.png` | 73103 | Orthographic straight-on front elevation of a medieval archery guild building, timber and cream stone, blue shingle roof, crossed bow sign, open practice awning, centered complete facade, no perspective, no ground |
 | `barracks-front.png` | 73104 | Orthographic straight-on front elevation of a sturdy medieval barracks, cream stone base, heavy timber upper floor, blue shingle roof, shield crest and broad double door, centered complete facade, no perspective, no ground |
+| `windmill-front.png` | 73106 | Orthographic straight-on front elevation of a true medieval windmill, tapered cream stone mill body, blue conical shingle roof, large central wooden windshaft hub and four long lattice sails with pale canvas panels, arched oak door, small windows, centered complete facade, no perspective, no ground, no text |
 
-La maison, la tour de pierre, la guilde d'archers et la caserne sont les quatre silhouettes de base.
-Le moulin réemploie la tour et ajoute un rotor animé en géométrie Three.js. Les monastères et
+La maison, la tour de pierre, la guilde d'archers, la caserne et le moulin ont chacun leur silhouette.
+Le moulin est généré par `studio/pixel-art/windmill-facade.json`, puis son corps évasé, son moyeu et
+ses quatre ailes ajourées sont reconstruits en géométrie Three.js pour tourner réellement. Les monastères et
 châteaux réemploient respectivement les volumes de la guilde et de la caserne, ce qui remplace
 toutes les anciennes variantes Tiny Swords sans dupliquer des dizaines de façades quasi identiques.
 

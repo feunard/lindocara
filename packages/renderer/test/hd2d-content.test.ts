@@ -401,6 +401,7 @@ describe("staticAssetSpec", () => {
       buildingVolume: { archetype: "house", state: "standing" },
     });
     expect(staticAssetSpec("building.lindocara.windmill")).toMatchObject({
+      url: "/assets/lindocara/hd2d/buildings/windmill-front.png",
       buildingVolume: { archetype: "windmill", state: "standing" },
     });
     expect(

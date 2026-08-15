@@ -522,13 +522,15 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
       ? "construction"
       : "standing";
   const front =
-    archetype === "tower" || archetype === "windmill"
-      ? "tower-front.png"
-      : archetype === "archery" || archetype === "monastery"
-        ? "archery-front.png"
-        : archetype === "barracks" || archetype === "castle"
-          ? "barracks-front.png"
-          : "house-front.png";
+    archetype === "windmill"
+      ? "windmill-front.png"
+      : archetype === "tower"
+        ? "tower-front.png"
+        : archetype === "archery" || archetype === "monastery"
+          ? "archery-front.png"
+          : archetype === "barracks" || archetype === "castle"
+            ? "barracks-front.png"
+            : "house-front.png";
   const lower = assetId.toLowerCase();
   const roofColor = lower.includes("red")
     ? 0xc85e54
