@@ -1,0 +1,37 @@
+[
+  {
+    "prompt": "A compact crooked medieval cottage viewed from three quarters above, with an enormous steep blue tiled roof, cream plaster panels, irregular heavy dark oak framing, a small stone chimney, one arched blue oak door and two tiny warm windows, a playful readable silhouette, isolated, no ground, no text",
+    "seed": 74201,
+    "out": "apps/lab/assets/generated/buildings-v2/house-raw.png"
+  },
+  {
+    "prompt": "A stout round cream-stone watchtower viewed from three quarters above, with chunky blue-stone crenellations around the top, an inset circular timber roof and guard platform, an arched blue oak door, irregular stone blocks and narrow arrow slits visible on several sides, isolated, no ground, no text",
+    "seed": 74202,
+    "out": "apps/lab/assets/generated/buildings-v2/tower-raw.png"
+  },
+  {
+    "prompt": "A compact fully enclosed medieval archers lodge filling the frame, viewed from three quarters above, inspired by the composition of a small fortified guild house: one huge irregular steep blue tiled roof over the complete rectangular shell, cream stone side walls and very heavy crooked oak corner posts, a deep but closed recessed front display porch containing two round straw targets, and one small projecting arched blue entrance on the front right, no open sides, no courtyard, no detached objects, isolated, no ground, no text",
+    "seed": 74503,
+    "out": "apps/lab/assets/generated/buildings-v2/archery-raw.png"
+  },
+  {
+    "prompt": "A compact solid rectangular medieval barracks gatehouse filling the frame, viewed from three quarters above, straight uninterrupted cream-stone walls with heavy dark oak framing, a full flat timber roof deck enclosed by one chunky blue-stone crenellated parapet, one central dark arched blue iron gate, two narrow shuttered side windows and one blue shield crest, square masonry corners with no round towers, no open courtyard, no missing roof and no detached structures, isolated, no ground, no text",
+    "seed": 74504,
+    "out": "apps/lab/assets/generated/buildings-v2/barracks-raw.png"
+  },
+  {
+    "prompt": "A true medieval windmill filling most of the frame, viewed from three quarters above, with a tapered irregular cream-stone mill body, a chunky blue shingle cap, one heavy dark timber hub and exactly four long lattice sails with small cream canvas panels, exactly one arched blue entrance centred on the front wall, the side wall has only one tiny narrow window and absolutely no second door, isolated, no ground, no text",
+    "seed": 74305,
+    "out": "apps/lab/assets/generated/buildings-v2/windmill-raw.png"
+  },
+  {
+    "prompt": "A medieval windmill tower body filling most of the frame, viewed from three quarters above, a tapered irregular cream-stone mill body, chunky blue shingle cap, exactly one arched blue entrance centred on the front wall and one tiny narrow side window, complete building but without any hub, axle, rotor, blades or sails, isolated, no ground, no text",
+    "seed": 74605,
+    "out": "apps/lab/assets/generated/buildings-v2/windmill-body-raw.png"
+  },
+  {
+    "prompt": "One complete medieval windmill rotor viewed perfectly straight-on, exactly four long lattice sails at right angles around one heavy round dark oak hub, small cream canvas panels fastened inside the outer half of every blade, symmetrical complete mechanism, rotor only without any building, isolated, no ground, no text",
+    "seed": 74606,
+    "out": "apps/lab/assets/generated/buildings-v2/windmill-rotor-raw.png"
+  }
+]

@@ -24,6 +24,7 @@
  * actor sheets and the terrain atlases do. This file only ever sees the resolved `StaticSpriteArt`.
  */
 
+import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import type { HeightfieldEvent, MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { Billboard, CardVolume, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
 import {
@@ -96,6 +97,18 @@ export interface StaticSpriteArt {
   };
   /** Generated facade projected over real walls/roof; textures are owned by the shared cache. */
   buildingVolume?: Omit<BuildingVolumeArt, "front">;
+  /** Pixel-art mill body plus an independently rotating generated four-sail cutout. */
+  windmillRotor?: {
+    texture: THREE.Texture;
+    height: number;
+    aspect: number;
+    centerY: number;
+  };
+  /** Authored side/rear elevations. The opposite side mirrors `side`; front remains `texture`. */
+  directional?: {
+    side: { texture: THREE.Texture; height: number; aspect: number };
+    back: { texture: THREE.Texture; height: number; aspect: number };
+  };
   /** Native raised deck and rails, replacing the old flat bridge crop. */
   bridgeOrientation?: "horizontal" | "vertical";
 }
@@ -105,6 +118,7 @@ export interface StaticSpriteArt {
 export type StaticArtResolver = (assetId: string) => StaticSpriteArt | null;
 
 export interface StaticContentEvent extends HeightfieldEvent {
+  orientation?: ElementOrientation;
   health?: { value: number; max: number; visible: boolean };
 }
 
@@ -125,6 +139,58 @@ export function staticAnimationFrame(
   if (frames <= 1 || durationMs <= 0) return 0;
   const elapsed = (((now + phaseMs) % durationMs) + durationMs) % durationMs;
   return Math.min(frames - 1, Math.floor((elapsed / durationMs) * frames));
+}
+
+function makeWindmillBillboard(
+  ctx: Hd2dContext,
+  sprite: StaticSpriteArt,
+  orientation: ElementOrientation,
+): NativeStaticVisual {
+  const rotorArt = sprite.windmillRotor;
+  if (!rotorArt) throw new Error("windmill rotor art missing");
+  const body = makeBillboard(ctx, {
+    texture: sprite.texture,
+    height: sprite.height,
+    aspect: sprite.aspect ?? 1,
+    foot: sprite.foot ?? 0,
+    lit: sprite.lit ?? true,
+    pitch: HD2D_CAMERA.pitch,
+  });
+  const rotorMap = rotorArt.texture.clone();
+  rotorMap.needsUpdate = true;
+  const rotorMaterial = new THREE.MeshLambertMaterial({
+    map: rotorMap,
+    alphaTest: 0.5,
+    transparent: false,
+    depthWrite: true,
+    side: THREE.DoubleSide,
+  });
+  const rotor = new THREE.Mesh(
+    new THREE.PlaneGeometry(rotorArt.height * rotorArt.aspect, rotorArt.height),
+    rotorMaterial,
+  );
+  rotor.name = "generated-windmill-rotor";
+  rotor.position.set(0, rotorArt.centerY, orientation === 2 ? -0.025 : 0.025);
+  if (orientation === 1 || orientation === 3) rotor.scale.x = 0.3;
+  rotor.castShadow = true;
+  rotor.receiveShadow = true;
+  body.mesh.add(rotor);
+  body.setFlip(orientation === 3);
+  return {
+    mesh: body.mesh,
+    placeAt: body.placeAt,
+    setFrame: body.setFrame,
+    update(now) {
+      rotor.rotation.z = now * 0.00027;
+    },
+    dispose() {
+      rotor.removeFromParent();
+      rotor.geometry.dispose();
+      rotorMaterial.dispose();
+      rotorMap.dispose();
+      body.dispose();
+    },
+  };
 }
 
 function placementPhase(assetId: string, x: number, z: number, durationMs: number): number {
@@ -231,25 +297,43 @@ export function placeStaticContent(
     x: number,
     z: number,
     contentKey: string | null,
+    orientation: ElementOrientation = 0,
   ): void {
+    const directional = sprite.directional;
+    const orientedArt =
+      orientation === 2 && directional
+        ? directional.back
+        : (orientation === 1 || orientation === 3) && directional
+          ? directional.side
+          : null;
+    const oriented = orientedArt
+      ? {
+          ...sprite,
+          texture: orientedArt.texture,
+          height: orientedArt.height,
+          aspect: orientedArt.aspect,
+        }
+      : sprite;
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
-    const native = sprite.buildingVolume
-      ? makeBuildingVolume({ front: sprite.texture, ...sprite.buildingVolume })
-      : sprite.bridgeOrientation
-        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation)
-        : null;
+    const native = oriented.windmillRotor
+      ? makeWindmillBillboard(ctx, oriented, orientation)
+      : oriented.buildingVolume
+        ? makeBuildingVolume({ front: oriented.texture, ...oriented.buildingVolume })
+        : oriented.bridgeOrientation
+          ? makeBridgeVolume(oriented.texture, oriented.bridgeOrientation)
+          : null;
     const volume =
       native === null &&
-      (sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume")
+      (oriented.renderMode === "cloud-volume" || oriented.renderMode === "fixed-volume")
         ? makeCardVolume(ctx, {
-            texture: sprite.texture,
-            cols: sprite.cols ?? 1,
-            rows: sprite.rows ?? 1,
-            height: sprite.height,
-            aspect: sprite.aspect ?? 1,
-            foot: sprite.foot ?? 0,
-            mode: sprite.renderMode === "cloud-volume" ? "cloud" : "vertical",
+            texture: oriented.texture,
+            cols: oriented.cols ?? 1,
+            rows: oriented.rows ?? 1,
+            height: oriented.height,
+            aspect: oriented.aspect ?? 1,
+            foot: oriented.foot ?? 0,
+            mode: oriented.renderMode === "cloud-volume" ? "cloud" : "vertical",
             ...(sky ? { graftCloudShadow: () => undefined } : {}),
           })
         : null;
@@ -258,25 +342,28 @@ export function placeStaticContent(
       volume ??
       (flat
         ? makeFlatSprite(ctx, {
-            texture: sprite.texture,
-            cols: sprite.cols ?? 1,
-            rows: sprite.rows ?? 1,
-            size: sprite.flatSize ?? sprite.height * (sprite.aspect ?? 1),
-            aspect: 1 / (sprite.aspect ?? 1),
+            texture: oriented.texture,
+            cols: oriented.cols ?? 1,
+            rows: oriented.rows ?? 1,
+            size: oriented.flatSize ?? oriented.height * (oriented.aspect ?? 1),
+            aspect: 1 / (oriented.aspect ?? 1),
             alphaTest: 0.5,
             graftCloudShadow: () => undefined,
           })
         : makeBillboard(ctx, {
-            texture: sprite.texture,
-            cols: sprite.cols ?? 1,
-            rows: sprite.rows ?? 1,
-            height: sprite.height,
-            aspect: sprite.aspect ?? 1,
-            foot: sprite.foot ?? 0,
-            ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
-            ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
+            texture: oriented.texture,
+            cols: oriented.cols ?? 1,
+            rows: oriented.rows ?? 1,
+            height: oriented.height,
+            aspect: oriented.aspect ?? 1,
+            foot: oriented.foot ?? 0,
+            ...(oriented.uvRect ? { uvRect: oriented.uvRect } : {}),
+            ...(oriented.lit === undefined ? {} : { lit: oriented.lit }),
             pitch: HD2D_CAMERA.pitch,
           }));
+    if (!native && orientation === 3 && directional && "setFlip" in billboard) {
+      billboard.setFlip(true);
+    }
     const bridgeSampleZ =
       sprite.bridgeOrientation === "horizontal"
         ? z - 0.5
@@ -360,7 +447,7 @@ export function placeStaticContent(
       });
     }
     for (const companion of sprite.companions ?? []) {
-      placeArt(assetId, companion, x, z, contentKey);
+      placeArt(assetId, companion, x, z, contentKey, orientation);
     }
   }
 
@@ -401,6 +488,7 @@ export function placeStaticContent(
     z: number,
     contentKey: string | null,
     health?: StaticContentEvent["health"],
+    orientation: ElementOrientation = 0,
   ): void {
     const resolved = resolve(assetId);
     if (!resolved) {
@@ -411,32 +499,37 @@ export function placeStaticContent(
       isColdBiomeMaterial(authoredMaterialAt(map, x, z)) && resolved.coldVariant
         ? resolved.coldVariant
         : resolved;
-    placeArt(assetId, sprite, x, z, contentKey);
+    placeArt(assetId, sprite, x, z, contentKey, orientation);
     if (contentKey && health) {
       const anchorY = scene.query.heightAt(x, z) ?? scene.waterLevel;
       placeHealthBar(
         contentKey,
         x,
         anchorY +
-          (sprite.buildingVolume
-            ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
-              0.4
-            : sprite.height + 0.4),
+          (sprite.windmillRotor
+            ? sprite.windmillRotor.centerY + sprite.windmillRotor.height / 2 + 0.4
+            : sprite.buildingVolume
+              ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
+                0.4
+              : sprite.height + 0.4),
         z,
         health,
       );
     }
   }
 
-  for (const element of map.elements) place(element.assetId, element.x, element.z, null);
+  for (const element of map.elements) {
+    place(element.assetId, element.x, element.z, null, undefined, element.orientation ?? 0);
+  }
   for (const event of map.events) {
     // No graphic is an authored choice, not a missing asset: a bare trigger cell draws nothing and
     // says nothing. Warning here would fill the console on any map that uses invisible triggers.
     const health = (event as StaticContentEvent).health;
-    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${health?.value ?? ""}:${health?.max ?? ""}`;
+    const orientation = (event as StaticContentEvent).orientation ?? 0;
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${health?.value ?? ""}:${health?.max ?? ""}`;
     eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
-    place(event.graphicAssetId, event.x, event.z, `event:${event.id}`, health);
+    place(event.graphicAssetId, event.x, event.z, `event:${event.id}`, health, orientation);
   }
   function flushSkipped(): void {
     for (const [assetId, count] of skipped) {
@@ -508,12 +601,19 @@ export function placeStaticContent(
         eventVisuals.delete(id);
       }
       for (const event of events) {
-        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
         if (eventVisuals.get(event.id) === visual) continue;
         dropContentKey(`event:${event.id}`);
         eventVisuals.set(event.id, visual);
         if (event.graphicAssetId !== null) {
-          place(event.graphicAssetId, event.x, event.z, `event:${event.id}`, event.health);
+          place(
+            event.graphicAssetId,
+            event.x,
+            event.z,
+            `event:${event.id}`,
+            event.health,
+            event.orientation ?? 0,
+          );
         }
       }
       flushSkipped();

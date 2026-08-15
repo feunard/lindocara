@@ -195,29 +195,41 @@ Those ship from `packages/client/public/assets/lindocara/audio/sfx/`. The commit
 compatibility changes keep the documented Windows/NVIDIA lanes usable with current Diffusers,
 PyTorch and torchaudio rather than changing either generated artifact after inference.
 
-## Bâtiments HD-2D natifs (2026-08-15)
+## Bâtiments HD-2D natifs (2026-08-15, seconde direction)
 
-Les cinq façades ont été générées localement avec `python studio/studio.py sprite`, donc avec le
-profil FLUX.2-klein et le LoRA Tiny Swords du projet. Les sources 512×512 ont ensuite été détourées
-et normalisées avec `apps/lab/scripts/sprite.py`; seules les sorties transparentes utilisées par le
-jeu sont conservées sous `packages/client/public/assets/lindocara/hd2d/buildings/`.
+Toutes les images de ce lot ont été générées localement avec FLUX.2-klein et le LoRA du projet via
+`studio/studio.py sprite`. Les invites, graines et chemins reproductibles sont conservés dans :
 
-| Sortie | Graine | Invite spécifique |
-| --- | ---: | --- |
-| `house-front.png` | 73101 | Orthographic straight-on front elevation of a compact medieval timber cottage, blue shingle roof, cream plaster, heavy oak beams, centered complete facade, one arched door, no perspective, no ground, clean square silhouette |
-| `tower-front.png` | 73102 | Orthographic straight-on front elevation of a tall medieval stone watch tower, blue conical shingle roof, cream stone blocks, narrow windows, centered complete facade, no perspective, no ground, clean square silhouette |
-| `archery-front.png` | 73103 | Orthographic straight-on front elevation of a medieval archery guild building, timber and cream stone, blue shingle roof, crossed bow sign, open practice awning, centered complete facade, no perspective, no ground |
-| `barracks-front.png` | 73104 | Orthographic straight-on front elevation of a sturdy medieval barracks, cream stone base, heavy timber upper floor, blue shingle roof, shield crest and broad double door, centered complete facade, no perspective, no ground |
-| `windmill-front.png` | 73106 | Orthographic straight-on front elevation of a true medieval windmill, tapered cream stone mill body, blue conical shingle roof, large central wooden windshaft hub and four long lattice sails with pale canvas panels, arched oak door, small windows, centered complete facade, no perspective, no ground, no text |
+- `studio/pixel-art/buildings-v2.json` pour les façades 512×512, le corps du moulin et son rotor ;
+- `studio/pixel-art/building-orientations.json` pour les planches directionnelles 768×768.
 
-La maison, la tour de pierre, la guilde d'archers, la caserne et le moulin ont chacun leur silhouette.
-Le moulin est généré par `studio/pixel-art/windmill-facade.json`, puis son corps évasé, son moyeu et
-ses quatre ailes ajourées sont reconstruits en géométrie Three.js pour tourner réellement. Les monastères et
-châteaux réemploient respectivement les volumes de la guilde et de la caserne, ce qui remplace
-toutes les anciennes variantes Tiny Swords sans dupliquer des dizaines de façades quasi identiques.
+`apps/lab/scripts/split-turnaround.py` sépare chaque planche en côté et dos. Chaque cellule passe
+ensuite indépendamment dans `apps/lab/scripts/sprite.py` : détourage, réduction, alpha dur, palette
+18 couleurs et contour du projet. Les sources et cellules brutes restent sous
+`apps/lab/assets/generated/buildings-v2/`; les sprites servis sont sous
+`packages/client/public/assets/lindocara/hd2d/buildings/`.
 
-`wall-timber.png` et `roof-shingles.png` proviennent des générations déjà validées du Lab
-(`house-side.png` et `house-roof.png`). Le pont 3D utilise de même `interior-floor.png` comme bois de
-platelage. Les accessoires d'intérieur (`hearth`, `bed`, `table`, `cupboard`, `rug`, sol et mur)
-proviennent du même lot Lab documenté plus haut et sont copiés sous
-`packages/client/public/assets/lindocara/hd2d/interiors/` pour être servis par l'application.
+| Archétype | Façade | Côté/dos | Traitement |
+| --- | ---: | ---: | --- |
+| Maison | 74201 | 75201 | 196 px, 18 couleurs |
+| Tour de pierre | 74202 | 75402 | 218 px, 18 couleurs |
+| Guilde d'archers | 74503 | 75203 | 200 px, 18 couleurs |
+| Caserne | 74504 | 75404 | 204 px, 18 couleurs |
+| Moulin | 74305 (aperçu), 74605 (corps), 74606 (rotor) | 75405 | 208–222 px, 18 couleurs |
+
+Les sprites bleus `Archery.png` et `Barracks.png` du pack ont servi de références de composition,
+sans être recopiés : la guilde reste une loge fermée avec cibles encastrées ; la caserne est un bloc
+fermé, sans tours parasites ni cour ouverte. La palette et la carte utilisent désormais les mêmes
+PNG générés — plus de modèle lisse différent de l'aperçu. Une orientation de bâtiment sélectionne
+la façade, le côté, le dos ou le côté miroir ; sa physique pivote du même quart de tour.
+
+Le moulin réellement rendu assemble `windmill-body.png` et `windmill-rotor.png`. Le rotor à quatre
+ailes est un plan indépendant animé en continu ; la vue de côté le comprime pour montrer les ailes
+de profil et la vue arrière les place derrière le corps. `windmill-front.png` reste l'aperçu complet
+de la palette.
+
+Le pont reste une géométrie Three.js : onze planches irrégulières texturées avec le sol intérieur,
+deux poutres, six poteaux et quatre cordes courbes. Son tablier visuel est relevé de 4,5 cm au-dessus
+de la plateforme physique afin d'éviter le z-fighting avec les berges. Les accessoires d'intérieur
+(`hearth`, `bed`, `table`, `cupboard`, `rug`, sol et mur) proviennent du même lot Lab documenté plus
+haut et sont servis depuis `packages/client/public/assets/lindocara/hd2d/interiors/`.

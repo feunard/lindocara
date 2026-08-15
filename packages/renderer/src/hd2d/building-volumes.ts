@@ -6,6 +6,7 @@ export type BuildingVolumeState = "standing" | "construction" | "destroyed";
 export interface BuildingVolumeArt {
   archetype: BuildingArchetype;
   state: BuildingVolumeState;
+  /** Palette preview used by the editor. The native world model deliberately has no flat facade. */
   front: THREE.Texture;
   wall: THREE.Texture;
   roof: THREE.Texture;
@@ -13,79 +14,51 @@ export interface BuildingVolumeArt {
 }
 
 export interface NativeStaticVisual {
-  mesh: THREE.Group;
+  mesh: THREE.Object3D;
   placeAt(x: number, y: number, z: number): void;
   setFrame(frame: number): void;
   update(now: number): void;
   dispose(): void;
 }
 
-interface Dimensions {
+export interface BuildingVolumeDimensions {
+  /** Exact solid footprint. The authored anchor is the centre of the front edge. */
   width: number;
   depth: number;
   wallHeight: number;
   roofHeight: number;
-  roofShape: "gable" | "hip" | "cone";
+  roofShape: "gable" | "cone" | "crenellated";
 }
 
-export function buildingVolumeDimensions(archetype: BuildingArchetype): Dimensions {
+/** Pixel-exact partners of the generated catalogue colliders (64 authored pixels = one tile). */
+export function buildingVolumeDimensions(archetype: BuildingArchetype): BuildingVolumeDimensions {
   switch (archetype) {
     case "tower":
-      return {
-        width: 1.84,
-        depth: 1.84,
-        wallHeight: 3.2,
-        roofHeight: 1.18,
-        roofShape: "cone",
-      };
+      return { width: 2, depth: 2, wallHeight: 3.1, roofHeight: 0.5, roofShape: "crenellated" };
     case "windmill":
-      return {
-        width: 2.15,
-        depth: 2.05,
-        wallHeight: 2.95,
-        roofHeight: 1.08,
-        roofShape: "cone",
-      };
+      return { width: 2.75, depth: 2, wallHeight: 2.65, roofHeight: 0.92, roofShape: "cone" };
     case "archery":
-      return {
-        width: 2.98,
-        depth: 2.18,
-        wallHeight: 1.55,
-        roofHeight: 1.44,
-        roofShape: "gable",
-      };
+      return { width: 3, depth: 2.25, wallHeight: 1.42, roofHeight: 1.18, roofShape: "gable" };
     case "barracks":
       return {
-        width: 2.88,
-        depth: 2.34,
-        wallHeight: 1.95,
-        roofHeight: 1.15,
-        roofShape: "gable",
+        width: 3,
+        depth: 2.375,
+        wallHeight: 1.72,
+        roofHeight: 0.48,
+        roofShape: "crenellated",
       };
     case "monastery":
-      return {
-        width: 3.12,
-        depth: 2.48,
-        wallHeight: 1.78,
-        roofHeight: 1.35,
-        roofShape: "gable",
-      };
+      return { width: 3, depth: 2.25, wallHeight: 1.58, roofHeight: 1.28, roofShape: "gable" };
     case "castle":
       return {
-        width: 3.18,
-        depth: 2.72,
-        wallHeight: 2.2,
-        roofHeight: 0.94,
-        roofShape: "hip",
+        width: 3,
+        depth: 2.375,
+        wallHeight: 2.02,
+        roofHeight: 0.55,
+        roofShape: "crenellated",
       };
     case "house":
-      return {
-        width: 2.72,
-        depth: 2.02,
-        wallHeight: 1.35,
-        roofHeight: 1.25,
-        roofShape: "hip",
-      };
+      return { width: 2.75, depth: 2.125, wallHeight: 1.3, roofHeight: 1.38, roofShape: "gable" };
   }
 }
 
@@ -95,7 +68,7 @@ export function buildingVolumeHeight(
 ): number {
   const size = buildingVolumeDimensions(archetype);
   return state === "destroyed"
-    ? size.wallHeight * 0.45 + size.roofHeight * 0.7
+    ? (size.wallHeight + size.roofHeight) * 0.46
     : size.wallHeight + size.roofHeight;
 }
 
@@ -103,7 +76,7 @@ function disposeObject(root: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
   root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
+    if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.LineSegments)) return;
     geometries.add(object.geometry);
     const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
     for (const material of meshMaterials) materials.add(material);
@@ -112,379 +85,812 @@ function disposeObject(root: THREE.Object3D): void {
   for (const material of materials) material.dispose();
 }
 
-function shadow(mesh: THREE.Mesh): THREE.Mesh {
+function shadow<T extends THREE.Mesh>(mesh: T): T {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  const ink = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry, 24),
+    new THREE.LineBasicMaterial({ color: 0x161c2e, transparent: true, opacity: 0.92 }),
+  );
+  ink.name = "ink-outline";
+  ink.renderOrder = 3;
+  mesh.add(ink);
   return mesh;
 }
 
+type Size3 = readonly [number, number, number];
 type Point3 = readonly [number, number, number];
-type Uv = readonly [number, number];
-type Quad = readonly [Point3, Point3, Point3, Point3, readonly Uv[]];
 
-const SQUARE_UV: readonly Uv[] = [
-  [0, 0],
-  [1, 0],
-  [1, 1],
-  [0, 1],
-];
-
-function quadsGeometry(quads: readonly Quad[]): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-  for (const [a, b, c, d, faceUvs] of quads) {
-    const offset = positions.length / 3;
-    for (const point of [a, b, c, d]) positions.push(...point);
-    for (const uv of faceUvs) uvs.push(...uv);
-    indices.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
+function box(
+  root: THREE.Object3D,
+  name: string,
+  size: Size3,
+  at: Point3,
+  material: THREE.Material,
+  rotation: Point3 = [0, 0, 0],
+): THREE.Mesh {
+  const mesh = shadow(new THREE.Mesh(new THREE.BoxGeometry(...size), material));
+  mesh.name = name;
+  mesh.position.set(...at);
+  mesh.rotation.set(...rotation);
+  root.add(mesh);
+  return mesh;
 }
 
-function gableRoofGeometry(size: Dimensions, overhang: number): THREE.BufferGeometry {
-  const x = size.width / 2 + overhang;
-  const z = size.depth / 2 + overhang;
-  const y = size.wallHeight;
-  const peak = y + size.roofHeight;
-  return quadsGeometry([
-    [[-x, y, z], [x, y, z], [x, peak, 0], [-x, peak, 0], SQUARE_UV],
-    [[x, y, -z], [-x, y, -z], [-x, peak, 0], [x, peak, 0], SQUARE_UV],
-    [[-x, y, -z], [-x, y, z], [-x, peak, 0], [-x, peak, 0], SQUARE_UV],
-    [[x, y, z], [x, y, -z], [x, peak, 0], [x, peak, 0], SQUARE_UV],
-  ]);
+function cylinder(
+  root: THREE.Object3D,
+  name: string,
+  radii: readonly [number, number],
+  height: number,
+  at: Point3,
+  material: THREE.Material,
+  segments = 12,
+): THREE.Mesh {
+  const mesh = shadow(
+    new THREE.Mesh(new THREE.CylinderGeometry(radii[0], radii[1], height, segments), material),
+  );
+  mesh.name = name;
+  mesh.position.set(...at);
+  root.add(mesh);
+  return mesh;
 }
 
-function hipRoofGeometry(size: Dimensions, overhang: number): THREE.BufferGeometry {
-  const x = size.width / 2 + overhang;
-  const z = size.depth / 2 + overhang;
-  const y = size.wallHeight;
-  const peak = y + size.roofHeight;
-  const ridge = Math.max(0.08, x - z);
-  return quadsGeometry([
-    [[-x, y, z], [x, y, z], [ridge, peak, 0], [-ridge, peak, 0], SQUARE_UV],
-    [[x, y, -z], [-x, y, -z], [-ridge, peak, 0], [ridge, peak, 0], SQUARE_UV],
-    [[x, y, z], [x, y, -z], [ridge, peak, 0], [ridge, peak, 0], SQUARE_UV],
-    [[-x, y, -z], [-x, y, z], [-ridge, peak, 0], [-ridge, peak, 0], SQUARE_UV],
-  ]);
+function beamBetween(
+  root: THREE.Object3D,
+  a: readonly [number, number],
+  b: readonly [number, number],
+  z: number,
+  material: THREE.Material,
+): void {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  box(
+    root,
+    "timber-brace",
+    [Math.hypot(dx, dy), 0.075, 0.085],
+    [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z],
+    material,
+    [0, 0, Math.atan2(dy, dx)],
+  );
 }
 
 function addWindow(
-  root: THREE.Group,
-  at: { x: number; y: number; z: number; rotationY?: number },
+  root: THREE.Object3D,
+  side: "front" | "back" | "left" | "right",
+  along: number,
+  y: number,
+  size: BuildingVolumeDimensions,
+  dark: THREE.Material,
+  wood: THREE.Material,
   scale = 1,
 ): void {
   const window = new THREE.Group();
   window.name = "window";
-  const dark = new THREE.MeshLambertMaterial({ color: 0x173a4c });
-  const wood = new THREE.MeshLambertMaterial({ color: 0x563921 });
-  const pane = shadow(
-    new THREE.Mesh(new THREE.BoxGeometry(0.42 * scale, 0.52 * scale, 0.045), dark),
-  );
-  window.add(pane);
-  for (const x of [-0.24, 0.24]) {
-    const frame = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.63 * scale, 0.075), wood));
-    frame.position.x = x * scale;
-    window.add(frame);
+  box(window, "window-recess", [0.38 * scale, 0.46 * scale, 0.045], [0, 0, 0], dark);
+  box(window, "window-frame", [0.46 * scale, 0.06, 0.075], [0, 0, 0.01], wood);
+  box(window, "window-frame", [0.06, 0.54 * scale, 0.075], [0, 0, 0.01], wood);
+  if (side === "front" || side === "back") {
+    window.position.set(
+      along,
+      y,
+      side === "front" ? size.depth / 2 + 0.026 : -size.depth / 2 - 0.026,
+    );
+    window.rotation.y = side === "front" ? 0 : Math.PI;
+  } else {
+    window.position.set(
+      side === "right" ? size.width / 2 + 0.026 : -size.width / 2 - 0.026,
+      y,
+      along,
+    );
+    window.rotation.y = side === "right" ? Math.PI / 2 : -Math.PI / 2;
   }
-  for (const y of [-0.3, 0.3]) {
-    const frame = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.55 * scale, 0.07, 0.075), wood));
-    frame.position.y = y * scale;
-    window.add(frame);
-  }
-  const mullion = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.53 * scale, 0.085), wood));
-  window.add(mullion);
-  window.position.set(at.x, at.y, at.z);
-  window.rotation.y = at.rotationY ?? 0;
   root.add(window);
 }
 
-function addDoor(root: THREE.Group, x: number, z: number, rotationY = 0, scale = 1): void {
-  const door = new THREE.Group();
-  door.name = "door";
-  const wood = new THREE.MeshLambertMaterial({ color: 0x76502f });
-  const frameMaterial = new THREE.MeshLambertMaterial({ color: 0x3d2b1e });
-  const slab = shadow(
-    new THREE.Mesh(new THREE.BoxGeometry(0.62 * scale, 0.98 * scale, 0.055), wood),
-  );
-  slab.position.y = 0.49 * scale;
-  door.add(slab);
-  for (const side of [-1, 1]) {
-    const jamb = shadow(
-      new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.08 * scale, 0.09), frameMaterial),
-    );
-    jamb.position.set(side * 0.35 * scale, 0.54 * scale, 0);
-    door.add(jamb);
-  }
-  const lintel = shadow(
-    new THREE.Mesh(new THREE.BoxGeometry(0.79 * scale, 0.1, 0.09), frameMaterial),
-  );
-  lintel.position.y = 1.04 * scale;
-  door.add(lintel);
-  door.position.set(x, 0, z);
-  door.rotation.y = rotationY;
+function archedDoorGeometry(width: number, height: number): THREE.ExtrudeGeometry {
+  const radius = width / 2;
+  const spring = height - radius;
+  const shape = new THREE.Shape();
+  shape.moveTo(-radius, 0);
+  shape.lineTo(-radius, spring);
+  shape.bezierCurveTo(-radius, height - radius * 0.35, -radius * 0.55, height, 0, height);
+  shape.bezierCurveTo(radius * 0.55, height, radius, height - radius * 0.35, radius, spring);
+  shape.lineTo(radius, 0);
+  shape.closePath();
+  return new THREE.ExtrudeGeometry(shape, { depth: 0.055, bevelEnabled: false });
+}
+
+function addDoor(
+  root: THREE.Object3D,
+  x: number,
+  frontZ: number,
+  blue: THREE.Material,
+  outline: THREE.Material,
+  scale = 1,
+): void {
+  const width = 0.62 * scale;
+  const height = 1.02 * scale;
+  const door = shadow(new THREE.Mesh(archedDoorGeometry(width, height), blue));
+  door.name = "arched-door";
+  door.position.set(x, 0, frontZ);
   root.add(door);
-}
-
-function addTimberFrame(root: THREE.Group, size: Dimensions, material: THREE.Material): void {
-  const frontZ = size.depth / 2 + 0.014;
-  const backZ = -frontZ;
-  for (const z of [frontZ, backZ]) {
-    for (const x of [-size.width / 2 + 0.055, size.width / 2 - 0.055]) {
-      const beam = shadow(
-        new THREE.Mesh(new THREE.BoxGeometry(0.1, size.wallHeight, 0.07), material),
-      );
-      beam.position.set(x, size.wallHeight / 2, z);
-      root.add(beam);
-    }
-    const band = shadow(new THREE.Mesh(new THREE.BoxGeometry(size.width, 0.1, 0.07), material));
-    band.position.set(0, size.wallHeight - 0.08, z);
-    root.add(band);
+  box(
+    root,
+    "door-jamb",
+    [0.09, height * 0.78, 0.09],
+    [x - width / 2 - 0.035, height * 0.39, frontZ + 0.02],
+    outline,
+  );
+  box(
+    root,
+    "door-jamb",
+    [0.09, height * 0.78, 0.09],
+    [x + width / 2 + 0.035, height * 0.39, frontZ + 0.02],
+    outline,
+  );
+  for (const angle of [-0.75, 0, 0.75]) {
+    box(
+      root,
+      "door-arch-stone",
+      [0.2, 0.11, 0.1],
+      [
+        x + Math.sin(angle) * width * 0.57,
+        height * 0.78 + Math.cos(angle) * width * 0.46,
+        frontZ + 0.02,
+      ],
+      outline,
+      [0, 0, -angle],
+    );
   }
 }
 
-function addStoneCourses(root: THREE.Group, size: Dimensions): void {
-  const course = new THREE.MeshLambertMaterial({ color: 0xb5a680 });
-  const radius = size.width * 0.505;
-  for (let y = 0.42; y < size.wallHeight; y += 0.46) {
-    const band = shadow(
-      new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.045, 12), course),
+function addFourSideTimber(
+  root: THREE.Object3D,
+  size: BuildingVolumeDimensions,
+  wood: THREE.Material,
+): void {
+  const front = size.depth / 2 + 0.035;
+  const back = -front;
+  for (const x of [-size.width / 2 + 0.055, size.width / 2 - 0.055]) {
+    box(root, "corner-post", [0.11, size.wallHeight, 0.11], [x, size.wallHeight / 2, front], wood);
+    box(root, "corner-post", [0.11, size.wallHeight, 0.11], [x, size.wallHeight / 2, back], wood);
+  }
+  for (const z of [-size.depth / 2 + 0.055, size.depth / 2 - 0.055]) {
+    box(
+      root,
+      "side-post",
+      [0.11, size.wallHeight, 0.11],
+      [size.width / 2 + 0.035, size.wallHeight / 2, z],
+      wood,
     );
-    band.name = "stone-course";
-    band.position.y = y;
-    root.add(band);
+    box(
+      root,
+      "side-post",
+      [0.11, size.wallHeight, 0.11],
+      [-size.width / 2 - 0.035, size.wallHeight / 2, z],
+      wood,
+    );
+  }
+  for (const z of [front, back]) {
+    box(root, "timber-band", [size.width, 0.11, 0.08], [0, size.wallHeight - 0.08, z], wood);
+    beamBetween(
+      root,
+      [-size.width * 0.42, 0.18],
+      [-size.width * 0.08, size.wallHeight - 0.16],
+      z,
+      wood,
+    );
+    beamBetween(
+      root,
+      [size.width * 0.42, 0.18],
+      [size.width * 0.08, size.wallHeight - 0.16],
+      z,
+      wood,
+    );
+  }
+}
+
+function addGableEnds(
+  root: THREE.Object3D,
+  size: BuildingVolumeDimensions,
+  material: THREE.Material,
+): void {
+  const shape = new THREE.Shape();
+  shape.moveTo(-size.width / 2, 0);
+  shape.lineTo(size.width / 2, 0);
+  shape.lineTo(0, size.roofHeight);
+  shape.closePath();
+  const geometry = new THREE.ShapeGeometry(shape);
+  for (const side of [-1, 1]) {
+    const gable = shadow(new THREE.Mesh(geometry.clone(), material));
+    gable.name = "gable-end";
+    gable.position.set(0, size.wallHeight, side * (size.depth / 2 + 0.006));
+    gable.rotation.y = side > 0 ? 0 : Math.PI;
+    root.add(gable);
+  }
+  geometry.dispose();
+}
+
+function addPitchedRoof(
+  root: THREE.Object3D,
+  size: BuildingVolumeDimensions,
+  roof: THREE.Material,
+  outline: THREE.Material,
+): THREE.Group {
+  const roofGroup = new THREE.Group();
+  roofGroup.name = "pitched-roof";
+  const overhang = 0.18;
+  const half = size.width / 2 + overhang;
+  const slope = Math.hypot(half, size.roofHeight);
+  const angle = Math.atan2(size.roofHeight, half);
+  for (const side of [-1, 1]) {
+    box(
+      roofGroup,
+      "blue-roof-slope",
+      [slope, 0.12, size.depth + overhang * 2],
+      [(side * half) / 2, size.wallHeight + size.roofHeight / 2, 0],
+      roof,
+      [0, 0, side * -angle],
+    );
+  }
+  const ridge = cylinder(
+    roofGroup,
+    "roof-ridge",
+    [0.075, 0.075],
+    size.depth + overhang * 2,
+    [0, size.wallHeight + size.roofHeight + 0.035, 0],
+    outline,
+    8,
+  );
+  ridge.rotation.x = Math.PI / 2;
+  root.add(roofGroup);
+  return roofGroup;
+}
+
+function addRoundStoneCourses(
+  root: THREE.Object3D,
+  radius: number,
+  wallHeight: number,
+  stoneShade: THREE.Material,
+): void {
+  let course = 0;
+  for (let y = 0.28; y < wallHeight; y += 0.48) {
+    cylinder(root, "stone-course", [radius + 0.012, radius + 0.012], 0.055, [0, y, 0], stoneShade);
+    // Sparse protruding voussoirs break the smooth cylinder into the chunky, hand-set masonry
+    // visible on the generated reference. Alternating them keeps the silhouette readable.
+    for (let index = 0; index < 12; index += 3) {
+      const angle = ((index + (course % 2) * 1.5) / 12) * Math.PI * 2;
+      box(
+        root,
+        "stone-block",
+        [0.24, 0.15, 0.09],
+        [Math.sin(angle) * (radius + 0.025), y + 0.14, Math.cos(angle) * (radius + 0.025)],
+        stoneShade,
+        [0, angle, 0],
+      );
+    }
+    course += 1;
+  }
+}
+
+function addCircularCrenellations(
+  root: THREE.Object3D,
+  radius: number,
+  y: number,
+  stone: THREE.Material,
+  wood: THREE.Material,
+): void {
+  const deck = shadow(new THREE.Mesh(new THREE.CircleGeometry(radius * 0.84, 16), wood));
+  deck.name = "tower-deck";
+  deck.rotation.x = -Math.PI / 2;
+  deck.position.y = y + 0.02;
+  root.add(deck);
+  for (let index = 0; index < 12; index += 1) {
+    const angle = (index / 12) * Math.PI * 2;
+    box(
+      root,
+      "tower-battlement",
+      [0.32, 0.34, 0.28],
+      [Math.sin(angle) * radius * 0.93, y + 0.2, Math.cos(angle) * radius * 0.93],
+      stone,
+      [0, angle, 0],
+    );
+  }
+}
+
+function addRectangularBattlements(
+  root: THREE.Object3D,
+  width: number,
+  depth: number,
+  y: number,
+  material: THREE.Material,
+): void {
+  const addRun = (count: number, front: boolean, side: number) => {
+    for (let index = 0; index < count; index += 1) {
+      const t = count === 1 ? 0 : index / (count - 1) - 0.5;
+      box(
+        root,
+        "battlement",
+        front ? [0.3, 0.3, 0.22] : [0.22, 0.3, 0.3],
+        front
+          ? [t * (width - 0.3), y, (side * depth) / 2]
+          : [(side * width) / 2, y, t * (depth - 0.3)],
+        material,
+      );
+    }
+  };
+  for (const side of [-1, 1]) {
+    addRun(7, true, side);
+    addRun(5, false, side);
   }
 }
 
 function makeSailBlade(wood: THREE.Material, canvas: THREE.Material): THREE.Group {
   const blade = new THREE.Group();
-  const spar = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.65, 0.09), wood));
-  spar.position.y = 0.86;
-  blade.add(spar);
+  box(blade, "sail-spar", [0.11, 1.58, 0.1], [0, 0.82, 0], wood);
   for (const [y, width] of [
-    [0.38, 0.34],
-    [0.73, 0.43],
-    [1.08, 0.52],
-    [1.43, 0.61],
+    [0.32, 0.34],
+    [0.65, 0.43],
+    [0.98, 0.52],
+    [1.31, 0.6],
   ] as const) {
-    const rung = shadow(new THREE.Mesh(new THREE.BoxGeometry(width, 0.055, 0.065), wood));
-    rung.position.set(width * 0.18, y, 0);
-    blade.add(rung);
+    box(blade, "sail-rung", [width, 0.06, 0.075], [width * 0.17, y, 0], wood);
   }
-  const sailGeometry = new THREE.BufferGeometry();
-  sailGeometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(
-      [0.07, 0.25, 0.055, 0.28, 0.25, 0.055, 0.54, 1.58, 0.055, 0.07, 1.58, 0.055],
-      3,
-    ),
-  );
-  sailGeometry.setIndex([0, 1, 2, 0, 2, 3]);
-  sailGeometry.computeVertexNormals();
-  const sail = shadow(new THREE.Mesh(sailGeometry, canvas));
+  const sailShape = new THREE.Shape();
+  sailShape.moveTo(0.08, 0.22);
+  sailShape.lineTo(0.26, 0.22);
+  sailShape.lineTo(0.54, 1.46);
+  sailShape.lineTo(0.08, 1.46);
+  sailShape.closePath();
+  const sail = shadow(new THREE.Mesh(new THREE.ShapeGeometry(sailShape), canvas));
+  sail.name = "canvas-panel";
+  sail.position.z = 0.058;
   blade.add(sail);
   return blade;
 }
 
-/**
- * Native architecture in the same spirit as the Lab house: the generated image is one measured
- * elevation, while the sides, back, roof and silhouette are real geometry. The facade now matches
- * the volume exactly instead of floating in front of a larger generic box.
- */
-export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
-  const group = new THREE.Group();
-  group.name = `building-${art.archetype}-${art.state}`;
-  const size = buildingVolumeDimensions(art.archetype);
-  const destroyed = art.state === "destroyed";
-  const construction = art.state === "construction";
-  const body = new THREE.Group();
-  body.name = "body";
-  group.add(body);
+interface Materials {
+  wall: THREE.MeshLambertMaterial;
+  stone: THREE.MeshLambertMaterial;
+  stoneShade: THREE.MeshLambertMaterial;
+  wood: THREE.MeshLambertMaterial;
+  deck: THREE.MeshLambertMaterial;
+  outline: THREE.MeshLambertMaterial;
+  blue: THREE.MeshLambertMaterial;
+  roof: THREE.MeshLambertMaterial;
+  window: THREE.MeshLambertMaterial;
+  canvas: THREE.MeshLambertMaterial;
+}
 
+function makeMaterials(art: BuildingVolumeArt): Materials {
+  const destroyed = art.state === "destroyed";
   art.wall.wrapS = THREE.RepeatWrapping;
   art.wall.wrapT = THREE.RepeatWrapping;
   art.wall.needsUpdate = true;
   art.roof.wrapS = THREE.RepeatWrapping;
   art.roof.wrapT = THREE.RepeatWrapping;
   art.roof.needsUpdate = true;
-
-  const wallMaterial = new THREE.MeshLambertMaterial({
-    map: art.archetype === "tower" || art.archetype === "windmill" ? null : art.wall,
-    color: destroyed
-      ? 0x665d55
-      : art.archetype === "tower" || art.archetype === "windmill"
-        ? 0xe5d5aa
-        : 0xffffff,
-  });
-  const woodMaterial = new THREE.MeshLambertMaterial({ color: destroyed ? 0x4b4138 : 0x5b3b23 });
-
-  if (construction) {
-    for (const x of [-size.width / 2, 0, size.width / 2]) {
-      for (const z of [-size.depth / 2, size.depth / 2]) {
-        const post = shadow(
-          new THREE.Mesh(new THREE.BoxGeometry(0.13, size.wallHeight + 0.4, 0.13), woodMaterial),
-        );
-        post.position.set(x, (size.wallHeight + 0.4) / 2, z);
-        body.add(post);
-      }
-    }
-    for (const y of [0.45, size.wallHeight]) {
-      const beam = shadow(
-        new THREE.Mesh(new THREE.BoxGeometry(size.width + 0.2, 0.12, 0.12), woodMaterial),
-      );
-      beam.position.set(0, y, size.depth / 2);
-      body.add(beam);
-    }
-  } else if (art.archetype === "tower") {
-    const tower = shadow(
-      new THREE.Mesh(
-        new THREE.CylinderGeometry(size.width / 2, size.width / 2, size.wallHeight, 12),
-        wallMaterial,
-      ),
-    );
-    tower.name = "stone-tower";
-    tower.position.y = size.wallHeight / 2;
-    body.add(tower);
-    addStoneCourses(body, size);
-  } else if (art.archetype === "windmill") {
-    const mill = shadow(
-      new THREE.Mesh(
-        new THREE.CylinderGeometry(size.width * 0.36, size.width / 2, size.wallHeight, 12),
-        wallMaterial,
-      ),
-    );
-    mill.name = "mill-body";
-    mill.position.y = size.wallHeight / 2;
-    body.add(mill);
-    addStoneCourses(body, size);
-    addDoor(body, 0, size.depth / 2 + 0.08, 0, 0.9);
-    addWindow(body, { x: size.width / 2 + 0.035, y: 1.55, z: 0, rotationY: Math.PI / 2 }, 0.72);
-    addWindow(body, { x: -size.width / 2 - 0.035, y: 1.92, z: 0, rotationY: -Math.PI / 2 }, 0.66);
-  } else {
-    const walls = shadow(
-      new THREE.Mesh(new THREE.BoxGeometry(size.width, size.wallHeight, size.depth), wallMaterial),
-    );
-    walls.name = "timber-walls";
-    walls.position.y = size.wallHeight / 2;
-    body.add(walls);
-    addTimberFrame(body, size, woodMaterial);
-  }
-
-  if (!construction && art.archetype !== "windmill") {
-    const facadeMaterial = new THREE.MeshLambertMaterial({
-      map: art.front,
-      transparent: true,
-      alphaTest: 0.5,
-      color: destroyed ? 0x80736b : 0xffffff,
+  return {
+    wall: new THREE.MeshLambertMaterial({
+      map: art.wall,
+      color: destroyed ? 0x777064 : 0xf1e4b5,
+      flatShading: true,
+    }),
+    stone: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x746e65 : 0xe9dca8,
+      flatShading: true,
+    }),
+    stoneShade: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x57545a : 0x7894a0,
+      flatShading: true,
+    }),
+    wood: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x4a433d : 0x705035,
+      flatShading: true,
+    }),
+    deck: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x585047 : 0xa87343,
+      flatShading: true,
+    }),
+    outline: new THREE.MeshLambertMaterial({ color: 0x161c2e, flatShading: true }),
+    blue: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x59626a : 0x2f91aa,
+      flatShading: true,
+    }),
+    roof: new THREE.MeshLambertMaterial({
+      map: art.roof,
+      color: destroyed ? 0x55535a : art.roofColor,
       side: THREE.DoubleSide,
-    });
-    const facadeHeight = size.wallHeight + size.roofHeight;
-    const facade = shadow(
-      new THREE.Mesh(new THREE.PlaneGeometry(size.width, facadeHeight), facadeMaterial),
+      flatShading: true,
+    }),
+    window: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x2d3035 : 0x173b50,
+      flatShading: true,
+    }),
+    canvas: new THREE.MeshLambertMaterial({
+      color: destroyed ? 0x817b6b : 0xf5e7b9,
+      side: THREE.DoubleSide,
+      flatShading: true,
+    }),
+  };
+}
+
+function buildHouse(root: THREE.Group, size: BuildingVolumeDimensions, m: Materials): void {
+  box(
+    root,
+    "plaster-house",
+    [size.width, size.wallHeight, size.depth],
+    [0, size.wallHeight / 2, 0],
+    m.wall,
+  );
+  addFourSideTimber(root, size, m.wood);
+  addGableEnds(root, size, m.wall);
+  addPitchedRoof(root, size, m.roof, m.outline);
+  addDoor(root, size.width * 0.2, size.depth / 2 + 0.045, m.blue, m.outline);
+  addWindow(root, "front", -size.width * 0.25, 0.66, size, m.window, m.wood, 0.85);
+  addWindow(root, "back", 0, 0.72, size, m.window, m.wood, 0.9);
+  addWindow(root, "left", 0.05, 0.69, size, m.window, m.wood, 0.78);
+  box(
+    root,
+    "stone-chimney",
+    [0.34, 1.12, 0.38],
+    [-size.width * 0.28, size.wallHeight + size.roofHeight * 0.58, -size.depth * 0.16],
+    m.stoneShade,
+  );
+  box(
+    root,
+    "chimney-cap",
+    [0.43, 0.12, 0.47],
+    [-size.width * 0.28, size.wallHeight + size.roofHeight * 1.03, -size.depth * 0.16],
+    m.outline,
+  );
+}
+
+function buildTower(root: THREE.Group, size: BuildingVolumeDimensions, m: Materials): void {
+  const radius = size.width / 2;
+  cylinder(
+    root,
+    "stone-watchtower",
+    [radius * 0.94, radius],
+    size.wallHeight,
+    [0, size.wallHeight / 2, 0],
+    m.stone,
+  );
+  addRoundStoneCourses(root, radius * 0.955, size.wallHeight, m.stoneShade);
+  cylinder(
+    root,
+    "blue-parapet-band",
+    [radius * 1.02, radius * 1.02],
+    0.17,
+    [0, size.wallHeight - 0.05, 0],
+    m.stoneShade,
+  );
+  addCircularCrenellations(root, radius, size.wallHeight, m.stone, m.deck);
+  addDoor(root, 0, radius + 0.045, m.blue, m.outline, 0.92);
+  addWindow(root, "back", 0, 1.72, size, m.window, m.outline, 0.46);
+  addWindow(root, "left", 0.05, 2.05, size, m.window, m.outline, 0.38);
+  addWindow(root, "right", -0.12, 1.4, size, m.window, m.outline, 0.38);
+}
+
+function buildWindmill(
+  root: THREE.Group,
+  size: BuildingVolumeDimensions,
+  m: Materials,
+): THREE.Group {
+  const bodyRadius = 0.82;
+  cylinder(
+    root,
+    "mill-body",
+    [0.62, bodyRadius],
+    size.wallHeight,
+    [0, size.wallHeight / 2, 0],
+    m.stone,
+  );
+  addRoundStoneCourses(root, bodyRadius * 0.94, size.wallHeight, m.stoneShade);
+  const roof = shadow(new THREE.Mesh(new THREE.ConeGeometry(1.02, size.roofHeight, 12), m.roof));
+  roof.name = "windmill-cap";
+  roof.position.y = size.wallHeight + size.roofHeight / 2;
+  root.add(roof);
+  addDoor(root, 0, bodyRadius + 0.045, m.blue, m.outline, 0.82);
+  addWindow(
+    root,
+    "left",
+    0,
+    1.45,
+    { ...size, width: bodyRadius * 2, depth: bodyRadius * 2 },
+    m.window,
+    m.outline,
+    0.56,
+  );
+  addWindow(
+    root,
+    "right",
+    -0.08,
+    1.82,
+    { ...size, width: bodyRadius * 2, depth: bodyRadius * 2 },
+    m.window,
+    m.outline,
+    0.5,
+  );
+
+  const rotor = new THREE.Group();
+  rotor.name = "windmill-rotor";
+  for (let index = 0; index < 4; index += 1) {
+    const blade = makeSailBlade(m.wood, m.canvas);
+    blade.name = `sail-${index}`;
+    blade.rotation.z = index * (Math.PI / 2);
+    rotor.add(blade);
+  }
+  const hub = cylinder(rotor, "windmill-hub", [0.23, 0.23], 0.34, [0, 0, 0], m.wood);
+  hub.rotation.x = Math.PI / 2;
+  rotor.position.set(0, size.wallHeight * 0.73, bodyRadius + 0.24);
+  root.add(rotor);
+  return rotor;
+}
+
+function addTarget(root: THREE.Group, x: number, y: number, z: number, m: Materials): void {
+  const disc = cylinder(root, "archery-target", [0.28, 0.28], 0.065, [x, y, z], m.canvas, 16);
+  disc.rotation.x = Math.PI / 2;
+  for (const radius of [0.18, 0.08]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.025, 6, 16), m.wood);
+    ring.name = "target-ring";
+    ring.position.set(x, y, z + 0.04);
+    root.add(ring);
+  }
+}
+
+function buildHall(
+  root: THREE.Group,
+  size: BuildingVolumeDimensions,
+  m: Materials,
+  kind: "archery" | "monastery",
+): void {
+  if (kind === "archery") {
+    // Tiny Swords' archery building is a closed lodge with a deep target display below the roof,
+    // not a roof floating over an empty shooting court. Keep the complete shell solid and express
+    // the trade through a recessed dark panel, two mounted targets and a separate small entrance.
+    box(
+      root,
+      "guild-room",
+      [size.width, size.wallHeight, size.depth],
+      [0, size.wallHeight / 2, 0],
+      m.wall,
     );
-    facade.name = "generated-front-elevation";
-    facade.position.set(0, facadeHeight / 2, size.depth / 2 + 0.028);
-    body.add(facade);
-  }
-
-  if (!construction) {
-    const backScale = art.archetype === "tower" ? 0.7 : 0.82;
-    if (art.archetype !== "windmill") {
-      addWindow(
-        body,
-        { x: 0, y: size.wallHeight * 0.58, z: -size.depth / 2 - 0.035, rotationY: Math.PI },
-        backScale,
+    const front = size.depth / 2 + 0.042;
+    box(
+      root,
+      "range-shadow",
+      [size.width * 0.55, size.wallHeight * 0.68, 0.07],
+      [-size.width * 0.17, size.wallHeight * 0.48, front],
+      m.window,
+    );
+    for (const x of [-size.width * 0.46, size.width * 0.13]) {
+      box(
+        root,
+        "range-post",
+        [0.13, size.wallHeight * 0.86, 0.12],
+        [x, size.wallHeight * 0.43, front + 0.045],
+        m.wood,
       );
     }
-    if (art.archetype !== "tower" && art.archetype !== "windmill") {
-      addWindow(
-        body,
-        { x: size.width / 2 + 0.035, y: size.wallHeight * 0.56, z: 0, rotationY: Math.PI / 2 },
-        0.72,
-      );
-      addWindow(
-        body,
-        { x: -size.width / 2 - 0.035, y: size.wallHeight * 0.56, z: 0, rotationY: -Math.PI / 2 },
-        0.72,
+    addTarget(root, -size.width * 0.31, 0.72, front + 0.06, m);
+    addTarget(root, -size.width * 0.04, 0.8, front + 0.06, m);
+    addDoor(root, size.width * 0.31, front + 0.015, m.blue, m.outline, 0.74);
+  } else {
+    box(
+      root,
+      "monastery-hall",
+      [size.width, size.wallHeight, size.depth],
+      [0, size.wallHeight / 2, 0],
+      m.wall,
+    );
+    addDoor(root, 0, size.depth / 2 + 0.045, m.blue, m.outline, 0.9);
+    addWindow(root, "front", -size.width * 0.31, 0.8, size, m.window, m.wood, 0.7);
+    addWindow(root, "front", size.width * 0.31, 0.8, size, m.window, m.wood, 0.7);
+    const belfryY = size.wallHeight + size.roofHeight * 0.62;
+    box(root, "belfry-post", [0.1, 0.58, 0.1], [-0.26, belfryY, size.depth * 0.18], m.wood);
+    box(root, "belfry-post", [0.1, 0.58, 0.1], [0.26, belfryY, size.depth * 0.18], m.wood);
+    cylinder(
+      root,
+      "monastery-bell",
+      [0.13, 0.2],
+      0.28,
+      [0, belfryY, size.depth * 0.18],
+      m.stoneShade,
+      10,
+    );
+  }
+  addFourSideTimber(root, size, m.wood);
+  addGableEnds(root, size, m.wall);
+  addPitchedRoof(root, size, m.roof, m.outline);
+  addWindow(root, "back", 0, size.wallHeight * 0.56, size, m.window, m.wood, 0.76);
+}
+
+function buildFortress(
+  root: THREE.Group,
+  size: BuildingVolumeDimensions,
+  m: Materials,
+  kind: "barracks" | "castle",
+): void {
+  const bodyWidth = 2.32;
+  const bodyDepth = 1.92;
+  box(
+    root,
+    "fortified-hall",
+    [bodyWidth, size.wallHeight, bodyDepth],
+    [0, size.wallHeight / 2, 0],
+    m.stone,
+  );
+  box(
+    root,
+    "blue-rampart-band",
+    [bodyWidth + 0.12, 0.16, bodyDepth + 0.12],
+    [0, size.wallHeight - 0.06, 0],
+    m.stoneShade,
+  );
+  const towerRadius = 0.37;
+  const towerHeight = size.wallHeight + (kind === "castle" ? 0.26 : 0.08);
+  // The barracks is one readable fortified hall. Detached front turrets made its silhouette look
+  // assembled from unrelated parts; only the larger castle keeps integrated corner towers.
+  const towerPositions: readonly (readonly [number, number])[] =
+    kind === "castle"
+      ? [
+          [-1.12, 0.79],
+          [1.12, 0.79],
+          [-1.12, -0.79],
+          [1.12, -0.79],
+        ]
+      : [];
+  for (const [x, z] of towerPositions) {
+    cylinder(
+      root,
+      "corner-tower",
+      [towerRadius, towerRadius],
+      towerHeight,
+      [x, towerHeight / 2, z],
+      m.stone,
+      12,
+    );
+    cylinder(
+      root,
+      "corner-tower-band",
+      [towerRadius + 0.025, towerRadius + 0.025],
+      0.13,
+      [x, towerHeight - 0.04, z],
+      m.stoneShade,
+      12,
+    );
+    addCircularCrenellationsAt(root, towerRadius, towerHeight, x, z, m.stone, m.deck);
+  }
+  const deck = box(
+    root,
+    "timber-roof-deck",
+    [bodyWidth, 0.12, bodyDepth],
+    [0, size.wallHeight + 0.03, 0],
+    m.deck,
+  );
+  deck.receiveShadow = true;
+  for (let index = 1; index < 7; index += 1) {
+    const x = -bodyWidth / 2 + (index * bodyWidth) / 7;
+    box(
+      root,
+      "roof-deck-seam",
+      [0.025, 0.025, bodyDepth - 0.08],
+      [x, size.wallHeight + 0.102, 0],
+      m.outline,
+    );
+  }
+  addRectangularBattlements(root, bodyWidth, bodyDepth, size.wallHeight + 0.22, m.stoneShade);
+  addDoor(root, 0, bodyDepth / 2 + 0.05, m.blue, m.outline, kind === "castle" ? 1.28 : 1.12);
+  addWindow(
+    root,
+    "back",
+    0,
+    size.wallHeight * 0.58,
+    { ...size, width: bodyWidth, depth: bodyDepth },
+    m.window,
+    m.outline,
+    0.6,
+  );
+}
+
+function addCircularCrenellationsAt(
+  root: THREE.Group,
+  radius: number,
+  y: number,
+  x: number,
+  z: number,
+  stone: THREE.Material,
+  wood: THREE.Material,
+): void {
+  const holder = new THREE.Group();
+  holder.position.set(x, 0, z);
+  addCircularCrenellations(holder, radius, y, stone, wood);
+  root.add(holder);
+}
+
+function buildConstruction(root: THREE.Group, size: BuildingVolumeDimensions, m: Materials): void {
+  for (const x of [-size.width / 2, 0, size.width / 2]) {
+    for (const z of [-size.depth / 2, size.depth / 2]) {
+      box(
+        root,
+        "scaffold-post",
+        [0.13, size.wallHeight + 0.36, 0.13],
+        [x, (size.wallHeight + 0.36) / 2, z],
+        m.wood,
       );
     }
   }
-
-  const roofMaterial = new THREE.MeshLambertMaterial({
-    map: art.roof,
-    color: destroyed ? 0x514943 : art.roofColor,
-    side: THREE.DoubleSide,
-  });
-  let roof: THREE.Mesh | null = null;
-  if (!construction) {
-    const geometry =
-      size.roofShape === "gable"
-        ? gableRoofGeometry(size, 0.18)
-        : size.roofShape === "hip"
-          ? hipRoofGeometry(size, 0.2)
-          : new THREE.ConeGeometry(
-              size.width * 0.69,
-              size.roofHeight,
-              art.archetype === "windmill" ? 12 : 8,
-            );
-    roof = shadow(new THREE.Mesh(geometry, roofMaterial));
-    roof.name = `${size.roofShape}-roof`;
-    if (size.roofShape === "cone") roof.position.y = size.wallHeight + size.roofHeight / 2;
-    group.add(roof);
+  for (const y of [0.4, size.wallHeight]) {
+    for (const z of [-size.depth / 2, size.depth / 2]) {
+      box(root, "scaffold-beam", [size.width + 0.18, 0.12, 0.12], [0, y, z], m.wood);
+    }
   }
+}
+
+function addRubble(root: THREE.Group, size: BuildingVolumeDimensions, m: Materials): void {
+  for (let index = 0; index < 9; index += 1) {
+    const angle = (index / 9) * Math.PI * 2;
+    box(
+      root,
+      "rubble",
+      [0.25 + (index % 3) * 0.06, 0.16 + (index % 2) * 0.05, 0.24],
+      [Math.cos(angle) * size.width * 0.4, 0.1, Math.sin(angle) * size.depth * 0.4],
+      index % 2 ? m.stone : m.stoneShade,
+      [0.1 * (index % 3), angle * 1.7, 0.08 * (index % 2)],
+    );
+  }
+}
+
+/**
+ * A complete native model. The authored point is the front threshold, so the whole solid base is
+ * shifted behind it. No camera-facing or generated elevation is present: every visible side is
+ * real geometry and remains coherent when the HD-2D camera yaws or tilts.
+ */
+export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
+  const group = new THREE.Group();
+  group.name = `building-${art.archetype}-${art.state}`;
+  const size = buildingVolumeDimensions(art.archetype);
+  const materials = makeMaterials(art);
+  const structure = new THREE.Group();
+  structure.name = "native-architecture";
+  structure.position.z = -size.depth / 2;
+  group.add(structure);
 
   let rotor: THREE.Group | null = null;
-  if (art.archetype === "windmill" && !construction && !destroyed) {
-    rotor = new THREE.Group();
-    rotor.name = "windmill-rotor";
-    const sailMaterial = new THREE.MeshLambertMaterial({
-      color: 0xeee0b5,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.96,
-    });
-    for (let index = 0; index < 4; index += 1) {
-      const blade = makeSailBlade(woodMaterial, sailMaterial);
-      blade.name = `sail-${index}`;
-      blade.rotation.z = index * (Math.PI / 2);
-      rotor.add(blade);
+  if (art.state === "construction") {
+    buildConstruction(structure, size, materials);
+  } else {
+    switch (art.archetype) {
+      case "house":
+        buildHouse(structure, size, materials);
+        break;
+      case "tower":
+        buildTower(structure, size, materials);
+        break;
+      case "windmill":
+        rotor = buildWindmill(structure, size, materials);
+        break;
+      case "archery":
+        buildHall(structure, size, materials, "archery");
+        break;
+      case "monastery":
+        buildHall(structure, size, materials, "monastery");
+        break;
+      case "barracks":
+        buildFortress(structure, size, materials, "barracks");
+        break;
+      case "castle":
+        buildFortress(structure, size, materials, "castle");
+        break;
     }
-    const hub = shadow(
-      new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.34, 12), woodMaterial),
-    );
-    hub.name = "windmill-hub";
-    hub.rotation.x = Math.PI / 2;
-    rotor.add(hub);
-    rotor.position.set(0, size.wallHeight * 0.73, size.depth / 2 + 0.25);
-    group.add(rotor);
   }
 
-  if (destroyed) {
-    body.scale.y = 0.43;
-    if (roof) {
-      roof.rotation.z = -0.34;
-      roof.rotation.x = 0.12;
-      roof.position.x = size.width * 0.18;
-      roof.position.y = size.wallHeight * 0.43 + size.roofHeight * 0.28;
-    }
-    const rubbleMaterial = new THREE.MeshLambertMaterial({ color: 0x746a5d });
-    for (let index = 0; index < 7; index += 1) {
-      const rubble = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.2, 0.28), rubbleMaterial));
-      rubble.name = "rubble";
-      const angle = (index / 7) * Math.PI * 2;
-      rubble.position.set(
-        Math.cos(angle) * size.width * 0.42,
-        0.1,
-        Math.sin(angle) * size.depth * 0.42,
-      );
-      rubble.rotation.y = angle * 1.7;
-      group.add(rubble);
-    }
+  if (art.state === "destroyed") {
+    rotor = null;
+    structure.scale.y = 0.43;
+    structure.rotation.z = -0.045;
+    addRubble(structure, size, materials);
   }
 
   return {
@@ -506,7 +912,14 @@ export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
 export const BRIDGE_DECK_LENGTH = 3;
 export const BRIDGE_DECK_WIDTH = 1;
 export const BRIDGE_RAIL_WIDTH = 0.11;
+export const BRIDGE_VISUAL_LIFT = 0.045;
 
+function bridgePoint(horizontal: boolean, along: number, side: number, y: number): THREE.Vector3 {
+  return horizontal ? new THREE.Vector3(along, y, side) : new THREE.Vector3(side, y, along);
+}
+
+/** Native rope-and-plank bridge: the physics top remains y=0, while the visible boards sit a few
+ * centimetres above terrain so bank triangles can never be coplanar with them and flicker. */
 export function makeBridgeVolume(
   deckTexture: THREE.Texture,
   orientation: "horizontal" | "vertical",
@@ -517,53 +930,66 @@ export function makeBridgeVolume(
   deckTexture.wrapS = THREE.RepeatWrapping;
   deckTexture.wrapT = THREE.RepeatWrapping;
   deckTexture.needsUpdate = true;
-  const deckMaterial = new THREE.MeshLambertMaterial({ map: deckTexture, color: 0xd1a66d });
-  const deck = shadow(
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        horizontal ? BRIDGE_DECK_LENGTH : BRIDGE_DECK_WIDTH,
-        0.12,
-        horizontal ? BRIDGE_DECK_WIDTH : BRIDGE_DECK_LENGTH,
-      ),
-      deckMaterial,
-    ),
-  );
+  const plankMaterial = new THREE.MeshLambertMaterial({
+    map: deckTexture,
+    color: 0xc59659,
+    flatShading: true,
+  });
+  const darkWood = new THREE.MeshLambertMaterial({ color: 0x56351f, flatShading: true });
+  const ropeMaterial = new THREE.MeshLambertMaterial({ color: 0xb68a55, flatShading: true });
+  const deck = new THREE.Group();
   deck.name = "walkable-deck";
-  // `placeAt` receives the physics top. Keeping the top at local y=0 makes rendering and movement
-  // share one exact plane instead of placing a decorative bridge above an unrelated collider.
-  deck.position.y = -0.06;
   group.add(deck);
 
-  const railMaterial = new THREE.MeshLambertMaterial({ color: 0x674125 });
-  for (const side of [-1, 1]) {
-    for (const height of [0.28, 0.52]) {
-      const rail = shadow(
-        new THREE.Mesh(
-          new THREE.BoxGeometry(
-            horizontal ? BRIDGE_DECK_LENGTH : BRIDGE_RAIL_WIDTH,
-            0.1,
-            horizontal ? BRIDGE_RAIL_WIDTH : BRIDGE_DECK_LENGTH,
-          ),
-          railMaterial,
-        ),
-      );
-      rail.name = "bridge-rail";
-      rail.position.set(
-        horizontal ? 0 : side * (BRIDGE_DECK_WIDTH / 2 - BRIDGE_RAIL_WIDTH / 2),
-        height,
-        horizontal ? side * (BRIDGE_DECK_WIDTH / 2 - BRIDGE_RAIL_WIDTH / 2) : 0,
-      );
-      group.add(rail);
+  const plankCount = 11;
+  for (let index = 0; index < plankCount; index += 1) {
+    const along = -BRIDGE_DECK_LENGTH / 2 + ((index + 0.5) * BRIDGE_DECK_LENGTH) / plankCount;
+    const plankAlong = BRIDGE_DECK_LENGTH / plankCount - 0.018;
+    const plankAcross = 0.87 + ((index * 7) % 3) * 0.035;
+    const y = BRIDGE_VISUAL_LIFT - 0.055 + (index % 3) * 0.008;
+    box(
+      deck,
+      "bridge-plank",
+      horizontal ? [plankAlong, 0.11, plankAcross] : [plankAcross, 0.11, plankAlong],
+      horizontal ? [along, y, 0] : [0, y, along],
+      plankMaterial,
+      [0, ((index % 4) - 1.5) * 0.008, ((index % 3) - 1) * 0.006],
+    );
+  }
+
+  for (const side of [-0.3, 0.3]) {
+    box(
+      group,
+      "bridge-underbeam",
+      horizontal ? [BRIDGE_DECK_LENGTH, 0.13, 0.13] : [0.13, 0.13, BRIDGE_DECK_LENGTH],
+      horizontal ? [0, -0.13, side] : [side, -0.13, 0],
+      darkWood,
+    );
+  }
+
+  const postAlong = [-1.42, 0, 1.42] as const;
+  for (const side of [-0.43, 0.43]) {
+    for (const along of postAlong) {
+      const point = bridgePoint(horizontal, along, side, 0.32);
+      box(group, "bridge-post", [0.13, 0.72, 0.13], [point.x, point.y, point.z], darkWood, [
+        0,
+        0,
+        along === 0 ? 0.015 : -Math.sign(along) * 0.035,
+      ]);
     }
-    for (const along of [-1.42, 0, 1.42]) {
-      const post = shadow(new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.72, 0.13), railMaterial));
-      post.name = "bridge-post";
-      post.position.set(
-        horizontal ? along : side * (BRIDGE_DECK_WIDTH / 2 - 0.065),
-        0.3,
-        horizontal ? side * (BRIDGE_DECK_WIDTH / 2 - 0.065) : along,
+    for (let segment = 0; segment < postAlong.length - 1; segment += 1) {
+      const from = postAlong[segment] ?? 0;
+      const to = postAlong[segment + 1] ?? 0;
+      const curve = new THREE.CatmullRomCurve3([
+        bridgePoint(horizontal, from, side, 0.66),
+        bridgePoint(horizontal, (from + to) / 2, side, 0.49),
+        bridgePoint(horizontal, to, side, 0.66),
+      ]);
+      const rope = shadow(
+        new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.025, 6, false), ropeMaterial),
       );
-      group.add(post);
+      rope.name = "bridge-rope";
+      group.add(rope);
     }
   }
 

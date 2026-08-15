@@ -1,0 +1,27 @@
+[
+  {
+    "prompt": "A two-panel turnaround sheet of the same compact crooked medieval cottage, left panel an exact side elevation and right panel an exact rear elevation, enormous steep blue tiled roof, cream plaster panels, irregular heavy dark oak framing, small stone chimney, two tiny warm windows, no entrance visible on the rear, identical proportions and details in both panels, each complete building centred in its half, isolated, no ground, no text",
+    "seed": 75201,
+    "out": "apps/lab/assets/generated/buildings-v2/house-orientations-raw.png"
+  },
+  {
+    "prompt": "A two-panel turnaround sheet of the same stout round cream-stone watchtower, left panel its side elevation and right panel its rear elevation, chunky blue-stone crenellations, inset circular timber roof and guard platform, irregular stone blocks and narrow arrow slits, the lower third in both panels is solid continuous irregular cream-stone masonry from edge to edge and reaches all the way to the ground, identical proportions and details in both panels, each complete tower centred in its half, isolated, no ground, no text",
+    "seed": 75402,
+    "out": "apps/lab/assets/generated/buildings-v2/tower-orientations-raw.png"
+  },
+  {
+    "prompt": "A two-panel turnaround sheet of the same compact fully enclosed medieval archers lodge, left panel an exact side elevation and right panel an exact rear elevation, huge irregular steep blue tiled roof over the complete rectangular shell, cream stone walls, very heavy crooked oak framing, tiny high windows and one round straw target mounted on the side wall, no open sides, no entrance or target porch visible on the rear, identical proportions and details in both panels, each complete lodge centred in its half, isolated, no ground, no text",
+    "seed": 75203,
+    "out": "apps/lab/assets/generated/buildings-v2/archery-orientations-raw.png"
+  },
+  {
+    "prompt": "A two-panel turnaround sheet of the same compact solid rectangular medieval barracks, left panel its narrow side elevation with one small high blue shuttered window, right panel its wide rear elevation with three small high blue shuttered windows, straight cream-plaster and stone walls with heavy dark oak framing, full flat timber roof deck enclosed by one chunky blue-stone crenellated parapet, square masonry corners, the entire lower wall and stone foundation are continuous from edge to edge in both panels, each complete closed building centred in its half, isolated, no ground, no text",
+    "seed": 75404,
+    "out": "apps/lab/assets/generated/buildings-v2/barracks-orientations-raw.png"
+  },
+  {
+    "prompt": "A two-panel turnaround sheet of the same medieval windmill tower body, left panel its side elevation and right panel its rear elevation, tapered irregular cream-stone mill body, chunky blue shingle cap and one tiny narrow high window, the lower half in both panels consists only of continuous irregular cream-stone blocks reaching all the way to the ground, the complete body is shown without the separate rotor mechanism, identical proportions and details in both panels, each complete tower body centred in its half, isolated, no ground, no text",
+    "seed": 75405,
+    "out": "apps/lab/assets/generated/buildings-v2/windmill-orientations-raw.png"
+  }
+]

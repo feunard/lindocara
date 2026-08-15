@@ -395,20 +395,91 @@ describe("staticAssetSpec", () => {
     ).toBeUndefined();
   });
 
-  it("replaces legacy buildings with the generated native 3D family", () => {
+  it("draws standing buildings with the exact generated pixel-art previews", () => {
     expect(staticAssetSpec("building.buildings-blue-buildings.house1")).toMatchObject({
       url: "/assets/lindocara/hd2d/buildings/house-front.png",
-      buildingVolume: { archetype: "house", state: "standing" },
+      height: 198 / 64,
+      aspect: 177 / 198,
+      foot: 0,
+      directional: {
+        side: {
+          url: "/assets/lindocara/hd2d/buildings/house-side.png",
+          height: 198 / 64,
+          aspect: 137 / 198,
+        },
+        back: {
+          url: "/assets/lindocara/hd2d/buildings/house-back.png",
+          height: 198 / 64,
+          aspect: 132 / 198,
+        },
+      },
     });
     expect(staticAssetSpec("building.lindocara.windmill")).toMatchObject({
-      url: "/assets/lindocara/hd2d/buildings/windmill-front.png",
-      buildingVolume: { archetype: "windmill", state: "standing" },
+      url: "/assets/lindocara/hd2d/buildings/windmill-body.png",
+      height: 210 / 64,
+      aspect: 134 / 210,
+      foot: 0,
+      windmillRotor: {
+        url: "/assets/lindocara/hd2d/buildings/windmill-rotor.png",
+      },
     });
-    expect(
-      staticAssetSpec("building.factions-knights-buildings-house.house-destroyed"),
-    ).toMatchObject({
-      buildingVolume: { archetype: "house", state: "destroyed" },
+    const destroyed = staticAssetSpec("building.factions-knights-buildings-house.house-destroyed");
+    expect(destroyed?.url).not.toContain("/assets/lindocara/hd2d/buildings/");
+    expect(destroyed?.buildingVolume).toBeUndefined();
+  });
+
+  it("selects rear and mirrored side art from a building's authored orientation", () => {
+    const front = new THREE.Texture();
+    const side = new THREE.Texture();
+    const back = new THREE.Texture();
+    const building = art({
+      texture: front,
+      cols: 1,
+      rows: 1,
+      directional: {
+        side: { texture: side, height: 2.5, aspect: 0.8 },
+        back: { texture: back, height: 3.2, aspect: 1.1 },
+      },
     });
+    const rearMap = flatMap(4, {
+      elements: [{ assetId: "building", x: 0, z: 0, orientation: 2 }],
+    });
+    const rearScene = sceneFor(rearMap);
+    placeStaticContent(createHd2dContext(), rearScene, rearMap, resolverFor({ building }));
+    const rearMesh = meshes(rearScene.root)[0];
+    if (!rearMesh) throw new Error("expected rear building billboard");
+    expect((rearMesh.material as THREE.MeshLambertMaterial).map?.source).toBe(back.source);
+
+    const leftMap = flatMap(4, {
+      elements: [{ assetId: "building", x: 0, z: 0, orientation: 3 }],
+    });
+    const leftScene = sceneFor(leftMap);
+    placeStaticContent(createHd2dContext(), leftScene, leftMap, resolverFor({ building }));
+    const leftMesh = meshes(leftScene.root)[0];
+    if (!leftMesh) throw new Error("expected left building billboard");
+    const leftTexture = (leftMesh.material as THREE.MeshLambertMaterial).map;
+    expect(leftTexture?.source).toBe(side.source);
+    expect(leftTexture?.repeat.x).toBeLessThan(0);
+  });
+
+  it("turns the generated windmill rotor continuously and narrows it in side view", () => {
+    const windmill = art({
+      cols: 1,
+      rows: 1,
+      windmillRotor: { texture: new THREE.Texture(), height: 3, aspect: 1, centerY: 1.8 },
+    });
+    const map = flatMap(4, {
+      elements: [{ assetId: "windmill", x: 0, z: 0, orientation: 1 }],
+    });
+    const scene = sceneFor(map);
+    const content = placeStaticContent(createHd2dContext(), scene, map, resolverFor({ windmill }));
+    const body = meshes(scene.root)[0];
+    const rotor = body?.getObjectByName("generated-windmill-rotor");
+    if (!rotor) throw new Error("expected generated windmill rotor");
+    expect(rotor.scale.x).toBeCloseTo(0.3);
+    expect(rotor.rotation.z).toBe(0);
+    content.update(1_000);
+    expect(rotor.rotation.z).toBeCloseTo(0.27);
   });
 
   it("replaces both legacy bridge sprites with native 3D bridges", () => {

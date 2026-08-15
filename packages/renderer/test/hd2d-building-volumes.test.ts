@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BRIDGE_DECK_LENGTH,
   BRIDGE_DECK_WIDTH,
+  BRIDGE_VISUAL_LIFT,
   buildingVolumeDimensions,
   makeBridgeVolume,
   makeBuildingVolume,
@@ -24,21 +25,42 @@ function building(archetype: Parameters<typeof makeBuildingVolume>[0]["archetype
 }
 
 describe("native HD-2D building volumes", () => {
-  it.each(["house", "tower", "archery", "barracks"] as const)(
-    "fits the generated %s elevation to the real facade instead of a larger box",
+  it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
+    "builds %s as complete native architecture behind its authored front threshold",
     (archetype) => {
       const visual = building(archetype);
-      const facade = visual.mesh.getObjectByName("generated-front-elevation");
-      if (!(facade instanceof THREE.Mesh) || !(facade.geometry instanceof THREE.PlaneGeometry)) {
-        throw new Error("generated front elevation missing");
-      }
       const size = buildingVolumeDimensions(archetype);
-      expect(facade.geometry.parameters.width).toBeCloseTo(size.width);
-      expect(facade.geometry.parameters.height).toBeCloseTo(size.wallHeight + size.roofHeight);
-      expect(visual.mesh.getObjectsByProperty("name", "window").length).toBeGreaterThan(0);
+      const architecture = visual.mesh.getObjectByName("native-architecture");
+      expect(architecture?.position.z).toBeCloseTo(-size.depth / 2);
+      expect(visual.mesh.getObjectByName("generated-front-elevation")).toBeUndefined();
+      expect(visual.mesh.getObjectsByProperty("type", "Mesh").length).toBeGreaterThan(8);
       visual.dispose();
     },
   );
+
+  it("keeps the stone tower open and crenellated at every camera angle instead of capping a cylinder with a cone", () => {
+    const visual = building("tower");
+    expect(visual.mesh.getObjectByName("tower-deck")).toBeDefined();
+    expect(visual.mesh.getObjectsByProperty("name", "tower-battlement")).toHaveLength(12);
+    expect(visual.mesh.getObjectByName("cone-roof")).toBeUndefined();
+    expect(visual.mesh.getObjectsByProperty("name", "window")).toHaveLength(3);
+    expect(visual.mesh.getObjectsByProperty("name", "stone-block").length).toBeGreaterThan(12);
+    expect(visual.mesh.getObjectsByProperty("name", "ink-outline").length).toBeGreaterThan(20);
+    visual.dispose();
+  });
+
+  it("gives the archery guild a full open range and leaves the barracks as one integrated hall", () => {
+    const guild = building("archery");
+    expect(guild.mesh.getObjectsByProperty("name", "archery-target")).toHaveLength(2);
+    expect(guild.mesh.getObjectsByProperty("name", "range-post")).toHaveLength(2);
+    guild.dispose();
+
+    const barracks = building("barracks");
+    expect(barracks.mesh.getObjectByName("fortified-hall")).toBeDefined();
+    expect(barracks.mesh.getObjectsByProperty("name", "corner-tower")).toHaveLength(0);
+    expect(barracks.mesh.getObjectsByProperty("name", "battlement").length).toBeGreaterThan(0);
+    barracks.dispose();
+  });
 
   it("builds the windmill as a tapered mill with four lattice sails, not a tower facade", () => {
     const visual = building("windmill");
@@ -63,17 +85,22 @@ describe("native HD-2D building volumes", () => {
       visual.placeAt(2, 0.9, 3);
       expect(visual.mesh.position.z).toBe(orientation === "horizontal" ? 2.5 : 1.5);
       const deck = visual.mesh.getObjectByName("walkable-deck");
-      if (!(deck instanceof THREE.Mesh) || !(deck.geometry instanceof THREE.BoxGeometry)) {
+      if (!(deck instanceof THREE.Group)) {
         throw new Error("bridge deck missing");
       }
-      expect(deck.position.y + deck.geometry.parameters.height / 2).toBeCloseTo(0);
-      expect(deck.geometry.parameters.width).toBeCloseTo(
-        orientation === "horizontal" ? BRIDGE_DECK_LENGTH : BRIDGE_DECK_WIDTH,
-      );
-      expect(deck.geometry.parameters.depth).toBeCloseTo(
-        orientation === "horizontal" ? BRIDGE_DECK_WIDTH : BRIDGE_DECK_LENGTH,
-      );
-      expect(visual.mesh.getObjectsByProperty("name", "bridge-rail")).toHaveLength(4);
+      expect(deck.getObjectsByProperty("name", "bridge-plank")).toHaveLength(11);
+      const bounds = new THREE.Box3().setFromObject(deck);
+      expect(bounds.max.y).toBeGreaterThanOrEqual(BRIDGE_VISUAL_LIFT);
+      expect(bounds.max.y).toBeLessThan(0.12);
+      const visibleWidth = bounds.max.x - bounds.min.x;
+      const visibleDepth = bounds.max.z - bounds.min.z;
+      const along = orientation === "horizontal" ? visibleWidth : visibleDepth;
+      const across = orientation === "horizontal" ? visibleDepth : visibleWidth;
+      expect(along).toBeGreaterThan(BRIDGE_DECK_LENGTH - 0.08);
+      expect(along).toBeLessThanOrEqual(BRIDGE_DECK_LENGTH + 0.08);
+      expect(across).toBeGreaterThan(BRIDGE_DECK_WIDTH - 0.1);
+      expect(across).toBeLessThanOrEqual(BRIDGE_DECK_WIDTH + 0.08);
+      expect(visual.mesh.getObjectsByProperty("name", "bridge-rope")).toHaveLength(4);
       expect(visual.mesh.getObjectsByProperty("name", "bridge-post")).toHaveLength(6);
       visual.dispose();
     },
