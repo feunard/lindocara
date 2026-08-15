@@ -20,6 +20,9 @@ function building(archetype: Parameters<typeof makeBuildingVolume>[0]["archetype
     front: texture(),
     wall: texture(),
     roof: texture(),
+    stone: texture(),
+    blueStone: texture(),
+    wood: texture(),
     roofColor: 0x4da9c7,
   });
 }
@@ -75,6 +78,28 @@ describe("native HD-2D building volumes", () => {
     const before = rotor.rotation.z;
     visual.update(4_000);
     expect(rotor.rotation.z).not.toBe(before);
+    visual.dispose();
+  });
+
+  it.each([
+    [0, 0],
+    [1, -Math.PI / 2],
+    [2, -Math.PI],
+    [3, (-3 * Math.PI) / 2],
+  ] as const)("fixes authored orientation %s on the world volume", (orientation, yaw) => {
+    const visual = makeBuildingVolume({
+      archetype: "house",
+      state: "standing",
+      front: texture(),
+      wall: texture(),
+      roof: texture(),
+      stone: texture(),
+      blueStone: texture(),
+      wood: texture(),
+      roofColor: 0x4da9c7,
+      orientation,
+    });
+    expect(visual.mesh.rotation.y).toBeCloseTo(yaw);
     visual.dispose();
   });
 

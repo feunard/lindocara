@@ -1,3 +1,4 @@
+import type { BuildingArchetype } from "@lindocara/engine/buildings.js";
 import type {
   HeightfieldElement,
   HeightfieldEvent,
@@ -75,6 +76,23 @@ function art(overrides: Partial<StaticSpriteArt> = {}): StaticSpriteArt {
     foot: 22 / 192,
     ...overrides,
   };
+}
+
+function buildingArt(archetype: BuildingArchetype): StaticSpriteArt {
+  return art({
+    cols: 1,
+    rows: 1,
+    buildingVolume: {
+      archetype,
+      state: "standing",
+      wall: new THREE.Texture(),
+      roof: new THREE.Texture(),
+      stone: new THREE.Texture(),
+      blueStone: new THREE.Texture(),
+      wood: new THREE.Texture(),
+      roofColor: 0x4da9c7,
+    },
+  });
 }
 
 /** Resolves exactly the ids it was given, `null` for anything else — the adapter's job, reduced to
@@ -395,88 +413,60 @@ describe("staticAssetSpec", () => {
     ).toBeUndefined();
   });
 
-  it("draws standing buildings with the exact generated pixel-art previews", () => {
+  it("uses orthographic generated previews for native building volumes", () => {
     expect(staticAssetSpec("building.buildings-blue-buildings.house1")).toMatchObject({
       url: "/assets/lindocara/hd2d/buildings/house-front.png",
       height: 198 / 64,
-      aspect: 177 / 198,
+      aspect: 199 / 198,
       foot: 0,
-      directional: {
-        side: {
-          url: "/assets/lindocara/hd2d/buildings/house-side.png",
-          height: 198 / 64,
-          aspect: 137 / 198,
-        },
-        back: {
-          url: "/assets/lindocara/hd2d/buildings/house-back.png",
-          height: 198 / 64,
-          aspect: 132 / 198,
-        },
+      buildingVolume: {
+        archetype: "house",
+        state: "standing",
+        stoneUrl: "/assets/lindocara/hd2d/buildings/cream-stone.png",
+        blueStoneUrl: "/assets/lindocara/hd2d/buildings/blue-stone.png",
       },
     });
     expect(staticAssetSpec("building.lindocara.windmill")).toMatchObject({
-      url: "/assets/lindocara/hd2d/buildings/windmill-body.png",
-      height: 210 / 64,
-      aspect: 134 / 210,
+      url: "/assets/lindocara/hd2d/buildings/windmill-front.png",
+      height: 224 / 64,
+      aspect: 210 / 224,
       foot: 0,
-      windmillRotor: {
-        url: "/assets/lindocara/hd2d/buildings/windmill-rotor.png",
-      },
+      buildingVolume: { archetype: "windmill", state: "standing" },
     });
     const destroyed = staticAssetSpec("building.factions-knights-buildings-house.house-destroyed");
-    expect(destroyed?.url).not.toContain("/assets/lindocara/hd2d/buildings/");
-    expect(destroyed?.buildingVolume).toBeUndefined();
+    expect(destroyed?.buildingVolume).toMatchObject({ archetype: "house", state: "destroyed" });
   });
 
-  it("selects rear and mirrored side art from a building's authored orientation", () => {
-    const front = new THREE.Texture();
-    const side = new THREE.Texture();
-    const back = new THREE.Texture();
-    const building = art({
-      texture: front,
-      cols: 1,
-      rows: 1,
-      directional: {
-        side: { texture: side, height: 2.5, aspect: 0.8 },
-        back: { texture: back, height: 3.2, aspect: 1.1 },
-      },
-    });
+  it("rotates the complete world volume from authored orientation", () => {
+    const building = buildingArt("house");
     const rearMap = flatMap(4, {
       elements: [{ assetId: "building", x: 0, z: 0, orientation: 2 }],
     });
     const rearScene = sceneFor(rearMap);
     placeStaticContent(createHd2dContext(), rearScene, rearMap, resolverFor({ building }));
-    const rearMesh = meshes(rearScene.root)[0];
-    if (!rearMesh) throw new Error("expected rear building billboard");
-    expect((rearMesh.material as THREE.MeshLambertMaterial).map?.source).toBe(back.source);
+    const rear = rearScene.root.getObjectByName("building-house-standing");
+    expect(rear?.rotation.y).toBeCloseTo(-Math.PI);
 
     const leftMap = flatMap(4, {
       elements: [{ assetId: "building", x: 0, z: 0, orientation: 3 }],
     });
     const leftScene = sceneFor(leftMap);
     placeStaticContent(createHd2dContext(), leftScene, leftMap, resolverFor({ building }));
-    const leftMesh = meshes(leftScene.root)[0];
-    if (!leftMesh) throw new Error("expected left building billboard");
-    const leftTexture = (leftMesh.material as THREE.MeshLambertMaterial).map;
-    expect(leftTexture?.source).toBe(side.source);
-    expect(leftTexture?.repeat.x).toBeLessThan(0);
+    const left = leftScene.root.getObjectByName("building-house-standing");
+    expect(left?.rotation.y).toBeCloseTo((-3 * Math.PI) / 2);
   });
 
-  it("turns the generated windmill rotor continuously and narrows it in side view", () => {
-    const windmill = art({
-      cols: 1,
-      rows: 1,
-      windmillRotor: { texture: new THREE.Texture(), height: 3, aspect: 1, centerY: 1.8 },
-    });
+  it("turns the native windmill rotor continuously without camera-facing art", () => {
+    const windmill = buildingArt("windmill");
     const map = flatMap(4, {
       elements: [{ assetId: "windmill", x: 0, z: 0, orientation: 1 }],
     });
     const scene = sceneFor(map);
     const content = placeStaticContent(createHd2dContext(), scene, map, resolverFor({ windmill }));
-    const body = meshes(scene.root)[0];
-    const rotor = body?.getObjectByName("generated-windmill-rotor");
-    if (!rotor) throw new Error("expected generated windmill rotor");
-    expect(rotor.scale.x).toBeCloseTo(0.3);
+    const body = scene.root.getObjectByName("building-windmill-standing");
+    const rotor = body?.getObjectByName("windmill-rotor");
+    if (!rotor) throw new Error("expected native windmill rotor");
+    expect(body?.rotation.y).toBeCloseTo(-Math.PI / 2);
     expect(rotor.rotation.z).toBe(0);
     content.update(1_000);
     expect(rotor.rotation.z).toBeCloseTo(0.27);

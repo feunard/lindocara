@@ -456,10 +456,7 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
  * downloaded and TEXTURED only afterwards — see `staticAssetSpec`.
  */
 export interface StaticAssetSpec
-  extends Omit<
-    StaticSpriteArt,
-    "texture" | "companions" | "coldVariant" | "buildingVolume" | "windmillRotor" | "directional"
-  > {
+  extends Omit<StaticSpriteArt, "texture" | "companions" | "coldVariant" | "buildingVolume"> {
   url: string;
   companions?: readonly StaticAssetSpec[];
   coldVariant?: StaticAssetSpec;
@@ -468,17 +465,10 @@ export interface StaticAssetSpec
     state: "standing" | "construction" | "destroyed";
     wallUrl: string;
     roofUrl: string;
+    stoneUrl: string;
+    blueStoneUrl: string;
+    woodUrl: string;
     roofColor: number;
-  };
-  windmillRotor?: {
-    url: string;
-    height: number;
-    aspect: number;
-    centerY: number;
-  };
-  directional?: {
-    side: { url: string; height: number; aspect: number };
-    back: { url: string; height: number; aspect: number };
   };
 }
 
@@ -489,6 +479,10 @@ const LAB_CHEST_OPEN_URL = "/assets/lindocara/hd2d/chest-open.png";
 const LAB_SNOW_TREE_URL = "/assets/lindocara/hd2d/snow-tree.png";
 const GENERATED_BUILDING_ROOT = "/assets/lindocara/hd2d/buildings";
 const GENERATED_BRIDGE_DECK_URL = "/assets/lindocara/hd2d/interiors/floor.png";
+const GENERATED_BUILDING_WALL_URL = `${GENERATED_BUILDING_ROOT}/wall-timber.png`;
+const GENERATED_BUILDING_ROOF_URL = `${GENERATED_BUILDING_ROOT}/roof-shingles.png`;
+const GENERATED_BUILDING_STONE_URL = `${GENERATED_BUILDING_ROOT}/cream-stone.png`;
+const GENERATED_BUILDING_BLUE_STONE_URL = `${GENERATED_BUILDING_ROOT}/blue-stone.png`;
 const NATIVE_TREE_ASSET_IDS = new Set([
   "resource.terrain-resources-wood-trees.tree1",
   "resource.terrain-resources-wood-trees.tree2",
@@ -532,10 +526,6 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
     : definition.tags.some((tag) => tag.includes("construction"))
       ? "construction"
       : "standing";
-  // Construction and rubble already have authored Tiny Swords sprites. The generated family is
-  // the standing replacement only; keeping those terminal states native preserves an honest
-  // visible destruction instead of showing the intact preview after the server has destroyed it.
-  if (state !== "standing") return null;
   const front =
     archetype === "windmill"
       ? "windmill-front.png"
@@ -546,55 +536,41 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
           : archetype === "barracks" || archetype === "castle"
             ? "barracks-front.png"
             : "house-front.png";
-  const generatedName =
-    archetype === "monastery" ? "archery" : archetype === "castle" ? "barracks" : archetype;
   const frame =
     archetype === "windmill"
-      ? { width: 134, height: 210 }
+      ? { width: 210, height: 224 }
       : archetype === "tower"
-        ? { width: 177, height: 220 }
+        ? { width: 159, height: 220 }
         : archetype === "archery" || archetype === "monastery"
-          ? { width: 192, height: 202 }
+          ? { width: 225, height: 202 }
           : archetype === "barracks" || archetype === "castle"
-            ? { width: 198, height: 206 }
-            : { width: 177, height: 198 };
-  const directionalFrames =
-    generatedName === "tower"
-      ? { side: { width: 113, height: 220 }, back: { width: 112, height: 220 } }
-      : generatedName === "archery"
-        ? { side: { width: 96, height: 202 }, back: { width: 97, height: 202 } }
-        : generatedName === "barracks"
-          ? { side: { width: 137, height: 206 }, back: { width: 148, height: 206 } }
-          : generatedName === "windmill"
-            ? { side: { width: 92, height: 210 }, back: { width: 92, height: 210 } }
-            : { side: { width: 137, height: 198 }, back: { width: 132, height: 198 } };
+            ? { width: 267, height: 206 }
+            : { width: 199, height: 198 };
+  const lower = assetId.toLowerCase();
+  const roofColor = lower.includes("red")
+    ? 0xc85e54
+    : lower.includes("purple")
+      ? 0x8e65aa
+      : lower.includes("yellow")
+        ? 0xd3a843
+        : lower.includes("black")
+          ? 0x48515b
+          : 0x4da9c7;
   return {
-    url: `${GENERATED_BUILDING_ROOT}/${archetype === "windmill" ? "windmill-body.png" : front}`,
+    url: `${GENERATED_BUILDING_ROOT}/${front}`,
     height: frame.height / TILE_SIZE,
     aspect: frame.width / frame.height,
     foot: 0,
-    directional: {
-      side: {
-        url: `${GENERATED_BUILDING_ROOT}/${generatedName}-side.png`,
-        height: directionalFrames.side.height / TILE_SIZE,
-        aspect: directionalFrames.side.width / directionalFrames.side.height,
-      },
-      back: {
-        url: `${GENERATED_BUILDING_ROOT}/${generatedName}-back.png`,
-        height: directionalFrames.back.height / TILE_SIZE,
-        aspect: directionalFrames.back.width / directionalFrames.back.height,
-      },
+    buildingVolume: {
+      archetype,
+      state,
+      wallUrl: GENERATED_BUILDING_WALL_URL,
+      roofUrl: GENERATED_BUILDING_ROOF_URL,
+      stoneUrl: GENERATED_BUILDING_STONE_URL,
+      blueStoneUrl: GENERATED_BUILDING_BLUE_STONE_URL,
+      woodUrl: GENERATED_BRIDGE_DECK_URL,
+      roofColor,
     },
-    ...(archetype === "windmill"
-      ? {
-          windmillRotor: {
-            url: `${GENERATED_BUILDING_ROOT}/windmill-rotor.png`,
-            height: 198 / TILE_SIZE,
-            aspect: 196 / 198,
-            centerY: 1.9,
-          },
-        }
-      : {}),
   };
 }
 
@@ -780,17 +756,22 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
 function staticSpecUrls(spec: StaticAssetSpec): string[] {
   return [
     spec.url,
-    ...(spec.buildingVolume ? [spec.buildingVolume.wallUrl, spec.buildingVolume.roofUrl] : []),
-    ...(spec.windmillRotor ? [spec.windmillRotor.url] : []),
-    ...(spec.directional ? [spec.directional.side.url, spec.directional.back.url] : []),
+    ...(spec.buildingVolume
+      ? [
+          spec.buildingVolume.wallUrl,
+          spec.buildingVolume.roofUrl,
+          spec.buildingVolume.stoneUrl,
+          spec.buildingVolume.blueStoneUrl,
+          spec.buildingVolume.woodUrl,
+        ]
+      : []),
     ...(spec.companions ?? []).flatMap(staticSpecUrls),
     ...(spec.coldVariant ? staticSpecUrls(spec.coldVariant) : []),
   ];
 }
 
 function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureSource): StaticSpriteArt {
-  const { url, companions, coldVariant, buildingVolume, windmillRotor, directional, ...geometry } =
-    spec;
+  const { url, companions, coldVariant, buildingVolume, ...geometry } = spec;
   return {
     texture: textures.get(url),
     ...geometry,
@@ -801,33 +782,10 @@ function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureSource): 
             state: buildingVolume.state,
             wall: textures.get(buildingVolume.wallUrl),
             roof: textures.get(buildingVolume.roofUrl),
+            stone: textures.get(buildingVolume.stoneUrl),
+            blueStone: textures.get(buildingVolume.blueStoneUrl),
+            wood: textures.get(buildingVolume.woodUrl),
             roofColor: buildingVolume.roofColor,
-          },
-        }
-      : {}),
-    ...(windmillRotor
-      ? {
-          windmillRotor: {
-            texture: textures.get(windmillRotor.url),
-            height: windmillRotor.height,
-            aspect: windmillRotor.aspect,
-            centerY: windmillRotor.centerY,
-          },
-        }
-      : {}),
-    ...(directional
-      ? {
-          directional: {
-            side: {
-              texture: textures.get(directional.side.url),
-              height: directional.side.height,
-              aspect: directional.side.aspect,
-            },
-            back: {
-              texture: textures.get(directional.back.url),
-              height: directional.back.height,
-              aspect: directional.back.aspect,
-            },
           },
         }
       : {}),

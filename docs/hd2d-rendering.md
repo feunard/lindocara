@@ -774,3 +774,21 @@ absent, et le reste tant que le labo reproduit le PoC â€” S2 et S3 changero
 - le mouton du pack n'a pas de pattes : c'est un ovale laineux, pas un oubli
 - collisions sur les moutons : ils se dÃ©placent, la grille de colliders est
   statique
+
+## Fixed native architecture (2026-08-15)
+
+A directional building card is not a 3D building. Swapping front/side/back sprites from the camera
+angle makes the architecture appear to turn toward the viewer and reproduces the palette/runtime
+mismatch as soon as the camera orbits. Full generated elevations must therefore remain editor
+previews and art-direction references; they are never projected as facade overlays in the world.
+
+Runtime buildings use real Three.js faces: textured wall volumes, roof slopes, gables, doors,
+windows, masonry courses and battlements. A map element's orientation applies one fixed quarter-turn
+when the structure is created. Camera yaw and pitch do not mutate that transform; they only reveal
+the already existing side or rear geometry. The same native model is used by the editor placement
+ghost and the game renderer, and the windmill's geometric rotor is the only continuously rotating
+part.
+
+This is the browser version of the useful part of the HD-2D recipe: pixel-authored materials with
+nearest filtering, lit 3D geometry, hard silhouettes, dynamic shadows and the shared scene's
+post-processing. The geometry, not a stack of camera-facing plates, provides depth and orientation.

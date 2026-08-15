@@ -1,6 +1,6 @@
 /**
  * The map's own scenery — `MapData.elements` and the active page of `MapData.events` — as static
- * HD-2D billboards.
+ * HD-2D visuals. Most props are billboards; buildings and bridges are fixed native geometry.
  *
  * Its own file rather than a second export in `billboards.ts`, because the two answer different
  * questions. `billboards.ts` keeps a registry ALIVE across frames: it diffs the actor list every
@@ -10,6 +10,8 @@
  * teaching that registry a second lifecycle — which is exactly the "general sprite framework" its
  * own header refuses to become. What the two DO share is reused rather than copied: the
  * `BillboardScene` shape, `makeBillboard`, and the camera pitch a sprite's stretch is computed from.
+ * Native architecture is intentionally absent from the billboard registry: authored orientation
+ * rotates it once in world space, while orbiting the camera merely reveals another physical face.
  *
  * TWO rules bind this file, and neither is negotiable:
  *
@@ -95,20 +97,8 @@ export interface StaticSpriteArt {
     decay: number;
     glow: boolean;
   };
-  /** Generated facade projected over real walls/roof; textures are owned by the shared cache. */
+  /** A fixed world-space building assembled from real lit faces and roof geometry. */
   buildingVolume?: Omit<BuildingVolumeArt, "front">;
-  /** Pixel-art mill body plus an independently rotating generated four-sail cutout. */
-  windmillRotor?: {
-    texture: THREE.Texture;
-    height: number;
-    aspect: number;
-    centerY: number;
-  };
-  /** Authored side/rear elevations. The opposite side mirrors `side`; front remains `texture`. */
-  directional?: {
-    side: { texture: THREE.Texture; height: number; aspect: number };
-    back: { texture: THREE.Texture; height: number; aspect: number };
-  };
   /** Native raised deck and rails, replacing the old flat bridge crop. */
   bridgeOrientation?: "horizontal" | "vertical";
 }
@@ -139,58 +129,6 @@ export function staticAnimationFrame(
   if (frames <= 1 || durationMs <= 0) return 0;
   const elapsed = (((now + phaseMs) % durationMs) + durationMs) % durationMs;
   return Math.min(frames - 1, Math.floor((elapsed / durationMs) * frames));
-}
-
-function makeWindmillBillboard(
-  ctx: Hd2dContext,
-  sprite: StaticSpriteArt,
-  orientation: ElementOrientation,
-): NativeStaticVisual {
-  const rotorArt = sprite.windmillRotor;
-  if (!rotorArt) throw new Error("windmill rotor art missing");
-  const body = makeBillboard(ctx, {
-    texture: sprite.texture,
-    height: sprite.height,
-    aspect: sprite.aspect ?? 1,
-    foot: sprite.foot ?? 0,
-    lit: sprite.lit ?? true,
-    pitch: HD2D_CAMERA.pitch,
-  });
-  const rotorMap = rotorArt.texture.clone();
-  rotorMap.needsUpdate = true;
-  const rotorMaterial = new THREE.MeshLambertMaterial({
-    map: rotorMap,
-    alphaTest: 0.5,
-    transparent: false,
-    depthWrite: true,
-    side: THREE.DoubleSide,
-  });
-  const rotor = new THREE.Mesh(
-    new THREE.PlaneGeometry(rotorArt.height * rotorArt.aspect, rotorArt.height),
-    rotorMaterial,
-  );
-  rotor.name = "generated-windmill-rotor";
-  rotor.position.set(0, rotorArt.centerY, orientation === 2 ? -0.025 : 0.025);
-  if (orientation === 1 || orientation === 3) rotor.scale.x = 0.3;
-  rotor.castShadow = true;
-  rotor.receiveShadow = true;
-  body.mesh.add(rotor);
-  body.setFlip(orientation === 3);
-  return {
-    mesh: body.mesh,
-    placeAt: body.placeAt,
-    setFrame: body.setFrame,
-    update(now) {
-      rotor.rotation.z = now * 0.00027;
-    },
-    dispose() {
-      rotor.removeFromParent();
-      rotor.geometry.dispose();
-      rotorMaterial.dispose();
-      rotorMap.dispose();
-      body.dispose();
-    },
-  };
 }
 
 function placementPhase(assetId: string, x: number, z: number, durationMs: number): number {
@@ -299,41 +237,28 @@ export function placeStaticContent(
     contentKey: string | null,
     orientation: ElementOrientation = 0,
   ): void {
-    const directional = sprite.directional;
-    const orientedArt =
-      orientation === 2 && directional
-        ? directional.back
-        : (orientation === 1 || orientation === 3) && directional
-          ? directional.side
-          : null;
-    const oriented = orientedArt
-      ? {
-          ...sprite,
-          texture: orientedArt.texture,
-          height: orientedArt.height,
-          aspect: orientedArt.aspect,
-        }
-      : sprite;
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
-    const native = oriented.windmillRotor
-      ? makeWindmillBillboard(ctx, oriented, orientation)
-      : oriented.buildingVolume
-        ? makeBuildingVolume({ front: oriented.texture, ...oriented.buildingVolume })
-        : oriented.bridgeOrientation
-          ? makeBridgeVolume(oriented.texture, oriented.bridgeOrientation)
-          : null;
+    const native = sprite.buildingVolume
+      ? makeBuildingVolume({
+          front: sprite.texture,
+          ...sprite.buildingVolume,
+          orientation,
+        })
+      : sprite.bridgeOrientation
+        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation)
+        : null;
     const volume =
       native === null &&
-      (oriented.renderMode === "cloud-volume" || oriented.renderMode === "fixed-volume")
+      (sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume")
         ? makeCardVolume(ctx, {
-            texture: oriented.texture,
-            cols: oriented.cols ?? 1,
-            rows: oriented.rows ?? 1,
-            height: oriented.height,
-            aspect: oriented.aspect ?? 1,
-            foot: oriented.foot ?? 0,
-            mode: oriented.renderMode === "cloud-volume" ? "cloud" : "vertical",
+            texture: sprite.texture,
+            cols: sprite.cols ?? 1,
+            rows: sprite.rows ?? 1,
+            height: sprite.height,
+            aspect: sprite.aspect ?? 1,
+            foot: sprite.foot ?? 0,
+            mode: sprite.renderMode === "cloud-volume" ? "cloud" : "vertical",
             ...(sky ? { graftCloudShadow: () => undefined } : {}),
           })
         : null;
@@ -342,28 +267,25 @@ export function placeStaticContent(
       volume ??
       (flat
         ? makeFlatSprite(ctx, {
-            texture: oriented.texture,
-            cols: oriented.cols ?? 1,
-            rows: oriented.rows ?? 1,
-            size: oriented.flatSize ?? oriented.height * (oriented.aspect ?? 1),
-            aspect: 1 / (oriented.aspect ?? 1),
+            texture: sprite.texture,
+            cols: sprite.cols ?? 1,
+            rows: sprite.rows ?? 1,
+            size: sprite.flatSize ?? sprite.height * (sprite.aspect ?? 1),
+            aspect: 1 / (sprite.aspect ?? 1),
             alphaTest: 0.5,
             graftCloudShadow: () => undefined,
           })
         : makeBillboard(ctx, {
-            texture: oriented.texture,
-            cols: oriented.cols ?? 1,
-            rows: oriented.rows ?? 1,
-            height: oriented.height,
-            aspect: oriented.aspect ?? 1,
-            foot: oriented.foot ?? 0,
-            ...(oriented.uvRect ? { uvRect: oriented.uvRect } : {}),
-            ...(oriented.lit === undefined ? {} : { lit: oriented.lit }),
+            texture: sprite.texture,
+            cols: sprite.cols ?? 1,
+            rows: sprite.rows ?? 1,
+            height: sprite.height,
+            aspect: sprite.aspect ?? 1,
+            foot: sprite.foot ?? 0,
+            ...(sprite.uvRect ? { uvRect: sprite.uvRect } : {}),
+            ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
             pitch: HD2D_CAMERA.pitch,
           }));
-    if (!native && orientation === 3 && directional && "setFlip" in billboard) {
-      billboard.setFlip(true);
-    }
     const bridgeSampleZ =
       sprite.bridgeOrientation === "horizontal"
         ? z - 0.5
@@ -506,12 +428,10 @@ export function placeStaticContent(
         contentKey,
         x,
         anchorY +
-          (sprite.windmillRotor
-            ? sprite.windmillRotor.centerY + sprite.windmillRotor.height / 2 + 0.4
-            : sprite.buildingVolume
-              ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
-                0.4
-              : sprite.height + 0.4),
+          (sprite.buildingVolume
+            ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
+              0.4
+            : sprite.height + 0.4),
         z,
         health,
       );

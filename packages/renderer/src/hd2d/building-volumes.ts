@@ -1,4 +1,5 @@
 import type { BuildingArchetype } from "@lindocara/engine/buildings.js";
+import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import * as THREE from "three";
 
 export type BuildingVolumeState = "standing" | "construction" | "destroyed";
@@ -6,11 +7,16 @@ export type BuildingVolumeState = "standing" | "construction" | "destroyed";
 export interface BuildingVolumeArt {
   archetype: BuildingArchetype;
   state: BuildingVolumeState;
-  /** Palette preview used by the editor. The native world model deliberately has no flat facade. */
+  /** Orthographic palette preview. It is never projected over the world model. */
   front: THREE.Texture;
   wall: THREE.Texture;
   roof: THREE.Texture;
+  stone: THREE.Texture;
+  blueStone: THREE.Texture;
+  wood: THREE.Texture;
   roofColor: number;
+  /** Fixed authored quarter-turn. The model never follows the camera. */
+  orientation?: ElementOrientation;
 }
 
 export interface NativeStaticVisual {
@@ -354,7 +360,9 @@ function addRoundStoneCourses(
   stoneShade: THREE.Material,
 ): void {
   let course = 0;
-  for (let y = 0.28; y < wallHeight; y += 0.48) {
+  // The generated masonry already carries readable block joints. A few raised blue courses add
+  // depth and faction colour; repeating one every half-tile turned round buildings into stripes.
+  for (let y = 0.38; y < wallHeight; y += 0.76) {
     cylinder(root, "stone-course", [radius + 0.012, radius + 0.012], 0.055, [0, y, 0], stoneShade);
     // Sparse protruding voussoirs break the smooth cylinder into the chunky, hand-set masonry
     // visible on the generated reference. Alternating them keeps the silhouette readable.
@@ -464,36 +472,42 @@ interface Materials {
 
 function makeMaterials(art: BuildingVolumeArt): Materials {
   const destroyed = art.state === "destroyed";
-  art.wall.wrapS = THREE.RepeatWrapping;
-  art.wall.wrapT = THREE.RepeatWrapping;
-  art.wall.needsUpdate = true;
-  art.roof.wrapS = THREE.RepeatWrapping;
-  art.roof.wrapT = THREE.RepeatWrapping;
-  art.roof.needsUpdate = true;
+  for (const texture of [art.wall, art.roof, art.stone, art.blueStone, art.wood]) {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.needsUpdate = true;
+  }
   return {
     wall: new THREE.MeshLambertMaterial({
       map: art.wall,
-      color: destroyed ? 0x777064 : 0xf1e4b5,
+      color: destroyed ? 0x777064 : 0xffffff,
       flatShading: true,
     }),
     stone: new THREE.MeshLambertMaterial({
-      color: destroyed ? 0x746e65 : 0xe9dca8,
+      map: art.stone,
+      color: destroyed ? 0x746e65 : 0xffffff,
       flatShading: true,
     }),
     stoneShade: new THREE.MeshLambertMaterial({
-      color: destroyed ? 0x57545a : 0x7894a0,
+      map: art.blueStone,
+      color: destroyed ? 0x57545a : 0xffffff,
       flatShading: true,
     }),
     wood: new THREE.MeshLambertMaterial({
-      color: destroyed ? 0x4a433d : 0x705035,
+      map: art.wood,
+      // Preserve the warm pixels from the timber texture. Multiplying them by another dark brown
+      // made beams read as featureless black once the directional light and AO were applied.
+      color: destroyed ? 0x4a433d : 0xffffff,
       flatShading: true,
     }),
     deck: new THREE.MeshLambertMaterial({
-      color: destroyed ? 0x585047 : 0xa87343,
+      map: art.wood,
+      color: destroyed ? 0x585047 : 0xe4c093,
       flatShading: true,
     }),
     outline: new THREE.MeshLambertMaterial({ color: 0x161c2e, flatShading: true }),
     blue: new THREE.MeshLambertMaterial({
+      // Doors use a clean faction colour. A brown albedo multiplied by cyan collapsed to black.
       color: destroyed ? 0x59626a : 0x2f91aa,
       flatShading: true,
     }),
@@ -850,6 +864,7 @@ function addRubble(root: THREE.Group, size: BuildingVolumeDimensions, m: Materia
 export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
   const group = new THREE.Group();
   group.name = `building-${art.archetype}-${art.state}`;
+  group.rotation.y = -(art.orientation ?? 0) * (Math.PI / 2);
   const size = buildingVolumeDimensions(art.archetype);
   const materials = makeMaterials(art);
   const structure = new THREE.Group();
