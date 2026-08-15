@@ -104,6 +104,25 @@ export function pipelineViewport(input: PipelineViewportInput): {
   };
 }
 
+/**
+ * Restaure les deux Ã©tats d'unpack qu'un `WebGLRenderer` neuf suppose dÃ©sactivÃ©s.
+ *
+ * Le canvas du jeu survit Ã  une session. Son contexte WebGL aussi : Three construit alors un
+ * nouveau cache d'Ã©tat autour d'un contexte que l'ancien renderer a pu laisser avec `flipY` ou
+ * `premultiplyAlpha` actifs. Le cache croit ces valeurs dÃ©jÃ  fausses et ne les rÃ©Ã©crit pas avant
+ * le premier upload de texture 3D, que WebGL refuse. L'alignement explicite doit donc avoir lieu
+ * juste aprÃ¨s la construction du renderer, avant la crÃ©ation des cibles et des passes.
+ */
+export function resetInheritedPixelStore(
+  gl: Pick<
+    WebGLRenderingContext,
+    "UNPACK_FLIP_Y_WEBGL" | "UNPACK_PREMULTIPLY_ALPHA_WEBGL" | "pixelStorei"
+  >,
+): void {
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+}
+
 export function createPipeline(
   canvas: HTMLCanvasElement,
   scene: THREE.Scene,
@@ -125,6 +144,7 @@ export function createPipeline(
   };
 
   const renderer = new THREE.WebGLRenderer({ canvas });
+  resetInheritedPixelStore(renderer.getContext());
   renderer.setPixelRatio(measureViewport().pixelRatio * RENDER.pixelScale);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoft est déprécié depuis r18x

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pipelineViewport, tiltShiftRadius } from "../src/pipeline.js";
+import { pipelineViewport, resetInheritedPixelStore, tiltShiftRadius } from "../src/pipeline.js";
 
 describe("tiltShiftRadius", () => {
   it("ne change rien à la distance de référence", () => {
@@ -43,5 +43,20 @@ describe("pipelineViewport", () => {
         devicePixelRatio: 0,
       }),
     ).toEqual({ width: 800, height: 600, pixelRatio: 1 });
+  });
+});
+
+describe("resetInheritedPixelStore", () => {
+  it("desactive les etats incompatibles avec les textures 3D", () => {
+    const calls: [number, number | boolean][] = [];
+    resetInheritedPixelStore({
+      UNPACK_FLIP_Y_WEBGL: 0x9240,
+      UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
+      pixelStorei: (name, value) => calls.push([name, value]),
+    });
+    expect(calls).toEqual([
+      [0x9240, false],
+      [0x9241, false],
+    ]);
   });
 });

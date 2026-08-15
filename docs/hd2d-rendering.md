@@ -589,14 +589,13 @@ must not redo. Everything below was found while porting terrain, actors and scen
   rule is not moot, because the editor's future HD-2D preview will want a second context on that
   same shared canvas. The note lives in `packages/hd2d/src/pipeline.ts`'s `dispose()`; do not add
   `forceContextLoss()` back.
-- **â€¦and a SECOND session on the same canvas inherits that context, warnings and all.** Reachable by
-  ordinary play now that HD-2D is the only path: leave `/game`, come back, and a second
-  `WebGLRenderer` is built on the first one's context. Measured: it renders correctly â€” the terrain
-  pixels of the two sessions are byte-identical â€” but three logs two
-  `texImage3D: FLIP_Y or PREMULTIPLY_ALPHA isn't allowed for uploading 3D textures` while uploading
-  the grading LUT, because the new renderer's unpack state does not match what the context was left
-  in. Noise rather than damage, and unfixed: the fix belongs in `@lindocara/hd2d`'s pipeline, and the
-  first session is silent.
+- **â€¦and a SECOND session on the same canvas inherits that context and its pixel-store state.**
+  Reachable by ordinary play now that HD-2D is the only path: leave `/game`, come back, and a second
+  `WebGLRenderer` is built on the first one's context. Three's new state cache assumes unpack flip-Y
+  and premultiplied-alpha are disabled, while the inherited context may still have either enabled;
+  the first 3D texture upload then fails. `createPipeline` explicitly resets both flags immediately
+  after constructing the renderer and before creating any render target or pass. Keep that reset at
+  the pipeline boundary: the canvas outlives scenes, individual textures cannot repair the cache.
 - **A pipeline that writes on a canvas it does not own must give it back.** `pipeline.dispose()`
   records `canvas.style.imageRendering` before overwriting it and restores *what was there* â€” it
   knows nothing about the game and reads the same for the lab or an editor preview. Measured: `""`
