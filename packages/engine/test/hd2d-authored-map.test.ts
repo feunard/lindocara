@@ -7,7 +7,7 @@ import { stairsFixedIndex, stairsTilePlacements } from "../src/tile-brush.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId, fixedId } from "../src/tileset.js";
 import { TERRAIN_MATERIAL_SLOTS, TINY_SWORDS_TILESET_ID } from "../src/tilesets/tiny-swords.js";
-import { EDITOR_ASSETS } from "../src/tiny-swords-catalog.js";
+import { LINDOCARA_BUILDING_ASSET_IDS } from "../src/tiny-swords-catalog.js";
 
 function authored(): MapData {
   const ground = emptyLayer(3, 2);
@@ -143,17 +143,19 @@ describe("compileAuthoredMap", () => {
     ]);
   });
 
-  it("authors buildings as solid wall volumes instead of walkable platforms", () => {
-    const building = EDITOR_ASSETS.find((asset) => asset.editor.category === "buildings");
-    if (!building) throw new Error("building fixture missing");
+  it.each([
+    [LINDOCARA_BUILDING_ASSET_IDS.house, 1.8],
+    [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, 1.8],
+    [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.8],
+    [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 2.7],
+    [LINDOCARA_BUILDING_ASSET_IDS.windmill, 2.7],
+  ])("authors %s as a finite wall volume with a walkable roof at %s", (assetId, roofTop) => {
     const source = authored();
-    source.elements = [
-      { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: building.id, orientation: 1 },
-    ];
+    source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId, orientation: 1 }];
     const compiled = compileAuthoredMap(source);
     expect(compiled.elements[0]?.orientation).toBe(1);
     expect(compiled.colliders).toHaveLength(1);
-    expect(compiled.colliders[0]?.top).toBeUndefined();
+    expect(compiled.colliders[0]?.top).toBeCloseTo(roofTop);
 
     const collider = compiled.colliders[0];
     if (!collider) throw new Error("compiled building collider missing");
@@ -165,6 +167,9 @@ describe("compileAuthoredMap", () => {
     expect(canStand(terrain, collider.x + collider.w + 0.2, centreZ, 0.25, 0)).toBe(false);
     expect(canStand(terrain, centreX, collider.z - 0.2, 0.25, 0)).toBe(false);
     expect(canStand(terrain, centreX, collider.z + collider.h + 0.2, 0.25, 0)).toBe(false);
+    expect(terrain.query.surfaceAt?.(centreX, centreZ, roofTop + 0.01)).toBeCloseTo(roofTop);
+    expect(groundUnder(terrain, centreX, centreZ, 0)).toBeCloseTo(roofTop);
+    expect(canStand(terrain, centreX, centreZ, 0.25, roofTop)).toBe(true);
   });
 
   it.each([
@@ -219,6 +224,8 @@ describe("compileAuthoredMap", () => {
     expect(compiled.levels[3 * cols + 3]).toBeNull();
     expect(compiled.colliders).toHaveLength(3);
     expect(compiled.colliders[0]).toMatchObject({ ...fixture.deck, top: 0 });
+    expect(compiled.colliders[1]?.top).toBeCloseTo(0.9);
+    expect(compiled.colliders[2]?.top).toBeCloseTo(0.9);
 
     const terrain = zoneTerrainFromHeightfield(compiled);
     expect(terrain.query.heightAt(0, 0)).toBeNull();
@@ -226,5 +233,6 @@ describe("compileAuthoredMap", () => {
     expect(groundUnder(terrain, 0, 0, -1)).toBe(0);
     expect(canStand(terrain, 0, 0, 0.25, 0)).toBe(true);
     expect(canStand(terrain, fixture.rail.x, fixture.rail.z, 0.1, 0)).toBe(false);
+    expect(canStand(terrain, fixture.rail.x, fixture.rail.z, 0.05, 0.9)).toBe(true);
   });
 });

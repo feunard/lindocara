@@ -852,6 +852,8 @@ describe("world room events (FakeClock)", () => {
     const intactCollider = state.activeEvents.find((event) => event.id === resource.id)?.harvest
       ?.collider;
     if (!intactCollider) throw new Error("intact harvest collider missing");
+    expect(intactCollider[4]).toBe(3);
+    expect(state.harvestColliders[0]?.top).toBeCloseTo(2.7);
     // The wire keeps the authored PIXEL tuple; the room collides on the grid-centred ground plane,
     // so the assertion probes the footprint the collider index actually holds.
     const resourceGround = harvestGround(state, resource);
@@ -961,6 +963,8 @@ describe("world room events (FakeClock)", () => {
         collider: expect.any(Array),
       },
     });
+    expect(depleted?.harvest?.collider?.[4]).toBe(1);
+    expect(state.harvestColliders[0]?.top).toBeCloseTo(0.9);
     const hiddenDepleted = state.activeEvents.find((event) => event.id === hidden.id);
     expect(hiddenDepleted).toMatchObject({ harvest: { state: "depleted", collider: null } });
     expect(state.navigation).not.toBe(previousNavigation);

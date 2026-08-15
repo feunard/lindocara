@@ -79,7 +79,7 @@ describe("building system", () => {
     expect(buildingAtImpact([building], { x: -2, z: 3 }, 0.1)).toBeNull();
   });
 
-  it("projects authored buildings into room state and removes only their static visual", () => {
+  it("projects authored buildings and upgrades an old infinite collider to a finite roof", () => {
     const input = defaultMapInput("Building map");
     const element = {
       id: "f2c15465-6f9d-4ef5-80dd-e508c3642111",
@@ -96,6 +96,11 @@ describe("building system", () => {
       },
     } as const;
     const authored = { ...input, elements: [element] };
+    const compiled = compileAuthoredMap(authored);
+    const legacyHeightfield = {
+      ...compiled,
+      colliders: compiled.colliders.map(({ top: _top, ...collider }) => collider),
+    };
     const payload: MapPayload = {
       id: "map-1",
       accountId: "account-1",
@@ -115,7 +120,7 @@ describe("building system", () => {
       heroSettings: required(input.heroSettings),
       dayNightCycle: required(input.dayNightCycle),
       fixedLighting: required(input.fixedLighting),
-      heightfield: encodeMap(compileAuthoredMap(authored)),
+      heightfield: encodeMap(legacyHeightfield),
     };
 
     const zone = zoneFromMapPayload(payload, DEFAULT_ADVENTURE_AUDIO);
@@ -132,5 +137,6 @@ describe("building system", () => {
     ]);
     expect(liveMap?.elements).toEqual([]);
     expect(liveMap?.colliders).toHaveLength(1);
+    expect(liveMap?.colliders[0]?.top).toBeCloseTo(1.8);
   });
 });

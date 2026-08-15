@@ -31,6 +31,8 @@ export type AssetNature = "static" | "animated" | "sheet";
 export type AnimationAxis = "x" | "y";
 export type EditorTerrain = "grass" | "water";
 export type EditorRenderLayer = "ground" | "object" | "canopy" | "sky";
+/** Number of authored terrain levels occupied by one solid scenery volume. */
+export type CollisionElevation = 1 | 2 | 3;
 
 export interface AssetFrameMetadata {
   width: number;
@@ -78,6 +80,11 @@ export interface EditorPlacementMetadata {
    * expressible before, and it made every tree block a 64x64 square you could see straight through.
    */
   collider?: Rect;
+  /**
+   * Height of the solid volume, in authored terrain levels. A finite collision elevation makes
+   * its upper face a real movement surface: a hero may clear it in the air and land on it.
+   */
+  collisionElevation?: CollisionElevation;
   /** A bridge can replace solid water with walkable ground under its authored deck. */
   terrainOverride?: "walkable";
   sourceRect?: AssetSourceRect;
@@ -214,6 +221,7 @@ function lindocaraBuilding<const Id extends string>(
   height: number,
   visualFootprint: readonly CellOffset[],
   collider: Rect,
+  collisionElevation: CollisionElevation,
 ) {
   return {
     id,
@@ -234,6 +242,7 @@ function lindocaraBuilding<const Id extends string>(
       renderLayer: "object",
       visualFootprint,
       collider,
+      collisionElevation,
     },
   } as const satisfies EditorAssetDefinition;
 }
@@ -340,6 +349,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     198,
     [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
     { x: -88, y: -136, width: 176, height: 136 },
+    2,
   ),
   lindocaraBuilding(
     LINDOCARA_BUILDING_ASSET_IDS.stoneTower,
@@ -349,6 +359,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     220,
     [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
     { x: -64, y: -128, width: 128, height: 128 },
+    3,
   ),
   lindocaraBuilding(
     LINDOCARA_BUILDING_ASSET_IDS.archeryGuild,
@@ -358,6 +369,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     202,
     [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
     { x: -96, y: -144, width: 192, height: 144 },
+    2,
   ),
   lindocaraBuilding(
     LINDOCARA_BUILDING_ASSET_IDS.barracks,
@@ -367,6 +379,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     206,
     [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
     { x: -96, y: -152, width: 192, height: 152 },
+    2,
   ),
   lindocaraBuilding(
     LINDOCARA_BUILDING_ASSET_IDS.windmill,
@@ -376,6 +389,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     224,
     [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
     { x: -88, y: -128, width: 176, height: 128 },
+    3,
   ),
   lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.hearth, "hearth.png", 80, 94, {
     x: -34,
@@ -417,6 +431,32 @@ export function isEditorAssetId(value: unknown): value is EditorAssetId {
 
 export function editorAsset(value: string): EditorAssetDefinition | null {
   return EDITOR_ASSET_BY_ID.get(value) ?? null;
+}
+
+/**
+ * Collision height for both new Lindocara assets and historical catalogue ids still present in
+ * saved maps. Explicit metadata wins; conservative category/tag fallbacks keep old buildings and
+ * resource decorations playable without rewriting their generated catalogue entries.
+ */
+export function editorAssetCollisionElevation(
+  value: string | EditorAssetDefinition,
+): CollisionElevation | null {
+  const asset = typeof value === "string" ? editorAsset(value) : value;
+  if (!asset?.editor.collider) return null;
+  if (asset.editor.collisionElevation !== undefined) return asset.editor.collisionElevation;
+
+  if (asset.editor.category === "buildings") {
+    return asset.tags.some((tag) => tag === "tower" || tag === "castle" || tag === "windmill")
+      ? 3
+      : 2;
+  }
+
+  const stump = asset.tags.some((tag) => tag.includes("stump"));
+  const tree = asset.editor.category === "trees" || asset.tags.includes("trees");
+  if (tree && !stump) return 3;
+
+  // Rocks, stumps, chests, furniture and other bounded props are one-level obstacles.
+  return 1;
 }
 
 /** Historical focused-test subset retained for fixture compatibility. It no longer gates the

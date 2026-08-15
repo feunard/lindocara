@@ -326,6 +326,11 @@ describe("events on the wire", () => {
     ).not.toBeNull();
     expect(
       parseServerMessage(
+        JSON.stringify(welcome([event({ harvest: { ...intact, collider: [72, 96, 48, 24, 1] } })])),
+      ),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(
         JSON.stringify(welcome([event({ harvest: { ...intact, collider: null } })])),
       ),
     ).toBeNull();
@@ -391,6 +396,22 @@ describe("events on the wire", () => {
               },
             }),
           ]),
+        ),
+      ),
+    ).toBeNull();
+    for (const elevation of [0, 1.5, 4]) {
+      expect(
+        parseServerMessage(
+          JSON.stringify(
+            welcome([event({ harvest: { ...intact, collider: [72, 96, 48, 24, elevation] } })]),
+          ),
+        ),
+      ).toBeNull();
+    }
+    expect(
+      parseServerMessage(
+        JSON.stringify(
+          welcome([event({ harvest: { ...intact, collider: [72, 96, 48, 24, 1, 2] } })]),
         ),
       ),
     ).toBeNull();

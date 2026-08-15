@@ -103,7 +103,11 @@ import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { isTalentId, type TalentState } from "./talents.js";
 import { parseTileLayer } from "./tile-layer-codec.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
-import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
+import {
+  type CollisionElevation,
+  type EditorAssetId,
+  isEditorAssetId,
+} from "./tiny-swords-catalog.js";
 import { isZoneId, type ZoneId } from "./zones.js";
 
 /**
@@ -640,6 +644,14 @@ export interface PeasantBombImpactVisual {
  * authoritative target cell; movement metadata only tells the renderer how to present the trip
  * from its previous target.
  */
+export type WorldEventCollider = readonly [
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  elevation?: CollisionElevation,
+];
+
 export interface WorldEventSnapshot {
   id: string;
   col: number;
@@ -678,8 +690,8 @@ export interface WorldEventSnapshot {
      * actor already standing in the footprint.
      */
     collisionPending?: true;
-    /** Current authoritative world-space footprint `[x, y, width, height]`. */
-    collider: readonly [number, number, number, number] | null;
+    /** Authored-pixel footprint plus optional 1/2/3-level walkable collision height. */
+    collider: WorldEventCollider | null;
   };
 }
 
@@ -1876,8 +1888,8 @@ function isQuestSite(value: unknown): value is QuestSite {
 
 function isHarvestWorldCollider(value: unknown): boolean {
   if (value === null) return true;
-  if (!Array.isArray(value) || value.length !== 4) return false;
-  const [x, y, width, height] = value;
+  if (!Array.isArray(value) || (value.length !== 4 && value.length !== 5)) return false;
+  const [x, y, width, height, elevation] = value;
   return (
     Number.isSafeInteger(x) &&
     Number.isSafeInteger(y) &&
@@ -1888,7 +1900,8 @@ function isHarvestWorldCollider(value: unknown): boolean {
     (width as number) > 0 &&
     (height as number) > 0 &&
     (width as number) <= HARVEST_PROFILE_LIMITS.collisionSize.max &&
-    (height as number) <= HARVEST_PROFILE_LIMITS.collisionSize.max
+    (height as number) <= HARVEST_PROFILE_LIMITS.collisionSize.max &&
+    (elevation === undefined || elevation === 1 || elevation === 2 || elevation === 3)
   );
 }
 

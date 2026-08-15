@@ -21,7 +21,10 @@ import {
 } from "@lindocara/engine/buildings.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
-import { authoredElementGroundPoint } from "@lindocara/engine/hd2d/authored-map.js";
+import {
+  authoredElementColliders,
+  authoredElementGroundPoint,
+} from "@lindocara/engine/hd2d/authored-map.js";
 import {
   type ColliderIndex,
   type ColliderRect,
@@ -164,6 +167,37 @@ function withoutStaticNativeResources(
   };
 }
 
+/**
+ * Runtime-compatible upgrade for maps saved before finite scenery heights existed. Only colliders
+ * whose authored element geometry matches are enriched; custom heightfield-only geometry remains
+ * untouched. This makes existing production maps obey the same 1/2/3-level rule immediately,
+ * without requiring their owner to open and re-save every map.
+ */
+function withAuthoredColliderTops(
+  heightfield: NonNullable<ReturnType<typeof decodeMap>>,
+  payload: MapPayload,
+): NonNullable<ReturnType<typeof decodeMap>> {
+  const expected = payload.elements
+    .filter((element) => !isNativeHarvestAsset(element.assetId))
+    .flatMap((element) =>
+      authoredElementColliders(payload, element, heightfield.levels, heightfield.size),
+    )
+    .filter((collider): collider is ColliderRect & { top: number } => collider.top !== undefined);
+  if (expected.length === 0) return heightfield;
+  const sameFootprint = (left: ColliderRect, right: ColliderRect) =>
+    Math.abs(left.x - right.x) < 1e-6 &&
+    Math.abs(left.z - right.z) < 1e-6 &&
+    Math.abs(left.w - right.w) < 1e-6 &&
+    Math.abs(left.h - right.h) < 1e-6;
+  return {
+    ...heightfield,
+    colliders: heightfield.colliders.map((collider) => {
+      const authored = expected.find((candidate) => sameFootprint(collider, candidate));
+      return authored ? { ...collider, top: authored.top } : collider;
+    }),
+  };
+}
+
 /** Buildings are live scenery. Keep their compiled collider, but let room state own their visual. */
 function withoutStaticBuildingVisuals(
   heightfield: NonNullable<ReturnType<typeof decodeMap>>,
@@ -240,7 +274,10 @@ export function zoneFromMapPayload(
   const decodedHeightfield = payload.heightfield === null ? null : decodeMap(payload.heightfield);
   const heightfield = decodedHeightfield
     ? withoutStaticBuildingVisuals(
-        withoutStaticNativeResources(decodedHeightfield, payload),
+        withAuthoredColliderTops(
+          withoutStaticNativeResources(decodedHeightfield, payload),
+          payload,
+        ),
         payload,
       )
     : null;

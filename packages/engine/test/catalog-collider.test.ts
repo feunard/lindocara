@@ -2,6 +2,8 @@ import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   CURATED_EDITOR_ASSET_IDS,
   editorAsset,
+  editorAssetCollisionElevation,
+  LINDOCARA_BUILDING_ASSET_IDS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
@@ -70,6 +72,19 @@ describe("catalogue colliders", () => {
       width: 64,
       height: 192,
     });
+  });
+
+  it("assigns finite collision elevations by scenery family", () => {
+    expect(
+      editorAssetCollisionElevation(
+        "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01",
+      ),
+    ).toBe(1);
+    expect(editorAssetCollisionElevation("resource.terrain-resources-wood-trees.stump-1")).toBe(1);
+    expect(editorAssetCollisionElevation("resource.terrain-resources-wood-trees.tree3")).toBe(3);
+    expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.house)).toBe(2);
+    expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.stoneTower)).toBe(3);
+    expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.windmill)).toBe(3);
   });
 
   it("offers the Update 010 animation once while preserving duplicate ids for old maps", () => {

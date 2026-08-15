@@ -27,6 +27,7 @@ import {
   type PeasantHarvestPlan,
   resolvePeasantHarvestPlan,
 } from "@lindocara/engine/peasant.js";
+import type { WorldEventCollider } from "@lindocara/engine/protocol.js";
 import { isSheepAssetId } from "@lindocara/engine/sheep.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
@@ -45,10 +46,7 @@ import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "./world-ru
  * A pixel rectangle's top-left corner maps to the tile grid's TOP-LEFT ORIGIN, so the grid-centre
  * shift is `- size / 2` on both ground axes. A length carries no origin and only divides.
  */
-function authoredRect(
-  tuple: readonly [number, number, number, number],
-  gridSize: number,
-): ColliderRect {
+function authoredRect(tuple: WorldEventCollider, gridSize: number): ColliderRect {
   const half = gridSize / 2;
   return {
     x: tuple[0] / TILE_SIZE - half,

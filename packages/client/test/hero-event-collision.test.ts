@@ -46,6 +46,51 @@ describe("live authored-event collision", () => {
     expect(hero.state.x).toBeGreaterThan(0.5);
   });
 
+  it("jumps over a level-one resource but not a level-two wall from flat ground", () => {
+    const base = flatTerrain();
+    const obstacle = [SIZE * 32, (SIZE / 2 - 1) * 64, 64, 128] as const;
+    const runAt = (elevation: 1 | 2) => {
+      const terrain = withWorldEventColliders(base, [
+        { harvest: { collider: [...obstacle, elevation] } },
+      ]);
+      const hero = createHeroController({
+        terrain,
+        spawn: { x: -2, y: 0, z: 0 },
+        speed: 4,
+      });
+      for (let frame = 0; frame < 120; frame += 1) {
+        hero.step({ x: 1, z: 0, jump: frame < 30 }, FRAME);
+      }
+      return hero.state;
+    };
+
+    expect(runAt(1).x).toBeGreaterThan(0.75);
+    expect(runAt(2).x).toBeLessThan(0);
+  });
+
+  it("keeps a hero walking on the finite top surface", () => {
+    const terrain = withWorldEventColliders(flatTerrain(), [
+      {
+        harvest: {
+          collider: [SIZE * 32, (SIZE / 2 - 1) * 64, 64, 128, 1],
+        },
+      },
+    ]);
+    const hero = createHeroController({
+      terrain,
+      spawn: { x: 0, y: 0.9, z: 0 },
+      speed: 4,
+    });
+
+    for (let frame = 0; frame < 8; frame += 1) {
+      hero.step({ x: 0, z: 1, jump: false }, FRAME);
+    }
+
+    expect(hero.state.z).toBeGreaterThan(0.1);
+    expect(hero.state.y).toBeCloseTo(0.9);
+    expect(hero.state.airborne).toBe(false);
+  });
+
   it("adds and removes the solid footprint of an authoritative Peasant camp", () => {
     const base = flatTerrain();
     const blocked = withWorldEventColliders(base, [], [{ x: 0, z: 0 }]);

@@ -26,7 +26,8 @@ import {
 import { TILE_SIZE } from "../tilemap.js";
 import { decodeTileId, fixedId } from "../tileset.js";
 import { elevationOfSlot, materialOfSlot } from "../tilesets/tiny-swords.js";
-import { editorAsset } from "../tiny-swords-catalog.js";
+import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
+import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
 import type { TerrainMaterial, TerrainRamp } from "./terrain-query.js";
 
@@ -126,7 +127,7 @@ function authoredRamps(authored: AuthoredMapData, size: number): TerrainRamp[] {
 }
 
 function bridgeTop(
-  authored: AuthoredMapData,
+  authored: Pick<AuthoredMapData, "cols" | "rows">,
   element: MapElement,
   levels: readonly (number | null)[],
   size: number,
@@ -153,27 +154,77 @@ function bridgeTop(
   return level * AUTHORED_LEVEL_HEIGHT;
 }
 
-function bridgeRails(collider: { x: number; z: number; w: number; h: number }) {
+function bridgeRails(
+  collider: { x: number; z: number; w: number; h: number },
+  deckTop: number,
+): ColliderRect[] {
+  const top = deckTop + AUTHORED_LEVEL_HEIGHT;
   if (collider.w > collider.h) {
     return [
-      { x: collider.x, z: collider.z, w: collider.w, h: BRIDGE_RAIL_THICKNESS },
+      { x: collider.x, z: collider.z, w: collider.w, h: BRIDGE_RAIL_THICKNESS, top },
       {
         x: collider.x,
         z: collider.z + collider.h - BRIDGE_RAIL_THICKNESS,
         w: collider.w,
         h: BRIDGE_RAIL_THICKNESS,
+        top,
       },
     ];
   }
   return [
-    { x: collider.x, z: collider.z, w: BRIDGE_RAIL_THICKNESS, h: collider.h },
+    { x: collider.x, z: collider.z, w: BRIDGE_RAIL_THICKNESS, h: collider.h, top },
     {
       x: collider.x + collider.w - BRIDGE_RAIL_THICKNESS,
       z: collider.z,
       w: BRIDGE_RAIL_THICKNESS,
       h: collider.h,
+      top,
     },
   ];
+}
+
+function elementBaseTop(
+  element: Pick<MapElement, "col" | "row">,
+  levels: readonly (number | null)[],
+  size: number,
+): number {
+  const level = levels[element.row * size + element.col] ?? null;
+  return level === null ? AUTHORED_WATER_LEVEL : level * AUTHORED_LEVEL_HEIGHT;
+}
+
+/**
+ * Compile one authored scenery footprint into finite world volumes. Every finite volume exposes a
+ * walkable upper surface, including pitched-roof buildings: visual slope never changes the
+ * discrete elevation rule used by movement.
+ */
+export function authoredElementColliders(
+  authored: Pick<AuthoredMapData, "cols" | "rows">,
+  element: MapElement,
+  levels: readonly (number | null)[],
+  size: number,
+): ColliderRect[] {
+  const rect = elementWorldCollider(element);
+  const asset = editorAsset(element.assetId);
+  if (!rect) return [];
+  const collider = {
+    x: groundCoordinate(rect.x, size),
+    z: groundCoordinate(rect.y, size),
+    w: rect.width / TILE_SIZE,
+    h: rect.height / TILE_SIZE,
+  };
+  if (asset?.editor.terrainOverride === "walkable") {
+    const top = bridgeTop(authored, element, levels, size);
+    return [{ ...collider, top }, ...bridgeRails(collider, top)];
+  }
+  const elevation = asset ? editorAssetCollisionElevation(asset) : null;
+  return elevation === null
+    ? [collider]
+    : [
+        {
+          ...collider,
+          top: elementBaseTop(element, levels, size) + elevation * AUTHORED_LEVEL_HEIGHT,
+        },
+      ];
 }
 
 /** Compile one validated editor map and its full authored event documents into heightfield bytes. */
@@ -207,27 +258,9 @@ export function compileAuthoredMap(
     ...(element.orientation ? { orientation: element.orientation } : {}),
   }));
 
-  const colliders = staticElements.flatMap((element) => {
-    const rect = elementWorldCollider(element);
-    const asset = editorAsset(element.assetId);
-    if (!rect) return [];
-    const collider = {
-      x: groundCoordinate(rect.x, size),
-      z: groundCoordinate(rect.y, size),
-      w: rect.width / TILE_SIZE,
-      h: rect.height / TILE_SIZE,
-    };
-    if (asset?.editor.terrainOverride === "walkable") {
-      return [
-        { ...collider, top: bridgeTop(authored, element, levels, size) },
-        ...bridgeRails(collider),
-      ];
-    }
-    // A building is a wall volume, never a platform. Giving it a `top` makes `surfaceAt` select
-    // that roof-like surface and the collider index then deliberately allows the hero to stand on
-    // it. Only explicit walkable overrides (bridges above) may author a collider top.
-    return [collider];
-  });
+  const colliders = staticElements.flatMap((element) =>
+    authoredElementColliders(authored, element, levels, size),
+  );
 
   return {
     version: 1,

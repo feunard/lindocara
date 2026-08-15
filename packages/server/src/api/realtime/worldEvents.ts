@@ -32,8 +32,18 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js";
 import { refreshHarvestNode } from "@lindocara/engine/party-harvest-state.js";
+import type { WorldEventCollider } from "@lindocara/engine/protocol.js";
 import { TICK_MS } from "@lindocara/engine/simulation.js";
-import { BODY_RADIUS, canStand, groundUnder } from "@lindocara/engine/terrain-access.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  worldEventColliderRect,
+} from "@lindocara/engine/terrain-access.js";
+import {
+  type CollisionElevation,
+  editorAssetCollisionElevation,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneTerrain } from "@lindocara/engine/zones.js";
 import {
   activeAuthoredGuardDefinitions,
@@ -56,14 +66,34 @@ function gridSize(state: WorldRoomState): number {
   return state.location?.definition.terrain.size ?? 0;
 }
 
-function colliderTuple(rect: Rect | null): readonly [number, number, number, number] | null {
-  return rect ? [rect.x, rect.y, rect.width, rect.height] : null;
+function colliderTuple(
+  rect: Rect | null,
+  elevation: CollisionElevation,
+): WorldEventCollider | null {
+  return rect ? [rect.x, rect.y, rect.width, rect.height, elevation] : null;
 }
 
 function sameCollider(a: ColliderRect | undefined, b: ColliderRect | undefined): boolean {
   return (
-    a !== undefined && b !== undefined && a.x === b.x && a.z === b.z && a.w === b.w && a.h === b.h
+    a !== undefined &&
+    b !== undefined &&
+    a.x === b.x &&
+    a.z === b.z &&
+    a.w === b.w &&
+    a.h === b.h &&
+    a.top === b.top
   );
+}
+
+function harvestCollisionElevation(
+  profile: HarvestProfile,
+  graphicAssetId: string | null,
+  harvestState: "intact" | "depleted",
+): CollisionElevation {
+  const assetElevation = graphicAssetId ? editorAssetCollisionElevation(graphicAssetId) : null;
+  if (assetElevation !== null) return assetElevation;
+  // Compatibility for authored profiles whose appearance was removed or is no longer catalogued.
+  return profile.resource === "wood" && harvestState === "intact" ? 3 : 1;
 }
 
 /**
@@ -127,22 +157,26 @@ function projectHarvestCollider(
   col: number,
   row: number,
   harvestState: "intact" | "depleted",
+  graphicAssetId: string | null,
   now: number,
 ): {
-  collider: readonly [number, number, number, number] | null;
+  collider: WorldEventCollider | null;
   collisionPending?: true;
 } {
   // The wire tuple stays the authored PIXEL rectangle; the occupancy test is the room's own
   // collision and is therefore asked on the ground plane.
   const collider = harvestColliderAt(profile, col, row, harvestState);
+  const elevation = harvestCollisionElevation(profile, graphicAssetId, harvestState);
   // Wandering harvest actors still advertise their moving body for directional tool selection,
   // but `syncHarvestColliders` keeps that body out of terrain so it cannot block its own next cell.
-  if (harvestActorBehavior(profile) === "wander") return { collider: colliderTuple(collider) };
+  if (harvestActorBehavior(profile) === "wander") {
+    return { collider: colliderTuple(collider, elevation) };
+  }
   const ground = harvestGroundColliderAt(profile, col, row, harvestState, gridSize(state));
   if (harvestState === "intact" && ground && harvestColliderOccupied(state, ground, now)) {
     return { collider: null, collisionPending: true };
   }
-  return { collider: colliderTuple(collider) };
+  return { collider: colliderTuple(collider, elevation) };
 }
 
 /**
@@ -151,26 +185,20 @@ function projectHarvestCollider(
  * exactly the same way and never inspect asset ids.
  */
 function syncHarvestColliders(state: WorldRoomState): void {
+  const definition = state.location?.definition;
+  if (!definition) return;
   const eventById = new Map(
     (state.location?.definition.events ?? []).map((event) => [event.id, event]),
   );
-  const size = gridSize(state);
-  // Rebuilt from the AUTHORED profile rather than read back out of `harvest.collider`: that tuple
-  // is the wire's pixel rectangle, and the room's collision index is tile units.
+  // The tuple remains in authored pixels on the wire; the shared crossing adds both its centred
+  // tile footprint and its finite top to the room collision index.
   const next = state.activeEvents.flatMap((event): ColliderRect[] => {
     const authored = eventById.get(event.id);
     const profile = authored?.kind === "harvestable" ? authored.harvestProfile : undefined;
     if (!profile || harvestActorBehavior(profile) === "wander") return [];
     // A null tuple means the footprint is deliberately absent (depleted, or collision pending).
     if (!event.harvest || event.harvest.collider === null) return [];
-    const ground = harvestGroundColliderAt(
-      profile,
-      event.col,
-      event.row,
-      event.harvest.state,
-      size,
-    );
-    return ground ? [ground] : [];
+    return [worldEventColliderRect(definition.terrain, event.harvest.collider)];
   });
   if (
     next.length === state.harvestColliders.length &&
@@ -179,8 +207,6 @@ function syncHarvestColliders(state: WorldRoomState): void {
     return;
   }
   state.harvestColliders = next;
-  const definition = state.location?.definition;
-  if (!definition) return;
   const colliders = createColliderIndex();
   for (const rect of state.staticColliders) colliders.add(rect);
   for (const rect of next) colliders.add(rect);
@@ -289,7 +315,15 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
               exhaustionBehavior: profile.exhaustionBehavior,
               exhaustedAssetId: profile.exhaustedAssetId,
               fadeDurationMs: profile.fadeDurationMs,
-              ...projectHarvestCollider(state, profile, eventCol, eventRow, harvestState, now),
+              ...projectHarvestCollider(
+                state,
+                profile,
+                eventCol,
+                eventRow,
+                harvestState,
+                graphicAssetId,
+                now,
+              ),
             },
           }
         : {}),
@@ -360,6 +394,7 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
         active.col,
         active.row,
         depleted ? "depleted" : "intact",
+        graphicAssetId,
         now,
       ),
     };
@@ -379,7 +414,8 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
       active.harvest.collider?.[0] === harvest.collider?.[0] &&
       active.harvest.collider?.[1] === harvest.collider?.[1] &&
       active.harvest.collider?.[2] === harvest.collider?.[2] &&
-      active.harvest.collider?.[3] === harvest.collider?.[3]
+      active.harvest.collider?.[3] === harvest.collider?.[3] &&
+      active.harvest.collider?.[4] === harvest.collider?.[4]
     ) {
       return active;
     }

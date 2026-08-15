@@ -43,7 +43,12 @@ import { type SegmentImpact, segmentBoxEntry, sweptRectEntry } from "./direction
 import type { GroundVector, WorldPosition } from "./ground.js";
 import { createColliderIndex } from "./hd2d/collider-index.js";
 import { type MapData, mapToQuerySource } from "./hd2d/map-data.js";
-import { createTerrainQuery } from "./hd2d/terrain-query.js";
+import {
+  createTerrainQuery,
+  type TerrainPlatform,
+  type TerrainQuery,
+} from "./hd2d/terrain-query.js";
+import type { WorldEventCollider } from "./protocol.js";
 import { PLAYER_SIZE } from "./simulation.js";
 import { TILE_SIZE } from "./tilemap.js";
 import type { ZoneTerrain } from "./zones.js";
@@ -103,7 +108,7 @@ export function zoneTerrainFromHeightfield(map: MapData): ZoneTerrain {
 }
 
 export interface WorldEventColliderView {
-  harvest?: { collider: readonly [number, number, number, number] | null };
+  harvest?: { collider: WorldEventCollider | null };
 }
 
 export interface PeasantCampColliderView {
@@ -120,6 +125,62 @@ export const PEASANT_CAMP_COLLIDER = {
   depth: 140 / TILE_SIZE,
 } as const;
 
+/** Cross one authoritative event tuple into the centred movement plane. */
+export function worldEventColliderRect(
+  terrain: ZoneTerrain,
+  tuple: WorldEventCollider,
+): import("./hd2d/collider-index.js").ColliderRect {
+  const half = terrain.size / 2;
+  const rect = {
+    x: tuple[0] / TILE_SIZE - half,
+    z: tuple[1] / TILE_SIZE - half,
+    w: tuple[2] / TILE_SIZE,
+    h: tuple[3] / TILE_SIZE,
+  };
+  const elevation = tuple[4];
+  if (elevation === undefined) return rect;
+  const centreX = rect.x + rect.w / 2;
+  const centreZ = rect.z + rect.h / 2;
+  const base =
+    terrain.query.heightAt(centreX, centreZ) ?? terrain.query.waterLevelAt(centreX, centreZ);
+  return { ...rect, top: base + elevation * terrain.levelHeight };
+}
+
+function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[]): TerrainQuery {
+  if (platforms.length === 0) return query;
+  return {
+    ...query,
+    surfaceAt(wx, wz, ceilingY) {
+      let surface = query.surfaceAt?.(wx, wz, ceilingY) ?? query.heightAt(wx, wz);
+      for (const platform of platforms) {
+        if (
+          platform.top <= ceilingY + HEIGHT_EPSILON &&
+          wx >= platform.x &&
+          wx <= platform.x + platform.w &&
+          wz >= platform.z &&
+          wz <= platform.z + platform.h
+        ) {
+          surface = surface === null ? platform.top : Math.max(surface, platform.top);
+        }
+      }
+      return surface;
+    },
+    maxHeightAround(wx, wz, radius, ceilingY) {
+      let height = query.maxHeightAround(wx, wz, radius, ceilingY);
+      if (ceilingY === undefined) return height;
+      for (const platform of platforms) {
+        if (platform.top > ceilingY + HEIGHT_EPSILON) continue;
+        const nearestX = Math.min(Math.max(wx, platform.x), platform.x + platform.w);
+        const nearestZ = Math.min(Math.max(wz, platform.z), platform.z + platform.h);
+        if ((nearestX - wx) ** 2 + (nearestZ - wz) ** 2 <= radius * radius) {
+          height = Math.max(height, platform.top);
+        }
+      }
+      return height;
+    },
+  };
+}
+
 /**
  * Compose the static heightfield with the authoritative harvest footprints currently advertised
  * on the wire. The tuple remains in authored pixel coordinates for editor tooling; this is the one
@@ -132,16 +193,13 @@ export function withWorldEventColliders(
 ): ZoneTerrain {
   const colliders = createColliderIndex();
   for (const collider of terrain.colliders.all) colliders.add(collider);
-  const half = terrain.size / 2;
+  const eventPlatforms: TerrainPlatform[] = [];
   for (const event of events) {
     const tuple = event.harvest?.collider;
     if (!tuple) continue;
-    colliders.add({
-      x: tuple[0] / TILE_SIZE - half,
-      z: tuple[1] / TILE_SIZE - half,
-      w: tuple[2] / TILE_SIZE,
-      h: tuple[3] / TILE_SIZE,
-    });
+    const rect = worldEventColliderRect(terrain, tuple);
+    colliders.add(rect);
+    if (rect.top !== undefined) eventPlatforms.push({ ...rect, top: rect.top });
   }
   for (const camp of camps) {
     colliders.add({
@@ -151,7 +209,7 @@ export function withWorldEventColliders(
       h: PEASANT_CAMP_COLLIDER.depth,
     });
   }
-  return { ...terrain, colliders };
+  return { ...terrain, query: withPlatforms(terrain.query, eventPlatforms), colliders };
 }
 
 /**
