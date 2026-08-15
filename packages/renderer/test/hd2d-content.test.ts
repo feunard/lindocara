@@ -141,6 +141,31 @@ describe("static map content", () => {
     expect(high.position.y + foot).toBeCloseTo(map.levelHeight);
   });
 
+  it("shows a proportional health bar as soon as a destructible building is damaged", () => {
+    const map = flatMap(4, {
+      events: [
+        {
+          id: "building-1",
+          x: 0.5,
+          z: 0.5,
+          graphicAssetId: "building",
+          health: { value: 225, max: 900, visible: true },
+        } as HeightfieldEvent & {
+          health: { value: number; max: number; visible: boolean };
+        },
+      ],
+    });
+    const scene = sceneFor(map);
+    placeStaticContent(createHd2dContext(), scene, map, resolverFor({ building: art() }));
+
+    const bar = scene.root.children.find(
+      (child): child is THREE.Group => child instanceof THREE.Group && child.renderOrder === 70,
+    );
+    expect(bar?.visible).toBe(true);
+    const fill = bar?.children[1];
+    expect(fill?.scale.x).toBeCloseTo(0.25);
+  });
+
   it("skips an element whose asset id resolves to nothing, and keeps the rest", () => {
     const tree = art();
     const map = flatMap(4, {
@@ -370,8 +395,28 @@ describe("staticAssetSpec", () => {
     ).toBeUndefined();
   });
 
-  it("classifies Tiny Swords buildings as ordinary billboards", () => {
-    expect(staticAssetSpec("building.buildings-blue-buildings.house1")?.renderMode).toBeUndefined();
+  it("replaces legacy buildings with the generated native 3D family", () => {
+    expect(staticAssetSpec("building.buildings-blue-buildings.house1")).toMatchObject({
+      url: "/assets/lindocara/hd2d/buildings/house-front.png",
+      buildingVolume: { archetype: "house", state: "standing" },
+    });
+    expect(staticAssetSpec("building.lindocara.windmill")).toMatchObject({
+      buildingVolume: { archetype: "windmill", state: "standing" },
+    });
+    expect(
+      staticAssetSpec("building.factions-knights-buildings-house.house-destroyed"),
+    ).toMatchObject({
+      buildingVolume: { archetype: "house", state: "destroyed" },
+    });
+  });
+
+  it("replaces both legacy bridge sprites with native 3D bridges", () => {
+    expect(staticAssetSpec("terrain.bridge.wood.horizontal")).toMatchObject({
+      bridgeOrientation: "horizontal",
+    });
+    expect(staticAssetSpec("terrain.bridge.wood.vertical")).toMatchObject({
+      bridgeOrientation: "vertical",
+    });
   });
 
   it("places cloud art as a fixed three-card volume above the map", () => {

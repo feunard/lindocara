@@ -11,6 +11,7 @@
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
+import type { BuildingArchetype } from "@lindocara/engine/buildings.js";
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
@@ -47,6 +48,7 @@ import {
   LINDOCARA_CAMPFIRE_ASSET_ID,
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
+  LINDOCARA_INTERIOR_ASSET_IDS,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -96,7 +98,7 @@ import { createBillboardRegistry } from "./billboards.js";
 import type { DayCycleOverride } from "./day-cycle.js";
 import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_TEXTURE_URLS, waterPlaneKey } from "./scene.js";
-import type { StaticContent, StaticSpriteArt } from "./static-content.js";
+import type { StaticContent, StaticContentEvent, StaticSpriteArt } from "./static-content.js";
 import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
 import {
   HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
@@ -454,10 +456,17 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
  * downloaded and TEXTURED only afterwards — see `staticAssetSpec`.
  */
 export interface StaticAssetSpec
-  extends Omit<StaticSpriteArt, "texture" | "companions" | "coldVariant"> {
+  extends Omit<StaticSpriteArt, "texture" | "companions" | "coldVariant" | "buildingVolume"> {
   url: string;
   companions?: readonly StaticAssetSpec[];
   coldVariant?: StaticAssetSpec;
+  buildingVolume?: {
+    archetype: BuildingArchetype;
+    state: "standing" | "construction" | "destroyed";
+    wallUrl: string;
+    roofUrl: string;
+    roofColor: number;
+  };
 }
 
 const LAB_CAMPFIRE_BASE_URL = "/assets/lindocara/hd2d/campfire-base.png";
@@ -465,6 +474,10 @@ const LAB_CAMPFIRE_FLAME_URL = "/assets/lindocara/hd2d/campfire-flame.png";
 const LAB_CHEST_CLOSED_URL = "/assets/lindocara/hd2d/chest-closed.png";
 const LAB_CHEST_OPEN_URL = "/assets/lindocara/hd2d/chest-open.png";
 const LAB_SNOW_TREE_URL = "/assets/lindocara/hd2d/snow-tree.png";
+const GENERATED_BUILDING_ROOT = "/assets/lindocara/hd2d/buildings";
+const GENERATED_BUILDING_WALL_URL = `${GENERATED_BUILDING_ROOT}/wall-timber.png`;
+const GENERATED_BUILDING_ROOF_URL = `${GENERATED_BUILDING_ROOT}/roof-shingles.png`;
+const GENERATED_BRIDGE_DECK_URL = "/assets/lindocara/hd2d/interiors/floor.png";
 const NATIVE_TREE_ASSET_IDS = new Set([
   "resource.terrain-resources-wood-trees.tree1",
   "resource.terrain-resources-wood-trees.tree2",
@@ -483,6 +496,60 @@ function snowTreeSpec(): StaticAssetSpec {
     height: 2.9,
     aspect: 94 / 142,
     foot: 0.03,
+  };
+}
+
+function visualBuildingArchetype(assetId: string): BuildingArchetype | null {
+  const name = assetId.toLowerCase();
+  if (name.includes("windmill")) return "windmill";
+  if (name.includes("monastery")) return "monastery";
+  if (name.includes("barracks")) return "barracks";
+  if (name.includes("archery")) return "archery";
+  if (name.includes("castle")) return "castle";
+  if (name.includes("tower")) return "tower";
+  if (name.includes("house")) return "house";
+  return null;
+}
+
+function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
+  const definition = editorAsset(assetId);
+  if (definition?.editor.category !== "buildings") return null;
+  const archetype = visualBuildingArchetype(assetId);
+  if (!archetype) return null;
+  const state = definition.tags.includes("destroyed")
+    ? "destroyed"
+    : definition.tags.some((tag) => tag.includes("construction"))
+      ? "construction"
+      : "standing";
+  const front =
+    archetype === "tower" || archetype === "windmill"
+      ? "tower-front.png"
+      : archetype === "archery" || archetype === "monastery"
+        ? "archery-front.png"
+        : archetype === "barracks" || archetype === "castle"
+          ? "barracks-front.png"
+          : "house-front.png";
+  const lower = assetId.toLowerCase();
+  const roofColor = lower.includes("red")
+    ? 0xc85e54
+    : lower.includes("purple")
+      ? 0x8e65aa
+      : lower.includes("yellow")
+        ? 0xd3a843
+        : lower.includes("black")
+          ? 0x48515b
+          : 0x4da9c7;
+  return {
+    url: `${GENERATED_BUILDING_ROOT}/${front}`,
+    height: 1,
+    aspect: 1,
+    buildingVolume: {
+      archetype,
+      state,
+      wallUrl: GENERATED_BUILDING_WALL_URL,
+      roofUrl: GENERATED_BUILDING_ROOF_URL,
+      roofColor,
+    },
   };
 }
 
@@ -511,6 +578,16 @@ function snowTreeSpec(): StaticAssetSpec {
  * the same number the deleted PixiJS path used to stand the very same sprite on the very same cell.
  */
 export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
+  const generatedBuilding = generatedBuildingSpec(assetId);
+  if (generatedBuilding) return generatedBuilding;
+  if (assetId === "terrain.bridge.wood.horizontal" || assetId === "terrain.bridge.wood.vertical") {
+    return {
+      url: GENERATED_BRIDGE_DECK_URL,
+      height: 1,
+      aspect: 1,
+      bridgeOrientation: assetId.endsWith("horizontal") ? "horizontal" : "vertical",
+    };
+  }
   if (assetId === LINDOCARA_CAMPFIRE_ASSET_ID) {
     return {
       url: LAB_CAMPFIRE_BASE_URL,
@@ -544,6 +621,15 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   }
   const definition = editorAsset(assetId);
   if (!definition) return null;
+  if (assetId === LINDOCARA_INTERIOR_ASSET_IDS.rug) {
+    return {
+      url: definition.sourcePath,
+      height: definition.height / TILE_SIZE,
+      aspect: definition.width / definition.height,
+      renderMode: "flat",
+      flatSize: 1.55,
+    };
+  }
   if (UPDATE_TREE_ASSET_IDS.has(assetId)) {
     let url: string;
     try {
@@ -597,7 +683,9 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
   const alongX = (frame?.axis ?? "x") === "x";
   let url: string;
   try {
-    url = tinySwordsSourceUrl(definition.sourcePath);
+    url = definition.sourcePath.startsWith("/")
+      ? definition.sourcePath
+      : tinySwordsSourceUrl(definition.sourcePath);
   } catch {
     // The Vite glob is the only boundary to the raw pack and it throws on a path it never bundled.
     // A catalogue entry pointing at a file this build does not ship is one lost prop, not a crash.
@@ -647,16 +735,28 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
 function staticSpecUrls(spec: StaticAssetSpec): string[] {
   return [
     spec.url,
+    ...(spec.buildingVolume ? [spec.buildingVolume.wallUrl, spec.buildingVolume.roofUrl] : []),
     ...(spec.companions ?? []).flatMap(staticSpecUrls),
     ...(spec.coldVariant ? staticSpecUrls(spec.coldVariant) : []),
   ];
 }
 
 function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureSource): StaticSpriteArt {
-  const { url, companions, coldVariant, ...geometry } = spec;
+  const { url, companions, coldVariant, buildingVolume, ...geometry } = spec;
   return {
     texture: textures.get(url),
     ...geometry,
+    ...(buildingVolume
+      ? {
+          buildingVolume: {
+            archetype: buildingVolume.archetype,
+            state: buildingVolume.state,
+            wall: textures.get(buildingVolume.wallUrl),
+            roof: textures.get(buildingVolume.roofUrl),
+            roofColor: buildingVolume.roofColor,
+          },
+        }
+      : {}),
     ...(companions
       ? { companions: companions.map((companion) => materializeStaticSpec(companion, textures)) }
       : {}),
@@ -1029,7 +1129,7 @@ export class Hd2dRenderer implements RendererLike {
       }),
       ...buildings.map(
         (building) =>
-          `building:${building.id}:${building.x}:${building.z}:${building.graphicAssetId}`,
+          `building:${building.id}:${building.x}:${building.z}:${building.graphicAssetId}:${building.hp}:${building.maxHp}`,
       ),
     ].join("|");
     const assetIds = [
@@ -1115,7 +1215,7 @@ export class Hd2dRenderer implements RendererLike {
     const map = this.#map;
     const textures = this.#eventTextures;
     if (!scene || !map || !textures) return;
-    const events = this.#worldEvents.flatMap((event) => {
+    const events: StaticContentEvent[] = this.#worldEvents.flatMap((event) => {
       const assetId = worldEventAsset(event);
       return assetId === null || authoredActorSheet(assetId, "idle")
         ? []
@@ -1136,6 +1236,11 @@ export class Hd2dRenderer implements RendererLike {
         x: building.x,
         z: building.z,
         graphicAssetId: building.graphicAssetId,
+        health: {
+          value: building.hp,
+          max: building.maxHp,
+          visible: building.destructible && !building.destroyed && building.hp < building.maxHp,
+        },
       })),
     );
     if (this.#eventContent) {

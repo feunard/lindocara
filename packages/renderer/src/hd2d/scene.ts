@@ -74,6 +74,7 @@ export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${TERRAIN_ROOT}/Tilemap_Flat.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/tileset-neige.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/tileset-glace.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Water.png` },
   { url: `${TERRAIN_ROOT}/Foam.png`, atlas: true },
 ];
@@ -147,6 +148,10 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
       ...sheet("Tilemap_color1.png", "cliff-edge", 9, 6),
       texture: textures.get(`${HD2D_TERRAIN_ROOT}/tileset-glace.png`),
     },
+    interior: {
+      ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`),
+    },
   };
 }
 
@@ -183,7 +188,8 @@ export function heightFieldFor(map: MapData): HeightField {
     size: map.size,
     levels: map.levels,
     materials: map.materials,
-    materialKey: terrainAtlasKey,
+    materialKey:
+      (map.environment ?? "exterior") === "interior" ? () => "interior" : terrainAtlasKey,
   });
 }
 
@@ -342,7 +348,7 @@ export interface Hd2dScene {
  * without changing this key is a diff a reader can see rather than a stale cache nobody suspects.
  */
 export function waterPlaneKey(map: MapData): string {
-  return `${map.size * 3}:${map.waterLevel}`;
+  return `${map.environment ?? "exterior"}:${map.size * 3}:${map.waterLevel}`;
 }
 
 export function cameraOrbitOffset(
@@ -426,6 +432,7 @@ export function createHd2dScene(
   // A reused sea keeps its plane and its material — only the coastline it shades has moved. `add`
   // re-parents it out of the scene it came from, which no longer exists by the time we get here.
   if (reuse.water) reuse.water.setField(field);
+  water.mesh.visible = (map.environment ?? "exterior") === "exterior";
   scene.add(water.mesh);
 
   const foamFor = (source: MapData, sourceField: HeightField): ReturnType<typeof createFoam> =>
@@ -442,10 +449,15 @@ export function createHd2dScene(
       levelHeight: source.levelHeight,
     });
   let foam = foamFor(map, field);
+  foam.group.visible = (map.environment ?? "exterior") === "exterior";
   scene.add(foam.group);
 
   const sky = createSky(ctx);
+  sky.mesh.visible = (map.environment ?? "exterior") === "exterior";
   scene.add(sky.mesh);
+  scene.background = new THREE.Color(
+    (map.environment ?? "exterior") === "interior" ? 0x020307 : 0x7ca5a0,
+  );
 
   // --- lights -----------------------------------------------------------------------------------
   // Before the pipeline, as in the lab: `createPipeline` compiles the scene's materials, and a
@@ -761,7 +773,8 @@ export function createHd2dScene(
       sky.update(dt, camera, mood.value.aurora);
       // Copied EVERY frame, not only on a mood crossfade: `sky.horizon` also moves with effects
       // that follow their own timing.
-      fog.color.copy(sky.horizon);
+      if ((currentMap.environment ?? "exterior") === "interior") fog.color.set(0x020307);
+      else fog.color.copy(sky.horizon);
       // The mood settles once and then never moves again while only `day` exists — `update` returns
       // false and nothing is pushed. Kept anyway: it is one comparison per frame, and it is the
       // seam a second mood would arrive through.
@@ -769,20 +782,8 @@ export function createHd2dScene(
       pipeline.render();
     },
     resize: pipeline.resize,
-    /**
-     * Gives back everything this scene took — with one exception it CANNOT give back: the canvas's
-     * WebGL context. `createPipeline` built it and `pipeline.dispose()` restores the canvas's
-     * `image-rendering`, but no API detaches a context from a canvas; `forceContextLoss()` was
-     * measured and makes it strictly worse (see that function's own comment).
-     *
-     * The consequence, measured on `#stage` after this increment made HD-2D the only path: a SECOND
-     * session in the same page load (leave `/game`, come back) builds a second `WebGLRenderer` on
-     * the first one's context. It renders identically — terrain pixels compared byte for byte — but
-     * three logs two `texImage3D: FLIP_Y or PREMULTIPLY_ALPHA isn't allowed` warnings while
-     * uploading the grading LUT, because the new renderer's unpack state does not match what the
-     * context was left in. Noise, not damage, and it is the same inherited-context rule; a fix
-     * belongs in `@lindocara/hd2d`'s pipeline, not here.
-     */
+    /** Gives back every owned resource. The canvas context necessarily survives; `createPipeline`
+     * resets its inherited unpack flags before a later renderer performs its first 3D upload. */
     dispose(): void {
       terrain.dispose();
       stairs.dispose();

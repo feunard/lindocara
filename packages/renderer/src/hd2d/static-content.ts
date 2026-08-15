@@ -37,6 +37,12 @@ import {
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
 import type { BillboardScene } from "./billboards.js";
+import {
+  type BuildingVolumeArt,
+  makeBridgeVolume,
+  makeBuildingVolume,
+  type NativeStaticVisual,
+} from "./building-volumes.js";
 import { HD2D_CAMERA } from "./scene.js";
 
 /**
@@ -89,16 +95,24 @@ export interface StaticSpriteArt {
     decay: number;
     glow: boolean;
   };
+  /** Generated facade projected over real walls/roof; textures are owned by the shared cache. */
+  buildingVolume?: Omit<BuildingVolumeArt, "front">;
+  /** Native raised deck and rails, replacing the old flat bridge crop. */
+  bridgeOrientation?: "horizontal" | "vertical";
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
  *  asset — the caller skips it with a warning. */
 export type StaticArtResolver = (assetId: string) => StaticSpriteArt | null;
 
+export interface StaticContentEvent extends HeightfieldEvent {
+  health?: { value: number; max: number; visible: boolean };
+}
+
 export interface StaticContent {
   setFireMood(intensity: number): void;
   /** Incrementally updates authored-event sprites without rebuilding every resource on the map. */
-  syncEvents(events: readonly HeightfieldEvent[]): void;
+  syncEvents(events: readonly StaticContentEvent[]): void;
   update(now: number): void;
   dispose(): void;
 }
@@ -170,7 +184,7 @@ export function placeStaticContent(
 ): StaticContent {
   const placed: {
     contentKey: string | null;
-    sprite: Billboard | CardVolume | Sprite;
+    sprite: Billboard | CardVolume | Sprite | NativeStaticVisual;
     frames: number;
     durationMs: number;
     phaseMs: number;
@@ -205,6 +219,11 @@ export function placeStaticContent(
     shadow: boolean;
   }[] = [];
   const eventVisuals = new Map<string, string>();
+  const healthBars: {
+    contentKey: string;
+    group: THREE.Group;
+    fill: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  }[] = [];
   let fireMood = 1.1;
 
   function placeArt(
@@ -216,8 +235,14 @@ export function placeStaticContent(
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
+    const native = sprite.buildingVolume
+      ? makeBuildingVolume({ front: sprite.texture, ...sprite.buildingVolume })
+      : sprite.bridgeOrientation
+        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation)
+        : null;
     const volume =
-      sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume"
+      native === null &&
+      (sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume")
         ? makeCardVolume(ctx, {
             texture: sprite.texture,
             cols: sprite.cols ?? 1,
@@ -230,6 +255,7 @@ export function placeStaticContent(
           })
         : null;
     const billboard =
+      native ??
       volume ??
       (flat
         ? makeFlatSprite(ctx, {
@@ -257,16 +283,17 @@ export function placeStaticContent(
     const anchorY = sky
       ? authoredSkyAltitude(map)
       : (scene.query.heightAt(x, z) ?? scene.waterLevel);
-    if (flat || sprite.renderMode === "cloud-volume") {
+    if (native) {
+      native.placeAt(x, anchorY, z);
+    } else if (flat || sprite.renderMode === "cloud-volume") {
       billboard.mesh.position.set(x, anchorY + (sky ? 0 : 0.03), z);
     } else (billboard as Billboard | CardVolume).placeAt(x, anchorY, z);
     const depthKey = z.toFixed(6);
     const depthLayer = depthLayers.get(depthKey) ?? 0;
     depthLayers.set(depthKey, depthLayer + 1);
-    if (!sky && depthLayer > 0) {
-      const materials = Array.isArray(billboard.mesh.material)
-        ? billboard.mesh.material
-        : [billboard.mesh.material];
+    if (!native && !sky && depthLayer > 0) {
+      const mesh = billboard.mesh as THREE.Mesh;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const material of materials) {
         material.polygonOffset = true;
         material.polygonOffsetFactor = -depthLayer;
@@ -328,7 +355,44 @@ export function placeStaticContent(
     }
   }
 
-  function place(assetId: string, x: number, z: number, contentKey: string | null): void {
+  function placeHealthBar(
+    contentKey: string,
+    x: number,
+    y: number,
+    z: number,
+    health: NonNullable<StaticContentEvent["health"]>,
+  ): void {
+    const ratio = THREE.MathUtils.clamp(health.max > 0 ? health.value / health.max : 0, 0, 1);
+    const group = new THREE.Group();
+    const background = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.65, 0.15),
+      new THREE.MeshBasicMaterial({ color: 0x211d24, depthTest: false }),
+    );
+    const fill = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.55, 0.09),
+      new THREE.MeshBasicMaterial({
+        color: ratio > 0.5 ? 0x73c76b : ratio > 0.25 ? 0xe0b657 : 0xd45d55,
+        depthTest: false,
+      }),
+    );
+    fill.position.z = 0.01;
+    fill.scale.x = Math.max(0.0001, ratio);
+    fill.position.x = -(1 - ratio) * (1.55 / 2);
+    group.add(background, fill);
+    group.position.set(x, y, z);
+    group.visible = health.visible && ratio > 0;
+    group.renderOrder = 70;
+    scene.root.add(group);
+    healthBars.push({ contentKey, group, fill });
+  }
+
+  function place(
+    assetId: string,
+    x: number,
+    z: number,
+    contentKey: string | null,
+    health?: StaticContentEvent["health"],
+  ): void {
     const resolved = resolve(assetId);
     if (!resolved) {
       skipped.set(assetId, (skipped.get(assetId) ?? 0) + 1);
@@ -339,16 +403,27 @@ export function placeStaticContent(
         ? resolved.coldVariant
         : resolved;
     placeArt(assetId, sprite, x, z, contentKey);
+    if (contentKey && health) {
+      const anchorY = scene.query.heightAt(x, z) ?? scene.waterLevel;
+      placeHealthBar(
+        contentKey,
+        x,
+        anchorY + (sprite.buildingVolume ? 4.35 : sprite.height + 0.4),
+        z,
+        health,
+      );
+    }
   }
 
   for (const element of map.elements) place(element.assetId, element.x, element.z, null);
   for (const event of map.events) {
     // No graphic is an authored choice, not a missing asset: a bare trigger cell draws nothing and
     // says nothing. Warning here would fill the console on any map that uses invisible triggers.
-    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}`;
+    const health = (event as StaticContentEvent).health;
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${health?.value ?? ""}:${health?.max ?? ""}`;
     eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
-    place(event.graphicAssetId, event.x, event.z, `event:${event.id}`);
+    place(event.graphicAssetId, event.x, event.z, `event:${event.id}`, health);
   }
   function flushSkipped(): void {
     for (const [assetId, count] of skipped) {
@@ -389,6 +464,18 @@ export function placeStaticContent(
     for (let index = fireSources.length - 1; index >= 0; index -= 1) {
       if (fireSources[index]?.contentKey === contentKey) disposeFireSource(index);
     }
+    for (let index = healthBars.length - 1; index >= 0; index -= 1) {
+      const bar = healthBars[index];
+      if (!bar || bar.contentKey !== contentKey) continue;
+      bar.group.removeFromParent();
+      bar.group.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) material.dispose();
+      });
+      healthBars.splice(index, 1);
+    }
     for (let index = 0; index < fireSources.length; index += 1) {
       const source = fireSources[index];
       if (source) source.shadow = index === 0;
@@ -408,12 +495,12 @@ export function placeStaticContent(
         eventVisuals.delete(id);
       }
       for (const event of events) {
-        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}`;
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
         if (eventVisuals.get(event.id) === visual) continue;
         dropContentKey(`event:${event.id}`);
         eventVisuals.set(event.id, visual);
         if (event.graphicAssetId !== null) {
-          place(event.graphicAssetId, event.x, event.z, `event:${event.id}`);
+          place(event.graphicAssetId, event.x, event.z, `event:${event.id}`, event.health);
         }
       }
       flushSkipped();
@@ -442,6 +529,7 @@ export function placeStaticContent(
             placement.anchorZ + wind.z,
           );
         }
+        if ("update" in placement.sprite) placement.sprite.update(now);
       }
       const seconds = now / 1_000;
       for (const source of fireSources) {
@@ -465,11 +553,21 @@ export function placeStaticContent(
           source.halo.rotation.y += 0.001;
         }
       }
+      for (const bar of healthBars) bar.group.rotation.y = ctx.yaw();
     },
     dispose() {
       for (let index = placed.length - 1; index >= 0; index -= 1) disposePlacement(index);
       for (let index = fireSources.length - 1; index >= 0; index -= 1) disposeFireSource(index);
       eventVisuals.clear();
+      for (const bar of healthBars.splice(0)) {
+        bar.group.removeFromParent();
+        bar.group.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.geometry.dispose();
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          for (const material of materials) material.dispose();
+        });
+      }
     },
   };
 }
