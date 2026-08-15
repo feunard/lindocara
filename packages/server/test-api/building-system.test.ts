@@ -137,6 +137,8 @@ describe("building system", () => {
     ]);
     expect(liveMap?.elements).toEqual([]);
     expect(liveMap?.colliders).toHaveLength(1);
-    expect(liveMap?.colliders[0]?.top).toBeCloseTo(1.8);
+    expect(liveMap?.colliders[0]?.top).toBeCloseTo(2.68);
+    expect(liveMap?.colliders[0]?.surface).toMatchObject({ shape: "gable", eave: 1.3, axis: "z" });
+    expect(liveMap?.colliders[0]?.surface?.peak).toBeCloseTo(2.68);
   });
 });

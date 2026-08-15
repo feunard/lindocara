@@ -60,4 +60,35 @@ describe("createColliderIndex", () => {
     expect(idx.blocked(0, 0, 0.3, 0.9)).toBe(false);
     expect(idx.blocked(0, 0, 0.3)).toBe(true);
   });
+
+  it("follows a gable locally instead of cutting the building with one flat plate", () => {
+    const idx = createColliderIndex();
+    idx.add({
+      x: -1,
+      z: -1,
+      w: 2,
+      h: 2,
+      top: 2,
+      surface: { shape: "gable", eave: 1, peak: 2, axis: "x" },
+    });
+    expect(idx.blocked(-0.9, 0, 0.05, 1.11)).toBe(false);
+    expect(idx.blocked(0, 0, 0.05, 1.09)).toBe(true);
+    expect(idx.blocked(0, 0, 0.05, 2)).toBe(false);
+  });
+
+  it("uses an ellipse for round architecture and reports finite jump clearance", () => {
+    const idx = createColliderIndex();
+    idx.add({
+      x: -1,
+      z: -1,
+      w: 2,
+      h: 2,
+      top: 1.8,
+      footprint: "ellipse",
+      surface: { shape: "cone", eave: 0.9, peak: 1.8 },
+    });
+    expect(idx.blocked(0.95, 0.95, 0.05, 0)).toBe(false);
+    expect(idx.heightToClear(0, 0, 0.05)).toBeCloseTo(1.8);
+    expect(idx.heightToClear(4, 4, 0.05)).toBeNull();
+  });
 });

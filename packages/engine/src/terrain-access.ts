@@ -41,7 +41,13 @@
 
 import { type SegmentImpact, segmentBoxEntry, sweptRectEntry } from "./directional-combat.js";
 import type { GroundVector, WorldPosition } from "./ground.js";
-import { createColliderIndex } from "./hd2d/collider-index.js";
+import {
+  colliderContainsPoint,
+  colliderOverlapsDisc,
+  colliderSurfaceHeightAt,
+  colliderSurfaceHeightNear,
+  createColliderIndex,
+} from "./hd2d/collider-index.js";
 import { type MapData, mapToQuerySource } from "./hd2d/map-data.js";
 import {
   createTerrainQuery,
@@ -153,15 +159,9 @@ function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[
     surfaceAt(wx, wz, ceilingY) {
       let surface = query.surfaceAt?.(wx, wz, ceilingY) ?? query.heightAt(wx, wz);
       for (const platform of platforms) {
-        if (
-          platform.top <= ceilingY + HEIGHT_EPSILON &&
-          wx >= platform.x &&
-          wx <= platform.x + platform.w &&
-          wz >= platform.z &&
-          wz <= platform.z + platform.h
-        ) {
-          surface = surface === null ? platform.top : Math.max(surface, platform.top);
-        }
+        const height = colliderSurfaceHeightAt(platform, wx, wz);
+        if (height === null || height > ceilingY + HEIGHT_EPSILON) continue;
+        surface = surface === null ? height : Math.max(surface, height);
       }
       return surface;
     },
@@ -169,14 +169,33 @@ function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[
       let height = query.maxHeightAround(wx, wz, radius, ceilingY);
       if (ceilingY === undefined) return height;
       for (const platform of platforms) {
-        if (platform.top > ceilingY + HEIGHT_EPSILON) continue;
-        const nearestX = Math.min(Math.max(wx, platform.x), platform.x + platform.w);
-        const nearestZ = Math.min(Math.max(wz, platform.z), platform.z + platform.h);
-        if ((nearestX - wx) ** 2 + (nearestZ - wz) ** 2 <= radius * radius) {
-          height = Math.max(height, platform.top);
+        if (!colliderOverlapsDisc(platform, wx, wz, radius)) continue;
+        const platformHeight = colliderSurfaceHeightNear(platform, wx, wz);
+        if (platformHeight !== null && platformHeight <= ceilingY + HEIGHT_EPSILON) {
+          height = Math.max(height, platformHeight);
         }
       }
       return height;
+    },
+    platformHeightAlong(fromX, fromZ, toX, toZ, radius, groundY) {
+      const base = query.platformHeightAlong?.(fromX, fromZ, toX, toZ, radius, groundY);
+      if (base !== undefined && base !== null) return base;
+      let destination: number | null = null;
+      for (const platform of platforms) {
+        if (
+          !colliderContainsPoint(platform, fromX, fromZ, radius) ||
+          !colliderContainsPoint(platform, toX, toZ, radius)
+        ) {
+          continue;
+        }
+        const fromHeight = colliderSurfaceHeightAt(platform, fromX, fromZ);
+        const toHeight = colliderSurfaceHeightAt(platform, toX, toZ);
+        if (fromHeight === null || toHeight === null || Math.abs(fromHeight - groundY) > 0.08) {
+          continue;
+        }
+        destination = destination === null ? toHeight : Math.max(destination, toHeight);
+      }
+      return destination;
     },
   };
 }

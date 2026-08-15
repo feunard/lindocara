@@ -168,10 +168,10 @@ function withoutStaticNativeResources(
 }
 
 /**
- * Runtime-compatible upgrade for maps saved before finite scenery heights existed. Only colliders
- * whose authored element geometry matches are enriched; custom heightfield-only geometry remains
- * untouched. This makes existing production maps obey the same 1/2/3-level rule immediately,
- * without requiring their owner to open and re-save every map.
+ * Runtime-compatible upgrade for maps saved before finite scenery heights and shaped roofs
+ * existed. Only colliders whose authored element geometry matches are enriched; custom
+ * heightfield-only geometry remains untouched. Existing production maps therefore gain the same
+ * native roof physics without requiring their owner to open and re-save every map.
  */
 function withAuthoredColliderTops(
   heightfield: NonNullable<ReturnType<typeof decodeMap>>,
@@ -193,7 +193,14 @@ function withAuthoredColliderTops(
     ...heightfield,
     colliders: heightfield.colliders.map((collider) => {
       const authored = expected.find((candidate) => sameFootprint(collider, candidate));
-      return authored ? { ...collider, top: authored.top } : collider;
+      return authored
+        ? {
+            ...collider,
+            top: authored.top,
+            ...(authored.footprint === undefined ? {} : { footprint: authored.footprint }),
+            ...(authored.surface === undefined ? {} : { surface: authored.surface }),
+          }
+        : collider;
     }),
   };
 }

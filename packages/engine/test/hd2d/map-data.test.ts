@@ -43,6 +43,32 @@ describe("the map codec", () => {
     expect(decodeMap(encodeMap(map))).toEqual(map);
   });
 
+  it("round-trips native shaped roof collision without trusting malformed variants", () => {
+    const shaped: MapData = {
+      ...map,
+      colliders: [
+        {
+          x: -1,
+          z: -1,
+          w: 2,
+          h: 2,
+          top: 2.7,
+          footprint: "ellipse",
+          surface: { shape: "cone", eave: 1.8, peak: 2.7 },
+        },
+      ],
+    };
+    expect(decodeMap(encodeMap(shaped))).toEqual(shaped);
+    expect(
+      decodeMap(
+        JSON.stringify({
+          ...shaped,
+          colliders: [{ ...shaped.colliders[0], surface: { shape: "sphere", eave: 1, peak: 2 } }],
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("keeps legacy heightfields exterior by default", () => {
     const { environment: _environment, ...legacy } = map;
     expect(decodeMap(JSON.stringify(legacy))).toEqual({ ...legacy, environment: "exterior" });

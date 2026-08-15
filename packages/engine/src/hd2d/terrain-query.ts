@@ -2,6 +2,14 @@
 // into `@lindocara/engine` in S2, authoritative and shared with prediction — kept pure and free of
 // any `three` dependency so that on that day movement changed nothing but its address.
 
+import {
+  type ColliderRect,
+  colliderContainsPoint,
+  colliderOverlapsDisc,
+  colliderSurfaceHeightAt,
+  colliderSurfaceHeightNear,
+} from "./collider-index.js";
+
 /** The four ground materials — two warm (the tropical island), two cold (the northern island). An
  *  exported union rather than `string`: `engine` is the future server authority for this, and a
  *  stringly-typed material would be a liability from the first silent typo — the compiler must be
@@ -33,13 +41,7 @@ export interface TerrainRampSample extends TerrainRamp {
   highHeight: number;
 }
 
-export interface TerrainPlatform {
-  x: number;
-  z: number;
-  w: number;
-  h: number;
-  top: number;
-}
+export type TerrainPlatform = ColliderRect;
 
 export interface TerrainQuery {
   /** World height of the ground under a point, or `null` if it is water / off the map. */
@@ -62,6 +64,18 @@ export interface TerrainQuery {
   rampAt(wx: number, wz: number): TerrainRampSample | null;
   /** Whether one grounded movement segment follows a stair corridor or crosses one endpoint. */
   canTraverseRamp(fromX: number, fromZ: number, toX: number, toZ: number, radius: number): boolean;
+  /**
+   * Destination height while both ends of a grounded segment remain on the same authored roof.
+   * `null` prevents a wall approach from being mistaken for permission to climb the building.
+   */
+  platformHeightAlong?(
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+    radius: number,
+    groundY: number,
+  ): number | null;
   /** World center of a cell. */
   cellCenter(i: number, j: number): [number, number];
   /**
@@ -147,15 +161,9 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
   const platformAt = (wx: number, wz: number, ceilingY: number): number | null => {
     let top: number | null = null;
     for (const platform of platforms) {
-      if (
-        platform.top <= ceilingY + 1e-3 &&
-        wx >= platform.x &&
-        wx <= platform.x + platform.w &&
-        wz >= platform.z &&
-        wz <= platform.z + platform.h
-      ) {
-        top = top === null ? platform.top : Math.max(top, platform.top);
-      }
+      const height = colliderSurfaceHeightAt(platform, wx, wz);
+      if (height === null || height > ceilingY + 1e-3) continue;
+      top = top === null ? height : Math.max(top, height);
     }
     return top;
   };
@@ -190,10 +198,9 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       }
       if (ceilingY !== undefined) {
         for (const platform of platforms) {
-          if (platform.top > ceilingY + 1e-3) continue;
-          const nx = Math.min(Math.max(wx, platform.x), platform.x + platform.w);
-          const nz = Math.min(Math.max(wz, platform.z), platform.z + platform.h);
-          if ((nx - wx) ** 2 + (nz - wz) ** 2 <= r * r) max = Math.max(max, platform.top);
+          if (!colliderOverlapsDisc(platform, wx, wz, r)) continue;
+          const height = colliderSurfaceHeightNear(platform, wx, wz);
+          if (height !== null && height <= ceilingY + 1e-3) max = Math.max(max, height);
         }
       }
       return max;
@@ -228,6 +235,26 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
         return Math.abs(toX - lowEdge) <= near || Math.abs(toX - highEdge) <= near;
       }
       return false;
+    },
+    platformHeightAlong(fromX, fromZ, toX, toZ, radius, groundY) {
+      let destination: number | null = null;
+      for (const platform of platforms) {
+        // Both complete body footprints must remain on one roof. This is deliberately stricter
+        // than collision overlap: merely leaning against an eave never grants wall climbing.
+        if (
+          !colliderContainsPoint(platform, fromX, fromZ, radius) ||
+          !colliderContainsPoint(platform, toX, toZ, radius)
+        ) {
+          continue;
+        }
+        const fromHeight = colliderSurfaceHeightAt(platform, fromX, fromZ);
+        const toHeight = colliderSurfaceHeightAt(platform, toX, toZ);
+        if (fromHeight === null || toHeight === null || Math.abs(fromHeight - groundY) > 0.08) {
+          continue;
+        }
+        destination = destination === null ? toHeight : Math.max(destination, toHeight);
+      }
+      return destination;
     },
     cellCenter(i, j) {
       return [i + 0.5 - c, j + 0.5 - c];

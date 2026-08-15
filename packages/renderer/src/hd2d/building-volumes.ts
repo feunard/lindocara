@@ -1,4 +1,8 @@
-import type { BuildingArchetype } from "@lindocara/engine/buildings.js";
+import {
+  type BuildingArchetype,
+  type BuildingVolumeDimensions,
+  buildingVolumeDimensions,
+} from "@lindocara/engine/buildings.js";
 import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import * as THREE from "three";
 
@@ -27,46 +31,7 @@ export interface NativeStaticVisual {
   dispose(): void;
 }
 
-export interface BuildingVolumeDimensions {
-  /** Exact solid footprint. The authored anchor is the centre of the front edge. */
-  width: number;
-  depth: number;
-  wallHeight: number;
-  roofHeight: number;
-  roofShape: "gable" | "cone" | "crenellated";
-}
-
-/** Pixel-exact partners of the generated catalogue colliders (64 authored pixels = one tile). */
-export function buildingVolumeDimensions(archetype: BuildingArchetype): BuildingVolumeDimensions {
-  switch (archetype) {
-    case "tower":
-      return { width: 2, depth: 2, wallHeight: 3.1, roofHeight: 0.5, roofShape: "crenellated" };
-    case "windmill":
-      return { width: 2.75, depth: 2, wallHeight: 2.65, roofHeight: 0.92, roofShape: "cone" };
-    case "archery":
-      return { width: 3, depth: 2.25, wallHeight: 1.42, roofHeight: 1.18, roofShape: "gable" };
-    case "barracks":
-      return {
-        width: 3,
-        depth: 2.375,
-        wallHeight: 1.72,
-        roofHeight: 0.48,
-        roofShape: "crenellated",
-      };
-    case "monastery":
-      return { width: 3, depth: 2.25, wallHeight: 1.58, roofHeight: 1.28, roofShape: "gable" };
-    case "castle":
-      return {
-        width: 3,
-        depth: 2.375,
-        wallHeight: 2.02,
-        roofHeight: 0.55,
-        roofShape: "crenellated",
-      };
-    case "house":
-      return { width: 2.75, depth: 2.125, wallHeight: 1.3, roofHeight: 1.38, roofShape: "gable" };
-  }
-}
+export { type BuildingVolumeDimensions, buildingVolumeDimensions };
 
 export function buildingVolumeHeight(
   archetype: BuildingArchetype,

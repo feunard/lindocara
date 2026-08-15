@@ -68,6 +68,43 @@ describe("live authored-event collision", () => {
     expect(runAt(2).x).toBeLessThan(0);
   });
 
+  it("keeps the hero on both slopes of a gable roof", () => {
+    const map: MapData = {
+      version: 1,
+      size: SIZE,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels: new Array(SIZE * SIZE).fill(0),
+      materials: new Array(SIZE * SIZE).fill("herbe"),
+      colliders: [
+        {
+          x: -1,
+          z: -1,
+          w: 2,
+          h: 2,
+          top: 2,
+          surface: { shape: "gable", eave: 1, peak: 2, axis: "x" },
+        },
+      ],
+      spawns: [{ name: "roof", x: -0.5, z: 0.15 }],
+      elements: [],
+      events: [],
+    };
+    const hero = createHeroController({
+      terrain: zoneTerrainFromHeightfield(map),
+      spawn: { x: -0.5, y: 1.5, z: 0.15 },
+      speed: 4,
+    });
+
+    for (let frame = 0; frame < 14; frame += 1) {
+      hero.step({ x: 1, z: 0, jump: false }, FRAME);
+      expect(hero.state.airborne, `frame ${frame}: ${JSON.stringify(hero.state)}`).toBe(false);
+      expect(hero.state.y).toBeCloseTo(2 - Math.abs(hero.state.x), 2);
+    }
+    expect(hero.state.x).toBeGreaterThan(0.35);
+    expect(hero.state.y).toBeGreaterThan(1.5);
+  });
+
   it("keeps a hero walking on the finite top surface", () => {
     const terrain = withWorldEventColliders(flatTerrain(), [
       {

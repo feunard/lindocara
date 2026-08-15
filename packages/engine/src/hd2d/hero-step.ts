@@ -54,6 +54,17 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     footprintZ,
     hero.radius,
   );
+  const platformHeight = state.airborne
+    ? null
+    : (query.platformHeightAlong?.(
+        state.x,
+        currentFootprintZ,
+        x,
+        footprintZ,
+        hero.radius,
+        state.groundY,
+      ) ?? null);
+  const traversingSurface = traversingRamp || platformHeight !== null;
 
   // Indoors, terrain relief and props no longer apply: the room is a plain rectangle, sitting
   // outside the terrain grid.
@@ -71,7 +82,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   // hero would climb a cliff by leaning into it.
   const centreOk = (xx: number, zz: number): boolean => {
     const foot = empreinte(zz, hero);
-    const h = surfaceAt(xx, foot);
+    const h = platformHeight ?? surfaceAt(xx, foot);
     // Measured against the surface the swimmer is FLOATING ON — `state.y` — not against a water
     // level sampled somewhere else. "How far must I climb to get out" is a question about the
     // water under the hero, and the only place that is reliably known is the hero.
@@ -83,7 +94,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     // swimmer cannot climb out. Both were live bugs; with one global water level neither could
     // happen, because every lookup returned the same number.
     if (state.swimming) return h - state.y <= climb;
-    return state.airborne ? h <= state.y + 0.02 : traversingRamp || h - state.groundY <= maxStep;
+    return state.airborne ? h <= state.y + 0.02 : traversingSurface || h - state.groundY <= maxStep;
   };
   if (!centreOk(x, z)) return false;
 
@@ -95,7 +106,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     : state.airborne
       ? state.y + 0.02
       : state.groundY + maxStep;
-  if (h > plafond && !traversingRamp) {
+  if (h > plafond && !traversingSurface) {
     // Already overlapping something too tall — the case right after falling at the foot of a
     // cliff, the disc still biting into the cell above. Without this escape hatch, NO movement at
     // all is allowed, not even to move away from it, and the hero stays cemented in place.
@@ -108,7 +119,9 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     if (!(ici > plafond && h <= ici)) return false;
   }
 
-  if (!colliders.blocked(x, empreinte(z, hero), hero.radius, state.y)) return true;
+  const collisionY = platformHeight ?? state.y;
+  if (!colliders.blocked(x, empreinte(z, hero), hero.radius, collisionY)) return true;
+
   // Same escape hatch against props (an unlucky spawn, a prop added underneath).
   return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius, state.y);
 }
@@ -192,6 +205,8 @@ export function stepHero(
   const empreinteZ = (z: number) => empreinte(z, hero);
   const avantX = state.x;
   const avantZ = state.z;
+  const avantGroundY = state.groundY;
+  const etaitAuSol = !state.airborne && !state.swimming && !state.room;
 
   // The material UNDER THE FEET, before moving, picks the friction and speed cap. Swimming or
   // indoors, the real seabed / virtual-coordinate material has no physical meaning: fall back to
@@ -228,6 +243,18 @@ export function stepHero(
   if (canEnter(state, state.x, nz, deps)) state.z = nz;
   else state.vz = 0;
 
+  const suitSurface =
+    etaitAuSol &&
+    (query.canTraverseRamp(avantX, empreinteZ(avantZ), state.x, empreinteZ(state.z), hero.radius) ||
+      (query.platformHeightAlong?.(
+        avantX,
+        empreinteZ(avantZ),
+        state.x,
+        empreinteZ(state.z),
+        hero.radius,
+        avantGroundY,
+      ) ?? null) !== null);
+
   // --- vertical: room floor, ground, jump, gravity, coyote, landing --------------------------
   // Ported as is from the lab's `hero.ts` — plus the room floor and the `sol` (ground) computation
   // that preceded it: the latter must be read AFTER the horizontal resolution above (the cell
@@ -245,8 +272,11 @@ export function stepHero(
   }
   const sol = state.room
     ? state.room.y
-    : (query.surfaceAt?.(state.x, empreinteZ(state.z), state.y + 0.02) ??
-      query.heightAt(state.x, empreinteZ(state.z)));
+    : (query.surfaceAt?.(
+        state.x,
+        empreinteZ(state.z),
+        state.airborne ? state.y + 0.02 : Number.POSITIVE_INFINITY,
+      ) ?? query.heightAt(state.x, empreinteZ(state.z)));
 
   // Indoors, the floor is flat: no gravity, no swimming, no jumping. The whole vertical block is
   // guarded by `!state.room` so none of these mechanics run indoors.
@@ -255,7 +285,7 @@ export function stepHero(
       const ground = sol ?? query.waterLevelAt(state.x, state.z);
       if (state.airborne) {
         state.coyote -= dt;
-      } else if (ground < state.y - 1e-3) {
+      } else if (ground < state.y - 1e-3 && !suitSurface) {
         state.airborne = true; // the ground gave way: falling, not sliding
         state.vy = 0;
       } else {

@@ -8,6 +8,7 @@
  * about the retired Pixi/tile render path.
  */
 
+import { buildingArchetype, buildingVolumeDimensions } from "../buildings.js";
 import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
   type MapData as AuthoredMapData,
@@ -192,10 +193,50 @@ function elementBaseTop(
   return level === null ? AUTHORED_WATER_LEVEL : level * AUTHORED_LEVEL_HEIGHT;
 }
 
+function buildingRoofCollider(
+  collider: Pick<ColliderRect, "x" | "z" | "w" | "h">,
+  element: MapElement,
+  base: number,
+): ColliderRect | null {
+  const archetype = buildingArchetype(element.assetId);
+  if (!archetype) return null;
+  const volume = buildingVolumeDimensions(archetype);
+  const eave = base + volume.wallHeight;
+  const peak = eave + volume.roofHeight;
+  if (volume.roofShape === "gable") {
+    return {
+      ...collider,
+      // `top` remains the maximum for old readers; current movement samples `surface` locally.
+      top: peak,
+      surface: {
+        shape: "gable",
+        eave,
+        peak,
+        axis: (element.orientation ?? 0) % 2 === 0 ? "x" : "z",
+      },
+    };
+  }
+  if (volume.roofShape === "cone") {
+    return {
+      ...collider,
+      top: peak,
+      footprint: "ellipse",
+      surface: { shape: "cone", eave, peak },
+    };
+  }
+  return {
+    ...collider,
+    // CircleGeometry is placed directly on the tower wall; fortress decks are 0.12 high and
+    // centred 0.03 above it, hence their visible walking face is wallHeight + 0.09.
+    top: eave + (archetype === "tower" ? 0.02 : 0.09),
+    ...(archetype === "tower" ? { footprint: "ellipse" as const } : {}),
+  };
+}
+
 /**
- * Compile one authored scenery footprint into finite world volumes. Every finite volume exposes a
- * walkable upper surface, including pitched-roof buildings: visual slope never changes the
- * discrete elevation rule used by movement.
+ * Compile one authored scenery footprint into finite world volumes. Buildings use the same native
+ * dimensions as their rendered mesh, so pitched and round roofs are real surfaces rather than a
+ * flat plate cutting through the visible architecture.
  */
 export function authoredElementColliders(
   authored: Pick<AuthoredMapData, "cols" | "rows">,
@@ -216,6 +257,8 @@ export function authoredElementColliders(
     const top = bridgeTop(authored, element, levels, size);
     return [{ ...collider, top }, ...bridgeRails(collider, top)];
   }
+  const roof = buildingRoofCollider(collider, element, elementBaseTop(element, levels, size));
+  if (roof) return [roof];
   const elevation = asset ? editorAssetCollisionElevation(asset) : null;
   return elevation === null
     ? [collider]

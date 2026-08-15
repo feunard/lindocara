@@ -244,6 +244,43 @@ describe("authored building platforms", () => {
     expect(query.maxHeightAround(0.9, 0, 0.2)).toBe(0);
     expect(query.maxHeightAround(0.9, 0, 0.2, 1)).toBe(0.9);
   });
+
+  it("samples gable and cone roofs at their real local height", () => {
+    const shaped = makeQuery(
+      [
+        [0, 0],
+        [0, 0],
+      ],
+      {
+        platforms: [
+          {
+            x: -1,
+            z: -1,
+            w: 2,
+            h: 2,
+            top: 2,
+            surface: { shape: "gable", eave: 1, peak: 2, axis: "x" },
+          },
+          {
+            x: 2,
+            z: -1,
+            w: 2,
+            h: 2,
+            top: 2,
+            footprint: "ellipse",
+            surface: { shape: "cone", eave: 1, peak: 2 },
+          },
+        ],
+      },
+    );
+
+    expect(shaped.surfaceAt?.(-0.9, 0, 3)).toBeCloseTo(1.1);
+    expect(shaped.surfaceAt?.(0, 0, 3)).toBeCloseTo(2);
+    expect(shaped.surfaceAt?.(3, 0, 3)).toBeCloseTo(2);
+    expect(shaped.surfaceAt?.(2.05, -0.95, 3)).toBeNull();
+    expect(shaped.platformHeightAlong?.(-0.5, 0, 0, 0, 0.2, 1.5)).toBeCloseTo(2);
+    expect(shaped.platformHeightAlong?.(-1.2, 0, -0.9, 0, 0.2, 0)).toBeNull();
+  });
 });
 
 // Final review's point C3 asked for a typed union rather than a `string`: this test mainly makes

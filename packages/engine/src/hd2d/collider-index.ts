@@ -21,9 +21,23 @@ export interface ColliderRect {
   z: number;
   w: number;
   h: number;
-  /** Walkable top surface. Omitted for ordinary props and walls. */
+  /** Walkable flat top surface. Kept as the backward-compatible form for props and old maps. */
   top?: number;
+  /** Round towers and mills collide as their visible footprint instead of an invisible square. */
+  footprint?: "ellipse";
+  /** A non-flat walkable roof, sampled at the hero's local X/Z position. */
+  surface?: ColliderRoofSurface;
 }
+
+export type ColliderRoofSurface =
+  | {
+      shape: "gable";
+      eave: number;
+      peak: number;
+      /** The cross-roof axis. The ridge follows the other world axis. */
+      axis: "x" | "z";
+    }
+  | { shape: "cone"; eave: number; peak: number };
 
 export interface ColliderIndex {
   readonly all: readonly ColliderRect[];
@@ -42,8 +56,38 @@ export interface ColliderIndex {
   inBox(minX: number, minZ: number, maxX: number, maxZ: number): readonly ColliderRect[];
 }
 
-/** Squared distance from the disc's center to the closest point of the rectangle. */
-function overlaps(rect: ColliderRect, x: number, z: number, r: number): boolean {
+/** Whether a point is on the collider footprint, optionally inset by a body's radius. */
+export function colliderContainsPoint(
+  rect: ColliderRect,
+  x: number,
+  z: number,
+  inset = 0,
+): boolean {
+  if (rect.footprint === "ellipse") {
+    const rx = rect.w / 2 - inset;
+    const rz = rect.h / 2 - inset;
+    if (rx <= 0 || rz <= 0) return false;
+    const dx = x - (rect.x + rect.w / 2);
+    const dz = z - (rect.z + rect.h / 2);
+    return (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz) <= 1 + 1e-9;
+  }
+  return (
+    x >= rect.x + inset &&
+    x <= rect.x + rect.w - inset &&
+    z >= rect.z + inset &&
+    z <= rect.z + rect.h - inset
+  );
+}
+
+/** Disc/footprint overlap. Ellipses use a conservative radius expansion for the broad body. */
+export function colliderOverlapsDisc(rect: ColliderRect, x: number, z: number, r: number): boolean {
+  if (rect.footprint === "ellipse") {
+    const rx = rect.w / 2 + r;
+    const rz = rect.h / 2 + r;
+    const dx = x - (rect.x + rect.w / 2);
+    const dz = z - (rect.z + rect.h / 2);
+    return (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz) < 1;
+  }
   const px = Math.min(Math.max(x, rect.x), rect.x + rect.w);
   const pz = Math.min(Math.max(z, rect.z), rect.z + rect.h);
   const dx = x - px;
@@ -51,14 +95,72 @@ function overlaps(rect: ColliderRect, x: number, z: number, r: number): boolean 
   return dx * dx + dz * dz < r * r;
 }
 
-function blocksAt(rect: ColliderRect, y: number | undefined): boolean {
-  return y === undefined || rect.top === undefined || y < rect.top - 1e-3;
+/** Exact walkable surface under a point, or `null` outside it / for an infinite wall. */
+export function colliderSurfaceHeightAt(rect: ColliderRect, x: number, z: number): number | null {
+  if (!colliderContainsPoint(rect, x, z)) return null;
+  const surface = rect.surface;
+  if (!surface) return rect.top ?? null;
+  if (surface.shape === "gable") {
+    const start = surface.axis === "x" ? rect.x : rect.z;
+    const span = surface.axis === "x" ? rect.w : rect.h;
+    const coordinate = surface.axis === "x" ? x : z;
+    const normalized = Math.min(1, Math.max(0, (coordinate - start) / span));
+    const rise = 1 - Math.abs(normalized * 2 - 1);
+    return surface.eave + (surface.peak - surface.eave) * rise;
+  }
+  const rx = rect.w / 2;
+  const rz = rect.h / 2;
+  const dx = (x - (rect.x + rx)) / rx;
+  const dz = (z - (rect.z + rz)) / rz;
+  const radial = Math.min(1, Math.hypot(dx, dz));
+  return surface.eave + (surface.peak - surface.eave) * (1 - radial);
+}
+
+/** Surface at the footprint point nearest a disc centre, including just outside an edge. */
+export function colliderSurfaceHeightNear(rect: ColliderRect, x: number, z: number): number | null {
+  if (colliderContainsPoint(rect, x, z)) return colliderSurfaceHeightAt(rect, x, z);
+  if (rect.footprint === "ellipse") {
+    const rx = rect.w / 2;
+    const rz = rect.h / 2;
+    const cx = rect.x + rx;
+    const cz = rect.z + rz;
+    const dx = x - cx;
+    const dz = z - cz;
+    const norm = Math.sqrt((dx * dx) / (rx * rx) + (dz * dz) / (rz * rz));
+    if (!Number.isFinite(norm) || norm <= 0) return colliderSurfaceHeightAt(rect, cx, cz);
+    return colliderSurfaceHeightAt(rect, cx + dx / norm, cz + dz / norm);
+  }
+  return colliderSurfaceHeightAt(
+    rect,
+    Math.min(Math.max(x, rect.x), rect.x + rect.w),
+    Math.min(Math.max(z, rect.z), rect.z + rect.h),
+  );
+}
+
+function blocksAt(rect: ColliderRect, x: number, z: number, y: number | undefined): boolean {
+  if (y === undefined) return true;
+  const surface = colliderSurfaceHeightNear(rect, x, z);
+  return surface === null || y < surface - 1e-3;
 }
 
 export function createColliderIndex(): ColliderIndex {
   const grid = new Map<number, ColliderRect[]>();
   const all: ColliderRect[] = [];
   const key = (i: number, j: number) => i * 10007 + j;
+  const candidates = (x: number, z: number, r: number): readonly ColliderRect[] => {
+    if (r <= QUERY_PAD) {
+      return grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL))) ?? [];
+    }
+    const seen = new Set<ColliderRect>();
+    for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
+      for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {
+        const bucket = grid.get(key(i, j));
+        if (!bucket) continue;
+        for (const rect of bucket) seen.add(rect);
+      }
+    }
+    return [...seen];
+  };
 
   return {
     all,
@@ -78,26 +180,9 @@ export function createColliderIndex(): ColliderIndex {
       }
     },
     blocked(x, z, r, y) {
-      if (r <= QUERY_PAD) {
-        const bucket = grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL)));
-        if (!bucket) return false;
-        return bucket.some((rect) => blocksAt(rect, y) && overlaps(rect, x, z, r));
-      }
-      // Final review (point C2, inherited from `colliders.ts`): this function, promoted to
-      // AUTHORITATIVE server-side collision in S2, will receive radii decided by ENTITY DATA, so a
-      // badly tuned radius must never take down a simulation tick. We widen the queried cell
-      // window to the actual query size instead of throwing: wider than the fast path above,
-      // never narrower, so never fewer rectangles found.
-      const seen = new Set<ColliderRect>();
-      for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
-        for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {
-          const bucket = grid.get(key(i, j));
-          if (!bucket) continue;
-          for (const rect of bucket) seen.add(rect);
-        }
-      }
-      for (const rect of seen) if (blocksAt(rect, y) && overlaps(rect, x, z, r)) return true;
-      return false;
+      return candidates(x, z, r).some(
+        (rect) => colliderOverlapsDisc(rect, x, z, r) && blocksAt(rect, x, z, y),
+      );
     },
     inBox(minX, minZ, maxX, maxZ) {
       const seen = new Set<ColliderRect>();

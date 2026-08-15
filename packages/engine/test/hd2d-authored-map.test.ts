@@ -144,12 +144,12 @@ describe("compileAuthoredMap", () => {
   });
 
   it.each([
-    [LINDOCARA_BUILDING_ASSET_IDS.house, 1.8],
-    [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, 1.8],
-    [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.8],
-    [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 2.7],
-    [LINDOCARA_BUILDING_ASSET_IDS.windmill, 2.7],
-  ])("authors %s as a finite wall volume with a walkable roof at %s", (assetId, roofTop) => {
+    [LINDOCARA_BUILDING_ASSET_IDS.house, 2.68, "gable"],
+    [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, 2.6, "gable"],
+    [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.81, "flat"],
+    [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 3.12, "flat"],
+    [LINDOCARA_BUILDING_ASSET_IDS.windmill, 3.57, "cone"],
+  ])("authors %s with its native %s roof at %s", (assetId, roofTop, roofShape) => {
     const source = authored();
     source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId, orientation: 1 }];
     const compiled = compileAuthoredMap(source);
@@ -170,6 +170,23 @@ describe("compileAuthoredMap", () => {
     expect(terrain.query.surfaceAt?.(centreX, centreZ, roofTop + 0.01)).toBeCloseTo(roofTop);
     expect(groundUnder(terrain, centreX, centreZ, 0)).toBeCloseTo(roofTop);
     expect(canStand(terrain, centreX, centreZ, 0.25, roofTop)).toBe(true);
+    if (roofShape === "gable") {
+      expect(compiled.colliders[0]?.surface).toMatchObject({ shape: "gable", axis: "z" });
+      const eave = compiled.colliders[0]?.surface?.eave;
+      expect(eave).toBeTypeOf("number");
+      expect(
+        terrain.query.surfaceAt?.(centreX, collider.z + 1e-4, Number.POSITIVE_INFINITY),
+      ).toBeCloseTo(eave as number, 3);
+    } else if (roofShape === "cone") {
+      expect(compiled.colliders[0]).toMatchObject({
+        footprint: "ellipse",
+        surface: { shape: "cone" },
+      });
+      // A round mill no longer owns the empty corners of its former rectangular hitbox.
+      expect(
+        terrain.query.surfaceAt?.(collider.x + 1e-4, collider.z + 1e-4, Number.POSITIVE_INFINITY),
+      ).toBeNull();
+    }
   });
 
   it.each([

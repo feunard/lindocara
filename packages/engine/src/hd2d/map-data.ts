@@ -15,7 +15,7 @@ import {
   type MapEnvironment,
   parseMapEnvironment,
 } from "../map-environment.js";
-import type { ColliderRect } from "./collider-index.js";
+import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import type { TerrainMaterial, TerrainQuerySource, TerrainRamp } from "./terrain-query.js";
 
 /** The four materials of `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
@@ -119,6 +119,23 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function toColliderSurface(value: unknown): ColliderRoofSurface | null {
+  if (!isRecord(value) || !isFiniteNumber(value.eave) || !isFiniteNumber(value.peak)) return null;
+  if (value.peak < value.eave) return null;
+  if (value.shape === "cone") {
+    return { shape: "cone", eave: value.eave, peak: value.peak };
+  }
+  if (value.shape === "gable" && (value.axis === "x" || value.axis === "z")) {
+    return {
+      shape: "gable",
+      eave: value.eave,
+      peak: value.peak,
+      axis: value.axis,
+    };
+  }
+  return null;
+}
+
 // Rebuilt field by field, never assigned as-is: an object with the right fields but also extra
 // keys (`{ x, z, w, h, evil: "payload" }`) must not let `evil` surface out of decoding. Same move
 // as `decodeMap` at the top level, which already builds its return object field by field rather
@@ -137,12 +154,17 @@ function toCollider(value: unknown): ColliderRect | null {
   )
     return null;
   if (value.top !== undefined && !isFiniteNumber(value.top)) return null;
+  if (value.footprint !== undefined && value.footprint !== "ellipse") return null;
+  const surface = value.surface === undefined ? undefined : toColliderSurface(value.surface);
+  if (surface === null) return null;
   return {
     x: value.x,
     z: value.z,
     w: value.w,
     h: value.h,
     ...(value.top === undefined ? {} : { top: value.top }),
+    ...(value.footprint === undefined ? {} : { footprint: value.footprint }),
+    ...(surface === undefined ? {} : { surface }),
   };
 }
 
@@ -310,7 +332,7 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
     },
     ramps: m.ramps ?? [],
     platforms: m.colliders.flatMap((collider) =>
-      collider.top === undefined ? [] : [{ ...collider, top: collider.top }],
+      collider.top === undefined && collider.surface === undefined ? [] : [collider],
     ),
   };
 }
