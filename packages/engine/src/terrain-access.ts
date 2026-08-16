@@ -165,6 +165,16 @@ function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[
       }
       return surface;
     },
+    platformSurfaceAround(wx, wz, radius, ceilingY) {
+      let surface = query.platformSurfaceAround?.(wx, wz, radius, ceilingY) ?? null;
+      for (const platform of platforms) {
+        if (!colliderOverlapsDisc(platform, wx, wz, radius)) continue;
+        const height = colliderSurfaceHeightNear(platform, wx, wz);
+        if (height === null || height > ceilingY + HEIGHT_EPSILON) continue;
+        surface = surface === null ? height : Math.max(surface, height);
+      }
+      return surface;
+    },
     maxHeightAround(wx, wz, radius, ceilingY) {
       let height = query.maxHeightAround(wx, wz, radius, ceilingY);
       if (ceilingY === undefined) return height;

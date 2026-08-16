@@ -31,6 +31,20 @@ function empreinte(z: number, hero: HeroSettings): number {
 }
 
 /**
+ * A contact jump keeps its horizontal momentum while the body is still below a one-level finite
+ * obstacle. It does not grant passage through the volume: `canEnter` remains false until the feet
+ * physically clear the top, so the same obstacle is solid from every approach and can be landed on.
+ */
+function canPreserveVaultMomentum(state: HeroState, x: number, z: number, deps: StepDeps): boolean {
+  const { colliders, hero, world } = deps;
+  if (!state.airborne || state.vy <= 0) return false;
+  const clearance = colliders.heightToClear?.(x, empreinte(z, hero), hero.radius) ?? null;
+  if (clearance === null || !Number.isFinite(clearance)) return false;
+  const jumpApex = state.y + (state.vy * state.vy) / (2 * hero.jump.gravity);
+  return clearance <= state.groundY + world.levelHeight + 1e-3 && jumpApex >= clearance + 0.02;
+}
+
+/**
  * Can a foot land at `(x, z)` — ported as is from the lab's `hero.ts` (`canEnter` and its nested
  * `centreOk`), which used to read `pos`/`piece`/`airborne`/`swimming`/`groundY` from a closure;
  * here those are `state`'s fields and `deps`'s settings. Called one axis at a time by `stepHero`:
@@ -121,27 +135,6 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
 
   const collisionY = platformHeight ?? state.y;
   if (!colliders.blocked(x, empreinte(z, hero), hero.radius, collisionY)) return true;
-
-  // A one-level stump, rock or bridge rail is a jumpable finite volume, not a wall. Waiting until
-  // the feet are already above its top makes a contact jump physically too short to cross the
-  // full footprint: horizontal speed was repeatedly erased against the side. A rising jump whose
-  // computed apex clears one authored level may enter that volume, then either land on its finite
-  // top or continue over it. Level-two buildings and infinite walls never satisfy this branch.
-  const clearance = colliders.heightToClear?.(x, empreinte(z, hero), hero.radius) ?? null;
-  const jumpApex =
-    state.airborne && state.vy > 0
-      ? state.y + (state.vy * state.vy) / (2 * hero.jump.gravity)
-      : state.y;
-  if (
-    state.airborne &&
-    state.vy > 0 &&
-    clearance !== null &&
-    Number.isFinite(clearance) &&
-    clearance <= state.groundY + world.levelHeight + 1e-3 &&
-    jumpApex >= clearance + 0.02
-  ) {
-    return true;
-  }
 
   // Same escape hatch against props (an unlucky spawn, a prop added underneath).
   return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius, state.y);
@@ -259,10 +252,10 @@ export function stepHero(
   // instant they move away from it.
   const nx = state.x + state.vx * dt;
   if (canEnter(state, nx, state.z, deps)) state.x = nx;
-  else state.vx = 0;
+  else if (!canPreserveVaultMomentum(state, nx, state.z, deps)) state.vx = 0;
   const nz = state.z + state.vz * dt;
   if (canEnter(state, state.x, nz, deps)) state.z = nz;
-  else state.vz = 0;
+  else if (!canPreserveVaultMomentum(state, state.x, nz, deps)) state.vz = 0;
 
   const suitSurface =
     etaitAuSol &&
@@ -291,13 +284,30 @@ export function stepHero(
     state.swimming = false;
     state.vy = 0;
   }
-  const sol = state.room
+  const footprintZ = empreinteZ(state.z);
+  const surfaceCeiling = state.airborne ? state.y + 0.02 : Number.POSITIVE_INFINITY;
+  const centreSurface = state.room
     ? state.room.y
-    : (query.surfaceAt?.(
-        state.x,
-        empreinteZ(state.z),
-        state.airborne ? state.y + 0.02 : Number.POSITIVE_INFINITY,
-      ) ?? query.heightAt(state.x, empreinteZ(state.z)));
+    : (query.surfaceAt?.(state.x, footprintZ, surfaceCeiling) ??
+      query.heightAt(state.x, footprintZ));
+  const nearbyPlatform = state.room
+    ? null
+    : (query.platformSurfaceAround?.(state.x, footprintZ, hero.radius, surfaceCeiling) ?? null);
+  // A finite top supports the hero's whole collision disc, not only its centre. This is essential
+  // for narrow bridge rails and small rocks: horizontal collision stops the centre at the side,
+  // so a descending jump could never put that centre over the top before falling through it.
+  // Grounded heroes only retain a nearby surface already under their feet; a roof beside a hero
+  // on the ground must never pull them upward.
+  const supportedPlatform =
+    nearbyPlatform !== null && (state.airborne || Math.abs(nearbyPlatform - state.groundY) <= 0.08)
+      ? nearbyPlatform
+      : null;
+  const sol =
+    supportedPlatform === null
+      ? centreSurface
+      : centreSurface === null
+        ? supportedPlatform
+        : Math.max(centreSurface, supportedPlatform);
 
   // Indoors, the floor is flat: no gravity, no swimming, no jumping. The whole vertical block is
   // guarded by `!state.room` so none of these mechanics run indoors.

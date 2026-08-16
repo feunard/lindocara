@@ -26,6 +26,8 @@ function flatTerrain() {
 }
 
 describe("live authored-event collision", () => {
+  const obstacle = [SIZE * 32, (SIZE / 2 - 1) * 64, 64, 128] as const;
+
   it("adds and removes a harvest footprint without resetting the hero", () => {
     const base = flatTerrain();
     const blocked = withWorldEventColliders(base, [
@@ -48,7 +50,6 @@ describe("live authored-event collision", () => {
 
   it("jumps over a level-one resource but not a level-two wall from flat ground", () => {
     const base = flatTerrain();
-    const obstacle = [SIZE * 32, (SIZE / 2 - 1) * 64, 64, 128] as const;
     const runAt = (elevation: 1 | 2) => {
       const terrain = withWorldEventColliders(base, [
         { harvest: { collider: [...obstacle, elevation] } },
@@ -66,6 +67,114 @@ describe("live authored-event collision", () => {
 
     expect(runAt(1).x).toBeGreaterThan(0.75);
     expect(runAt(2).x).toBeLessThan(0);
+  });
+
+  it.each([
+    ["west", { x: -2, z: 0 }, { x: 1, z: 0 }, (x: number, _z: number) => x < -0.2],
+    ["east", { x: 3, z: 0 }, { x: -1, z: 0 }, (x: number, _z: number) => x > 1.2],
+    ["north", { x: 0.5, z: -3 }, { x: 0, z: 1 }, (_x: number, z: number) => z < -1.05],
+    ["south", { x: 0.5, z: 3 }, { x: 0, z: -1 }, (_x: number, z: number) => z > 1.35],
+  ] as const)(
+    "keeps a level-one prop solid when approached from the %s",
+    (_side, spawn, input, stopped) => {
+      const terrain = withWorldEventColliders(flatTerrain(), [
+        { harvest: { collider: [...obstacle, 1] } },
+      ]);
+      const hero = createHeroController({ terrain, spawn: { ...spawn, y: 0 }, speed: 4 });
+
+      for (let frame = 0; frame < 120; frame += 1) {
+        hero.step({ ...input, jump: false }, FRAME);
+      }
+
+      expect(stopped(hero.state.x, hero.state.z), JSON.stringify(hero.state)).toBe(true);
+      expect(hero.state.y).toBeCloseTo(0);
+    },
+  );
+
+  it.each([
+    ["west", { x: -0.25, z: 0 }, { x: 1, z: 0 }],
+    ["east", { x: 1.25, z: 0 }, { x: -1, z: 0 }],
+    ["north", { x: 0.5, z: -1.1 }, { x: 0, z: 1 }],
+    ["south", { x: 0.5, z: 1.4 }, { x: 0, z: -1 }],
+  ] as const)(
+    "lands on a level-one prop after a contact jump from the %s",
+    (_side, spawn, input) => {
+      const terrain = withWorldEventColliders(flatTerrain(), [
+        { harvest: { collider: [...obstacle, 1] } },
+      ]);
+      const hero = createHeroController({ terrain, spawn: { ...spawn, y: 0 }, speed: 4 });
+
+      for (let frame = 0; frame < 50; frame += 1) {
+        hero.step(
+          frame < 12 ? { ...input, jump: frame === 0 } : { x: 0, z: 0, jump: false },
+          FRAME,
+        );
+        const footprintZ = hero.state.z - 0.15;
+        const overlaps =
+          hero.state.x > -0.25 && hero.state.x < 1.25 && footprintZ > -1.25 && footprintZ < 1.25;
+        if (overlaps) {
+          expect(
+            hero.state.y,
+            `frame ${frame}: ${JSON.stringify(hero.state)}`,
+          ).toBeGreaterThanOrEqual(0.899);
+        }
+      }
+
+      expect(hero.state.airborne, JSON.stringify(hero.state)).toBe(false);
+      expect(hero.state.y).toBeCloseTo(0.9);
+      expect(hero.state.x).toBeGreaterThanOrEqual(0);
+      expect(hero.state.x).toBeLessThanOrEqual(1);
+      expect(hero.state.z - 0.15).toBeGreaterThanOrEqual(-1);
+      expect(hero.state.z - 0.15).toBeLessThanOrEqual(1);
+    },
+  );
+
+  it("keeps bridge rails solid below their top and landable from either bank", () => {
+    const map: MapData = {
+      version: 1,
+      size: SIZE,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels: new Array(SIZE * SIZE).fill(0),
+      materials: new Array(SIZE * SIZE).fill("herbe"),
+      colliders: [
+        { x: -1.5, z: -0.5, w: 3, h: 1, top: 0 },
+        { x: -1.5, z: -0.5, w: 3, h: 0.11, top: 0.9 },
+        { x: -1.5, z: 0.39, w: 3, h: 0.11, top: 0.9 },
+      ],
+      spawns: [{ name: "bridge", x: 0, z: -0.75 }],
+      elements: [],
+      events: [],
+    };
+    const terrain = zoneTerrainFromHeightfield(map);
+
+    for (const [spawnZ, direction] of [
+      [-0.75, 1],
+      [0.9, -1],
+    ] as const) {
+      const hero = createHeroController({
+        terrain,
+        spawn: { x: 0, y: 0, z: spawnZ + 0.15 },
+        speed: 4,
+      });
+      for (let frame = 0; frame < 45; frame += 1) {
+        hero.step(
+          frame < 10 ? { x: 0, z: direction, jump: frame === 0 } : { x: 0, z: 0, jump: false },
+          FRAME,
+        );
+        const footprintZ = hero.state.z - 0.15;
+        const overlapsRail =
+          (footprintZ > -0.75 && footprintZ < -0.25) || (footprintZ > 0.14 && footprintZ < 0.64);
+        if (overlapsRail) {
+          expect(
+            hero.state.y,
+            `frame ${frame}: ${JSON.stringify(hero.state)}`,
+          ).toBeGreaterThanOrEqual(0.899);
+        }
+      }
+      expect(hero.state.y).toBeCloseTo(0.9);
+      expect(hero.state.airborne).toBe(false);
+    }
   });
 
   it("clears a wide level-one stump when the jump starts at contact", () => {

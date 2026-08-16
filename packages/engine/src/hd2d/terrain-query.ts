@@ -48,6 +48,8 @@ export interface TerrainQuery {
   heightAt(wx: number, wz: number): number | null;
   /** Highest ground or authored platform not above the moving body's current ceiling. */
   surfaceAt?(wx: number, wz: number, ceilingY: number): number | null;
+  /** Highest finite platform touched by a body's footprint and not above its current ceiling. */
+  platformSurfaceAround?(wx: number, wz: number, radius: number, ceilingY: number): number | null;
   /**
    * Highest ground height under a DISC. Testing a single point would let the character's body
    * sink into cliffs by its half-width — it is a volume that moves, not a point. Water counts as
@@ -177,6 +179,16 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       const platform = platformAt(wx, wz, ceilingY);
       if (platform === null) return ground;
       return ground === null ? platform : Math.max(ground, platform);
+    },
+    platformSurfaceAround(wx, wz, radius, ceilingY) {
+      let surface: number | null = null;
+      for (const platform of platforms) {
+        if (!colliderOverlapsDisc(platform, wx, wz, radius)) continue;
+        const height = colliderSurfaceHeightNear(platform, wx, wz);
+        if (height === null || height > ceilingY + 1e-3) continue;
+        surface = surface === null ? height : Math.max(surface, height);
+      }
+      return surface;
     },
     maxHeightAround(wx, wz, r, ceilingY) {
       let max = Number.NEGATIVE_INFINITY;
