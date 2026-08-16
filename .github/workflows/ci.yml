@@ -34,8 +34,18 @@ jobs:
       - name: Music catalogue up to date
         run: yarn music:check
 
+      # Two commands, because `yarn lint` is `alepha lint` is `biome check --fix`: it REWRITES a
+      # badly formatted file and then exits 0, so on its own it would wave through exactly the PR
+      # it exists to stop. The diff is what restores the gate — on a runner the tree is pristine,
+      # so anything biome changed here is a fix the author owed. `git diff --exit-code` is CI-only
+      # for that same reason: locally it would fire on any work in progress.
       - name: Lint
-        run: yarn lint
+        run: |
+          yarn lint
+          git diff --exit-code || {
+            echo "::error::biome fixed files that should have been committed already — run 'yarn lint' locally and commit the result."
+            exit 1
+          }
 
       - name: Typecheck
         run: yarn typecheck

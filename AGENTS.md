@@ -27,9 +27,9 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `yarn loadtest --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
 | `yarn lab` | `vite dev` on `apps/lab` â€” the HD-2D render witness (`@lindocara/hd2d` + `three`), see below |
 | `yarn workspace @lindocara/lab run deploy` | ship the witness to [lindocara-lab.bay.alepha.dev](https://lindocara-lab.bay.alepha.dev) as a **static site** â€” files with no process behind them, `target: "static"` + `static.source`; needs `LORE_API_KEY`, see [`apps/lab/AGENTS.md`](./apps/lab/AGENTS.md) |
-| `yarn lint` / `lint:fix` | Biome |
-| `yarn typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
-| `yarn test` | Vitest â€” every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
+| `yarn lint` | `alepha lint` â€” Biome, **and it fixes**: `biome check --fix`, so it rewrites your files rather than only reporting. There is no `lint:fix` any more; this is it |
+| `yarn typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below). Deliberately NOT `alepha typecheck` â€” see below |
+| `yarn test` | `alepha test` â€” Vitest over every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
 | `yarn build` | `alepha build` â€” bundles `apps/main`; CI builds the production shape via `yarn workspace @lindocara/main run build --target bare` |
 | `yarn deploy` | `alepha platform up -e production` â€” build, pack and upload to Bay; CI runs it on every push to `main` and migrations run at app boot |
 | `yarn workspace @lindocara/main run db:generate` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration â€” **currently broken repo-wide**, see below |
@@ -64,6 +64,36 @@ it finds, and takes the `yarn alepha build` branch here.
   resolves a workspace transparently only when the range matches, so a pinned `^0.24.0` beside a
   vendored `alepha@0.25.1` would quietly download the framework from npm and shadow
   `.vendor/alepha`. `*` always matches, which is why every internal dependency here uses it.
+
+### The scripts delegate to the alepha CLI wherever the CLI can carry them
+
+`dev`, `build`, `deploy`, `db:generate` and `check:migrations` always were `alepha` commands, and
+`verify` is itself an `$command` declared in the root [`alepha.config.ts`](./alepha.config.ts).
+`lint` and `test` joined them: **`yarn lint` is `alepha lint`** (Biome) and **`yarn test` is
+`alepha test`** (Vitest). Both resolve the same binaries the project already had — the hoisted
+`@biomejs/biome`, and a `vitest` at the identical 4.1.10 — and `alepha test` finds the root
+`vitest.config.ts`, so it runs all nine projects (287 files, 2 725 tests) exactly as before.
+
+**`alepha lint` FIXES, and that changes what a green lint means.** It is `biome check --fix`: given
+a badly formatted file it rewrites it and exits **0**. Locally that is what you want and it replaces
+the old `lint:fix`. In CI it would wave through the very PR the step exists to stop, so the
+workflow's Lint step runs `git diff --exit-code` behind it — on a runner the tree is pristine, so
+anything biome touched is a fix the author owed. Never copy that diff guard into `verify` or a local
+script: it fires on any uncommitted work in progress.
+
+Two scripts deliberately do **not** delegate, and both were tried:
+
+- **`typecheck`.** `alepha typecheck` is one `tsc --noEmit` at the root. Here it fails on the spot —
+  `error TS18002: The 'files' list in config file 'tsconfig.json' is empty` — because the root
+  config is a shared base, not a program. That is not an oversight to fix: the DOM lib and the
+  Node/Workers types declare `WebSocket`/`Response`/`fetch` incompatibly, and alepha's own source is
+  type-checked under its base rather than this repo's stricter one, so the split into fifteen `tsc`
+  invocations IS the design (see "Per-package tsconfigs, not one" below).
+- **`clean`.** `alepha clean` removes one directory, `output.dist ?? "dist"`. The repo root has no
+  `dist/`, and the lab's client build lives in `dist-client` *outside* `dist/` on purpose (the build
+  empties `dist/` before any task runs, so a client written there would be deleted before the static
+  target could adopt it). Fanning out per app would still miss it; the one `node -e` line removes all
+  three paths and stays cross-platform.
 
 ### The dev server has a dedicated port: 5273
 
