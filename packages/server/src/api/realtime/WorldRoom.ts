@@ -1663,6 +1663,18 @@ export class WorldRoom {
           z: player.z,
         },
         buildingEntry ? "building interior" : "event teleport",
+        buildingEntry
+          ? {
+              storeInteriorReturn: {
+                mapId: state.location?.zoneId ?? player.zoneId,
+                x: player.x,
+                y: player.y,
+                z: player.z,
+              },
+            }
+          : category === "interior"
+            ? { restoreInteriorReturn: true }
+            : undefined,
       );
     } finally {
       player.transitioning = false;
@@ -1688,6 +1700,11 @@ export class WorldRoom {
     destination: WorldPosition,
     successMessage: ServerMessage,
     closeReason: string,
+    interiorReturn?:
+      | {
+          storeInteriorReturn: { mapId: string; x: number; y: number; z: number };
+        }
+      | { restoreInteriorReturn: true },
   ): Promise<void> {
     if (!(await this.checkpointCooldownsForTransition(room, state, connectionId, player))) return;
     // Camps cannot cross rooms. Empty their transient chest into the travelling owner before the
@@ -1711,6 +1728,7 @@ export class WorldRoom {
         x: destination.x,
         y: destination.y,
         z: destination.z,
+        ...interiorReturn,
       })) as { sessionEpoch: number } | null;
     } catch (error) {
       this.logError("hero_presence_handoff_failed", error, { heroId: player.id });

@@ -37,6 +37,22 @@ export interface HandoffPresenceRequest {
   x: number;
   y: number;
   z: number;
+  /** Entering a building remembers the exact exterior point for the matching interior exit. */
+  storeInteriorReturn?: {
+    mapId: string;
+    x: number;
+    y: number;
+    z: number;
+  };
+  /** A generated interior exit consumes the remembered exterior point when one still exists. */
+  restoreInteriorReturn?: boolean;
+}
+
+interface InteriorReturnAnchor {
+  mapId: string;
+  x: number;
+  y: number;
+  z: number;
 }
 
 interface StoredCooldowns {
@@ -47,13 +63,15 @@ interface StoredCooldowns {
 interface PresenceRoomState {
   lease: PresenceLease | null;
   cooldowns: StoredCooldowns | null;
+  interiorReturn: InteriorReturnAnchor | null;
 }
 
 /**
  * The headless per-hero presence/lease room, successor to legacy `CharacterPresence`/
  * `HeroPresence` (`packages/server/src/character-presence.ts:107-240`). `roomId` is the hero id;
- * `state()` is created lazily on first `call()` and holds exactly one lease plus one cooldown
- * checkpoint — there is never more than one authoritative holder per hero. The cooldown checkpoint
+ * `state()` is created lazily on first `call()` and holds one lease, one cooldown checkpoint and
+ * the optional exterior point of the current building interior. There is never more than one
+ * authoritative holder per hero. The cooldown checkpoint
  * OUTLIVES any single lease: both `acquire` (reconnect) and `handoff` (map transition) carry
  * still-active cooldowns forward onto the new lease's epoch (`promoteCooldowns`), matching legacy's
  * `#promoteCooldowns` — a reconnect or a zone hop must never be a free cooldown refresh.
@@ -92,7 +110,7 @@ export class PresenceRoom {
    */
   room = $room({
     channel: this.realtimeChannels.presenceChannel,
-    state: (): PresenceRoomState => ({ lease: null, cooldowns: null }),
+    state: (): PresenceRoomState => ({ lease: null, cooldowns: null, interiorReturn: null }),
     methods: {
       acquire: (room, request: AcquirePresenceRequest) =>
         this.acquire(room.roomId, room.state, request),
@@ -191,23 +209,36 @@ export class PresenceRoom {
     request: HandoffPresenceRequest,
   ): Promise<{ sessionEpoch: number } | null> {
     const lease = this.currentLease(state);
+    const storedReturn = request.storeInteriorReturn;
     if (
       !lease ||
       lease.connectionId !== request.connectionId ||
       lease.sessionEpoch !== request.sessionEpoch ||
       !Number.isFinite(request.x) ||
       !Number.isFinite(request.y) ||
-      !Number.isFinite(request.z)
+      !Number.isFinite(request.z) ||
+      (storedReturn !== undefined &&
+        (request.restoreInteriorReturn === true ||
+          storedReturn.mapId.length === 0 ||
+          !Number.isFinite(storedReturn.x) ||
+          !Number.isFinite(storedReturn.y) ||
+          !Number.isFinite(storedReturn.z)))
     ) {
       return null;
     }
+    const restoredReturn =
+      request.restoreInteriorReturn === true && state.interiorReturn?.mapId === request.mapId
+        ? state.interiorReturn
+        : null;
     const nextEpoch = await this.heroEpochService.handoffEpoch({
       heroId,
       sessionEpoch: lease.sessionEpoch,
       mapId: request.mapId,
-      position: { x: request.x, y: request.y, z: request.z },
+      position: restoredReturn ?? { x: request.x, y: request.y, z: request.z },
     });
     if (nextEpoch === null) return null;
+    if (storedReturn) state.interiorReturn = { ...storedReturn };
+    else if (request.restoreInteriorReturn === true) state.interiorReturn = null;
     state.lease = { ...lease, sessionEpoch: nextEpoch, expiresAt: this.now() + PRESENCE_TTL_MS };
     this.promoteCooldowns(state, nextEpoch);
     return { sessionEpoch: nextEpoch };

@@ -1176,6 +1176,7 @@ describe("world room transitions (FakeClock)", () => {
     const doorPrevious = { x: player.x, z: player.z };
     player.x = door.x;
     player.z = door.z + 0.4;
+    const exteriorReturn = { x: player.x, y: player.y, z: player.z };
     exteriorState.playerGrid.update(player, doorPrevious);
 
     await exteriorEngine.message(exteriorSocket.id, { t: "interact" });
@@ -1203,7 +1204,10 @@ describe("world room transitions (FakeClock)", () => {
     await interiorEngine.message(interiorSocket.id, { t: "interact" });
     clock.advanceTicks(1);
     await vi.waitFor(() => expect(interiorSocket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION));
-    expect((await probe.heroes.findById(fixture.heroId))?.mapId).toBe(fixture.exteriorMapId);
+    expect(await probe.heroes.findById(fixture.heroId)).toMatchObject({
+      mapId: fixture.exteriorMapId,
+      ...exteriorReturn,
+    });
     expect(messagesOf(interiorSocket)).toContainEqual(
       expect.objectContaining({
         t: "event",

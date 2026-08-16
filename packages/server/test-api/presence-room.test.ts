@@ -279,6 +279,57 @@ describe("handoff", () => {
     const after = await probe.heroes.findById(heroId);
     expect(after).toEqual(before);
   });
+
+  test("a building handoff restores and consumes the exact exterior return point", async () => {
+    const { heroId, mapId } = await newHero("handoffinterior");
+    const acquired = (await presenceRoom.room.call(heroId, "acquire", {
+      connectionId: "conn-1",
+      roomKey: "party:exterior",
+      zoneId: mapId,
+      instanceId: "main",
+    })) as { sessionEpoch: number };
+    const exterior = { mapId, x: 1.375, y: 0.9, z: -2.625 };
+
+    const entered = (await presenceRoom.room.call(heroId, "handoff", {
+      connectionId: "conn-1",
+      sessionEpoch: acquired.sessionEpoch,
+      mapId: "interior-map",
+      x: 0,
+      y: 0,
+      z: 0,
+      storeInteriorReturn: exterior,
+    })) as { sessionEpoch: number };
+    const exited = (await presenceRoom.room.call(heroId, "handoff", {
+      connectionId: "conn-1",
+      sessionEpoch: entered.sessionEpoch,
+      mapId,
+      x: 9,
+      y: 9,
+      z: 9,
+      restoreInteriorReturn: true,
+    })) as { sessionEpoch: number };
+
+    expect(await probe.heroes.findById(heroId)).toMatchObject(exterior);
+
+    await presenceRoom.room.call(heroId, "handoff", {
+      connectionId: "conn-1",
+      sessionEpoch: exited.sessionEpoch,
+      mapId: "interior-map",
+      x: 0,
+      y: 0,
+      z: 0,
+    });
+    await presenceRoom.room.call(heroId, "handoff", {
+      connectionId: "conn-1",
+      sessionEpoch: exited.sessionEpoch + 1,
+      mapId,
+      x: 4,
+      y: 5,
+      z: 6,
+      restoreInteriorReturn: true,
+    });
+    expect(await probe.heroes.findById(heroId)).toMatchObject({ mapId, x: 4, y: 5, z: 6 });
+  });
 });
 
 describe("cooldown checkpoints", () => {
