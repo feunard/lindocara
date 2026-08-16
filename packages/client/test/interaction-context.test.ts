@@ -99,11 +99,11 @@ describe("contextual controller interaction", () => {
     expect(hasNearbyInteraction(context({ camps: [{ ...camp, expiresAt: 999 }] }))).toBe(false);
   });
 
-  it("recognizes only intact interactive building bases in range", () => {
+  it("recognizes an intact building only at its visible doorway", () => {
     const building: WorldBuildingSnapshot = {
       id: "building",
-      x: 2,
-      z: 2,
+      x: 0,
+      z: 0,
       graphicAssetId: "building.buildings-blue-buildings.house1" as EditorAssetId,
       destroyedAssetId:
         "building.factions-knights-buildings-house.house-destroyed" as EditorAssetId,
@@ -112,17 +112,23 @@ describe("contextual controller interaction", () => {
       destructible: true,
       destroyed: false,
       interactive: true,
-      collider: { x: 0.5, z: 0.5, w: 2, h: 2 },
+      collider: { x: -1.375, z: -2.125, w: 2.75, h: 2.125 },
     };
-    expect(hasNearbyInteraction(context({ buildings: [building] }))).toBe(true);
     expect(
-      hasNearbyInteraction(
-        context({ buildings: [{ ...building, collider: { x: 8, z: 8, w: 2, h: 2 } }] }),
-      ),
+      hasNearbyInteraction(context({ self: { ...self, x: 0.55, z: 0.4 }, buildings: [building] })),
+    ).toBe(true);
+    expect(
+      hasNearbyInteraction(context({ self: { ...self, x: -1.625, z: -1 }, buildings: [building] })),
+    ).toBe(false);
+    expect(
+      hasNearbyInteraction(context({ self: { ...self, x: -0.4, z: 0.4 }, buildings: [building] })),
     ).toBe(false);
     expect(
       hasNearbyInteraction(
-        context({ buildings: [{ ...building, hp: 0, destroyed: true, interactive: false }] }),
+        context({
+          self: { ...self, x: 0.55, z: 0.4 },
+          buildings: [{ ...building, hp: 0, destroyed: true, interactive: false }],
+        }),
       ),
     ).toBe(false);
   });

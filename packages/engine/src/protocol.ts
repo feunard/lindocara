@@ -784,7 +784,7 @@ export interface WorldBuildingSnapshot {
   destroyed: boolean;
   /** True only while this intact building has an authored interior map. */
   interactive: boolean;
-  /** Authoritative solid base used only to preview proximity; the server rechecks interaction. */
+  /** Authoritative solid base retained for world geometry; doorway proximity is model-derived. */
   collider: import("./buildings.js").BuildingCollider;
 }
 

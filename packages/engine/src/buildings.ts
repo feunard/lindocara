@@ -35,6 +35,16 @@ export interface BuildingCollider {
   h: number;
 }
 
+/** The player's world-position radius at which the doorway prompt and transition are reachable. */
+export const BUILDING_DOOR_INTERACTION_RANGE = 0.55;
+
+export interface BuildingDoorPlacement {
+  x: number;
+  z: number;
+  assetId: string;
+  orientation?: ElementOrientation;
+}
+
 /** Shortest ground distance to a solid building base; zero while the point is inside the base. */
 export function distanceToBuildingCollider(
   point: GroundVector,
@@ -43,6 +53,42 @@ export function distanceToBuildingCollider(
   const dx = Math.max(collider.x - point.x, 0, point.x - (collider.x + collider.w));
   const dz = Math.max(collider.z - point.z, 0, point.z - (collider.z + collider.h));
   return Math.hypot(dx, dz);
+}
+
+/**
+ * Ground point at the centre of the visible front door. The authored building anchor already is
+ * the front threshold; only buildings with an asymmetric facade need a lateral offset. Rotating
+ * this local point by the authored quarter-turn keeps the door fixed to the model instead of
+ * making the interaction follow an unrotated collider side.
+ */
+export function buildingDoorGroundPoint(placement: BuildingDoorPlacement): GroundVector {
+  const archetype = buildingArchetype(placement.assetId);
+  const size = archetype ? buildingVolumeDimensions(archetype) : null;
+  const localX =
+    archetype === "house"
+      ? (size?.width ?? 0) * 0.2
+      : archetype === "archery"
+        ? (size?.width ?? 0) * 0.31
+        : 0;
+  const orientation = placement.orientation ?? 0;
+  switch (orientation) {
+    case 1:
+      return { x: placement.x, z: placement.z + localX };
+    case 2:
+      return { x: placement.x - localX, z: placement.z };
+    case 3:
+      return { x: placement.x, z: placement.z - localX };
+    default:
+      return { x: placement.x + localX, z: placement.z };
+  }
+}
+
+export function distanceToBuildingDoor(
+  point: GroundVector,
+  placement: BuildingDoorPlacement,
+): number {
+  const door = buildingDoorGroundPoint(placement);
+  return Math.hypot(point.x - door.x, point.z - door.z);
 }
 
 export const MIN_BUILDING_HP = 1;

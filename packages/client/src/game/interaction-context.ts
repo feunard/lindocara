@@ -1,4 +1,8 @@
-import { distanceToBuildingCollider } from "@lindocara/engine/buildings.js";
+import {
+  BUILDING_DOOR_INTERACTION_RANGE,
+  type BuildingDoorPlacement,
+  distanceToBuildingDoor,
+} from "@lindocara/engine/buildings.js";
 import { INTERACTION_RANGE } from "@lindocara/engine/game.js";
 import { groundDistance } from "@lindocara/engine/ground.js";
 import { authoredCellCentreGround } from "@lindocara/engine/map-events.js";
@@ -33,6 +37,15 @@ export interface InteractionContext {
   now: number;
 }
 
+function doorPlacement(building: WorldBuildingSnapshot): BuildingDoorPlacement {
+  return {
+    x: building.x,
+    z: building.z,
+    assetId: building.graphicAssetId,
+    ...(building.orientation === undefined ? {} : { orientation: building.orientation }),
+  };
+}
+
 export function nearestInteractiveBuilding(
   self: PlayerSnapshot | undefined,
   buildings: readonly WorldBuildingSnapshot[],
@@ -43,12 +56,12 @@ export function nearestInteractiveBuilding(
       (building) =>
         building.interactive &&
         !building.destroyed &&
-        distanceToBuildingCollider(self, building.collider) <= INTERACTION_RANGE,
+        distanceToBuildingDoor(self, doorPlacement(building)) <= BUILDING_DOOR_INTERACTION_RANGE,
     )
     .sort(
       (left, right) =>
-        distanceToBuildingCollider(self, left.collider) -
-        distanceToBuildingCollider(self, right.collider),
+        distanceToBuildingDoor(self, doorPlacement(left)) -
+        distanceToBuildingDoor(self, doorPlacement(right)),
     )[0];
 }
 

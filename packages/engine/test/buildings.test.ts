@@ -1,7 +1,10 @@
 import {
+  BUILDING_DOOR_INTERACTION_RANGE,
+  buildingDoorGroundPoint,
   defaultBuildingMaxHp,
   defaultBuildingSettings,
   destroyedBuildingAssetId,
+  distanceToBuildingDoor,
   isDestroyedBuildingAsset,
   isStandingBuildingAsset,
   parseBuildingSettings,
@@ -20,6 +23,20 @@ const RUIN = "building.factions-knights-buildings-house.house-destroyed" as cons
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 
 describe("building authoring rules", () => {
+  it("rotates each asymmetric facade door with the authored building", () => {
+    const anchor = { x: 4, z: -3, assetId: LINDOCARA_BUILDING_ASSET_IDS.house };
+    expect(buildingDoorGroundPoint(anchor)).toEqual({ x: 4.55, z: -3 });
+    expect(buildingDoorGroundPoint({ ...anchor, orientation: 1 })).toEqual({ x: 4, z: -2.45 });
+    expect(buildingDoorGroundPoint({ ...anchor, orientation: 2 })).toEqual({ x: 3.45, z: -3 });
+    expect(buildingDoorGroundPoint({ ...anchor, orientation: 3 })).toEqual({ x: 4, z: -3.55 });
+    expect(distanceToBuildingDoor({ x: 4.55, z: -2.6 }, anchor)).toBeLessThan(
+      BUILDING_DOOR_INTERACTION_RANGE,
+    );
+    expect(distanceToBuildingDoor({ x: 2.6, z: -3 }, anchor)).toBeGreaterThan(
+      BUILDING_DOOR_INTERACTION_RANGE,
+    );
+  });
+
   it.each([
     [LINDOCARA_BUILDING_ASSET_IDS.house, { x: -88, y: -136, width: 176, height: 136 }],
     [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, { x: -64, y: -128, width: 128, height: 128 }],

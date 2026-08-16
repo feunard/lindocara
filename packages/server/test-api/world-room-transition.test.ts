@@ -35,6 +35,7 @@
  * second bare engine standing in for one.
  */
 
+import { buildingDoorGroundPoint } from "@lindocara/engine/buildings.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { harvestColliderAt } from "@lindocara/engine/harvest.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
@@ -1157,10 +1158,25 @@ describe("world room transitions (FakeClock)", () => {
     const player = playerOf(exteriorState, fixture.heroId);
     const building = exteriorState.buildings[0];
     if (!building) throw new Error("authored building missing from exterior room");
-    const previous = { x: player.x, z: player.z };
-    player.x = building.collider.x - 0.5;
+    const sidePrevious = { x: player.x, z: player.z };
+    player.x = building.collider.x - 0.1;
     player.z = building.collider.z + building.collider.h / 2;
-    exteriorState.playerGrid.update(player, previous);
+    exteriorState.playerGrid.update(player, sidePrevious);
+
+    await exteriorEngine.message(exteriorSocket.id, { t: "interact" });
+    expect(exteriorSocket.closed).toBeUndefined();
+    expect((await probe.heroes.findById(fixture.heroId))?.mapId).toBe(fixture.exteriorMapId);
+
+    const door = buildingDoorGroundPoint({
+      x: building.x,
+      z: building.z,
+      assetId: building.standingAssetId,
+      ...(building.orientation === undefined ? {} : { orientation: building.orientation }),
+    });
+    const doorPrevious = { x: player.x, z: player.z };
+    player.x = door.x;
+    player.z = door.z + 0.4;
+    exteriorState.playerGrid.update(player, doorPrevious);
 
     await exteriorEngine.message(exteriorSocket.id, { t: "interact" });
     await vi.waitFor(() => expect(exteriorSocket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION));

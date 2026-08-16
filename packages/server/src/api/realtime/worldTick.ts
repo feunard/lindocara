@@ -33,7 +33,10 @@ import {
   authoredQuestTrackers,
   EMPTY_ADVENTURE_STATE,
 } from "@lindocara/engine/adventure-state.js";
-import { distanceToBuildingCollider } from "@lindocara/engine/buildings.js";
+import {
+  BUILDING_DOOR_INTERACTION_RANGE,
+  distanceToBuildingDoor,
+} from "@lindocara/engine/buildings.js";
 import { parseCheatCommand } from "@lindocara/engine/cheats.js";
 import {
   actionForClassSlot,
@@ -5313,9 +5316,14 @@ export async function handleInteract(
     .filter((candidate) => candidate.interiorMapId && !candidate.destroyed)
     .map((candidate) => ({
       building: candidate,
-      distance: distanceToBuildingCollider(player, candidate.collider),
+      distance: distanceToBuildingDoor(player, {
+        x: candidate.x,
+        z: candidate.z,
+        assetId: candidate.standingAssetId,
+        ...(candidate.orientation === undefined ? {} : { orientation: candidate.orientation }),
+      }),
     }))
-    .filter((candidate) => candidate.distance <= INTERACTION_RANGE)
+    .filter((candidate) => candidate.distance <= BUILDING_DOOR_INTERACTION_RANGE)
     .sort((left, right) => left.distance - right.distance)[0]?.building;
   if (building?.interiorMapId) {
     w.deps.enterBuilding(connectionId, player, building.interiorMapId, now, building.id);
