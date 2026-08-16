@@ -85,15 +85,21 @@ function sameCollider(a: ColliderRect | undefined, b: ColliderRect | undefined):
   );
 }
 
-function harvestCollisionElevation(
+export function harvestCollisionElevation(
   profile: HarvestProfile,
   graphicAssetId: string | null,
   harvestState: "intact" | "depleted",
 ): CollisionElevation {
   const assetElevation = graphicAssetId ? editorAssetCollisionElevation(graphicAssetId) : null;
   if (assetElevation !== null) return assetElevation;
-  // Compatibility for authored profiles whose appearance was removed or is no longer catalogued.
-  return profile.resource === "wood" && harvestState === "intact" ? 3 : 1;
+  // Compatibility for authored profiles whose appearance was removed or is no longer catalogued:
+  // replacement-style wood nodes are trees, while caches, rocks, ore and every other small node
+  // retain the stump's one-level top. The harvest profile itself is untouched.
+  return profile.resource === "wood" &&
+    profile.exhaustionBehavior === "replace" &&
+    harvestState === "intact"
+    ? 3
+    : 1;
 }
 
 /**

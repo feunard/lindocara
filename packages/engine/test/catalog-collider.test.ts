@@ -1,6 +1,8 @@
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   CURATED_EDITOR_ASSET_IDS,
+  EDITOR_ASSETS,
+  type EditorAssetDefinition,
   editorAsset,
   editorAssetCollisionElevation,
   LINDOCARA_BUILDING_ASSET_IDS,
@@ -85,6 +87,16 @@ describe("catalogue colliders", () => {
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.house)).toBe(2);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.stoneTower)).toBe(3);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.windmill)).toBe(3);
+  });
+
+  it("keeps every bounded small prop at the stump's one-level collision", () => {
+    for (const asset of EDITOR_ASSETS as readonly EditorAssetDefinition[]) {
+      if (!asset.editor.collider || asset.editor.category === "buildings") continue;
+      const stump = asset.tags.some((tag) => tag.includes("stump"));
+      const tree = asset.editor.category === "trees" || asset.tags.includes("trees");
+      if (tree && !stump) continue;
+      expect(editorAssetCollisionElevation(asset), asset.id).toBe(1);
+    }
   });
 
   it("offers the Update 010 animation once while preserving duplicate ids for old maps", () => {
