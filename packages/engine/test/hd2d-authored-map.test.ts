@@ -156,6 +156,7 @@ describe("compileAuthoredMap", () => {
     expect(compiled.elements[0]?.orientation).toBe(1);
     expect(compiled.colliders).toHaveLength(1);
     expect(compiled.colliders[0]?.top).toBeCloseTo(roofTop);
+    expect(compiled.colliders[0]?.support).toBe("center");
 
     const collider = compiled.colliders[0];
     if (!collider) throw new Error("compiled building collider missing");

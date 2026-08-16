@@ -245,6 +245,18 @@ describe("authored building platforms", () => {
     expect(query.maxHeightAround(0.9, 0, 0.2, 1)).toBe(0.9);
   });
 
+  it("does not turn a building wall graze into a roof landing", () => {
+    const centred = makeQuery(
+      [
+        [0, 0],
+        [0, 0],
+      ],
+      { platforms: [{ x: -0.8, z: -0.8, w: 1.6, h: 1.6, top: 0.9, support: "center" }] },
+    );
+    expect(centred.platformSurfaceAround?.(0.9, 0, 0.2, 1)).toBeNull();
+    expect(centred.platformSurfaceAround?.(0.79, 0, 0.2, 1)).toBe(0.9);
+  });
+
   it("samples gable and cone roofs at their real local height", () => {
     const shaped = makeQuery(
       [

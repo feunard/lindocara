@@ -27,6 +27,8 @@ export interface ColliderRect {
   footprint?: "ellipse";
   /** A non-flat walkable roof, sampled at the hero's local X/Z position. */
   surface?: ColliderRoofSurface;
+  /** Buildings support a landing only once the body's centre is over the roof, never from a wall graze. */
+  support?: "center";
 }
 
 export type ColliderRoofSurface =

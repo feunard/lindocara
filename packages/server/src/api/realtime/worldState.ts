@@ -198,6 +198,7 @@ function withAuthoredColliderTops(
             ...collider,
             top: authored.top,
             ...(authored.footprint === undefined ? {} : { footprint: authored.footprint }),
+            ...(authored.support === undefined ? {} : { support: authored.support }),
             ...(authored.surface === undefined ? {} : { surface: authored.surface }),
           }
         : collider;

@@ -71,6 +71,9 @@ export type { ZoneTerrain };
  */
 export const BODY_RADIUS = PLAYER_SIZE / 2 / TILE_SIZE;
 
+/** The collision-disc centre sits slightly behind a hero sprite's reported ground position. */
+export const HERO_FOOTPRINT_OFFSET = 0.15;
+
 /**
  * Levels a grounded body may climb by walking, as a multiple of `levelHeight`. **Zero**, and that
  * is the game's rule rather than an unfinished value (see the spec): there is no grounded climbing
@@ -169,6 +172,7 @@ function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[
       let surface = query.platformSurfaceAround?.(wx, wz, radius, ceilingY) ?? null;
       for (const platform of platforms) {
         if (!colliderOverlapsDisc(platform, wx, wz, radius)) continue;
+        if (platform.support === "center" && !colliderContainsPoint(platform, wx, wz)) continue;
         const height = colliderSurfaceHeightNear(platform, wx, wz);
         if (height === null || height > ceilingY + HEIGHT_EPSILON) continue;
         surface = surface === null ? height : Math.max(surface, height);

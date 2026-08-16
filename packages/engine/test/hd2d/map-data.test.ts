@@ -54,6 +54,7 @@ describe("the map codec", () => {
           h: 2,
           top: 2.7,
           footprint: "ellipse",
+          support: "center",
           surface: { shape: "cone", eave: 1.8, peak: 2.7 },
         },
       ],

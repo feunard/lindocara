@@ -266,6 +266,37 @@ describe("a remote hero's drawn state", () => {
     expect(drawnElevation(mesh, ctx)).toBeCloseTo(map.levelHeight);
   });
 
+  it("draws a grounded hero on the finite roof selected by its reported elevation", () => {
+    const map = {
+      ...flatMap(4),
+      colliders: [
+        {
+          x: 0,
+          z: 0,
+          w: 1,
+          h: 1,
+          top: 1.8,
+          support: "center" as const,
+        },
+      ],
+    };
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
+
+    registry.sync([actor({ x: 0.5, y: 1.8, z: 0.65 })]);
+
+    const mesh = meshes(scene.root)[0];
+    if (!mesh) throw new Error("expected a billboard");
+    expect(mesh.position.y).toBeCloseTo(1.8);
+    expect((mesh.material as THREE.Material).depthTest).toBe(false);
+    expect(mesh.renderOrder).toBe(6);
+
+    registry.sync([actor({ x: -1, y: 0, z: -1 })]);
+    expect((mesh.material as THREE.Material).depthTest).toBe(true);
+    expect(mesh.renderOrder).toBe(0);
+  });
+
   it("carries the snapshot's elevation and its three flags into the view the registry draws", () => {
     // The seam the two halves meet at: a flag the renderer never reads off the snapshot is a flag
     // `billboards.ts` can do nothing with, and the placement tests above would still pass.

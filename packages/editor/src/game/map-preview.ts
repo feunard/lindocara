@@ -16,6 +16,7 @@ import {
 import { harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import type { HeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MapData } from "@lindocara/engine/map-data.js";
 import { guardEvents, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
@@ -31,6 +32,7 @@ import type {
   PlayerSnapshot,
   QuestState,
 } from "@lindocara/engine/protocol.js";
+import type { Input } from "@lindocara/engine/simulation.js";
 import { BODY_RADIUS, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import type { AmbienceConfig } from "@lindocara/renderer/ambience.js";
 import { fixedLightingOverride } from "@lindocara/renderer/hd2d/day-cycle.js";
@@ -50,6 +52,7 @@ const PREVIEW_QUEST: QuestState = {
   target: 3,
 };
 const ZOOM_STEP = 1.25;
+const MAX_PREVIEW_FRAME_SECONDS = 0.05;
 
 function randomAppearance(): CharacterAppearance {
   const body = BODY_VARIANTS[Math.floor(Math.random() * BODY_VARIANTS.length)] ?? "wayfarer";
@@ -81,6 +84,10 @@ export interface MapPreviewOptions {
   /** Camera multiplier. 1 is the game framing, below 1 pulls back. */
   zoom?: number;
   zoomControls?: boolean;
+  /** DEV witness input, still fed through the real hero controller rather than moving it directly. */
+  scriptedInput?: (elapsedMs: number) => Input;
+  /** DEV witness observation of the same state handed to the renderer. */
+  onHeroState?: (state: Readonly<HeroState>) => void;
 }
 
 export async function startMapPreview(
@@ -241,8 +248,11 @@ export async function startMapPreview(
 
   const tracker = trackInput();
   const playerChrome = options.playerChrome ?? true;
-  renderer.onFrame((now, dt) => {
-    const input = tracker.current();
+  let previewElapsedMs = 0;
+  renderer.onFrame((now, frameDt) => {
+    const dt = Math.min(MAX_PREVIEW_FRAME_SECONDS, Math.max(0, frameDt));
+    previewElapsedMs += dt * 1_000;
+    const input = options.scriptedInput?.(previewElapsedMs) ?? tracker.current();
     hero.step(
       {
         x: Number(input.right) - Number(input.left),
@@ -288,6 +298,7 @@ export async function startMapPreview(
       },
       context,
     );
+    options.onHeroState?.(state);
   });
 
   let stopped = false;

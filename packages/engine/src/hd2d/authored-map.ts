@@ -206,6 +206,7 @@ function buildingRoofCollider(
   if (volume.roofShape === "gable") {
     return {
       ...collider,
+      support: "center",
       // `top` remains the maximum for old readers; current movement samples `surface` locally.
       top: peak,
       surface: {
@@ -219,6 +220,7 @@ function buildingRoofCollider(
   if (volume.roofShape === "cone") {
     return {
       ...collider,
+      support: "center",
       top: peak,
       footprint: "ellipse",
       surface: { shape: "cone", eave, peak },
@@ -226,6 +228,7 @@ function buildingRoofCollider(
   }
   return {
     ...collider,
+    support: "center",
     // CircleGeometry is placed directly on the tower wall; fortress decks are 0.12 high and
     // centred 0.03 above it, hence their visible walking face is wallHeight + 0.09.
     top: eave + (archetype === "tower" ? 0.02 : 0.09),

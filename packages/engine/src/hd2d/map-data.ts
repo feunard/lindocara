@@ -155,6 +155,7 @@ function toCollider(value: unknown): ColliderRect | null {
     return null;
   if (value.top !== undefined && !isFiniteNumber(value.top)) return null;
   if (value.footprint !== undefined && value.footprint !== "ellipse") return null;
+  if (value.support !== undefined && value.support !== "center") return null;
   const surface = value.surface === undefined ? undefined : toColliderSurface(value.surface);
   if (surface === null) return null;
   return {
@@ -164,6 +165,7 @@ function toCollider(value: unknown): ColliderRect | null {
     h: value.h,
     ...(value.top === undefined ? {} : { top: value.top }),
     ...(value.footprint === undefined ? {} : { footprint: value.footprint }),
+    ...(value.support === undefined ? {} : { support: value.support }),
     ...(surface === undefined ? {} : { surface }),
   };
 }

@@ -39,6 +39,7 @@ import {
   canStand,
   clampToGrid,
   groundUnder,
+  HERO_FOOTPRINT_OFFSET,
   MAX_STEP,
   nearestStandableCell,
   type ZoneTerrain,
@@ -59,7 +60,7 @@ import {
  */
 export const HERO_PHYSICS: Omit<HeroSettings, "speed"> = {
   radius: BODY_RADIUS,
-  offset: 0.15,
+  offset: HERO_FOOTPRINT_OFFSET,
   friction: { herbe: 80, neige: 130, glace: 0.35 },
   vitesseSol: { herbe: 1, neige: 0.55, glace: 1 },
   jump: { speed: 9, gravity: 30, coyote: 0.12 },

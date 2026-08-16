@@ -15,6 +15,7 @@
  */
 
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { BODY_RADIUS, HERO_FOOTPRINT_OFFSET } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { Billboard, Facing } from "@lindocara/hd2d/billboard.js";
 import { billboardHeight, makeBillboard } from "@lindocara/hd2d/billboard.js";
@@ -33,10 +34,9 @@ export interface ActorView {
   /** GROUND axis, in tile units with the grid centre as origin — the snapshot's own coordinate,
    *  with no conversion left between the wire and the scene. */
   x: number;
-  /** ELEVATION, as the actor's own authority reported it. Read only when one of the three flags
-   *  below says the actor is off the ground; a walking actor is placed on the TERRAIN under it
-   *  (`heightAt`) instead, because a grounded elevation one snapshot stale would jitter the sprite
-   *  through the floor it is standing on. */
+  /** ELEVATION, as the actor's own authority reported it. Airborne actors use it directly;
+   * grounded players use it to select a finite platform (roof, bridge or prop top) before the
+   * terrain fallback. */
   y: number;
   /** The other GROUND axis. */
   z: number;
@@ -188,14 +188,40 @@ function sheetOf(texture: THREE.Texture): { cols: number; framePx: number } {
  * - **Airborne or gliding: the reported elevation**, which is the whole point of relaying it. The
  *   two are checked independently even though the rule clears the canopy on landing: they are three
  *   separate booleans on the wire, and a glider drawn on the grass is never the right reading.
- * - **Otherwise the TERRAIN under the actor** — the scene's own query, so an actor and the ground it
- *   stands on can never disagree, and a monster or guard (no flags, ever) is unaffected. The
- *   `waterLevel` fallback is for a point with no ground at all: off the map, or over open water.
+ * - **Otherwise the supporting surface under the actor.** A grounded player may stand on a finite
+ *   collider top, which `heightAt` deliberately excludes. Its reported elevation selects that top
+ *   only when the scene agrees; normal terrain remains the fallback and the only path used by
+ *   monsters and guards. `waterLevel` remains the off-map fallback.
  */
 function elevationOf(actor: ActorView, scene: BillboardScene): number {
   if (actor.swimming) return scene.waterLevel;
   if (actor.airborne || actor.gliding) return actor.y;
-  return scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
+  const terrain = scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
+  if (actor.kind !== "player") return terrain;
+
+  const footprintZ = actor.z - HERO_FOOTPRINT_OFFSET;
+  const ceiling = actor.y + 0.08;
+  const platform = scene.query.platformSurfaceAround?.(actor.x, footprintZ, BODY_RADIUS, ceiling);
+  if (platform !== null && platform !== undefined && Math.abs(platform - actor.y) <= 0.1) {
+    return platform;
+  }
+  const centreSurface = scene.query.surfaceAt?.(actor.x, footprintZ, ceiling);
+  return centreSurface !== null &&
+    centreSurface !== undefined &&
+    centreSurface > terrain + 0.01 &&
+    Math.abs(centreSurface - actor.y) <= 0.1
+    ? centreSurface
+    : terrain;
+}
+
+function standsOnFinitePlatform(
+  actor: ActorView,
+  scene: BillboardScene,
+  elevation: number,
+): boolean {
+  if (actor.kind !== "player" || actor.airborne || actor.gliding || actor.swimming) return false;
+  const terrain = scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
+  return elevation > terrain + 0.01;
 }
 
 interface Entry {
@@ -289,7 +315,9 @@ function healthBarElevation(
     stretch: ctx.config.spriteStretch,
   });
   const foot = actor.foot ?? ACTOR_FOOT[actor.kind];
-  return elevationOf(actor, scene) + drawnHeight * (1 - foot) + ENEMY_HEALTH_BAR_GAP;
+  const elevation = elevationOf(actor, scene);
+  const platformLift = standsOnFinitePlatform(actor, scene, elevation) ? drawnHeight * foot : 0;
+  return elevation + platformLift + drawnHeight * (1 - foot) + ENEMY_HEALTH_BAR_GAP;
 }
 
 /**
@@ -406,13 +434,21 @@ export function createBillboardRegistry(
         const material = entry.billboard.mesh.material;
         const materials = Array.isArray(material) ? material : [material];
         const opacity = actor.opacity ?? (actor.pose === "ghost" ? 0.48 : 1);
+        const elevation = elevationOf(actor, scene);
+        const elevatedPlatform = standsOnFinitePlatform(actor, scene, elevation);
+        // Native roofs are opaque volumes in front of a camera-facing hero plane. On their top,
+        // ordinary depth clipping can swallow the entire actor and the frame's below-foot padding
+        // makes a foreground composite look embedded. Start the plane at the platform and draw it
+        // after the volume; terrain actors keep the ordinary foot pivot and depth test.
         for (const current of materials) {
           if (current instanceof THREE.MeshLambertMaterial) {
             current.color.setHex(actor.tint ?? 0xffffff);
           }
           current.transparent = opacity < 1;
           current.opacity = opacity;
+          current.depthTest = !elevatedPlatform;
         }
+        entry.billboard.mesh.renderOrder = elevatedPlatform ? 6 : 0;
         if (actor.healthBar && !entry.healthBar) {
           entry.healthBar = makeHealthBar();
           scene.root.add(entry.healthBar.group);
@@ -435,7 +471,9 @@ export function createBillboardRegistry(
         }
         entry.billboard.placeAt(
           actor.x,
-          elevationOf(actor, scene) - (actor.swimming ? (actor.waterDepth ?? SWIM_DEPTH) : 0),
+          elevation +
+            (elevatedPlatform ? entry.billboard.footOffset : 0) -
+            (actor.swimming ? (actor.waterDepth ?? SWIM_DEPTH) : 0),
           actor.z,
         );
         entry.billboard.setFacing(actor.facing);

@@ -184,6 +184,7 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       let surface: number | null = null;
       for (const platform of platforms) {
         if (!colliderOverlapsDisc(platform, wx, wz, radius)) continue;
+        if (platform.support === "center" && !colliderContainsPoint(platform, wx, wz)) continue;
         const height = colliderSurfaceHeightNear(platform, wx, wz);
         if (height === null || height > ceilingY + 1e-3) continue;
         surface = surface === null ? height : Math.max(surface, height);
