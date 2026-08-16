@@ -187,14 +187,14 @@ function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[
       }
       return height;
     },
-    platformHeightAlong(fromX, fromZ, toX, toZ, radius, groundY) {
-      const base = query.platformHeightAlong?.(fromX, fromZ, toX, toZ, radius, groundY);
+    platformHeightAlong(fromX, fromZ, toX, toZ, _radius, groundY) {
+      const base = query.platformHeightAlong?.(fromX, fromZ, toX, toZ, _radius, groundY);
       if (base !== undefined && base !== null) return base;
       let destination: number | null = null;
       for (const platform of platforms) {
         if (
-          !colliderContainsPoint(platform, fromX, fromZ, radius) ||
-          !colliderContainsPoint(platform, toX, toZ, radius)
+          !colliderContainsPoint(platform, fromX, fromZ) ||
+          !colliderContainsPoint(platform, toX, toZ)
         ) {
           continue;
         }

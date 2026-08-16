@@ -248,14 +248,16 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       }
       return false;
     },
-    platformHeightAlong(fromX, fromZ, toX, toZ, radius, groundY) {
+    platformHeightAlong(fromX, fromZ, toX, toZ, _radius, groundY) {
       let destination: number | null = null;
       for (const platform of platforms) {
-        // Both complete body footprints must remain on one roof. This is deliberately stricter
-        // than collision overlap: merely leaning against an eave never grants wall climbing.
+        // The footprint centre must remain on one roof. Requiring the complete body disc to fit
+        // made the last quarter-tile of every eave unusable and froze the hero after a legitimate
+        // edge landing. Merely leaning against a wall still grants nothing: the source centre is
+        // outside, or its local roof height does not match `groundY`.
         if (
-          !colliderContainsPoint(platform, fromX, fromZ, radius) ||
-          !colliderContainsPoint(platform, toX, toZ, radius)
+          !colliderContainsPoint(platform, fromX, fromZ) ||
+          !colliderContainsPoint(platform, toX, toZ)
         ) {
           continue;
         }

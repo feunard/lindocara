@@ -237,6 +237,45 @@ describe("live authored-event collision", () => {
     expect(hero.state.y).toBeGreaterThan(1.5);
   });
 
+  it.each([
+    ["gable", { shape: "gable", eave: 1, peak: 2, axis: "x" } as const, -0.82, 0],
+    ["cone", { shape: "cone", eave: 1, peak: 2 } as const, -0.88, 0],
+  ])("lands on and follows the edge of a %s roof", (_name, surface, x, z) => {
+    const map: MapData = {
+      version: 1,
+      size: SIZE,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels: new Array(SIZE * SIZE).fill(0),
+      materials: new Array(SIZE * SIZE).fill("herbe"),
+      colliders: [{ x: -1, z: -1, w: 2, h: 2, top: 2, surface }],
+      spawns: [{ name: "roof", x, z: z + 0.15 }],
+      elements: [],
+      events: [],
+    };
+    const hero = createHeroController({
+      terrain: zoneTerrainFromHeightfield(map),
+      spawn: { x, y: 2.8, z: z + 0.15 },
+      speed: 4,
+    });
+    hero.step({ x: 0, z: 0, jump: true }, FRAME);
+    expect(hero.state.airborne).toBe(true);
+
+    for (let frame = 0; frame < 90; frame += 1) {
+      hero.step({ x: 0, z: 0, jump: false }, FRAME);
+    }
+    const landedY = hero.state.y;
+    const landedX = hero.state.x;
+    for (let frame = 0; frame < 8; frame += 1) {
+      hero.step({ x: 1, z: 0, jump: false }, FRAME);
+    }
+
+    expect(landedY).toBeGreaterThan(1);
+    expect(hero.state.airborne, JSON.stringify(hero.state)).toBe(false);
+    expect(hero.state.y).toBeGreaterThan(1);
+    expect(hero.state.x).toBeGreaterThan(landedX + 0.1);
+  });
+
   it("keeps a hero walking on the finite top surface", () => {
     const terrain = withWorldEventColliders(flatTerrain(), [
       {
